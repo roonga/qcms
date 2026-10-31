@@ -9,6 +9,7 @@ import type { Deps } from "../../deps.js";
 import { errorResponses, jsonBody, withScopes } from "../../openapi.js";
 import {
   makeAddHolderHandler,
+  makeAgentAuditHandler,
   makeAuditHandler,
   makeCreateAccessGroupHandler,
   makeDeleteAccessGroupHandler,
@@ -26,6 +27,8 @@ import {
   AccessGroupParams,
   AccessGroupResponse,
   AddHolderBody,
+  AgentAuditListResponse,
+  AgentAuditQuery,
   AuditListResponse,
   AuditQuery,
   CreateAccessGroupBody,
@@ -274,6 +277,29 @@ export const auditRoute = createRoute({
   ...withScopes("forms:read"),
 });
 
+export const agentAuditRoute = createRoute({
+  method: "get",
+  path: "/workspaces/{id}/agent-actions",
+  summary: "The agent audit for this workspace (admin)",
+  description:
+    "Every step an assistant proposed and a human confirmed, newest first: who confirmed " +
+    "it, on which screen, in which environment, which step of which proposal, and one " +
+    "non-content detail. Readable by the same people who read the access audit, the " +
+    "workspace's owners and the installation administrator, because the two answer the " +
+    "same question about the same workspace. It carries no answer value, no secret and no " +
+    "authored text.",
+  tags,
+  request: { params: WorkspaceIdParam, query: AgentAuditQuery },
+  responses: {
+    200: {
+      description: "The agent audit rows",
+      content: { "application/json": { schema: AgentAuditListResponse } },
+    },
+    ...errorResponses(400, 401, 403, 404),
+  },
+  ...withScopes("forms:read"),
+});
+
 export const registerMembership: SliceRegistrar = (group, deps: Deps): void => {
   group.openapi(myAccessRoute, makeMyAccessHandler(deps));
   group.openapi(listMembersRoute, makeListMembersHandler(deps));
@@ -286,4 +312,5 @@ export const registerMembership: SliceRegistrar = (group, deps: Deps): void => {
   group.openapi(removeHolderRoute, makeRemoveHolderHandler(deps));
   group.openapi(workspaceSettingsRoute, makeWorkspaceSettingsHandler(deps));
   group.openapi(auditRoute, makeAuditHandler(deps));
+  group.openapi(agentAuditRoute, makeAgentAuditHandler(deps));
 };

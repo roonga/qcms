@@ -3,6 +3,8 @@ import { cache } from "react";
 import type {
   AccessGroup,
   AccessGroupList,
+  AgentAuditPage,
+  AgentAuditRow,
   AuditPage,
   AuditRow,
   MyAccess,
@@ -315,6 +317,51 @@ export async function readAudit(
     formId: strOrNull(row["formId"]),
     kind: str(row["kind"]),
     occurredAt: str(row["occurredAt"]),
+    detail: strOrNull(row["detail"]),
+  }));
+  return {
+    ok: true,
+    data: {
+      workspaceId,
+      rows: parsed,
+      page: num(result.data.page),
+      pageSize: num(result.data.pageSize),
+      total: num(result.data.total),
+    },
+  };
+}
+
+/** `GET /admin/workspaces/{id}/agent-actions` - the SEC-17 rows, newest first. */
+export async function readAgentAudit(
+  session: AdminSession,
+  workspaceId: string,
+  options: { readonly kind?: string; readonly page?: number } = {},
+): Promise<ApiResult<AgentAuditPage>> {
+  const query = new URLSearchParams();
+  if (options.kind !== undefined) query.set("kind", options.kind);
+  if (options.page !== undefined) query.set("page", String(options.page));
+  const suffix = query.size === 0 ? "" : `?${query.toString()}`;
+  const path: `/${string}` = `/workspaces/${encodeURIComponent(workspaceId)}/agent-actions${suffix}`;
+  const result = await readResult<{
+    rows?: unknown;
+    page?: unknown;
+    pageSize?: unknown;
+    total?: unknown;
+  }>(await adminApiFetch(session, path));
+  if (!result.ok) return result;
+  const parsed: readonly AgentAuditRow[] = rows(result.data.rows).map((row) => ({
+    id: str(row["id"]),
+    proposalId: str(row["proposalId"]),
+    stepIndex: num(row["stepIndex"]),
+    stepCount: num(row["stepCount"]),
+    actor: str(row["actor"]),
+    actorEmail: strOrNull(row["actorEmail"]),
+    environment: strOrNull(row["environment"]),
+    formId: strOrNull(row["formId"]),
+    kind: str(row["kind"]),
+    screen: str(row["screen"]),
+    proposedAt: str(row["proposedAt"]),
+    confirmedAt: str(row["confirmedAt"]),
     detail: strOrNull(row["detail"]),
   }));
   return {

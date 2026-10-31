@@ -3091,6 +3091,26 @@ export const messages = {
   // whose account has since been removed shows the id.
   "membership.audit.unknownActor": "{actor} (account removed)",
 
+  "membership.agentAudit.heading": "Assistant actions",
+  "membership.agentAudit.intro":
+    "Every step the assistant proposed and a person confirmed, newest first. Each step ran as the person who confirmed it, through the screen's own control, and each row records the act and not its subject matter.",
+  "membership.agentAudit.loadFailed": "The assistant actions could not be read: {message}",
+  "membership.agentAudit.none": "The assistant has confirmed nothing in this workspace yet.",
+  "membership.agentAudit.table":
+    "The steps the assistant proposed and a person confirmed in this workspace, newest first",
+  "membership.agentAudit.columnWhen": "Confirmed",
+  "membership.agentAudit.columnActor": "Account",
+  "membership.agentAudit.columnKind": "Action",
+  "membership.agentAudit.columnStep": "Step",
+  "membership.agentAudit.columnScreen": "Screen",
+  "membership.agentAudit.columnEnvironment": "Environment",
+  "membership.agentAudit.columnForm": "Form",
+  "membership.agentAudit.columnDetail": "Detail",
+  "membership.agentAudit.empty": "-",
+  "membership.agentAudit.total": "{total} step(s)",
+  "membership.agentAudit.step": "{index} of {count}",
+  "membership.agentAudit.unknownActor": "{actor} (account removed)",
+
   "membership.mine.heading": "Your own access",
   "membership.mine.intro":
     "Which workspaces, roles, environments and forms you hold. Everybody can read their own grants; the membership list of a workspace is its owners' to see.",

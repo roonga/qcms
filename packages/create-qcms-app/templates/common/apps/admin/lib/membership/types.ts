@@ -103,6 +103,32 @@ export interface AuditPage {
   readonly total: number;
 }
 
+/** One confirmed agent step, as the agent audit serves it. */
+export interface AgentAuditRow {
+  readonly id: string;
+  readonly proposalId: string;
+  readonly stepIndex: number;
+  readonly stepCount: number;
+  readonly actor: string;
+  /** Resolved for display; the row carries no key to the account, by design. */
+  readonly actorEmail: string | null;
+  readonly environment: string | null;
+  readonly formId: string | null;
+  readonly kind: string;
+  readonly screen: string;
+  readonly proposedAt: string;
+  readonly confirmedAt: string;
+  readonly detail: string | null;
+}
+
+export interface AgentAuditPage {
+  readonly workspaceId: string;
+  readonly rows: readonly AgentAuditRow[];
+  readonly page: number;
+  readonly pageSize: number;
+  readonly total: number;
+}
+
 /** One grant the signed-in administrator holds, from the capability endpoint. */
 export interface HeldGrant {
   readonly name: string;

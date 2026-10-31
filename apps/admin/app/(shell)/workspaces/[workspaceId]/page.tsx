@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 
 import { Alert } from "@/components/kit";
 import { AccessGroupsPanel } from "@/components/membership/access-groups-panel";
+import { AgentAuditPanel } from "@/components/membership/agent-audit-panel";
 import { AuditPanel } from "@/components/membership/audit-panel";
 import { MembersPanel } from "@/components/membership/members-panel";
 import { WorkspaceSettingsPanel } from "@/components/membership/workspace-settings-panel";
@@ -11,7 +12,13 @@ import { RememberWorkspace } from "@/components/shell/shell-chrome";
 import { t } from "@/lib/i18n/en";
 import { pageMetadata } from "@/lib/page-title";
 import { listEnvironments } from "@/lib/server/environments";
-import { listAccessGroups, listMembers, listWorkspaces, readAudit } from "@/lib/server/membership";
+import {
+  listAccessGroups,
+  listMembers,
+  listWorkspaces,
+  readAgentAudit,
+  readAudit,
+} from "@/lib/server/membership";
 import { secureCookies } from "@/lib/server/config";
 import { navigableCapabilities, shellAccess } from "@/lib/server/shell";
 import { requireAdminSession } from "@/lib/server/session";
@@ -96,11 +103,12 @@ export default async function WorkspacePage({
   if (!permitsPath(capabilities, WORKSPACES_PATH)) {
     return <DeniedRecovery capabilities={capabilities} />;
   }
-  const [workspaces, members, groups, audit, environments] = await Promise.all([
+  const [workspaces, members, groups, audit, agentAudit, environments] = await Promise.all([
     listWorkspaces(session),
     listMembers(session, workspaceId),
     listAccessGroups(session, workspaceId),
     readAudit(session, workspaceId),
+    readAgentAudit(session, workspaceId),
     listEnvironments(session),
   ]);
 
@@ -163,6 +171,11 @@ export default async function WorkspacePage({
       <AuditPanel
         audit={audit.ok ? audit.data : undefined}
         message={audit.ok ? undefined : audit.message}
+      />
+
+      <AgentAuditPanel
+        audit={agentAudit.ok ? agentAudit.data : undefined}
+        message={agentAudit.ok ? undefined : agentAudit.message}
       />
     </div>
   );

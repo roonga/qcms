@@ -19,6 +19,7 @@ import {
   listAccessAudit,
   listAccessGroupHolders,
   listAccessGroups,
+  listAgentActions,
   listEnvironmentNames,
   listGrantsForUser,
   listMemberWorkspacesForUser,
@@ -47,6 +48,7 @@ import { holdsInstallationClaim, resolveCallerWorkspaces } from "./resolver.js";
 import { OPERATIONAL_CELLS } from "./route-policy.js";
 import type {
   addHolderRoute,
+  agentAuditRoute,
   auditRoute,
   createAccessGroupRoute,
   deleteAccessGroupRoute,
@@ -758,6 +760,18 @@ export function makeWorkspaceSettingsHandler(
   };
 }
 
+function auditWindow(query: {
+  readonly page?: string | undefined;
+  readonly pageSize?: string | undefined;
+}): { readonly page: number; readonly pageSize: number } {
+  const page = query.page === undefined ? 1 : Number(query.page);
+  const pageSize = query.pageSize === undefined ? 50 : Math.min(Number(query.pageSize), 200);
+  if (!Number.isInteger(page) || page < 1 || !Number.isInteger(pageSize) || pageSize < 1) {
+    throw new ApiError("INVALID_QUERY", 400, "page and pageSize must be positive integers");
+  }
+  return { page, pageSize };
+}
+
 // The actor id is deliberately not a foreign key, so a removed account shows as an id
 // with no address rather than making the audit row disappear.
 export function makeAuditHandler(deps: Deps): RouteHandler<typeof auditRoute, ApiEnv> {
@@ -766,11 +780,7 @@ export function makeAuditHandler(deps: Deps): RouteHandler<typeof auditRoute, Ap
     const query = c.req.valid("query");
     await workspaceOf(deps, workspaceId);
 
-    const page = query.page === undefined ? 1 : Number(query.page);
-    const pageSize = query.pageSize === undefined ? 50 : Math.min(Number(query.pageSize), 200);
-    if (!Number.isInteger(page) || page < 1 || !Number.isInteger(pageSize) || pageSize < 1) {
-      throw new ApiError("INVALID_QUERY", 400, "page and pageSize must be positive integers");
-    }
+    const { page, pageSize } = auditWindow(query);
 
     const exec = deps.databases.control;
     const { rows, total } = await listAccessAudit(exec, workspaceId, {
@@ -793,6 +803,56 @@ export function makeAuditHandler(deps: Deps): RouteHandler<typeof auditRoute, Ap
           formId: row.formId,
           kind: row.kind,
           occurredAt: row.occurredAt.toISOString(),
+          detail: row.detail,
+        })),
+        page,
+        pageSize,
+        total,
+      },
+      200,
+    );
+  };
+}
+
+/**
+ * The agent audit for one workspace, scoped and authorised exactly as the access audit
+ * above: the same `audit: read` cell, the same workspace from the path, the same actor
+ * resolution, and a `detail` that carries a non-content fact and nothing else (SEC-17).
+ */
+export function makeAgentAuditHandler(deps: Deps): RouteHandler<typeof agentAuditRoute, ApiEnv> {
+  return async (c) => {
+    const workspaceId = c.req.valid("param").id;
+    const query = c.req.valid("query");
+    await workspaceOf(deps, workspaceId);
+
+    const { page, pageSize } = auditWindow(query);
+
+    const exec = deps.databases.control;
+    const { rows, total } = await listAgentActions(exec, workspaceId, {
+      limit: pageSize,
+      offset: (page - 1) * pageSize,
+      ...(query.kind === undefined ? {} : { kind: query.kind }),
+    });
+
+    const actors = await findUsersByIds(exec, [...new Set(rows.map((row) => row.actor))]);
+    const addresses = new Map(actors.map((actor) => [actor.userId, actor.email]));
+
+    return c.json(
+      {
+        workspaceId,
+        rows: rows.map((row) => ({
+          id: row.id,
+          proposalId: row.proposalId,
+          stepIndex: row.stepIndex,
+          stepCount: row.stepCount,
+          actor: row.actor,
+          actorEmail: addresses.get(row.actor) ?? null,
+          environment: row.environment,
+          formId: row.formId,
+          kind: row.kind,
+          screen: row.screen,
+          proposedAt: row.proposedAt.toISOString(),
+          confirmedAt: row.confirmedAt.toISOString(),
           detail: row.detail,
         })),
         page,

@@ -9,6 +9,7 @@ import {
   listAccessGroups,
   listWorkspaceMembers,
   setRequireSecondApprover,
+  writeAgentActionRow,
 } from "@roonga/qcms-db";
 import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
 
@@ -962,5 +963,99 @@ describe("an admin route with no row in the matrix is refused at runtime", () =>
       headers: { "x-qcms-internal-token": internalToken, [ADMIN_SESSION_HEADER]: ownerToken },
     });
     expect(res.status).toBe(404);
+  });
+});
+
+interface AgentAuditBody {
+  rows: {
+    proposalId: string;
+    stepIndex: number;
+    stepCount: number;
+    actor: string;
+    actorEmail: string | null;
+    environment: string | null;
+    formId: string | null;
+    kind: string;
+    screen: string;
+    confirmedAt: string;
+    detail: string | null;
+  }[];
+  total: number;
+}
+
+describe("the agent audit is read exactly as the access audit is (SEC-17)", () => {
+  beforeAll(async () => {
+    const at = new Date("2026-07-20T00:00:00.000Z");
+    await writeAgentActionRow(testDb.db, {
+      proposalId: "prp_audit_one",
+      stepIndex: 0,
+      stepCount: 2,
+      actor: ownerId,
+      workspaceId: SEED_WORKSPACE_ID,
+      environment: "test",
+      kind: "form.publish",
+      screen: "/forms/[formId]",
+      proposedAt: at,
+      confirmedAt: at,
+      detail: "version=3",
+    });
+    await writeAgentActionRow(testDb.db, {
+      proposalId: "prp_audit_one",
+      stepIndex: 1,
+      stepCount: 2,
+      actor: ownerId,
+      workspaceId: SEED_WORKSPACE_ID,
+      environment: "test",
+      kind: "form.release",
+      screen: "/forms/[formId]/publish",
+      proposedAt: at,
+      confirmedAt: new Date(at.getTime() + 1_000),
+      detail: "environment=test",
+    });
+  });
+
+  it("serves the workspace's confirmed steps to an owner, newest first", async () => {
+    const res = await send("GET", `/workspaces/${SEED_WORKSPACE_ID}/agent-actions`);
+    expect(res.status, await res.clone().text()).toBe(200);
+    const body = (await res.json()) as AgentAuditBody;
+    const mine = body.rows.filter((row) => row.proposalId === "prp_audit_one");
+    expect(mine.map((row) => row.stepIndex)).toEqual([1, 0]);
+    expect(mine[0]).toMatchObject({
+      kind: "form.release",
+      screen: "/forms/[formId]/publish",
+      stepCount: 2,
+      environment: "test",
+      detail: "environment=test",
+    });
+    // Resolved for display from an actor id the row holds no key to.
+    expect(mine[0]?.actorEmail).not.toBeNull();
+  });
+
+  it("filters on the action kind, as the access audit filters on its own kind", async () => {
+    const res = await send(
+      "GET",
+      `/workspaces/${SEED_WORKSPACE_ID}/agent-actions?kind=form.release`,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as AgentAuditBody;
+    expect(body.rows.length).toBeGreaterThan(0);
+    expect(body.rows.every((row) => row.kind === "form.release")).toBe(true);
+  });
+
+  it("refuses a caller who may not read the access audit", async () => {
+    const res = await as(editorToken, "GET", `/workspaces/${SEED_WORKSPACE_ID}/agent-actions`);
+    expect(res.status).toBe(403);
+    expect((await res.json()) as ErrorBody).toMatchObject({ error: { code: "FORBIDDEN" } });
+  });
+
+  it("refuses a caller with no grant in the workspace at all", async () => {
+    const res = await as(nobodyToken, "GET", `/workspaces/${SEED_WORKSPACE_ID}/agent-actions`);
+    expect(res.status).toBe(403);
+  });
+
+  it("refuses a page that is not a positive integer", async () => {
+    const res = await send("GET", `/workspaces/${SEED_WORKSPACE_ID}/agent-actions?page=0`);
+    expect(res.status).toBe(400);
+    expect((await res.json()) as ErrorBody).toMatchObject({ error: { code: "INVALID_QUERY" } });
   });
 });

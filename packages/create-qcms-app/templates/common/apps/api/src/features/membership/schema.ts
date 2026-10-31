@@ -242,3 +242,47 @@ export const AuditListResponse = z
     total: z.number().int(),
   })
   .openapi("AuditListResponse");
+
+export const AgentAuditQuery = z.object({
+  kind: z
+    .string()
+    .max(100)
+    .optional()
+    .openapi({ param: { name: "kind", in: "query" } }),
+  page: z
+    .string()
+    .optional()
+    .openapi({ param: { name: "page", in: "query" } }),
+  pageSize: z
+    .string()
+    .optional()
+    .openapi({ param: { name: "pageSize", in: "query" } }),
+});
+
+export const AgentAuditListResponse = z
+  .object({
+    workspaceId: z.string(),
+    rows: z.array(
+      z.object({
+        id: z.string(),
+        proposalId: z.string(),
+        stepIndex: z.number().int(),
+        stepCount: z.number().int(),
+        actor: z.string(),
+        // Null once the account is gone, as the access audit's is.
+        actorEmail: z.string().nullable(),
+        environment: z.string().nullable(),
+        formId: z.string().nullable(),
+        kind: z.string(),
+        screen: z.string(),
+        proposedAt: z.string(),
+        confirmedAt: z.string(),
+        // A version, an environment name, a count or a role name; never content.
+        detail: z.string().nullable(),
+      }),
+    ),
+    page: z.number().int(),
+    pageSize: z.number().int(),
+    total: z.number().int(),
+  })
+  .openapi("AgentAuditListResponse");
