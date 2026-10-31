@@ -50,6 +50,13 @@
       "when": 1793270922411,
       "tag": "0006_release_workflow",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793410989439,
+      "tag": "0007_agent_actions",
+      "breakpoints": true
     }
   ]
 }

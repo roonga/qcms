@@ -4,6 +4,10 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { ACCESS_AUDIT_TABLE } from "../schema/control/access-audit.js";
+import {
+  AGENT_ACTIONS_STEP_UNIQUE,
+  AGENT_ACTIONS_TABLE,
+} from "../schema/control/agent-actions.js";
 import { ENDPOINT_PROPOSALS_TABLE } from "../schema/control/endpoint-proposals.js";
 import { RELEASE_BATCHES_TABLE } from "../schema/control/release-batches.js";
 import {
@@ -13,6 +17,7 @@ import {
 import {
   CONTROL_READ_TABLES,
   grantAccessAuditStatements,
+  grantAgentActionsStatements,
   grantControlTableStatements,
   grantEnvironmentStatements,
 } from "./sql.js";
@@ -35,6 +40,10 @@ const PROPOSALS_MIGRATION = fileURLToPath(
 
 const WORKFLOW_MIGRATION = fileURLToPath(
   new URL("../../migrations/0006_release_workflow.sql", import.meta.url),
+);
+
+const AGENT_MIGRATION = fileURLToPath(
+  new URL("../../migrations/0007_agent_actions.sql", import.meta.url),
 );
 
 describe("the `form_releases` grants", () => {
@@ -184,5 +193,37 @@ describe("the release-workflow and confirmation tables' grants (Q85, Q89)", () =
     expect(sql).toContain(
       'ALTER TABLE "control"."form_drafts" ADD COLUMN "revision" integer DEFAULT 1 NOT NULL',
     );
+  });
+});
+
+describe("the SEC-17 agent audit's grants (Q12)", () => {
+  const sql = readFileSync(AGENT_MIGRATION, "utf8");
+
+  it("are exactly the statements the generator emits, verbatim", () => {
+    const statements = grantAgentActionsStatements();
+    expect(statements).toHaveLength(3);
+    for (const statement of statements) expect(sql).toContain(statement);
+  });
+
+  it("is the access audit's grant set with one table name changed and nothing else", () => {
+    const mirrored = grantAccessAuditStatements().map((statement) =>
+      statement.replaceAll(ACCESS_AUDIT_TABLE, AGENT_ACTIONS_TABLE),
+    );
+    expect(grantAgentActionsStatements()).toEqual(mirrored);
+  });
+
+  it("carries the per-step single-use constraint and no foreign key", () => {
+    expect(sql).toContain(
+      `CONSTRAINT "${AGENT_ACTIONS_STEP_UNIQUE}" UNIQUE("proposal_id","step_index")`,
+    );
+    expect(sql).not.toContain("REFERENCES");
+  });
+
+  it("grants an environment created later the same INSERT and no SELECT", () => {
+    const later = grantEnvironmentStatements("staging").join("\n");
+    expect(later).toContain(
+      `GRANT INSERT ON "control"."${AGENT_ACTIONS_TABLE}" TO "qcms_app_staging"`,
+    );
+    expect(later).not.toContain(`GRANT SELECT ON "control"."${AGENT_ACTIONS_TABLE}"`);
   });
 });

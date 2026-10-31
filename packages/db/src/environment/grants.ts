@@ -5,6 +5,7 @@
 
 import type { Executor } from "../queries/executor.js";
 import { ACCESS_AUDIT_TABLE } from "../schema/control/access-audit.js";
+import { AGENT_ACTIONS_TABLE } from "../schema/control/agent-actions.js";
 import { ENDPOINT_PROPOSALS_TABLE } from "../schema/control/endpoint-proposals.js";
 import { RELEASE_BATCHES_TABLE } from "../schema/control/release-batches.js";
 import {
@@ -19,6 +20,7 @@ import {
 } from "./reporting.js";
 import {
   grantAccessAuditStatements,
+  grantAgentActionsStatements,
   grantControlTableStatements,
   grantEnvironmentStatements,
   revokeMigrateOnlyStatement,
@@ -173,6 +175,12 @@ export const GRANT_SOURCES: readonly GrantSource[] = [
     scope: "installation",
     inMigrationTree: true,
     statements: () => grantControlTableStatements(RELEASE_BATCHES_TABLE),
+  },
+  {
+    name: `${CONTROL_SCHEMA}.${AGENT_ACTIONS_TABLE} (migration 0007)`,
+    scope: "installation",
+    inMigrationTree: true,
+    statements: grantAgentActionsStatements,
   },
   {
     name: "control.two_factor_resets is migrate-only (baseline, last)",

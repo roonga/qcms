@@ -1,6 +1,7 @@
 import { applyMigrations, CONTAINER_BOOT_TIMEOUT_MS } from "@roonga/qcms-db/testing";
 import {
   ACCESS_AUDIT_TABLE,
+  AGENT_ACTIONS_TABLE,
   CONTROL_FORBIDDEN_TABLES,
   CONTROL_READ_TABLES,
   DATA_PLANE_ENUM_TYPES,
@@ -32,6 +33,9 @@ const VEHICLE_WORKSPACE = { id: "org_vehicle_lp", slug: "vehicle" } as const;
 const HOME_PROD_REPORTING_ROLE = workspaceReportingRoleName("prod", HOME_WORKSPACE.slug);
 
 const DML = ["SELECT", "INSERT", "UPDATE", "DELETE"] as const;
+
+/** SEC-15's audit and SEC-17's, which carry one grant set between them. */
+const AUDIT_TABLES: readonly string[] = [ACCESS_AUDIT_TABLE, AGENT_ACTIONS_TABLE];
 
 // Each planner probe needs a session of its own: `pg_temp` is per session, and a notice
 // listener on a shared client would collect another case's notices.
@@ -290,15 +294,17 @@ describe("the migration role is the only role that owns anything", () => {
 });
 
 describe("qcms_app_control: the control plane, and one grant in each data plane", () => {
-  it("holds DML on every control-plane table except the two audits", async () => {
+  it("holds DML on every control-plane table except the audits", async () => {
     const held = await tablePrivileges("control", CONTROL_ROLE);
     // Absent entirely rather than present with fewer privileges: the revoke takes all four.
     expect(held["two_factor_resets"]).toBeUndefined();
-    // No `UPDATE` and no `DELETE` on the audit, so this role can add a row and change none.
-    expect([...(held["access_audit"] ?? [])].sort()).toEqual(["INSERT", "SELECT"]);
+    // No `UPDATE` and no `DELETE` on either audit, so this role can add a row and change none.
+    for (const audit of AUDIT_TABLES) {
+      expect([...(held[audit] ?? [])].sort(), audit).toEqual(["INSERT", "SELECT"]);
+    }
     expect([...(held[ENDPOINT_PROPOSALS_TABLE] ?? [])].sort()).toEqual([...DML].sort());
     for (const [table, privileges] of Object.entries(held)) {
-      if (table === "access_audit") continue;
+      if (AUDIT_TABLES.includes(table)) continue;
       expect([...privileges].sort(), `control.${table}`).toEqual([...DML].sort());
     }
     expect(Object.keys(held).length).toBeGreaterThan(10);
@@ -780,6 +786,101 @@ describe("the SEC-15 access audit's grants and revokes (task 069, Q40 with Q56)"
     const keys = await owner.query<{ conname: string }>(
       `select conname from pg_constraint
         where conrelid = 'control.access_audit'::regclass and contype = 'f'`,
+    );
+    expect(keys.rows).toEqual([]);
+  });
+});
+
+describe("the SEC-17 agent audit's grants and revokes (task 083, Q12)", () => {
+  const table = `control.${AGENT_ACTIONS_TABLE}`;
+
+  function stepValues(proposalId: string, stepIndex: number, environment: string): string {
+    return `('${proposalId}', ${String(stepIndex)}, 2, 'usr_e2e', 'org_e2e', '${environment}',
+             'frm_e2e', 'form.publish', '/forms/[formId]', now())`;
+  }
+
+  const columns = `(proposal_id, step_index, step_count, actor, workspace_id, environment,
+                    form_id, kind, screen, proposed_at)`;
+
+  it("holds the same grant set as the access audit, for every role", async () => {
+    for (const role of [CONTROL_ROLE, ...Object.values(ENVIRONMENT_ROLES), UNSHIPPED_ROLE]) {
+      for (const privilege of DML) {
+        const res = await owner.query<{ audit: boolean; agent: boolean }>(
+          `select has_table_privilege($1, 'control.${ACCESS_AUDIT_TABLE}', $2) as audit,
+                  has_table_privilege($1, '${table}', $2) as agent`,
+          [role, privilege],
+        );
+        expect(res.rows[0]?.agent, `${role} ${privilege}`).toBe(res.rows[0]?.audit);
+      }
+    }
+  });
+
+  it.each([CONTROL_ROLE, ...Object.values(ENVIRONMENT_ROLES), UNSHIPPED_ROLE])(
+    "leaves %s no UPDATE and no DELETE on the agent audit",
+    async (role) => {
+      for (const privilege of ["UPDATE", "DELETE"]) {
+        const res = await owner.query<{ has: boolean }>(
+          `select has_table_privilege($1, '${table}', $2) as has`,
+          [role, privilege],
+        );
+        expect(res.rows[0]?.has, `${role} must not hold ${privilege}`).toBe(false);
+      }
+    },
+  );
+
+  it.each(ENVIRONMENTS)(
+    "lets qcms_app_%s write a step's row in the step's own transaction, with no RETURNING",
+    async (environment) => {
+      const client = clients.get(ENVIRONMENT_ROLES[environment]) as pg.Client;
+      await client.query("begin");
+      await client.query(
+        `insert into ${table} ${columns} values ${stepValues(`prp_${environment}`, 0, environment)}`,
+      );
+      await client.query("commit");
+
+      expect(
+        await refusalFor(
+          client,
+          `insert into ${table} ${columns}
+             values ${stepValues(`prp_returning_${environment}`, 0, environment)} returning id`,
+        ),
+      ).toMatch(/permission denied/i);
+    },
+  );
+
+  it("refuses a replayed step on the unique constraint, so the step rolls back", async () => {
+    const client = clients.get(CONTROL_ROLE) as pg.Client;
+    await client.query(`insert into ${table} ${columns} values ${stepValues("prp_replay", 0, "test")}`);
+    await expect(
+      client.query(`insert into ${table} ${columns} values ${stepValues("prp_replay", 0, "test")}`),
+    ).rejects.toMatchObject({ code: "23505" });
+    const counted = await owner.query<{ n: string }>(
+      `select count(*) as n from ${table} where proposal_id = 'prp_replay'`,
+    );
+    expect(Number(counted.rows[0]?.n)).toBe(1);
+  });
+
+  it.each(Object.values(ENVIRONMENT_ROLES))("refuses %s a read of an agent row", async (role) => {
+    expect(await refusalFor(clients.get(role)!, `select * from ${table} limit 1`)).toMatch(
+      /permission denied/i,
+    );
+  });
+
+  it("refuses every application role an UPDATE and a DELETE at the statement", async () => {
+    for (const role of [CONTROL_ROLE, ...Object.values(ENVIRONMENT_ROLES)]) {
+      expect(
+        await refusalFor(clients.get(role)!, `update ${table} set kind = 'form.publish'`),
+      ).toMatch(/permission denied/i);
+      expect(await refusalFor(clients.get(role)!, `delete from ${table}`)).toMatch(
+        /permission denied/i,
+      );
+    }
+  });
+
+  it("carries no foreign key, so no row cascades away with what it describes", async () => {
+    const keys = await owner.query<{ conname: string }>(
+      `select conname from pg_constraint
+        where conrelid = '${table}'::regclass and contype = 'f'`,
     );
     expect(keys.rows).toEqual([]);
   });
