@@ -60,6 +60,12 @@ export const FAKE_SCRIPTS = [
   "propose-webhook-reactivate",
   "propose-webhook-deactivate",
   "propose-webhook-redeliver",
+  "propose-access-group-create",
+  "propose-access-group-remove",
+  "propose-access-grant",
+  "propose-access-revoke",
+  "propose-member-role",
+  "propose-workspace-settings",
 ] as const;
 
 /** Asserted present under `summary` and absent everywhere under `off`. */
@@ -563,6 +569,26 @@ const FAKE_LINK_EXPIRY = "2026-12-31T23:59:59.000Z";
 
 const FAKE_ENDPOINT_URL = "https://hooks.example.test/qcms?channel=ops";
 
+const FAKE_GROUP_LABEL = "assistant";
+
+const FAKE_GROUP_NAME = `test.responses.viewer.${FAKE_GROUP_LABEL}`;
+
+const FAKE_GRANT_EMAIL = "second.approver@qcms.test";
+
+/** The workspace the administration screen is on, and its first group and member. */
+function factWorkspaceId(prompt: readonly PromptMessage[]): string {
+  const { workspaceId } = screenFacts(prompt);
+  return typeof workspaceId === "string" ? workspaceId : "wsp_absent";
+}
+
+function factGroupId(prompt: readonly PromptMessage[]): string {
+  return firstId(screenFacts(prompt)["accessGroups"], "groupId", "grp_absent");
+}
+
+function factMemberId(prompt: readonly PromptMessage[]): string {
+  return firstId(screenFacts(prompt)["members"], "userId", "usr_absent");
+}
+
 /** The first endpoint and the first delivery the webhooks screen listed. */
 function factWebhookId(prompt: readonly PromptMessage[]): string {
   return firstId(screenFacts(prompt)["webhooks"], "webhookId", "wh_absent");
@@ -713,6 +739,49 @@ const SINGLE_ACTIONS: Readonly<
   "propose-webhook-redeliver": (prompt) => ({
     kind: "webhook.redeliver",
     args: { formId: factFormId(prompt), deliveryId: factDeliveryId(prompt) },
+  }),
+  "propose-access-group-create": (prompt) => ({
+    kind: "access.groupCreate",
+    args: {
+      workspaceId: factWorkspaceId(prompt),
+      name: FAKE_GROUP_NAME,
+      role: "responses.viewer",
+      label: FAKE_GROUP_LABEL,
+      environments: ["test"],
+      forms: ["all"],
+    },
+  }),
+  "propose-access-group-remove": (prompt) => ({
+    kind: "access.groupRemove",
+    args: { workspaceId: factWorkspaceId(prompt), teamId: factGroupId(prompt) },
+  }),
+  "propose-access-grant": (prompt) => ({
+    kind: "access.grant",
+    args: {
+      workspaceId: factWorkspaceId(prompt),
+      teamId: factGroupId(prompt),
+      email: FAKE_GRANT_EMAIL,
+    },
+  }),
+  "propose-access-revoke": (prompt) => ({
+    kind: "access.revoke",
+    args: {
+      workspaceId: factWorkspaceId(prompt),
+      teamId: factGroupId(prompt),
+      userId: factMemberId(prompt),
+    },
+  }),
+  "propose-member-role": (prompt) => ({
+    kind: "member.role",
+    args: {
+      workspaceId: factWorkspaceId(prompt),
+      userId: factMemberId(prompt),
+      role: "forms.owner",
+    },
+  }),
+  "propose-workspace-settings": (prompt) => ({
+    kind: "workspace.settings",
+    args: { workspaceId: factWorkspaceId(prompt), requireSecondApprover: true },
   }),
 };
 

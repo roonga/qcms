@@ -2201,6 +2201,24 @@ export const messages = {
   "agent.card.response.unflag.title": "Release the withheld submission for {sessionId}",
   "agent.card.response.unflag.consequence":
     "The withheld submission event is sent to this form's consumers. The response itself is unchanged.",
+  "agent.card.access.groupCreate.title": "Create the access group {name} with the role {role}",
+  "agent.card.access.groupCreate.consequence":
+    "The group exists but grants nobody anything yet. Holding the group is the grant, so nobody's access changes until somebody is added to it.",
+  "agent.card.access.groupRemove.title": "Remove the access group {teamId}",
+  "agent.card.access.groupRemove.consequence":
+    "Every holder loses the access this group carried, at once. One revoke row is written for each of them.",
+  "agent.card.access.grant.title": "Grant the access group {teamId} to {email}",
+  "agent.card.access.grant.consequence":
+    "That person gains everything the group's role, environments and forms allow, from now on.",
+  "agent.card.access.revoke.title": "Revoke {userId} from the access group {teamId}",
+  "agent.card.access.revoke.consequence":
+    "That person loses the access this group carried. Every other holder keeps theirs.",
+  "agent.card.member.role.title": "Set {userId} to {role} in this workspace",
+  "agent.card.member.role.consequence":
+    "An owner administers the workspace: its access groups, its members and its settings. Removing the last owner is refused.",
+  "agent.card.workspace.settings.title": "Change this workspace's settings",
+  "agent.card.workspace.settings.consequence":
+    "These two switches decide whether a production release and a responses self-grant need a second account, and whether a new editor is granted the dev and test response data.",
   "agent.card.link.revoke.title": "Revoke link {linkId}",
   "agent.card.link.revoke.consequence":
     "The link stops working from now on. A session already in progress is unaffected.",
@@ -2227,6 +2245,16 @@ export const messages = {
   "agent.card.arg.reason": "Reason",
   "agent.card.arg.challengeRequired": "Require a challenge before answering",
   "agent.card.arg.minSubmitMs": "Minimum time before a submit is accepted (milliseconds)",
+  "agent.card.arg.workspaceId": "Workspace",
+  "agent.card.arg.teamId": "Access group",
+  "agent.card.arg.userId": "Person",
+  "agent.card.arg.email": "Address",
+  "agent.card.arg.name": "Name",
+  "agent.card.arg.role": "Role",
+  "agent.card.arg.environments": "Environments",
+  "agent.card.arg.forms": "Forms",
+  "agent.card.arg.requireSecondApprover": "Require a second approver",
+  "agent.card.arg.seedNewEditorsWithTestData": "Seed a new editor with dev and test data",
   "agent.card.arg.unset": "The deployment's own setting",
   "agent.card.arg.yes": "Yes",
   "agent.card.arg.no": "No",
@@ -2282,6 +2310,7 @@ export const messages = {
   "agent.card.note.unreachable": "The request did not reach the server.",
   "agent.card.note.stale": "This proposal is more than ten minutes old.",
   "agent.card.note.notWired": "This screen's control is not wired to the assistant yet.",
+  "agent.card.note.unknownRole": "That is not a role this workspace's member rows can carry.",
   "agent.card.note.noDraftToPublish":
     "There is no draft to publish into that environment any more. Read the form again and ask for a fresh proposal.",
 

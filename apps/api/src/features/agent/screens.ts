@@ -129,7 +129,18 @@ export const SCREENS: Readonly<Record<ScreenId, ScreenDef>> = Object.freeze({
   "/settings": screen(administrationContexts.settings),
   "/webhooks": screen(operationsContexts.deadLetters),
   "/workspaces": screen(administrationContexts.workspaces),
-  "/workspaces/[workspaceId]": screen(administrationContexts.workspaceDetail),
+  "/workspaces/[workspaceId]": screen(
+    administrationContexts.workspaceDetail,
+    [],
+    [
+      "access.groupCreate",
+      "access.groupRemove",
+      "access.grant",
+      "access.revoke",
+      "member.role",
+      "workspace.settings",
+    ],
+  ),
 });
 
 /** The screens of one form's subtree, which is the span of one conversation. */

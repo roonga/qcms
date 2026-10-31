@@ -41,6 +41,7 @@ import {
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
+import { agentStepSite, writeAgentStep } from "../agent/audit.js";
 import { holdsStatement, type Resource } from "./policy.js";
 import { holdsInstallationClaim, resolveCallerWorkspaces } from "./resolver.js";
 import { OPERATIONAL_CELLS } from "./route-policy.js";
@@ -396,6 +397,7 @@ export function makeSetMemberRoleHandler(
     const workspace = await workspaceOf(deps, workspaceId);
     if (workspace.archivedAt !== null) throw fail.archived();
 
+    const site = agentStepSite(c);
     await deps.databases.control.transaction(async (tx) => {
       if (role === "member") {
         const owners = await countWorkspaceOwners(tx, workspaceId);
@@ -418,6 +420,7 @@ export function makeSetMemberRoleHandler(
         detail: `role=${role} subject=${userId} environments=all forms=all`,
         occurredAt: deps.clock.now(),
       });
+      await writeAgentStep(tx, site, userId, deps.clock.now());
     });
 
     return c.json({ userId, role }, 200);
@@ -458,12 +461,17 @@ export function makeCreateAccessGroupHandler(
       throw fail.nameTaken(body.name);
     }
 
-    const group = await createAccessGroup(exec, {
-      workspaceId,
-      name: body.name,
-      role: body.role,
-      environments: scope.environments,
-      forms: scope.forms,
+    const site = agentStepSite(c);
+    const group = await exec.transaction(async (tx) => {
+      const created = await createAccessGroup(tx, {
+        workspaceId,
+        name: body.name,
+        role: body.role,
+        environments: scope.environments,
+        forms: scope.forms,
+      });
+      await writeAgentStep(tx, site, created.teamId, deps.clock.now());
+      return created;
     });
     return c.json({ group: await groupView(exec, workspace, group) }, 201);
   };
@@ -527,6 +535,7 @@ export function makeDeleteAccessGroupHandler(
     const actor = principalOf(c);
     await workspaceOf(deps, workspaceId);
 
+    const site = agentStepSite(c);
     await deps.databases.control.transaction(async (tx) => {
       const group = await getAccessGroup(tx, teamId);
       if (group === undefined || group.workspaceId !== workspaceId) throw fail.groupNotFound();
@@ -543,6 +552,7 @@ export function makeDeleteAccessGroupHandler(
       }
       const removed = await deleteAccessGroup(tx, teamId);
       if (!removed) throw fail.groupNotFound();
+      await writeAgentStep(tx, site, teamId, deps.clock.now());
     });
 
     return c.body(null, 204);
@@ -580,6 +590,7 @@ export function makeAddHolderHandler(deps: Deps): RouteHandler<typeof addHolderR
       throw fail.selfGrant();
     }
 
+    const site = agentStepSite(c);
     await exec.transaction(async (tx) => {
       if (await holdsAccessGroup(tx, teamId, subject.userId)) throw fail.alreadyHolds();
       await ensureWorkspaceMember(tx, workspaceId, subject.userId);
@@ -599,6 +610,7 @@ export function makeAddHolderHandler(deps: Deps): RouteHandler<typeof addHolderR
         actorId: actor.userId,
         at: deps.clock.now(),
       });
+      await writeAgentStep(tx, site, teamId, deps.clock.now());
     });
 
     return c.json({ group: await groupView(exec, workspace, group) }, 201);
@@ -665,11 +677,13 @@ export function makeRemoveHolderHandler(
     const actor = principalOf(c);
     await workspaceOf(deps, workspaceId);
 
+    const site = agentStepSite(c);
     await deps.databases.control.transaction(async (tx) => {
       const group = await getAccessGroup(tx, teamId);
       if (group === undefined || group.workspaceId !== workspaceId) throw fail.groupNotFound();
       const removed = await removeAccessGroupHolder(tx, teamId, userId);
       if (!removed) throw fail.notAHolder();
+      await writeAgentStep(tx, site, userId, deps.clock.now());
       await writeAccessAuditRow(tx, {
         actor: actor.userId,
         workspaceId,
@@ -695,6 +709,7 @@ export function makeWorkspaceSettingsHandler(
     const actor = principalOf(c);
     const workspace = await workspaceOf(deps, workspaceId);
 
+    const site = agentStepSite(c);
     const result = await deps.databases.control.transaction(async (tx) => {
       let requireSecondApprover = workspace.requireSecondApprover;
       let seedNewEditors = (await readSeedNewEditorsWithTestData(tx, workspaceId)) ?? false;
@@ -735,6 +750,7 @@ export function makeWorkspaceSettingsHandler(
         });
       }
 
+      await writeAgentStep(tx, site, workspaceId, deps.clock.now());
       return { requireSecondApprover, seedNewEditorsWithTestData: seedNewEditors };
     });
 

@@ -161,8 +161,21 @@ export function holdsEraserGrantAnywhere(access: MyAccess): boolean {
   );
 }
 
-/** What a Server Action reports back to the component that called it. */
+/**
+ * What a Server Action reports back to the component that called it. The identifying
+ * fields on a `done` are what an action card's step reports to the next turn, filtered
+ * against that kind's own allowlist; the screens themselves read `message`.
+ */
 export type MembershipActionState =
   | { readonly status: "idle" }
-  | { readonly status: "done"; readonly message: string }
+  | {
+      readonly status: "done";
+      readonly message: string;
+      readonly teamId?: string;
+      readonly name?: string;
+      readonly role?: string;
+      readonly userId?: string;
+      readonly requireSecondApprover?: boolean;
+      readonly seedNewEditorsWithTestData?: boolean;
+    }
   | { readonly status: "error"; readonly message: string };

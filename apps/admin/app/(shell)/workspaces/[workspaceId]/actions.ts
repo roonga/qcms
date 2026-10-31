@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { t } from "@/lib/i18n/en";
+import type { AgentProposalRef } from "@/lib/server/agent-proposal";
 import type { MembershipActionState } from "@/lib/membership/types";
 import {
   addHolder,
@@ -47,9 +48,10 @@ export async function createAccessGroupAction(
     readonly forms: readonly string[];
     readonly label?: string;
   },
+  proposal?: AgentProposalRef,
 ): Promise<MembershipActionState> {
   const session = await requireAdminSession();
-  const result = await createAccessGroup(session, workspaceId, body);
+  const result = await createAccessGroup(session, workspaceId, body, proposal);
   if (!result.ok) {
     return {
       status: "error",
@@ -60,15 +62,22 @@ export async function createAccessGroupAction(
   // The confirmation says the group grants nobody anything yet, because team membership
   // is the grant: a reader who stopped here would otherwise believe they had granted
   // something.
-  return { status: "done", message: t("membership.groups.created", { name: result.data.name }) };
+  return {
+    status: "done",
+    message: t("membership.groups.created", { name: result.data.name }),
+    teamId: result.data.teamId,
+    name: result.data.name,
+    role: result.data.role,
+  };
 }
 
 export async function removeAccessGroupAction(
   workspaceId: string,
   teamId: string,
+  proposal?: AgentProposalRef,
 ): Promise<MembershipActionState> {
   const session = await requireAdminSession();
-  const result = await deleteAccessGroup(session, workspaceId, teamId);
+  const result = await deleteAccessGroup(session, workspaceId, teamId, proposal);
   if (!result.ok) {
     return {
       status: "error",
@@ -83,9 +92,10 @@ export async function grantAccessGroupAction(
   workspaceId: string,
   teamId: string,
   email: string,
+  proposal?: AgentProposalRef,
 ): Promise<MembershipActionState> {
   const session = await requireAdminSession();
-  const result = await addHolder(session, workspaceId, teamId, email);
+  const result = await addHolder(session, workspaceId, teamId, email, proposal);
   if (!result.ok) {
     return {
       status: "error",
@@ -96,6 +106,8 @@ export async function grantAccessGroupAction(
   return {
     status: "done",
     message: t("membership.groups.holderAdded", { email, name: result.data.name }),
+    teamId: result.data.teamId,
+    name: result.data.name,
   };
 }
 
@@ -103,9 +115,10 @@ export async function revokeAccessGroupAction(
   workspaceId: string,
   teamId: string,
   userId: string,
+  proposal?: AgentProposalRef,
 ): Promise<MembershipActionState> {
   const session = await requireAdminSession();
-  const result = await removeHolder(session, workspaceId, teamId, userId);
+  const result = await removeHolder(session, workspaceId, teamId, userId, proposal);
   if (!result.ok) {
     return {
       status: "error",
@@ -120,9 +133,10 @@ export async function setMemberRoleAction(
   workspaceId: string,
   userId: string,
   role: "forms.owner" | "member",
+  proposal?: AgentProposalRef,
 ): Promise<MembershipActionState> {
   const session = await requireAdminSession();
-  const result = await setMemberRole(session, workspaceId, userId, role);
+  const result = await setMemberRole(session, workspaceId, userId, role, proposal);
   if (!result.ok) {
     return {
       status: "error",
@@ -133,6 +147,8 @@ export async function setMemberRoleAction(
   return {
     status: "done",
     message: t("membership.members.roleChanged", { role: result.data.role }),
+    userId: result.data.userId,
+    role: result.data.role,
   };
 }
 
@@ -142,9 +158,10 @@ export async function saveWorkspaceSettingsAction(
     readonly requireSecondApprover: boolean;
     readonly seedNewEditorsWithTestData: boolean;
   },
+  proposal?: AgentProposalRef,
 ): Promise<MembershipActionState> {
   const session = await requireAdminSession();
-  const result = await setWorkspaceSettings(session, workspaceId, next);
+  const result = await setWorkspaceSettings(session, workspaceId, next, proposal);
   if (!result.ok) {
     return {
       status: "error",
@@ -152,5 +169,10 @@ export async function saveWorkspaceSettingsAction(
     };
   }
   refresh(workspaceId);
-  return { status: "done", message: t("membership.settings.saved") };
+  return {
+    status: "done",
+    message: t("membership.settings.saved"),
+    requireSecondApprover: result.data.requireSecondApprover,
+    seedNewEditorsWithTestData: result.data.seedNewEditorsWithTestData,
+  };
 }

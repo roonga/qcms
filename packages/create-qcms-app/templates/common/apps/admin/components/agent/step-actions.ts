@@ -11,6 +11,14 @@ import {
 } from "@/app/(shell)/forms/actions";
 import { eraseSessionAction, unflagResponseAction } from "@/app/(shell)/responses/actions";
 import {
+  createAccessGroupAction,
+  grantAccessGroupAction,
+  removeAccessGroupAction,
+  revokeAccessGroupAction,
+  saveWorkspaceSettingsAction,
+  setMemberRoleAction,
+} from "@/app/(shell)/workspaces/[workspaceId]/actions";
+import {
   createWebhookAction,
   deactivateWebhookAction,
   reactivateWebhookAction,
@@ -19,6 +27,7 @@ import {
   rotateSecretAction,
 } from "@/app/(shell)/webhooks/actions";
 import { isErasureReason } from "@/lib/ops/erasure";
+import type { MembershipActionState } from "@/lib/membership/types";
 import type { WebhookActionState } from "@/components/ops/webhook-config";
 import type { AgentStepResult } from "@/lib/agent/plan-state";
 import type { AgentPlanStep } from "@/lib/forms/assist-stream";
@@ -38,6 +47,12 @@ function text(value: unknown, fallback = ""): string {
 
 function count(value: unknown): number {
   return typeof value === "number" ? value : Number.parseInt(text(value, "1"), 10) || 1;
+}
+
+function strings(value: unknown): readonly string[] {
+  return Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === "string")
+    : [];
 }
 
 /** A whole number, or nothing: a resolved reference arrives as the value its step reported. */
@@ -134,6 +149,101 @@ const publishStep: StepRunner = async ({ step, index, args, agentProposal }) => 
     outcome: "done",
     result: { version: state.version, environment: step.environment },
   };
+};
+
+/**
+ * A membership act's answer. ADR-41's self-grant refusal and the last-owner refusal arrive
+ * as the screen's own `error` sentence, so a card reports exactly what a press reports.
+ */
+function membershipOutcome(
+  state: MembershipActionState,
+  result: Readonly<Record<string, unknown>>,
+): AgentStepResult {
+  if (state.status !== "done") {
+    return { outcome: "failed", message: state.status === "error" ? state.message : "" };
+  }
+  return { outcome: "done", result };
+}
+
+const MEMBERSHIP_RUNNERS: Readonly<Record<string, StepRunner>> = {
+  "access.groupCreate": async ({ index, args, agentProposal }) => {
+    const state = await createAccessGroupAction(
+      text(args["workspaceId"]),
+      {
+        name: text(args["name"]),
+        role: text(args["role"]),
+        ...(typeof args["label"] === "string" ? { label: args["label"] } : {}),
+        environments: strings(args["environments"]),
+        forms: strings(args["forms"]),
+      },
+      proposalRef(agentProposal, index),
+    );
+    return membershipOutcome(state, {
+      teamId: state.status === "done" ? text(state.teamId) : "",
+      name: text(args["name"]),
+      role: text(args["role"]),
+    });
+  },
+  "access.groupRemove": async ({ index, args, agentProposal }) => {
+    const state = await removeAccessGroupAction(
+      text(args["workspaceId"]),
+      text(args["teamId"]),
+      proposalRef(agentProposal, index),
+    );
+    return membershipOutcome(state, { teamId: text(args["teamId"]) });
+  },
+  "access.grant": async ({ index, args, agentProposal }) => {
+    const state = await grantAccessGroupAction(
+      text(args["workspaceId"]),
+      text(args["teamId"]),
+      text(args["email"]),
+      proposalRef(agentProposal, index),
+    );
+    return membershipOutcome(state, {
+      teamId: text(args["teamId"]),
+      name: state.status === "done" ? text(state.name) : "",
+    });
+  },
+  "access.revoke": async ({ index, args, agentProposal }) => {
+    const state = await revokeAccessGroupAction(
+      text(args["workspaceId"]),
+      text(args["teamId"]),
+      text(args["userId"]),
+      proposalRef(agentProposal, index),
+    );
+    return membershipOutcome(state, {
+      teamId: text(args["teamId"]),
+      userId: text(args["userId"]),
+    });
+  },
+  "member.role": async ({ index, args, agentProposal }) => {
+    const role = args["role"];
+    if (role !== "forms.owner" && role !== "member") {
+      return { outcome: "failed", message: t("agent.card.note.unknownRole") };
+    }
+    const state = await setMemberRoleAction(
+      text(args["workspaceId"]),
+      text(args["userId"]),
+      role,
+      proposalRef(agentProposal, index),
+    );
+    return membershipOutcome(state, { userId: text(args["userId"]), role });
+  },
+  "workspace.settings": async ({ index, args, agentProposal }) => {
+    const state = await saveWorkspaceSettingsAction(
+      text(args["workspaceId"]),
+      {
+        requireSecondApprover: args["requireSecondApprover"] === true,
+        seedNewEditorsWithTestData: args["seedNewEditorsWithTestData"] === true,
+      },
+      proposalRef(agentProposal, index),
+    );
+    return membershipOutcome(state, {
+      requireSecondApprover: state.status === "done" && state.requireSecondApprover === true,
+      seedNewEditorsWithTestData:
+        state.status === "done" && state.seedNewEditorsWithTestData === true,
+    });
+  },
 };
 
 const RUNNERS: Readonly<Record<string, StepRunner>> = {
@@ -329,6 +439,7 @@ const RUNNERS: Readonly<Record<string, StepRunner>> = {
       },
     };
   },
+  ...MEMBERSHIP_RUNNERS,
   "link.revoke": async ({ step, index, args, agentProposal }) => {
     const state = await revokeLinkAction(
       text(args["formId"]),

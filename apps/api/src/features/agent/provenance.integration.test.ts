@@ -21,6 +21,7 @@ import { internalTokenFor, makeDeps, seedAdminSession, validEnv } from "../../te
 import { registerForms } from "../forms/route.js";
 import { registerLinks } from "../links/route.js";
 import { registerGrantCheck } from "../membership/middleware.js";
+import { registerMembership } from "../membership/route.js";
 import { policyForRequest } from "../membership/route-policy.js";
 import { registerReleases } from "../releases/route.js";
 import { ACTION_KINDS } from "./actions/registry.js";
@@ -68,6 +69,7 @@ function buildApp(): { deps: Deps; app: ReturnType<typeof createApp> } {
           registerRequestEnvironment,
           registerGrantCheck,
           registerAgentProvenance,
+          registerMembership,
           registerForms,
           registerReleases,
           registerLinks,
@@ -1045,5 +1047,113 @@ describe("every D0 kind's route is the one its descriptor names", () => {
       expect(policy?.resource, def.kind).toBe(def.cell.resource);
       expect(policy?.action, def.kind).toBe(def.cell.action);
     }
+  });
+});
+
+/**
+ * D8's administration steps. They act on the control pool in no environment of their own,
+ * so a step binds the switcher's, and ADR-41's refusals stay the route's: the token adds
+ * provenance and nothing else (criteria 2 and 7).
+ */
+describe("a workspace administration step is audited and never widened", () => {
+  const GROUP_LABEL = "agentit";
+  const GROUP_NAME = `test.responses.viewer.${GROUP_LABEL}`;
+
+  async function groupToken(
+    environment: string,
+  ): Promise<{ readonly token: string; readonly proposalId: string }> {
+    return mintToken({
+      subject: owner.userId,
+      steps: [
+        await binding(
+          "access.groupCreate",
+          {
+            workspaceId: SEED_WORKSPACE_ID,
+            name: GROUP_NAME,
+            role: "responses.viewer",
+            label: GROUP_LABEL,
+            environments: ["test"],
+            forms: ["all"],
+          },
+          environment,
+        ),
+      ],
+    });
+  }
+
+  const createBody = {
+    name: GROUP_NAME,
+    role: "responses.viewer",
+    label: GROUP_LABEL,
+    environments: ["test"],
+    forms: ["all"],
+  } as const;
+
+  it("records one row for a confirmed group create, keyed to the switcher's environment", async () => {
+    const { token, proposalId } = await groupToken("test");
+    const res = await send({
+      caller: owner,
+      path: `/workspaces/${SEED_WORKSPACE_ID}/access-groups`,
+      environment: "test",
+      body: createBody,
+      proposal: { token, step: 0 },
+    });
+    expect(res.status).toBe(201);
+    const rows = await rowsFor(proposalId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.kind).toBe("access.groupCreate");
+    expect(rows[0]?.environment).toBe("test");
+    expect(rows[0]?.detail).not.toBe(null);
+  });
+
+  it("refuses the same step performed in another environment, and writes nothing", async () => {
+    const { token, proposalId } = await groupToken("test");
+    const res = await send({
+      caller: owner,
+      path: `/workspaces/${SEED_WORKSPACE_ID}/access-groups`,
+      environment: "prod",
+      body: { ...createBody, name: `${GROUP_NAME}2`, label: `${GROUP_LABEL}2` },
+      proposal: { token, step: 0 },
+    });
+    expect(res.status).toBe(403);
+    expect(await errorCode(res)).toBe("AGENT_PROPOSAL_ENVIRONMENT");
+    expect(await countRows(proposalId)).toBe(0);
+  });
+
+  it("refuses a viewer with the route's own code, token or no token", async () => {
+    const { token, proposalId } = await mintToken({
+      subject: viewer.userId,
+      steps: [
+        await binding(
+          "access.groupCreate",
+          {
+            workspaceId: SEED_WORKSPACE_ID,
+            name: `${GROUP_NAME}3`,
+            role: "responses.viewer",
+            label: `${GROUP_LABEL}3`,
+            environments: ["test"],
+            forms: ["all"],
+          },
+          "test",
+        ),
+      ],
+    });
+    const body = { ...createBody, name: `${GROUP_NAME}3`, label: `${GROUP_LABEL}3` };
+    const withToken = await send({
+      caller: viewer,
+      path: `/workspaces/${SEED_WORKSPACE_ID}/access-groups`,
+      environment: "test",
+      body,
+      proposal: { token, step: 0 },
+    });
+    const without = await send({
+      caller: viewer,
+      path: `/workspaces/${SEED_WORKSPACE_ID}/access-groups`,
+      environment: "test",
+      body,
+    });
+    expect(withToken.status).toBe(without.status);
+    expect(await errorCode(withToken)).toBe(await errorCode(without));
+    expect(await countRows(proposalId)).toBe(0);
   });
 });
