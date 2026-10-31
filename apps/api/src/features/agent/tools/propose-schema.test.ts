@@ -69,7 +69,7 @@ describe("the propose tools' advertised schemas", () => {
     }));
     const parsed = proposePlanSchema(offered).safeParse({
       steps: [
-        { kind: "form.publish", args: { formId: "frm_a" } },
+        { kind: "form.publish", args: { formId: "frm_a", environment: "test" } },
         {
           kind: "form.release",
           args: {

@@ -47,6 +47,7 @@ export const FAKE_SCRIPTS = [
   "injection-follow",
   "read-only-user",
   // One card per kind, for each screen group's own confirm and cancel paths.
+  "propose-form-publish",
   "propose-form-settings",
   "propose-form-close",
   "propose-form-reopen",
@@ -625,8 +626,8 @@ function actionPlanSteps(
   switch (script) {
     case "plan-three":
       return [
-        { kind: "form.publish", args: { formId } },
-        releaseStep(formId, { fromStep: 0, field: "version" }, "test"),
+        { kind: "form.publish", args: { formId, environment: "test" } },
+        releaseStep(formId, { fromStep: 0, field: "version" }, "prod"),
         mintStep(formId, 20),
       ];
     case "plan-fails-at-2":
@@ -667,6 +668,10 @@ const SINGLE_ACTIONS: Readonly<
   "propose-form-reopen": (prompt) => ({
     kind: "form.reopen",
     args: { formId: factFormId(prompt) },
+  }),
+  "propose-form-publish": (prompt) => ({
+    kind: "form.publish",
+    args: { formId: factFormId(prompt), environment: "test" },
   }),
   "propose-form-release": (prompt) => releaseStep(factFormId(prompt), factVersion(prompt), "test"),
   "propose-response-erase": (prompt) => ({

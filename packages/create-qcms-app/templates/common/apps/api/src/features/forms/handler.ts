@@ -1409,13 +1409,9 @@ export function makePublishFormHandler(deps: Deps): RouteHandler<typeof publishF
 
     // Publishing enqueues nothing in any environment. One transaction still, so the draft
     // never lingers past its publish; `form.released` is written by the release itself.
-    const site = agentStepSite(c);
-    const inserted = await deps.databases.control.transaction(async (tx) => {
-      const written = await writeVersion(tx, formId, frozen, now, principal.userId);
-      // The version a later step references, recorded in this step's own transaction.
-      await writeAgentStep(tx, site, String(written.version), now);
-      return written;
-    });
+    const inserted = await deps.databases.control.transaction((tx) =>
+      writeVersion(tx, formId, frozen, now, principal.userId),
+    );
 
     return c.json(
       { version: inserted.version, publishedAt: inserted.publishedAt.toISOString() },
@@ -1538,6 +1534,7 @@ export function makePublishBatchHandler(
       formId,
       workspaceId: c.get("grantContext")?.workspaceId ?? form.workspaceId,
       principalId: principal.userId,
+      agent: agentStepSite(c),
       idempotencyKey: body.idempotencyKey,
       intentHash,
       expectedWorkflowRevision: body.expectedWorkflowRevision,

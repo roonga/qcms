@@ -272,6 +272,51 @@ const mintArgs = (formId: string): Record<string, unknown> => ({
 
 const mintBody = { environment: "prod", count: 1, expiresAt: FUTURE, oneTime: false } as const;
 
+interface DraftReview {
+  readonly draftRevision: number;
+  readonly workflowRevision: number | null;
+  readonly sequences: Readonly<Record<string, number | null>>;
+}
+
+/** The review the wizard reads before it confirms, which is what a publish step carries. */
+async function reviewDraft(formId: string): Promise<DraftReview> {
+  const res = await send({
+    caller: owner,
+    path: `/forms/${formId}/release-review`,
+    environment: "prod",
+    body: { source: { kind: "draft" } },
+  });
+  expect(res.status).toBe(200);
+  const body = (await res.json()) as {
+    source: { draftRevision: number };
+    workflowRevision: number | null;
+    targets: { environment: string; currentSequence: number | null }[];
+  };
+  return {
+    draftRevision: body.source.draftRevision,
+    workflowRevision: body.workflowRevision,
+    sequences: Object.fromEntries(
+      body.targets.map((target) => [target.environment, target.currentSequence]),
+    ),
+  };
+}
+
+function publishBatchBody(
+  review: DraftReview,
+  environments: readonly string[],
+  draftRevision = review.draftRevision,
+): Record<string, unknown> {
+  return {
+    idempotencyKey: crypto.randomUUID(),
+    expectedWorkflowRevision: review.workflowRevision,
+    source: { kind: "draft", draftRevision },
+    targets: environments.map((environment) => ({
+      environment,
+      expectedSequence: review.sequences[environment] ?? null,
+    })),
+  };
+}
+
 describe("provenance adds provenance and never rights (criterion 2)", () => {
   const FORM_ID = "frm_prov_equal";
 
@@ -518,11 +563,11 @@ describe("`plan-three` runs end to end, with the reference checked (criterion 4)
 
   it("refuses a reference resolved to a value other than the recorded one, then runs all three steps", async () => {
     const steps = [
-      await binding("form.publish", { formId: FORM_ID }, "prod"),
+      await binding("form.publish", { formId: FORM_ID, environment: "test" }, "test"),
       await binding(
         "form.release",
-        { formId: FORM_ID, version: { fromStep: 0, field: "version" }, environment: "test" },
-        "test",
+        { formId: FORM_ID, version: { fromStep: 0, field: "version" }, environment: "prod" },
+        "prod",
       ),
       await binding("link.mint", mintArgs(FORM_ID), "prod"),
     ];
@@ -532,23 +577,25 @@ describe("`plan-three` runs end to end, with the reference checked (criterion 4)
       formId: FORM_ID,
     });
 
+    const review = await reviewDraft(FORM_ID);
     const published = await send({
       caller: owner,
-      path: `/forms/${FORM_ID}/publish`,
+      path: `/forms/${FORM_ID}/publish-batch`,
       environment: "prod",
+      body: publishBatchBody(review, ["test"]),
       proposal: { token, step: 0 },
     });
     expect(published.status).toBe(200);
     const { version } = (await published.json()) as { version: number };
     expect(await rowsFor(proposalId)).toEqual([
-      { step_index: 0, kind: "form.publish", environment: "prod", detail: String(version) },
+      { step_index: 0, kind: "form.publish", environment: "test", detail: String(version) },
     ]);
 
     const wrong = await send({
       caller: owner,
       path: `/forms/${FORM_ID}/releases`,
-      environment: "test",
-      body: { environment: "test", version: version + 1 },
+      environment: "prod",
+      body: { environment: "prod", version: version + 1 },
       proposal: { token, step: 1 },
     });
     expect(wrong.status).toBe(403);
@@ -558,8 +605,8 @@ describe("`plan-three` runs end to end, with the reference checked (criterion 4)
     const right = await send({
       caller: owner,
       path: `/forms/${FORM_ID}/releases`,
-      environment: "test",
-      body: { environment: "test", version },
+      environment: "prod",
+      body: { environment: "prod", version },
       proposal: { token, step: 1 },
     });
     expect(right.status).toBe(200);
@@ -574,10 +621,95 @@ describe("`plan-three` runs end to end, with the reference checked (criterion 4)
     });
     expect(minted.status).toBe(201);
     expect(await rowsFor(proposalId)).toEqual([
-      { step_index: 0, kind: "form.publish", environment: "prod", detail: String(version) },
-      { step_index: 1, kind: "form.release", environment: "test", detail: String(version) },
+      { step_index: 0, kind: "form.publish", environment: "test", detail: String(version) },
+      { step_index: 1, kind: "form.release", environment: "prod", detail: String(version) },
       { step_index: 2, kind: "link.mint", environment: "prod", detail: "1" },
     ]);
+  });
+});
+
+/**
+ * The batch route takes its environment from the body's `targets`, and a step binds one
+ * environment, so only a batch naming exactly one destination is verifiable (Code Owner,
+ * 2026-11-01). The wizard's own stale-review check is unchanged by the token.
+ */
+describe("a publish step on the batch route carries exactly one destination", () => {
+  async function publishToken(
+    formId: string,
+    environment: string,
+  ): Promise<{ readonly token: string; readonly proposalId: string }> {
+    return mintToken({
+      subject: owner.userId,
+      steps: [await binding("form.publish", { formId, environment }, environment)],
+      formId,
+    });
+  }
+
+  it("accepts one destination and records the frozen version", async () => {
+    const formId = "frm_prov_batch_one";
+    await seedFormWithDraft(formId);
+    const { token, proposalId } = await publishToken(formId, "test");
+    const res = await send({
+      caller: owner,
+      path: `/forms/${formId}/publish-batch`,
+      environment: "prod",
+      body: publishBatchBody(await reviewDraft(formId), ["test"]),
+      proposal: { token, step: 0 },
+    });
+    expect(res.status).toBe(200);
+    const { version } = (await res.json()) as { version: number };
+    expect(await rowsFor(proposalId)).toEqual([
+      { step_index: 0, kind: "form.publish", environment: "test", detail: String(version) },
+    ]);
+  });
+
+  it("refuses a batch naming two destinations, and writes nothing", async () => {
+    const formId = "frm_prov_batch_two";
+    await seedFormWithDraft(formId);
+    const { token, proposalId } = await publishToken(formId, "test");
+    const res = await send({
+      caller: owner,
+      path: `/forms/${formId}/publish-batch`,
+      environment: "prod",
+      body: publishBatchBody(await reviewDraft(formId), ["test", "prod"]),
+      proposal: { token, step: 0 },
+    });
+    expect(res.status).toBe(403);
+    expect(await errorCode(res)).toBe("AGENT_PROPOSAL_ENVIRONMENT");
+    expect(await countRows(proposalId)).toBe(0);
+  });
+
+  it("refuses a destination other than the step's own environment", async () => {
+    const formId = "frm_prov_batch_other";
+    await seedFormWithDraft(formId);
+    const { token, proposalId } = await publishToken(formId, "test");
+    const res = await send({
+      caller: owner,
+      path: `/forms/${formId}/publish-batch`,
+      environment: "prod",
+      body: publishBatchBody(await reviewDraft(formId), ["prod"]),
+      proposal: { token, step: 0 },
+    });
+    expect(res.status).toBe(403);
+    expect(await errorCode(res)).toBe("AGENT_PROPOSAL_ENVIRONMENT");
+    expect(await countRows(proposalId)).toBe(0);
+  });
+
+  it("refuses a stale draft revision exactly as the wizard's confirmation is refused", async () => {
+    const formId = "frm_prov_batch_stale";
+    await seedFormWithDraft(formId);
+    const review = await reviewDraft(formId);
+    const { token, proposalId } = await publishToken(formId, "test");
+    const res = await send({
+      caller: owner,
+      path: `/forms/${formId}/publish-batch`,
+      environment: "prod",
+      body: publishBatchBody(review, ["test"], review.draftRevision + 1),
+      proposal: { token, step: 0 },
+    });
+    expect(res.status).toBe(409);
+    expect(await errorCode(res)).toBe("STALE_REVIEW");
+    expect(await countRows(proposalId)).toBe(0);
   });
 });
 

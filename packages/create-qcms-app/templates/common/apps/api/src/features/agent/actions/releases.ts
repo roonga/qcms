@@ -16,6 +16,11 @@ const ReleaseArgs = z.strictObject({
 
 const PublishArgs = z.strictObject({
   formId: z.string().min(1).max(200),
+  environment: z
+    .string()
+    .min(1)
+    .max(53)
+    .describe("The one environment the newly frozen version is released into."),
 });
 
 function bodyMember(facts: ActionRequestFacts, name: string): unknown {
@@ -24,26 +29,45 @@ function bodyMember(facts: ActionRequestFacts, name: string): unknown {
     : undefined;
 }
 
+/**
+ * The destination the batch body names, which is the environment the step is verified
+ * against. A body naming none or several is refused by the provenance check, so this
+ * reads the one and reports nothing for any other shape.
+ */
+function soleTarget(facts: ActionRequestFacts): unknown {
+  const targets = bodyMember(facts, "targets");
+  if (!Array.isArray(targets) || targets.length !== 1) return undefined;
+  const target = targets[0] as { environment?: unknown } | undefined;
+  return target?.environment;
+}
+
 export const publishForm: ActionKindDef = {
   kind: "form.publish",
   screen: "/forms/[formId]",
-  route: { method: "POST", path: "/admin/forms/{id}/publish" },
+  // The wizard's own route, so the card keeps its stale-review and workflow-revision
+  // checks. The legacy single publish has neither, which would make the card weaker than
+  // the dialog it mirrors.
+  route: { method: "POST", path: "/admin/forms/{id}/publish-batch" },
   cell: { resource: "form", action: "publish" },
-  // Publishing releases a version nowhere, so the switcher's environment is what it is
-  // performed in and the route names none.
-  environmentFrom: "switcher",
+  alsoCell: { resource: "release", action: "create" },
+  environmentFrom: "argument",
+  environmentArgument: "environment",
   args: PublishArgs,
-  recomputeArgs: (facts) => ({ formId: facts.params.id ?? "" }),
+  recomputeArgs: (facts) => ({
+    formId: facts.params.id ?? "",
+    environment: soleTarget(facts),
+  }),
   references: ["version"],
-  resultAllowlist: ["version"],
+  resultAllowlist: ["version", "environment"],
   card: {
     titleKey: "agent.card.form.publish.title",
-    consequenceKeys: ["agent.card.form.publish.consequence"],
+    consequenceKeys: ["agent.card.form.publish.consequence", "agent.card.environment.production"],
     headingControl: "builder.publish",
   },
   description:
-    "Publish the form's working draft as a new immutable version. It releases the version " +
-    "to no environment.",
+    "Freeze the form's working draft as a new immutable version and release that version " +
+    "into one environment, in one act. The release workflow, the two-person rule and the " +
+    "production approval apply exactly as they do on the screen.",
 };
 
 export const releaseVersion: ActionKindDef = {

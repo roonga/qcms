@@ -40,7 +40,10 @@ function propose(args: {
   });
 }
 
-const publish: ProposedStep = { kind: "form.publish", args: { formId: "frm_a" } };
+const publish: ProposedStep = {
+  kind: "form.publish",
+  args: { formId: "frm_a", environment: "test" },
+};
 
 const mint: ProposedStep = {
   kind: "link.mint",
@@ -213,6 +216,17 @@ describe("buildProposal: never weaker than the screen (criterion 9)", () => {
       requireSecondApprover: false,
     });
     expect(outcome.ok).toBe(true);
+  });
+
+  it("refuses a publish straight into production while the switch is on", async () => {
+    const outcome = await propose({
+      steps: [{ kind: "form.publish", args: { formId: "frm_a", environment: "prod" } }],
+      grants: [EDITOR, APPROVER],
+      requireSecondApprover: true,
+    });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toContain("second approver");
   });
 
   it("leaves a publish-then-release-to-test plan alone with the switch on", async () => {

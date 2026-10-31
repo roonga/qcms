@@ -498,16 +498,22 @@ export async function confirmPublishAction(
     readonly source: PublishIntent;
     readonly targets: readonly PublishDestination[];
   },
+  proposal?: AgentProposalRef,
 ): Promise<PublishBatchState> {
   const session = await requireAdminSession();
   const result =
     request.source.kind === "draft"
-      ? await publishBatch(session, formId, {
-          idempotencyKey: request.idempotencyKey,
-          expectedWorkflowRevision: request.expectedWorkflowRevision,
-          draftRevision: request.source.draftRevision,
-          targets: request.targets,
-        })
+      ? await publishBatch(
+          session,
+          formId,
+          {
+            idempotencyKey: request.idempotencyKey,
+            expectedWorkflowRevision: request.expectedWorkflowRevision,
+            draftRevision: request.source.draftRevision,
+            targets: request.targets,
+          },
+          proposal,
+        )
       : await releaseBatch(session, formId, {
           idempotencyKey: request.idempotencyKey,
           expectedWorkflowRevision: request.expectedWorkflowRevision,

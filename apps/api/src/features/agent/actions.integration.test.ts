@@ -333,7 +333,7 @@ describe("a plan reaches the user as one card and runs nothing (criterion 4)", (
       expect(plan?.type).toBe("plan");
       expect(plan === undefined ? [] : stepSummary(plan)).toEqual([
         { kind: "form.publish", environment: "test" },
-        { kind: "form.release", environment: "test" },
+        { kind: "form.release", environment: "prod" },
         { kind: "link.mint", environment: "test" },
       ]);
       expect(plan?.proposal.steps[1]?.args["version"]).toEqual({ fromStep: 0, field: "version" });

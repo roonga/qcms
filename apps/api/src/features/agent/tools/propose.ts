@@ -186,9 +186,10 @@ function stepRefusal(
 }
 
 /**
- * ADR-41 refuses a release by the account that published the version, so this plan can
- * never complete. Refusing it here tells the model why, rather than failing the user
- * halfway through a confirmed run.
+ * ADR-41 refuses a release by the account that published the version, so neither of these
+ * can ever complete: a publish step followed by a production release, and a publish step
+ * that releases into production itself, which is one act on the batch route. Refusing
+ * here tells the model why, rather than failing the user halfway through a confirmed run.
  */
 function secondApproverRefusal(
   input: ProposeInput,
@@ -197,17 +198,18 @@ function secondApproverRefusal(
   if (!input.requireSecondApprover) return undefined;
   const publishedAt = steps.findIndex((step) => step.kind === "form.publish");
   if (publishedAt < 0) return undefined;
+  const sameAct = steps[publishedAt]?.environment === input.productionEnvironment;
   const release = steps.findIndex(
     (step, index) =>
       index > publishedAt &&
       step.kind === "form.release" &&
       step.environment === input.productionEnvironment,
   );
-  if (release < 0) return undefined;
+  if (!sameAct && release < 0) return undefined;
   return (
     "This workspace requires a second approver for a production release, and ADR-41 refuses " +
-    "a release by the account that published the version. Propose the publish on its own; " +
-    "another account releases it."
+    "a release by the account that published the version. Propose the publish into a " +
+    "non-production environment; another account releases it to production."
   );
 }
 

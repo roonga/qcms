@@ -2154,9 +2154,10 @@ export const messages = {
   // `agent.title`, so a screen reader reads "Assistant Reason".
   "agent.card.reasonLabel": "Reason",
 
-  "agent.card.form.publish.title": "Publish {formId} as a new version",
+  "agent.card.form.publish.title":
+    "Publish {formId} as a new version and release it to {environment}",
   "agent.card.form.publish.consequence":
-    "The working draft becomes an immutable version. It is released to no environment.",
+    "The working draft becomes an immutable version, and that version is released to {environment} in the same act. Respondents starting from now get it there.",
   "agent.card.form.release.title": "Release version {version} of {formId} to {environment}",
   "agent.card.form.release.consequence":
     "Respondents starting from now get this version in {environment}.",
@@ -2281,6 +2282,8 @@ export const messages = {
   "agent.card.note.unreachable": "The request did not reach the server.",
   "agent.card.note.stale": "This proposal is more than ten minutes old.",
   "agent.card.note.notWired": "This screen's control is not wired to the assistant yet.",
+  "agent.card.note.noDraftToPublish":
+    "There is no draft to publish into that environment any more. Read the form again and ask for a fresh proposal.",
 
   // The marker is a link to the card and never a second Confirm.
   "agent.marker.text": "proposed · Review",

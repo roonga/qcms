@@ -1,8 +1,10 @@
 "use client";
 
 import {
+  confirmPublishAction,
   mintLinksAction,
   releaseVersionAction,
+  reviewReleaseAction,
   revokeLinkAction,
   setFormStatusAction,
   updateSettingsAction,
@@ -100,7 +102,42 @@ function endpointOutcome(
   return { outcome: "done", result, ...(revealed === undefined ? {} : { revealed }) };
 }
 
+/**
+ * Publishing runs the wizard's own confirmation, so the card inherits its stale-review and
+ * workflow-revision checks: the review is read here, immediately before Confirm, and its
+ * two expectations travel with the request. A draft saved in between is refused and
+ * nothing is written, exactly as it is for the wizard.
+ */
+const publishStep: StepRunner = async ({ step, index, args, agentProposal }) => {
+  const formId = text(args["formId"]);
+  const review = await reviewReleaseAction(formId, { kind: "draft" });
+  if (!review.ok) return { outcome: "failed", message: t("agent.card.note.noDraftToPublish") };
+  const source = review.data.source;
+  const target = review.data.targets.find((entry) => entry.environment === step.environment);
+  if (source.kind !== "draft" || target === undefined) {
+    return { outcome: "failed", message: t("agent.card.note.noDraftToPublish") };
+  }
+  const state = await confirmPublishAction(
+    formId,
+    {
+      idempotencyKey: crypto.randomUUID(),
+      expectedWorkflowRevision: review.data.workflowRevision,
+      source: { kind: "draft", draftRevision: source.draftRevision },
+      targets: [{ environment: step.environment, expectedSequence: target.currentSequence }],
+    },
+    proposalRef(agentProposal, index),
+  );
+  if (state.status !== "done" || state.version === undefined) {
+    return { outcome: "failed", message: text(state.message) };
+  }
+  return {
+    outcome: "done",
+    result: { version: state.version, environment: step.environment },
+  };
+};
+
 const RUNNERS: Readonly<Record<string, StepRunner>> = {
+  "form.publish": publishStep,
   "form.settings": async ({ index, args, agentProposal }) => {
     const state = await updateSettingsAction(
       text(args["formId"]),
