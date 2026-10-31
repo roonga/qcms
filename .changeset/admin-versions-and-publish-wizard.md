@@ -10,7 +10,7 @@ that drives the release-review, release-batch and publish-batch routes.
   every row, and the append-only release history with its rollback marking.
 - Available in names the environments a version is releasing now, not every environment it
   ever reached; the list filter still reads "has reached".
--  is the one entry that creates a version or releases one: a source
+- `/forms/{id}/publish` is the one entry that creates a version or releases one: a source
   (the shared draft or an exact version), the destinations the caller may release into, a
   per-destination review, then one confirmation.
 - One confirmation is one call and one transaction, never a loop over single-target
@@ -22,6 +22,6 @@ that drives the release-review, release-batch and publish-batch routes.
   replay of the same key, so a lost answer cannot mint a second version.
 - "Create version without releasing" is the draft's exclusive choice, and the route a
   production-only deployment with the second-approver rule takes to its first release.
-- The review now reports  for a draft into a protected destination,
+- The review now reports `APPROVER_IS_AUTHOR` for a draft into a protected destination,
   where the publisher is the confirming account.
--  redirects to the Versions view.
+- `/forms/{id}/releases` redirects to the Versions view.

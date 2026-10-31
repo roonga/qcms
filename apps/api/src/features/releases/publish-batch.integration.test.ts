@@ -737,6 +737,33 @@ describe("the second-person rule holds through the batch", () => {
       await clearWorkflow();
     }
   });
+
+  it("reports that refusal in the review, before anything is confirmed", async () => {
+    await clearWorkflow();
+    await setRequireSecondApprover(control, SEED_WORKSPACE_ID, true);
+    try {
+      const formId = await seedForm(0);
+      await saveDraft(publisher.token, formId);
+      const review = await call(publisher.token, "POST", `/forms/${formId}/release-review`, {
+        source: { kind: "draft" },
+      });
+      expect(review.status).toBe(200);
+      const targets = review.body.targets as {
+        environment: string;
+        blockers: { code: string }[];
+        twoPerson: { refusedAsAuthor: boolean };
+      }[];
+      const prod = targets.find((target) => target.environment === "prod");
+      // The publisher of a draft frozen in the confirmation is the confirming account, so
+      // the rule refuses the destination whatever the workflow allows. The wizard disables
+      // it with this reason rather than letting the operator meet a 403.
+      expect(prod?.twoPerson.refusedAsAuthor).toBe(true);
+      expect(prod?.blockers.map((blocker) => blocker.code)).toContain("APPROVER_IS_AUTHOR");
+    } finally {
+      await setRequireSecondApprover(control, SEED_WORKSPACE_ID, false);
+      await clearWorkflow();
+    }
+  });
 });
 
 describe("one confirmation is one transaction", () => {
