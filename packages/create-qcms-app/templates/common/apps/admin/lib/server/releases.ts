@@ -203,17 +203,3 @@ export async function lookupReleaseBatch(
     ),
   );
 }
-
-/** `POST /admin/forms/{id}/publish-and-release` - one intent, one act (finding 2). */
-export async function publishAndRelease(
-  session: AdminSession,
-  formId: string,
-  environment: string,
-): Promise<ApiResult<{ version: number; publishedAt: string; environment: string }>> {
-  return readResult(
-    await adminApiFetch(session, `/forms/${encodeURIComponent(formId)}/publish-and-release`, {
-      method: "POST",
-      body: { environment },
-    }),
-  );
-}

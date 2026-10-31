@@ -8,7 +8,7 @@ version. See the [implementation plan](../plan/form-publishing-workflow.md).
 flowchart TD
     A[Select test; draft questions and publish their versions] --> B[Build form draft: steps, question versions and rules]
     B --> P[Preview the draft]
-    P --> C[Publish to test: create version and release atomically]
+    P --> C[Publish wizard: freeze a version and release it to test in one confirmation]
     C --> E[Test the respondent journey, branches and submission]
     E --> F{Tests pass?}
     F -->|No| G[Revise a draft seeded from the latest published version]
@@ -33,11 +33,19 @@ flowchart TD
 - Existing sessions finish on the version they started with. Rollback means
   releasing a previously published version to production.
 
+Publishing and releasing both run through the publish wizard at
+`/forms/{formId}/publish`, reached from the Publish entry on the form's Versions
+screen. The wizard takes a source (the shared draft, or an existing version), the
+destinations to release into, and one confirmation; it writes nothing before that
+confirmation and then releases into every destination or into none of them. It lists
+only the environments the operator may release this form into, and says why an
+environment it cannot use is not eligible.
+
 In the test/prod workflow, production offers existing versions previously
 released to test, plus previously deployed production versions for rollback. Draft
-editing and publishing are available in test. Release dialogs use the top navigation's
-environment and have no target-environment selector. Production confirmation shows the
-selected version's stored content and names the production version it replaces. A test release does not itself
+editing is available in test, and a draft cannot be published straight into
+production. The review step shows what freezes and, per destination, the version that
+environment serves now and the version it will serve. A test release does not itself
 prove that manual testing passed. The diagram assumes intake is open in both environments.
 
 For Docker, set `QCMS_PORTAL_ENVIRONMENTS=test` in `.env` and recreate the portal

@@ -1616,9 +1616,9 @@ export const messages = {
   "forms.tab.preview": "Preview",
   "forms.tab.versions": "Versions",
   "forms.tab.links": "Links",
-  // The eighth section (ADR-40, task 065). "Releases" is a screen name like the seven
-  // beside it: it heads `/forms/{formId}/releases`, ends that screen's breadcrumb, names
-  // its rail row and composes its browser-tab title.
+  // The eighth section (ADR-40). "Publish" is a screen name like the seven beside it: it
+  // heads `/forms/{formId}/publish`, ends that screen's breadcrumb, names its rail row and
+  // composes its browser-tab title.
   "forms.tab.publish": "Publish",
 
   "forms.publish.action": "Publish",

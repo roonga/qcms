@@ -106,10 +106,9 @@ export default async function FormBuilderPage({
   const [detail, library, resolved] = await Promise.all([
     getForm(session, formId),
     loadPinnableQuestions(session),
-    // The combined publish-and-release action releases to the operator's selected
-    // environment and every confirmation on this screen names it (Q6), so the screen has
-    // to know which one that is. The request's one resolution (A12), the same answer the
-    // API header carries, so the status read above and the copy below agree.
+    // Every confirmation on this screen names the operator's selected environment, so the
+    // screen has to know which one that is. The request's one resolution, the same answer
+    // the API header carries, so the status read above and the copy below agree.
     resolvedEnvironment(session),
   ]);
   const shown = shownEnvironment(resolved);

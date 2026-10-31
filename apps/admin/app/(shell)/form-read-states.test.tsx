@@ -212,9 +212,8 @@ vi.mock("@/lib/server/forms", () => ({
   loadPinnableQuestions: () => Promise.resolve(libraryResult),
 }));
 // The builder, the links screen and the webhooks screen read the request's resolved
-// environment (task 065, local UX list A12): the combined publish-and-release action
-// releases to it and every confirmation on those screens names it. Mocked at the same seam
-// as the reads above, so this file keeps testing the read states and nothing about
+// environment, because every confirmation on those screens names it. Mocked at the same
+// seam as the reads above, so this file keeps testing the read states and nothing about
 // environments.
 vi.mock("@/lib/server/environments", () => ({
   resolvedEnvironment: () =>
@@ -253,8 +252,6 @@ vi.mock("./forms/actions", () => ({
   mintLinksAction: NOOP_ACTION,
   revokeLinkAction: NOOP_ACTION,
   previewConditionAction: NOOP_ACTION,
-  publishAndReleaseAction: NOOP_ACTION,
-  publishFormAction: NOOP_ACTION,
   saveDraftAction: NOOP_ACTION,
   setFormStatusAction: NOOP_ACTION,
   updateSettingsAction: NOOP_ACTION,

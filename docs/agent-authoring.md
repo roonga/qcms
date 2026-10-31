@@ -249,6 +249,6 @@ Before this behaviour existed, accepting such a proposal stored a draft pinning 
 
 The conversation is the memory, and it lasts as long as the tab's session does. Nothing is stored server-side between turns, and there is no cross-session memory (deliberately out of scope for 041).
 
-**One conversation per subject.** A form's whole subtree is one subject, so walking from the builder to Rules, Releases or Responses of the same form keeps the conversation, and the next turn is prefaced with the screen you moved to. Leaving that form starts a new conversation, and coming back to it within the tab restores the one you left. New conversation in the header starts a fresh one for the subject you are on.
+**One conversation per subject.** A form's whole subtree is one subject, so walking from the builder to Rules, Versions or Responses of the same form keeps the conversation, and the next turn is prefaced with the screen you moved to. Leaving that form starts a new conversation, and coming back to it within the tab restores the one you left. New conversation in the header starts a fresh one for the subject you are on.
 
 Nothing about the conversation or the panel is written to `localStorage` or `sessionStorage`, deliberately: signing out does not clear tab storage, so on a shared workstation anything kept there would still be readable by the next person. A reload therefore starts fresh.

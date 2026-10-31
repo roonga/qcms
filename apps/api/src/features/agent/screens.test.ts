@@ -105,7 +105,7 @@ describe("the screen registry", () => {
       "/forms/[formId]/preview",
       "/forms/[formId]/versions",
       "/forms/[formId]/versions/[version]",
-      "/forms/[formId]/releases",
+      "/forms/[formId]/publish",
       "/forms/[formId]/links",
       "/forms/[formId]/webhooks",
       "/forms/[formId]/responses",

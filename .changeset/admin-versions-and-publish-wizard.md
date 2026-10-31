@@ -30,4 +30,7 @@ that drives the release-review, release-batch and publish-batch routes.
   agent-provenance marker are the wizard's review step; a refused draft publish names how
   many issues blocked it and sends the author to the builder, whose validation panel holds
   the anchored work list.
-- `/forms/{id}/releases` redirects to the Versions view.
+- `/forms/{id}/releases` redirects to the Versions view, and the agent screen table names
+  `/forms/[formId]/publish` in its place.
+- The admin's `publishForm` and `publishAndRelease` clients are gone with the dialogs that
+  called them. The API endpoints behind them are unchanged.

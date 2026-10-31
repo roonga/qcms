@@ -118,7 +118,13 @@ export async function refuseDraftThroughWizard(
  */
 export async function publishDraftThroughWizard(
   page: Page,
-  input: { readonly formId: string; readonly version: number; readonly environment: string },
+  input: {
+    readonly formId: string;
+    readonly version: number;
+    readonly environment: string;
+    /** The exact sentence, for a caller asserting WHAT freezes rather than that it is read back. */
+    readonly freezeSummary?: string;
+  },
 ): Promise<void> {
   await openPublishWizard(page, input.formId);
 
@@ -132,7 +138,12 @@ export async function publishDraftThroughWizard(
 
   // What freezes, read back before the one press that freezes it.
   await expect(page.getByTestId("qcms-publish-review")).toBeVisible();
-  await expect(page.getByTestId("qcms-freeze-summary")).toBeVisible();
+  const freeze = page.getByTestId("qcms-freeze-summary");
+  if (input.freezeSummary === undefined) {
+    await expect(freeze).toBeVisible();
+  } else {
+    await expect(freeze).toHaveText(input.freezeSummary);
+  }
   await page.getByRole("button", { name: "Confirm", exact: true }).click();
 
   const result = page.getByTestId("qcms-publish-result");
