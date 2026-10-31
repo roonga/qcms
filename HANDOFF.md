@@ -50,8 +50,20 @@ runs the same conversation every other screen runs, so one card renderer serves 
 disclosure and per-code error sentences moved into the shared conversation, where every
 screen now has them.
 
+## Gates on this head
+
+`pnpm qcms:sync-templates` clean, `pnpm check:all` exit 0, `pnpm verify` exit 0.
+`pnpm exec turbo run test --force` ran three times, 20/20 tasks and 0 cached each time, and
+each run failed only on container-start or boot timeouts (issue #1201's load flake) in a
+different file: run 1 `agent/provenance.integration` and `auth/auth.integration`, run 2
+`agent/assist.integration`, run 3 `releases/releases.integration` and
+`responses/start-session/environment-addresses.integration`. Five distinct files, each red
+once and green in the other two runs, never an assertion. Not re-run to green.
+
 ## Not started, for the next round
 
+- **`QCMS_PORT_SEAT=7 pnpm up:e2e`, `pnpm exec vitest run --project qcms-api-e2e` and the
+  full browser suite have not been run on this head.**
 - **`apps/admin/e2e/agent-assist.pw.ts` has been ported by locator** (the panel's test ids
   to the dock's and the card's, the step count from two to three) but **has not been run**:
   the full browser suite did not fit in this round's budget. Run it first, before anything
