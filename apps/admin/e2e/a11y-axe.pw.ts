@@ -993,7 +993,11 @@ test("publish, preview, history and secure links have zero violations", async ({
   // 409.
   pubForm = { formId, slug, choiceId, choiceOption, countId };
 
-  // The close confirmation, whose whole body is the R1 explanation.
+  // The close confirmation, whose whole body is the R1 explanation. Back on the builder,
+  // because the wizard is a screen of its own since issue #1197 and the lifecycle actions
+  // are the form's.
+  await page.goto(`/forms/${formId}`);
+  await waitForHydration(page);
   await page.getByRole("button", { name: /^Close in / }).click();
   await expect(page.getByRole("alertdialog")).toBeVisible();
   await expectNoViolations(page, "close-form confirmation");
