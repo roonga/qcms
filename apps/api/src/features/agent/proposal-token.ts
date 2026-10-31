@@ -187,6 +187,27 @@ function refused(code: ProposalRefusalCode): ProposalTokenResult {
   return { ok: false, code };
 }
 
+function parsedStep(raw: unknown): ProposalStepBinding | undefined {
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const row = raw as Record<string, unknown>;
+  const { kind, argsDigest, environment } = row;
+  if (typeof kind !== "string" || kind === "") return undefined;
+  if (typeof argsDigest !== "string" || argsDigest === "") return undefined;
+  if (typeof environment !== "string" || environment === "") return undefined;
+  return { kind, argsDigest, environment };
+}
+
+function parsedSteps(raw: unknown): ProposalStepBinding[] | undefined {
+  if (!Array.isArray(raw) || raw.length === 0 || raw.length > PROPOSAL_MAX_STEPS) return undefined;
+  const steps: ProposalStepBinding[] = [];
+  for (const entry of raw) {
+    const step = parsedStep(entry);
+    if (step === undefined) return undefined;
+    steps.push(step);
+  }
+  return steps;
+}
+
 function parsedPayload(raw: unknown): ProposalTokenPayload | undefined {
   if (typeof raw !== "object" || raw === null) return undefined;
   const candidate = raw as Record<string, unknown>;
@@ -196,17 +217,8 @@ function parsedPayload(raw: unknown): ProposalTokenPayload | undefined {
   if (typeof candidate.pid !== "string" || candidate.pid === "") return undefined;
   if (typeof candidate.iat !== "number" || typeof candidate.exp !== "number") return undefined;
   if (candidate.formId !== undefined && typeof candidate.formId !== "string") return undefined;
-  if (!Array.isArray(candidate.steps) || candidate.steps.length === 0) return undefined;
-  if (candidate.steps.length > PROPOSAL_MAX_STEPS) return undefined;
-  const steps: ProposalStepBinding[] = [];
-  for (const step of candidate.steps) {
-    if (typeof step !== "object" || step === null) return undefined;
-    const row = step as Record<string, unknown>;
-    if (typeof row.kind !== "string" || row.kind === "") return undefined;
-    if (typeof row.argsDigest !== "string" || row.argsDigest === "") return undefined;
-    if (typeof row.environment !== "string" || row.environment === "") return undefined;
-    steps.push({ kind: row.kind, argsDigest: row.argsDigest, environment: row.environment });
-  }
+  const steps = parsedSteps(candidate.steps);
+  if (steps === undefined) return undefined;
   return {
     v: PROPOSAL_TOKEN_VERSION,
     purpose: PROPOSAL_TOKEN_PURPOSE,
