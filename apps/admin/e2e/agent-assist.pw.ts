@@ -108,13 +108,13 @@ async function publishQuestion(page: Page, slug: string, typeLabel: string): Pro
 
 /** The composer is a multi-line text area. */
 function composer(page: Page) {
-  return page.getByTestId("qcms-assist-input").locator("textarea");
+  return page.getByTestId("qcms-assistant-composer");
 }
 
 /** Type a turn into the panel and send it. */
 async function send(page: Page, message: string): Promise<void> {
   await fillStable(composer(page), message);
-  await page.getByTestId("qcms-assist-send").locator("button").click();
+  await page.getByTestId("qcms-assistant-send").locator("button").click();
 }
 
 test("proposes a form, accepts it into the draft, and publishes it (exit criterion 3)", async ({
@@ -136,7 +136,7 @@ test("proposes a form, accepts it into the draft, and publishes it (exit criteri
   // The panel is present because the deployment flag names a provider. With the flag
   // at its `none` default it is absent from the tree entirely, which is what
   // `form-builder.test.tsx` asserts (a Playwright run cannot hold both flag states).
-  const panel = page.getByTestId("qcms-assist-panel");
+  const panel = page.getByTestId("qcms-assistant-panel");
   await expect(panel).toBeVisible();
 
   await send(
@@ -145,20 +145,20 @@ test("proposes a form, accepts it into the draft, and publishes it (exit criteri
   );
 
   // The proposal, streamed back and validated on the server before it arrived.
-  const proposal = page.getByTestId("qcms-assist-proposal");
+  const proposal = page.getByTestId("qcms-acard-draft");
   await expect(proposal).toBeVisible({ timeout: 60_000 });
 
   // The step timeline says Done only on the API's word that a call worked. The default
-  // script searches and proposes, and both succeed, so both steps end done and none is
-  // left running, failed or cut off.
-  const steps = page.getByTestId("qcms-assist-steps").locator("li");
-  await expect(steps).toHaveCount(2, { timeout: 30_000 });
-  await expect(page.getByTestId("qcms-assist-steps").locator("li[data-state='done']")).toHaveCount(
-    2,
-  );
+  // script searches, proposes the draft and puts it up as a card, and all three succeed,
+  // so every step ends done and none is left running, failed or cut off.
+  const steps = page.getByTestId("qcms-assistant-steps").locator("li");
+  await expect(steps).toHaveCount(3, { timeout: 30_000 });
+  await expect(
+    page.getByTestId("qcms-assistant-steps").locator("li[data-state='done']"),
+  ).toHaveCount(3);
   await expect(steps.first()).toContainText("Searching the question library");
 
-  const diff = page.getByTestId("qcms-assist-diff");
+  const diff = page.getByTestId("qcms-acard-diff");
   // Two steps and a rule, each marked textually rather than by colour alone.
   // Scoped to the summary line rather than the whole entry: each entry also carries
   // the full definition in an expandable detail, so the title appears twice by design.
@@ -167,7 +167,7 @@ test("proposes a form, accepts it into the draft, and publishes it (exit criteri
   await expect(diff.locator("summary").filter({ hasText: /^Added:/u })).not.toHaveCount(0);
 
   // Validation is the server's own, run over the proposal before it was returned.
-  await expect(page.getByTestId("qcms-assist-validation")).toContainText("validation passes", {
+  await expect(page.getByTestId("qcms-acard-issues")).toContainText("validation passes", {
     ignoreCase: true,
   });
 
@@ -185,7 +185,7 @@ test("proposes a form, accepts it into the draft, and publishes it (exit criteri
   // on. The stamp rather than the sentence, because "Last saved" is already on screen
   // from the pin above and would satisfy a text wait immediately (issues 748, 750).
   const previousSave = await savedStamp(page);
-  await page.getByTestId("qcms-assist-accept").locator("button").click();
+  await page.getByRole("button", { name: "Confirm", exact: true }).click();
 
   // Accepting is an ordinary draft save, so the builder's own save state moves.
   await waitForSaveAfter(page, previousSave);
@@ -247,13 +247,13 @@ test("refuses a scripted rogue tool call and proposes nothing (exit criterion 4)
 
   // The published form's builder shows a draft seeded from v1, and the assistant
   // works against that same seeded draft - the read-time rule the builder uses.
-  await expect(page.getByTestId("qcms-assist-panel")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("qcms-assistant-panel")).toBeVisible({ timeout: 30_000 });
   await send(page, "#qcms-fake:rogue-publish publish this for me");
 
   // Refused server-side. The browser is told, and no proposal is offered - a turn that
   // reached for a forbidden verb does not get the rest of its work accepted.
-  await expect(page.getByTestId("qcms-assist-error")).toBeVisible({ timeout: 60_000 });
-  await expect(page.getByTestId("qcms-assist-proposal")).toHaveCount(0);
+  await expect(page.getByTestId("qcms-assistant-error")).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId("qcms-acard-draft")).toHaveCount(0);
 });
 
 /**
@@ -271,7 +271,7 @@ test("header tooltips stay open across the gap and close on Escape from anywhere
   test.setTimeout(120_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto(`/forms/${formId}`);
-  await expect(page.getByTestId("qcms-assist-panel")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("qcms-assistant-panel")).toBeVisible({ timeout: 30_000 });
 
   // The dock's header owns these controls, so the criterion is measured on Close, which
   // is in the header on every screen.
@@ -327,18 +327,18 @@ test("streams prose and a running step before the first tool result (exit criter
   test.setTimeout(180_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto(`/forms/${formId}`);
-  await expect(page.getByTestId("qcms-assist-panel")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("qcms-assistant-panel")).toBeVisible({ timeout: 30_000 });
 
   await send(page, `#qcms-fake:narrate-then-tools #qcms-fake-search:${NEEDLE} add a step`);
 
   // The narration, while the model is still streaming the search call's input.
-  const live = page.getByTestId("qcms-assist-live");
+  const live = page.getByTestId("qcms-assistant-streaming");
   await expect(live).toContainText("question library", { timeout: 30_000 });
   // ...and the row for that call, running rather than settled.
   await expect(
-    page.getByTestId("qcms-assist-steps").locator("li[data-state='running']"),
+    page.getByTestId("qcms-assistant-steps").locator("li[data-state='running']"),
   ).toHaveCount(1, { timeout: 30_000 });
-  await expect(page.getByTestId("qcms-assist-steps").locator("li[data-state='done']")).toHaveCount(
+  await expect(page.getByTestId("qcms-assistant-steps").locator("li[data-state='done']")).toHaveCount(
     0,
   );
 
@@ -346,11 +346,11 @@ test("streams prose and a running step before the first tool result (exit criter
   const mark = page.getByTestId("qcms-assist-mark").first();
   await expect(mark).toHaveAttribute("data-working", "true");
 
-  // Then the turn completes: two steps done.
-  await expect(page.getByTestId("qcms-assist-proposal")).toBeVisible({ timeout: 60_000 });
-  await expect(page.getByTestId("qcms-assist-steps").locator("li[data-state='done']")).toHaveCount(
-    2,
-  );
+  // Then the turn completes: every step done.
+  await expect(page.getByTestId("qcms-acard-draft")).toBeVisible({ timeout: 60_000 });
+  await expect(
+    page.getByTestId("qcms-assistant-steps").locator("li[data-state='done']"),
+  ).toHaveCount(3);
   await expect(mark).not.toHaveAttribute("data-working", "true");
 
   // The dock is the named landmark, named by the header's mark with no visible title
@@ -359,7 +359,7 @@ test("streams prose and a running step before the first tool result (exit criter
 
   // axe over the finished turn: the mark, the bubbles, the timeline and the card.
   const results = await new AxeBuilder({ page })
-    .include('[data-testid="qcms-assist-panel"]')
+    .include('[data-testid="qcms-assistant-panel"]')
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
     .analyze();
   expect(
@@ -374,13 +374,13 @@ test("Stop ends a running turn with no error shown (exit criterion 5)", async ({
   test.setTimeout(180_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto(`/forms/${formId}`);
-  await expect(page.getByTestId("qcms-assist-panel")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("qcms-assistant-panel")).toBeVisible({ timeout: 30_000 });
 
   // The step-limit script never proposes and always asks for one more call, so
   // there is a turn to stop for as long as the test needs one.
   await send(page, "#qcms-fake:step-limit keep going");
 
-  const stop = page.getByTestId("qcms-assist-stop").locator("button");
+  const stop = page.getByTestId("qcms-assistant-stop").locator("button");
   await expect(stop).toBeVisible({ timeout: 30_000 });
   // From the keyboard, because a step this script keeps appending moves the control under
   // the pointer: a click waits for it to hold still and the script is written never to let
@@ -388,9 +388,9 @@ test("Stop ends a running turn with no error shown (exit criterion 5)", async ({
   await stop.focus();
   await page.keyboard.press("Enter");
 
-  await expect(page.getByTestId("qcms-assist-stop")).toHaveCount(0, { timeout: 30_000 });
-  await expect(page.getByTestId("qcms-assist-live")).toHaveCount(0);
-  await expect(page.getByTestId("qcms-assist-error")).toHaveCount(0);
+  await expect(page.getByTestId("qcms-assistant-stop")).toHaveCount(0, { timeout: 30_000 });
+  await expect(page.getByTestId("qcms-assistant-streaming")).toHaveCount(0);
+  await expect(page.getByTestId("qcms-assistant-error")).toHaveCount(0);
   // Send is available again: the panel is ready for the next turn.
   await expect(composer(page)).toBeEnabled();
 });
@@ -399,7 +399,7 @@ test("Enter sends and Shift+Enter adds a line (exit criterion 5)", async ({ page
   test.setTimeout(120_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto(`/forms/${formId}`);
-  await expect(page.getByTestId("qcms-assist-panel")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("qcms-assistant-panel")).toBeVisible({ timeout: 30_000 });
 
   const field = composer(page);
   await field.click();
@@ -411,7 +411,7 @@ test("Enter sends and Shift+Enter adds a line (exit criterion 5)", async ({ page
   await page.keyboard.press("Enter");
   // The composer empties because the turn was sent, and the turn is on screen.
   await expect(field).toHaveValue("");
-  await expect(page.getByTestId("qcms-assist-conversation")).toContainText("first", {
+  await expect(page.getByTestId("qcms-assistant-turns")).toContainText("first", {
     timeout: 30_000,
   });
 });
@@ -423,11 +423,11 @@ test("shows the thinking disclosure, collapsed and in plain text (081 exit crite
   test.setTimeout(180_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto(`/forms/${formId}`);
-  await expect(page.getByTestId("qcms-assist-panel")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("qcms-assistant-panel")).toBeVisible({ timeout: 30_000 });
 
   await send(page, `#qcms-fake:reasoning #qcms-fake-search:${NEEDLE} add a step`);
 
-  const disclosure = page.getByTestId("qcms-assist-thinking").first();
+  const disclosure = page.getByTestId("qcms-assistant-thinking").first();
   await expect(disclosure).toBeVisible({ timeout: 60_000 });
   // Collapsed, and reporting how long it took once the summary has ended.
   await expect(disclosure).toContainText("Thinking");
@@ -435,7 +435,7 @@ test("shows the thinking disclosure, collapsed and in plain text (081 exit crite
 
   // axe closed...
   const closed = await new AxeBuilder({ page })
-    .include('[data-testid="qcms-assist-panel"]')
+    .include('[data-testid="qcms-assistant-panel"]')
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
     .analyze();
   expect(
@@ -450,7 +450,7 @@ test("shows the thinking disclosure, collapsed and in plain text (081 exit crite
   await expect(disclosure.locator("strong")).toHaveCount(0);
 
   const open = await new AxeBuilder({ page })
-    .include('[data-testid="qcms-assist-panel"]')
+    .include('[data-testid="qcms-assistant-panel"]')
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
     .analyze();
   expect(
@@ -464,10 +464,10 @@ test("runs no animation under reduced motion (exit criterion 8)", async ({ page 
   await page.emulateMedia({ reducedMotion: "reduce" });
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto(`/forms/${formId}`);
-  await expect(page.getByTestId("qcms-assist-panel")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("qcms-assistant-panel")).toBeVisible({ timeout: 30_000 });
 
   await send(page, "#qcms-fake:step-limit keep going");
-  await expect(page.getByTestId("qcms-assist-live")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("qcms-assistant-streaming")).toBeVisible({ timeout: 30_000 });
 
   const animated = await page.evaluate(() => {
     const names: string[] = [];
@@ -501,7 +501,7 @@ test("runs no animation under reduced motion (exit criterion 8)", async ({ page 
   await expect(mark).toHaveAttribute("data-working", "true");
 
   const results = await new AxeBuilder({ page })
-    .include('[data-testid="qcms-assist-panel"]')
+    .include('[data-testid="qcms-assistant-panel"]')
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
     .analyze();
   expect(
@@ -548,14 +548,14 @@ test("accepting a proposal creates its new question as an unpublished library dr
 
   await send(page, `#qcms-fake:propose-questions #qcms-fake-new:${RUN} add a name question`);
 
-  const proposal = page.getByTestId("qcms-assist-proposal");
+  const proposal = page.getByTestId("qcms-acard-draft");
   await expect(proposal).toBeVisible({ timeout: 60_000 });
 
   // Before the accept the pin resolves to nothing, because nothing has created it. The
   // kernel calls that a dangling reference, but for a question this proposal invents the
-  // panel says what Accept will do instead of the builder's "Pin it" advice (issue #1065):
+  // card says what Confirm will do instead of the builder's "Pin it" advice (issue #1065):
   // the question is already pinned, and publishing it is the step that remains.
-  const proposalValidation = page.getByTestId("qcms-assist-validation");
+  const proposalValidation = page.getByTestId("qcms-acard-issues");
   await expect(proposalValidation).toContainText(
     `New question ${proposedId}. Accepting creates it as an unpublished draft`,
     { timeout: 30_000 },
@@ -563,7 +563,7 @@ test("accepting a proposal creates its new question as an unpublished library dr
   await expect(proposalValidation).not.toContainText("Pin it, or change the reference");
 
   const previousSave = await savedStamp(page);
-  await page.getByTestId("qcms-assist-accept").locator("button").click();
+  await page.getByRole("button", { name: "Confirm", exact: true }).click();
   await waitForSaveAfter(page, previousSave);
 
   // The advisory now describes reality: the pin resolves to a stored version, and what

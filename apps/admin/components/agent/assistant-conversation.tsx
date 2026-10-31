@@ -6,7 +6,12 @@ import { AssistMark } from "@/components/forms/assist-mark";
 import { AssistMarkdown } from "@/components/forms/assist-markdown";
 import { Button } from "@/components/kit";
 import type { BuilderAssistSnapshot } from "@/lib/agent/builder-assist-bridge";
-import { isProseTurn, promptTurns, type ConversationHandle } from "@/lib/agent/conversation";
+import {
+  isProseTurn,
+  promptTurns,
+  type AgentTurnRecord,
+  type ConversationHandle,
+} from "@/lib/agent/conversation";
 import type { ResolvedScreen } from "@/lib/agent/screens";
 import {
   actionResultTurn,
@@ -120,6 +125,10 @@ function ScreenConversation({
   readonly onAnnounce: (message: string) => void;
 }) {
   const [value, setValue] = useState("");
+  // What is on screen, which is not what the next request replays: a finished assistant
+  // turn keeps its step timeline and its reasoning disclosure here, while the
+  // conversation holds its prose, which is all the model is ever told.
+  const [shown, setShown] = useState<readonly ShownTurn[]>(() => restored(conversation.turns));
   const [live, setLive] = useState<AssistantTurnView | undefined>(undefined);
   const [failure, setFailure] = useState<AssistError | undefined>(undefined);
   // One card or one plan per turn (P1), waiting on the user's Confirm. Nothing runs until
@@ -200,6 +209,7 @@ function ScreenConversation({
     if (message === "" || screen === undefined || live !== undefined) return;
     setValue("");
     setFailure(undefined);
+    setShown((current) => [...current, { role: "user", content: message }]);
     conversation.append([{ role: "user", content: message }]);
     let turn = EMPTY_TURN;
     setLive(turn);
@@ -245,6 +255,9 @@ function ScreenConversation({
         if (step !== undefined) onAnnounce(t(step.label));
       }
       const ended = finishTurn(turn);
+      if (ended.segments.length > 0) {
+        setShown((current) => [...current, { role: "assistant", view: ended }]);
+      }
       const text = turnText(ended).trim();
       if (text !== "") conversation.append([{ role: "assistant", content: text }]);
       // The model's words, and the one place they reach the card.
@@ -265,22 +278,33 @@ function ScreenConversation({
   return (
     <div className="qcms-assistant__conversation">
       <ol className="qcms-assistant__turns" data-testid="qcms-assistant-turns">
-        {conversation.turns.map((turn, index) =>
-          // An `action-result` turn is the card's own record and is already on screen as
-          // the card's result line, so it is history for the model and not a second turn.
-          isProseTurn(turn) ? (
-            <li
-              key={`${turn.role}-${String(index)}`}
-              className="qcms-assistant__turn"
-              data-role={turn.role}
-            >
-              {turn.role === "assistant" && <AssistMark size={20} />}
+        {shown.map((turn, index) =>
+          turn.role === "user" ? (
+            <li key={`user-${String(index)}`} className="qcms-assistant__turn" data-role="user">
               <AssistMarkdown text={turn.content} />
             </li>
-          ) : null,
+          ) : (
+            <li
+              key={`assistant-${String(index)}`}
+              className="qcms-assistant__turn"
+              data-role="assistant"
+            >
+              <AssistMark size={20} />
+              <div className="qcms-assistant__segments">
+                {turn.view.segments.map((segment, at) => (
+                  <Segment key={`${segment.kind}:${String(at)}`} segment={segment} />
+                ))}
+              </div>
+            </li>
+          ),
         )}
         {live !== undefined && (
-          <li className="qcms-assistant__turn" data-role="assistant" aria-busy="true">
+          <li
+            className="qcms-assistant__turn"
+            data-role="assistant"
+            data-testid="qcms-assistant-streaming"
+            aria-busy="true"
+          >
             <AssistMark size={20} working />
             <div className="qcms-assistant__segments">
               {live.segments.length === 0 ? (
@@ -322,7 +346,7 @@ function ScreenConversation({
           </li>
         )}
       </ol>
-      {conversation.turns.length === 0 && live === undefined && (
+      {shown.length === 0 && live === undefined && (
         <p className="qcms-assistant__empty" data-testid="qcms-assistant-empty">
           {t("agent.empty")}
         </p>
@@ -473,4 +497,29 @@ function StepTimeline({ steps }: { readonly steps: readonly TurnStep[] }) {
       })}
     </ol>
   );
+}
+
+/** One turn as the conversation shows it. An assistant turn is a timeline, not a string. */
+type ShownTurn =
+  | { readonly role: "user"; readonly content: string }
+  | { readonly role: "assistant"; readonly view: AssistantTurnView };
+
+/**
+ * The turns a restored conversation shows. An assistant turn comes back as its prose: the
+ * step timeline belonged to the mount that streamed it, and the prose is also exactly what
+ * the next request replays. An `action-result` turn is a card's own report, already on
+ * screen as that card's result line, so it is history for the model rather than a turn to
+ * redisplay.
+ */
+function restored(turns: readonly AgentTurnRecord[]): readonly ShownTurn[] {
+  return turns.flatMap((turn): readonly ShownTurn[] => {
+    if (!isProseTurn(turn) || turn.role === "result") return [];
+    if (turn.role === "user") return [{ role: "user", content: turn.content }];
+    return [
+      {
+        role: "assistant",
+        view: finishTurn(applyTurnEvent(EMPTY_TURN, { type: "text", delta: turn.content })),
+      },
+    ];
+  });
 }
