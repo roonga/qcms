@@ -1007,20 +1007,34 @@ test("publish, preview, history and secure links have zero violations", async ({
   await expectNoViolations(page, "close-form confirmation");
   await page.keyboard.press("Escape");
 
-  // The release screen and its confirmation (ADR-40, task 065). Swept here, with the other
-  // confirmations, because a dialog that restates the environment is exactly the shape this
-  // gate exists for - and the release itself is what lets the operations sweep below start a
-  // respondent session on this form.
-  await page.goto(`/forms/${formId}/releases`);
+  // The Versions view and every step of the publish wizard (issue #1197). Swept here, with
+  // the other acts, because the wizard is a form filled in over three steps, each with its
+  // own controls and its own live region - and the release itself is what lets the
+  // operations sweep below start a respondent session on this form.
+  await page.goto(`/forms/${formId}/versions`);
   await chooseEnvironment(page, "prod");
-  await expect(page.getByTestId("qcms-release-panel")).toBeVisible();
-  await expectNoViolations(page, "the release screen, nothing released yet");
-  await page.getByRole("button", { name: "Release a version…" }).click();
-  await expect(page.getByRole("alertdialog")).toBeVisible();
-  await expectNoViolations(page, "release confirmation");
-  await page.getByRole("button", { name: "Release v2 to prod" }).click();
-  await expect(page.getByTestId("qcms-release-status")).toContainText("prod");
-  await expectNoViolations(page, "the release screen with a history");
+  await expect(page.getByTestId("qcms-released-now")).toBeVisible();
+  await expectNoViolations(page, "the Versions view, nothing released in prod yet");
+
+  await page.goto(`/forms/${formId}/publish`);
+  await expect(page.getByTestId("qcms-publish-source")).toBeVisible();
+  await expectNoViolations(page, "the publish wizard, choosing a source");
+  await page.getByRole("radio", { name: "An existing version" }).check();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  const destinations = page.getByTestId("qcms-publish-destinations");
+  await expect(destinations).toBeVisible();
+  await expectNoViolations(page, "the publish wizard, choosing destinations");
+  await destinations.getByRole("checkbox", { name: "prod", exact: true }).check();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(page.getByTestId("qcms-publish-review")).toBeVisible();
+  await expectNoViolations(page, "the publish wizard, reviewing one destination");
+  await page.getByRole("button", { name: "Confirm", exact: true }).click();
+  await expect(page.getByTestId("qcms-publish-result")).toBeVisible({ timeout: 30_000 });
+  await expectNoViolations(page, "the recorded publish outcome");
+
+  await page.goto(`/forms/${formId}/versions`);
+  await expect(page.getByTestId("qcms-release-history")).toBeVisible();
+  await expectNoViolations(page, "the Versions view with a release history");
 
   await chooseEnvironment(page, "test");
   await page.goto(`/forms/${formId}/preview`);

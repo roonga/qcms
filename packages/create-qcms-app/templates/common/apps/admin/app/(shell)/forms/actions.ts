@@ -575,7 +575,7 @@ export async function confirmPublishAction(
           targets: request.targets,
         });
   if (!result.ok) return refusedPublish(result);
-  return committedPublish(formId, result.data);
+  return committedPublish(formId, result.data, request.source.kind === "draft");
 }
 
 /**
@@ -597,7 +597,9 @@ export async function lookupPublishResultAction(
     }
     return refusedPublish(result);
   }
-  return committedPublish(formId, result.data);
+  // A looked-up result does not say which source produced it, and the recorded releases
+  // are the answer the operator came for either way, so it reports neither.
+  return committedPublish(formId, result.data, false);
 }
 
 /** The refusal, with `STALE_REVIEW` kept apart because its recovery is a re-read. */
@@ -614,13 +616,18 @@ function refusedPublish(result: {
 }
 
 /** A committed confirmation. The whole form subtree is re-read: its header says what is released. */
-function committedPublish(formId: string, outcome: BatchOutcome): PublishBatchState {
+function committedPublish(
+  formId: string,
+  outcome: BatchOutcome,
+  froze: boolean,
+): PublishBatchState {
   revalidatePath("/forms");
   revalidatePath("/operations");
   revalidatePath(`/forms/${formId}`, "layout");
   return {
     status: "done",
     version: outcome.version,
+    froze,
     replayed: outcome.replayed,
     releases: outcome.releases.map((release) => ({
       environment: release.environment,

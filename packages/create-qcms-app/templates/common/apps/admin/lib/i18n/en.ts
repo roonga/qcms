@@ -1820,6 +1820,7 @@ export const messages = {
     "Nothing was committed under that confirmation. You can confirm again.",
   "forms.publish.result.heading": "Recorded",
   "forms.publish.result.version": "Version {version} is published.",
+  "forms.publish.result.released": "Version {version} is released.",
   "forms.publish.result.replayed":
     "This is the recorded result of the confirmation you already sent, not a second one.",
   "forms.publish.result.releasedIn": "Released to {environment}",

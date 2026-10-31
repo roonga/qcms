@@ -27,6 +27,7 @@ import {
   openFormDetails,
   openRules,
 } from "./support/forms.js";
+import { releaseThroughWizard } from "./support/publish.js";
 import { confirmLifecycle, createDraft, fillDate, optionIds } from "./support/questions.js";
 
 /**
@@ -195,9 +196,11 @@ test("releases a published version to an environment and records it (task 065)",
   test.setTimeout(180_000);
   await signInWithTotp(page, EMAIL, totpSecret);
 
+  // The legacy route lands on the screen that answers it now (issue #1197).
   await page.goto(`/forms/${formId}/releases`);
+  await page.waitForURL(`**/forms/${formId}/versions`);
   await chooseEnvironment(page, "prod");
-  await expect(page.locator("h1").first()).toHaveText("Releases");
+  await expect(page.locator("h1").first()).toHaveText("Versions");
 
   // Nothing is released yet, and the screen says so for every environment rather than
   // leaving a row out: "not released in prod" is the answer an operator most needs.
@@ -205,22 +208,14 @@ test("releases a published version to an environment and records it (task 065)",
   await expect(now.locator('tr[data-environment="prod"]')).toContainText("Nothing released");
   await expect(now.locator('tr[data-environment="test"]')).toContainText("v1");
 
-  await page.getByRole("button", { name: "Release a version…" }).click();
-  const dialog = page.getByRole("alertdialog");
-  await expect(dialog).toBeVisible();
+  // The one publish entry, and the wizard behind it. The destination is chosen in the
+  // wizard's own body rather than taken from the switcher: the Operations selector controls
+  // operational data, not where a version is released.
+  await page.getByTestId("qcms-publish-entry").click();
+  await page.waitForURL(`**/forms/${formId}/publish`);
+  await releaseThroughWizard(page, { formId, version: 1, environment: "prod" });
 
-  // The dialog opens on the environment the switcher has selected, which is `prod` here:
-  // that is the environment the respondent harness serves until task 066 gives the portal
-  // its `/<env>/` prefix, and every test below this one walks that path.
-  //
-  // Q6's restatement, on the act that decides what a respondent is served. It is in the
-  // dialog's body and on its confirm button, not inferable from a control elsewhere.
-  await expect(dialog.getByTestId("qcms-release-environment")).toContainText("prod");
-  await dialog.getByRole("button", { name: "Release v1 to prod" }).click();
-
-  await expect(page.getByTestId("qcms-release-status")).toContainText(
-    "v1 is now released to prod.",
-  );
+  await page.goto(`/forms/${formId}/versions`);
   await expect(now.locator('tr[data-environment="prod"]')).toContainText("v1");
   // And `test`, where nothing was released, is untouched: a release reaches one environment,
   // which is the property the API suite asserts from both sides.
@@ -234,11 +229,13 @@ test("releases a published version to an environment and records it (task 065)",
   // ADR-27 again: an operator-facing table renders a formatted date, never the wire value.
   await expect(history).not.toContainText(ISO_TIMESTAMP);
 
-  // The version list now says where v1 reached, which is the column the Published column
-  // used to answer on its own and no longer does.
-  await page.goto(`/forms/${formId}/versions`);
+  // The version table now says where v1 reached and where it is serving, which the
+  // Published column used to answer on its own and no longer does.
   const versions = page.getByRole("table", { name: "Published versions" });
   await expect(versions.locator('tr[data-form-version="1"]')).toContainText("prod");
+  await expect(versions.locator('tr[data-form-version="1"] td[data-available-in]')).toContainText(
+    "prod",
+  );
 
   // The filter's default shows every version, so nothing is hidden by surprise (finding 2).
   const filter = page.getByTestId("qcms-history-filter");

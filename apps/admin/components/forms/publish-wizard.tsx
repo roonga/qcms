@@ -135,7 +135,12 @@ function PublishResult({
     <section className="flex flex-col gap-4" data-testid="qcms-publish-result">
       <div aria-live="polite" className="flex flex-col gap-2">
         <Alert variant="success">
-          {t("forms.publish.result.version", { version: state.version ?? 0 })}
+          {t(
+            state.froze === true ? "forms.publish.result.version" : "forms.publish.result.released",
+            {
+              version: state.version ?? 0,
+            },
+          )}
         </Alert>
         {state.replayed === true && (
           <Alert variant="info">{t("forms.publish.result.replayed")}</Alert>

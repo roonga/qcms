@@ -23,6 +23,7 @@ import {
   waitForSaveAfter,
 } from "./support/forms.js";
 import { waitForHydration } from "./support/hydration.js";
+import { openPublishWizard } from "./support/publish.js";
 import { confirmLifecycle, createDraft, fillDate, optionIds } from "./support/questions.js";
 
 /** One UI journey, independent of forms-publish's serial fixtures: draft -> test -> prod. */
@@ -40,24 +41,32 @@ test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
 });
 
-async function releaseVersion(page: Page, environment: "test" | "prod"): Promise<void> {
-  await waitForHydration(page);
-  await page.getByRole("button", { name: "Release a version…" }).click();
-  const dialog = page.getByRole("alertdialog");
-  await expect(dialog.getByRole("button", { name: /Environment$/u })).toHaveCount(0);
-  await expect(
-    dialog.getByRole("button", {
-      name: environment === "test" ? "Release to prod" : "Release to test",
-      exact: true,
-    }),
-  ).toHaveCount(0);
-  await chooseOption(dialog, "Version to release", "v1");
-  await expect(dialog).toContainText("This version was released to test.");
-  await dialog.getByRole("button", { name: `Release v1 to ${environment}`, exact: true }).click();
-  await expect(dialog).toBeHidden();
-  await expect(page.getByTestId("qcms-release-status")).toContainText(
-    `v1 is now released to ${environment}.`,
-  );
+/**
+ * Promote the tested v1 into one destination through the publish wizard (issue #1197).
+ *
+ * It asserts the two things the old release dialog asserted and the wizard still owes: the
+ * destination is chosen here and not taken from the switcher, and a destination this
+ * caller cannot release into is absent from the list rather than disabled.
+ */
+async function releaseVersion(
+  page: Page,
+  formId: string,
+  environment: "test" | "prod",
+): Promise<void> {
+  await openPublishWizard(page, formId);
+  await page.getByRole("radio", { name: "An existing version" }).check();
+  await chooseOption(page.getByTestId("qcms-publish-source"), "Version to release", "v1");
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  const destinations = page.getByTestId("qcms-publish-destinations");
+  await expect(destinations).toBeVisible();
+  await destinations.getByRole("checkbox", { name: environment, exact: true }).check();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(page.getByTestId("qcms-publish-review")).toBeVisible();
+  await page.getByRole("button", { name: "Confirm", exact: true }).click();
+  const result = page.getByTestId("qcms-publish-result");
+  await expect(result).toBeVisible({ timeout: 30_000 });
+  await expect(result).toContainText("Version 1 is released.");
+  await expect(result.locator(`li[data-environment="${environment}"]`)).toBeVisible();
 }
 
 /** Check both rule outcomes, submit, and retain the session id for independent DB checks. */
@@ -131,18 +140,23 @@ test("publishes a draft, verifies it in test, then promotes the same version to 
   await expect(page.getByText("Published as v1 and released to test.")).toBeVisible({
     timeout: 30_000,
   });
-  await page.goto(`/forms/${formId}/releases`);
+  await page.goto(`/forms/${formId}/versions`);
   const released = page.getByTestId("qcms-released-now");
   await expect(released.locator('tr[data-environment="test"]')).toContainText("v1");
   await expect(released.locator('tr[data-environment="prod"]')).toContainText("Nothing released");
-  await page.getByRole("button", { name: "Release a version…" }).click();
+  // Prod is accessible to this caller and not yet eligible, so the wizard lists it
+  // disabled with the prerequisite as the reason rather than omitting it or letting the
+  // confirmation refuse it. Cancelling writes nothing.
+  await openPublishWizard(page, formId);
+  await page.getByRole("radio", { name: "An existing version" }).check();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  const blocked = page.getByTestId("qcms-publish-destinations");
   await expect(
-    page.getByRole("alertdialog").getByRole("button", { name: "Release to prod", exact: true }),
-  ).toHaveCount(0);
-  await expect(
-    page.getByRole("alertdialog").getByRole("button", { name: /Environment$/u }),
-  ).toHaveCount(0);
-  await page.getByRole("alertdialog").getByRole("button", { name: "Cancel", exact: true }).click();
+    blocked.locator('div[data-environment="prod"][data-eligible="false"]'),
+  ).toBeVisible();
+  await expect(blocked.getByRole("checkbox", { name: "prod", exact: true })).toBeDisabled();
+  await page.getByRole("link", { name: "Cancel", exact: true }).click();
+  await page.waitForURL(`**/forms/${formId}/versions`);
 
   // Non-prod has no anonymous entry: mint a real environment-scoped link through admin.
   await page.goto(`/forms/${formId}/links`);
@@ -162,15 +176,15 @@ test("publishes a draft, verifies it in test, then promotes the same version to 
   const testSession = await completeForm(page, "test");
 
   // Return to admin on the same gated page. Promotion selects the tested v1 explicitly.
-  await page.goto(`/forms/${formId}/releases`);
+  await page.goto(`/forms/${formId}/versions`);
   await expect(released.locator('tr[data-environment="prod"]')).toContainText("Nothing released");
   await chooseEnvironment(page, "prod");
   await page.goto(`/forms/${formId}`);
   await expect(page.getByTestId("qcms-published-form-review")).toBeVisible();
   await expect(page.getByRole("button", { name: /Publish/u })).toHaveCount(0);
   await expect(page.getByRole("textbox", { name: "Title", exact: true })).toHaveCount(0);
-  await page.goto(`/forms/${formId}/releases`);
-  await releaseVersion(page, "prod");
+  await page.goto(`/forms/${formId}/versions`);
+  await releaseVersion(page, formId, "prod");
   for (const environment of ["test", "prod"]) {
     await expect(released.locator(`tr[data-environment="${environment}"]`)).toContainText("v1");
   }

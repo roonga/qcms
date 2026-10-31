@@ -233,6 +233,8 @@ export interface PublishBatchRelease {
 export interface PublishBatchState {
   readonly status: "idle" | "done" | "rejected" | "stale" | "uncertain" | "error";
   readonly version?: number;
+  /** True when this confirmation froze the version, false when it released an existing one. */
+  readonly froze?: boolean;
   readonly releases?: readonly PublishBatchRelease[];
   /** True when the API answered with the stored result of an earlier attempt. */
   readonly replayed?: boolean;

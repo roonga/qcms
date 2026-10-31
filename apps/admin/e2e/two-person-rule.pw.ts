@@ -386,14 +386,15 @@ test("either account can withdraw a waiting change, and the endpoint is untouche
   expect(await page.content()).not.toContain(WITHDRAWN_URL);
 });
 
-test("the release dialog carries the rule's notice with the switch on", async ({ page }) => {
+test("the publish wizard carries the rule's notice with the switch on", async ({ page }) => {
   test.setTimeout(300_000);
   await signInWithTotp(page, APPROVER, approverSecret);
-  await page.goto(`/forms/${FORM_ID}/releases`);
+  await page.goto(`/forms/${FORM_ID}/publish`);
 
-  await page.getByRole("button", { name: "Release a version" }).click();
-  const dialog = page.getByTestId("qcms-release-dialog");
-  await expect(dialog.getByRole("button", { name: /Environment$/u })).toHaveCount(0);
+  await page.getByRole("radio", { name: "An existing version" }).check();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  const destinations = page.getByTestId("qcms-publish-destinations");
+  await expect(destinations).toBeVisible();
 
   // **The notice renders, in production, with the switch on.** The fixture's versions were
   // seeded without a publishing account, so the reading here is the "cannot be checked"
@@ -403,28 +404,33 @@ test("the release dialog carries the rule's notice with the switch on", async ({
   // `release-panel-two-person.test.tsx` walks all three: producing a version published by
   // *this* account in a browser means building a whole form to publish, which buys nothing
   // this file is for.
-  await expect(page.getByTestId("qcms-release-two-person")).toContainText(
-    "cannot be checked against it",
+  await expect(destinations.locator('span[data-code="APPROVER_UNKNOWN_AUTHOR"]')).toContainText(
+    "was not recorded",
   );
+  // Disabled with that reason rather than merely inert: the confirmation would refuse it.
+  await expect(destinations.getByRole("checkbox", { name: "prod", exact: true })).toBeDisabled();
 
-  await expectAxeClean(page, "release dialog under the two-person rule");
-  await expectNoHorizontalScroll(page, "release dialog under the two-person rule");
+  await expectAxeClean(page, "the publish wizard under the two-person rule");
+  await expectNoHorizontalScroll(page, "the publish wizard under the two-person rule");
 });
 
-test("the release dialog says nothing about the rule once the switch is off", async ({ page }) => {
+test("the publish wizard says nothing about the rule once the switch is off", async ({ page }) => {
   test.setTimeout(300_000);
   await signInWithTotp(page, APPROVER, approverSecret);
   await setTwoPersonSwitch(page, false);
 
-  await page.goto(`/forms/${FORM_ID}/releases`);
-  await page.getByRole("button", { name: "Release a version" }).click();
-  const dialog = page.getByTestId("qcms-release-dialog");
-  await expect(dialog.getByRole("button", { name: /Environment$/u })).toHaveCount(0);
+  await page.goto(`/forms/${FORM_ID}/publish`);
+  await page.getByRole("radio", { name: "An existing version" }).check();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  const destinations = page.getByTestId("qcms-publish-destinations");
+  await expect(destinations).toBeVisible();
 
   // Criterion 3, in the browser: the same account, the same version, the same environment,
   // and with the switch off the screen says nothing about any of it. An implementation
   // that asked for an approver and then accepted the same account would look exactly like
   // this from the API and wrong from here.
-  await expect(page.getByTestId("qcms-release-two-person")).toHaveCount(0);
-  await expect(dialog.getByRole("button", { name: /^Release v\d+ to prod$/u })).toBeVisible();
+  await expect(destinations.locator('span[data-code^="APPROVER_"]')).toHaveCount(0);
+  await expect(
+    destinations.locator('div[data-environment="prod"][data-eligible="true"]'),
+  ).toBeVisible();
 });
