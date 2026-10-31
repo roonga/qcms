@@ -156,20 +156,58 @@ describe("sampleFrom", () => {
     expect(sampleFrom(jobs, 7, "browser-e2e")).toBeUndefined();
     expect(sampleFrom(jobs, 7, "api-e2e")).toBeUndefined();
   });
+
+  describe("--prefix", () => {
+    const shards = [1, 2, 3, 4].map((shard) => ({
+      name: `browser-e2e (shard ${String(shard)}/4)`,
+      conclusion: "success",
+      // Staggered both ends, so the span is neither the first job's nor the longest one's.
+      started_at: `2026-09-08T21:3${String(shard)}:00Z`,
+      completed_at: `2026-09-08T21:5${String(9 - shard)}:00Z`,
+    }));
+
+    it("spans the whole matching set, earliest start to latest completion", () => {
+      expect(sampleFrom(shards, 9, "browser-e2e (shard", true)).toEqual({
+        runId: 9,
+        startedAt: "2026-09-08T21:31:00Z",
+        completedAt: "2026-09-08T21:58:00Z",
+        seconds: 1620,
+      });
+    });
+
+    it("drops the run when any job in the set did not succeed", () => {
+      const withRedShard = [
+        ...shards.slice(1),
+        { ...shards[0], conclusion: "failure" },
+      ] as typeof shards;
+
+      expect(sampleFrom(withRedShard, 9, "browser-e2e (shard", true)).toBeUndefined();
+    });
+
+    it("answers nothing when the prefix matches no job", () => {
+      expect(sampleFrom(shards, 9, "portal-e2e", true)).toBeUndefined();
+    });
+  });
 });
 
 describe("parseArgs", () => {
   it("takes a job name and fills the rest from the defaults", () => {
-    expect(parseArgs(["browser-e2e"])).toEqual({ job: "browser-e2e", ...DEFAULTS, json: false });
+    expect(parseArgs(["browser-e2e"])).toEqual({
+      job: "browser-e2e",
+      ...DEFAULTS,
+      json: false,
+      prefix: false,
+    });
   });
 
   it("accepts the overrides", () => {
-    expect(parseArgs(["verify", "--runs", "5", "--branch", "next", "--json"])).toEqual({
+    expect(parseArgs(["verify", "--runs", "5", "--branch", "next", "--json", "--prefix"])).toEqual({
       job: "verify",
       workflow: DEFAULTS.workflow,
       branch: "next",
       runs: 5,
       json: true,
+      prefix: true,
     });
   });
 
