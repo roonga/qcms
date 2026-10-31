@@ -90,10 +90,8 @@ describe("the screen registry", () => {
     for (const id of SCREEN_IDS) {
       for (const kind of SCREENS[id].actionKinds) {
         expect(ACTION_KIND_NAMES).toContain(kind);
-        // The descriptor names one screen, which is where its marker shows and what its
-        // audit row records. A kind offered on a second screen still mirrors that one
-        // control: the two library creates reach the same act from the list and from the
-        // creating screen.
+        // The descriptor names one screen, where its marker shows and what its audit row
+        // records. A kind offered on a second screen still mirrors that one control.
         const mirror = actionKind(kind)?.screen;
         expect(mirror, kind).toBeDefined();
         expect(SCREENS[mirror as ScreenId].actionKinds, kind).toContain(kind);

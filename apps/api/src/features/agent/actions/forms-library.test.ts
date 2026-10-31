@@ -6,11 +6,8 @@ import { createForm } from "./forms-library.js";
 import type { ActionRequestFacts } from "./types.js";
 
 /**
- * D7's one kind. Beside the two properties every kind has (the arguments the card
- * displays are the arguments recomputed from the request, and the route the descriptor
- * names is the one the policy table authorises with the same cell), this one carries the
- * create-variant ruling: the new id is the referenceable result, and the card's link is a
- * page route rather than anything a route handler serves.
+ * D7's one kind: the two properties every kind has, plus the create variant's own, which
+ * are that the new id is the referenceable result and that the card's link is a page route.
  */
 
 const ROUTE = { method: "POST", path: "/admin/forms" } as const;
