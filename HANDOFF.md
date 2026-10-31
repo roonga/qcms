@@ -1,26 +1,13 @@
-HANDOFF: AWAITING-HUMAN rule on whether a self-service account act is an action kind for criterion 3
+HANDOFF: INTERRUPTED
 
 # 083 D0 to D9: what is on this branch and what is not
 
 The 2026-11-01 rulings recorded in `docs/features/083-agent-actions-every-screen.md` and in
-SEC-17 are built where they unblock work. What remains is listed below, and the one thing
-that needs a ruling is first because it blocks D9.
+SEC-17 are built. Nothing below is waiting on a decision.
 
-## Needing a ruling
-
-**Is a self-service account act an action kind for criterion 3?** D9's three acts (change
-password, regenerate recovery codes, sign out) have no matrix cell: every signed-in
-administrator holds them on their own Settings screen, gated by the admin session alone.
-Criterion 3 reads "a `forms.viewer` is offered no action kind on any screen", and
-`grant-filter.test.ts` asserts the whole registry walk returns `[]` for a viewer. A
-cell-less kind therefore breaks the criterion verbatim, while gating it on a cell would
-refuse an act the viewer can plainly perform by hand. Either the criterion narrows (a
-self-service act is not what it counts) or D9's three acts drop from 083 the way two-factor
-re-enrolment already has. The branch holds no D9 kind, and the mechanism D9 needs is the
-part of the work that is already in: the hand-off seam, and a descriptor whose `route` is
-optional for a hand-off.
-
-Nothing else below is waiting on a decision.
+**D9 is out of scope** (Code Owner, 2026-11-01). A self-service account act holds no matrix
+cell and acts in no environment, so it is no action kind and the Settings screen carries
+none; criterion 3 stays verbatim. The work order and SEC-17 both record it.
 
 ## Landed
 
@@ -51,10 +38,9 @@ workspace settings.
   unblocked by the create-variant ruling of 2026-11-01 and neither started.
 - **D8's read half**: the agent audit surfaced beside the access audit on
   `workspaces/[workspaceId]`.
-- **D9**, blocked above.
 - **D1's `apply-draft` kind**: today's proposal panel as a kind, with Accept running through
   the builder's own save and the sticky `agentAssisted` mark.
-- **The read tools of D1 to D9** (the rule test, the version diffs, the link count, the
+- **The read tools of D1 to D8** (the rule test, the version diffs, the link count, the
   response list and count, delivery status, dead-letter count, library search, form search).
   Each needs a context port on its screen, an output schema and a place in the vocabulary
   sentinel walk.
@@ -65,4 +51,4 @@ workspace settings.
   still read "decided, not built", `docs/agent-authoring.md` section 4 is not rewritten,
   `docs/SECURITY_DESIGN.md` section 8's four-tool paragraph is not retired, 038's header
   still lists 080 to 083, the four work orders are still in `docs/features/`, and the ledger
-  rows are still open. They close when D6, D7 and D9 do.
+  rows are still open. They close when D6 and D7 do.
