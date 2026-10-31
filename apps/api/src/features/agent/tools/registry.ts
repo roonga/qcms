@@ -370,10 +370,20 @@ async function propose(
   ctx: AgentContext,
   state: ProposalState,
 ): Promise<Record<string, unknown>> {
-  const outcome = await port(ctx.propose, `propose_${variant}`)(
+  const outcome = await port(ctx.propose, `propose_${variant}`)({
     steps,
-    state.actionProposals.length,
-  );
+    proposalsThisTurn: state.actionProposals.length,
+    // Present only once `propose_draft` has recorded one, which is what the kind that
+    // applies a draft is refused without.
+    ...(state.proposedDraft === undefined
+      ? {}
+      : {
+          proposedDraft: {
+            definition: state.proposedDraft,
+            newQuestions: state.newQuestions,
+          },
+        }),
+  });
   if (!outcome.ok) return { proposed: false, reason: outcome.reason };
   const recorded = { variant, proposal: outcome.proposal };
   state.actionProposals.push(recorded);
@@ -509,7 +519,7 @@ export const TOOLS: Readonly<Record<AgentToolName, AgentToolDef>> = Object.freez
   },
   propose_draft: {
     description:
-      "Propose the complete draft FormDefinition for this form. Returns the advisory validation issues that would block a publish, and the warnings that would not. Never publishes.",
+      "Propose the complete draft FormDefinition for this form. Returns the advisory validation issues that would block a publish, and the warnings that would not. Never publishes and never saves: follow it with the apply-draft action so the user can review the diff and confirm it.",
     inputSchema: ProposeDraftInput,
     outputSchema: Outputs.propose_draft,
     cell: DRAFT_WRITE,

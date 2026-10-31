@@ -55,6 +55,7 @@ import type {
   AssistTurn,
   LibraryEntry,
   ProjectDraftPort,
+  ValidateDraftPort,
 } from "./types.js";
 
 const fail = {
@@ -187,6 +188,7 @@ async function buildScreenContext(args: {
     build: args.build,
     screen: args.screen,
     workspaceId,
+    validate: drafts?.validate,
   });
   return {
     screen: args.screen,
@@ -231,6 +233,8 @@ async function actionPorts(args: {
   readonly build: ScreenBuildInput;
   readonly screen: ScreenId;
   readonly workspaceId: string | undefined;
+  /** The builder's own validation, which is what gives an applied draft its two lists. */
+  readonly validate: ValidateDraftPort | undefined;
 }): Promise<{
   readonly tools: readonly AgentToolName[];
   readonly ports: Partial<Pick<AgentContext, "propose" | "offeredActionKinds">>;
@@ -260,9 +264,9 @@ async function actionPorts(args: {
     tools: AGENT_PROPOSE_TOOL_NAMES,
     ports: {
       offeredActionKinds: offered,
-      propose: (steps, proposalsThisTurn) =>
+      propose: (input) =>
         buildProposal({
-          steps,
+          ...input,
           subject: args.build.principal.userId,
           appKey: args.deps.config.keys.app,
           current: args.build.environment,
@@ -271,7 +275,7 @@ async function actionPorts(args: {
           productionEnvironment: PRODUCTION_ENVIRONMENT,
           formId: args.build.params.formId,
           issuedAt: args.deps.clock.now(),
-          proposalsThisTurn,
+          validate: args.validate,
         }),
     },
   };

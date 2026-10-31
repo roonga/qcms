@@ -1,9 +1,16 @@
 import { describe, expect, it } from "vitest";
 
+import { parseFormDefinition, type FormDefinition } from "@roonga/qcms-core";
+
 import type { HeldGrant } from "../../membership/policy.js";
 import { offeredActionKinds } from "../grant-filter.js";
 import { verifyProposalToken } from "../proposal-token.js";
-import { buildProposal, MAX_PLAN_STEPS, type ProposedStep } from "./propose.js";
+import {
+  buildProposal,
+  MAX_PLAN_STEPS,
+  type ProposeInput,
+  type ProposedStep,
+} from "./propose.js";
 
 const APP_KEY = "test-app-key-0123456789abcdefghijklmn";
 const issuedAt = new Date("2026-10-31T09:00:00.000Z");
@@ -18,10 +25,14 @@ function propose(args: {
   readonly current?: string;
   readonly requireSecondApprover?: boolean;
   readonly proposalsThisTurn?: number;
+  readonly proposedDraft?: ProposeInput["proposedDraft"];
+  readonly validate?: ProposeInput["validate"];
 }) {
   const grants = args.grants ?? [EDITOR, APPROVER];
   return buildProposal({
     steps: args.steps,
+    ...(args.proposedDraft === undefined ? {} : { proposedDraft: args.proposedDraft }),
+    validate: args.validate ?? (() => Promise.resolve({ issues: [], warnings: [] })),
     subject: "user_1",
     appKey: APP_KEY,
     current: args.current ?? "test",
@@ -351,5 +362,110 @@ describe("buildProposal: `link.mint`'s expiry is the instant the request carries
     expect(outcome.ok).toBe(false);
     if (outcome.ok) return;
     expect(outcome.reason).toContain("arguments are invalid");
+  });
+});
+
+const applyDraft: ProposedStep = { kind: "apply-draft", args: { formId: "frm_a" } };
+
+function draftFixture(formId: string): FormDefinition {
+  const parsed = parseFormDefinition({
+    formId,
+    defaultLocale: "en",
+    title: { en: "Quote" },
+    steps: [
+      {
+        stepId: "stp_start",
+        title: { en: "Start" },
+        items: [{ questionId: "q_name", version: 1 }],
+      },
+    ],
+    rules: [],
+  });
+  if (!parsed.ok) throw new Error(`fixture draft did not parse: ${JSON.stringify(parsed.error)}`);
+  return parsed.value;
+}
+
+const WARNING = {
+  code: "MULTICHOICE_SAME_STEP_TARGET",
+  message: "This rule reveals a question on the step it reads from.",
+} as never;
+
+describe("buildProposal: the kind that applies a proposed draft", () => {
+  it("carries the draft and the server's own two advisory lists on the step", async () => {
+    const outcome = await propose({
+      steps: [applyDraft],
+      proposedDraft: { definition: draftFixture("frm_a"), newQuestions: [] },
+      validate: () => Promise.resolve({ issues: [], warnings: [WARNING] }),
+    });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    const step = outcome.proposal.steps[0];
+    expect(step?.local).toBe(true);
+    expect(step?.draft?.definition.formId).toBe("frm_a");
+    expect(step?.draft?.issues).toEqual([]);
+    expect(step?.draft?.warnings).toEqual([WARNING]);
+  });
+
+  it("mints no token for it, because it reaches no route", async () => {
+    const outcome = await propose({
+      steps: [applyDraft],
+      proposedDraft: { definition: draftFixture("frm_a"), newQuestions: [] },
+    });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.proposal.token).toBeUndefined();
+  });
+
+  it("keeps the token's step indexes those of the steps it binds", async () => {
+    const outcome = await propose({
+      steps: [applyDraft, publish],
+      proposedDraft: { definition: draftFixture("frm_a"), newQuestions: [] },
+    });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    const token = outcome.proposal.token;
+    expect(token).toBeDefined();
+    const verified = await verifyProposalToken(APP_KEY, token ?? "");
+    expect(verified.ok).toBe(true);
+    if (!verified.ok) return;
+    expect(verified.payload.steps.map((step) => step.kind)).toEqual(["form.publish"]);
+  });
+
+  it("is refused when the turn proposed no draft", async () => {
+    const outcome = await propose({ steps: [applyDraft] });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toContain("propose_draft");
+  });
+
+  it("is refused when it names a form other than the one the draft is for", async () => {
+    const outcome = await propose({
+      steps: [applyDraft],
+      proposedDraft: { definition: draftFixture("frm_other"), newQuestions: [] },
+    });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toContain("a different form");
+  });
+
+  it("applies the draft once in a plan", async () => {
+    const outcome = await propose({
+      steps: [applyDraft, applyDraft],
+      proposedDraft: { definition: draftFixture("frm_a"), newQuestions: [] },
+    });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toContain("once");
+  });
+
+  it("is refused for a caller who may not write the draft", async () => {
+    const outcome = await propose({
+      steps: [applyDraft],
+      grants: [VIEWER],
+      proposedDraft: { definition: draftFixture("frm_a"), newQuestions: [] },
+    });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toContain("form: write");
   });
 });

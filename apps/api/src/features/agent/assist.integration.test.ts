@@ -28,7 +28,19 @@ import { fakeAssistantModel } from "./fake-model.js";
 import { SCREEN_IDS } from "./screens.js";
 import { AGENT_READ_TOOL_NAMES } from "./tools/registry.js";
 import { registerFormsAssist } from "./route.js";
+import type { ProposedDraftStep } from "./tools/propose.js";
 import type { AssistEvent } from "./types.js";
+
+/** The draft a turn's apply-draft card carries, with the server's own two lists. */
+function appliedDraft(events: readonly AssistEvent[]): ProposedDraftStep {
+  const card = events.find((event) => event.type === "action");
+  if (card?.type !== "action") throw new Error(JSON.stringify(events));
+  const step = card.proposal.steps[0];
+  if (step?.kind !== "apply-draft" || step.draft === undefined) {
+    throw new Error("the card carries no proposed draft");
+  }
+  return step.draft;
+}
 
 const BOOT_TIMEOUT = 120_000;
 const ADMIN_ONLY = { public: false, internal: false, admin: true } as const;
@@ -204,11 +216,9 @@ describe("the assist slice over HTTP", () => {
       expect(res.headers.get("content-type")).toContain("text/event-stream");
 
       const events = await readEvents(res);
-      const proposal = events.find((e) => e.type === "proposal");
-      expect(proposal, JSON.stringify(events)).toBeDefined();
-      if (proposal?.type !== "proposal") throw new Error("unreachable");
-      expect(proposal.proposal.proposedDraft.formId).toBe("frm_assist");
-      expect(proposal.proposal.issues).toEqual([]);
+      const applied = appliedDraft(events);
+      expect(applied.definition.formId).toBe("frm_assist");
+      expect(applied.issues).toEqual([]);
 
       expect(providerCalls.length).toBeGreaterThan(before);
       expect(JSON.stringify(providerCalls)).not.toContain(SENTINEL);
@@ -245,10 +255,7 @@ describe("the assist slice over HTTP", () => {
       await seedForm("frm_versions", ["q_versions_only"]);
       const res = await assist("frm_versions", "reuse it #qcms-fake-search:versions-only");
       const events = await readEvents(res);
-      const proposal = events.find((e) => e.type === "proposal");
-      if (proposal?.type !== "proposal") throw new Error(JSON.stringify(events));
-
-      const step = proposal.proposal.proposedDraft.steps[0];
+      const step = appliedDraft(events).definition.steps[0];
       const pinned = step === undefined ? undefined : stepQuestionRefs(step)[0];
       expect(pinned?.questionId).toBe("q_versions_only");
       expect(pinned?.version).toBe(2);
@@ -270,7 +277,7 @@ describe("the assist slice over HTTP", () => {
         type: "tool-rejected",
         tool: "publish_form",
       });
-      expect(events.filter((e) => e.type === "proposal")).toHaveLength(0);
+      expect(events.filter((e) => e.type === "action")).toHaveLength(0);
       expect(JSON.stringify(logLines)).toContain("draft assistant tool call rejected");
 
       const versions = await testDb.client.query(
@@ -318,7 +325,7 @@ describe("the assist slice over HTTP", () => {
       const res = await assist("frm_seeded", "add a follow-up");
       expect(res.status).toBe(200);
       const events = await readEvents(res);
-      expect(events.find((e) => e.type === "proposal")).toBeDefined();
+      expect(events.find((e) => e.type === "action")).toBeDefined();
     },
     BOOT_TIMEOUT,
   );
@@ -647,6 +654,7 @@ describe("every screen's context, with a sentinel in the database", () => {
   const SESSION_ID = "ses_sentinel";
   const FORM_ID = "frm_sentinel";
   let screenStatuses: Map<string, number>;
+  let walkFrom = 0;
 
   async function seedSentinelData(): Promise<void> {
     await seedPublishedQuestion("q_sentinel", "Sentinel");
@@ -699,6 +707,9 @@ describe("every screen's context, with a sentinel in the database", () => {
   beforeAll(async () => {
     await seedSentinelData();
     screenStatuses = new Map<string, number>();
+    // The provider calls before the walk, so the assertions below read this walk's own
+    // tool calls rather than every turn this file has run.
+    walkFrom = providerCalls.length;
     for (const screen of SCREEN_IDS) {
       // The limiter is the caller's whole budget across both routes, and this fixture
       // walks more screens than a minute allows.
@@ -725,7 +736,7 @@ describe("every screen's context, with a sentinel in the database", () => {
 
   it("ran every registered read tool during the walk", () => {
     const executed = new Set<string>();
-    for (const call of providerCalls) {
+    for (const call of providerCalls.slice(walkFrom)) {
       const prompt = (call as { prompt?: unknown }).prompt;
       if (!Array.isArray(prompt)) continue;
       for (const message of prompt as { role?: unknown; content?: unknown }[]) {
@@ -945,7 +956,7 @@ describe("a reduced-grant caller over HTTP", () => {
   );
 
   it(
-    "refuses that caller every draft verb and reaches no proposal",
+    "refuses that caller every draft verb and reaches no card",
     async () => {
       const res = await turnAs(viewer, "/assist", {
         conversation: [{ role: "user", content: "rewrite this form #qcms-fake:read-all" }],
@@ -962,7 +973,7 @@ describe("a reduced-grant caller over HTTP", () => {
       expect(ended.get("propose_questions")).toBe("failed");
       expect(ended.get("propose_draft")).toBe("failed");
       expect(ended.get("validate_draft")).toBe("failed");
-      expect(events.some((event) => event.type === "proposal")).toBe(false);
+      expect(events.some((event) => event.type === "action")).toBe(false);
     },
     BOOT_TIMEOUT,
   );

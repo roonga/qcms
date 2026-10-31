@@ -28,6 +28,7 @@ import {
   type AssistEvent,
   type LibraryEntry,
 } from "./types.js";
+import type { ProposedDraftStep } from "./tools/propose.js";
 
 function questionFixture(id: string, label: string) {
   const parsed = parseQuestionDefinition({
@@ -133,6 +134,31 @@ async function collectWithThinking(
   return events;
 }
 
+/** The draft a turn's apply-draft card carries, with the server's own two lists. */
+function appliedDraft(events: readonly AssistEvent[]): ProposedDraftStep {
+  const card = events.find((event) => event.type === "action");
+  if (card?.type !== "action") {
+    throw new Error(`no card: ${JSON.stringify(events.map((event) => event.type))}`);
+  }
+  const step = card.proposal.steps[0];
+  if (step?.kind !== "apply-draft" || step.draft === undefined) {
+    throw new Error("the card carries no proposed draft");
+  }
+  return step.draft;
+}
+
+/** The turn's closing prose segment, which is what the card quotes as the reason. */
+function lastTextSegment(events: readonly AssistEvent[]): string {
+  const segments = new Map<string, string>();
+  let last = "";
+  for (const event of events) {
+    if (event.type !== "text") continue;
+    last = event.segment ?? "";
+    segments.set(last, (segments.get(last) ?? "") + event.delta);
+  }
+  return segments.get(last) ?? "";
+}
+
 describe("draft assistant tool loop (fake provider)", () => {
   it("searches the library, proposes a draft, and returns it server-validated", async () => {
     const { ctx, validated } = contextFor(
@@ -140,26 +166,28 @@ describe("draft assistant tool loop (fake provider)", () => {
     );
     const events = await collect(ctx);
 
-    const proposal = events.find((e) => e.type === "proposal");
-    expect(proposal, JSON.stringify(events)).toBeDefined();
-    if (proposal?.type !== "proposal") throw new Error("unreachable");
-
-    expect(proposal.proposal.proposedDraft.steps.map((s) => s.stepId)).toEqual([
-      "stp_agent_history",
-    ]);
-    expect(proposal.proposal.proposedDraft.steps[0]?.items).toHaveLength(2);
-    expect(proposal.proposal.proposedDraft.rules).toHaveLength(1);
-    expect(proposal.proposal.proposedDraft.rules[0]?.show).toEqual(["q_accident_detail"]);
-    expect(proposal.proposal.issues).toEqual([]);
-    expect(proposal.proposal.warnings).toEqual([]);
-    expect(proposal.proposal.rationale).not.toBe("");
+    const applied = appliedDraft(events);
+    expect(applied.definition.steps.map((s) => s.stepId)).toEqual(["stp_agent_history"]);
+    expect(applied.definition.steps[0]?.items).toHaveLength(2);
+    expect(applied.definition.rules).toHaveLength(1);
+    expect(applied.definition.rules[0]?.show).toEqual(["q_accident_detail"]);
+    expect(applied.issues).toEqual([]);
+    expect(applied.warnings).toEqual([]);
+    expect(lastTextSegment(events)).not.toBe("");
 
     expect(validated.at(-1)?.steps.map((s) => s.stepId)).toEqual(["stp_agent_history"]);
 
-    const firstStep = proposal.proposal.proposedDraft.steps[0];
+    const firstStep = applied.definition.steps[0];
     expect(firstStep === undefined ? undefined : stepQuestionRefs(firstStep)[0]?.questionId).toBe(
       "q_at_fault_accident",
     );
+  });
+
+  it("puts the draft up as one card, never as a proposal event of its own", async () => {
+    const { ctx } = contextFor("a vehicle-insurance quote");
+    const events = await collect(ctx);
+    expect(events.filter((event) => event.type === "action")).toHaveLength(1);
+    expect(events.filter((event) => event.type === "plan")).toHaveLength(0);
   });
 
   it("carries the warnings the server's own validation returned, beside the issues", async () => {
@@ -178,10 +206,9 @@ describe("draft assistant tool loop (fake provider)", () => {
       { validate: () => Promise.resolve({ issues: [], warnings: [warning] }) },
     );
 
-    const proposal = (await collect(ctx)).find((e) => e.type === "proposal");
-    if (proposal?.type !== "proposal") throw new Error("unreachable");
-    expect(proposal.proposal.warnings).toEqual([warning]);
-    expect(proposal.proposal.issues).toEqual([]);
+    const applied = appliedDraft(await collect(ctx));
+    expect(applied.warnings).toEqual([warning]);
+    expect(applied.issues).toEqual([]);
   });
 
   it("reports token counts and step counts, never content", async () => {
@@ -196,7 +223,7 @@ describe("draft assistant tool loop (fake provider)", () => {
   it("maps a model refusal to a REFUSED error rather than an empty proposal", async () => {
     const { ctx } = contextFor("#qcms-fake:refusal do something questionable");
     const events = await collect(ctx);
-    expect(events.filter((e) => e.type === "proposal")).toHaveLength(0);
+    expect(events.filter((e) => e.type === "action")).toHaveLength(0);
     expect(events.find((e) => e.type === "error")).toMatchObject({ code: "REFUSED" });
   });
 
@@ -221,15 +248,11 @@ describe("draft assistant tool loop (fake provider)", () => {
     expect(JSON.stringify(record)).not.toContain("upstream provider refused");
   });
 
-  it("keeps the proposal when a tool call failed and the model recovered", async () => {
+  it("keeps the card when a tool call failed and the model recovered", async () => {
     const { ctx } = contextFor("#qcms-fake:tool-error-recovered build me a form");
     const events = await collect(ctx);
 
-    const proposal = events.find((e) => e.type === "proposal");
-    expect(
-      proposal,
-      `no proposal survived: ${JSON.stringify(events.map((e) => e.type))}`,
-    ).toBeDefined();
+    expect(appliedDraft(events).definition.formId).toBe("frm_quote");
     expect(events.filter((e) => e.type === "error")).toHaveLength(0);
   });
 
@@ -252,6 +275,7 @@ describe("draft assistant tool loop (fake provider)", () => {
       expect(stepOutcomes(events)).toEqual([
         ["search_question_library", "done"],
         ["propose_draft", "done"],
+        ["propose_action", "done"],
       ]);
       const announced = events.findIndex((e) => e.type === "status" && e.step === 1);
       const finished = events.findIndex((e) => e.type === "tool-outcome" && e.step === 1);
@@ -265,6 +289,7 @@ describe("draft assistant tool loop (fake provider)", () => {
         ["propose_draft", "failed"],
         ["search_question_library", "done"],
         ["propose_draft", "done"],
+        ["propose_action", "done"],
       ]);
       for (const event of events.filter((e) => e.type === "tool-outcome")) {
         expect(Object.keys(event).sort()).toEqual(["outcome", "step", "type"]);
@@ -330,7 +355,7 @@ describe("draft assistant tool loop (fake provider)", () => {
     const { ctx } = contextFor("#qcms-fake:rogue-publish do it");
     const events = await collect(ctx);
     expect(events.find((e) => e.type === "error")).toMatchObject({ code: "REFUSED" });
-    expect(events.filter((e) => e.type === "proposal")).toHaveLength(0);
+    expect(events.filter((e) => e.type === "action")).toHaveLength(0);
   });
 
   // The `rogue-publish` script asks on every step, so without a stop condition on the
@@ -360,7 +385,7 @@ describe("draft assistant tool loop (fake provider)", () => {
         message: "The assistant attempted an action outside its allowed tools and was stopped.",
       },
     ]);
-    expect(events.filter((e) => e.type === "proposal")).toHaveLength(0);
+    expect(events.filter((e) => e.type === "action")).toHaveLength(0);
   });
 
   it("reports NO_PROPOSAL when the turn ends without one", async () => {
@@ -397,7 +422,7 @@ describe("assist error codes are all reachable", () => {
     // The message is framed into the SSE body, which carries no environment identifier
     // (ADR-24); `QCMS_` is this repository's environment prefix.
     expect(error.message).not.toMatch(/QCMS_[A-Z0-9_]+/);
-    expect(events.filter((e) => e.type === "proposal")).toHaveLength(0);
+    expect(events.filter((e) => e.type === "action")).toHaveLength(0);
   });
 
   it("covers every declared code, so a new code cannot be unreachable", () => {
@@ -517,15 +542,13 @@ describe("narrate-then-tools, through the shipped loop", () => {
       if (event.type === "status" && event.phase === "tool") return [`step:${String(event.step)}`];
       return [];
     });
-    expect(shape).toEqual(["text:t0", "step:1", "text:t1", "step:2", "text:t2"]);
+    expect(shape).toEqual(["text:t0", "step:1", "text:t1", "step:2", "step:3", "text:t2"]);
 
-    const proposal = events.find((e) => e.type === "proposal");
-    if (proposal?.type !== "proposal") throw new Error("expected a proposal");
-    expect(proposal.proposal.rationale).toContain("driving-history step");
-    expect(proposal.proposal.rationale).not.toContain("question library");
+    expect(lastTextSegment(events)).toContain("driving-history step");
+    expect(lastTextSegment(events)).not.toContain("question library");
   });
 
-  it("settles both announced steps on the API's own outcome events", async () => {
+  it("settles every announced step on the API's own outcome events", async () => {
     const { ctx } = contextFor("#qcms-fake:narrate-then-tools a quote form");
     const events = await collect(ctx);
     const outcomes = events.flatMap((event) =>
@@ -534,6 +557,7 @@ describe("narrate-then-tools, through the shipped loop", () => {
     expect(outcomes).toEqual([
       [1, "done"],
       [2, "done"],
+      [3, "done"],
     ]);
   });
 });
@@ -573,7 +597,7 @@ describe("reasoning events", () => {
     expect(events.filter((e) => e.type === "reasoning")).toHaveLength(0);
     expect(events.filter((e) => e.type === "reasoning-end")).toHaveLength(0);
     expect(JSON.stringify(events)).not.toContain(FAKE_REASONING_SENTINEL);
-    expect(events.find((e) => e.type === "proposal")).toBeDefined();
+    expect(events.find((e) => e.type === "action")).toBeDefined();
   });
 
   it("streams the frames under summary, carrying the sentinel", async () => {
@@ -583,7 +607,7 @@ describe("reasoning events", () => {
     const deltas = events.flatMap((e) => (e.type === "reasoning" ? [e.delta] : []));
     expect(deltas.join("")).toContain(FAKE_REASONING_SENTINEL);
     expect(events.filter((e) => e.type === "reasoning-end").length).toBeGreaterThan(0);
-    expect(events.find((e) => e.type === "proposal")).toBeDefined();
+    expect(events.find((e) => e.type === "action")).toBeDefined();
   });
 
   /** SEC-8: the sentinel reaches no log line and no conversation the model sees. */
@@ -607,9 +631,7 @@ describe("reasoning events", () => {
     const { ctx } = contextFor("#qcms-fake:reasoning a quote form");
     const events = await collectWithThinking(ctx, "summary");
 
-    const proposal = events.find((e) => e.type === "proposal");
-    if (proposal?.type !== "proposal") throw new Error("expected a proposal");
-    expect(proposal.proposal.rationale).not.toContain(FAKE_REASONING_SENTINEL);
+    expect(lastTextSegment(events)).not.toContain(FAKE_REASONING_SENTINEL);
   });
 });
 
@@ -675,6 +697,6 @@ describe("a refused verb that streamed its input first", () => {
       tool: "publish_form",
     });
     expect(events.find((e) => e.type === "error")).toMatchObject({ code: "REFUSED" });
-    expect(events.filter((e) => e.type === "proposal")).toHaveLength(0);
+    expect(events.filter((e) => e.type === "action")).toHaveLength(0);
   });
 });

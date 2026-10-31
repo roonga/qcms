@@ -1252,8 +1252,9 @@ describe("a mint proposed in the shape the model may produce runs end to end", (
 describe("every D0 kind's route is the one its descriptor names", () => {
   it("matches the route policy row for each registered kind", () => {
     for (const def of Object.values(ACTION_KINDS)) {
-      // A hand-off carries no token, so it is routed by nothing and declares no route.
-      if (def.handOff === true) {
+      // A hand-off and a local step both carry no token, so each is routed by nothing and
+      // declares no route.
+      if (def.handOff === true || def.local === true) {
         expect(def.route, def.kind).toBeUndefined();
         continue;
       }

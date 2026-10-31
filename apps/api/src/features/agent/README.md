@@ -144,17 +144,28 @@ already recorded for that same user, and can never leave a set with no row.
 
 ## The advisory validation is the server's
 
-The terminal `proposal` event always carries `issues` **and** `warnings`, both
-computed here by calling 022's `validateDraft` over the proposed draft after the
-loop ends - even when the model already called `validate_draft` itself. The UI is
-never handed a proposal the agent validated for itself.
+A proposed draft reaches the person as one card: the `apply-draft` action kind.
+`propose_draft` records and validates the draft and saves nothing; the model then
+proposes `apply-draft`, and that step carries the draft, the questions it invents
+and both advisory lists, computed here by calling 022's `validateDraft` over the
+proposed draft - even when the model already called `validate_draft` itself. The
+UI is never handed a draft the agent validated for itself, and no separate
+proposal event travels beside the card, so one proposal per turn (P1) holds for a
+draft as it does for every other act.
+
+`apply-draft` reaches no route. Confirm hands the draft to the builder, which
+stores it through the one save path every other edit takes, with the sticky
+agent-assisted mark; the kind therefore carries no token, no provenance check
+stands behind it, and the builder's own `form: write` route is what authorises it.
+It may be a plan's first step, and the plan's token binds only the steps that do
+reach a route.
 
 Two lists rather than one because issue #123 split the advisory channel: `issues`
 is why a publish would be refused, `warnings` is a draft that would publish and
-may not behave as written. Both travel, and the panel renders both, so a proposal
-card can never read "Validation passes" over a draft the builder's own validation
-panel will flag one Accept later. The tool results carry both for the same reason
-in the other direction: a model that cannot see a warning cannot act on it.
+may not behave as written. Both travel, and the card renders both, so a card can
+never read "Validation passes" over a draft the builder's own validation panel
+will flag one Confirm later. The tool results carry both for the same reason in
+the other direction: a model that cannot see a warning cannot act on it.
 
 A proposed question that is not published yet validates as an unpublished pin.
 That is correct rather than a gap: the agent's view of validity and the builder's

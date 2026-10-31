@@ -6,6 +6,9 @@
 
 import { z } from "zod";
 
+import type { FormDefinition, QuestionDefinition } from "@roonga/qcms-core";
+
+import type { PublishIssue, PublishWarning } from "../../forms/handler.js";
 import { actionKind } from "../actions/registry.js";
 import type { ActionKindDef } from "../actions/types.js";
 import { offeredEnvironments, type OfferedActionKind } from "../grant-filter.js";
@@ -31,6 +34,18 @@ export const ProposedStep = z.strictObject({
 
 export type ProposedStep = z.infer<typeof ProposedStep>;
 
+/**
+ * The draft a turn proposed and the server's verdict on it, carried by the one kind that
+ * applies it. The diff is the user's to review; both lists are the server's own validation
+ * rather than anything the model said about the draft.
+ */
+export interface ProposedDraftStep {
+  readonly definition: FormDefinition;
+  readonly newQuestions: readonly QuestionDefinition[];
+  readonly issues: readonly PublishIssue[];
+  readonly warnings: readonly PublishWarning[];
+}
+
 /** One step as the card will display it, with its arguments resolved only symbolically. */
 export interface PlanStep {
   readonly kind: string;
@@ -38,6 +53,10 @@ export interface PlanStep {
   readonly args: Readonly<Record<string, unknown>>;
   readonly environment: string;
   readonly handOff: boolean;
+  /** A step the screen's own save completes, which carries no token. */
+  readonly local: boolean;
+  /** Present on the one kind that applies the turn's proposed draft. */
+  readonly draft?: ProposedDraftStep;
   readonly card: ActionKindDef["card"];
   /**
    * The non-secret result fields the next turn may learn (section 7.6). It travels with
@@ -82,6 +101,24 @@ export interface ProposeInput {
   readonly issuedAt: Date;
   /** Already proposed in this turn, which P1 bounds at one. */
   readonly proposalsThisTurn: number;
+  /**
+   * The draft this turn proposed, if it proposed one, with the questions it invents. The
+   * kind that applies it is refused until it is here, so a card can never offer to apply a
+   * draft the server never saw.
+   */
+  readonly proposedDraft?:
+    | {
+        readonly definition: FormDefinition;
+        readonly newQuestions: readonly QuestionDefinition[];
+      }
+    | undefined;
+  /** The builder's own validation, so the card's two lists and a publish cannot disagree. */
+  readonly validate?:
+    | ((definition: FormDefinition) => Promise<{
+        readonly issues: readonly PublishIssue[];
+        readonly warnings: readonly PublishWarning[];
+      }>)
+    | undefined;
 }
 
 function refuse(reason: string): ProposeOutcome {
@@ -121,6 +158,31 @@ function environmentOf(
   if (def.environmentFrom === "switcher") return current;
   const named = args[def.environmentArgument ?? "environment"];
   return typeof named === "string" && named !== "" ? named : undefined;
+}
+
+/**
+ * The kind that applies a proposed draft is refused unless this turn proposed one for this
+ * form, and unless the deployment can validate it: the card's two advisory lists are the
+ * server's own verdict, never an absence read as a pass.
+ */
+function proposedDraftRefusal(
+  input: ProposeInput,
+  def: ActionKindDef,
+  step: ProposedStep,
+  index: number,
+): string | undefined {
+  const proposed = input.proposedDraft;
+  if (proposed === undefined || input.validate === undefined) {
+    return `Step ${String(index + 1)} applies a draft, and this turn has proposed none. Call propose_draft first, then propose ${def.kind}.`;
+  }
+  const named = step.args["formId"];
+  if (named !== proposed.definition.formId) {
+    return `Step ${String(index + 1)} names a different form from the draft this turn proposed.`;
+  }
+  if (input.steps.filter((entry) => entry.kind === def.kind).length > 1) {
+    return `A plan applies the proposed draft once. Keep one ${def.kind} step.`;
+  }
+  return undefined;
 }
 
 function stepRefusal(
@@ -171,6 +233,11 @@ function stepRefusal(
     };
   }
 
+  if (def.carriesProposedDraft === true) {
+    const refusal = proposedDraftRefusal(input, def, step, index);
+    if (refusal !== undefined) return { reason: refusal };
+  }
+
   return {
     step: {
       kind: step.kind,
@@ -178,6 +245,7 @@ function stepRefusal(
       args: step.args,
       environment,
       handOff: def.handOff === true,
+      local: def.local === true,
       card: def.card,
       resultAllowlist: def.resultAllowlist,
     },
@@ -209,6 +277,40 @@ function secondApproverRefusal(
     "This workspace requires a second approver for a production release, and ADR-41 refuses " +
     "a release by the account that published the version. Propose the publish into a " +
     "non-production environment; another account releases it to production."
+  );
+}
+
+/**
+ * Every step that reaches a route of its own, which is what the token binds. A hand-off
+ * and a local step reach none, so the card runs them without one and the step indexes the
+ * token carries stay the indexes of the steps bound to it.
+ */
+function carriesToken(step: PlanStep): boolean {
+  return !step.handOff && !step.local;
+}
+
+/** The server's verdict on the draft, attached to the one step that applies it. */
+async function withProposedDraft(
+  input: ProposeInput,
+  steps: readonly PlanStep[],
+): Promise<readonly PlanStep[]> {
+  const proposed = input.proposedDraft;
+  const validate = input.validate;
+  if (proposed === undefined || validate === undefined) return steps;
+  if (!steps.some((step) => actionKind(step.kind)?.carriesProposedDraft === true)) return steps;
+  const { issues, warnings } = await validate(proposed.definition);
+  return steps.map((step) =>
+    actionKind(step.kind)?.carriesProposedDraft === true
+      ? {
+          ...step,
+          draft: {
+            definition: proposed.definition,
+            newQuestions: proposed.newQuestions,
+            issues,
+            warnings,
+          },
+        }
+      : step,
   );
 }
 
@@ -247,7 +349,7 @@ export async function buildProposal(input: ProposeInput): Promise<ProposeOutcome
   const proposalId = `prp_${crypto.randomUUID().replaceAll("-", "")}`;
   const tokenSteps: ProposalStepBinding[] = [];
   for (const step of steps) {
-    if (step.handOff) continue;
+    if (!carriesToken(step)) continue;
     tokenSteps.push({
       kind: step.kind,
       argsDigest: await argumentsDigest(step.args),
@@ -271,7 +373,7 @@ export async function buildProposal(input: ProposeInput): Promise<ProposeOutcome
     proposal: {
       proposalId,
       token,
-      steps,
+      steps: await withProposedDraft(input, steps),
       proposedAt: input.issuedAt.toISOString(),
       expiresAt: new Date(input.issuedAt.getTime() + 10 * 60 * 1000).toISOString(),
       formId: input.formId,

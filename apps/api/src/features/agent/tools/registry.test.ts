@@ -93,9 +93,12 @@ describe("the agent tool registry", () => {
     const offered = Object.keys(
       agentToolSet(builderTurnContext(contextFixture("hi")), createProposalState()),
     );
-    // The builder's four: `project_draft` is registered and belongs to another screen.
+    // The builder's four draft verbs and the two propose tools a writer is offered there;
+    // `project_draft` is registered and belongs to another screen.
     expect([...offered].sort()).toEqual([
+      "propose_action",
       "propose_draft",
+      "propose_plan",
       "propose_questions",
       "search_question_library",
       "validate_draft",
@@ -178,7 +181,7 @@ describe("a scripted rogue model", () => {
     expect(logged).toContain("draft assistant tool call rejected");
     expect(logged).toContain(tool);
 
-    expect(events.filter((e) => e.type === "proposal")).toHaveLength(0);
+    expect(events.filter((e) => e.type === "action")).toHaveLength(0);
   });
 });
 

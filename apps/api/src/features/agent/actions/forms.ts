@@ -3,9 +3,9 @@ import { z } from "zod";
 import type { ActionKindDef, ActionRequestFacts } from "./types.js";
 
 /**
- * The builder screen's own acts: the abuse-control settings and the intake door. Each runs
- * in the switcher's environment, so a plan proposed under one environment and confirmed
- * under another is refused before anything runs.
+ * The builder screen's own acts: the draft the assistant proposes, the abuse-control
+ * settings and the intake door. Each runs in the switcher's environment, so a plan proposed
+ * under one environment and confirmed under another is refused before anything runs.
  */
 
 // A plain object rather than a refined one: `argumentMembers` reads the shape to build the
@@ -35,6 +35,33 @@ function bodyMember(facts: ActionRequestFacts, name: string): unknown {
     ? (facts.body as Record<string, unknown>)[name]
     : undefined;
 }
+
+/**
+ * The draft the assistant proposed, applied through the builder's own save. It reaches no
+ * route of its own: Confirm hands the draft to the builder, which stores it through the
+ * one save path every other edit takes, carrying the agent-assisted mark.
+ */
+export const applyDraft: ActionKindDef = {
+  kind: "apply-draft",
+  screen: "/forms/[formId]",
+  cell: { resource: "form", action: "write" },
+  environmentFrom: "switcher",
+  args: IntakeArgs,
+  recomputeArgs: (facts) => ({ formId: facts.params.id ?? "" }),
+  references: [],
+  // Counts, so the next turn learns what it applied without any of the draft travelling.
+  resultAllowlist: ["changes", "newQuestions"],
+  local: true,
+  carriesProposedDraft: true,
+  card: {
+    titleKey: "agent.card.apply-draft.title",
+    consequenceKeys: ["agent.card.apply-draft.consequence", "agent.card.apply-draft.provenance"],
+  },
+  description:
+    "Apply the draft you proposed with propose_draft to this form's working draft, for the " +
+    "user to review as a diff and confirm. Call propose_draft first. It publishes nothing " +
+    "and releases nothing: the draft is stored as a draft and marked agent-assisted.",
+};
 
 export const updateFormSettings: ActionKindDef = {
   kind: "form.settings",

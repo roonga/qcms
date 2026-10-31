@@ -97,6 +97,7 @@ describe("the kinds a screen offers", () => {
     // approver's.
     const approver = [editorIn(["test", "prod"]), approverIn(["test", "prod"])];
     const subtree = [
+      "apply-draft",
       "form.publish",
       "form.settings",
       "form.close",

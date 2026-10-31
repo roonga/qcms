@@ -17,6 +17,8 @@ import type { Deps } from "./deps.js";
 import { PROD_ENVIRONMENT, type Databases } from "./environments.js";
 import { selectDraftAssistant } from "./features/agent/assistant.js";
 import { SCREENS } from "./features/agent/screens.js";
+import { buildProposal } from "./features/agent/tools/propose.js";
+import { AGENT_PROPOSE_TOOL_NAMES } from "./features/agent/tools/registry.js";
 import type { AgentContext, AssistContext, DraftAssistant } from "./features/agent/types.js";
 import { type ChallengeVerifier, nullChallengeVerifier } from "./features/responses/challenge.js";
 import { createJsonLogger, createNullLogger, type Logger } from "./logger.js";
@@ -270,25 +272,46 @@ export async function seedGrants(
   return { workspaceId, teamIds };
 }
 
+/** A key of the right shape for a unit test; nothing it signs leaves the process. */
+const TEST_APP_KEY = "test-app-key-test-app-key-test-ap";
+
 /**
  * A turn on the builder screen: the draft ports {@link AssistContext} holds, that screen's
- * own tool list, and an authorisation that has nothing to refuse because no grant is
- * resolved in a unit test.
+ * own tool list, the propose tools a writer is offered there, and an authorisation that
+ * has nothing to refuse because no grant is resolved in a unit test.
  */
 export function builderTurnContext(
   assist: AssistContext,
   facts: Readonly<Record<string, unknown>> = {},
 ): AgentContext {
+  const offered = SCREENS["/forms/[formId]"].actionKinds.map((kind) => ({
+    kind,
+    environments: ["test"],
+  }));
   return {
     screen: "/forms/[formId]",
     facts,
     conversation: assist.conversation,
     maxSteps: assist.maxSteps,
-    tools: SCREENS["/forms/[formId]"].readTools,
+    tools: [...SCREENS["/forms/[formId]"].readTools, ...AGENT_PROPOSE_TOOL_NAMES],
     authorize: () => Promise.resolve(),
     draft: assist.draft,
     questionLibrary: assist.questionLibrary,
     validate: assist.validate,
+    offeredActionKinds: offered,
+    propose: (input) =>
+      buildProposal({
+        ...input,
+        subject: "usr_test",
+        appKey: TEST_APP_KEY,
+        current: "test",
+        offered,
+        requireSecondApprover: false,
+        productionEnvironment: PROD_ENVIRONMENT,
+        formId: assist.draft.formId,
+        issuedAt: new Date(),
+        validate: assist.validate,
+      }),
   };
 }
 

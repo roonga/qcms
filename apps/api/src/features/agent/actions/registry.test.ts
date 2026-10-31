@@ -46,7 +46,9 @@ describe("the action-kind registry", () => {
     for (const def of Object.values(ACTION_KINDS)) {
       const route = def.route;
       if (route === undefined) {
-        expect(def.handOff, def.kind).toBe(true);
+        // The two kinds that reach no route: a hand-off the user completes on the screen's
+        // own field, and a local step the screen's own save completes.
+        expect(def.handOff === true || def.local === true, def.kind).toBe(true);
         continue;
       }
       // A route one kind owns needs no body; a route several share is told apart by the

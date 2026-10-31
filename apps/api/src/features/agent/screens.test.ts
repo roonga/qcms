@@ -107,6 +107,7 @@ describe("the screen registry", () => {
 
   it("carries each screen's own kinds on the builder, the releases screen and the links screen", () => {
     expect(SCREENS["/forms/[formId]"].actionKinds).toEqual([
+      "apply-draft",
       "form.publish",
       "form.settings",
       "form.close",
@@ -150,6 +151,7 @@ describe("the screen registry", () => {
 
   it("offers the whole form subtree's kinds on every form-scoped screen", () => {
     const subtree = [
+      "apply-draft",
       "form.publish",
       "form.settings",
       "form.close",

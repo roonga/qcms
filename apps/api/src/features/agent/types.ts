@@ -82,11 +82,21 @@ export type ProjectDraftPort = (
  * The propose tools' port. It validates, filters and signs; it executes nothing, so a
  * screen that offers no action kind simply has no port.
  */
-export type ProposePort = (
-  steps: readonly ProposedStep[],
+export type ProposePort = (input: {
+  readonly steps: readonly ProposedStep[];
   /** Already proposed in this turn, which P1 bounds at one. */
-  proposalsThisTurn: number,
-) => Promise<ProposeOutcome>;
+  readonly proposalsThisTurn: number;
+  /**
+   * The draft this turn proposed, if it proposed one. The kind that applies it is refused
+   * without it, so no card can offer to apply a draft the server never validated.
+   */
+  readonly proposedDraft?:
+    | {
+        readonly definition: FormDefinition;
+        readonly newQuestions: readonly QuestionDefinition[];
+      }
+    | undefined;
+}) => Promise<ProposeOutcome>;
 
 /** One rule's verdict over hypothetical answers, as the rules screen's own bench gives it. */
 export interface RuleVerdict {
@@ -291,15 +301,6 @@ export interface AgentContext {
   readonly offeredActionKinds?: readonly OfferedActionKind[];
 }
 
-/** Both advisory lists are server-computed, so the UI can never be handed an unvalidated proposal. */
-export interface AssistProposal {
-  readonly proposedDraft: FormDefinition;
-  readonly newQuestions: readonly QuestionDefinition[];
-  readonly rationale: string;
-  readonly issues: readonly PublishIssue[];
-  readonly warnings: readonly PublishWarning[];
-}
-
 /** A runtime array rather than a bare union so both halves of the contract stay enumerable in tests. */
 export const ASSIST_ERROR_CODES = [
   "PROVIDER_ERROR",
@@ -330,7 +331,6 @@ export type AssistEvent =
   | { readonly type: "reasoning-end" }
   /** A tool call outside the allowlist was refused server-side. */
   | { readonly type: "tool-rejected"; readonly tool: string }
-  | { readonly type: "proposal"; readonly proposal: AssistProposal }
   /**
    * One proposed action, or one ordered plan. The steps and their arguments are the
    * admin's to display; the token is what Confirm carries. Nothing has run (SEC-17).
