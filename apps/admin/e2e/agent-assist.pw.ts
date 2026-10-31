@@ -16,6 +16,7 @@ import {
   waitForSaveAfter,
   waitForSaved,
 } from "./support/forms.js";
+import { chooseDestination, openPublishWizard } from "./support/publish.js";
 import { confirmLifecycle, createDraft } from "./support/questions.js";
 
 /**
@@ -204,15 +205,21 @@ test("publishes the accepted draft through the unchanged human flow (exit criter
   // draft rather than of the tab that accepted the proposal.
   await expect(page.getByTestId("qcms-builder-provenance")).toBeVisible({ timeout: 30_000 });
 
-  await page.getByRole("button", { name: "Publish to test", exact: true }).click();
-  const dialog = page.getByRole("alertdialog");
-  await expect(dialog).toBeVisible();
-  // The publish confirmation carries it too (041 deliverable).
+  // The publish confirmation carries it too (041 deliverable), and that confirmation is
+  // the wizard's review step since the builder's dialogs were retired (Code Owner,
+  // 2026-10-31).
+  await openPublishWizard(page, formId);
+  await page.getByRole("radio", { name: "The shared draft" }).check();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  const destinations = page.getByTestId("qcms-publish-destinations");
+  await expect(destinations).toBeVisible();
+  await chooseDestination(destinations, "test");
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(page.getByTestId("qcms-publish-review")).toBeVisible();
   await expect(page.getByTestId("qcms-publish-provenance")).toBeVisible();
 
-  await dialog.getByRole("button", { name: "Publish to test" }).click();
-  await expect(dialog).toBeHidden();
-  await expect(page.getByText("Published as v1 and released to test.")).toBeVisible({
+  await page.getByRole("button", { name: "Confirm", exact: true }).click();
+  await expect(page.getByTestId("qcms-publish-result")).toContainText("Version 1 is published.", {
     timeout: 60_000,
   });
 });

@@ -430,7 +430,11 @@ test("the publish wizard says nothing about the rule once the switch is off", as
   // that asked for an approver and then accepted the same account would look exactly like
   // this from the API and wrong from here.
   await expect(destinations.locator('span[data-code^="APPROVER_"]')).toHaveCount(0);
-  await expect(
-    destinations.locator('div[data-environment="prod"][data-eligible="true"]'),
-  ).toBeVisible();
+  // And the rule is the only thing that stopped being said. The fixture's prod already
+  // serves this version, so naming every blocker left on it - rather than asserting it is
+  // selectable, which it never was here - is what proves the approver reading is gone and
+  // nothing else moved with it.
+  const prod = destinations.locator('div[data-environment="prod"]');
+  await expect(prod.locator('span[data-testid="qcms-publish-blocker"]')).toHaveCount(1);
+  await expect(prod.locator('span[data-code="ALREADY_RELEASED"]')).toBeVisible();
 });

@@ -490,7 +490,7 @@ test("carries the builder's turns across the form's subtree and starts fresh out
   // Soft navigation, which is what the conversation survives: the turns are held in memory
   // for as long as the tab's shell lives.
   const turns = page.getByTestId("qcms-assistant-turns");
-  await page.locator("aside.qcms-rail").getByRole("link", { name: "Releases" }).click();
+  await page.locator("aside.qcms-rail").getByRole("link", { name: "Publish", exact: true }).click();
   await page.waitForURL(`**/forms/${FORM_ID}/publish`);
   await expect(turns, "the builder's turns are still here").toContainText("what is on this screen");
   await expect(turns).toContainText("more detail");

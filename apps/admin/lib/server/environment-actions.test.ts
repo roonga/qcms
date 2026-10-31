@@ -74,11 +74,15 @@ vi.mock("@/lib/server/links", () => ({
     forwarded(request.environment).then(() => ({ ok: true, data: [] })),
   revokeLink: () => forwarded().then(() => ({ ok: true, data: { linkId: "lnk_1" } })),
 }));
+// The wizard's own calls bind no environment and are deliberately absent from the table
+// below: the destinations are chosen in its body and authorised again at commit.
 vi.mock("@/lib/server/releases", () => ({
-  publishAndRelease: (_s: unknown, _f: string, environment: string) =>
-    forwarded(environment).then(() => ({ ok: true, data: { version: 2, environment } })),
   releaseVersion: (_s: unknown, _f: string, input: { environment: string }) =>
     forwarded(input.environment),
+  publishBatch: () => Promise.resolve({ ok: true, data: { version: 2, releases: [] } }),
+  releaseBatch: () => Promise.resolve({ ok: true, data: { version: 2, releases: [] } }),
+  lookupReleaseBatch: () => Promise.resolve({ ok: true, data: { version: 2, releases: [] } }),
+  reviewRelease: () => Promise.resolve({ ok: true, data: { targets: [] } }),
 }));
 vi.mock("@/lib/server/responses", () => ({
   eraseSession: () => forwarded(),
@@ -109,10 +113,6 @@ const ACTIONS: readonly {
   { name: "release", run: (shown) => forms.releaseVersionAction("frm_a", shown, { version: 1 }) },
   { name: "close", run: (shown) => forms.setFormStatusAction("frm_a", shown, "close") },
   { name: "reopen", run: (shown) => forms.setFormStatusAction("frm_a", shown, "reopen") },
-  {
-    name: "publish and release",
-    run: (shown) => forms.publishAndReleaseAction("frm_a", shown),
-  },
   {
     name: "mint",
     run: (shown) =>

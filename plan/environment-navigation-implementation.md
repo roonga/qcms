@@ -108,6 +108,9 @@ Use a stable Review action on each row. Do not add a variable Next action column
 Provide current environment/version/intake summaries and append-only release
 history, with the existing rollback capability retained.
 
+Code Owner, 2026-10-31: the builder's publish dialogs are retired; the wizard is the
+only publish entry.
+
 One **Publish** entry opens the wizard:
 
 1. Choose the shared draft or an existing immutable version. An approver can choose

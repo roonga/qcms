@@ -22,12 +22,18 @@ import {
   savedStamp,
   toggleCheckbox,
   toggleTarget,
+  validationPanel,
   waitForSaveAfter,
   closeRuleEditor,
   openFormDetails,
   openRules,
 } from "./support/forms.js";
-import { releaseThroughWizard } from "./support/publish.js";
+import {
+  chooseDestination,
+  openPublishWizard,
+  refuseDraftThroughWizard,
+  releaseThroughWizard,
+} from "./support/publish.js";
 import { confirmLifecycle, createDraft, fillDate, optionIds } from "./support/questions.js";
 
 /**
@@ -165,25 +171,29 @@ test("publishes a draft and reports what it froze (exit criterion 1)", async ({ 
   // returns. It used to be `page.reload()`, which did the same job while the rules were a
   // selection on this route; since issue #669 the rule work happened on
   // `/forms/{formId}/rules`, so this is a navigation back to the screen Publish is on.
-  await page.goto(`/forms/${formId}`);
-  await page.getByRole("button", { name: "Publish to test", exact: true }).click();
+  await openPublishWizard(page, formId);
+  await page.getByRole("radio", { name: "The shared draft" }).check();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  const destinations = page.getByTestId("qcms-publish-destinations");
+  await expect(destinations).toBeVisible();
+  await chooseDestination(destinations, "test");
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
 
-  // The confirmation reads the author's own work back to them: what freezes, what
-  // happens to sessions already under way (R1), and what the next edit does.
-  const dialog = page.getByRole("alertdialog");
-  await expect(dialog).toBeVisible();
+  // The review reads the author's own work back to them: what freezes, and what the
+  // destination serves before and after this confirmation (R1).
+  const review = page.getByTestId("qcms-publish-review");
+  await expect(review).toBeVisible();
   await expect(page.getByTestId("qcms-freeze-summary")).toHaveText(
     "Freezes 2 steps, 3 pinned questions, 1 rule.",
   );
-  await expect(dialog).toContainText("New sessions in test start on it");
+  await expect(review).toContainText("test");
 
-  await dialog.getByRole("button", { name: "Publish to test" }).click();
-  await expect(dialog).toBeHidden();
-  await expect(page.getByText("Published as v1 and released to test.")).toBeVisible({
-    timeout: 30_000,
-  });
+  await page.getByRole("button", { name: "Confirm", exact: true }).click();
+  const result = page.getByTestId("qcms-publish-result");
+  await expect(result).toContainText("Version 1 is published.", { timeout: 30_000 });
+  // The way on to the environment this version is now serving in.
   await expect(
-    page.getByTestId("qcms-form-actions-status").getByRole("link", { name: "Links", exact: true }),
+    result.getByRole("link", { name: "Open test operations", exact: true }),
   ).toBeVisible();
 });
 
@@ -467,37 +477,24 @@ test("a refused publish lists every issue and each one moves focus (exit criteri
   // about the validation panel agreeing (`waitForSaveAfter` records why).
   await waitForSaveAfter(page, beforeBreak);
 
-  // The rule was broken from a step screen; Publish is on the form's, and the rules live on
-  // a route of their own since issue #669. The publish controls belong to the form rather
-  // than to any of its parts, so getting to them is a screen switch from wherever you were.
-  await page.goto(`/forms/${formId}`);
+  // The refusal is the wizard's since the builder's publish dialogs were retired (Code
+  // Owner, 2026-10-31), and it is SPOKEN - which a rejection was not before issue #377.
+  // The helper asserts the live region, the sentence, and that the pointer to the work
+  // list is NOT inside the region: a screenful of links read out as one flat interruption
+  // is neither navigable nor wanted.
+  await refuseDraftThroughWizard(page, { formId, environment: "test" });
+  await expect(page.getByTestId("qcms-publish-rejected")).toContainText(
+    /issues? blocks? publishing/u,
+  );
+
+  // THE WORK LIST IS THE BUILDER'S, because that is the only screen whose entries can move
+  // focus to the rule, step or pin at fault. The wizard named the count and sent the author
+  // here.
+  await page.getByRole("link", { name: "Open the builder", exact: true }).click();
+  await page.waitForURL(`**/forms/${formId}`);
   await openFormDetails(page);
-  await page.getByRole("button", { name: "Publish to test", exact: true }).click();
-  await page
-    .getByRole("alertdialog")
-    .getByRole("button", { name: "Publish to test", exact: true })
-    .click();
-
-  const rejected = page.getByTestId("qcms-publish-rejected");
-  await expect(rejected).toBeVisible({ timeout: 30_000 });
-  await expect(issue(rejected, "RULE_BACKWARD_TARGET")).toBeVisible();
-
-  // The refusal is SPOKEN, which it was not before issue #377: the work list renders as a
-  // sibling of the live region, so publish success and publish error announced and a
-  // rejection did not. Three assertions, and they fail for three different reasons.
-  const actionsStatus = page.getByTestId("qcms-form-actions-status");
-  await expect(actionsStatus).toBeAttached();
-  // The pin (#359, #368). Nothing else in the suite says this container is a live region,
-  // and nothing can: axe has no rule requiring one to exist, and every content assertion
-  // around it passes on a plain `<div>`. Selected by testid rather than by `[aria-live]`,
-  // so deleting the attribute makes THIS line red instead of quietly matching nothing.
-  await expect(actionsStatus).toHaveAttribute("aria-live", "polite");
-  // The repair. Empty on `origin/main`, because the summary sentence did not exist.
-  await expect(actionsStatus).toContainText("Publish blocked");
-  // And the decision, asserted rather than merely commented: a summary announces, the work
-  // list does not. If a later change moves the list inside the region to "fix" the same
-  // defect a second time, this is what notices.
-  await expect(actionsStatus.getByTestId("qcms-publish-rejected")).toHaveCount(0);
+  const rejected = validationPanel(page);
+  await expect(issue(rejected, "RULE_BACKWARD_TARGET")).toBeVisible({ timeout: 30_000 });
 
   // THE ANCHOR THAT CROSSES A ROUTE BOUNDARY, which is issue #669's acceptance criterion
   // and the thing `plan/admin-ux-audit.md` §5.5 predicted a rules route would break.

@@ -7,8 +7,6 @@ import { EnvironmentSwitcher } from "./environment-switcher.tsx";
 import { FormActions } from "./forms/form-actions.tsx";
 import { ResponseDetail } from "./ops/response-detail.tsx";
 import { ENVIRONMENT_COOKIE } from "../lib/environment.ts";
-import { IDLE_PUBLISH, IDLE_PUBLISH_RELEASE } from "../lib/forms/builder-state.ts";
-import type { DraftForm } from "../lib/forms/types.ts";
 import { t } from "../lib/i18n/en.ts";
 import type { ResponseDetail as ResponseDetailData } from "../lib/ops/types.ts";
 
@@ -29,14 +27,6 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh }),
 }));
 
-const DRAFT: DraftForm = {
-  formId: "form-1",
-  defaultLocale: "en",
-  title: { en: "Intake" },
-  steps: [{ stepId: "step-1", title: { en: "About you" }, items: [] }],
-  rules: [],
-};
-
 const SWITCHED = t("environment.switched", { shown: "prod", current: "test" });
 
 function formActions(setStatus = () => Promise.resolve({ status: "error", message: SWITCHED })) {
@@ -45,10 +35,6 @@ function formActions(setStatus = () => Promise.resolve({ status: "error", messag
       slug="intake"
       formId="form-1"
       status="open"
-      draft={DRAFT}
-      latestVersion={1}
-      publish={() => Promise.resolve(IDLE_PUBLISH)}
-      publishAndRelease={() => Promise.resolve(IDLE_PUBLISH_RELEASE)}
       setStatus={setStatus as () => Promise<{ status: "error"; message: string }>}
       environment="prod"
     />
@@ -103,7 +89,7 @@ describe("returning to a tab", () => {
 });
 
 describe("an unknown environment", () => {
-  it("disables close and publish-and-release, and leaves publish alone", () => {
+  it("disables close, and leaves the way to the publish wizard alone", () => {
     render(
       <EnvironmentScope selection="test" unknown>
         {formActions()}
@@ -113,13 +99,11 @@ describe("an unknown environment", () => {
     const close = screen.getByRole("button", {
       name: t("forms.lifecycle.close", { environment: "prod" }),
     });
-    const release = screen.getByRole("button", { name: t("forms.publishRelease.action") });
-    const publish = screen.getByRole("button", { name: t("forms.publish.action") });
 
     expect(close.hasAttribute("disabled")).toBe(true);
-    expect(release.hasAttribute("disabled")).toBe(true);
-    // Publishing reaches no environment (ADR-40), so it does not wait on one.
-    expect(publish.hasAttribute("disabled")).toBe(false);
+    // The wizard binds no environment at all: its destinations are chosen in its own body
+    // and authorised again at commit, so it does not wait on the switcher.
+    expect(screen.getByRole("link", { name: t("forms.versions.publishEntry") })).toBeTruthy();
   });
 
   it("leaves everything enabled outside the unknown state", () => {

@@ -58,6 +58,7 @@ async function toReview(props: {
       versions={[2, 1]}
       hasDraft={false}
       canPublishDraft={false}
+      draft={null}
       review={props.review ?? (() => Promise.resolve({ ok: true, data: PROD_ONLY }))}
       confirm={props.confirm ?? (() => Promise.resolve({ status: "idle" }))}
       lookup={props.lookup ?? (() => Promise.resolve({ status: "idle" }))}
@@ -78,6 +79,7 @@ describe("a rejected review", () => {
         versions={[2, 1]}
         hasDraft={false}
         canPublishDraft={false}
+        draft={null}
         review={transportFailure}
         confirm={() => Promise.resolve({ status: "idle" })}
         lookup={() => Promise.resolve({ status: "idle" })}

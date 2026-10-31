@@ -68,11 +68,9 @@ const HANDLERS: Readonly<Record<string, readonly string[]>> = {
   "forms/assist-panel.tsx": ["non-JSON error body (forms/assist-panel.test.tsx)"],
   // The four from task 035 and the five from issue #303, in file order.
   "forms/draft-preview.tsx": ["preview projection (forms/draft-preview-rejects.test.tsx)"],
-  "forms/form-actions.tsx": [
-    "publish (forms/form-actions-rejects.test.tsx)",
-    "publish and release (forms/form-actions-rejects.test.tsx)",
-    "close/reopen (forms/form-actions-rejects.test.tsx)",
-  ],
+  // One handler since the builder's publish dialogs were retired (Code Owner,
+  // 2026-10-31): publishing is the wizard's act, and so are its rejection handlers.
+  "forms/form-actions.tsx": ["close/reopen (forms/form-actions-rejects.test.tsx)"],
   // Task 065's release action. Its refusal keeps the dialog open, because a release that
   // may or may not have landed in production is the one state an operator must not be
   // left guessing about.
@@ -165,15 +163,16 @@ describe("the rejection handlers of the admin's forms and ops components", () =>
     expect(found).toStrictEqual(declared);
   });
 
-  it("number twenty, of which sixteen are action rejections (nine at issue #352)", () => {
+  it("number eighteen, of which fourteen are action rejections (nine at issue #352)", () => {
     const entries = Object.values(HANDLERS).flat();
     // Fifteen since task 065: the combined publish-and-release action and the release
     // panel's own each added one. **Sixteen since task 070**, whose pending-change panel
     // drives a confirm and a withdraw through one handler. Seventeen with the immutable
     // release-candidate loader, whose failed read keeps production confirmation disabled.
-    // **Twenty since issue #1197**: the publish wizard reads a review, confirms it and
-    // looks its recorded result up, and all three can lose their answer.
-    expect(entries).toHaveLength(20);
+    // **Twenty with issue #1197's wizard**, which reads a review, confirms it and looks its
+    // recorded result up, and all three can lose their answer - then **eighteen**, because
+    // retiring the builder's publish dialogs took the two handlers they drove with them.
+    expect(entries).toHaveLength(18);
 
     // Three clipboard chains: a refusal the operator can act on, or silence.
     const clipboard = entries.filter((entry) => entry.startsWith("copy"));
@@ -191,8 +190,9 @@ describe("the rejection handlers of the admin's forms and ops components", () =>
     // panel's own release are both action rejections. **Twelve since task 070**: a
     // confirmation of a pending production endpoint change is one too, and it is the one
     // whose silence would be worst - an operator left wondering whether a production
-    // endpoint just moved. Thirteen with the candidate snapshot read, and sixteen with the
-    // publish wizard's three.
-    expect(entries.length - clipboard.length - parse.length).toBe(16);
+    // endpoint just moved. Thirteen with the candidate snapshot read, sixteen with the
+    // publish wizard's three, and **fourteen** once the builder's two publish handlers
+    // went with their dialogs.
+    expect(entries.length - clipboard.length - parse.length).toBe(14);
   });
 });

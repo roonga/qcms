@@ -29,7 +29,7 @@ const calls = vi.hoisted(() => ({
   saveDraft: 0,
   previewCondition: 0,
   previewDraft: 0,
-  publishForm: 0,
+  publishBatch: 0,
   mintLinks: 0,
 }));
 
@@ -65,10 +65,6 @@ vi.mock("@/lib/server/forms", () => ({
     calls.previewCondition += 1;
     return Promise.resolve({ ok: true, data: { outcome: "match", references: [] } });
   },
-  publishForm: () => {
-    calls.publishForm += 1;
-    return Promise.resolve(answers.publish ?? { ok: true, data: { version: 1, publishedAt: "" } });
-  },
   previewDraft: () => {
     calls.previewDraft += 1;
     return Promise.resolve(
@@ -84,6 +80,19 @@ vi.mock("@/lib/server/forms", () => ({
     );
   },
   setFormStatus: () => Promise.resolve({ ok: true, data: { status: "closed" } }),
+}));
+// The publish wizard's confirmation is the one act that can be refused with the kernel's
+// issue list, since the builder's publish dialogs were retired (Code Owner, 2026-10-31).
+vi.mock("@/lib/server/releases", () => ({
+  publishBatch: () => {
+    calls.publishBatch += 1;
+    return Promise.resolve(answers.publish ?? { ok: true, data: { version: 1, releases: [] } });
+  },
+  releaseBatch: () => Promise.resolve({ ok: true, data: { version: 1, releases: [] } }),
+  lookupReleaseBatch: () => Promise.resolve({ ok: true, data: { version: 1, releases: [] } }),
+  releaseVersion: () =>
+    Promise.resolve({ ok: true, data: { version: 1, environment: "prod", rollback: false } }),
+  reviewRelease: () => Promise.resolve({ ok: true, data: { targets: [] } }),
 }));
 // The environment check has its own file (`lib/server/environment-actions.test.ts`); here
 // every screen showed the environment the request resolves to, so the check passes.
@@ -106,7 +115,7 @@ const {
   mintLinksAction,
   previewConditionAction,
   previewDraftAction,
-  publishFormAction,
+  confirmPublishAction,
   saveDraftAction,
 } = await import("../../app/(shell)/forms/actions.ts");
 
@@ -221,12 +230,20 @@ describe("034's actions keep a refusal distinct from an error", () => {
     };
   }
 
+  /** One confirmed draft publish, as the wizard sends it. */
+  const CONFIRM = {
+    idempotencyKey: "00000000-0000-4000-8000-000000000000",
+    expectedWorkflowRevision: null,
+    source: { kind: "draft", draftRevision: 3 },
+    targets: [],
+  } as const;
+
   it("reports a refused publish as `rejected`, carrying every issue", async () => {
     answers.publish = rejection("PUBLISH_REJECTED");
-    const state = await publishFormAction("frm_demo_form");
+    const state = await confirmPublishAction("frm_demo_form", CONFIRM);
 
-    // `rejected` rather than `error`, because the screen owes the author a work list
-    // here and a sentence there.
+    // `rejected` rather than `error`, because the author owes a work list here and a
+    // sentence there.
     expect(state.status).toBe("rejected");
     expect(state.issues).toHaveLength(1);
     expect(state.version).toBeUndefined();
@@ -234,10 +251,17 @@ describe("034's actions keep a refusal distinct from an error", () => {
 
   it("reports a publish failure with no issues as an ordinary error", async () => {
     answers.publish = { ok: false, code: "internal", message: "boom", issues: [] };
-    const state = await publishFormAction("frm_demo_form");
+    const state = await confirmPublishAction("frm_demo_form", CONFIRM);
 
     expect(state.status).toBe("error");
     expect(state.issues).toBeUndefined();
+  });
+
+  it("keeps a stale review apart, because its recovery is a re-read", async () => {
+    answers.publish = { ok: false, code: "STALE_REVIEW", message: "moved", issues: [] };
+    const state = await confirmPublishAction("frm_demo_form", CONFIRM);
+
+    expect(state.status).toBe("stale");
   });
 
   it("reports a draft that will not compile as `rejected`, with its issues", async () => {

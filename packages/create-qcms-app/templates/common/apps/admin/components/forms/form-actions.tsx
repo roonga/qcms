@@ -5,172 +5,66 @@ import { useCallback, useState, useTransition } from "react";
 
 import { Alert, Button, Dialog } from "@/components/kit";
 import { useEnvironmentUnknown } from "@/components/environment-scope";
-import { AgentProvenanceTag } from "@/components/forms/agent-provenance-tag";
-import { IssueEntry } from "@/components/forms/validation-panel";
-import type { FormStatusState, PublishReleaseState, PublishState } from "@/lib/forms/builder-state";
-import { IDLE_FORM_STATUS, IDLE_PUBLISH, IDLE_PUBLISH_RELEASE } from "@/lib/forms/builder-state";
-import { freezeSummary, nextVersion } from "@/lib/forms/publish";
-import type { DraftForm, FormIssue, FormPublishingWorkflow } from "@/lib/forms/types";
-import { t, tPlural } from "@/lib/i18n/en";
+import type { FormStatusState } from "@/lib/forms/builder-state";
+import { IDLE_FORM_STATUS } from "@/lib/forms/builder-state";
+import type { FormPublishingWorkflow } from "@/lib/forms/types";
+import { t } from "@/lib/i18n/en";
 import { unexpected } from "@/lib/ops/unexpected";
 
 /**
- * The form-level actions: publish, and close/reopen (task 034; screen contract
- * "publish dialog" and "close/reopen").
+ * The form-level actions: the way to the publish wizard, and close/reopen (task 034; screen
+ * contract "close/reopen").
  *
- * ## The dialog is where R1 is taught
+ * ## Publishing is not here
  *
- * Publishing is the one irreversible act in the authoring loop, so the confirmation states
- * the consequence rather than asking whether the author is sure: what freezes (their own
- * counts, read back to them), what happens to sessions already under way (they finish on
- * the version they pinned), and what happens next (the following edit starts a fresh
- * draft). Close and reopen carry the same session sentence, because "close" is exactly the
- * word an author is most likely to read as "stop everything".
+ * It was, as two dialogs - publish, and publish-and-release to the screen's environment -
+ * and they were a second entry to an act the wizard owns (Code Owner, 2026-10-31: the
+ * builder's publish dialogs are retired; the wizard is the only publish entry). What is
+ * left here is a link, gated by the same capability the buttons were: a caller who may not
+ * publish sees no way to.
  *
- * ## The counts come from the stored draft, deliberately
+ * The things those dialogs taught moved with them rather than being dropped. The freeze
+ * summary and the agent-provenance marker are the wizard's review step, computed from the
+ * same stored draft. The anchored work list a refusal used to render here is the builder's
+ * own validation panel, which lists the same issues: every entry is a link that moves focus
+ * to the rule, step or pin at fault, and only this screen renders those - so the wizard
+ * names the count and sends the author back here.
  *
- * Publish freezes the draft the **server** holds, not a document in a browser tab, so the
- * summary is computed from the same stored draft. The builder autosaves, so in practice
- * these are the same document; where they differ, the dialog describes what pressing
- * Publish will actually do, which is the only useful answer.
+ * ## Close and reopen carry their environment
  *
- * ## A rejected publish is a work list, not an error
- *
- * A 422 comes back carrying the kernel's full `PublishError[]`, each entry addressed by a
- * structured domain path. They render through the builder's own `IssueEntry`, so every one
- * is a link that moves focus to the rule, step or pin that caused it - the same rendering
- * the validation panel gives the same issue, because they are the same issue.
- *
- * That framing explains the visual treatment, and for a while it was also why the outcome
- * was silent: the list rendered outside the live region, so an author pressed Publish,
- * nothing was published, and nothing was said (#377). The region now carries a summary
- * sentence - what happened, and how many issues - while the list stays outside it. Putting
- * the list inside would announce a screenful of links as one flat interruption, at the
- * moment the author most needs to move through them one at a time.
+ * The closed state is per (form, environment), so every confirmation names the environment
+ * it acts in: an act performed against the wrong environment is not undoable, which is the
+ * whole reason Q6 asks for the restatement.
  */
-function publishReleaseConfirm(pending: boolean, enabled: boolean, environment: string): string {
-  if (pending) return t("forms.publishRelease.pending");
-  if (enabled) return t("forms.workflow.publish", { environment });
-  return t("forms.publishRelease.confirm", { environment });
-}
-
 export function FormActions({
   slug,
   formId,
   status,
-  draft,
-  latestVersion,
-  publish,
-  publishAndRelease,
   setStatus,
   environment,
-  agentAssisted = false,
   workflow,
   lifecycleOnly = false,
-  hasStoredDraft = true,
 }: {
   readonly lifecycleOnly?: boolean;
-  readonly hasStoredDraft?: boolean;
   readonly workflow?: FormPublishingWorkflow | undefined;
   readonly slug: string;
   readonly formId: string;
   readonly status: "open" | "closed";
-  readonly draft: DraftForm | null;
-  readonly latestVersion: number | undefined;
-  readonly publish: () => Promise<PublishState>;
-  /**
-   * The combined action finding 2 accepted: publish this draft and release the new version
-   * to one environment, atomically or not at all.
-   *
-   * A second prop rather than a flag on `publish`, because the two are different acts with
-   * different consequences: one adds a version to the library, the other also decides what
-   * a respondent in that environment is served.
-   *
-   * Bound by the page to the environment this screen shows, which is the one it releases to;
-   * refused if the request's environment has changed since (A1).
-   */
-  readonly publishAndRelease: () => Promise<PublishReleaseState>;
   /** Bound by the page to the environment this screen shows; refused if that has changed. */
   readonly setStatus: (action: "close" | "reopen") => Promise<FormStatusState>;
   /**
-   * The environment the operator's Q6 switcher had selected when this screen rendered.
-   *
-   * It is what the combined action releases to, and it is **named in every confirmation on
-   * this screen**: an act performed against the wrong environment is not undoable, which is
-   * the whole reason Q6 asks for the restatement.
+   * The environment the operator's Q6 switcher had selected when this screen rendered, and
+   * the one the lifecycle confirmations name.
    */
   readonly environment: string;
-  /**
-   * Task 041's provenance marker: whether the stored draft this dialog is about to
-   * freeze carries any agent-assisted change (ADR-25). Server-sourced, from the same
-   * `draftAgentAssisted` the builder reads - this is the human's last look before
-   * publishing, so it says what the builder is currently saying, not what it said
-   * when the page first loaded.
-   */
-  readonly agentAssisted?: boolean;
 }) {
-  const [dialog, setDialog] = useState<"publish" | "publishRelease" | "close" | "reopen" | null>(
-    null,
-  );
-  const [published, setPublished] = useState<PublishState>(IDLE_PUBLISH);
-  const [releasedState, setReleased] = useState<PublishReleaseState>(IDLE_PUBLISH_RELEASE);
+  const [dialog, setDialog] = useState<"close" | "reopen" | null>(null);
   const [lifecycle, setLifecycle] = useState<FormStatusState>(IDLE_FORM_STATUS);
   const [isPending, startTransition] = useTransition();
-  // Publish reaches no environment, so only the two acts that do wait on one (A12).
+  // Close and reopen act in one environment, so they wait until one is known (A12).
   const environmentUnknown = useEnvironmentUnknown();
 
-  const version = nextVersion(latestVersion);
-  const summary = freezeSummary(draft);
-  const canPublish = hasStoredDraft && draft !== null && summary.steps > 0;
-  const rejectionIssues = [published, releasedState].find(
-    (state) => state.status === "rejected",
-  )?.issues;
-
-  const runPublish = useCallback(() => {
-    startTransition(() => {
-      void publish()
-        .then((state) => {
-          setPublished(state);
-          // A rejection keeps the author in the dialog long enough to read that it
-          // failed, then hands them the anchored list on the page behind it, where
-          // the rules and steps it points at actually are.
-          setDialog(null);
-        })
-        // `.catch` is not defensive decoration. `adminApiFetch` documents that it does not
-        // throw for a non-2xx, which is true and is the trap: a transport failure still
-        // rejects with a TypeError, and `readResult`'s `response.json()` rejects on a
-        // truncated body. Without this the promise rejects unhandled, no state is set,
-        // and the dialog sits there looking like a slow network forever.
-        //
-        // The dialog closes on this path for the same reason the resolved one closes it:
-        // the publish result banner lives on the page behind it, so leaving the dialog up
-        // would hide the very sentence that says nothing was published.
-        .catch(() => {
-          setPublished({ status: "error", message: unexpected() });
-          setDialog(null);
-        });
-    });
-  }, [publish]);
-
-  const runPublishRelease = useCallback(() => {
-    startTransition(() => {
-      void publishAndRelease()
-        .then((state) => {
-          setReleased(state);
-          // A rejection carries the same work list an ordinary publish's does, and that
-          // list lives on the page behind this dialog - so the dialog closes either way,
-          // exactly as the publish one does.
-          setDialog(null);
-        })
-        // The same trap as `runPublish`: `adminApiFetch` does not throw on a non-2xx, but a
-        // transport failure still rejects and without this the dialog would sit there
-        // looking like a slow network.
-        .catch(() => {
-          setReleased({ status: "error", message: unexpected() });
-          setDialog(null);
-        });
-    });
-  }, [publishAndRelease]);
+  const canPublish = !lifecycleOnly && workflow?.canPublish !== false;
 
   const runStatus = useCallback(
     (action: "close" | "reopen") => {
@@ -201,38 +95,17 @@ export function FormActions({
       </h2>
 
       <div className="flex flex-wrap items-center gap-2">
-        {!lifecycleOnly && !workflow?.enabled && (
-          <Button
-            variant="primary"
-            size="md"
-            isDisabled={!canPublish || isPending}
-            onPress={() => {
-              setPublished(IDLE_PUBLISH);
-              setDialog("publish");
-            }}
+        {/* The one publish entry (issue #1197). A link rather than a dialog: one
+            confirmation can name several destinations, each with its own transition and
+            eligibility to read first, and the act writes nothing until its last press. */}
+        {canPublish && (
+          <Link
+            className="qcms-button-link"
+            data-testid="qcms-publish-entry"
+            href={`/forms/${encodeURIComponent(formId)}/publish`}
           >
-            {t("forms.publish.action")}
-          </Button>
-        )}
-        {/* One intent, one act (finding 2). Beside Publish rather than replacing it,
-            because publishing without releasing is still what an author does when the
-            version is not ready to serve anywhere. */}
-        {!lifecycleOnly && (
-          <Button
-            variant={workflow?.enabled ? "primary" : "secondary"}
-            size="md"
-            isDisabled={
-              !canPublish || isPending || environmentUnknown || workflow?.canPublish === false
-            }
-            onPress={() => {
-              setReleased(IDLE_PUBLISH_RELEASE);
-              setDialog("publishRelease");
-            }}
-          >
-            {workflow?.enabled
-              ? t("forms.workflow.publish", { environment })
-              : t("forms.publishRelease.action")}
-          </Button>
+            {t("forms.versions.publishEntry")}
+          </Link>
         )}
         <Button
           variant="secondary"
@@ -254,11 +127,6 @@ export function FormActions({
           {t("forms.workflow.noPublishPermission", { environment })}
         </p>
       )}
-      {!lifecycleOnly && !canPublish && (
-        <p className="text-sm text-(--color-text-muted)">
-          {t(hasStoredDraft ? "forms.publish.noDraft" : "forms.workflow.noChanges")}
-        </p>
-      )}
       {status === "closed" && (
         <p className="text-sm text-(--color-text-muted)" data-testid="qcms-form-closed">
           {t("forms.lifecycle.closedNote", { environment })}
@@ -272,209 +140,12 @@ export function FormActions({
         className="flex flex-col gap-2"
         data-testid="qcms-form-actions-status"
       >
-        {/* Publish success and publish error announce from here; a REJECTION did not,
-            because `PublishRejection` is a sibling of this region rather than a child of
-            it (#377). A summary comes here and the work list stays where it is: every
-            entry in it is a link that moves focus to the rule or step at fault, and a list
-            of links read out as one flat interruption is neither navigable nor wanted. */}
-        {rejectionIssues !== undefined && draft !== null && (
-          <p className="qcms-visually-hidden">
-            {tPlural(
-              "forms.publish.blockedAnnounce.one",
-              "forms.publish.blockedAnnounce.other",
-              rejectionIssues.length,
-            )}
-          </p>
-        )}
-        {published.status === "published" && (
-          <Alert
-            variant="success"
-            title={t("forms.publish.published", { version: published.version ?? version })}
-          >
-            <Link className="qcms-text-link" href={`/forms/${encodeURIComponent(formId)}/versions`}>
-              {t("forms.publish.viewHistory")}
-            </Link>
-          </Alert>
-        )}
-        {published.status === "error" && (
-          <Alert variant="error">
-            {t("forms.publish.failed", { message: published.message ?? "" })}
-          </Alert>
-        )}
-        {releasedState.status === "released" && (
-          <Alert
-            variant="success"
-            title={t("forms.publishRelease.done", {
-              version: releasedState.version ?? version,
-              environment: releasedState.environment ?? environment,
-            })}
-          >
-            <Link
-              className="qcms-text-link"
-              href={`/forms/${encodeURIComponent(formId)}/${workflow?.enabled ? "links" : "versions"}`}
-            >
-              {workflow?.enabled ? t("forms.tab.links") : t("forms.tab.versions")}
-            </Link>
-          </Alert>
-        )}
-        {releasedState.status === "released" && status === "closed" && (
-          <p>{t("forms.workflow.intakeClosed", { environment })}</p>
-        )}
-        {releasedState.status === "error" && (
-          <Alert variant="error">
-            {t("forms.publishRelease.failed", { message: releasedState.message ?? "" })}
-          </Alert>
-        )}
         {lifecycle.status === "error" && (
           <Alert variant="error">
             {t("forms.lifecycle.failed", { message: lifecycle.message ?? "" })}
           </Alert>
         )}
       </div>
-
-      {published.status === "rejected" && draft !== null && (
-        <PublishRejection issues={published.issues ?? []} draft={draft} />
-      )}
-
-      {releasedState.status === "rejected" && draft !== null && (
-        <PublishRejection issues={releasedState.issues ?? []} draft={draft} />
-      )}
-
-      {dialog === "publish" && (
-        <Dialog
-          isOpen
-          role="alertdialog"
-          title={t("forms.publish.title", { slug })}
-          isDismissable={!isPending}
-          onOpenChange={(isOpen) => {
-            if (!isOpen) setDialog(null);
-          }}
-        >
-          <div className="flex flex-col gap-4">
-            {agentAssisted && (
-              <div data-testid="qcms-publish-provenance">
-                <AgentProvenanceTag />
-              </div>
-            )}
-            <p className="text-sm text-(--color-text)" data-testid="qcms-freeze-summary">
-              {t("forms.publish.freezes", {
-                steps: tPlural(
-                  "forms.publish.freezes.steps.one",
-                  "forms.publish.freezes.steps.other",
-                  summary.steps,
-                ),
-                pins: tPlural(
-                  "forms.publish.freezes.pins.one",
-                  "forms.publish.freezes.pins.other",
-                  summary.pins,
-                ),
-                rules: tPlural(
-                  "forms.publish.freezes.rules.one",
-                  "forms.publish.freezes.rules.other",
-                  summary.rules,
-                ),
-              })}
-            </p>
-            <p className="text-sm text-(--color-text-muted)">
-              {t("forms.publish.sessions", { version })}
-            </p>
-            <p className="text-sm text-(--color-text-muted)">{t("forms.publish.immutable")}</p>
-            {/* Publishing reaches no environment at all (ADR-40): the version joins the
-                library and is served nowhere until it is released. Said here because
-                "Publish" is the word an author is most likely to read as "make it live". */}
-            <p className="text-sm text-(--color-text-muted)">{t("forms.releases.intro")}</p>
-            <div className="flex flex-wrap gap-2">
-              <Button variant="primary" size="md" isDisabled={isPending} onPress={runPublish}>
-                {isPending ? t("forms.publish.pending") : t("forms.publish.confirm", { version })}
-              </Button>
-              <Button
-                variant="ghost"
-                size="md"
-                isDisabled={isPending}
-                onPress={() => {
-                  setDialog(null);
-                }}
-              >
-                {t("forms.publish.cancel")}
-              </Button>
-            </div>
-          </div>
-        </Dialog>
-      )}
-
-      {dialog === "publishRelease" && (
-        <Dialog
-          isOpen
-          role="alertdialog"
-          title={
-            workflow?.enabled
-              ? t("forms.workflow.publishTitle", { version, environment })
-              : t("forms.publishRelease.title", { slug, environment })
-          }
-          description={t("forms.publishRelease.body", { environment })}
-          isDismissable={!isPending}
-          onOpenChange={(isOpen) => {
-            if (!isOpen) setDialog(null);
-          }}
-        >
-          <div className="flex flex-col gap-4" data-testid="qcms-publish-release-dialog">
-            {agentAssisted && (
-              <div data-testid="qcms-publish-provenance">
-                <AgentProvenanceTag />
-              </div>
-            )}
-            <p className="text-sm text-(--color-text)" data-testid="qcms-freeze-summary">
-              {t("forms.publish.freezes", {
-                steps: tPlural(
-                  "forms.publish.freezes.steps.one",
-                  "forms.publish.freezes.steps.other",
-                  summary.steps,
-                ),
-                pins: tPlural(
-                  "forms.publish.freezes.pins.one",
-                  "forms.publish.freezes.pins.other",
-                  summary.pins,
-                ),
-                rules: tPlural(
-                  "forms.publish.freezes.rules.one",
-                  "forms.publish.freezes.rules.other",
-                  summary.rules,
-                ),
-              })}
-            </p>
-            {/* Q6's restatement, on the one action here that decides what a respondent is
-                served. */}
-            <p className="text-sm font-semibold" data-testid="qcms-publish-release-environment">
-              {t("environment.inThis", { environment })}
-            </p>
-            {releasedState.status === "error" && (
-              <Alert variant="error">
-                {t("forms.publishRelease.failed", { message: releasedState.message ?? "" })}
-              </Alert>
-            )}
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="primary"
-                size="md"
-                isDisabled={isPending}
-                onPress={runPublishRelease}
-              >
-                {publishReleaseConfirm(isPending, workflow?.enabled === true, environment)}
-              </Button>
-              <Button
-                variant="ghost"
-                size="md"
-                isDisabled={isPending}
-                onPress={() => {
-                  setDialog(null);
-                }}
-              >
-                {t("forms.publish.cancel")}
-              </Button>
-            </div>
-          </div>
-        </Dialog>
-      )}
 
       {(dialog === "close" || dialog === "reopen") && (
         <Dialog
@@ -542,38 +213,4 @@ function confirmLabel(intent: "close" | "reopen", environment: string): string {
   return intent === "close"
     ? t("forms.lifecycle.confirmClose", { environment })
     : t("forms.lifecycle.confirmReopen", { environment });
-}
-
-/** The anchored work list a refused publish leaves behind. Nothing was persisted. */
-function PublishRejection({
-  issues,
-  draft,
-}: {
-  readonly issues: readonly FormIssue[];
-  readonly draft: DraftForm;
-}) {
-  return (
-    <section
-      aria-labelledby="qcms-publish-rejected-heading"
-      data-testid="qcms-publish-rejected"
-      className="flex flex-col gap-2 rounded-md border border-(--color-border-strong) bg-(--color-background-muted) p-4"
-    >
-      <h3
-        id="qcms-publish-rejected-heading"
-        className="text-base font-semibold text-(--color-text)"
-      >
-        {t("forms.publish.blocked")}
-      </h3>
-      <p className="text-sm text-(--color-text-muted)">
-        {t("forms.publish.blockedCount", { count: issues.length })}
-      </p>
-      <ul className="flex flex-col gap-2">
-        {issues.map((issue, index) => (
-          <li key={`${issue.code}:${String(index)}`}>
-            <IssueEntry issue={issue} draft={draft} />
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
 }

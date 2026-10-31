@@ -4,8 +4,11 @@ import { useCallback, useState, useTransition } from "react";
 import Link from "next/link";
 
 import { Alert, Button, Checkbox, Select } from "@/components/kit";
+import { AgentProvenanceTag } from "@/components/forms/agent-provenance-tag";
 import type { PublishBatchState } from "@/lib/forms/builder-state";
 import { IDLE_PUBLISH_BATCH } from "@/lib/forms/builder-state";
+import { freezeSummary } from "@/lib/forms/publish";
+import type { DraftForm } from "@/lib/forms/types";
 import type {
   PublishDestination,
   PublishIntent,
@@ -15,7 +18,7 @@ import type {
 } from "@/lib/forms/release-candidate";
 import { isTargetEligible } from "@/lib/forms/release-candidate";
 import type { ReadState } from "@/lib/read-state";
-import { t } from "@/lib/i18n/en";
+import { t, tPlural } from "@/lib/i18n/en";
 import { unexpected } from "@/lib/ops/unexpected";
 
 /**
@@ -133,7 +136,14 @@ function PublishResult({
   const releases = state.releases ?? [];
   return (
     <section className="flex flex-col gap-4" data-testid="qcms-publish-result">
-      <div aria-live="polite" className="flex flex-col gap-2">
+      {/* Testid on the region rather than only on its contents, so the `aria-live` can be
+          asserted directly: the outcome appears on screen either way, and without the
+          attribute it simply stops being spoken (issue #368). */}
+      <div
+        aria-live="polite"
+        className="flex flex-col gap-2"
+        data-testid="qcms-publish-result-status"
+      >
         <Alert variant="success">
           {t(
             state.froze === true ? "forms.publish.result.version" : "forms.publish.result.released",
@@ -175,6 +185,90 @@ function PublishResult({
       <div>
         <Link className="qcms-text-link" href={`/forms/${encodeURIComponent(formId)}/versions`}>
           {t("forms.publish.result.versions")}
+        </Link>
+      </div>
+    </section>
+  );
+}
+
+/**
+ * What freezing this draft will capture, read back to the author before the press that
+ * freezes it.
+ *
+ * Computed from the **stored** draft rather than a document in a browser tab, because that
+ * is what the confirmation freezes. The builder autosaves, so in practice they are the same
+ * document; where they differ, this describes what pressing Confirm will actually do.
+ */
+function FreezeSummary({
+  draft,
+  agentAssisted,
+}: {
+  readonly draft: DraftForm;
+  readonly agentAssisted: boolean;
+}) {
+  const summary = freezeSummary(draft);
+  return (
+    <>
+      {agentAssisted && (
+        <div data-testid="qcms-publish-provenance">
+          <AgentProvenanceTag />
+        </div>
+      )}
+      <p className="text-sm text-(--color-text)" data-testid="qcms-freeze-summary">
+        {t("forms.publish.freezes", {
+          steps: tPlural(
+            "forms.publish.freezes.steps.one",
+            "forms.publish.freezes.steps.other",
+            summary.steps,
+          ),
+          pins: tPlural(
+            "forms.publish.freezes.pins.one",
+            "forms.publish.freezes.pins.other",
+            summary.pins,
+          ),
+          rules: tPlural(
+            "forms.publish.freezes.rules.one",
+            "forms.publish.freezes.rules.other",
+            summary.rules,
+          ),
+        })}
+      </p>
+      <p className="text-sm text-(--color-text-muted)">{t("forms.publish.immutable")}</p>
+    </>
+  );
+}
+
+/**
+ * What a refused draft publish leaves behind: a count, and the way to the work list.
+ *
+ * The list itself stays on the builder. Every entry in it is a link that moves focus to the
+ * rule, step or pin at fault, which it can only do on the screen those are rendered on -
+ * and the builder's validation panel already renders the same issues, because they are the
+ * same issues. Nothing was persisted.
+ */
+function PublishRejected({ formId, count }: { readonly formId: string; readonly count: number }) {
+  return (
+    <section
+      aria-labelledby="qcms-publish-rejected-heading"
+      data-testid="qcms-publish-rejected"
+      className="flex flex-col gap-2 rounded-md border border-(--color-border-strong) bg-(--color-background-muted) p-4"
+    >
+      <h2
+        id="qcms-publish-rejected-heading"
+        className="text-base font-semibold text-(--color-text)"
+      >
+        {t("forms.publish.blocked")}
+      </h2>
+      <p className="text-sm text-(--color-text-muted)">
+        {tPlural(
+          "forms.publish.wizardBlockedCount.one",
+          "forms.publish.wizardBlockedCount.other",
+          count,
+        )}
+      </p>
+      <div>
+        <Link className="qcms-text-link" href={`/forms/${encodeURIComponent(formId)}`}>
+          {t("forms.publish.wizardBlockedLink")}
         </Link>
       </div>
     </section>
@@ -237,6 +331,8 @@ export function PublishWizard({
   versions,
   hasDraft,
   canPublishDraft,
+  draft,
+  agentAssisted = false,
   review: readReview,
   confirm,
   lookup,
@@ -248,6 +344,10 @@ export function PublishWizard({
   readonly hasDraft: boolean;
   /** Whether this caller holds `form: publish`, which is what a draft source needs. */
   readonly canPublishDraft: boolean;
+  /** The stored draft, for the freeze summary. Null when there is nothing to freeze. */
+  readonly draft: DraftForm | null;
+  /** ADR-25: whether the stored draft carries any agent-assisted change (task 041). */
+  readonly agentAssisted?: boolean;
   readonly review: (
     source: { kind: "draft" } | { kind: "version"; version: number },
   ) => Promise<ReadState<ReleaseReview>>;
@@ -399,6 +499,13 @@ export function PublishWizard({
         )}
         {reviewFailed && <Alert variant="error">{t("forms.publish.reviewFailed")}</Alert>}
       </div>
+
+      {/* Outside the live region, as the builder's work list was: a screenful of issues
+          announced as one flat interruption is neither navigable nor wanted. The count
+          above is what gets spoken. */}
+      {state.status === "rejected" && (state.issues ?? []).length > 0 && (
+        <PublishRejected formId={formId} count={(state.issues ?? []).length} />
+      )}
 
       {step === "source" && (
         <fieldset className="flex flex-col gap-3" data-testid="qcms-publish-source">
@@ -604,6 +711,9 @@ export function PublishWizard({
             <p className="text-sm text-(--color-text-muted)">
               {t("forms.publish.source.publishedBy", { publisher: review.source.publishedBy })}
             </p>
+          )}
+          {review.source.kind === "draft" && draft !== null && (
+            <FreezeSummary draft={draft} agentAssisted={agentAssisted} />
           )}
           {publishOnly ? (
             <p data-testid="qcms-publish-review-publish-only">

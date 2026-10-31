@@ -40,6 +40,7 @@ import {
 } from "./support/forms.js";
 import { waitForHydration } from "./support/hydration.js";
 import { openDeliverer, submitResponse, TestConsumer } from "./support/ops.js";
+import { chooseDestination, publishDraftThroughWizard } from "./support/publish.js";
 import {
   addOption,
   chooseType,
@@ -961,18 +962,14 @@ test("publish, preview, history and secure links have zero violations", async ({
   // reload it replaces did the same job of proving the draft reached the server.
   await page.goto(`/forms/${formId}`);
 
-  await page.getByRole("button", { name: "Publish to test", exact: true }).click();
-  await expect(page.getByRole("alertdialog")).toBeVisible();
-  await expectNoViolations(page, "publish confirmation");
-  await page.getByRole("alertdialog").getByRole("button", { name: "Publish to test" }).click();
-  await expect(page.getByText("Published as v1 and released to test.")).toBeVisible({
-    timeout: 30_000,
-  });
+  // The wizard is the one publish entry (Code Owner, 2026-10-31), so the act the builder's
+  // dialog used to perform happens on its own screen and the sweep follows it there.
+  await publishDraftThroughWizard(page, { formId, version: 1, environment: "test" });
   // That success alert is announced only because the container it arrives in is a live
   // region, and nothing else in the suite says so (issue #368). The visibility assertion
-  // directly above passes with the attribute deleted, which is the whole point: the
+  // inside the helper passes with the attribute deleted, which is the whole point: the
   // message still appears on screen, it just stops being spoken.
-  const publishStatus = page.getByTestId("qcms-form-actions-status");
+  const publishStatus = page.getByTestId("qcms-publish-result-status");
   await expect(publishStatus).toBeAttached();
   await expect(publishStatus).toHaveAttribute("aria-live", "polite");
   await expectNoViolations(page, "publish success");
@@ -988,12 +985,7 @@ test("publish, preview, history and secure links have zero violations", async ({
   await fillStable(field(page, "Form title"), OVERFLOWING_FORM_TITLE);
   await waitForSaveAfter(page, beforeTitle);
   await page.reload();
-  await page.getByRole("button", { name: "Publish to test", exact: true }).click();
-  await expect(page.getByRole("alertdialog")).toBeVisible();
-  await page.getByRole("alertdialog").getByRole("button", { name: "Publish to test" }).click();
-  await expect(page.getByText("Published as v2 and released to test.")).toBeVisible({
-    timeout: 30_000,
-  });
+  await publishDraftThroughWizard(page, { formId, version: 2, environment: "test" });
 
   // Published, and released below, because a published version is served nowhere until a
   // release record says where (ADR-40, task 065): the operations sweep further down starts
@@ -1024,7 +1016,7 @@ test("publish, preview, history and secure links have zero violations", async ({
   const destinations = page.getByTestId("qcms-publish-destinations");
   await expect(destinations).toBeVisible();
   await expectNoViolations(page, "the publish wizard, choosing destinations");
-  await destinations.getByRole("checkbox", { name: "prod", exact: true }).check();
+  await chooseDestination(destinations, "prod");
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(page.getByTestId("qcms-publish-review")).toBeVisible();
   await expectNoViolations(page, "the publish wizard, reviewing one destination");

@@ -14,8 +14,6 @@ import { previewPortalTheme, secureCookies } from "@/lib/server/config";
 import {
   releaseVersionAction,
   reviewFormVersionAction,
-  publishFormAction,
-  publishAndReleaseAction,
   setFormStatusAction,
 } from "@/app/(shell)/forms/actions";
 
@@ -56,11 +54,7 @@ export async function FormProductionReview({
         formId={form.formId}
         slug={form.slug}
         status={form.status}
-        draft={null}
-        latestVersion={form.versions[0]?.version}
         environment={environment}
-        publish={publishFormAction.bind(null, form.formId)}
-        publishAndRelease={publishAndReleaseAction.bind(null, form.formId, environment)}
         setStatus={setFormStatusAction.bind(null, form.formId, environment)}
       />
       {!history.ok ? (

@@ -10,8 +10,6 @@ import type {
   MintLinksState,
   PreviewConditionState,
   PublishBatchState,
-  PublishReleaseState,
-  PublishState,
   ReleaseState,
   RevokeLinkState,
   SaveDraftState,
@@ -34,7 +32,6 @@ import {
   getFormVersion,
   previewCondition,
   previewDraft,
-  publishForm,
   saveDraft,
   setFormStatus,
   updateSettings,
@@ -44,7 +41,6 @@ import { MAX_LINK_BATCH, mintLinks, revokeLink } from "@/lib/server/links";
 import type { BatchOutcome } from "@/lib/server/releases";
 import {
   lookupReleaseBatch,
-  publishAndRelease,
   publishBatch,
   releaseBatch,
   releaseVersion,
@@ -390,38 +386,6 @@ export async function previewConditionAction(
 // --- publish, preview, lifecycle and secure links (task 034) ----------------
 
 /**
- * Publish the stored draft: freeze a version (022's aggregate).
- *
- * The draft is **not** sent. Publish reads the stored one on purpose - it is the only
- * operation here that writes something immutable, and freezing a document the server has
- * never seen persisted would make "what was published" a claim about a browser tab. The
- * builder autosaves before opening the confirm dialog, which is what makes those the same
- * document.
- *
- * A 422 is not an error state: it is the kernel's full issue list, which the screen turns
- * into a work list anchored to the offending rule, step or pin.
- */
-export async function publishFormAction(formId: string): Promise<PublishState> {
-  const session = await requireAdminSession();
-  const result = await publishForm(session, formId);
-  if (!result.ok) {
-    if (result.issues.length > 0) {
-      return { status: "rejected", issues: result.issues, message: result.message };
-    }
-    return { status: "error", message: result.message };
-  }
-  revalidatePath("/forms");
-  // "layout": the form's status is in the header of every screen under it, including the
-  // rules route (issue #669). See the note on `saveDraftAction`.
-  revalidatePath(`/forms/${formId}`, "layout");
-  return {
-    status: "published",
-    version: result.data.version,
-    publishedAt: result.data.publishedAt,
-  };
-}
-
-/**
  * Release a published version to an environment, or promote it there (ADR-40, task 065).
  *
  * The environment comes from the **client** here, unlike the form id, and that is correct
@@ -477,43 +441,6 @@ export async function releaseVersionAction(
     version: result.data.version,
     environment: result.data.environment,
     rollback: result.data.rollback,
-  };
-}
-
-/**
- * Publish the open draft and release the new version, in one act (finding 2).
- *
- * One intent, one act, and **atomically or not at all**: the API writes the version, the
- * release record and the `form.released` event in one transaction, so a refused release
- * leaves no published version behind and the author's draft where they left it. A refused
- * publish comes back as the same work list an ordinary publish's refusal does, because it
- * is the same refusal.
- *
- * `shown` is the environment the dialog named, the switcher's selection when the screen
- * rendered, bound by the page; it is the release's target. A tab that has since been
- * switched elsewhere is refused rather than releasing somewhere the banner in front of the
- * operator no longer describes.
- */
-export async function publishAndReleaseAction(
-  formId: string,
-  shown: string | undefined,
-): Promise<PublishReleaseState> {
-  const session = await requireAdminSession();
-  const check = await confirmShownEnvironment(session, shown);
-  if (!check.ok) return { status: "error", message: check.message };
-  const result = await publishAndRelease(session, formId, check.environment);
-  if (!result.ok) {
-    if (result.issues.length > 0) {
-      return { status: "rejected", issues: result.issues, message: result.message };
-    }
-    return { status: "error", message: result.message };
-  }
-  revalidatePath("/forms");
-  revalidatePath(`/forms/${formId}`, "layout");
-  return {
-    status: "released",
-    version: result.data.version,
-    environment: result.data.environment,
   };
 }
 

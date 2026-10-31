@@ -1741,7 +1741,9 @@ export const messages = {
   "forms.versions.publishedBy": "Published by",
   "forms.versions.publisherUnknown": "Not recorded",
   "forms.versions.review": "Review",
-  "forms.versions.reviewVersion": "Review v{version}",
+  // Not "Review v{version}": the row's own version link is named "View v{version}", and an
+  // accessible name holding another's whole name is ambiguous to anything matching by name.
+  "forms.versions.reviewVersion": "Review version {version}",
   "forms.versions.summaryHeading": "What each environment is serving",
   "forms.versions.intakeOpen": "Open",
   "forms.versions.intakeClosed": "Closed",
@@ -1829,6 +1831,12 @@ export const messages = {
   "forms.publish.result.operations": "Open {environment} operations",
   "forms.publish.result.versions": "Back to versions",
   "forms.publish.wizardFailed": "Nothing was published or released. {message}",
+  "forms.publish.wizardBlockedCount.one":
+    "1 issue blocks publishing. It is listed in the builder, linking to its cause.",
+  "forms.publish.wizardBlockedCount.other":
+    "{count} issues block publishing. They are listed in the builder, each one linking to " +
+    "its cause.",
+  "forms.publish.wizardBlockedLink": "Open the builder",
 
   // The combined action finding 2 accepted: one intent is one act. It publishes a real,
   // immutable version and keeps it - nothing here skips publishing.

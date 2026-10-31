@@ -79,6 +79,10 @@ export default async function FormPublishPage({
         // this screen can publish.
         hasDraft={form.draftSource === "open"}
         canPublishDraft={form.workflow?.canPublish !== false}
+        draft={form.draft}
+        // Server-sourced, from the same `draftAgentAssisted` the builder reads: this is the
+        // human's last look before freezing, so it says what the draft carries now.
+        agentAssisted={form.draftAgentAssisted}
         review={reviewReleaseAction.bind(null, form.formId)}
         confirm={confirmPublishAction.bind(null, form.formId)}
         lookup={lookupPublishResultAction.bind(null, form.formId)}
