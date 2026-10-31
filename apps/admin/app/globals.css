@@ -5480,9 +5480,22 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 .qcms-acard__typed {
   flex-basis: 100%;
 }
+/* No `text-transform`: the screen's own erasure confirmation is matched case-sensitively,
+   so a field that showed the typing in another case would be a card that reads as weaker
+   than the dialog it mirrors. */
 .qcms-input--mono {
   font-family: var(--font-mono);
-  text-transform: uppercase;
+}
+/* One band per card, for an act with no inverse. The production sentence stays inline on
+   each step's environment line and is not a band. */
+.qcms-acard__band {
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-block-end: 1px solid var(--color-border);
+  background-color: var(--color-danger-subtle);
+  color: var(--color-danger-fg);
+  font-size: 13px;
+  font-weight: 600;
 }
 /* The marker is a tint and a dashed hairline, never a second Confirm. */
 .qcms-pmark {

@@ -52,6 +52,8 @@ export interface AgentCardTemplate {
   readonly consequenceKeys: readonly string[];
   /** The heading-row control the proposal marker sits on, or absent for none. */
   readonly headingControl?: string;
+  /** The argument the user retypes on the card, for a step whose dialog asks for one. */
+  readonly typedConfirmation?: string;
 }
 
 export interface AgentPlanStep {
@@ -296,10 +298,12 @@ function toCardTemplate(raw: unknown): AgentCardTemplate | undefined {
   const titleKey = raw["titleKey"];
   if (typeof titleKey !== "string" || titleKey === "") return undefined;
   const headingControl = raw["headingControl"];
+  const typedConfirmation = raw["typedConfirmation"];
   return {
     titleKey,
     consequenceKeys: textList(raw["consequenceKeys"]),
     ...(typeof headingControl === "string" ? { headingControl } : {}),
+    ...(typeof typedConfirmation === "string" ? { typedConfirmation } : {}),
   };
 }
 

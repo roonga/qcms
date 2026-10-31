@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { useRef } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -58,6 +58,18 @@ const RELEASE_TO_PROD = step({
     headingControl: "releases.release",
   },
   resultAllowlist: ["version", "environment"],
+});
+
+const ERASE_SESSION = step({
+  kind: "response.erase",
+  screen: "/forms/[formId]/responses/[sessionId]",
+  args: { formId: "frm_quote", sessionId: "ses_0f3a1b2c4d", reason: "subject_request" },
+  card: {
+    titleKey: "agent.card.response.erase.title",
+    consequenceKeys: ["agent.card.response.erase.consequence"],
+    typedConfirmation: "sessionId",
+  },
+  resultAllowlist: ["sessionId", "environment"],
 });
 
 function proposal(steps: readonly AgentPlanStep[]): AgentProposal {
@@ -175,9 +187,36 @@ describe("rule 3: never weaker than the screen's dialog", () => {
   });
 
   it("keeps Confirm disabled until a step's typed confirmation is entered", () => {
-    const plan = proposal([step()]);
-    renderCard(plan, initialCard(plan, NOW), { typedConfirmation: "X7KQ2M4P" });
+    const plan = proposal([ERASE_SESSION]);
+    renderCard(plan, initialCard(plan, NOW));
+    const confirm = screen.getByRole("button", { name: "Confirm" });
+    expect(confirm.hasAttribute("disabled")).toBe(true);
+    fireEvent.change(screen.getByLabelText("Type the session id to confirm"), {
+      target: { value: "ses_0f3a1b2c4d" },
+    });
+    expect(confirm.hasAttribute("disabled")).toBe(false);
+  });
+
+  it("matches the typed confirmation exactly, as the screen's own dialog does", () => {
+    const plan = proposal([ERASE_SESSION]);
+    renderCard(plan, initialCard(plan, NOW));
+    fireEvent.change(screen.getByLabelText("Type the session id to confirm"), {
+      target: { value: "SES_0F3A1B2C4D" },
+    });
     expect(screen.getByRole("button", { name: "Confirm" }).hasAttribute("disabled")).toBe(true);
+  });
+
+  it("carries one card-level band for an act with no inverse, and none inside a step", () => {
+    const plan = proposal([ERASE_SESSION]);
+    const { container } = renderCard(plan, initialCard(plan, NOW));
+    expect(container.querySelectorAll(".qcms-acard__band")).toHaveLength(1);
+    expect(container.querySelector(".qcms-acard__step .qcms-acard__band")).toBeNull();
+  });
+
+  it("shows the erasure reason as the word the screen's own dialog shows", () => {
+    const plan = proposal([ERASE_SESSION]);
+    renderCard(plan, initialCard(plan, NOW));
+    expect(screen.getByText("Data subject request")).toBeTruthy();
   });
 
   it("says a hand-off step needs the secret typed on the screen itself", () => {

@@ -38,6 +38,11 @@ export interface ActionCardTemplate {
   readonly consequenceKeys: readonly string[];
   /** The heading-row control the proposal marker sits on, or none. */
   readonly headingControl?: string;
+  /**
+   * The argument whose value the user retypes on the card before Confirm is enabled, for a
+   * step whose own dialog asks for one. The card is never weaker than that dialog.
+   */
+  readonly typedConfirmation?: string;
 }
 
 export interface ActionKindDef {

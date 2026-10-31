@@ -110,6 +110,21 @@ describe("the kinds a screen offers", () => {
     expect(kindsOn("/forms/[formId]", approver)).toEqual(subtree);
   });
 
+  // The data family is separate and neither implies the other (ADR-41), so the response
+  // kinds appear for an eraser and not for an authoring role however widely it is scoped.
+  it("offers the response kinds to an eraser and to no authoring role", () => {
+    const eraser: readonly HeldGrant[] = [
+      { role: "responses.eraser", environments: ["all"], forms: ["all"] },
+    ];
+    expect(kindsOn("/forms/[formId]/responses/[sessionId]", eraser)).toEqual([
+      "response.erase",
+      "response.unflag",
+    ]);
+    expect(kindsOn("/forms/[formId]/responses/[sessionId]", [editorIn(["all"])])).not.toContain(
+      "response.erase",
+    );
+  });
+
   it("still cuts the subtree's kinds to the pairs the caller holds", () => {
     const viewer: readonly HeldGrant[] = [
       { role: "forms.viewer", environments: ["all"], forms: ["all"] },

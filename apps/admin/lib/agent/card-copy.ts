@@ -36,9 +36,17 @@ const ARGUMENT_ORDER: readonly string[] = [
   "oneTime",
   "challengeRequired",
   "minSubmitMs",
+  "sessionId",
+  "reason",
 ];
 
-const MONO_ARGUMENTS: ReadonlySet<string> = new Set(["formId", "linkId", "version", "expiresAt"]);
+const MONO_ARGUMENTS: ReadonlySet<string> = new Set([
+  "formId",
+  "linkId",
+  "sessionId",
+  "version",
+  "expiresAt",
+]);
 
 /** The environment is its own line, with the chip and the production sentence on it. */
 const ENVIRONMENT_ARGUMENT = "environment";
@@ -89,10 +97,27 @@ function referenceText(
   raw: unknown,
   reference: StepReference | undefined,
   resolved: unknown,
+  name: string,
 ): string {
-  if (reference === undefined) return scalarText(raw);
-  if (resolved !== undefined) return scalarText(resolved);
+  if (reference === undefined) return vocabularyText(name, raw) ?? scalarText(raw);
+  if (resolved !== undefined) return vocabularyText(name, resolved) ?? scalarText(resolved);
   return t("agent.card.usesStep", { field: reference.field, step: reference.fromStep + 1 });
+}
+
+/**
+ * Arguments whose value is one word of a closed vocabulary. The card shows the word the
+ * screen's own dialog shows, so an operator reads the same reason on both.
+ */
+const VOCABULARY_ARGUMENTS: Readonly<Record<string, readonly string[]>> = {
+  reason: ["subject_request", "retention_policy", "operator_error"],
+};
+
+function vocabularyText(name: string, raw: unknown): string | undefined {
+  const words = VOCABULARY_ARGUMENTS[name];
+  if (words === undefined || typeof raw !== "string") return undefined;
+  return words.includes(raw)
+    ? t(`ops.erase.reason.${raw}` as MessageKey)
+    : t("ops.erase.reason.unknown", { reason: raw });
 }
 
 /**
@@ -112,7 +137,7 @@ export function stepArguments(
     const reference = asReference(raw);
     const resolved =
       reference === undefined ? undefined : reported[reference.fromStep]?.[reference.field];
-    const value = referenceText(raw, reference, resolved);
+    const value = referenceText(raw, reference, resolved, name);
     return {
       name,
       label: argumentLabel(name),
@@ -150,6 +175,32 @@ export function stepConsequences(step: AgentPlanStep): readonly string[] {
   return step.card.consequenceKeys
     .filter((key) => key !== "agent.card.environment.production")
     .map((key) => t(key as MessageKey, { environment: step.environment }));
+}
+
+/**
+ * What the card asks the user to retype before Confirm, taken from the steps' own card
+ * templates rather than from the caller, so a plan carrying an irreversible step cannot be
+ * rendered without its gate. The match is exact after trimming and case-sensitive, which is
+ * the screen's own rule: a card weaker than the dialog it mirrors is the thing card rule 3
+ * forbids.
+ */
+export function typedConfirmation(steps: readonly AgentPlanStep[]): string | undefined {
+  for (const step of steps) {
+    const argument = step.card.typedConfirmation;
+    if (argument === undefined) continue;
+    const value = step.args[argument];
+    if (typeof value === "string" && value !== "") return value;
+  }
+  return undefined;
+}
+
+export function isTypedConfirmed(typed: string, required: string | undefined): boolean {
+  return required === undefined || typed.trim() === required;
+}
+
+/** A card whose steps include one with no inverse carries its own band, once. */
+export function hasIrreversibleStep(steps: readonly AgentPlanStep[]): boolean {
+  return steps.some((step) => step.card.typedConfirmation !== undefined);
 }
 
 /** A production step carries the production band, inline on its environment line. */

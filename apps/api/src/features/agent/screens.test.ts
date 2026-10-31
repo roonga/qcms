@@ -147,6 +147,8 @@ describe("the screen registry", () => {
       "form.release",
       "link.mint",
       "link.revoke",
+      "response.erase",
+      "response.unflag",
     ];
     for (const id of SCREEN_IDS.filter(isFormSubtreeScreen)) {
       expect(offerableActionKinds(id), id).toEqual(subtree);

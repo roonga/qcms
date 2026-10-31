@@ -51,6 +51,8 @@ export const FAKE_SCRIPTS = [
   "propose-form-close",
   "propose-form-reopen",
   "propose-form-release",
+  "propose-response-erase",
+  "propose-response-unflag",
 ] as const;
 
 /** Asserted present under `summary` and absent everywhere under `off`. */
@@ -544,6 +546,12 @@ function factLinkId(prompt: readonly PromptMessage[]): string {
   return "lnk_absent";
 }
 
+/** The session the response screen's own facts named, so an erase step names a real row. */
+function factSessionId(prompt: readonly PromptMessage[]): string {
+  const { sessionId } = screenFacts(prompt);
+  return typeof sessionId === "string" ? sessionId : "ses_absent";
+}
+
 const FAKE_LINK_EXPIRY = "2026-12-31T23:59:59.000Z";
 
 function mintStep(formId: string, count = 2): Record<string, unknown> {
@@ -635,6 +643,18 @@ const SINGLE_ACTIONS: Readonly<
   }),
   "propose-form-release": (prompt) =>
     releaseStep(factFormId(prompt), factVersion(prompt), "test"),
+  "propose-response-erase": (prompt) => ({
+    kind: "response.erase",
+    args: {
+      formId: factFormId(prompt),
+      sessionId: factSessionId(prompt),
+      reason: "subject_request",
+    },
+  }),
+  "propose-response-unflag": (prompt) => ({
+    kind: "response.unflag",
+    args: { formId: factFormId(prompt), sessionId: factSessionId(prompt) },
+  }),
 };
 
 const INJECTION_REASON =

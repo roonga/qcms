@@ -5,12 +5,15 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { AssistMark } from "@/components/forms/assist-mark";
 import type { AgentPlanStep, AgentProposal } from "@/lib/forms/assist-stream";
 import {
+  hasIrreversibleStep,
   isProductionStep,
+  isTypedConfirmed,
   minutesLeft,
   productionSentence,
   stepArguments,
   stepConsequences,
   stepTitle,
+  typedConfirmation,
 } from "@/lib/agent/card-copy";
 import {
   canConfirm,
@@ -49,11 +52,6 @@ export interface ActionCardProps {
   readonly onStop: () => void;
   /** Opens the screen the first not-yet-run step belongs to. */
   readonly onOpenScreen?: () => void;
-  /**
-   * The code the user must type before Confirm is enabled, for a step whose own dialog
-   * asks for one. D4's erasure kind is the first to carry it.
-   */
-  readonly typedConfirmation?: string;
   /** True only when focus was already inside the panel when the card arrived. */
   readonly focusOnArrival?: boolean;
   readonly now?: number;
@@ -188,6 +186,7 @@ function CardFooter(
     readonly minutes: number;
     readonly typed: string;
     readonly onTyped: (value: string) => void;
+    readonly required: string | undefined;
     readonly resultRef: React.RefObject<HTMLParagraphElement | null>;
     readonly resultId: string;
   },
@@ -199,17 +198,21 @@ function CardFooter(
 
   return (
     <footer className="qcms-acard__foot">
-      {props.typedConfirmation === undefined || !waiting ? null : (
+      {props.required === undefined || !waiting ? null : (
         <div className="qcms-field qcms-acard__typed">
           <label className="qcms-field__label" htmlFor={`${base}-typed`}>
-            {props.typedConfirmation}
+            {t("agent.card.typed.label")}
           </label>
           <input
+            aria-describedby={`${base}-typed-hint`}
             className="qcms-input qcms-input--mono"
             id={`${base}-typed`}
             value={props.typed}
             onChange={(event) => props.onTyped(event.target.value)}
           />
+          <p className="qcms-field__hint" id={`${base}-typed-hint`}>
+            {t("agent.card.typed.hint", { value: props.required })}
+          </p>
         </div>
       )}
 
@@ -290,10 +293,8 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
   const chip = headingChip(card);
   const reported = reportedResults(card);
   const multi = proposal.steps.length > 1;
-  const typedGate =
-    props.typedConfirmation === undefined ||
-    typed.trim().toUpperCase() === props.typedConfirmation.toUpperCase();
-  const confirmable = canConfirm(card) && typedGate;
+  const required = typedConfirmation(proposal.steps);
+  const confirmable = canConfirm(card) && isTypedConfirmed(typed, required);
   const live = liveLine(card);
 
   /**
@@ -325,6 +326,14 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
             {t(chip.key, chip.params)}
           </span>
         </header>
+
+        {/* One card-level band for a card carrying an act with no inverse, beside the
+            per-step production line rather than inside a step. */}
+        {hasIrreversibleStep(proposal.steps) ? (
+          <p className="qcms-acard__band" data-kind="irreversible">
+            {t("agent.card.band.irreversible")}
+          </p>
+        ) : null}
 
         <ol className="qcms-acard__steps" aria-label={t("agent.card.stepsLabel")}>
           {proposal.steps.map((step, index) => {
@@ -384,6 +393,7 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
           minutes={minutesLeft(proposal.expiresAt, now)}
           typed={typed}
           onTyped={setTyped}
+          required={required}
           resultRef={resultRef}
           resultId={resultId}
         />

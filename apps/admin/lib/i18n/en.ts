@@ -2172,6 +2172,14 @@ export const messages = {
   "agent.card.link.mint.title": "Mint {count} respondent links for {formId}",
   "agent.card.link.mint.consequence":
     "Each link opens this form for one respondent. The URLs are shown to you once and cannot be read again.",
+  "agent.card.response.erase.title": "Erase the respondent data for {sessionId}",
+  "agent.card.response.erase.consequence":
+    "The answers and the submission are deleted. There is no undo, no archive and no restore.",
+  "agent.card.response.erase.tombstone":
+    "A tombstone records that the session existed, who erased it, when and why. It carries no answer.",
+  "agent.card.response.unflag.title": "Release the withheld submission for {sessionId}",
+  "agent.card.response.unflag.consequence":
+    "The withheld submission event is sent to this form's consumers. The response itself is unchanged.",
   "agent.card.link.revoke.title": "Revoke link {linkId}",
   "agent.card.link.revoke.consequence":
     "The link stops working from now on. A session already in progress is unaffected.",
@@ -2190,6 +2198,8 @@ export const messages = {
   "agent.card.arg.environment": "Environment",
   "agent.card.arg.fromEnvironment": "Promoted from",
   "agent.card.arg.linkId": "Link",
+  "agent.card.arg.sessionId": "Session",
+  "agent.card.arg.reason": "Reason",
   "agent.card.arg.challengeRequired": "Require a challenge before answering",
   "agent.card.arg.minSubmitMs": "Minimum time before a submit is accepted (milliseconds)",
   "agent.card.arg.unset": "The deployment's own setting",
@@ -2217,6 +2227,11 @@ export const messages = {
   "agent.card.chip.cancelled": "Cancelled",
   "agent.card.chip.expired": "Expired",
 
+  // The dialog's own cost in front of an act with no inverse, asked for on the card.
+  "agent.card.band.irreversible":
+    "This cannot be undone. Nothing here is archived and nothing can be restored.",
+  "agent.card.typed.label": "Type the session id to confirm",
+  "agent.card.typed.hint": "Type {value} exactly.",
   "agent.card.confirm": "Confirm",
   "agent.card.confirmAll": "Confirm all {count} steps",
   "agent.card.cancel": "Cancel",

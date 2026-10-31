@@ -103,7 +103,10 @@ export const SCREENS: Readonly<Record<ScreenId, ScreenDef>> = Object.freeze({
   "/forms/[formId]/links": screen(authoringContexts.links, [], ["link.mint", "link.revoke"]),
   "/forms/[formId]/webhooks": screen(operationsContexts.formWebhooks),
   "/forms/[formId]/responses": screen(operationsContexts.responseList),
-  "/forms/[formId]/responses/[sessionId]": screen(operationsContexts.responseDetail),
+  "/forms/[formId]/responses/[sessionId]": screen(operationsContexts.responseDetail, [], [
+    "response.erase",
+    "response.unflag",
+  ]),
   "/questions": screen(authoringContexts.questions),
   "/questions/new": screen(authoringContexts.newQuestion),
   "/questions/[questionId]": screen(authoringContexts.questionDetail),

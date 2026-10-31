@@ -6,6 +6,7 @@
 import { closeForm, reopenForm, updateFormSettings } from "./forms.js";
 import { mintLinks, revokeLink } from "./links.js";
 import { publishForm, releaseVersion } from "./releases.js";
+import { eraseResponse, unflagResponse } from "./responses.js";
 import type { ActionKindDef } from "./types.js";
 
 const DEFS: readonly ActionKindDef[] = [
@@ -16,6 +17,8 @@ const DEFS: readonly ActionKindDef[] = [
   reopenForm,
   mintLinks,
   revokeLink,
+  eraseResponse,
+  unflagResponse,
 ];
 
 export const ACTION_KINDS: Readonly<Record<string, ActionKindDef>> = Object.freeze(

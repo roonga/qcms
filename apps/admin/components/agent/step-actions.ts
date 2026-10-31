@@ -7,6 +7,8 @@ import {
   setFormStatusAction,
   updateSettingsAction,
 } from "@/app/(shell)/forms/actions";
+import { eraseSessionAction, unflagResponseAction } from "@/app/(shell)/responses/actions";
+import { isErasureReason } from "@/lib/ops/erasure";
 import type { AgentStepResult } from "@/lib/agent/plan-state";
 import type { RunStepRequest } from "@/lib/agent/runner";
 import { t } from "@/lib/i18n/en";
@@ -116,6 +118,51 @@ const RUNNERS: Readonly<Record<string, StepRunner>> = {
     return {
       outcome: "done",
       result: { version: state.version, environment: state.environment ?? step.environment },
+    };
+  },
+  "response.erase": async ({ step, index, args, agentProposal }) => {
+    const reason = text(args["reason"]);
+    // Refused rather than defaulted: the reason is written onto a tombstone, and the
+    // digest binds the one the card displayed.
+    if (!isErasureReason(reason)) {
+      return { outcome: "failed", message: t("ops.error.invalidErasureReason") };
+    }
+    const state = await eraseSessionAction(
+      text(args["formId"]),
+      step.environment,
+      text(args["sessionId"]),
+      reason,
+      proposalRef(agentProposal, index),
+    );
+    if (state.status !== "erased" || state.data === undefined) {
+      return { outcome: "failed", message: text(state.message) };
+    }
+    return {
+      outcome: "done",
+      result: {
+        sessionId: state.data.sessionId,
+        environment: step.environment,
+        alreadyErased: state.data.alreadyErased,
+      },
+    };
+  },
+  "response.unflag": async ({ step, index, args, agentProposal }) => {
+    const state = await unflagResponseAction(
+      text(args["formId"]),
+      step.environment,
+      text(args["sessionId"]),
+      proposalRef(agentProposal, index),
+    );
+    if (state.status !== "unflagged") {
+      return { outcome: "failed", message: text(state.message) };
+    }
+    return {
+      outcome: "done",
+      result: {
+        sessionId: text(args["sessionId"]),
+        environment: step.environment,
+        released: state.released === true,
+      },
     };
   },
   "link.mint": async ({ step, index, args, agentProposal }) => {
