@@ -421,10 +421,19 @@ export function PublishWizard({
   const selected = targets.filter((target) => chosen.includes(target.environment));
   const destinations: readonly PublishDestination[] = publishOnly
     ? []
-    : selected.map((target) => ({
-        environment: target.environment,
-        expectedSequence: target.currentSequence,
-      }));
+    : selected.map((target) => {
+        // WHERE THE PROMOTION CAME FROM, recorded rather than inferred later: the release
+        // history's source column is an audit answer, and the evidence this review already
+        // reported is the committed row that satisfied the destination's prerequisite. A
+        // row in the destination itself is a rollback rather than a promotion, and the API
+        // refuses a source equal to its target, so it is left unsaid.
+        const from = target.evidence.find((row) => row.environment !== target.environment);
+        return {
+          environment: target.environment,
+          expectedSequence: target.currentSequence,
+          ...(from === undefined ? {} : { fromEnvironment: from.environment }),
+        };
+      });
   const canConfirm = publishOnly || destinations.length > 0;
 
   const run = useCallback(() => {

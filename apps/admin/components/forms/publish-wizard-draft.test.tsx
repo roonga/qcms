@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { PublishWizard } from "./publish-wizard.tsx";
 import type { ReleaseReview } from "../../lib/forms/release-candidate.ts";
@@ -18,6 +18,10 @@ import { t, tPlural } from "../../lib/i18n/en.ts";
  * anchored work list a refusal leaves - stays on the builder, because its entries move
  * focus to the rule, step or pin at fault and only the builder renders those; this file
  * asserts that the refusal names the count and points there.
+ *
+ * The last case is about a version source rather than a draft, and belongs beside them
+ * because it is the same question asked of the confirmation: what the wizard sends is what
+ * the audit record will say happened.
  */
 
 const DRAFT: DraftForm = {
@@ -154,5 +158,73 @@ describe("the review step of a draft publish", () => {
     expect(
       screen.getByRole("link", { name: t("forms.publish.wizardBlockedLink") }).getAttribute("href"),
     ).toBe("/forms/frm_intake");
+  });
+});
+
+describe("a promotion's recorded source", () => {
+  it("names the environment whose release satisfied the destination, and never itself", async () => {
+    const user = userEvent.setup();
+    const confirm = vi
+      .fn<Parameters<typeof PublishWizard>[0]["confirm"]>()
+      .mockResolvedValue({ status: "done", version: 1, releases: [] });
+    render(
+      <PublishWizard
+        formId="frm_intake"
+        versions={[1]}
+        hasDraft={false}
+        canPublishDraft={false}
+        draft={null}
+        review={() =>
+          Promise.resolve({
+            ok: true,
+            data: {
+              source: { kind: "version", version: 1, publishedBy: null },
+              workflowRevision: null,
+              workflowSource: "default",
+              targets: [
+                {
+                  environment: "prod",
+                  currentVersion: null,
+                  currentSequence: null,
+                  closed: false,
+                  // A rollback row in prod itself, and the promotion's real source. Only
+                  // the second is a source: the API refuses one equal to its target.
+                  evidence: [
+                    {
+                      environment: "prod",
+                      version: 1,
+                      sequence: 1,
+                      releasedAt: "2026-10-01T00:00:00.000Z",
+                    },
+                    {
+                      environment: "test",
+                      version: 1,
+                      sequence: 2,
+                      releasedAt: "2026-10-02T00:00:00.000Z",
+                    },
+                  ],
+                  blockers: [],
+                  twoPerson: { applies: false, refusedAsAuthor: false },
+                  protected: true,
+                },
+              ],
+            },
+          })
+        }
+        confirm={confirm}
+        lookup={() => Promise.resolve({ status: "idle" })}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: t("forms.publish.next") }));
+    await user.click(await screen.findByRole("checkbox", { name: "prod" }));
+    await user.click(screen.getByRole("button", { name: t("forms.publish.next") }));
+    await user.click(await screen.findByRole("button", { name: t("forms.publish.wizardConfirm") }));
+
+    await screen.findByTestId("qcms-publish-result");
+    expect(confirm.mock.calls[0]?.[0].targets[0]).toMatchObject({
+      environment: "prod",
+      fromEnvironment: "test",
+    });
   });
 });
