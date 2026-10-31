@@ -67,10 +67,9 @@ export const RAIL_SECTIONS = [
   "rules",
   "preview",
   "versions",
-  // Task 065's, directly after the version history: the two answer adjacent questions -
-  // what exists, and what is serving where - and an author moves between them while
-  // deciding what to release.
-  "releases",
+  // Directly after Versions, because that screen is what an operator reads to decide what
+  // to publish and this is the one entry that does it.
+  "publish",
   "links",
   "responses",
   "webhooks",

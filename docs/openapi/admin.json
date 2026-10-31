@@ -1137,12 +1137,16 @@
           },
           "replayed": {
             "type": "boolean"
+          },
+          "froze": {
+            "type": "boolean"
           }
         },
         "required": [
           "version",
           "releases",
-          "replayed"
+          "replayed",
+          "froze"
         ]
       },
       "ReleaseRecord": {

@@ -12,7 +12,9 @@ import {
   field,
   openFormDetails,
   pinQuestion,
+  waitForSaved,
 } from "./support/forms.js";
+import { publishDraftThroughWizard } from "./support/publish.js";
 
 /**
  * The form library's search, status filter and sort, in the browser (issue 686).
@@ -123,19 +125,18 @@ test("creates the library this spec reads, and closes one of its forms", async (
   //
   // The pinned question is one the harness seeds, so this adds no question authoring to a
   // fixture that is deliberately about the library's controls.
-  await createForm(page, BRAVO, "Bravo quokka");
+  const bravoId = await createForm(page, BRAVO, "Bravo quokka");
   await addStep(page, "Driving history");
   await pinQuestion(page, "q_at_fault_accident", 2);
-  // Back to the form's own screen: the lifecycle actions live there, and pinning left the
-  // browser on the step.
-  await openFormDetails(page);
-  await page.getByRole("button", { name: "Publish to test" }).click();
-  const publishDialog = page.getByRole("alertdialog");
-  await publishDialog.getByRole("button", { name: "Publish to test" }).click();
-  await expect(page.getByText("Published as v1 and released to test.")).toBeVisible({
-    timeout: 60_000,
-  });
+  // The wizard is a screen of its own, which server-renders the STORED draft: a page
+  // opened before the autosave landed would offer an empty draft to freeze.
+  await waitForSaved(page);
+  await publishDraftThroughWizard(page, { formId: bravoId, version: 1, environment: "test" });
 
+  // Back to the form's own screen: the lifecycle actions live there, and the wizard is a
+  // screen of its own.
+  await page.goto(`/forms/${bravoId}`);
+  await openFormDetails(page);
   await page.getByRole("button", { name: "Close in test" }).click();
   const dialog = page.getByRole("alertdialog");
   await dialog.getByRole("button", { name: "Close it in test" }).click();

@@ -37,8 +37,15 @@ import {
   savedStamp,
   usePinRowMenu,
   waitForSaveAfter,
+  validationPanel,
   waitForSaved,
 } from "./support/forms.js";
+import {
+  chooseDestination,
+  chooseSource,
+  openPublishWizard,
+  refuseDraftThroughWizard,
+} from "./support/publish.js";
 import { confirmLifecycle, createDraft } from "./support/questions.js";
 
 /**
@@ -216,16 +223,16 @@ test("defines a group, walks all three count sources, and round-trips through sa
   // in: the field is marked required, the grid flags the group, and publish refuses with
   // `REPEAT_MAX_MISSING` naming the group rather than the form.
   await waitForSaved(page);
+  // The work list is the builder's, which is the only screen whose entry can move focus to
+  // the group it names. Read a rail switch away rather than after a reload, because the
+  // panel holds the verdict the save just produced.
   await openFormDetails(page);
-  await page.getByRole("button", { name: "Publish to test", exact: true }).click();
-  await page
-    .getByRole("alertdialog")
-    .getByRole("button", { name: "Publish to test", exact: true })
-    .click();
-  const rejected = page.getByTestId("qcms-publish-rejected");
-  await expect(rejected).toBeVisible({ timeout: 30_000 });
-  await expect(issue(rejected, "REPEAT_MAX_MISSING")).toBeVisible();
+  const rejected = validationPanel(page);
+  await expect(issue(rejected, "REPEAT_MAX_MISSING")).toBeVisible({ timeout: 30_000 });
   await expect(rejected).toContainText("only limit on how many instances");
+  // And publish refuses, which is what that count is a claim about.
+  await refuseDraftThroughWizard(page, { formId, environment: "test" });
+  await page.goto(`/forms/${formId}`);
 
   // --- the maximum, the instance heading, and the presentation -------------
   await openGroupPanel(page, GROUP);
@@ -455,17 +462,26 @@ test("expands a group through the portal's own renderer (case 61)", async ({ pag
 
   // The form has to be published for a respondent to have anything to compare against, and the
   // two rules authored above are legal, so this is the first clean publish of it.
-  await page.goto(`/forms/${formId}`);
-  await openFormDetails(page);
-  await page.getByRole("button", { name: "Publish to test", exact: true }).click();
-  await page
-    .getByRole("alertdialog")
-    .getByRole("button", { name: "Publish to test", exact: true })
-    .click();
-  await expect(page.getByText(/^Published as v/)).toBeVisible({ timeout: 60_000 });
+  // Published AND released to test in one confirmation.
+  await openPublishWizard(page, formId);
+  await chooseSource(page, "The shared draft");
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  const destinations = page.getByTestId("qcms-publish-destinations");
+  await expect(destinations).toBeVisible();
+  await chooseDestination(destinations, "test");
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(page.getByTestId("qcms-publish-review")).toBeVisible();
+  await page.getByRole("button", { name: "Confirm", exact: true }).click();
+  await expect(page.getByTestId("qcms-publish-result")).toContainText(
+    /Version \d+ is published\./,
+    {
+      timeout: 60_000,
+    },
+  );
 
-  // And released: a published version is served nowhere until a release record says where
-  // (ADR-40, task 065), and what follows walks the portal.
+  // And released where the respondent harness serves: a published version is served
+  // nowhere until a release record says where (ADR-40, task 065), and what follows walks
+  // the portal.
   await releaseNewestVersion(page, formId);
 
   /**
@@ -730,15 +746,11 @@ test("filters the column picker to the allowed cell types, and says why (case 62
   // reaches it is the one added before the presentation changed.
   await waitForSaveAfter(page, beforeTable);
   await openFormDetails(page);
-  await page.getByRole("button", { name: "Publish to test", exact: true }).click();
-  await page
-    .getByRole("alertdialog")
-    .getByRole("button", { name: "Publish to test", exact: true })
-    .click();
-  const rejected = page.getByTestId("qcms-publish-rejected");
-  await expect(rejected).toBeVisible({ timeout: 30_000 });
-  await expect(issue(rejected, "TABLE_COLUMN_TYPE_NOT_ALLOWED")).toBeVisible();
+  const rejected = validationPanel(page);
+  await expect(issue(rejected, "TABLE_COLUMN_TYPE_NOT_ALLOWED")).toBeVisible({ timeout: 30_000 });
   await expect(rejected).toContainText("presentation to stacked");
+  await refuseDraftThroughWizard(page, { formId, environment: "test" });
+  await page.goto(`/forms/${formId}`);
 
   // --- the way out, taken ------------------------------------------------
   //

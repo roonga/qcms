@@ -29,12 +29,14 @@ const calls = vi.hoisted(() => ({
   saveDraft: 0,
   previewCondition: 0,
   previewDraft: 0,
-  publishForm: 0,
+  publishBatch: 0,
   mintLinks: 0,
 }));
 
 /** What the mocked API layer answers with next. Set per test, reset between them. */
-const answers = vi.hoisted((): { publish?: unknown; preview?: unknown; mint?: unknown } => ({}));
+const answers = vi.hoisted(
+  (): { publish?: unknown; preview?: unknown; mint?: unknown; lookup?: unknown } => ({}),
+);
 
 /** What the mocked API layer was asked for, where a test asserts on the request itself. */
 const sent = vi.hoisted((): { mintExpiresAt: string | undefined } => ({
@@ -70,10 +72,6 @@ vi.mock("@/lib/server/forms", () => ({
     calls.previewCondition += 1;
     return Promise.resolve({ ok: true, data: { outcome: "match", references: [] } });
   },
-  publishForm: () => {
-    calls.publishForm += 1;
-    return Promise.resolve(answers.publish ?? { ok: true, data: { version: 1, publishedAt: "" } });
-  },
   previewDraft: () => {
     calls.previewDraft += 1;
     return Promise.resolve(
@@ -89,6 +87,22 @@ vi.mock("@/lib/server/forms", () => ({
     );
   },
   setFormStatus: () => Promise.resolve({ ok: true, data: { status: "closed" } }),
+}));
+// The publish wizard's confirmation is the one act that can be refused with the kernel's
+// issue list.
+vi.mock("@/lib/server/releases", () => ({
+  publishBatch: () => {
+    calls.publishBatch += 1;
+    return Promise.resolve(
+      answers.publish ?? { ok: true, data: { version: 1, releases: [], froze: true } },
+    );
+  },
+  releaseBatch: () =>
+    Promise.resolve({ ok: true, data: { version: 1, releases: [], froze: false } }),
+  lookupReleaseBatch: () => Promise.resolve(answers.lookup ?? { ok: false, code: "http_404" }),
+  releaseVersion: () =>
+    Promise.resolve({ ok: true, data: { version: 1, environment: "prod", rollback: false } }),
+  reviewRelease: () => Promise.resolve({ ok: true, data: { targets: [] } }),
 }));
 // The environment check has its own file (`lib/server/environment-actions.test.ts`); here
 // every screen showed the environment the request resolves to, so the check passes.
@@ -112,7 +126,8 @@ const {
   mintLinksAction,
   previewConditionAction,
   previewDraftAction,
-  publishFormAction,
+  confirmPublishAction,
+  lookupPublishResultAction,
   saveDraftAction,
 } = await import("../../app/(shell)/forms/actions.ts");
 
@@ -215,6 +230,7 @@ describe("034's actions keep a refusal distinct from an error", () => {
     answers.publish = undefined;
     answers.preview = undefined;
     answers.mint = undefined;
+    answers.lookup = undefined;
     sent.mintExpiresAt = undefined;
   });
 
@@ -228,12 +244,20 @@ describe("034's actions keep a refusal distinct from an error", () => {
     };
   }
 
+  /** One confirmed draft publish, as the wizard sends it. */
+  const CONFIRM = {
+    idempotencyKey: "00000000-0000-4000-8000-000000000000",
+    expectedWorkflowRevision: null,
+    source: { kind: "draft", draftRevision: 3 },
+    targets: [],
+  } as const;
+
   it("reports a refused publish as `rejected`, carrying every issue", async () => {
     answers.publish = rejection("PUBLISH_REJECTED");
-    const state = await publishFormAction("frm_demo_form");
+    const state = await confirmPublishAction("frm_demo_form", CONFIRM);
 
-    // `rejected` rather than `error`, because the screen owes the author a work list
-    // here and a sentence there.
+    // `rejected` rather than `error`, because the author owes a work list here and a
+    // sentence there.
     expect(state.status).toBe("rejected");
     expect(state.issues).toHaveLength(1);
     expect(state.version).toBeUndefined();
@@ -241,10 +265,41 @@ describe("034's actions keep a refusal distinct from an error", () => {
 
   it("reports a publish failure with no issues as an ordinary error", async () => {
     answers.publish = { ok: false, code: "internal", message: "boom", issues: [] };
-    const state = await publishFormAction("frm_demo_form");
+    const state = await confirmPublishAction("frm_demo_form", CONFIRM);
 
     expect(state.status).toBe("error");
     expect(state.issues).toBeUndefined();
+  });
+
+  it("keeps a stale review apart, because its recovery is a re-read", async () => {
+    answers.publish = { ok: false, code: "STALE_REVIEW", message: "moved", issues: [] };
+    const state = await confirmPublishAction("frm_demo_form", CONFIRM);
+
+    expect(state.status).toBe("stale");
+  });
+
+  it("reports a key with no stored result as `not-committed`, never as a committed one", async () => {
+    const state = await lookupPublishResultAction(
+      "frm_demo_form",
+      "00000000-0000-4000-8000-000000000000",
+    );
+
+    expect(state.status).toBe("not-committed");
+    expect(state.version).toBeUndefined();
+  });
+
+  it("recovers the recorded shape, so a publish-only result does not read as released", async () => {
+    // The recorded answer carries whether the confirmation froze its version. Inferring
+    // `false` here is what read as "version 1 is released" beside "released nowhere".
+    answers.lookup = { ok: true, data: { version: 1, releases: [], froze: true } };
+    const state = await lookupPublishResultAction(
+      "frm_demo_form",
+      "00000000-0000-4000-8000-000000000000",
+    );
+
+    expect(state.status).toBe("done");
+    expect(state.froze).toBe(true);
+    expect(state.releases).toHaveLength(0);
   });
 
   it("reports a draft that will not compile as `rejected`, with its issues", async () => {

@@ -84,10 +84,10 @@ describe("the conversation context", () => {
     expect(builder.subject).toBe("form:frm_a");
     expect(builder.turns).toBe("add a step");
 
-    view.rerender(at("/forms/frm_a/releases"));
-    const releases = read();
-    expect(releases.id).toBe(builder.id);
-    expect(releases.turns).toBe("add a step");
+    view.rerender(at("/forms/frm_a/publish"));
+    const publish = read();
+    expect(publish.id).toBe(builder.id);
+    expect(publish.turns).toBe("add a step");
 
     view.rerender(at("/operations"));
     const outside = read();

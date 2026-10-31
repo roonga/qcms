@@ -8,9 +8,8 @@ import { ReleaseVersionReview } from "@/components/forms/release-version-review"
 import type { FormVersionSnapshot } from "@/lib/forms/types";
 import type { ReadState } from "@/lib/read-state";
 import type { PreviewTheme } from "@/lib/preview-theme";
-import { EmptyState } from "@/components/empty-state";
 import { Alert, Button, Dialog, Select } from "@/components/kit";
-import { OperatorDay } from "@/components/operator-time";
+import { EnvironmentSummary, ReleaseHistory } from "@/components/forms/release-tables";
 import type { ReleaseState } from "@/lib/forms/builder-state";
 import { IDLE_RELEASE } from "@/lib/forms/builder-state";
 import { PROD_ENVIRONMENT } from "@/lib/environment";
@@ -54,22 +53,6 @@ import { unexpected } from "@/lib/ops/unexpected";
  * field the operator had forgotten to fill in.
  */
 const NO_SOURCE = "none";
-
-/**
- * What this release did to its environment, in one phrase.
- *
- * Three cases and they are not interchangeable: a rollback names the version it went back
- * from, a first release says so (there was nothing to replace), and an ordinary release
- * names what it replaced. An operator reading a history is asking which of the three each
- * row is, and a single "released v4" sentence makes them work it out from the row above.
- */
-function movement(row: ReleaseRecord): string {
-  if (row.rollback) {
-    return t("forms.releases.rollbackFrom", { replaced: row.replacedVersion ?? 0 });
-  }
-  if (row.replacedVersion === null) return t("forms.releases.first");
-  return t("forms.releases.replaced", { replaced: row.replacedVersion });
-}
 
 /**
  * The one sentence the two-person rule has to say about the selected pair (Q51, task 070).
@@ -264,45 +247,7 @@ export function ReleasePanel({
 
       <div className="flex flex-col gap-3">
         <h2 className="text-base font-semibold">{t("forms.releases.currentHeading")}</h2>
-        <div className="qcms-table">
-          <table data-testid="qcms-released-now">
-            <caption className="qcms-visually-hidden">{t("forms.releases.currentTable")}</caption>
-            <thead>
-              <tr>
-                <th scope="col">{t("forms.releases.column.environment")}</th>
-                <th scope="col" className="qcms-cell--num">
-                  {t("forms.releases.column.version")}
-                </th>
-                <th scope="col">{t("forms.releases.column.releasedAt")}</th>
-                <th scope="col" className="qcms-cell--drop">
-                  {t("forms.releases.column.releasedBy")}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {/* Every environment, including the ones with nothing released: "not released
-                  in prod" is the answer an operator most needs and a row that was simply
-                  absent would make them wonder whether the screen had loaded. */}
-              {environments.map((name) => {
-                const released = current.get(name);
-                return (
-                  <tr key={name} data-environment={name}>
-                    <th scope="row">{name}</th>
-                    <td className="qcms-cell--num">
-                      {released === undefined
-                        ? t("forms.releases.none")
-                        : t("forms.version.value", { version: released.version })}
-                    </td>
-                    <td>
-                      {released === undefined ? "" : <OperatorDay iso={released.releasedAt} />}
-                    </td>
-                    <td className="qcms-cell--drop">{released?.releasedBy ?? ""}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <EnvironmentSummary releases={releases} environments={environments} />
         <div className="flex flex-wrap gap-2">
           <Button
             variant="primary"
@@ -333,73 +278,7 @@ export function ReleasePanel({
 
       <div className="flex flex-col gap-3">
         <h2 className="text-base font-semibold">{t("forms.releases.historyHeading")}</h2>
-        {releases.length === 0 ? (
-          <EmptyState
-            testId="qcms-releases-empty"
-            heading={t("forms.releases.emptyTitle")}
-            body={t("forms.releases.empty")}
-          />
-        ) : (
-          <div className="qcms-table">
-            <table data-testid="qcms-release-history">
-              <caption className="qcms-visually-hidden">{t("forms.releases.historyTable")}</caption>
-              <thead>
-                <tr>
-                  <th scope="col">{t("forms.releases.column.environment")}</th>
-                  <th scope="col" className="qcms-cell--num">
-                    {t("forms.releases.column.version")}
-                  </th>
-                  <th scope="col">{t("forms.releases.column.releasedAt")}</th>
-                  <th scope="col" className="qcms-cell--drop">
-                    {t("forms.releases.column.releasedBy")}
-                  </th>
-                  <th scope="col" className="qcms-cell--drop">
-                    {t("forms.releases.column.fromEnvironment")}
-                  </th>
-                  <th scope="col" className="qcms-cell--drop">
-                    {t("forms.releases.column.approvedBy")}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {releases.map((row) => (
-                  <tr
-                    key={`${row.environment}-${row.sequence}`}
-                    data-environment={row.environment}
-                    data-version={row.version}
-                    data-rollback={row.rollback ? "true" : "false"}
-                  >
-                    <th scope="row">{row.environment}</th>
-                    <td className="qcms-cell--num">
-                      {t("forms.version.value", { version: row.version })}
-                      {row.rollback && (
-                        <>
-                          {" "}
-                          <span className="qcms-rollback" data-testid="qcms-rollback-mark">
-                            {t("forms.releases.rollback")}
-                          </span>
-                        </>
-                      )}
-                    </td>
-                    <td>
-                      <OperatorDay iso={row.releasedAt} />
-                      <span className="block text-xs text-(--color-text-muted)">
-                        {movement(row)}
-                      </span>
-                    </td>
-                    <td className="qcms-cell--drop">{row.releasedBy}</td>
-                    <td className="qcms-cell--drop">
-                      {row.fromEnvironment ?? t("forms.releases.noSource")}
-                    </td>
-                    <td className="qcms-cell--drop">
-                      {row.approvedBy ?? t("forms.releases.noApproval")}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <ReleaseHistory releases={releases} />
       </div>
 
       {workflow?.canRelease === false && (

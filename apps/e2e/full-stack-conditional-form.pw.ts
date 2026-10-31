@@ -18,6 +18,7 @@ import {
   toggleTarget,
   waitForSaveAfter,
 } from "../admin/e2e/support/forms.js";
+import { publishDraftThroughWizard } from "../admin/e2e/support/publish.js";
 import { waitForHydration as waitForAdminHydration } from "../admin/e2e/support/hydration.js";
 import { waitForHydration as waitForPortalHydration } from "../portal/e2e/support/hydration.js";
 import { confirmLifecycle, createDraft, fillDate } from "../admin/e2e/support/questions.js";
@@ -217,16 +218,13 @@ test.describe.serial("conditional form journey", () => {
     });
 
     test("publishes the conditional form", async ({ page }) => {
-      await openFormBuilder(page);
-      await page.getByRole("button", { name: "Publish to test", exact: true }).click();
-      const publish = page.getByRole("alertdialog");
-      await expect(publish).toBeVisible();
-      await expect(page.getByTestId("qcms-freeze-summary")).toHaveText(
-        "Freezes 2 steps, 7 pinned questions, 4 rules.",
-      );
-      await publish.getByRole("button", { name: "Publish to test" }).click();
-      await expect(page.getByText("Published as v1 and released to test.")).toBeVisible({
-        timeout: 30_000,
+      // The wizard reads the draft the SERVER holds rather than this tab's, so the freeze
+      // summary's counts assert what a fresh read of the API returns.
+      await publishDraftThroughWizard(page, {
+        formId,
+        version: 1,
+        environment: "test",
+        freezeSummary: "Freezes 2 steps, 7 pinned questions, 4 rules.",
       });
     });
 

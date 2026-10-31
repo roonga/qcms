@@ -97,7 +97,7 @@ describe("the screen registry", () => {
 
   it("carries D0's kinds on the builder, the releases screen and the links screen", () => {
     expect(SCREENS["/forms/[formId]"].actionKinds).toEqual(["form.publish"]);
-    expect(SCREENS["/forms/[formId]/releases"].actionKinds).toEqual(["form.release"]);
+    expect(SCREENS["/forms/[formId]/publish"].actionKinds).toEqual(["form.release"]);
     expect(SCREENS["/forms/[formId]/links"].actionKinds).toEqual(["link.mint", "link.revoke"]);
   });
 
@@ -124,7 +124,7 @@ describe("the screen registry", () => {
       "/forms/[formId]/preview",
       "/forms/[formId]/versions",
       "/forms/[formId]/versions/[version]",
-      "/forms/[formId]/releases",
+      "/forms/[formId]/publish",
       "/forms/[formId]/links",
       "/forms/[formId]/webhooks",
       "/forms/[formId]/responses",

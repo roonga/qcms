@@ -410,11 +410,12 @@ The two new trigger **functions** stay single in `control`, as this decision alr
 **The landing order is known and the two tracks do not meet as equals.** Repetition is launch scope (stage 8c) and environments are Phase 4, so **task 072 lands first** and adds the table as an ordinary **appended** migration on the existing chain. The Q41 ruling then has **task 064 replace migrations 0000 onward with a new baseline**, and that baseline must include the roster table and all four of its guards, which is where they join the per-environment set. So 072 writes nothing 064 must migrate; it writes something 064 must **carry into the baseline**, and the table above is what 064 checks its generator against. Decided, not built: task 072 writes the table, task 064 baselines and emits it per environment.
 
 **Amendment, 2026-10-26: environment-bound form publishing.** In deployments serving
-both `test` and `prod`, the admin authors drafts in test and **Publish to test** freezes
-and releases a version atomically. Production displays immutable published content;
-the operator must switch the top navigation to prod before releasing an existing
-version. Release dialogs have no target-environment selector, and server actions
-reject stale environment confirmations. Publication and release remain distinct records.
+both `test` and `prod`, the admin authors drafts in test. One Publish wizard at
+`/forms/{formId}/publish` freezes and releases a version; destinations are chosen
+explicitly in the wizard and never taken from the header or Operations environment, and
+one Confirm goes through the batch routes (Code Owner, 2026-10-31). Production displays
+immutable published content. Server actions reject stale environment confirmations.
+Publication and release remain distinct records.
 
 For these deployments the earlier allowance for a first release directly to prod is
 superseded: the API requires evidence that the version was previously released to test,

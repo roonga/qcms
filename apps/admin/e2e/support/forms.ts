@@ -3,6 +3,7 @@ import { expect, type Locator, type Page } from "@playwright/test";
 import { chooseEnvironment } from "./environment.js";
 import { fillStable } from "./flow.js";
 import { waitForHydration } from "./hydration.js";
+import { chooseDestination, chooseSource, openPublishWizard } from "./publish.js";
 
 /**
  * Browser steps for the form builder, shared by the build walk and accessibility suite.
@@ -137,32 +138,37 @@ export async function openRail(page: Page): Promise<void> {
  * rather than each spec remembering to.
  */
 /**
- * Release a form's newest published version through the release screen (ADR-40, task 065).
+ * Release a form's newest published version through the publish wizard (ADR-40, task 065;
+ * the publish wizard).
  *
  * **Every spec that publishes through the UI and then walks the portal needs this**, and
  * that is the model rather than a harness quirk: a published version is served nowhere
  * until a release record says where, so a spec that only published left a form no session
  * could start on and the respondent route answered 409 `NO_PUBLISHED_VERSION`.
  *
- * The dialog opens on the environment the switcher has selected and on the newest version,
- * so releasing to that environment is one press. `prod` is the default because that is the
- * environment the respondent harness serves until task 066 gives the portal its `/<env>/`
- * prefix.
+ * The wizard opens on the newest version, so the source needs no choosing. The switcher is
+ * still set, because callers read operational data in that environment afterwards, but the
+ * destination is the wizard's own and does not come from it. `prod` is the default because
+ * that is the environment the respondent harness serves.
  */
 export async function releaseNewestVersion(
   page: Page,
   formId: string,
   environment: "test" | "prod" = "prod",
 ): Promise<void> {
-  await page.goto(`/forms/${encodeURIComponent(formId)}/releases`);
   await chooseEnvironment(page, environment);
-  await page.getByRole("button", { name: "Release a version…" }).click();
-  const dialog = page.getByRole("alertdialog");
-  await expect(dialog).toBeVisible();
-  await dialog
-    .getByRole("button", { name: new RegExp(`^Release (?:v[0-9]+ )?to ${environment}$`, "u") })
-    .click();
-  await expect(page.getByTestId("qcms-release-status")).toContainText(environment);
+  await openPublishWizard(page, formId);
+  await chooseSource(page, "An existing version");
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  const destinations = page.getByTestId("qcms-publish-destinations");
+  await expect(destinations).toBeVisible();
+  await chooseDestination(destinations, environment);
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await expect(page.getByTestId("qcms-publish-review")).toBeVisible();
+  await page.getByRole("button", { name: "Confirm", exact: true }).click();
+  const result = page.getByTestId("qcms-publish-result");
+  await expect(result).toBeVisible({ timeout: 30_000 });
+  await expect(result.locator(`li[data-environment="${environment}"]`)).toBeVisible();
 }
 
 export async function openFormDetails(page: Page): Promise<void> {
@@ -882,6 +888,16 @@ export async function waitForSaveAfter(page: Page, previous: string): Promise<vo
 /** The issue summary the validation panel announces. */
 export function issueSummary(page: Page): Locator {
   return page.getByTestId("qcms-issue-summary");
+}
+
+/**
+ * The builder's validation panel, which is where the anchored work list lives.
+ *
+ * Scoped by its heading rather than a testid, because the heading is what names the region
+ * to a screen reader and is therefore the thing that cannot quietly change.
+ */
+export function validationPanel(page: Page): Locator {
+  return page.locator('section[aria-labelledby="qcms-validation-heading"]');
 }
 
 /** One issue code, wherever it is rendered (the panel, a rule, or a pin row). */

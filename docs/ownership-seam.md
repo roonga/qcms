@@ -93,13 +93,13 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (540 files common to both shapes)
+### Scaffolded paths (543 files common to both shapes)
 
 | Path                                                                 | Files |
 | -------------------------------------------------------------------- | ----- |
 | `(project root)`                                                     | 8     |
-| `apps/`                                                              | 529   |
-| `apps/admin/`                                                        | 325   |
+| `apps/`                                                              | 532   |
+| `apps/admin/`                                                        | 328   |
 | `apps/admin/app/`                                                    | 83    |
 | `apps/admin/app/(shell)/`                                            | 64    |
 | `apps/admin/app/(shell)/@rail/`                                      | 26    |
@@ -107,7 +107,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/(shell)/@rail/forms/[formId]/`                       | 11    |
 | `apps/admin/app/(shell)/@rail/forms/[formId]/links/`                 | 1     |
 | `apps/admin/app/(shell)/@rail/forms/[formId]/preview/`               | 1     |
-| `apps/admin/app/(shell)/@rail/forms/[formId]/releases/`              | 1     |
+| `apps/admin/app/(shell)/@rail/forms/[formId]/publish/`               | 1     |
 | `apps/admin/app/(shell)/@rail/forms/[formId]/responses/`             | 2     |
 | `apps/admin/app/(shell)/@rail/forms/[formId]/responses/[sessionId]/` | 1     |
 | `apps/admin/app/(shell)/@rail/forms/[formId]/rules/`                 | 1     |
@@ -134,7 +134,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/(shell)/forms/[formId]/export/`                      | 1     |
 | `apps/admin/app/(shell)/forms/[formId]/links/`                       | 1     |
 | `apps/admin/app/(shell)/forms/[formId]/preview/`                     | 1     |
-| `apps/admin/app/(shell)/forms/[formId]/releases/`                    | 1     |
+| `apps/admin/app/(shell)/forms/[formId]/publish/`                     | 1     |
 | `apps/admin/app/(shell)/forms/[formId]/responses/`                   | 2     |
 | `apps/admin/app/(shell)/forms/[formId]/responses/[sessionId]/`       | 1     |
 | `apps/admin/app/(shell)/forms/[formId]/rules/`                       | 1     |
@@ -171,17 +171,17 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/two-factor/recovery-codes/`                          | 2     |
 | `apps/admin/app/two-factor/recovery-codes/confirm/`                  | 1     |
 | `apps/admin/app/two-factor/recovery/verify/`                         | 1     |
-| `apps/admin/components/`                                             | 117   |
+| `apps/admin/components/`                                             | 119   |
 | `apps/admin/components/agent/`                                       | 6     |
-| `apps/admin/components/forms/`                                       | 41    |
+| `apps/admin/components/forms/`                                       | 43    |
 | `apps/admin/components/membership/`                                  | 7     |
 | `apps/admin/components/ops/`                                         | 12    |
 | `apps/admin/components/questions/`                                   | 15    |
 | `apps/admin/components/shell/`                                       | 4     |
 | `apps/admin/components/test-support/`                                | 3     |
-| `apps/admin/lib/`                                                    | 118   |
+| `apps/admin/lib/`                                                    | 119   |
 | `apps/admin/lib/agent/`                                              | 10    |
-| `apps/admin/lib/forms/`                                              | 29    |
+| `apps/admin/lib/forms/`                                              | 30    |
 | `apps/admin/lib/i18n/`                                               | 2     |
 | `apps/admin/lib/membership/`                                         | 2     |
 | `apps/admin/lib/ops/`                                                | 12    |
@@ -256,7 +256,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 ### QCMS-internal references in the scaffolded source
 
-`1774` lines across `370` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
+`1768` lines across `374` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
 
 These are comments, and they stay (issue #457, tier 3). They are the engineering
 rationale for code you now own, which is worth more to you than a tidy file, and
@@ -271,7 +271,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (540)</summary>
+<summary>Every scaffolded file (543)</summary>
 
 ```
 .dockerignore
@@ -283,8 +283,8 @@ apps/admin/app/(shell)/@rail/default.tsx
 apps/admin/app/(shell)/@rail/forms/[formId]/links/page.tsx
 apps/admin/app/(shell)/@rail/forms/[formId]/page.tsx
 apps/admin/app/(shell)/@rail/forms/[formId]/preview/page.tsx
+apps/admin/app/(shell)/@rail/forms/[formId]/publish/page.tsx
 apps/admin/app/(shell)/@rail/forms/[formId]/rail-slot.tsx
-apps/admin/app/(shell)/@rail/forms/[formId]/releases/page.tsx
 apps/admin/app/(shell)/@rail/forms/[formId]/responses/[sessionId]/page.tsx
 apps/admin/app/(shell)/@rail/forms/[formId]/responses/page.tsx
 apps/admin/app/(shell)/@rail/forms/[formId]/rules/page.tsx
@@ -311,7 +311,7 @@ apps/admin/app/(shell)/forms/[formId]/export/route.ts
 apps/admin/app/(shell)/forms/[formId]/links/page.tsx
 apps/admin/app/(shell)/forms/[formId]/page.tsx
 apps/admin/app/(shell)/forms/[formId]/preview/page.tsx
-apps/admin/app/(shell)/forms/[formId]/releases/page.tsx
+apps/admin/app/(shell)/forms/[formId]/publish/page.tsx
 apps/admin/app/(shell)/forms/[formId]/responses/[sessionId]/page.tsx
 apps/admin/app/(shell)/forms/[formId]/responses/page.tsx
 apps/admin/app/(shell)/forms/[formId]/rules/page.tsx
@@ -400,9 +400,11 @@ apps/admin/components/forms/link-state-tag.tsx
 apps/admin/components/forms/operand-control.tsx
 apps/admin/components/forms/ownership-grid.tsx
 apps/admin/components/forms/public-form-link.tsx
+apps/admin/components/forms/publish-wizard.tsx
 apps/admin/components/forms/rail-add-step.tsx
 apps/admin/components/forms/rail-steps.tsx
 apps/admin/components/forms/release-panel.tsx
+apps/admin/components/forms/release-tables.tsx
 apps/admin/components/forms/release-version-review.tsx
 apps/admin/components/forms/rule-targets.tsx
 apps/admin/components/forms/rule-test-bench.tsx
@@ -516,6 +518,7 @@ apps/admin/lib/forms/pin-grid.ts
 apps/admin/lib/forms/preview-views.ts
 apps/admin/lib/forms/public-link.ts
 apps/admin/lib/forms/publish.ts
+apps/admin/lib/forms/release-candidate.ts
 apps/admin/lib/forms/releases.ts
 apps/admin/lib/forms/rule-sentence.ts
 apps/admin/lib/forms/rule-targets.ts

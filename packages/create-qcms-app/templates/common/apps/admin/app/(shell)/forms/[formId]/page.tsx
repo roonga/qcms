@@ -18,8 +18,6 @@ import { getForm, loadPinnableQuestions } from "@/lib/server/forms";
 import { requireAdminSession } from "@/lib/server/session";
 
 import {
-  publishAndReleaseAction,
-  publishFormAction,
   saveDraftAction,
   setFormStatusAction,
   updateSettingsAction,
@@ -108,10 +106,9 @@ export default async function FormBuilderPage({
   const [detail, library, resolved] = await Promise.all([
     getForm(session, formId),
     loadPinnableQuestions(session),
-    // The combined publish-and-release action releases to the operator's selected
-    // environment and every confirmation on this screen names it (Q6), so the screen has
-    // to know which one that is. The request's one resolution (A12), the same answer the
-    // API header carries, so the status read above and the copy below agree.
+    // Every confirmation on this screen names the operator's selected environment, so the
+    // screen has to know which one that is. The request's one resolution, the same answer
+    // the API header carries, so the status read above and the copy below agree.
     resolvedEnvironment(session),
   ]);
   const shown = shownEnvironment(resolved);
@@ -149,21 +146,13 @@ export default async function FormBuilderPage({
         </Alert>
       )}
 
-      {/* PUBLISH AND CLOSE/REOPEN RIDE INSIDE THE BUILDER NOW (Code Owner, 2026-08-26),
-          on the screen that carries the form's own details, because that is what they act
-          on: they publish the FORM and they close the FORM, and standing them above a
-          column that is usually showing one step said they were about the step.
+      {/* CLOSE/REOPEN AND THE WAY TO THE WIZARD RIDE INSIDE THE BUILDER on the screen that carries the form's own details, because that is
+          what they act on: they close the FORM, and standing them above a column that is
+          usually showing one step said they were about the step.
 
           Passed as a node rather than imported by the builder, which keeps `FormActions`
-          a server component holding its own bound actions - a client component cannot
-          bind a server action, and making the builder import it would drag the whole
-          publish surface into the client bundle for no reason.
-
-          The reason they used to sit above the builder still holds and is now handled
-          where it belongs: a refused publish renders an anchored work list whose links
-          move focus to the rule, step or pin at fault. A pin lives on a step screen this
-          one is not showing, so `IssueEntry` selects the owning step first and then
-          focuses - see `components/forms/validation-panel.tsx`. */}
+          a server component holding its own bound action - a client component cannot bind
+          a server action. */}
       <FormBuilder
         detail={form}
         library={readState(library)}
@@ -185,19 +174,13 @@ export default async function FormBuilderPage({
         formActions={
           <FormActions
             workflow={form.workflow}
-            hasStoredDraft={form.draftSource === "open"}
             formId={form.formId}
             slug={form.slug}
             status={form.status}
-            draft={form.draft}
-            latestVersion={form.versions[0]?.version}
-            publish={publishFormAction.bind(null, form.formId)}
-            // The environment this render showed travels with both actions, so a tab another
+            // The environment this render showed travels with the action, so a tab another
             // tab has since switched is refused rather than obeyed (A1).
-            publishAndRelease={publishAndReleaseAction.bind(null, form.formId, shown)}
             setStatus={setFormStatusAction.bind(null, form.formId, shown)}
             environment={shown ?? t("environment.unknown")}
-            agentAssisted={form.draftAgentAssisted}
           />
         }
         saveDraft={saveDraftAction.bind(null, form.formId)}

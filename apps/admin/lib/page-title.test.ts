@@ -106,7 +106,7 @@ describe("every route titles its own browser tab", () => {
       "/forms/[formId]",
       "/forms/[formId]/links",
       "/forms/[formId]/preview",
-      "/forms/[formId]/releases",
+      "/forms/[formId]/publish",
       "/forms/[formId]/responses",
       "/forms/[formId]/responses/[sessionId]",
       "/forms/[formId]/rules",
@@ -179,9 +179,7 @@ describe("the title pattern itself", () => {
   });
 
   it("names a form's section screen by its section and its form", () => {
-    expect(formSectionName("versions", "frm_life_insurance")).toBe(
-      "Version history: frm_life_insurance",
-    );
+    expect(formSectionName("versions", "frm_life_insurance")).toBe("Versions: frm_life_insurance");
   });
 
   it("reads a section's name from the key the rail and the breadcrumb read", () => {

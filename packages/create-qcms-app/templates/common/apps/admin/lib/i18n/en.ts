@@ -1576,16 +1576,10 @@ export const messages = {
   // them, and issue #536 composes each screen's browser-tab title from them, so all six
   // are still one place. Only the strip's own landmark label went with `form-tabs.tsx`.
   //
-  // "Version history" rather than "History" (issue 679). Three things pushed the same way
-  // and none of them was consistency for its own sake. The screen's approved drawing names
-  // it that (`plan/admin-shell-poc/preview-versions-poc.html`, the `<h1>` at the head of
-  // its version-list screen). The app's own prose already did, twice, in the two links that
-  // point at this screen: `forms.publish.viewHistory` and `forms.history.backToHistory`
-  // both read "version history". And "History" was the one name in the six that did not say
-  // what it listed, which reads as under-specified in a rail and outright ambiguous once
-  // composed into a heading, where "History: Life insurance" could as easily mean the
-  // form's edit history or its responses. The rail follows the screen's name by the rule
-  // `plan/admin-design-contracts.md` §7 records, which anticipates exactly this rename.
+  // The name says what the screen lists, because a bare "History" is ambiguous once
+  // composed into a heading: "History: Life insurance" could as easily mean a form's edit
+  // history or its responses. The rail follows the screen's name by the rule
+  // `plan/admin-design-contracts.md` §7 records.
   //
   // `forms.section.heading` ("{section}: {slug}") stood here until issue #538's sweep.
   // The Code Owner's 2026-08-26 amendment took it out of the `<h1>`, which left it
@@ -1609,15 +1603,14 @@ export const messages = {
   // one name for one screen is what keeps the rail from inventing a second one.
   "forms.tab.rules": "Rules",
   "forms.tab.preview": "Preview",
-  "forms.tab.versions": "Version history",
+  "forms.tab.versions": "Versions",
   "forms.tab.links": "Links",
-  // The eighth section (ADR-40, task 065). "Releases" is a screen name like the seven
-  // beside it: it heads `/forms/{formId}/releases`, ends that screen's breadcrumb, names
-  // its rail row and composes its browser-tab title.
-  "forms.tab.releases": "Releases",
+  // The eighth section (ADR-40). "Publish" is a screen name like the seven beside it: it
+  // heads `/forms/{formId}/publish`, ends that screen's breadcrumb, names its rail row and
+  // composes its browser-tab title.
+  "forms.tab.publish": "Publish",
 
   "forms.publish.action": "Publish",
-  "forms.publish.title": "Publish {slug}?",
   // Assembled from three counted phrases rather than written as one sentence with three
   // numbers in it, because "Freezes 1 steps, 1 pinned questions, 1 rules." is what the
   // single-sentence version says on a small form - and a small form is what an author
@@ -1629,14 +1622,8 @@ export const messages = {
   "forms.publish.freezes.pins.other": "{count} pinned questions",
   "forms.publish.freezes.rules.one": "1 rule",
   "forms.publish.freezes.rules.other": "{count} rules",
-  "forms.publish.sessions":
-    "New sessions get v{version}. Sessions already under way finish on the version they started (R1).",
   "forms.publish.immutable":
     "A published version is never edited. Your next change starts a fresh draft, seeded from this one.",
-  "forms.publish.confirm": "Publish v{version}",
-  "forms.publish.cancel": "Cancel",
-  "forms.publish.pending": "Publishing...",
-  "forms.publish.noDraft": "There is nothing to publish: this form has no draft.",
   "forms.publish.blocked": "This draft cannot be published yet.",
   "forms.publish.blockedCount": "{count} issues block publishing. Each one links to its cause.",
   // Spoken, not shown (issue #377). The work list below carries the detail and every
@@ -1644,9 +1631,6 @@ export const messages = {
   // did not happen and roughly how much there is to fix - not the list read aloud.
   "forms.publish.blockedAnnounce.one": "Publish blocked: 1 issue to fix, listed below.",
   "forms.publish.blockedAnnounce.other": "Publish blocked: {count} issues to fix, listed below.",
-  "forms.publish.published": "Published as v{version}.",
-  "forms.publish.viewHistory": "View version history",
-  "forms.publish.failed": "The form was not published. {message}",
 
   // Closing is per (form, environment) since task 066 (Q18), and every one of these
   // strings had to say so: "Close this form" read as "everywhere", which is precisely the
@@ -1676,8 +1660,6 @@ export const messages = {
 
   // Releases and promotion (ADR-40, task 065). A release is a RECORD: nothing is copied,
   // nothing is reverted, and rolling back is releasing an earlier version.
-  "forms.releases.intro":
-    "A published version is served nowhere until it is released. Releasing records who released what, when and from where; nothing is copied, and sessions already under way stay on the version they started.",
   "forms.releases.currentHeading": "Released now",
   "forms.releases.currentTable": "The version released to each environment",
   "forms.releases.column.environment": "Environment",
@@ -1728,11 +1710,116 @@ export const messages = {
   "forms.releases.failed": "Nothing was released. {message}",
   "forms.releases.rollbackDone": "v{version} is released to {environment} again, as a rollback.",
 
-  // The combined action finding 2 accepted: one intent is one act. It publishes a real,
+  // The Versions view and the publish wizard. "Available in" names
+  // the environments a version is serving NOW, not every environment it ever reached: a
+  // column that kept the old destination would present history as what is live.
+  "forms.versions.availableIn": "Available in",
+  "forms.versions.availableNowhere": "Nowhere",
+  "forms.versions.publishedBy": "Published by",
+  "forms.versions.publisherUnknown": "Not recorded",
+  "forms.versions.review": "Review",
+  // Not "Review v{version}": the row's own version link is named "View v{version}", and an
+  // accessible name holding another's whole name is ambiguous to anything matching by name.
+  "forms.versions.reviewVersion": "Review version {version}",
+  "forms.versions.summaryHeading": "What each environment is serving",
+  "forms.versions.intakeOpen": "Open",
+  "forms.versions.intakeClosed": "Closed",
+  "forms.versions.column.intake": "Intake",
+  "forms.versions.publishEntry": "Publish…",
+
+  "forms.publish.intro":
+    "Choose what to publish and where it goes. Nothing is written until you confirm, and a " +
+    "confirmation releases into every destination or into none of them.",
+  "forms.publish.step.source": "What to publish",
+  "forms.publish.step.destinations": "Where it goes",
+  "forms.publish.step.review": "Review and confirm",
+  "forms.publish.step.announce": "Step: {step}",
+  "forms.publish.source.draft": "The shared draft",
+  "forms.publish.source.draftHint": "Publishing freezes a new immutable version of the draft.",
+  "forms.publish.source.version": "An existing version",
+  "forms.publish.source.versionLabel": "Version to release",
+  "forms.publish.source.noDraft": "There is no saved draft to publish.",
+  "forms.publish.source.noVersions": "No version of this form has been published yet.",
+  "forms.publish.source.publishedBy": "Published by {publisher}.",
+  "forms.publish.destinations.hint":
+    "Only the environments you may release this form into are listed.",
+  "forms.publish.destinations.none":
+    "You hold no release permission for this form in any environment.",
+  "forms.publish.destinations.publishOnly": "Create version without releasing",
+  "forms.publish.destinations.publishOnlyHint":
+    "Freezes a new version and releases it nowhere. Another account can release it afterwards.",
+  "forms.publish.destinations.serving": "Serving v{version}",
+  "forms.publish.destinations.unreleased": "Nothing released here",
+  "forms.publish.destinations.closedNote": "Intake is closed here, and releasing leaves it closed.",
+  "forms.publish.destinations.protected": "Production",
+  "forms.publish.destinations.rollbackNote": "This moves {environment} back from v{current}.",
+  "forms.publish.destinations.evidence": "Satisfied by the release of v{version} in {environment}.",
+  "forms.publish.destinations.pickOne": "Choose at least one destination.",
+  "forms.publish.workflow.default":
+    "No release workflow is configured, so this deployment's default rules apply.",
+  "forms.publish.workflow.configured": "Release workflow revision {revision}.",
+  "forms.publish.blocked.priorRelease":
+    "Not yet eligible: this version needs a release in {environments} first.",
+  "forms.publish.blocked.draftNotAllowed":
+    "A draft cannot be published straight into {environment}. Release an existing version here.",
+  "forms.publish.blocked.alreadyReleased": "Already the released version here.",
+  "forms.publish.blocked.approverIsAuthor":
+    "You published this version, and {environment} requires a second account to release it.",
+  "forms.publish.blocked.approverUnknownAuthor":
+    "The publisher of this version was not recorded, so the second-account rule cannot be checked.",
+  "forms.publish.blocked.other": "Not eligible here: {code}.",
+  "forms.publish.review.sourceDraft": "The shared draft becomes a new immutable version.",
+  "forms.publish.review.sourceVersion": "v{version} is released, and nothing is published.",
+  "forms.publish.review.publishOnly":
+    "A new version is created and released nowhere. Another account can release it afterwards.",
+  "forms.publish.review.transition": "{environment}: v{current} becomes v{version}",
+  "forms.publish.review.transitionFirst": "{environment}: nothing released becomes v{version}",
+  "forms.publish.review.transitionDraft": "{environment}: v{current} becomes the new version",
+  "forms.publish.review.transitionDraftFirst":
+    "{environment}: nothing released becomes the new version",
+  "forms.publish.review.secondPerson":
+    "{environment} requires a second account: this release is recorded against you as the approver.",
+  "forms.publish.wizardConfirm": "Confirm",
+  "forms.publish.wizardPending": "Confirming...",
+  "forms.publish.next": "Continue",
+  "forms.publish.back": "Back",
+  "forms.publish.wizardCancel": "Cancel",
+  "forms.publish.refresh": "Read the review again",
+  "forms.publish.reviewing": "Reading the review...",
+  "forms.publish.reviewFailed":
+    "The review could not be read, so nothing can be confirmed. Try again.",
+  "forms.publish.stale":
+    "Nothing was written: this form changed while you were reviewing. Read the review again " +
+    "and confirm the new one.",
+  "forms.publish.uncertain":
+    "The confirmation was sent and no answer arrived, so it may or may not have committed. " +
+    "Look the result up before trying anything else: retrying would never create a second " +
+    "version, but the answer is already recorded if it committed.",
+  "forms.publish.lookup": "Look the result up",
+  "forms.publish.lookupNothing":
+    "Nothing was committed under that confirmation. You can confirm again.",
+  "forms.publish.result.heading": "Recorded",
+  "forms.publish.result.version": "Version {version} is published.",
+  "forms.publish.result.released": "Version {version} is released.",
+  "forms.publish.result.replayed":
+    "This is the recorded result of the confirmation you already sent, not a second one.",
+  "forms.publish.result.releasedIn": "Released to {environment}",
+  "forms.publish.result.rolledBackIn": "Released to {environment}, as a rollback",
+  "forms.publish.result.noRelease": "Released nowhere.",
+  "forms.publish.result.operations": "Open {environment} operations",
+  "forms.publish.result.versions": "Back to versions",
+  "forms.publish.wizardFailed": "Nothing was published or released. {message}",
+  "forms.publish.wizardBlockedCount.one":
+    "1 issue blocks publishing. It is listed in the builder, linking to its cause.",
+  "forms.publish.wizardBlockedCount.other":
+    "{count} issues block publishing. They are listed in the builder, each one linking to " +
+    "its cause.",
+  "forms.publish.wizardBlockedLink": "Open the builder",
+
+  // The environment-bound release surface. One intent is one act, and it publishes a real,
   // immutable version and keeps it - nothing here skips publishing.
   "forms.workflow.release": "Release v{version} to {environment}",
   "forms.workflow.publishedForm": "Published form",
-  "forms.workflow.noChanges": "No unpublished changes. Edit the draft before publishing again.",
   "forms.workflow.intake": "Intake",
   "forms.workflow.testCandidate": "This version was released to test.",
   "forms.workflow.firstRelease": "v{version} will be the first version released to {environment}.",
@@ -1741,8 +1828,6 @@ export const messages = {
   "forms.workflow.reviewFailed":
     "The published version could not be loaded. Close this confirmation and try again.",
   "forms.workflow.alreadyReleased": "v{version} is already released to {environment}.",
-  "forms.workflow.publish": "Publish to {environment}",
-  "forms.workflow.publishTitle": "Create v{version} and release it to {environment}?",
   "forms.workflow.noPublishPermission":
     "Publishing here requires permission to publish forms and release versions to {environment}.",
   "forms.workflow.noReleasePermission":
@@ -1760,16 +1845,8 @@ export const messages = {
     "Draft changes are shared. Select test in the top navigation to edit and publish them.",
   "forms.workflow.switchToTest": "Switch to test",
   "forms.workflow.noReleasedVersion":
-    "Nothing is released in this environment yet. Select a published version on Releases to review and release it.",
+    "Nothing is released in this environment yet. Select a published version on Versions to review and release it.",
   "forms.workflow.reviewCurrent": "Currently released: v{version}",
-  "forms.publishRelease.action": "Publish and release…",
-  "forms.publishRelease.title": "Publish {slug} and release it to {environment}?",
-  "forms.publishRelease.body":
-    "One act: the new version is frozen and released to {environment} together, or neither happens. New sessions in {environment} start on it; other environments are untouched.",
-  "forms.publishRelease.confirm": "Publish and release to {environment}",
-  "forms.publishRelease.pending": "Publishing and releasing...",
-  "forms.publishRelease.done": "Published as v{version} and released to {environment}.",
-  "forms.publishRelease.failed": "Nothing was published or released. {message}",
 
   "forms.preview.heading": "Preview",
   "forms.preview.banner": "Preview - not published",
@@ -2017,7 +2094,7 @@ export const messages = {
   "agent.context.form.preview": "Form {subject}: draft preview",
   "agent.context.form.versions": "Form {subject}: versions",
   "agent.context.form.version": "Form {subject}: version {version}",
-  "agent.context.form.releases": "Form {subject}: releases",
+  "agent.context.form.publish": "Form {subject}: publish",
   "agent.context.form.links": "Form {subject}: links",
   "agent.context.form.webhooks": "Form {subject}: webhooks, no payloads",
   "agent.context.form.responses": "Form {subject}: response metadata, no answers",

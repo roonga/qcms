@@ -48,7 +48,7 @@ export const publishForm: ActionKindDef = {
 
 export const releaseVersion: ActionKindDef = {
   kind: "form.release",
-  screen: "/forms/[formId]/releases",
+  screen: "/forms/[formId]/publish",
   route: { method: "POST", path: "/admin/forms/{id}/releases" },
   cell: { resource: "release", action: "create" },
   environmentFrom: "argument",

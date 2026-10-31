@@ -208,9 +208,12 @@ test("a destructive confirmation names the environment it is about", async ({ pa
   await expect(dialog.getByRole("button", { name: "Close it in test" })).toBeVisible();
   await dialog.getByRole("button", { name: "Cancel" }).click();
 
-  // The combined publish-and-release action names it in the button itself, so the operator
-  // reads which environment they are about to put a version in front of before they press.
-  await expect(page.getByRole("button", { name: "Publish to test" })).toBeVisible();
+  // Publishing names no environment here, and that is the point: the destination is chosen
+  // in the wizard's own body, so
+  // nothing on this screen offers a second environment to confuse with the one the
+  // lifecycle dialog has just restated.
+  await expect(page.getByRole("button", { name: /^Publish/u })).toHaveCount(0);
+  await expect(page.getByTestId("qcms-publish-entry")).toBeVisible();
 });
 
 test("a dialog never acts in an environment another tab switched to", async ({ page }) => {

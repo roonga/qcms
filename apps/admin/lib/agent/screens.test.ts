@@ -72,15 +72,15 @@ describe("the agent screen table", () => {
 
   it("keeps one conversation per form subtree and one per other screen", () => {
     const builder = screenForPath("/forms/frm_x");
-    const releases = screenForPath("/forms/frm_x/releases");
-    const other = screenForPath("/forms/frm_y/releases");
-    expect(conversationSubject(builder)).toBe(conversationSubject(releases));
+    const publish = screenForPath("/forms/frm_x/publish");
+    const other = screenForPath("/forms/frm_y/publish");
+    expect(conversationSubject(builder)).toBe(conversationSubject(publish));
     expect(conversationSubject(other)).not.toBe(conversationSubject(builder));
     expect(conversationSubject(screenForPath("/questions"))).toBe("screen:/questions");
   });
 
   it("is the renderer's link allowlist, and admits no route handler", () => {
-    expect(adminPageHref("/forms/frm_x/releases")).toBe("/forms/frm_x/releases");
+    expect(adminPageHref("/forms/frm_x/publish")).toBe("/forms/frm_x/publish");
     // The export download is a route handler, so it is not a screen and never a link.
     expect(adminPageHref("/forms/frm_x/export")).toBeUndefined();
     expect(adminPageHref("/forms/frm_x/assist")).toBeUndefined();

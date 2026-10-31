@@ -42,6 +42,7 @@ const HISTORY: readonly ReleaseRecord[] = [
     approvedBy: null,
     replacedVersion: null,
     rollback: false,
+    closed: false,
   },
 ];
 

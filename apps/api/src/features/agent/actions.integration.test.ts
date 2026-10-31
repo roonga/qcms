@@ -299,7 +299,7 @@ describe("a plan reaches the user as one card and runs nothing (criterion 4)", (
     async () => {
       const events = await turn({
         caller: owner,
-        screen: "/forms/[formId]/releases",
+        screen: "/forms/[formId]/publish",
         script: "plan-two-envs",
       });
       const [plan] = proposals(events);
@@ -432,7 +432,7 @@ describe("an injected instruction reaches the card, not the engine (criterion 6)
 
       const events = await turn({
         caller: owner,
-        screen: "/forms/[formId]/releases",
+        screen: "/forms/[formId]/publish",
         script: "injection-follow",
       });
       const [plan] = proposals(events);

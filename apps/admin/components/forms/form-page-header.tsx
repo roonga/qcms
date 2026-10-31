@@ -89,7 +89,7 @@ export function FormPageHeader({
    * its heading and another in the rail beside it.
    */
   readonly section:
-    "builder" | "rules" | "preview" | "versions" | "releases" | "links" | "responses" | "webhooks";
+    "builder" | "rules" | "preview" | "versions" | "publish" | "links" | "responses" | "webhooks";
   readonly status?: "open" | "closed";
   /**
    * Overrides the `<h1>` for a route whose subject is one child of the form.
