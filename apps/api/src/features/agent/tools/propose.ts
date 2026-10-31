@@ -16,6 +16,7 @@ import {
   signProposalToken,
   type ProposalStepBinding,
 } from "../proposal-token.js";
+import { argsSchemaWithReferences } from "./args-schema.js";
 
 /** P1: a turn ends with at most one card or one plan. */
 export const PROPOSALS_PER_TURN = 1;
@@ -81,7 +82,7 @@ function refuse(reason: string): ProposeOutcome {
   return { ok: false, reason };
 }
 
-/** A reference points at an earlier step and names a field that step's kind can return. */
+/** A reference points at an earlier step and names the one field that step records. */
 function referenceRefusal(
   value: unknown,
   index: number,
@@ -92,18 +93,18 @@ function referenceRefusal(
     return `Step ${String(index + 1)} references step ${String(value.fromStep + 1)}, which does not run before it. A reference may only name an earlier step.`;
   }
   const earlier = actionKind(steps[value.fromStep]?.kind ?? "");
-  if (earlier === undefined || !earlier.references.includes(value.field)) {
+  if (earlier === undefined || earlier.references[0] !== value.field) {
     return `Step ${String(value.fromStep + 1)} does not return a field named "${value.field}".`;
   }
   return undefined;
 }
 
-/**
- * Symbolic references are lifted out before the kind's own schema runs, because a schema
- * describes the value a reference stands for and not the reference.
- */
-function argsForSchema(args: Readonly<Record<string, unknown>>): Readonly<Record<string, unknown>> {
-  return Object.fromEntries(Object.entries(args).filter(([, value]) => !isStepReference(value)));
+function referencedMembers(args: Readonly<Record<string, unknown>>): ReadonlySet<string> {
+  return new Set(
+    Object.entries(args)
+      .filter(([, value]) => isStepReference(value))
+      .map(([name]) => name),
+  );
 }
 
 function environmentOf(
@@ -140,16 +141,15 @@ function stepRefusal(
 
   // The provenance check substitutes one reference at a time, so a step with two could
   // never be verified. Refusing here keeps an unrunnable card off the screen.
-  const references = Object.values(step.args).filter((value) => isStepReference(value)).length;
-  if (references > 1) {
+  const referenced = referencedMembers(step.args);
+  if (referenced.size > 1) {
     return {
       reason: `Step ${String(index + 1)} refers to an earlier step's result in more than one argument, which this deployment cannot verify. Name one reference per step and state the other argument's value.`,
     };
   }
 
-  const parsed = def.args.safeParse(argsForSchema(step.args));
-  const referenced = Object.values(step.args).some((value) => isStepReference(value));
-  if (!parsed.success && !referenced) {
+  const parsed = argsSchemaWithReferences(def, referenced).safeParse(step.args);
+  if (!parsed.success) {
     return { reason: `Step ${String(index + 1)}'s arguments are invalid: ${parsed.error.message}` };
   }
 

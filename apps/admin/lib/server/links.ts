@@ -56,7 +56,7 @@ export async function mintLinks(
     readonly oneTime: boolean;
     readonly count: number;
   },
-  /** The confirmed agent step this mint is, when it is one (083 D0). */
+  /** The confirmed agent step this mint is, when it is one. */
   proposal?: AgentProposalRef,
 ): Promise<ApiResult<readonly MintedLink[]>> {
   const result = await readResult<{ links?: unknown }>(

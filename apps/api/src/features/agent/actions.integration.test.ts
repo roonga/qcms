@@ -295,7 +295,7 @@ describe("a plan reaches the user as one card and runs nothing (criterion 4)", (
   );
 
   it(
-    "binds each step of `plan-two-envs` to its own environment (review finding B1)",
+    "binds each step of `plan-two-envs` to its own environment",
     async () => {
       const events = await turn({
         caller: owner,
@@ -313,7 +313,7 @@ describe("a plan reaches the user as one card and runs nothing (criterion 4)", (
   );
 
   it(
-    "shows `plan-three` as one card from a form screen (Code Owner, 2026-10-31)",
+    "shows `plan-three` as one card from a form screen",
     async () => {
       const links = await countLinks();
       const releases = await countReleases();

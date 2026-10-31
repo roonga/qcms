@@ -6,7 +6,7 @@ import { initialCard, startRun, type AgentCardView } from "./plan-state.ts";
 import { hasUnresolvedReference, resolveArgs, runPlan, type RunStepRequest } from "./runner.ts";
 
 /**
- * The sequential runner (083 D0, section 6.4, criterion 4): in order, one at a time,
+ * The sequential runner: in order, one at a time,
  * stop at the first failure, never retry, and send nothing after a hold or a Stop.
  */
 

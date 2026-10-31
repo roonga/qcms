@@ -42,8 +42,8 @@ export interface AssistProposal {
 }
 
 /**
- * One step of a proposed action or plan, as the `action` and `plan` events carry it
- * (083 D0). `args` stays an opaque map: the card renders each argument from the kind and
+ * One step of a proposed action or plan, as the `action` and `plan` events carry it.
+ * `args` stays an opaque map: the card renders each argument from the kind and
  * the catalog, and an argument may be a `{ fromStep, field }` reference the card resolves
  * from the earlier step's own returned state.
  */

@@ -248,3 +248,94 @@ describe("buildProposal: the card's own data (criterion 5)", () => {
     expect(outcome.ok).toBe(false);
   });
 });
+
+describe("buildProposal: a referenced step's other arguments", () => {
+  it("checks every argument the step does not defer to an earlier result", async () => {
+    const outcome = await propose({
+      steps: [
+        publish,
+        {
+          kind: "form.release",
+          args: {
+            formId: "frm_a",
+            version: { fromStep: 0, field: "version" },
+            environment: "test",
+            fromEnvironment: 7,
+          },
+        },
+      ],
+    });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toContain("arguments are invalid");
+  });
+
+  it("refuses an unknown argument beside a reference", async () => {
+    const outcome = await propose({
+      steps: [
+        publish,
+        {
+          kind: "form.release",
+          args: {
+            formId: "frm_a",
+            version: { fromStep: 0, field: "version" },
+            environment: "test",
+            approve: true,
+          },
+        },
+      ],
+    });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toContain("arguments are invalid");
+  });
+
+  it("refuses a reference whose own shape is wrong", async () => {
+    const outcome = await propose({
+      steps: [publish, releaseTo("test", { fromStep: 0, field: "version", resolve: "now" })],
+    });
+    expect(outcome.ok).toBe(false);
+  });
+});
+
+describe("buildProposal: the one field a step's audit row records", () => {
+  it("refuses a reference to a release step's environment, which no row verifies", async () => {
+    const outcome = await propose({
+      steps: [
+        releaseTo("test", 3),
+        {
+          kind: "form.release",
+          args: {
+            formId: "frm_a",
+            version: 3,
+            environment: { fromStep: 0, field: "environment" },
+          },
+        },
+      ],
+    });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toContain('does not return a field named "environment"');
+  });
+});
+
+describe("buildProposal: `link.mint`'s expiry is the instant the request carries", () => {
+  it("accepts the full UTC instant the descriptor advertises", async () => {
+    const outcome = await propose({ steps: [mint] });
+    expect(outcome.ok).toBe(true);
+  });
+
+  it("refuses a calendar day, which the mint dialog would widen before posting it", async () => {
+    const outcome = await propose({
+      steps: [
+        {
+          kind: "link.mint",
+          args: { formId: "frm_a", count: 2, expiresAt: "2026-12-31", oneTime: true },
+        },
+      ],
+    });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toContain("arguments are invalid");
+  });
+});

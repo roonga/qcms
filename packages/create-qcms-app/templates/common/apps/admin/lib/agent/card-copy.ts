@@ -5,17 +5,10 @@ import { t, type MessageKey } from "../i18n/en.ts";
 import type { ReportedResults } from "./plan-state.ts";
 
 /**
- * What one step of a card says (083 D0, card rules 1 and 2).
- *
- * Every line here is built from the step's **kind**, its structured arguments and the
- * catalog. Nothing the model wrote reaches a title, an argument label or a consequence
- * sentence; the model's text appears once, as the quoted reason, which the component
- * renders as plain text beside these lines. A reason that could change a title, hide an
- * argument or hide a step is the failure criterion 5 names, so this module takes no model
- * input at all: its only arguments are the step and what earlier steps reported.
- *
- * Every argument is shown, in full. Nothing is collapsed and nothing is truncated, which
- * is why there is no ellipsis and no "and 3 more" anywhere below.
+ * What one step of a card says, from the step's kind, its structured arguments and the
+ * catalog. This module takes no model input at all, so nothing the model wrote can reach
+ * a title, an argument label or a consequence sentence, and no argument or step can be
+ * collapsed out of what the user confirms.
  */
 
 export interface StepArgumentLine {

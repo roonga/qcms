@@ -7,7 +7,13 @@ import type { ActionKindDef, ActionRequestFacts } from "./types.js";
 const MintArgs = z.strictObject({
   formId: z.string().min(1).max(200),
   count: z.number().int().min(1).max(100).describe("How many links to mint."),
-  expiresAt: z.string().min(1).max(40).describe("When the links stop working, as an instant."),
+  // A full UTC instant, not a calendar day: the mint dialog widens a date-only value to
+  // the end of that day, and the digest is taken over what the request body carries.
+  expiresAt: z.iso
+    .datetime()
+    .describe(
+      "When the links stop working, as a full UTC instant such as 2026-12-31T23:59:59.000Z.",
+    ),
   oneTime: z.boolean().describe("Whether each link is consumed by the first respondent."),
 });
 

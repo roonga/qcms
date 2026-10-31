@@ -236,7 +236,7 @@ describe("checkProvenance: a plan runs in order (criterion 4)", () => {
   });
 });
 
-describe("checkProvenance: a two-environment plan (criterion 1, review finding B1)", () => {
+describe("checkProvenance: a two-environment plan (criterion 1)", () => {
   async function twoEnvironments(): Promise<string> {
     return tokenFor([
       await binding("form.release", { formId: "frm_a", version: 3, environment: "test" }, "test"),

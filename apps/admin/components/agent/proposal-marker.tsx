@@ -6,19 +6,10 @@ import { AssistMark } from "@/components/forms/assist-mark";
 import { t } from "@/lib/i18n/en";
 
 /**
- * The heading-row proposal marker (083 D0, review suggestion S8; Code Owner,
- * 2026-10-24).
- *
- * It sits immediately before the heading-row control that a waiting card's first
- * not-yet-run step mirrors, and it is **presentational only**: activating it moves focus
- * to the card's heading and sends nothing. Pressing the heading-row control itself
- * behaves exactly as it does without a card, because the card is not a shortcut through
- * the screen's dialog and the dialog is not a way to confirm the card.
- *
- * It carries words and an icon, and the mirrored control gains a dashed outline rather
- * than a tint, so neither signal is colour alone. The outline takes no layout space, so
- * nothing moves when the marker appears or clears. It clears as soon as the card leaves
- * the Proposed state.
+ * The marker that sits before the heading-row control a waiting card's first not-yet-run
+ * step mirrors. Activating it moves focus to the card and sends nothing: it is never a
+ * second Confirm. Words plus an icon, and a dashed outline on the mirrored control, so
+ * neither signal is colour alone.
  */
 
 export interface ProposalMarkerProps {
@@ -56,8 +47,7 @@ export function ProposalMarker(props: ProposalMarkerProps): React.ReactElement {
           props.onReview();
         }}
       >
-        {/* The mark replaces the word "Assistant" and is named it, so the link reads
-            "Assistant proposed · Review" (Code Owner, 2026-10-24, issue #1129). */}
+        {/* The mark is named "Assistant", so the link reads "Assistant proposed · Review". */}
         <AssistMark size={16} />
         {t("agent.marker.text")}
       </a>

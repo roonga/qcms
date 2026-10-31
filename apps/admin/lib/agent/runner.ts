@@ -10,16 +10,10 @@ import {
 } from "./plan-state.ts";
 
 /**
- * The sequential runner (083 D0, section 6.4).
- *
- * Client-driven on purpose: each step calls **that step's screen's own exported server
- * action**, with the step's arguments and one trailing `{ agentProposal, step }` that the
- * action forwards as the two headers. There is no server-side plan executor, so every
- * step keeps the screen's own `requireAdminSession()`, origin check, route,
- * authorisation and revalidation (R2).
- *
- * The runner waits for each result, stops at the first failure, never retries, and sends
- * no further step once a step is held for a second approver or Stop has been pressed.
+ * The sequential runner. Client-driven so that each step goes through its own screen's
+ * server action rather than a server-side plan executor (R2): it waits for each result,
+ * stops at the first failure, never retries, and sends no further step once one is held
+ * for a second approver or Stop has been pressed.
  */
 
 /** What the card hands one step's screen action. */

@@ -6,23 +6,10 @@ import type { RunStepRequest } from "@/lib/agent/runner";
 import { t } from "@/lib/i18n/en";
 
 /**
- * One step's screen action (083 D0, section 6.4).
- *
- * Confirm calls **that step's screen's own exported server action**, imported here, with
- * the step's arguments and one trailing `{ agentProposal, step }` the action forwards as
- * the two headers. No step is dispatched through a generic endpoint and there is no
- * server-side executor, which is what keeps each step on the same session gate, origin
- * check, route, authorisation and revalidation as the control a human presses (R2).
- *
- * A kind with no entry here is not runnable from a card. The grant filter and the propose
- * tool would not have offered it, and the API would refuse it at its own route; this map
- * is the third place that has to agree, so an unmapped kind reports a failure rather than
- * silently doing nothing.
- *
- * `form.publish` and `form.release` are deliberately absent: environment phase 5 replaces
- * the publish and release screens and deletes the actions a card would import, so their
- * wiring belongs to D1 and D2, after that lands. Their descriptors are on the branch
- * because D0's own criteria need a kind whose environment comes from its arguments.
+ * One step's screen action: each kind runs through that screen's own exported server
+ * action rather than a generic endpoint, so it keeps the session gate, origin check,
+ * route, authorisation and revalidation a human press has (R2). A kind with no entry
+ * here is not runnable from a card and reports a failure rather than doing nothing.
  */
 
 function text(value: unknown, fallback = ""): string {

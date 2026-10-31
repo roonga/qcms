@@ -598,10 +598,6 @@ export async function mintLinksAction(
   formId: string,
   shown: string | undefined,
   request: MintRequest,
-  // The trailing argument a confirmed card's step carries (083 D0). Nothing else about
-  // this action changes: the session gate, the environment confirmation, the API route and
-  // the revalidation below are the ones the mint dialog uses, and the token only adds the
-  // provenance the API audits.
   proposal?: AgentProposalRef,
 ): Promise<MintLinksState> {
   const session = await requireAdminSession();

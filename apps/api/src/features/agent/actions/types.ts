@@ -57,8 +57,12 @@ export interface ActionKindDef {
   readonly args: z.ZodType;
   /** What the card displays, which is what the digest is taken over. */
   recomputeArgs(facts: ActionRequestFacts): unknown;
-  /** The result fields a later step may reference, and the audit row's own detail. */
-  readonly references: readonly string[];
+  /**
+   * The result field a later step may reference, which is the value this kind's audit row
+   * records as its `detail`. At most one: a row carries one detail, so a second field
+   * could be named at propose and never verified.
+   */
+  readonly references: readonly [] | readonly [string];
   /** The non-secret result fields the next turn may learn (section 7.6). */
   readonly resultAllowlist: readonly string[];
   /** A step whose arguments include a secret the user must type; carries no token. */

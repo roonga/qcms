@@ -9,14 +9,8 @@ import { z } from "zod";
 import { actionKind } from "../actions/registry.js";
 import type { ActionKindDef } from "../actions/types.js";
 import type { OfferedActionKind } from "../grant-filter.js";
+import { argumentMembers, StepReferenceSchema } from "./args-schema.js";
 import { MAX_PLAN_STEPS } from "./propose.js";
-
-const StepReferenceSchema = z
-  .strictObject({
-    fromStep: z.number().int().min(0).describe("The zero-based index of an earlier step."),
-    field: z.string().min(1).max(100).describe("A result field that step returns."),
-  })
-  .describe("A reference to an earlier step's result, resolved when the plan runs.");
 
 function isOptional(member: z.ZodType): boolean {
   return member.safeParse(undefined).success;
@@ -35,13 +29,11 @@ function environmentMember(
 
 /**
  * One kind's arguments as the model is shown them: every member may instead be a symbolic
- * reference, because the propose tool lifts a reference out before the kind's own schema
- * runs.
+ * reference, which the propose tool validates as a reference in that member's place.
  */
 function advertisedArgs(def: ActionKindDef, environments: readonly string[]): z.ZodType {
-  const shape = (def.args as unknown as { readonly shape: Record<string, z.ZodType> }).shape;
   const members: Record<string, z.ZodType> = {};
-  for (const [name, member] of Object.entries(shape)) {
+  for (const [name, member] of Object.entries(argumentMembers(def))) {
     const narrowed = environmentMember(def, name, environments) ?? member;
     const union = z.union([narrowed, StepReferenceSchema]);
     members[name] = isOptional(member) ? union.optional() : union;

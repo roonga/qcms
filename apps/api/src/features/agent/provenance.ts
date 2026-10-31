@@ -86,6 +86,10 @@ function symbolicCandidates(
 /** One substitution at a time, which is the shape the design describes and bounds the work. */
 const CANDIDATE_LIMIT = 128;
 
+/**
+ * A row resolves only the one field its kind records, so a reference that names any other
+ * field of that step matches no candidate and is refused.
+ */
 function referencesFor(
   value: unknown,
   input: ProvenanceInput,
@@ -97,9 +101,9 @@ function referencesFor(
   for (const row of input.recorded) {
     if (row.detail !== asText) continue;
     const earlier = token.steps[row.stepIndex];
-    const def = earlier === undefined ? undefined : actionKind(earlier.kind);
-    if (def === undefined) continue;
-    for (const field of def.references) found.push({ fromStep: row.stepIndex, field });
+    const field = (earlier === undefined ? undefined : actionKind(earlier.kind))?.references[0];
+    if (field === undefined) continue;
+    found.push({ fromStep: row.stepIndex, field });
   }
   return found;
 }
@@ -125,7 +129,7 @@ async function argumentsMatch(
 /**
  * The window a step after step 0 arrives in: ten minutes from step 0's recorded
  * confirmation, so a plan whose run crosses `exp` completes while a stale card cannot
- * start (review finding B7).
+ * start.
  */
 function withinRunWindow(input: ProvenanceInput): boolean {
   const first = input.recorded.find((row) => row.stepIndex === 0);

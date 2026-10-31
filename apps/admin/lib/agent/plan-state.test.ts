@@ -24,7 +24,7 @@ import {
 } from "./plan-state.ts";
 
 /**
- * The card's rules as a fold (083 D0, criteria 4, 5, 8 and 10). Nothing here renders, so
+ * The card's rules as a fold. Nothing here renders, so
  * each rule is asserted as the decision it is.
  */
 
@@ -95,7 +95,7 @@ describe("a fresh card", () => {
   });
 });
 
-describe("step chips appear only once the plan runs (issue #1131)", () => {
+describe("step chips appear only once the plan runs", () => {
   it("hides them in the three states every step shares", () => {
     const fresh = initialCard(THREE, NOW);
     expect(showsStepChips(fresh)).toBe(false);
@@ -143,7 +143,7 @@ describe("one plan, one Confirm, stopping at the first failure (criterion 4)", (
     });
   });
 
-  it("treats Pending approval as terminal for the plan (Code Owner, 2026-10-24)", () => {
+  it("treats Pending approval as terminal for the plan", () => {
     const card = run(initialCard(THREE, NOW), [
       { outcome: "done", result: { version: 3 } },
       { outcome: "pending-approval", message: "Another approver confirms this release." },

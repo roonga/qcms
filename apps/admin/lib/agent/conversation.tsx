@@ -23,7 +23,7 @@ export interface AgentProseTurn {
 }
 
 /**
- * One confirmed card's report (083 D0, section 5.3). The admin writes it from the card's
+ * One confirmed card's report (section 5.3). The admin writes it from the card's
  * own fold and each kind's result allowlist, so it carries no model text, no content and
  * no secret, and the API renders it to the model from these fields rather than from prose.
  */

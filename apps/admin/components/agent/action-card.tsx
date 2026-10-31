@@ -25,28 +25,17 @@ import {
 import { t, tPlural } from "@/lib/i18n/en";
 
 /**
- * The action card and the plan card (083 D0, SEC-17 section 4.10). A card is a plan of
- * one step.
+ * The action card, which a plan of one step also is (SEC-17 section 4.10). The four rules
+ * it has to keep:
  *
- * ## The four rules are this component's contract
- *
- * 1. **The admin writes the card.** Every title, consequence sentence and argument label
- *    comes from `lib/agent/card-copy.ts`, which takes the step and nothing else. The
- *    model's words reach the screen in exactly one place: `reason`, rendered as quoted
- *    plain text after the steps and never above a band.
- * 2. **Every step and every argument is displayed**, in run order, in full. There is no
- *    truncation, no disclosure and no "and N more" below, by construction.
- * 3. **Never weaker than the screen's dialog.** A production step carries the production
- *    sentence inline on its own environment line, with one environment chip in that step
- *    and no boxed inset inside it (issue #1131). A step whose arguments include a secret
- *    the user must type is a hand-off: Confirm opens the screen's own field.
- * 4. **One plan, one Confirm.** Steps run in order, the run stops at the first failure
- *    and nothing is retried. The runner (`lib/agent/runner.ts`) is what sequences them;
- *    this component owns the press, the focus and the live region.
- *
- * Step chips appear only once the plan runs. While every step shares the card's state the
- * heading chip says it once and each step keeps its icon plus a visually hidden state
- * word, so the accessible name of a step row still carries it (issue #1131).
+ * 1. Every title, consequence sentence and argument label comes from `card-copy.ts`; the
+ *    model's words appear in `reason` alone, as quoted plain text below the steps.
+ * 2. Every step and every argument is displayed, in run order, in full: no truncation, no
+ *    disclosure, no "and N more".
+ * 3. Never weaker than the screen's own dialog, and a step needing a typed secret is a
+ *    hand-off that opens that screen's field.
+ * 4. One plan, one Confirm: the runner sequences the steps, this component owns the press,
+ *    the focus and the live region.
  */
 
 export interface ActionCardProps {

@@ -24,9 +24,11 @@ import { registerGrantCheck } from "../membership/middleware.js";
 import { policyForRequest } from "../membership/route-policy.js";
 import { registerReleases } from "../releases/route.js";
 import { ACTION_KINDS } from "./actions/registry.js";
+import { offeredActionKinds } from "./grant-filter.js";
 import { argumentsDigest, signProposalToken } from "./proposal-token.js";
 import { registerAgentProvenance } from "./provenance-mount.js";
 import { PROPOSAL_HEADER, PROPOSAL_STEP_HEADER } from "./provenance.js";
+import { buildProposal } from "./tools/propose.js";
 
 /**
  * SEC-17's D0 criteria against Postgres. The pure checks live in `provenance.test.ts`;
@@ -813,6 +815,90 @@ describe("a run bounded by step 0's confirmation, not by `exp` (criterion 10)", 
     expect(stale.status).toBe(403);
     expect(await errorCode(stale)).toBe("AGENT_PROPOSAL_EXPIRED");
     expect(await countRows(proposalId)).toBe(0);
+  });
+});
+
+describe("a mint proposed in the shape the model may produce runs end to end", () => {
+  const FORM_ID = "frm_prov_mint_shape";
+  const PROPOSED_EXPIRY = "2026-12-31T09:30:00.000Z";
+
+  beforeAll(async () => {
+    await createForm(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
+      formId: FormId.parse(FORM_ID),
+      slug: "prov-mint-shape",
+      defaultLocale: "en",
+    });
+  }, CONTAINER_BOOT_TIMEOUT_MS);
+
+  async function proposeMint(expiresAt: string) {
+    return buildProposal({
+      steps: [
+        { kind: "link.mint", args: { formId: FORM_ID, count: 2, expiresAt, oneTime: false } },
+      ],
+      subject: owner.userId,
+      appKey: deps.config.keys.app,
+      current: "prod",
+      offered: offeredActionKinds({
+        memberRole: undefined,
+        grants: [{ role: "forms.approver", environments: ["all"], forms: ["all"] }],
+        environments: ["prod"],
+        current: "prod",
+        formId: FORM_ID,
+      }),
+      requireSecondApprover: false,
+      productionEnvironment: "prod",
+      formId: FORM_ID,
+      issuedAt: now,
+      proposalsThisTurn: 0,
+    });
+  }
+
+  it("mints and records the step for the instant the card displayed", async () => {
+    const outcome = await proposeMint(PROPOSED_EXPIRY);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+
+    const minted = await send({
+      caller: owner,
+      path: `/forms/${FORM_ID}/links`,
+      environment: "prod",
+      body: { environment: "prod", count: 2, expiresAt: PROPOSED_EXPIRY, oneTime: false },
+      proposal: { token: outcome.proposal.token ?? "", step: 0 },
+    });
+
+    expect(minted.status).toBe(201);
+    expect(await rowsFor(outcome.proposal.proposalId)).toEqual([
+      { step_index: 0, kind: "link.mint", environment: "prod", detail: "2" },
+    ]);
+  });
+
+  it("refuses the step when the expiry the request carries is not the proposed one", async () => {
+    const outcome = await proposeMint(PROPOSED_EXPIRY);
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+
+    const minted = await send({
+      caller: owner,
+      path: `/forms/${FORM_ID}/links`,
+      environment: "prod",
+      body: {
+        environment: "prod",
+        count: 2,
+        expiresAt: "2026-12-31T23:59:59.999Z",
+        oneTime: false,
+      },
+      proposal: { token: outcome.proposal.token ?? "", step: 0 },
+    });
+
+    expect(minted.status).toBe(403);
+    expect(await errorCode(minted)).toBe("AGENT_PROPOSAL_ARGUMENTS");
+    expect(await countRows(outcome.proposal.proposalId)).toBe(0);
+  });
+
+  it("refuses a calendar day at propose, which is the shape that would be rewritten", async () => {
+    const outcome = await proposeMint("2026-12-31");
+    expect(outcome.ok).toBe(false);
   });
 });
 

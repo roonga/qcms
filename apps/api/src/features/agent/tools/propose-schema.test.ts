@@ -62,7 +62,7 @@ describe("the propose tools' advertised schemas", () => {
     expect(schema).not.toContain("form.publish");
   });
 
-  it("accepts one plan spanning the form subtree's screens (Code Owner, 2026-10-31)", () => {
+  it("accepts one plan spanning the form subtree's screens", () => {
     const offered = offerableActionKinds("/forms/[formId]/links").map((kind) => ({
       kind,
       environments: ["test"],

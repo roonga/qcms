@@ -81,6 +81,34 @@ describe("the result allowlist, per kind (criterion 8)", () => {
       expect(def.references.length, def.kind).toBeGreaterThan(0);
     }
   });
+
+  it("declares one referenceable field at most, because a step's audit row carries one detail", () => {
+    for (const def of Object.values(ACTION_KINDS)) {
+      expect(def.references.length, def.kind).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("keeps the environment off `form.release`'s referenceable fields", () => {
+    expect(actionKind("form.release")?.references).toEqual(["version"]);
+  });
+
+  it("takes `link.mint`'s expiry as a full instant, which is what the request body carries", () => {
+    const mint = actionKind("link.mint");
+    const instant = mint?.args.safeParse({
+      formId: "frm_a",
+      count: 1,
+      expiresAt: "2026-12-31T23:59:59.000Z",
+      oneTime: false,
+    });
+    const calendarDay = mint?.args.safeParse({
+      formId: "frm_a",
+      count: 1,
+      expiresAt: "2026-12-31",
+      oneTime: false,
+    });
+    expect(instant?.success).toBe(true);
+    expect(calendarDay?.success).toBe(false);
+  });
 });
 
 describe("each kind's card templates (criterion 5)", () => {

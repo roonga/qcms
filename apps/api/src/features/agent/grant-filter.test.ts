@@ -77,7 +77,7 @@ describe("the grant filter (section 6.1, criterion 3)", () => {
   });
 });
 
-describe("the kinds a screen offers (Code Owner, 2026-10-31)", () => {
+describe("the kinds a screen offers", () => {
   function onScreen(screen: ScreenId, grants: readonly HeldGrant[]) {
     return offeredActionKinds({
       memberRole: undefined,

@@ -3,15 +3,9 @@ import type { MessageKey } from "../i18n/en.ts";
 import type { AgentPlanStep, AgentProposal } from "../forms/assist-stream.ts";
 
 /**
- * The action card's state, as a fold (083 D0, SEC-17 section 4.10).
- *
- * It is here rather than in the component because the four card rules are controls, not
- * styling: which state each step is in, when a step chip is visible at all, when Confirm
- * is enabled, what the result line says and what the next turn is told are each a
- * decision with a test, and none of them may depend on anything the model wrote.
- *
- * Nothing here calls anything. The runner drives it (`runner.ts`) and the component
- * renders it, so the rules can be asserted without a DOM or a network.
+ * The action card's state, as a fold (SEC-17 section 4.10). It lives apart from the
+ * component because what a card shows, when Confirm is enabled and what the next turn is
+ * told are controls rather than styling, and none of them may depend on model text.
  */
 
 export type AgentStepState =
@@ -64,11 +58,7 @@ export interface AgentStepResult {
   readonly result?: Readonly<Record<string, unknown>>;
 }
 
-/**
- * The states every step of a card shares, in which only the heading chip shows the state
- * and each step keeps its icon plus a visually hidden word (Code Owner, 2026-10-24, issue
- * #1131).
- */
+/** The states every step of a card shares, where the heading chip says it once. */
 const SHARED_CARD_STATES: readonly AgentCardState[] = ["proposed", "cancelled", "expired"];
 
 export function showsStepChips(card: AgentCardView): boolean {
@@ -97,7 +87,7 @@ export function canConfirm(card: AgentCardView): boolean {
   return card.state === "proposed";
 }
 
-/** The marker sits on the mirrored control only while the card waits (review suggestion S8). */
+/** The marker sits on the mirrored control only while the card waits. */
 export function showsMarker(card: AgentCardView): boolean {
   return card.state === "proposed";
 }
@@ -162,10 +152,8 @@ function scalarsOnly(
 }
 
 /**
- * Settle the step the runner was waiting on.
- *
- * A failure and a hold are both terminal for the plan (Code Owner, 2026-10-24): every
- * later step shows Not run and is never sent. Nothing is retried, ever.
+ * Settle the step the runner was waiting on. A failure and a hold are both terminal for
+ * the plan: every later step shows Not run, is never sent and is never retried.
  */
 export function settleStep(
   card: AgentCardView,

@@ -3,9 +3,8 @@ import { z } from "zod";
 import type { ActionKindDef, ActionRequestFacts } from "./types.js";
 
 /**
- * The two kinds whose environment comes from their own arguments, which is why the token
- * binds the environment per step: "release v3 to test, then promote it to prod" is one
- * plan with two environments, each verified on its own step (review finding B1).
+ * The token binds an environment per step, because one plan can name two: "release v3 to
+ * test, then promote it to prod" is verified on each step's own environment.
  */
 
 const ReleaseArgs = z.strictObject({
@@ -63,7 +62,9 @@ export const releaseVersion: ActionKindDef = {
       ? {}
       : { fromEnvironment: bodyMember(facts, "fromEnvironment") }),
   }),
-  references: ["version", "environment"],
+  // The version alone: that is what this step's audit row records, and a reference
+  // resolves against the row rather than against anything the browser says.
+  references: ["version"],
   resultAllowlist: ["version", "environment", "replacedVersion"],
   card: {
     titleKey: "agent.card.form.release.title",

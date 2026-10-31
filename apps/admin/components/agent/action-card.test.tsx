@@ -17,7 +17,7 @@ import { ActionCard } from "./action-card";
 import { ProposalMarker } from "./proposal-marker";
 
 /**
- * The four card rules, as tests (083 D0, criterion 5). They are controls rather than
+ * The four card rules, as tests. They are controls rather than
  * styling: a card whose title came from model text, that hid an argument or a step, that
  * was weaker than the screen's own dialog, or that offered more than one Confirm would
  * each be a security failure rather than a visual one.
@@ -167,7 +167,7 @@ describe("rule 3: never weaker than the screen's dialog", () => {
     expect(production.textContent).toContain(
       "Production: changes where respondents' answers are sent.",
     );
-    // One chip in that step, and no boxed inset inside it (issue #1131).
+    // One chip in that step, and no boxed inset inside it.
     expect(production.querySelectorAll(".qcms-envchip")).toHaveLength(1);
     expect(production.querySelector(".qcms-acard__band")).toBeNull();
     expect((rows[1] as HTMLElement).textContent).not.toContain("Production:");

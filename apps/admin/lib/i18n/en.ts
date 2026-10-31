@@ -2064,17 +2064,12 @@ export const messages = {
   "forms.assist.accept": "Accept into draft",
   "forms.assist.discard": "Discard",
 
-  // THE ACTION CARD (083 D0, SEC-17 section 4.10).
+  // THE ACTION CARD (SEC-17 section 4.10).
   //
-  // The admin writes the card, which is why every title, consequence sentence, state
-  // word, argument label and result line is here rather than assembled from anything the
-  // model wrote. A model's words reach the screen in exactly one place, the quoted reason,
-  // and that reason is text rather than a template. A card whose title came from model
-  // text would fail criterion 5, so this block is a control and not copy.
-  //
-  // The consequence sentences are the ones the screen's own dialog uses, word for word: a
-  // card that softened what the dialog says would be weaker than the dialog, which is the
-  // third card rule.
+  // Every title, consequence sentence, state word, argument label and result line is
+  // here rather than assembled from model text, and the consequence sentences are the
+  // ones the screen's own dialog uses word for word, so a card can never say less than
+  // the dialog it mirrors. This block is a control, not copy.
   "agent.card.planTitle.one": "1 step",
   "agent.card.planTitle.other": "Plan · {count} steps",
   "agent.card.stepsLabel": "The steps this plan runs, in order",
@@ -2094,8 +2089,7 @@ export const messages = {
   "agent.card.link.revoke.title": "Revoke link {linkId}",
   "agent.card.link.revoke.consequence":
     "The link stops working from now on. A session already in progress is unaffected.",
-  // Carried inline on the step's own environment line, with one environment chip per step
-  // and no boxed inset inside the step (Code Owner, 2026-10-24, issue #1131).
+  // Carried inline on the step's own environment line, with one chip per step.
   "agent.card.environment.production": "Production: changes where respondents' answers are sent.",
   "agent.card.environmentLabel": "Environment",
   "agent.card.usesStep": "Uses the {field} step {step} sets",
@@ -2113,9 +2107,9 @@ export const messages = {
   "agent.card.arg.yes": "Yes",
   "agent.card.arg.no": "No",
 
-  // Each state is a word and an icon, never colour alone. In the Proposed, Cancelled and
-  // Expired states only the heading chip is visible and each step carries its word as
-  // visually hidden text, so the accessible name still gives it (issue #1131).
+  // Each state is a word and an icon, never colour alone. Where only the heading chip is
+  // visible, each step carries its word as visually hidden text, so the accessible name
+  // of a step row still gives it.
   "agent.card.state.proposed": "Proposed",
   "agent.card.state.running": "Running",
   "agent.card.state.done": "Done",
@@ -2159,8 +2153,7 @@ export const messages = {
   "agent.card.note.stale": "This proposal is more than ten minutes old.",
   "agent.card.note.notWired": "This screen's control is not wired to the assistant yet.",
 
-  // The marker is a link to the card and never a second Confirm (review suggestion S8,
-  // Code Owner, 2026-10-24).
+  // The marker is a link to the card and never a second Confirm.
   "agent.marker.text": "proposed · Review",
   "agent.marker.description":
     "Moves focus to the assistant's card for {summary}. Nothing runs from here.",
