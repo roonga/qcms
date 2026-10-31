@@ -65,8 +65,29 @@ action-card.tsx` and `proposal-marker.tsx` render them; the `agent.card.*` and
 
 ## Next, in order
 
-1. **The gates, on this head.** None of the heavy ones has run here:
-   - `pnpm verify`;
+0. **Four `pnpm verify` failures, all on this head, to fix first.** `check-font-tokens` is
+   already fixed (`var(--font-mono, monospace)` lost its inline fallback). What is left:
+   - **`e2e/security/03-db-least-privilege.e2e.ts`**: the `control` SELECT list for
+     `qcms_app_test` and `qcms_app_prod` now holds eight tables and the assertion names
+     seven. `control.agent_actions` has to join the expected list there (and in
+     `04-db-restore-regrant.e2e.ts` if it names the same list). This is a gap in the earlier
+     lane's grant assertions that only this suite surfaces.
+   - **`src/openapi-document.test.ts`**, "every object reachable from a body is closed or
+     reasoned": two objects. `ActionStepResultBody` is now a `strictObject().superRefine()`,
+     so the scan sees an effects wrapper rather than the strict object. Either reach through
+     the wrapper in that scan's reader or move the allowlist check off the schema and into
+     the handler.
+   - **`src/features/agent/assist.integration.test.ts`**, "ran every registered read tool
+     during the walk": it asserts every name in `AGENT_TOOL_NAMES` executed, and
+     `propose_action` and `propose_plan` are in that list with no `READ_ALL_INPUTS` entry.
+     Give `read-all` an input for each (a card is a plan of one, so a mint step on the links
+     screen is enough), or narrow the assertion to the read tools and say why.
+   - `provenance.integration.test.ts` and `webhooks.integration.test.ts` also failed in that
+     run, both with "Port NNNNN not bound after 210000ms" from testcontainers. Both pass on
+     their own; this is container-boot contention under the full run, not a logic failure.
+     Re-check them on the rerun rather than treating them as fixed.
+1. **The gates, on this head.** None of the heavy ones has passed here:
+   - `pnpm verify`, which is red for the reasons in step 0;
    - `pnpm exec turbo run test --force`, confirmed 0 cached, because migration 0007 lands
      on this branch;
    - `QCMS_PORT_SEAT=7 pnpm up:e2e`;

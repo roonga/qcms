@@ -5341,7 +5341,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   color: var(--color-text-muted);
 }
 .qcms-acard__args code {
-  font-family: var(--font-mono, monospace);
+  font-family: var(--font-mono);
   font-size: 13px;
 }
 .qcms-acard__label {
@@ -5427,7 +5427,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   flex-basis: 100%;
 }
 .qcms-input--mono {
-  font-family: var(--font-mono, monospace);
+  font-family: var(--font-mono);
   text-transform: uppercase;
 }
 /* The marker is a tint and a dashed hairline, never a second Confirm. */
