@@ -29,6 +29,7 @@ import type { QuestionStatus, QuestionVersionRow } from "@roonga/qcms-db";
 
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
+import { agentStepSite, writeAgentStep } from "../agent/audit.js";
 import { type GrantContext, workspaceFilterFor } from "../membership/context.js";
 import type { ApiEnv } from "../../openapi.js";
 import { resolveWorkspaceForNewObject } from "../workspaces/resolve.js";
@@ -121,9 +122,16 @@ export function makeCreateQuestionHandler(
       body.workspaceId,
     );
 
-    const created = await deps.databases.control.transaction((tx) =>
-      createQuestionWithFirstDraft(tx, { definition, slug: body.slug, workspaceId }),
-    );
+    const site = agentStepSite(c);
+    const created = await deps.databases.control.transaction(async (tx) => {
+      const row = await createQuestionWithFirstDraft(tx, {
+        definition,
+        slug: body.slug,
+        workspaceId,
+      });
+      await writeAgentStep(tx, site, row.question.questionId, deps.clock.now());
+      return row;
+    });
 
     return c.json(
       {
@@ -144,6 +152,7 @@ export function makeCreateVersionHandler(
   return async (c) => {
     const questionId = requireQuestionId(c.req.valid("param").id);
 
+    const site = agentStepSite(c);
     const created = await deps.databases.control.transaction(async (tx) => {
       const versions = await listQuestionVersions(tx, questionId);
       const latest = versions.at(-1);
@@ -153,6 +162,7 @@ export function makeCreateVersionHandler(
         questionId,
         definition: latest.definition,
       });
+      await writeAgentStep(tx, site, String(row.version), deps.clock.now());
       return row;
     });
 
@@ -169,6 +179,7 @@ export function makeEditVersionHandler(deps: Deps): RouteHandler<typeof editVers
 
     if (definition.questionId !== questionId) throw fail.idMismatch();
 
+    const site = agentStepSite(c);
     const updated = await deps.databases.control.transaction(async (tx) => {
       const current = await getQuestionVersion(tx, questionId, version);
       if (current === undefined) throw fail.versionNotFound();
@@ -177,6 +188,7 @@ export function makeEditVersionHandler(deps: Deps): RouteHandler<typeof editVers
       if (current.status !== "draft") throw fail.immutable();
 
       const row = await updateDraftDefinition(tx, { questionId, version, definition });
+      await writeAgentStep(tx, site, String(version), deps.clock.now());
       return row;
     });
 
@@ -193,12 +205,14 @@ export function makePublishVersionHandler(
     const questionId = requireQuestionId(id);
     const version = requireVersion(v);
 
+    const site = agentStepSite(c);
     const published = await deps.databases.control.transaction(async (tx) => {
       const current = await getQuestionVersion(tx, questionId, version);
       if (current === undefined) throw fail.versionNotFound();
       if (current.status !== "draft") throw fail.invalidState(current.status, "publish");
 
       const row = await publishQuestionVersion(tx, { questionId, version });
+      await writeAgentStep(tx, site, String(version), deps.clock.now());
       return row;
     });
 
@@ -215,12 +229,14 @@ export function makeDeprecateVersionHandler(
     const questionId = requireQuestionId(id);
     const version = requireVersion(v);
 
+    const site = agentStepSite(c);
     const deprecated = await deps.databases.control.transaction(async (tx) => {
       const current = await getQuestionVersion(tx, questionId, version);
       if (current === undefined) throw fail.versionNotFound();
       if (current.status !== "published") throw fail.invalidState(current.status, "deprecate");
 
       const row = await deprecateQuestionVersion(tx, { questionId, version });
+      await writeAgentStep(tx, site, String(version), deps.clock.now());
       return row;
     });
 

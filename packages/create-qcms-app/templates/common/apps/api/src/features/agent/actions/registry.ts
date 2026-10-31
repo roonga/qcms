@@ -14,6 +14,13 @@ import {
   saveWorkspaceSettings,
   setMemberRole,
 } from "./membership.js";
+import {
+  createQuestion,
+  deprecateQuestionVersion,
+  newQuestionVersion,
+  publishQuestionVersion,
+  saveQuestionDraft,
+} from "./questions.js";
 import { publishForm, releaseVersion } from "./releases.js";
 import { eraseResponse, exportResponses, unflagResponse } from "./responses.js";
 import type { ActionKindDef } from "./types.js";
@@ -50,6 +57,11 @@ const DEFS: readonly ActionKindDef[] = [
   revokeAccessGroup,
   setMemberRole,
   saveWorkspaceSettings,
+  createQuestion,
+  saveQuestionDraft,
+  publishQuestionVersion,
+  deprecateQuestionVersion,
+  newQuestionVersion,
 ];
 
 export const ACTION_KINDS: Readonly<Record<string, ActionKindDef>> = Object.freeze(

@@ -23,6 +23,7 @@ import { registerLinks } from "../links/route.js";
 import { registerGrantCheck } from "../membership/middleware.js";
 import { registerMembership } from "../membership/route.js";
 import { policyForRequest } from "../membership/route-policy.js";
+import { registerQuestions } from "../questions/route.js";
 import { registerReleases } from "../releases/route.js";
 import { ACTION_KINDS } from "./actions/registry.js";
 import { offeredActionKinds } from "./grant-filter.js";
@@ -71,6 +72,7 @@ function buildApp(): { deps: Deps; app: ReturnType<typeof createApp> } {
           registerAgentProvenance,
           registerMembership,
           registerForms,
+          registerQuestions,
           registerReleases,
           registerLinks,
         ],
@@ -848,6 +850,130 @@ describe("a step's row exists exactly when its own transaction committed (criter
       `select count(*)::int as n from control.agent_actions`,
     );
     expect(after.rows[0]).toEqual(before.rows[0]);
+  });
+});
+
+/**
+ * D6's library kinds. A question definition is authoring content that travels in a step's
+ * arguments, so the digest binds it: a save whose body carries a definition the card never
+ * showed is refused and the stored draft is untouched.
+ */
+describe("the question library through a proposal (D6)", () => {
+  function definition(questionId: string, label: string): Record<string, unknown> {
+    return { questionId, type: "shortText", label: { en: label } };
+  }
+
+  async function put(args: {
+    readonly path: string;
+    readonly body: unknown;
+    readonly proposal?: { readonly token: string; readonly step: number };
+  }): Promise<Response> {
+    return app.request(`/admin${args.path}`, {
+      method: "PUT",
+      headers: headersFor(owner, "prod", args.proposal),
+      body: JSON.stringify(args.body),
+    });
+  }
+
+  it("creates a question identically with and without a token, and only the token writes a row", async () => {
+    const plain = await send({
+      caller: owner,
+      path: "/questions",
+      environment: "prod",
+      body: { slug: "prov-q-plain", definition: definition("q_prov_plain", "Plain") },
+    });
+    expect(plain.status).toBe(201);
+
+    const args = {
+      slug: "prov-q-proposed",
+      definition: definition("q_prov_proposed", "Proposed"),
+    };
+    const { token, proposalId } = await mintToken({
+      subject: owner.userId,
+      steps: [await binding("question.create", args, "prod")],
+    });
+    const proposed = await send({
+      caller: owner,
+      path: "/questions",
+      environment: "prod",
+      body: args,
+      proposal: { token, step: 0 },
+    });
+    expect(proposed.status).toBe(201);
+    expect(await rowsFor(proposalId)).toEqual([
+      {
+        step_index: 0,
+        kind: "question.create",
+        environment: "prod",
+        detail: "q_prov_proposed",
+      },
+    ]);
+  });
+
+  it("refuses a definition the proposal did not name, and leaves the draft as it was", async () => {
+    const shown = definition("q_prov_proposed", "Shown");
+    const { token, proposalId } = await mintToken({
+      subject: owner.userId,
+      steps: [
+        await binding(
+          "question.saveDraft",
+          { questionId: "q_prov_proposed", version: 1, definition: shown },
+          "prod",
+        ),
+      ],
+    });
+    const swapped = await put({
+      path: "/questions/q_prov_proposed/versions/1",
+      body: { definition: definition("q_prov_proposed", "Swapped") },
+      proposal: { token, step: 0 },
+    });
+    expect(swapped.status).toBe(403);
+    expect(await errorCode(swapped)).toBe("AGENT_PROPOSAL_ARGUMENTS");
+    expect(await countRows(proposalId)).toBe(0);
+
+    const kept = await put({
+      path: "/questions/q_prov_proposed/versions/1",
+      body: { definition: shown },
+      proposal: { token, step: 0 },
+    });
+    expect(kept.status).toBe(200);
+    expect(await rowsFor(proposalId)).toEqual([
+      { step_index: 0, kind: "question.saveDraft", environment: "prod", detail: "1" },
+    ]);
+  });
+
+  it("records the version a publish and a new version each name", async () => {
+    const published = await mintToken({
+      subject: owner.userId,
+      steps: [
+        await binding("question.publish", { questionId: "q_prov_proposed", version: 1 }, "prod"),
+      ],
+    });
+    const publish = await send({
+      caller: owner,
+      path: "/questions/q_prov_proposed/versions/1/publish",
+      environment: "prod",
+      proposal: { token: published.token, step: 0 },
+    });
+    expect(publish.status).toBe(200);
+    expect(await rowsFor(published.proposalId)).toEqual([
+      { step_index: 0, kind: "question.publish", environment: "prod", detail: "1" },
+    ]);
+
+    const opened = await mintToken({
+      subject: owner.userId,
+      steps: [await binding("question.newVersion", { questionId: "q_prov_proposed" }, "prod")],
+    });
+    const newVersion = await send({
+      caller: owner,
+      path: "/questions/q_prov_proposed/versions",
+      environment: "prod",
+      proposal: { token: opened.token, step: 0 },
+    });
+    expect(newVersion.status).toBe(201);
+    expect(await rowsFor(opened.proposalId)).toEqual([
+      { step_index: 0, kind: "question.newVersion", environment: "prod", detail: "2" },
+    ]);
   });
 });
 

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 
+import { HeadingMarker } from "@/components/agent/heading-marker";
 import { EmptyState } from "@/components/empty-state";
 import { Alert } from "@/components/kit";
 import { QuestionsTable } from "@/components/questions/questions-table";
@@ -76,9 +77,11 @@ export default async function QuestionsPage({
             it. A filtered-empty library is not that state: the library is not empty, the
             way out is the clear link, and this link stays. */}
         {!(result.ok && result.data.length === 0 && !isFiltered) && (
-          <Link href="/questions/new" className="qcms-button-link">
-            {t("questions.new")}
-          </Link>
+          <HeadingMarker control="questions.create">
+            <Link href="/questions/new" className="qcms-button-link">
+              {t("questions.new")}
+            </Link>
+          </HeadingMarker>
         )}
       </div>
 

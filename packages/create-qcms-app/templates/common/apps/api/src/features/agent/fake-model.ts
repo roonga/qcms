@@ -51,6 +51,11 @@ export const FAKE_SCRIPTS = [
   "read-only-user",
   // One card per kind, for each screen group's own confirm and cancel paths.
   "propose-form-create",
+  "propose-question-create",
+  "propose-question-save-draft",
+  "propose-question-publish",
+  "propose-question-deprecate",
+  "propose-question-new-version",
   "propose-form-publish",
   "propose-form-settings",
   "propose-form-close",
@@ -603,6 +608,33 @@ function factMemberId(prompt: readonly PromptMessage[]): string {
   return firstId(screenFacts(prompt)["members"], "userId", "usr_absent");
 }
 
+/** The question detail screen's own facts, which name no form. */
+function questionFacts(prompt: readonly PromptMessage[]): Record<string, unknown> {
+  return jsonBlocks(prompt).find((block) => typeof block["questionId"] === "string") ?? {};
+}
+
+function factQuestionId(prompt: readonly PromptMessage[]): string {
+  const questionId = questionFacts(prompt)["questionId"];
+  return typeof questionId === "string" ? questionId : "q_absent";
+}
+
+/** The first version of the named status the detail screen listed, or 1. */
+function factQuestionVersion(prompt: readonly PromptMessage[], status: string): number {
+  const rows = questionFacts(prompt)["versions"];
+  if (!Array.isArray(rows)) return 1;
+  for (const entry of rows) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const row = entry as { version?: unknown; status?: unknown };
+    if (row.status === status && typeof row.version === "number") return row.version;
+  }
+  return 1;
+}
+
+/** A question definition a create or a save proposes, in the kernel's own shape. */
+function fakeQuestionDefinition(questionId: string): Record<string, unknown> {
+  return { questionId, type: "shortText", label: { en: "What the assistant proposed" } };
+}
+
 /** The first endpoint and the first delivery the webhooks screen listed. */
 function factWebhookId(prompt: readonly PromptMessage[]): string {
   return firstId(screenFacts(prompt)["webhooks"], "webhookId", "wh_absent");
@@ -700,6 +732,42 @@ const SINGLE_ACTIONS: Readonly<
   "propose-form-create": (prompt) => ({
     kind: "form.create",
     args: { slug: newSlug(prompt), defaultLocale: "en" },
+  }),
+  "propose-question-create": (prompt) => ({
+    kind: "question.create",
+    args: {
+      slug: newSlug(prompt),
+      definition: fakeQuestionDefinition(newQuestionId(prompt)),
+    },
+  }),
+  "propose-question-save-draft": (prompt) => {
+    const questionId = factQuestionId(prompt);
+    return {
+      kind: "question.saveDraft",
+      args: {
+        questionId,
+        version: factQuestionVersion(prompt, "draft"),
+        definition: fakeQuestionDefinition(questionId),
+      },
+    };
+  },
+  "propose-question-publish": (prompt) => ({
+    kind: "question.publish",
+    args: {
+      questionId: factQuestionId(prompt),
+      version: factQuestionVersion(prompt, "draft"),
+    },
+  }),
+  "propose-question-deprecate": (prompt) => ({
+    kind: "question.deprecate",
+    args: {
+      questionId: factQuestionId(prompt),
+      version: factQuestionVersion(prompt, "published"),
+    },
+  }),
+  "propose-question-new-version": (prompt) => ({
+    kind: "question.newVersion",
+    args: { questionId: factQuestionId(prompt) },
   }),
   "propose-form-settings": (prompt) => ({
     kind: "form.settings",

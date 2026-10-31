@@ -299,6 +299,15 @@ One member of the request is unbound by the digest on purpose: `POST /admin/form
 a `formId` the admin derives from the slug with the function the screen uses, and the model
 never names it, so binding the slug binds everything a proposal can choose.
 
+## A question definition travels in the arguments
+
+A question definition is authoring content, not respondent content, so the library's
+create and save kinds carry it as an argument and the card shows every field of it. That
+is also what binds it: the digest is taken over the whole argument object, so a save whose
+request carries a definition the card never showed is refused with
+`AGENT_PROPOSAL_ARGUMENTS` and the stored draft is untouched. No read tool and no context
+builder returns an answer, a ledger row or a payload, and nothing here changes that.
+
 ## A step's row is written where the step's act is not
 
 `control.agent_actions` lives in the control database. Where the act does too - a

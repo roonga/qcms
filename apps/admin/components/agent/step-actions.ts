@@ -10,6 +10,12 @@ import {
   setFormStatusAction,
   updateSettingsAction,
 } from "@/app/(shell)/forms/actions";
+import {
+  createQuestionForCardAction,
+  createQuestionVersionForCardAction,
+  lifecycleAction,
+  saveDraftAction as saveQuestionDraftAction,
+} from "@/app/(shell)/questions/actions";
 import { eraseSessionAction, unflagResponseAction } from "@/app/(shell)/responses/actions";
 import {
   createAccessGroupAction,
@@ -28,6 +34,7 @@ import {
   rotateSecretAction,
 } from "@/app/(shell)/webhooks/actions";
 import { isErasureReason } from "@/lib/ops/erasure";
+import { IDLE_MUTATION } from "@/lib/questions/editor-state";
 import type { MembershipActionState } from "@/lib/membership/types";
 import type { WebhookActionState } from "@/components/ops/webhook-config";
 import type { AgentStepResult } from "@/lib/agent/plan-state";
@@ -247,7 +254,99 @@ const MEMBERSHIP_RUNNERS: Readonly<Record<string, StepRunner>> = {
   },
 };
 
+/**
+ * The library's lifecycle acts are one `useActionState` form, so the card posts the
+ * `FormData` that form would post rather than a second shape the screen never sends.
+ */
+function lifecycleRunner(intent: "publish" | "deprecate"): StepRunner {
+  return async ({ index, args, agentProposal }) => {
+    const version = whole(args["version"]);
+    if (version === undefined) {
+      return { outcome: "failed", message: t("agent.card.note.unresolvedReference") };
+    }
+    const body = new FormData();
+    body.set("questionId", text(args["questionId"]));
+    body.set("version", String(version));
+    body.set("intent", intent);
+    const state = await lifecycleAction(IDLE_MUTATION, body, proposalRef(agentProposal, index));
+    if (state.status !== "saved") return { outcome: "failed", message: text(state.message) };
+    return {
+      outcome: "done",
+      result: {
+        questionId: text(args["questionId"]),
+        version,
+        status: intent === "publish" ? "published" : "deprecated",
+      },
+    };
+  };
+}
+
+const QUESTION_RUNNERS: Readonly<Record<string, StepRunner>> = {
+  "question.create": async ({ index, args, agentProposal }) => {
+    const state = await createQuestionForCardAction(
+      {
+        slug: text(args["slug"]),
+        definition: args["definition"],
+        ...(typeof args["workspaceId"] === "string" ? { workspaceId: args["workspaceId"] } : {}),
+      },
+      proposalRef(agentProposal, index),
+    );
+    if (state.status !== "done" || state.questionId === undefined) {
+      return { outcome: "failed", message: text(state.message) };
+    }
+    return {
+      outcome: "done",
+      result: {
+        questionId: state.questionId,
+        slug: text(state.slug),
+        version: state.version ?? 1,
+      },
+    };
+  },
+  "question.saveDraft": async ({ index, args, agentProposal }) => {
+    const version = whole(args["version"]);
+    const definition = args["definition"];
+    if (version === undefined || typeof definition !== "object" || definition === null) {
+      return { outcome: "failed", message: t("agent.card.note.unresolvedReference") };
+    }
+    const body = new FormData();
+    body.set("questionId", text(args["questionId"]));
+    body.set("version", String(version));
+    body.set("definition", JSON.stringify(definition));
+    const state = await saveQuestionDraftAction(
+      IDLE_MUTATION,
+      body,
+      proposalRef(agentProposal, index),
+    );
+    if (state.status !== "saved") return { outcome: "failed", message: text(state.message) };
+    return {
+      outcome: "done",
+      result: { questionId: text(args["questionId"]), version, status: "draft" },
+    };
+  },
+  "question.publish": lifecycleRunner("publish"),
+  "question.deprecate": lifecycleRunner("deprecate"),
+  "question.newVersion": async ({ index, args, agentProposal }) => {
+    const state = await createQuestionVersionForCardAction(
+      text(args["questionId"]),
+      proposalRef(agentProposal, index),
+    );
+    if (state.status !== "done" || state.version === undefined) {
+      return { outcome: "failed", message: text(state.message) };
+    }
+    return {
+      outcome: "done",
+      result: {
+        questionId: text(args["questionId"]),
+        version: state.version,
+        status: text(state.versionStatus, "draft"),
+      },
+    };
+  },
+};
+
 const RUNNERS: Readonly<Record<string, StepRunner>> = {
+  ...QUESTION_RUNNERS,
   "form.create": async ({ index, args, agentProposal }) => {
     const state = await createFormForCardAction(
       {

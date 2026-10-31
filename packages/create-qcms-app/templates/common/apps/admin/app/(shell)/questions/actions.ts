@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import type { MutationState } from "@/lib/questions/editor-state";
+import type { MutationState, QuestionCardState } from "@/lib/questions/editor-state";
+import type { AgentProposalRef } from "@/lib/server/agent-proposal";
 import { messageForCode } from "@/lib/questions/errors";
 import type { QuestionDefinitionView } from "@/lib/questions/types";
 import {
@@ -123,10 +124,65 @@ export async function createQuestionAction(
   redirect(`/questions/${encodeURIComponent(result.data.questionId)}?v=1`);
 }
 
+/**
+ * The same create, answered rather than navigated away from, for the card a proposal
+ * confirms (SEC-17's create-variant ruling): the same validation, the same route and so
+ * the same grant check, the same audit path, and the new id as the one result a later step
+ * may reference.
+ */
+export async function createQuestionForCardAction(
+  input: { readonly slug: string; readonly definition: unknown; readonly workspaceId?: string },
+  proposal?: AgentProposalRef,
+): Promise<QuestionCardState> {
+  const session = await requireAdminSession();
+  if (typeof input.definition !== "object" || input.definition === null) {
+    return { status: "error", message: messageForCode("INVALID_QUESTION_DEFINITION") };
+  }
+  const result = await createQuestion(
+    session,
+    input.slug.trim(),
+    input.definition as QuestionDefinitionView,
+    input.workspaceId,
+    proposal,
+  );
+  if (!result.ok) return { status: "error", message: result.message };
+  revalidatePath("/questions");
+  return {
+    status: "done",
+    questionId: result.data.questionId,
+    slug: result.data.slug,
+    version: result.data.version.version,
+    versionStatus: result.data.version.status,
+  };
+}
+
+/**
+ * Opening a new draft version, answered rather than navigated away from, for the reason
+ * the create variant exists: the screen's own control redirects onto the new version, and
+ * a step that navigated would lose the steps after it without reporting one.
+ */
+export async function createQuestionVersionForCardAction(
+  questionId: string,
+  proposal?: AgentProposalRef,
+): Promise<QuestionCardState> {
+  const session = await requireAdminSession();
+  const created = await createVersion(session, questionId, proposal);
+  if (!created.ok) return { status: "error", message: created.message };
+  revalidatePath(`/questions/${questionId}`);
+  revalidatePath("/questions");
+  return {
+    status: "done",
+    questionId,
+    version: created.data.version,
+    versionStatus: created.data.status,
+  };
+}
+
 /** Save an edit to a draft version. Published versions are refused by the API. */
 export async function saveDraftAction(
   _previous: MutationState,
   formData: FormData,
+  proposal?: AgentProposalRef,
 ): Promise<MutationState> {
   const session = await requireAdminSession();
   const definition = readDefinition(formData);
@@ -134,7 +190,7 @@ export async function saveDraftAction(
   const version = readVersion(formData);
   if (definition === undefined || version === undefined) return MALFORMED;
 
-  const result = await saveVersion(session, questionId, version, definition);
+  const result = await saveVersion(session, questionId, version, definition, proposal);
   if (!result.ok) {
     return {
       status: "error",
@@ -160,6 +216,7 @@ export async function saveDraftAction(
 export async function lifecycleAction(
   _previous: MutationState,
   formData: FormData,
+  proposal?: AgentProposalRef,
 ): Promise<MutationState> {
   const session = await requireAdminSession();
   const questionId = readText(formData, "questionId");
@@ -185,8 +242,8 @@ export async function lifecycleAction(
   if (intent !== "publish" && intent !== "deprecate") return MALFORMED;
   const result =
     intent === "publish"
-      ? await publishVersion(session, questionId, version)
-      : await deprecateVersion(session, questionId, version);
+      ? await publishVersion(session, questionId, version, proposal)
+      : await deprecateVersion(session, questionId, version, proposal);
   if (!result.ok) {
     return { status: "error", code: result.code, message: result.message, issues: result.issues };
   }

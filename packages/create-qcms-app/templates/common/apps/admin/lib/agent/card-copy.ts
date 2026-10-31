@@ -30,6 +30,7 @@ const ARGUMENT_ORDER: readonly string[] = [
   "formId",
   "questionId",
   "slug",
+  "definition",
   "defaultLocale",
   "workspaceId",
   "teamId",
