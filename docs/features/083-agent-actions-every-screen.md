@@ -13,7 +13,7 @@ Section 11 states the stakes plainly: making every action proposable raises what
 
 Principle point 1 (same role, same permissions: a read-only user is offered no write), point 2 (nothing changes until Confirm; the confirmed act is authorised and audited as the user's), point 3 (**one plan, one Confirm**, in order, stop at the first failure, report what ran; it supersedes Q20), point 4 (no answers, the ledger or payloads; metadata flows) and point 5 (no second list; the user's permissions are the list). **Section 1.4** (only an act with an admin screen control is proposable; the installation administrator's workspace create, archive and mark-shared acts have none and get no card until they get a screen). **Q12** (the append-only `control.agent_actions` table, readable by whoever reads the access audit). **Q13** (the token key is derived from `QCMS_APP_KEY` by HKDF-SHA-256 under `qcms/agent-proposal/v1`; no new variable). **Q10** (an agent response read writes a SEC-15 `read` row, once per conversation for each distinct filter set; Code Owner, 2026-10-24). **Q9** (no small-count suppression). **Q11** (staff names and emails may go to the provider). **Q19** (one limiter key). The ten-minute token lifetime and the hand-off rule (a step whose arguments include a secret the user must type opens the screen's own control, carries no token, and may only be the last step of a plan). ADR-41's two-person rule and self-grant rule apply **unchanged** because every step runs through the screen's own route. **P1** (one proposal per turn) and **P2** (at most 25 steps per plan), ruled as recommended (Code Owner, 2026-10-24). **The review rulings of 2026-10-24** (Code Owner, 2026-10-24; `plan/agent-everywhere.md` section 1.5): a **Pending approval** step state that is terminal for the plan, with the propose tool refusing a publish-then-release-to-`prod` plan while the workspace's second-approver switch is on; the heading-row **proposal marker**; and the fixes to review findings B1 (the environment bound per step), B3 (links only to page routes) and B7 (`exp` checked on step 0).
 
-### The four rulings of 2026-11-01
+### The six rulings of 2026-11-01
 
 **Publish drives the batch route** (Code Owner, 2026-11-01). `form.publish` runs `POST /admin/forms/{id}/publish-batch`, the route the Publish wizard uses, and keeps that route's stale-review and `expectedWorkflowRevision` checks: a draft saved between the review and Confirm is refused and nothing is written. The provenance check accepts an `environmentFrom: "targets"` route-policy row **only** when the batch names exactly one destination and that destination equals the step's own `environment` in the token; a batch naming none, or two, is refused with the environment code and nothing runs. That is fail-closed and it has one accepted consequence: a publish that releases nowhere (`targets: []`) is not proposable, so the agent's publish always names the one environment the new version lands in, which is the switcher's. D1's publish and publish-and-release are therefore **one** kind rather than two, because the batch route is one act, and D2's "publish the draft from the versions screen" is that same kind offered through the form subtree. The legacy `POST /admin/forms/{id}/publish` carries no `expectedWorkflowRevision` check and is no longer a proposable route.
 
@@ -22,6 +22,19 @@ Principle point 1 (same role, same permissions: a read-only user is offered no w
 **The cross-pool audit row is accepted as built** (Code Owner, 2026-11-01). For a step that acts on an environment's own database the agent row is written on the control pool after that act has committed, because two pools cannot share one transaction. A failed act writes no row, which is the property the card's report and the audit trail rest on. SEC-17 states the gap and that it is accepted.
 
 **Redeliver all, and exact member-set route discrimination** (Code Owner, 2026-11-01). "Redeliver all" is a plan of `webhook.redeliver` steps bounded by P2 rather than a kind of its own, and `ActionRoute.bodyMembers` stays the way one route and method are told apart.
+
+**A create step uses a card variant that does not navigate** (Code Owner, 2026-11-01). An
+act whose screen control ends in a `redirect()` gets a non-redirecting variant that the
+card calls, with the same validation, the same grant check and the same audit path, which
+returns the new item's id as an allowlisted result a later step may reference; the card
+shows a link to the new item, and the screen's own control keeps redirecting. D7's
+`createFormAction` and D6's `createQuestionAction` and `lifecycleAction("newVersion")` are
+the three, and the ruling is what unblocks D6 and D7.
+
+**Two-factor re-enrolment is out of 083** (Code Owner, 2026-11-01). It is not proposable
+until a re-enrol control exists on the Settings screen, because by section 1.4 an act with
+no admin screen control is not proposable. D9 therefore carries change password and
+regenerate recovery codes as hand-offs, and sign out, and no re-enrolment kind.
 
 ## Deliverables
 
@@ -51,7 +64,7 @@ Principle point 1 (same role, same permissions: a read-only user is offered no w
 - **D6 question library and question detail**: create a question; save a draft version; publish, deprecate or open a new version; library search and version diff as read tools.
 - **D7 forms list and new form**: create a form, in a workspace the user may create in; search forms.
 - **D8 workspace administration**: create or remove an access group; grant or revoke a group; set a member's role; save workspace settings, each under ADR-41's self-grant rule exactly as the screen applies it; and the agent audit surfaced beside the access audit the same readers already see on `workspaces/[workspaceId]` (Code Owner, 2026-10-24).
-- **D9 settings**: change password, regenerate recovery codes (codes to the user only) and re-enrol two-factor as **hand-off** steps into the screen's own controls, which are route handlers rather than server actions and never carry a token; sign out.
+- **D9 settings**: change password and regenerate recovery codes (codes to the user only) as **hand-off** steps into the screen's own controls, which are route handlers rather than server actions and never carry a token; sign out. Two-factor re-enrolment is out of this task until the screen grows the control (Code Owner, 2026-11-01).
 
 **The records this task closes.** In the single PR (Delivery below): ADR-25's "decided, not built" and SEC-17's status line become built, SEC-17's "Verified by (when built)" names the tests that exist, `docs/agent-authoring.md` section 4 is rewritten for the whole surface, `docs/SECURITY_DESIGN.md` section 8's four-tool paragraph is retired, and 038's header drops 080 to 083 from its open dependencies. The ledger rows close in the same PR.
 
