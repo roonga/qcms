@@ -2,6 +2,7 @@
 
 import {
   mintLinksAction,
+  releaseVersionAction,
   revokeLinkAction,
   setFormStatusAction,
   updateSettingsAction,
@@ -23,6 +24,12 @@ function text(value: unknown, fallback = ""): string {
 
 function count(value: unknown): number {
   return typeof value === "number" ? value : Number.parseInt(text(value, "1"), 10) || 1;
+}
+
+/** A whole number, or nothing: a resolved reference arrives as the value its step reported. */
+function whole(value: unknown): number | undefined {
+  const parsed = typeof value === "number" ? value : Number.parseInt(text(value), 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
 
 type StepRunner = (request: RunStepRequest) => Promise<AgentStepResult>;
@@ -86,6 +93,31 @@ const RUNNERS: Readonly<Record<string, StepRunner>> = {
   },
   "form.close": intakeRunner("close"),
   "form.reopen": intakeRunner("reopen"),
+  "form.release": async ({ step, index, args, agentProposal, currentEnvironment }) => {
+    const version = whole(args["version"]);
+    if (version === undefined) {
+      return { outcome: "failed", message: t("agent.card.note.unresolvedReference") };
+    }
+    const state = await releaseVersionAction(
+      text(args["formId"]),
+      currentEnvironment,
+      {
+        version,
+        environment: step.environment,
+        ...(typeof args["fromEnvironment"] === "string"
+          ? { fromEnvironment: args["fromEnvironment"] }
+          : {}),
+      },
+      proposalRef(agentProposal, index),
+    );
+    if (state.status !== "released" || state.version === undefined) {
+      return { outcome: "failed", message: text(state.message) };
+    }
+    return {
+      outcome: "done",
+      result: { version: state.version, environment: state.environment ?? step.environment },
+    };
+  },
   "link.mint": async ({ step, index, args, agentProposal }) => {
     const state = await mintLinksAction(
       text(args["formId"]),

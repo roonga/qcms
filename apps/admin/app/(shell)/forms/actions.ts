@@ -422,16 +422,28 @@ export async function releaseVersionAction(
   input: {
     readonly version: number;
     readonly fromEnvironment?: string;
+    /**
+     * Where the release lands, when that is not the environment the screen is showing. The
+     * release panel omits it; a promotion names it, and the API authorises `release: create`
+     * against the destination rather than against the selection.
+     */
+    readonly environment?: string;
   },
+  proposal?: AgentProposalRef,
 ): Promise<ReleaseState> {
   const session = await requireAdminSession();
   const check = await confirmShownEnvironment(session, shown);
   if (!check.ok) return { status: "error", message: check.message };
-  const result = await releaseVersion(session, formId, {
-    version: input.version,
-    ...(input.fromEnvironment === undefined ? {} : { fromEnvironment: input.fromEnvironment }),
-    environment: check.environment,
-  });
+  const result = await releaseVersion(
+    session,
+    formId,
+    {
+      version: input.version,
+      ...(input.fromEnvironment === undefined ? {} : { fromEnvironment: input.fromEnvironment }),
+      environment: input.environment ?? check.environment,
+    },
+    proposal,
+  );
   if (!result.ok) return { status: "error", message: result.message };
   // The release screen, the version list and the form's own header all describe what is
   // released, so the whole subtree is re-read rather than one route of it.

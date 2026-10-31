@@ -75,6 +75,8 @@ export interface AgentProposal {
   readonly proposedAt: string;
   readonly expiresAt: string;
   readonly formId: string | undefined;
+  /** The environment the switcher named for the turn that proposed this. */
+  readonly currentEnvironment: string;
 }
 
 /**
@@ -344,6 +346,10 @@ function toAgentProposal(raw: unknown): AgentProposal | undefined {
   }
   const token = raw["token"];
   const formId = raw["formId"];
+  const currentEnvironment = raw["currentEnvironment"];
+  // Dropped rather than defaulted: a step that names its own destination is sent with the
+  // selection this turn ran under, and a frame without one could not be confirmed.
+  if (typeof currentEnvironment !== "string" || currentEnvironment === "") return undefined;
   return {
     proposalId,
     token: typeof token === "string" && token !== "" ? token : undefined,
@@ -351,6 +357,7 @@ function toAgentProposal(raw: unknown): AgentProposal | undefined {
     proposedAt,
     expiresAt,
     formId: typeof formId === "string" ? formId : undefined,
+    currentEnvironment,
   };
 }
 

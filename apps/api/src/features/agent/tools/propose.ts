@@ -54,6 +54,12 @@ export interface Proposal {
   readonly proposedAt: string;
   readonly expiresAt: string;
   readonly formId: string | undefined;
+  /**
+   * The environment the switcher named for this turn. A step whose kind acts in its own
+   * argument's environment still runs through the screen's action, which confirms the tab
+   * against the selection, so the card needs the selection as well as the destination.
+   */
+  readonly currentEnvironment: string;
 }
 
 export type ProposeOutcome =
@@ -268,6 +274,7 @@ export async function buildProposal(input: ProposeInput): Promise<ProposeOutcome
       proposedAt: input.issuedAt.toISOString(),
       expiresAt: new Date(input.issuedAt.getTime() + 10 * 60 * 1000).toISOString(),
       formId: input.formId,
+      currentEnvironment: input.current,
     },
   };
 }

@@ -49,6 +49,7 @@ function proposal(
     proposedAt: PROPOSED_AT,
     expiresAt: EXPIRES_AT,
     formId: "frm_a",
+    currentEnvironment: "test",
   };
 }
 

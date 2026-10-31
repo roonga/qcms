@@ -218,11 +218,33 @@ describe("a release bound to the selected environment", () => {
     expect(result.status).toBe("error");
     expect(sent.count).toBe(0);
   });
-  it("uses the shown environment rather than a client-supplied target", async () => {
+  it("releases into the shown environment when the caller names no destination", async () => {
     current.value = resolvedTo("test");
     await forms.releaseVersionAction("frm_a", "test", { version: 1 });
     expect(sent.count).toBe(1);
     expect(sent.environments).toEqual(["test"]);
+  });
+
+  // A promotion names where it lands, which is what lets one plan span two environments.
+  // The destination is still authorised against the caller's own cell at the API.
+  it("releases into the named destination while the tab stays coherent with the selection", async () => {
+    current.value = resolvedTo("test");
+    const state = await forms.releaseVersionAction("frm_a", "test", {
+      version: 3,
+      environment: "prod",
+    });
+    expect(state.status).not.toBe("error");
+    expect(sent.environments).toEqual(["prod"]);
+  });
+
+  it("refuses a named destination on a tab whose selection has moved", async () => {
+    current.value = resolvedTo("test");
+    const state = await forms.releaseVersionAction("frm_a", "prod", {
+      version: 3,
+      environment: "prod",
+    });
+    expect(state.status).toBe("error");
+    expect(sent.count).toBe(0);
   });
 });
 

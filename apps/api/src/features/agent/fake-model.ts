@@ -50,6 +50,7 @@ export const FAKE_SCRIPTS = [
   "propose-form-settings",
   "propose-form-close",
   "propose-form-reopen",
+  "propose-form-release",
 ] as const;
 
 /** Asserted present under `summary` and absent everywhere under `off`. */
@@ -632,6 +633,8 @@ const SINGLE_ACTIONS: Readonly<
     kind: "form.reopen",
     args: { formId: factFormId(prompt) },
   }),
+  "propose-form-release": (prompt) =>
+    releaseStep(factFormId(prompt), factVersion(prompt), "test"),
 };
 
 const INJECTION_REASON =
