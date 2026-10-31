@@ -222,14 +222,17 @@ test("defines a group, walks all three count sources, and round-trips through sa
   // in: the field is marked required, the grid flags the group, and publish refuses with
   // `REPEAT_MAX_MISSING` naming the group rather than the form.
   await waitForSaved(page);
-  await refuseDraftThroughWizard(page, { formId, environment: "test" });
   // The work list is the builder's, which is the only screen whose entry can move focus to
-  // the group it names (Code Owner, 2026-10-31).
-  await page.goto(`/forms/${formId}`);
+  // the group it names (Code Owner, 2026-10-31: the builder's publish dialogs are retired).
+  // Read a rail switch away rather than after a reload, because the panel holds the verdict
+  // the save just produced.
   await openFormDetails(page);
   const rejected = validationPanel(page);
   await expect(issue(rejected, "REPEAT_MAX_MISSING")).toBeVisible({ timeout: 30_000 });
   await expect(rejected).toContainText("only limit on how many instances");
+  // And publish refuses, which is what that count is a claim about.
+  await refuseDraftThroughWizard(page, { formId, environment: "test" });
+  await page.goto(`/forms/${formId}`);
 
   // --- the maximum, the instance heading, and the presentation -------------
   await openGroupPanel(page, GROUP);
@@ -740,12 +743,12 @@ test("filters the column picker to the allowed cell types, and says why (case 62
   // (Q12). This is the side the filter exists to keep an author away from, and the member that
   // reaches it is the one added before the presentation changed.
   await waitForSaveAfter(page, beforeTable);
-  await refuseDraftThroughWizard(page, { formId, environment: "test" });
-  await page.goto(`/forms/${formId}`);
   await openFormDetails(page);
   const rejected = validationPanel(page);
   await expect(issue(rejected, "TABLE_COLUMN_TYPE_NOT_ALLOWED")).toBeVisible({ timeout: 30_000 });
   await expect(rejected).toContainText("presentation to stacked");
+  await refuseDraftThroughWizard(page, { formId, environment: "test" });
+  await page.goto(`/forms/${formId}`);
 
   // --- the way out, taken ------------------------------------------------
   //

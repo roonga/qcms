@@ -157,6 +157,8 @@ test("publishes a draft, verifies it in test, then promotes the same version to 
   ).toBeVisible();
   await expect(destinations.getByRole("checkbox", { name: "prod", exact: true })).toBeDisabled();
   // Cancelling writes nothing, which is the property the whole wizard is built around.
+  // Back first, because leaving is offered on the step that has nothing behind it.
+  await page.getByRole("button", { name: "Back", exact: true }).click();
   await page.getByRole("link", { name: "Cancel", exact: true }).click();
   await page.waitForURL(`**/forms/${formId}/versions`);
   const released = page.getByTestId("qcms-released-now");

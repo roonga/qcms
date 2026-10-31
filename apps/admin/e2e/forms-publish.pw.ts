@@ -477,21 +477,11 @@ test("a refused publish lists every issue and each one moves focus (exit criteri
   // about the validation panel agreeing (`waitForSaveAfter` records why).
   await waitForSaveAfter(page, beforeBreak);
 
-  // The refusal is the wizard's since the builder's publish dialogs were retired (Code
-  // Owner, 2026-10-31), and it is SPOKEN - which a rejection was not before issue #377.
-  // The helper asserts the live region, the sentence, and that the pointer to the work
-  // list is NOT inside the region: a screenful of links read out as one flat interruption
-  // is neither navigable nor wanted.
-  await refuseDraftThroughWizard(page, { formId, environment: "test" });
-  await expect(page.getByTestId("qcms-publish-rejected")).toContainText(
-    /issues? blocks? publishing/u,
-  );
-
   // THE WORK LIST IS THE BUILDER'S, because that is the only screen whose entries can move
-  // focus to the rule, step or pin at fault. The wizard named the count and sent the author
-  // here.
-  await page.getByRole("link", { name: "Open the builder", exact: true }).click();
-  await page.waitForURL(`**/forms/${formId}`);
+  // focus to the rule, step or pin at fault (Code Owner, 2026-10-31: the builder's publish
+  // dialogs are retired, so a refusal no longer renders a list of its own). The panel holds
+  // the verdict the save that broke the rule produced, so this reads it where the author
+  // does - a rail switch away, in the tab that made the edit.
   await openFormDetails(page);
   const rejected = validationPanel(page);
   await expect(issue(rejected, "RULE_BACKWARD_TARGET")).toBeVisible({ timeout: 30_000 });
@@ -521,6 +511,20 @@ test("a refused publish lists every issue and each one moves focus (exit criteri
       `rule-${ruleId}`,
     );
   }).toPass({ timeout: 30_000 });
+
+  // AND THE PUBLISH ITSELF IS REFUSED, which is what the panel's count is a claim about.
+  // The refusal is the wizard's now, and it is SPOKEN - which a rejection was not before
+  // issue #377. The helper asserts the live region, the sentence, and that the pointer to
+  // the work list is NOT inside the region: a screenful of links read out as one flat
+  // interruption is neither navigable nor wanted.
+  await refuseDraftThroughWizard(page, { formId, environment: "test" });
+  await expect(page.getByTestId("qcms-publish-rejected")).toContainText(
+    /issues? blocks? publishing/u,
+  );
+  // And the way back to the list above, from the screen that could not render it.
+  await expect(
+    page.getByRole("link", { name: "Open the builder", exact: true }),
+  ).toHaveAttribute("href", `/forms/${formId}`);
 
   // Nothing was frozen: the version list is still what it was before the attempt.
   await page.goto(`/forms/${formId}/versions`);
