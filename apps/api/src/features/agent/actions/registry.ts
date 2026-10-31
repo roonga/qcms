@@ -70,8 +70,7 @@ export function actionKindForRoute(
   if (first === undefined || (candidates.length === 1 && first.route.bodyMembers === undefined)) {
     return first;
   }
-  const members =
-    typeof body === "object" && body !== null ? Object.keys(body as Record<string, unknown>) : [];
+  const members = typeof body === "object" && body !== null ? Object.keys(body) : [];
   return candidates.find(
     (def) => def.route.bodyMembers !== undefined && sameMembers(def.route.bodyMembers, members),
   );

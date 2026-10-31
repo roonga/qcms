@@ -24,6 +24,8 @@ export interface RunStepRequest {
   readonly args: Readonly<Record<string, unknown>>;
   /** Absent for a hand-off step, which carries no token. */
   readonly agentProposal: string | undefined;
+  /** The selection the turn ran under, which a screen action confirms its tab against. */
+  readonly currentEnvironment: string;
 }
 
 export type RunStep = (request: RunStepRequest) => Promise<AgentStepResult>;
@@ -125,6 +127,7 @@ export async function runPlan(input: RunPlanInput): Promise<AgentCardView> {
         index,
         args,
         agentProposal: input.proposal.token,
+        currentEnvironment: input.proposal.currentEnvironment,
       });
     } catch {
       // A network error is a failure like any other: the plan stops and nothing is retried.

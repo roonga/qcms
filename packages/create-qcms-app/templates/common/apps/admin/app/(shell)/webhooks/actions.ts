@@ -16,6 +16,7 @@ import {
   withdrawEndpointProposal,
   type ConfigureOutcome,
 } from "@/lib/server/webhook-ops";
+import type { AgentProposalRef } from "@/lib/server/agent-proposal";
 import { confirmShownEnvironment } from "@/lib/server/environments";
 import { requireAdminSession } from "@/lib/server/session";
 
@@ -54,11 +55,12 @@ export async function createWebhookAction(
   formId: string,
   shown: string | undefined,
   request: { readonly url: string; readonly active: boolean },
+  proposal?: AgentProposalRef,
 ): Promise<WebhookActionState> {
   const session = await requireAdminSession();
   const check = await confirmShownEnvironment(session, shown);
   if (!check.ok) return { status: "error", message: check.message };
-  const result = await createWebhook(session, formId, request);
+  const result = await createWebhook(session, formId, request, proposal);
   if (!result.ok) {
     return {
       status: "error",
@@ -74,11 +76,12 @@ export async function rotateSecretAction(
   formId: string,
   shown: string | undefined,
   webhookId: string,
+  proposal?: AgentProposalRef,
 ): Promise<WebhookActionState> {
   const session = await requireAdminSession();
   const check = await confirmShownEnvironment(session, shown);
   if (!check.ok) return { status: "error", message: check.message };
-  const result = await rotateWebhookSecret(session, formId, webhookId);
+  const result = await rotateWebhookSecret(session, formId, webhookId, proposal);
   if (!result.ok) {
     return {
       status: "error",
@@ -94,11 +97,12 @@ export async function deactivateWebhookAction(
   formId: string,
   shown: string | undefined,
   webhookId: string,
+  proposal?: AgentProposalRef,
 ): Promise<WebhookActionState> {
   const session = await requireAdminSession();
   const check = await confirmShownEnvironment(session, shown);
   if (!check.ok) return { status: "error", message: check.message };
-  const result = await deactivateWebhook(session, formId, webhookId);
+  const result = await deactivateWebhook(session, formId, webhookId, proposal);
   if (!result.ok) {
     return {
       status: "error",
@@ -114,11 +118,12 @@ export async function reactivateWebhookAction(
   formId: string,
   shown: string | undefined,
   webhookId: string,
+  proposal?: AgentProposalRef,
 ): Promise<WebhookActionState> {
   const session = await requireAdminSession();
   const check = await confirmShownEnvironment(session, shown);
   if (!check.ok) return { status: "error", message: check.message };
-  const result = await reactivateWebhook(session, formId, webhookId);
+  const result = await reactivateWebhook(session, formId, webhookId, proposal);
   if (!result.ok) {
     return {
       status: "error",
@@ -135,11 +140,12 @@ export async function retargetWebhookAction(
   shown: string | undefined,
   webhookId: string,
   url: string,
+  proposal?: AgentProposalRef,
 ): Promise<WebhookActionState> {
   const session = await requireAdminSession();
   const check = await confirmShownEnvironment(session, shown);
   if (!check.ok) return { status: "error", message: check.message };
-  const result = await retargetWebhook(session, formId, webhookId, url);
+  const result = await retargetWebhook(session, formId, webhookId, url, proposal);
   if (!result.ok) {
     return {
       status: "error",
@@ -161,11 +167,12 @@ export async function redeliverAction(
   shown: string | undefined,
   formId: string,
   deliveryId: string,
+  proposal?: AgentProposalRef,
 ): Promise<RedeliverState> {
   const session = await requireAdminSession();
   const check = await confirmShownEnvironment(session, shown);
   if (!check.ok) return { status: "error", message: check.message };
-  const result = await redeliver(session, formId, deliveryId, check.environment);
+  const result = await redeliver(session, formId, deliveryId, check.environment, proposal);
   if (!result.ok) return { status: "error", message: result.message };
   revalidatePath("/webhooks");
   return { status: "done", queued: 1, failed: 0 };

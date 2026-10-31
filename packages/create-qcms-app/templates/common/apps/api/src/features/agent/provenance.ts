@@ -166,7 +166,7 @@ export async function checkProvenance(input: ProvenanceInput): Promise<Provenanc
   // as a window that never opened.
   if (stepIndex > 0 && !withinRunWindow(input)) return refused("AGENT_PROPOSAL_WINDOW");
 
-  const routed = actionKindForRoute(input.facts.method, input.facts.path);
+  const routed = actionKindForRoute(input.facts.method, input.facts.path, input.facts.body);
   if (routed === undefined || routed.kind !== step.kind) return refused("AGENT_PROPOSAL_ROUTE");
 
   if (input.facts.environment !== step.environment) {

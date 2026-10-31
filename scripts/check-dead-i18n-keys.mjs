@@ -36,6 +36,34 @@ export const ALLOWED = {
     "agent.card.link.mint.consequence": "named by the link.mint action-kind descriptor",
     "agent.card.link.revoke.title": "named by the link.revoke action-kind descriptor",
     "agent.card.link.revoke.consequence": "named by the link.revoke action-kind descriptor",
+    "agent.card.form.settings.title": "named by the form.settings action-kind descriptor",
+    "agent.card.form.settings.consequence": "named by the form.settings action-kind descriptor",
+    "agent.card.form.close.title": "named by the form.close action-kind descriptor",
+    "agent.card.form.close.consequence": "named by the form.close action-kind descriptor",
+    "agent.card.form.reopen.title": "named by the form.reopen action-kind descriptor",
+    "agent.card.form.reopen.consequence": "named by the form.reopen action-kind descriptor",
+    "agent.card.response.erase.title": "named by the response.erase action-kind descriptor",
+    "agent.card.response.erase.consequence": "named by the response.erase action-kind descriptor",
+    "agent.card.response.erase.tombstone": "named by the response.erase action-kind descriptor",
+    "agent.card.response.unflag.title": "named by the response.unflag action-kind descriptor",
+    "agent.card.response.unflag.consequence": "named by the response.unflag action-kind descriptor",
+    "agent.card.webhook.create.title": "named by the webhook.create action-kind descriptor",
+    "agent.card.webhook.create.consequence": "named by the webhook.create action-kind descriptor",
+    "agent.card.webhook.create.secret": "named by the webhook.create action-kind descriptor",
+    "agent.card.webhook.rotate.title": "named by the webhook.rotate action-kind descriptor",
+    "agent.card.webhook.rotate.consequence": "named by the webhook.rotate action-kind descriptor",
+    "agent.card.webhook.retarget.title": "named by the webhook.retarget action-kind descriptor",
+    "agent.card.webhook.retarget.consequence":
+      "named by the webhook.retarget action-kind descriptor",
+    "agent.card.webhook.reactivate.title": "named by the webhook.reactivate action-kind descriptor",
+    "agent.card.webhook.reactivate.consequence":
+      "named by the webhook.reactivate action-kind descriptor",
+    "agent.card.webhook.deactivate.title": "named by the webhook.deactivate action-kind descriptor",
+    "agent.card.webhook.deactivate.consequence":
+      "named by the webhook.deactivate action-kind descriptor",
+    "agent.card.webhook.redeliver.title": "named by the webhook.redeliver action-kind descriptor",
+    "agent.card.webhook.redeliver.consequence":
+      "named by the webhook.redeliver action-kind descriptor",
   },
 };
 

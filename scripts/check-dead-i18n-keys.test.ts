@@ -176,19 +176,43 @@ describe("the repository", () => {
   });
 
   it("carries only the action-card exemptions, each with a reason", () => {
-    // An entry claims a key is rendered through a shape the scan cannot read, so the
-    // pinned set is what makes adding a ninth deliberate. These eight are the action
-    // card's keys, which the API's descriptors name rather than any admin literal.
+    // The card renders the keys the API's action-kind descriptors name, so no admin
+    // literal mentions them. Pinned rather than matched by pattern, which is what makes
+    // each screen group's addition a line somebody reviews.
     expect(Object.keys(ALLOWED)).toEqual(["apps/admin"]);
     expect(Object.keys(ALLOWED["apps/admin"] ?? {}).sort()).toEqual([
+      "agent.card.form.close.consequence",
+      "agent.card.form.close.title",
       "agent.card.form.publish.consequence",
       "agent.card.form.publish.title",
       "agent.card.form.release.consequence",
       "agent.card.form.release.title",
+      "agent.card.form.reopen.consequence",
+      "agent.card.form.reopen.title",
+      "agent.card.form.settings.consequence",
+      "agent.card.form.settings.title",
       "agent.card.link.mint.consequence",
       "agent.card.link.mint.title",
       "agent.card.link.revoke.consequence",
       "agent.card.link.revoke.title",
+      "agent.card.response.erase.consequence",
+      "agent.card.response.erase.title",
+      "agent.card.response.erase.tombstone",
+      "agent.card.response.unflag.consequence",
+      "agent.card.response.unflag.title",
+      "agent.card.webhook.create.consequence",
+      "agent.card.webhook.create.secret",
+      "agent.card.webhook.create.title",
+      "agent.card.webhook.deactivate.consequence",
+      "agent.card.webhook.deactivate.title",
+      "agent.card.webhook.reactivate.consequence",
+      "agent.card.webhook.reactivate.title",
+      "agent.card.webhook.redeliver.consequence",
+      "agent.card.webhook.redeliver.title",
+      "agent.card.webhook.retarget.consequence",
+      "agent.card.webhook.retarget.title",
+      "agent.card.webhook.rotate.consequence",
+      "agent.card.webhook.rotate.title",
     ]);
     for (const reason of Object.values(ALLOWED["apps/admin"] ?? {})) {
       expect(reason.trim().length).toBeGreaterThan(20);

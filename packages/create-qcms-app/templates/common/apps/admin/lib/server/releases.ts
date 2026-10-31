@@ -5,6 +5,7 @@ import {
 } from "../forms/release-candidate.ts";
 import { parseReleases, type ReleaseRecord } from "../forms/releases.ts";
 
+import { proposalHeaders, type AgentProposalRef } from "./agent-proposal.ts";
 import { adminApiFetch } from "./api.ts";
 import type { ApiResult } from "./api-result.ts";
 import { readResult } from "./api-result.ts";
@@ -55,11 +56,13 @@ export async function releaseVersion(
     readonly version: number;
     readonly fromEnvironment?: string;
   },
+  proposal?: AgentProposalRef,
 ): Promise<ApiResult<ReleaseRecord>> {
   const result = await readResult<{ release?: unknown }>(
     await adminApiFetch(session, `/forms/${encodeURIComponent(formId)}/releases`, {
       method: "POST",
       body: request,
+      headers: proposalHeaders(proposal),
     }),
   );
   if (!result.ok) return result;

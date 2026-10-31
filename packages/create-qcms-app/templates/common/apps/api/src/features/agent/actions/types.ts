@@ -16,6 +16,13 @@ export interface ActionRoute {
   readonly method: "POST" | "PUT" | "PATCH" | "DELETE";
   /** As `ROUTE_POLICIES` spells it, so the two are checked against one route tree. */
   readonly path: string;
+  /**
+   * The exact set of body members this kind's request carries, for a route that serves
+   * more than one act. One route and one method can mean three different things to an
+   * operator, and each wants its own card; the set is what tells them apart. A body whose
+   * members match no kind resolves to none and is refused.
+   */
+  readonly bodyMembers?: readonly string[];
 }
 
 /** What the provenance middleware hands a descriptor to recompute a step's arguments. */
@@ -38,6 +45,11 @@ export interface ActionCardTemplate {
   readonly consequenceKeys: readonly string[];
   /** The heading-row control the proposal marker sits on, or none. */
   readonly headingControl?: string;
+  /**
+   * The argument whose value the user retypes on the card before Confirm is enabled, for a
+   * step whose own dialog asks for one. The card is never weaker than that dialog.
+   */
+  readonly typedConfirmation?: string;
 }
 
 export interface ActionKindDef {

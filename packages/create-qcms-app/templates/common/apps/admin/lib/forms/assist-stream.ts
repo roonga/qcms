@@ -52,6 +52,8 @@ export interface AgentCardTemplate {
   readonly consequenceKeys: readonly string[];
   /** The heading-row control the proposal marker sits on, or absent for none. */
   readonly headingControl?: string;
+  /** The argument the user retypes on the card, for a step whose dialog asks for one. */
+  readonly typedConfirmation?: string;
 }
 
 export interface AgentPlanStep {
@@ -75,6 +77,8 @@ export interface AgentProposal {
   readonly proposedAt: string;
   readonly expiresAt: string;
   readonly formId: string | undefined;
+  /** The environment the switcher named for the turn that proposed this. */
+  readonly currentEnvironment: string;
 }
 
 /**
@@ -294,10 +298,12 @@ function toCardTemplate(raw: unknown): AgentCardTemplate | undefined {
   const titleKey = raw["titleKey"];
   if (typeof titleKey !== "string" || titleKey === "") return undefined;
   const headingControl = raw["headingControl"];
+  const typedConfirmation = raw["typedConfirmation"];
   return {
     titleKey,
     consequenceKeys: textList(raw["consequenceKeys"]),
     ...(typeof headingControl === "string" ? { headingControl } : {}),
+    ...(typeof typedConfirmation === "string" ? { typedConfirmation } : {}),
   };
 }
 
@@ -344,6 +350,10 @@ function toAgentProposal(raw: unknown): AgentProposal | undefined {
   }
   const token = raw["token"];
   const formId = raw["formId"];
+  const currentEnvironment = raw["currentEnvironment"];
+  // Dropped rather than defaulted: a step that names its own destination is sent with the
+  // selection this turn ran under, and a frame without one could not be confirmed.
+  if (typeof currentEnvironment !== "string" || currentEnvironment === "") return undefined;
   return {
     proposalId,
     token: typeof token === "string" && token !== "" ? token : undefined,
@@ -351,6 +361,7 @@ function toAgentProposal(raw: unknown): AgentProposal | undefined {
     proposedAt,
     expiresAt,
     formId: typeof formId === "string" ? formId : undefined,
+    currentEnvironment,
   };
 }
 

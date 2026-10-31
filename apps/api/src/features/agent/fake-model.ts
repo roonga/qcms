@@ -668,8 +668,7 @@ const SINGLE_ACTIONS: Readonly<
     kind: "form.reopen",
     args: { formId: factFormId(prompt) },
   }),
-  "propose-form-release": (prompt) =>
-    releaseStep(factFormId(prompt), factVersion(prompt), "test"),
+  "propose-form-release": (prompt) => releaseStep(factFormId(prompt), factVersion(prompt), "test"),
   "propose-response-erase": (prompt) => ({
     kind: "response.erase",
     args: {

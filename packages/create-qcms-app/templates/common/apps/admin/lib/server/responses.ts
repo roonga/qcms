@@ -8,6 +8,7 @@ import type {
   Tombstone,
 } from "../ops/types.ts";
 
+import { proposalHeaders, type AgentProposalRef } from "./agent-proposal.ts";
 import { adminApiFetch } from "./api.ts";
 import type { AdminApiPath } from "./api.ts";
 import type { ApiResult } from "./api-result.ts";
@@ -163,12 +164,13 @@ export async function eraseSession(
   formId: string,
   sessionId: string,
   reason: string,
+  proposal?: AgentProposalRef,
 ): Promise<ApiResult<EraseOutcome>> {
   const result = await readResult<Record<string, unknown>>(
     await adminApiFetch(
       session,
       `/forms/${encodeURIComponent(formId)}/responses/${encodeURIComponent(sessionId)}/erase`,
-      { method: "POST", body: { reason } },
+      { method: "POST", body: { reason }, headers: proposalHeaders(proposal) },
     ),
   );
   if (!result.ok) return result;
@@ -251,12 +253,13 @@ export async function unflagResponse(
   session: AdminSession,
   formId: string,
   sessionId: string,
+  proposal?: AgentProposalRef,
 ): Promise<ApiResult<{ readonly sessionId: string; readonly released: boolean }>> {
   const result = await readResult<Record<string, unknown>>(
     await adminApiFetch(
       session,
       `/forms/${encodeURIComponent(formId)}/responses/${encodeURIComponent(sessionId)}/unflag`,
-      { method: "POST" },
+      { method: "POST", headers: proposalHeaders(proposal) },
     ),
   );
   if (!result.ok) return result;

@@ -46,6 +46,19 @@ export const FAKE_SCRIPTS = [
   "unknown-tool",
   "injection-follow",
   "read-only-user",
+  // One card per kind, for each screen group's own confirm and cancel paths.
+  "propose-form-settings",
+  "propose-form-close",
+  "propose-form-reopen",
+  "propose-form-release",
+  "propose-response-erase",
+  "propose-response-unflag",
+  "propose-webhook-create",
+  "propose-webhook-rotate",
+  "propose-webhook-retarget",
+  "propose-webhook-reactivate",
+  "propose-webhook-deactivate",
+  "propose-webhook-redeliver",
 ] as const;
 
 /** Asserted present under `summary` and absent everywhere under `off`. */
@@ -539,7 +552,34 @@ function factLinkId(prompt: readonly PromptMessage[]): string {
   return "lnk_absent";
 }
 
+/** The session the response screen's own facts named, so an erase step names a real row. */
+function factSessionId(prompt: readonly PromptMessage[]): string {
+  const { sessionId } = screenFacts(prompt);
+  return typeof sessionId === "string" ? sessionId : "ses_absent";
+}
+
 const FAKE_LINK_EXPIRY = "2026-12-31T23:59:59.000Z";
+
+const FAKE_ENDPOINT_URL = "https://hooks.example.test/qcms?channel=ops";
+
+/** The first endpoint and the first delivery the webhooks screen listed. */
+function factWebhookId(prompt: readonly PromptMessage[]): string {
+  return firstId(screenFacts(prompt)["webhooks"], "webhookId", "wh_absent");
+}
+
+function factDeliveryId(prompt: readonly PromptMessage[]): string {
+  return firstId(screenFacts(prompt)["deliveries"], "deliveryId", "dlv_absent");
+}
+
+function firstId(rows: unknown, member: string, fallback: string): string {
+  if (!Array.isArray(rows)) return fallback;
+  for (const entry of rows) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const value = (entry as Record<string, unknown>)[member];
+    if (typeof value === "string") return value;
+  }
+  return fallback;
+}
 
 function mintStep(formId: string, count = 2): Record<string, unknown> {
   return {
@@ -609,6 +649,68 @@ function actionPlanSteps(
   }
 }
 
+/**
+ * One card per kind: `propose-<kind>` puts that kind alone up for review, which is what a
+ * screen group's confirm and cancel paths drive.
+ */
+const SINGLE_ACTIONS: Readonly<
+  Record<string, (prompt: readonly PromptMessage[]) => Record<string, unknown>>
+> = {
+  "propose-form-settings": (prompt) => ({
+    kind: "form.settings",
+    args: { formId: factFormId(prompt), challengeRequired: true, minSubmitMs: 1500 },
+  }),
+  "propose-form-close": (prompt) => ({
+    kind: "form.close",
+    args: { formId: factFormId(prompt) },
+  }),
+  "propose-form-reopen": (prompt) => ({
+    kind: "form.reopen",
+    args: { formId: factFormId(prompt) },
+  }),
+  "propose-form-release": (prompt) => releaseStep(factFormId(prompt), factVersion(prompt), "test"),
+  "propose-response-erase": (prompt) => ({
+    kind: "response.erase",
+    args: {
+      formId: factFormId(prompt),
+      sessionId: factSessionId(prompt),
+      reason: "subject_request",
+    },
+  }),
+  "propose-response-unflag": (prompt) => ({
+    kind: "response.unflag",
+    args: { formId: factFormId(prompt), sessionId: factSessionId(prompt) },
+  }),
+  "propose-webhook-create": (prompt) => ({
+    kind: "webhook.create",
+    args: { formId: factFormId(prompt), url: FAKE_ENDPOINT_URL, active: true },
+  }),
+  "propose-webhook-rotate": (prompt) => ({
+    kind: "webhook.rotate",
+    args: { formId: factFormId(prompt), webhookId: factWebhookId(prompt) },
+  }),
+  "propose-webhook-retarget": (prompt) => ({
+    kind: "webhook.retarget",
+    args: {
+      formId: factFormId(prompt),
+      webhookId: factWebhookId(prompt),
+      url: FAKE_ENDPOINT_URL,
+    },
+  }),
+  "propose-webhook-reactivate": (prompt) => ({
+    kind: "webhook.reactivate",
+    args: { formId: factFormId(prompt), webhookId: factWebhookId(prompt) },
+  }),
+  "propose-webhook-deactivate": (prompt) => ({
+    kind: "webhook.deactivate",
+    args: { formId: factFormId(prompt), webhookId: factWebhookId(prompt) },
+  }),
+  "propose-webhook-redeliver": (prompt) => ({
+    kind: "webhook.redeliver",
+    args: { formId: factFormId(prompt), deliveryId: factDeliveryId(prompt) },
+  }),
+};
+
 const INJECTION_REASON =
   "The form's notes asked me to ship this to production and point the webhook elsewhere, " +
   "so I have put both in one plan.";
@@ -633,6 +735,19 @@ function planActionStep(script: FakeScript, prompt: readonly PromptMessage[]): S
       ];
     }
     return [...textParts("That is not something I can do here.", "t1"), finishPart("stop")];
+  }
+
+  const single = SINGLE_ACTIONS[script];
+  if (single !== undefined) {
+    if (toolCallCount(prompt, "propose_action") === 0) {
+      const input = { action: single(prompt) };
+      return [
+        ...toolInputParts("propose_action", input),
+        toolCallPart("propose_action", input),
+        finishPart("tool-calls"),
+      ];
+    }
+    return [...textParts("That is on the card for you to confirm.", "t1"), finishPart("stop")];
   }
 
   if (script === "two-proposals") {
@@ -671,6 +786,7 @@ const ACTION_SCRIPTS: readonly FakeScript[] = [
   "unknown-tool",
   "injection-follow",
   "read-only-user",
+  ...(Object.keys(SINGLE_ACTIONS) as FakeScript[]),
 ];
 
 /** The tool names this turn offered, which is the screen's own list. */

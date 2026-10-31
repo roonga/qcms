@@ -3,12 +3,9 @@ import { z } from "zod";
 import type { ActionKindDef, ActionRequestFacts } from "./types.js";
 
 /**
- * D5's endpoint and dead-letter acts. A created or rotated secret reaches the user's card
- * once and is never allowlisted, so it cannot travel into the next turn (SEC-6, SEC-8).
- *
- * Three of these share one route and method, so each declares the body member set that
- * tells it apart: a configure body that matches none of them resolves to no kind and the
- * step is refused.
+ * A created or rotated secret reaches the user's card once and is on no allowlist, so it
+ * cannot travel into the next turn (SEC-6, SEC-8). Three of these kinds share one route
+ * and method, so each declares the body member set that tells it apart.
  */
 
 const ENDPOINT_PATH = "/admin/forms/{id}/webhooks/{webhookId}";
@@ -63,10 +60,7 @@ export const createWebhook: ActionKindDef = {
   resultAllowlist: ["webhookId", "environment", "active"],
   card: {
     titleKey: "agent.card.webhook.create.title",
-    consequenceKeys: [
-      "agent.card.webhook.create.consequence",
-      "agent.card.webhook.create.secret",
-    ],
+    consequenceKeys: ["agent.card.webhook.create.consequence", "agent.card.webhook.create.secret"],
     headingControl: "webhooks.create",
   },
   description:
@@ -89,10 +83,7 @@ export const rotateWebhookSecret: ActionKindDef = {
   resultAllowlist: ["webhookId", "environment"],
   card: {
     titleKey: "agent.card.webhook.rotate.title",
-    consequenceKeys: [
-      "agent.card.webhook.rotate.consequence",
-      "agent.card.webhook.create.secret",
-    ],
+    consequenceKeys: ["agent.card.webhook.rotate.consequence", "agent.card.webhook.create.secret"],
     headingControl: "webhooks.rotate",
   },
   description:

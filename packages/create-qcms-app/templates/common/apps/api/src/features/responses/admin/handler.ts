@@ -36,6 +36,7 @@ import type { Databases } from "../../../environments.js";
 import type { Deps } from "../../../deps.js";
 import { ApiError } from "../../../errors.js";
 import type { ApiEnv } from "../../../openapi.js";
+import { agentStepSite, writeAgentStep } from "../../agent/audit.js";
 import type { GrantContext } from "../../membership/context.js";
 import { decideAccess } from "../../membership/policy.js";
 import { holdsInstallationClaim, resolveGrants } from "../../membership/resolver.js";
@@ -555,6 +556,10 @@ export function makeEraseHandler(deps: Deps): RouteHandler<typeof eraseRoute, Ap
         });
         return eraseSession(tx, formId, sessionId, reason);
       });
+      // The act is in the environment's database and the step row is in the control one, so
+      // the two cannot share a transaction. The row is written once the erasure has
+      // committed, which keeps the property that matters: a step that failed wrote no row.
+      await writeAgentStep(deps.databases.control, agentStepSite(c), reason, deps.clock.now());
       return c.json(
         {
           sessionId: outcome.sessionId,
@@ -712,6 +717,12 @@ export function makeUnflagHandler(deps: Deps): RouteHandler<typeof unflagRoute, 
         return flipped;
       });
 
+    await writeAgentStep(
+      deps.databases.control,
+      agentStepSite(c),
+      deps.databases.forRequest(c.get("requestEnvironment")).environment,
+      deps.clock.now(),
+    );
     return c.json({ sessionId, released }, 200);
   };
 }

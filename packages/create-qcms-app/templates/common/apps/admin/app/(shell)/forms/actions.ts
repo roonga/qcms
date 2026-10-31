@@ -309,6 +309,7 @@ interface SettingsPatch {
 export async function updateSettingsAction(
   formId: string,
   patch: SettingsPatch,
+  proposal?: AgentProposalRef,
 ): Promise<SettingsState> {
   const session = await requireAdminSession();
   const outgoing: SettingsPatch = {
@@ -321,7 +322,7 @@ export async function updateSettingsAction(
     return { status: "error", message: messageForFormCode("INVALID_FORM_SETTINGS") };
   }
 
-  const result = await updateSettings(session, formId, outgoing);
+  const result = await updateSettings(session, formId, outgoing, proposal);
   if (!result.ok) return { status: "error", message: result.message };
   revalidatePath(`/forms/${formId}`);
   return {
@@ -421,16 +422,28 @@ export async function releaseVersionAction(
   input: {
     readonly version: number;
     readonly fromEnvironment?: string;
+    /**
+     * Where the release lands, when that is not the environment the screen is showing. The
+     * release panel omits it; a promotion names it, and the API authorises `release: create`
+     * against the destination rather than against the selection.
+     */
+    readonly environment?: string;
   },
+  proposal?: AgentProposalRef,
 ): Promise<ReleaseState> {
   const session = await requireAdminSession();
   const check = await confirmShownEnvironment(session, shown);
   if (!check.ok) return { status: "error", message: check.message };
-  const result = await releaseVersion(session, formId, {
-    version: input.version,
-    ...(input.fromEnvironment === undefined ? {} : { fromEnvironment: input.fromEnvironment }),
-    environment: check.environment,
-  });
+  const result = await releaseVersion(
+    session,
+    formId,
+    {
+      version: input.version,
+      ...(input.fromEnvironment === undefined ? {} : { fromEnvironment: input.fromEnvironment }),
+      environment: input.environment ?? check.environment,
+    },
+    proposal,
+  );
   if (!result.ok) return { status: "error", message: result.message };
   // The release screen, the version list and the form's own header all describe what is
   // released, so the whole subtree is re-read rather than one route of it.
@@ -617,11 +630,12 @@ export async function setFormStatusAction(
   formId: string,
   shown: string | undefined,
   action: "close" | "reopen",
+  proposal?: AgentProposalRef,
 ): Promise<FormStatusState> {
   const session = await requireAdminSession();
   const check = await confirmShownEnvironment(session, shown);
   if (!check.ok) return { status: "error", message: check.message };
-  const result = await setFormStatus(session, formId, action, check.environment);
+  const result = await setFormStatus(session, formId, action, check.environment, proposal);
   if (!result.ok) return { status: "error", message: result.message };
   revalidatePath("/forms");
   // "layout", for the reason `saveDraftAction` records: closing a form changes the header

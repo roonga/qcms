@@ -2160,9 +2160,46 @@ export const messages = {
   "agent.card.form.release.title": "Release version {version} of {formId} to {environment}",
   "agent.card.form.release.consequence":
     "Respondents starting from now get this version in {environment}.",
+  "agent.card.form.settings.title": "Change the form settings of {formId}",
+  "agent.card.form.settings.consequence":
+    "Abuse controls for this form. They apply the next time it is published.",
+  "agent.card.form.close.title": "Close {formId} to new sessions in {environment}",
+  "agent.card.form.close.consequence":
+    "No one can start this form in {environment} after it closes. Every other environment is unaffected: a test run keeps going if one is under way. Sessions already under way here keep going too and finish on the version they pinned (R1); their answers are unaffected.",
+  "agent.card.form.reopen.title": "Reopen {formId} in {environment}",
+  "agent.card.form.reopen.consequence":
+    "New sessions can start in {environment} again, on the version released there.",
+  "agent.card.webhook.create.title": "Add a delivery endpoint at {url}",
+  "agent.card.webhook.create.consequence":
+    "This form's events are delivered to that URL in {environment}, signed with a secret.",
+  "agent.card.webhook.create.secret":
+    "The signing secret is shown here once. It cannot be read again, and it never reaches the assistant.",
+  "agent.card.webhook.rotate.title": "Rotate the signing secret of endpoint {webhookId}",
+  "agent.card.webhook.rotate.consequence":
+    "Every consumer verifying with the old secret starts rejecting the moment the next delivery is signed.",
+  "agent.card.webhook.retarget.title": "Point endpoint {webhookId} at {url}",
+  "agent.card.webhook.retarget.consequence":
+    "Deliveries go to the new URL from now on. Nothing already in flight is re-aimed.",
+  "agent.card.webhook.reactivate.title": "Put endpoint {webhookId} back in service",
+  "agent.card.webhook.reactivate.consequence":
+    "Deliveries to that endpoint resume in {environment}.",
+  "agent.card.webhook.deactivate.title": "Stop delivering to endpoint {webhookId}",
+  "agent.card.webhook.deactivate.consequence":
+    "The endpoint and its delivery history stay. A delivery already in flight keeps its own retry state.",
+  "agent.card.webhook.redeliver.title": "Redeliver {deliveryId}",
+  "agent.card.webhook.redeliver.consequence":
+    "The delivery is reset to due-now and the worker attempts it again.",
   "agent.card.link.mint.title": "Mint {count} respondent links for {formId}",
   "agent.card.link.mint.consequence":
     "Each link opens this form for one respondent. The URLs are shown to you once and cannot be read again.",
+  "agent.card.response.erase.title": "Erase the respondent data for {sessionId}",
+  "agent.card.response.erase.consequence":
+    "The answers and the submission are deleted. There is no undo, no archive and no restore.",
+  "agent.card.response.erase.tombstone":
+    "A tombstone records that the session existed, who erased it, when and why. It carries no answer.",
+  "agent.card.response.unflag.title": "Release the withheld submission for {sessionId}",
+  "agent.card.response.unflag.consequence":
+    "The withheld submission event is sent to this form's consumers. The response itself is unchanged.",
   "agent.card.link.revoke.title": "Revoke link {linkId}",
   "agent.card.link.revoke.consequence":
     "The link stops working from now on. A session already in progress is unaffected.",
@@ -2181,6 +2218,15 @@ export const messages = {
   "agent.card.arg.environment": "Environment",
   "agent.card.arg.fromEnvironment": "Promoted from",
   "agent.card.arg.linkId": "Link",
+  "agent.card.arg.url": "URL",
+  "agent.card.arg.active": "Delivering",
+  "agent.card.arg.webhookId": "Endpoint",
+  "agent.card.arg.deliveryId": "Delivery",
+  "agent.card.arg.sessionId": "Session",
+  "agent.card.arg.reason": "Reason",
+  "agent.card.arg.challengeRequired": "Require a challenge before answering",
+  "agent.card.arg.minSubmitMs": "Minimum time before a submit is accepted (milliseconds)",
+  "agent.card.arg.unset": "The deployment's own setting",
   "agent.card.arg.yes": "Yes",
   "agent.card.arg.no": "No",
 
@@ -2205,6 +2251,12 @@ export const messages = {
   "agent.card.chip.cancelled": "Cancelled",
   "agent.card.chip.expired": "Expired",
 
+  // The dialog's own cost in front of an act with no inverse, asked for on the card.
+  "agent.card.band.irreversible":
+    "This cannot be undone. Nothing here is archived and nothing can be restored.",
+  "agent.card.revealOnce": "Shown once, here only:",
+  "agent.card.typed.label": "Type the session id to confirm",
+  "agent.card.typed.hint": "Type {value} exactly.",
   "agent.card.confirm": "Confirm",
   "agent.card.confirmAll": "Confirm all {count} steps",
   "agent.card.cancel": "Cancel",

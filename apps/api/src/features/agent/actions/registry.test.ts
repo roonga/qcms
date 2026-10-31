@@ -58,9 +58,11 @@ describe("the action-kind registry", () => {
 
   it("resolves no kind for a shared route whose body matches none of them", () => {
     const path = "/admin/forms/{id}/webhooks/{webhookId}";
-    expect(actionKindForRoute("PUT", path, { url: "https://x.test", active: true })).toBeUndefined();
+    expect(
+      actionKindForRoute("PUT", path, { url: "https://x.test", active: true }),
+    ).toBeUndefined();
     expect(actionKindForRoute("PUT", path, {})).toBeUndefined();
-    expect(actionKindForRoute("PUT", path, undefined)).toBeUndefined();
+    expect(actionKindForRoute("PUT", path)).toBeUndefined();
     expect(actionKindForRoute("PUT", path, { url: "https://x.test" })?.kind).toBe(
       "webhook.retarget",
     );

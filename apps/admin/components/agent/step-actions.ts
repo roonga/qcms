@@ -109,7 +109,7 @@ const RUNNERS: Readonly<Record<string, StepRunner>> = {
           ? { challengeRequired: args["challengeRequired"] }
           : {}),
         ...(typeof args["minSubmitMs"] === "number" || args["minSubmitMs"] === null
-          ? { minSubmitMs: args["minSubmitMs"] as number | null }
+          ? { minSubmitMs: args["minSubmitMs"] }
           : {}),
       },
       proposalRef(agentProposal, index),
@@ -124,9 +124,7 @@ const RUNNERS: Readonly<Record<string, StepRunner>> = {
       // rather than as a number nobody set.
       result: {
         challengeRequired: settings.challengeRequired,
-        ...(typeof settings.minSubmitMs === "number"
-          ? { minSubmitMs: settings.minSubmitMs }
-          : {}),
+        ...(typeof settings.minSubmitMs === "number" ? { minSubmitMs: settings.minSubmitMs } : {}),
         challengeEnforceable: state.challengeEnforceable === true,
       },
     };

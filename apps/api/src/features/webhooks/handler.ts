@@ -207,13 +207,9 @@ async function requireProposal(
   return proposal;
 }
 
-/**
- * One confirmed step's SEC-17 row. The endpoint lives in an environment's database and the
- * row in the control one, so the two cannot share a transaction; the row is written once
- * the act has committed, which keeps the property that a failed step wrote none. A change
- * the two-person rule holds pending is recorded too: it was confirmed and performed, and
- * only its effect waits.
- */
+// The endpoint is in an environment's database and the row in the control one, so the two
+// cannot share a transaction: the row is written once the act has committed, which keeps
+// the property that a failed step wrote none. A change held pending is recorded too.
 async function recordStep(deps: Deps, c: Context<ApiEnv>, webhookId: string): Promise<void> {
   await writeAgentStep(deps.databases.control, agentStepSite(c), webhookId, deps.clock.now());
 }

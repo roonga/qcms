@@ -32,17 +32,22 @@ flag-gated, and streams rather than returning a modelled JSON body.
 
 ## Files
 
-| File                                    | What it is                                                                                                                            |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `types.ts`                              | The `DraftAssistant` port, `AgentContext`, `AssistContext`, `AssistEvent`, `AssistProposal`. The PII boundary is the context's shape. |
-| `screens.ts`                            | The frozen `SCREENS` registry: one row per `(shell)` page, each with its facts schema, context builder, read tools and action kinds.  |
-| `contexts/`                             | The per-screen context builders, grouped by area, each checking its own SEC-3 cell before it reads anything.                          |
-| `tools/registry.ts`                     | The frozen tool registry, the single dispatch door, and the provider tool set built from the current screen's list.                   |
-| `system-prompt.ts`                      | The versioned system prompt, assembled from the kernel's own contracts. Reviewed like code.                                           |
-| `assistant.ts`                          | The `streamText` tool loop, the stop-reason mapping, and the provider selector.                                                       |
-| `fake-model.ts`                         | The deterministic scripted model CI drives, including the hostile scripts.                                                            |
-| `route.ts` / `handler.ts` / `schema.ts` | The flag-gated registrar, the SSE relay and its 15 second keep-alive, the request schema.                                             |
-| `thinking.ts`                           | One function from `QCMS_AGENT_THINKING` to the provider's own options, and nothing vendor-shaped anywhere else (081).                 |
+| File                                    | What it is                                                                                                                                                                            |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `types.ts`                              | The `DraftAssistant` port, `AgentContext`, `AssistContext`, `AssistEvent`, `AssistProposal`. The PII boundary is the context's shape.                                                 |
+| `screens.ts`                            | The frozen `SCREENS` registry: one row per `(shell)` page, each with its facts schema, context builder, read tools and action kinds.                                                  |
+| `contexts/`                             | The per-screen context builders, grouped by area, each checking its own SEC-3 cell before it reads anything.                                                                          |
+| `tools/registry.ts`                     | The frozen tool registry, the single dispatch door, and the provider tool set built from the current screen's list.                                                                   |
+| `system-prompt.ts`                      | The versioned system prompt, assembled from the kernel's own contracts. Reviewed like code.                                                                                           |
+| `assistant.ts`                          | The `streamText` tool loop, the stop-reason mapping, and the provider selector.                                                                                                       |
+| `actions/`                              | One module per action-kind group, each kind's descriptor: its route, cell, argument schema, how the middleware recomputes its arguments, its result allowlist and its card templates. |
+| `proposal-token.ts`                     | The signed proposal token: the ordered step list, each step's argument digest and the environment it acts in.                                                                         |
+| `provenance.ts` / `provenance-mount.ts` | The provenance check and the middleware the admin group mounts it as. It adds provenance and never rights.                                                                            |
+| `audit.ts`                              | The one `control.agent_actions` row a confirmed step writes.                                                                                                                          |
+| `grant-filter.ts`                       | The (kind, environment) pairs a turn is offered, through the evaluator the route middleware uses.                                                                                     |
+| `fake-model.ts`                         | The deterministic scripted model CI drives, including the hostile scripts.                                                                                                            |
+| `route.ts` / `handler.ts` / `schema.ts` | The flag-gated registrar, the SSE relay and its 15 second keep-alive, the request schema.                                                                                             |
+| `thinking.ts`                           | One function from `QCMS_AGENT_THINKING` to the provider's own options, and nothing vendor-shaped anywhere else (081).                                                                 |
 
 ## The registry and the door are security controls
 
@@ -144,10 +149,16 @@ A script is selected by a `#qcms-fake:<script>` directive in a user turn:
 `default`, `rogue-publish`, `rogue-erase`, `rogue-webhook`, `rogue-responses`,
 `refusal`, `provider-error`, `provider-rejected`, `tool-then-provider-error`,
 `tool-error-recovered`, `propose-questions`, `no-proposal`, `length`,
-`step-limit`, `narrate-then-tools`, `reasoning`, `read-all`, and D0's action
+`step-limit`, `narrate-then-tools`, `reasoning`, `read-all`, D0's action
 scripts: `plan-three`, `plan-fails-at-2`, `plan-two-envs`, `plan-pending-at-1`,
 `two-proposals`, `plan-26-steps`, `unknown-tool`, `injection-follow`,
-`read-only-user`.
+`read-only-user`, and one `propose-<kind>` script per screen group's kind, which
+puts that kind alone up for review: `propose-form-settings`,
+`propose-form-close`, `propose-form-reopen`, `propose-form-release`,
+`propose-response-erase`, `propose-response-unflag`, `propose-webhook-create`,
+`propose-webhook-rotate`, `propose-webhook-retarget`,
+`propose-webhook-reactivate`, `propose-webhook-deactivate` and
+`propose-webhook-redeliver`.
 The `rogue-*` scripts
 exist because a hostile model is the threat the allowlist is for, and the only
 honest way to test a refusal is to have something actually attempt the forbidden
@@ -244,3 +255,28 @@ the operator publishes them, which is the resolution step the assistant's own
 narration promises. The builder grid shows an accepted-but-unpublished pin the
 way it shows any unpublished pin, and it resolves fully once the operator
 publishes the question from the library screen.
+
+## One route can serve several acts
+
+A kind is resolved from the request's method and route, because the token binds a
+step to the route it may be sent to. Three endpoint acts share one method and one
+route and differ only in the body, so each declares in `route.bodyMembers` the
+exact member set its request carries, and a configure body matching none of them
+resolves to no kind and is refused. The digest already binds the body, so the
+member set is a second lock rather than the only one.
+
+## A step's row is written where the step's act is not
+
+`control.agent_actions` lives in the control database. Where the act does too - a
+publish, a release, a link, a form's settings or its intake - the row rides the
+act's own transaction, so a step that failed wrote none and the card's report and
+the audit agree.
+
+An erasure, an unflag, an endpoint change and a redelivery act on an
+environment's own database instead, and two pools cannot share one transaction.
+There the row is written once the act has committed. The property that matters is
+unchanged, because it is what the card's report rests on: a step that failed
+wrote no row, and a step the next one orders itself behind is recorded before its
+result reaches the browser. What is given up is only atomicity between the act and
+its own provenance record, which no single-database reading of the design could
+have kept.
