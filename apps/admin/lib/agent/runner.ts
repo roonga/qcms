@@ -35,7 +35,11 @@ export interface RunPlanInput {
   readonly card: AgentCardView;
   readonly runStep: RunStep;
   /** Opens the screen's own control for a hand-off step; the user types the secret there. */
-  readonly onHandOff?: (step: AgentPlanStep, index: number) => void;
+  readonly onHandOff?: (
+    step: AgentPlanStep,
+    index: number,
+    args: Readonly<Record<string, unknown>>,
+  ) => void;
   /** Called after every state change, so the card re-renders as the run proceeds. */
   readonly onChange?: (card: AgentCardView) => void;
   readonly now: () => Date;
@@ -93,7 +97,7 @@ export async function runPlan(input: RunPlanInput): Promise<AgentCardView> {
       // The one step that carries no token: it opens the screen's own control and the user
       // completes it there, so the runner sends nothing and waits.
       emit(startStep(card, index));
-      input.onHandOff?.(step, index);
+      input.onHandOff?.(step, index, resolveArgs(step, card));
       return card;
     }
 

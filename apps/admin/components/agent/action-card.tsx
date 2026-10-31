@@ -42,6 +42,8 @@ import { t, tPlural } from "@/lib/i18n/en";
  */
 
 export interface ActionCardProps {
+  /** The article's element id, when the caller owns it so the marker can link to it. */
+  readonly id?: string;
   readonly proposal: AgentProposal;
   readonly card: AgentCardView;
   /** The model's own words, already clamped by the caller. The one place they appear. */
@@ -271,7 +273,8 @@ function CardFooter(
 
 export function ActionCard(props: ActionCardProps): React.ReactElement {
   const { proposal, card } = props;
-  const base = useId();
+  const generated = useId();
+  const base = props.id ?? generated;
   const titleId = `${base}-title`;
   const resultId = `${base}-result`;
   const headingRef = useRef<HTMLHeadingElement>(null);

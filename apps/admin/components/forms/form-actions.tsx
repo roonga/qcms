@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useState, useTransition } from "react";
 
 import { Alert, Button, Dialog } from "@/components/kit";
+import { HeadingMarker } from "@/components/agent/heading-marker";
 import { useEnvironmentUnknown } from "@/components/environment-scope";
 import type { FormStatusState } from "@/lib/forms/builder-state";
 import { IDLE_FORM_STATUS } from "@/lib/forms/builder-state";
@@ -87,27 +88,31 @@ export function FormActions({
             confirmation can name several destinations, each with its own transition and
             eligibility to read first, and the act writes nothing until its last press. */}
         {canPublish && (
-          <Link
-            className="qcms-button-link"
-            data-testid="qcms-publish-entry"
-            href={`/forms/${encodeURIComponent(formId)}/publish`}
-          >
-            {t("forms.versions.publishEntry")}
-          </Link>
+          <HeadingMarker control="builder.publish">
+            <Link
+              className="qcms-button-link"
+              data-testid="qcms-publish-entry"
+              href={`/forms/${encodeURIComponent(formId)}/publish`}
+            >
+              {t("forms.versions.publishEntry")}
+            </Link>
+          </HeadingMarker>
         )}
-        <Button
-          variant="secondary"
-          size="md"
-          isDisabled={isPending || environmentUnknown}
-          onPress={() => {
-            setLifecycle(IDLE_FORM_STATUS);
-            setDialog(status === "open" ? "close" : "reopen");
-          }}
-        >
-          {status === "open"
-            ? t("forms.lifecycle.close", { environment })
-            : t("forms.lifecycle.reopen", { environment })}
-        </Button>
+        <HeadingMarker control="builder.intake">
+          <Button
+            variant="secondary"
+            size="md"
+            isDisabled={isPending || environmentUnknown}
+            onPress={() => {
+              setLifecycle(IDLE_FORM_STATUS);
+              setDialog(status === "open" ? "close" : "reopen");
+            }}
+          >
+            {status === "open"
+              ? t("forms.lifecycle.close", { environment })
+              : t("forms.lifecycle.reopen", { environment })}
+          </Button>
+        </HeadingMarker>
       </div>
 
       {!lifecycleOnly && workflow?.enabled && !workflow.canPublish && (

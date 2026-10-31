@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useId, useRef, useState, type RefObject } from "react";
 
 import { AssistMark } from "@/components/forms/assist-mark";
 import { AssistMarkdown } from "@/components/forms/assist-markdown";
@@ -12,12 +12,16 @@ import type { ResolvedScreen } from "@/lib/agent/screens";
 import {
   actionResultTurn,
   cancelCard,
+  firstPendingStep,
   initialCard,
   requestStop,
+  showsMarker,
   startRun,
   type AgentCardView,
 } from "@/lib/agent/plan-state";
 import { runPlan } from "@/lib/agent/runner";
+import { stepTitle } from "@/lib/agent/card-copy";
+import { useProposalSeam } from "@/lib/agent/waiting";
 import { readAssistEvents, type AgentProposal } from "@/lib/forms/assist-stream";
 
 import { ActionCard } from "./action-card";
@@ -25,6 +29,19 @@ import { runStepAction } from "./step-actions";
 
 /** The reason is clamped before it reaches the card, and rendered as text there. */
 const MAX_REASON = 280;
+
+/**
+ * A hand-off step's arguments as the screen's own fields take them. Scalars only: an
+ * object or an array in a field is content, and a hand-off fills a form, not a payload.
+ */
+function handOffFields(args: Readonly<Record<string, unknown>>): Readonly<Record<string, string>> {
+  const fields: Record<string, string> = {};
+  for (const [name, value] of Object.entries(args)) {
+    if (typeof value === "string") fields[name] = value;
+    else if (typeof value === "number" || typeof value === "boolean") fields[name] = String(value);
+  }
+  return fields;
+}
 
 import {
   applyTurnEvent,
@@ -117,6 +134,34 @@ function ScreenConversation({
   const [card, setCard] = useState<AgentCardView | undefined>(undefined);
   const abortRef = useRef<AbortController | null>(null);
   const stoppedRef = useRef(false);
+  const seam = useProposalSeam();
+  const publish = seam?.publish;
+  const requestHandOff = seam?.requestHandOff;
+  // The card's own element id, owned here so the heading-row marker can link to it.
+  const cardId = useId();
+
+  /**
+   * The waiting card, published to every screen's heading row. It clears the moment the
+   * card leaves the Proposed state, so no marker outlives the proposal it stands for.
+   */
+  useEffect(() => {
+    if (publish === undefined) return;
+    if (proposal === undefined || card === undefined || !showsMarker(card)) {
+      publish(undefined);
+      return;
+    }
+    const step = proposal.steps[firstPendingStep(card) ?? 0];
+    if (step === undefined) {
+      publish(undefined);
+      return;
+    }
+    const control = step.card.headingControl;
+    publish({
+      cardId,
+      summary: stepTitle(step, {}),
+      ...(control === undefined ? {} : { control }),
+    });
+  }, [card, cardId, proposal, publish]);
 
   useEffect(
     () => () => {
@@ -143,6 +188,13 @@ function ScreenConversation({
       card: started,
       runStep: runStepAction,
       onChange: setCard,
+      // A hand-off step carries no token and sends nothing: Confirm opens that screen's
+      // own control with the non-secret arguments filled, and the user types the secret.
+      onHandOff: (step, _index, args) => {
+        const control = step.card.headingControl;
+        if (control === undefined || requestHandOff === undefined) return;
+        requestHandOff(control, handOffFields(args));
+      },
       now: () => new Date(),
     });
     settle(plan, settled);
@@ -236,6 +288,7 @@ function ScreenConversation({
         {proposal !== undefined && card !== undefined && (
           <li className="qcms-assistant__turn" data-role="assistant">
             <ActionCard
+              id={cardId}
               proposal={proposal}
               card={card}
               reason={reason}

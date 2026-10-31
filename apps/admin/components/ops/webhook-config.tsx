@@ -11,6 +11,7 @@ import type { EndpointProposal, RevealedWebhook, WebhookSummary } from "@/lib/op
 import { unexpected } from "@/lib/ops/unexpected";
 import { OperatorDateTime } from "@/components/operator-time";
 import { t } from "@/lib/i18n/en";
+import { HeadingMarker } from "@/components/agent/heading-marker";
 
 /** What a webhook mutation hands back to this screen. */
 export interface WebhookActionState {
@@ -193,7 +194,14 @@ export function WebhookConfig({
           available - and creation is still available, because it does not depend on the
           list that failed. */}
       {(rows === undefined || rows.length > 0) && (
-        <div>
+        <HeadingMarker
+          control={[
+            "webhooks.create",
+            "webhooks.rotate",
+            "webhooks.retarget",
+            "webhooks.activation",
+          ]}
+        >
           <Button
             variant="primary"
             size="md"
@@ -205,7 +213,7 @@ export function WebhookConfig({
           >
             {t("ops.webhooks.add")}
           </Button>
-        </div>
+        </HeadingMarker>
       )}
 
       {/* The testid exists so the live region itself can be asserted, not just what it

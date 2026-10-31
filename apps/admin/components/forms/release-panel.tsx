@@ -15,6 +15,7 @@ import { IDLE_RELEASE } from "@/lib/forms/builder-state";
 import { PROD_ENVIRONMENT } from "@/lib/environment";
 import { currentReleaseByEnvironment, type ReleaseRecord } from "@/lib/forms/releases";
 import { t } from "@/lib/i18n/en";
+import { HeadingMarker } from "@/components/agent/heading-marker";
 import { unexpected } from "@/lib/ops/unexpected";
 
 /**
@@ -248,29 +249,31 @@ export function ReleasePanel({
       <div className="flex flex-col gap-3">
         <h2 className="text-base font-semibold">{t("forms.releases.currentHeading")}</h2>
         <EnvironmentSummary releases={releases} environments={environments} />
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="primary"
-            size="md"
-            // No environments is the set the shell could not read (A12): nothing to aim at.
-            isDisabled={
-              candidates.length === 0 ||
-              environments.length === 0 ||
-              selectedEnvironment === "" ||
-              isPending ||
-              workflow?.canRelease === false
-            }
-            onPress={() => {
-              setState(IDLE_RELEASE);
-              setVersion(initialVersion);
-              setSource(NO_SOURCE);
-              setReviewedVersion(undefined);
-              setOpen(true);
-            }}
-          >
-            {t("forms.releases.action")}
-          </Button>
-        </div>
+        <HeadingMarker control="releases.release">
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="primary"
+              size="md"
+              // No environments is the set the shell could not read (A12): nothing to aim at.
+              isDisabled={
+                candidates.length === 0 ||
+                environments.length === 0 ||
+                selectedEnvironment === "" ||
+                isPending ||
+                workflow?.canRelease === false
+              }
+              onPress={() => {
+                setState(IDLE_RELEASE);
+                setVersion(initialVersion);
+                setSource(NO_SOURCE);
+                setReviewedVersion(undefined);
+                setOpen(true);
+              }}
+            >
+              {t("forms.releases.action")}
+            </Button>
+          </div>
+        </HeadingMarker>
         {versions.length === 0 && (
           <p className="text-sm text-(--color-text-muted)">{t("forms.releases.notPublished")}</p>
         )}

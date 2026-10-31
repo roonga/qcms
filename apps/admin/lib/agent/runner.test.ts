@@ -170,7 +170,7 @@ describe("runPlan", () => {
     const onHandOff = vi.fn();
     await runPlan({ proposal: plan, card: started(plan), now: () => NOW, runStep, onHandOff });
     expect(runStep).toHaveBeenCalledTimes(1);
-    expect(onHandOff).toHaveBeenCalledWith(handOff, 1);
+    expect(onHandOff).toHaveBeenCalledWith(handOff, 1, handOff.args);
   });
 });
 
