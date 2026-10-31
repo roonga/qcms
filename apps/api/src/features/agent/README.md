@@ -285,6 +285,20 @@ None and two are both refused with `AGENT_PROPOSAL_ENVIRONMENT`. The accepted
 consequence is that a publish releasing nowhere is not proposable: the agent's
 publish always names the environment the new version lands in.
 
+## A create is called through a variant that does not navigate
+
+A library's own creating control ends in a `redirect()`, and a step that navigated the
+page away would lose every step after it without reporting one. So a create kind runs a
+non-redirecting variant of the same action: the same validation, the same route and
+therefore the same grant check, the same audit path, and the new id returned as the one
+result a later step may reference (Code Owner, 2026-11-01). The screen's own control still
+redirects, and the card shows a link to what it made, built from the kind's own page route
+so it can never point at a route handler.
+
+One member of the request is unbound by the digest on purpose: `POST /admin/forms` carries
+a `formId` the admin derives from the slug with the function the screen uses, and the model
+never names it, so binding the slug binds everything a proposal can choose.
+
 ## A step's row is written where the step's act is not
 
 `control.agent_actions` lives in the control database. Where the act does too - a

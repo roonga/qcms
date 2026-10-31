@@ -26,6 +26,17 @@ export interface CreateFormState {
 export const IDLE_CREATE_FORM: CreateFormState = { status: "idle" };
 
 /**
+ * The same create, answered rather than navigated away from, for the card variant a
+ * proposal confirms (SEC-17: a step that redirected would lose the steps after it).
+ */
+export interface CreateFormCardState {
+  readonly status: "created" | "error";
+  readonly formId?: string;
+  readonly slug?: string;
+  readonly message?: string;
+}
+
+/**
  * The result of one autosave.
  *
  * `issues` is populated on success too, and that is 022's advisory-save semantics rather

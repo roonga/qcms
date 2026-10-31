@@ -28,6 +28,8 @@ export const ALLOWED = {
     // The card renders `t(step.card.titleKey)` and each consequence key the step carries,
     // and those keys are named by the API's action-kind descriptors rather than by any
     // literal here. `actions/registry.test.ts` pins each descriptor's keys to its kind.
+    "agent.card.form.create.title": "named by the form.create action-kind descriptor",
+    "agent.card.form.create.consequence": "named by the form.create action-kind descriptor",
     "agent.card.form.publish.title": "named by the form.publish action-kind descriptor",
     "agent.card.form.publish.consequence": "named by the form.publish action-kind descriptor",
     "agent.card.form.release.title": "named by the form.release action-kind descriptor",

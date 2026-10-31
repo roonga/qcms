@@ -2,7 +2,8 @@ import type { AgentPlanStep } from "../forms/assist-stream.ts";
 import { PROD_ENVIRONMENT } from "../environment.ts";
 import { t, type MessageKey } from "../i18n/en.ts";
 
-import type { ReportedResults } from "./plan-state.ts";
+import type { ReportedResults, StepResultFields } from "./plan-state.ts";
+import { adminPageHref } from "./screens.ts";
 
 /**
  * What one step of a card says, from the step's kind, its structured arguments and the
@@ -27,6 +28,20 @@ export interface StepArgumentLine {
  */
 const ARGUMENT_ORDER: readonly string[] = [
   "formId",
+  "questionId",
+  "slug",
+  "defaultLocale",
+  "workspaceId",
+  "teamId",
+  "userId",
+  "email",
+  "name",
+  "role",
+  "label",
+  "environments",
+  "forms",
+  "requireSecondApprover",
+  "seedNewEditorsWithTestData",
   "version",
   "environment",
   "fromEnvironment",
@@ -50,6 +65,11 @@ const ARGUMENT_ORDER: readonly string[] = [
 
 const MONO_ARGUMENTS: ReadonlySet<string> = new Set([
   "formId",
+  "questionId",
+  "slug",
+  "workspaceId",
+  "teamId",
+  "userId",
   "linkId",
   "sessionId",
   "webhookId",
@@ -221,6 +241,23 @@ export function isProductionStep(step: AgentPlanStep): boolean {
 
 export function productionSentence(): string {
   return t("agent.card.environment.production");
+}
+
+/**
+ * The page route a finished create step links its new item at, or nothing. The href is
+ * built from the kind's own screen pattern and run through the page-route allowlist, so a
+ * card can only ever link where a `(shell)` page serves.
+ */
+export function createdHref(
+  step: AgentPlanStep,
+  result: StepResultFields | undefined,
+): string | undefined {
+  const link = step.card.createdLink;
+  if (link === undefined || result === undefined) return undefined;
+  const id = result[link.field];
+  if (typeof id !== "string" || id === "") return undefined;
+  const path = link.screen.replace(/\[[^\]]+\]/u, encodeURIComponent(id));
+  return adminPageHref(path);
 }
 
 /** Whole minutes left before the card expires, floored, and never below zero. */

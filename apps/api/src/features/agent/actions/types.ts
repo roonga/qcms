@@ -46,6 +46,15 @@ export interface ActionCardTemplate {
   /** The heading-row control the proposal marker sits on, or none. */
   readonly headingControl?: string;
   /**
+   * For a kind that creates something: the page route the card links the new item at, and
+   * the result field that fills the route's own id. A page route only, so a card can never
+   * link at a route handler (review finding B3).
+   */
+  readonly createdLink?: {
+    readonly screen: ScreenId;
+    readonly field: string;
+  };
+  /**
    * The argument whose value the user retypes on the card before Confirm is enabled, for a
    * step whose own dialog asks for one. The card is never weaker than that dialog.
    */

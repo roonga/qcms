@@ -2154,6 +2154,9 @@ export const messages = {
   // `agent.title`, so a screen reader reads "Assistant Reason".
   "agent.card.reasonLabel": "Reason",
 
+  "agent.card.form.create.title": "Create the form {slug}",
+  "agent.card.form.create.consequence":
+    "The form and an empty first draft are created. Its id is minted from the slug once and never changes, and no respondent can reach it until it is published and released.",
   "agent.card.form.publish.title":
     "Publish {formId} as a new version and release it to {environment}",
   "agent.card.form.publish.consequence":
@@ -2234,7 +2237,11 @@ export const messages = {
   // The same reference in a title, which is one sentence rather than a line of its own.
   "agent.card.fromStepShort": "step {step}'s {field}",
 
+  "agent.card.openCreated": "Open what this created",
   "agent.card.arg.formId": "Form",
+  "agent.card.arg.slug": "Slug",
+  "agent.card.arg.defaultLocale": "Authoring locale",
+  "agent.card.arg.label": "Label",
   "agent.card.arg.count": "How many",
   "agent.card.arg.expiresAt": "Stops working",
   "agent.card.arg.oneTime": "One respondent each",

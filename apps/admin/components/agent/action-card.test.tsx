@@ -288,6 +288,52 @@ describe("the step states", () => {
   });
 });
 
+describe("a create step's link to what it made", () => {
+  const CREATE_FORM = step({
+    kind: "form.create",
+    screen: "/forms",
+    args: { slug: "quote", defaultLocale: "en" },
+    card: {
+      titleKey: "agent.card.form.create.title",
+      consequenceKeys: ["agent.card.form.create.consequence"],
+      headingControl: "forms.create",
+      createdLink: { screen: "/forms/[formId]", field: "formId" },
+    },
+    resultAllowlist: ["formId", "slug"],
+  });
+
+  function createdCard(result: Record<string, string>): AgentCardView {
+    const plan = proposal([CREATE_FORM]);
+    return settleStep(
+      startRun(initialCard(plan, NOW)),
+      0,
+      CREATE_FORM,
+      { outcome: "done", result },
+      PROPOSED_AT,
+    );
+  }
+
+  it("offers no link until the step has run", () => {
+    const plan = proposal([CREATE_FORM]);
+    renderCard(plan, initialCard(plan, NOW));
+    expect(screen.queryByRole("link", { name: "Open what this created" })).toBeNull();
+  });
+
+  it("links the new item at its page route once the step reports its id", () => {
+    const plan = proposal([CREATE_FORM]);
+    renderCard(plan, createdCard({ formId: "frm_quote", slug: "quote" }));
+    expect(screen.getByRole("link", { name: "Open what this created" }).getAttribute("href")).toBe(
+      "/forms/frm_quote",
+    );
+  });
+
+  it("renders no link for an id no page route serves", () => {
+    const plan = proposal([CREATE_FORM]);
+    renderCard(plan, createdCard({ formId: "../../etc", slug: "quote" }));
+    expect(screen.queryByRole("link", { name: "Open what this created" })).toBeNull();
+  });
+});
+
 describe("focus and the live region", () => {
   it("leaves focus alone unless it was already inside the panel", () => {
     const plan = proposal([step()]);

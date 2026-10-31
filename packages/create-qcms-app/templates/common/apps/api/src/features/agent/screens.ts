@@ -87,8 +87,8 @@ function screen(
 
 /** Frozen so nothing can graft a screen, a tool or an action kind on at runtime. */
 export const SCREENS: Readonly<Record<ScreenId, ScreenDef>> = Object.freeze({
-  "/forms": screen(authoringContexts.formsList),
-  "/forms/new": screen(authoringContexts.newForm),
+  "/forms": screen(authoringContexts.formsList, [], ["form.create"]),
+  "/forms/new": screen(authoringContexts.newForm, [], ["form.create"]),
   "/forms/[formId]": screen(authoringContexts.builder, DRAFT_TOOLS, [
     "form.publish",
     "form.settings",

@@ -86,13 +86,25 @@ describe("the screen registry", () => {
     expect(isScreenId("/sign-in")).toBe(false);
   });
 
-  it("declares only registered action kinds, each on the screen whose control it mirrors", () => {
+  it("declares only registered action kinds, each mirroring a control on a screen that offers it", () => {
     for (const id of SCREEN_IDS) {
       for (const kind of SCREENS[id].actionKinds) {
         expect(ACTION_KIND_NAMES).toContain(kind);
-        expect(actionKind(kind)?.screen).toBe(id);
+        // The descriptor names one screen, which is where its marker shows and what its
+        // audit row records. A kind offered on a second screen still mirrors that one
+        // control: the two library creates reach the same act from the list and from the
+        // creating screen.
+        const mirror = actionKind(kind)?.screen;
+        expect(mirror, kind).toBeDefined();
+        expect(SCREENS[mirror as ScreenId].actionKinds, kind).toContain(kind);
       }
     }
+  });
+
+  it("offers the form create from the library and from the creating screen, mirroring the library's control", () => {
+    expect(SCREENS["/forms"].actionKinds).toEqual(["form.create"]);
+    expect(SCREENS["/forms/new"].actionKinds).toEqual(["form.create"]);
+    expect(actionKind("form.create")?.screen).toBe("/forms");
   });
 
   it("carries each screen's own kinds on the builder, the releases screen and the links screen", () => {

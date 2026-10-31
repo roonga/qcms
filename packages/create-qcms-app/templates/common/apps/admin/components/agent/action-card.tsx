@@ -5,6 +5,7 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { AssistMark } from "@/components/forms/assist-mark";
 import type { AgentPlanStep, AgentProposal } from "@/lib/forms/assist-stream";
 import {
+  createdHref,
   hasIrreversibleStep,
   isProductionStep,
   isTypedConfirmed,
@@ -372,6 +373,15 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
                 </p>
                 {view?.message === undefined ? null : (
                   <p className="qcms-acard__note">{view.message}</p>
+                )}
+                {/* A create step's screen control redirects; this card does not, so the
+                    new item arrives as a link the user may follow when they choose. */}
+                {createdHref(step, view?.result) === undefined ? null : (
+                  <p className="qcms-acard__note">
+                    <a className="qcms-acard__link" href={createdHref(step, view?.result)}>
+                      {t("agent.card.openCreated")}
+                    </a>
+                  </p>
                 )}
                 {/* Shown once, as the screen shows it. It reaches no later turn. */}
                 {view?.revealed === undefined ? null : (

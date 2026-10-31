@@ -54,6 +54,14 @@ export interface AgentCardTemplate {
   readonly headingControl?: string;
   /** The argument the user retypes on the card, for a step whose dialog asks for one. */
   readonly typedConfirmation?: string;
+  /** For a create kind: the page route the card links the new item at, and the result
+   * field that fills the route's own id. */
+  readonly createdLink?: AgentCreatedLink;
+}
+
+export interface AgentCreatedLink {
+  readonly screen: string;
+  readonly field: string;
 }
 
 export interface AgentPlanStep {
@@ -293,17 +301,27 @@ function textList(raw: unknown): readonly string[] {
     : [];
 }
 
+function toCreatedLink(raw: unknown): AgentCreatedLink | undefined {
+  if (!isKeyedObject(raw)) return undefined;
+  const screen = raw["screen"];
+  const field = raw["field"];
+  if (typeof screen !== "string" || screen === "") return undefined;
+  return typeof field === "string" && field !== "" ? { screen, field } : undefined;
+}
+
 function toCardTemplate(raw: unknown): AgentCardTemplate | undefined {
   if (!isKeyedObject(raw)) return undefined;
   const titleKey = raw["titleKey"];
   if (typeof titleKey !== "string" || titleKey === "") return undefined;
   const headingControl = raw["headingControl"];
   const typedConfirmation = raw["typedConfirmation"];
+  const createdLink = toCreatedLink(raw["createdLink"]);
   return {
     titleKey,
     consequenceKeys: textList(raw["consequenceKeys"]),
     ...(typeof headingControl === "string" ? { headingControl } : {}),
     ...(typeof typedConfirmation === "string" ? { typedConfirmation } : {}),
+    ...(createdLink === undefined ? {} : { createdLink }),
   };
 }
 

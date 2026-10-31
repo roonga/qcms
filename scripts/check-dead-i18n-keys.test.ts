@@ -191,6 +191,8 @@ describe("the repository", () => {
       "agent.card.access.revoke.title",
       "agent.card.form.close.consequence",
       "agent.card.form.close.title",
+      "agent.card.form.create.consequence",
+      "agent.card.form.create.title",
       "agent.card.form.publish.consequence",
       "agent.card.form.publish.title",
       "agent.card.form.release.consequence",

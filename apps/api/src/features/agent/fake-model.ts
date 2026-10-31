@@ -14,7 +14,10 @@ const DIRECTIVE = "#qcms-fake:";
 /** The browser suite shares one database, so a spec can pin its own fixtures. */
 const SEARCH_DIRECTIVE = "#qcms-fake-search:";
 
-/** A `questionId` is never reused, so a canned id would work for exactly one run. */
+/**
+ * A `questionId` and a form slug are never reused, so a canned one would work for exactly
+ * one run. The directive names the word both are built from.
+ */
 const NEW_QUESTION_DIRECTIVE = "#qcms-fake-new:";
 
 export const FAKE_SCRIPTS = [
@@ -47,6 +50,7 @@ export const FAKE_SCRIPTS = [
   "injection-follow",
   "read-only-user",
   // One card per kind, for each screen group's own confirm and cancel paths.
+  "propose-form-create",
   "propose-form-publish",
   "propose-form-settings",
   "propose-form-close",
@@ -308,10 +312,19 @@ function planRecoveredStep(
 
 /** Sanitised to the `q_[a-z0-9_]+` grammar so a directive word cannot produce a refused id. */
 function newQuestionId(prompt: readonly PromptMessage[]): string {
+  return `q_fake_new_${directiveWord(prompt)}`;
+}
+
+function directiveWord(prompt: readonly PromptMessage[]): string {
   const word = (wordAfter(userText(prompt), NEW_QUESTION_DIRECTIVE) ?? "question")
     .toLowerCase()
     .replace(/[^a-z0-9_]/gu, "");
-  return `q_fake_new_${word === "" ? "question" : word}`;
+  return word === "" ? "question" : word;
+}
+
+/** A slug the create scripts propose, in the grammar a form id is derived from. */
+function newSlug(prompt: readonly PromptMessage[]): string {
+  return `fake-new-${directiveWord(prompt).replaceAll("_", "-")}`;
 }
 
 /**
@@ -684,6 +697,10 @@ function actionPlanSteps(
 const SINGLE_ACTIONS: Readonly<
   Record<string, (prompt: readonly PromptMessage[]) => Record<string, unknown>>
 > = {
+  "propose-form-create": (prompt) => ({
+    kind: "form.create",
+    args: { slug: newSlug(prompt), defaultLocale: "en" },
+  }),
   "propose-form-settings": (prompt) => ({
     kind: "form.settings",
     args: { formId: factFormId(prompt), challengeRequired: true, minSubmitMs: 1500 },

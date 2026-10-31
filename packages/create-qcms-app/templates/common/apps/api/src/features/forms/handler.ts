@@ -470,6 +470,7 @@ export function makeCreateFormHandler(deps: Deps): RouteHandler<typeof createFor
       body.workspaceId,
     );
 
+    const site = agentStepSite(c);
     const created = await deps.databases.control.transaction(async (tx) => {
       try {
         await createForm(tx, { formId, slug: body.slug, workspaceId, defaultLocale: locale.value });
@@ -482,6 +483,7 @@ export function makeCreateFormHandler(deps: Deps): RouteHandler<typeof createFor
         throw err;
       }
       await upsertDraft(tx, { formId, definition: emptyDraft });
+      await writeAgentStep(tx, site, formId, deps.clock.now());
       return emptyDraft;
     });
 

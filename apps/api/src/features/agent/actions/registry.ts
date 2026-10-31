@@ -4,6 +4,7 @@
  */
 
 import { closeForm, reopenForm, updateFormSettings } from "./forms.js";
+import { createForm } from "./forms-library.js";
 import { mintLinks, revokeLink } from "./links.js";
 import {
   createAccessGroup,
@@ -26,6 +27,7 @@ import {
 } from "./webhooks.js";
 
 const DEFS: readonly ActionKindDef[] = [
+  createForm,
   publishForm,
   releaseVersion,
   updateFormSettings,

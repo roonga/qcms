@@ -141,9 +141,10 @@ describe("the kinds a screen offers", () => {
     expect(editor.map((entry) => entry.kind)).toContain("link.mint");
   });
 
-  it("offers a screen outside a form subtree nothing of the subtree's", () => {
+  it("offers a screen outside a form subtree nothing of the subtree's, only its own", () => {
     const approver = [editorIn(["test", "prod"]), approverIn(["test", "prod"])];
     expect(kindsOn("/operations", approver)).toEqual([]);
-    expect(kindsOn("/forms", approver)).toEqual([]);
+    expect(kindsOn("/forms", approver)).toEqual(["form.create"]);
+    expect(kindsOn("/forms/new", approver)).toEqual(["form.create"]);
   });
 });

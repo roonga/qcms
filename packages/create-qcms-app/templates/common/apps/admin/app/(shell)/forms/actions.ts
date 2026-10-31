@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import type {
+  CreateFormCardState,
   CreateFormState,
   DraftPreviewState,
   FormStatusState,
@@ -47,7 +48,7 @@ import {
   reviewRelease,
 } from "@/lib/server/releases";
 import { confirmShownEnvironment } from "@/lib/server/environments";
-import { requireAdminSession } from "@/lib/server/session";
+import { requireAdminSession, type AdminSession } from "@/lib/server/session";
 
 /**
  * The form builder's mutations (task 033).
@@ -159,8 +160,59 @@ export async function createFormAction(
   const slug = readText(formData, "slug").trim();
   const title = readText(formData, "title").trim();
   const defaultLocale = readText(formData, "defaultLocale").trim();
-  const formId = formIdFromSlug(slug);
-  const submitted = { slug, title, defaultLocale };
+  const created = await createFormIdentity(session, { slug, defaultLocale });
+  if (!created.ok) {
+    return {
+      status: "error",
+      code: created.code,
+      message: created.message,
+      submitted: { slug, title, defaultLocale },
+    };
+  }
+  // Outside any guard on purpose: `redirect` signals by throwing, so it must not sit
+  // anywhere a `catch` could swallow it.
+  redirect(`/forms/${encodeURIComponent(created.formId)}?title=${encodeURIComponent(title)}`);
+}
+
+/**
+ * The same create, answered rather than navigated away from, for the card a proposal
+ * confirms (SEC-17's create-variant ruling): the same validation, the same grant check
+ * through the same route, the same audit path, and the new id as the one result a later
+ * step may reference.
+ */
+export async function createFormForCardAction(
+  input: { readonly slug: string; readonly defaultLocale: string; readonly workspaceId?: string },
+  proposal?: AgentProposalRef,
+): Promise<CreateFormCardState> {
+  const session = await requireAdminSession();
+  const slug = input.slug.trim();
+  const created = await createFormIdentity(
+    session,
+    {
+      slug,
+      defaultLocale: input.defaultLocale.trim(),
+      ...(input.workspaceId === undefined ? {} : { workspaceId: input.workspaceId }),
+    },
+    proposal,
+  );
+  if (!created.ok) return { status: "error", message: created.message };
+  return { status: "created", formId: created.formId, slug };
+}
+
+type CreatedForm =
+  | { readonly ok: true; readonly formId: string }
+  | { readonly ok: false; readonly code: string; readonly message: string };
+
+/**
+ * The validation and the call both callers share. The id is derived here rather than
+ * taken from the caller, which is why a proposal's digest need only bind the slug.
+ */
+async function createFormIdentity(
+  session: AdminSession,
+  input: { readonly slug: string; readonly defaultLocale: string; readonly workspaceId?: string },
+  proposal?: AgentProposalRef,
+): Promise<CreatedForm> {
+  const formId = formIdFromSlug(input.slug);
 
   // Two distinct failures, kept distinct: a slug that yields no id and a blank default
   // locale are different mistakes on different fields, and the catalog already has a
@@ -169,29 +221,32 @@ export async function createFormAction(
   // mapped but unreachable from this screen.
   if (formId === "") {
     return {
-      status: "error",
+      ok: false,
       code: "INVALID_FORM_ID",
       message: messageForFormCode("INVALID_FORM_ID"),
-      submitted,
     };
   }
-  if (defaultLocale === "") {
+  if (input.defaultLocale === "") {
     return {
-      status: "error",
+      ok: false,
       code: "INVALID_DEFAULT_LOCALE",
       message: messageForFormCode("INVALID_DEFAULT_LOCALE"),
-      submitted,
     };
   }
 
-  const result = await createForm(session, { formId, slug, defaultLocale });
-  if (!result.ok) {
-    return { status: "error", code: result.code, message: result.message, submitted };
-  }
+  const result = await createForm(
+    session,
+    {
+      formId,
+      slug: input.slug,
+      defaultLocale: input.defaultLocale,
+      ...(input.workspaceId === undefined ? {} : { workspaceId: input.workspaceId }),
+    },
+    proposal,
+  );
+  if (!result.ok) return { ok: false, code: result.code, message: result.message };
   revalidatePath("/forms");
-  // Outside the guard above on purpose: `redirect` signals by throwing, so it must not
-  // sit anywhere a `catch` could swallow it.
-  redirect(`/forms/${encodeURIComponent(result.data.formId)}?title=${encodeURIComponent(title)}`);
+  return { ok: true, formId: result.data.formId };
 }
 
 /**

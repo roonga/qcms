@@ -106,9 +106,21 @@ export const listAllForms: (session: AdminSession) => Promise<ApiResult<readonly
 /** `POST /admin/forms` - the identity and its empty first draft, in one call. */
 export async function createForm(
   session: AdminSession,
-  body: { readonly formId: string; readonly slug: string; readonly defaultLocale: string },
+  body: {
+    readonly formId: string;
+    readonly slug: string;
+    readonly defaultLocale: string;
+    readonly workspaceId?: string;
+  },
+  proposal?: AgentProposalRef,
 ): Promise<ApiResult<{ readonly formId: string }>> {
-  return read<{ formId: string }>(await adminApiFetch(session, "/forms", { method: "POST", body }));
+  return read<{ formId: string }>(
+    await adminApiFetch(session, "/forms", {
+      method: "POST",
+      body,
+      headers: proposalHeaders(proposal),
+    }),
+  );
 }
 
 // --- the working draft ------------------------------------------------------

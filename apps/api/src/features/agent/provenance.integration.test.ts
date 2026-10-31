@@ -852,6 +852,93 @@ describe("a step's row exists exactly when its own transaction committed (criter
 });
 
 /**
+ * D7's create kind. A create's screen control redirects, so the card calls a variant that
+ * answers instead; what the API sees is the same route, so the same two properties hold
+ * and the new id is the row's detail a later step is checked against.
+ */
+describe("creating a form through a proposal (D7)", () => {
+  function createBody(slug: string): Record<string, unknown> {
+    return { formId: `frm_${slug.replaceAll("-", "_")}`, slug, defaultLocale: "en" };
+  }
+
+  function createArgs(slug: string): Record<string, unknown> {
+    return { slug, defaultLocale: "en" };
+  }
+
+  it("authorises the create identically with and without a token, and only the token writes a row", async () => {
+    const plain = await send({
+      caller: owner,
+      path: "/forms",
+      environment: "prod",
+      body: createBody("prov-create-plain"),
+    });
+    expect(plain.status).toBe(201);
+
+    const slug = "prov-create-proposed";
+    const { token, proposalId } = await mintToken({
+      subject: owner.userId,
+      steps: [await binding("form.create", createArgs(slug), "prod")],
+    });
+    const proposed = await send({
+      caller: owner,
+      path: "/forms",
+      environment: "prod",
+      body: createBody(slug),
+      proposal: { token, step: 0 },
+    });
+    expect(proposed.status).toBe(201);
+    // The detail is the new id, which is what makes it the field a later step references.
+    expect(await rowsFor(proposalId)).toEqual([
+      {
+        step_index: 0,
+        kind: "form.create",
+        environment: "prod",
+        detail: "frm_prov_create_proposed",
+      },
+    ]);
+  });
+
+  it("refuses the create for a caller the route refuses, with the route's own code", async () => {
+    const slug = "prov-create-viewer";
+    const { token, proposalId } = await mintToken({
+      subject: viewer.userId,
+      steps: [await binding("form.create", createArgs(slug), "prod")],
+    });
+    const proposed = await send({
+      caller: viewer,
+      path: "/forms",
+      environment: "prod",
+      body: createBody(slug),
+      proposal: { token, step: 0 },
+    });
+    expect(proposed.status).toBe(403);
+    expect((await errorCode(proposed)).startsWith("AGENT_PROPOSAL_")).toBe(false);
+    expect(await countRows(proposalId)).toBe(0);
+  });
+
+  it("refuses a slug the proposal did not name, and creates nothing", async () => {
+    const { token, proposalId } = await mintToken({
+      subject: owner.userId,
+      steps: [await binding("form.create", createArgs("prov-create-named"), "prod")],
+    });
+    const swapped = await send({
+      caller: owner,
+      path: "/forms",
+      environment: "prod",
+      body: createBody("prov-create-other"),
+      proposal: { token, step: 0 },
+    });
+    expect(swapped.status).toBe(403);
+    expect(await errorCode(swapped)).toBe("AGENT_PROPOSAL_ARGUMENTS");
+    expect(await countRows(proposalId)).toBe(0);
+    const absent = await app.request("/admin/forms/frm_prov_create_other", {
+      headers: headersFor(owner, "prod"),
+    });
+    expect(absent.status).toBe(404);
+  });
+});
+
+/**
  * Last, because it moves the deployment's clock forward and every fixture above shares it.
  * The seeded sessions live an hour, so the two advances here stay inside that.
  */

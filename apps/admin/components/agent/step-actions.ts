@@ -2,6 +2,7 @@
 
 import {
   confirmPublishAction,
+  createFormForCardAction,
   mintLinksAction,
   releaseVersionAction,
   reviewReleaseAction,
@@ -247,6 +248,20 @@ const MEMBERSHIP_RUNNERS: Readonly<Record<string, StepRunner>> = {
 };
 
 const RUNNERS: Readonly<Record<string, StepRunner>> = {
+  "form.create": async ({ index, args, agentProposal }) => {
+    const state = await createFormForCardAction(
+      {
+        slug: text(args["slug"]),
+        defaultLocale: text(args["defaultLocale"]),
+        ...(typeof args["workspaceId"] === "string" ? { workspaceId: args["workspaceId"] } : {}),
+      },
+      proposalRef(agentProposal, index),
+    );
+    if (state.status !== "created" || state.formId === undefined) {
+      return { outcome: "failed", message: text(state.message) };
+    }
+    return { outcome: "done", result: { formId: state.formId, slug: text(state.slug) } };
+  },
   "form.publish": publishStep,
   "form.settings": async ({ index, args, agentProposal }) => {
     const state = await updateSettingsAction(
