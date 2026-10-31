@@ -30,14 +30,13 @@ export async function openPublishWizard(page: Page, formId: string): Promise<voi
  * the box intercepts the press. The assertion still reads the input, because selectedness
  * is what is being asserted.
  */
-export async function chooseDestination(
-  destinations: Locator,
-  environment: string,
-): Promise<void> {
+export async function chooseDestination(destinations: Locator, environment: string): Promise<void> {
   const row = destinations.locator(`div[data-environment="${environment}"]`);
   await expect(row).toHaveAttribute("data-eligible", "true");
   await row.getByText(environment, { exact: true }).click();
-  await expect(destinations.getByRole("checkbox", { name: environment, exact: true })).toBeChecked();
+  await expect(
+    destinations.getByRole("checkbox", { name: environment, exact: true }),
+  ).toBeChecked();
 }
 
 /**

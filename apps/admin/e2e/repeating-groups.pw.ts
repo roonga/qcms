@@ -473,9 +473,12 @@ test("expands a group through the portal's own renderer (case 61)", async ({ pag
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   await expect(page.getByTestId("qcms-publish-review")).toBeVisible();
   await page.getByRole("button", { name: "Confirm", exact: true }).click();
-  await expect(page.getByTestId("qcms-publish-result")).toContainText(/Version \d+ is published\./, {
-    timeout: 60_000,
-  });
+  await expect(page.getByTestId("qcms-publish-result")).toContainText(
+    /Version \d+ is published\./,
+    {
+      timeout: 60_000,
+    },
+  );
 
   // And released where the respondent harness serves: a published version is served
   // nowhere until a release record says where (ADR-40, task 065), and what follows walks

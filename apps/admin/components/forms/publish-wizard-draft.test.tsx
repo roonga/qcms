@@ -85,11 +85,7 @@ describe("the review step of a draft publish", () => {
 
     expect(screen.getByTestId("qcms-freeze-summary").textContent).toBe(
       t("forms.publish.freezes", {
-        steps: tPlural(
-          "forms.publish.freezes.steps.one",
-          "forms.publish.freezes.steps.other",
-          2,
-        ),
+        steps: tPlural("forms.publish.freezes.steps.one", "forms.publish.freezes.steps.other", 2),
         pins: tPlural("forms.publish.freezes.pins.one", "forms.publish.freezes.pins.other", 0),
         rules: tPlural("forms.publish.freezes.rules.one", "forms.publish.freezes.rules.other", 0),
       }),

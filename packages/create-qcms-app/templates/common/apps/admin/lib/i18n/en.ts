@@ -1622,7 +1622,6 @@ export const messages = {
   "forms.tab.publish": "Publish",
 
   "forms.publish.action": "Publish",
-  "forms.publish.title": "Publish {slug}?",
   // Assembled from three counted phrases rather than written as one sentence with three
   // numbers in it, because "Freezes 1 steps, 1 pinned questions, 1 rules." is what the
   // single-sentence version says on a small form - and a small form is what an author
@@ -1634,14 +1633,8 @@ export const messages = {
   "forms.publish.freezes.pins.other": "{count} pinned questions",
   "forms.publish.freezes.rules.one": "1 rule",
   "forms.publish.freezes.rules.other": "{count} rules",
-  "forms.publish.sessions":
-    "New sessions get v{version}. Sessions already under way finish on the version they started (R1).",
   "forms.publish.immutable":
     "A published version is never edited. Your next change starts a fresh draft, seeded from this one.",
-  "forms.publish.confirm": "Publish v{version}",
-  "forms.publish.cancel": "Cancel",
-  "forms.publish.pending": "Publishing...",
-  "forms.publish.noDraft": "There is nothing to publish: this form has no draft.",
   "forms.publish.blocked": "This draft cannot be published yet.",
   "forms.publish.blockedCount": "{count} issues block publishing. Each one links to its cause.",
   // Spoken, not shown (issue #377). The work list below carries the detail and every
@@ -1649,9 +1642,6 @@ export const messages = {
   // did not happen and roughly how much there is to fix - not the list read aloud.
   "forms.publish.blockedAnnounce.one": "Publish blocked: 1 issue to fix, listed below.",
   "forms.publish.blockedAnnounce.other": "Publish blocked: {count} issues to fix, listed below.",
-  "forms.publish.published": "Published as v{version}.",
-  "forms.publish.viewHistory": "View version history",
-  "forms.publish.failed": "The form was not published. {message}",
 
   // Closing is per (form, environment) since task 066 (Q18), and every one of these
   // strings had to say so: "Close this form" read as "everywhere", which is precisely the
@@ -1681,8 +1671,6 @@ export const messages = {
 
   // Releases and promotion (ADR-40, task 065). A release is a RECORD: nothing is copied,
   // nothing is reverted, and rolling back is releasing an earlier version.
-  "forms.releases.intro":
-    "A published version is served nowhere until it is released. Releasing records who released what, when and from where; nothing is copied, and sessions already under way stay on the version they started.",
   "forms.releases.currentHeading": "Released now",
   "forms.releases.currentTable": "The version released to each environment",
   "forms.releases.column.environment": "Environment",
@@ -1838,11 +1826,10 @@ export const messages = {
     "its cause.",
   "forms.publish.wizardBlockedLink": "Open the builder",
 
-  // The combined action finding 2 accepted: one intent is one act. It publishes a real,
+  // The environment-bound release surface. One intent is one act, and it publishes a real,
   // immutable version and keeps it - nothing here skips publishing.
   "forms.workflow.release": "Release v{version} to {environment}",
   "forms.workflow.publishedForm": "Published form",
-  "forms.workflow.noChanges": "No unpublished changes. Edit the draft before publishing again.",
   "forms.workflow.intake": "Intake",
   "forms.workflow.testCandidate": "This version was released to test.",
   "forms.workflow.firstRelease": "v{version} will be the first version released to {environment}.",
@@ -1851,8 +1838,6 @@ export const messages = {
   "forms.workflow.reviewFailed":
     "The published version could not be loaded. Close this confirmation and try again.",
   "forms.workflow.alreadyReleased": "v{version} is already released to {environment}.",
-  "forms.workflow.publish": "Publish to {environment}",
-  "forms.workflow.publishTitle": "Create v{version} and release it to {environment}?",
   "forms.workflow.noPublishPermission":
     "Publishing here requires permission to publish forms and release versions to {environment}.",
   "forms.workflow.noReleasePermission":
@@ -1872,14 +1857,6 @@ export const messages = {
   "forms.workflow.noReleasedVersion":
     "Nothing is released in this environment yet. Select a published version on Releases to review and release it.",
   "forms.workflow.reviewCurrent": "Currently released: v{version}",
-  "forms.publishRelease.action": "Publish and release…",
-  "forms.publishRelease.title": "Publish {slug} and release it to {environment}?",
-  "forms.publishRelease.body":
-    "One act: the new version is frozen and released to {environment} together, or neither happens. New sessions in {environment} start on it; other environments are untouched.",
-  "forms.publishRelease.confirm": "Publish and release to {environment}",
-  "forms.publishRelease.pending": "Publishing and releasing...",
-  "forms.publishRelease.done": "Published as v{version} and released to {environment}.",
-  "forms.publishRelease.failed": "Nothing was published or released. {message}",
 
   "forms.preview.heading": "Preview",
   "forms.preview.banner": "Preview - not published",

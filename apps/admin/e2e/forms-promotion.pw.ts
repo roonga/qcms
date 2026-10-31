@@ -153,7 +153,9 @@ test("publishes a draft, verifies it in test, then promotes the same version to 
     destinations.locator('div[data-environment="prod"][data-eligible="false"]'),
   ).toBeVisible();
   await expect(
-    destinations.locator('div[data-environment="prod"] span[data-code="DRAFT_PUBLISH_NOT_ALLOWED"]'),
+    destinations.locator(
+      'div[data-environment="prod"] span[data-code="DRAFT_PUBLISH_NOT_ALLOWED"]',
+    ),
   ).toBeVisible();
   await expect(destinations.getByRole("checkbox", { name: "prod", exact: true })).toBeDisabled();
   // Cancelling writes nothing, which is the property the whole wizard is built around.

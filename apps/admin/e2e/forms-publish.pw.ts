@@ -522,9 +522,10 @@ test("a refused publish lists every issue and each one moves focus (exit criteri
     /issues? blocks? publishing/u,
   );
   // And the way back to the list above, from the screen that could not render it.
-  await expect(
-    page.getByRole("link", { name: "Open the builder", exact: true }),
-  ).toHaveAttribute("href", `/forms/${formId}`);
+  await expect(page.getByRole("link", { name: "Open the builder", exact: true })).toHaveAttribute(
+    "href",
+    `/forms/${formId}`,
+  );
 
   // Nothing was frozen: the version list is still what it was before the attempt.
   await page.goto(`/forms/${formId}/versions`);
