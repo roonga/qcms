@@ -30,7 +30,7 @@ import { PRODUCTION_ENVIRONMENT } from "../membership/policy.js";
 import { holdsInstallationClaim, resolveGrants } from "../membership/resolver.js";
 import { offeredActionKinds, offersNoAction } from "./grant-filter.js";
 import { buildProposal } from "./tools/propose.js";
-import type { AgentToolName } from "./tools/registry.js";
+import { AGENT_PROPOSE_TOOL_NAMES, type AgentToolName } from "./tools/registry.js";
 import {
   requireCell,
   requireForm,
@@ -38,7 +38,14 @@ import {
   type ScreenBuildInput,
   type ScreenParams,
 } from "./contexts/support.js";
-import { isFormSubtreeScreen, isScreenId, SCREENS, type ScreenId } from "./screens.js";
+import {
+  isFormSubtreeScreen,
+  isScreenId,
+  offerableActionKinds,
+  SCREENS,
+  type ScreenId,
+} from "./screens.js";
+import { actionResultRefusal, type ConversationTurnBody } from "./schema.js";
 import type { acceptProposalRoute, assistRoute, screenAssistRoute } from "./route.js";
 import type {
   AgentContext,
@@ -71,6 +78,8 @@ const fail = {
       400,
       "This route is one form's own, so its turns name a screen of that form's subtree.",
     ),
+  resultNotAllowlisted: (reason: string): ApiError =>
+    new ApiError("ACTION_RESULT_NOT_ALLOWED", 400, reason),
   noWorkspaceForTool: (): ApiError =>
     new ApiError(
       "FORBIDDEN",
@@ -222,7 +231,7 @@ async function actionPorts(args: {
   readonly tools: readonly AgentToolName[];
   readonly ports: Partial<Pick<AgentContext, "propose" | "offeredActionKinds">>;
 }> {
-  const kinds = SCREENS[args.screen].actionKinds;
+  const kinds = offerableActionKinds(args.screen);
   if (kinds.length === 0 || args.workspaceId === undefined) return { tools: [], ports: {} };
 
   const resolved = await resolveGrants(args.deps.databases.control, {
@@ -235,7 +244,7 @@ async function actionPorts(args: {
     grants: resolved.grants,
     environments: args.deps.databases.names,
     current: args.build.environment,
-    kinds,
+    screen: args.screen,
     formId: args.build.params.formId,
   });
   // Present with an empty list rather than absent, so the system prompt can say this user
@@ -244,7 +253,7 @@ async function actionPorts(args: {
 
   const workspace = await getWorkspace(args.deps.databases.control, args.workspaceId);
   return {
-    tools: ["propose_action", "propose_plan"],
+    tools: AGENT_PROPOSE_TOOL_NAMES,
     ports: {
       offeredActionKinds: offered,
       propose: (steps, proposalsThisTurn) =>
@@ -378,6 +387,7 @@ export function makeAssistHandler(deps: Deps): RouteHandler<typeof assistRoute, 
     const formId: FormId = parsedId.value;
 
     const body = c.req.valid("json");
+    requireAllowedResults(body.conversation);
 
     // Falls back to the latest published version, as the builder's own read does;
     // without it a freshly published form would 404 while the builder shows a draft.
@@ -437,6 +447,11 @@ function sseHeaders(): Record<string, string> {
   };
 }
 
+function requireAllowedResults(conversation: readonly ConversationTurnBody[]): void {
+  const refusal = actionResultRefusal(conversation);
+  if (refusal !== undefined) throw fail.resultNotAllowlisted(refusal);
+}
+
 function requireScreen(raw: string): ScreenId {
   if (!isScreenId(raw)) throw fail.unknownScreen();
   return raw;
@@ -462,6 +477,7 @@ export function makeScreenAssistHandler(
 ): RouteHandler<typeof screenAssistRoute, ApiEnv> {
   return async (c) => {
     const body = c.req.valid("json");
+    requireAllowedResults(body.conversation);
     const screen = requireScreen(body.screen);
 
     const controller = new AbortController();

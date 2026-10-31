@@ -26,7 +26,7 @@ import { registerForms } from "../forms/route.js";
 import { aiSdkDraftAssistant } from "./assistant.js";
 import { fakeAssistantModel } from "./fake-model.js";
 import { SCREEN_IDS } from "./screens.js";
-import { AGENT_TOOL_NAMES } from "./tools/registry.js";
+import { AGENT_READ_TOOL_NAMES } from "./tools/registry.js";
 import { registerFormsAssist } from "./route.js";
 import type { AssistEvent } from "./types.js";
 
@@ -735,7 +735,9 @@ describe("every screen's context, with a sentinel in the database", () => {
         }
       }
     }
-    expect([...executed].sort()).toEqual([...AGENT_TOOL_NAMES].sort());
+    // The read tools only: a propose tool puts a card up for the user to confirm, so a
+    // read walk never executes one.
+    expect([...executed].sort()).toEqual([...AGENT_READ_TOOL_NAMES].sort());
   });
 
   it("has the sentinel in the database, so the assertions below are not about an empty one", async () => {

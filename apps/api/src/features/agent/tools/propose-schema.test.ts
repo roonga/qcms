@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { offerableActionKinds } from "../screens.js";
 import { advertisedJsonSchema } from "./registry.js";
 import { proposeActionSchema, proposePlanSchema } from "./propose-schema.js";
 
@@ -59,6 +60,31 @@ describe("the propose tools' advertised schemas", () => {
     const schema = JSON.stringify(await advertisedJsonSchema(proposeActionSchema([])));
     expect(schema).not.toContain("link.mint");
     expect(schema).not.toContain("form.publish");
+  });
+
+  it("accepts one plan spanning the form subtree's screens (Code Owner, 2026-10-31)", () => {
+    const offered = offerableActionKinds("/forms/[formId]/links").map((kind) => ({
+      kind,
+      environments: ["test"],
+    }));
+    const parsed = proposePlanSchema(offered).safeParse({
+      steps: [
+        { kind: "form.publish", args: { formId: "frm_a" } },
+        {
+          kind: "form.release",
+          args: {
+            formId: "frm_a",
+            version: { fromStep: 0, field: "version" },
+            environment: "test",
+          },
+        },
+        {
+          kind: "link.mint",
+          args: { formId: "frm_a", count: 2, expiresAt: "2026-12-01T00:00:00.000Z", oneTime: true },
+        },
+      ],
+    });
+    expect(parsed.success).toBe(true);
   });
 
   it("lets any argument carry a symbolic reference to an earlier step", async () => {

@@ -4,7 +4,14 @@ import { z } from "zod";
 import { REDACT_FRAGMENTS } from "@roonga/qcms-observability";
 
 import { ACTION_KIND_NAMES, actionKind } from "./actions/registry.js";
-import { SCREEN_IDS, SCREENS, isFormSubtreeScreen, isScreenId, type ScreenId } from "./screens.js";
+import {
+  SCREEN_IDS,
+  SCREENS,
+  isFormSubtreeScreen,
+  isScreenId,
+  offerableActionKinds,
+  type ScreenId,
+} from "./screens.js";
 import {
   AGENT_TOOL_NAMES,
   TOOLS,
@@ -124,6 +131,20 @@ describe("the screen registry", () => {
       "/forms/[formId]/responses/[sessionId]",
     ]);
     expect(isFormSubtreeScreen("/forms")).toBe(false);
+  });
+
+  it("offers the whole form subtree's kinds on every form-scoped screen", () => {
+    const subtree = ["form.publish", "form.release", "link.mint", "link.revoke"];
+    for (const id of SCREEN_IDS.filter(isFormSubtreeScreen)) {
+      expect(offerableActionKinds(id), id).toEqual(subtree);
+    }
+  });
+
+  it("keeps a screen outside a form subtree on its own kinds", () => {
+    for (const id of SCREEN_IDS.filter((candidate) => !isFormSubtreeScreen(candidate))) {
+      expect(offerableActionKinds(id), id).toEqual(SCREENS[id].actionKinds);
+    }
+    expect(offerableActionKinds("/operations")).toEqual([]);
   });
 });
 

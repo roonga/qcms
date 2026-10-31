@@ -12,6 +12,7 @@ import {
 } from "../membership/policy.js";
 import { ACTION_KIND_NAMES, actionKind } from "./actions/registry.js";
 import type { ActionKindDef } from "./actions/types.js";
+import { offerableActionKinds, type ScreenId } from "./screens.js";
 
 export interface OfferedActionKind {
   readonly kind: string;
@@ -29,8 +30,11 @@ export interface GrantFilterInput {
   readonly environments: readonly string[];
   /** The environment the switcher named for this turn. */
   readonly current: string;
-  /** The kinds to consider: usually every registered kind. */
-  readonly kinds?: readonly string[];
+  /**
+   * The screen the turn is on, which fixes the kinds to consider through
+   * `offerableActionKinds`. Omitted, every registered kind is considered.
+   */
+  readonly screen?: ScreenId;
   readonly formId?: string | undefined;
 }
 
@@ -60,7 +64,8 @@ function holds(input: GrantFilterInput, def: ActionKindDef, environment: string)
  */
 export function offeredActionKinds(input: GrantFilterInput): readonly OfferedActionKind[] {
   const offered: OfferedActionKind[] = [];
-  for (const name of input.kinds ?? ACTION_KIND_NAMES) {
+  const kinds = input.screen === undefined ? ACTION_KIND_NAMES : offerableActionKinds(input.screen);
+  for (const name of kinds) {
     const def = actionKind(name);
     if (def === undefined) continue;
     if (def.environmentFrom === "switcher") {

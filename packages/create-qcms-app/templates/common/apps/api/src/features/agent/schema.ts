@@ -1,52 +1,53 @@
 import { z } from "@hono/zod-openapi";
 
 import { SavedDraftResponse } from "../forms/schema.js";
-import { actionKind } from "./actions/registry.js";
+import { ACTION_KIND_NAMES, actionKind } from "./actions/registry.js";
 
 export const AssistTurnBody = z.strictObject({
   role: z.enum(["user", "assistant"]),
   content: z.string().min(1).max(8_000),
 });
 
+/** Scalars only: an object or an array is how content smuggles itself into a metadata channel. */
+const ResultValue = z.union([z.string().max(200), z.number(), z.boolean()]);
+
 /**
- * One step's outcome as the next turn learns it (section 5.3). The schema is closed and
- * its result fields are the kind's own allowlist, which is why a minted URL, a webhook
- * secret, a recovery code or an export's bytes cannot travel here (section 7.6, SEC-8).
+ * Every field name any registered kind may report, so the result object is closed rather
+ * than an open map: an undeclared key is refused by the schema, and `stepResultRefusal`
+ * narrows the declared ones to the reporting kind's own list.
  */
-export const ActionStepResultBody = z
-  .strictObject({
-    kind: z.string().min(1).max(100),
-    outcome: z.enum(["done", "failed", "pending-approval", "not-run", "cancelled", "expired"]),
-    /**
-     * The allowlisted non-secret fields, keyed by field name. Scalars only: an object or an
-     * array is how content smuggles itself into a metadata channel.
-     */
-    result: z
-      .record(z.string().max(100), z.union([z.string().max(200), z.number(), z.boolean()]))
-      .optional(),
-  })
-  // Checked here as well as filtered by the card: a client reporting a field outside the
-  // kind's allowlist would be the one path a minted URL or a rotated secret could take
-  // back into the conversation.
-  .superRefine((step, ctx) => {
-    const allowed = actionKind(step.kind)?.resultAllowlist;
-    if (allowed === undefined) {
-      ctx.addIssue({
-        code: "custom",
-        message: `There is no action kind named "${step.kind}".`,
-        path: ["kind"],
-      });
-      return;
+const RESULT_FIELD_NAMES: readonly string[] = [
+  ...new Set(ACTION_KIND_NAMES.flatMap((name) => actionKind(name)?.resultAllowlist ?? [])),
+].sort((a, b) => a.localeCompare(b));
+
+export const ActionStepResultBody = z.strictObject({
+  kind: z.string().min(1).max(100),
+  outcome: z.enum(["done", "failed", "pending-approval", "not-run", "cancelled", "expired"]),
+  result: z
+    .strictObject(
+      Object.fromEntries(RESULT_FIELD_NAMES.map((field) => [field, ResultValue.optional()])),
+    )
+    .optional(),
+});
+
+export type ActionStepResult = z.infer<typeof ActionStepResultBody>;
+
+/**
+ * The per-kind narrowing of one step's reported result, run by the route so the schema
+ * itself stays a plain closed object. Checked server side as well as filtered by the card:
+ * a client reporting a field outside the kind's list would be the one path a minted URL or
+ * a rotated secret could take back into the conversation (section 7.6, SEC-8).
+ */
+export function stepResultRefusal(step: ActionStepResult): string | undefined {
+  const allowed = actionKind(step.kind)?.resultAllowlist;
+  if (allowed === undefined) return `There is no action kind named "${step.kind}".`;
+  for (const field of Object.keys(step.result ?? {})) {
+    if (!allowed.includes(field)) {
+      return `"${step.kind}" does not report a field named "${field}".`;
     }
-    for (const field of Object.keys(step.result ?? {})) {
-      if (allowed.includes(field)) continue;
-      ctx.addIssue({
-        code: "custom",
-        message: `"${step.kind}" does not report a field named "${field}".`,
-        path: ["result", field],
-      });
-    }
-  });
+  }
+  return undefined;
+}
 
 /**
  * The `action-result` turn: what ran, what failed and what did not run, in order. It
@@ -89,6 +90,23 @@ const ScreenParamsBody = z.strictObject({
     })
     .optional(),
 });
+
+export type ConversationTurnBody =
+  z.infer<typeof AssistTurnBody> | z.infer<typeof ActionResultTurnBody>;
+
+/** The first step in the conversation whose reported result is refused, if there is one. */
+export function actionResultRefusal(
+  conversation: readonly ConversationTurnBody[],
+): string | undefined {
+  for (const turn of conversation) {
+    if (turn.role !== "action-result") continue;
+    for (const step of turn.steps) {
+      const refusal = stepResultRefusal(step);
+      if (refusal !== undefined) return refusal;
+    }
+  }
+  return undefined;
+}
 
 // Capped because an unbounded history is an unbounded upstream bill.
 const ConversationBody = z

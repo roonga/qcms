@@ -526,14 +526,16 @@ describe.each(ENVIRONMENTS)(
       const held = await tablePrivileges("control", role);
       const expectedReads = CONTROL_READ_TABLES;
       expect(expectedReads).toHaveLength(6);
-      // The seventh table carries no read: the audit, on which this role holds `INSERT`
-      // alone, so it can neither read, change nor remove a row it wrote.
-      expect(Object.keys(held).sort()).toEqual([...expectedReads, ACCESS_AUDIT_TABLE].sort());
+      // The two audits carry no read: this role holds `INSERT` alone on each, so it can
+      // neither read, change nor remove a row it wrote.
+      expect(Object.keys(held).sort()).toEqual([...expectedReads, ...AUDIT_TABLES].sort());
       for (const table of expectedReads) {
         const expected = table === "secure_links" ? ["SELECT", "UPDATE"] : ["SELECT"];
         expect([...(held[table] ?? [])].sort(), `control.${table}`).toEqual(expected);
       }
-      expect([...(held[ACCESS_AUDIT_TABLE] ?? [])]).toEqual(["INSERT"]);
+      for (const audit of AUDIT_TABLES) {
+        expect([...(held[audit] ?? [])], `control.${audit}`).toEqual(["INSERT"]);
+      }
     });
 
     it("holds nothing at all on the pending prod endpoint change (task 070)", async () => {

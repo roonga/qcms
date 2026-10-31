@@ -313,19 +313,33 @@ describe("a plan reaches the user as one card and runs nothing (criterion 4)", (
   );
 
   it(
-    "refuses a plan whose kinds this screen does not offer, and shows no card (`plan-three`)",
+    "shows `plan-three` as one card from a form screen (Code Owner, 2026-10-31)",
     async () => {
+      const links = await countLinks();
+      const releases = await countReleases();
+      const rows = await countAgentRows();
+
       const events = await turn({
         caller: owner,
         screen: "/forms/[formId]",
         script: "plan-three",
-        formId: BUILDER_FORM_ID,
         conversationId: "cnv_plan_three",
       });
-      // The builder offers `form.publish` alone, so a plan naming the release and mint
-      // kinds never becomes a card. The three-step run itself is
-      // `provenance.integration.test.ts`'s, over the three real routes.
-      expect(proposals(events)).toEqual([]);
+      // A form-scoped screen offers the whole subtree's kinds, so publish, release and
+      // mint are one card. Each step still runs its own screen's action, which
+      // `provenance.integration.test.ts` drives over the three real routes.
+      const [plan, ...rest] = proposals(events);
+      expect(rest).toEqual([]);
+      expect(plan?.type).toBe("plan");
+      expect(plan === undefined ? [] : stepSummary(plan)).toEqual([
+        { kind: "form.publish", environment: "test" },
+        { kind: "form.release", environment: "test" },
+        { kind: "link.mint", environment: "test" },
+      ]);
+      expect(plan?.proposal.steps[1]?.args["version"]).toEqual({ fromStep: 0, field: "version" });
+      expect(await countLinks()).toBe(links);
+      expect(await countReleases()).toBe(releases);
+      expect(await countAgentRows()).toBe(rows);
     },
     CONTAINER_BOOT_TIMEOUT_MS,
   );

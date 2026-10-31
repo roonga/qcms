@@ -7,8 +7,11 @@ import { builderTurnContext, recordingLogger, validEnv } from "../../../test-sup
 import { loadConfig } from "../../../config.js";
 import { aiSdkDraftAssistant, selectDraftAssistant } from "../assistant.js";
 import { fakeAssistantModel } from "../fake-model.js";
+import { SCREENS } from "../screens.js";
 import { collectRefs } from "./tool-schema.js";
 import {
+  AGENT_PROPOSE_TOOL_NAMES,
+  AGENT_READ_TOOL_NAMES,
   AGENT_TOOL_NAMES,
   agentToolJsonSchemas,
   agentToolSet,
@@ -63,6 +66,18 @@ describe("the agent tool registry", () => {
       "search_question_library",
       "validate_draft",
     ]);
+  });
+
+  it("splits the propose tools from the read tools, and names no screen's read list", () => {
+    expect([...AGENT_PROPOSE_TOOL_NAMES].sort()).toEqual(["propose_action", "propose_plan"]);
+    expect([...AGENT_READ_TOOL_NAMES, ...AGENT_PROPOSE_TOOL_NAMES].sort()).toEqual(
+      [...AGENT_TOOL_NAMES].sort(),
+    );
+    for (const screen of Object.values(SCREENS)) {
+      for (const name of screen.readTools) {
+        expect(AGENT_READ_TOOL_NAMES).toContain(name);
+      }
+    }
   });
 
   it("offers the provider the current screen's list and nothing else", () => {

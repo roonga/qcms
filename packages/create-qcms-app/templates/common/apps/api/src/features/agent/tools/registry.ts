@@ -33,6 +33,19 @@ export const AGENT_TOOL_NAMES = [
 
 export type AgentToolName = (typeof AGENT_TOOL_NAMES)[number];
 
+/**
+ * The two tools the grant filter offers, rather than a screen's own read list: they put a
+ * card up for the user to confirm and execute nothing themselves.
+ */
+export const AGENT_PROPOSE_TOOL_NAMES = ["propose_action", "propose_plan"] as const;
+
+const PROPOSE: ReadonlySet<string> = new Set<string>(AGENT_PROPOSE_TOOL_NAMES);
+
+/** Every registered tool that reads: what a screen may declare and a walk can execute. */
+export const AGENT_READ_TOOL_NAMES: readonly AgentToolName[] = AGENT_TOOL_NAMES.filter(
+  (name) => !PROPOSE.has(name),
+);
+
 const REGISTERED: ReadonlySet<string> = new Set<string>(AGENT_TOOL_NAMES);
 
 export function isAgentToolName(name: string): name is AgentToolName {

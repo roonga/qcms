@@ -156,10 +156,11 @@ call.
 The action scripts propose and run nothing: Confirm is the user's and lives on the
 card. Each reads the form, the version and the link it names out of the screen's
 own facts block, so a script names the fixture's rows rather than a canned id. A
-script whose kinds span two screens (`plan-three`, `plan-pending-at-1`) has no
-card to show, because the kinds offered in a turn are the current screen's; the
-three-route run those two describe is asserted in
-`provenance.integration.test.ts` against the real routes.
+script whose kinds span the form subtree (`plan-three`, `plan-pending-at-1`) is
+one card, because a form-scoped screen offers the whole subtree's kinds (Code
+Owner, 2026-10-31); every step still runs its own screen's action, and the
+three-route run is asserted in `provenance.integration.test.ts` against the real
+routes.
 
 `reasoning` emits reasoning parts carrying a sentinel string on **every** round,
 whatever `QCMS_AGENT_THINKING` says, so one script proves both halves of the
