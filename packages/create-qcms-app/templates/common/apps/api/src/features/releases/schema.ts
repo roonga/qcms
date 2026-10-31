@@ -189,6 +189,11 @@ export const ReleaseBatchResponse = z
     releases: z.array(ReleaseRecord),
     /** True when this answer is the stored result of an earlier attempt with the same key. */
     replayed: z.boolean(),
+    /**
+     * True when the confirmation froze the version it reports, false when it released a
+     * version that already existed. Recorded, so a lookup answers it too.
+     */
+    froze: z.boolean(),
   })
   .openapi("ReleaseBatchResponse");
 

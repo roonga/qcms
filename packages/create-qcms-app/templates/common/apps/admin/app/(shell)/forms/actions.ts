@@ -9,8 +9,7 @@ import type {
   FormStatusState,
   MintLinksState,
   PreviewConditionState,
-  PublishReleaseState,
-  PublishState,
+  PublishBatchState,
   ReleaseState,
   RevokeLinkState,
   SaveDraftState,
@@ -21,20 +20,31 @@ import { formIdFromSlug } from "@/lib/forms/draft";
 import { t } from "@/lib/i18n/en";
 import { messageForFormCode } from "@/lib/forms/errors";
 import { readState, type ReadState } from "@/lib/read-state";
-import type { DraftForm, FormVersionSnapshot } from "@/lib/forms/types";
+import type {
+  PublishDestination,
+  PublishIntent,
+  ReleaseReview,
+} from "@/lib/forms/release-candidate";
+import type { DraftForm, FormIssue, FormVersionSnapshot } from "@/lib/forms/types";
 import {
   createForm,
   getFormVersion,
   previewCondition,
   previewDraft,
-  publishForm,
   saveDraft,
   setFormStatus,
   updateSettings,
   validateDraft,
 } from "@/lib/server/forms";
 import { MAX_LINK_BATCH, mintLinks, revokeLink } from "@/lib/server/links";
-import { publishAndRelease, releaseVersion } from "@/lib/server/releases";
+import type { BatchOutcome } from "@/lib/server/releases";
+import {
+  lookupReleaseBatch,
+  publishBatch,
+  releaseBatch,
+  releaseVersion,
+  reviewRelease,
+} from "@/lib/server/releases";
 import { confirmShownEnvironment } from "@/lib/server/environments";
 import { requireAdminSession } from "@/lib/server/session";
 
@@ -375,38 +385,6 @@ export async function previewConditionAction(
 // --- publish, preview, lifecycle and secure links (task 034) ----------------
 
 /**
- * Publish the stored draft: freeze a version (022's aggregate).
- *
- * The draft is **not** sent. Publish reads the stored one on purpose - it is the only
- * operation here that writes something immutable, and freezing a document the server has
- * never seen persisted would make "what was published" a claim about a browser tab. The
- * builder autosaves before opening the confirm dialog, which is what makes those the same
- * document.
- *
- * A 422 is not an error state: it is the kernel's full issue list, which the screen turns
- * into a work list anchored to the offending rule, step or pin.
- */
-export async function publishFormAction(formId: string): Promise<PublishState> {
-  const session = await requireAdminSession();
-  const result = await publishForm(session, formId);
-  if (!result.ok) {
-    if (result.issues.length > 0) {
-      return { status: "rejected", issues: result.issues, message: result.message };
-    }
-    return { status: "error", message: result.message };
-  }
-  revalidatePath("/forms");
-  // "layout": the form's status is in the header of every screen under it, including the
-  // rules route (issue #669). See the note on `saveDraftAction`.
-  revalidatePath(`/forms/${formId}`, "layout");
-  return {
-    status: "published",
-    version: result.data.version,
-    publishedAt: result.data.publishedAt,
-  };
-}
-
-/**
  * Release a published version to an environment, or promote it there (ADR-40, task 065).
  *
  * The environment comes from the **client** here, unlike the form id, and that is correct
@@ -465,40 +443,117 @@ export async function releaseVersionAction(
   };
 }
 
+// --- the publish wizard ------------------------------
+
 /**
- * Publish the open draft and release the new version, in one act (finding 2).
+ * Read what releasing one source would do, per destination this caller may release into.
  *
- * One intent, one act, and **atomically or not at all**: the API writes the version, the
- * release record and the `form.released` event in one transaction, so a refused release
- * leaves no published version behind and the author's draft where they left it. A refused
- * publish comes back as the same work list an ordinary publish's refusal does, because it
- * is the same refusal.
- *
- * `shown` is the environment the dialog named, the switcher's selection when the screen
- * rendered, bound by the page; it is the release's target. A tab that has since been
- * switched elsewhere is refused rather than releasing somewhere the banner in front of the
- * operator no longer describes.
+ * No environment is bound here and none is confirmed against the switcher, deliberately:
+ * the review reports **every** permitted destination and the wizard chooses among them, so
+ * the Operations selector decides operational data and not where a draft is released
+ * (the plan's "Versions and publishing flow"). The API filters the list to the caller's
+ * own `release: create` grants, so a destination outside their access never arrives.
  */
-export async function publishAndReleaseAction(
+export async function reviewReleaseAction(
   formId: string,
-  shown: string | undefined,
-): Promise<PublishReleaseState> {
+  source: { readonly kind: "draft" } | { readonly kind: "version"; readonly version: number },
+): Promise<ReadState<ReleaseReview>> {
   const session = await requireAdminSession();
-  const check = await confirmShownEnvironment(session, shown);
-  if (!check.ok) return { status: "error", message: check.message };
-  const result = await publishAndRelease(session, formId, check.environment);
+  return readState(await reviewRelease(session, formId, source));
+}
+
+/**
+ * Confirm one publish or release: one call, one transaction, every destination or none.
+ *
+ * Its arguments are plain data on purpose - a source, a list of destinations, the two
+ * expectations the review reported and the idempotency key - so the same act can be driven
+ * by the wizard or by another caller that holds the review (task 083). Nothing about the
+ * intent is recovered from component state.
+ *
+ * **The key is minted by the caller and is the whole retry story.** The same key with the
+ * same intent replays the stored result, so a retry after an uncertain response answers
+ * what the first attempt did rather than freezing a second snapshot; the same key with a
+ * different intent is refused. A `STALE_REVIEW` leaves the key free, because only
+ * successes are stored.
+ */
+export async function confirmPublishAction(
+  formId: string,
+  request: {
+    readonly idempotencyKey: string;
+    readonly expectedWorkflowRevision: number | null;
+    readonly source: PublishIntent;
+    readonly targets: readonly PublishDestination[];
+  },
+): Promise<PublishBatchState> {
+  const session = await requireAdminSession();
+  const result =
+    request.source.kind === "draft"
+      ? await publishBatch(session, formId, {
+          idempotencyKey: request.idempotencyKey,
+          expectedWorkflowRevision: request.expectedWorkflowRevision,
+          draftRevision: request.source.draftRevision,
+          targets: request.targets,
+        })
+      : await releaseBatch(session, formId, {
+          idempotencyKey: request.idempotencyKey,
+          expectedWorkflowRevision: request.expectedWorkflowRevision,
+          version: request.source.version,
+          targets: request.targets,
+        });
+  if (!result.ok) return refusedPublish(result);
+  return committedPublish(formId, result.data);
+}
+
+/**
+ * Look one confirmation's recorded result up by its idempotency key.
+ *
+ * The other half of the uncertain-response contract. A 404 means the confirmation never
+ * committed and the same key may be resent, which is `not-committed` rather than an error:
+ * "nothing happened" is an answer the wizard acts on.
+ */
+export async function lookupPublishResultAction(
+  formId: string,
+  idempotencyKey: string,
+): Promise<PublishBatchState> {
+  const session = await requireAdminSession();
+  const result = await lookupReleaseBatch(session, formId, idempotencyKey);
   if (!result.ok) {
-    if (result.issues.length > 0) {
-      return { status: "rejected", issues: result.issues, message: result.message };
+    if (result.code === "RELEASE_BATCH_NOT_FOUND" || result.code === "http_404") {
+      return { status: "not-committed" };
     }
-    return { status: "error", message: result.message };
+    return refusedPublish(result);
   }
+  return committedPublish(formId, result.data);
+}
+
+/** The refusal, with `STALE_REVIEW` kept apart because its recovery is a re-read. */
+function refusedPublish(result: {
+  readonly code: string;
+  readonly message: string;
+  readonly issues: readonly FormIssue[];
+}): PublishBatchState {
+  if (result.code === "STALE_REVIEW") return { status: "stale", message: result.message };
+  if (result.issues.length > 0) {
+    return { status: "rejected", issues: result.issues, message: result.message };
+  }
+  return { status: "error", message: result.message };
+}
+
+/** A committed confirmation. The whole form subtree is re-read: its header says what is released. */
+function committedPublish(formId: string, outcome: BatchOutcome): PublishBatchState {
   revalidatePath("/forms");
+  revalidatePath("/operations");
   revalidatePath(`/forms/${formId}`, "layout");
   return {
-    status: "released",
-    version: result.data.version,
-    environment: result.data.environment,
+    status: "done",
+    version: outcome.version,
+    froze: outcome.froze,
+    replayed: outcome.replayed,
+    releases: outcome.releases.map((release) => ({
+      environment: release.environment,
+      version: release.version,
+      rollback: release.rollback,
+    })),
   };
 }
 

@@ -437,33 +437,6 @@ function parseInstanceOutcomes(raw: unknown): readonly InstanceOutcome[] | undef
 // --- publish, preview, versions and lifecycle (task 034) --------------------
 
 /**
- * `POST /admin/forms/{id}/publish` - freeze a version.
- *
- * The failure this screen exists to render is a 422 whose `details.issues` is the
- * kernel's `PublishError[]` verbatim, which `readFailure` already lifts into
- * `result.issues`. Nothing is decided here and nothing is filtered: publish either
- * happened, or the author gets every reason it did not.
- */
-export async function publishForm(
-  session: AdminSession,
-  formId: string,
-): Promise<ApiResult<{ readonly version: number; readonly publishedAt: string }>> {
-  const result = await read<{ version?: unknown; publishedAt?: unknown }>(
-    await adminApiFetch(session, `/forms/${encodeURIComponent(formId)}/publish`, {
-      method: "POST",
-    }),
-  );
-  if (!result.ok) return result;
-  return {
-    ok: true,
-    data: {
-      version: typeof result.data.version === "number" ? result.data.version : 0,
-      publishedAt: asString(result.data.publishedAt, ""),
-    },
-  };
-}
-
-/**
  * `POST /admin/forms/{id}/draft/preview` - the dry-run compile the preview pane renders.
  *
  * The draft on the author's screen travels with the request (like validate and like the

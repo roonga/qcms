@@ -737,6 +737,33 @@ describe("the second-person rule holds through the batch", () => {
       await clearWorkflow();
     }
   });
+
+  it("reports that refusal in the review, before anything is confirmed", async () => {
+    await clearWorkflow();
+    await setRequireSecondApprover(control, SEED_WORKSPACE_ID, true);
+    try {
+      const formId = await seedForm(0);
+      await saveDraft(publisher.token, formId);
+      const review = await call(publisher.token, "POST", `/forms/${formId}/release-review`, {
+        source: { kind: "draft" },
+      });
+      expect(review.status).toBe(200);
+      const targets = review.body.targets as {
+        environment: string;
+        blockers: { code: string }[];
+        twoPerson: { refusedAsAuthor: boolean };
+      }[];
+      const prod = targets.find((target) => target.environment === "prod");
+      // The publisher of a draft frozen in the confirmation is the confirming account, so
+      // the rule refuses the destination whatever the workflow allows. The wizard disables
+      // it with this reason rather than letting the operator meet a 403.
+      expect(prod?.twoPerson.refusedAsAuthor).toBe(true);
+      expect(prod?.blockers.map((blocker) => blocker.code)).toContain("APPROVER_IS_AUTHOR");
+    } finally {
+      await setRequireSecondApprover(control, SEED_WORKSPACE_ID, false);
+      await clearWorkflow();
+    }
+  });
 });
 
 describe("one confirmation is one transaction", () => {
@@ -1130,6 +1157,25 @@ describe("idempotency and result lookup", () => {
     const looked = await call(editorTest.token, "GET", `/forms/${formId}/release-batches/${key}`);
     expect(looked.status).toBe(200);
     expect(looked.body.version).toBe(first.body.version);
+    // The recorded shape, not a reconstruction: a client that lost its answer cannot tell a
+    // version this confirmation froze from one it released without being told.
+    expect(first.body.froze).toBe(true);
+    expect(looked.body.froze).toBe(true);
+  });
+
+  it("records a release of an existing version as having frozen nothing", async () => {
+    const formId = await seedForm(1);
+    const key = KEYS();
+    const released = await call(editorTest.token, "POST", `/forms/${formId}/release-batch`, {
+      idempotencyKey: key,
+      expectedWorkflowRevision: null,
+      source: { kind: "version", version: 1 },
+      targets: [{ environment: "test", expectedSequence: null }],
+    });
+    expect(released.status).toBe(200);
+    expect(released.body.froze).toBe(false);
+    const looked = await call(editorTest.token, "GET", `/forms/${formId}/release-batches/${key}`);
+    expect(looked.body.froze).toBe(false);
   });
 
   it("refuses the same key for a different intent, and keeps the first result", async () => {

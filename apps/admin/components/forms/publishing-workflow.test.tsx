@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { FormActions } from "./form-actions.tsx";
+import { PublishWizard } from "./publish-wizard.tsx";
 import { ReleasePanel } from "./release-panel.tsx";
 import type { FormPublishingWorkflow } from "../../lib/forms/types.ts";
 import { t } from "../../lib/i18n/en.ts";
@@ -26,97 +27,37 @@ const DRAFT = {
 };
 
 describe("environment-bound publishing", () => {
-  it("offers one publish action which publishes and releases to test together", async () => {
-    const user = userEvent.setup();
-    const publish = vi.fn();
-    const combined = vi
-      .fn()
-      .mockResolvedValue({ status: "released", version: 1, environment: "test" });
+  it("offers one way to publish, and it is the wizard", () => {
     render(
       <FormActions
         formId="frm_intake"
         slug="intake"
-        draft={DRAFT}
         status="open"
-        latestVersion={undefined}
         workflow={WORKFLOW}
         environment="test"
-        publish={publish}
-        publishAndRelease={combined}
         setStatus={() => Promise.resolve({ status: "idle" })}
       />,
     );
-    expect(screen.queryByRole("button", { name: t("forms.publish.action") })).toBeNull();
-    await user.click(screen.getByRole("button", { name: "Publish to test" }));
-    const dialog = await screen.findByRole("alertdialog");
-    expect(dialog.textContent).toContain("Create v1 and release it to test?");
-    await user.click(within(dialog).getByRole("button", { name: "Publish to test" }));
-    await screen.findByText("Published as v1 and released to test.");
-    expect(combined).toHaveBeenCalledOnce();
-    expect(publish).not.toHaveBeenCalled();
-    expect(screen.getByRole("link", { name: t("forms.tab.links") }).getAttribute("href")).toBe(
-      "/forms/frm_intake/links",
-    );
+    // No dialog of its own at all: one entry, and it is a link.
+    expect(screen.queryByRole("button", { name: /Publish/u })).toBeNull();
+    expect(
+      screen.getByRole("link", { name: t("forms.versions.publishEntry") }).getAttribute("href"),
+    ).toBe("/forms/frm_intake/publish");
   });
 
-  it("announces a rejected combined publish while keeping the issue work list outside the live region", async () => {
-    const user = userEvent.setup();
+  it("explains missing publishing permission instead of offering the entry", () => {
     render(
       <FormActions
         formId="frm_intake"
         slug="intake"
-        draft={DRAFT}
         status="open"
-        latestVersion={undefined}
-        workflow={WORKFLOW}
-        environment="test"
-        publish={() => Promise.resolve({ status: "idle" })}
-        publishAndRelease={() =>
-          Promise.resolve({
-            status: "rejected",
-            issues: [
-              {
-                code: "RULE_BACKWARD_TARGET",
-                message: "Fix the rule placement",
-                path: { step: "step_details" },
-              },
-            ],
-          })
-        }
-        setStatus={() => Promise.resolve({ status: "idle" })}
-      />,
-    );
-    await user.click(screen.getByRole("button", { name: "Publish to test" }));
-    await user.click(
-      within(await screen.findByRole("alertdialog")).getByRole("button", {
-        name: "Publish to test",
-      }),
-    );
-    const status = screen.getByTestId("qcms-form-actions-status");
-    expect(status.getAttribute("aria-live")).toBe("polite");
-    expect(status.textContent).toContain("Publish blocked");
-    expect(within(status).queryByTestId("qcms-publish-rejected")).toBeNull();
-    expect(await screen.findByTestId("qcms-publish-rejected")).toBeTruthy();
-  });
-
-  it("explains missing publishing permission before the operator acts", () => {
-    render(
-      <FormActions
-        formId="frm_intake"
-        slug="intake"
-        draft={DRAFT}
-        status="open"
-        latestVersion={undefined}
         workflow={{ ...WORKFLOW, canPublish: false }}
         environment="test"
-        publish={() => Promise.resolve({ status: "idle" })}
-        publishAndRelease={() => Promise.resolve({ status: "idle" })}
         setStatus={() => Promise.resolve({ status: "idle" })}
       />,
     );
-    expect(screen.getByRole("button", { name: "Publish to test" }).hasAttribute("disabled")).toBe(
-      true,
-    );
+    // Gated rather than disabled: a caller who may not publish is offered no way to.
+    expect(screen.queryByRole("link", { name: t("forms.versions.publishEntry") })).toBeNull();
     expect(
       screen.getByText(t("forms.workflow.noPublishPermission", { environment: "test" })),
     ).toBeTruthy();
@@ -209,24 +150,26 @@ describe("release confirmations across environment changes", () => {
   });
 
   it("does not offer to publish an unchanged seed as another version", () => {
+    // A seeded draft is not stored, so there is nothing to freeze: the wizard's draft
+    // source says so rather than being silently unavailable.
     render(
-      <FormActions
+      <PublishWizard
         formId="frm_intake"
-        slug="intake"
+        versions={[1]}
+        hasDraft={false}
+        canPublishDraft
         draft={DRAFT}
-        status="open"
-        latestVersion={1}
-        hasStoredDraft={false}
-        workflow={WORKFLOW}
-        environment="test"
-        publish={() => Promise.resolve({ status: "idle" })}
-        publishAndRelease={() => Promise.resolve({ status: "idle" })}
-        setStatus={() => Promise.resolve({ status: "idle" })}
+        review={() => Promise.resolve({ ok: false })}
+        confirm={() => Promise.resolve({ status: "idle" })}
+        lookup={() => Promise.resolve({ status: "idle" })}
+        secureCookies={false}
       />,
     );
-    expect(screen.getByRole("button", { name: "Publish to test" }).hasAttribute("disabled")).toBe(
-      true,
-    );
-    expect(screen.getByText(t("forms.workflow.noChanges"))).toBeTruthy();
+    expect(
+      screen
+        .getByRole("radio", { name: new RegExp(t("forms.publish.source.draft"), "u") })
+        .hasAttribute("disabled"),
+    ).toBe(true);
+    expect(screen.getByText(t("forms.publish.source.noDraft"))).toBeTruthy();
   });
 });

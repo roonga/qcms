@@ -3,7 +3,12 @@ import type { Download, Locator, Page, Request } from "@playwright/test";
 import { PORTAL_PORT } from "../../portal/e2e/support/harness-config.js";
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
-import { TEST_ENVIRONMENT_STORAGE, chooseEnvironment } from "./support/environment.js";
+import {
+  TEST_ENVIRONMENT_STORAGE,
+  chooseEnvironment,
+  environmentChip,
+  presetEnvironment,
+} from "./support/environment.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { domShape, headingTags, withDemotedHeadings } from "./support/dom-shape.js";
 import { activeElementId, enrollNewAdmin, signInWithTotp } from "./support/flow.js";
@@ -22,11 +27,19 @@ import {
   savedStamp,
   toggleCheckbox,
   toggleTarget,
+  validationPanel,
   waitForSaveAfter,
   closeRuleEditor,
   openFormDetails,
   openRules,
 } from "./support/forms.js";
+import {
+  chooseDestination,
+  chooseSource,
+  openPublishWizard,
+  refuseDraftThroughWizard,
+  releaseThroughWizard,
+} from "./support/publish.js";
 import { confirmLifecycle, createDraft, fillDate, optionIds } from "./support/questions.js";
 
 /**
@@ -164,26 +177,35 @@ test("publishes a draft and reports what it froze (exit criterion 1)", async ({ 
   // returns. It used to be `page.reload()`, which did the same job while the rules were a
   // selection on this route; since issue #669 the rule work happened on
   // `/forms/{formId}/rules`, so this is a navigation back to the screen Publish is on.
-  await page.goto(`/forms/${formId}`);
-  await page.getByRole("button", { name: "Publish to test", exact: true }).click();
+  await openPublishWizard(page, formId);
+  await chooseSource(page, "The shared draft");
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  const destinations = page.getByTestId("qcms-publish-destinations");
+  await expect(destinations).toBeVisible();
+  await chooseDestination(destinations, "test");
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
 
-  // The confirmation reads the author's own work back to them: what freezes, what
-  // happens to sessions already under way (R1), and what the next edit does.
-  const dialog = page.getByRole("alertdialog");
-  await expect(dialog).toBeVisible();
+  // The review reads the author's own work back to them: what freezes, and what the
+  // destination serves before and after this confirmation (R1).
+  const review = page.getByTestId("qcms-publish-review");
+  await expect(review).toBeVisible();
   await expect(page.getByTestId("qcms-freeze-summary")).toHaveText(
     "Freezes 2 steps, 3 pinned questions, 1 rule.",
   );
-  await expect(dialog).toContainText("New sessions in test start on it");
+  await expect(review).toContainText("test");
 
-  await dialog.getByRole("button", { name: "Publish to test" }).click();
-  await expect(dialog).toBeHidden();
-  await expect(page.getByText("Published as v1 and released to test.")).toBeVisible({
-    timeout: 30_000,
-  });
-  await expect(
-    page.getByTestId("qcms-form-actions-status").getByRole("link", { name: "Links", exact: true }),
-  ).toBeVisible();
+  await page.getByRole("button", { name: "Confirm", exact: true }).click();
+  const result = page.getByTestId("qcms-publish-result");
+  await expect(result).toContainText("Version 1 is published.", { timeout: 30_000 });
+  // THE WAY ON TO THE ENVIRONMENT THIS VERSION NOW SERVES, which has to be that
+  // environment and not whatever the header last showed: Operations reads the selector's
+  // cookie rather than its address, so the control makes that selection first. The
+  // preference is set to prod behind the screen, so the press is what decides where this
+  // lands.
+  await presetEnvironment(page, "prod");
+  await result.getByRole("button", { name: "Open test operations", exact: true }).click();
+  await page.waitForURL("**/operations");
+  await expect(environmentChip(page)).toHaveAttribute("data-environment", "test");
 });
 
 test("releases a published version to an environment and records it (task 065)", async ({
@@ -195,9 +217,11 @@ test("releases a published version to an environment and records it (task 065)",
   test.setTimeout(180_000);
   await signInWithTotp(page, EMAIL, totpSecret);
 
+  // The legacy route lands on the Versions screen.
   await page.goto(`/forms/${formId}/releases`);
+  await page.waitForURL(`**/forms/${formId}/versions`);
   await chooseEnvironment(page, "prod");
-  await expect(page.locator("h1").first()).toHaveText("Releases");
+  await expect(page.locator("h1").first()).toHaveText("Versions");
 
   // Nothing is released yet, and the screen says so for every environment rather than
   // leaving a row out: "not released in prod" is the answer an operator most needs.
@@ -205,22 +229,14 @@ test("releases a published version to an environment and records it (task 065)",
   await expect(now.locator('tr[data-environment="prod"]')).toContainText("Nothing released");
   await expect(now.locator('tr[data-environment="test"]')).toContainText("v1");
 
-  await page.getByRole("button", { name: "Release a version…" }).click();
-  const dialog = page.getByRole("alertdialog");
-  await expect(dialog).toBeVisible();
+  // The one publish entry, and the wizard behind it. The destination is chosen in the
+  // wizard's own body rather than taken from the switcher: the Operations selector controls
+  // operational data, not where a version is released.
+  await page.getByTestId("qcms-publish-entry").click();
+  await page.waitForURL(`**/forms/${formId}/publish`);
+  await releaseThroughWizard(page, { formId, version: 1, environment: "prod" });
 
-  // The dialog opens on the environment the switcher has selected, which is `prod` here:
-  // that is the environment the respondent harness serves until task 066 gives the portal
-  // its `/<env>/` prefix, and every test below this one walks that path.
-  //
-  // Q6's restatement, on the act that decides what a respondent is served. It is in the
-  // dialog's body and on its confirm button, not inferable from a control elsewhere.
-  await expect(dialog.getByTestId("qcms-release-environment")).toContainText("prod");
-  await dialog.getByRole("button", { name: "Release v1 to prod" }).click();
-
-  await expect(page.getByTestId("qcms-release-status")).toContainText(
-    "v1 is now released to prod.",
-  );
+  await page.goto(`/forms/${formId}/versions`);
   await expect(now.locator('tr[data-environment="prod"]')).toContainText("v1");
   // And `test`, where nothing was released, is untouched: a release reaches one environment,
   // which is the property the API suite asserts from both sides.
@@ -234,11 +250,13 @@ test("releases a published version to an environment and records it (task 065)",
   // ADR-27 again: an operator-facing table renders a formatted date, never the wire value.
   await expect(history).not.toContainText(ISO_TIMESTAMP);
 
-  // The version list now says where v1 reached, which is the column the Published column
-  // used to answer on its own and no longer does.
-  await page.goto(`/forms/${formId}/versions`);
+  // The version table says where v1 reached and where it is serving, which the Published
+  // column alone does not answer.
   const versions = page.getByRole("table", { name: "Published versions" });
   await expect(versions.locator('tr[data-form-version="1"]')).toContainText("prod");
+  await expect(versions.locator('tr[data-form-version="1"] td[data-available-in]')).toContainText(
+    "prod",
+  );
 
   // The filter's default shows every version, so nothing is hidden by surprise (finding 2).
   const filter = page.getByTestId("qcms-history-filter");
@@ -383,7 +401,7 @@ test("history renders the stored compiled document and never previews (exit crit
   // the right one. Issue #537 removed the ambiguity at its source - an embedded document's
   // headings are demoted a level, so the chrome's is the only `<h1>` on either route - and
   // the assertion below now says so directly.
-  await expect(page.locator("h1").first()).toHaveText("Version history");
+  await expect(page.locator("h1").first()).toHaveText("Versions");
   await expect(
     page.locator("h1").first(),
     "the form's name is the rail Header's job",
@@ -470,37 +488,13 @@ test("a refused publish lists every issue and each one moves focus (exit criteri
   // about the validation panel agreeing (`waitForSaveAfter` records why).
   await waitForSaveAfter(page, beforeBreak);
 
-  // The rule was broken from a step screen; Publish is on the form's, and the rules live on
-  // a route of their own since issue #669. The publish controls belong to the form rather
-  // than to any of its parts, so getting to them is a screen switch from wherever you were.
-  await page.goto(`/forms/${formId}`);
+  // THE WORK LIST IS THE BUILDER'S, because that is the only screen whose entries can move
+  // focus to the rule, step or pin at fault. The panel holds
+  // the verdict the save that broke the rule produced, so this reads it where the author
+  // does - a rail switch away, in the tab that made the edit.
   await openFormDetails(page);
-  await page.getByRole("button", { name: "Publish to test", exact: true }).click();
-  await page
-    .getByRole("alertdialog")
-    .getByRole("button", { name: "Publish to test", exact: true })
-    .click();
-
-  const rejected = page.getByTestId("qcms-publish-rejected");
-  await expect(rejected).toBeVisible({ timeout: 30_000 });
-  await expect(issue(rejected, "RULE_BACKWARD_TARGET")).toBeVisible();
-
-  // The refusal is SPOKEN, which it was not before issue #377: the work list renders as a
-  // sibling of the live region, so publish success and publish error announced and a
-  // rejection did not. Three assertions, and they fail for three different reasons.
-  const actionsStatus = page.getByTestId("qcms-form-actions-status");
-  await expect(actionsStatus).toBeAttached();
-  // The pin (#359, #368). Nothing else in the suite says this container is a live region,
-  // and nothing can: axe has no rule requiring one to exist, and every content assertion
-  // around it passes on a plain `<div>`. Selected by testid rather than by `[aria-live]`,
-  // so deleting the attribute makes THIS line red instead of quietly matching nothing.
-  await expect(actionsStatus).toHaveAttribute("aria-live", "polite");
-  // The repair. Empty on `origin/main`, because the summary sentence did not exist.
-  await expect(actionsStatus).toContainText("Publish blocked");
-  // And the decision, asserted rather than merely commented: a summary announces, the work
-  // list does not. If a later change moves the list inside the region to "fix" the same
-  // defect a second time, this is what notices.
-  await expect(actionsStatus.getByTestId("qcms-publish-rejected")).toHaveCount(0);
+  const rejected = validationPanel(page);
+  await expect(issue(rejected, "RULE_BACKWARD_TARGET")).toBeVisible({ timeout: 30_000 });
 
   // THE ANCHOR THAT CROSSES A ROUTE BOUNDARY, which is issue #669's acceptance criterion
   // and the thing `plan/admin-ux-audit.md` §5.5 predicted a rules route would break.
@@ -527,6 +521,20 @@ test("a refused publish lists every issue and each one moves focus (exit criteri
       `rule-${ruleId}`,
     );
   }).toPass({ timeout: 30_000 });
+
+  // AND THE PUBLISH ITSELF IS REFUSED, which is what the panel's count is a claim about.
+  // The refusal is the wizard's, and it is SPOKEN. The helper asserts the live region, the sentence, and that the pointer to
+  // the work list is NOT inside the region: a screenful of links read out as one flat
+  // interruption is neither navigable nor wanted.
+  await refuseDraftThroughWizard(page, { formId, environment: "test" });
+  await expect(page.getByTestId("qcms-publish-rejected")).toContainText(
+    /issues? blocks? publishing/u,
+  );
+  // And the way back to the list above, from the screen that could not render it.
+  await expect(page.getByRole("link", { name: "Open the builder", exact: true })).toHaveAttribute(
+    "href",
+    `/forms/${formId}`,
+  );
 
   // Nothing was frozen: the version list is still what it was before the attempt.
   await page.goto(`/forms/${formId}/versions`);

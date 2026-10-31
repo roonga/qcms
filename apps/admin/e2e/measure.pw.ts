@@ -120,7 +120,7 @@ function screens(sessionId: string): readonly Screen[] {
     // The release screen (ADR-40, task 065), at the width of the version history it sits
     // beside: two wide tables of audit rows, and no POC draws it narrower because no POC
     // draws it at all.
-    { path: `/forms/${FORM_ID}/releases`, cap: "wide" },
+    { path: `/forms/${FORM_ID}/publish`, cap: "wide" },
     { path: `/forms/${FORM_ID}/webhooks`, cap: "wide" },
     { path: "/questions", cap: "list" },
     { path: `/questions/${QUESTION_ID}`, cap: "wide" },

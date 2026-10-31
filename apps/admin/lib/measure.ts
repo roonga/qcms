@@ -176,15 +176,15 @@ export const MEASURE_BY_ROUTE = {
   /** `preview-versions-poc.html` `.main` 1600, its version-history table. */
   "/forms/[formId]/versions": "wide",
   /**
-   * `preview-versions-poc.html` `.main` 1600 as well, and the nineteenth row (task 065).
+   * `preview-versions-poc.html` `.main` 1600 as well, and the nineteenth row.
    *
-   * The screen it draws is the version history, and the release screen is the same shape
-   * at the same width: two wide tables of audit rows, one of them the history itself. No
-   * POC draws a release screen, there being none when those files were written, so the
-   * width is taken from the drawn screen this one sits beside rather than invented - which
-   * is also what an author gets as they move between the two.
+   * The screen it draws is the version history, and the publish wizard is read against it:
+   * an operator moves from the Versions table to the wizard and back while deciding what to
+   * release, and a narrower measure would reflow the same rows between the two. No POC
+   * draws a publish wizard, there being none when those files were written, so the width is
+   * taken from the drawn screen this one sits beside rather than invented.
    */
-  "/forms/[formId]/releases": "wide",
+  "/forms/[formId]/publish": "wide",
   /**
    * `preview-versions-poc.html` again, `.main` 1600: the stored render is the same 640px
    * frame, shared unmodified (`:829`, and the POC says so in as many words). Same

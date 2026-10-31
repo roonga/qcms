@@ -24,6 +24,14 @@ export interface ReleaseRecord {
   readonly approvedBy: string | null;
   readonly replacedVersion: number | null;
   readonly rollback: boolean;
+  /**
+   * Whether intake was closed in that environment as of this row (Q18).
+   *
+   * The same release state carries it, so the newest row for a (form, environment) pair
+   * answers both "which version is released here" and "is intake open here". A release
+   * carries the current value forward: releasing a version does not reopen closed intake.
+   */
+  readonly closed: boolean;
 }
 
 /** Shape-check the list, dropping any entry that is not a release row. */
@@ -54,6 +62,7 @@ export function parseReleases(value: unknown): readonly ReleaseRecord[] {
         approvedBy: typeof row.approvedBy === "string" ? row.approvedBy : null,
         replacedVersion: typeof row.replacedVersion === "number" ? row.replacedVersion : null,
         rollback: row.rollback,
+        closed: row.closed === true,
       },
     ];
   });
@@ -99,6 +108,28 @@ export function environmentsByVersion(
     byVersion.set(key, seen);
   }
   return Object.fromEntries(byVersion);
+}
+
+/**
+ * Which environments each version is releasing **now**, keyed by version number.
+ *
+ * The Versions view's Available in column. Deliberately not
+ * `environmentsByVersion`: that one answers "has reached", which is the right answer for a
+ * filter and the wrong one for a column an operator reads to decide what is serving. A
+ * version replaced or rolled away from is available in nowhere, and a column that still
+ * named the environment would present history as what is live.
+ */
+export function currentEnvironmentsByVersion(
+  releases: readonly ReleaseRecord[],
+): Readonly<Record<string, readonly string[]>> {
+  const byVersion = new Map<string, string[]>();
+  for (const release of currentReleaseByEnvironment(releases).values()) {
+    const key = String(release.version);
+    const seen = byVersion.get(key) ?? [];
+    seen.push(release.environment);
+    byVersion.set(key, seen);
+  }
+  return Object.fromEntries([...byVersion].map(([key, names]) => [key, [...names].sort()]));
 }
 
 /** Every version that has reached any environment, for the version list's filter. */

@@ -89,7 +89,7 @@ const SHELL_PAGES: readonly string[] = [
   `/forms/${FORM_ID}/preview`,
   `/forms/${FORM_ID}/versions`,
   `/forms/${FORM_ID}/versions/${String(VERSION)}`,
-  `/forms/${FORM_ID}/releases`,
+  `/forms/${FORM_ID}/publish`,
   `/forms/${FORM_ID}/links`,
   `/forms/${FORM_ID}/webhooks`,
   `/forms/${FORM_ID}/responses`,
@@ -457,8 +457,8 @@ test("names the screen in the context chip, and keeps the conversation across a 
   // The form's response screen rather than `/responses`, which redirects to Operations.
   await page.goto(`/forms/${FORM_ID}/responses`);
   await expect(chip).toContainText("no answers");
-  await page.goto(`/forms/${FORM_ID}/releases`);
-  await expect(chip).toContainText("releases");
+  await page.goto(`/forms/${FORM_ID}/publish`);
+  await expect(chip).toContainText("publish");
 
   // Nothing of the conversation or the panel reaches tab storage (Q15).
   const stored = await page.evaluate(() => ({
@@ -490,8 +490,8 @@ test("carries the builder's turns across the form's subtree and starts fresh out
   // Soft navigation, which is what the conversation survives: the turns are held in memory
   // for as long as the tab's shell lives.
   const turns = page.getByTestId("qcms-assistant-turns");
-  await page.locator("aside.qcms-rail").getByRole("link", { name: "Releases" }).click();
-  await page.waitForURL(`**/forms/${FORM_ID}/releases`);
+  await page.locator("aside.qcms-rail").getByRole("link", { name: "Publish", exact: true }).click();
+  await page.waitForURL(`**/forms/${FORM_ID}/publish`);
   await expect(turns, "the builder's turns are still here").toContainText("what is on this screen");
   await expect(turns).toContainText("more detail");
 
@@ -502,7 +502,7 @@ test("carries the builder's turns across the form's subtree and starts fresh out
 
   // Returning within the tab restores the form's own conversation.
   await page.goBack();
-  await page.waitForURL(`**/forms/${FORM_ID}/releases`);
+  await page.waitForURL(`**/forms/${FORM_ID}/publish`);
   await expect(turns, "returning restores the conversation").toContainText(
     "what is on this screen",
   );

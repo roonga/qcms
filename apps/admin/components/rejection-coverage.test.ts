@@ -68,15 +68,20 @@ const HANDLERS: Readonly<Record<string, readonly string[]>> = {
   "forms/assist-panel.tsx": ["non-JSON error body (forms/assist-panel.test.tsx)"],
   // The four from task 035 and the five from issue #303, in file order.
   "forms/draft-preview.tsx": ["preview projection (forms/draft-preview-rejects.test.tsx)"],
-  "forms/form-actions.tsx": [
-    "publish (forms/form-actions-rejects.test.tsx)",
-    "publish and release (forms/form-actions-rejects.test.tsx)",
-    "close/reopen (forms/form-actions-rejects.test.tsx)",
-  ],
+  // Publishing is the wizard's act, so its rejection handlers are the wizard's, not this file's.
+  "forms/form-actions.tsx": ["close/reopen (forms/form-actions-rejects.test.tsx)"],
   // Task 065's release action. Its refusal keeps the dialog open, because a release that
   // may or may not have landed in production is the one state an operator must not be
   // left guessing about.
   "forms/release-panel.tsx": ["release (forms/release-panel-rejects.test.tsx)"],
+  // The publish wizard's three. The confirmation's is the one that does not
+  // report a failure: a lost answer may have committed, so it leaves the operator a result
+  // lookup and a replay of the same key rather than an invitation to press again.
+  "forms/publish-wizard.tsx": [
+    "read the review (forms/publish-wizard-rejects.test.tsx)",
+    "confirm, whose lost answer is uncertain (forms/publish-wizard-rejects.test.tsx)",
+    "look the recorded result up (forms/publish-wizard-rejects.test.tsx)",
+  ],
   "forms/release-version-review.tsx": [
     "read the immutable candidate (forms/release-version-review.test.tsx)",
   ],
@@ -157,13 +162,9 @@ describe("the rejection handlers of the admin's forms and ops components", () =>
     expect(found).toStrictEqual(declared);
   });
 
-  it("number seventeen, of which thirteen are action rejections (nine at issue #352)", () => {
+  it("number eighteen, of which fourteen are action rejections (nine at issue #352)", () => {
     const entries = Object.values(HANDLERS).flat();
-    // Fifteen since task 065: the combined publish-and-release action and the release
-    // panel's own each added one. **Sixteen since task 070**, whose pending-change panel
-    // drives a confirm and a withdraw through one handler. Seventeen with the immutable
-    // release-candidate loader, whose failed read keeps production confirmation disabled.
-    expect(entries).toHaveLength(17);
+    expect(entries).toHaveLength(18);
 
     // Three clipboard chains: a refusal the operator can act on, or silence.
     const clipboard = entries.filter((entry) => entry.startsWith("copy"));
@@ -174,14 +175,8 @@ describe("the rejection handlers of the admin's forms and ops components", () =>
     const parse = entries.filter((entry) => entry.startsWith("non-JSON"));
     expect(parse).toHaveLength(1);
 
-    // What is left is issue #352's original nine, and that number is the tripwire: it
-    // moves only when an action-rejection handler is genuinely added or removed, not when
-    // a handler of some other shape joins the list.
-    // Eleven since task 065: the combined publish-and-release action and the release
-    // panel's own release are both action rejections. **Twelve since task 070**: a
-    // confirmation of a pending production endpoint change is one too, and it is the one
-    // whose silence would be worst - an operator left wondering whether a production
-    // endpoint just moved. Thirteen with the candidate snapshot read.
-    expect(entries.length - clipboard.length - parse.length).toBe(13);
+    // The tripwire: this number moves only when an action-rejection handler is genuinely
+    // added or removed, not when a handler of some other shape joins the list.
+    expect(entries.length - clipboard.length - parse.length).toBe(14);
   });
 });

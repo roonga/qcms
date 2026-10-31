@@ -35,7 +35,7 @@ describe("the response list's filters", () => {
   });
 
   it("leaves every other screen's params alone", () => {
-    expect(withQuery("/forms/frm_a/releases", "flagged=true")?.params).toEqual({
+    expect(withQuery("/forms/frm_a/publish", "flagged=true")?.params).toEqual({
       formId: "frm_a",
     });
   });

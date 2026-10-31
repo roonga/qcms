@@ -185,10 +185,11 @@ member. `features/workspaces/README.md` is that slice's own page.
 
 ## Publishing through the admin (2026-10-26)
 
-In a test/prod deployment the primary action is **Publish to test**, backed by the atomic
-publish-and-release endpoint. Production exposes stored-version review and release of
-an eligible existing version, with draft authoring in test. Direct combined publication
-to prod is refused with `TEST_RELEASE_REQUIRED`; the library-only publish API remains
+The admin publishes and releases through one wizard, backed by `POST
+/forms/{id}/publish-batch` and `POST /forms/{id}/release-batch`. Production exposes
+stored-version review and release of an eligible existing version, with draft authoring in
+test. A draft published straight into prod is refused with `TEST_RELEASE_REQUIRED`; the
+library-only publish API and the older combined publish-and-release endpoint remain
 available to integrations. The release slice documents eligibility and rollback.
 
 The detail response adds `workflow` (API-derived edit, combined-publish and release

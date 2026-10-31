@@ -88,5 +88,20 @@ export default function adminNextConfig(phase: string): NextConfig {
       // `false`.
       agentUpgrade: false,
     },
+    /**
+     * Legacy route aliases.
+     *
+     * `/forms/{id}/releases` redirects to Versions, which carries the release history. It is
+     * a redirect rather than a page so the route costs none of the six registrations a
+     * screen costs, and an old bookmark or outcome banner still lands on the right screen.
+     */
+    redirects: () =>
+      Promise.resolve([
+        {
+          source: "/forms/:formId/releases",
+          destination: "/forms/:formId/versions",
+          permanent: false,
+        },
+      ]),
   };
 }
