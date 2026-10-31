@@ -396,7 +396,14 @@ function reviewTarget(input: {
     version === undefined ? [] : evidenceFor(releases, { version, environment, rule });
 
   const applies = environment === PRODUCTION_ENVIRONMENT && input.requiresSecond;
-  const refusedAsAuthor = applies && input.author !== null && input.author === input.caller;
+  // A draft freezes its snapshot inside the same confirmation, so the publisher **is** this
+  // caller and `approvalForRelease` refuses the destination at commit (ADR-41). Reported
+  // here as well, because a destination certain to be refused belongs in the review that
+  // says why rather than in a 403 after the press: a production-only deployment with the
+  // rule on reaches its first release through "create a version without releasing" and
+  // another account, and the review is where that is legible.
+  const refusedAsAuthor =
+    applies && (input.isDraft || (input.author !== null && input.author === input.caller));
   const blockers = blockersFor({
     prerequisite: rule.requiresPriorReleaseIn,
     prerequisiteCode: prerequisiteCode(input.workflow),
@@ -452,10 +459,10 @@ function blockersFor(input: {
     }
   }
   if (input.alreadyReleased) blockers.push({ code: "ALREADY_RELEASED", requiresAnyOf: [] });
-  if (input.twoPersonApplies && !input.isDraft) {
-    if (!input.authorKnown) blockers.push({ code: "APPROVER_UNKNOWN_AUTHOR", requiresAnyOf: [] });
-    else if (input.refusedAsAuthor) {
-      blockers.push({ code: "APPROVER_IS_AUTHOR", requiresAnyOf: [] });
+  if (input.twoPersonApplies) {
+    if (input.refusedAsAuthor) blockers.push({ code: "APPROVER_IS_AUTHOR", requiresAnyOf: [] });
+    else if (!input.isDraft && !input.authorKnown) {
+      blockers.push({ code: "APPROVER_UNKNOWN_AUTHOR", requiresAnyOf: [] });
     }
   }
   return blockers;

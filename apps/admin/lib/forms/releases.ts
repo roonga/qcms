@@ -101,6 +101,28 @@ export function environmentsByVersion(
   return Object.fromEntries(byVersion);
 }
 
+/**
+ * Which environments each version is releasing **now**, keyed by version number.
+ *
+ * The Versions view's Available in column (issue #1197). Deliberately not
+ * `environmentsByVersion`: that one answers "has reached", which is the right answer for a
+ * filter and the wrong one for a column an operator reads to decide what is serving. A
+ * version replaced or rolled away from is available in nowhere, and a column that still
+ * named the environment would present history as what is live.
+ */
+export function currentEnvironmentsByVersion(
+  releases: readonly ReleaseRecord[],
+): Readonly<Record<string, readonly string[]>> {
+  const byVersion = new Map<string, string[]>();
+  for (const release of currentReleaseByEnvironment(releases).values()) {
+    const key = String(release.version);
+    const seen = byVersion.get(key) ?? [];
+    seen.push(release.environment);
+    byVersion.set(key, seen);
+  }
+  return Object.fromEntries([...byVersion].map(([key, names]) => [key, [...names].sort()]));
+}
+
 /** Every version that has reached any environment, for the version list's filter. */
 export function releasedVersions(releases: readonly ReleaseRecord[]): ReadonlySet<number> {
   return new Set(releases.map((release) => release.version));
