@@ -10,6 +10,7 @@ import {
   card,
   confirm,
   expectAxeClean,
+  expectStepChips,
   expectWaitingStepStates,
   openPanel,
   propose,
@@ -28,8 +29,14 @@ import {
 /**
  * Criterion 11 for `apply-draft`, the one kind that carries a document rather than
  * arguments: the diff against the working draft and the server's two advisory lists on
- * the card, an Accept that saves the draft and marks it assisted, and a cancel that saves
- * nothing.
+ * the card, an Accept that saves the draft and marks it assisted, a plan that applies the
+ * draft and then changes the form's own settings, and a cancel that saves nothing.
+ *
+ * ## Why the plan carries a second kind
+ *
+ * The propose tool keeps one draft-applying step per plan, so this kind can only be
+ * confirmed inside a plan beside a kind of another sort. The settings step is the builder
+ * screen's own, which is what keeps the plan one screen's work.
  *
  * ## Why it leaves no audit row
  *
@@ -105,6 +112,40 @@ test("shows the diff and both lists, and accepting saves the draft as assisted",
 
   // A local step reaches no route, so it leaves no row in the agent audit.
   expect(auditDelta(before, await auditTally())).toEqual({});
+});
+
+test("confirms the draft inside a plan, with the builder's own settings behind it", async ({
+  page,
+}) => {
+  test.setTimeout(600_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.goto(`/forms/${formId}`);
+  await openPanel(page);
+
+  const before = await auditTally();
+  const previousSave = await savedStamp(page);
+  await propose(
+    page,
+    "plan-apply-draft",
+    `tighten this intake and its abuse controls #qcms-fake-search:${NEEDLE}`,
+  );
+  await expectWaitingStepStates(page, "Proposed");
+  // The document is on the step that applies it, inside the plan rather than beside it.
+  await expect(card(page).getByTestId("qcms-acard-draft")).toBeVisible();
+  await expectAxeClean(page, "proposed plan");
+
+  await confirm(page, /^Done\. All 2 steps ran/u);
+  await expectStepChips(page, ["Done", "Done"]);
+  await expectAxeClean(page, "done plan");
+
+  // The draft step is the builder's own save and the settings step reached a route, so the
+  // screen reads one back and the audit holds a row for the other alone.
+  await waitForSaveAfter(page, previousSave);
+  await page.goto(`/forms/${formId}`);
+  await expect(
+    page.getByRole("checkbox", { name: "Require a challenge before answering" }),
+  ).toBeChecked();
+  expect(auditDelta(before, await auditTally())).toEqual({ "form.settings": 1 });
 });
 
 test("saves nothing when the card is cancelled", async ({ page }) => {
