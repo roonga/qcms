@@ -110,7 +110,7 @@ export default async function WebhooksPage({
                 <li key={form.formId}>
                   <Link
                     className="qcms-text-link"
-                    href={`/forms/${encodeURIComponent(form.formId)}/webhooks`}
+                    href={`/operations/forms/${encodeURIComponent(form.formId)}/webhooks`}
                   >
                     {t("ops.area.webhooks.pickForm", { slug: form.slug })}
                   </Link>

@@ -1612,6 +1612,9 @@ export const messages = {
   // heads `/forms/{formId}/publish`, ends that screen's breadcrumb, names its rail row and
   // composes its browser-tab title.
   "forms.tab.publish": "Publish",
+  // The per-form Operations screen, named for what it carries rather than for the acts on
+  // it: what the selected environment serves, and whether it is taking responses.
+  "forms.tab.intake": "Intake",
 
   "forms.publish.action": "Publish",
   // Assembled from three counted phrases rather than written as one sentence with three
@@ -2090,6 +2093,7 @@ export const messages = {
   "agent.context.form.webhooks": "Form {subject}: webhooks, no payloads",
   "agent.context.form.responses": "Form {subject}: response metadata, no answers",
   "agent.context.form.response": "Form {subject}: session {session}, metadata only",
+  "agent.context.form.intake": "Form {subject}: intake in this environment",
   "agent.context.questions": "The question library",
   "agent.context.questions.new": "A new question, nothing saved yet",
   "agent.context.question": "Question {subject}",

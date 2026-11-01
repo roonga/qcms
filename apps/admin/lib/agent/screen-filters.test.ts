@@ -25,11 +25,15 @@ describe("the response list's filters", () => {
   });
 
   it("sends no filters for an unfiltered list", () => {
-    expect(withQuery("/operations/forms/frm_a/responses", "page=2")?.params).toEqual({ formId: "frm_a" });
+    expect(withQuery("/operations/forms/frm_a/responses", "page=2")?.params).toEqual({
+      formId: "frm_a",
+    });
   });
 
   it("drops a value the screen itself would ignore", () => {
-    expect(withQuery("/operations/forms/frm_a/responses", "flagged=maybe&from=03/01/2026")?.params).toEqual({
+    expect(
+      withQuery("/operations/forms/frm_a/responses", "flagged=maybe&from=03/01/2026")?.params,
+    ).toEqual({
       formId: "frm_a",
     });
   });

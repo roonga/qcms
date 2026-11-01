@@ -93,148 +93,154 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (556 files common to both shapes)
+### Scaffolded paths (561 files common to both shapes)
 
-| Path                                                                 | Files |
-| -------------------------------------------------------------------- | ----- |
-| `(project root)`                                                     | 8     |
-| `apps/`                                                              | 545   |
-| `apps/admin/`                                                        | 334   |
-| `apps/admin/app/`                                                    | 83    |
-| `apps/admin/app/(shell)/`                                            | 64    |
-| `apps/admin/app/(shell)/@rail/`                                      | 26    |
-| `apps/admin/app/(shell)/@rail/forms/`                                | 13    |
-| `apps/admin/app/(shell)/@rail/forms/[formId]/`                       | 11    |
-| `apps/admin/app/(shell)/@rail/forms/[formId]/links/`                 | 1     |
-| `apps/admin/app/(shell)/@rail/forms/[formId]/preview/`               | 1     |
-| `apps/admin/app/(shell)/@rail/forms/[formId]/publish/`               | 1     |
-| `apps/admin/app/(shell)/@rail/forms/[formId]/responses/`             | 2     |
-| `apps/admin/app/(shell)/@rail/forms/[formId]/responses/[sessionId]/` | 1     |
-| `apps/admin/app/(shell)/@rail/forms/[formId]/rules/`                 | 1     |
-| `apps/admin/app/(shell)/@rail/forms/[formId]/versions/`              | 2     |
-| `apps/admin/app/(shell)/@rail/forms/[formId]/versions/[version]/`    | 1     |
-| `apps/admin/app/(shell)/@rail/forms/[formId]/webhooks/`              | 1     |
-| `apps/admin/app/(shell)/@rail/forms/new/`                            | 1     |
-| `apps/admin/app/(shell)/@rail/me/`                                   | 1     |
-| `apps/admin/app/(shell)/@rail/me/access/`                            | 1     |
-| `apps/admin/app/(shell)/@rail/operations/`                           | 1     |
-| `apps/admin/app/(shell)/@rail/questions/`                            | 3     |
-| `apps/admin/app/(shell)/@rail/questions/[questionId]/`               | 1     |
-| `apps/admin/app/(shell)/@rail/questions/new/`                        | 1     |
-| `apps/admin/app/(shell)/@rail/responses/`                            | 2     |
-| `apps/admin/app/(shell)/@rail/responses/erasures/`                   | 1     |
-| `apps/admin/app/(shell)/@rail/settings/`                             | 1     |
-| `apps/admin/app/(shell)/@rail/webhooks/`                             | 1     |
-| `apps/admin/app/(shell)/@rail/workspaces/`                           | 2     |
-| `apps/admin/app/(shell)/@rail/workspaces/[workspaceId]/`             | 1     |
-| `apps/admin/app/(shell)/assist/`                                     | 1     |
-| `apps/admin/app/(shell)/forms/`                                      | 18    |
-| `apps/admin/app/(shell)/forms/[formId]/`                             | 12    |
-| `apps/admin/app/(shell)/forms/[formId]/assist/`                      | 1     |
-| `apps/admin/app/(shell)/forms/[formId]/export/`                      | 1     |
-| `apps/admin/app/(shell)/forms/[formId]/links/`                       | 1     |
-| `apps/admin/app/(shell)/forms/[formId]/preview/`                     | 1     |
-| `apps/admin/app/(shell)/forms/[formId]/publish/`                     | 1     |
-| `apps/admin/app/(shell)/forms/[formId]/responses/`                   | 2     |
-| `apps/admin/app/(shell)/forms/[formId]/responses/[sessionId]/`       | 1     |
-| `apps/admin/app/(shell)/forms/[formId]/rules/`                       | 1     |
-| `apps/admin/app/(shell)/forms/[formId]/versions/`                    | 2     |
-| `apps/admin/app/(shell)/forms/[formId]/versions/[version]/`          | 1     |
-| `apps/admin/app/(shell)/forms/[formId]/webhooks/`                    | 1     |
-| `apps/admin/app/(shell)/forms/new/`                                  | 2     |
-| `apps/admin/app/(shell)/me/`                                         | 1     |
-| `apps/admin/app/(shell)/me/access/`                                  | 1     |
-| `apps/admin/app/(shell)/operations/`                                 | 2     |
-| `apps/admin/app/(shell)/questions/`                                  | 4     |
-| `apps/admin/app/(shell)/questions/[questionId]/`                     | 1     |
-| `apps/admin/app/(shell)/questions/new/`                              | 1     |
-| `apps/admin/app/(shell)/responses/`                                  | 3     |
-| `apps/admin/app/(shell)/responses/erasures/`                         | 1     |
-| `apps/admin/app/(shell)/settings/`                                   | 3     |
-| `apps/admin/app/(shell)/settings/password/`                          | 1     |
-| `apps/admin/app/(shell)/settings/recovery-codes/`                    | 1     |
-| `apps/admin/app/(shell)/webhooks/`                                   | 2     |
-| `apps/admin/app/(shell)/workspaces/`                                 | 3     |
-| `apps/admin/app/(shell)/workspaces/[workspaceId]/`                   | 2     |
-| `apps/admin/app/change-password/`                                    | 2     |
-| `apps/admin/app/change-password/submit/`                             | 1     |
-| `apps/admin/app/healthz/`                                            | 1     |
-| `apps/admin/app/sign-in/`                                            | 2     |
-| `apps/admin/app/sign-in/submit/`                                     | 1     |
-| `apps/admin/app/sign-out/`                                           | 1     |
-| `apps/admin/app/two-factor/`                                         | 8     |
-| `apps/admin/app/two-factor/challenge/`                               | 2     |
-| `apps/admin/app/two-factor/challenge/verify/`                        | 1     |
-| `apps/admin/app/two-factor/enroll/`                                  | 2     |
-| `apps/admin/app/two-factor/enroll/verify/`                           | 1     |
-| `apps/admin/app/two-factor/recovery/`                                | 2     |
-| `apps/admin/app/two-factor/recovery-codes/`                          | 2     |
-| `apps/admin/app/two-factor/recovery-codes/confirm/`                  | 1     |
-| `apps/admin/app/two-factor/recovery/verify/`                         | 1     |
-| `apps/admin/components/`                                             | 121   |
-| `apps/admin/components/agent/`                                       | 8     |
-| `apps/admin/components/forms/`                                       | 42    |
-| `apps/admin/components/membership/`                                  | 8     |
-| `apps/admin/components/ops/`                                         | 12    |
-| `apps/admin/components/questions/`                                   | 15    |
-| `apps/admin/components/shell/`                                       | 4     |
-| `apps/admin/components/test-support/`                                | 3     |
-| `apps/admin/lib/`                                                    | 123   |
-| `apps/admin/lib/agent/`                                              | 12    |
-| `apps/admin/lib/forms/`                                              | 31    |
-| `apps/admin/lib/i18n/`                                               | 2     |
-| `apps/admin/lib/membership/`                                         | 2     |
-| `apps/admin/lib/ops/`                                                | 13    |
-| `apps/admin/lib/questions/`                                          | 9     |
-| `apps/admin/lib/server/`                                             | 31    |
-| `apps/admin/lib/shell/`                                              | 2     |
-| `apps/api/`                                                          | 137   |
-| `apps/api/src/`                                                      | 134   |
-| `apps/api/src/features/`                                             | 102   |
-| `apps/api/src/features/agent/`                                       | 34    |
-| `apps/api/src/features/agent/actions/`                               | 10    |
-| `apps/api/src/features/agent/contexts/`                              | 5     |
-| `apps/api/src/features/agent/tools/`                                 | 5     |
-| `apps/api/src/features/auth/`                                        | 5     |
-| `apps/api/src/features/forms/`                                       | 3     |
-| `apps/api/src/features/links/`                                       | 3     |
-| `apps/api/src/features/membership/`                                  | 9     |
-| `apps/api/src/features/operations/`                                  | 3     |
-| `apps/api/src/features/outbox/`                                      | 3     |
-| `apps/api/src/features/questions/`                                   | 4     |
-| `apps/api/src/features/releases/`                                    | 6     |
-| `apps/api/src/features/responses/`                                   | 19    |
-| `apps/api/src/features/responses/admin/`                             | 4     |
-| `apps/api/src/features/responses/serve-step/`                        | 3     |
-| `apps/api/src/features/responses/start-session/`                     | 3     |
-| `apps/api/src/features/responses/submit/`                            | 3     |
-| `apps/api/src/features/webhooks/`                                    | 8     |
-| `apps/api/src/features/workspaces/`                                  | 5     |
-| `apps/api/src/middleware/`                                           | 7     |
-| `apps/api/src/routes/`                                               | 1     |
-| `apps/api/src/schedulers/`                                           | 4     |
-| `apps/portal/`                                                       | 74    |
-| `apps/portal/app/`                                                   | 19    |
-| `apps/portal/app/appearance/`                                        | 1     |
-| `apps/portal/app/done/`                                              | 1     |
-| `apps/portal/app/expired/`                                           | 1     |
-| `apps/portal/app/f/`                                                 | 2     |
-| `apps/portal/app/f/[formSlug]/`                                      | 2     |
-| `apps/portal/app/f/[formSlug]/start/`                                | 1     |
-| `apps/portal/app/l/`                                                 | 1     |
-| `apps/portal/app/l/[token]/`                                         | 1     |
-| `apps/portal/app/link-error/`                                        | 1     |
-| `apps/portal/app/s/`                                                 | 7     |
-| `apps/portal/app/s/[sessionId]/`                                     | 7     |
-| `apps/portal/app/s/[sessionId]/answers/`                             | 1     |
-| `apps/portal/app/s/[sessionId]/roster/`                              | 1     |
-| `apps/portal/app/s/[sessionId]/step/`                                | 1     |
-| `apps/portal/app/s/[sessionId]/submit/`                              | 1     |
-| `apps/portal/components/`                                            | 15    |
-| `apps/portal/lib/`                                                   | 33    |
-| `apps/portal/lib/i18n/`                                              | 2     |
-| `apps/portal/lib/server/`                                            | 18    |
-| `docker/`                                                            | 3     |
+| Path                                                                            | Files |
+| ------------------------------------------------------------------------------- | ----- |
+| `(project root)`                                                                | 8     |
+| `apps/`                                                                         | 550   |
+| `apps/admin/`                                                                   | 339   |
+| `apps/admin/app/`                                                               | 86    |
+| `apps/admin/app/(shell)/`                                                       | 67    |
+| `apps/admin/app/(shell)/@rail/`                                                 | 28    |
+| `apps/admin/app/(shell)/@rail/forms/`                                           | 9     |
+| `apps/admin/app/(shell)/@rail/forms/[formId]/`                                  | 7     |
+| `apps/admin/app/(shell)/@rail/forms/[formId]/preview/`                          | 1     |
+| `apps/admin/app/(shell)/@rail/forms/[formId]/publish/`                          | 1     |
+| `apps/admin/app/(shell)/@rail/forms/[formId]/rules/`                            | 1     |
+| `apps/admin/app/(shell)/@rail/forms/[formId]/versions/`                         | 2     |
+| `apps/admin/app/(shell)/@rail/forms/[formId]/versions/[version]/`               | 1     |
+| `apps/admin/app/(shell)/@rail/forms/new/`                                       | 1     |
+| `apps/admin/app/(shell)/@rail/me/`                                              | 1     |
+| `apps/admin/app/(shell)/@rail/me/access/`                                       | 1     |
+| `apps/admin/app/(shell)/@rail/operations/`                                      | 7     |
+| `apps/admin/app/(shell)/@rail/operations/forms/`                                | 6     |
+| `apps/admin/app/(shell)/@rail/operations/forms/[formId]/`                       | 6     |
+| `apps/admin/app/(shell)/@rail/operations/forms/[formId]/intake/`                | 1     |
+| `apps/admin/app/(shell)/@rail/operations/forms/[formId]/links/`                 | 1     |
+| `apps/admin/app/(shell)/@rail/operations/forms/[formId]/responses/`             | 2     |
+| `apps/admin/app/(shell)/@rail/operations/forms/[formId]/responses/[sessionId]/` | 1     |
+| `apps/admin/app/(shell)/@rail/operations/forms/[formId]/webhooks/`              | 1     |
+| `apps/admin/app/(shell)/@rail/questions/`                                       | 3     |
+| `apps/admin/app/(shell)/@rail/questions/[questionId]/`                          | 1     |
+| `apps/admin/app/(shell)/@rail/questions/new/`                                   | 1     |
+| `apps/admin/app/(shell)/@rail/responses/`                                       | 2     |
+| `apps/admin/app/(shell)/@rail/responses/erasures/`                              | 1     |
+| `apps/admin/app/(shell)/@rail/settings/`                                        | 1     |
+| `apps/admin/app/(shell)/@rail/webhooks/`                                        | 1     |
+| `apps/admin/app/(shell)/@rail/workspaces/`                                      | 2     |
+| `apps/admin/app/(shell)/@rail/workspaces/[workspaceId]/`                        | 1     |
+| `apps/admin/app/(shell)/assist/`                                                | 1     |
+| `apps/admin/app/(shell)/forms/`                                                 | 13    |
+| `apps/admin/app/(shell)/forms/[formId]/`                                        | 7     |
+| `apps/admin/app/(shell)/forms/[formId]/assist/`                                 | 1     |
+| `apps/admin/app/(shell)/forms/[formId]/preview/`                                | 1     |
+| `apps/admin/app/(shell)/forms/[formId]/publish/`                                | 1     |
+| `apps/admin/app/(shell)/forms/[formId]/rules/`                                  | 1     |
+| `apps/admin/app/(shell)/forms/[formId]/versions/`                               | 2     |
+| `apps/admin/app/(shell)/forms/[formId]/versions/[version]/`                     | 1     |
+| `apps/admin/app/(shell)/forms/new/`                                             | 2     |
+| `apps/admin/app/(shell)/me/`                                                    | 1     |
+| `apps/admin/app/(shell)/me/access/`                                             | 1     |
+| `apps/admin/app/(shell)/operations/`                                            | 8     |
+| `apps/admin/app/(shell)/operations/forms/`                                      | 6     |
+| `apps/admin/app/(shell)/operations/forms/[formId]/`                             | 6     |
+| `apps/admin/app/(shell)/operations/forms/[formId]/export/`                      | 1     |
+| `apps/admin/app/(shell)/operations/forms/[formId]/intake/`                      | 1     |
+| `apps/admin/app/(shell)/operations/forms/[formId]/links/`                       | 1     |
+| `apps/admin/app/(shell)/operations/forms/[formId]/responses/`                   | 2     |
+| `apps/admin/app/(shell)/operations/forms/[formId]/responses/[sessionId]/`       | 1     |
+| `apps/admin/app/(shell)/operations/forms/[formId]/webhooks/`                    | 1     |
+| `apps/admin/app/(shell)/questions/`                                             | 4     |
+| `apps/admin/app/(shell)/questions/[questionId]/`                                | 1     |
+| `apps/admin/app/(shell)/questions/new/`                                         | 1     |
+| `apps/admin/app/(shell)/responses/`                                             | 3     |
+| `apps/admin/app/(shell)/responses/erasures/`                                    | 1     |
+| `apps/admin/app/(shell)/settings/`                                              | 3     |
+| `apps/admin/app/(shell)/settings/password/`                                     | 1     |
+| `apps/admin/app/(shell)/settings/recovery-codes/`                               | 1     |
+| `apps/admin/app/(shell)/webhooks/`                                              | 2     |
+| `apps/admin/app/(shell)/workspaces/`                                            | 3     |
+| `apps/admin/app/(shell)/workspaces/[workspaceId]/`                              | 2     |
+| `apps/admin/app/change-password/`                                               | 2     |
+| `apps/admin/app/change-password/submit/`                                        | 1     |
+| `apps/admin/app/healthz/`                                                       | 1     |
+| `apps/admin/app/sign-in/`                                                       | 2     |
+| `apps/admin/app/sign-in/submit/`                                                | 1     |
+| `apps/admin/app/sign-out/`                                                      | 1     |
+| `apps/admin/app/two-factor/`                                                    | 8     |
+| `apps/admin/app/two-factor/challenge/`                                          | 2     |
+| `apps/admin/app/two-factor/challenge/verify/`                                   | 1     |
+| `apps/admin/app/two-factor/enroll/`                                             | 2     |
+| `apps/admin/app/two-factor/enroll/verify/`                                      | 1     |
+| `apps/admin/app/two-factor/recovery/`                                           | 2     |
+| `apps/admin/app/two-factor/recovery-codes/`                                     | 2     |
+| `apps/admin/app/two-factor/recovery-codes/confirm/`                             | 1     |
+| `apps/admin/app/two-factor/recovery/verify/`                                    | 1     |
+| `apps/admin/components/`                                                        | 123   |
+| `apps/admin/components/agent/`                                                  | 8     |
+| `apps/admin/components/forms/`                                                  | 42    |
+| `apps/admin/components/membership/`                                             | 8     |
+| `apps/admin/components/ops/`                                                    | 14    |
+| `apps/admin/components/questions/`                                              | 15    |
+| `apps/admin/components/shell/`                                                  | 4     |
+| `apps/admin/components/test-support/`                                           | 3     |
+| `apps/admin/lib/`                                                               | 123   |
+| `apps/admin/lib/agent/`                                                         | 12    |
+| `apps/admin/lib/forms/`                                                         | 31    |
+| `apps/admin/lib/i18n/`                                                          | 2     |
+| `apps/admin/lib/membership/`                                                    | 2     |
+| `apps/admin/lib/ops/`                                                           | 13    |
+| `apps/admin/lib/questions/`                                                     | 9     |
+| `apps/admin/lib/server/`                                                        | 31    |
+| `apps/admin/lib/shell/`                                                         | 2     |
+| `apps/api/`                                                                     | 137   |
+| `apps/api/src/`                                                                 | 134   |
+| `apps/api/src/features/`                                                        | 102   |
+| `apps/api/src/features/agent/`                                                  | 34    |
+| `apps/api/src/features/agent/actions/`                                          | 10    |
+| `apps/api/src/features/agent/contexts/`                                         | 5     |
+| `apps/api/src/features/agent/tools/`                                            | 5     |
+| `apps/api/src/features/auth/`                                                   | 5     |
+| `apps/api/src/features/forms/`                                                  | 3     |
+| `apps/api/src/features/links/`                                                  | 3     |
+| `apps/api/src/features/membership/`                                             | 9     |
+| `apps/api/src/features/operations/`                                             | 3     |
+| `apps/api/src/features/outbox/`                                                 | 3     |
+| `apps/api/src/features/questions/`                                              | 4     |
+| `apps/api/src/features/releases/`                                               | 6     |
+| `apps/api/src/features/responses/`                                              | 19    |
+| `apps/api/src/features/responses/admin/`                                        | 4     |
+| `apps/api/src/features/responses/serve-step/`                                   | 3     |
+| `apps/api/src/features/responses/start-session/`                                | 3     |
+| `apps/api/src/features/responses/submit/`                                       | 3     |
+| `apps/api/src/features/webhooks/`                                               | 8     |
+| `apps/api/src/features/workspaces/`                                             | 5     |
+| `apps/api/src/middleware/`                                                      | 7     |
+| `apps/api/src/routes/`                                                          | 1     |
+| `apps/api/src/schedulers/`                                                      | 4     |
+| `apps/portal/`                                                                  | 74    |
+| `apps/portal/app/`                                                              | 19    |
+| `apps/portal/app/appearance/`                                                   | 1     |
+| `apps/portal/app/done/`                                                         | 1     |
+| `apps/portal/app/expired/`                                                      | 1     |
+| `apps/portal/app/f/`                                                            | 2     |
+| `apps/portal/app/f/[formSlug]/`                                                 | 2     |
+| `apps/portal/app/f/[formSlug]/start/`                                           | 1     |
+| `apps/portal/app/l/`                                                            | 1     |
+| `apps/portal/app/l/[token]/`                                                    | 1     |
+| `apps/portal/app/link-error/`                                                   | 1     |
+| `apps/portal/app/s/`                                                            | 7     |
+| `apps/portal/app/s/[sessionId]/`                                                | 7     |
+| `apps/portal/app/s/[sessionId]/answers/`                                        | 1     |
+| `apps/portal/app/s/[sessionId]/roster/`                                         | 1     |
+| `apps/portal/app/s/[sessionId]/step/`                                           | 1     |
+| `apps/portal/app/s/[sessionId]/submit/`                                         | 1     |
+| `apps/portal/components/`                                                       | 15    |
+| `apps/portal/lib/`                                                              | 33    |
+| `apps/portal/lib/i18n/`                                                         | 2     |
+| `apps/portal/lib/server/`                                                       | 18    |
+| `docker/`                                                                       | 3     |
 
 ### What each deployment shape adds
 
@@ -256,7 +262,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 ### QCMS-internal references in the scaffolded source
 
-`1779` lines across `379` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
+`1776` lines across `378` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
 
 These are comments, and they stay (issue #457, tier 3). They are the engineering
 rationale for code you now own, which is worth more to you than a tidy file, and
@@ -271,7 +277,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (556)</summary>
+<summary>Every scaffolded file (561)</summary>
 
 ```
 .dockerignore
@@ -280,21 +286,23 @@ repository, and no scaffolded message names a script your project does not defin
 .npmrc
 apps/admin/.gitignore
 apps/admin/app/(shell)/@rail/default.tsx
-apps/admin/app/(shell)/@rail/forms/[formId]/links/page.tsx
 apps/admin/app/(shell)/@rail/forms/[formId]/page.tsx
 apps/admin/app/(shell)/@rail/forms/[formId]/preview/page.tsx
 apps/admin/app/(shell)/@rail/forms/[formId]/publish/page.tsx
 apps/admin/app/(shell)/@rail/forms/[formId]/rail-slot.tsx
-apps/admin/app/(shell)/@rail/forms/[formId]/responses/[sessionId]/page.tsx
-apps/admin/app/(shell)/@rail/forms/[formId]/responses/page.tsx
 apps/admin/app/(shell)/@rail/forms/[formId]/rules/page.tsx
 apps/admin/app/(shell)/@rail/forms/[formId]/versions/[version]/page.tsx
 apps/admin/app/(shell)/@rail/forms/[formId]/versions/page.tsx
-apps/admin/app/(shell)/@rail/forms/[formId]/webhooks/page.tsx
 apps/admin/app/(shell)/@rail/forms/new/page.tsx
 apps/admin/app/(shell)/@rail/forms/page.tsx
 apps/admin/app/(shell)/@rail/me/access/page.tsx
 apps/admin/app/(shell)/@rail/no-section.ts
+apps/admin/app/(shell)/@rail/operations/forms/[formId]/intake/page.tsx
+apps/admin/app/(shell)/@rail/operations/forms/[formId]/links/page.tsx
+apps/admin/app/(shell)/@rail/operations/forms/[formId]/rail-slot.tsx
+apps/admin/app/(shell)/@rail/operations/forms/[formId]/responses/[sessionId]/page.tsx
+apps/admin/app/(shell)/@rail/operations/forms/[formId]/responses/page.tsx
+apps/admin/app/(shell)/@rail/operations/forms/[formId]/webhooks/page.tsx
 apps/admin/app/(shell)/@rail/operations/page.tsx
 apps/admin/app/(shell)/@rail/questions/[questionId]/page.tsx
 apps/admin/app/(shell)/@rail/questions/new/page.tsx
@@ -307,17 +315,12 @@ apps/admin/app/(shell)/@rail/workspaces/[workspaceId]/page.tsx
 apps/admin/app/(shell)/@rail/workspaces/page.tsx
 apps/admin/app/(shell)/assist/route.ts
 apps/admin/app/(shell)/forms/[formId]/assist/route.ts
-apps/admin/app/(shell)/forms/[formId]/export/route.ts
-apps/admin/app/(shell)/forms/[formId]/links/page.tsx
 apps/admin/app/(shell)/forms/[formId]/page.tsx
 apps/admin/app/(shell)/forms/[formId]/preview/page.tsx
 apps/admin/app/(shell)/forms/[formId]/publish/page.tsx
-apps/admin/app/(shell)/forms/[formId]/responses/[sessionId]/page.tsx
-apps/admin/app/(shell)/forms/[formId]/responses/page.tsx
 apps/admin/app/(shell)/forms/[formId]/rules/page.tsx
 apps/admin/app/(shell)/forms/[formId]/versions/[version]/page.tsx
 apps/admin/app/(shell)/forms/[formId]/versions/page.tsx
-apps/admin/app/(shell)/forms/[formId]/webhooks/page.tsx
 apps/admin/app/(shell)/forms/actions.ts
 apps/admin/app/(shell)/forms/forms-table.tsx
 apps/admin/app/(shell)/forms/new/create-form.tsx
@@ -326,6 +329,12 @@ apps/admin/app/(shell)/forms/page.tsx
 apps/admin/app/(shell)/forms/published-cell.tsx
 apps/admin/app/(shell)/layout.tsx
 apps/admin/app/(shell)/me/access/page.tsx
+apps/admin/app/(shell)/operations/forms/[formId]/export/route.ts
+apps/admin/app/(shell)/operations/forms/[formId]/intake/page.tsx
+apps/admin/app/(shell)/operations/forms/[formId]/links/page.tsx
+apps/admin/app/(shell)/operations/forms/[formId]/responses/[sessionId]/page.tsx
+apps/admin/app/(shell)/operations/forms/[formId]/responses/page.tsx
+apps/admin/app/(shell)/operations/forms/[formId]/webhooks/page.tsx
 apps/admin/app/(shell)/operations/loading.tsx
 apps/admin/app/(shell)/operations/page.tsx
 apps/admin/app/(shell)/questions/[questionId]/page.tsx
@@ -440,6 +449,8 @@ apps/admin/components/ops/dead-letters.tsx
 apps/admin/components/ops/delivery-dashboard.tsx
 apps/admin/components/ops/endpoint-proposals.tsx
 apps/admin/components/ops/erasure-elsewhere.tsx
+apps/admin/components/ops/form-intake.tsx
+apps/admin/components/ops/operations-form-rail.tsx
 apps/admin/components/ops/operations-forms-rail.tsx
 apps/admin/components/ops/operations-forms-table.tsx
 apps/admin/components/ops/ops-tags.tsx

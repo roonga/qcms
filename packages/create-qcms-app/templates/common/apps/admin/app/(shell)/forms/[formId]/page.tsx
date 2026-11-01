@@ -17,12 +17,7 @@ import { resolvedEnvironment } from "@/lib/server/environments";
 import { getForm, loadPinnableQuestions } from "@/lib/server/forms";
 import { requireAdminSession } from "@/lib/server/session";
 
-import {
-  saveDraftAction,
-  setFormStatusAction,
-  updateSettingsAction,
-  validateDraftAction,
-} from "../actions";
+import { saveDraftAction, updateSettingsAction, validateDraftAction } from "../actions";
 
 /**
  * One form's builder (task 033; screen contract `admin-form-builder.md`).
@@ -146,13 +141,16 @@ export default async function FormBuilderPage({
         </Alert>
       )}
 
-      {/* CLOSE/REOPEN AND THE WAY TO THE WIZARD RIDE INSIDE THE BUILDER on the screen that carries the form's own details, because that is
-          what they act on: they close the FORM, and standing them above a column that is
-          usually showing one step said they were about the step.
+      {/* THE WAY TO THE WIZARD RIDES INSIDE THE BUILDER, on the screen that carries the
+          form's own details, because that is what it acts on: standing it above a column
+          that is usually showing one step said it was about the step.
 
-          Passed as a node rather than imported by the builder, which keeps `FormActions`
-          a server component holding its own bound action - a client component cannot bind
-          a server action. */}
+          Close and reopen stood beside it until 2026-11-02 (Code Owner). They act in one
+          environment and this draft belongs to none, so they are Operations' now, at
+          `/operations/forms/{formId}/intake`.
+
+          Passed as a node rather than imported by the builder, so the actions stay out of
+          the client module's own import surface. */}
       <FormBuilder
         detail={form}
         library={readState(library)}
@@ -175,11 +173,6 @@ export default async function FormBuilderPage({
           <FormActions
             workflow={form.workflow}
             formId={form.formId}
-            slug={form.slug}
-            status={form.status}
-            // The environment this render showed travels with the action, so a tab another
-            // tab has since switched is refused rather than obeyed (A1).
-            setStatus={setFormStatusAction.bind(null, form.formId, shown)}
             environment={shown ?? t("environment.unknown")}
           />
         }

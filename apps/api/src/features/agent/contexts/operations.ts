@@ -205,12 +205,9 @@ export const formIntakeFacts = z.strictObject({
 });
 
 /**
- * One form's intake in the selected environment (Code Owner, 2026-11-02).
- *
- * The reading and only the reading: what is serving there, and whether it is taking
- * responses. Admitted on `form: read` rather than on `form: close`, which is the cell the
- * two acts carry at their own routes - a reader who may not change intake can still be
- * told what it is.
+ * One form's intake in the selected environment: what is serving there, and whether it is
+ * taking responses. Admitted on `form: read` rather than the `form: close` its two acts
+ * carry, so a reader who may not change intake can still be told what it is.
  */
 async function buildFormIntake(input: ScreenBuildInput): Promise<z.infer<typeof formIntakeFacts>> {
   const { formId, workspaceId } = await requireForm(input);

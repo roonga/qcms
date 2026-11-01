@@ -1,20 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useState, useTransition } from "react";
 
-import { Alert, Button, Dialog } from "@/components/kit";
 import { HeadingMarker } from "@/components/agent/heading-marker";
-import { useEnvironmentUnknown } from "@/components/environment-scope";
-import type { FormStatusState } from "@/lib/forms/builder-state";
-import { IDLE_FORM_STATUS } from "@/lib/forms/builder-state";
 import type { FormPublishingWorkflow } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
-import { unexpected } from "@/lib/ops/unexpected";
 
 /**
- * The form-level actions: the way to the publish wizard, and close/reopen (task 034; screen
- * contract "close/reopen").
+ * The form-level action on the builder: the way to the publish wizard (task 034).
  *
  * Publishing is the wizard's, so what is here is a link, gated by the same capability the
  * act is: a caller who may not publish sees no way to. The anchored work list a refusal
@@ -22,56 +15,24 @@ import { unexpected } from "@/lib/ops/unexpected";
  * or pin at fault; only that screen renders those, so the wizard names the count and sends
  * the author back here.
  *
- * Close and reopen carry their environment, because the closed state is per (form,
- * environment) and an act performed against the wrong one is not undoable (Q6).
+ * CLOSE AND REOPEN LEFT THIS COMPONENT (Code Owner, 2026-11-02). They are operational acts
+ * in one environment - the closed state is per (form, environment) - and every per-form
+ * operational screen is Operations'. They are `components/ops/form-intake.tsx` now, on
+ * `/operations/forms/{formId}/intake`, and the editor is authoring. What went with them is
+ * the `lifecycleOnly` mode this component had for the production review, which rendered
+ * those two acts and no publish link: with the acts moved it had nothing left to render.
  */
 export function FormActions({
-  slug,
   formId,
-  status,
-  setStatus,
   environment,
   workflow,
-  lifecycleOnly = false,
 }: {
-  readonly lifecycleOnly?: boolean;
   readonly workflow?: FormPublishingWorkflow | undefined;
-  readonly slug: string;
   readonly formId: string;
-  readonly status: "open" | "closed";
-  /** Bound by the page to the environment this screen shows; refused if that has changed. */
-  readonly setStatus: (action: "close" | "reopen") => Promise<FormStatusState>;
-  /**
-   * The environment the operator's Q6 switcher had selected when this screen rendered, and
-   * the one the lifecycle confirmations name.
-   */
+  /** The environment the operator's Q6 switcher had selected when this screen rendered. */
   readonly environment: string;
 }) {
-  const [dialog, setDialog] = useState<"close" | "reopen" | null>(null);
-  const [lifecycle, setLifecycle] = useState<FormStatusState>(IDLE_FORM_STATUS);
-  const [isPending, startTransition] = useTransition();
-  // Close and reopen act in one environment, so they wait until one is known (A12).
-  const environmentUnknown = useEnvironmentUnknown();
-
-  const canPublish = !lifecycleOnly && workflow?.canPublish !== false;
-
-  const runStatus = useCallback(
-    (action: "close" | "reopen") => {
-      startTransition(() => {
-        void setStatus(action)
-          .then((state) => {
-            setLifecycle(state);
-            if (state.status === "changed") setDialog(null);
-          })
-          // The same trap as `runPublish`. The dialog stays open here, exactly as it does
-          // for a returned failure, because this dialog renders the lifecycle error itself.
-          .catch(() => {
-            setLifecycle({ status: "error", message: unexpected() });
-          });
-      });
-    },
-    [setStatus],
-  );
+  const canPublish = workflow?.canPublish !== false;
 
   return (
     <section
@@ -80,7 +41,7 @@ export function FormActions({
       data-testid="qcms-form-actions"
     >
       <h2 id="qcms-form-actions-heading" className="qcms-visually-hidden">
-        {t(lifecycleOnly ? "forms.workflow.intake" : "forms.publish.action")}
+        {t("forms.publish.action")}
       </h2>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -98,112 +59,13 @@ export function FormActions({
             </Link>
           </HeadingMarker>
         )}
-        <HeadingMarker control="builder.intake">
-          <Button
-            variant="secondary"
-            size="md"
-            isDisabled={isPending || environmentUnknown}
-            onPress={() => {
-              setLifecycle(IDLE_FORM_STATUS);
-              setDialog(status === "open" ? "close" : "reopen");
-            }}
-          >
-            {status === "open"
-              ? t("forms.lifecycle.close", { environment })
-              : t("forms.lifecycle.reopen", { environment })}
-          </Button>
-        </HeadingMarker>
       </div>
 
-      {!lifecycleOnly && workflow?.enabled && !workflow.canPublish && (
+      {workflow?.enabled && !workflow.canPublish && (
         <p className="text-sm text-(--color-text-muted)">
           {t("forms.workflow.noPublishPermission", { environment })}
         </p>
       )}
-      {status === "closed" && (
-        <p className="text-sm text-(--color-text-muted)" data-testid="qcms-form-closed">
-          {t("forms.lifecycle.closedNote", { environment })}
-        </p>
-      )}
-
-      {/* Testid on the region rather than only on its contents, so the `aria-live` can be
-          asserted directly (#368; the ops surface got the same treatment in #359). */}
-      <div
-        aria-live="polite"
-        className="flex flex-col gap-2"
-        data-testid="qcms-form-actions-status"
-      >
-        {lifecycle.status === "error" && (
-          <Alert variant="error">
-            {t("forms.lifecycle.failed", { message: lifecycle.message ?? "" })}
-          </Alert>
-        )}
-      </div>
-
-      {(dialog === "close" || dialog === "reopen") && (
-        <Dialog
-          isOpen
-          role="alertdialog"
-          title={
-            dialog === "close"
-              ? t("forms.lifecycle.closeTitle", { slug, environment })
-              : t("forms.lifecycle.reopenTitle", { slug, environment })
-          }
-          description={
-            dialog === "close"
-              ? t("forms.lifecycle.closeBody", { environment })
-              : t("forms.lifecycle.reopenBody", { environment })
-          }
-          isDismissable={!isPending}
-          onOpenChange={(isOpen) => {
-            if (!isOpen) setDialog(null);
-          }}
-        >
-          <div className="flex flex-col gap-4">
-            {/* Q6 again, and since task 066 this is the environment the act is **about**
-                rather than only the one the operator is reading in: the closed state is per
-                (form, environment), so a confirmation that said nothing about where it
-                lands would be ambiguous rather than merely unhelpful. */}
-            <p className="text-sm font-semibold" data-testid="qcms-lifecycle-environment">
-              {t("environment.inThis", { environment })}
-            </p>
-            {lifecycle.status === "error" && (
-              <Alert variant="error">
-                {t("forms.lifecycle.failed", { message: lifecycle.message ?? "" })}
-              </Alert>
-            )}
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant={dialog === "close" ? "danger" : "primary"}
-                size="md"
-                isDisabled={isPending}
-                onPress={() => {
-                  runStatus(dialog);
-                }}
-              >
-                {isPending ? t("forms.lifecycle.pending") : confirmLabel(dialog, environment)}
-              </Button>
-              <Button
-                variant="ghost"
-                size="md"
-                isDisabled={isPending}
-                onPress={() => {
-                  setDialog(null);
-                }}
-              >
-                {t("forms.lifecycle.cancel")}
-              </Button>
-            </div>
-          </div>
-        </Dialog>
-      )}
     </section>
   );
-}
-
-/** The verb on a lifecycle dialog's confirm button, naming the environment it acts in. */
-function confirmLabel(intent: "close" | "reopen", environment: string): string {
-  return intent === "close"
-    ? t("forms.lifecycle.confirmClose", { environment })
-    : t("forms.lifecycle.confirmReopen", { environment });
 }

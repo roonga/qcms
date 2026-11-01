@@ -102,6 +102,41 @@ export default function adminNextConfig(phase: string): NextConfig {
           destination: "/forms/:formId/versions",
           permanent: false,
         },
+        // THE OPERATIONAL SCREENS LEFT THE FORM'S SUBTREE (Code Owner, 2026-11-02). Every
+        // one of these addresses is in bookmarks, in release outcomes and in copied URLs,
+        // so each still arrives. Config entries rather than redirecting pages for the
+        // reason `/releases` above is one: a page would cost the six registrations a
+        // screen costs, and these produce no document to rail, title or measure.
+        //
+        // Next carries the query string through a redirect it did not rewrite, which is
+        // the whole of what a response list's filters and an export's choices say. 308
+        // rather than 307, because the move is settled and the method survives it, which
+        // the export download needs.
+        {
+          source: "/forms/:formId/responses",
+          destination: "/operations/forms/:formId/responses",
+          permanent: true,
+        },
+        {
+          source: "/forms/:formId/responses/:sessionId",
+          destination: "/operations/forms/:formId/responses/:sessionId",
+          permanent: true,
+        },
+        {
+          source: "/forms/:formId/links",
+          destination: "/operations/forms/:formId/links",
+          permanent: true,
+        },
+        {
+          source: "/forms/:formId/webhooks",
+          destination: "/operations/forms/:formId/webhooks",
+          permanent: true,
+        },
+        {
+          source: "/forms/:formId/export",
+          destination: "/operations/forms/:formId/export",
+          permanent: true,
+        },
       ]),
   };
 }

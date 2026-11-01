@@ -22,7 +22,7 @@ import { shownEnvironment } from "@/lib/environment";
 import { resolvedEnvironment } from "@/lib/server/environments";
 import { requireAdminSession } from "@/lib/server/session";
 
-import { eraseSessionAction, unflagResponseAction } from "../../../../responses/actions";
+import { eraseSessionAction, unflagResponseAction } from "../../../../../responses/actions";
 
 /**
  * The browser-tab title for this route (issue #536).
@@ -118,7 +118,10 @@ export default async function ResponseDetailPage({
           status={form.data.status}
           heading={responseHeading(sessionId)}
         />
-        <Link className="qcms-text-link" href={`/forms/${encodeURIComponent(formId)}/responses`}>
+        <Link
+          className="qcms-text-link"
+          href={`/operations/forms/${encodeURIComponent(formId)}/responses`}
+        >
           {t("ops.detail.back")}
         </Link>
         {tombstone === undefined ? (
@@ -144,7 +147,10 @@ export default async function ResponseDetailPage({
         status={form.data.status}
         heading={responseHeading(sessionId)}
       />
-      <Link className="qcms-text-link" href={`/forms/${encodeURIComponent(formId)}/responses`}>
+      <Link
+        className="qcms-text-link"
+        href={`/operations/forms/${encodeURIComponent(formId)}/responses`}
+      >
         {t("ops.detail.back")}
       </Link>
       <ErasureElsewhereOffer others={elsewhere} secureCookies={secureCookies()} />

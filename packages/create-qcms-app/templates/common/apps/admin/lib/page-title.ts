@@ -43,16 +43,29 @@ import { t } from "./i18n/en.ts";
  */
 
 /**
- * The eight sections of one form, as `forms.tab.*` names them.
+ * The nine sections of one form, as `forms.tab.*` names them.
  *
  * Six until issue #669, which gave rule editing a route (`/forms/{formId}/rules`) rather
  * than leaving it a selection on the builder. The seventh and eighth are Versions, which
  * answers what exists and what is serving where in one screen, and Publish, the one entry
  * that changes either. A section here is a screen with a tab title, a
  * breadcrumb crumb, an `<h1>` and a rail row, and both are all four.
+ *
+ * THEY ARE NO LONGER ONE SUBTREE (Code Owner, 2026-11-02). Links, Responses, Webhooks and
+ * the ninth, Intake, live under `/operations/forms/{formId}` and the rest are the editor's.
+ * One list still, because a section is a NAME here - the tab title, the `<h1>` and the rail
+ * row of a screen about one form - whichever rail carries it.
  */
 export type FormSection =
-  "builder" | "rules" | "preview" | "versions" | "publish" | "links" | "responses" | "webhooks";
+  | "builder"
+  | "rules"
+  | "preview"
+  | "versions"
+  | "publish"
+  | "links"
+  | "responses"
+  | "webhooks"
+  | "intake";
 
 /** One route's metadata: its page name, in the app's one title pattern. */
 export function pageMetadata(page: string): Metadata {

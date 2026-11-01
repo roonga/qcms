@@ -148,7 +148,7 @@ export const MEASURE_BY_ROUTE = {
    */
   "/forms/[formId]/rules": "wide",
   /** `links-webhooks-poc.html` `.main` 1600, its Secure links screen. */
-  "/forms/[formId]/links": "wide",
+  "/operations/forms/[formId]/links": "wide",
   /**
    * `preview-versions-poc.html` `.main` 1600, with the screen's own content in the 640px
    * `.respondent-frame` inside it (`:446`, `:626`) and two 640px banners beside it.
@@ -170,9 +170,9 @@ export const MEASURE_BY_ROUTE = {
    */
   "/forms/[formId]/preview": "wide",
   /** `responses-poc.html` `.main` 1600, its list screen; nothing inside caps narrower. */
-  "/forms/[formId]/responses": "wide",
+  "/operations/forms/[formId]/responses": "wide",
   /** `responses-poc.html` `.main` 1600, its detail screen; same, nothing narrower inside. */
-  "/forms/[formId]/responses/[sessionId]": "wide",
+  "/operations/forms/[formId]/responses/[sessionId]": "wide",
   /** `preview-versions-poc.html` `.main` 1600, its version-history table. */
   "/forms/[formId]/versions": "wide",
   /**
@@ -193,7 +193,13 @@ export const MEASURE_BY_ROUTE = {
    */
   "/forms/[formId]/versions/[version]": "wide",
   /** `links-webhooks-poc.html` `.main` 1600, its Webhook endpoints screen. */
-  "/forms/[formId]/webhooks": "wide",
+  "/operations/forms/[formId]/webhooks": "wide",
+  /**
+   * **No POC draws the per-form Intake screen.** Like `/me/access` it is one panel of
+   * state with its two acts beside it, so it takes the same prose cap rather than
+   * borrowing a 1600 drawn for a table.
+   */
+  "/operations/forms/[formId]/intake": "prose",
   /** `library-lists-poc.html` `.main` 1080, its Questions screen. */
   "/questions": "list",
   /**

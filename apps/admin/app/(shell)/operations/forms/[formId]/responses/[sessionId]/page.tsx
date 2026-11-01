@@ -118,7 +118,10 @@ export default async function ResponseDetailPage({
           status={form.data.status}
           heading={responseHeading(sessionId)}
         />
-        <Link className="qcms-text-link" href={`/operations/forms/${encodeURIComponent(formId)}/responses`}>
+        <Link
+          className="qcms-text-link"
+          href={`/operations/forms/${encodeURIComponent(formId)}/responses`}
+        >
           {t("ops.detail.back")}
         </Link>
         {tombstone === undefined ? (
@@ -144,7 +147,10 @@ export default async function ResponseDetailPage({
         status={form.data.status}
         heading={responseHeading(sessionId)}
       />
-      <Link className="qcms-text-link" href={`/operations/forms/${encodeURIComponent(formId)}/responses`}>
+      <Link
+        className="qcms-text-link"
+        href={`/operations/forms/${encodeURIComponent(formId)}/responses`}
+      >
         {t("ops.detail.back")}
       </Link>
       <ErasureElsewhereOffer others={elsewhere} secureCookies={secureCookies()} />

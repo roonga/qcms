@@ -702,6 +702,10 @@ export async function setFormStatusAction(
   // "layout", for the reason `saveDraftAction` records: closing a form changes the header
   // of every screen under it, and the rules route is one of them (issue #669).
   revalidatePath(`/forms/${formId}`, "layout");
+  // The screen the act now happens on, and the table it was reached from (Code Owner,
+  // 2026-11-02): both state this form's intake in this environment.
+  revalidatePath(`/operations/forms/${formId}`, "layout");
+  revalidatePath("/operations");
   return {
     status: "changed",
     formStatus: result.data.status,

@@ -58,7 +58,7 @@ export const FAKE_SCRIPTS = [
   // One multi-step plan per screen group, so every kind is also confirmed inside a plan.
   "plan-apply-draft",
   "plan-apply-draft-release",
-  "plan-form-screen",
+  "plan-intake",
   "plan-releases",
   "plan-links",
   "plan-forms-create",
@@ -915,13 +915,12 @@ function actionPlanSteps(
       return [
         { kind: "form.publish", args: { formId, environment: "test" } },
         releaseStep(formId, { fromStep: 0, field: "version" }, "prod"),
-        mintStep(formId, 20),
+        { kind: "form.settings", args: { formId, challengeRequired: true, minSubmitMs: 1500 } },
       ];
     case "plan-fails-at-2":
       return [mintStep(formId, 1), revokeStep(formId, factLinkId(prompt)), mintStep(formId, 3)];
-    case "plan-form-screen":
+    case "plan-intake":
       return [
-        { kind: "form.settings", args: { formId, challengeRequired: true, minSubmitMs: 1500 } },
         { kind: "form.close", args: { formId } },
         { kind: "form.reopen", args: { formId } },
       ];
@@ -1225,7 +1224,7 @@ const ACTION_SCRIPTS: readonly FakeScript[] = [
   "unknown-tool",
   "injection-follow",
   "read-only-user",
-  "plan-form-screen",
+  "plan-intake",
   "plan-releases",
   "plan-links",
   "plan-forms-create",

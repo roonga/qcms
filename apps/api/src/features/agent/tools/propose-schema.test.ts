@@ -82,9 +82,8 @@ describe("the propose tools' advertised schemas", () => {
     });
     expect(parsed.success).toBe(true);
 
-    // The two form subtrees are separate lists (Code Owner, 2026-11-02): an authoring plan
-    // edits a shared draft and an operational one acts in one environment, so a step of the
-    // other kind is not in the schema the turn was offered.
+    // The two form subtrees are separate lists, so a step of the other kind is not in the
+    // schema the turn was offered.
     const mixed = proposePlanSchema(authoring).safeParse({
       steps: [
         { kind: "form.publish", args: { formId: "frm_a", environment: "test" } },

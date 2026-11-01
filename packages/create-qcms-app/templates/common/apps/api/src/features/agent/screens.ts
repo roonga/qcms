@@ -21,10 +21,11 @@ export const SCREEN_IDS = [
   "/forms/[formId]/versions",
   "/forms/[formId]/versions/[version]",
   "/forms/[formId]/publish",
-  "/forms/[formId]/links",
-  "/forms/[formId]/webhooks",
-  "/forms/[formId]/responses",
-  "/forms/[formId]/responses/[sessionId]",
+  "/operations/forms/[formId]/links",
+  "/operations/forms/[formId]/webhooks",
+  "/operations/forms/[formId]/responses",
+  "/operations/forms/[formId]/responses/[sessionId]",
+  "/operations/forms/[formId]/intake",
   "/questions",
   "/questions/new",
   "/questions/[questionId]",
@@ -89,12 +90,12 @@ function screen(
 export const SCREENS: Readonly<Record<ScreenId, ScreenDef>> = Object.freeze({
   "/forms": screen(authoringContexts.formsList, ["search_forms"], ["form.create"]),
   "/forms/new": screen(authoringContexts.newForm, [], ["form.create"]),
+  // `form.close` and `form.reopen` are the Intake screen's below: they act on one
+  // environment's intake and this screen edits a draft that belongs to none.
   "/forms/[formId]": screen(authoringContexts.builder, DRAFT_TOOLS, [
     "apply-draft",
     "form.publish",
     "form.settings",
-    "form.close",
-    "form.reopen",
   ]),
   "/forms/[formId]/rules": screen(authoringContexts.rules, ["validate_draft", "test_rule"]),
   "/forms/[formId]/preview": screen(authoringContexts.preview, ["project_draft"]),
@@ -103,12 +104,12 @@ export const SCREENS: Readonly<Record<ScreenId, ScreenDef>> = Object.freeze({
     "diff_form_versions",
   ]),
   "/forms/[formId]/publish": screen(authoringContexts.releases, [], ["form.release"]),
-  "/forms/[formId]/links": screen(
+  "/operations/forms/[formId]/links": screen(
     authoringContexts.links,
     ["count_links"],
     ["link.mint", "link.revoke"],
   ),
-  "/forms/[formId]/webhooks": screen(
+  "/operations/forms/[formId]/webhooks": screen(
     operationsContexts.formWebhooks,
     ["delivery_status"],
     [
@@ -120,15 +121,20 @@ export const SCREENS: Readonly<Record<ScreenId, ScreenDef>> = Object.freeze({
       "webhook.redeliver",
     ],
   ),
-  "/forms/[formId]/responses": screen(
+  "/operations/forms/[formId]/responses": screen(
     operationsContexts.responseList,
     ["list_responses", "count_responses"],
     ["response.export"],
   ),
-  "/forms/[formId]/responses/[sessionId]": screen(
+  "/operations/forms/[formId]/responses/[sessionId]": screen(
     operationsContexts.responseDetail,
     [],
     ["response.erase", "response.unflag"],
+  ),
+  "/operations/forms/[formId]/intake": screen(
+    operationsContexts.formIntake,
+    [],
+    ["form.close", "form.reopen"],
   ),
   "/questions": screen(
     authoringContexts.questions,
@@ -166,31 +172,42 @@ export const SCREENS: Readonly<Record<ScreenId, ScreenDef>> = Object.freeze({
   ),
 });
 
-/** The screens of one form's subtree, which is the span of one conversation. */
-export const FORM_SUBTREE_SCREENS: readonly ScreenId[] = SCREEN_IDS.filter((id) =>
+/** One form's authoring screens: the editor's own subtree. */
+export const FORM_AUTHORING_SCREENS: readonly ScreenId[] = SCREEN_IDS.filter((id) =>
   id.startsWith("/forms/[formId]"),
 );
 
+/** One form's operational screens: each reads the environment the selection names. */
+export const FORM_OPERATIONS_SCREENS: readonly ScreenId[] = SCREEN_IDS.filter((id) =>
+  id.startsWith("/operations/forms/[formId]"),
+);
+
 export function isFormSubtreeScreen(screenId: ScreenId): boolean {
-  return FORM_SUBTREE_SCREENS.includes(screenId);
+  return FORM_AUTHORING_SCREENS.includes(screenId) || FORM_OPERATIONS_SCREENS.includes(screenId);
 }
 
-const FORM_SUBTREE_ACTION_KINDS: readonly string[] = (() => {
+function kindsAcross(ids: readonly ScreenId[]): readonly string[] {
   const kinds: string[] = [];
-  for (const id of FORM_SUBTREE_SCREENS) {
+  for (const id of ids) {
     for (const kind of SCREENS[id].actionKinds) {
       if (!kinds.includes(kind)) kinds.push(kind);
     }
   }
   return Object.freeze(kinds);
-})();
+}
+
+const FORM_AUTHORING_ACTION_KINDS = kindsAcross(FORM_AUTHORING_SCREENS);
+const FORM_OPERATIONS_ACTION_KINDS = kindsAcross(FORM_OPERATIONS_SCREENS);
 
 /**
- * The kinds a turn on this screen may propose: the whole form subtree's on a form-scoped
- * screen, so one plan can span it, and the screen's own elsewhere. Every step still runs
- * its own screen's action under its own route's checks, and the grant filter still cuts
- * the list to the pairs the caller holds.
+ * The kinds a turn on this screen may propose: its own subtree's on a form-scoped screen,
+ * so one plan can span it, and the screen's own elsewhere.
  */
+// The two form subtrees are separate lists because they are separate contexts: an
+// authoring plan edits a shared draft, an operational plan acts in one environment, and a
+// plan mixing them would be one confirmation spanning both.
 export function offerableActionKinds(screenId: ScreenId): readonly string[] {
-  return isFormSubtreeScreen(screenId) ? FORM_SUBTREE_ACTION_KINDS : SCREENS[screenId].actionKinds;
+  if (FORM_AUTHORING_SCREENS.includes(screenId)) return FORM_AUTHORING_ACTION_KINDS;
+  if (FORM_OPERATIONS_SCREENS.includes(screenId)) return FORM_OPERATIONS_ACTION_KINDS;
+  return SCREENS[screenId].actionKinds;
 }

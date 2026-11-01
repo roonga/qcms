@@ -96,8 +96,8 @@ describe("the kinds a screen offers", () => {
     // Both roles, because publishing is the editor's cell and a production release is the
     // approver's.
     const approver = [editorIn(["test", "prod"]), approverIn(["test", "prod"])];
-    // TWO SUBTREES SINCE 2026-11-02 (Code Owner): an authoring plan edits a shared draft
-    // and an operational plan acts in one environment, so one plan never spans both.
+    // Two subtrees: an authoring plan edits a shared draft and an operational one acts in
+    // one environment, so one plan never spans both.
     const authoring = ["apply-draft", "form.publish", "form.settings", "form.release"];
     const operational = [
       "link.mint",
@@ -126,9 +126,9 @@ describe("the kinds a screen offers", () => {
       "response.erase",
       "response.unflag",
     ]);
-    expect(kindsOn("/operations/forms/[formId]/responses/[sessionId]", [editorIn(["all"])])).not.toContain(
-      "response.erase",
-    );
+    expect(
+      kindsOn("/operations/forms/[formId]/responses/[sessionId]", [editorIn(["all"])]),
+    ).not.toContain("response.erase");
   });
 
   it("still cuts the subtree's kinds to the pairs the caller holds", () => {

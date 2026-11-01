@@ -91,9 +91,11 @@ export const updateFormSettings: ActionKindDef = {
     "leaves every session already under way untouched.",
 };
 
+// Both kinds act on one environment's intake, and the builder edits a draft that belongs
+// to no environment, so each names the per-form Intake screen.
 export const closeForm: ActionKindDef = {
   kind: "form.close",
-  screen: "/forms/[formId]",
+  screen: "/operations/forms/[formId]/intake",
   route: { method: "POST", path: "/admin/forms/{id}/close" },
   cell: { resource: "form", action: "close" },
   environmentFrom: "switcher",
@@ -104,7 +106,7 @@ export const closeForm: ActionKindDef = {
   card: {
     titleKey: "agent.card.form.close.title",
     consequenceKeys: ["agent.card.form.close.consequence"],
-    headingControl: "builder.intake",
+    headingControl: "intake.door",
   },
   description:
     "Close the form to new sessions in the current environment. Every session already " +
@@ -113,7 +115,7 @@ export const closeForm: ActionKindDef = {
 
 export const reopenForm: ActionKindDef = {
   kind: "form.reopen",
-  screen: "/forms/[formId]",
+  screen: "/operations/forms/[formId]/intake",
   route: { method: "POST", path: "/admin/forms/{id}/reopen" },
   cell: { resource: "form", action: "close" },
   environmentFrom: "switcher",
@@ -124,7 +126,7 @@ export const reopenForm: ActionKindDef = {
   card: {
     titleKey: "agent.card.form.reopen.title",
     consequenceKeys: ["agent.card.form.reopen.consequence"],
-    headingControl: "builder.intake",
+    headingControl: "intake.door",
   },
   description: "Reopen the form to new sessions in the current environment.",
 };

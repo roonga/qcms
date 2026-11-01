@@ -364,12 +364,8 @@ describe("a plan reaches the user as one card and runs nothing (criterion 4)", (
         script: "plan-three",
         conversationId: "cnv_plan_three",
       });
-      // An authoring screen offers its own subtree's kinds, so publish, release and the
-      // settings change are one card. Each step still runs its own screen's action.
-      //
-      // The third step was `link.mint`, and that is the one thing a plan may no longer do
-      // (Code Owner, 2026-11-02): minting is operational and these two are authoring, so
-      // one confirmation cannot span them.
+      // An authoring screen offers its own subtree's kinds, so these three are one card.
+      // No operational kind is among them: a plan never spans the two form subtrees.
       const [plan, ...rest] = proposals(events);
       expect(rest).toEqual([]);
       expect(plan?.type).toBe("plan");

@@ -90,9 +90,8 @@ function screen(
 export const SCREENS: Readonly<Record<ScreenId, ScreenDef>> = Object.freeze({
   "/forms": screen(authoringContexts.formsList, ["search_forms"], ["form.create"]),
   "/forms/new": screen(authoringContexts.newForm, [], ["form.create"]),
-  // `form.close` and `form.reopen` LEFT THIS ROW (Code Owner, 2026-11-02). They act on one
-  // environment's intake and this screen edits a draft that belongs to none, so they are
-  // the Intake screen's below.
+  // `form.close` and `form.reopen` are the Intake screen's below: they act on one
+  // environment's intake and this screen edits a draft that belongs to none.
   "/forms/[formId]": screen(authoringContexts.builder, DRAFT_TOOLS, [
     "apply-draft",
     "form.publish",
@@ -132,10 +131,11 @@ export const SCREENS: Readonly<Record<ScreenId, ScreenDef>> = Object.freeze({
     [],
     ["response.erase", "response.unflag"],
   ),
-  "/operations/forms/[formId]/intake": screen(operationsContexts.formIntake, [], [
-    "form.close",
-    "form.reopen",
-  ]),
+  "/operations/forms/[formId]/intake": screen(
+    operationsContexts.formIntake,
+    [],
+    ["form.close", "form.reopen"],
+  ),
   "/questions": screen(
     authoringContexts.questions,
     ["search_question_library"],
@@ -177,10 +177,7 @@ export const FORM_AUTHORING_SCREENS: readonly ScreenId[] = SCREEN_IDS.filter((id
   id.startsWith("/forms/[formId]"),
 );
 
-/**
- * One form's operational screens, which are Operations' and not the editor's (Code Owner,
- * 2026-11-02): they read the environment the shell's selection names.
- */
+/** One form's operational screens: each reads the environment the selection names. */
 export const FORM_OPERATIONS_SCREENS: readonly ScreenId[] = SCREEN_IDS.filter((id) =>
   id.startsWith("/operations/forms/[formId]"),
 );
@@ -205,13 +202,10 @@ const FORM_OPERATIONS_ACTION_KINDS = kindsAcross(FORM_OPERATIONS_SCREENS);
 /**
  * The kinds a turn on this screen may propose: its own subtree's on a form-scoped screen,
  * so one plan can span it, and the screen's own elsewhere.
- *
- * The two form subtrees are separate lists because they are separate contexts: an
- * authoring plan edits a shared draft, an operational plan acts in one environment, and a
- * plan that mixed them would be one confirmation spanning both. Every step still runs its
- * own screen's action under its own route's checks, and the grant filter still cuts the
- * list to the pairs the caller holds.
  */
+// The two form subtrees are separate lists because they are separate contexts: an
+// authoring plan edits a shared draft, an operational plan acts in one environment, and a
+// plan mixing them would be one confirmation spanning both.
 export function offerableActionKinds(screenId: ScreenId): readonly string[] {
   if (FORM_AUTHORING_SCREENS.includes(screenId)) return FORM_AUTHORING_ACTION_KINDS;
   if (FORM_OPERATIONS_SCREENS.includes(screenId)) return FORM_OPERATIONS_ACTION_KINDS;

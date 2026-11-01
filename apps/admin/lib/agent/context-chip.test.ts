@@ -35,7 +35,9 @@ describe("the context chip", () => {
 
   it("says the response screens carry no answers, which is the rule this phase spreads", () => {
     expect(contextChipLabel(screenForPath("/responses"))).toContain("no answers");
-    expect(contextChipLabel(screenForPath("/operations/forms/frm_quote/responses"))).toContain("no answers");
+    expect(contextChipLabel(screenForPath("/operations/forms/frm_quote/responses"))).toContain(
+      "no answers",
+    );
   });
 
   it("leaves no placeholder unfilled on any screen", () => {

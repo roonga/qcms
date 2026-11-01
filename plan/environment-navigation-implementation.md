@@ -318,14 +318,31 @@ settings, even if an Operations screen links to their authorized editor.
 | 7. Shipping                | E2E/CI coverage, template sync, changeset, user/security/architecture docs                | Required gates green; exact PR head independently reviewed; comments resolved before merge                                 |
 
 **Phase 1 is ruled (PR #1163); phases 2, 3, 4 and 5 have landed (issues #1174, #1181,
-#1183 and #1197). Phase 6 is part-landed (issue #1204) and part-blocked on rulings.**
-What landed of phase 6: the discovery row reports its read cells, the Operations table
+#1183 and #1197). Phase 6 is landing in slices (issue #1204).**
+What landed of phase 6 first: the discovery row reports its read cells, the Operations table
 offers each row the contexts that row's own cells admit, and a refused form read no longer
-blocks the response browser. What is blocked, with options and a recommendation in that
-issue's `HANDOFF.md`: which shell mode owns a form-scoped operational route reached from
-Operations, what an Operations "Overview" context is, where a claim-only caller's global
-queue reads its form identities from, the G05 eraser known-target screen and its
-`docs/erasure.md` text, and the workspace-mode surface.
+blocks the response browser.
+
+**Every per-form operational screen lives only under Operations, in the selected
+environment, and the form editor is authoring (Code Owner, 2026-11-02.)** The second slice
+is that move. Responses, Links, Webhooks and the response detail are addressed under
+`/operations/forms/{formId}/`; their old addresses arrive as `redirects()` entries in
+`apps/admin/next.config.ts`, which keep the query a response list's filters and an export's
+choices are made of. One form therefore has two rails: the editor's, which nests the form's
+steps under its own row, and Operations', whose rows are the contexts of one environment.
+
+Intake is the screen that move created. Closing a form to new sessions and reopening it were
+the builder's controls, and the closed state is per (form, environment) while the builder's
+draft belongs to none, so they are `/operations/forms/{formId}/intake` now - what the
+selected environment serves, whether it is taking responses, and the two acts - with
+`form.close` and `form.reopen` moved to that screen in both agent screen tables. One
+consequence is worth stating because it narrows what the assistant may offer: the form
+subtree's offerable action kinds are two lists rather than one, so a plan never spans
+authoring and operational acts in a single confirmation.
+
+Still to come in phase 6: the warning before leaving Operations, the workspace area's rail
+entries as screens, the G05 eraser known-target screen with its `docs/erasure.md` text, and
+where a claim-only caller's global queue reads its form identities from.
 Phase 2 delivered the authorized read model and nothing beyond it: the `anyOf`
 route-policy row shape and `environmentFrom: "query"`, `GET /admin/operations/forms` with
 its per-role projection and cursor pagination, the stateless

@@ -75,9 +75,7 @@ export default async function FormIntakePage({
         </div>
         <div className="flex gap-2">
           <dt className="text-(--color-text-muted)">{t("operations.column.intake")}</dt>
-          <dd data-testid="qcms-form-intake-reading">
-            {t(intakeReading(form.status, released))}
-          </dd>
+          <dd data-testid="qcms-form-intake-reading">{t(intakeReading(form.status, released))}</dd>
         </div>
       </dl>
       <FormIntake

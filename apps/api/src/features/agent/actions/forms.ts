@@ -91,9 +91,8 @@ export const updateFormSettings: ActionKindDef = {
     "leaves every session already under way untouched.",
 };
 
-// INTAKE IS AN OPERATIONS SCREEN'S ACT (Code Owner, 2026-11-02). Both kinds were the
-// builder's: they act on one environment's intake, and the builder edits a draft that
-// belongs to none, so each names the per-form Intake screen now.
+// Both kinds act on one environment's intake, and the builder edits a draft that belongs
+// to no environment, so each names the per-form Intake screen.
 export const closeForm: ActionKindDef = {
   kind: "form.close",
   screen: "/operations/forms/[formId]/intake",

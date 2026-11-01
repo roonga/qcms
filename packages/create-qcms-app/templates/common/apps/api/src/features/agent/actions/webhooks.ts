@@ -45,7 +45,7 @@ function bodyMember(facts: ActionRequestFacts, name: string): unknown {
 
 export const createWebhook: ActionKindDef = {
   kind: "webhook.create",
-  screen: "/forms/[formId]/webhooks",
+  screen: "/operations/forms/[formId]/webhooks",
   route: { method: "POST", path: "/admin/forms/{id}/webhooks" },
   cell: { resource: "webhook", action: "configure" },
   environmentFrom: "switcher",
@@ -70,7 +70,7 @@ export const createWebhook: ActionKindDef = {
 
 export const rotateWebhookSecret: ActionKindDef = {
   kind: "webhook.rotate",
-  screen: "/forms/[formId]/webhooks",
+  screen: "/operations/forms/[formId]/webhooks",
   route: { method: "PUT", path: ENDPOINT_PATH, bodyMembers: ["rotateSecret"] },
   cell: { resource: "webhook", action: "configure" },
   environmentFrom: "switcher",
@@ -93,7 +93,7 @@ export const rotateWebhookSecret: ActionKindDef = {
 
 export const reactivateWebhook: ActionKindDef = {
   kind: "webhook.reactivate",
-  screen: "/forms/[formId]/webhooks",
+  screen: "/operations/forms/[formId]/webhooks",
   route: { method: "PUT", path: ENDPOINT_PATH, bodyMembers: ["active"] },
   cell: { resource: "webhook", action: "configure" },
   environmentFrom: "switcher",
@@ -114,7 +114,7 @@ export const reactivateWebhook: ActionKindDef = {
 
 export const retargetWebhook: ActionKindDef = {
   kind: "webhook.retarget",
-  screen: "/forms/[formId]/webhooks",
+  screen: "/operations/forms/[formId]/webhooks",
   route: { method: "PUT", path: ENDPOINT_PATH, bodyMembers: ["url"] },
   cell: { resource: "webhook", action: "configure" },
   environmentFrom: "switcher",
@@ -138,7 +138,7 @@ export const retargetWebhook: ActionKindDef = {
 
 export const deactivateWebhook: ActionKindDef = {
   kind: "webhook.deactivate",
-  screen: "/forms/[formId]/webhooks",
+  screen: "/operations/forms/[formId]/webhooks",
   route: { method: "DELETE", path: ENDPOINT_PATH },
   cell: { resource: "webhook", action: "configure" },
   environmentFrom: "switcher",
@@ -161,7 +161,7 @@ export const deactivateWebhook: ActionKindDef = {
 
 export const redeliverDelivery: ActionKindDef = {
   kind: "webhook.redeliver",
-  screen: "/forms/[formId]/webhooks",
+  screen: "/operations/forms/[formId]/webhooks",
   route: { method: "POST", path: "/admin/forms/{id}/deliveries/{deliveryId}/redeliver" },
   cell: { resource: "webhook", action: "configure" },
   environmentFrom: "switcher",

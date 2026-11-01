@@ -23,7 +23,7 @@ import {
   retargetWebhookAction,
   rotateSecretAction,
   withdrawEndpointChangeAction,
-} from "../../../webhooks/actions";
+} from "../../../../webhooks/actions";
 
 /** The browser-tab title for this route (issue #536): the section, and the form it belongs to. */
 export async function generateMetadata({

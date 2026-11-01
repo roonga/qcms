@@ -116,8 +116,8 @@ describe("the screen registry", () => {
       "link.mint",
       "link.revoke",
     ]);
-    // The intake door is the Intake screen's, not the builder's (Code Owner, 2026-11-02):
-    // it acts on one environment's intake and the builder's draft belongs to none.
+    // The intake door is the Intake screen's rather than the builder's: it acts on one
+    // environment's intake and the builder's draft belongs to none.
     expect(SCREENS["/operations/forms/[formId]/intake"].actionKinds).toEqual([
       "form.close",
       "form.reopen",
@@ -158,9 +158,9 @@ describe("the screen registry", () => {
   });
 
   it("offers one form subtree's kinds per screen, and the two subtrees are separate", () => {
-    // TWO LISTS SINCE 2026-11-02 (Code Owner), because they are two contexts: an authoring
-    // plan edits a shared draft and an operational plan acts in one environment, so a plan
-    // spanning both would be one confirmation spanning two things.
+    // Two lists, because they are two contexts: an authoring plan edits a shared draft and
+    // an operational plan acts in one environment, so a plan spanning both would be one
+    // confirmation spanning two things.
     const authoring = ["apply-draft", "form.publish", "form.settings", "form.release"];
     const operational = [
       "link.mint",

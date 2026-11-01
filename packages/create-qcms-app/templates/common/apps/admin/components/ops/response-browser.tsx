@@ -592,7 +592,7 @@ function ExportDialog({
             <a
               className="qcms-button-link"
               data-testid="qcms-export-download"
-              href={`/forms/${encodeURIComponent(formId)}/export${exportQuery(choice)}`}
+              href={`/operations/forms/${encodeURIComponent(formId)}/export${exportQuery(choice)}`}
               download
               onClick={onClose}
             >

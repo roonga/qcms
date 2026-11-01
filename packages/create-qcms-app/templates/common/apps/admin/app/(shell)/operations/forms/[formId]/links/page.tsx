@@ -16,7 +16,7 @@ import { isNonProd, shownEnvironment } from "@/lib/environment";
 import { resolvedEnvironment } from "@/lib/server/environments";
 import { requireAdminSession } from "@/lib/server/session";
 
-import { mintLinksAction, revokeLinkAction } from "../../actions";
+import { mintLinksAction, revokeLinkAction } from "../../../../forms/actions";
 
 /** The browser-tab title for this route (issue #536): the section, and the form it belongs to. */
 export async function generateMetadata({

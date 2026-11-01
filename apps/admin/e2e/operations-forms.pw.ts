@@ -148,7 +148,9 @@ test("the addresses the operational screens had still arrive, with their query",
   // screen registrations; what only a browser reports is that each one lands, and that the
   // response list's filters survive the hop.
   await page.goto(`/forms/${formId}/responses?flagged=true`);
-  await expect(page).toHaveURL(new RegExp(`/operations/forms/${formId}/responses\\?flagged=true$`, "u"));
+  await expect(page).toHaveURL(
+    new RegExp(`/operations/forms/${formId}/responses\\?flagged=true$`, "u"),
+  );
 
   await page.goto(`/forms/${formId}/links`);
   await expect(page).toHaveURL(new RegExp(`/operations/forms/${formId}/links$`, "u"));
