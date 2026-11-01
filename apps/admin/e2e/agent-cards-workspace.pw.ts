@@ -52,6 +52,7 @@ const RUN = Date.now().toString(36);
 /** One label per block, because a group name is unique within its workspace. */
 const ALONE = `${RUN}a`;
 const PLANNED = `${RUN}p`;
+const CANCELLED = `${RUN}c`;
 
 let totpSecret = "";
 
@@ -147,12 +148,12 @@ test("creates no group when the card is cancelled", async ({ page }) => {
   await openWorkspace(page);
 
   const before = await auditTally();
-  await propose(page, "propose-access-group-create", `add a viewer group ${naming(`${RUN}c`)}`);
+  await propose(page, "propose-access-group-create", `add a viewer group ${naming(CANCELLED)}`);
   await cancel(page);
   await expectAxeClean(page, "cancelled");
 
   expect(auditDelta(before, await auditTally())).toEqual({});
-  await expect(groups(page)).not.toContainText(`test.responses.viewer.${RUN}c`);
+  await expect(groups(page)).not.toContainText(`test.responses.viewer.${CANCELLED}`);
 });
 
 test("confirms a group's whole life inside one plan, each step naming what the first made", async ({

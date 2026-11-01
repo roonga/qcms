@@ -11,7 +11,7 @@ it is no action kind and the Settings screen carries none; criterion 3 stays ver
 
 | Deliverable | Kinds wired end to end                                                                                                  |
 | ----------- | ----------------------------------------------------------------------------------------------------------------------- |
-| D0          | the token, provenance, the audit table, the grant filter, the propose tools, the card and plan card, the runner          |
+| D0          | the token, provenance, the audit table, the grant filter, the propose tools, the card and plan card, the runner         |
 | D1          | `apply-draft`, `form.settings`, `form.close`, `form.reopen`, `form.publish`                                             |
 | D2          | `form.release`, including a promotion that names its own destination                                                    |
 | D3          | `link.mint`, `link.revoke`                                                                                              |
@@ -44,7 +44,7 @@ rows, axe scoped to `.qcms-acard`):
 | `agent-cards-responses.pw.ts`     | `response.unflag`, `response.erase` (typed confirmation, irreversible band), `response.export` (hand-off, Running) |
 | `agent-cards-workspace.pw.ts`     | all six D8 kinds, in two plans                                                                                     |
 | `agent-cards-apply-draft.pw.ts`   | `apply-draft`, with the diff and both advisory lists                                                               |
-| `agent-cards-webhooks.pw.ts`      | `webhook.create`, `webhook.rotate` alone (the rest is below)                                                        |
+| `agent-cards-webhooks.pw.ts`      | `webhook.create`, `webhook.rotate` alone (the rest is below)                                                       |
 
 Card states measured by axe: Proposed, Done, Cancelled, Expired, Failed, Not run and
 **Running** (a hand-off step sends nothing and waits on the screen's own dialog, which is
