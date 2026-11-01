@@ -22,73 +22,76 @@ it is no action kind and the Settings screen carries none; criterion 3 stays ver
 | D8 (writes) | `access.groupCreate`, `access.groupRemove`, `access.grant`, `access.revoke`, `member.role`, `workspace.settings`        |
 | D8 (read)   | the agent audit beside the access audit on `workspaces/[workspaceId]`, for the same readers                             |
 
-The cross-screen seam, the hand-off, the non-redirecting create variant, the read tools of
-D1 to D7 and `apply-draft` are described in the commits that carry them. `AssistPanel`, its
-strings and its CSS are retired and the builder screen runs the same conversation every
-other screen runs.
+The card's waiting window is counted from the card's arrival on a monotonic clock, and a
+waiting card ticks itself into Expired (Code Owner, 2026-11-01; the ruling is in the work
+order and in SEC-17's token paragraph).
 
 ## This round
 
-**The builder move is proven in a browser.** `apps/admin/e2e/agent-assist.pw.ts` had been
-ported by locator and never run; it now passes 11 of 11 against the production build.
-Running it found the defect below.
+**The window ruling is built.** `apps/admin/lib/agent/plan-state.ts` takes the window's
+length from the proposal (`expiresAt - proposedAt`) and `apps/admin/lib/agent/proposal-window.ts`
+counts it from arrival on `performance.now()`; `useExpiryTick` arms a timer only while the
+card waits and clears it when the card settles or unmounts; the runner's step-0 staleness
+guard now reads that monotonic remainder rather than comparing an absolute instant with the
+browser's own clock. The API is untouched and stays the authority. `minutesLeft` takes the
+remainder rather than an instant, so the footer counts the same window.
 
-**Every action card arrived expired, so no Confirm path was reachable.** The composed
-browser-harness API runs on `fixedClock(NOW)` (`apps/api/e2e/support/harness.ts`), so a
-proposal is issued at `2026-07-20T00:00:00Z` and its ten-minute window closes on that
-clock, while the card reads the window against the browser's real wall time.
-`apps/admin/e2e/support/agent.ts` pins the page's clock to that same instant and lets it run
-on, which is what makes a Confirm reachable at all; it is the seam every spec in criterion
-11's matrix will need. `page.clock.install` plus `resume` rather than `setFixedTime`: a
-frozen `Date` makes two autosaves stamp the same instant and `waitForSaveAfter` then cannot
-tell them apart.
+`apps/admin/e2e/support/agent.ts` is **kept and repurposed**: the clock install is no longer
+what makes a Confirm reachable (arrival semantics made that unconditional), but installing
+it is what lets a spec run a window out, and aligning the page clock with the API's pinned
+`NOW` is what keeps relative stamps and save stamps reading against the same instant.
+`PAST_PROPOSAL_WINDOW_MS` is gone; `runOutProposalWindow` replaced it.
 
-**The reviewer-flagged `index` and `tokenStep` seam is sound, and is now covered.** No call
-site reads the card index where the token's step index belongs: every runner in
-`apps/admin/components/agent/step-actions.ts` passes `tokenStep` to `proposalRef`, and
-`index` is read nowhere outside the runner's own ordering. The plan the ruling names runs
-end to end in `apps/admin/components/agent/step-actions.test.ts`
-(`[apply-draft, form.publish]`, asserting the local step carries no token and the publish
-behind it is sent as the token's step 0), and `apps/admin/lib/agent/runner.test.ts` pins the
-numbering itself.
+**Criterion 11 has its shared walk and its first screen group.**
+`apps/admin/e2e/support/agent-card.ts` is the walk every screen group's spec takes: the
+panel, one `#qcms-fake:propose-<kind>` turn, the card's controls and chips, the
+`control.agent_actions` rows through `openDbHandle`, and axe scoped to the card. The form
+screen takes it first, in `apps/admin/e2e/agent-cards-forms.pw.ts`: `form.close` and
+`form.reopen` confirmed alone with the screen's own control flipping and two audit rows, a
+cancel that leaves the audit and the screen as they were, and a waiting card run out to
+"Expired - ask again" with Confirm disabled. Axe runs on the proposed, done, cancelled and
+expired cards. 5 of 5 pass against the production build.
 
-**The launcher's builder-turn spec was still on the retired panel's ids.**
-`agent-launcher.pw.ts`'s "carries the builder's turns across the form's subtree" typed into
-`qcms-assist-input`, which resolves to nothing now, so the turn was never sent. Ported onto
-the dock's composer; that file passes 16 of 16.
+**The read tools' timeline labels and the agent audit panel have browser coverage** in the
+same file: `#qcms-fake:read-all` on seven screens asserts each screen's own read-tool
+labels and that none falls back to "Working on your request", and the workspace screen's
+Assistant actions table is asserted to list the confirmed `form.close` and `form.reopen`
+rows against the account that confirmed them.
+
+**Two riders the gates found, both in this task's own area.** The workspace screen's
+assistant audit has eight columns, which are wider than that column's measure: a percentage
+inline size against the auto-width content column falls back to the table's min-content, so
+`measure.pw.ts` measured the screen past the cap issue 657 sets as soon as the audit had
+rows. `.qcms-table--wide` is the documented zero plus `min-inline-size` pair for a table
+that needs it, and the audit table scrolls instead. Separately, the assistant's conversation
+is a scroll container and a turn of prose and step rows holds nothing focusable, so axe
+reported `scrollable-region-focusable` on a streaming turn under load; the list is now
+focusable and named.
 
 ### Gates on this head
 
-`pnpm verify` exit 0. The full browser suite ran detached with `QCMS_HARNESS_BUILD=1` on
-seat 7: **533 passed, 1 failed, 5 did not run, 19.6 minutes**, the one failure being the
-launcher spec above, which passes 16 of 16 on its own after the port. The suite has not been
-re-run whole since that port.
-
-`pnpm exec turbo run test --force` ran three times in the previous round, 20 of 20 tasks and
-0 cached each time, each run red only on container-start or boot timeouts (issue #1201's
-load flake) in a different file and never on an assertion. Not re-run to green.
+`pnpm qcms:sync-templates`, `pnpm check:all` and `pnpm verify` exit 0.
+`pnpm exec turbo run test --force` ran four times, 20 of 20 tasks and 0 cached every time,
+exit 0 every time, with no container-start flake and no test near its timeout (209s and 207s
+on two of the runs). `pnpm exec vitest run --project qcms-api-e2e`: 561 tests in 10 files,
+exit 0. `QCMS_PORT_SEAT=7 pnpm up:e2e`: exit 0. The full browser suite ran whole and
+detached with `QCMS_HARNESS_BUILD=1` on seat 7: **544 passed, 0 failed, 20.1 minutes**
+(19.6 minutes and 533 passing before this round).
 
 ## Not started, for the next round
 
-- **`QCMS_PORT_SEAT=7 pnpm up:e2e` and `pnpm exec vitest run --project qcms-api-e2e` have
-  not been run on this head**, and the full browser suite has not been re-run whole since
-  the launcher port.
-- **Criterion 11's Playwright matrix.** Nothing of it exists. Per kind: a confirm path alone
-  and inside a plan asserting the screen's own state changed and the `control.agent_actions`
-  rows exist, a cancel path asserting nothing changed, and axe over proposed, running, done,
-  failed, pending approval, not run, cancelled and expired, including `apply-draft`, the
-  hand-off, the typed confirmation, the irreversible band and partial execution reported.
-  The ingredients are in place: `propose-<kind>` scripts for 26 kinds take their arguments
-  from the screen facts the API already sends, so a spec only has to stand on the right
-  screen with the right fixtures and send `#qcms-fake:propose-<kind>`;
-  `apps/admin/e2e/support/agent.ts` is the clock seam; `openDbHandle` from
-  `apps/api/e2e/support/index.js` is how `two-person-rule.pw.ts` reads audit rows. The
-  expensive half is the fixture graph (a released version, links, an endpoint, a dead
-  letter, a response, a question, a workspace group) and the per-kind "the screen changed"
-  assertion. The expired state is reachable by pinning the page clock past the window before
-  the turn is sent (`PAST_PROPOSAL_WINDOW_MS`), because the card's state is settled on
-  arrival.
-- **The read tools' timeline labels and the agent audit panel** have no browser coverage.
+- **The rest of criterion 11's matrix.** The walk and the pattern exist; what is missing is
+  the per-screen-group spec for each remaining group, and for each kind the confirm path
+  **inside a plan**. The groups and their kinds: the versions and publish screens
+  (`form.publish`, `form.release`), the links screen (`link.mint`, `link.revoke`, and
+  `plan-fails-at-2`, which is how the Failed and Not run states are reached), the responses
+  screens (`response.erase` with its typed confirmation and its card-level irreversible
+  band, `response.unflag`, `response.export` as a hand-off), the webhooks screen (six
+  kinds, and `plan-pending-at-1` for Pending approval), the questions screens (five kinds),
+  the forms list (`form.create`), the workspace screen (six kinds), and `apply-draft` on
+  the builder. `propose-<kind>` exists for all 26; the expensive half is still the fixture
+  graph (a released version, links, an endpoint, a dead letter, a response, a question, a
+  workspace group) and each kind's own "the screen changed" assertion.
 - **Criterion 13's** rehearsal of 038's goal 7.
 - **The records "The records this task closes" names**: ADR-25's status line
   (`docs/adr/admin.md`), SEC-17's status line, its "Verified by (when built)" list and
@@ -98,18 +101,11 @@ load flake) in a different file and never on an assertion. Not re-run to green.
 
 ## Discoveries worth a ruling, none of them blocking
 
-- **A card's ten-minute window is read against the browser's own wall clock.** The window is
-  a server-issued absolute instant and the card compares it with the browser's own now, so a
-  client whose clock is more than ten minutes out has every card arrive expired. The API
-  stays the authority either way, so this costs no guarantee, but the alternative (count the
-  window from the card's arrival in the browser, which is immune to skew) changes a
-  control's semantics and is not a choice to make without a ruling. The harness seam above
-  is test-only and does not depend on which way it goes.
-- **Nothing moves a waiting card to Expired.** `expireCard` in
-  `apps/admin/lib/agent/plan-state.ts` is called from tests alone, so the deliverable's
-  "Expired - ask again" with Confirm disabled after ten minutes holds only for a card that
-  is already past its window when it arrives. The missing half is a tick, and which clock it
-  counts on is the ruling above.
+- **The two riders above were each a defect only data or load could show.** The audit table
+  overflowed only once a confirmed act existed, and the conversation's scroll region only
+  once a turn was long enough at the moment axe ran. Both are worth remembering when the
+  rest of criterion 11's matrix starts writing rows on every screen: a table that fits
+  today may not fit the first time it has ten rows.
 - **The conversation's own error reporting was widened rather than narrowed.** The retired
   panel resolved each failure to its own sentence and the shipped screen conversation
   reported one generic line, so the shared conversation now uses the panel's resolver on
