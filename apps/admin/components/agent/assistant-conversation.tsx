@@ -307,7 +307,14 @@ function ScreenConversation({
 
   return (
     <div className="qcms-assistant__conversation">
-      <ol className="qcms-assistant__turns" data-testid="qcms-assistant-turns">
+      {/* The conversation scrolls, and a turn of prose and step rows holds nothing
+          focusable, so the region itself has to be reachable from the keyboard. */}
+      <ol
+        className="qcms-assistant__turns"
+        data-testid="qcms-assistant-turns"
+        tabIndex={0}
+        aria-label={t("agent.conversationLabel")}
+      >
         {shown.map((turn, index) =>
           turn.role === "user" ? (
             <li key={`user-${String(index)}`} className="qcms-assistant__turn" data-role="user">

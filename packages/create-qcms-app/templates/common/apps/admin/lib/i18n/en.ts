@@ -2100,6 +2100,7 @@ export const messages = {
   "agent.context.workspace": "Workspace {subject}",
   "agent.empty": "Ask about this screen. The assistant explains what is here and takes you to it.",
   "agent.composer": "Ask the assistant",
+  "agent.conversationLabel": "Conversation with the assistant",
   "agent.send": "Send",
   "agent.stop": "Stop",
   "agent.announce.working": "The assistant is working.",
