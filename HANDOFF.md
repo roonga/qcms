@@ -3,11 +3,9 @@ HANDOFF: INTERRUPTED
 # 083 D0 to D9: what is on this branch and what is not
 
 The 2026-11-01 rulings recorded in `docs/features/083-agent-actions-every-screen.md` and in
-SEC-17 are built, D1's `apply-draft` included. Nothing is waiting on a ruling.
-
-**D9 is out of scope** (Code Owner, 2026-11-01). A self-service account act holds no matrix
-cell and acts in no environment, so it is no action kind and the Settings screen carries
-none; criterion 3 stays verbatim. The work order and SEC-17 both record it.
+SEC-17 are built, D1's `apply-draft` included. **D9 is out of scope** (Code Owner,
+2026-11-01): a self-service account act holds no matrix cell and acts in no environment, so
+it is no action kind and the Settings screen carries none; criterion 3 stays verbatim.
 
 ## Landed
 
@@ -24,63 +22,94 @@ none; criterion 3 stays verbatim. The work order and SEC-17 both record it.
 | D8 (writes) | `access.groupCreate`, `access.groupRemove`, `access.grant`, `access.revoke`, `member.role`, `workspace.settings`        |
 | D8 (read)   | the agent audit beside the access audit on `workspaces/[workspaceId]`, for the same readers                             |
 
-**The cross-screen seam is in.** `apps/admin/lib/agent/waiting.tsx` is the context the card
-publishes to and every heading row reads;
-`apps/admin/components/agent/heading-marker.tsx` is the wrapper a screen puts round the
-control a kind's descriptor names, and the marker shows on that control alone while the
-card is in the Proposed state. The same context carries a hand-off: Confirm on a hand-off
-step reaches that screen's own control with the non-secret arguments filled, which is what
-`response.export` uses to open the export dialog on the card's own filters.
+The cross-screen seam, the hand-off, the non-redirecting create variant, the read tools of
+D1 to D7 and `apply-draft` are described in the commits that carry them. `AssistPanel`, its
+strings and its CSS are retired and the builder screen runs the same conversation every
+other screen runs.
 
-**The create variant is in** (Code Owner, 2026-11-01). `form.create`, `question.create` and
-`question.newVersion` each call a non-redirecting variant of the screen's own action: the
-same validation, the same route and so the same grant check, the same audit row, and the
-new id or version returned as the one allowlisted field a later step may reference.
+## This round
 
-**The read tools of D1 to D7 are in.** `apps/api/src/features/agent/contexts/reads.ts`
-holds one port per tool, each re-making its own screen's read check.
+**The builder move is proven in a browser.** `apps/admin/e2e/agent-assist.pw.ts` had been
+ported by locator and never run; it now passes 11 of 11 against the production build.
+Running it found the defect below.
 
-**`apply-draft` is in** (Code Owner, 2026-11-01). `propose_draft` records and validates a
-draft and saves nothing; the model then proposes `apply-draft`, whose step carries the
-draft, the questions it invents and both advisory lists. It reaches no route, so it carries
-no token, and a plan's token now binds only the steps that do - which is what lets it be a
-plan's first step without shifting any later step's provenance check. The builder screen
-runs the same conversation every other screen runs, so one card renderer serves them all;
-`AssistPanel`, its strings and its CSS are retired, and its step timeline, reasoning
-disclosure and per-code error sentences moved into the shared conversation, where every
-screen now has them.
+**Every action card arrived expired, so no Confirm path was reachable.** The composed
+browser-harness API runs on `fixedClock(NOW)` (`apps/api/e2e/support/harness.ts`), so a
+proposal is issued at `2026-07-20T00:00:00Z` and its ten-minute window closes on that
+clock, while the card reads the window against the browser's real wall time.
+`apps/admin/e2e/support/agent.ts` pins the page's clock to that same instant and lets it run
+on, which is what makes a Confirm reachable at all; it is the seam every spec in criterion
+11's matrix will need. `page.clock.install` plus `resume` rather than `setFixedTime`: a
+frozen `Date` makes two autosaves stamp the same instant and `waitForSaveAfter` then cannot
+tell them apart.
 
-## Gates on this head
+**The reviewer-flagged `index` and `tokenStep` seam is sound, and is now covered.** No call
+site reads the card index where the token's step index belongs: every runner in
+`apps/admin/components/agent/step-actions.ts` passes `tokenStep` to `proposalRef`, and
+`index` is read nowhere outside the runner's own ordering. The plan the ruling names runs
+end to end in `apps/admin/components/agent/step-actions.test.ts`
+(`[apply-draft, form.publish]`, asserting the local step carries no token and the publish
+behind it is sent as the token's step 0), and `apps/admin/lib/agent/runner.test.ts` pins the
+numbering itself.
 
-`pnpm qcms:sync-templates` clean, `pnpm check:all` exit 0, `pnpm verify` exit 0.
-`pnpm exec turbo run test --force` ran three times, 20/20 tasks and 0 cached each time, and
-each run failed only on container-start or boot timeouts (issue #1201's load flake) in a
-different file: run 1 `agent/provenance.integration` and `auth/auth.integration`, run 2
-`agent/assist.integration`, run 3 `releases/releases.integration` and
-`responses/start-session/environment-addresses.integration`. Five distinct files, each red
-once and green in the other two runs, never an assertion. Not re-run to green.
+**The launcher's builder-turn spec was still on the retired panel's ids.**
+`agent-launcher.pw.ts`'s "carries the builder's turns across the form's subtree" typed into
+`qcms-assist-input`, which resolves to nothing now, so the turn was never sent. Ported onto
+the dock's composer; that file passes 16 of 16.
+
+### Gates on this head
+
+`pnpm verify` exit 0. The full browser suite ran detached with `QCMS_HARNESS_BUILD=1` on
+seat 7: **533 passed, 1 failed, 5 did not run, 19.6 minutes**, the one failure being the
+launcher spec above, which passes 16 of 16 on its own after the port. The suite has not been
+re-run whole since that port.
+
+`pnpm exec turbo run test --force` ran three times in the previous round, 20 of 20 tasks and
+0 cached each time, each run red only on container-start or boot timeouts (issue #1201's
+load flake) in a different file and never on an assertion. Not re-run to green.
 
 ## Not started, for the next round
 
-- **`QCMS_PORT_SEAT=7 pnpm up:e2e`, `pnpm exec vitest run --project qcms-api-e2e` and the
-  full browser suite have not been run on this head.**
-- **`apps/admin/e2e/agent-assist.pw.ts` has been ported by locator** (the panel's test ids
-  to the dock's and the card's, the step count from two to three) but **has not been run**:
-  the full browser suite did not fit in this round's budget. Run it first, before anything
-  else here.
-- **Criterion 11's Playwright matrix** (a confirm path alone and inside a plan, a cancel
-  path, and axe over all eight card states, per kind), the read tools' own browser
-  coverage, and an `apply-draft` row in that matrix: a confirm inside a plan whose first
-  step is the draft, and axe over the card with a diff and both advisory lists open.
+- **`QCMS_PORT_SEAT=7 pnpm up:e2e` and `pnpm exec vitest run --project qcms-api-e2e` have
+  not been run on this head**, and the full browser suite has not been re-run whole since
+  the launcher port.
+- **Criterion 11's Playwright matrix.** Nothing of it exists. Per kind: a confirm path alone
+  and inside a plan asserting the screen's own state changed and the `control.agent_actions`
+  rows exist, a cancel path asserting nothing changed, and axe over proposed, running, done,
+  failed, pending approval, not run, cancelled and expired, including `apply-draft`, the
+  hand-off, the typed confirmation, the irreversible band and partial execution reported.
+  The ingredients are in place: `propose-<kind>` scripts for 26 kinds take their arguments
+  from the screen facts the API already sends, so a spec only has to stand on the right
+  screen with the right fixtures and send `#qcms-fake:propose-<kind>`;
+  `apps/admin/e2e/support/agent.ts` is the clock seam; `openDbHandle` from
+  `apps/api/e2e/support/index.js` is how `two-person-rule.pw.ts` reads audit rows. The
+  expensive half is the fixture graph (a released version, links, an endpoint, a dead
+  letter, a response, a question, a workspace group) and the per-kind "the screen changed"
+  assertion. The expired state is reachable by pinning the page clock past the window before
+  the turn is sent (`PAST_PROPOSAL_WINDOW_MS`), because the card's state is settled on
+  arrival.
+- **The read tools' timeline labels and the agent audit panel** have no browser coverage.
 - **Criterion 13's** rehearsal of 038's goal 7.
-- **The records "The records this task closes" names**: ADR-25's and SEC-17's status lines
-  still read "decided, not built", `docs/agent-authoring.md` section 4 is not rewritten,
-  `docs/SECURITY_DESIGN.md` section 8's four-tool paragraph is not retired, 038's header
-  still lists 080 to 083, the four work orders are still in `docs/features/`, and the
-  ledger rows are still open. They close when the remaining criteria do.
+- **The records "The records this task closes" names**: ADR-25's status line
+  (`docs/adr/admin.md`), SEC-17's status line, its "Verified by (when built)" list and
+  section 8's four-tool paragraph (`docs/SECURITY_DESIGN.md`), `docs/agent-authoring.md`
+  section 4, 038's header, moving the four work orders out of `docs/features/`, and the
+  ledger rows in `docs/features/README.md`. They close when the remaining criteria do.
 
-## Discoveries worth a ruling, neither of them blocking
+## Discoveries worth a ruling, none of them blocking
 
+- **A card's ten-minute window is read against the browser's own wall clock.** The window is
+  a server-issued absolute instant and the card compares it with the browser's own now, so a
+  client whose clock is more than ten minutes out has every card arrive expired. The API
+  stays the authority either way, so this costs no guarantee, but the alternative (count the
+  window from the card's arrival in the browser, which is immune to skew) changes a
+  control's semantics and is not a choice to make without a ruling. The harness seam above
+  is test-only and does not depend on which way it goes.
+- **Nothing moves a waiting card to Expired.** `expireCard` in
+  `apps/admin/lib/agent/plan-state.ts` is called from tests alone, so the deliverable's
+  "Expired - ask again" with Confirm disabled after ten minutes holds only for a card that
+  is already past its window when it arrives. The missing half is a tick, and which clock it
+  counts on is the ruling above.
 - **The conversation's own error reporting was widened rather than narrowed.** The retired
   panel resolved each failure to its own sentence and the shipped screen conversation
   reported one generic line, so the shared conversation now uses the panel's resolver on
