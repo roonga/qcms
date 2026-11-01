@@ -416,7 +416,7 @@ export function grantAccessAuditStatements(): string[] {
 
 /**
  * SEC-17's agent audit takes the same grant set, emitted by the same function rather than
- * written out again, so the two tables cannot diverge (criterion 7).
+ * written out again, so the two tables cannot diverge.
  */
 export function grantAgentActionsStatements(): string[] {
   return appendOnlyAuditGrantStatements(AGENT_ACTIONS_TABLE);

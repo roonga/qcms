@@ -48,7 +48,7 @@ export interface ActionCardTemplate {
   /**
    * For a kind that creates something: the page route the card links the new item at, and
    * the result field that fills the route's own id. A page route only, so a card can never
-   * link at a route handler (review finding B3).
+   * link at a route handler.
    */
   readonly createdLink?: {
     readonly screen: ScreenId;

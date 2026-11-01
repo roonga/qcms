@@ -413,8 +413,7 @@ function ScreenConversation({
             void send();
           }}
         />
-        {/* The kit's `Button` takes no `data-testid`, so the handle is the wrapper, which
-            is the shape `assist-panel.tsx` already uses for its own composer. */}
+        {/* The kit's `Button` takes no `data-testid`, so the handle is the wrapper. */}
         {live === undefined ? (
           <span data-testid="qcms-assistant-send">
             <Button
