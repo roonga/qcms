@@ -85,12 +85,12 @@ export function recordDraftSaved(draftUpdatedAt: string | undefined): void {
  */
 export function nextDraftSaved(timeoutMs = 20_000): Promise<string | undefined> {
   return new Promise((resolve) => {
-    let timer: ReturnType<typeof setTimeout> | undefined;
+    const held: { timer?: ReturnType<typeof setTimeout> } = {};
     const settle = (draftUpdatedAt: string | undefined): void => {
-      if (timer !== undefined) clearTimeout(timer);
+      if (held.timer !== undefined) clearTimeout(held.timer);
       resolve(draftUpdatedAt);
     };
-    timer = setTimeout(() => {
+    held.timer = setTimeout(() => {
       waiting = waiting.filter((candidate) => candidate !== settle);
       resolve(undefined);
     }, timeoutMs);

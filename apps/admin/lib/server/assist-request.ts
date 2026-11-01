@@ -18,13 +18,16 @@ export interface AssistTurnRelay {
  * and narrows every reported field to the reporting kind's own list, so what travels here
  * is a shape rather than a trusted claim.
  */
+/** Scalars only: an object or an array is how content smuggles itself into this channel. */
+export type AssistResultFields = Readonly<Record<string, string | number | boolean>>;
+
 export interface AssistActionResultRelay {
   readonly role: "action-result";
   readonly proposalId: string;
   readonly steps: readonly {
     readonly kind: string;
     readonly outcome: string;
-    readonly result?: Readonly<Record<string, string | number | boolean>>;
+    readonly result?: AssistResultFields;
   }[];
 }
 
@@ -39,10 +42,7 @@ const OUTCOMES: readonly string[] = [
   "expired",
 ];
 
-/** Scalars only: an object or an array is how content smuggles itself into this channel. */
-function parseResultFields(
-  raw: unknown,
-): Readonly<Record<string, string | number | boolean>> | undefined {
+function parseResultFields(raw: unknown): AssistResultFields | undefined {
   if (!isRecord(raw)) return undefined;
   const fields: Record<string, string | number | boolean> = {};
   for (const [name, value] of Object.entries(raw)) {
