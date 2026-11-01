@@ -256,6 +256,41 @@ function publishOrderRefusal(steps: readonly ProposedStep[]): string | undefined
   );
 }
 
+/** Every refusal a step's symbolic references can earn, before its schema is read. */
+function stepReferenceRefusal(
+  input: ProposeInput,
+  step: ProposedStep,
+  index: number,
+): string | undefined {
+  for (const value of Object.values(step.args)) {
+    const refusal = referenceRefusal(value, index, input.steps);
+    if (refusal !== undefined) return refusal;
+  }
+  // The provenance check substitutes one reference at a time, so a step with two could
+  // never be verified. Refusing here keeps an unrunnable card off the screen.
+  if (referencedMembers(step.args).size > 1) {
+    return `Step ${String(index + 1)} refers to an earlier step's result in more than one argument, which this deployment cannot verify. Name one reference per step and state the other argument's value.`;
+  }
+  return undefined;
+}
+
+/** The refusals a kind's own descriptor adds once its arguments and environment hold. */
+function kindRefusal(
+  input: ProposeInput,
+  def: ActionKindDef,
+  step: ProposedStep,
+  index: number,
+  pinned: readonly PinnedQuestion[],
+): string | undefined {
+  if (def.carriesProposedDraft === true) {
+    return proposedDraftRefusal(input, def, step, index);
+  }
+  if (step.kind === PUBLISH_QUESTION_KIND && input.screen !== QUESTION_DETAIL_SCREEN) {
+    return pinnedQuestionRefusal(step, index, pinned);
+  }
+  return undefined;
+}
+
 function stepRefusal(
   input: ProposeInput,
   step: ProposedStep,
@@ -274,20 +309,10 @@ function stepRefusal(
     };
   }
 
-  for (const value of Object.values(step.args)) {
-    const refusal = referenceRefusal(value, index, input.steps);
-    if (refusal !== undefined) return { reason: refusal };
-  }
+  const referenceIssue = stepReferenceRefusal(input, step, index);
+  if (referenceIssue !== undefined) return { reason: referenceIssue };
 
-  // The provenance check substitutes one reference at a time, so a step with two could
-  // never be verified. Refusing here keeps an unrunnable card off the screen.
   const referenced = referencedMembers(step.args);
-  if (referenced.size > 1) {
-    return {
-      reason: `Step ${String(index + 1)} refers to an earlier step's result in more than one argument, which this deployment cannot verify. Name one reference per step and state the other argument's value.`,
-    };
-  }
-
   const parsed = argsSchemaWithReferences(def, referenced).safeParse(step.args);
   if (!parsed.success) {
     return { reason: `Step ${String(index + 1)}'s arguments are invalid: ${parsed.error.message}` };
@@ -305,15 +330,8 @@ function stepRefusal(
     };
   }
 
-  if (def.carriesProposedDraft === true) {
-    const refusal = proposedDraftRefusal(input, def, step, index);
-    if (refusal !== undefined) return { reason: refusal };
-  }
-
-  if (step.kind === PUBLISH_QUESTION_KIND && input.screen !== QUESTION_DETAIL_SCREEN) {
-    const refusal = pinnedQuestionRefusal(step, index, pinned);
-    if (refusal !== undefined) return { reason: refusal };
-  }
+  const descriptorIssue = kindRefusal(input, def, step, index, pinned);
+  if (descriptorIssue !== undefined) return { reason: descriptorIssue };
 
   return {
     step: {
@@ -420,51 +438,67 @@ async function withProposedDraft(
   );
 }
 
+/** P1 and P2, which bound a turn's proposals and a plan's payload. */
+function capRefusal(input: ProposeInput): string | undefined {
+  if (input.proposalsThisTurn >= PROPOSALS_PER_TURN) {
+    return "One proposal per turn; put the steps in one plan.";
+  }
+  if (input.steps.length === 0) return "A proposal carries at least one step.";
+  if (input.steps.length > MAX_PLAN_STEPS) {
+    return `A plan carries at most ${String(MAX_PLAN_STEPS)} steps. Propose a shorter plan.`;
+  }
+  return undefined;
+}
+
+/** The draft's unpublished pins, read only when a step asks to publish one of them. */
+async function resolvedPins(
+  input: ProposeInput,
+): Promise<{ readonly pinned: readonly PinnedQuestion[] } | { readonly reason: string }> {
+  const needed =
+    input.screen !== QUESTION_DETAIL_SCREEN &&
+    input.steps.some((step) => step.kind === PUBLISH_QUESTION_KIND);
+  if (!needed) return { pinned: [] };
+  if (input.pinnedUnpublished === undefined) {
+    return {
+      reason:
+        `This screen cannot say which question versions the form's draft pins, so ${PUBLISH_QUESTION_KIND} ` +
+        "cannot be proposed here. Publish the question from its own page in the library.",
+    };
+  }
+  return { pinned: await input.pinnedUnpublished() };
+}
+
+/** The refusals that are about the plan as a whole rather than about one step. */
+function planShapeRefusal(input: ProposeInput, steps: readonly PlanStep[]): string | undefined {
+  const ordering = publishOrderRefusal(input.steps);
+  if (ordering !== undefined) return ordering;
+  const handOffAt = steps.findIndex((step) => step.handOff);
+  if (handOffAt >= 0 && handOffAt !== steps.length - 1) {
+    return `Step ${String(handOffAt + 1)} needs a secret the user types on the screen itself, so it may only be the last step of a plan.`;
+  }
+  return secondApproverRefusal(input, steps);
+}
+
 /**
  * Builds a proposal, or returns the reason it is refused. A hand-off step carries no
  * token, so a plan whose last step is a hand-off mints a token for the steps before it.
  */
 export async function buildProposal(input: ProposeInput): Promise<ProposeOutcome> {
-  if (input.proposalsThisTurn >= PROPOSALS_PER_TURN) {
-    return refuse("One proposal per turn; put the steps in one plan.");
-  }
-  if (input.steps.length === 0) return refuse("A proposal carries at least one step.");
-  if (input.steps.length > MAX_PLAN_STEPS) {
-    return refuse(
-      `A plan carries at most ${String(MAX_PLAN_STEPS)} steps. Propose a shorter plan.`,
-    );
-  }
+  const capped = capRefusal(input);
+  if (capped !== undefined) return refuse(capped);
 
-  const pinsNeeded =
-    input.screen !== QUESTION_DETAIL_SCREEN &&
-    input.steps.some((step) => step.kind === PUBLISH_QUESTION_KIND);
-  if (pinsNeeded && input.pinnedUnpublished === undefined) {
-    return refuse(
-      `This screen cannot say which question versions the form's draft pins, so ${PUBLISH_QUESTION_KIND} ` +
-        "cannot be proposed here. Publish the question from its own page in the library.",
-    );
-  }
-  const pinned = pinsNeeded ? ((await input.pinnedUnpublished?.()) ?? []) : [];
+  const resolved = await resolvedPins(input);
+  if ("reason" in resolved) return refuse(resolved.reason);
 
   const steps: PlanStep[] = [];
   for (const [index, step] of input.steps.entries()) {
-    const checked = stepRefusal(input, step, index, pinned);
+    const checked = stepRefusal(input, step, index, resolved.pinned);
     if ("reason" in checked) return refuse(checked.reason);
     steps.push(checked.step);
   }
 
-  const ordering = publishOrderRefusal(input.steps);
-  if (ordering !== undefined) return refuse(ordering);
-
-  const handOffAt = steps.findIndex((step) => step.handOff);
-  if (handOffAt >= 0 && handOffAt !== steps.length - 1) {
-    return refuse(
-      `Step ${String(handOffAt + 1)} needs a secret the user types on the screen itself, so it may only be the last step of a plan.`,
-    );
-  }
-
-  const adr41 = secondApproverRefusal(input, steps);
-  if (adr41 !== undefined) return refuse(adr41);
+  const shape = planShapeRefusal(input, steps);
+  if (shape !== undefined) return refuse(shape);
 
   const proposalId = `prp_${crypto.randomUUID().replaceAll("-", "")}`;
   const tokenIndex = tokenIndexes(steps);

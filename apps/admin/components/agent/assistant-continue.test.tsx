@@ -28,7 +28,7 @@ const DRAFT: DraftForm = {
     },
   ],
   rules: [],
-} as unknown as DraftForm;
+};
 
 const accept = vi.fn<(...args: readonly unknown[]) => Promise<unknown>>();
 

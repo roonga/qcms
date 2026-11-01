@@ -114,7 +114,9 @@ describe("the kinds a screen offers", () => {
     ];
     expect(kindsOn("/forms/[formId]/links", approver)).toEqual(subtree);
     expect(kindsOn("/forms/[formId]/responses", approver)).toEqual(subtree);
-    expect(kindsOn("/forms/[formId]", approver)).toEqual(subtree);
+    // The builder adds publishing a question its own draft pins unpublished, which the
+    // editor's cell covers and which no other screen of the subtree offers.
+    expect(kindsOn("/forms/[formId]", approver)).toEqual([...subtree, "question.publish"]);
   });
 
   // The data family is separate and neither implies the other (ADR-41), so the response

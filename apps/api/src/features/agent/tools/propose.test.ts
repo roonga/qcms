@@ -29,9 +29,7 @@ function propose(args: {
   return buildProposal({
     steps: args.steps,
     screen: args.screen ?? "/forms/[formId]",
-    ...(args.pinnedUnpublished === undefined
-      ? {}
-      : { pinnedUnpublished: args.pinnedUnpublished }),
+    ...(args.pinnedUnpublished === undefined ? {} : { pinnedUnpublished: args.pinnedUnpublished }),
     ...(args.proposedDraft === undefined ? {} : { proposedDraft: args.proposedDraft }),
     validate: args.validate ?? (() => Promise.resolve({ issues: [], warnings: [] })),
     subject: "user_1",
@@ -541,11 +539,7 @@ describe("buildProposal: publishing the questions a saved draft pins (issue #120
 
   it("accepts one step per pinned version, then the form's own publish", async () => {
     const outcome = await propose({
-      steps: [
-        publishQuestion("q_given_name", 1),
-        publishQuestion("q_family_name", 1),
-        publish,
-      ],
+      steps: [publishQuestion("q_given_name", 1), publishQuestion("q_family_name", 1), publish],
       pinnedUnpublished: pinned,
     });
     expect(outcome.ok).toBe(true);
@@ -562,9 +556,7 @@ describe("buildProposal: publishing the questions a saved draft pins (issue #120
     expect(verified.payload.steps[0]?.argsDigest).toBe(
       await argumentsDigest({ questionId: "q_given_name", version: 1 }),
     );
-    expect(verified.payload.steps[1]?.argsDigest).not.toBe(
-      verified.payload.steps[0]?.argsDigest,
-    );
+    expect(verified.payload.steps[1]?.argsDigest).not.toBe(verified.payload.steps[0]?.argsDigest);
   });
 
   it("fits a realistic form: twenty questions and the form, inside the plan cap", async () => {
@@ -603,7 +595,10 @@ describe("buildProposal: publishing the questions a saved draft pins (issue #120
     const outcome = await propose({
       steps: [
         { kind: "question.newVersion", args: { questionId: "q_given_name" } },
-        { kind: "question.publish", args: { questionId: "q_given_name", version: { fromStep: 0, field: "version" } } },
+        {
+          kind: "question.publish",
+          args: { questionId: "q_given_name", version: { fromStep: 0, field: "version" } },
+        },
       ],
       pinnedUnpublished: pinned,
     });
