@@ -1095,7 +1095,9 @@ const SINGLE_ACTIONS: Readonly<
     args: {
       formId: factFormId(prompt),
       webhookId: factWebhookId(prompt),
-      url: FAKE_ENDPOINT_URL,
+      // The second target, never the one a create script configured: a retarget to the
+      // URL the endpoint already holds succeeds and changes nothing a screen could show.
+      url: FAKE_ENDPOINT_URL_ALT,
     },
   }),
   "propose-webhook-reactivate": (prompt) => ({
