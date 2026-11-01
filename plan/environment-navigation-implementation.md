@@ -375,7 +375,8 @@ Phase 6 notes, Code Owner, 2026-11-02:
   `apps/admin/e2e/measure.pw.ts` compares the header height, the rail width and the
   heading's top on a Questions screen and an Operations screen, in `test` and `prod`, light
   and high contrast, at 1280 and 390.
-  Phase 6 decisions this plan carries. They are not Code Owner rulings:
+
+Phase 6 decisions this plan carries. They are not Code Owner rulings:
 
 - **Structure before polish.** The Code Owner has a holistic admin redesign in hand, so
   phase 6 builds its screens from the existing kit components and patterns and adds no
