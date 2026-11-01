@@ -43,8 +43,15 @@ rows, axe scoped to `.qcms-acard`):
 | `agent-cards-questions.pw.ts`     | `question.create`, `question.saveDraft`, `question.publish`, `question.newVersion`, `question.deprecate`           |
 | `agent-cards-responses.pw.ts`     | `response.unflag`, `response.erase` (typed confirmation, irreversible band), `response.export` (hand-off, Running) |
 | `agent-cards-workspace.pw.ts`     | all six D8 kinds, in two plans                                                                                     |
-| `agent-cards-apply-draft.pw.ts`   | `apply-draft`, with the diff and both advisory lists                                                               |
-| `agent-cards-webhooks.pw.ts`      | `webhook.create`, `webhook.rotate` alone (the rest is below)                                                       |
+| `agent-cards-apply-draft.pw.ts`   | `apply-draft` alone, with the diff and both advisory lists                                                         |
+| `agent-cards-webhooks.pw.ts`      | `webhook.create` and `webhook.rotate`, both alone                                                                  |
+
+Twenty-five of the twenty-nine kinds, twenty-three of those inside a plan as well. The
+three confirmed alone only are `apply-draft`, `webhook.create` and `webhook.rotate`: the
+first carries the turn's own proposed draft and the propose tool keeps one such step per
+plan, so a plan for it wants a second builder kind beside it; the other two wait on the
+diagnostic below, because `plan-webhooks` is the plan all five configuration kinds belong
+in.
 
 Card states measured by axe: Proposed, Done, Cancelled, Expired, Failed, Not run and
 **Running** (a hand-off step sends nothing and waits on the screen's own dialog, which is
