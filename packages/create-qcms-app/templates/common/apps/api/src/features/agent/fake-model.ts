@@ -64,6 +64,7 @@ export const FAKE_SCRIPTS = [
   "plan-question-lifecycle",
   "plan-responses",
   "plan-export-last",
+  "plan-webhooks",
   "plan-workspace",
   "plan-workspace-settings",
   // One card per kind, for each screen group's own confirm and cancel paths.
@@ -678,6 +679,9 @@ const FAKE_LINK_EXPIRY = "2026-12-31T23:59:59.000Z";
 
 const FAKE_ENDPOINT_URL = "https://hooks.example.test/qcms?channel=ops";
 
+/** A second target, so a retarget changes the URL the screen shows. */
+const FAKE_ENDPOINT_URL_ALT = "https://hooks.example.test/qcms?channel=audit";
+
 /** A group name is unique in its workspace, so the label a script proposes is the run's. */
 function fakeGroupLabel(prompt: readonly PromptMessage[]): string {
   return directiveWord(prompt);
@@ -771,7 +775,7 @@ function fakeQuestionDefinition(questionId: string): Record<string, unknown> {
 
 /** The first endpoint and the first delivery the webhooks screen listed. */
 function factWebhookId(prompt: readonly PromptMessage[]): string {
-  return firstId(screenFacts(prompt)["webhooks"], "webhookId", "wh_absent");
+  return firstId(screenFacts(prompt)["endpoints"], "webhookId", "wh_absent");
 }
 
 function factDeliveryId(prompt: readonly PromptMessage[]): string {
@@ -955,6 +959,17 @@ function actionPlanSteps(
         { kind: "access.grant", args: { workspaceId, teamId, email: member.email } },
         { kind: "access.revoke", args: { workspaceId, teamId, userId: member.userId } },
         { kind: "access.groupRemove", args: { workspaceId, teamId } },
+      ];
+    }
+    // One endpoint's whole configuration, every later step naming what step 1 created.
+    case "plan-webhooks": {
+      const webhookId = { fromStep: 0, field: "webhookId" };
+      return [
+        { kind: "webhook.create", args: { formId, url: FAKE_ENDPOINT_URL, active: true } },
+        { kind: "webhook.retarget", args: { formId, webhookId, url: FAKE_ENDPOINT_URL_ALT } },
+        { kind: "webhook.deactivate", args: { formId, webhookId } },
+        { kind: "webhook.reactivate", args: { formId, webhookId } },
+        { kind: "webhook.rotate", args: { formId, webhookId } },
       ];
     }
     case "plan-workspace-settings":
@@ -1203,6 +1218,7 @@ const ACTION_SCRIPTS: readonly FakeScript[] = [
   "plan-question-lifecycle",
   "plan-responses",
   "plan-export-last",
+  "plan-webhooks",
   "plan-workspace",
   "plan-workspace-settings",
   ...(Object.keys(SINGLE_ACTIONS) as FakeScript[]),

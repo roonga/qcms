@@ -5343,8 +5343,16 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   padding: 0;
   list-style: none;
 }
+/* One disclosure per diff entry, so each is its own target: the text's own height leaves
+   an 18px row with its neighbour a few pixels away, under SC 2.5.8 on both counts. */
 .qcms-acard__diff summary {
+  display: flex;
+  align-items: center;
+  min-block-size: 24px;
   cursor: pointer;
+}
+.qcms-acard__diff > li + li {
+  margin-block-start: 6px;
 }
 .qcms-acard__diff summary:focus-visible {
   outline: 2px solid var(--color-focus-ring);

@@ -11,7 +11,7 @@ it is no action kind and the Settings screen carries none; criterion 3 stays ver
 
 | Deliverable | Kinds wired end to end                                                                                                  |
 | ----------- | ----------------------------------------------------------------------------------------------------------------------- |
-| D0          | the token, provenance, the audit table, the grant filter, the propose tools, the card and plan card, the runner         |
+| D0          | the token, provenance, the audit table, the grant filter, the propose tools, the card and plan card, the runner          |
 | D1          | `apply-draft`, `form.settings`, `form.close`, `form.reopen`, `form.publish`                                             |
 | D2          | `form.release`, including a promotion that names its own destination                                                    |
 | D3          | `link.mint`, `link.revoke`                                                                                              |
@@ -26,72 +26,54 @@ The card's waiting window is counted from the card's arrival on a monotonic cloc
 waiting card ticks itself into Expired (Code Owner, 2026-11-01; the ruling is in the work
 order and in SEC-17's token paragraph).
 
-## This round
+## Criterion 11's matrix: what it covers now
 
-**The window ruling is built.** `apps/admin/lib/agent/plan-state.ts` takes the window's
-length from the proposal (`expiresAt - proposedAt`) and `apps/admin/lib/agent/proposal-window.ts`
-counts it from arrival on `performance.now()`; `useExpiryTick` arms a timer only while the
-card waits and clears it when the card settles or unmounts; the runner's step-0 staleness
-guard now reads that monotonic remainder rather than comparing an absolute instant with the
-browser's own clock. The API is untouched and stays the authority. `minutesLeft` takes the
-remainder rather than an instant, so the footer counts the same window.
+One spec per screen group, each on the shared walk in
+`apps/admin/e2e/support/agent-card.ts` (the panel, one `#qcms-fake:propose-<kind>` or
+`#qcms-fake:plan-<group>` turn, the card's controls and chips, the `control.agent_actions`
+rows, axe scoped to `.qcms-acard`):
 
-`apps/admin/e2e/support/agent.ts` is **kept and repurposed**: the clock install is no longer
-what makes a Confirm reachable (arrival semantics made that unconditional), but installing
-it is what lets a spec run a window out, and aligning the page clock with the API's pinned
-`NOW` is what keeps relative stamps and save stamps reading against the same instant.
-`PAST_PROPOSAL_WINDOW_MS` is gone; `runOutProposalWindow` replaced it.
+| Spec                              | Kinds confirmed alone and inside a plan                                                                            |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `agent-cards-forms.pw.ts`         | `form.close`, `form.reopen`; the read-tool labels; the workspace audit; Expired                                    |
+| `agent-cards-form-settings.pw.ts` | `form.settings`, with the close and the reopen again in one plan                                                   |
+| `agent-cards-forms-list.pw.ts`    | `form.create`, with the created link                                                                               |
+| `agent-cards-releases.pw.ts`      | `form.publish`, `form.release` (a promotion to production, the second step using the first's version)              |
+| `agent-cards-links.pw.ts`         | `link.mint`, `link.revoke`; a plan that fails at step 2, which is Failed and Not run                               |
+| `agent-cards-questions.pw.ts`     | `question.create`, `question.saveDraft`, `question.publish`, `question.newVersion`, `question.deprecate`           |
+| `agent-cards-responses.pw.ts`     | `response.unflag`, `response.erase` (typed confirmation, irreversible band), `response.export` (hand-off, Running) |
+| `agent-cards-workspace.pw.ts`     | all six D8 kinds, in two plans                                                                                     |
+| `agent-cards-apply-draft.pw.ts`   | `apply-draft`, with the diff and both advisory lists                                                               |
+| `agent-cards-webhooks.pw.ts`      | `webhook.create`, `webhook.rotate` alone (the rest is below)                                                        |
 
-**Criterion 11 has its shared walk and its first screen group.**
-`apps/admin/e2e/support/agent-card.ts` is the walk every screen group's spec takes: the
-panel, one `#qcms-fake:propose-<kind>` turn, the card's controls and chips, the
-`control.agent_actions` rows through `openDbHandle`, and axe scoped to the card. The form
-screen takes it first, in `apps/admin/e2e/agent-cards-forms.pw.ts`: `form.close` and
-`form.reopen` confirmed alone with the screen's own control flipping and two audit rows, a
-cancel that leaves the audit and the screen as they were, and a waiting card run out to
-"Expired - ask again" with Confirm disabled. Axe runs on the proposed, done, cancelled and
-expired cards. 5 of 5 pass against the production build.
-
-**The read tools' timeline labels and the agent audit panel have browser coverage** in the
-same file: `#qcms-fake:read-all` on seven screens asserts each screen's own read-tool
-labels and that none falls back to "Working on your request", and the workspace screen's
-Assistant actions table is asserted to list the confirmed `form.close` and `form.reopen`
-rows against the account that confirmed them.
-
-**Two riders the gates found, both in this task's own area.** The workspace screen's
-assistant audit has eight columns, which are wider than that column's measure: a percentage
-inline size against the auto-width content column falls back to the table's min-content, so
-`measure.pw.ts` measured the screen past the cap issue 657 sets as soon as the audit had
-rows. `.qcms-table--wide` is the documented zero plus `min-inline-size` pair for a table
-that needs it, and the audit table scrolls instead. Separately, the assistant's conversation
-is a scroll container and a turn of prose and step rows holds nothing focusable, so axe
-reported `scrollable-region-focusable` on a streaming turn under load; the list is now
-focusable and named.
-
-### Gates on this head
-
-`pnpm qcms:sync-templates`, `pnpm check:all` and `pnpm verify` exit 0.
-`pnpm exec turbo run test --force` ran four times, 20 of 20 tasks and 0 cached every time,
-exit 0 every time, with no container-start flake and no test near its timeout (209s and 207s
-on two of the runs). `pnpm exec vitest run --project qcms-api-e2e`: 561 tests in 10 files,
-exit 0. `QCMS_PORT_SEAT=7 pnpm up:e2e`: exit 0. The full browser suite ran whole and
-detached with `QCMS_HARNESS_BUILD=1` on seat 7: **544 passed, 0 failed, 20.1 minutes**
-(19.6 minutes and 533 passing before this round).
+Card states measured by axe: Proposed, Done, Cancelled, Expired, Failed, Not run and
+**Running** (a hand-off step sends nothing and waits on the screen's own dialog, which is
+the one Running state that stands still long enough to measure). The audit is read as a
+**tally per kind**, not as the tail of the table: rows stamped from one pinned clock can
+share a `confirmed_at` and the order inside an instant is the database's to choose.
 
 ## Not started, for the next round
 
-- **The rest of criterion 11's matrix.** The walk and the pattern exist; what is missing is
-  the per-screen-group spec for each remaining group, and for each kind the confirm path
-  **inside a plan**. The groups and their kinds: the versions and publish screens
-  (`form.publish`, `form.release`), the links screen (`link.mint`, `link.revoke`, and
-  `plan-fails-at-2`, which is how the Failed and Not run states are reached), the responses
-  screens (`response.erase` with its typed confirmation and its card-level irreversible
-  band, `response.unflag`, `response.export` as a hand-off), the webhooks screen (six
-  kinds, and `plan-pending-at-1` for Pending approval), the questions screens (five kinds),
-  the forms list (`form.create`), the workspace screen (six kinds), and `apply-draft` on
-  the builder. `propose-<kind>` exists for all 26; the expensive half is still the fixture
-  graph (a released version, links, an endpoint, a dead letter, a response, a question, a
-  workspace group) and each kind's own "the screen changed" assertion.
+- **Four webhook kinds and Pending approval.** `webhook.retarget`, `webhook.deactivate`,
+  `webhook.reactivate`, `webhook.redeliver`, and the Pending approval state.
+  - `webhook.redeliver` names a delivery row, which exists only once a response has fanned
+    out to an endpoint: a published form, a submission and a delivery pass. That fixture
+    writes into the delivery queue `responses-ops.pw.ts` counts, so it wants a form and a
+    consumer of its own (`TestConsumer` in `apps/admin/e2e/support/ops.ts` answers 200, so
+    nothing dead-letters).
+  - **Pending approval** is the production endpoint path: with the workspace's
+    second-approver switch on, an endpoint change in `prod` is held as an endpoint proposal
+    (202, `apps/api/src/features/webhooks/handler.ts`) and the step settles
+    `pending-approval`, terminal for the plan. The switch can be flipped and restored
+    through the agent itself, as `agent-cards-workspace.pw.ts` does.
+  - **A discovery to chase before writing the retarget cell.** With
+    `propose-webhook-retarget` the PUT returned 200 and the screen's own re-read of
+    `/webhooks` followed it, and the endpoints table still showed the old URL thirty
+    seconds later. Those rows reach that component as props, so this is not the
+    state-seeding staleness below. One diagnostic run first: assert the stored row rather
+    than the table, and compare the environment the PUT and the list read resolve to.
+    `plan-webhooks` is already in `fake-model.ts` and covers all five configuration kinds
+    in one plan once the retarget is understood.
 - **Criterion 13's** rehearsal of 038's goal 7.
 - **The records "The records this task closes" names**: ADR-25's status line
   (`docs/adr/admin.md`), SEC-17's status line, its "Verified by (when built)" list and
@@ -99,17 +81,53 @@ detached with `QCMS_HARNESS_BUILD=1` on seat 7: **544 passed, 0 failed, 20.1 min
   section 4, 038's header, moving the four work orders out of `docs/features/`, and the
   ledger rows in `docs/features/README.md`. They close when the remaining criteria do.
 
+## Product fixes the matrix found, each outside the agent's own code
+
+Every one of these is reached by the screen's own controls too; the card matrix is simply
+the first test to walk them.
+
+- **A library screen offered its create to nobody.** `/forms`, `/forms/new`, `/questions`
+  and `/questions/new` name no subject, so the grant filter had no workspace to judge
+  `form.create` or `question.create` against and the propose tools were left out of the
+  turn entirely. The filter now judges them against a workspace the caller may create in
+  (`workspacesHoldingOrNone`), and which workspace the act lands in stays the route's own,
+  from the arguments.
+- **A 204 route read as JSON.** `removeHolder` and `deleteAccessGroup` parsed an empty
+  body, so a revoke and a group removal the API had performed were reported to the operator
+  as failures. `readNoContent` is the reader for a success with no body.
+- **The workspace settings step sent a setting its card never showed.** It filled the
+  absent member with `false`, which both changed a setting nobody confirmed and made the
+  proposal's own digest unverifiable (`AGENT_PROPOSAL_ARGUMENTS`). It now sends the members
+  the card carried.
+- **The webhooks screen's facts read the control plane.** An endpoint and its deliveries
+  are the environment's own rows, as the webhooks route reads them, so the assistant saw no
+  endpoint on any deployment whose environments have their own data. The erasure log's
+  tombstones and the dead-letter list had the same reader and move with it.
+- **The response detail's flag disposition was state seeded once.** A release performed
+  anywhere but that screen's own button revalidates the route, and the operator went on
+  reading "Flagged" about an event already on its way. It re-seeds from the server, as the
+  response browser re-seeds its filter draft.
+- **The diff entries were too small to be targets.** Each `apply-draft` entry is a
+  disclosure, and at the text's own height they were 18px rows a few pixels apart, which is
+  SC 2.5.8 on both counts. No axe sweep had reached the apply-draft card before.
+
 ## Discoveries worth a ruling, none of them blocking
 
-- **The two riders above were each a defect only data or load could show.** The audit table
-  overflowed only once a confirmed act existed, and the conversation's scroll region only
-  once a turn was long enough at the moment axe ran. Both are worth remembering when the
-  rest of criterion 11's matrix starts writing rows on every screen: a table that fits
-  today may not fit the first time it has ten rows.
+- **Two panels seed their controls once and are not re-seeded.** The workspace's
+  second-approver switch (`workspace-settings-panel.tsx`) and the builder's form settings
+  (`form-builder.tsx`) take their values from the server on first render and then carry the
+  operator's own unsaved choice, so an act performed anywhere else is on screen at the next
+  read rather than under their hand. The response detail's flag was re-seeded because it
+  holds no unsaved choice; these two do, and discarding a half-made edit on a revalidation
+  is a decision rather than a mechanical fix. Both specs read the value back on a fresh
+  visit and say so.
+- **The audit table overflowed and the conversation's scroll region needed a name**, both
+  found in the previous round and both only once data or load existed. The same warning
+  holds for the rest of the matrix: a table that fits today may not the first time it has
+  ten rows.
 - **The conversation's own error reporting was widened rather than narrowed.** The retired
   panel resolved each failure to its own sentence and the shipped screen conversation
   reported one generic line, so the shared conversation now uses the panel's resolver on
-  every screen (`apps/admin/lib/forms/assist-errors.ts`). That is more copy on more screens
-  than any ruling asked for; it is the alternative to the builder losing what it had.
+  every screen (`apps/admin/lib/forms/assist-errors.ts`).
 - **The card's quoted reason is the turn's closing prose segment**, which is what the panel
   quoted, rather than the whole turn's text the screen conversation was clamping.
