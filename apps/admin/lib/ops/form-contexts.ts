@@ -1,17 +1,5 @@
-/**
- * One form's operational contexts, and which of them a caller may open (Q87).
- *
- * They live under Operations and nowhere else (Code Owner, 2026-11-02): each reads the
- * environment the shell's selection names, so opening one from the form editor would have
- * been a screen whose data belongs to a context the editor does not have. The editor keeps
- * authoring - the builder, Rules, Preview, Versions and the Publish wizard.
- *
- * The row's `capabilities` are the cells the API decided for that form and that
- * environment, so the offer is the policy's answer rather than a role name read on this
- * side. A caller holding no read cell on a form gets no link at all: the row is on the
- * table because some operational cell admitted it, which is not the same as a screen it
- * may open.
- */
+// A row's `capabilities` are the cells the API decided for that form and environment, so
+// the links below are the policy's answer and never a role name read on this side.
 
 import { t } from "../i18n/en.ts";
 

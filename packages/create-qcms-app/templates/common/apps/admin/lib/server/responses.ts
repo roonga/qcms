@@ -93,6 +93,7 @@ export async function listResponses(
     ok: true,
     data: {
       responses: parseResponses(raw["responses"]),
+      formVersions: versionNumbers(raw["formVersions"]),
       page: count(raw["page"], 1),
       pageSize: count(raw["pageSize"], 50),
       total: count(raw["total"], 0),
@@ -284,6 +285,13 @@ function nullableText(raw: unknown): string | null {
 
 function count(raw: unknown, fallback: number): number {
   return typeof raw === "number" && Number.isFinite(raw) ? raw : fallback;
+}
+
+function versionNumbers(raw: unknown): readonly number[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((entry): entry is number => typeof entry === "number" && Number.isInteger(entry))
+    .sort((left, right) => right - left);
 }
 
 function rows(raw: unknown): readonly Record<string, unknown>[] {

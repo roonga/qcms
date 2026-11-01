@@ -73,6 +73,7 @@ describe("one submission on the list and on its detail", () => {
                 answers: {},
               },
             ],
+            formVersions: [3],
             page: 1,
             pageSize: 50,
             total: 1,

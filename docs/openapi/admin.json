@@ -1398,6 +1398,18 @@
               "$ref": "#/components/schemas/ResponseListItem"
             }
           },
+          "formVersions": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "exclusiveMinimum": true
+            },
+            "example": [
+              2,
+              1
+            ]
+          },
           "page": {
             "type": "integer",
             "minimum": 0,
@@ -1418,6 +1430,7 @@
         },
         "required": [
           "responses",
+          "formVersions",
           "page",
           "pageSize",
           "total"

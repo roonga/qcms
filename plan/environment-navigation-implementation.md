@@ -318,14 +318,127 @@ settings, even if an Operations screen links to their authorized editor.
 | 7. Shipping                | E2E/CI coverage, template sync, changeset, user/security/architecture docs                | Required gates green; exact PR head independently reviewed; comments resolved before merge                                 |
 
 **Phase 1 is ruled (PR #1163); phases 2, 3, 4 and 5 have landed (issues #1174, #1181,
-#1183 and #1197). Phase 6 is part-landed (issue #1204) and part-blocked on rulings.**
-What landed of phase 6: the discovery row reports its read cells, the Operations table
-offers each row the contexts that row's own cells admit, and a refused form read no longer
-blocks the response browser. What is blocked, with options and a recommendation in that
-issue's `HANDOFF.md`: which shell mode owns a form-scoped operational route reached from
-Operations, what an Operations "Overview" context is, where a claim-only caller's global
-queue reads its form identities from, the G05 eraser known-target screen and its
-`docs/erasure.md` text, and the workspace-mode surface.
+#1183 and #1197). Phase 6 is ruled and ships in slices (issue #1204).**
+
+Phase 6 notes, Code Owner, 2026-11-02:
+
+- **Operations owns every per-form operational screen.** Responses (the list, one response,
+  the export, erasure and flag or unflag), Links, Webhooks and their deliveries, and intake
+  status with close and reopen as operational acts, live under Operations in the selected
+  environment and nowhere else. The form editor keeps authoring: the builder, Rules,
+  Preview, the form's settings, Versions and the Publish wizard. An Operations row opens the
+  operational context directly, navigating inside Operations never drops or changes the
+  environment selection, and each old form-subtree address redirects to its Operations
+  equivalent so links and bookmarks keep working. The agent's one form subtree splits in
+  two, authoring kinds on the editor's screens and operational kinds on Operations'.
+- **Warn before leaving Operations.** Any navigation out of the mode, including the
+  application menu's own entries and any link into the form editor, states where it goes and
+  what changes about the environment context, with Stay and Leave and Stay focused first.
+  Navigation inside Operations shows nothing.
+- **Workspaces is not a mode.** It becomes a normal section of the application: a top-nav
+  entry whose sections are left-rail screens, with no mode switch and no Exit control.
+  Operations stays the one mode-like area that has an environment, so it is the one that
+  carries the environment selector and the leave warning. The shell's mode model, its
+  landing and remembered-context model and the specs over them follow, and any old
+  workspace-mode address redirects. No ADR defines Workspaces as a mode, so the record is
+  here and in the shell's own modules; the navigation table at the top of this document is
+  superseded on that row.
+- **The workspace area's rail entries become screens.** Each section of
+  `/workspaces/{workspaceId}` becomes its own route with its own heading, title and
+  breadcrumbs, the rail links to them and marks the current one, and the workspace's own
+  address lands on the first section. The agent's one workspace screen splits so each
+  section offers only its own kinds. Its access-groups screen also carries the #1208 field
+  rulings (environments and forms as multi-selects, a role's name and description rather
+  than its id).
+
+- **One persistent rail per area, and no drill-down.** An area's rail never swaps for a
+  back link and a new list. Its top-level items are always visible, and the current item's
+  sub-items expand in place beneath it as a tree with the current one marked. Two levels at
+  most: a selected form appears under Forms with its Responses, Links, Webhooks and Intake,
+  and anything deeper, one response or one delivery, is the page's breadcrumb rather than a
+  third level. Every rail item is a screen of its own, so Dead letters stops being an
+  in-page anchor. The rail never repeats the page title. The Workspaces rail takes the same
+  tree. It is a navigation landmark holding a nested list, an expanded group carries
+  `aria-expanded`, the current item carries `aria-current="page"`, and every item is
+  reachable by keyboard.
+  **Amended the same day: one form's operations is the exception.** Area level stays one
+  persistent tree. Inside a form, the rail becomes that form's context: a link back to all
+  forms, the form's name as the rail's context label rather than a heading repeating the
+  page title, and its four screens. The page heading names the screen. Moving between a
+  form's screens and back to all forms is movement inside Operations, so the environment
+  selector and the leave warning behave exactly as they do elsewhere in the mode.
+- **One top bar in every area.** Entering Operations shifts the layout today. The top bar
+  has one height and one layout everywhere, the environment dropdown sits in a reserved
+  slot that moves nothing, the environment-coloured edge takes no space or is drawn neutral
+  outside Operations, and the rail width and the page heading's position are identical
+  across Questions, Forms, Workspaces and Operations. A measure assertion beside
+  `apps/admin/e2e/measure.pw.ts` compares the header height, the rail width and the
+  heading's top on a Questions screen and an Operations screen, in `test` and `prod`, light
+  and high contrast, at 1280 and 390.
+
+Phase 6 decisions this plan carries. They are not Code Owner rulings:
+
+- **Structure before polish.** The Code Owner has a holistic admin redesign in hand, so
+  phase 6 builds its screens from the existing kit components and patterns and adds no
+  bespoke styling or visual polish. The rulings above still hold.
+- **The leave warning offers no "do not ask again" choice.** It is a preference rather than
+  a safety control, and if operators ask for one it belongs with the appearance settings.
+  This decision awaits the Code Owner.
+
+Phase 6 ships in slices, as the workspace ruling allows. Each slice is one branch:
+
+1. The discovery row's read cells, the Operations table's per-row context links and the
+   response viewer's own Responses screen, including the version list an export names
+   without `form: read` (`fix/1204-env-phase-6-operations`).
+2. The Operations-only screen move and the redirects for the old form-subtree addresses
+   (`fix/1204-operations-only-screens`), with the route registries and the tests that
+   enumerate them. Intake close and reopen need a host screen under Operations, the one
+   screen Q87 calls Overview; it ships as the rail's Intake item,
+   `/operations/forms/{formId}/intake`, carrying what the selected environment serves, its
+   intake and the two acts, with a row in both agent tables. The Playwright journey proving
+   a `response: read` account opens a response from Operations lands here, with the
+   response-viewer persona.
+   The old addresses are `redirects()` entries in `apps/admin/next.config.ts` rather than
+   redirecting pages, so each keeps its query and none of them costs the six registrations a
+   screen costs. One form therefore has two rails, so the conditional sixth registration
+   place is two browser sweeps: `apps/admin/e2e/rail-screens.pw.ts` for the editor's screens
+   and `apps/admin/e2e/operations-form-rail.pw.ts` for Operations'. The form subtree's
+   offerable action kinds become two lists, so no plan spans authoring and operational acts
+   in one confirmation.
+3. The leave warning: the kit Dialog, Stay focused by default, Escape is Stay, focus
+   returned, nothing shown for navigation inside Operations, unit and Playwright coverage
+   including browser back.
+4. Workspaces stops being a mode and its sections become screens, carrying the #1208
+   access-group field rulings. One branch, because the second ruling changes the shell's
+   mode model and the first changes what that model contains.
+5. One persistent rail per area and one top bar in every area, both the shell's chrome. It
+   replaces the swap-and-back-link rail slice 2 builds
+   (`apps/admin/components/ops/operations-form-rail.tsx`), so it is ordered after slice 2,
+   and it touches the same shell modules as slice 4, so those two are ordered rather than
+   run in parallel.
+
+Addresses the move takes:
+
+| Old address                             | New address                                        |
+| --------------------------------------- | -------------------------------------------------- |
+| `/forms/{formId}/responses`             | `/operations/forms/{formId}/responses`             |
+| `/forms/{formId}/responses/{sessionId}` | `/operations/forms/{formId}/responses/{sessionId}` |
+| `/forms/{formId}/export`                | `/operations/forms/{formId}/export`                |
+| `/forms/{formId}/links`                 | `/operations/forms/{formId}/links`                 |
+| `/forms/{formId}/webhooks`              | `/operations/forms/{formId}/webhooks`              |
+| (none; the acts were the builder's)     | `/operations/forms/{formId}/intake`                |
+
+Open questions phase 6 does not settle, each outside every ruling above:
+
+- **Where a claim-only caller's global queue reads its form identities from.** `/webhooks`
+  reads `GET /admin/forms` for its form filter and its links, which an installation claim
+  cannot call (G03, G06), and a dead-letter row carries a form id and no slug. Options: add
+  the slug to the queue row; drop the filter and the per-form links; or leave the warning.
+  Recommendation: add the slug and drop the page's whole-installation form picker, since
+  the Operations table is the forms picker this plan asks for.
+- **The G05 eraser known-target screen and its `docs/erasure.md` text.** Q87 specifies the
+  journey and not where it lives; it belongs beside the Overview screen of slice 2.
+
 Phase 2 delivered the authorized read model and nothing beyond it: the `anyOf`
 route-policy row shape and `environmentFrom: "query"`, `GET /admin/operations/forms` with
 its per-role projection and cursor pagination, the stateless

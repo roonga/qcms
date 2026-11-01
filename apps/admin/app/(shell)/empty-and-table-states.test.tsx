@@ -510,7 +510,7 @@ describe("the response browser's read states (issues 521, 572)", () => {
     formDetailResult = { ok: false, code: "FORBIDDEN", message: "ops.error.forbidden" };
     responsesResult = {
       ok: true,
-      data: { responses: [RESPONSE_ROW], page: 1, pageSize: 50, total: 1 },
+      data: { responses: [RESPONSE_ROW], formVersions: [2, 1], page: 1, pageSize: 50, total: 1 },
     };
 
     const html = await renderResponses();

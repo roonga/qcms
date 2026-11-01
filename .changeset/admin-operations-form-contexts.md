@@ -11,3 +11,6 @@ Operations rows open the form contexts their caller holds, in the selected envir
   the form and links nowhere.
 - A form read refused rather than failed no longer takes the response browser with it, so
   an account holding `response: read` and no `form: read` can browse that form's responses.
+- `GET /admin/forms/{id}/responses` reports `formVersions`, the versions that form's own
+  responses carry, so the export dialog offers a version list to a caller who cannot read
+  the form definition. An unread version list is now said to be unread rather than empty.

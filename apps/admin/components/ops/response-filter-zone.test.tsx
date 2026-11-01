@@ -38,7 +38,10 @@ afterEach(() => {
   else process.env.TZ = originalZone;
 });
 
-const EMPTY_PAGE = { ok: true as const, data: { responses: [], page: 1, pageSize: 50, total: 0 } };
+const EMPTY_PAGE = {
+  ok: true as const,
+  data: { responses: [], formVersions: [], page: 1, pageSize: 50, total: 0 },
+};
 
 function renderToolbar(query: Record<string, string>) {
   process.env.TZ = OPERATOR_ZONE;

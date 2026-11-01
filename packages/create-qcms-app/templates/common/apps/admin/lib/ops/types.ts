@@ -31,6 +31,8 @@ export interface ResponseListItem {
 /** A page of responses, with the paging the list route reports. */
 export interface ResponsePage {
   readonly responses: readonly ResponseListItem[];
+  /** Every version this form's responses carry, newest first, whatever this page holds. */
+  readonly formVersions: readonly number[];
   readonly page: number;
   readonly pageSize: number;
   readonly total: number;

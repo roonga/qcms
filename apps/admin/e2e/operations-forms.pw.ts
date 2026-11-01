@@ -116,6 +116,7 @@ test("a row opens the form's operational contexts in the environment the chip na
   // Every context link names its own row, so two rows' Links links are distinguishable.
   // The first context this caller may open is the form's NAME, so the list beside it is
   // the rest: an account here holds every cell, so that is Links, Webhooks and Intake.
+  await expect(row).toHaveCount(1);
   const contexts = row.getByTestId("qcms-operations-contexts");
   for (const context of ["Links", "Webhooks", "Intake"]) {
     await expect(contexts.getByRole("link", { name: `${context} for ${ALPHA}` })).toBeVisible();

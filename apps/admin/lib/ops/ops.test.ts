@@ -12,6 +12,7 @@ import { responsePageLink } from "./browse.ts";
 import { isErasureConfirmed, isErasureReason } from "./erasure.ts";
 import type { ExportChoice } from "./export.ts";
 import {
+  exportableVersions,
   exportExtension,
   exportFilename,
   exportQuery,
@@ -75,6 +76,16 @@ describe("export rules", () => {
     expect(isExportable(choice())).toBe(false);
     expect(isExportable(choice({ version: "2" }))).toBe(true);
     expect(isExportable(choice({ format: "json" }))).toBe(true);
+  });
+
+  it("takes the response versions for a caller who may not read the form", () => {
+    // The response viewer persona: `response: read` and `response: export`, no `form: read`.
+    expect(exportableVersions(undefined, [2, 1])).toEqual([2, 1]);
+    // A readable form keeps its own published list, which is not the same set.
+    expect(exportableVersions([3, 2, 1], [1])).toEqual([3, 2, 1]);
+    // Read and empty stays empty; neither read stays unknown, which is not empty.
+    expect(exportableVersions(undefined, [])).toEqual([]);
+    expect(exportableVersions(undefined, undefined)).toBeUndefined();
   });
 
   it("drops the version for JSON even when the control still holds one", () => {
