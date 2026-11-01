@@ -153,9 +153,10 @@ test("cancels the publish card, then publishes what the editor left in the draft
   expect(auditDelta(beforeCancel, await auditTally())).toEqual({});
   await expectServing(page, formId, "Nothing released");
 
-  // The editor decides against one question and removes it.
-  const beforeEdit = await savedStamp(page);
+  // The editor decides against one question and removes it. The stamp is read on the
+  // builder, which is the screen that carries the save strip.
   await page.goto(`/forms/${formId}`);
+  const beforeEdit = await savedStamp(page);
   await openStep(page, "Your GP and consent");
   await usePinRowMenu(page, `q_fake_new_${word}_gp_name`, "remove");
   await waitForSaveAfter(page, beforeEdit);
