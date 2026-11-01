@@ -65,7 +65,7 @@ describe("the form-subtree rail's contents", () => {
   });
 
   it("puts the form's children first and its siblings second", () => {
-    const groups = rail({ kind: "section", section: "links" });
+    const groups = rail({ kind: "section", section: "versions" });
     expect(groups.children.map((item) => item.label)).toStrictEqual([
       "About you",
       "Health",
@@ -95,7 +95,7 @@ describe("the form-subtree rail's contents", () => {
   });
 
   it("points each sibling at its own route, with the builder as the form itself", () => {
-    const groups = rail({ kind: "section", section: "links" });
+    const groups = rail({ kind: "section", section: "versions" });
     expect(groups.siblings.map((item) => item.href)).toStrictEqual([
       "/forms/frm_life",
       "/forms/frm_life/rules",
@@ -109,7 +109,7 @@ describe("the form-subtree rail's contents", () => {
   });
 
   it("points a step at the builder's anchor for it, which is the only address a step has", () => {
-    const groups = rail({ kind: "section", section: "links" });
+    const groups = rail({ kind: "section", section: "versions" });
     expect(groups.children.map((item) => item.href)).toStrictEqual([
       "/forms/frm_life#step-stp_about",
       "/forms/frm_life#step-stp_health",
@@ -123,7 +123,7 @@ describe("the form-subtree rail's contents", () => {
     // lands nowhere - the rail's own rows from seven screens, and the validation panel's
     // "jump to the offending step" links, which is what `lib/forms/issues.ts` mints the id
     // for. A sibling is a route rather than a fragment, so it is a destination for nothing.
-    const groups = rail({ kind: "section", section: "links" });
+    const groups = rail({ kind: "section", section: "versions" });
     expect(groups.children.map((item) => item.anchorId)).toStrictEqual([
       "step-stp_about",
       "step-stp_health",
@@ -133,13 +133,13 @@ describe("the form-subtree rail's contents", () => {
   });
 
   it("numbers the steps in document order and leaves the sections unnumbered", () => {
-    const groups = rail({ kind: "section", section: "links" });
+    const groups = rail({ kind: "section", section: "versions" });
     expect(groups.children.map((item) => item.position)).toStrictEqual([1, 2, 3]);
     expect(groups.siblings.every((item) => item.position === undefined)).toBe(true);
   });
 
   it("marks exactly one row current, and marks the right one", () => {
-    const groups = rail({ kind: "section", section: "responses" });
+    const groups = rail({ kind: "section", section: "publish" });
     const current = [...groups.children, ...groups.siblings].filter((item) => item.isCurrent);
     expect(current.map((item) => item.key)).toStrictEqual(["section:responses"]);
   });
@@ -151,13 +151,13 @@ describe("the form-subtree rail's contents", () => {
   });
 
   it("badges a step with its own issue count and never badges a section", () => {
-    const groups = rail({ kind: "section", section: "links" }, new Map([["stp_health", 2]]));
+    const groups = rail({ kind: "section", section: "versions" }, new Map([["stp_health", 2]]));
     expect(groups.children.map((item) => item.issueCount)).toStrictEqual([0, 2, 0]);
     expect(groups.siblings.every((item) => item.issueCount === 0)).toBe(true);
   });
 
   it("renders without badges rather than claiming a clean form when there is no verdict", () => {
-    const groups = rail({ kind: "section", section: "links" });
+    const groups = rail({ kind: "section", section: "versions" });
     expect(groups.children.every((item) => item.issueCount === 0)).toBe(true);
   });
 
@@ -184,7 +184,7 @@ describe("what the collapsed Header carries", () => {
   // frame that took a text and a count and nothing else, and §7.0's Header is five parts.
   it("names the form whatever is current, and counts the form's own issues", () => {
     for (const current of [
-      { kind: "section", section: "links" },
+      { kind: "section", section: "versions" },
       { kind: "step", stepId: "stp_health" },
       // A step the draft no longer has: the one branch that always did name the form.
       { kind: "step", stepId: "stp_gone" },
@@ -210,7 +210,7 @@ describe("what the collapsed Header carries", () => {
     // The number a shut rail can usefully carry about a form is how much is wrong with it,
     // and that is a different number from whichever row happens to be marked.
     const groups = rail(
-      { kind: "section", section: "links" },
+      { kind: "section", section: "versions" },
       new Map([
         ["stp_about", 1],
         ["stp_health", 2],

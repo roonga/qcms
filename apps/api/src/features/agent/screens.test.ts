@@ -114,7 +114,7 @@ describe("the screen registry", () => {
       "form.reopen",
     ]);
     expect(SCREENS["/forms/[formId]/publish"].actionKinds).toEqual(["form.release"]);
-    expect(SCREENS["/forms/[formId]/links"].actionKinds).toEqual(["link.mint", "link.revoke"]);
+    expect(SCREENS["/operations/forms/[formId]/links"].actionKinds).toEqual(["link.mint", "link.revoke"]);
   });
 
   it("declares only registered tools, and declares them only where their port exists", () => {
@@ -141,10 +141,10 @@ describe("the screen registry", () => {
       "/forms/[formId]/versions",
       "/forms/[formId]/versions/[version]",
       "/forms/[formId]/publish",
-      "/forms/[formId]/links",
-      "/forms/[formId]/webhooks",
-      "/forms/[formId]/responses",
-      "/forms/[formId]/responses/[sessionId]",
+      "/operations/forms/[formId]/links",
+      "/operations/forms/[formId]/webhooks",
+      "/operations/forms/[formId]/responses",
+      "/operations/forms/[formId]/responses/[sessionId]",
     ]);
     expect(isFormSubtreeScreen("/forms")).toBe(false);
   });

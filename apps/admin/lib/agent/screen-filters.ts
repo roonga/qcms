@@ -9,7 +9,7 @@ import type { AgentResponseFilters, AgentScreenParams, ResolvedScreen } from "./
  * the rows on screen and the SEC-15 `read` row records that filter set rather than the
  * unfiltered list. A value the screen would ignore is no filter here either.
  */
-export const FILTERED_SCREEN = "/forms/[formId]/responses";
+export const FILTERED_SCREEN = "/operations/forms/[formId]/responses";
 
 export function screenWithFilters(
   resolved: ResolvedScreen | undefined,

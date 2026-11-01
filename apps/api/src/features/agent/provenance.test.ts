@@ -100,7 +100,7 @@ describe("checkProvenance: a single-step card", () => {
       stepIndex: 0,
       stepCount: 1,
       kind: "link.mint",
-      screen: "/forms/[formId]/links",
+      screen: "/operations/forms/[formId]/links",
       environment: "test",
       formId: "frm_a",
     });

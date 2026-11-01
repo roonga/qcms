@@ -119,10 +119,10 @@ describe("the route-to-cap table", () => {
     // The rules screen (issue #669). Its own file caps `.main` at 1600 and draws nothing
     // narrower inside, which is the honest reading for the widest surface the app builds.
     expect(MEASURE_BY_ROUTE["/forms/[formId]/rules"]).toBe("wide");
-    expect(MEASURE_BY_ROUTE["/forms/[formId]/links"]).toBe("wide");
-    expect(MEASURE_BY_ROUTE["/forms/[formId]/webhooks"]).toBe("wide");
-    expect(MEASURE_BY_ROUTE["/forms/[formId]/responses"]).toBe("wide");
-    expect(MEASURE_BY_ROUTE["/forms/[formId]/responses/[sessionId]"]).toBe("wide");
+    expect(MEASURE_BY_ROUTE["/operations/forms/[formId]/links"]).toBe("wide");
+    expect(MEASURE_BY_ROUTE["/operations/forms/[formId]/webhooks"]).toBe("wide");
+    expect(MEASURE_BY_ROUTE["/operations/forms/[formId]/responses"]).toBe("wide");
+    expect(MEASURE_BY_ROUTE["/operations/forms/[formId]/responses/[sessionId]"]).toBe("wide");
     expect(MEASURE_BY_ROUTE["/forms/[formId]/versions"]).toBe("wide");
   });
 

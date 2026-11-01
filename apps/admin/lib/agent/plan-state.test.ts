@@ -34,7 +34,7 @@ const EXPIRES_AT = "2026-07-20T00:10:00.000Z";
 function step(overrides: Partial<AgentPlanStep> = {}): AgentPlanStep {
   return {
     kind: "link.mint",
-    screen: "/forms/[formId]/links",
+    screen: "/operations/forms/[formId]/links",
     args: { formId: "frm_a", count: 2 },
     environment: "test",
     handOff: false,

@@ -21,10 +21,10 @@ export const SCREEN_IDS = [
   "/forms/[formId]/versions",
   "/forms/[formId]/versions/[version]",
   "/forms/[formId]/publish",
-  "/forms/[formId]/links",
-  "/forms/[formId]/webhooks",
-  "/forms/[formId]/responses",
-  "/forms/[formId]/responses/[sessionId]",
+  "/operations/forms/[formId]/links",
+  "/operations/forms/[formId]/webhooks",
+  "/operations/forms/[formId]/responses",
+  "/operations/forms/[formId]/responses/[sessionId]",
   "/questions",
   "/questions/new",
   "/questions/[questionId]",
@@ -103,12 +103,12 @@ export const SCREENS: Readonly<Record<ScreenId, ScreenDef>> = Object.freeze({
     "diff_form_versions",
   ]),
   "/forms/[formId]/publish": screen(authoringContexts.releases, [], ["form.release"]),
-  "/forms/[formId]/links": screen(
+  "/operations/forms/[formId]/links": screen(
     authoringContexts.links,
     ["count_links"],
     ["link.mint", "link.revoke"],
   ),
-  "/forms/[formId]/webhooks": screen(
+  "/operations/forms/[formId]/webhooks": screen(
     operationsContexts.formWebhooks,
     ["delivery_status"],
     [
@@ -120,12 +120,12 @@ export const SCREENS: Readonly<Record<ScreenId, ScreenDef>> = Object.freeze({
       "webhook.redeliver",
     ],
   ),
-  "/forms/[formId]/responses": screen(
+  "/operations/forms/[formId]/responses": screen(
     operationsContexts.responseList,
     ["list_responses", "count_responses"],
     ["response.export"],
   ),
-  "/forms/[formId]/responses/[sessionId]": screen(
+  "/operations/forms/[formId]/responses/[sessionId]": screen(
     operationsContexts.responseDetail,
     [],
     ["response.erase", "response.unflag"],
@@ -166,31 +166,48 @@ export const SCREENS: Readonly<Record<ScreenId, ScreenDef>> = Object.freeze({
   ),
 });
 
-/** The screens of one form's subtree, which is the span of one conversation. */
-export const FORM_SUBTREE_SCREENS: readonly ScreenId[] = SCREEN_IDS.filter((id) =>
+/** One form's authoring screens: the editor's own subtree. */
+export const FORM_AUTHORING_SCREENS: readonly ScreenId[] = SCREEN_IDS.filter((id) =>
   id.startsWith("/forms/[formId]"),
 );
 
+/**
+ * One form's operational screens, which are Operations' and not the editor's (Code Owner,
+ * 2026-11-02): they read the environment the shell's selection names.
+ */
+export const FORM_OPERATIONS_SCREENS: readonly ScreenId[] = SCREEN_IDS.filter((id) =>
+  id.startsWith("/operations/forms/[formId]"),
+);
+
 export function isFormSubtreeScreen(screenId: ScreenId): boolean {
-  return FORM_SUBTREE_SCREENS.includes(screenId);
+  return FORM_AUTHORING_SCREENS.includes(screenId) || FORM_OPERATIONS_SCREENS.includes(screenId);
 }
 
-const FORM_SUBTREE_ACTION_KINDS: readonly string[] = (() => {
+function kindsAcross(ids: readonly ScreenId[]): readonly string[] {
   const kinds: string[] = [];
-  for (const id of FORM_SUBTREE_SCREENS) {
+  for (const id of ids) {
     for (const kind of SCREENS[id].actionKinds) {
       if (!kinds.includes(kind)) kinds.push(kind);
     }
   }
   return Object.freeze(kinds);
-})();
+}
+
+const FORM_AUTHORING_ACTION_KINDS = kindsAcross(FORM_AUTHORING_SCREENS);
+const FORM_OPERATIONS_ACTION_KINDS = kindsAcross(FORM_OPERATIONS_SCREENS);
 
 /**
- * The kinds a turn on this screen may propose: the whole form subtree's on a form-scoped
- * screen, so one plan can span it, and the screen's own elsewhere. Every step still runs
- * its own screen's action under its own route's checks, and the grant filter still cuts
- * the list to the pairs the caller holds.
+ * The kinds a turn on this screen may propose: its own subtree's on a form-scoped screen,
+ * so one plan can span it, and the screen's own elsewhere.
+ *
+ * The two form subtrees are separate lists because they are separate contexts: an
+ * authoring plan edits a shared draft, an operational plan acts in one environment, and a
+ * plan that mixed them would be one confirmation spanning both. Every step still runs its
+ * own screen's action under its own route's checks, and the grant filter still cuts the
+ * list to the pairs the caller holds.
  */
 export function offerableActionKinds(screenId: ScreenId): readonly string[] {
-  return isFormSubtreeScreen(screenId) ? FORM_SUBTREE_ACTION_KINDS : SCREENS[screenId].actionKinds;
+  if (FORM_AUTHORING_SCREENS.includes(screenId)) return FORM_AUTHORING_ACTION_KINDS;
+  if (FORM_OPERATIONS_SCREENS.includes(screenId)) return FORM_OPERATIONS_ACTION_KINDS;
+  return SCREENS[screenId].actionKinds;
 }

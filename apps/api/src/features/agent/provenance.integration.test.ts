@@ -454,7 +454,7 @@ describe("a replayed step rolls back on the unique constraint (criterion 1)", ()
       workspaceId: SEED_WORKSPACE_ID,
       environment: "prod",
       kind: "link.mint",
-      screen: "/forms/[formId]/links",
+      screen: "/operations/forms/[formId]/links",
       proposedAt: deps.clock.now(),
       confirmedAt: deps.clock.now(),
       detail: "1",

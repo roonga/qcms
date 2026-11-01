@@ -70,10 +70,14 @@ export const RAIL_SECTIONS = [
   // Directly after Versions, because that screen is what an operator reads to decide what
   // to publish and this is the one entry that does it.
   "publish",
-  "links",
-  "responses",
-  "webhooks",
 ] as const;
+
+/**
+ * THE THREE OPERATIONAL ROWS LEFT THIS RAIL (Code Owner, 2026-11-02). Links, Responses and
+ * Webhooks are Operations screens: they read one environment, and this rail sits beside a
+ * shared draft that has none. The editor's rail is authoring, and `components/ops/
+ * operations-form-rail.tsx` is where those three are now.
+ */
 
 /** One of the form's sibling screens. */
 export type RailSection = (typeof RAIL_SECTIONS)[number];

@@ -805,7 +805,7 @@ describe("every screen's context, with a sentinel in the database", () => {
       await resetLimiter();
       const res = await post("/assist", {
         conversation: [{ role: "user", content: "how many came in" }],
-        screen: "/forms/[formId]/responses",
+        screen: "/operations/forms/[formId]/responses",
         params: { formId: FORM_ID, ...(flagged === undefined ? {} : { filters: { flagged } }) },
         conversationId,
       });
@@ -831,7 +831,7 @@ describe("every screen's context, with a sentinel in the database", () => {
     await resetLimiter();
     const walk = await post("/assist", {
       conversation: [{ role: "user", content: "what came in #qcms-fake:read-all" }],
-      screen: "/forms/[formId]/responses",
+      screen: "/operations/forms/[formId]/responses",
       params: { formId: FORM_ID },
       conversationId: "cnv_rows_tools",
     });
@@ -1016,7 +1016,7 @@ describe("a reduced-grant caller over HTTP", () => {
   it("refuses the response read tools by refusing the screen they live on", async () => {
     const res = await turnAs(viewer, "/assist", {
       conversation: [{ role: "user", content: "how many came in #qcms-fake:read-all" }],
-      screen: "/forms/[formId]/responses",
+      screen: "/operations/forms/[formId]/responses",
       params: { formId: FORM_ID },
       conversationId: "cnv_viewer_responses",
     });

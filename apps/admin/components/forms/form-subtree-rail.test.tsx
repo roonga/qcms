@@ -78,7 +78,7 @@ async function render(
   );
 }
 
-const LINKS: RailCurrent = { kind: "section", section: "links" };
+const LINKS: RailCurrent = { kind: "section", section: "versions" };
 
 describe("the rail's markup", () => {
   it("is an aside named for the form, holding a nav named for its sections", async () => {

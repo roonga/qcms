@@ -112,8 +112,8 @@ describe("the kinds a screen offers", () => {
       "webhook.deactivate",
       "webhook.redeliver",
     ];
-    expect(kindsOn("/forms/[formId]/links", approver)).toEqual(subtree);
-    expect(kindsOn("/forms/[formId]/responses", approver)).toEqual(subtree);
+    expect(kindsOn("/operations/forms/[formId]/links", approver)).toEqual(subtree);
+    expect(kindsOn("/operations/forms/[formId]/responses", approver)).toEqual(subtree);
     expect(kindsOn("/forms/[formId]", approver)).toEqual(subtree);
   });
 
@@ -123,11 +123,11 @@ describe("the kinds a screen offers", () => {
     const eraser: readonly HeldGrant[] = [
       { role: "responses.eraser", environments: ["all"], forms: ["all"] },
     ];
-    expect(kindsOn("/forms/[formId]/responses/[sessionId]", eraser)).toEqual([
+    expect(kindsOn("/operations/forms/[formId]/responses/[sessionId]", eraser)).toEqual([
       "response.erase",
       "response.unflag",
     ]);
-    expect(kindsOn("/forms/[formId]/responses/[sessionId]", [editorIn(["all"])])).not.toContain(
+    expect(kindsOn("/operations/forms/[formId]/responses/[sessionId]", [editorIn(["all"])])).not.toContain(
       "response.erase",
     );
   });
@@ -136,8 +136,8 @@ describe("the kinds a screen offers", () => {
     const viewer: readonly HeldGrant[] = [
       { role: "forms.viewer", environments: ["all"], forms: ["all"] },
     ];
-    expect(kindsOn("/forms/[formId]/links", viewer)).toEqual([]);
-    const editor = onScreen("/forms/[formId]/responses", [editorIn(["test"])]);
+    expect(kindsOn("/operations/forms/[formId]/links", viewer)).toEqual([]);
+    const editor = onScreen("/operations/forms/[formId]/responses", [editorIn(["test"])]);
     expect(offeredEnvironments(editor, "form.release")).toEqual(["test"]);
     expect(editor.map((entry) => entry.kind)).toContain("link.mint");
   });

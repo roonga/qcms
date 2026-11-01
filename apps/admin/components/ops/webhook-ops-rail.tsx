@@ -57,7 +57,7 @@ export function WebhookOpsRail({
           {forms.map((form) => (
             <li key={form.formId}>
               <Link
-                href={`/forms/${encodeURIComponent(form.formId)}/webhooks`}
+                href={`/operations/forms/${encodeURIComponent(form.formId)}/webhooks`}
                 className="qcms-rail__link"
                 data-rail-item={`form:${form.formId}`}
               >

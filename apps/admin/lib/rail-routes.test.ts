@@ -55,10 +55,10 @@ const CURRENT_SECTION: Readonly<Record<string, string>> = {
   "/forms/[formId]/versions": "versions",
   "/forms/[formId]/versions/[version]": "versions",
   "/forms/[formId]/publish": "publish",
-  "/forms/[formId]/links": "links",
-  "/forms/[formId]/responses": "responses",
-  "/forms/[formId]/responses/[sessionId]": "responses",
-  "/forms/[formId]/webhooks": "webhooks",
+  "/operations/forms/[formId]/links": "links",
+  "/operations/forms/[formId]/responses": "responses",
+  "/operations/forms/[formId]/responses/[sessionId]": "responses",
+  "/operations/forms/[formId]/webhooks": "webhooks",
 };
 
 /**
@@ -164,15 +164,15 @@ describe("which screens carry the form-subtree section", () => {
     // be asked again, so it fails here.
     expect(sorted(formScopedScreens())).toEqual([
       "/forms/[formId]",
-      "/forms/[formId]/links",
+      "/operations/forms/[formId]/links",
       "/forms/[formId]/preview",
       "/forms/[formId]/publish",
-      "/forms/[formId]/responses",
-      "/forms/[formId]/responses/[sessionId]",
+      "/operations/forms/[formId]/responses",
+      "/operations/forms/[formId]/responses/[sessionId]",
       "/forms/[formId]/rules",
       "/forms/[formId]/versions",
       "/forms/[formId]/versions/[version]",
-      "/forms/[formId]/webhooks",
+      "/operations/forms/[formId]/webhooks",
     ]);
   });
 

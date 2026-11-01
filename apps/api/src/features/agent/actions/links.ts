@@ -30,7 +30,7 @@ function bodyMember(facts: ActionRequestFacts, name: string): unknown {
 
 export const mintLinks: ActionKindDef = {
   kind: "link.mint",
-  screen: "/forms/[formId]/links",
+  screen: "/operations/forms/[formId]/links",
   route: { method: "POST", path: "/admin/forms/{id}/links" },
   cell: { resource: "link", action: "mint" },
   environmentFrom: "switcher",
@@ -56,7 +56,7 @@ export const mintLinks: ActionKindDef = {
 
 export const revokeLink: ActionKindDef = {
   kind: "link.revoke",
-  screen: "/forms/[formId]/links",
+  screen: "/operations/forms/[formId]/links",
   route: { method: "POST", path: "/admin/forms/{id}/links/{linkId}/revoke" },
   cell: { resource: "link", action: "revoke" },
   environmentFrom: "switcher",

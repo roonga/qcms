@@ -334,12 +334,12 @@ const EMPTY_PANEL = /<div class="qcms-empty"[^>]*>/;
 const EMPTY_HEADING = /<h2 class="qcms-empty__heading">/;
 
 async function renderFormWebhooks(): Promise<string> {
-  const { default: Page } = await import("./forms/[formId]/webhooks/page.tsx");
+  const { default: Page } = await import("./operations/forms/[formId]/webhooks/page.tsx");
   return renderToStaticMarkup(await Page({ params: Promise.resolve({ formId: "frm_one" }) }));
 }
 
 async function renderLinks(): Promise<string> {
-  const { default: Page } = await import("./forms/[formId]/links/page.tsx");
+  const { default: Page } = await import("./operations/forms/[formId]/links/page.tsx");
   return renderToStaticMarkup(await Page({ params: Promise.resolve({ formId: "frm_one" }) }));
 }
 

@@ -313,7 +313,7 @@ describe("a plan reaches the user as one card and runs nothing (criterion 4)", (
 
       const events = await turn({
         caller: owner,
-        screen: "/forms/[formId]/links",
+        screen: "/operations/forms/[formId]/links",
         script: "plan-fails-at-2",
       });
       const [plan, ...rest] = proposals(events);
@@ -390,7 +390,7 @@ describe("the two caps (criterion 15)", () => {
     async () => {
       const events = await turn({
         caller: owner,
-        screen: "/forms/[formId]/links",
+        screen: "/operations/forms/[formId]/links",
         script: "two-proposals",
       });
       const cards = proposals(events);
@@ -408,7 +408,7 @@ describe("the two caps (criterion 15)", () => {
     async () => {
       const events = await turn({
         caller: owner,
-        screen: "/forms/[formId]/links",
+        screen: "/operations/forms/[formId]/links",
         script: "plan-26-steps",
       });
       expect(proposals(events)).toEqual([]);
@@ -423,7 +423,7 @@ describe("a name outside the registry is refused at the one door", () => {
     async () => {
       const events = await turn({
         caller: owner,
-        screen: "/forms/[formId]/links",
+        screen: "/operations/forms/[formId]/links",
         script: "unknown-tool",
       });
       expect(events.find((event) => event.type === "tool-rejected")).toEqual({

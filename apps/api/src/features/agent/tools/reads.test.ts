@@ -71,14 +71,14 @@ const READS: readonly {
   },
   {
     tool: "count_links",
-    screen: "/forms/[formId]/links",
+    screen: "/operations/forms/[formId]/links",
     port: "countLinks",
     input: {},
     result: { environment: "test", active: 2, consumed: 1, revoked: 0, expired: 3, total: 6 },
   },
   {
     tool: "list_responses",
-    screen: "/forms/[formId]/responses",
+    screen: "/operations/forms/[formId]/responses",
     port: "listResponses",
     input: { limit: 5, flagged: true },
     result: {
@@ -98,14 +98,14 @@ const READS: readonly {
   },
   {
     tool: "count_responses",
-    screen: "/forms/[formId]/responses",
+    screen: "/operations/forms/[formId]/responses",
     port: "countResponses",
     input: { version: 3 },
     result: { total: 12 },
   },
   {
     tool: "delivery_status",
-    screen: "/forms/[formId]/webhooks",
+    screen: "/operations/forms/[formId]/webhooks",
     port: "deliveryStatus",
     input: {},
     result: {

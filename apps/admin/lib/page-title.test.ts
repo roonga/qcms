@@ -38,14 +38,22 @@ import { formSectionName, pageMetadata } from "./page-title.ts";
 const APP = fileURLToPath(new URL("../app", import.meta.url));
 
 /**
- * The routes with no title, and the reason neither needs one.
+ * The routes with no title, and the reason none of them needs one.
  *
- * Both render nothing: `app/page.tsx` reads the session and `redirect()`s to the shell or
- * to sign-in, and `/responses` redirects to the Operations forms table. No document either
- * could title is ever produced. Listed rather than pattern-matched, so a further exemption
- * is a line someone writes and a reviewer reads.
+ * Every one renders nothing: `app/page.tsx` reads the session and `redirect()`s to the
+ * shell or to sign-in, `/responses` redirects to the Operations forms table, and the four
+ * form-subtree addresses redirect to the Operations screens those three moved to. No
+ * document any of them could title is ever produced. Listed rather than pattern-matched,
+ * so a further exemption is a line someone writes and a reviewer reads.
  */
-const NO_TITLE = ["/", "/responses"];
+const NO_TITLE = [
+  "/",
+  "/responses",
+  "/forms/[formId]/links",
+  "/forms/[formId]/responses",
+  "/forms/[formId]/responses/[sessionId]",
+  "/forms/[formId]/webhooks",
+];
 
 /** One screen: the route pattern it answers, and the file that answers it. */
 interface Screen {
@@ -104,15 +112,15 @@ describe("every route titles its own browser tab", () => {
       "/change-password",
       "/forms",
       "/forms/[formId]",
-      "/forms/[formId]/links",
+      "/operations/forms/[formId]/links",
       "/forms/[formId]/preview",
       "/forms/[formId]/publish",
-      "/forms/[formId]/responses",
-      "/forms/[formId]/responses/[sessionId]",
+      "/operations/forms/[formId]/responses",
+      "/operations/forms/[formId]/responses/[sessionId]",
       "/forms/[formId]/rules",
       "/forms/[formId]/versions",
       "/forms/[formId]/versions/[version]",
-      "/forms/[formId]/webhooks",
+      "/operations/forms/[formId]/webhooks",
       "/forms/new",
       "/me/access",
       "/operations",
