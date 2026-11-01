@@ -27,7 +27,7 @@ import type { QuestionListItem } from "../questions/types.ts";
 
 import { proposalHeaders, type AgentProposalRef } from "./agent-proposal.ts";
 import { adminApiFetch } from "./api.ts";
-import type { AssistParamsRelay, AssistTurnRelay } from "./assist-request.ts";
+import type { AssistConversationRelay, AssistParamsRelay } from "./assist-request.ts";
 import type { ApiResult } from "./api-result.ts";
 import { readResult as read } from "./api-result.ts";
 import type { AdminSession } from "./session.ts";
@@ -268,7 +268,7 @@ export function assist(
   session: AdminSession,
   formId: string,
   body: {
-    readonly conversation: readonly AssistTurnRelay[];
+    readonly conversation: readonly AssistConversationRelay[];
     readonly clientState?: string;
     readonly screen?: string;
     readonly params?: AssistParamsRelay;
@@ -290,7 +290,7 @@ export function assist(
 export function screenAssist(
   session: AdminSession,
   body: {
-    readonly conversation: readonly AssistTurnRelay[];
+    readonly conversation: readonly AssistConversationRelay[];
     readonly screen: string;
     readonly params?: AssistParamsRelay;
     readonly conversationId: string;

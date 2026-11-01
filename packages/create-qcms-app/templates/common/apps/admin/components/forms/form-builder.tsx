@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { Alert, Button, TextField } from "@/components/kit";
 import { AmbientSaveStatus, AutosaveFlash } from "@/components/save-model";
-import { usePublishBuilderAssist } from "@/lib/agent/builder-assist-bridge";
+import { recordDraftSaved, usePublishBuilderAssist } from "@/lib/agent/builder-assist-bridge";
 import { AUTOSAVE_DEBOUNCE_MS, useDraftAutosave } from "@/lib/forms/autosave";
 import type { SaveDraftState, SettingsState, ValidateDraftState } from "@/lib/forms/builder-state";
 import {
@@ -250,6 +250,9 @@ export function FormBuilder({
       // Created, so nothing is left to create. Cleared only here: a refused accept leaves
       // them pending so the retry is the whole accept again.
       pendingNewQuestions.current = [];
+      // Announced to the assistant panel, whose follow-up turn cannot read this draft
+      // before the store that produced this token has landed.
+      recordDraftSaved(saved.updatedAt);
       if (saved.agentAssisted !== undefined) setAgentAssisted(saved.agentAssisted);
       if (saved.updatedAt !== undefined && saved.updatedAt !== "") {
         setDraftUpdatedAt(saved.updatedAt);

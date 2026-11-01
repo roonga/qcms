@@ -29,6 +29,7 @@ import type { Resource } from "../membership/policy.js";
 import { PRODUCTION_ENVIRONMENT } from "../membership/policy.js";
 import { holdsInstallationClaim, resolveGrants } from "../membership/resolver.js";
 import { actionKind } from "./actions/registry.js";
+import { unpublishedDraftPins } from "./draft-pins.js";
 import { offeredActionKinds, offersNoAction } from "./grant-filter.js";
 import { buildProposal } from "./tools/propose.js";
 import { AGENT_PROPOSE_TOOL_NAMES, type AgentToolName } from "./tools/registry.js";
@@ -268,6 +269,9 @@ async function actionPorts(args: {
   if (offersNoAction(offered)) return { tools: [], ports: { offeredActionKinds: offered } };
 
   const workspace = await getWorkspace(args.deps.databases.control, workspaceId);
+  const named = args.build.params.formId;
+  const parsedForm = named === undefined ? undefined : parseFormId(named);
+  const formId = parsedForm?.ok === true ? parsedForm.value : undefined;
   return {
     tools: AGENT_PROPOSE_TOOL_NAMES,
     ports: {
@@ -278,7 +282,11 @@ async function actionPorts(args: {
           subject: args.build.principal.userId,
           appKey: args.deps.config.keys.app,
           current: args.build.environment,
+          screen: args.screen,
           offered,
+          ...(formId === undefined
+            ? {}
+            : { pinnedUnpublished: () => unpublishedDraftPins(args.deps, formId) }),
           requireSecondApprover: workspace?.requireSecondApprover ?? false,
           productionEnvironment: PRODUCTION_ENVIRONMENT,
           formId: args.build.params.formId,

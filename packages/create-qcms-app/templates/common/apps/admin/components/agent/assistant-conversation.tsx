@@ -13,7 +13,7 @@ import {
 import { AssistMark } from "@/components/forms/assist-mark";
 import { AssistMarkdown } from "@/components/forms/assist-markdown";
 import { Button } from "@/components/kit";
-import type { BuilderAssistSnapshot } from "@/lib/agent/builder-assist-bridge";
+import { nextDraftSaved, type BuilderAssistSnapshot } from "@/lib/agent/builder-assist-bridge";
 import {
   isProseTurn,
   promptTurns,
@@ -62,6 +62,19 @@ function handOffFields(args: Readonly<Record<string, unknown>>): Readonly<Record
     else if (typeof value === "number" || typeof value === "boolean") fields[name] = String(value);
   }
   return fields;
+}
+
+/**
+ * Whether the panel posts a turn of its own once this card settles: only for the card that
+ * applies a draft, because what is left to ask then is whether to publish the questions
+ * that draft pins. No other confirmed act starts a turn nobody asked for.
+ */
+function continuesAfterAccept(plan: AgentProposal): boolean {
+  return plan.steps.some((step) => step.kind === "apply-draft");
+}
+
+function ranCleanly(settled: AgentCardView): boolean {
+  return settled.steps.length > 0 && settled.steps.every((step) => step.state === "done");
 }
 
 import {
@@ -206,6 +219,9 @@ function ScreenConversation({
   };
 
   const confirmCard = async (plan: AgentProposal, from: AgentCardView): Promise<void> => {
+    // Armed before the run, because the accept's own save is what it waits for and that
+    // save is the step's own doing.
+    const saved = continuesAfterAccept(plan) ? nextDraftSaved() : undefined;
     const started = startRun(from);
     setCard(started);
     const settled = await runPlan({
@@ -224,22 +240,35 @@ function ScreenConversation({
       windowLeftMs: () => remainingWindowMs(windowRef.current, monotonicNow()),
     });
     settle(plan, settled);
+    if (saved === undefined || !ranCleanly(settled)) return;
+    // The draft's own save, waited for rather than raced: the questions it pins exist only
+    // once it has landed, and asking whether to publish them is what is left to do.
+    const token = await saved;
+    if (token !== undefined) await runTurn(undefined, token);
   };
 
-  const postTurn = (message: string, on: ResolvedScreen, signal: AbortSignal): Promise<Response> =>
-    fetch(builder?.endpoint ?? "/assist", {
+  const postTurn = (
+    on: ResolvedScreen,
+    signal: AbortSignal,
+    // The token a save has just produced, for a turn posted before the render that
+    // carries it: the route refuses a proposal made against a draft that moved.
+    savedDraft?: string,
+  ): Promise<Response> => {
+    const draftUpdatedAt = savedDraft ?? builder?.draftUpdatedAt;
+    return fetch(builder?.endpoint ?? "/assist", {
       method: "POST",
       headers: { "content-type": "application/json" },
       signal,
       body: JSON.stringify({
-        conversation: [...promptTurns(conversation.turns), { role: "user", content: message }],
+        conversation: promptTurns(conversation.current()),
         screen: on.screen,
         params: on.params,
         conversationId: conversation.id,
         // The stored draft this turn is proposed against; the route refuses a mismatch.
-        ...(builder?.draftUpdatedAt === undefined ? {} : { clientState: builder.draftUpdatedAt }),
+        ...(draftUpdatedAt === undefined ? {} : { clientState: draftUpdatedAt }),
       }),
     });
+  };
 
   /** One event's effects beyond the turn's own fold: the card, and what went wrong. */
   const absorb = (event: AssistEvent): void => {
@@ -254,13 +283,18 @@ function ScreenConversation({
     if (event.type === "error") setFailure({ kind: event.code, message: event.message });
   };
 
-  const send = async (): Promise<void> => {
-    const message = value.trim();
-    if (message === "" || screen === undefined || live !== undefined) return;
-    setValue("");
+  /**
+   * One turn. `message` is absent for the turn the panel posts itself after an accept
+   * settles: the conversation already ends with that card's own `action-result` record, and
+   * the person typed nothing to add to it.
+   */
+  const runTurn = async (message: string | undefined, savedDraft?: string): Promise<void> => {
+    if (screen === undefined || live !== undefined) return;
     setFailure(undefined);
-    setShown((current) => [...current, { role: "user", content: message }]);
-    conversation.append([{ role: "user", content: message }]);
+    if (message !== undefined) {
+      setShown((current) => [...current, { role: "user", content: message }]);
+      conversation.append([{ role: "user", content: message }]);
+    }
     let turn = EMPTY_TURN;
     setLive(turn);
     onWorkingChange(true);
@@ -270,7 +304,7 @@ function ScreenConversation({
     stoppedRef.current = false;
 
     try {
-      const response = await postTurn(message, screen, controller.signal);
+      const response = await postTurn(screen, controller.signal, savedDraft);
       if (!response.ok || response.body === null) {
         const failed = await errorForResponse(response);
         setFailure(failed);
@@ -303,6 +337,13 @@ function ScreenConversation({
       setLive(undefined);
       onWorkingChange(false);
     }
+  };
+
+  const send = async (): Promise<void> => {
+    const message = value.trim();
+    if (message === "" || screen === undefined || live !== undefined) return;
+    setValue("");
+    await runTurn(message);
   };
 
   return (

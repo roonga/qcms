@@ -18,6 +18,7 @@ const CONVERSATION: ConversationHandle = {
   id: "cnv_1",
   subject: "Quote",
   turns: [],
+  current: () => [],
   append: () => undefined,
   restart: () => undefined,
 };

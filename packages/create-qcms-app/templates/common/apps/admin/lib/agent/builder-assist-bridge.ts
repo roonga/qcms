@@ -64,6 +64,40 @@ export function usePublishBuilderAssist(next: BuilderAssistSnapshot | undefined)
   }, [next]);
 }
 
+let waiting: ((draftUpdatedAt: string | undefined) => void)[] = [];
+
+/**
+ * Announce the draft token a save has just produced, which is what anyone waiting on that
+ * save is waiting for. Called once per successful store by the builder's own save loop.
+ */
+export function recordDraftSaved(draftUpdatedAt: string | undefined): void {
+  const waiters = waiting;
+  waiting = [];
+  for (const resolve of waiters) resolve(draftUpdatedAt);
+}
+
+/**
+ * The token of the builder's NEXT save, or `undefined` if none lands within the bound.
+ *
+ * The questions an accepted draft pins exist only once that save has landed, so a turn
+ * proposed to publish them waits here rather than racing the save loop. The token comes
+ * from the save itself, not from a render that may not have happened yet.
+ */
+export function nextDraftSaved(timeoutMs = 20_000): Promise<string | undefined> {
+  return new Promise((resolve) => {
+    const held: { timer?: ReturnType<typeof setTimeout> } = {};
+    const settle = (draftUpdatedAt: string | undefined): void => {
+      if (held.timer !== undefined) clearTimeout(held.timer);
+      resolve(draftUpdatedAt);
+    };
+    held.timer = setTimeout(() => {
+      waiting = waiting.filter((candidate) => candidate !== settle);
+      resolve(undefined);
+    }, timeoutMs);
+    waiting = [...waiting, settle];
+  });
+}
+
 /** The builder's published draft, or `undefined` when no builder is mounted. */
 export function useBuilderAssist(): BuilderAssistSnapshot | undefined {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
