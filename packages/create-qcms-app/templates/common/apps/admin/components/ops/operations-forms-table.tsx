@@ -107,14 +107,13 @@ function FormContexts({ row }: { readonly row: OperationsFormRow }) {
   const rest = formContextLinks(row).slice(1);
   if (rest.length === 0) return null;
   return (
-    <ul
-      className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs"
-      data-testid="qcms-operations-contexts"
-    >
+    <ul className="mt-1 flex flex-wrap gap-x-3 text-xs" data-testid="qcms-operations-contexts">
       {rest.map((link) => (
         <li key={link.context}>
+          {/* 24px of target, so four links on one line satisfy SC 2.5.8 on their own size
+              rather than on the space between them. */}
           <Link
-            className="qcms-text-link"
+            className="qcms-text-link inline-flex min-h-6 items-center"
             href={link.href}
             data-context={link.context}
             aria-label={t("operations.context.named", {
