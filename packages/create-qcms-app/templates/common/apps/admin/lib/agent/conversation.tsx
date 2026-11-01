@@ -52,6 +52,11 @@ export interface ConversationHandle {
   readonly id: string;
   readonly subject: string;
   readonly turns: readonly AgentTurnRecord[];
+  /**
+   * The turns as they are NOW, for a caller that appends and posts in one go: {@link turns}
+   * is the snapshot this handle was built from, and a render has not happened in between.
+   */
+  readonly current: () => readonly AgentTurnRecord[];
   readonly append: (turns: readonly AgentTurnRecord[]) => void;
   /** New conversation: a fresh id and an empty history for this subject. */
   readonly restart: () => void;
@@ -61,6 +66,7 @@ const INERT: ConversationHandle = {
   id: "none",
   subject: "none",
   turns: [],
+  current: () => [],
   append: () => undefined,
   restart: () => undefined,
 };
@@ -93,6 +99,7 @@ export function ConversationProvider({
       subject,
       id: existing.id,
       turns: existing.turns,
+      current: () => held.current.get(subject)?.turns ?? existing.turns,
       // Read back from the map rather than from this handle: a panel that appends twice in
       // one turn holds the handle it started with, and appending onto that handle's own
       // snapshot would drop whichever turn was recorded first.

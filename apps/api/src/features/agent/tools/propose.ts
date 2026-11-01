@@ -209,10 +209,8 @@ function proposedDraftRefusal(
 
 /**
  * A question publish proposed anywhere but the question's own page names a version the
- * form's saved draft pins unpublished, and nothing else. The set is the server's own read of
- * the stored draft, so the card can only ever offer to finish what the draft in front of the
- * editor needs; a literal id and version, because a value resolved from an earlier step's
- * result could not be checked against the set here.
+ * form's saved draft pins unpublished, and nothing else. A literal id and version, because
+ * a value resolved from an earlier step's result could not be checked against the set here.
  */
 function pinnedQuestionRefusal(
   step: ProposedStep,

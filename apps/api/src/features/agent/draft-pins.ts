@@ -12,12 +12,8 @@ export interface PinnedQuestion {
 
 /**
  * The question versions the form's SAVED draft pins that are not published yet, from the
- * server's own publish compile.
- *
- * It is read from the stored draft rather than from anything a turn proposed, which is what
- * makes the publish card name what the editor has now: an edit made after an earlier
- * proposal was applied changes this answer, and a question dropped from the draft stops
- * being publishable from the builder at all.
+ * server's own publish compile. Read from the stored draft rather than from anything a turn
+ * proposed, so an edit made after an earlier proposal was applied changes this answer.
  */
 export async function unpublishedDraftPins(
   deps: Deps,

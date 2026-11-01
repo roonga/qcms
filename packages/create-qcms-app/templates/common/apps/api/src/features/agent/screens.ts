@@ -175,6 +175,15 @@ export function isFormSubtreeScreen(screenId: ScreenId): boolean {
   return FORM_SUBTREE_SCREENS.includes(screenId);
 }
 
+const BUILDER_SCREEN: ScreenId = "/forms/[formId]";
+
+/**
+ * Publishing a question the builder's own saved draft pins unpublished. The control lives
+ * on the question's own page and the step still runs that page's action; what the builder
+ * adds is the offer, and the propose tool refuses any other question id.
+ */
+const DRAFT_QUESTION_ACTION_KINDS: readonly string[] = Object.freeze(["question.publish"]);
+
 const FORM_SUBTREE_ACTION_KINDS: readonly string[] = (() => {
   const kinds: string[] = [];
   for (const id of FORM_SUBTREE_SCREENS) {
@@ -192,5 +201,8 @@ const FORM_SUBTREE_ACTION_KINDS: readonly string[] = (() => {
  * the list to the pairs the caller holds.
  */
 export function offerableActionKinds(screenId: ScreenId): readonly string[] {
+  if (screenId === BUILDER_SCREEN) {
+    return [...FORM_SUBTREE_ACTION_KINDS, ...DRAFT_QUESTION_ACTION_KINDS];
+  }
   return isFormSubtreeScreen(screenId) ? FORM_SUBTREE_ACTION_KINDS : SCREENS[screenId].actionKinds;
 }

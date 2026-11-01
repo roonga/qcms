@@ -59,6 +59,7 @@ export const FAKE_SCRIPTS = [
   "plan-apply-draft",
   "plan-apply-draft-release",
   "blank-to-published",
+  "plan-publish-pins",
   "plan-form-screen",
   "plan-releases",
   "plan-links",
@@ -77,6 +78,7 @@ export const FAKE_SCRIPTS = [
   "propose-question-create",
   "propose-question-save-draft",
   "propose-question-publish",
+  "propose-question-publish-foreign",
   "propose-question-deprecate",
   "propose-question-new-version",
   "propose-form-publish",
@@ -1013,6 +1015,8 @@ function actionPlanSteps(
         },
         { kind: "webhook.redeliver", args: { formId, deliveryId: factDeliveryId(prompt) } },
       ];
+    case "plan-publish-pins":
+      return publishPinsSteps(prompt);
     case "plan-26-steps":
       return Array.from({ length: 26 }, (_, index) => mintStep(formId, index + 1));
     default:
@@ -1059,6 +1063,12 @@ const SINGLE_ACTIONS: Readonly<
   "propose-question-new-version": (prompt) => ({
     kind: "question.newVersion",
     args: { questionId: factQuestionId(prompt) },
+  }),
+  // A question this form's draft does not pin, which is what the builder's own refusal is
+  // about: an id the model names is never what decides whether it may be published here.
+  "propose-question-publish-foreign": () => ({
+    kind: "question.publish",
+    args: { questionId: "q_not_pinned_here", version: 1 },
   }),
   "propose-form-settings": (prompt) => ({
     kind: "form.settings",
@@ -1237,6 +1247,7 @@ const ACTION_SCRIPTS: readonly FakeScript[] = [
   "plan-webhooks",
   "plan-workspace",
   "plan-workspace-settings",
+  "plan-publish-pins",
   ...(Object.keys(SINGLE_ACTIONS) as FakeScript[]),
 ];
 
@@ -1428,10 +1439,8 @@ function planApplyDraftReleaseStep(
 
 /**
  * A patient-registration form's questions, one per kernel type, each filling every
- * authoring field its type supports: help text, the required flag, the constraints, a
- * message per constraint, option labels and a boolean's own two labels. It is what the
- * `blank-to-published` journey publishes, so "complete rather than minimal" is asserted
- * against real definitions rather than described in a prompt.
+ * authoring field its type supports. It is what the `blank-to-published` journey publishes,
+ * so "complete rather than minimal" is asserted rather than only described in a prompt.
  */
 function patientQuestions(prompt: readonly PromptMessage[]): Record<string, unknown>[] {
   const base = newQuestionId(prompt);
@@ -1605,7 +1614,11 @@ function patientDraft(prompt: readonly PromptMessage[]): Record<string, unknown>
 function factUnpublishedPins(
   prompt: readonly PromptMessage[],
 ): { questionId: string; version: number }[] {
-  const rows = screenFacts(prompt)["unpublishedPins"];
+  // Scanned across every block rather than read off `screenFacts`: the builder's turn
+  // carries the draft preamble as well, and that block names a form too.
+  const rows = jsonBlocks(prompt).find((block) => Array.isArray(block["unpublishedPins"]))?.[
+    "unpublishedPins"
+  ];
   if (!Array.isArray(rows)) return [];
   const pins: { questionId: string; version: number }[] = [];
   for (const entry of rows) {
@@ -1624,10 +1637,24 @@ function draftApplied(prompt: readonly PromptMessage[]): boolean {
 }
 
 /**
+ * The second card: one publish per question version the saved draft pins unpublished, then
+ * the form's own publish into the lowest environment. The ids come from the screen's facts,
+ * so the plan names what the saved draft pins rather than what an earlier turn proposed.
+ */
+function publishPinsSteps(prompt: readonly PromptMessage[]): Record<string, unknown>[] {
+  return [
+    ...factUnpublishedPins(prompt).map((pin) => ({
+      kind: "question.publish",
+      args: { questionId: pin.questionId, version: pin.version },
+    })),
+    { kind: "form.publish", args: { formId: factFormId(prompt), environment: "test" } },
+  ];
+}
+
+/**
  * `blank-to-published`: the two-card journey. The first turn proposes a complete form and
  * the apply-draft card alone; the turn after that card settles asks for approval and
- * proposes publishing each question version the SAVED draft pins unpublished, then the form
- * itself, into the lowest environment.
+ * proposes publishing the SAVED draft's unpublished pins, then the form itself.
  */
 function planBlankToPublishedStep(
   prompt: readonly PromptMessage[],
@@ -1640,15 +1667,7 @@ function planBlankToPublishedStep(
         finishPart("stop"),
       ];
     }
-    const input = {
-      steps: [
-        ...factUnpublishedPins(prompt).map((pin) => ({
-          kind: "question.publish",
-          args: { questionId: pin.questionId, version: pin.version },
-        })),
-        { kind: "form.publish", args: { formId: factFormId(prompt), environment: "test" } },
-      ],
-    };
+    const input = { steps: publishPinsSteps(prompt) };
     return [
       ...textParts(
         "The draft is saved. May I publish the questions it pins and then the form into test? Promoting it further is a separate act for someone else.",

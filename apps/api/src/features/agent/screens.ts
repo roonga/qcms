@@ -178,11 +178,9 @@ export function isFormSubtreeScreen(screenId: ScreenId): boolean {
 const BUILDER_SCREEN: ScreenId = "/forms/[formId]";
 
 /**
- * Publishing a question the builder's own draft introduces or already pins unpublished.
- * The control lives on the question's own page, and the step still runs that page's action
- * under its own route's checks; what the builder adds is the offer, because a draft the
- * turn proposed is the only thing that makes a question publishable from here. The propose
- * tool refuses any other question id.
+ * Publishing a question the builder's own saved draft pins unpublished. The control lives
+ * on the question's own page and the step still runs that page's action; what the builder
+ * adds is the offer, and the propose tool refuses any other question id.
  */
 const DRAFT_QUESTION_ACTION_KINDS: readonly string[] = Object.freeze(["question.publish"]);
 
