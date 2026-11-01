@@ -126,3 +126,73 @@ describe("the assistant conversation's route", () => {
     });
   });
 });
+
+/**
+ * The card's waiting window. The browser's clock here is years away from the instant the
+ * proposal says it was issued at, which is the skew a card has to survive: it arrives
+ * Confirmable and the window is counted from its arrival instead.
+ */
+describe("a card's waiting window", () => {
+  const ISSUED_AT = "2026-07-20T00:00:00.000Z";
+
+  function proposal(windowMs: number) {
+    return {
+      proposalId: "prp_window",
+      token: "tok",
+      steps: [
+        {
+          kind: "form.publish",
+          screen: "/forms/[formId]",
+          args: { formId: "frm_quote" },
+          environment: "test",
+          card: {
+            titleKey: "agent.card.form.publish.title",
+            consequenceKeys: ["agent.card.form.publish.consequence"],
+          },
+          resultAllowlist: ["version"],
+        },
+      ],
+      proposedAt: ISSUED_AT,
+      expiresAt: new Date(Date.parse(ISSUED_AT) + windowMs).toISOString(),
+      formId: "frm_quote",
+      currentEnvironment: "test",
+    };
+  }
+
+  async function proposed(windowMs: number): Promise<void> {
+    const event = { type: "action", proposal: proposal(windowMs) };
+    const body = `event: action\ndata: ${JSON.stringify(event)}\n\n`;
+    const fetchMock = vi.fn<(input: unknown, init?: unknown) => Promise<Response>>(() =>
+      Promise.resolve(
+        new Response(body, { status: 200, headers: { "content-type": "text/event-stream" } }),
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    mount(true);
+    const composer = screen.getByTestId("qcms-assistant-composer");
+    fireEvent.change(composer, { target: { value: "publish the draft" } });
+    fireEvent.keyDown(composer, { key: "Enter" });
+    await vi.waitFor(() => {
+      expect(screen.getByRole("button", { name: t("agent.card.confirm") })).toBeTruthy();
+    });
+  }
+
+  it("arrives Confirmable although the issuing clock is years from this one", async () => {
+    await proposed(10 * 60 * 1000);
+    expect(
+      screen.getByRole("button", { name: t("agent.card.confirm") }).hasAttribute("disabled"),
+    ).toBe(false);
+    expect(screen.queryByText(t("agent.card.expiredAsk"))).toBeNull();
+  });
+
+  it("ticks a waiting card to Expired once its window runs out", async () => {
+    await proposed(100);
+
+    await vi.waitFor(() => {
+      expect(screen.getByText(t("agent.card.expiredAsk"))).toBeTruthy();
+    });
+    expect(
+      screen.getByRole("button", { name: t("agent.card.confirm") }).hasAttribute("disabled"),
+    ).toBe(true);
+  });
+});

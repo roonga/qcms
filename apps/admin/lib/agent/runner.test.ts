@@ -13,6 +13,7 @@ import { hasUnresolvedReference, resolveArgs, runPlan, type RunStepRequest } fro
 const PROPOSED_AT = "2026-07-20T00:00:00.000Z";
 const EXPIRES_AT = "2026-07-20T00:10:00.000Z";
 const NOW = new Date(PROPOSED_AT);
+const WINDOW_LEFT = 10 * 60 * 1000;
 
 function step(overrides: Partial<AgentPlanStep> = {}): AgentPlanStep {
   return {
@@ -55,7 +56,7 @@ function proposal(
 }
 
 function started(plan: AgentProposal): AgentCardView {
-  return startRun(initialCard(plan, NOW.getTime()));
+  return startRun(initialCard(plan));
 }
 
 describe("runPlan", () => {
@@ -66,6 +67,7 @@ describe("runPlan", () => {
       proposal: plan,
       card: started(plan),
       now: () => NOW,
+      windowLeftMs: () => WINDOW_LEFT,
       runStep: (request) => {
         seen.push(request);
         return Promise.resolve({ outcome: "done", result: { version: 7, count: 2 } });
@@ -89,6 +91,7 @@ describe("runPlan", () => {
       proposal: plan,
       card: started(plan),
       now: () => NOW,
+      windowLeftMs: () => WINDOW_LEFT,
       runStep: (request) => {
         seen.push(request);
         return Promise.resolve({ outcome: "done", result: { version: 7, environment: "test" } });
@@ -111,6 +114,7 @@ describe("runPlan", () => {
       proposal: plan,
       card: started(plan),
       now: () => NOW,
+      windowLeftMs: () => WINDOW_LEFT,
       runStep: (request) => {
         seen.push(request);
         return Promise.resolve({ outcome: "done", result: { version: 7, environment: "test" } });
@@ -136,6 +140,7 @@ describe("runPlan", () => {
       proposal: plan,
       card: started(plan),
       now: () => NOW,
+      windowLeftMs: () => WINDOW_LEFT,
       runStep,
     });
     expect(runStep).toHaveBeenCalledTimes(2);
@@ -147,7 +152,13 @@ describe("runPlan", () => {
     const runStep = vi
       .fn<(request: RunStepRequest) => Promise<{ outcome: "pending-approval" }>>()
       .mockResolvedValue({ outcome: "pending-approval" });
-    const card = await runPlan({ proposal: plan, card: started(plan), now: () => NOW, runStep });
+    const card = await runPlan({
+      proposal: plan,
+      card: started(plan),
+      now: () => NOW,
+      windowLeftMs: () => WINDOW_LEFT,
+      runStep,
+    });
     expect(runStep).toHaveBeenCalledTimes(1);
     expect(card.state).toBe("pending-approval");
   });
@@ -155,7 +166,13 @@ describe("runPlan", () => {
   it("reads a thrown request as a failure rather than retrying it", async () => {
     const plan = proposal([PUBLISH, step()]);
     const runStep = vi.fn().mockRejectedValue(new Error("network"));
-    const card = await runPlan({ proposal: plan, card: started(plan), now: () => NOW, runStep });
+    const card = await runPlan({
+      proposal: plan,
+      card: started(plan),
+      now: () => NOW,
+      windowLeftMs: () => WINDOW_LEFT,
+      runStep,
+    });
     expect(runStep).toHaveBeenCalledTimes(1);
     expect(card.steps[0]?.state).toBe("failed");
     expect(card.steps[0]?.message).toContain("did not reach");
@@ -166,19 +183,26 @@ describe("runPlan", () => {
     const runStep = vi
       .fn<(request: RunStepRequest) => Promise<{ outcome: "done" }>>()
       .mockResolvedValue({ outcome: "done" });
-    const card = await runPlan({ proposal: plan, card: started(plan), now: () => NOW, runStep });
+    const card = await runPlan({
+      proposal: plan,
+      card: started(plan),
+      now: () => NOW,
+      windowLeftMs: () => WINDOW_LEFT,
+      runStep,
+    });
     // Step 0 reported nothing, so step 1's reference has nothing to resolve to.
     expect(runStep).toHaveBeenCalledTimes(1);
     expect(card.steps[1]?.state).toBe("failed");
   });
 
-  it("refuses to start a stale card, independently of what the card shows", async () => {
+  it("refuses to start a card whose window ran out, whatever the card shows", async () => {
     const plan = proposal([PUBLISH]);
     const runStep = vi.fn();
     const card = await runPlan({
       proposal: plan,
       card: started(plan),
-      now: () => new Date(Date.parse(EXPIRES_AT) + 1000),
+      now: () => NOW,
+      windowLeftMs: () => 0,
       runStep,
     });
     expect(runStep).not.toHaveBeenCalled();
@@ -192,7 +216,14 @@ describe("runPlan", () => {
       .fn<(request: RunStepRequest) => Promise<{ outcome: "done"; result: { version: number } }>>()
       .mockResolvedValue({ outcome: "done", result: { version: 2 } });
     const onHandOff = vi.fn();
-    await runPlan({ proposal: plan, card: started(plan), now: () => NOW, runStep, onHandOff });
+    await runPlan({
+      proposal: plan,
+      card: started(plan),
+      now: () => NOW,
+      windowLeftMs: () => WINDOW_LEFT,
+      runStep,
+      onHandOff,
+    });
     expect(runStep).toHaveBeenCalledTimes(1);
     expect(onHandOff).toHaveBeenCalledWith(handOff, 1, handOff.args);
   });
@@ -200,7 +231,7 @@ describe("runPlan", () => {
 
 describe("resolveArgs", () => {
   it("leaves a plain argument alone and resolves a reference", () => {
-    const card = initialCard(proposal([PUBLISH, RELEASE]), NOW.getTime());
+    const card = initialCard(proposal([PUBLISH, RELEASE]));
     const withResult: AgentCardView = {
       ...card,
       steps: [{ state: "done", result: { version: 9 } }, { state: "proposed" }],
@@ -213,7 +244,7 @@ describe("resolveArgs", () => {
   });
 
   it("reports an unresolved reference rather than sending it", () => {
-    const card = initialCard(proposal([PUBLISH, RELEASE]), NOW.getTime());
+    const card = initialCard(proposal([PUBLISH, RELEASE]));
     expect(hasUnresolvedReference(resolveArgs(RELEASE, card))).toBe(true);
   });
 });

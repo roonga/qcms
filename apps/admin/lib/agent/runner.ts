@@ -1,13 +1,7 @@
 import type { AgentPlanStep, AgentProposal } from "../forms/assist-stream.ts";
 import { t } from "../i18n/en.ts";
 
-import {
-  isExpired,
-  settleStep,
-  startStep,
-  type AgentCardView,
-  type AgentStepResult,
-} from "./plan-state.ts";
+import { settleStep, startStep, type AgentCardView, type AgentStepResult } from "./plan-state.ts";
 
 /**
  * The sequential runner. Client-driven so that each step goes through its own screen's
@@ -48,6 +42,12 @@ export interface RunPlanInput {
   /** Called after every state change, so the card re-renders as the run proceeds. */
   readonly onChange?: (card: AgentCardView) => void;
   readonly now: () => Date;
+  /**
+   * What is left of the card's waiting window, on the monotonic clock it was counted on.
+   * Step 0 is not sent once it reaches zero, which is the same bound the API enforces on
+   * the token.
+   */
+  readonly windowLeftMs: () => number;
 }
 
 function isReference(value: unknown): value is { fromStep: number; field: string } {
@@ -105,10 +105,9 @@ function unsendable(
   input: RunPlanInput,
   args: Readonly<Record<string, unknown>>,
   index: number,
-  at: Date,
 ): string | undefined {
   if (hasUnresolvedReference(args)) return t(UNRESOLVED_REFERENCE);
-  if (isExpired(input.proposal, at.getTime()) && index === 0) return t(STALE);
+  if (index === 0 && input.windowLeftMs() <= 0) return t(STALE);
   return undefined;
 }
 
@@ -139,7 +138,7 @@ export async function runPlan(input: RunPlanInput): Promise<AgentCardView> {
     const args = resolveArgs(step, card);
     const at = input.now();
 
-    const refusal = unsendable(input, args, index, at);
+    const refusal = unsendable(input, args, index);
     if (refusal !== undefined) {
       emit(
         settleStep(card, index, step, { outcome: "failed", message: refusal }, at.toISOString()),

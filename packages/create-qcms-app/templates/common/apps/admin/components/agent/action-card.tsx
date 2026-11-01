@@ -20,6 +20,7 @@ import {
   canConfirm,
   headingChip,
   liveLine,
+  proposalWindowMs,
   resultLine,
   showsStepChips,
   STEP_STATE_WORDS,
@@ -59,7 +60,8 @@ export interface ActionCardProps {
   readonly onOpenScreen?: () => void;
   /** True only when focus was already inside the panel when the card arrived. */
   readonly focusOnArrival?: boolean;
-  readonly now?: number;
+  /** What is left of the window counted from this card's arrival; the full window if absent. */
+  readonly remainingMs?: number;
 }
 
 /** One shape per state, so a state is never colour alone. */
@@ -283,7 +285,7 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const resultRef = useRef<HTMLParagraphElement>(null);
   const [typed, setTyped] = useState("");
-  const now = props.now ?? Date.now();
+  const remainingMs = props.remainingMs ?? proposalWindowMs(proposal);
 
   useEffect(() => {
     if (props.focusOnArrival === true) headingRef.current?.focus();
@@ -417,7 +419,7 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
           base={base}
           steps={proposal.steps.length}
           confirmable={confirmable}
-          minutes={minutesLeft(proposal.expiresAt, now)}
+          minutes={minutesLeft(remainingMs)}
           typed={typed}
           onTyped={setTyped}
           required={required}

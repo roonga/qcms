@@ -63,6 +63,7 @@ vi.mock("@/lib/agent/builder-assist-bridge", () => ({
 
 const PROPOSED_AT = "2026-07-20T00:00:00.000Z";
 const NOW = new Date(PROPOSED_AT);
+const WINDOW_LEFT = 10 * 60 * 1000;
 
 const APPLY_DRAFT: AgentPlanStep = {
   kind: "apply-draft",
@@ -130,13 +131,14 @@ beforeEach(() => {
 describe("a plan of apply-draft then form.publish", () => {
   it("runs end to end and sends the publish as token step 0", async () => {
     const { runStepAction } = await import("./step-actions");
-    const started = startRun(initialCard(PLAN, NOW.getTime()));
+    const started = startRun(initialCard(PLAN));
 
     const card = await runPlan({
       proposal: PLAN,
       card: started,
       runStep: runStepAction,
       now: () => NOW,
+      windowLeftMs: () => WINDOW_LEFT,
     });
 
     expect(accept).toHaveBeenCalledTimes(1);
@@ -161,12 +163,13 @@ describe("a plan of apply-draft then form.publish", () => {
 
     await runPlan({
       proposal: PLAN,
-      card: startRun(initialCard(PLAN, NOW.getTime())),
+      card: startRun(initialCard(PLAN)),
       runStep: (request) => {
         seen.push(request.agentProposal);
         return runStepAction(request);
       },
       now: () => NOW,
+      windowLeftMs: () => WINDOW_LEFT,
     });
 
     expect(seen).toEqual([undefined, "tok"]);

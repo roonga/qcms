@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from "react";
 
 import { AssistMark } from "@/components/forms/assist-mark";
 import { AssistMarkdown } from "@/components/forms/assist-markdown";
@@ -16,6 +24,7 @@ import type { ResolvedScreen } from "@/lib/agent/screens";
 import {
   actionResultTurn,
   cancelCard,
+  expireCard,
   firstPendingStep,
   initialCard,
   requestStop,
@@ -23,6 +32,13 @@ import {
   startRun,
   type AgentCardView,
 } from "@/lib/agent/plan-state";
+import {
+  monotonicNow,
+  remainingWindowMs,
+  startedWindow,
+  useExpiryTick,
+  type ProposalWindow,
+} from "@/lib/agent/proposal-window";
 import { runPlan } from "@/lib/agent/runner";
 import { stepTitle } from "@/lib/agent/card-copy";
 import { useProposalSeam } from "@/lib/agent/waiting";
@@ -134,6 +150,9 @@ function ScreenConversation({
   const [card, setCard] = useState<AgentCardView | undefined>(undefined);
   const abortRef = useRef<AbortController | null>(null);
   const stoppedRef = useRef(false);
+  // The waiting window, counted from the card's arrival here rather than from the
+  // browser's own clock, which may be anywhere.
+  const windowRef = useRef<ProposalWindow>({ startedAt: 0, totalMs: 0 });
   const seam = useProposalSeam();
   const publish = seam?.publish;
   const requestHandOff = seam?.requestHandOff;
@@ -162,6 +181,12 @@ function ScreenConversation({
       ...(control === undefined ? {} : { control }),
     });
   }, [card, cardId, proposal, publish]);
+
+  /** The window runs out: a waiting card flips to Expired and Confirm goes with it. */
+  const onExpire = useCallback(() => {
+    setCard((current) => (current === undefined ? current : expireCard(current)));
+  }, []);
+  useExpiryTick(windowRef.current, card?.state === "proposed", onExpire);
 
   useEffect(
     () => () => {
@@ -196,6 +221,7 @@ function ScreenConversation({
         requestHandOff(control, handOffFields(args));
       },
       now: () => new Date(),
+      windowLeftMs: () => remainingWindowMs(windowRef.current, monotonicNow()),
     });
     settle(plan, settled);
   };
@@ -219,7 +245,8 @@ function ScreenConversation({
   const absorb = (event: AssistEvent): void => {
     if (event.type === "action" || event.type === "plan") {
       setProposal(event.proposal);
-      setCard(initialCard(event.proposal, Date.now()));
+      windowRef.current = startedWindow(event.proposal);
+      setCard(initialCard(event.proposal));
       onAnnounce(t("agent.launcher.toReview"));
       return;
     }
@@ -342,6 +369,7 @@ function ScreenConversation({
               proposal={proposal}
               card={card}
               reason={reason}
+              remainingMs={remainingWindowMs(windowRef.current, monotonicNow())}
               onConfirm={() => void confirmCard(proposal, card)}
               onCancel={() => settle(proposal, cancelCard(card, new Date().toISOString()))}
               onStop={() => setCard(requestStop(card))}

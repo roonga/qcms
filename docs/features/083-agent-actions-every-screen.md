@@ -33,6 +33,16 @@ shows a link to the new item, and the screen's own control keeps redirecting. D7
 `createFormAction` and D6's `createQuestionAction` and `lifecycleAction("newVersion")` are
 the three, and the ruling is what unblocks D6 and D7.
 
+**A card counts its window from arrival, and ticks to Expired** (Code Owner, 2026-11-01).
+The card takes the window's **length** from the server (`expiresAt - proposedAt`) and
+counts it from the moment the card arrived in the browser, on `performance.now()`, so a
+browser whose own clock is out by more than the window cannot make every card arrive
+expired. A waiting card flips to "Expired - ask again" with Confirm disabled when the
+window runs out, through a timer armed only while the card waits and cleared on unmount
+and once the card leaves that state. The server stays the authority: an expired token is
+refused by the API whatever the card shows, and the runner declines to send step 0 once
+the window it counted has run out.
+
 **Two-factor re-enrolment is out of 083** (Code Owner, 2026-11-01). It is not proposable
 until a re-enrol control exists on the Settings screen, because by section 1.4 an act with
 no admin screen control is not proposable.
@@ -90,7 +100,7 @@ optional for a hand-off.
 7. **Audit.** Every confirmed step writes one `control.agent_actions` row in its own transaction and a failed step writes none; the table's grant set equals `control.access_audit`'s in `03-db-least-privilege.e2e.ts` and survives the restore re-grant; a read of it is refused to a user who may not read the access audit; each step's own trail (release record, SEC-15 export, erasure and grant rows, `agentAssisted`) is written unchanged beside it.
 8. **Result redaction.** Minted URLs, a created or rotated webhook secret and regenerated recovery codes reach the user's card once and never the next turn's request body; an export's bytes reach the browser's download and never the agent code or the provider; the allowlist is asserted per kind.
 9. **Never weaker than the screen.** A gated production release proposed by the account that published the version is refused exactly as the screen refuses it (ADR-41, task 070); with the second-approver switch on, a plan that publishes and then releases to `prod` is refused at the propose tool with the ADR-41 reason and no card is shown, and with the switch off the same plan is offered (Code Owner, 2026-10-24); a `prod` endpoint change under the workspace switch is held pending exactly as the screen holds it; a plan proposed under `test` with the switcher moved to `prod` before Confirm is refused with the stable environment code and no step runs.
-10. **Expiry.** A card older than ten minutes shows "Expired - ask again" with Confirm disabled, and the API refuses the stale token on step 0 independently of the card. **A plan whose run crosses `exp` completes**: with a clock advanced so that `exp` passes between step 1 and step 2, every step runs, because steps after step 0 are bounded by step 0's recorded `confirmed-at` plus ten minutes; a step sent more than ten minutes after step 0's `confirmed-at` is refused (review finding B7).
+10. **Expiry.** A card ten minutes after it arrived shows "Expired - ask again" with Confirm disabled, a waiting card ticks into that state on its own, and the API refuses the stale token on step 0 independently of the card. **A plan whose run crosses `exp` completes**: with a clock advanced so that `exp` passes between step 1 and step 2, every step runs, because steps after step 0 are bounded by step 0's recorded `confirmed-at` plus ten minutes; a step sent more than ten minutes after step 0's `confirmed-at` is refused (review finding B7).
 11. **Per screen, D1 to D9.** For every action kind: a Playwright confirm path alone and inside a plan asserting the screen's own state changed and the audit rows exist, a cancel path asserting nothing changed, and axe green over proposed, running, done, failed, pending approval, not run, cancelled and expired states; in the Proposed, Cancelled and Expired states no step shows a visible state chip and each step's state word is exposed to assistive technology through its visually hidden text, asserted by axe and by the accessible name of each step row, and once Confirm is pressed every step shows its own chip (issue #1131); a hand-off step opens the screen's own field with focus in it and the non-secret arguments filled.
 12. **The response read** writes one SEC-15 `read` row per conversation for each distinct filter set (Q10; Code Owner, 2026-10-24), asserted as in 082's criterion 10 for the D4 list and count tools, and the generalised sentinel test of 082 stays green with every D4 read tool in the `read-all` script.
 13. **Goal 7, rehearsed.** With the fake provider, the assisted run 038 specifies (a change on the builder, the releases screen and a response screen; one card and one plan confirmed through the screens' own controls; one cancel; a read-only user offered no write; no answer value anywhere in the conversation) completes end to end as a Playwright scenario.

@@ -73,13 +73,21 @@ export function showsStepChips(card: AgentCardView): boolean {
   return !SHARED_CARD_STATES.includes(card.state);
 }
 
-export function isExpired(proposal: AgentProposal, now: number): boolean {
+/**
+ * The window's length as the server set it, which is what a card counts from its own
+ * arrival. The length rather than the instant: a browser clock out by more than the
+ * window would otherwise expire every card before the user saw it.
+ */
+export function proposalWindowMs(proposal: AgentProposal): number {
+  const issued = Date.parse(proposal.proposedAt);
   const expires = Date.parse(proposal.expiresAt);
-  return Number.isFinite(expires) && now >= expires;
+  if (!Number.isFinite(issued) || !Number.isFinite(expires)) return 0;
+  return Math.max(0, expires - issued);
 }
 
-export function initialCard(proposal: AgentProposal, now: number): AgentCardView {
-  const expired = isExpired(proposal, now);
+/** A card arrives waiting whenever the server gave it a window to wait in. */
+export function initialCard(proposal: AgentProposal): AgentCardView {
+  const expired = proposalWindowMs(proposal) <= 0;
   return {
     proposalId: proposal.proposalId,
     steps: proposal.steps.map(() => ({ state: expired ? "expired" : "proposed" })),
@@ -215,7 +223,7 @@ export function cancelCard(card: AgentCardView, now: string): AgentCardView {
   );
 }
 
-/** Ten minutes without a Confirm. The API refuses the stale token independently. */
+/** The window ran out without a Confirm. The API refuses the stale token independently. */
 export function expireCard(card: AgentCardView): AgentCardView {
   if (card.state !== "proposed") return card;
   return withSteps(

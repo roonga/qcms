@@ -264,9 +264,8 @@ export function createdHref(
   return adminPageHref(path);
 }
 
-/** Whole minutes left before the card expires, floored, and never below zero. */
-export function minutesLeft(expiresAt: string, now: number): number {
-  const at = Date.parse(expiresAt);
-  if (!Number.isFinite(at)) return 0;
-  return Math.max(0, Math.floor((at - now) / 60_000));
+/** Whole minutes left of the card's waiting window, floored, and never below zero. */
+export function minutesLeft(remainingMs: number): number {
+  if (!Number.isFinite(remainingMs)) return 0;
+  return Math.max(0, Math.floor(remainingMs / 60_000));
 }

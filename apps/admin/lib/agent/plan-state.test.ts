@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { AgentPlanStep, AgentProposal } from "../forms/assist-stream.ts";
 
@@ -10,8 +10,8 @@ import {
   firstPendingStep,
   headingChip,
   initialCard,
-  isExpired,
   liveLine,
+  proposalWindowMs,
   requestStop,
   resultLine,
   settleStep,
@@ -80,7 +80,7 @@ function run(card: AgentCardView, outcomes: readonly Parameters<typeof settleSte
 
 describe("a fresh card", () => {
   it("proposes every step and offers Confirm", () => {
-    const card = initialCard(THREE, NOW);
+    const card = initialCard(THREE);
     expect(card.steps.map((view) => view.state)).toEqual(["proposed", "proposed", "proposed"]);
     expect(card.state).toBe("proposed");
     expect(canConfirm(card)).toBe(true);
@@ -88,25 +88,40 @@ describe("a fresh card", () => {
     expect(firstPendingStep(card)).toBe(0);
   });
 
-  it("arrives expired, with Confirm refused, when it is already ten minutes old", () => {
-    const card = initialCard(THREE, Date.parse(EXPIRES_AT));
+  it("takes the window's length from the server", () => {
+    expect(proposalWindowMs(THREE)).toBe(10 * 60 * 1000);
+  });
+
+  it("arrives Confirmable however far out the browser's own clock is", () => {
+    vi.useFakeTimers({ now: Date.parse(EXPIRES_AT) + 24 * 60 * 60 * 1000 });
+    try {
+      const card = initialCard(THREE);
+      expect(card.state).toBe("proposed");
+      expect(canConfirm(card)).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("arrives expired when the server gave it no window at all", () => {
+    const card = initialCard({ ...THREE, expiresAt: PROPOSED_AT });
     expect(card.state).toBe("expired");
     expect(canConfirm(card)).toBe(false);
-    expect(isExpired(THREE, Date.parse(EXPIRES_AT))).toBe(true);
     expect(resultLine(card)?.key).toBe("agent.card.result.expired");
+    expect(proposalWindowMs({ ...THREE, expiresAt: "not a date" })).toBe(0);
   });
 });
 
 describe("step chips appear only once the plan runs", () => {
   it("hides them in the three states every step shares", () => {
-    const fresh = initialCard(THREE, NOW);
+    const fresh = initialCard(THREE);
     expect(showsStepChips(fresh)).toBe(false);
     expect(showsStepChips(cancelCard(fresh, PROPOSED_AT))).toBe(false);
     expect(showsStepChips(expireCard(fresh))).toBe(false);
   });
 
   it("shows them from Confirm onwards", () => {
-    expect(showsStepChips(startRun(initialCard(THREE, NOW)))).toBe(true);
+    expect(showsStepChips(startRun(initialCard(THREE)))).toBe(true);
   });
 
   it("gives every state a word, so a hidden chip still has one", () => {
@@ -120,7 +135,7 @@ describe("step chips appear only once the plan runs", () => {
 
 describe("one plan, one Confirm, stopping at the first failure (criterion 4)", () => {
   it("runs every step and settles Done", () => {
-    const card = run(initialCard(THREE, NOW), [
+    const card = run(initialCard(THREE), [
       { outcome: "done", result: { version: 3 } },
       { outcome: "done", result: { version: 3, environment: "prod" } },
       { outcome: "done", result: { count: 2 } },
@@ -131,7 +146,7 @@ describe("one plan, one Confirm, stopping at the first failure (criterion 4)", (
   });
 
   it("stops at step 2, leaves step 3 Not run and never retries", () => {
-    const card = run(initialCard(THREE, NOW), [
+    const card = run(initialCard(THREE), [
       { outcome: "done", result: { version: 3 } },
       { outcome: "failed", message: "That version is already released to prod." },
     ]);
@@ -146,7 +161,7 @@ describe("one plan, one Confirm, stopping at the first failure (criterion 4)", (
   });
 
   it("treats Pending approval as terminal for the plan", () => {
-    const card = run(initialCard(THREE, NOW), [
+    const card = run(initialCard(THREE), [
       { outcome: "done", result: { version: 3 } },
       { outcome: "pending-approval", message: "Another approver confirms this release." },
     ]);
@@ -159,7 +174,7 @@ describe("one plan, one Confirm, stopping at the first failure (criterion 4)", (
   });
 
   it("lets the running step finish after Stop and sends no further step", () => {
-    let card = startRun(initialCard(THREE, NOW));
+    let card = startRun(initialCard(THREE));
     card = requestStop(card);
     card = settleStep(card, 0, THREE.steps[0] as AgentPlanStep, { outcome: "done" }, PROPOSED_AT);
     expect(card.steps.map((view) => view.state)).toEqual(["done", "not-run", "not-run"]);
@@ -170,7 +185,7 @@ describe("one plan, one Confirm, stopping at the first failure (criterion 4)", (
 
 describe("Cancel is local", () => {
   it("cancels every step, sends nothing and tells the next turn", () => {
-    const card = cancelCard(initialCard(THREE, NOW), PROPOSED_AT);
+    const card = cancelCard(initialCard(THREE), PROPOSED_AT);
     expect(card.steps.map((view) => view.state)).toEqual(["cancelled", "cancelled", "cancelled"]);
     expect(resultLine(card)?.key).toBe("agent.card.result.cancelled");
     expect(showsMarker(card)).toBe(false);
@@ -182,19 +197,19 @@ describe("Cancel is local", () => {
   });
 
   it("refuses to cancel a card that has already run", () => {
-    const running = startRun(initialCard(THREE, NOW));
+    const running = startRun(initialCard(THREE));
     expect(cancelCard(running, PROPOSED_AT)).toBe(running);
   });
 });
 
 describe("progress is announced in words", () => {
   it("names the running step, then the result line", () => {
-    const running = startRun(initialCard(THREE, NOW));
+    const running = startRun(initialCard(THREE));
     expect(liveLine(running)).toEqual({
       key: "agent.card.live.running",
       params: { step: 1, count: 3 },
     });
-    const done = run(initialCard(THREE, NOW), [
+    const done = run(initialCard(THREE), [
       { outcome: "done" },
       { outcome: "done" },
       { outcome: "done" },
@@ -203,13 +218,13 @@ describe("progress is announced in words", () => {
   });
 
   it("says nothing while the card waits, so an arrival is not announced twice", () => {
-    expect(liveLine(initialCard(THREE, NOW))).toBeUndefined();
+    expect(liveLine(initialCard(THREE))).toBeUndefined();
   });
 });
 
 describe("the `action-result` turn (criterion 8)", () => {
   it("reports only the fields the kind allowlists", () => {
-    const card = run(initialCard(THREE, NOW), [
+    const card = run(initialCard(THREE), [
       // A step's action may answer with more than the next turn may learn; the card keeps
       // the kind's own list and drops the rest.
       { outcome: "done", result: { version: 3, url: "https://forms.example.test/l/abc" } },
@@ -228,7 +243,7 @@ describe("the `action-result` turn (criterion 8)", () => {
   it("drops a non-scalar even when the field is allowlisted", () => {
     const one = proposal([step({ resultAllowlist: ["count"] })]);
     const card = settleStep(
-      startRun(initialCard(one, NOW)),
+      startRun(initialCard(one)),
       0,
       one.steps[0] as AgentPlanStep,
       { outcome: "done", result: { count: { nested: 2 } } },
@@ -238,7 +253,7 @@ describe("the `action-result` turn (criterion 8)", () => {
   });
 
   it("is withheld while the card is still waiting or running", () => {
-    expect(actionResultTurn(THREE, initialCard(THREE, NOW))).toBeUndefined();
-    expect(actionResultTurn(THREE, startRun(initialCard(THREE, NOW)))).toBeUndefined();
+    expect(actionResultTurn(THREE, initialCard(THREE))).toBeUndefined();
+    expect(actionResultTurn(THREE, startRun(initialCard(THREE)))).toBeUndefined();
   });
 });

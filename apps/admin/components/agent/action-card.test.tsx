@@ -96,13 +96,13 @@ function renderCard(
   card: AgentCardView,
   extra: Partial<React.ComponentProps<typeof ActionCard>> = {},
 ) {
-  return render(<ActionCard proposal={plan} card={card} now={NOW} {...NOOP} {...extra} />);
+  return render(<ActionCard proposal={plan} card={card} {...NOOP} {...extra} />);
 }
 
 describe("rule 1: the admin writes the card", () => {
   it("builds the title and the consequence from the kind, not from the model's words", () => {
     const plan = proposal([step()]);
-    renderCard(plan, initialCard(plan, NOW), { reason: HOSTILE_REASON });
+    renderCard(plan, initialCard(plan), { reason: HOSTILE_REASON });
 
     expect(
       screen.getByRole("heading", { name: "Mint 20 respondent links for frm_quote" }),
@@ -112,7 +112,7 @@ describe("rule 1: the admin writes the card", () => {
 
   it("renders the model's words once, quoted, and nowhere else", () => {
     const plan = proposal([step()]);
-    const { container } = renderCard(plan, initialCard(plan, NOW), { reason: HOSTILE_REASON });
+    const { container } = renderCard(plan, initialCard(plan), { reason: HOSTILE_REASON });
 
     const quotes = container.querySelectorAll("q");
     expect(quotes).toHaveLength(1);
@@ -127,7 +127,7 @@ describe("rule 1: the admin writes the card", () => {
 describe("rule 2: every step and every argument, in run order, in full", () => {
   it("shows a row per step, numbered, in the plan's order", () => {
     const plan = proposal([RELEASE_TO_PROD, step()]);
-    renderCard(plan, initialCard(plan, NOW));
+    renderCard(plan, initialCard(plan));
     const rows = screen.getAllByRole("listitem");
     expect(rows).toHaveLength(2);
     expect(rows[0]?.textContent).toContain("1. Release version 3 of frm_quote to prod");
@@ -136,7 +136,7 @@ describe("rule 2: every step and every argument, in run order, in full", () => {
 
   it("shows every argument of a step, with nothing collapsed", () => {
     const plan = proposal([step()]);
-    const { container } = renderCard(plan, initialCard(plan, NOW));
+    const { container } = renderCard(plan, initialCard(plan));
     const args = container.querySelector(".qcms-acard__args")?.textContent ?? "";
     for (const value of ["frm_quote", "20", "2026-11-30", "Yes"]) {
       expect(args, value).toContain(value);
@@ -161,7 +161,7 @@ describe("rule 2: every step and every argument, in run order, in full", () => {
         resultAllowlist: ["version", "environment"],
       }),
     ]);
-    const { container } = renderCard(plan, initialCard(plan, NOW));
+    const { container } = renderCard(plan, initialCard(plan));
     const rows = container.querySelectorAll(".qcms-acard__step");
     expect((rows[1] as HTMLElement).textContent).toContain("Uses the version step 1 sets");
     // The title says it too, in the shorter form a sentence takes.
@@ -174,7 +174,7 @@ describe("rule 2: every step and every argument, in run order, in full", () => {
 describe("rule 3: never weaker than the screen's dialog", () => {
   it("carries the production sentence inline on the production step's own line", () => {
     const plan = proposal([RELEASE_TO_PROD, step()]);
-    const { container } = renderCard(plan, initialCard(plan, NOW));
+    const { container } = renderCard(plan, initialCard(plan));
     const rows = container.querySelectorAll(".qcms-acard__step");
 
     const production = rows[0] as HTMLElement;
@@ -189,7 +189,7 @@ describe("rule 3: never weaker than the screen's dialog", () => {
 
   it("keeps Confirm disabled until a step's typed confirmation is entered", () => {
     const plan = proposal([ERASE_SESSION]);
-    renderCard(plan, initialCard(plan, NOW));
+    renderCard(plan, initialCard(plan));
     const confirm = screen.getByRole("button", { name: "Confirm" });
     expect(confirm.hasAttribute("disabled")).toBe(true);
     fireEvent.change(screen.getByLabelText("Type the session id to confirm"), {
@@ -200,7 +200,7 @@ describe("rule 3: never weaker than the screen's dialog", () => {
 
   it("matches the typed confirmation exactly, as the screen's own dialog does", () => {
     const plan = proposal([ERASE_SESSION]);
-    renderCard(plan, initialCard(plan, NOW));
+    renderCard(plan, initialCard(plan));
     fireEvent.change(screen.getByLabelText("Type the session id to confirm"), {
       target: { value: "SES_0F3A1B2C4D" },
     });
@@ -209,20 +209,20 @@ describe("rule 3: never weaker than the screen's dialog", () => {
 
   it("carries one card-level band for an act with no inverse, and none inside a step", () => {
     const plan = proposal([ERASE_SESSION]);
-    const { container } = renderCard(plan, initialCard(plan, NOW));
+    const { container } = renderCard(plan, initialCard(plan));
     expect(container.querySelectorAll(".qcms-acard__band")).toHaveLength(1);
     expect(container.querySelector(".qcms-acard__step .qcms-acard__band")).toBeNull();
   });
 
   it("shows the erasure reason as the word the screen's own dialog shows", () => {
     const plan = proposal([ERASE_SESSION]);
-    renderCard(plan, initialCard(plan, NOW));
+    renderCard(plan, initialCard(plan));
     expect(screen.getByText("Data subject request")).toBeTruthy();
   });
 
   it("says a hand-off step finishes on the screen itself", () => {
     const plan = proposal([step({ handOff: true })]);
-    renderCard(plan, initialCard(plan, NOW));
+    renderCard(plan, initialCard(plan));
     expect(screen.getByText(/finishes on the screen itself/u)).toBeTruthy();
   });
 });
@@ -230,14 +230,14 @@ describe("rule 3: never weaker than the screen's dialog", () => {
 describe("rule 4: one plan, one Confirm", () => {
   it("offers exactly one Confirm for a plan of three steps", () => {
     const plan = proposal([step(), step(), step()]);
-    renderCard(plan, initialCard(plan, NOW));
+    renderCard(plan, initialCard(plan));
     expect(screen.getAllByRole("button", { name: /^Confirm/u })).toHaveLength(1);
     expect(screen.getByRole("button", { name: "Confirm all 3 steps" })).toBeTruthy();
   });
 
   it("replaces Confirm with Stop while the plan runs", () => {
     const plan = proposal([step(), step()]);
-    renderCard(plan, startRun(initialCard(plan, NOW)));
+    renderCard(plan, startRun(initialCard(plan)));
     expect(screen.queryByRole("button", { name: /^Confirm/u })).toBeNull();
     expect(screen.getByRole("button", { name: "Stop after this step" })).toBeTruthy();
   });
@@ -246,7 +246,7 @@ describe("rule 4: one plan, one Confirm", () => {
 describe("the step states", () => {
   it("shows no visible chip per step while every step shares the card's state", () => {
     const plan = proposal([step(), step()]);
-    const { container } = renderCard(plan, initialCard(plan, NOW));
+    const { container } = renderCard(plan, initialCard(plan));
     expect(container.querySelectorAll(".qcms-acard__step .qcms-acard__state")).toHaveLength(0);
     // The word is still in each row's accessible name.
     for (const row of screen.getAllByRole("listitem")) {
@@ -259,7 +259,7 @@ describe("the step states", () => {
 
   it("shows each step's own chip from Confirm onwards", () => {
     const plan = proposal([step(), step()]);
-    const running = startStep(startRun(initialCard(plan, NOW)), 0);
+    const running = startStep(startRun(initialCard(plan)), 0);
     const { container } = renderCard(plan, running);
     expect(container.querySelectorAll(".qcms-acard__step .qcms-acard__state")).toHaveLength(2);
     expect(container.querySelector(".qcms-acard__head .qcms-acard__state")?.textContent).toBe(
@@ -270,7 +270,7 @@ describe("the step states", () => {
   it("quotes the action's own message under a failed step and marks the rest Not run", () => {
     const plan = proposal([step(), step()]);
     const failed = settleStep(
-      startRun(initialCard(plan, NOW)),
+      startRun(initialCard(plan)),
       0,
       plan.steps[0] as AgentPlanStep,
       { outcome: "failed", message: "That expiry is in the past." },
@@ -283,7 +283,7 @@ describe("the step states", () => {
 
   it("shows `Expired - ask again` with Confirm disabled", () => {
     const plan = proposal([step()]);
-    renderCard(plan, expireCard(initialCard(plan, NOW)));
+    renderCard(plan, expireCard(initialCard(plan)));
     expect(screen.getByText("Expired - ask again")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Confirm" }).hasAttribute("disabled")).toBe(true);
   });
@@ -306,7 +306,7 @@ describe("a create step's link to what it made", () => {
   function createdCard(result: Record<string, string>): AgentCardView {
     const plan = proposal([CREATE_FORM]);
     return settleStep(
-      startRun(initialCard(plan, NOW)),
+      startRun(initialCard(plan)),
       0,
       CREATE_FORM,
       { outcome: "done", result },
@@ -316,7 +316,7 @@ describe("a create step's link to what it made", () => {
 
   it("offers no link until the step has run", () => {
     const plan = proposal([CREATE_FORM]);
-    renderCard(plan, initialCard(plan, NOW));
+    renderCard(plan, initialCard(plan));
     expect(screen.queryByRole("link", { name: "Open what this created" })).toBeNull();
   });
 
@@ -338,25 +338,25 @@ describe("a create step's link to what it made", () => {
 describe("focus and the live region", () => {
   it("leaves focus alone unless it was already inside the panel", () => {
     const plan = proposal([step()]);
-    renderCard(plan, initialCard(plan, NOW));
+    renderCard(plan, initialCard(plan));
     expect(document.activeElement).toBe(document.body);
   });
 
   it("moves focus to the heading when the card arrives with focus in the panel", () => {
     const plan = proposal([step()]);
-    renderCard(plan, initialCard(plan, NOW), { focusOnArrival: true });
+    renderCard(plan, initialCard(plan), { focusOnArrival: true });
     expect(document.activeElement).toBe(screen.getByRole("heading", { level: 2 }));
   });
 
   it("moves focus to the result line once the card settles", () => {
     const plan = proposal([step()]);
-    renderCard(plan, cancelCard(initialCard(plan, NOW), PROPOSED_AT));
+    renderCard(plan, cancelCard(initialCard(plan), PROPOSED_AT));
     expect(document.activeElement?.textContent).toBe("Cancelled by you. Nothing was sent.");
   });
 
   it("announces progress in words through one polite region", () => {
     const plan = proposal([step(), step()]);
-    const { container } = renderCard(plan, startRun(initialCard(plan, NOW)));
+    const { container } = renderCard(plan, startRun(initialCard(plan)));
     const regions = container.querySelectorAll('[role="status"]');
     expect(regions).toHaveLength(1);
     expect(regions[0]?.textContent).toBe("Step 1 of 2 running");
@@ -370,8 +370,8 @@ describe("focus and the live region", () => {
       <div onKeyDown={turnEscape}>
         <ActionCard
           proposal={plan}
-          card={initialCard(plan, NOW)}
-          now={NOW}
+          card={initialCard(plan)}
+
           {...NOOP}
           onCancel={onCancel}
         />
