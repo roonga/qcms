@@ -136,6 +136,11 @@ function referenceRefusal(
     return `Step ${String(index + 1)} references step ${String(value.fromStep + 1)}, which does not run before it. A reference may only name an earlier step.`;
   }
   const earlier = actionKind(steps[value.fromStep]?.kind ?? "");
+  if (earlier?.local === true || earlier?.handOff === true) {
+    // It reaches no route, so it writes no audit row and the provenance check has nothing
+    // to resolve the reference against.
+    return `Step ${String(value.fromStep + 1)} completes on the screen itself and records no result a later step can name. State the value in step ${String(index + 1)} instead.`;
+  }
   if (earlier === undefined || earlier.references[0] !== value.field) {
     return `Step ${String(value.fromStep + 1)} does not return a field named "${value.field}".`;
   }
@@ -289,6 +294,36 @@ function carriesToken(step: PlanStep): boolean {
   return !step.handOff && !step.local;
 }
 
+/**
+ * Each step's position in the token, or `-1` for one that carries none. The digest a token
+ * step binds names a reference's target by this index, not by its position in the plan,
+ * because the provenance check rebuilds the reference from audit rows that are written per
+ * token step. A reference to a step that carries no token is refused at validation.
+ */
+function tokenIndexes(steps: readonly PlanStep[]): readonly number[] {
+  let next = 0;
+  return steps.map((step) => {
+    if (!carriesToken(step)) return -1;
+    const index = next;
+    next += 1;
+    return index;
+  });
+}
+
+function argsInTokenTerms(
+  args: Readonly<Record<string, unknown>>,
+  tokenIndex: readonly number[],
+): Readonly<Record<string, unknown>> {
+  const mapped: Record<string, unknown> = { ...args };
+  for (const [name, value] of Object.entries(args)) {
+    if (!isStepReference(value)) continue;
+    const bound = tokenIndex[value.fromStep];
+    if (bound === undefined || bound < 0) continue;
+    mapped[name] = { fromStep: bound, field: value.field };
+  }
+  return mapped;
+}
+
 /** The server's verdict on the draft, attached to the one step that applies it. */
 async function withProposedDraft(
   input: ProposeInput,
@@ -347,12 +382,13 @@ export async function buildProposal(input: ProposeInput): Promise<ProposeOutcome
   if (adr41 !== undefined) return refuse(adr41);
 
   const proposalId = `prp_${crypto.randomUUID().replaceAll("-", "")}`;
+  const tokenIndex = tokenIndexes(steps);
   const tokenSteps: ProposalStepBinding[] = [];
   for (const step of steps) {
     if (!carriesToken(step)) continue;
     tokenSteps.push({
       kind: step.kind,
-      argsDigest: await argumentsDigest(step.args),
+      argsDigest: await argumentsDigest(argsInTokenTerms(step.args, tokenIndex)),
       environment: step.environment,
     });
   }

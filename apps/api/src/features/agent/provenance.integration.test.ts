@@ -1,4 +1,10 @@
-import { FormId, parseQuestionDefinition, QuestionId } from "@roonga/qcms-core";
+import {
+  FormId,
+  parseFormDefinition,
+  parseQuestionDefinition,
+  QuestionId,
+  type FormDefinition,
+} from "@roonga/qcms-core";
 import {
   SEED_WORKSPACE_ID,
   createForm,
@@ -628,6 +634,97 @@ describe("`plan-three` runs end to end, with the reference checked (criterion 4)
       { step_index: 0, kind: "form.publish", environment: "test", detail: String(version) },
       { step_index: 1, kind: "form.release", environment: "prod", detail: String(version) },
       { step_index: 2, kind: "link.mint", environment: "prod", detail: "1" },
+    ]);
+  });
+});
+
+describe("a reference in a plan whose first step runs on the screen itself", () => {
+  const FORM_ID = "frm_prov_local_ref";
+
+  beforeAll(async () => {
+    await seedFormWithDraft(FORM_ID);
+  }, CONTAINER_BOOT_TIMEOUT_MS);
+
+  function draftFor(formId: string): FormDefinition {
+    const parsed = parseFormDefinition({
+      formId,
+      defaultLocale: "en",
+      title: { en: "Provenance" },
+      steps: [
+        {
+          stepId: "stp_one",
+          title: { en: "One" },
+          items: [{ questionId: "q_prov_it", version: 1 }],
+        },
+      ],
+      rules: [],
+    });
+    if (!parsed.ok) throw new Error(`fixture draft did not parse: ${JSON.stringify(parsed.error)}`);
+    return parsed.value;
+  }
+
+  it("runs the publish and the release the proposal tool itself minted the token for", async () => {
+    const outcome = await buildProposal({
+      steps: [
+        { kind: "apply-draft", args: { formId: FORM_ID } },
+        { kind: "form.publish", args: { formId: FORM_ID, environment: "test" } },
+        {
+          kind: "form.release",
+          args: {
+            formId: FORM_ID,
+            version: { fromStep: 1, field: "version" },
+            environment: "prod",
+          },
+        },
+      ],
+      proposedDraft: { definition: draftFor(FORM_ID), newQuestions: [] },
+      validate: () => Promise.resolve({ issues: [], warnings: [] }),
+      subject: owner.userId,
+      appKey: deps.config.keys.app,
+      current: "prod",
+      offered: offeredActionKinds({
+        memberRole: undefined,
+        grants: [
+          { role: "forms.editor", environments: ["all"], forms: ["all"] },
+          { role: "forms.approver", environments: ["all"], forms: ["all"] },
+        ],
+        environments: ["test", "prod"],
+        current: "prod",
+        formId: FORM_ID,
+      }),
+      requireSecondApprover: false,
+      productionEnvironment: "prod",
+      formId: FORM_ID,
+      issuedAt: now,
+      proposalsThisTurn: 0,
+    });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+
+    const token = outcome.proposal.token ?? "";
+    const { proposalId } = outcome.proposal;
+
+    const published = await send({
+      caller: owner,
+      path: `/forms/${FORM_ID}/publish-batch`,
+      environment: "prod",
+      body: publishBatchBody(await reviewDraft(FORM_ID), ["test"]),
+      proposal: { token, step: 0 },
+    });
+    expect(published.status).toBe(200);
+    const { version } = (await published.json()) as { version: number };
+
+    const released = await send({
+      caller: owner,
+      path: `/forms/${FORM_ID}/releases`,
+      environment: "prod",
+      body: { environment: "prod", version },
+      proposal: { token, step: 1 },
+    });
+    expect(released.status).toBe(200);
+    expect(await rowsFor(proposalId)).toEqual([
+      { step_index: 0, kind: "form.publish", environment: "test", detail: String(version) },
+      { step_index: 1, kind: "form.release", environment: "prod", detail: String(version) },
     ]);
   });
 });

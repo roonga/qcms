@@ -148,6 +148,45 @@ test("confirms the draft inside a plan, with the builder's own settings behind i
   expect(auditDelta(before, await auditTally())).toEqual({ "form.settings": 1 });
 });
 
+/**
+ * The local step sits before a reference, so the step a reference names is at one index on
+ * the card and another in the token: the card's third step runs on the version its second
+ * records, and the token binds only two steps.
+ */
+test("confirms a plan whose later step references a publish behind the local step", async ({
+  page,
+}) => {
+  test.setTimeout(600_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+
+  const planFormId = await createForm(page, `agent-draft-rel-${RUN}`, "Agent draft release");
+  await addStep(page, "Start");
+  await pinQuestion(page, SEEDED_QUESTION, 1);
+  await waitForSaved(page);
+
+  await page.goto(`/forms/${planFormId}`);
+  await openPanel(page);
+
+  const before = await auditTally();
+  await propose(
+    page,
+    "plan-apply-draft-release",
+    `tighten this intake, freeze it and promote it #qcms-fake-search:${NEEDLE}`,
+  );
+  await expectWaitingStepStates(page, "Proposed");
+  // Named by its place on the card, which is the plan's own order rather than the token's.
+  await expect(card(page)).toContainText("step 2's version");
+
+  await confirm(page, /^Done\. All 3 steps ran/u);
+  await expectStepChips(page, ["Done", "Done", "Done"]);
+  await expectAxeClean(page, "done plan with a local step first");
+
+  expect(auditDelta(before, await auditTally())).toEqual({
+    "form.publish": 1,
+    "form.release": 1,
+  });
+});
+
 test("saves nothing when the card is cancelled", async ({ page }) => {
   test.setTimeout(600_000);
   await signInWithTotp(page, EMAIL, totpSecret);

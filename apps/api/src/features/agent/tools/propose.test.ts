@@ -4,7 +4,7 @@ import { parseFormDefinition, type FormDefinition } from "@roonga/qcms-core";
 
 import type { HeldGrant } from "../../membership/policy.js";
 import { offeredActionKinds } from "../grant-filter.js";
-import { verifyProposalToken } from "../proposal-token.js";
+import { argumentsDigest, verifyProposalToken } from "../proposal-token.js";
 import { buildProposal, MAX_PLAN_STEPS, type ProposeInput, type ProposedStep } from "./propose.js";
 
 const APP_KEY = "test-app-key-0123456789abcdefghijklmn";
@@ -462,5 +462,61 @@ describe("buildProposal: the kind that applies a proposed draft", () => {
     expect(outcome.ok).toBe(false);
     if (outcome.ok) return;
     expect(outcome.reason).toContain("form: write");
+  });
+});
+
+describe("buildProposal: a reference in a plan whose earlier step carries no token", () => {
+  it("digests the reference in token-index terms while the card keeps the plan's own", async () => {
+    const outcome = await propose({
+      steps: [applyDraft, publish, releaseTo("test", { fromStep: 1, field: "version" })],
+      proposedDraft: { definition: draftFixture("frm_a"), newQuestions: [] },
+    });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+
+    expect(outcome.proposal.steps[2]?.args.version).toEqual({ fromStep: 1, field: "version" });
+
+    const verified = await verifyProposalToken(APP_KEY, outcome.proposal.token ?? "");
+    expect(verified.ok).toBe(true);
+    if (!verified.ok) return;
+    expect(verified.payload.steps.map((step) => step.kind)).toEqual([
+      "form.publish",
+      "form.release",
+    ]);
+    expect(verified.payload.steps[1]?.argsDigest).toBe(
+      await argumentsDigest({
+        formId: "frm_a",
+        version: { fromStep: 0, field: "version" },
+        environment: "test",
+      }),
+    );
+  });
+
+  it("leaves a plan without a local step digesting the plan's own indexes", async () => {
+    const outcome = await propose({
+      steps: [publish, releaseTo("test", { fromStep: 0, field: "version" })],
+    });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    const verified = await verifyProposalToken(APP_KEY, outcome.proposal.token ?? "");
+    expect(verified.ok).toBe(true);
+    if (!verified.ok) return;
+    expect(verified.payload.steps[1]?.argsDigest).toBe(
+      await argumentsDigest({
+        formId: "frm_a",
+        version: { fromStep: 0, field: "version" },
+        environment: "test",
+      }),
+    );
+  });
+
+  it("refuses a reference to the local step itself, which records no row", async () => {
+    const outcome = await propose({
+      steps: [applyDraft, releaseTo("test", { fromStep: 0, field: "changes" })],
+      proposedDraft: { definition: draftFixture("frm_a"), newQuestions: [] },
+    });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toContain("completes on the screen itself");
   });
 });

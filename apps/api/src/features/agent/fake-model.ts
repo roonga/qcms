@@ -57,6 +57,7 @@ export const FAKE_SCRIPTS = [
   "read-only-user",
   // One multi-step plan per screen group, so every kind is also confirmed inside a plan.
   "plan-apply-draft",
+  "plan-apply-draft-release",
   "plan-form-screen",
   "plan-releases",
   "plan-links",
@@ -1269,6 +1270,7 @@ const STATEFUL_PLANNERS: Readonly<
   "narrate-then-tools": planNarrateStep,
   reasoning: planReasoningStep,
   "plan-apply-draft": planApplyDraftStep,
+  "plan-apply-draft-release": planApplyDraftReleaseStep,
 };
 
 function planStep(
@@ -1369,6 +1371,51 @@ function planApplyDraftStep(
     };
     return [
       ...textParts("Here is the draft and the abuse controls to go with it.", "t0"),
+      ...toolInputParts("propose_plan", input),
+      toolCallPart("propose_plan", input),
+      finishPart("tool-calls"),
+    ];
+  }
+  return [...textParts("The plan is on the card for you to confirm.", "t1"), finishPart("stop")];
+}
+
+/**
+ * `plan-apply-draft-release`: the local step first and a later step naming the publish's
+ * version, so the token's step indexes and the card's differ where the reference points.
+ */
+function planApplyDraftReleaseStep(
+  prompt: readonly PromptMessage[],
+  results: Map<string, unknown>,
+): StreamPart[] {
+  if (!results.has("search_question_library")) {
+    const query = pickSearchQuery(prompt);
+    return [
+      toolCallPart("search_question_library", {
+        limit: 10,
+        ...(query === undefined ? {} : { query }),
+      }),
+      finishPart("tool-calls"),
+    ];
+  }
+  if (!results.has("propose_draft")) {
+    const draft = currentDraft(prompt) ?? {};
+    return [
+      toolCallPart("propose_draft", { definition: buildProposal(draft, libraryHits(results)) }),
+      finishPart("tool-calls"),
+    ];
+  }
+  if (!results.has("propose_plan")) {
+    const drafted = currentDraft(prompt)?.formId;
+    const formId = typeof drafted === "string" ? drafted : factFormId(prompt);
+    const input = {
+      steps: [
+        { kind: "apply-draft", args: { formId } },
+        { kind: "form.publish", args: { formId, environment: "test" } },
+        releaseStep(formId, { fromStep: 1, field: "version" }, "prod"),
+      ],
+    };
+    return [
+      ...textParts("I will apply the draft, publish it and release that version.", "t0"),
       ...toolInputParts("propose_plan", input),
       toolCallPart("propose_plan", input),
       finishPart("tool-calls"),
