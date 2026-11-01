@@ -154,9 +154,11 @@ export async function setMemberRoleAction(
 
 export async function saveWorkspaceSettingsAction(
   workspaceId: string,
+  // Optional per member: a card confirms the settings it displayed, and one it never
+  // showed is left as it is rather than sent as a default.
   next: {
-    readonly requireSecondApprover: boolean;
-    readonly seedNewEditorsWithTestData: boolean;
+    readonly requireSecondApprover?: boolean;
+    readonly seedNewEditorsWithTestData?: boolean;
   },
   proposal?: AgentProposalRef,
 ): Promise<MembershipActionState> {

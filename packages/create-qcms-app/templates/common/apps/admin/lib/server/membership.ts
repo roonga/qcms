@@ -17,7 +17,7 @@ import type { ShellCapabilities } from "../shell/modes.ts";
 import { proposalHeaders, type AgentProposalRef } from "./agent-proposal.ts";
 import { adminApiFetch } from "./api.ts";
 import type { ApiResult } from "./api-result.ts";
-import { readResult } from "./api-result.ts";
+import { readNoContent, readResult } from "./api-result.ts";
 import type { AdminSession } from "./session.ts";
 
 /**
@@ -190,7 +190,7 @@ export async function deleteAccessGroup(
   teamId: string,
   proposal?: AgentProposalRef,
 ): Promise<ApiResult<null>> {
-  return readResult<null>(
+  return readNoContent(
     await adminApiFetch(
       session,
       `/workspaces/${encodeURIComponent(workspaceId)}/access-groups/${encodeURIComponent(teamId)}`,
@@ -232,7 +232,7 @@ export async function removeHolder(
   userId: string,
   proposal?: AgentProposalRef,
 ): Promise<ApiResult<null>> {
-  return readResult<null>(
+  return readNoContent(
     await adminApiFetch(
       session,
       `/workspaces/${encodeURIComponent(workspaceId)}/access-groups/${encodeURIComponent(teamId)}/holders/${encodeURIComponent(userId)}`,

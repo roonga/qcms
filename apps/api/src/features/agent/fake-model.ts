@@ -20,6 +20,12 @@ const SEARCH_DIRECTIVE = "#qcms-fake-search:";
  */
 const NEW_QUESTION_DIRECTIVE = "#qcms-fake-new:";
 
+/**
+ * The account a workspace script grants, revokes or re-roles. A spec creates the account
+ * itself, so the address cannot be canned.
+ */
+const MEMBER_DIRECTIVE = "#qcms-fake-who:";
+
 export const FAKE_SCRIPTS = [
   "default",
   "rogue-publish",
@@ -58,6 +64,8 @@ export const FAKE_SCRIPTS = [
   "plan-question-lifecycle",
   "plan-responses",
   "plan-export-last",
+  "plan-workspace",
+  "plan-workspace-settings",
   // One card per kind, for each screen group's own confirm and cancel paths.
   "propose-form-create",
   "propose-link-mint",
@@ -670,24 +678,68 @@ const FAKE_LINK_EXPIRY = "2026-12-31T23:59:59.000Z";
 
 const FAKE_ENDPOINT_URL = "https://hooks.example.test/qcms?channel=ops";
 
-const FAKE_GROUP_LABEL = "assistant";
+/** A group name is unique in its workspace, so the label a script proposes is the run's. */
+function fakeGroupLabel(prompt: readonly PromptMessage[]): string {
+  return directiveWord(prompt);
+}
 
-const FAKE_GROUP_NAME = `test.responses.viewer.${FAKE_GROUP_LABEL}`;
+function fakeGroupName(prompt: readonly PromptMessage[]): string {
+  return `test.responses.viewer.${fakeGroupLabel(prompt)}`;
+}
 
-const FAKE_GRANT_EMAIL = "second.approver@qcms.test";
+/** The administration screen's own facts, which name a workspace rather than a form. */
+function workspaceFacts(prompt: readonly PromptMessage[]): Record<string, unknown> {
+  return jsonBlocks(prompt).find((block) => typeof block["workspaceId"] === "string") ?? {};
+}
 
-/** The workspace the administration screen is on, and its first group and member. */
 function factWorkspaceId(prompt: readonly PromptMessage[]): string {
-  const { workspaceId } = screenFacts(prompt);
+  const workspaceId = workspaceFacts(prompt)["workspaceId"];
   return typeof workspaceId === "string" ? workspaceId : "wsp_absent";
 }
 
+/**
+ * The group this run made, by the label its own scripts propose, so a remove or a grant
+ * names it rather than whichever group the workspace happened to list first.
+ */
 function factGroupId(prompt: readonly PromptMessage[]): string {
-  return firstId(screenFacts(prompt)["accessGroups"], "groupId", "grp_absent");
+  const rows = workspaceFacts(prompt)["accessGroups"];
+  const suffix = `.${fakeGroupLabel(prompt)}`;
+  if (Array.isArray(rows)) {
+    for (const entry of rows) {
+      if (typeof entry !== "object" || entry === null) continue;
+      const row = entry as { groupId?: unknown; name?: unknown };
+      if (
+        typeof row.name === "string" &&
+        row.name.endsWith(suffix) &&
+        typeof row.groupId === "string"
+      ) {
+        return row.groupId;
+      }
+    }
+  }
+  return firstId(rows, "groupId", "grp_absent");
 }
 
-function factMemberId(prompt: readonly PromptMessage[]): string {
-  return firstId(screenFacts(prompt)["members"], "userId", "usr_absent");
+/**
+ * The person a grant, a revoke or a role change names: the account `#qcms-fake-who:` names
+ * if the screen lists it, and otherwise the first member. An email the screen has never
+ * seen would be a grant to nobody, which is the route's own refusal rather than a fixture.
+ */
+function factMember(prompt: readonly PromptMessage[]): { userId: string; email: string } {
+  const rows = workspaceFacts(prompt)["members"];
+  const wanted = wordAfter(userText(prompt), MEMBER_DIRECTIVE);
+  const members: { userId: string; email: string }[] = [];
+  if (Array.isArray(rows)) {
+    for (const entry of rows) {
+      if (typeof entry !== "object" || entry === null) continue;
+      const row = entry as { userId?: unknown; email?: unknown };
+      if (typeof row.userId === "string" && typeof row.email === "string") {
+        members.push({ userId: row.userId, email: row.email });
+      }
+    }
+  }
+  const named = wanted === undefined ? undefined : members.find((row) => row.email === wanted);
+  return named ?? members[0] ?? { userId: "usr_absent", email: wanted ?? "absent@qcms.invalid" };
 }
 
 /** The question detail screen's own facts, which name no form. */
@@ -785,6 +837,51 @@ function releaseStep(
   };
 }
 
+function groupCreateStep(prompt: readonly PromptMessage[]): Record<string, unknown> {
+  return {
+    kind: "access.groupCreate",
+    args: {
+      workspaceId: factWorkspaceId(prompt),
+      name: fakeGroupName(prompt),
+      role: "responses.viewer",
+      label: fakeGroupLabel(prompt),
+      environments: ["test"],
+      forms: ["all"],
+    },
+  };
+}
+
+/** The role the named member does not hold, so confirming it changes the row on screen. */
+function memberRoleStep(prompt: readonly PromptMessage[]): Record<string, unknown> {
+  const member = factMember(prompt);
+  const rows = workspaceFacts(prompt)["members"];
+  let current = "";
+  if (Array.isArray(rows)) {
+    for (const entry of rows) {
+      if (typeof entry !== "object" || entry === null) continue;
+      const row = entry as { userId?: unknown; role?: unknown };
+      if (row.userId === member.userId && typeof row.role === "string") current = row.role;
+    }
+  }
+  return {
+    kind: "member.role",
+    args: {
+      workspaceId: factWorkspaceId(prompt),
+      userId: member.userId,
+      role: current === "forms.owner" ? "member" : "forms.owner",
+    },
+  };
+}
+
+/** The switch as it is not, so confirming it twice flips it and puts it back. */
+function workspaceSettingsStep(prompt: readonly PromptMessage[]): Record<string, unknown> {
+  const current = workspaceFacts(prompt)["requireSecondApprover"];
+  return {
+    kind: "workspace.settings",
+    args: { workspaceId: factWorkspaceId(prompt), requireSecondApprover: current !== true },
+  };
+}
+
 /** How many times this turn has already called one tool, which P1's script needs. */
 function toolCallCount(prompt: readonly PromptMessage[], name: string): number {
   let count = 0;
@@ -848,6 +945,20 @@ function actionPlanSteps(
         { kind: "question.deprecate", args: { questionId, version } },
       ];
     }
+    // One group's whole life, each step naming the group the first step records.
+    case "plan-workspace": {
+      const workspaceId = factWorkspaceId(prompt);
+      const teamId = { fromStep: 0, field: "teamId" };
+      const member = factMember(prompt);
+      return [
+        groupCreateStep(prompt),
+        { kind: "access.grant", args: { workspaceId, teamId, email: member.email } },
+        { kind: "access.revoke", args: { workspaceId, teamId, userId: member.userId } },
+        { kind: "access.groupRemove", args: { workspaceId, teamId } },
+      ];
+    }
+    case "plan-workspace-settings":
+      return [memberRoleStep(prompt), workspaceSettingsStep(prompt)];
     case "plan-responses": {
       const sessionId = factSessionId(prompt);
       return [
@@ -984,17 +1095,7 @@ const SINGLE_ACTIONS: Readonly<
     kind: "webhook.redeliver",
     args: { formId: factFormId(prompt), deliveryId: factDeliveryId(prompt) },
   }),
-  "propose-access-group-create": (prompt) => ({
-    kind: "access.groupCreate",
-    args: {
-      workspaceId: factWorkspaceId(prompt),
-      name: FAKE_GROUP_NAME,
-      role: "responses.viewer",
-      label: FAKE_GROUP_LABEL,
-      environments: ["test"],
-      forms: ["all"],
-    },
-  }),
+  "propose-access-group-create": (prompt) => groupCreateStep(prompt),
   "propose-access-group-remove": (prompt) => ({
     kind: "access.groupRemove",
     args: { workspaceId: factWorkspaceId(prompt), teamId: factGroupId(prompt) },
@@ -1004,7 +1105,7 @@ const SINGLE_ACTIONS: Readonly<
     args: {
       workspaceId: factWorkspaceId(prompt),
       teamId: factGroupId(prompt),
-      email: FAKE_GRANT_EMAIL,
+      email: factMember(prompt).email,
     },
   }),
   "propose-access-revoke": (prompt) => ({
@@ -1012,21 +1113,11 @@ const SINGLE_ACTIONS: Readonly<
     args: {
       workspaceId: factWorkspaceId(prompt),
       teamId: factGroupId(prompt),
-      userId: factMemberId(prompt),
+      userId: factMember(prompt).userId,
     },
   }),
-  "propose-member-role": (prompt) => ({
-    kind: "member.role",
-    args: {
-      workspaceId: factWorkspaceId(prompt),
-      userId: factMemberId(prompt),
-      role: "forms.owner",
-    },
-  }),
-  "propose-workspace-settings": (prompt) => ({
-    kind: "workspace.settings",
-    args: { workspaceId: factWorkspaceId(prompt), requireSecondApprover: true },
-  }),
+  "propose-member-role": (prompt) => memberRoleStep(prompt),
+  "propose-workspace-settings": (prompt) => workspaceSettingsStep(prompt),
 };
 
 const INJECTION_REASON =
@@ -1112,6 +1203,8 @@ const ACTION_SCRIPTS: readonly FakeScript[] = [
   "plan-question-lifecycle",
   "plan-responses",
   "plan-export-last",
+  "plan-workspace",
+  "plan-workspace-settings",
   ...(Object.keys(SINGLE_ACTIONS) as FakeScript[]),
 ];
 

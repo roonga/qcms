@@ -261,9 +261,16 @@ const MEMBERSHIP_RUNNERS: Readonly<Record<string, StepRunner>> = {
   "workspace.settings": async ({ tokenStep, args, agentProposal }) => {
     const state = await saveWorkspaceSettingsAction(
       text(args["workspaceId"]),
+      // Only the settings the card displayed. A default sent for one it never showed
+      // would change a setting nobody confirmed, and the digest the API verifies is taken
+      // over exactly the members the card carried.
       {
-        requireSecondApprover: args["requireSecondApprover"] === true,
-        seedNewEditorsWithTestData: args["seedNewEditorsWithTestData"] === true,
+        ...(typeof args["requireSecondApprover"] === "boolean"
+          ? { requireSecondApprover: args["requireSecondApprover"] }
+          : {}),
+        ...(typeof args["seedNewEditorsWithTestData"] === "boolean"
+          ? { seedNewEditorsWithTestData: args["seedNewEditorsWithTestData"] }
+          : {}),
       },
       proposalRef(agentProposal, tokenStep),
     );
