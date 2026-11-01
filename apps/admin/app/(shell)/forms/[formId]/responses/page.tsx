@@ -104,11 +104,22 @@ export default async function FormResponsesPage({
 
   if (!detail.ok) {
     if (detail.code === "FORM_NOT_FOUND" || detail.code === "INVALID_FORM_ID") notFound();
-    return <Alert variant="error">{detail.message}</Alert>;
+    // A REFUSED FORM READ IS NOT A REFUSED SCREEN (Q87). A response viewer holds
+    // `response: read` on this form and no `form: read`, so the list below is theirs while
+    // the form's status and version list are not. Only a refusal passes: any other failure
+    // keeps the alert, because a read that failed knows nothing and must not be rendered as
+    // a narrower grant.
+    if (detail.code !== "FORBIDDEN") return <Alert variant="error">{detail.message}</Alert>;
   }
-  const form = detail.data;
+  const form = detail.ok ? detail.data : undefined;
 
-  const header = <FormPageHeader formId={form.formId} section="responses" status={form.status} />;
+  const header = (
+    <FormPageHeader
+      formId={formId}
+      section="responses"
+      {...(form === undefined ? {} : { status: form.status })}
+    />
+  );
 
   // A statement about the address bar, so it is true whether or not the list loaded.
   const ignoredNotice = ignored.length > 0 && (
@@ -139,9 +150,11 @@ export default async function FormResponsesPage({
       )}
       {ignoredNotice}
       <ResponseBrowser
-        formId={form.formId}
+        formId={formId}
         page={readState(responses)}
-        versions={form.versions.map((version) => version.version).sort((a, b) => b - a)}
+        versions={(form?.versions ?? [])
+          .map((version) => version.version)
+          .sort((left, right) => right - left)}
         filters={applied}
         hasFilters={hasFilters}
       />

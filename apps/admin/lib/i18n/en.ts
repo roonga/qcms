@@ -241,6 +241,9 @@ export const messages = {
   "operations.column.lastRelease": "Last release",
   "operations.column.submitted": "Submitted",
   "operations.column.inProgress": "In progress",
+  // One row's context link reads exactly like every other row's, so each says which form
+  // it belongs to.
+  "operations.context.named": "{context} for {form}",
   // Unreleased is a third reading rather than a shade of closed: a form with no release
   // accepts no session and mints no usable link.
   "operations.intake.open": "Open",
