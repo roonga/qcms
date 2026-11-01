@@ -37,10 +37,23 @@ browser back. An "always leave" or "do not ask again" choice was deliberately no
 it is a preference rather than a safety control, and if operators ask for one it belongs
 with the appearance settings. That is a suggestion, not a ruling.
 
-## Branch four: the workspace area's sections as screens
+## Branch four: Workspaces stops being a mode, and its sections become screens
 
-Not started, after phase 6, as that ruling allows. It carries the #1208 access-group field
-rulings with it.
+Not started, after phase 6, as that ruling allows. One branch for both workspace rulings,
+since the second changes the shell's mode model and the first changes what that model
+contains: a top-nav entry, left-rail screens per section, no mode switch, no Exit, with
+redirects for the old addresses. It carries the #1208 access-group field rulings with it:
+the environments and forms multi-selects, and a role's name and description in place of its
+id.
+
+## Branch five: one top bar in every area
+
+Not started. Entering Operations shifts the layout. The bar gets one height and layout
+everywhere, the environment dropdown a reserved slot, the environment edge no space of its
+own, and the rail width and heading position become identical across Questions, Forms,
+Workspaces and Operations, with the measure assertion the ruling specifies beside
+`apps/admin/e2e/measure.pw.ts`. It touches the same shell modules as branch four, so the
+two should be ordered rather than run in parallel.
 
 ## Still unruled, and outside every ruling above
 

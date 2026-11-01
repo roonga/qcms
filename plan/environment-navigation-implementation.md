@@ -335,6 +335,14 @@ Phase 6 notes, Code Owner, 2026-11-02:
   application menu's own entries and any link into the form editor, states where it goes and
   what changes about the environment context, with Stay and Leave and Stay focused first.
   Navigation inside Operations shows nothing. No "do not ask again" choice is added.
+- **Workspaces is not a mode.** It becomes a normal section of the application: a top-nav
+  entry whose sections are left-rail screens, with no mode switch and no Exit control.
+  Operations stays the one mode-like area that has an environment, so it is the one that
+  carries the environment selector and the leave warning. The shell's mode model, its
+  landing and remembered-context model and the specs over them follow, and any old
+  workspace-mode address redirects. No ADR defines Workspaces as a mode, so the record is
+  here and in the shell's own modules; the navigation table at the top of this document is
+  superseded on that row.
 - **The workspace area's rail entries become screens.** Each section of
   `/workspaces/{workspaceId}` becomes its own route with its own heading, title and
   breadcrumbs, the rail links to them and marks the current one, and the workspace's own
@@ -342,6 +350,18 @@ Phase 6 notes, Code Owner, 2026-11-02:
   section offers only its own kinds. Its access-groups screen also carries the #1208 field
   rulings (environments and forms as multi-selects, a role's name and description rather
   than its id).
+
+- **One top bar in every area.** Entering Operations shifts the layout today. The top bar
+  has one height and one layout everywhere, the environment dropdown sits in a reserved
+  slot that moves nothing, the environment-coloured edge takes no space or is drawn neutral
+  outside Operations, and the rail width and the page heading's position are identical
+  across Questions, Forms, Workspaces and Operations. A measure assertion beside
+  `apps/admin/e2e/measure.pw.ts` compares the header height, the rail width and the
+  heading's top on a Questions screen and an Operations screen, in `test` and `prod`, light
+  and high contrast, at 1280 and 390.
+- **Structure before polish.** The Code Owner has a holistic admin redesign in hand, so
+  phase 6 builds its screens from the existing kit components and patterns and adds no
+  bespoke styling or visual polish. The control rulings above still hold.
 
 Slices: the discovery row's read cells, the Operations table's per-row context links and
 the response viewer's own Responses screen landed first. The screen move, the leave warning
