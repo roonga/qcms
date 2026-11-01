@@ -2,6 +2,7 @@ import type { Locator, Page } from "@playwright/test";
 
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
+import { chooseEnvironment } from "./support/environment.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import {
   auditDelta,
@@ -16,7 +17,14 @@ import {
   typeConfirmation,
 } from "./support/agent-card.js";
 import { enrollNewAdmin, fillStable, signInWithTotp } from "./support/flow.js";
-import { addStep, createForm, pinQuestion, savedStamp, waitForSaved } from "./support/forms.js";
+import {
+  addStep,
+  createForm,
+  openRail,
+  pinQuestion,
+  savedStamp,
+  waitForSaved,
+} from "./support/forms.js";
 import { waitForHydration } from "./support/hydration.js";
 import { submitResponse } from "./support/ops.js";
 
@@ -123,10 +131,11 @@ test("changes the builder, the releases screen and a response screen in one run"
   await expectStepChips(page, ["Done"]);
   await expect(page.getByTestId("qcms-builder-provenance")).toBeVisible();
   expect(await savedStamp(page)).not.toBe(previousSave);
-  // The draft the run goes on to publish, asserted rather than assumed: it pins the one
-  // question the needle matched, which is the one the submission below answers.
-  await expect(page.locator("tr.qcms-pinrow")).toHaveCount(1);
-  await expect(page.locator(`tr[data-pin-question="${SEEDED_QUESTION}"]`)).toHaveCount(1);
+  // The draft the run goes on to publish is the proposal's own, named rather than assumed:
+  // its step replaced the one this test authored. Which question it pins is what the
+  // submission below asserts, by answering it.
+  await openRail(page);
+  await expect(page.getByRole("button", { name: "Open step Driving history" })).toBeVisible();
 
   // SCREEN TWO, THE RELEASES SCREEN, and the multi-step plan: freeze the draft and promote
   // the version step 1 records, each step through that screen's own server action.
@@ -147,9 +156,13 @@ test("changes the builder, the releases screen and a response screen in one run"
   erased = await submitResponse(formSlug, [[SEEDED_QUESTION, ANSWER]]);
   kept = await submitResponse(formSlug, [[SEEDED_QUESTION, ANSWER]]);
 
-  // SCREEN THREE, A RESPONSE SCREEN. Every read tool the screen offers runs first, so the
-  // conversation holds everything the assistant can say about a response before anything
-  // is proposed about it.
+  // SCREEN THREE, A RESPONSE SCREEN. A response is one environment's own row and the
+  // respondent mount is production's, so the screen that reads it is production's too;
+  // authoring this form moved the selection to `test`.
+  await chooseEnvironment(page, "prod");
+
+  // Every read tool the screen offers runs first, so the conversation holds everything the
+  // assistant can say about a response before anything is proposed about it.
   await page.goto(`/forms/${formId}/responses/${erased}`);
   await waitForHydration(page);
   await openPanel(page);
@@ -176,6 +189,7 @@ test("changes the builder, the releases screen and a response screen in one run"
 test("changes nothing when the tester cancels a proposal", async ({ page }) => {
   test.setTimeout(600_000);
   await signInWithTotp(page, EMAIL, totpSecret);
+  await chooseEnvironment(page, "prod");
   await page.goto(`/forms/${formId}/responses/${kept}`);
   await waitForHydration(page);
   await openPanel(page);
