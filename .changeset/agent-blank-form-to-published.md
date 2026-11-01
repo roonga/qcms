@@ -1,6 +1,7 @@
 ---
 "qcms-api": patch
 "qcms-admin": patch
+"create-qcms-app": patch
 ---
 
 Let an editor take a blank form to a published one in `test` with the assistant, from the
