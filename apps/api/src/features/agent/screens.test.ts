@@ -170,8 +170,19 @@ describe("the screen registry", () => {
       "response.unflag",
     ];
     for (const id of SCREEN_IDS.filter(isFormSubtreeScreen)) {
-      expect(offerableActionKinds(id), id).toEqual(subtree);
+      const expected = id === "/forms/[formId]" ? [...subtree, "question.publish"] : subtree;
+      expect(offerableActionKinds(id), id).toEqual(expected);
     }
+  });
+
+  it("offers a question publish on the builder alone, and on no other screen of the subtree", () => {
+    expect(offerableActionKinds("/forms/[formId]")).toContain("question.publish");
+    for (const id of SCREEN_IDS.filter(
+      (candidate) => isFormSubtreeScreen(candidate) && candidate !== "/forms/[formId]",
+    )) {
+      expect(offerableActionKinds(id), id).not.toContain("question.publish");
+    }
+    expect(offerableActionKinds("/questions/[questionId]")).toContain("question.publish");
   });
 
   it("keeps a screen outside a form subtree on its own kinds", () => {

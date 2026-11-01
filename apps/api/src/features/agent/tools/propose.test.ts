@@ -526,3 +526,112 @@ describe("buildProposal: a reference in a plan whose earlier step carries no tok
     expect(outcome.reason).toContain("completes on the screen itself");
   });
 });
+
+describe("buildProposal: publishing the questions a saved draft pins (issue #1205)", () => {
+  const PINS = [
+    { questionId: "q_given_name", version: 1 },
+    { questionId: "q_family_name", version: 1 },
+  ];
+
+  function publishQuestion(questionId: string, version: number): ProposedStep {
+    return { kind: "question.publish", args: { questionId, version } };
+  }
+
+  const pinned = () => Promise.resolve(PINS);
+
+  it("accepts one step per pinned version, then the form's own publish", async () => {
+    const outcome = await propose({
+      steps: [
+        publishQuestion("q_given_name", 1),
+        publishQuestion("q_family_name", 1),
+        publish,
+      ],
+      pinnedUnpublished: pinned,
+    });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.proposal.steps.map((step) => step.kind)).toStrictEqual([
+      "question.publish",
+      "question.publish",
+      "form.publish",
+    ]);
+    const verified = await verifyProposalToken(APP_KEY, outcome.proposal.token ?? "");
+    expect(verified.ok).toBe(true);
+    if (!verified.ok) return;
+    // Its own digest per question, which is what one audit row per question rests on.
+    expect(verified.payload.steps[0]?.argsDigest).toBe(
+      await argumentsDigest({ questionId: "q_given_name", version: 1 }),
+    );
+    expect(verified.payload.steps[1]?.argsDigest).not.toBe(
+      verified.payload.steps[0]?.argsDigest,
+    );
+  });
+
+  it("fits a realistic form: twenty questions and the form, inside the plan cap", async () => {
+    const many = Array.from({ length: 20 }, (_, index) => ({
+      questionId: `q_pinned_${String(index)}`,
+      version: 1,
+    }));
+    const outcome = await propose({
+      steps: [...many.map((pin) => publishQuestion(pin.questionId, 1)), publish],
+      pinnedUnpublished: () => Promise.resolve(many),
+    });
+    expect(outcome.ok).toBe(true);
+  });
+
+  it("refuses a question the saved draft does not pin, and names what it does", async () => {
+    const outcome = await propose({
+      steps: [publishQuestion("q_somebody_elses", 1)],
+      pinnedUnpublished: pinned,
+    });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toContain("does not");
+    expect(outcome.reason).toContain("q_given_name@v1");
+    expect(outcome.reason).toContain("its own page in the library");
+  });
+
+  it("refuses a version the saved draft does not pin, for a question it does", async () => {
+    const outcome = await propose({
+      steps: [publishQuestion("q_given_name", 2)],
+      pinnedUnpublished: pinned,
+    });
+    expect(outcome.ok).toBe(false);
+  });
+
+  it("refuses a reference in place of the version, which cannot be checked against the pins", async () => {
+    const outcome = await propose({
+      steps: [
+        { kind: "question.newVersion", args: { questionId: "q_given_name" } },
+        { kind: "question.publish", args: { questionId: "q_given_name", version: { fromStep: 0, field: "version" } } },
+      ],
+      pinnedUnpublished: pinned,
+    });
+    expect(outcome.ok).toBe(false);
+  });
+
+  it("refuses the kind outright where the screen cannot report the draft's pins", async () => {
+    const outcome = await propose({ steps: [publishQuestion("q_given_name", 1)] });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toContain("cannot say which question versions");
+  });
+
+  it("leaves the question's own page alone: no pin set is consulted there", async () => {
+    const outcome = await propose({
+      steps: [publishQuestion("q_anything", 3)],
+      screen: "/questions/[questionId]",
+    });
+    expect(outcome.ok).toBe(true);
+  });
+
+  it("refuses a plan that publishes the form before a question it pins", async () => {
+    const outcome = await propose({
+      steps: [publish, publishQuestion("q_given_name", 1)],
+      pinnedUnpublished: pinned,
+    });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toContain("before step 2");
+  });
+});

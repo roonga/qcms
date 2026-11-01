@@ -20,7 +20,7 @@ type ActionDouble = (...args: readonly unknown[]) => Promise<unknown>;
 
 const reviewReleaseAction = vi.fn<ActionDouble>();
 const confirmPublishAction = vi.fn<ActionDouble>();
-const accept = vi.fn<(...args: readonly unknown[]) => void>();
+const accept = vi.fn<(...args: readonly unknown[]) => Promise<unknown>>();
 
 vi.mock("@/app/(shell)/forms/actions", () => ({
   confirmPublishAction: (...args: readonly unknown[]): Promise<unknown> =>
@@ -55,9 +55,7 @@ vi.mock("@/lib/agent/builder-assist-bridge", () => ({
     canPropose: true,
     draft: DRAFT,
     draftUpdatedAt: undefined,
-    accept: (...args: readonly unknown[]): void => {
-      accept(...args);
-    },
+    accept: (...args: readonly unknown[]): Promise<unknown> => accept(...args),
   }),
 }));
 
@@ -126,6 +124,7 @@ beforeEach(() => {
     },
   });
   confirmPublishAction.mockResolvedValue({ status: "done", version: 1, froze: true });
+  accept.mockResolvedValue({ ok: true, changes: 1, newQuestions: 0 });
 });
 
 describe("a plan of apply-draft then form.publish", () => {
@@ -173,5 +172,51 @@ describe("a plan of apply-draft then form.publish", () => {
     });
 
     expect(seen).toEqual([undefined, "tok"]);
+  });
+});
+
+describe("the step that applies a draft waits for the save", () => {
+  it("reports Done only once the accept has stored the draft, and stops the plan when it has not", async () => {
+    const { runStepAction } = await import("./step-actions");
+    let settled = false;
+    accept.mockImplementation(async () => {
+      await Promise.resolve();
+      settled = true;
+      return { ok: true, changes: 3, newQuestions: 2 };
+    });
+
+    const card = await runPlan({
+      proposal: PLAN,
+      card: startRun(initialCard(PLAN)),
+      runStep: (request) => {
+        // The publish must not be sent while the accept is still in flight: the draft it
+        // publishes, and the questions it pins, exist only once that save has landed.
+        if (request.step.kind === "form.publish") expect(settled).toBe(true);
+        return runStepAction(request);
+      },
+      now: () => NOW,
+      windowLeftMs: () => WINDOW_LEFT,
+    });
+
+    expect(card.steps[0]?.result).toEqual({ changes: 3, newQuestions: 2 });
+    expect(card.steps.map((step) => step.state)).toEqual(["done", "done"]);
+  });
+
+  it("fails the step with the store's own sentence when the accept is refused", async () => {
+    const { runStepAction } = await import("./step-actions");
+    accept.mockResolvedValue({ ok: false, message: "That question id is already in use." });
+
+    const card = await runPlan({
+      proposal: PLAN,
+      card: startRun(initialCard(PLAN)),
+      runStep: runStepAction,
+      now: () => NOW,
+      windowLeftMs: () => WINDOW_LEFT,
+    });
+
+    expect(card.steps[0]?.state).toBe("failed");
+    expect(card.steps[0]?.message).toBe("That question id is already in use.");
+    expect(card.steps[1]?.state).toBe("not-run");
+    expect(confirmPublishAction).not.toHaveBeenCalled();
   });
 });
