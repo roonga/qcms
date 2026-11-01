@@ -295,10 +295,9 @@ function carriesToken(step: PlanStep): boolean {
 }
 
 /**
- * Each step's position in the token, or `-1` for one that carries none. The digest a token
- * step binds names a reference's target by this index, not by its position in the plan,
- * because the provenance check rebuilds the reference from audit rows that are written per
- * token step. A reference to a step that carries no token is refused at validation.
+ * Each step's position in the token, or `-1` for one that carries none. A digested
+ * reference names its target by this index rather than by its plan position, because the
+ * provenance check rebuilds it from audit rows written per token step.
  */
 function tokenIndexes(steps: readonly PlanStep[]): readonly number[] {
   let next = 0;
