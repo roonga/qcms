@@ -318,14 +318,34 @@ settings, even if an Operations screen links to their authorized editor.
 | 7. Shipping                | E2E/CI coverage, template sync, changeset, user/security/architecture docs                | Required gates green; exact PR head independently reviewed; comments resolved before merge                                 |
 
 **Phase 1 is ruled (PR #1163); phases 2, 3, 4 and 5 have landed (issues #1174, #1181,
-#1183 and #1197). Phase 6 is part-landed (issue #1204) and part-blocked on rulings.**
-What landed of phase 6: the discovery row reports its read cells, the Operations table
-offers each row the contexts that row's own cells admit, and a refused form read no longer
-blocks the response browser. What is blocked, with options and a recommendation in that
-issue's `HANDOFF.md`: which shell mode owns a form-scoped operational route reached from
-Operations, what an Operations "Overview" context is, where a claim-only caller's global
-queue reads its form identities from, the G05 eraser known-target screen and its
-`docs/erasure.md` text, and the workspace-mode surface.
+#1183 and #1197). Phase 6 is ruled and ships in slices (issue #1204).**
+
+Phase 6 notes, Code Owner, 2026-11-02:
+
+- **Operations owns every per-form operational screen.** Responses (the list, one response,
+  the export, erasure and flag or unflag), Links, Webhooks and their deliveries, and intake
+  status with close and reopen as operational acts, live under Operations in the selected
+  environment and nowhere else. The form editor keeps authoring: the builder, Rules,
+  Preview, the form's settings, Versions and the Publish wizard. An Operations row opens the
+  operational context directly, navigating inside Operations never drops or changes the
+  environment selection, and each old form-subtree address redirects to its Operations
+  equivalent so links and bookmarks keep working. The agent's one form subtree splits in
+  two, authoring kinds on the editor's screens and operational kinds on Operations'.
+- **Warn before leaving Operations.** Any navigation out of the mode, including the
+  application menu's own entries and any link into the form editor, states where it goes and
+  what changes about the environment context, with Stay and Leave and Stay focused first.
+  Navigation inside Operations shows nothing. No "do not ask again" choice is added.
+- **The workspace area's rail entries become screens.** Each section of
+  `/workspaces/{workspaceId}` becomes its own route with its own heading, title and
+  breadcrumbs, the rail links to them and marks the current one, and the workspace's own
+  address lands on the first section. The agent's one workspace screen splits so each
+  section offers only its own kinds. Its access-groups screen also carries the #1208 field
+  rulings (environments and forms as multi-selects, a role's name and description rather
+  than its id).
+
+Slices: the discovery row's read cells, the Operations table's per-row context links and
+the response viewer's own Responses screen landed first. The screen move, the leave warning
+and the workspace screens each ship on their own branch, as the workspace ruling allows.
 Phase 2 delivered the authorized read model and nothing beyond it: the `anyOf`
 route-policy row shape and `environmentFrom: "query"`, `GET /admin/operations/forms` with
 its per-role projection and cursor pagination, the stateless
