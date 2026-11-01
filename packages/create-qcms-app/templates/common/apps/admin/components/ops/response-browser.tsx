@@ -128,7 +128,7 @@ export function ResponseBrowser({
     setFlagged(filters.flagged);
   }
 
-  const base = `/forms/${encodeURIComponent(formId)}/responses`;
+  const base = `/operations/forms/${encodeURIComponent(formId)}/responses`;
 
   const go = useCallback(
     (next: Readonly<Record<string, string>>) => {

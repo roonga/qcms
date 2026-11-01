@@ -475,7 +475,7 @@ describe("response page links", () => {
 
   it("carries the applied filter set and the target page", () => {
     expect(responsePageLink("frm_auto_quote", applied, 3)).toBe(
-      "/forms/frm_auto_quote/responses?version=2&from=2026-01-01&flagged=true&page=3",
+      "/operations/forms/frm_auto_quote/responses?version=2&from=2026-01-01&flagged=true&page=3",
     );
   });
 

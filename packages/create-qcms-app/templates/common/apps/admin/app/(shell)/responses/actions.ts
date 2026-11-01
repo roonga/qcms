@@ -74,8 +74,8 @@ export async function eraseSessionAction(
   if (!check.ok) return { status: "error", message: check.message };
   const result = await eraseSession(session, formId, sessionId, reason, proposal);
   if (!result.ok) return { status: "error", message: result.message };
-  revalidatePath(`/forms/${formId}/responses`);
-  revalidatePath(`/forms/${formId}/responses/${sessionId}`);
+  revalidatePath(`/operations/forms/${formId}/responses`);
+  revalidatePath(`/operations/forms/${formId}/responses/${sessionId}`);
   revalidatePath("/responses/erasures");
   return { status: "erased", data: result.data };
 }
@@ -92,8 +92,8 @@ export async function unflagResponseAction(
   if (!check.ok) return { status: "error", message: check.message };
   const result = await unflagResponse(session, formId, sessionId, proposal);
   if (!result.ok) return { status: "error", message: result.message };
-  revalidatePath(`/forms/${formId}/responses`);
-  revalidatePath(`/forms/${formId}/responses/${sessionId}`);
-  revalidatePath(`/forms/${formId}/webhooks`);
+  revalidatePath(`/operations/forms/${formId}/responses`);
+  revalidatePath(`/operations/forms/${formId}/responses/${sessionId}`);
+  revalidatePath(`/operations/forms/${formId}/webhooks`);
   return { status: "unflagged", released: result.data.released };
 }

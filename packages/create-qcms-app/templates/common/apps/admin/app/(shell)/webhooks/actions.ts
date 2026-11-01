@@ -67,7 +67,7 @@ export async function createWebhookAction(
       message: t("ops.webhooks.createFailed", { message: result.message }),
     };
   }
-  revalidatePath(`/forms/${formId}/webhooks`);
+  revalidatePath(`/operations/forms/${formId}/webhooks`);
   return settled(result.data, (applied) => ({ status: "done", revealed: applied }));
 }
 
@@ -88,7 +88,7 @@ export async function rotateSecretAction(
       message: t("ops.webhooks.rotateFailed", { message: result.message }),
     };
   }
-  revalidatePath(`/forms/${formId}/webhooks`);
+  revalidatePath(`/operations/forms/${formId}/webhooks`);
   return settled(result.data, (applied) => ({ status: "done", revealed: applied }));
 }
 
@@ -109,7 +109,7 @@ export async function deactivateWebhookAction(
       message: t("ops.webhooks.deactivateFailed", { message: result.message }),
     };
   }
-  revalidatePath(`/forms/${formId}/webhooks`);
+  revalidatePath(`/operations/forms/${formId}/webhooks`);
   return settled(result.data, () => ({ status: "done" }));
 }
 
@@ -130,7 +130,7 @@ export async function reactivateWebhookAction(
       message: t("ops.webhooks.reactivateFailed", { message: result.message }),
     };
   }
-  revalidatePath(`/forms/${formId}/webhooks`);
+  revalidatePath(`/operations/forms/${formId}/webhooks`);
   return settled(result.data, () => ({ status: "done" }));
 }
 
@@ -152,7 +152,7 @@ export async function retargetWebhookAction(
       message: t("ops.webhooks.retargetFailed", { message: result.message }),
     };
   }
-  revalidatePath(`/forms/${formId}/webhooks`);
+  revalidatePath(`/operations/forms/${formId}/webhooks`);
   return settled(result.data, () => ({ status: "done" }));
 }
 
@@ -259,7 +259,7 @@ export async function confirmEndpointChangeAction(
       message: t("ops.proposals.confirmFailed", { message: result.message }),
     };
   }
-  revalidatePath(`/forms/${formId}/webhooks`);
+  revalidatePath(`/operations/forms/${formId}/webhooks`);
   return { status: "done" };
 }
 
@@ -279,6 +279,6 @@ export async function withdrawEndpointChangeAction(
       message: t("ops.proposals.withdrawFailed", { message: result.message }),
     };
   }
-  revalidatePath(`/forms/${formId}/webhooks`);
+  revalidatePath(`/operations/forms/${formId}/webhooks`);
   return { status: "done" };
 }

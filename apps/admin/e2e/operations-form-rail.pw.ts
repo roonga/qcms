@@ -53,7 +53,6 @@ const OPERATOR = uniqueAdminEmail("opsrail");
 const VIEWER = uniqueAdminEmail("opsviewer");
 
 let operatorSecret = "";
-let viewerSecret = "";
 /** A production response, submitted through the real respondent routes. */
 let sessionId = "";
 
@@ -188,7 +187,7 @@ test("a response viewer reaches Operations, a form's responses and one response"
   page,
 }) => {
   test.setTimeout(600_000);
-  viewerSecret = await enrollNewAdmin(page, VIEWER);
+  await enrollNewAdmin(page, VIEWER);
   await chooseEnvironment(page, "test");
 
   // Operations in `test`, which is the only area this persona's grants admit it to beyond
@@ -197,10 +196,9 @@ test("a response viewer reaches Operations, a form's responses and one response"
   await expect(page.getByTestId("qcms-mode-header")).toHaveAttribute("data-mode", "operations");
   await expect(environmentChip(page)).toHaveAttribute("data-environment", "test");
 
-  const row = page
-    .getByTestId("qcms-operations-table")
-    .getByRole("row")
-    .filter({ hasText: FORM_ID });
+  // By its id attribute rather than by its text: the name cell shows the form's title and
+  // its slug, neither of which is the id this spec names the fixture by.
+  const row = page.locator(`tr[data-form-id="${FORM_ID}"]`);
   // Responses is the one context `responses.viewer` holds a read cell for, so it is the
   // form's name and the list beside it is empty.
   const name = row.getByTestId("qcms-operations-name");
@@ -218,7 +216,10 @@ test("a response viewer reaches Operations, a form's responses and one response"
   // is what makes "one environment and no other" something an operator can see.
   await chooseEnvironment(page, "prod");
   await page.goto(`/operations/forms/${FORM_ID}/responses`);
-  await page.getByTestId("qcms-response-browser").getByRole("link", { name: sessionId }).click();
+  await page
+    .getByTestId("qcms-response-browser")
+    .getByRole("link", { name: new RegExp(`open response ${sessionId}$`, "u") })
+    .click();
 
   await expect(page).toHaveURL(
     new RegExp(`/operations/forms/${FORM_ID}/responses/${sessionId}$`, "u"),

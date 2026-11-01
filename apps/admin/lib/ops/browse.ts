@@ -60,7 +60,7 @@ export function responsePageLink(formId: string, filters: AppliedFilters, target
     if (value !== "") search.set(key, value);
   }
   search.set("page", String(target));
-  return `/forms/${encodeURIComponent(formId)}/responses?${search.toString()}`;
+  return `/operations/forms/${encodeURIComponent(formId)}/responses?${search.toString()}`;
 }
 
 /**

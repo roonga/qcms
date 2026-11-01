@@ -35,9 +35,10 @@ const WORKSPACE_ID = "org_default_workspace";
 let totpSecret = "";
 
 /**
- * Every authenticated screen, with the `data-testid` its own rail carries. One form-scoped
- * screen stands for the ten `rail-screens.pw.ts` walks; the question detail screen needs an
- * id and has its own spec. `lib/rail-routes.test.ts` is the gate that no screen is missing.
+ * Every authenticated screen, with the `data-testid` its own rail carries. One screen stands
+ * for each of the two rails a form has, the editor's and Operations'; the question detail
+ * screen needs an id and has its own spec. `lib/rail-routes.test.ts` is the gate that no
+ * screen is missing.
  */
 function screens(): readonly { readonly path: string; readonly testId: string }[] {
   return [
@@ -48,6 +49,9 @@ function screens(): readonly { readonly path: string; readonly testId: string }[
     { path: `/forms/${FORM_ID}`, testId: "qcms-rail" },
     { path: "/me/access", testId: "qcms-my-access-rail" },
     { path: "/operations", testId: "qcms-operations-rail" },
+    // One of a form's operational screens stands for the five `operations-form-rail.pw.ts`
+    // walks: they carry the other rail a form has, the four contexts of one environment.
+    { path: `/operations/forms/${FORM_ID}/responses`, testId: "qcms-operations-form-rail" },
     { path: "/responses", testId: "qcms-operations-rail" },
     { path: "/responses/erasures", testId: "qcms-erasures-rail" },
     { path: "/webhooks", testId: "qcms-webhooks-rail" },

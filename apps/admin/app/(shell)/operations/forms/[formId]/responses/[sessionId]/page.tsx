@@ -160,7 +160,7 @@ export default async function ResponseDetailPage({
         pins={pins}
         labels={labels}
         labelsFailed={failed}
-        linksHref={`/forms/${encodeURIComponent(formId)}/links`}
+        linksHref={`/operations/forms/${encodeURIComponent(formId)}/links`}
         // Bound to the environment this render showed, so an erasure confirmed in a tab
         // another tab has since switched is refused rather than performed elsewhere (A1).
         erase={eraseSessionAction.bind(null, formId, shown)}
