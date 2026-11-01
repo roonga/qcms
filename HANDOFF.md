@@ -46,7 +46,17 @@ redirects for the old addresses. It carries the #1208 access-group field rulings
 the environments and forms multi-selects, and a role's name and description in place of its
 id.
 
-## Branch five: one top bar in every area
+## Branch five: one persistent rail per area, and one top bar in every area
+
+Not started, and one branch because both are the shell's chrome. The rail becomes one
+persistent tree per area with the current item's sub-items expanded in place, two levels at
+most, every item a screen of its own, and the same pattern on the Workspaces rail; one
+form's operations is the exception the amendment names, where the rail becomes that form's
+context with a link back to all forms. The rail built on branch two
+(`apps/admin/components/ops/operations-form-rail.tsx`) is the old swap-and-back-link shape
+and is what this branch replaces, so order branch two before it.
+
+## The same branch: one top bar in every area
 
 Not started. Entering Operations shifts the layout. The bar gets one height and layout
 everywhere, the environment dropdown a reserved slot, the environment edge no space of its

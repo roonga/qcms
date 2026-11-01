@@ -351,6 +351,22 @@ Phase 6 notes, Code Owner, 2026-11-02:
   rulings (environments and forms as multi-selects, a role's name and description rather
   than its id).
 
+- **One persistent rail per area, and no drill-down.** An area's rail never swaps for a
+  back link and a new list. Its top-level items are always visible, and the current item's
+  sub-items expand in place beneath it as a tree with the current one marked. Two levels at
+  most: a selected form appears under Forms with its Responses, Links, Webhooks and Intake,
+  and anything deeper, one response or one delivery, is the page's breadcrumb rather than a
+  third level. Every rail item is a screen of its own, so Dead letters stops being an
+  in-page anchor. The rail never repeats the page title. The Workspaces rail takes the same
+  tree. It is a navigation landmark holding a nested list, an expanded group carries
+  `aria-expanded`, the current item carries `aria-current="page"`, and every item is
+  reachable by keyboard.
+  **Amended the same day: one form's operations is the exception.** Area level stays one
+  persistent tree. Inside a form, the rail becomes that form's context: a link back to all
+  forms, the form's name as the rail's context label rather than a heading repeating the
+  page title, and its four screens. The page heading names the screen. Moving between a
+  form's screens and back to all forms is movement inside Operations, so the environment
+  selector and the leave warning behave exactly as they do elsewhere in the mode.
 - **One top bar in every area.** Entering Operations shifts the layout today. The top bar
   has one height and one layout everywhere, the environment dropdown sits in a reserved
   slot that moves nothing, the environment-coloured edge takes no space or is drawn neutral
