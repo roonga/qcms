@@ -128,6 +128,8 @@ test("a row opens the form's operational contexts in the environment the chip na
 
   // The form's name still leads to the form itself for a caller who may read it.
   await page.goto("/operations");
+  await waitForHydration(page);
+  await expect(row).toHaveCount(1);
   await row.getByTestId("qcms-operations-name").click();
   await expect(page).toHaveURL(/\/forms\/frm_[^/]+$/u);
 });

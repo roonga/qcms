@@ -207,6 +207,7 @@ export {
   listResponses,
   listResponseMetadata,
   responseCountsByForm,
+  responseFormVersions,
   getResponse,
   getResponseMetadata,
   fetchResponsePage,

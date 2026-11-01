@@ -334,7 +334,7 @@ Phase 6 notes, Code Owner, 2026-11-02:
 - **Warn before leaving Operations.** Any navigation out of the mode, including the
   application menu's own entries and any link into the form editor, states where it goes and
   what changes about the environment context, with Stay and Leave and Stay focused first.
-  Navigation inside Operations shows nothing. No "do not ask again" choice is added.
+  Navigation inside Operations shows nothing.
 - **Workspaces is not a mode.** It becomes a normal section of the application: a top-nav
   entry whose sections are left-rail screens, with no mode switch and no Exit control.
   Operations stays the one mode-like area that has an environment, so it is the one that
@@ -375,13 +375,60 @@ Phase 6 notes, Code Owner, 2026-11-02:
   `apps/admin/e2e/measure.pw.ts` compares the header height, the rail width and the
   heading's top on a Questions screen and an Operations screen, in `test` and `prod`, light
   and high contrast, at 1280 and 390.
+Phase 6 decisions this plan carries. They are not Code Owner rulings:
+
 - **Structure before polish.** The Code Owner has a holistic admin redesign in hand, so
   phase 6 builds its screens from the existing kit components and patterns and adds no
-  bespoke styling or visual polish. The control rulings above still hold.
+  bespoke styling or visual polish. The rulings above still hold.
+- **The leave warning offers no "do not ask again" choice.** It is a preference rather than
+  a safety control, and if operators ask for one it belongs with the appearance settings.
+  This decision awaits the Code Owner.
 
-Slices: the discovery row's read cells, the Operations table's per-row context links and
-the response viewer's own Responses screen landed first. The screen move, the leave warning
-and the workspace screens each ship on their own branch, as the workspace ruling allows.
+Phase 6 ships in slices, as the workspace ruling allows. Each slice is one branch:
+
+1. The discovery row's read cells, the Operations table's per-row context links and the
+   response viewer's own Responses screen, including the version list an export names
+   without `form: read` (`fix/1204-env-phase-6-operations`).
+2. The Operations-only screen move and the redirects for the old form-subtree addresses
+   (`fix/1204-operations-only-screens`), with the route registries and the tests that
+   enumerate them. Intake close and reopen need a host screen under Operations, the one
+   screen Q87 calls Overview: `/operations/forms/{formId}`, carrying what the selected
+   environment serves, its intake and the two acts, with a row in both agent tables. The
+   Playwright journey proving a `response: read` account opens a response from Operations
+   lands here, with the response-viewer persona.
+3. The leave warning: the kit Dialog, Stay focused by default, Escape is Stay, focus
+   returned, nothing shown for navigation inside Operations, unit and Playwright coverage
+   including browser back.
+4. Workspaces stops being a mode and its sections become screens, carrying the #1208
+   access-group field rulings. One branch, because the second ruling changes the shell's
+   mode model and the first changes what that model contains.
+5. One persistent rail per area and one top bar in every area, both the shell's chrome. It
+   replaces the swap-and-back-link rail slice 2 builds
+   (`apps/admin/components/ops/operations-form-rail.tsx`), so it is ordered after slice 2,
+   and it touches the same shell modules as slice 4, so those two are ordered rather than
+   run in parallel.
+
+Addresses the move takes:
+
+| Old address                             | New address                                        |
+| --------------------------------------- | -------------------------------------------------- |
+| `/forms/{formId}/responses`             | `/operations/forms/{formId}/responses`             |
+| `/forms/{formId}/responses/{sessionId}` | `/operations/forms/{formId}/responses/{sessionId}` |
+| `/forms/{formId}/export`                | `/operations/forms/{formId}/export`                |
+| `/forms/{formId}/links`                 | `/operations/forms/{formId}/links`                 |
+| `/forms/{formId}/webhooks`              | `/operations/forms/{formId}/webhooks`              |
+
+Open questions phase 6 does not settle, each outside every ruling above:
+
+- **Where a claim-only caller's global queue reads its form identities from.** `/webhooks`
+  reads `GET /admin/forms` for its form filter and its links, which an installation claim
+  cannot call (G03, G06), and a dead-letter row carries a form id and no slug. Options: add
+  the slug to the queue row; drop the filter and the per-form links; or leave the warning.
+  Recommendation: add the slug and drop the page's whole-installation form picker, since
+  the Operations table is the forms picker this plan asks for.
+- **The G05 eraser known-target screen and its `docs/erasure.md` text.** Q87 specifies the
+  journey and not where it lives; it belongs beside the Overview screen of slice 2.
+
 Phase 2 delivered the authorized read model and nothing beyond it: the `anyOf`
 route-policy row shape and `environmentFrom: "query"`, `GET /admin/operations/forms` with
 its per-role projection and cursor pagination, the stateless

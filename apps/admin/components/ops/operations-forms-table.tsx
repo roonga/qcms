@@ -73,12 +73,8 @@ export function OperationsFormsTable({ rows }: { readonly rows: readonly Operati
   );
 }
 
-/**
- * The form's name, as a link to the first context this caller may open on it.
- *
- * Plain text when they may open none: the row is here because an operational cell admitted
- * it, and an eraser's journey takes a session id rather than a screen that lists anything.
- */
+// Plain text when the caller may open no context: the row is here because an operational
+// cell admitted it, which is not the same as a screen it may open.
 function FormName({ row }: { readonly row: OperationsFormRow }) {
   const primary = primaryFormContext(row);
   if (primary === undefined) {
@@ -96,13 +92,8 @@ function FormName({ row }: { readonly row: OperationsFormRow }) {
   );
 }
 
-/**
- * The row's remaining operational contexts. The first one is the name above them, so it is
- * not repeated here.
- *
- * Every link names its own row, because one row's Responses link is otherwise read out
- * exactly like every other row's.
- */
+// The first context is the name above these, so it is dropped here. Every link names its
+// own row, because one row's Responses link is otherwise read out like every other row's.
 function FormContexts({ row }: { readonly row: OperationsFormRow }) {
   const rest = formContextLinks(row).slice(1);
   if (rest.length === 0) return null;

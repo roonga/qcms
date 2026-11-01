@@ -99,6 +99,26 @@ export async function listResponses(
 }
 
 /**
+ * The versions one form's non-erased responses were submitted against, newest first.
+ *
+ * It reads the erasure-safe projection and never the form definition, so a caller with no
+ * `form: read` can still be told which versions its own export may name.
+ */
+export async function responseFormVersions(
+  exec: Executor,
+  environment: string,
+  formId: FormId,
+): Promise<number[]> {
+  const res = await exec.execute<{ formVersion: number }>(sql`
+    select distinct r.form_version as "formVersion"
+    from ${reportingSchema(environment)} r
+    where r.form_id = ${formId}
+    order by r.form_version desc
+  `);
+  return res.rows.map((row) => row.formVersion);
+}
+
+/**
  * One response's full detail, or `undefined` when the session is not a non-erased
  * submitted response for this form.
  */

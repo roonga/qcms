@@ -2540,7 +2540,13 @@ export const messages = {
   "ops.export.to": "Submitted to",
   "ops.export.dayHint": "Whole days, in {zone}.",
   "ops.export.download": "Download",
-  "ops.export.noVersions": "This form has no published version, so there is nothing to export.",
+  // A response viewer cannot read the form's published versions, so its list is the
+  // versions its own responses carry; an empty list means nothing to export either way,
+  // and "no published version" would have been a claim about a list that was not read.
+  "ops.export.noVersions": "This form has no version to export from.",
+  "ops.export.versionsUnknown":
+    "This form's versions could not be read, so no version can be chosen. A JSON export " +
+    "carries each response's own version.",
   // One sentence per format, because they are different files: an empty CSV is its
   // header row, an empty JSON export is `[]`. The dialog already knows the selected
   // format (`ops.export.versionIgnored` turns on it), so a single sentence describing

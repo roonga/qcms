@@ -1,12 +1,5 @@
-/**
- * Which of a form's operational contexts a row may open, in one environment (Q87).
- *
- * The row's `capabilities` are the cells the API decided for that form and that
- * environment, so the offer is the policy's answer rather than a role name read on this
- * side. A caller holding no read cell on a form gets no link at all: the row is on the
- * table because some operational cell admitted it, which is not the same as a screen it
- * may open.
- */
+// A row's `capabilities` are the cells the API decided for that form and environment, so
+// the links below are the policy's answer and never a role name read on this side.
 
 import { t } from "../i18n/en.ts";
 
