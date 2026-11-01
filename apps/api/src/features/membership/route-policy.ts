@@ -204,6 +204,15 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     action: "read",
     workspace: "path",
   },
+  {
+    // The same cell as the access audit: the two are one readership by decision, so a
+    // second cell would be a second answer to the same question.
+    method: "GET",
+    path: "/admin/workspaces/{id}/agent-actions",
+    resource: "audit",
+    action: "read",
+    workspace: "path",
+  },
 
   // The capability endpoint has no row deliberately: it reports what the caller holds, so
   // a grant check in front of it would check the thing it exists to tell you. It is named

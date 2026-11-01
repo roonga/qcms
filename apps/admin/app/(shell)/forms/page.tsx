@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 
+import { HeadingMarker } from "@/components/agent/heading-marker";
 import { EmptyState } from "@/components/empty-state";
 import { Alert } from "@/components/kit";
 import { readFormListFilters } from "@/lib/forms/list-filters";
@@ -114,9 +115,11 @@ export default async function FormsPage({
             library is not that state: the library is not empty, the way out is the
             clear link, and this link stays. */}
         {!(isEmpty && !isFiltered) && (
-          <Link href="/forms/new" className="qcms-button-link">
-            {t("forms.new")}
-          </Link>
+          <HeadingMarker control="forms.create">
+            <Link href="/forms/new" className="qcms-button-link">
+              {t("forms.new")}
+            </Link>
+          </HeadingMarker>
         )}
       </div>
 

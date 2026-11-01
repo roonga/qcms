@@ -15,6 +15,7 @@ import {
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
+import { agentStepSite, writeAgentStep } from "../agent/audit.js";
 import { endpointUrlFor } from "../webhooks/mask.js";
 import type { deadLettersRoute, deliveriesRoute, redeliverRoute } from "./route.js";
 import { isDeliveryId } from "./schema.js";
@@ -164,6 +165,9 @@ export function makeRedeliverHandler(deps: Deps): RouteHandler<typeof redeliverR
       deps.clock.now(),
     );
     if (reset === undefined) throw fail.deliveryNotFound();
+    // The delivery is in an environment's database and the step row in the control one, so
+    // the row is written once the reset has committed: a failed step writes none.
+    await writeAgentStep(deps.databases.control, agentStepSite(c), reset.id, deps.clock.now());
     return c.json(
       {
         deliveryId: reset.id,

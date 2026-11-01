@@ -481,11 +481,14 @@ test("carries the builder's turns across the form's subtree and starts fresh out
   await chooseEnvironment(page, "test");
   await open(page);
 
-  // The builder's own panel is the dock's body here, so its composer is the one to type in.
-  const hosted = page.getByTestId("qcms-assist-input").locator("textarea");
-  await fillStable(hosted, "#qcms-fake:no-proposal what is on this screen");
-  await page.getByTestId("qcms-assist-send").locator("button").click();
-  await expect(page.getByTestId("qcms-assist-conversation")).toContainText("more detail");
+  // The builder runs the same conversation every other screen runs, so the dock's own
+  // composer is the one to type in here too.
+  await fillStable(
+    page.getByTestId("qcms-assistant-composer"),
+    "#qcms-fake:no-proposal what is on this screen",
+  );
+  await page.getByTestId("qcms-assistant-send").locator("button").click();
+  await expect(page.getByTestId("qcms-assistant-turns")).toContainText("more detail");
 
   // Soft navigation, which is what the conversation survives: the turns are held in memory
   // for as long as the tab's shell lives.

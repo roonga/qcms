@@ -38,6 +38,7 @@ import {
   type AssistantMode,
 } from "@/lib/agent/panel-context";
 import { screenForPath } from "@/lib/agent/screens";
+import { ProposalSeamProvider } from "@/lib/agent/waiting";
 import { t, type MessageKey } from "@/lib/i18n/en";
 
 /**
@@ -230,7 +231,9 @@ export function AssistantProvider({
 
   return (
     <AssistantContext.Provider value={control}>
-      <ConversationProvider pathname={pathname}>{children}</ConversationProvider>
+      <ProposalSeamProvider onReview={control.show}>
+        <ConversationProvider pathname={pathname}>{children}</ConversationProvider>
+      </ProposalSeamProvider>
     </AssistantContext.Provider>
   );
 }

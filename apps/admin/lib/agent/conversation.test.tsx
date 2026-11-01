@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   ConversationProvider,
+  isProseTurn,
   promptTurns,
   useConversation,
   type AgentTurnRecord,
@@ -22,7 +23,11 @@ function Probe({ append }: { readonly append?: readonly AgentTurnRecord[] }) {
     <div>
       <span data-testid="subject">{conversation.subject}</span>
       <span data-testid="id">{conversation.id}</span>
-      <span data-testid="turns">{conversation.turns.map((turn) => turn.content).join("|")}</span>
+      <span data-testid="turns">
+        {conversation.turns
+          .map((turn) => (isProseTurn(turn) ? turn.content : turn.proposalId))
+          .join("|")}
+      </span>
       <button
         type="button"
         data-testid="append"

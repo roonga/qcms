@@ -27,6 +27,7 @@ import type {
 } from "@/lib/ops/types";
 import { OperatorDateTime } from "@/components/operator-time";
 import { t } from "@/lib/i18n/en";
+import { HeadingMarker } from "@/components/agent/heading-marker";
 
 /**
  * One response, with its audit ledger, its flag disposition and its erasure door
@@ -93,6 +94,15 @@ export function ResponseDetail({
   const [erasureNote, setErasureNote] = useState<string>("");
   const [unflagNote, setUnflagNote] = useState<string>("");
   const [flagged, setFlagged] = useState<string | null>(detail.flaggedReason);
+  // Re-seeded when the server's own disposition changes under it, as the response browser
+  // re-seeds its filter draft: a release performed anywhere but this screen's own button
+  // revalidates the route, and state initialised once would leave the operator reading
+  // "Flagged" about an event already on its way.
+  const [seededFlag, setSeededFlag] = useState<string | null>(detail.flaggedReason);
+  if (seededFlag !== detail.flaggedReason) {
+    setSeededFlag(detail.flaggedReason);
+    setFlagged(detail.flaggedReason);
+  }
   const [dialog, setDialog] = useState<"erase" | "unflag" | null>(null);
   const [released, setReleased] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -246,23 +256,25 @@ export function ResponseDetail({
                 {t("ops.detail.flagged", { reason: flagReasonText(flagged) })}
               </p>
               <p className="text-sm text-(--color-text-muted)">{t("ops.detail.flaggedNote")}</p>
-              <Button
-                variant="secondary"
-                size="md"
-                isDisabled={isPending || environmentUnknown}
-                onPress={() => {
-                  setUnflagNote("");
-                  setDialog("unflag");
-                }}
-              >
-                {t("ops.detail.unflag")}
-              </Button>
+              <HeadingMarker control="responses.unflag">
+                <Button
+                  variant="secondary"
+                  size="md"
+                  isDisabled={isPending || environmentUnknown}
+                  onPress={() => {
+                    setUnflagNote("");
+                    setDialog("unflag");
+                  }}
+                >
+                  {t("ops.detail.unflag")}
+                </Button>
+              </HeadingMarker>
             </div>
           )}
           {labelsFailed && <Alert variant="warning">{t("ops.detail.labelsFailed")}</Alert>}
           <Answers detail={detail} pins={pins} labels={labels} />
           <LedgerTimeline detail={detail} labels={labels} />
-          <div>
+          <HeadingMarker control="responses.erase">
             <Button
               variant="danger"
               size="md"
@@ -274,7 +286,7 @@ export function ResponseDetail({
             >
               {t("ops.erase.button")}
             </Button>
-          </div>
+          </HeadingMarker>
         </>
       ) : (
         <TombstoneCard tombstone={tombstone} />

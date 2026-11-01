@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
+import { HeadingMarker } from "@/components/agent/heading-marker";
 import { Alert, Card } from "@/components/kit";
 import { VersionLifecycleActions } from "@/components/questions/lifecycle-actions";
 import { QuestionEditor } from "@/components/questions/question-editor";
@@ -167,14 +168,20 @@ export default async function QuestionDetailPage({
 
             `lifecycleAction` is the same server action the rail's New version posts to, so
             there is still one `POST` and one revalidation for the three intents. */}
+        {/* One marker for this heading row's four kinds: a save, a publish, a deprecate
+            and a new version. Only one card ever waits, so one marker covers them, and it
+            sits in this cell rather than around Save because Save's two elements are the
+            grid's own children and a wrapper would move them. */}
         <div className="qcms-question-head__lifecycle">
-          <VersionLifecycleActions
-            action={lifecycleAction}
-            questionId={detail.data.questionId}
-            version={selected.version}
-            status={selected.status}
-            latestVersion={latestVersion}
-          />
+          <HeadingMarker control={["question.save", "question.lifecycle"]}>
+            <VersionLifecycleActions
+              action={lifecycleAction}
+              questionId={detail.data.questionId}
+              version={selected.version}
+              status={selected.status}
+              latestVersion={latestVersion}
+            />
+          </HeadingMarker>
         </div>
       </div>
 

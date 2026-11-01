@@ -29,6 +29,7 @@ import { FormId, parseFormId } from "@roonga/qcms-core";
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
+import { agentStepSite, writeAgentStep } from "../agent/audit.js";
 import { decideAccess, PRODUCTION_ENVIRONMENT } from "../membership/policy.js";
 import { holdsInstallationClaim, resolveGrants } from "../membership/resolver.js";
 import { approvalForRelease } from "../membership/two-person.js";
@@ -221,11 +222,13 @@ export function makeReleaseVersionHandler(
     let current: Awaited<ReturnType<typeof getReleasedVersion>>;
     let release: Awaited<ReturnType<typeof recordRelease>>;
     try {
+      const site = agentStepSite(c);
       release = await deps.databases.control.transaction(async (tx) => {
         current = await getReleasedVersion(tx, formId, environment);
         if (current?.version === body.version) {
           throw fail.alreadyReleased(body.version, environment);
         }
+        await writeAgentStep(tx, site, String(body.version), deps.clock.now());
         return recordRelease(tx, {
           formId,
           environment,

@@ -52,7 +52,10 @@ export function AuditPanel({
             <p className="text-xs text-(--color-text-muted)">
               {t("membership.audit.total", { total: audit.total })}
             </p>
-            <div className="qcms-table min-w-0">
+            {/* Wider than the content column's measure as soon as the workspace has acts
+                in it, so it scrolls rather than stretching the screen past the cap issue
+                657 sets, as the assistant's own table beside it does. */}
+            <div className="qcms-table qcms-table--wide min-w-0">
               <table>
                 <caption className="qcms-visually-hidden">{t("membership.audit.table")}</caption>
                 <thead>

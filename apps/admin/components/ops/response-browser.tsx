@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 
+import { HeadingMarker } from "@/components/agent/heading-marker";
 import { EmptyState } from "@/components/empty-state";
 import { EntityId } from "@/components/entity-id";
 import { Button, DatePicker, Dialog, Select } from "@/components/kit";
@@ -23,6 +24,7 @@ import type { ResponsePage } from "@/lib/ops/types";
 import { OperatorDateTime, useOperatorZone } from "@/components/operator-time";
 import { t, tPlural } from "@/lib/i18n/en";
 import type { ReadState } from "@/lib/read-state";
+import { useHandOff } from "@/lib/agent/waiting";
 
 /**
  * The response browser: filter, page, open, export (task 035; screen contract "browser
@@ -94,6 +96,18 @@ export function ResponseBrowser({
   const [to, setTo] = useState(filters.to);
   const [flagged, setFlagged] = useState(filters.flagged);
   const [exporting, setExporting] = useState(false);
+  // The export is a hand-off step: Confirm opens this dialog with the card's own filters,
+  // the user presses Export, and the bytes stream to their browser and nowhere else.
+  const [handedOff, setHandedOff] = useState<Readonly<Record<string, string>> | undefined>(
+    undefined,
+  );
+  const handOff = useHandOff("responses.export");
+  useEffect(() => {
+    if (handOff === undefined) return;
+    setHandedOff(handOff.fields);
+    setExporting(true);
+    handOff.done();
+  }, [handOff]);
   // The zone the draft days are read in, named in the hint and written on Apply.
   const draftZone = draftDayZone(filters, { from, to }, operatorZone);
   const dayZone = draftZone ?? t("ops.common.yourZone");
@@ -258,16 +272,18 @@ export function ResponseBrowser({
             product half is open as #965), and a shell-wide stance on it is the Code
             Owner's to take. This control is in scope here because this change is what
             gave it a dependency on the operator's clock. */}
-        <Button
-          variant="primary"
-          size="md"
-          isDisabled={operatorZone === null}
-          onPress={() => {
-            setExporting(true);
-          }}
-        >
-          {t("ops.export.open")}
-        </Button>
+        <HeadingMarker control="responses.export">
+          <Button
+            variant="primary"
+            size="md"
+            isDisabled={operatorZone === null}
+            onPress={() => {
+              setExporting(true);
+            }}
+          >
+            {t("ops.export.open")}
+          </Button>
+        </HeadingMarker>
       </div>
 
       {/* `plan/admin-design-contracts.md` §3's panel, both variants. Filtered keeps
@@ -404,9 +420,11 @@ export function ResponseBrowser({
         <ExportDialog
           formId={formId}
           versions={versions}
-          initialVersion={version}
-          initialFrom={from}
-          initialTo={to}
+          initialVersion={handedOff?.["version"] ?? version}
+          initialFrom={handedOff?.["from"] ?? from}
+          initialTo={handedOff?.["to"] ?? to}
+          initialFormat={asExportFormat(handedOff?.["format"])}
+          initialShape={asExportShape(handedOff?.["shape"])}
           initialZone={draftZone}
           operatorZone={operatorZone}
           onClose={() => {
@@ -416,6 +434,15 @@ export function ResponseBrowser({
       )}
     </section>
   );
+}
+
+/** A hand-off field, kept only when it is one of the dialog's own choices. */
+function asExportFormat(value: string | undefined): ExportFormat | undefined {
+  return value === "csv" || value === "json" ? value : undefined;
+}
+
+function asExportShape(value: string | undefined): ExportShape | undefined {
+  return value === "long" || value === "wide" ? value : undefined;
 }
 
 /**
@@ -446,6 +473,8 @@ function ExportDialog({
   initialVersion,
   initialFrom,
   initialTo,
+  initialFormat,
+  initialShape,
   initialZone,
   operatorZone,
   onClose,
@@ -455,14 +484,17 @@ function ExportDialog({
   readonly initialVersion: string;
   readonly initialFrom: string;
   readonly initialTo: string;
+  /** Filled by a hand-off step, so the dialog opens on what the card displayed. */
+  readonly initialFormat?: ExportFormat | undefined;
+  readonly initialShape?: ExportShape | undefined;
   /** The zone the toolbar's range is read in when the dialog opens (`draftDayZone`). */
   readonly initialZone: string | null;
   /** The operator's own zone, for a range changed in the dialog; null until known. */
   readonly operatorZone: string | null;
   readonly onClose: () => void;
 }) {
-  const [format, setFormat] = useState<ExportFormat>("csv");
-  const [shape, setShape] = useState<ExportShape>(DEFAULT_EXPORT_SHAPE);
+  const [format, setFormat] = useState<ExportFormat>(initialFormat ?? "csv");
+  const [shape, setShape] = useState<ExportShape>(initialShape ?? DEFAULT_EXPORT_SHAPE);
   const [version, setVersion] = useState(initialVersion);
   const [from, setFrom] = useState(initialFrom);
   const [to, setTo] = useState(initialTo);

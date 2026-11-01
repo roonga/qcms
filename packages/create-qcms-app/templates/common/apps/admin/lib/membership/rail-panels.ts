@@ -11,7 +11,7 @@ export interface WorkspaceRailPanel {
 }
 
 /**
- * The workspace detail rail's four Sections, in the page's own order.
+ * The workspace detail rail's Sections, in the page's own order.
  *
  * Each anchor has to equal a heading id in another file, and a fragment that matches nothing
  * fails silently, so `rail-panels.test.ts` checks every pair against the panels' sources.
@@ -36,5 +36,10 @@ export const WORKSPACE_RAIL_PANELS: readonly WorkspaceRailPanel[] = [
     anchor: "qcms-audit-heading",
     labelKey: "membership.audit.heading",
     source: "components/membership/audit-panel.tsx",
+  },
+  {
+    anchor: "qcms-agent-audit-heading",
+    labelKey: "membership.agentAudit.heading",
+    source: "components/membership/agent-audit-panel.tsx",
   },
 ];

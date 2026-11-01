@@ -250,7 +250,9 @@ async function buildFormWebhooks(
   )
     ? "whole"
     : "masked";
-  const exec = input.deps.databases.control;
+  // An endpoint and its deliveries are the environment's own data, as the webhooks route
+  // reads them: from the control plane they are another environment's rows, or none.
+  const { exec } = input.deps.databases.forRequest(input.environment);
   const [endpoints, deliveries] = await Promise.all([
     listWebhooks(exec, formId),
     listRecentDeliveries(exec, formId, FACT_ROW_LIMIT),
@@ -439,7 +441,9 @@ export const erasuresFacts = z.strictObject({
 
 async function buildErasures(input: ScreenBuildInput): Promise<z.infer<typeof erasuresFacts>> {
   requireClaim(input);
-  const rows = await listTombstones(input.deps.databases.control, { limit: FACT_ROW_LIMIT });
+  const rows = await listTombstones(input.deps.databases.forRequest(input.environment).exec, {
+    limit: FACT_ROW_LIMIT,
+  });
   return {
     erasures: rows.map((row) => ({
       sessionId: row.sessionId,
@@ -470,7 +474,10 @@ async function buildDeadLetters(
   input: ScreenBuildInput,
 ): Promise<z.infer<typeof deadLettersFacts>> {
   requireClaim(input);
-  const rows = await listDeadLetterDeliveries(input.deps.databases.control, FACT_ROW_LIMIT);
+  const rows = await listDeadLetterDeliveries(
+    input.deps.databases.forRequest(input.environment).exec,
+    FACT_ROW_LIMIT,
+  );
   return {
     deliveries: rows.map((row) => ({
       deliveryId: row.deliveryId,

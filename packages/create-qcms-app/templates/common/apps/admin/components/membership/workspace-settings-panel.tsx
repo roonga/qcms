@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 
 import { Alert, Button, Checkbox } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
+import { HeadingMarker } from "@/components/agent/heading-marker";
 import type { MembershipActionState, WorkspaceSettings } from "@/lib/membership/types";
 
 /**
@@ -66,16 +67,18 @@ export function WorkspaceSettingsPanel({
       {state.status === "error" && <Alert variant="error">{state.message}</Alert>}
       {state.status === "done" && <Alert variant="success">{state.message}</Alert>}
 
-      <div className="flex flex-col gap-2">
-        <Checkbox
-          label={t("membership.settings.twoPerson")}
-          isSelected={twoPerson}
-          onChange={setTwoPerson}
-        />
-        <p id="qcms-two-person-help" className="text-xs text-(--color-text-muted)">
-          {t("membership.settings.twoPersonHelp")}
-        </p>
-      </div>
+      <HeadingMarker control="membership.workspaceSettings" block>
+        <div className="flex flex-col gap-2">
+          <Checkbox
+            label={t("membership.settings.twoPerson")}
+            isSelected={twoPerson}
+            onChange={setTwoPerson}
+          />
+          <p id="qcms-two-person-help" className="text-xs text-(--color-text-muted)">
+            {t("membership.settings.twoPersonHelp")}
+          </p>
+        </div>
+      </HeadingMarker>
 
       <div className="flex flex-col gap-2">
         <Checkbox label={t("membership.settings.seed")} isSelected={seed} onChange={setSeed} />

@@ -19,6 +19,7 @@ import {
   listAccessAudit,
   listAccessGroupHolders,
   listAccessGroups,
+  listAgentActions,
   listEnvironmentNames,
   listGrantsForUser,
   listMemberWorkspacesForUser,
@@ -41,11 +42,13 @@ import {
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
+import { agentStepSite, writeAgentStep } from "../agent/audit.js";
 import { holdsStatement, type Resource } from "./policy.js";
 import { holdsInstallationClaim, resolveCallerWorkspaces } from "./resolver.js";
 import { OPERATIONAL_CELLS } from "./route-policy.js";
 import type {
   addHolderRoute,
+  agentAuditRoute,
   auditRoute,
   createAccessGroupRoute,
   deleteAccessGroupRoute,
@@ -396,6 +399,7 @@ export function makeSetMemberRoleHandler(
     const workspace = await workspaceOf(deps, workspaceId);
     if (workspace.archivedAt !== null) throw fail.archived();
 
+    const site = agentStepSite(c);
     await deps.databases.control.transaction(async (tx) => {
       if (role === "member") {
         const owners = await countWorkspaceOwners(tx, workspaceId);
@@ -418,6 +422,7 @@ export function makeSetMemberRoleHandler(
         detail: `role=${role} subject=${userId} environments=all forms=all`,
         occurredAt: deps.clock.now(),
       });
+      await writeAgentStep(tx, site, userId, deps.clock.now());
     });
 
     return c.json({ userId, role }, 200);
@@ -458,12 +463,17 @@ export function makeCreateAccessGroupHandler(
       throw fail.nameTaken(body.name);
     }
 
-    const group = await createAccessGroup(exec, {
-      workspaceId,
-      name: body.name,
-      role: body.role,
-      environments: scope.environments,
-      forms: scope.forms,
+    const site = agentStepSite(c);
+    const group = await exec.transaction(async (tx) => {
+      const created = await createAccessGroup(tx, {
+        workspaceId,
+        name: body.name,
+        role: body.role,
+        environments: scope.environments,
+        forms: scope.forms,
+      });
+      await writeAgentStep(tx, site, created.teamId, deps.clock.now());
+      return created;
     });
     return c.json({ group: await groupView(exec, workspace, group) }, 201);
   };
@@ -527,6 +537,7 @@ export function makeDeleteAccessGroupHandler(
     const actor = principalOf(c);
     await workspaceOf(deps, workspaceId);
 
+    const site = agentStepSite(c);
     await deps.databases.control.transaction(async (tx) => {
       const group = await getAccessGroup(tx, teamId);
       if (group === undefined || group.workspaceId !== workspaceId) throw fail.groupNotFound();
@@ -543,6 +554,7 @@ export function makeDeleteAccessGroupHandler(
       }
       const removed = await deleteAccessGroup(tx, teamId);
       if (!removed) throw fail.groupNotFound();
+      await writeAgentStep(tx, site, teamId, deps.clock.now());
     });
 
     return c.body(null, 204);
@@ -580,6 +592,7 @@ export function makeAddHolderHandler(deps: Deps): RouteHandler<typeof addHolderR
       throw fail.selfGrant();
     }
 
+    const site = agentStepSite(c);
     await exec.transaction(async (tx) => {
       if (await holdsAccessGroup(tx, teamId, subject.userId)) throw fail.alreadyHolds();
       await ensureWorkspaceMember(tx, workspaceId, subject.userId);
@@ -599,6 +612,7 @@ export function makeAddHolderHandler(deps: Deps): RouteHandler<typeof addHolderR
         actorId: actor.userId,
         at: deps.clock.now(),
       });
+      await writeAgentStep(tx, site, teamId, deps.clock.now());
     });
 
     return c.json({ group: await groupView(exec, workspace, group) }, 201);
@@ -665,11 +679,13 @@ export function makeRemoveHolderHandler(
     const actor = principalOf(c);
     await workspaceOf(deps, workspaceId);
 
+    const site = agentStepSite(c);
     await deps.databases.control.transaction(async (tx) => {
       const group = await getAccessGroup(tx, teamId);
       if (group === undefined || group.workspaceId !== workspaceId) throw fail.groupNotFound();
       const removed = await removeAccessGroupHolder(tx, teamId, userId);
       if (!removed) throw fail.notAHolder();
+      await writeAgentStep(tx, site, userId, deps.clock.now());
       await writeAccessAuditRow(tx, {
         actor: actor.userId,
         workspaceId,
@@ -695,6 +711,7 @@ export function makeWorkspaceSettingsHandler(
     const actor = principalOf(c);
     const workspace = await workspaceOf(deps, workspaceId);
 
+    const site = agentStepSite(c);
     const result = await deps.databases.control.transaction(async (tx) => {
       let requireSecondApprover = workspace.requireSecondApprover;
       let seedNewEditors = (await readSeedNewEditorsWithTestData(tx, workspaceId)) ?? false;
@@ -735,11 +752,24 @@ export function makeWorkspaceSettingsHandler(
         });
       }
 
+      await writeAgentStep(tx, site, workspaceId, deps.clock.now());
       return { requireSecondApprover, seedNewEditorsWithTestData: seedNewEditors };
     });
 
     return c.json({ workspaceId, ...result }, 200);
   };
+}
+
+function auditWindow(query: {
+  readonly page?: string | undefined;
+  readonly pageSize?: string | undefined;
+}): { readonly page: number; readonly pageSize: number } {
+  const page = query.page === undefined ? 1 : Number(query.page);
+  const pageSize = query.pageSize === undefined ? 50 : Math.min(Number(query.pageSize), 200);
+  if (!Number.isInteger(page) || page < 1 || !Number.isInteger(pageSize) || pageSize < 1) {
+    throw new ApiError("INVALID_QUERY", 400, "page and pageSize must be positive integers");
+  }
+  return { page, pageSize };
 }
 
 // The actor id is deliberately not a foreign key, so a removed account shows as an id
@@ -750,11 +780,7 @@ export function makeAuditHandler(deps: Deps): RouteHandler<typeof auditRoute, Ap
     const query = c.req.valid("query");
     await workspaceOf(deps, workspaceId);
 
-    const page = query.page === undefined ? 1 : Number(query.page);
-    const pageSize = query.pageSize === undefined ? 50 : Math.min(Number(query.pageSize), 200);
-    if (!Number.isInteger(page) || page < 1 || !Number.isInteger(pageSize) || pageSize < 1) {
-      throw new ApiError("INVALID_QUERY", 400, "page and pageSize must be positive integers");
-    }
+    const { page, pageSize } = auditWindow(query);
 
     const exec = deps.databases.control;
     const { rows, total } = await listAccessAudit(exec, workspaceId, {
@@ -777,6 +803,56 @@ export function makeAuditHandler(deps: Deps): RouteHandler<typeof auditRoute, Ap
           formId: row.formId,
           kind: row.kind,
           occurredAt: row.occurredAt.toISOString(),
+          detail: row.detail,
+        })),
+        page,
+        pageSize,
+        total,
+      },
+      200,
+    );
+  };
+}
+
+/**
+ * The agent audit for one workspace, scoped and authorised exactly as the access audit
+ * above: the same `audit: read` cell, the same workspace from the path, the same actor
+ * resolution, and a `detail` that carries a non-content fact and nothing else (SEC-17).
+ */
+export function makeAgentAuditHandler(deps: Deps): RouteHandler<typeof agentAuditRoute, ApiEnv> {
+  return async (c) => {
+    const workspaceId = c.req.valid("param").id;
+    const query = c.req.valid("query");
+    await workspaceOf(deps, workspaceId);
+
+    const { page, pageSize } = auditWindow(query);
+
+    const exec = deps.databases.control;
+    const { rows, total } = await listAgentActions(exec, workspaceId, {
+      limit: pageSize,
+      offset: (page - 1) * pageSize,
+      ...(query.kind === undefined ? {} : { kind: query.kind }),
+    });
+
+    const actors = await findUsersByIds(exec, [...new Set(rows.map((row) => row.actor))]);
+    const addresses = new Map(actors.map((actor) => [actor.userId, actor.email]));
+
+    return c.json(
+      {
+        workspaceId,
+        rows: rows.map((row) => ({
+          id: row.id,
+          proposalId: row.proposalId,
+          stepIndex: row.stepIndex,
+          stepCount: row.stepCount,
+          actor: row.actor,
+          actorEmail: addresses.get(row.actor) ?? null,
+          environment: row.environment,
+          formId: row.formId,
+          kind: row.kind,
+          screen: row.screen,
+          proposedAt: row.proposedAt.toISOString(),
+          confirmedAt: row.confirmedAt.toISOString(),
           detail: row.detail,
         })),
         page,

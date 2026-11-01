@@ -82,3 +82,14 @@ export async function readResult<T>(response: Response): Promise<ApiResult<T>> {
   if (!response.ok) return readFailure(response);
   return { ok: true, data: (await response.json()) as T };
 }
+
+/**
+ * A success with no body at all, which is what a 204 route answers with.
+ *
+ * Distinct from `readResult<null>`, which still parses the body: an empty one makes
+ * `response.json()` throw, so the operator is told an act failed that the API performed.
+ */
+export async function readNoContent(response: Response): Promise<ApiResult<null>> {
+  if (!response.ok) return readFailure(response);
+  return { ok: true, data: null };
+}

@@ -12,6 +12,7 @@ import type {
   QuestionVersion,
 } from "../questions/types.ts";
 
+import { proposalHeaders, type AgentProposalRef } from "./agent-proposal.ts";
 import { adminApiFetch } from "./api.ts";
 import type { AdminSession } from "./session.ts";
 
@@ -148,11 +149,14 @@ export async function createQuestion(
   session: AdminSession,
   slug: string,
   definition: QuestionDefinitionView,
+  workspaceId?: string,
+  proposal?: AgentProposalRef,
 ): Promise<ApiResult<{ questionId: string; slug: string; version: QuestionVersion }>> {
   return read(
     await adminApiFetch(session, `/questions`, {
       method: "POST",
-      body: { slug, definition },
+      body: { slug, definition, ...(workspaceId === undefined ? {} : { workspaceId }) },
+      headers: proposalHeaders(proposal),
     }),
   );
 }
@@ -163,12 +167,13 @@ export async function saveVersion(
   questionId: string,
   version: number,
   definition: QuestionDefinitionView,
+  proposal?: AgentProposalRef,
 ): Promise<ApiResult<QuestionVersion>> {
   return read<QuestionVersion>(
     await adminApiFetch(
       session,
       `/questions/${encodeURIComponent(questionId)}/versions/${String(version)}`,
-      { method: "PUT", body: { definition } },
+      { method: "PUT", body: { definition }, headers: proposalHeaders(proposal) },
     ),
   );
 }
@@ -177,10 +182,12 @@ export async function saveVersion(
 export async function createVersion(
   session: AdminSession,
   questionId: string,
+  proposal?: AgentProposalRef,
 ): Promise<ApiResult<QuestionVersion>> {
   return read<QuestionVersion>(
     await adminApiFetch(session, `/questions/${encodeURIComponent(questionId)}/versions`, {
       method: "POST",
+      headers: proposalHeaders(proposal),
     }),
   );
 }
@@ -190,12 +197,13 @@ export async function publishVersion(
   session: AdminSession,
   questionId: string,
   version: number,
+  proposal?: AgentProposalRef,
 ): Promise<ApiResult<QuestionVersion>> {
   return read<QuestionVersion>(
     await adminApiFetch(
       session,
       `/questions/${encodeURIComponent(questionId)}/versions/${String(version)}/publish`,
-      { method: "POST" },
+      { method: "POST", headers: proposalHeaders(proposal) },
     ),
   );
 }
@@ -205,12 +213,13 @@ export async function deprecateVersion(
   session: AdminSession,
   questionId: string,
   version: number,
+  proposal?: AgentProposalRef,
 ): Promise<ApiResult<QuestionVersion>> {
   return read<QuestionVersion>(
     await adminApiFetch(
       session,
       `/questions/${encodeURIComponent(questionId)}/versions/${String(version)}/deprecate`,
-      { method: "POST" },
+      { method: "POST", headers: proposalHeaders(proposal) },
     ),
   );
 }

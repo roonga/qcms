@@ -10,7 +10,7 @@ export function AssistMark({
   decorative = false,
   id,
 }: {
-  readonly size: 20 | 24;
+  readonly size: 16 | 20 | 24;
   readonly working?: boolean;
   readonly decorative?: boolean;
   readonly id?: string;

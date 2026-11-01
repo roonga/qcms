@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import type {
+  CreateFormCardState,
   CreateFormState,
   DraftPreviewState,
   FormStatusState,
@@ -37,6 +38,7 @@ import {
   validateDraft,
 } from "@/lib/server/forms";
 import { MAX_LINK_BATCH, mintLinks, revokeLink } from "@/lib/server/links";
+import type { AgentProposalRef } from "@/lib/server/agent-proposal";
 import type { BatchOutcome } from "@/lib/server/releases";
 import {
   lookupReleaseBatch,
@@ -46,7 +48,7 @@ import {
   reviewRelease,
 } from "@/lib/server/releases";
 import { confirmShownEnvironment } from "@/lib/server/environments";
-import { requireAdminSession } from "@/lib/server/session";
+import { requireAdminSession, type AdminSession } from "@/lib/server/session";
 
 /**
  * The form builder's mutations (task 033).
@@ -158,8 +160,59 @@ export async function createFormAction(
   const slug = readText(formData, "slug").trim();
   const title = readText(formData, "title").trim();
   const defaultLocale = readText(formData, "defaultLocale").trim();
-  const formId = formIdFromSlug(slug);
-  const submitted = { slug, title, defaultLocale };
+  const created = await createFormIdentity(session, { slug, defaultLocale });
+  if (!created.ok) {
+    return {
+      status: "error",
+      code: created.code,
+      message: created.message,
+      submitted: { slug, title, defaultLocale },
+    };
+  }
+  // Outside any guard on purpose: `redirect` signals by throwing, so it must not sit
+  // anywhere a `catch` could swallow it.
+  redirect(`/forms/${encodeURIComponent(created.formId)}?title=${encodeURIComponent(title)}`);
+}
+
+/**
+ * The same create, answered rather than navigated away from, for the card a proposal
+ * confirms (SEC-17's create-variant ruling): the same validation, the same grant check
+ * through the same route, the same audit path, and the new id as the one result a later
+ * step may reference.
+ */
+export async function createFormForCardAction(
+  input: { readonly slug: string; readonly defaultLocale: string; readonly workspaceId?: string },
+  proposal?: AgentProposalRef,
+): Promise<CreateFormCardState> {
+  const session = await requireAdminSession();
+  const slug = input.slug.trim();
+  const created = await createFormIdentity(
+    session,
+    {
+      slug,
+      defaultLocale: input.defaultLocale.trim(),
+      ...(input.workspaceId === undefined ? {} : { workspaceId: input.workspaceId }),
+    },
+    proposal,
+  );
+  if (!created.ok) return { status: "error", message: created.message };
+  return { status: "created", formId: created.formId, slug };
+}
+
+type CreatedForm =
+  | { readonly ok: true; readonly formId: string }
+  | { readonly ok: false; readonly code: string; readonly message: string };
+
+/**
+ * The validation and the call both callers share. The id is derived here rather than
+ * taken from the caller, which is why a proposal's digest need only bind the slug.
+ */
+async function createFormIdentity(
+  session: AdminSession,
+  input: { readonly slug: string; readonly defaultLocale: string; readonly workspaceId?: string },
+  proposal?: AgentProposalRef,
+): Promise<CreatedForm> {
+  const formId = formIdFromSlug(input.slug);
 
   // Two distinct failures, kept distinct: a slug that yields no id and a blank default
   // locale are different mistakes on different fields, and the catalog already has a
@@ -168,29 +221,32 @@ export async function createFormAction(
   // mapped but unreachable from this screen.
   if (formId === "") {
     return {
-      status: "error",
+      ok: false,
       code: "INVALID_FORM_ID",
       message: messageForFormCode("INVALID_FORM_ID"),
-      submitted,
     };
   }
-  if (defaultLocale === "") {
+  if (input.defaultLocale === "") {
     return {
-      status: "error",
+      ok: false,
       code: "INVALID_DEFAULT_LOCALE",
       message: messageForFormCode("INVALID_DEFAULT_LOCALE"),
-      submitted,
     };
   }
 
-  const result = await createForm(session, { formId, slug, defaultLocale });
-  if (!result.ok) {
-    return { status: "error", code: result.code, message: result.message, submitted };
-  }
+  const result = await createForm(
+    session,
+    {
+      formId,
+      slug: input.slug,
+      defaultLocale: input.defaultLocale,
+      ...(input.workspaceId === undefined ? {} : { workspaceId: input.workspaceId }),
+    },
+    proposal,
+  );
+  if (!result.ok) return { ok: false, code: result.code, message: result.message };
   revalidatePath("/forms");
-  // Outside the guard above on purpose: `redirect` signals by throwing, so it must not
-  // sit anywhere a `catch` could swallow it.
-  redirect(`/forms/${encodeURIComponent(result.data.formId)}?title=${encodeURIComponent(title)}`);
+  return { ok: true, formId: result.data.formId };
 }
 
 /**
@@ -308,6 +364,7 @@ interface SettingsPatch {
 export async function updateSettingsAction(
   formId: string,
   patch: SettingsPatch,
+  proposal?: AgentProposalRef,
 ): Promise<SettingsState> {
   const session = await requireAdminSession();
   const outgoing: SettingsPatch = {
@@ -320,7 +377,7 @@ export async function updateSettingsAction(
     return { status: "error", message: messageForFormCode("INVALID_FORM_SETTINGS") };
   }
 
-  const result = await updateSettings(session, formId, outgoing);
+  const result = await updateSettings(session, formId, outgoing, proposal);
   if (!result.ok) return { status: "error", message: result.message };
   revalidatePath(`/forms/${formId}`);
   return {
@@ -420,16 +477,28 @@ export async function releaseVersionAction(
   input: {
     readonly version: number;
     readonly fromEnvironment?: string;
+    /**
+     * Where the release lands, when that is not the environment the screen is showing. The
+     * release panel omits it; a promotion names it, and the API authorises `release: create`
+     * against the destination rather than against the selection.
+     */
+    readonly environment?: string;
   },
+  proposal?: AgentProposalRef,
 ): Promise<ReleaseState> {
   const session = await requireAdminSession();
   const check = await confirmShownEnvironment(session, shown);
   if (!check.ok) return { status: "error", message: check.message };
-  const result = await releaseVersion(session, formId, {
-    version: input.version,
-    ...(input.fromEnvironment === undefined ? {} : { fromEnvironment: input.fromEnvironment }),
-    environment: check.environment,
-  });
+  const result = await releaseVersion(
+    session,
+    formId,
+    {
+      version: input.version,
+      ...(input.fromEnvironment === undefined ? {} : { fromEnvironment: input.fromEnvironment }),
+      environment: input.environment ?? check.environment,
+    },
+    proposal,
+  );
   if (!result.ok) return { status: "error", message: result.message };
   // The release screen, the version list and the form's own header all describe what is
   // released, so the whole subtree is re-read rather than one route of it.
@@ -484,16 +553,22 @@ export async function confirmPublishAction(
     readonly source: PublishIntent;
     readonly targets: readonly PublishDestination[];
   },
+  proposal?: AgentProposalRef,
 ): Promise<PublishBatchState> {
   const session = await requireAdminSession();
   const result =
     request.source.kind === "draft"
-      ? await publishBatch(session, formId, {
-          idempotencyKey: request.idempotencyKey,
-          expectedWorkflowRevision: request.expectedWorkflowRevision,
-          draftRevision: request.source.draftRevision,
-          targets: request.targets,
-        })
+      ? await publishBatch(
+          session,
+          formId,
+          {
+            idempotencyKey: request.idempotencyKey,
+            expectedWorkflowRevision: request.expectedWorkflowRevision,
+            draftRevision: request.source.draftRevision,
+            targets: request.targets,
+          },
+          proposal,
+        )
       : await releaseBatch(session, formId, {
           idempotencyKey: request.idempotencyKey,
           expectedWorkflowRevision: request.expectedWorkflowRevision,
@@ -616,11 +691,12 @@ export async function setFormStatusAction(
   formId: string,
   shown: string | undefined,
   action: "close" | "reopen",
+  proposal?: AgentProposalRef,
 ): Promise<FormStatusState> {
   const session = await requireAdminSession();
   const check = await confirmShownEnvironment(session, shown);
   if (!check.ok) return { status: "error", message: check.message };
-  const result = await setFormStatus(session, formId, action, check.environment);
+  const result = await setFormStatus(session, formId, action, check.environment, proposal);
   if (!result.ok) return { status: "error", message: result.message };
   revalidatePath("/forms");
   // "layout", for the reason `saveDraftAction` records: closing a form changes the header
@@ -652,6 +728,7 @@ export async function mintLinksAction(
   formId: string,
   shown: string | undefined,
   request: MintRequest,
+  proposal?: AgentProposalRef,
 ): Promise<MintLinksState> {
   const session = await requireAdminSession();
   const count = Math.trunc(request.count);
@@ -667,12 +744,17 @@ export async function mintLinksAction(
   // which this screen mints into an environment nobody chose or was not shown.
   const check = await confirmShownEnvironment(session, shown);
   if (!check.ok) return { status: "error", message: check.message };
-  const result = await mintLinks(session, formId, {
-    environment: check.environment,
-    expiresAt: endOfDay(request.expiresAt),
-    oneTime: request.oneTime,
-    count,
-  });
+  const result = await mintLinks(
+    session,
+    formId,
+    {
+      environment: check.environment,
+      expiresAt: endOfDay(request.expiresAt),
+      oneTime: request.oneTime,
+      count,
+    },
+    proposal,
+  );
   if (!result.ok) return { status: "error", message: result.message };
   revalidatePath(`/forms/${formId}/links`);
   return { status: "minted", links: result.data };
@@ -710,6 +792,7 @@ export async function revokeLinkAction(
   formId: string,
   shown: string | undefined,
   linkId: string,
+  proposal?: AgentProposalRef,
 ): Promise<RevokeLinkState> {
   const session = await requireAdminSession();
   // Scoped to the switcher's environment by the API, which the one door's header carries:
@@ -718,7 +801,7 @@ export async function revokeLinkAction(
   // check makes "looking at" true of this tab rather than of whichever tab switched last.
   const check = await confirmShownEnvironment(session, shown);
   if (!check.ok) return { status: "error", message: check.message };
-  const result = await revokeLink(session, formId, linkId);
+  const result = await revokeLink(session, formId, linkId, proposal);
   if (!result.ok) return { status: "error", message: result.message };
   revalidatePath(`/forms/${formId}/links`);
   return { status: "revoked", linkId: result.data.linkId };

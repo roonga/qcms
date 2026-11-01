@@ -38,3 +38,16 @@ export interface MutationState {
 
 /** The starting state of every mutation form: nothing submitted, nothing to report. */
 export const IDLE_MUTATION: MutationState = { status: "idle" };
+
+/**
+ * What a card's non-redirecting variant answers instead of navigating: the ids and the
+ * version it made, which is what a later step may reference and what the card links at.
+ */
+export interface QuestionCardState {
+  readonly status: "done" | "error";
+  readonly questionId?: string;
+  readonly slug?: string;
+  readonly version?: number;
+  readonly versionStatus?: string;
+  readonly message?: string;
+}

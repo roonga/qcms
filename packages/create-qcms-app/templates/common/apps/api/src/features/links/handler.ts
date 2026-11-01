@@ -13,6 +13,7 @@ import { environmentPrefix } from "../../app.js";
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
+import { agentStepSite, writeAgentStep } from "../agent/audit.js";
 import type { listLinksRoute, mintLinksRoute, revokeLinkRoute } from "./route.js";
 
 const fail = {
@@ -89,30 +90,37 @@ export function makeMintLinksHandler(deps: Deps): RouteHandler<typeof mintLinksR
     const signingKey = await importCompactTokenKey(new TextEncoder().encode(signingRaw));
 
     const expiresAtIso = expiry.toISOString();
-    const links: Array<{ linkId: string; environment: string; url: string; expiresAt: string }> =
-      [];
-    for (let i = 0; i < count; i += 1) {
-      const linkId = newLinkId();
-      // Row before token: verification rejects a token with no row. Control pool because only
-      // `qcms_app_control` may INSERT into `secure_links`, so environment is an argument.
-      await insertSecureLink(deps.databases.control, {
-        linkId,
-        formId,
-        expiresAt: expiry,
-        environment,
-        oneTime,
-      });
-      const token = await mintSecureLink(
-        { formId, linkId, expiresAt: expiresAtIso, oneTime },
-        signingKey,
-      );
-      links.push({
-        linkId,
-        environment,
-        url: linkUrl(deps, token, environment),
-        expiresAt: expiresAtIso,
-      });
-    }
+    const site = agentStepSite(c);
+    // One transaction over the batch and its agent step row, so a confirmed step that
+    // fails halfway mints no link and writes no audit row (SEC-17).
+    const links = await deps.databases.control.transaction(async (tx) => {
+      const minted: Array<{ linkId: string; environment: string; url: string; expiresAt: string }> =
+        [];
+      for (let i = 0; i < count; i += 1) {
+        const linkId = newLinkId();
+        // Row before token: verification rejects a token with no row. Control pool because only
+        // `qcms_app_control` may INSERT into `secure_links`, so environment is an argument.
+        await insertSecureLink(tx, {
+          linkId,
+          formId,
+          expiresAt: expiry,
+          environment,
+          oneTime,
+        });
+        const token = await mintSecureLink(
+          { formId, linkId, expiresAt: expiresAtIso, oneTime },
+          signingKey,
+        );
+        minted.push({
+          linkId,
+          environment,
+          url: linkUrl(deps, token, environment),
+          expiresAt: expiresAtIso,
+        });
+      }
+      await writeAgentStep(tx, site, String(count), now);
+      return minted;
+    });
 
     return c.json({ links }, 201);
   };
@@ -162,13 +170,13 @@ export function makeRevokeLinkHandler(deps: Deps): RouteHandler<typeof revokeLin
     );
 
     const now = deps.clock.now();
-    const row = await revokeSecureLink(
-      deps.databases.control,
-      linkId.data,
-      formId,
-      environment,
-      now,
-    );
+    const site = agentStepSite(c);
+    const row = await deps.databases.control.transaction(async (tx) => {
+      const revoked = await revokeSecureLink(tx, linkId.data, formId, environment, now);
+      if (revoked === undefined) return undefined;
+      await writeAgentStep(tx, site, revoked.linkId, now);
+      return revoked;
+    });
     if (row === undefined) throw fail.linkNotFound();
 
     return c.json(

@@ -7,6 +7,7 @@ import { isErasureReason } from "@/lib/ops/erasure";
 import type { EraseOutcome } from "@/lib/ops/types";
 import { t } from "@/lib/i18n/en";
 import { confirmShownEnvironment } from "@/lib/server/environments";
+import type { AgentProposalRef } from "@/lib/server/agent-proposal";
 import { eraseSession, unflagResponse } from "@/lib/server/responses";
 import { requireAdminSession } from "@/lib/server/session";
 
@@ -63,6 +64,7 @@ export async function eraseSessionAction(
   shown: string | undefined,
   sessionId: string,
   reason: ErasureReason,
+  proposal?: AgentProposalRef,
 ): Promise<EraseState> {
   const session = await requireAdminSession();
   if (!isErasureReason(reason)) {
@@ -70,7 +72,7 @@ export async function eraseSessionAction(
   }
   const check = await confirmShownEnvironment(session, shown);
   if (!check.ok) return { status: "error", message: check.message };
-  const result = await eraseSession(session, formId, sessionId, reason);
+  const result = await eraseSession(session, formId, sessionId, reason, proposal);
   if (!result.ok) return { status: "error", message: result.message };
   revalidatePath(`/forms/${formId}/responses`);
   revalidatePath(`/forms/${formId}/responses/${sessionId}`);
@@ -83,11 +85,12 @@ export async function unflagResponseAction(
   formId: string,
   shown: string | undefined,
   sessionId: string,
+  proposal?: AgentProposalRef,
 ): Promise<UnflagState> {
   const session = await requireAdminSession();
   const check = await confirmShownEnvironment(session, shown);
   if (!check.ok) return { status: "error", message: check.message };
-  const result = await unflagResponse(session, formId, sessionId);
+  const result = await unflagResponse(session, formId, sessionId, proposal);
   if (!result.ok) return { status: "error", message: result.message };
   revalidatePath(`/forms/${formId}/responses`);
   revalidatePath(`/forms/${formId}/responses/${sessionId}`);

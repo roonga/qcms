@@ -139,6 +139,11 @@ describe("webhook CRUD, secret reveal/mask, and at-rest round-trip", () => {
     expect((await getWebhook(testDb.db, FORM_ID, webhookId))?.secretEncrypted).toBe(
       originalRow?.secretEncrypted,
     );
+    // The stored row, not the response body: a retarget that answered 200 and wrote
+    // nothing is what a screen reading the list afterwards cannot tell from a no-op.
+    expect((await getWebhook(testDb.db, FORM_ID, webhookId))?.url).toBe(
+      "https://consumer.example.com/rotate-v2",
+    );
 
     const rotate = await req(app, `/forms/${FORM_ID}/webhooks/${webhookId}`, "PUT", {
       rotateSecret: true,

@@ -1,5 +1,6 @@
 import type { RouteGroups } from "./app.js";
 import { registerAdminAuthProxy } from "./features/auth/route.js";
+import { registerAgentProvenance } from "./features/agent/provenance-mount.js";
 import { registerFormsAssist } from "./features/agent/route.js";
 import { registerForms } from "./features/forms/route.js";
 import { registerLinks } from "./features/links/route.js";
@@ -38,6 +39,9 @@ export const appGroups: RouteGroups = {
     // An admin route with no row in `features/membership/route-policy.ts` is refused
     // rather than served (SEC-3).
     registerGrantCheck,
+    // Fourth: provenance is read from a request the policy has already authorised, so a
+    // token can only add an audit row and never a right (SEC-17).
+    registerAgentProvenance,
     registerQuestions,
     registerForms,
     registerFormsAssist,

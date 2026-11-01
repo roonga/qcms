@@ -1,14 +1,14 @@
 # Agent-assisted authoring
 
-**Status:** shipped by task 041 · flag-gated, **off by default** · governed by **ADR-25**
+**Status:** shipped · flag-gated, **off by default** · governed by **ADR-25** and `docs/agent-principle.md` · the control is **SEC-17**
 
-QCMS can put a chat panel beside any admin screen. On the form builder it drafts a form for you: describe what you want, get a proposal, look at the diff, accept it into your draft, then publish it yourself through the ordinary publish flow. Questions the proposal invented are created as unpublished drafts when you accept, so publishing them stays your decision too.
+QCMS puts a chat panel beside any admin screen. On the form builder it drafts a form for you: describe what you want, get a proposal, look at the diff, accept it into your draft, then publish it yourself. On every other screen it reads what that screen is about and proposes the acts that screen offers, one card at a time or as one plan.
 
 The whole feature rests on one sentence, and it is worth reading twice:
 
-> **The agent proposes, the kernel validates, the human publishes.**
+> **The agent proposes, the human confirms.**
 
-An authoring agent in QCMS is just another author. It emits the same domain JSON a person's clicks emit, through the same validation gauntlet, and it has no way to make anything live. Nothing about serving a form ever involves a model: the respondent path (`evaluateRules`, the stored compiled snapshot, the portal) is untouched and always will be (Project Goal §8, R7).
+The agent in QCMS is just another operator, with fewer rights than it looks: it emits the same domain JSON a person's clicks emit, through the same validation, and every act it proposes runs as **your** act, through the screen's own control, under your own permissions, only after you press Confirm. Nothing about serving a form ever involves a model: the respondent path (`evaluateRules`, the stored compiled snapshot, the portal) is untouched and always will be (Project Goal §8, R7).
 
 ---
 
@@ -148,31 +148,35 @@ The header's context chip names what the assistant can see from where you are, s
 
 ### Can
 
-- **Search the published question library.** It sees question _definitions_ and reuses existing questions rather than inventing near-duplicates.
-- **Propose new question definitions.** They come back to you for review. Nothing is created or published by the agent.
-- **Propose a draft `FormDefinition`** for the form you have open: steps, question pins, and visibility rules.
-- **Run the same publish validation** the builder runs, and iterate on what it reports.
-- **Explain the screen you are on, and take you to what it names.** Away from the builder the assistant reads that screen's own facts and answers about them; it has nothing to propose there yet.
+- **Read the screen you are on, and take you to what it names.** Each screen hands the turn its own facts and its own read tools: the form and its draft on the builder, the versions and releases on the versions screen, response metadata with no answer values, the endpoints and their delivery states, the question library, the workspace's groups and members.
+- **Propose a draft `FormDefinition`** for the form you have open: steps, question pins, and visibility rules, with the questions it had to invent. You see the diff and the same publish validation the builder runs, and Accept puts it in your draft.
+- **Propose any act you could perform yourself from an admin screen.** Publish and release a version, close or reopen intake, mint or revoke links, export or erase a response, release a withheld submission, configure, rotate, retarget, deactivate or reactivate a delivery endpoint, redeliver a stuck delivery, create a form or a question and move a question through its versions, create or remove an access group, grant or revoke it, set a member's role, save workspace settings.
+- **Put several of those in one plan**, in the order they will run, which one Confirm runs end to end.
+
+Each proposal arrives as a **card**: the act, every argument in full, the consequence sentence the screen's own dialog uses, and Confirm and Cancel. A plan's card lists every step. Nothing happens until you press Confirm.
 
 ### Cannot
 
-Not "is instructed not to". **Cannot**, structurally: these verbs do not exist on the tool surface the agent is given, so no prompt, jailbreak or model swap reaches them.
+Not "is instructed not to". **Cannot**, structurally.
 
-- Publish a form or a question version.
-- Erase a session, or reach any erasure or retention operation.
-- Mint or revoke secure links.
-- Create or configure webhooks.
-- Read responses, answers, submissions, sessions or exports, in any form.
-- Touch any form other than the one you have open.
-- Change deployment configuration, or reach the database at all.
+- **Run anything.** The turn holds no executor for any act. Confirm, in your browser, calls the screen's own server action under your own session, carrying a signed token the API checks against you, the step list, that step's arguments and that step's environment. A token that does not verify is refused and never degrades into an ordinary act of yours.
+- **Do anything you could not do by hand.** Every step goes through the same route, the same permission check and the same rules as the screen's control, the two-person rule for production included. Acts you do not hold are not even offered to the model: a read-only account is offered no write at all, and the agent adds no right.
+- **Read responses, answers, submissions or exports.** No read tool and no screen context can return an answer value, the answer ledger or a webhook payload. Response metadata is a projection with no answer column.
+- **Write its own card.** The title, the consequence lines and the argument lines are rendered by the admin from the act's kind and its structured arguments. The model's words appear only as a visibly quoted reason, so an injected instruction cannot label a production release "Release to test" or hide a step.
+- **Keep a secret.** A webhook secret, a minted link URL and an export's bytes reach your screen and stop there; the next turn is told only an allowlisted summary ("rotated the endpoint's secret", never the secret). An act that needs you to type a secret opens the screen's own control instead, and may only be the last step of a plan.
+- **Change deployment configuration, or reach the database at all.**
 
-A tool call outside the allowlist is refused server-side before dispatch and logged, and the turn that attempted it produces **no proposal at all**: a model that reached for `publish` does not get the rest of its work accepted.
+A tool call outside the screen's own list is refused server-side before dispatch and logged, and the turn that attempted it produces **no proposal at all**.
+
+### What is recorded
+
+Every step you confirm writes one row to an append-only agent audit, in the act's own transaction: the proposal, the step's place in it, who confirmed it, the workspace, the environment, the form, the kind and the screen. A step that failed writes none, so the card's report and the trail agree. The act's own trail is written beside it exactly as it is for a human act: the release record, the export and erasure rows, the access audit, the draft's assisted mark. The workspace's owners read the agent audit beside the access audit on the workspace screen.
 
 ### The PII boundary
 
-**Respondent data never enters the provider payload.** This is enforced by construction rather than by policy: the object an assist turn is handed carries the current draft, a search-only view of the published question library, an advisory validation function and the conversation. There is no database handle on it, no session reader and no answer reader, so there is no code path from the agent to an answer row. The automated suite asserts this with a real submitted answer sitting in the database while a turn runs, capturing the exact bytes the provider was handed and searching them for it.
+**Respondent data never enters the provider payload.** This is enforced by construction rather than by policy: the object an assist turn is handed carries that screen's own facts, the read tools the screen declares, an advisory validation function and the conversation. No read tool and no context builder takes a database handle; each closes over named query helpers whose return types carry no answer value, no answer-ledger row and no webhook payload. The automated suite asserts this per screen with a real submitted answer sitting in the database while a turn runs, capturing the exact bytes the provider was handed and searching them for it.
 
-What **does** go to the provider, when you use a hosted one: your form structure (step and question titles, option labels, rules), the definitions of published questions the agent searched for, and what you type into the chat. Treat that as you would treat any other document you paste into a hosted model. If that is unacceptable for your content, use a local model, where none of it leaves the deployment.
+What **does** go to the provider, when you use a hosted one: your form and admin structure (step and question titles, option labels, rules, version numbers, environment names, endpoint URLs, group and role names, and staff names and email addresses), response metadata with no answer values, and what you type into the chat. Treat that as you would treat any other document you paste into a hosted model. If that is unacceptable for your content, use a local model, where none of it leaves the deployment.
 
 ### Token usage
 

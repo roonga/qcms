@@ -15,6 +15,7 @@ import { focusPostAction } from "@/lib/ops/post-action-focus";
 import { EntityId } from "@/components/entity-id";
 import { OperatorDateTime } from "@/components/operator-time";
 import { t, tPlural } from "@/lib/i18n/en";
+import { HeadingMarker } from "@/components/agent/heading-marker";
 import { unexpected } from "@/lib/ops/unexpected";
 
 /**
@@ -227,19 +228,21 @@ export function SecureLinks({
       </div>
 
       {canMint ? (
-        <div ref={mintTrigger}>
-          <Button
-            variant="primary"
-            size="md"
-            isDisabled={isPending || environmentUnknown}
-            onPress={() => {
-              setMinted(IDLE_MINT);
-              setDialog("mint");
-            }}
-          >
-            {t("forms.links.mint")}
-          </Button>
-        </div>
+        <HeadingMarker control="links.mint">
+          <div ref={mintTrigger}>
+            <Button
+              variant="primary"
+              size="md"
+              isDisabled={isPending || environmentUnknown}
+              onPress={() => {
+                setMinted(IDLE_MINT);
+                setDialog("mint");
+              }}
+            >
+              {t("forms.links.mint")}
+            </Button>
+          </div>
+        </HeadingMarker>
       ) : (
         <p className="text-sm text-(--color-text-muted)" data-testid="qcms-links-needs-publish">
           {t("forms.links.needsPublish")}

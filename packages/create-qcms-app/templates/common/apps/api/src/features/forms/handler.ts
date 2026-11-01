@@ -64,6 +64,7 @@ import {
 import type { Executor, FormDraftRow, FormVersionRow, QuestionOwnership } from "@roonga/qcms-db";
 
 import { challengeEnforceable } from "../../config.js";
+import { agentStepSite, writeAgentStep } from "../agent/audit.js";
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import { workspaceFilterFor } from "../membership/context.js";
@@ -469,6 +470,7 @@ export function makeCreateFormHandler(deps: Deps): RouteHandler<typeof createFor
       body.workspaceId,
     );
 
+    const site = agentStepSite(c);
     const created = await deps.databases.control.transaction(async (tx) => {
       try {
         await createForm(tx, { formId, slug: body.slug, workspaceId, defaultLocale: locale.value });
@@ -481,6 +483,7 @@ export function makeCreateFormHandler(deps: Deps): RouteHandler<typeof createFor
         throw err;
       }
       await upsertDraft(tx, { formId, definition: emptyDraft });
+      await writeAgentStep(tx, site, formId, deps.clock.now());
       return emptyDraft;
     });
 
@@ -855,12 +858,18 @@ const BENCH_TARGET_STEP_ID = "stp_bench_target" as StepId;
 
 type PreviewReason = "unparseableDraft" | "ruleNotFound" | "noTarget" | "unresolvedAnswers";
 
-interface PreviewVerdict {
+export interface PreviewVerdict {
   readonly ruleId: string;
   readonly references: string[];
   readonly outcome: "match" | "noMatch" | "unavailable";
   readonly reason?: PreviewReason;
   readonly rosters: { groupId: string; instances: string[] }[];
+}
+
+/** A verdict plus the per-instance answer a rule targeting a repeating group carries. */
+export interface PreviewConditionOutcome extends PreviewVerdict {
+  readonly targetGroupId?: string;
+  readonly instanceOutcomes?: { instanceId: string; outcome: "match" | "noMatch" }[];
 }
 
 /**
@@ -1073,15 +1082,34 @@ export function makePreviewConditionHandler(
     const form = await getForm(deps.databases.control, formId);
     if (form === undefined) throw fail.formNotFound();
 
+    return c.json(await previewConditionFlow(deps, formId, body), 200);
+  };
+}
+
+/**
+ * The bench's own forward pass, without the route around it, so the rules screen's test
+ * and the agent's read of it reach the same kernel through the same path.
+ */
+export async function previewConditionFlow(
+  deps: Deps,
+  formId: FormId,
+  body: {
+    readonly definition: unknown;
+    readonly ruleId: string;
+    readonly answers: Readonly<Record<string, unknown>>;
+    readonly instances?: Readonly<Record<string, readonly string[]>> | undefined;
+  },
+): Promise<PreviewConditionOutcome> {
+  {
     // Unlike validate, an unparseable definition is not an error here: the bench is a
     // read-only aid over a draft that is legitimately half-built while the author works.
     const parsed = parseFormDefinition(body.definition);
-    if (!parsed.ok) return c.json(unavailable(body.ruleId, [], "unparseableDraft"), 200);
+    if (!parsed.ok) return unavailable(body.ruleId, [], "unparseableDraft");
     const definition = parsed.value;
     if (definition.formId !== formId) throw fail.idMismatch();
 
     const rule = definition.rules.find((candidate) => candidate.ruleId === body.ruleId);
-    if (rule === undefined) return c.json(unavailable(body.ruleId, [], "ruleNotFound"), 200);
+    if (rule === undefined) return unavailable(body.ruleId, [], "ruleNotFound");
 
     const pins = pinsByQuestion(definition);
     const references = orderedReferences(definition, rule, pins);
@@ -1091,15 +1119,12 @@ export function makePreviewConditionHandler(
 
     const target = benchTarget(definition, rule, pins);
     if (target === undefined) {
-      return c.json(unavailable(rule.ruleId, references, "noTarget", asked.projection), 200);
+      return unavailable(rule.ruleId, references, "noTarget", asked.projection);
     }
 
     const bench = benchForm(definition, rule, target, references, pins, asked.rosters);
     if (bench === undefined) {
-      return c.json(
-        unavailable(rule.ruleId, references, "unresolvedAnswers", asked.projection),
-        200,
-      );
+      return unavailable(rule.ruleId, references, "unresolvedAnswers", asked.projection);
     }
 
     // The bench form's own pin map bridges `ResolveQuestionVersion` to the evaluator's
@@ -1122,19 +1147,13 @@ export function makePreviewConditionHandler(
       "refuse",
     );
     if (answers === undefined) {
-      return c.json(
-        unavailable(rule.ruleId, references, "unresolvedAnswers", asked.projection),
-        200,
-      );
+      return unavailable(rule.ruleId, references, "unresolvedAnswers", asked.projection);
     }
 
     const flow = evaluateRules(bench.definition, answers, resolve, benchRosters.rosters);
     // A typed evaluation failure is the bench declining to answer, not an API error.
     if (!flow.ok) {
-      return c.json(
-        unavailable(rule.ruleId, references, "unresolvedAnswers", asked.projection),
-        200,
-      );
+      return unavailable(rule.ruleId, references, "unresolvedAnswers", asked.projection);
     }
 
     const hits = flow.value.visible.filter((entry) => entry.questionId === target.questionId);
@@ -1150,18 +1169,15 @@ export function makePreviewConditionHandler(
               ? ("match" as const)
               : ("noMatch" as const),
           }));
-    return c.json(
-      {
-        ruleId: rule.ruleId,
-        references: [...references],
-        outcome: hits.length > 0 ? ("match" as const) : ("noMatch" as const),
-        rosters: asked.projection,
-        ...(targetGroupId === undefined ? {} : { targetGroupId: String(targetGroupId) }),
-        ...(instanceOutcomes === undefined ? {} : { instanceOutcomes }),
-      },
-      200,
-    );
-  };
+    return {
+      ruleId: rule.ruleId,
+      references: [...references],
+      outcome: hits.length > 0 ? ("match" as const) : ("noMatch" as const),
+      rosters: asked.projection,
+      ...(targetGroupId === undefined ? {} : { targetGroupId: String(targetGroupId) }),
+      ...(instanceOutcomes === undefined ? {} : { instanceOutcomes }),
+    };
+  }
 }
 
 function rosterRecord(
@@ -1313,11 +1329,20 @@ export function makeUpdateFormSettingsHandler(
     const formId = requireFormId(c.req.valid("param").id);
     const body = c.req.valid("json");
 
-    const updated = await updateFormSettings(deps.databases.control, formId, {
-      ...(body.challengeRequired === undefined
-        ? {}
-        : { challengeRequired: body.challengeRequired }),
-      ...(body.minSubmitMs === undefined ? {} : { minSubmitMs: body.minSubmitMs }),
+    // The patch and the step's row share one transaction, so a patch that finds no form
+    // writes neither.
+    const site = agentStepSite(c);
+    const now = deps.clock.now();
+    const updated = await deps.databases.control.transaction(async (tx) => {
+      const row = await updateFormSettings(tx, formId, {
+        ...(body.challengeRequired === undefined
+          ? {}
+          : { challengeRequired: body.challengeRequired }),
+        ...(body.minSubmitMs === undefined ? {} : { minSubmitMs: body.minSubmitMs }),
+      });
+      if (row === undefined) return undefined;
+      await writeAgentStep(tx, site, String(row.challengeRequired), now);
+      return row;
     });
     if (updated === undefined) throw fail.formNotFound();
 
@@ -1524,6 +1549,7 @@ export function makePublishBatchHandler(
       formId,
       workspaceId: c.get("grantContext")?.workspaceId ?? form.workspaceId,
       principalId: principal.userId,
+      agent: agentStepSite(c),
       idempotencyKey: body.idempotencyKey,
       intentHash,
       expectedWorkflowRevision: body.expectedWorkflowRevision,
@@ -1562,13 +1588,16 @@ async function setIntake(
   const form = await getForm(deps.databases.control, formId);
   if (form === undefined) throw fail.formNotFound();
 
+  const site = agentStepSite(c);
   const row = await deps.databases.control.transaction(async (tx) => {
     const current = await getFormEnvironmentState(tx, formId, environment);
     if (current === undefined) throw fail.notReleasedHere(environment);
     if (current.closed === closed) throw fail.alreadyInState(environment, closed);
-    return closed
+    const written = closed
       ? await closeFormInEnvironment(tx, { formId, environment, closedBy: principal.userId })
       : await reopenFormInEnvironment(tx, { formId, environment, reopenedBy: principal.userId });
+    await writeAgentStep(tx, site, environment, deps.clock.now());
+    return written;
   });
   // Unreachable: the read inside the transaction already refused the only case that
   // produces it.

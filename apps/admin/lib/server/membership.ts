@@ -3,6 +3,8 @@ import { cache } from "react";
 import type {
   AccessGroup,
   AccessGroupList,
+  AgentAuditPage,
+  AgentAuditRow,
   AuditPage,
   AuditRow,
   MyAccess,
@@ -12,9 +14,10 @@ import type {
 } from "../membership/types.ts";
 import type { ShellCapabilities } from "../shell/modes.ts";
 
+import { proposalHeaders, type AgentProposalRef } from "./agent-proposal.ts";
 import { adminApiFetch } from "./api.ts";
 import type { ApiResult } from "./api-result.ts";
-import { readResult } from "./api-result.ts";
+import { readNoContent, readResult } from "./api-result.ts";
 import type { AdminSession } from "./session.ts";
 
 /**
@@ -161,11 +164,13 @@ export async function createAccessGroup(
     readonly forms: readonly string[];
     readonly label?: string;
   },
+  proposal?: AgentProposalRef,
 ): Promise<ApiResult<AccessGroup>> {
   const result = await readResult<{ group?: unknown }>(
     await adminApiFetch(session, `/workspaces/${encodeURIComponent(workspaceId)}/access-groups`, {
       method: "POST",
       body,
+      headers: proposalHeaders(proposal),
     }),
   );
   if (!result.ok) return result;
@@ -183,12 +188,13 @@ export async function deleteAccessGroup(
   session: AdminSession,
   workspaceId: string,
   teamId: string,
+  proposal?: AgentProposalRef,
 ): Promise<ApiResult<null>> {
-  return readResult<null>(
+  return readNoContent(
     await adminApiFetch(
       session,
       `/workspaces/${encodeURIComponent(workspaceId)}/access-groups/${encodeURIComponent(teamId)}`,
-      { method: "DELETE" },
+      { method: "DELETE", headers: proposalHeaders(proposal) },
     ),
   );
 }
@@ -199,12 +205,13 @@ export async function addHolder(
   workspaceId: string,
   teamId: string,
   email: string,
+  proposal?: AgentProposalRef,
 ): Promise<ApiResult<AccessGroup>> {
   const result = await readResult<{ group?: unknown }>(
     await adminApiFetch(
       session,
       `/workspaces/${encodeURIComponent(workspaceId)}/access-groups/${encodeURIComponent(teamId)}/holders`,
-      { method: "POST", body: { email } },
+      { method: "POST", body: { email }, headers: proposalHeaders(proposal) },
     ),
   );
   if (!result.ok) return result;
@@ -223,12 +230,13 @@ export async function removeHolder(
   workspaceId: string,
   teamId: string,
   userId: string,
+  proposal?: AgentProposalRef,
 ): Promise<ApiResult<null>> {
-  return readResult<null>(
+  return readNoContent(
     await adminApiFetch(
       session,
       `/workspaces/${encodeURIComponent(workspaceId)}/access-groups/${encodeURIComponent(teamId)}/holders/${encodeURIComponent(userId)}`,
-      { method: "DELETE" },
+      { method: "DELETE", headers: proposalHeaders(proposal) },
     ),
   );
 }
@@ -239,12 +247,13 @@ export async function setMemberRole(
   workspaceId: string,
   userId: string,
   role: "forms.owner" | "member",
+  proposal?: AgentProposalRef,
 ): Promise<ApiResult<{ readonly userId: string; readonly role: string }>> {
   const result = await readResult<{ userId?: unknown; role?: unknown }>(
     await adminApiFetch(
       session,
       `/workspaces/${encodeURIComponent(workspaceId)}/members/${encodeURIComponent(userId)}`,
-      { method: "PUT", body: { role } },
+      { method: "PUT", body: { role }, headers: proposalHeaders(proposal) },
     ),
   );
   if (!result.ok) return result;
@@ -259,6 +268,7 @@ export async function setWorkspaceSettings(
     readonly requireSecondApprover?: boolean;
     readonly seedNewEditorsWithTestData?: boolean;
   },
+  proposal?: AgentProposalRef,
 ): Promise<ApiResult<WorkspaceSettings>> {
   const result = await readResult<{
     workspaceId?: unknown;
@@ -268,6 +278,7 @@ export async function setWorkspaceSettings(
     await adminApiFetch(session, `/workspaces/${encodeURIComponent(workspaceId)}/settings`, {
       method: "PUT",
       body,
+      headers: proposalHeaders(proposal),
     }),
   );
   if (!result.ok) return result;
@@ -306,6 +317,51 @@ export async function readAudit(
     formId: strOrNull(row["formId"]),
     kind: str(row["kind"]),
     occurredAt: str(row["occurredAt"]),
+    detail: strOrNull(row["detail"]),
+  }));
+  return {
+    ok: true,
+    data: {
+      workspaceId,
+      rows: parsed,
+      page: num(result.data.page),
+      pageSize: num(result.data.pageSize),
+      total: num(result.data.total),
+    },
+  };
+}
+
+/** `GET /admin/workspaces/{id}/agent-actions` - the SEC-17 rows, newest first. */
+export async function readAgentAudit(
+  session: AdminSession,
+  workspaceId: string,
+  options: { readonly kind?: string; readonly page?: number } = {},
+): Promise<ApiResult<AgentAuditPage>> {
+  const query = new URLSearchParams();
+  if (options.kind !== undefined) query.set("kind", options.kind);
+  if (options.page !== undefined) query.set("page", String(options.page));
+  const suffix = query.size === 0 ? "" : `?${query.toString()}`;
+  const path: `/${string}` = `/workspaces/${encodeURIComponent(workspaceId)}/agent-actions${suffix}`;
+  const result = await readResult<{
+    rows?: unknown;
+    page?: unknown;
+    pageSize?: unknown;
+    total?: unknown;
+  }>(await adminApiFetch(session, path));
+  if (!result.ok) return result;
+  const parsed: readonly AgentAuditRow[] = rows(result.data.rows).map((row) => ({
+    id: str(row["id"]),
+    proposalId: str(row["proposalId"]),
+    stepIndex: num(row["stepIndex"]),
+    stepCount: num(row["stepCount"]),
+    actor: str(row["actor"]),
+    actorEmail: strOrNull(row["actorEmail"]),
+    environment: strOrNull(row["environment"]),
+    formId: strOrNull(row["formId"]),
+    kind: str(row["kind"]),
+    screen: str(row["screen"]),
+    proposedAt: str(row["proposedAt"]),
+    confirmedAt: str(row["confirmedAt"]),
     detail: strOrNull(row["detail"]),
   }));
   return {

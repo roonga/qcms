@@ -5,6 +5,7 @@ import {
 } from "@roonga/qcms-db/testing";
 import {
   ACCESS_AUDIT_TABLE,
+  AGENT_ACTIONS_TABLE,
   CONTROL_FORBIDDEN_TABLES,
   CONTROL_READ_TABLES,
   DATA_PLANE_TABLE_NAMES,
@@ -46,6 +47,9 @@ const QCMS_SCHEMAS = [
   "reporting_prod",
 ] as const;
 const DML = ["SELECT", "INSERT", "UPDATE", "DELETE"] as const;
+
+/** SEC-15's audit and SEC-17's, which carry one grant set between them. */
+const AUDIT_TABLES: readonly string[] = [ACCESS_AUDIT_TABLE, AGENT_ACTIONS_TABLE];
 
 /** Not `/tmp`: the `postgres` user's own directory in a container this test alone owns. */
 const DUMP_PATH = "/var/lib/postgresql/qcms-restore-regrant.sql";
@@ -381,12 +385,14 @@ describe("after the restore and the re-grant", () => {
 });
 
 describe("the projections of that map, named so a failure says which claim broke", () => {
-  it("gives the control role DML on `control` with the two audits carved out", async () => {
+  it("gives the control role DML on `control` with the audits carved out", async () => {
     const held = await tablePrivileges("control", CONTROL_ROLE);
     expect(held["two_factor_resets"]).toBeUndefined();
-    expect([...(held[ACCESS_AUDIT_TABLE] ?? [])].sort()).toEqual(["INSERT", "SELECT"]);
+    for (const audit of AUDIT_TABLES) {
+      expect([...(held[audit] ?? [])].sort(), audit).toEqual(["INSERT", "SELECT"]);
+    }
     for (const [table, privileges] of Object.entries(held)) {
-      if (table === ACCESS_AUDIT_TABLE) continue;
+      if (AUDIT_TABLES.includes(table)) continue;
       expect([...privileges].sort(), `control.${table}`).toEqual([...DML].sort());
     }
     expect(Object.keys(held).length).toBeGreaterThan(10);
@@ -461,16 +467,18 @@ describe("the projections of that map, named so a failure says which claim broke
   });
 
   it.each(ENVIRONMENTS)(
-    "gives qcms_app_%s exactly the six-table read list, one UPDATE and one INSERT",
+    "gives qcms_app_%s exactly the six-table read list, one UPDATE and the audits' INSERT",
     async (environment) => {
       const held = await tablePrivileges("control", ENVIRONMENT_ROLES[environment]);
       expect(CONTROL_READ_TABLES).toHaveLength(6);
-      expect(Object.keys(held).sort()).toEqual([...CONTROL_READ_TABLES, ACCESS_AUDIT_TABLE].sort());
+      expect(Object.keys(held).sort()).toEqual([...CONTROL_READ_TABLES, ...AUDIT_TABLES].sort());
       for (const table of CONTROL_READ_TABLES) {
         const expected = table === "secure_links" ? ["SELECT", "UPDATE"] : ["SELECT"];
         expect([...(held[table] ?? [])].sort(), `control.${table}`).toEqual(expected);
       }
-      expect([...(held[ACCESS_AUDIT_TABLE] ?? [])]).toEqual(["INSERT"]);
+      for (const audit of AUDIT_TABLES) {
+        expect([...(held[audit] ?? [])], audit).toEqual(["INSERT"]);
+      }
     },
   );
 
@@ -514,14 +522,16 @@ describe("the projections of that map, named so a failure says which claim broke
   );
 
   it.each([CONTROL_ROLE, ...Object.values(ENVIRONMENT_ROLES), UNSHIPPED_ROLE])(
-    "leaves %s no UPDATE and no DELETE on control.access_audit",
+    "leaves %s no UPDATE and no DELETE on either audit, the restore re-grant included",
     async (role) => {
-      for (const privilege of ["UPDATE", "DELETE"]) {
-        const res = await owner.query<{ has: boolean }>(
-          `select has_table_privilege($1, 'control.access_audit', $2) as has`,
-          [role, privilege],
-        );
-        expect(res.rows[0]?.has, `${role} must not hold ${privilege}`).toBe(false);
+      for (const audit of AUDIT_TABLES) {
+        for (const privilege of ["UPDATE", "DELETE"]) {
+          const res = await owner.query<{ has: boolean }>(
+            `select has_table_privilege($1, $2, $3) as has`,
+            [role, `control."${audit}"`, privilege],
+          );
+          expect(res.rows[0]?.has, `${role} must not hold ${privilege} on ${audit}`).toBe(false);
+        }
       }
     },
   );

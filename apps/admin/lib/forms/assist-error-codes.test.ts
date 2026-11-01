@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { messageForError, type AssistPanelErrorKind } from "@/components/forms/assist-panel";
+import { messageForError, type AssistErrorKind } from "@/lib/forms/assist-errors";
 import { ASSIST_ERROR_CODES } from "@/lib/forms/assist-stream";
 
 /**
@@ -83,12 +83,12 @@ describe("every assist error code renders copy", () => {
     expect(exhausted.toLowerCase()).toContain("step");
   });
 
-  it("still renders the panel-only kinds the API never sends", () => {
+  it("still renders the client-only kinds the API never sends", () => {
     // TOOL_REJECTED, RATE_LIMITED, STALE_DRAFT and HTTP are this app's own
     // states, derived from an event type or an HTTP status rather than from an
     // error code. They are excluded from the mirror above on purpose, so they
     // need their own check that the resolver handles them.
-    const panelOnly: readonly AssistPanelErrorKind[] = [
+    const panelOnly: readonly AssistErrorKind[] = [
       "TOOL_REJECTED",
       "RATE_LIMITED",
       "STALE_DRAFT",

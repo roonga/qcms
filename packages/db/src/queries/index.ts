@@ -125,6 +125,14 @@ export {
 } from "./access-audit.js";
 
 export {
+  type AgentActionEntry,
+  type AgentActionRow,
+  listAgentActions,
+  listProposalSteps,
+  writeAgentActionRow,
+} from "./agent-actions.js";
+
+export {
   type EndpointProposalRow,
   confirmEndpointProposal,
   getEndpointProposal,

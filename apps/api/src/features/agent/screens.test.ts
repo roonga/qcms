@@ -3,7 +3,15 @@ import { z } from "zod";
 
 import { REDACT_FRAGMENTS } from "@roonga/qcms-observability";
 
-import { SCREEN_IDS, SCREENS, isFormSubtreeScreen, isScreenId, type ScreenId } from "./screens.js";
+import { ACTION_KIND_NAMES, actionKind } from "./actions/registry.js";
+import {
+  SCREEN_IDS,
+  SCREENS,
+  isFormSubtreeScreen,
+  isScreenId,
+  offerableActionKinds,
+  type ScreenId,
+} from "./screens.js";
 import {
   AGENT_TOOL_NAMES,
   TOOLS,
@@ -78,8 +86,35 @@ describe("the screen registry", () => {
     expect(isScreenId("/sign-in")).toBe(false);
   });
 
-  it("offers no action kind anywhere: proposing actions arrives with its own task", () => {
-    for (const id of SCREEN_IDS) expect(SCREENS[id].actionKinds).toEqual([]);
+  it("declares only registered action kinds, each mirroring a control on a screen that offers it", () => {
+    for (const id of SCREEN_IDS) {
+      for (const kind of SCREENS[id].actionKinds) {
+        expect(ACTION_KIND_NAMES).toContain(kind);
+        // The descriptor names one screen, where its marker shows and what its audit row
+        // records. A kind offered on a second screen still mirrors that one control.
+        const mirror = actionKind(kind)?.screen;
+        expect(mirror, kind).toBeDefined();
+        expect(SCREENS[mirror as ScreenId].actionKinds, kind).toContain(kind);
+      }
+    }
+  });
+
+  it("offers the form create from the library and from the creating screen, mirroring the library's control", () => {
+    expect(SCREENS["/forms"].actionKinds).toEqual(["form.create"]);
+    expect(SCREENS["/forms/new"].actionKinds).toEqual(["form.create"]);
+    expect(actionKind("form.create")?.screen).toBe("/forms");
+  });
+
+  it("carries each screen's own kinds on the builder, the releases screen and the links screen", () => {
+    expect(SCREENS["/forms/[formId]"].actionKinds).toEqual([
+      "apply-draft",
+      "form.publish",
+      "form.settings",
+      "form.close",
+      "form.reopen",
+    ]);
+    expect(SCREENS["/forms/[formId]/publish"].actionKinds).toEqual(["form.release"]);
+    expect(SCREENS["/forms/[formId]/links"].actionKinds).toEqual(["link.mint", "link.revoke"]);
   });
 
   it("declares only registered tools, and declares them only where their port exists", () => {
@@ -112,6 +147,38 @@ describe("the screen registry", () => {
       "/forms/[formId]/responses/[sessionId]",
     ]);
     expect(isFormSubtreeScreen("/forms")).toBe(false);
+  });
+
+  it("offers the whole form subtree's kinds on every form-scoped screen", () => {
+    const subtree = [
+      "apply-draft",
+      "form.publish",
+      "form.settings",
+      "form.close",
+      "form.reopen",
+      "form.release",
+      "link.mint",
+      "link.revoke",
+      "webhook.create",
+      "webhook.rotate",
+      "webhook.retarget",
+      "webhook.reactivate",
+      "webhook.deactivate",
+      "webhook.redeliver",
+      "response.export",
+      "response.erase",
+      "response.unflag",
+    ];
+    for (const id of SCREEN_IDS.filter(isFormSubtreeScreen)) {
+      expect(offerableActionKinds(id), id).toEqual(subtree);
+    }
+  });
+
+  it("keeps a screen outside a form subtree on its own kinds", () => {
+    for (const id of SCREEN_IDS.filter((candidate) => !isFormSubtreeScreen(candidate))) {
+      expect(offerableActionKinds(id), id).toEqual(SCREENS[id].actionKinds);
+    }
+    expect(offerableActionKinds("/operations")).toEqual([]);
   });
 });
 

@@ -7,8 +7,11 @@ import { builderTurnContext, recordingLogger, validEnv } from "../../../test-sup
 import { loadConfig } from "../../../config.js";
 import { aiSdkDraftAssistant, selectDraftAssistant } from "../assistant.js";
 import { fakeAssistantModel } from "../fake-model.js";
+import { SCREENS } from "../screens.js";
 import { collectRefs } from "./tool-schema.js";
 import {
+  AGENT_PROPOSE_TOOL_NAMES,
+  AGENT_READ_TOOL_NAMES,
   AGENT_TOOL_NAMES,
   agentToolJsonSchemas,
   agentToolSet,
@@ -53,23 +56,49 @@ function contextFixture(message: string): AssistContext {
 }
 
 describe("the agent tool registry", () => {
-  it("is the four authoring verbs and the preview projection, and nothing else", () => {
+  it("is the authoring verbs, the screens' read tools and the two propose tools", () => {
     expect([...AGENT_TOOL_NAMES].sort()).toEqual([
+      "count_dead_letters",
+      "count_links",
+      "count_responses",
+      "delivery_status",
+      "diff_form_versions",
+      "diff_question_versions",
+      "list_responses",
       "project_draft",
+      "propose_action",
       "propose_draft",
+      "propose_plan",
       "propose_questions",
+      "search_forms",
       "search_question_library",
+      "test_rule",
       "validate_draft",
     ]);
+  });
+
+  it("splits the propose tools from the read tools, and names no screen's read list", () => {
+    expect([...AGENT_PROPOSE_TOOL_NAMES].sort()).toEqual(["propose_action", "propose_plan"]);
+    expect([...AGENT_READ_TOOL_NAMES, ...AGENT_PROPOSE_TOOL_NAMES].sort()).toEqual(
+      [...AGENT_TOOL_NAMES].sort(),
+    );
+    for (const screen of Object.values(SCREENS)) {
+      for (const name of screen.readTools) {
+        expect(AGENT_READ_TOOL_NAMES).toContain(name);
+      }
+    }
   });
 
   it("offers the provider the current screen's list and nothing else", () => {
     const offered = Object.keys(
       agentToolSet(builderTurnContext(contextFixture("hi")), createProposalState()),
     );
-    // The builder's four: `project_draft` is registered and belongs to another screen.
+    // The builder's four draft verbs and the two propose tools a writer is offered there;
+    // `project_draft` is registered and belongs to another screen.
     expect([...offered].sort()).toEqual([
+      "propose_action",
       "propose_draft",
+      "propose_plan",
       "propose_questions",
       "search_question_library",
       "validate_draft",
@@ -152,7 +181,7 @@ describe("a scripted rogue model", () => {
     expect(logged).toContain("draft assistant tool call rejected");
     expect(logged).toContain(tool);
 
-    expect(events.filter((e) => e.type === "proposal")).toHaveLength(0);
+    expect(events.filter((e) => e.type === "action")).toHaveLength(0);
   });
 });
 

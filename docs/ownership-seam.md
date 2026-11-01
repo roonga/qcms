@@ -93,13 +93,13 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (524 files common to both shapes)
+### Scaffolded paths (555 files common to both shapes)
 
 | Path                                                                 | Files |
 | -------------------------------------------------------------------- | ----- |
 | `(project root)`                                                     | 8     |
-| `apps/`                                                              | 513   |
-| `apps/admin/`                                                        | 321   |
+| `apps/`                                                              | 544   |
+| `apps/admin/`                                                        | 333   |
 | `apps/admin/app/`                                                    | 83    |
 | `apps/admin/app/(shell)/`                                            | 64    |
 | `apps/admin/app/(shell)/@rail/`                                      | 26    |
@@ -171,29 +171,30 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/two-factor/recovery-codes/`                          | 2     |
 | `apps/admin/app/two-factor/recovery-codes/confirm/`                  | 1     |
 | `apps/admin/app/two-factor/recovery/verify/`                         | 1     |
-| `apps/admin/components/`                                             | 116   |
-| `apps/admin/components/agent/`                                       | 3     |
-| `apps/admin/components/forms/`                                       | 43    |
-| `apps/admin/components/membership/`                                  | 7     |
+| `apps/admin/components/`                                             | 121   |
+| `apps/admin/components/agent/`                                       | 8     |
+| `apps/admin/components/forms/`                                       | 42    |
+| `apps/admin/components/membership/`                                  | 8     |
 | `apps/admin/components/ops/`                                         | 12    |
 | `apps/admin/components/questions/`                                   | 15    |
 | `apps/admin/components/shell/`                                       | 4     |
 | `apps/admin/components/test-support/`                                | 3     |
-| `apps/admin/lib/`                                                    | 115   |
-| `apps/admin/lib/agent/`                                              | 7     |
-| `apps/admin/lib/forms/`                                              | 30    |
+| `apps/admin/lib/`                                                    | 122   |
+| `apps/admin/lib/agent/`                                              | 12    |
+| `apps/admin/lib/forms/`                                              | 31    |
 | `apps/admin/lib/i18n/`                                               | 2     |
 | `apps/admin/lib/membership/`                                         | 2     |
 | `apps/admin/lib/ops/`                                                | 12    |
 | `apps/admin/lib/questions/`                                          | 9     |
-| `apps/admin/lib/server/`                                             | 30    |
+| `apps/admin/lib/server/`                                             | 31    |
 | `apps/admin/lib/shell/`                                              | 2     |
-| `apps/api/`                                                          | 118   |
-| `apps/api/src/`                                                      | 115   |
-| `apps/api/src/features/`                                             | 83    |
-| `apps/api/src/features/agent/`                                       | 15    |
-| `apps/api/src/features/agent/contexts/`                              | 4     |
-| `apps/api/src/features/agent/tools/`                                 | 2     |
+| `apps/api/`                                                          | 137   |
+| `apps/api/src/`                                                      | 134   |
+| `apps/api/src/features/`                                             | 102   |
+| `apps/api/src/features/agent/`                                       | 34    |
+| `apps/api/src/features/agent/actions/`                               | 10    |
+| `apps/api/src/features/agent/contexts/`                              | 5     |
+| `apps/api/src/features/agent/tools/`                                 | 5     |
 | `apps/api/src/features/auth/`                                        | 5     |
 | `apps/api/src/features/forms/`                                       | 3     |
 | `apps/api/src/features/links/`                                       | 3     |
@@ -255,7 +256,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 ### QCMS-internal references in the scaffolded source
 
-`1742` lines across `361` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
+`1779` lines across `379` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
 
 These are comments, and they stay (issue #457, tier 3). They are the engineering
 rationale for code you now own, which is worth more to you than a tidy file, and
@@ -270,7 +271,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (524)</summary>
+<summary>Every scaffolded file (555)</summary>
 
 ```
 .dockerignore
@@ -363,9 +364,14 @@ apps/admin/app/two-factor/recovery/page.tsx
 apps/admin/app/two-factor/recovery/verify/route.ts
 apps/admin/components/account-menu.tsx
 apps/admin/components/admin-nav.tsx
+apps/admin/components/agent/action-card.tsx
+apps/admin/components/agent/apply-draft-detail.tsx
 apps/admin/components/agent/assistant-button.tsx
 apps/admin/components/agent/assistant-conversation.tsx
 apps/admin/components/agent/assistant-dock.tsx
+apps/admin/components/agent/heading-marker.tsx
+apps/admin/components/agent/proposal-marker.tsx
+apps/admin/components/agent/step-actions.ts
 apps/admin/components/announcer.tsx
 apps/admin/components/appearance-glyph.tsx
 apps/admin/components/auth-screen.tsx
@@ -378,7 +384,6 @@ apps/admin/components/forms/agent-provenance-tag.tsx
 apps/admin/components/forms/assist-icon-button.tsx
 apps/admin/components/forms/assist-mark.tsx
 apps/admin/components/forms/assist-markdown.tsx
-apps/admin/components/forms/assist-panel.tsx
 apps/admin/components/forms/assist-tip.tsx
 apps/admin/components/forms/condition-editor.tsx
 apps/admin/components/forms/condition-json-pane.tsx
@@ -422,6 +427,7 @@ apps/admin/components/kit.tsx
 apps/admin/components/locale-context.tsx
 apps/admin/components/measured-main.tsx
 apps/admin/components/membership/access-groups-panel.tsx
+apps/admin/components/membership/agent-audit-panel.tsx
 apps/admin/components/membership/audit-panel.tsx
 apps/admin/components/membership/members-panel.tsx
 apps/admin/components/membership/my-access-panel.tsx
@@ -479,12 +485,17 @@ apps/admin/components/theme-toggle.tsx
 apps/admin/components/topbar-height.tsx
 apps/admin/instrumentation.ts
 apps/admin/lib/agent/builder-assist-bridge.ts
+apps/admin/lib/agent/card-copy.ts
 apps/admin/lib/agent/context-chip.ts
 apps/admin/lib/agent/conversation.tsx
 apps/admin/lib/agent/panel-context.ts
 apps/admin/lib/agent/panel.ts
+apps/admin/lib/agent/plan-state.ts
+apps/admin/lib/agent/proposal-window.ts
+apps/admin/lib/agent/runner.ts
 apps/admin/lib/agent/screen-filters.ts
 apps/admin/lib/agent/screens.ts
+apps/admin/lib/agent/waiting.tsx
 apps/admin/lib/announce.ts
 apps/admin/lib/appearance.ts
 apps/admin/lib/auth-failure-message.ts
@@ -493,6 +504,7 @@ apps/admin/lib/entity-id.ts
 apps/admin/lib/environment.ts
 apps/admin/lib/forms/add-step-request.ts
 apps/admin/lib/forms/assist-diff.ts
+apps/admin/lib/forms/assist-errors.ts
 apps/admin/lib/forms/assist-markdown.ts
 apps/admin/lib/forms/assist-stream.ts
 apps/admin/lib/forms/assist-turn.ts
@@ -556,6 +568,7 @@ apps/admin/lib/questions/types.ts
 apps/admin/lib/questions/version-rail.ts
 apps/admin/lib/read-state.ts
 apps/admin/lib/recovery-copy.ts
+apps/admin/lib/server/agent-proposal.ts
 apps/admin/lib/server/agent.ts
 apps/admin/lib/server/api-result.ts
 apps/admin/lib/server/api.ts
@@ -607,18 +620,37 @@ apps/api/src/create-admin.ts
 apps/api/src/deps.ts
 apps/api/src/environments.ts
 apps/api/src/errors.ts
+apps/api/src/features/agent/actions/forms-library.ts
+apps/api/src/features/agent/actions/forms.ts
+apps/api/src/features/agent/actions/links.ts
+apps/api/src/features/agent/actions/membership.ts
+apps/api/src/features/agent/actions/questions.ts
+apps/api/src/features/agent/actions/registry.ts
+apps/api/src/features/agent/actions/releases.ts
+apps/api/src/features/agent/actions/responses.ts
+apps/api/src/features/agent/actions/types.ts
+apps/api/src/features/agent/actions/webhooks.ts
 apps/api/src/features/agent/assistant.ts
+apps/api/src/features/agent/audit.ts
 apps/api/src/features/agent/contexts/administration.ts
 apps/api/src/features/agent/contexts/authoring.ts
 apps/api/src/features/agent/contexts/operations.ts
+apps/api/src/features/agent/contexts/reads.ts
 apps/api/src/features/agent/contexts/support.ts
 apps/api/src/features/agent/fake-model.ts
+apps/api/src/features/agent/grant-filter.ts
 apps/api/src/features/agent/handler.ts
+apps/api/src/features/agent/proposal-token.ts
+apps/api/src/features/agent/provenance-mount.ts
+apps/api/src/features/agent/provenance.ts
 apps/api/src/features/agent/route.ts
 apps/api/src/features/agent/schema.ts
 apps/api/src/features/agent/screens.ts
 apps/api/src/features/agent/system-prompt.ts
 apps/api/src/features/agent/thinking.ts
+apps/api/src/features/agent/tools/args-schema.ts
+apps/api/src/features/agent/tools/propose-schema.ts
+apps/api/src/features/agent/tools/propose.ts
 apps/api/src/features/agent/tools/registry.ts
 apps/api/src/features/agent/tools/tool-schema.ts
 apps/api/src/features/agent/types.ts

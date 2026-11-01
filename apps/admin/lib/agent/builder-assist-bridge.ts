@@ -68,3 +68,11 @@ export function usePublishBuilderAssist(next: BuilderAssistSnapshot | undefined)
 export function useBuilderAssist(): BuilderAssistSnapshot | undefined {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }
+
+/**
+ * The same snapshot outside React, for the card's step runner: a step runs from a plain
+ * function, and this module is what the two client trees genuinely share.
+ */
+export function builderAssistSnapshot(): BuilderAssistSnapshot | undefined {
+  return snapshot;
+}

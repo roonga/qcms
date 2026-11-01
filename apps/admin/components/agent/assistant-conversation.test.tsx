@@ -5,6 +5,7 @@ import type { BuilderAssistSnapshot } from "@/lib/agent/builder-assist-bridge";
 import type { ConversationHandle } from "@/lib/agent/conversation";
 import type { DraftForm } from "@/lib/forms/types";
 import type { ResolvedScreen } from "@/lib/agent/screens";
+import { t } from "@/lib/i18n/en";
 
 import { AssistantConversation } from "./assistant-conversation";
 
@@ -56,34 +57,142 @@ afterEach(() => {
 });
 
 /**
+ * One conversation for every screen, and the route a turn takes.
+ *
  * The builder's own route requires `form: write`, so a caller holding only `form: read`
- * has to take the screen route to get a turn at all. The capability arrives with the
+ * has to take the screen route to get a turn at all, and a writer takes the per-form route
+ * so the turn carries the stored draft's `updatedAt`. The capability arrives with the
  * published snapshot; nothing here reads the network to find it out.
  */
-describe("the hosted panel for a caller who may not write the draft", () => {
-  it("draws the screen conversation rather than the proposal panel", () => {
-    mount(false);
-    expect(screen.getByTestId("qcms-assistant-composer")).toBeTruthy();
-    expect(screen.queryByTestId("qcms-assist-panel")).toBeNull();
-  });
-
-  it("posts the turn to the screen route", async () => {
+describe("the assistant conversation's route", () => {
+  function sent(): ReturnType<typeof vi.fn> {
     const fetchMock = vi.fn<(input: unknown, init?: unknown) => Promise<Response>>(() =>
       Promise.resolve(new Response(null, { status: 500 })),
     );
     vi.stubGlobal("fetch", fetchMock);
-    mount(false);
+    return fetchMock;
+  }
+
+  async function send(fetchMock: ReturnType<typeof vi.fn>): Promise<void> {
     const composer = screen.getByTestId("qcms-assistant-composer");
     fireEvent.change(composer, { target: { value: "what can you see" } });
     fireEvent.keyDown(composer, { key: "Enter" });
     await vi.waitFor(() => {
       expect(fetchMock).toHaveBeenCalled();
     });
+  }
+
+  it("draws one conversation whether or not this caller may write the draft", () => {
+    mount(false);
+    expect(screen.getByTestId("qcms-assistant-composer")).toBeTruthy();
+  });
+
+  it("posts a reader's turn to the screen route", async () => {
+    const fetchMock = sent();
+    mount(false);
+    await send(fetchMock);
     expect(fetchMock.mock.calls[0]?.[0]).toBe("/assist");
   });
 
-  it("draws the proposal panel for a caller who may write", () => {
+  it("posts a writer's turn to the form's own route, carrying the stored draft", async () => {
+    const fetchMock = sent();
+    render(
+      <AssistantConversation
+        screen={SCREEN}
+        conversation={CONVERSATION}
+        builder={{ ...snapshot(true), draftUpdatedAt: "2026-11-01T09:00:00.000Z" }}
+        composerRef={{ current: null }}
+        onWorkingChange={() => undefined}
+        onAnnounce={() => undefined}
+      />,
+    );
+    await send(fetchMock);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/forms/frm_quote/assist");
+    const init = fetchMock.mock.calls[0]?.[1] as { body: string };
+    expect(JSON.parse(init.body)).toMatchObject({ clientState: "2026-11-01T09:00:00.000Z" });
+  });
+
+  it("names a stale draft when the route refuses the turn with a conflict", async () => {
+    const fetchMock = vi.fn<(input: unknown, init?: unknown) => Promise<Response>>(() =>
+      Promise.resolve(new Response(null, { status: 409 })),
+    );
+    vi.stubGlobal("fetch", fetchMock);
     mount(true);
-    expect(screen.getByTestId("qcms-assist-panel")).toBeTruthy();
+    await send(fetchMock);
+    await vi.waitFor(() => {
+      expect(screen.getByTestId("qcms-assistant-error").textContent).toBe(
+        t("forms.assist.error.STALE_DRAFT"),
+      );
+    });
+  });
+});
+
+/**
+ * The card's waiting window. The browser's clock here is years away from the instant the
+ * proposal says it was issued at, which is the skew a card has to survive: it arrives
+ * Confirmable and the window is counted from its arrival instead.
+ */
+describe("a card's waiting window", () => {
+  const ISSUED_AT = "2026-07-20T00:00:00.000Z";
+
+  function proposal(windowMs: number) {
+    return {
+      proposalId: "prp_window",
+      token: "tok",
+      steps: [
+        {
+          kind: "form.publish",
+          screen: "/forms/[formId]",
+          args: { formId: "frm_quote" },
+          environment: "test",
+          card: {
+            titleKey: "agent.card.form.publish.title",
+            consequenceKeys: ["agent.card.form.publish.consequence"],
+          },
+          resultAllowlist: ["version"],
+        },
+      ],
+      proposedAt: ISSUED_AT,
+      expiresAt: new Date(Date.parse(ISSUED_AT) + windowMs).toISOString(),
+      formId: "frm_quote",
+      currentEnvironment: "test",
+    };
+  }
+
+  async function proposed(windowMs: number): Promise<void> {
+    const event = { type: "action", proposal: proposal(windowMs) };
+    const body = `event: action\ndata: ${JSON.stringify(event)}\n\n`;
+    const fetchMock = vi.fn<(input: unknown, init?: unknown) => Promise<Response>>(() =>
+      Promise.resolve(
+        new Response(body, { status: 200, headers: { "content-type": "text/event-stream" } }),
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    mount(true);
+    const composer = screen.getByTestId("qcms-assistant-composer");
+    fireEvent.change(composer, { target: { value: "publish the draft" } });
+    fireEvent.keyDown(composer, { key: "Enter" });
+    await vi.waitFor(() => {
+      expect(screen.getByRole("button", { name: t("agent.card.confirm") })).toBeTruthy();
+    });
+  }
+
+  it("arrives Confirmable although the issuing clock is years from this one", async () => {
+    await proposed(10 * 60 * 1000);
+    expect(
+      screen.getByRole("button", { name: t("agent.card.confirm") }).hasAttribute("disabled"),
+    ).toBe(false);
+    expect(screen.queryByText(t("agent.card.expiredAsk"))).toBeNull();
+  });
+
+  it("ticks a waiting card to Expired once its window runs out", async () => {
+    await proposed(100);
+
+    await vi.waitFor(() => {
+      expect(screen.getByText(t("agent.card.expiredAsk"))).toBeTruthy();
+    });
+    expect(
+      screen.getByRole("button", { name: t("agent.card.confirm") }).hasAttribute("disabled"),
+    ).toBe(true);
   });
 });

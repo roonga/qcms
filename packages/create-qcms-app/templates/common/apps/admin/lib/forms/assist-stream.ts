@@ -13,8 +13,9 @@ import { parseIssues } from "./issues.ts";
  * because a proposal's `issues` are literally the same `PublishIssue[]` shape the
  * builder's own validation panel already renders.
  *
- * `proposedDraft` and `newQuestions` stay `unknown` here on purpose: turning them into
- * something the panel can diff is `lib/forms/assist-diff.ts`'s job, not this parser's.
+ * A proposed draft and the questions it invents stay `unknown` here on purpose: turning
+ * them into something the card can diff is `lib/forms/assist-diff.ts`'s job, not this
+ * parser's.
  */
 
 export interface AssistTurn {
@@ -22,23 +23,72 @@ export interface AssistTurn {
   readonly content: string;
 }
 
-export interface AssistProposal {
+/**
+ * The draft the one `apply-draft` step carries, which is what the card diffs and shows
+ * the two advisory lists for. Both lists are the server's own validation of this draft,
+ * so a card can never claim more about it than the server said.
+ */
+export interface AgentDraftProposal {
   /** The kernel's `FormDefinition`, as JSON. Parsed by `assist-diff.ts`, not here. */
-  readonly proposedDraft: unknown;
-  /** The kernel's `QuestionDefinition[]` for any questions the proposal introduces. */
+  readonly definition: unknown;
+  /** The kernel's `QuestionDefinition[]` for any questions the draft introduces. */
   readonly newQuestions: readonly unknown[];
-  readonly rationale: string;
   /** What would block a publish. */
   readonly issues: readonly FormIssue[];
-  /**
-   * What would not block a publish but may not behave as written (issue #123).
-   *
-   * Carried because the panel must show the same two lists the builder shows for
-   * the same draft: a proposal card that said "validation passes" over a draft
-   * the validation panel flags one Accept later would be claiming more than the
-   * server told it.
-   */
+  /** What would not block a publish but may not behave as written (issue #123). */
   readonly warnings: readonly FormIssue[];
+}
+
+/**
+ * One step of a proposed action or plan, as the `action` and `plan` events carry it.
+ * `args` stays an opaque map: the card renders each argument from the kind and
+ * the catalog, and an argument may be a `{ fromStep, field }` reference the card resolves
+ * from the earlier step's own returned state.
+ */
+export interface AgentCardTemplate {
+  readonly titleKey: string;
+  readonly consequenceKeys: readonly string[];
+  /** The heading-row control the proposal marker sits on, or absent for none. */
+  readonly headingControl?: string;
+  /** The argument the user retypes on the card, for a step whose dialog asks for one. */
+  readonly typedConfirmation?: string;
+  /** For a create kind: the page route the card links the new item at, and the result
+   * field that fills the route's own id. */
+  readonly createdLink?: AgentCreatedLink;
+}
+
+export interface AgentCreatedLink {
+  readonly screen: string;
+  readonly field: string;
+}
+
+export interface AgentPlanStep {
+  readonly kind: string;
+  /** The screen whose own server action Confirm calls for this step. */
+  readonly screen: string;
+  readonly args: Readonly<Record<string, unknown>>;
+  readonly environment: string;
+  /** A step whose arguments include a secret the user types on the screen itself. */
+  readonly handOff: boolean;
+  /** A step the screen's own save completes, which carries no token. */
+  readonly local: boolean;
+  /** Present on the one step that applies the draft this turn proposed. */
+  readonly draft?: AgentDraftProposal;
+  readonly card: AgentCardTemplate;
+  /** The non-secret fields this step may report to the next turn (SEC-17 section 7.6). */
+  readonly resultAllowlist: readonly string[];
+}
+
+export interface AgentProposal {
+  readonly proposalId: string;
+  /** Absent when every step is a hand-off, which carries no token. */
+  readonly token: string | undefined;
+  readonly steps: readonly AgentPlanStep[];
+  readonly proposedAt: string;
+  readonly expiresAt: string;
+  readonly formId: string | undefined;
+  /** The environment the switcher named for the turn that proposed this. */
+  readonly currentEnvironment: string;
 }
 
 /**
@@ -82,7 +132,9 @@ export type AssistEvent =
       readonly outputTokens: number;
       readonly steps: number;
     }
-  | { readonly type: "proposal"; readonly proposal: AssistProposal }
+  /** One proposed action, which is a plan of one step. */
+  | { readonly type: "action"; readonly proposal: AgentProposal }
+  | { readonly type: "plan"; readonly proposal: AgentProposal }
   | { readonly type: "error"; readonly code: AssistErrorCode; readonly message: string };
 
 /** SSE frames are separated by one blank line, whatever their own line endings are. */
@@ -174,9 +226,11 @@ function toAssistEvent(raw: unknown): AssistEvent | undefined {
         : undefined;
     case "usage":
       return toUsageEvent(raw);
-    case "proposal": {
-      const proposal = toAssistProposal(raw["proposal"]);
-      return proposal === undefined ? undefined : { type: "proposal", proposal };
+    case "action":
+    case "plan": {
+      const proposal = toAgentProposal(raw["proposal"]);
+      if (proposal === undefined) return undefined;
+      return raw["type"] === "action" ? { type: "action", proposal } : { type: "plan", proposal };
     }
     case "error":
       return toErrorEvent(raw);
@@ -238,17 +292,106 @@ function toErrorEvent(raw: Record<string, unknown>): AssistEvent | undefined {
   return known === undefined ? undefined : { type: "error", code: known, message };
 }
 
-function toAssistProposal(raw: unknown): AssistProposal | undefined {
+function textList(raw: unknown): readonly string[] {
+  return Array.isArray(raw)
+    ? raw.filter((entry): entry is string => typeof entry === "string")
+    : [];
+}
+
+function toCreatedLink(raw: unknown): AgentCreatedLink | undefined {
   if (!isKeyedObject(raw)) return undefined;
-  const rationale = raw["rationale"];
-  const proposedDraft = raw["proposedDraft"];
-  if (typeof rationale !== "string" || !isKeyedObject(proposedDraft)) return undefined;
-  const newQuestions = Array.isArray(raw["newQuestions"]) ? raw["newQuestions"] : [];
+  const screen = raw["screen"];
+  const field = raw["field"];
+  if (typeof screen !== "string" || screen === "") return undefined;
+  return typeof field === "string" && field !== "" ? { screen, field } : undefined;
+}
+
+function toCardTemplate(raw: unknown): AgentCardTemplate | undefined {
+  if (!isKeyedObject(raw)) return undefined;
+  const titleKey = raw["titleKey"];
+  if (typeof titleKey !== "string" || titleKey === "") return undefined;
+  const headingControl = raw["headingControl"];
+  const typedConfirmation = raw["typedConfirmation"];
+  const createdLink = toCreatedLink(raw["createdLink"]);
   return {
-    proposedDraft,
-    newQuestions,
-    rationale,
+    titleKey,
+    consequenceKeys: textList(raw["consequenceKeys"]),
+    ...(typeof headingControl === "string" ? { headingControl } : {}),
+    ...(typeof typedConfirmation === "string" ? { typedConfirmation } : {}),
+    ...(createdLink === undefined ? {} : { createdLink }),
+  };
+}
+
+/**
+ * One step, or `undefined` when the frame cannot be read. A step this build cannot read
+ * drops the whole proposal rather than showing a plan with a gap in it: the card's second
+ * rule is that every step is displayed, so a partial plan must not reach the screen.
+ */
+function toAgentPlanStep(raw: unknown): AgentPlanStep | undefined {
+  if (!isKeyedObject(raw)) return undefined;
+  const kind = raw["kind"];
+  const screen = raw["screen"];
+  const environment = raw["environment"];
+  const args = raw["args"];
+  const card = toCardTemplate(raw["card"]);
+  if (typeof kind !== "string" || kind === "") return undefined;
+  if (typeof screen !== "string" || typeof environment !== "string") return undefined;
+  if (!isKeyedObject(args) || card === undefined) return undefined;
+  const draft = toDraftProposal(raw["draft"]);
+  return {
+    kind,
+    screen,
+    args,
+    environment,
+    handOff: raw["handOff"] === true,
+    local: raw["local"] === true,
+    ...(draft === undefined ? {} : { draft }),
+    card,
+    resultAllowlist: textList(raw["resultAllowlist"]),
+  };
+}
+
+/** The draft an `apply-draft` step carries, or nothing for every other kind. */
+function toDraftProposal(raw: unknown): AgentDraftProposal | undefined {
+  if (!isKeyedObject(raw)) return undefined;
+  const definition = raw["definition"];
+  if (!isKeyedObject(definition)) return undefined;
+  return {
+    definition,
+    newQuestions: Array.isArray(raw["newQuestions"]) ? raw["newQuestions"] : [],
     issues: parseIssues(raw["issues"]),
     warnings: parseIssues(raw["warnings"]),
+  };
+}
+
+function toAgentProposal(raw: unknown): AgentProposal | undefined {
+  if (!isKeyedObject(raw)) return undefined;
+  const proposalId = raw["proposalId"];
+  const proposedAt = raw["proposedAt"];
+  const expiresAt = raw["expiresAt"];
+  if (typeof proposalId !== "string" || proposalId === "") return undefined;
+  if (typeof proposedAt !== "string" || typeof expiresAt !== "string") return undefined;
+  if (!Array.isArray(raw["steps"]) || raw["steps"].length === 0) return undefined;
+
+  const steps: AgentPlanStep[] = [];
+  for (const entry of raw["steps"]) {
+    const step = toAgentPlanStep(entry);
+    if (step === undefined) return undefined;
+    steps.push(step);
+  }
+  const token = raw["token"];
+  const formId = raw["formId"];
+  const currentEnvironment = raw["currentEnvironment"];
+  // Dropped rather than defaulted: a step that names its own destination is sent with the
+  // selection this turn ran under, and a frame without one could not be confirmed.
+  if (typeof currentEnvironment !== "string" || currentEnvironment === "") return undefined;
+  return {
+    proposalId,
+    token: typeof token === "string" && token !== "" ? token : undefined,
+    steps,
+    proposedAt,
+    expiresAt,
+    formId: typeof formId === "string" ? formId : undefined,
+    currentEnvironment,
   };
 }

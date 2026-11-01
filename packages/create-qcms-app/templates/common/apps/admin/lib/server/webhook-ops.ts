@@ -7,6 +7,7 @@ import type {
   WebhookSummary,
 } from "../ops/types.ts";
 
+import { proposalHeaders, type AgentProposalRef } from "./agent-proposal.ts";
 import { adminApiFetch } from "./api.ts";
 import type { AdminApiPath } from "./api.ts";
 import type { ApiResult } from "./api-result.ts";
@@ -63,11 +64,13 @@ export async function createWebhook(
   session: AdminSession,
   formId: string,
   request: { readonly url: string; readonly active: boolean },
+  proposal?: AgentProposalRef,
 ): Promise<ApiResult<ConfigureOutcome<RevealedWebhook>>> {
   const result = await readResult<Record<string, unknown>>(
     await adminApiFetch(session, `/forms/${encodeURIComponent(formId)}/webhooks`, {
       method: "POST",
       body: request,
+      headers: proposalHeaders(proposal),
     }),
   );
   if (!result.ok) return result;
@@ -86,12 +89,13 @@ export async function rotateWebhookSecret(
   session: AdminSession,
   formId: string,
   webhookId: string,
+  proposal?: AgentProposalRef,
 ): Promise<ApiResult<ConfigureOutcome<RevealedWebhook>>> {
   const result = await readResult<Record<string, unknown>>(
     await adminApiFetch(
       session,
       `/forms/${encodeURIComponent(formId)}/webhooks/${encodeURIComponent(webhookId)}`,
-      { method: "PUT", body: { rotateSecret: true } },
+      { method: "PUT", body: { rotateSecret: true }, headers: proposalHeaders(proposal) },
     ),
   );
   if (!result.ok) return result;
@@ -112,12 +116,13 @@ export async function deactivateWebhook(
   session: AdminSession,
   formId: string,
   webhookId: string,
+  proposal?: AgentProposalRef,
 ): Promise<ApiResult<ConfigureOutcome<{ readonly webhookId: string }>>> {
   const result = await readResult<Record<string, unknown>>(
     await adminApiFetch(
       session,
       `/forms/${encodeURIComponent(formId)}/webhooks/${encodeURIComponent(webhookId)}`,
-      { method: "DELETE" },
+      { method: "DELETE", headers: proposalHeaders(proposal) },
     ),
   );
   if (!result.ok) return result;
@@ -132,12 +137,13 @@ export async function reactivateWebhook(
   session: AdminSession,
   formId: string,
   webhookId: string,
+  proposal?: AgentProposalRef,
 ): Promise<ApiResult<ConfigureOutcome<{ readonly webhookId: string }>>> {
   const result = await readResult<Record<string, unknown>>(
     await adminApiFetch(
       session,
       `/forms/${encodeURIComponent(formId)}/webhooks/${encodeURIComponent(webhookId)}`,
-      { method: "PUT", body: { active: true } },
+      { method: "PUT", body: { active: true }, headers: proposalHeaders(proposal) },
     ),
   );
   if (!result.ok) return result;
@@ -153,12 +159,13 @@ export async function retargetWebhook(
   formId: string,
   webhookId: string,
   url: string,
+  proposal?: AgentProposalRef,
 ): Promise<ApiResult<ConfigureOutcome<{ readonly webhookId: string; readonly url: string }>>> {
   const result = await readResult<Record<string, unknown>>(
     await adminApiFetch(
       session,
       `/forms/${encodeURIComponent(formId)}/webhooks/${encodeURIComponent(webhookId)}`,
-      { method: "PUT", body: { url } },
+      { method: "PUT", body: { url }, headers: proposalHeaders(proposal) },
     ),
   );
   if (!result.ok) return result;
@@ -239,12 +246,13 @@ export async function redeliver(
   deliveryId: string,
   /** The confirmed environment, so a redeliver-all loop resolves it once, not per row. */
   environment: string,
+  proposal?: AgentProposalRef,
 ): Promise<ApiResult<{ readonly deliveryId: string; readonly nextAttemptAt: string }>> {
   const result = await readResult<Record<string, unknown>>(
     await adminApiFetch(
       session,
       `/forms/${encodeURIComponent(formId)}/deliveries/${encodeURIComponent(deliveryId)}/redeliver`,
-      { method: "POST", environment },
+      { method: "POST", environment, headers: proposalHeaders(proposal) },
     ),
   );
   if (!result.ok) return result;

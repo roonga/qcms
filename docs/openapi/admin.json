@@ -2955,6 +2955,96 @@
           "total"
         ]
       },
+      "AgentAuditListResponse": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "proposalId": {
+                  "type": "string"
+                },
+                "stepIndex": {
+                  "type": "integer"
+                },
+                "stepCount": {
+                  "type": "integer"
+                },
+                "actor": {
+                  "type": "string"
+                },
+                "actorEmail": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "environment": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "formId": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "screen": {
+                  "type": "string"
+                },
+                "proposedAt": {
+                  "type": "string"
+                },
+                "confirmedAt": {
+                  "type": "string"
+                },
+                "detail": {
+                  "type": "string",
+                  "nullable": true
+                }
+              },
+              "required": [
+                "id",
+                "proposalId",
+                "stepIndex",
+                "stepCount",
+                "actor",
+                "actorEmail",
+                "environment",
+                "formId",
+                "kind",
+                "screen",
+                "proposedAt",
+                "confirmedAt",
+                "detail"
+              ]
+            }
+          },
+          "page": {
+            "type": "integer"
+          },
+          "pageSize": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "workspaceId",
+          "rows",
+          "page",
+          "pageSize",
+          "total"
+        ]
+      },
       "MintLinksResponse": {
         "type": "object",
         "properties": {
@@ -8310,6 +8400,110 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AuditListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/workspaces/{id}/agent-actions": {
+      "get": {
+        "summary": "The agent audit for this workspace (admin)",
+        "description": "Every step an assistant proposed and a human confirmed, newest first: who confirmed it, on which screen, in which environment, which step of which proposal, and one non-content detail. Readable by the same people who read the access audit, the workspace's owners and the installation administrator, because the two answer the same question about the same workspace. It carries no answer value, no secret and no authored text.",
+        "tags": [
+          "membership"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "org_default_workspace"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "required": false,
+            "name": "kind",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "pageSize",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The agent audit rows",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentAuditListResponse"
                 }
               }
             }

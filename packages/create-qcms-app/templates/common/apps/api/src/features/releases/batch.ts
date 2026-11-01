@@ -12,6 +12,7 @@ import type { FormId } from "@roonga/qcms-core";
 
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
+import { writeAgentStep, type AgentStepSite } from "../agent/audit.js";
 import { approvalForRelease } from "../membership/two-person.js";
 import { recordRelease } from "./release.js";
 import {
@@ -81,6 +82,8 @@ export interface CommitInput {
   readonly expectedWorkflowRevision: number | null;
   readonly source: BatchSource;
   readonly targets: readonly BatchTarget[];
+  /** Set for a confirmed agent step, whose row shares this confirmation's transaction. */
+  readonly agent?: AgentStepSite | undefined;
 }
 
 const fail = {
@@ -238,6 +241,9 @@ export async function commitReleaseBatch(deps: Deps, input: CommitInput): Promis
         replayed: false,
         froze: input.source.kind === "draft",
       };
+      // The version a later step references, recorded in this confirmation's own
+      // transaction, so a refused destination leaves no row behind.
+      await writeAgentStep(tx, input.agent, String(released), deps.clock.now());
       await insertReleaseBatch(tx, {
         principalId: input.principalId,
         formId: input.formId,

@@ -59,6 +59,17 @@ export const TOOL_STEP_LABELS: Readonly<Record<string, MessageKey>> = {
   propose_draft: "forms.assist.step.propose_draft",
   validate_draft: "forms.assist.step.validate_draft",
   project_draft: "forms.assist.step.project_draft",
+  test_rule: "forms.assist.step.test_rule",
+  diff_form_versions: "forms.assist.step.diff_form_versions",
+  count_links: "forms.assist.step.count_links",
+  list_responses: "forms.assist.step.list_responses",
+  count_responses: "forms.assist.step.count_responses",
+  delivery_status: "forms.assist.step.delivery_status",
+  count_dead_letters: "forms.assist.step.count_dead_letters",
+  diff_question_versions: "forms.assist.step.diff_question_versions",
+  search_forms: "forms.assist.step.search_forms",
+  propose_action: "forms.assist.step.propose_action",
+  propose_plan: "forms.assist.step.propose_plan",
 };
 
 export function toolStepLabel(tool: string | undefined): MessageKey {
@@ -186,6 +197,15 @@ export function turnText(turn: AssistantTurnView): string {
   return turn.segments
     .flatMap((segment) => (segment.kind === "text" ? [segment.text] : []))
     .join("");
+}
+
+/**
+ * The turn's closing prose segment, which is what a card quotes as the reason. The last
+ * one rather than all of them: the earlier prose narrates the tool calls and is already in
+ * the conversation above the card.
+ */
+export function lastTextSegment(turn: AssistantTurnView): string {
+  return turn.segments.findLast((segment) => segment.kind === "text")?.text ?? "";
 }
 
 /** The most recently started step still running, if any: what the status line names. */

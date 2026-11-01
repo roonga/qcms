@@ -75,40 +75,95 @@ function screen(
     readonly build: (input: ScreenBuildInput) => Promise<unknown>;
   },
   readTools: readonly AgentToolName[] = [],
+  actionKinds: readonly string[] = NONE,
 ): ScreenDef {
   return {
     facts: context.facts,
     build: (input) => context.build(input),
     readTools,
-    actionKinds: NONE,
+    actionKinds,
   };
 }
 
 /** Frozen so nothing can graft a screen, a tool or an action kind on at runtime. */
 export const SCREENS: Readonly<Record<ScreenId, ScreenDef>> = Object.freeze({
-  "/forms": screen(authoringContexts.formsList),
-  "/forms/new": screen(authoringContexts.newForm),
-  "/forms/[formId]": screen(authoringContexts.builder, DRAFT_TOOLS),
-  "/forms/[formId]/rules": screen(authoringContexts.rules),
+  "/forms": screen(authoringContexts.formsList, ["search_forms"], ["form.create"]),
+  "/forms/new": screen(authoringContexts.newForm, [], ["form.create"]),
+  "/forms/[formId]": screen(authoringContexts.builder, DRAFT_TOOLS, [
+    "apply-draft",
+    "form.publish",
+    "form.settings",
+    "form.close",
+    "form.reopen",
+  ]),
+  "/forms/[formId]/rules": screen(authoringContexts.rules, ["validate_draft", "test_rule"]),
   "/forms/[formId]/preview": screen(authoringContexts.preview, ["project_draft"]),
-  "/forms/[formId]/versions": screen(authoringContexts.versions),
-  "/forms/[formId]/versions/[version]": screen(authoringContexts.versionDetail),
-  "/forms/[formId]/publish": screen(authoringContexts.releases),
-  "/forms/[formId]/links": screen(authoringContexts.links),
-  "/forms/[formId]/webhooks": screen(operationsContexts.formWebhooks),
-  "/forms/[formId]/responses": screen(operationsContexts.responseList),
-  "/forms/[formId]/responses/[sessionId]": screen(operationsContexts.responseDetail),
-  "/questions": screen(authoringContexts.questions),
-  "/questions/new": screen(authoringContexts.newQuestion),
-  "/questions/[questionId]": screen(authoringContexts.questionDetail),
+  "/forms/[formId]/versions": screen(authoringContexts.versions, ["diff_form_versions"]),
+  "/forms/[formId]/versions/[version]": screen(authoringContexts.versionDetail, [
+    "diff_form_versions",
+  ]),
+  "/forms/[formId]/publish": screen(authoringContexts.releases, [], ["form.release"]),
+  "/forms/[formId]/links": screen(
+    authoringContexts.links,
+    ["count_links"],
+    ["link.mint", "link.revoke"],
+  ),
+  "/forms/[formId]/webhooks": screen(
+    operationsContexts.formWebhooks,
+    ["delivery_status"],
+    [
+      "webhook.create",
+      "webhook.rotate",
+      "webhook.retarget",
+      "webhook.reactivate",
+      "webhook.deactivate",
+      "webhook.redeliver",
+    ],
+  ),
+  "/forms/[formId]/responses": screen(
+    operationsContexts.responseList,
+    ["list_responses", "count_responses"],
+    ["response.export"],
+  ),
+  "/forms/[formId]/responses/[sessionId]": screen(
+    operationsContexts.responseDetail,
+    [],
+    ["response.erase", "response.unflag"],
+  ),
+  "/questions": screen(
+    authoringContexts.questions,
+    ["search_question_library"],
+    ["question.create"],
+  ),
+  "/questions/new": screen(
+    authoringContexts.newQuestion,
+    ["search_question_library"],
+    ["question.create"],
+  ),
+  "/questions/[questionId]": screen(
+    authoringContexts.questionDetail,
+    ["search_question_library", "diff_question_versions"],
+    ["question.saveDraft", "question.publish", "question.deprecate", "question.newVersion"],
+  ),
   "/me/access": screen(administrationContexts.myAccess),
   "/operations": screen(operationsContexts.operations),
   "/responses": screen(operationsContexts.responsePicker),
   "/responses/erasures": screen(operationsContexts.erasures),
   "/settings": screen(administrationContexts.settings),
-  "/webhooks": screen(operationsContexts.deadLetters),
+  "/webhooks": screen(operationsContexts.deadLetters, ["count_dead_letters"]),
   "/workspaces": screen(administrationContexts.workspaces),
-  "/workspaces/[workspaceId]": screen(administrationContexts.workspaceDetail),
+  "/workspaces/[workspaceId]": screen(
+    administrationContexts.workspaceDetail,
+    [],
+    [
+      "access.groupCreate",
+      "access.groupRemove",
+      "access.grant",
+      "access.revoke",
+      "member.role",
+      "workspace.settings",
+    ],
+  ),
 });
 
 /** The screens of one form's subtree, which is the span of one conversation. */
@@ -118,4 +173,24 @@ export const FORM_SUBTREE_SCREENS: readonly ScreenId[] = SCREEN_IDS.filter((id) 
 
 export function isFormSubtreeScreen(screenId: ScreenId): boolean {
   return FORM_SUBTREE_SCREENS.includes(screenId);
+}
+
+const FORM_SUBTREE_ACTION_KINDS: readonly string[] = (() => {
+  const kinds: string[] = [];
+  for (const id of FORM_SUBTREE_SCREENS) {
+    for (const kind of SCREENS[id].actionKinds) {
+      if (!kinds.includes(kind)) kinds.push(kind);
+    }
+  }
+  return Object.freeze(kinds);
+})();
+
+/**
+ * The kinds a turn on this screen may propose: the whole form subtree's on a form-scoped
+ * screen, so one plan can span it, and the screen's own elsewhere. Every step still runs
+ * its own screen's action under its own route's checks, and the grant filter still cuts
+ * the list to the pairs the caller holds.
+ */
+export function offerableActionKinds(screenId: ScreenId): readonly string[] {
+  return isFormSubtreeScreen(screenId) ? FORM_SUBTREE_ACTION_KINDS : SCREENS[screenId].actionKinds;
 }
