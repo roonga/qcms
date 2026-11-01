@@ -197,6 +197,36 @@ async function buildResponseDetail(
   };
 }
 
+export const formIntakeFacts = z.strictObject({
+  formId: z.string(),
+  environment: z.string(),
+  releasedVersion: z.number().int().nullable(),
+  closed: z.boolean(),
+});
+
+/**
+ * One form's intake in the selected environment (Code Owner, 2026-11-02).
+ *
+ * The reading and only the reading: what is serving there, and whether it is taking
+ * responses. Admitted on `form: read` rather than on `form: close`, which is the cell the
+ * two acts carry at their own routes - a reader who may not change intake can still be
+ * told what it is.
+ */
+async function buildFormIntake(input: ScreenBuildInput): Promise<z.infer<typeof formIntakeFacts>> {
+  const { formId, workspaceId } = await requireForm(input);
+  await requireCell(input, { workspaceId, resource: "form", action: "read", formId });
+  const states = await environmentStatesByForm(input.deps.databases.control, input.environment, [
+    formId,
+  ]);
+  const state = states.get(formId);
+  return {
+    formId,
+    environment: input.environment,
+    releasedVersion: state?.version ?? null,
+    closed: state?.closed ?? false,
+  };
+}
+
 const DeliveryFact = z.strictObject({
   deliveryId: z.string(),
   eventType: z.string(),
@@ -500,4 +530,5 @@ export const operationsContexts = {
   responseList: { facts: responseListFacts, build: buildResponseList },
   responseDetail: { facts: responseDetailFacts, build: buildResponseDetail },
   formWebhooks: { facts: formWebhooksFacts, build: buildFormWebhooks },
+  formIntake: { facts: formIntakeFacts, build: buildFormIntake },
 } as const;

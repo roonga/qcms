@@ -73,7 +73,7 @@ describe("the route-to-cap table", () => {
     expect(Object.values(MEASURE_BY_ROUTE)).not.toContain("default");
   });
 
-  it("counts the drawings: twelve at 1600, four at 40rem, two at 1080", () => {
+  it("counts the drawings: twelve at 1600, five at 40rem, two at 1080", () => {
     // Restated from the POCs rather than derived from the table, so a wrong row is a
     // failure here instead of a table that agrees with itself.
     const measures = Object.values(MEASURE_BY_ROUTE);
@@ -81,16 +81,17 @@ describe("the route-to-cap table", () => {
     // Twelve since task 065's release screen, which takes the width of the version
     // history it sits beside rather than a number of its own.
     expect(count("wide")).toBe(12);
-    // Four since My access, which is one panel of the reader's own grants and so takes the
-    // account screen's prose width. No POC draws it.
-    expect(count("prose")).toBe(4);
+    // Five since the per-form Intake screen, which is one panel of state with its two acts
+    // beside it and so takes the width My access takes for the same reason. No POC draws
+    // either.
+    expect(count("prose")).toBe(5);
     // `list` is the nearest vocabulary value below the 1120 the Operations table is drawn
     // at, and `/responses` redirects there.
     expect(count("list")).toBe(4);
     // No POC draws `/workspaces`, so it borrows the deployment POC's 900.
     expect(count("ops")).toBe(1);
     expect(count("log")).toBe(2);
-    expect(measures).toHaveLength(23);
+    expect(measures).toHaveLength(24);
   });
 
   it("offers no cap that no route can take, which is what issue 668 left behind", () => {

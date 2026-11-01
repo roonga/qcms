@@ -29,14 +29,7 @@ const DRAFT = {
 describe("environment-bound publishing", () => {
   it("offers one way to publish, and it is the wizard", () => {
     render(
-      <FormActions
-        formId="frm_intake"
-        slug="intake"
-        status="open"
-        workflow={WORKFLOW}
-        environment="test"
-        setStatus={() => Promise.resolve({ status: "idle" })}
-      />,
+      <FormActions formId="frm_intake" workflow={WORKFLOW} environment="test" />,
     );
     // No dialog of its own at all: one entry, and it is a link.
     expect(screen.queryByRole("button", { name: /Publish/u })).toBeNull();
@@ -49,11 +42,8 @@ describe("environment-bound publishing", () => {
     render(
       <FormActions
         formId="frm_intake"
-        slug="intake"
-        status="open"
         workflow={{ ...WORKFLOW, canPublish: false }}
         environment="test"
-        setStatus={() => Promise.resolve({ status: "idle" })}
       />,
     );
     // Gated rather than disabled: a caller who may not publish is offered no way to.

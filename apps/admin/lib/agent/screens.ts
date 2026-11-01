@@ -7,8 +7,8 @@
  * reads the route tree off the filesystem and fails when a page has no row here.
  *
  * It is also the Markdown renderer's link allowlist: a link survives only for a path that
- * matches a row, so a route handler such as `/forms/[formId]/export` can never become a
- * link the browser would fetch.
+ * matches a row, so a route handler such as `/operations/forms/[formId]/export` can never
+ * become a link the browser would fetch.
  */
 
 export const AGENT_SCREENS = [
@@ -24,6 +24,7 @@ export const AGENT_SCREENS = [
   "/operations/forms/[formId]/webhooks",
   "/operations/forms/[formId]/responses",
   "/operations/forms/[formId]/responses/[sessionId]",
+  "/operations/forms/[formId]/intake",
   "/questions",
   "/questions/new",
   "/questions/[questionId]",

@@ -2,13 +2,16 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
-import { FormActions } from "./form-actions.tsx";
+import { FormIntake } from "./form-intake.tsx";
 import { t } from "../../lib/i18n/en.ts";
 import { unexpected } from "../../lib/ops/unexpected.ts";
 
 /**
- * What an author sees when a form-level action REJECTS rather than returning a failure
+ * What an operator sees when the intake act REJECTS rather than returning a failure
  * (issue #352, handler 6 of nine).
+ *
+ * It was `components/forms/form-actions-rejects.test.tsx` while close and reopen were the
+ * builder's; they are Operations' since 2026-11-02 (Code Owner) and so is this.
  *
  * One handler is left here; the publish wizard's three are asserted in
  * `publish-wizard-rejects.test.tsx`.
@@ -44,13 +47,7 @@ describe("a rejected form-level action", () => {
   it("says the status did not change, and keeps the lifecycle dialog open to say it", async () => {
     const user = userEvent.setup();
     render(
-      <FormActions
-        slug="intake"
-        formId="form-1"
-        status="open"
-        setStatus={transportFailure}
-        environment="prod"
-      />,
+      <FormIntake slug="intake" status="open" setStatus={transportFailure} environment="prod" />,
     );
 
     // The labels name the environment the act lands in since task 066 (Q18): closing is

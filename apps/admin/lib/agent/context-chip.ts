@@ -27,6 +27,7 @@ const CHIPS: Readonly<Record<AgentScreen, MessageKey>> = {
   "/operations/forms/[formId]/webhooks": "agent.context.form.webhooks",
   "/operations/forms/[formId]/responses": "agent.context.form.responses",
   "/operations/forms/[formId]/responses/[sessionId]": "agent.context.form.response",
+  "/operations/forms/[formId]/intake": "agent.context.form.intake",
   "/questions": "agent.context.questions",
   "/questions/new": "agent.context.questions.new",
   "/questions/[questionId]": "agent.context.question",

@@ -195,15 +195,11 @@ export const MEASURE_BY_ROUTE = {
   /** `links-webhooks-poc.html` `.main` 1600, its Webhook endpoints screen. */
   "/operations/forms/[formId]/webhooks": "wide",
   /**
-   * The four addresses those three screens had before they moved under Operations. Each
-   * redirects and renders no column of its own, so each takes the cap of the screen it
-   * arrives at, exactly as `/responses` takes `/operations`'. The rows stay because the
-   * routes do.
+   * **No POC draws the per-form Intake screen.** Like `/me/access` it is one panel of
+   * state with its two acts beside it, so it takes the same prose cap rather than
+   * borrowing a 1600 drawn for a table.
    */
-  "/forms/[formId]/links": "wide",
-  "/forms/[formId]/responses": "wide",
-  "/forms/[formId]/responses/[sessionId]": "wide",
-  "/forms/[formId]/webhooks": "wide",
+  "/operations/forms/[formId]/intake": "prose",
   /** `library-lists-poc.html` `.main` 1080, its Questions screen. */
   "/questions": "list",
   /**

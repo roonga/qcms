@@ -1,5 +1,6 @@
 import { t } from "@/lib/i18n/en";
 import { sectionHeadingId } from "@/lib/page-headings";
+import type { FormSection } from "@/lib/page-title";
 
 /**
  * The chrome every form section shares: the screen's heading and the form's identity line
@@ -88,8 +89,7 @@ export function FormPageHeader({
    * rail marks current. One key for both, so a screen cannot end up called one thing in
    * its heading and another in the rail beside it.
    */
-  readonly section:
-    "builder" | "rules" | "preview" | "versions" | "publish" | "links" | "responses" | "webhooks";
+  readonly section: FormSection;
   readonly status?: "open" | "closed";
   /**
    * Overrides the `<h1>` for a route whose subject is one child of the form.

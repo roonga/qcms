@@ -25,6 +25,7 @@ export const SCREEN_IDS = [
   "/operations/forms/[formId]/webhooks",
   "/operations/forms/[formId]/responses",
   "/operations/forms/[formId]/responses/[sessionId]",
+  "/operations/forms/[formId]/intake",
   "/questions",
   "/questions/new",
   "/questions/[questionId]",
@@ -89,12 +90,13 @@ function screen(
 export const SCREENS: Readonly<Record<ScreenId, ScreenDef>> = Object.freeze({
   "/forms": screen(authoringContexts.formsList, ["search_forms"], ["form.create"]),
   "/forms/new": screen(authoringContexts.newForm, [], ["form.create"]),
+  // `form.close` and `form.reopen` LEFT THIS ROW (Code Owner, 2026-11-02). They act on one
+  // environment's intake and this screen edits a draft that belongs to none, so they are
+  // the Intake screen's below.
   "/forms/[formId]": screen(authoringContexts.builder, DRAFT_TOOLS, [
     "apply-draft",
     "form.publish",
     "form.settings",
-    "form.close",
-    "form.reopen",
   ]),
   "/forms/[formId]/rules": screen(authoringContexts.rules, ["validate_draft", "test_rule"]),
   "/forms/[formId]/preview": screen(authoringContexts.preview, ["project_draft"]),
@@ -130,6 +132,10 @@ export const SCREENS: Readonly<Record<ScreenId, ScreenDef>> = Object.freeze({
     [],
     ["response.erase", "response.unflag"],
   ),
+  "/operations/forms/[formId]/intake": screen(operationsContexts.formIntake, [], [
+    "form.close",
+    "form.reopen",
+  ]),
   "/questions": screen(
     authoringContexts.questions,
     ["search_question_library"],
