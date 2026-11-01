@@ -57,13 +57,25 @@ const fail = {
   noContext: (): Error => new Error("operations: no resolved membership on the request context"),
 } as const;
 
-/** The write acts a row reports as capabilities, in the order a rail would offer them. */
+/**
+ * The cells a row reports as capabilities, in the order a rail would offer them.
+ *
+ * The reads are here as well as the writes because a row's operational contexts are what a
+ * caller may open on it, and that is a read cell per context: without them the client would
+ * have to infer access from a null field, which is also what a form with no release and no
+ * response looks like.
+ */
 const CAPABILITY_CELLS: readonly { readonly resource: Resource; readonly action: string }[] = [
+  { resource: "form", action: "read" },
   { resource: "form", action: "close" },
+  { resource: "release", action: "read" },
   { resource: "release", action: "create" },
+  { resource: "link", action: "read" },
   { resource: "link", action: "mint" },
   { resource: "link", action: "revoke" },
+  { resource: "webhook", action: "read" },
   { resource: "webhook", action: "configure" },
+  { resource: "response", action: "read" },
   { resource: "response", action: "export" },
   { resource: "response", action: "erase" },
   { resource: "response", action: "dispose" },

@@ -50,7 +50,28 @@ const RELEASED: OperationsFormRow = {
   release: { version: 4, releasedAt: "2026-10-01T00:00:00.000Z", closed: false },
   lastReleaseAt: "2026-10-01T00:00:00.000Z",
   counts: { submitted: 7, inProgress: 2 },
-  capabilities: ["response:read"],
+  capabilities: ["form:read", "release:read", "link:read", "webhook:read", "response:read"],
+};
+
+/** `response: read` on one form and nothing else: the Responses context alone (Q87). */
+const RESPONSES_ONLY: OperationsFormRow = {
+  ...RELEASED,
+  formId: "frm_survey",
+  slug: "survey",
+  displayName: "Survey",
+  release: null,
+  lastReleaseAt: null,
+  capabilities: ["response:read", "response:export"],
+};
+
+/** An eraser without a viewer grant: a row with no screen to open (G05). */
+const ERASE_ONLY: OperationsFormRow = {
+  ...RESPONSES_ONLY,
+  formId: "frm_leavers",
+  slug: "leavers",
+  displayName: "Leavers",
+  counts: null,
+  capabilities: ["response:erase", "response:dispose"],
 };
 
 const UNRELEASED: OperationsFormRow = {
@@ -212,6 +233,28 @@ describe("the Operations forms table's states", () => {
     expect(html).toContain("cursor=cur2");
     // The page position rides with the filters rather than replacing them.
     expect(html).toContain("q=in");
+  });
+
+  it("offers each row the contexts its own cells admit, and no others", async () => {
+    capabilities = EVERYTHING;
+    listResult = { status: "ok", page: page([RELEASED, RESPONSES_ONLY, ERASE_ONLY]) };
+
+    const html = await render();
+
+    // The combined row: the form's own screen under its name, the other four beside it.
+    expect(html).toContain('href="/forms/frm_intake"');
+    expect(html).toContain('href="/forms/frm_intake/versions"');
+    expect(html).toContain('href="/forms/frm_intake/links"');
+    expect(html).toContain('href="/forms/frm_intake/webhooks"');
+    expect(html).toContain('href="/forms/frm_intake/responses"');
+    // The response-only row reaches its responses and nothing else about the form.
+    expect(html).toContain('href="/forms/frm_survey/responses"');
+    expect(html).not.toContain('href="/forms/frm_survey"');
+    expect(html).not.toContain('href="/forms/frm_survey/versions"');
+    expect(html).not.toContain('href="/forms/frm_survey/links"');
+    // The eraser's row names the form and links nowhere.
+    expect(html).toContain("Leavers");
+    expect(html).not.toContain("/forms/frm_leavers");
   });
 
   it("asks for the chip's environment, so Last release is read where the chip says", async () => {

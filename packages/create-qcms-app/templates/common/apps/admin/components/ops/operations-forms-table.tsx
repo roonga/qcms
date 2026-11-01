@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { OperatorDateTime } from "@/components/operator-time";
 import { t } from "@/lib/i18n/en";
+import { formContextLinks, primaryFormContext } from "@/lib/ops/form-contexts";
 import { intakeOf, type OperationsFormRow } from "@/lib/ops/operations-forms";
 
 /**
@@ -46,12 +47,11 @@ export function OperationsFormsTable({ rows }: { readonly rows: readonly Operati
           {rows.map((row) => (
             <tr key={row.formId} data-form-id={row.formId}>
               <th scope="row">
-                <Link className="qcms-text-link" href={`/forms/${encodeURIComponent(row.formId)}`}>
-                  {row.displayName}
-                </Link>
+                <FormName row={row} />
                 {row.displayName !== row.slug && (
                   <span className="block text-xs text-(--color-text-muted)">{row.slug}</span>
                 )}
+                <FormContexts row={row} />
               </th>
               <td className="qcms-cell--drop">{row.workspace.name}</td>
               <td className="qcms-cell--num">{releasedText(row)}</td>
@@ -70,6 +70,63 @@ export function OperationsFormsTable({ rows }: { readonly rows: readonly Operati
         </tbody>
       </table>
     </div>
+  );
+}
+
+/**
+ * The form's name, as a link to the first context this caller may open on it.
+ *
+ * Plain text when they may open none: the row is here because an operational cell admitted
+ * it, and an eraser's journey takes a session id rather than a screen that lists anything.
+ */
+function FormName({ row }: { readonly row: OperationsFormRow }) {
+  const primary = primaryFormContext(row);
+  if (primary === undefined) {
+    return <span data-testid="qcms-operations-name">{row.displayName}</span>;
+  }
+  return (
+    <Link
+      className="qcms-text-link"
+      href={primary.href}
+      data-testid="qcms-operations-name"
+      data-context={primary.context}
+    >
+      {row.displayName}
+    </Link>
+  );
+}
+
+/**
+ * The row's remaining operational contexts. The first one is the name above them, so it is
+ * not repeated here.
+ *
+ * Every link names its own row, because one row's Responses link is otherwise read out
+ * exactly like every other row's.
+ */
+function FormContexts({ row }: { readonly row: OperationsFormRow }) {
+  const rest = formContextLinks(row).slice(1);
+  if (rest.length === 0) return null;
+  return (
+    <ul
+      className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs"
+      data-testid="qcms-operations-contexts"
+    >
+      {rest.map((link) => (
+        <li key={link.context}>
+          <Link
+            className="qcms-text-link"
+            href={link.href}
+            data-context={link.context}
+            aria-label={t("operations.context.named", {
+              context: link.label,
+              form: row.displayName,
+            })}
+          >
+            {link.label}
+          </Link>
+        </li>
+      ))}
+    </ul>
   );
 }
 

@@ -317,7 +317,15 @@ settings, even if an Operations screen links to their authorized editor.
 | 6. Operational integration | Responses, Links, Webhooks, intake, global queues/logs and workspace mode                 | Existing functions preserved under real permissions; actual links work in the chosen environment                           |
 | 7. Shipping                | E2E/CI coverage, template sync, changeset, user/security/architecture docs                | Required gates green; exact PR head independently reviewed; comments resolved before merge                                 |
 
-**Phase 1 is ruled (PR #1163); phases 2 and 3 have landed (issues #1174 and #1181).**
+**Phase 1 is ruled (PR #1163); phases 2, 3, 4 and 5 have landed (issues #1174, #1181,
+#1183 and #1197). Phase 6 is part-landed (issue #1204) and part-blocked on rulings.**
+What landed of phase 6: the discovery row reports its read cells, the Operations table
+offers each row the contexts that row's own cells admit, and a refused form read no longer
+blocks the response browser. What is blocked, with options and a recommendation in that
+issue's `HANDOFF.md`: which shell mode owns a form-scoped operational route reached from
+Operations, what an Operations "Overview" context is, where a claim-only caller's global
+queue reads its form identities from, the G05 eraser known-target screen and its
+`docs/erasure.md` text, and the workspace-mode surface.
 Phase 2 delivered the authorized read model and nothing beyond it: the `anyOf`
 route-policy row shape and `environmentFrom: "query"`, `GET /admin/operations/forms` with
 its per-role projection and cursor pagination, the stateless

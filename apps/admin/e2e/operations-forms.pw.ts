@@ -104,6 +104,37 @@ test("leaving the environment an address names resets the page and keeps the ter
   ).toHaveValue(ALPHA);
 });
 
+test("a row opens the form's operational contexts in the environment the chip names", async ({
+  page,
+}) => {
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await chooseEnvironment(page, "test");
+  await page.goto("/operations");
+  await waitForHydration(page);
+
+  const row = page
+    .getByTestId("qcms-operations-table")
+    .getByRole("row")
+    .filter({ hasText: ALPHA });
+  // Every context link names its own row, so two rows' Responses links are distinguishable.
+  const contexts = row.getByTestId("qcms-operations-contexts");
+  for (const context of ["Versions", "Links", "Webhooks", "Responses"]) {
+    await expect(contexts.getByRole("link", { name: `${context} for ${ALPHA}` })).toBeVisible();
+  }
+
+  await contexts.getByRole("link", { name: `Responses for ${ALPHA}` }).click();
+
+  // The responses of that form, read where the chip said, rather than a refusal.
+  await expect(page).toHaveURL(/\/forms\/frm_[^/]+\/responses$/u);
+  await expect(page.getByRole("heading", { level: 1, name: "Responses" })).toBeVisible();
+  await expect(page.getByTestId("qcms-response-browser")).toBeVisible();
+
+  // The form's name still leads to the form itself for a caller who may read it.
+  await page.goto("/operations");
+  await row.getByTestId("qcms-operations-name").click();
+  await expect(page).toHaveURL(/\/forms\/frm_[^/]+$/u);
+});
+
 test("the legacy responses picker redirects to the Operations table", async ({ page }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
 

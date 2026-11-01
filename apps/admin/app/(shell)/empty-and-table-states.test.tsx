@@ -506,6 +506,30 @@ describe("the response browser's read states (issues 521, 572)", () => {
     expect(html).toContain("ops.responses.total.one");
   });
 
+  it("renders the browser for a caller who holds the responses and not the form (Q87)", async () => {
+    formDetailResult = { ok: false, code: "FORBIDDEN", message: "ops.error.forbidden" };
+    responsesResult = {
+      ok: true,
+      data: { responses: [RESPONSE_ROW], page: 1, pageSize: 50, total: 1 },
+    };
+
+    const html = await renderResponses();
+
+    expect(html).toContain('data-testid="qcms-response-browser"');
+    expect(html).toContain("ops.responses.total.one");
+    // The refusal is not an error on this screen: the list it came for is here.
+    expect(html).not.toContain('data-testid="qcms-alert"');
+  });
+
+  it("keeps the alert, and renders no browser, when the form read failed rather than refused", async () => {
+    formDetailResult = { ok: false, code: "http_503", message: "upstream said 503" };
+
+    const html = await renderResponses();
+
+    expect(html).toContain('data-testid="qcms-alert"');
+    expect(html).not.toContain('data-testid="qcms-response-browser"');
+  });
+
   it("says the unfiltered kind of empty for a filter value nothing accepts", async () => {
     const html = await renderResponses({ flagged: "maybe", from: "nope" });
 

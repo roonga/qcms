@@ -48,6 +48,14 @@ production. The review step shows what freezes and, per destination, the version
 environment serves now and the version it will serve. A test release does not itself
 prove that manual testing passed. The diagram assumes intake is open in both environments.
 
+After a release, the Operations table is where a released form is operated. Its
+environment is the Operations header's own selector, and each row offers the contexts the
+operator holds a read for on that form in that environment: the form itself, its Versions,
+its Links, its Webhooks and its Responses. A row offers no context the operator's grants
+do not reach, so an account that may only read responses reaches the response browser and
+nothing else about the form, and an account that may only erase reaches no screen from the
+row at all.
+
 For Docker, set `QCMS_PORTAL_ENVIRONMENTS=test` in `.env` and recreate the portal
 container to serve test links under `/test/`. The portal serves only prod when this
 setting is empty.
