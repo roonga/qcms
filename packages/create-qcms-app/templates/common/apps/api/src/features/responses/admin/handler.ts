@@ -207,7 +207,10 @@ export function makeListResponsesHandler(
       // The whole form's versions rather than this page's, and unfiltered: it is what the
       // export's version control offers, and a caller without `form: read` has no other
       // source for it.
-      return { ...listed, formVersions: await responseFormVersions(tx, request.environment, formId) };
+      return {
+        ...listed,
+        formVersions: await responseFormVersions(tx, request.environment, formId),
+      };
     });
 
     return c.json(
