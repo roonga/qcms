@@ -13,10 +13,7 @@ import {
 import { AssistMark } from "@/components/forms/assist-mark";
 import { AssistMarkdown } from "@/components/forms/assist-markdown";
 import { Button } from "@/components/kit";
-import {
-  builderAssistSnapshot,
-  type BuilderAssistSnapshot,
-} from "@/lib/agent/builder-assist-bridge";
+import { nextDraftSaved, type BuilderAssistSnapshot } from "@/lib/agent/builder-assist-bridge";
 import {
   isProseTurn,
   promptTurns,
@@ -68,14 +65,15 @@ function handOffFields(args: Readonly<Record<string, unknown>>): Readonly<Record
 }
 
 /**
- * Whether the panel posts a turn of its own now that this card has settled.
- *
- * Only after a card that applied a draft, and only when every step of it succeeded: the
- * draft is stored and the questions it pins exist, so what remains is asking whether to
- * publish them. No other confirmed act starts a turn nobody asked for.
+ * Whether the panel posts a turn of its own once this card settles: only for the card that
+ * applies a draft, because what is left to ask then is whether to publish the questions
+ * that draft pins. No other confirmed act starts a turn nobody asked for.
  */
-function continuesAfterAccept(plan: AgentProposal, settled: AgentCardView): boolean {
-  if (!plan.steps.some((step) => step.kind === "apply-draft")) return false;
+function continuesAfterAccept(plan: AgentProposal): boolean {
+  return plan.steps.some((step) => step.kind === "apply-draft");
+}
+
+function ranCleanly(settled: AgentCardView): boolean {
   return settled.steps.length > 0 && settled.steps.every((step) => step.state === "done");
 }
 
@@ -221,6 +219,9 @@ function ScreenConversation({
   };
 
   const confirmCard = async (plan: AgentProposal, from: AgentCardView): Promise<void> => {
+    // Armed before the run, because the accept's own save is what it waits for and that
+    // save is the step's own doing.
+    const saved = continuesAfterAccept(plan) ? nextDraftSaved() : undefined;
     const started = startRun(from);
     setCard(started);
     const settled = await runPlan({
@@ -239,15 +240,21 @@ function ScreenConversation({
       windowLeftMs: () => remainingWindowMs(windowRef.current, monotonicNow()),
     });
     settle(plan, settled);
-    // The draft is stored and its questions exist; what is left is asking whether to
-    // publish them, which is the assistant's to propose and the person's to confirm.
-    if (continuesAfterAccept(plan, settled)) await runTurn(undefined);
+    if (saved === undefined || !ranCleanly(settled)) return;
+    // The draft's own save, waited for rather than raced: the questions it pins exist only
+    // once it has landed, and asking whether to publish them is what is left to do.
+    const token = await saved;
+    if (token !== undefined) await runTurn(undefined, token);
   };
 
-  const postTurn = (on: ResolvedScreen, signal: AbortSignal): Promise<Response> => {
-    // The module's own snapshot rather than this render's prop: a turn posted straight after
-    // an accept has to carry the token that accept's save produced.
-    const draftUpdatedAt = builderAssistSnapshot()?.draftUpdatedAt ?? builder?.draftUpdatedAt;
+  const postTurn = (
+    on: ResolvedScreen,
+    signal: AbortSignal,
+    // The token a save has just produced, for a turn posted before the render that
+    // carries it: the route refuses a proposal made against a draft that moved.
+    savedDraft?: string,
+  ): Promise<Response> => {
+    const draftUpdatedAt = savedDraft ?? builder?.draftUpdatedAt;
     return fetch(builder?.endpoint ?? "/assist", {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -281,7 +288,7 @@ function ScreenConversation({
    * settles: the conversation already ends with that card's own `action-result` record, and
    * the person typed nothing to add to it.
    */
-  const runTurn = async (message: string | undefined): Promise<void> => {
+  const runTurn = async (message: string | undefined, savedDraft?: string): Promise<void> => {
     if (screen === undefined || live !== undefined) return;
     setFailure(undefined);
     if (message !== undefined) {
@@ -297,7 +304,7 @@ function ScreenConversation({
     stoppedRef.current = false;
 
     try {
-      const response = await postTurn(screen, controller.signal);
+      const response = await postTurn(screen, controller.signal, savedDraft);
       if (!response.ok || response.body === null) {
         const failed = await errorForResponse(response);
         setFailure(failed);

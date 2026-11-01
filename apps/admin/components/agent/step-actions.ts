@@ -34,7 +34,7 @@ import {
   rotateSecretAction,
 } from "@/app/(shell)/webhooks/actions";
 import { builderAssistSnapshot } from "@/lib/agent/builder-assist-bridge";
-import { acceptedDraft } from "@/lib/forms/assist-diff";
+import { acceptedDraft, proposalDiff } from "@/lib/forms/assist-diff";
 import { isErasureReason } from "@/lib/ops/erasure";
 import { IDLE_MUTATION } from "@/lib/questions/editor-state";
 import type { MembershipActionState } from "@/lib/membership/types";
@@ -84,27 +84,19 @@ function proposalRef(
  * The step that applies the draft this turn proposed. It sends nothing of its own: the
  * builder owns the draft, so Confirm hands it the accepted draft and the questions it
  * invents, and the builder's own save stores both with the agent-assisted mark.
- *
- * It waits for that save. A step reported Done before the store landed would let the next
- * act, and the next turn, run against a draft the API has not seen.
  */
-const applyDraftRunner: StepRunner = async ({ step }) => {
+const applyDraftRunner: StepRunner = ({ step }) => {
   const proposed = step.draft;
   const builder = builderAssistSnapshot();
   if (proposed === undefined || builder === undefined || !builder.canPropose) {
-    return { outcome: "failed", message: t("agent.card.note.noBuilder") };
+    return Promise.resolve({ outcome: "failed", message: t("agent.card.note.noBuilder") });
   }
-  const accepted = await builder.accept(
-    acceptedDraft(builder.draft, proposed.definition),
-    proposed.newQuestions,
-  );
-  if (!accepted.ok) {
-    return { outcome: "failed", message: text(accepted.message, t("agent.card.note.noBuilder")) };
-  }
-  return {
+  const diff = proposalDiff(builder.draft, proposed.definition, proposed.newQuestions);
+  builder.accept(acceptedDraft(builder.draft, proposed.definition), proposed.newQuestions);
+  return Promise.resolve({
     outcome: "done",
-    result: { changes: accepted.changes, newQuestions: accepted.newQuestions },
-  };
+    result: { changes: diff.length, newQuestions: proposed.newQuestions.length },
+  });
 };
 
 /** Close and reopen are one screen control and one route pair, so they share a runner. */

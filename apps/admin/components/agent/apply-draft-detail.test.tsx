@@ -44,7 +44,7 @@ function WithBuilder({
           canPropose: true,
           draft: current,
           draftUpdatedAt: undefined,
-          accept: () => Promise.resolve({ ok: true, changes: 0, newQuestions: 0 }),
+          accept: () => undefined,
         },
   );
   return <ApplyDraftDetail draft={draft} id="card-0" />;

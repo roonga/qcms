@@ -15,15 +15,6 @@ import type { DraftForm } from "../forms/types";
  * The builder still owns the draft. What crosses here is a snapshot plus the accept
  * callback, so the draft's autosave and its validation stay where they were.
  */
-/**
- * What an accept reports back to the card's step. It carries the store's own verdict rather
- * than a guess, because the step that applies a draft is the one a later step's question
- * publish depends on: the questions the draft pins exist only once this save has landed.
- */
-export type BuilderAcceptResult =
-  | { readonly ok: true; readonly changes: number; readonly newQuestions: number }
-  | { readonly ok: false; readonly message: string | undefined };
-
 export interface BuilderAssistSnapshot {
   /** This form's assist route, relative to this app. */
   readonly endpoint: string;
@@ -35,10 +26,7 @@ export interface BuilderAssistSnapshot {
   readonly canPropose: boolean;
   readonly draft: DraftForm;
   readonly draftUpdatedAt: string | undefined;
-  readonly accept: (
-    proposedDraft: DraftForm,
-    newQuestions: readonly unknown[],
-  ) => Promise<BuilderAcceptResult>;
+  readonly accept: (proposedDraft: DraftForm, newQuestions: readonly unknown[]) => void;
 }
 
 let snapshot: BuilderAssistSnapshot | undefined;
@@ -76,17 +64,38 @@ export function usePublishBuilderAssist(next: BuilderAssistSnapshot | undefined)
   }, [next]);
 }
 
+let waiting: ((draftUpdatedAt: string | undefined) => void)[] = [];
+
 /**
- * Record the draft token a save has just produced.
- *
- * The next turn carries this token so the API can refuse a proposal made against a draft
- * that moved. A turn posted in the same tick as the save would otherwise carry the token
- * the last render held, which is the one from before it.
+ * Announce the draft token a save has just produced, which is what anyone waiting on that
+ * save is waiting for. Called once per successful store by the builder's own save loop.
  */
 export function recordDraftSaved(draftUpdatedAt: string | undefined): void {
-  if (snapshot === undefined) return;
-  snapshot = { ...snapshot, draftUpdatedAt };
-  emit();
+  const waiters = waiting;
+  waiting = [];
+  for (const resolve of waiters) resolve(draftUpdatedAt);
+}
+
+/**
+ * The token of the builder's NEXT save, or `undefined` if none lands within the bound.
+ *
+ * The questions an accepted draft pins exist only once that save has landed, so a turn
+ * proposed to publish them waits here rather than racing the save loop. The token comes
+ * from the save itself, not from a render that may not have happened yet.
+ */
+export function nextDraftSaved(timeoutMs = 20_000): Promise<string | undefined> {
+  return new Promise((resolve) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const settle = (draftUpdatedAt: string | undefined): void => {
+      if (timer !== undefined) clearTimeout(timer);
+      resolve(draftUpdatedAt);
+    };
+    timer = setTimeout(() => {
+      waiting = waiting.filter((candidate) => candidate !== settle);
+      resolve(undefined);
+    }, timeoutMs);
+    waiting = [...waiting, settle];
+  });
 }
 
 /** The builder's published draft, or `undefined` when no builder is mounted. */

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { SaveDraftState, ValidateDraftState } from "./builder-state.ts";
 import { unsaveableReason, type UnsaveableReason } from "./draft.ts";
@@ -75,15 +75,6 @@ export interface DraftAutosave {
    * part of the draft and go to a route of their own, and they still feed the same strip.
    */
   readonly markSavedAt: (instant: string) => void;
-  /**
-   * Store one draft NOW and report what the API said, instead of waiting out the debounce.
-   *
-   * It is the same store-then-validate leg the timer runs, called directly, because an
-   * accept whose questions a later act depends on cannot be fire-and-forget: the caller has
-   * to know the questions exist before it proposes publishing them. It cancels nothing by
-   * itself; the timer's own claim keeps the two from sending one edit twice.
-   */
-  readonly saveNow: (draft: DraftForm) => Promise<SaveDraftState>;
 }
 
 export function useDraftAutosave({
@@ -153,44 +144,6 @@ export function useDraftAutosave({
 
   const paused = unsaveableReason(draft);
 
-  /** The one store-then-validate leg, run by the timer below and by `saveNow`. */
-  const store = useCallback(async (next: DraftForm): Promise<SaveDraftState> => {
-    setStatus("saving");
-    const saved = await actions.current.saveDraft(next);
-    if (saved.status === "error") {
-      // The verdict is left exactly as it was, which on a first save means still
-      // absent. `saved.issues` is the empty list a failed read supplies, and writing
-      // it here would turn a store failure into a fabricated all-clear one layer
-      // below the panel - the same trap the validate leg avoids below (issue 625).
-      setSaveError(saved.message);
-      setStatus("error");
-      return saved;
-    }
-    actions.current.onSaved?.(saved);
-    setIssues(saved.issues);
-    setWarnings(saved.warnings);
-    setSaveError(undefined);
-    setLastSavedAt(new Date().toISOString());
-    setStatus("validating");
-    // The second round trip is the one the screen contract calls live validation. It
-    // does not store, and it is where `RULE_BACKWARD_TARGET` and `RULE_CYCLE` come
-    // from: the kernel's `analyzeRuleGraph` runs inside the same compile.
-    const validated = await actions.current.validateDraft(next);
-    if (validated.status === "error") {
-      // Keep whatever the store leg just returned rather than overwriting it with the
-      // empty list a failed read supplies. `PUT .../draft` returns issues too, so the
-      // number on screen is a real one computed moments ago; replacing it with zero
-      // would turn a refresh failure into a fabricated all-clear. The panel says the
-      // count could not be refreshed, which is only honest if there is still a count.
-      setStatus("error");
-      return saved;
-    }
-    setIssues(validated.issues);
-    setWarnings(validated.warnings);
-    setStatus("saved");
-    return saved;
-  }, []);
-
   useEffect(() => {
     if (!isDirty.current || paused !== undefined) return undefined;
     setStatus("saving");
@@ -199,12 +152,45 @@ export function useDraftAutosave({
       // Claimed before the request goes out, so the flush below cannot send a second copy
       // of an edit this leg is already sending.
       pending.current = undefined;
-      void store(draft);
+      void (async () => {
+        const saved = await actions.current.saveDraft(draft);
+        if (saved.status === "error") {
+          // The verdict is left exactly as it was, which on a first save means still
+          // absent. `saved.issues` is the empty list a failed read supplies, and writing
+          // it here would turn a store failure into a fabricated all-clear one layer
+          // below the panel - the same trap the validate leg avoids below (issue 625).
+          setSaveError(saved.message);
+          setStatus("error");
+          return;
+        }
+        actions.current.onSaved?.(saved);
+        setIssues(saved.issues);
+        setWarnings(saved.warnings);
+        setSaveError(undefined);
+        setLastSavedAt(new Date().toISOString());
+        setStatus("validating");
+        // The second round trip is the one the screen contract calls live validation. It
+        // does not store, and it is where `RULE_BACKWARD_TARGET` and `RULE_CYCLE` come
+        // from: the kernel's `analyzeRuleGraph` runs inside the same compile.
+        const validated = await actions.current.validateDraft(draft);
+        if (validated.status === "error") {
+          // Keep whatever the store leg just returned rather than overwriting it with the
+          // empty list a failed read supplies. `PUT .../draft` returns issues too, so the
+          // number on screen is a real one computed moments ago; replacing it with zero
+          // would turn a refresh failure into a fabricated all-clear. The panel says the
+          // count could not be refreshed, which is only honest if there is still a count.
+          setStatus("error");
+          return;
+        }
+        setIssues(validated.issues);
+        setWarnings(validated.warnings);
+        setStatus("saved");
+      })();
     }, AUTOSAVE_DEBOUNCE_MS);
     return () => {
       clearTimeout(timer);
     };
-  }, [draft, paused, store]);
+  }, [draft, paused]);
 
   // LEAVING THE SCREEN STORES WHAT IS ON IT (issue #669).
   //
@@ -249,11 +235,5 @@ export function useDraftAutosave({
       isDirty.current = true;
     },
     markSavedAt: setLastSavedAt,
-    saveNow: (next) => {
-      // The timer's claim, taken here too: an edit this call is sending must not go out a
-      // second time when the debounce fires.
-      pending.current = undefined;
-      return store(next);
-    },
   };
 }

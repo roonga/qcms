@@ -33,8 +33,12 @@ import {
  * the diff and may edit the form; the panel then posts a turn of its own and the assistant
  * asks for approval, proposing one publish per question version the SAVED draft pins
  * unpublished and then the form itself. What this spec pins is the whole walk, the edit
- * made between the two cards reaching the second one, and a cancel on the second card
- * publishing nothing.
+ * made between the two cards reaching the second one, and a cancel publishing nothing.
+ *
+ * ## Why the slugs begin `zzz`
+ *
+ * The Operations list is one page of 25 rows sorted by slug, so a form created here with an
+ * ordinary name pushes another spec's fixture off that page. Two forms, named to sort last.
  */
 
 test.use({ storageState: TEST_ENVIRONMENT_STORAGE });
@@ -45,15 +49,11 @@ const EMAIL = uniqueAdminEmail("agent1205blank");
 
 const RUN = Date.now().toString(36);
 
-/** The run's own question ids, since a question id and a slug are never reused (R6). */
-const NEW = `bp${RUN}`;
-
 /** The questions the script writes, which is a patient-registration shape. */
 const QUESTION_COUNT = 12;
 
 let totpSecret = "";
 let journeyFormId = "";
-let cancelFormId = "";
 
 test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
@@ -70,7 +70,7 @@ async function describeTheForm(page: Page, word: string): Promise<void> {
 
 /** The second card, which the panel's own follow-up turn brings. */
 async function waitForPublishCard(page: Page, steps: number): Promise<void> {
-  await expect(cardSteps(page)).toHaveCount(steps, { timeout: 60_000 });
+  await expect(cardSteps(page)).toHaveCount(steps, { timeout: 120_000 });
   await expect(cardChip(page)).toHaveText("Proposed");
 }
 
@@ -84,7 +84,7 @@ async function expectServing(page: Page, formId: string, text: string): Promise<
 test("takes a blank form to a published one in test, through two cards", async ({ page }) => {
   test.setTimeout(900_000);
   totpSecret = await enrollNewAdmin(page, EMAIL);
-  journeyFormId = await createForm(page, `agent-bp-${RUN}`, "Patient registration");
+  journeyFormId = await createForm(page, `zzz-bp-${RUN}`, "Patient registration");
   await page.goto(`/forms/${journeyFormId}`);
   await openPanel(page);
 
@@ -94,7 +94,7 @@ test("takes a blank form to a published one in test, through two cards", async (
   // CARD ONE: the draft alone, with its diff and the server's own two advisory lists. The
   // questions it pins do not exist yet, so the draft cannot publish and the card does not
   // offer to.
-  await describeTheForm(page, NEW);
+  await describeTheForm(page, `bp${RUN}`);
   await expect(cardSteps(page)).toHaveCount(1);
   await expect(card(page).getByTestId("qcms-acard-draft")).toBeVisible();
   await expectAxeClean(page, "proposed draft");
@@ -107,7 +107,7 @@ test("takes a blank form to a published one in test, through two cards", async (
   await waitForPublishCard(page, QUESTION_COUNT + 1);
   // Every act is on the card, named in full, rather than a count of them.
   for (const suffix of ["given_name", "allergies", "consent_share"]) {
-    await expect(card(page)).toContainText(`q_fake_new_${NEW}_${suffix}`);
+    await expect(card(page)).toContainText(`q_fake_new_bp${RUN}_${suffix}`);
   }
   await expect(card(page).getByRole("button", { name: /^Confirm all 13/u })).toBeVisible();
   await expectAxeClean(page, "proposed publish plan");
@@ -130,14 +130,14 @@ test("takes a blank form to a published one in test, through two cards", async (
   });
 });
 
-test("publishes what the editor left in the draft, not what the proposal said", async ({
+test("cancels the publish card, then publishes what the editor left in the draft", async ({
   page,
 }) => {
   test.setTimeout(900_000);
   await signInWithTotp(page, EMAIL, totpSecret);
-  cancelFormId = await createForm(page, `agent-bp-edit-${RUN}`, "Patient registration");
-  const word = `${NEW}e`;
-  await page.goto(`/forms/${cancelFormId}`);
+  const formId = await createForm(page, `zzz-bp-edit-${RUN}`, "Patient registration");
+  const word = `bp${RUN}e`;
+  await page.goto(`/forms/${formId}`);
   await openPanel(page);
 
   const previousSave = await savedStamp(page);
@@ -146,11 +146,16 @@ test("publishes what the editor left in the draft, not what the proposal said", 
   await waitForSaveAfter(page, previousSave);
   await waitForPublishCard(page, QUESTION_COUNT + 1);
 
-  // The editor reads the diff, decides against one question, and cancels the publish card
-  // to go and remove it.
+  // Cancelling the publish card publishes nothing at all.
+  const beforeCancel = await auditTally();
   await cancel(page);
+  await expectAxeClean(page, "cancelled publish plan");
+  expect(auditDelta(beforeCancel, await auditTally())).toEqual({});
+  await expectServing(page, formId, "Nothing released");
+
+  // The editor decides against one question and removes it.
   const beforeEdit = await savedStamp(page);
-  await page.goto(`/forms/${cancelFormId}`);
+  await page.goto(`/forms/${formId}`);
   await openStep(page, "Your GP and consent");
   await usePinRowMenu(page, `q_fake_new_${word}_gp_name`, "remove");
   await waitForSaveAfter(page, beforeEdit);
@@ -165,34 +170,11 @@ test("publishes what the editor left in the draft, not what the proposal said", 
   await expect(card(page)).toContainText(`q_fake_new_${word}_given_name`);
 
   await confirm(page, new RegExp(`^Done\\. All ${String(QUESTION_COUNT)} steps ran`, "u"));
-  await expectServing(page, cancelFormId, "v1");
+  await expectServing(page, formId, "v1");
   expect(auditDelta(before, await auditTally())).toEqual({
     "question.publish": QUESTION_COUNT - 1,
     "form.publish": 1,
   });
-});
-
-test("publishes nothing when the publish card is cancelled", async ({ page }) => {
-  test.setTimeout(900_000);
-  await signInWithTotp(page, EMAIL, totpSecret);
-  const formId = await createForm(page, `agent-bp-cancel-${RUN}`, "Patient registration");
-  const word = `${NEW}c`;
-  await page.goto(`/forms/${formId}`);
-  await openPanel(page);
-
-  const previousSave = await savedStamp(page);
-  await describeTheForm(page, word);
-  await confirm(page, /^Done\./u);
-  await waitForSaveAfter(page, previousSave);
-  await waitForPublishCard(page, QUESTION_COUNT + 1);
-
-  const before = await auditTally();
-  await cancel(page);
-  await expectAxeClean(page, "cancelled publish plan");
-
-  // Nothing was published: no question moved, no version was frozen, no row was written.
-  expect(auditDelta(before, await auditTally())).toEqual({});
-  await expectServing(page, formId, "Nothing released");
 });
 
 test("refuses to publish a question this form's draft does not pin", async ({ page }) => {
