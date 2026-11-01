@@ -20,10 +20,11 @@ import { enrollNewAdmin, fillStable, signInWithTotp } from "./support/flow.js";
 import { waitForHydration } from "./support/hydration.js";
 
 /**
- * Criterion 11 on the form screen: an act proposed there is confirmed, changes the screen
- * and leaves its audit row; a cancel sends nothing; and the card's waiting states are axe
- * clean. It also covers the two reads that belong with them: the timeline's own label for
- * each read tool the turn called, and the workspace audit that lists what was confirmed.
+ * Criterion 11 on one form's Intake screen: an act proposed there is confirmed, changes the
+ * screen and leaves its audit row; a cancel sends nothing; and the card's waiting states
+ * are axe clean. It also covers the two reads that belong with them: the timeline's own
+ * label for each read tool the turn called, and the workspace audit that lists what was
+ * confirmed.
  *
  * ## Why these claims are browser claims
  *
@@ -60,7 +61,7 @@ test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
 });
 
-test("confirms a close and a reopen on the form screen, changing the screen and recording each act", async ({
+test("confirms a close and a reopen on the Intake screen, changing the screen and recording each act", async ({
   page,
 }) => {
   test.setTimeout(300_000);
