@@ -30,7 +30,6 @@ import {
 
 const PROPOSED_AT = "2026-07-20T00:00:00.000Z";
 const EXPIRES_AT = "2026-07-20T00:10:00.000Z";
-const NOW = Date.parse(PROPOSED_AT);
 
 function step(overrides: Partial<AgentPlanStep> = {}): AgentPlanStep {
   return {

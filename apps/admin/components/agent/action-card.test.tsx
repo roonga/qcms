@@ -25,7 +25,6 @@ import { ProposalMarker } from "./proposal-marker";
 
 const PROPOSED_AT = "2026-07-20T00:00:00.000Z";
 const EXPIRES_AT = "2026-07-20T00:10:00.000Z";
-const NOW = Date.parse(PROPOSED_AT);
 
 /** Hostile model text: it must never reach a title, an argument or a consequence line. */
 const HOSTILE_REASON =
