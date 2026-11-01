@@ -152,19 +152,17 @@ test("confirms the draft inside a plan, with the builder's own settings behind i
  * The local step sits before a reference, so the step a reference names is at one index on
  * the card and another in the token: the card's third step runs on the version its second
  * records, and the token binds only two steps.
+ *
+ * On this spec's own form rather than a new one. The Operations list this suite shares is
+ * one page of 25 rows sorted by slug, and a form created here sorts ahead of other specs'
+ * fixtures and pushes one of them off that page.
  */
 test("confirms a plan whose later step references a publish behind the local step", async ({
   page,
 }) => {
   test.setTimeout(600_000);
   await signInWithTotp(page, EMAIL, totpSecret);
-
-  const planFormId = await createForm(page, `agent-draft-rel-${RUN}`, "Agent draft release");
-  await addStep(page, "Start");
-  await pinQuestion(page, SEEDED_QUESTION, 1);
-  await waitForSaved(page);
-
-  await page.goto(`/forms/${planFormId}`);
+  await page.goto(`/forms/${formId}`);
   await openPanel(page);
 
   const before = await auditTally();
