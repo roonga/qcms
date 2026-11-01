@@ -12,6 +12,64 @@ export interface AssistTurnRelay {
   readonly content: string;
 }
 
+/**
+ * One settled card's own record, which the next turn is told about. The panel writes it
+ * from the card's fold and each kind's result allowlist; the API validates the shape again
+ * and narrows every reported field to the reporting kind's own list, so what travels here
+ * is a shape rather than a trusted claim.
+ */
+export interface AssistActionResultRelay {
+  readonly role: "action-result";
+  readonly proposalId: string;
+  readonly steps: readonly {
+    readonly kind: string;
+    readonly outcome: string;
+    readonly result?: Readonly<Record<string, string | number | boolean>>;
+  }[];
+}
+
+export type AssistConversationRelay = AssistTurnRelay | AssistActionResultRelay;
+
+const OUTCOMES: readonly string[] = [
+  "done",
+  "failed",
+  "pending-approval",
+  "not-run",
+  "cancelled",
+  "expired",
+];
+
+/** Scalars only: an object or an array is how content smuggles itself into this channel. */
+function parseResultFields(
+  raw: unknown,
+): Readonly<Record<string, string | number | boolean>> | undefined {
+  if (!isRecord(raw)) return undefined;
+  const fields: Record<string, string | number | boolean> = {};
+  for (const [name, value] of Object.entries(raw)) {
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+      fields[name] = value;
+    }
+  }
+  return Object.keys(fields).length === 0 ? undefined : fields;
+}
+
+function parseActionResult(entry: Record<string, unknown>): AssistActionResultRelay | undefined {
+  const { proposalId, steps } = entry;
+  if (typeof proposalId !== "string" || proposalId === "" || !Array.isArray(steps)) {
+    return undefined;
+  }
+  const parsed: AssistActionResultRelay["steps"][number][] = [];
+  for (const step of steps) {
+    if (!isRecord(step)) return undefined;
+    const { kind, outcome } = step;
+    if (typeof kind !== "string" || kind === "") return undefined;
+    if (typeof outcome !== "string" || !OUTCOMES.includes(outcome)) return undefined;
+    const result = parseResultFields(step["result"]);
+    parsed.push({ kind, outcome, ...(result === undefined ? {} : { result }) });
+  }
+  return parsed.length === 0 ? undefined : { role: "action-result", proposalId, steps: parsed };
+}
+
 export interface AssistFiltersRelay {
   readonly version?: number;
   readonly from?: string;
@@ -29,15 +87,19 @@ export interface AssistParamsRelay {
 }
 
 /** Every turn whose shape these routes trust enough to forward; anything else is dropped. */
-export function parseAssistConversation(raw: unknown): readonly AssistTurnRelay[] {
+export function parseAssistConversation(raw: unknown): readonly AssistConversationRelay[] {
   if (!Array.isArray(raw)) return [];
-  const turns: AssistTurnRelay[] = [];
+  const turns: AssistConversationRelay[] = [];
   for (const entry of raw) {
-    if (typeof entry !== "object" || entry === null) continue;
-    const { role, content } = entry as { role?: unknown; content?: unknown };
+    if (!isRecord(entry)) continue;
+    const { role, content } = entry;
     if ((role === "user" || role === "assistant") && typeof content === "string") {
       turns.push({ role, content });
+      continue;
     }
+    if (role !== "action-result") continue;
+    const settled = parseActionResult(entry);
+    if (settled !== undefined) turns.push(settled);
   }
   return turns;
 }
