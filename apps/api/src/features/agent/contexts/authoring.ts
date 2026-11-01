@@ -17,6 +17,7 @@ import {
 } from "@roonga/qcms-db";
 import type { FormId } from "@roonga/qcms-core";
 
+import { unpublishedDraftPins } from "../draft-pins.js";
 import {
   FACT_ROW_LIMIT,
   Instant,
@@ -155,12 +156,22 @@ const StepFact = z.strictObject({
   questionCount: z.number().int(),
 });
 
+const UnpublishedPinFact = z.strictObject({
+  questionId: z.string(),
+  version: z.number().int(),
+});
+
 export const builderFacts = z.strictObject({
   ...FormSubjectFacts,
   stepCount: z.number().int(),
   questionCount: z.number().int(),
   ruleCount: z.number().int(),
   steps: z.array(StepFact),
+  /**
+   * The question versions the saved draft pins that are not published. It is what stops this
+   * draft publishing, and the only set a question publish may be proposed from here.
+   */
+  unpublishedPins: z.array(UnpublishedPinFact),
 });
 
 interface DraftShape {
@@ -208,6 +219,7 @@ async function structureFacts(input: ScreenBuildInput): Promise<z.infer<typeof b
     questionCount: (shape?.steps ?? []).reduce((total, step) => total + stepQuestionCount(step), 0),
     ruleCount: shape?.rules?.length ?? 0,
     steps,
+    unpublishedPins: [...(await unpublishedDraftPins(input.deps, formId))].slice(0, FACT_ROW_LIMIT),
   };
 }
 

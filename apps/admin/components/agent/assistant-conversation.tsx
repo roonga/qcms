@@ -13,7 +13,10 @@ import {
 import { AssistMark } from "@/components/forms/assist-mark";
 import { AssistMarkdown } from "@/components/forms/assist-markdown";
 import { Button } from "@/components/kit";
-import type { BuilderAssistSnapshot } from "@/lib/agent/builder-assist-bridge";
+import {
+  builderAssistSnapshot,
+  type BuilderAssistSnapshot,
+} from "@/lib/agent/builder-assist-bridge";
 import {
   isProseTurn,
   promptTurns,
@@ -62,6 +65,18 @@ function handOffFields(args: Readonly<Record<string, unknown>>): Readonly<Record
     else if (typeof value === "number" || typeof value === "boolean") fields[name] = String(value);
   }
   return fields;
+}
+
+/**
+ * Whether the panel posts a turn of its own now that this card has settled.
+ *
+ * Only after a card that applied a draft, and only when every step of it succeeded: the
+ * draft is stored and the questions it pins exist, so what remains is asking whether to
+ * publish them. No other confirmed act starts a turn nobody asked for.
+ */
+function continuesAfterAccept(plan: AgentProposal, settled: AgentCardView): boolean {
+  if (!plan.steps.some((step) => step.kind === "apply-draft")) return false;
+  return settled.steps.length > 0 && settled.steps.every((step) => step.state === "done");
 }
 
 import {
@@ -224,22 +239,29 @@ function ScreenConversation({
       windowLeftMs: () => remainingWindowMs(windowRef.current, monotonicNow()),
     });
     settle(plan, settled);
+    // The draft is stored and its questions exist; what is left is asking whether to
+    // publish them, which is the assistant's to propose and the person's to confirm.
+    if (continuesAfterAccept(plan, settled)) await runTurn(undefined);
   };
 
-  const postTurn = (message: string, on: ResolvedScreen, signal: AbortSignal): Promise<Response> =>
-    fetch(builder?.endpoint ?? "/assist", {
+  const postTurn = (on: ResolvedScreen, signal: AbortSignal): Promise<Response> => {
+    // The module's own snapshot rather than this render's prop: a turn posted straight after
+    // an accept has to carry the token that accept's save produced.
+    const draftUpdatedAt = builderAssistSnapshot()?.draftUpdatedAt ?? builder?.draftUpdatedAt;
+    return fetch(builder?.endpoint ?? "/assist", {
       method: "POST",
       headers: { "content-type": "application/json" },
       signal,
       body: JSON.stringify({
-        conversation: [...promptTurns(conversation.turns), { role: "user", content: message }],
+        conversation: promptTurns(conversation.current()),
         screen: on.screen,
         params: on.params,
         conversationId: conversation.id,
         // The stored draft this turn is proposed against; the route refuses a mismatch.
-        ...(builder?.draftUpdatedAt === undefined ? {} : { clientState: builder.draftUpdatedAt }),
+        ...(draftUpdatedAt === undefined ? {} : { clientState: draftUpdatedAt }),
       }),
     });
+  };
 
   /** One event's effects beyond the turn's own fold: the card, and what went wrong. */
   const absorb = (event: AssistEvent): void => {
@@ -254,13 +276,18 @@ function ScreenConversation({
     if (event.type === "error") setFailure({ kind: event.code, message: event.message });
   };
 
-  const send = async (): Promise<void> => {
-    const message = value.trim();
-    if (message === "" || screen === undefined || live !== undefined) return;
-    setValue("");
+  /**
+   * One turn. `message` is absent for the turn the panel posts itself after an accept
+   * settles: the conversation already ends with that card's own `action-result` record, and
+   * the person typed nothing to add to it.
+   */
+  const runTurn = async (message: string | undefined): Promise<void> => {
+    if (screen === undefined || live !== undefined) return;
     setFailure(undefined);
-    setShown((current) => [...current, { role: "user", content: message }]);
-    conversation.append([{ role: "user", content: message }]);
+    if (message !== undefined) {
+      setShown((current) => [...current, { role: "user", content: message }]);
+      conversation.append([{ role: "user", content: message }]);
+    }
     let turn = EMPTY_TURN;
     setLive(turn);
     onWorkingChange(true);
@@ -270,7 +297,7 @@ function ScreenConversation({
     stoppedRef.current = false;
 
     try {
-      const response = await postTurn(message, screen, controller.signal);
+      const response = await postTurn(screen, controller.signal);
       if (!response.ok || response.body === null) {
         const failed = await errorForResponse(response);
         setFailure(failed);
@@ -303,6 +330,13 @@ function ScreenConversation({
       setLive(undefined);
       onWorkingChange(false);
     }
+  };
+
+  const send = async (): Promise<void> => {
+    const message = value.trim();
+    if (message === "" || screen === undefined || live !== undefined) return;
+    setValue("");
+    await runTurn(message);
   };
 
   return (

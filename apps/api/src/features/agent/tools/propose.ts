@@ -11,7 +11,9 @@ import type { FormDefinition, QuestionDefinition } from "@roonga/qcms-core";
 import type { PublishIssue, PublishWarning } from "../../forms/handler.js";
 import { actionKind } from "../actions/registry.js";
 import type { ActionKindDef } from "../actions/types.js";
+import type { PinnedQuestion } from "../draft-pins.js";
 import { offeredEnvironments, type OfferedActionKind } from "../grant-filter.js";
+import type { ScreenId } from "../screens.js";
 import {
   argumentsDigest,
   isStepReference,
@@ -26,6 +28,13 @@ export const PROPOSALS_PER_TURN = 1;
 
 /** P2: a payload bound in the spirit of the conversation cap, not a permission rule. */
 export const MAX_PLAN_STEPS = PROPOSAL_MAX_STEPS;
+
+const PUBLISH_QUESTION_KIND = "question.publish";
+
+const PUBLISH_FORM_KIND = "form.publish";
+
+/** The question's own page, where publishing one needs no draft to justify it. */
+const QUESTION_DETAIL_SCREEN: ScreenId = "/questions/[questionId]";
 
 export const ProposedStep = z.strictObject({
   kind: z.string().min(1).max(100),
@@ -92,6 +101,8 @@ export interface ProposeInput {
   readonly appKey: string;
   /** The environment the switcher named for this turn. */
   readonly current: string;
+  /** The screen the turn is on, which decides whether a question publish needs a pin. */
+  readonly screen: ScreenId;
   readonly offered: readonly OfferedActionKind[];
   /** The workspace's ADR-41 switch, which refuses a publish-then-release-to-prod plan. */
   readonly requireSecondApprover: boolean;
@@ -112,6 +123,12 @@ export interface ProposeInput {
         readonly newQuestions: readonly QuestionDefinition[];
       }
     | undefined;
+  /**
+   * The question versions the form's saved draft pins unpublished, read when a step asks to
+   * publish one. Absent, a question publish away from the question's own page is refused
+   * rather than allowed unverified.
+   */
+  readonly pinnedUnpublished?: (() => Promise<readonly PinnedQuestion[]>) | undefined;
   /** The builder's own validation, so the card's two lists and a publish cannot disagree. */
   readonly validate?:
     | ((definition: FormDefinition) => Promise<{
@@ -190,10 +207,62 @@ function proposedDraftRefusal(
   return undefined;
 }
 
+/**
+ * A question publish proposed anywhere but the question's own page names a version the
+ * form's saved draft pins unpublished, and nothing else. The set is the server's own read of
+ * the stored draft, so the card can only ever offer to finish what the draft in front of the
+ * editor needs; a literal id and version, because a value resolved from an earlier step's
+ * result could not be checked against the set here.
+ */
+function pinnedQuestionRefusal(
+  step: ProposedStep,
+  index: number,
+  pinned: readonly PinnedQuestion[],
+): string | undefined {
+  const questionId = step.args["questionId"];
+  const version = step.args["version"];
+  const matched =
+    typeof questionId === "string" &&
+    typeof version === "number" &&
+    pinned.some((pin) => pin.questionId === questionId && pin.version === version);
+  if (matched) return undefined;
+  const available =
+    pinned.length === 0
+      ? "This form's saved draft pins no unpublished question version."
+      : `The versions this form's saved draft pins unpublished are: ${pinned
+          .map((pin) => `${pin.questionId}@v${String(pin.version)}`)
+          .join(", ")}.`;
+  return (
+    `Step ${String(index + 1)} publishes a question version this form's saved draft does not ` +
+    `pin unpublished. ${available} Publish any other question from its own page in the library.`
+  );
+}
+
+/**
+ * The form's publish runs after every question publish in the same plan, because a draft
+ * pinning an unpublished version cannot be published at all: proposed the other way round
+ * the plan would stop at its own first step.
+ */
+function publishOrderRefusal(steps: readonly ProposedStep[]): string | undefined {
+  const formAt = steps.findIndex((step) => step.kind === PUBLISH_FORM_KIND);
+  if (formAt < 0) return undefined;
+  const lastQuestion = steps.reduce(
+    (last, step, index) => (step.kind === PUBLISH_QUESTION_KIND ? index : last),
+    -1,
+  );
+  if (lastQuestion < formAt) return undefined;
+  return (
+    `Step ${String(formAt + 1)} publishes the form before step ${String(lastQuestion + 1)} ` +
+    "publishes a question the draft pins, which would be refused as an unpublished pin. " +
+    "Put every question publish before the form publish."
+  );
+}
+
 function stepRefusal(
   input: ProposeInput,
   step: ProposedStep,
   index: number,
+  pinned: readonly PinnedQuestion[],
 ): { readonly reason: string } | { readonly step: PlanStep; readonly def: ActionKindDef } {
   const def = actionKind(step.kind);
   if (def === undefined) {
@@ -240,6 +309,11 @@ function stepRefusal(
 
   if (def.carriesProposedDraft === true) {
     const refusal = proposedDraftRefusal(input, def, step, index);
+    if (refusal !== undefined) return { reason: refusal };
+  }
+
+  if (step.kind === PUBLISH_QUESTION_KIND && input.screen !== QUESTION_DETAIL_SCREEN) {
+    const refusal = pinnedQuestionRefusal(step, index, pinned);
     if (refusal !== undefined) return { reason: refusal };
   }
 
@@ -363,12 +437,26 @@ export async function buildProposal(input: ProposeInput): Promise<ProposeOutcome
     );
   }
 
+  const pinsNeeded =
+    input.screen !== QUESTION_DETAIL_SCREEN &&
+    input.steps.some((step) => step.kind === PUBLISH_QUESTION_KIND);
+  if (pinsNeeded && input.pinnedUnpublished === undefined) {
+    return refuse(
+      `This screen cannot say which question versions the form's draft pins, so ${PUBLISH_QUESTION_KIND} ` +
+        "cannot be proposed here. Publish the question from its own page in the library.",
+    );
+  }
+  const pinned = pinsNeeded ? ((await input.pinnedUnpublished?.()) ?? []) : [];
+
   const steps: PlanStep[] = [];
   for (const [index, step] of input.steps.entries()) {
-    const checked = stepRefusal(input, step, index);
+    const checked = stepRefusal(input, step, index, pinned);
     if ("reason" in checked) return refuse(checked.reason);
     steps.push(checked.step);
   }
+
+  const ordering = publishOrderRefusal(input.steps);
+  if (ordering !== undefined) return refuse(ordering);
 
   const handOffAt = steps.findIndex((step) => step.handOff);
   if (handOffAt >= 0 && handOffAt !== steps.length - 1) {

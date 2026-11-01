@@ -678,6 +678,7 @@ describe("a reference in a plan whose first step runs on the screen itself", () 
         },
       ],
       proposedDraft: { definition: draftFor(FORM_ID), newQuestions: [] },
+      screen: "/forms/[formId]",
       validate: () => Promise.resolve({ issues: [], warnings: [] }),
       subject: owner.userId,
       appKey: deps.config.keys.app,
@@ -1280,6 +1281,7 @@ describe("a mint proposed in the shape the model may produce runs end to end", (
       steps: [
         { kind: "link.mint", args: { formId: FORM_ID, count: 2, expiresAt, oneTime: false } },
       ],
+      screen: "/forms/[formId]/links",
       subject: owner.userId,
       appKey: deps.config.keys.app,
       current: "prod",

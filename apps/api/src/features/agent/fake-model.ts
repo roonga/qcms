@@ -58,6 +58,7 @@ export const FAKE_SCRIPTS = [
   // One multi-step plan per screen group, so every kind is also confirmed inside a plan.
   "plan-apply-draft",
   "plan-apply-draft-release",
+  "blank-to-published",
   "plan-form-screen",
   "plan-releases",
   "plan-links",
@@ -1271,6 +1272,7 @@ const STATEFUL_PLANNERS: Readonly<
   reasoning: planReasoningStep,
   "plan-apply-draft": planApplyDraftStep,
   "plan-apply-draft-release": planApplyDraftReleaseStep,
+  "blank-to-published": planBlankToPublishedStep,
 };
 
 function planStep(
@@ -1422,6 +1424,273 @@ function planApplyDraftReleaseStep(
     ];
   }
   return [...textParts("The plan is on the card for you to confirm.", "t1"), finishPart("stop")];
+}
+
+/**
+ * A patient-registration form's questions, one per kernel type, each filling every
+ * authoring field its type supports: help text, the required flag, the constraints, a
+ * message per constraint, option labels and a boolean's own two labels. It is what the
+ * `blank-to-published` journey publishes, so "complete rather than minimal" is asserted
+ * against real definitions rather than described in a prompt.
+ */
+function patientQuestions(prompt: readonly PromptMessage[]): Record<string, unknown>[] {
+  const base = newQuestionId(prompt);
+  const id = (suffix: string): string => `${base}_${suffix}`;
+  return [
+    {
+      questionId: id("given_name"),
+      type: "shortText",
+      label: { en: "Given name" },
+      help: { en: "As it appears on your Medicare card." },
+      required: true,
+      constraints: { minLength: 1, maxLength: 60 },
+      messages: {
+        required: { en: "We need your given name to register you." },
+        minLength: { en: "Enter at least one character." },
+        maxLength: { en: "Use 60 characters or fewer." },
+      },
+    },
+    {
+      questionId: id("family_name"),
+      type: "shortText",
+      label: { en: "Family name" },
+      help: { en: "Your surname, as it appears on your Medicare card." },
+      required: true,
+      constraints: { minLength: 1, maxLength: 60 },
+      messages: {
+        required: { en: "We need your family name to register you." },
+        maxLength: { en: "Use 60 characters or fewer." },
+      },
+    },
+    {
+      questionId: id("date_of_birth"),
+      type: "date",
+      label: { en: "Date of birth" },
+      help: { en: "We use this to match you to existing records." },
+      required: true,
+      constraints: { min: "1900-01-01", max: "2026-12-31" },
+      messages: {
+        required: { en: "We need your date of birth." },
+        min: { en: "Enter a date from 1900 onwards." },
+        max: { en: "Enter a date that has already happened." },
+      },
+    },
+    {
+      questionId: id("email"),
+      type: "shortText",
+      label: { en: "Email address" },
+      help: { en: "Where we send appointment reminders." },
+      required: true,
+      constraints: { maxLength: 200, pattern: "^[^@\\s]+@[^@\\s]+$" },
+      messages: {
+        required: { en: "We need an email address for reminders." },
+        pattern: { en: "Enter an email address in the form name@example.com." },
+      },
+    },
+    {
+      questionId: id("phone"),
+      type: "shortText",
+      label: { en: "Mobile number" },
+      help: { en: "Digits only, including the area code." },
+      required: false,
+      constraints: { minLength: 8, maxLength: 15, pattern: "^[0-9]+$" },
+      messages: {
+        minLength: { en: "A mobile number has at least eight digits." },
+        pattern: { en: "Use digits only, with no spaces." },
+      },
+    },
+    {
+      questionId: id("height_cm"),
+      type: "number",
+      label: { en: "Height in centimetres" },
+      help: { en: "Your best estimate is fine." },
+      required: false,
+      constraints: { min: 30, max: 250, integer: true },
+      messages: {
+        min: { en: "Enter a height of at least 30 cm." },
+        max: { en: "Enter a height of 250 cm or less." },
+        integer: { en: "Enter a whole number of centimetres." },
+      },
+    },
+    {
+      questionId: id("sex_at_birth"),
+      type: "singleChoice",
+      label: { en: "Sex recorded at birth" },
+      help: { en: "Some screening recommendations depend on this." },
+      required: true,
+      options: [
+        { optionId: "opt_female", label: { en: "Female" } },
+        { optionId: "opt_male", label: { en: "Male" } },
+        { optionId: "opt_intersex", label: { en: "Intersex" } },
+        { optionId: "opt_not_stated", label: { en: "Prefer not to say" } },
+      ],
+      messages: { required: { en: "Choose one option." } },
+    },
+    {
+      questionId: id("allergies"),
+      type: "multiChoice",
+      label: { en: "Known allergies" },
+      help: { en: "Choose every one that applies. Leave blank if you have none." },
+      required: false,
+      options: [
+        { optionId: "opt_penicillin", label: { en: "Penicillin" } },
+        { optionId: "opt_latex", label: { en: "Latex" } },
+        { optionId: "opt_peanuts", label: { en: "Peanuts" } },
+        { optionId: "opt_shellfish", label: { en: "Shellfish" } },
+        { optionId: "opt_other", label: { en: "Something else" } },
+      ],
+      constraints: { minSelected: 0, maxSelected: 5 },
+      messages: { maxSelected: { en: "Choose no more than five." } },
+    },
+    {
+      questionId: id("medications"),
+      type: "longText",
+      label: { en: "Medications you take regularly" },
+      help: { en: "One per line, with the dose if you know it." },
+      required: false,
+      constraints: { maxLength: 2000 },
+      messages: { maxLength: { en: "Use 2000 characters or fewer." } },
+    },
+    {
+      questionId: id("conditions"),
+      type: "longText",
+      label: { en: "Ongoing medical conditions" },
+      help: { en: "Anything a clinician seeing you for the first time should know." },
+      required: false,
+      constraints: { maxLength: 2000 },
+      messages: { maxLength: { en: "Use 2000 characters or fewer." } },
+    },
+    {
+      questionId: id("gp_name"),
+      type: "shortText",
+      label: { en: "Your usual GP" },
+      help: { en: "Leave blank if you do not have one." },
+      required: false,
+      constraints: { maxLength: 120 },
+      messages: { maxLength: { en: "Use 120 characters or fewer." } },
+    },
+    {
+      questionId: id("consent_share"),
+      type: "boolean",
+      label: { en: "May we share your summary with your usual GP?" },
+      help: { en: "You can change this at any later visit." },
+      required: true,
+      yesLabel: { en: "Yes, share it" },
+      noLabel: { en: "No, keep it here" },
+      messages: { required: { en: "Choose whether we may share your summary." } },
+    },
+  ];
+}
+
+function patientDraft(prompt: readonly PromptMessage[]): Record<string, unknown> {
+  const draft = currentDraft(prompt) ?? {};
+  const locale = typeof draft.defaultLocale === "string" ? draft.defaultLocale : "en";
+  const questions = patientQuestions(prompt);
+  const pin = (from: number, to: number): Record<string, unknown>[] =>
+    questions.slice(from, to).map((question) => ({ questionId: question.questionId, version: 1 }));
+  return {
+    formId: draft.formId ?? factFormId(prompt),
+    defaultLocale: locale,
+    title: { [locale]: "Patient registration" },
+    steps: [
+      { stepId: "stp_identity", title: { [locale]: "Who you are" }, items: pin(0, 5) },
+      { stepId: "stp_health", title: { [locale]: "Your health" }, items: pin(5, 10) },
+      { stepId: "stp_consent", title: { [locale]: "Your GP and consent" }, items: pin(10, 12) },
+    ],
+    rules: [],
+  };
+}
+
+/** The question versions the screen says the saved draft pins unpublished, in facts order. */
+function factUnpublishedPins(
+  prompt: readonly PromptMessage[],
+): { questionId: string; version: number }[] {
+  const rows = screenFacts(prompt)["unpublishedPins"];
+  if (!Array.isArray(rows)) return [];
+  const pins: { questionId: string; version: number }[] = [];
+  for (const entry of rows) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const row = entry as { questionId?: unknown; version?: unknown };
+    if (typeof row.questionId === "string" && typeof row.version === "number") {
+      pins.push({ questionId: row.questionId, version: row.version });
+    }
+  }
+  return pins;
+}
+
+/** Whether the person has already confirmed this conversation's apply-draft card. */
+function draftApplied(prompt: readonly PromptMessage[]): boolean {
+  return userText(prompt).includes("apply-draft: done");
+}
+
+/**
+ * `blank-to-published`: the two-card journey. The first turn proposes a complete form and
+ * the apply-draft card alone; the turn after that card settles asks for approval and
+ * proposes publishing each question version the SAVED draft pins unpublished, then the form
+ * itself, into the lowest environment.
+ */
+function planBlankToPublishedStep(
+  prompt: readonly PromptMessage[],
+  results: Map<string, unknown>,
+): StreamPart[] {
+  if (draftApplied(prompt)) {
+    if (toolCallCount(prompt, "propose_plan") > 0) {
+      return [
+        ...textParts("The publish plan is on the card for you to confirm.", "p1"),
+        finishPart("stop"),
+      ];
+    }
+    const input = {
+      steps: [
+        ...factUnpublishedPins(prompt).map((pin) => ({
+          kind: "question.publish",
+          args: { questionId: pin.questionId, version: pin.version },
+        })),
+        { kind: "form.publish", args: { formId: factFormId(prompt), environment: "test" } },
+      ],
+    };
+    return [
+      ...textParts(
+        "The draft is saved. May I publish the questions it pins and then the form into test? Promoting it further is a separate act for someone else.",
+        "p0",
+      ),
+      ...toolInputParts("propose_plan", input),
+      toolCallPart("propose_plan", input),
+      finishPart("tool-calls"),
+    ];
+  }
+
+  if (!results.has("search_question_library")) {
+    const query = pickSearchQuery(prompt);
+    return [
+      ...textParts("Let me check the library before inventing anything.", "t0"),
+      toolCallPart("search_question_library", {
+        limit: 10,
+        ...(query === undefined ? {} : { query }),
+      }),
+      finishPart("tool-calls"),
+    ];
+  }
+  if (!results.has("propose_questions")) {
+    return [
+      toolCallPart("propose_questions", { questions: patientQuestions(prompt) }),
+      finishPart("tool-calls"),
+    ];
+  }
+  if (!results.has("propose_draft")) {
+    return [
+      toolCallPart("propose_draft", { definition: patientDraft(prompt) }),
+      finishPart("tool-calls"),
+    ];
+  }
+  if (!results.has("propose_action")) return applyDraftCall(prompt);
+  return [
+    ...textParts(
+      "I wrote a patient registration form with twelve questions, each with help text, validation and its own messages. Review the diff and accept it; I will ask about publishing after that.",
+      "t1",
+    ),
+    finishPart("stop"),
+  ];
 }
 
 /** The `default` script: search, propose the draft, then put it up as a card. */

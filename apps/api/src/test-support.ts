@@ -305,6 +305,7 @@ export function builderTurnContext(
         subject: "usr_test",
         appKey: TEST_APP_KEY,
         current: "test",
+        screen: "/forms/[formId]",
         offered,
         requireSecondApprover: false,
         productionEnvironment: PROD_ENVIRONMENT,

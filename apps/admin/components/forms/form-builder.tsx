@@ -4,7 +4,12 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { Alert, Button, TextField } from "@/components/kit";
 import { AmbientSaveStatus, AutosaveFlash } from "@/components/save-model";
-import { usePublishBuilderAssist } from "@/lib/agent/builder-assist-bridge";
+import {
+  recordDraftSaved,
+  usePublishBuilderAssist,
+  type BuilderAcceptResult,
+} from "@/lib/agent/builder-assist-bridge";
+import { proposalDiff } from "@/lib/forms/assist-diff";
 import { AUTOSAVE_DEBOUNCE_MS, useDraftAutosave } from "@/lib/forms/autosave";
 import type { SaveDraftState, SettingsState, ValidateDraftState } from "@/lib/forms/builder-state";
 import {
@@ -481,8 +486,10 @@ export function FormBuilder({
 
   /**
    * Task 041's Accept: the same `mutate` every other edit goes through, plus a flag
-   * for the save the debounce above will run next. The builder's own autosave and
-   * validation loop is what actually stores this - nothing here calls `saveDraft`.
+   * for the save that stores it. It goes through the builder's own save loop, and it is the
+   * one edit in the builder that stores IMMEDIATELY rather than on the debounce, because
+   * the card's next step may be publishing the questions this save creates: a step cannot
+   * depend on an edit that is still sitting in a timer.
    *
    * The proposal's new question definitions ride along on that same save (issue #823).
    * They are stored in one transaction with the draft that pins them, so the accept
@@ -514,7 +521,10 @@ export function FormBuilder({
         },
   );
 
-  function acceptAssistProposal(proposedDraft: DraftForm, newQuestions: readonly unknown[]) {
+  async function acceptAssistProposal(
+    proposedDraft: DraftForm,
+    newQuestions: readonly unknown[],
+  ): Promise<BuilderAcceptResult> {
     pendingAgentAssisted.current = true;
     pendingNewQuestions.current = newQuestions;
     if (
@@ -523,7 +533,12 @@ export function FormBuilder({
     ) {
       setSelection({ kind: "form" });
     }
+    const changes = proposalDiff(draft, proposedDraft, newQuestions).length;
     mutate(proposedDraft);
+    const saved = await autosave.saveNow(proposedDraft);
+    if (saved.status === "error") return { ok: false, message: saved.message };
+    recordDraftSaved(saved.updatedAt);
+    return { ok: true, changes, newQuestions: newQuestions.length };
   }
 
   return (

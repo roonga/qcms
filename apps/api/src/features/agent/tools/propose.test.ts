@@ -22,10 +22,16 @@ function propose(args: {
   readonly proposalsThisTurn?: number;
   readonly proposedDraft?: ProposeInput["proposedDraft"];
   readonly validate?: ProposeInput["validate"];
+  readonly screen?: ProposeInput["screen"];
+  readonly pinnedUnpublished?: ProposeInput["pinnedUnpublished"];
 }) {
   const grants = args.grants ?? [EDITOR, APPROVER];
   return buildProposal({
     steps: args.steps,
+    screen: args.screen ?? "/forms/[formId]",
+    ...(args.pinnedUnpublished === undefined
+      ? {}
+      : { pinnedUnpublished: args.pinnedUnpublished }),
     ...(args.proposedDraft === undefined ? {} : { proposedDraft: args.proposedDraft }),
     validate: args.validate ?? (() => Promise.resolve({ issues: [], warnings: [] })),
     subject: "user_1",

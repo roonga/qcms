@@ -18,6 +18,7 @@ const CONVERSATION: ConversationHandle = {
   id: "cnv_1",
   subject: "Quote",
   turns: [],
+  current: () => [],
   append: () => undefined,
   restart: () => undefined,
 };
@@ -35,7 +36,7 @@ function snapshot(canPropose: boolean): BuilderAssistSnapshot {
     canPropose,
     draft: DRAFT,
     draftUpdatedAt: undefined,
-    accept: () => undefined,
+    accept: () => Promise.resolve({ ok: true, changes: 0, newQuestions: 0 }),
   };
 }
 
