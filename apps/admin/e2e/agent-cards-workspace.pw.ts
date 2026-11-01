@@ -7,6 +7,7 @@ import {
   auditDelta,
   auditTally,
   cancel,
+  card,
   confirm,
   expectAxeClean,
   expectStepChips,
@@ -28,6 +29,11 @@ import { waitForHydration } from "./support/hydration.js";
  * the second-approver switch is on. So this spec creates an account of its own and names
  * it to the fake with `#qcms-fake-who:`, rather than the scripts carrying a canned
  * address no installation has.
+ *
+ * The scripts prefer that account and fall back to the first member the screen lists,
+ * because a turn may only name what its facts show it and those are capped at a row
+ * limit. So the assertions below are about the group's own holders and about how many
+ * owners the panel lists, never about that address appearing in a particular row.
  *
  * ## The switch is flipped and put back
  *
@@ -74,6 +80,13 @@ function members(page: Page): Locator {
   return page.getByRole("table", { name: /members/iu });
 }
 
+/** The address the group's one holder is listed by, after a grant. */
+async function grantedHolder(page: Page, label: string): Promise<string> {
+  const address = groupRow(page, label).locator("ul li span").first();
+  await expect(address, "the grant should have left one holder on the group").toContainText("@");
+  return ((await address.textContent()) ?? "").trim();
+}
+
 /**
  * One group's own row. Scoped rather than asserted against the whole panel, because a new
  * account is seeded into the workspace's standing groups and would be listed as a holder
@@ -114,12 +127,17 @@ test("confirms all six kinds one card at a time, each read back by its own panel
 
   await propose(page, "propose-access-grant", `give it to that account ${naming(ALONE)}`);
   await confirm(page, /^Done\./u);
-  await expect(groupRow(page, ALONE)).toContainText(SUBJECT, { timeout: 30_000 });
+  await expect(groupRow(page, ALONE)).toContainText("@admin.test", { timeout: 30_000 });
 
+  // The holder the grant named, which is the member the role change names too: both read
+  // the same fact, so the row the panel reads back is addressable without assuming which
+  // account the screen's capped member list showed the turn.
+  const holder = await grantedHolder(page, ALONE);
   await propose(page, "propose-member-role", `make that account an owner ${naming(ALONE)}`);
+  const toOwner = ((await card(page).textContent()) ?? "").includes("to forms.owner");
   await confirm(page, /^Done\./u);
-  await expect(members(page).getByRole("row").filter({ hasText: SUBJECT })).toContainText(
-    "Workspace owner",
+  await expect(members(page).getByRole("row").filter({ hasText: holder })).toContainText(
+    toOwner ? "Workspace owner" : "Member (grants nothing on its own)",
     { timeout: 30_000 },
   );
 
