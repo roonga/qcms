@@ -1995,6 +1995,22 @@ button {
 }
 
 /* ===========================================================================
+   A TABLE WIDER THAN ITS COLUMN SCROLLS RATHER THAN STRETCHING IT.
+
+   `.qcms-table`'s `inline-size: 100%` is a percentage, so against an ancestor whose
+   own width is auto - which the content column is, capped by `max-inline-size` - it
+   is indefinite and falls back to the table's min-content. A table with more
+   columns than fit then becomes the column's minimum, then `<main>`'s, and the
+   screen measures past the cap issue 657 sets rather than scrolling. The zero plus
+   `min-inline-size` pair `.qcms-scroll-x` documents is what makes the box definite;
+   this is that pair for a table that needs it.
+   =========================================================================== */
+.qcms-table--wide {
+  inline-size: 0;
+  min-inline-size: 100%;
+}
+
+/* ===========================================================================
    THE RULES TABLE - the read view of a form's rules (Code Owner, 2026-08-26).
 
    Deliberately the pin grid's shape: two lists of a form's parts, on two screens of

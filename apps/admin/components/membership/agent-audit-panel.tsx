@@ -47,7 +47,9 @@ export function AgentAuditPanel({
             <p className="text-xs text-(--color-text-muted)">
               {t("membership.agentAudit.total", { total: audit.total })}
             </p>
-            <div className="qcms-table min-w-0">
+            {/* Eight columns of facts do not fit the workspace column's measure, so this
+                table scrolls rather than widening the screen past its cap. */}
+            <div className="qcms-table qcms-table--wide min-w-0">
               <table>
                 <caption className="qcms-visually-hidden">
                   {t("membership.agentAudit.table")}
