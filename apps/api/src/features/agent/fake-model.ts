@@ -655,8 +655,15 @@ function factActiveLinkId(prompt: readonly PromptMessage[]): string {
 
 /** The session the response screen's own facts named, so an erase step names a real row. */
 function factSessionId(prompt: readonly PromptMessage[]): string {
-  const { sessionId } = screenFacts(prompt);
-  return typeof sessionId === "string" ? sessionId : "ses_absent";
+  const facts = screenFacts(prompt);
+  const { sessionId } = facts;
+  if (typeof sessionId === "string") return sessionId;
+  const response = facts["response"];
+  if (typeof response === "object" && response !== null) {
+    const nested = (response as { sessionId?: unknown }).sessionId;
+    if (typeof nested === "string") return nested;
+  }
+  return "ses_absent";
 }
 
 const FAKE_LINK_EXPIRY = "2026-12-31T23:59:59.000Z";

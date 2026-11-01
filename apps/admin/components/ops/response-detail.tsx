@@ -94,6 +94,15 @@ export function ResponseDetail({
   const [erasureNote, setErasureNote] = useState<string>("");
   const [unflagNote, setUnflagNote] = useState<string>("");
   const [flagged, setFlagged] = useState<string | null>(detail.flaggedReason);
+  // Re-seeded when the server's own disposition changes under it, as the response browser
+  // re-seeds its filter draft: a release performed anywhere but this screen's own button
+  // revalidates the route, and state initialised once would leave the operator reading
+  // "Flagged" about an event already on its way.
+  const [seededFlag, setSeededFlag] = useState<string | null>(detail.flaggedReason);
+  if (seededFlag !== detail.flaggedReason) {
+    setSeededFlag(detail.flaggedReason);
+    setFlagged(detail.flaggedReason);
+  }
   const [dialog, setDialog] = useState<"erase" | "unflag" | null>(null);
   const [released, setReleased] = useState(false);
   const [isPending, startTransition] = useTransition();
