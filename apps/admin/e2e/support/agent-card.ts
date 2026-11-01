@@ -76,6 +76,23 @@ export async function confirm(page: Page, expected: RegExp): Promise<void> {
   });
 }
 
+/** The typed confirmation a card asks for before its Confirm is enabled. */
+export async function typeConfirmation(page: Page, value: string): Promise<void> {
+  await expect(confirmButton(page)).toBeDisabled();
+  await fillStable(card(page).getByRole("textbox", { name: /^Type the/u }), value);
+  await expect(confirmButton(page)).toBeEnabled();
+}
+
+/** The link a create step's card offers to what it made. */
+export function createdLink(page: Page): Locator {
+  return card(page).getByRole("link", { name: "Open what this created" });
+}
+
+/** The card-level band a plan carrying an act with no inverse shows once. */
+export function irreversibleBand(page: Page): Locator {
+  return card(page).locator(".qcms-acard__band[data-kind='irreversible']");
+}
+
 export async function cancel(page: Page): Promise<void> {
   await card(page).getByRole("button", { name: "Cancel" }).click();
   await expect(card(page).locator(".qcms-acard__result")).toHaveText(
@@ -119,6 +136,33 @@ export async function auditedKinds(proposalPrefix?: string): Promise<readonly st
 /** How many rows the audit holds now, which a cancel path compares against. */
 export async function auditCount(): Promise<number> {
   return (await auditedKinds()).length;
+}
+
+/**
+ * How many rows the audit holds per kind.
+ *
+ * A tally rather than the tail of the list, because the composed API stamps rows from one
+ * pinned clock: two acts in the same run can share a `confirmed_at`, and the order of rows
+ * inside one instant is the database's to choose. So "the last row is my act" is a claim
+ * that holds until it does not.
+ */
+export async function auditTally(): Promise<Readonly<Record<string, number>>> {
+  const tally: Record<string, number> = {};
+  for (const kind of await auditedKinds()) tally[kind] = (tally[kind] ?? 0) + 1;
+  return tally;
+}
+
+/** The rows one stretch of a spec added, by kind. */
+export function auditDelta(
+  before: Readonly<Record<string, number>>,
+  after: Readonly<Record<string, number>>,
+): Readonly<Record<string, number>> {
+  const delta: Record<string, number> = {};
+  for (const kind of new Set([...Object.keys(before), ...Object.keys(after)])) {
+    const added = (after[kind] ?? 0) - (before[kind] ?? 0);
+    if (added !== 0) delta[kind] = added;
+  }
+  return delta;
 }
 
 /**

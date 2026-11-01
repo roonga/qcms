@@ -49,8 +49,19 @@ export const FAKE_SCRIPTS = [
   "unknown-tool",
   "injection-follow",
   "read-only-user",
+  // One multi-step plan per screen group, so every kind is also confirmed inside a plan.
+  "plan-form-screen",
+  "plan-releases",
+  "plan-links",
+  "plan-forms-create",
+  "plan-questions-create",
+  "plan-question-lifecycle",
+  "plan-responses",
+  "plan-export-last",
   // One card per kind, for each screen group's own confirm and cancel paths.
   "propose-form-create",
+  "propose-link-mint",
+  "propose-link-revoke",
   "propose-question-create",
   "propose-question-save-draft",
   "propose-question-publish",
@@ -627,6 +638,21 @@ function factLinkId(prompt: readonly PromptMessage[]): string {
   return "lnk_absent";
 }
 
+/**
+ * The first link the screen listed that a revoke would still change. The first link of
+ * any state is what a plan meant to fail names; a revoke meant to succeed needs this one.
+ */
+function factActiveLinkId(prompt: readonly PromptMessage[]): string {
+  const { links } = screenFacts(prompt);
+  if (!Array.isArray(links)) return "lnk_absent";
+  for (const entry of links) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const { linkId, state } = entry as { linkId?: unknown; state?: unknown };
+    if (typeof linkId === "string" && state === "active") return linkId;
+  }
+  return "lnk_absent";
+}
+
 /** The session the response screen's own facts named, so an erase step names a real row. */
 function factSessionId(prompt: readonly PromptMessage[]): string {
   const { sessionId } = screenFacts(prompt);
@@ -714,6 +740,27 @@ function revokeStep(formId: string, linkId: string): Record<string, unknown> {
   return { kind: "link.revoke", args: { formId, linkId } };
 }
 
+/**
+ * A create step whose new id is this run's own. `suffix` tells two steps of one plan
+ * apart, because a slug and a question id are never reused (R6).
+ */
+function createFormStep(prompt: readonly PromptMessage[], suffix = ""): Record<string, unknown> {
+  const slug = suffix === "" ? newSlug(prompt) : `${newSlug(prompt)}-${suffix}`;
+  return { kind: "form.create", args: { slug, defaultLocale: "en" } };
+}
+
+function createQuestionStep(
+  prompt: readonly PromptMessage[],
+  suffix = "",
+): Record<string, unknown> {
+  const questionId = suffix === "" ? newQuestionId(prompt) : `${newQuestionId(prompt)}_${suffix}`;
+  const slug = suffix === "" ? newSlug(prompt) : `${newSlug(prompt)}-${suffix}`;
+  return {
+    kind: "question.create",
+    args: { slug, definition: fakeQuestionDefinition(questionId) },
+  };
+}
+
 function releaseStep(
   formId: string,
   version: number | Record<string, unknown>,
@@ -753,6 +800,53 @@ function actionPlanSteps(
       ];
     case "plan-fails-at-2":
       return [mintStep(formId, 1), revokeStep(formId, factLinkId(prompt)), mintStep(formId, 3)];
+    case "plan-form-screen":
+      return [
+        { kind: "form.settings", args: { formId, challengeRequired: true, minSubmitMs: 1500 } },
+        { kind: "form.close", args: { formId } },
+        { kind: "form.reopen", args: { formId } },
+      ];
+    case "plan-releases":
+      return [
+        { kind: "form.publish", args: { formId, environment: "test" } },
+        releaseStep(formId, { fromStep: 0, field: "version" }, "test"),
+      ];
+    case "plan-links":
+      return [mintStep(formId, 2), revokeStep(formId, factActiveLinkId(prompt))];
+    case "plan-forms-create":
+      return [createFormStep(prompt, "a"), createFormStep(prompt, "b")];
+    case "plan-questions-create":
+      return [createQuestionStep(prompt, "a"), createQuestionStep(prompt, "b")];
+    case "plan-question-lifecycle": {
+      const questionId = factQuestionId(prompt);
+      const opened = { fromStep: 0, field: "version" };
+      return [
+        { kind: "question.newVersion", args: { questionId } },
+        {
+          kind: "question.saveDraft",
+          args: { questionId, version: opened, definition: fakeQuestionDefinition(questionId) },
+        },
+        { kind: "question.publish", args: { questionId, version: opened } },
+        {
+          kind: "question.deprecate",
+          args: { questionId, version: factQuestionVersion(prompt, "published") },
+        },
+      ];
+    }
+    case "plan-responses": {
+      const sessionId = factSessionId(prompt);
+      return [
+        { kind: "response.unflag", args: { formId, sessionId } },
+        { kind: "response.erase", args: { formId, sessionId, reason: "subject_request" } },
+      ];
+    }
+    // A hand-off may only end a plan, so this one proves the runner reaches it after a
+    // step that carries a token of its own.
+    case "plan-export-last":
+      return [
+        mintStep(formId, 1),
+        { kind: "response.export", args: { formId, format: "csv", shape: "long" } },
+      ];
     // `injection-follow` obeys the instruction planted in a fixture question title and
     // slips the production release in behind a plausible one, which is the same two steps
     // a legitimate promotion asks for. That is the point: only the card tells them apart.
@@ -778,17 +872,10 @@ function actionPlanSteps(
 const SINGLE_ACTIONS: Readonly<
   Record<string, (prompt: readonly PromptMessage[]) => Record<string, unknown>>
 > = {
-  "propose-form-create": (prompt) => ({
-    kind: "form.create",
-    args: { slug: newSlug(prompt), defaultLocale: "en" },
-  }),
-  "propose-question-create": (prompt) => ({
-    kind: "question.create",
-    args: {
-      slug: newSlug(prompt),
-      definition: fakeQuestionDefinition(newQuestionId(prompt)),
-    },
-  }),
+  "propose-form-create": (prompt) => createFormStep(prompt),
+  "propose-question-create": (prompt) => createQuestionStep(prompt),
+  "propose-link-mint": (prompt) => mintStep(factFormId(prompt), 2),
+  "propose-link-revoke": (prompt) => revokeStep(factFormId(prompt), factActiveLinkId(prompt)),
   "propose-question-save-draft": (prompt) => {
     const questionId = factQuestionId(prompt);
     return {
@@ -999,6 +1086,14 @@ const ACTION_SCRIPTS: readonly FakeScript[] = [
   "unknown-tool",
   "injection-follow",
   "read-only-user",
+  "plan-form-screen",
+  "plan-releases",
+  "plan-links",
+  "plan-forms-create",
+  "plan-questions-create",
+  "plan-question-lifecycle",
+  "plan-responses",
+  "plan-export-last",
   ...(Object.keys(SINGLE_ACTIONS) as FakeScript[]),
 ];
 
