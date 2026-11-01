@@ -79,14 +79,21 @@ const EMAIL = uniqueAdminEmail("assist");
 /** Set by the first test; every later test signs in with it. */
 let totpSecret = "";
 
-/** Ids are never reused (R6) and the harness database survives a local rerun. */
-const RUN = Date.now().toString(36);
+/**
+ * Ids are never reused (R6) and the harness database survives a local rerun. Minted per
+ * attempt rather than once per module, because retrying this serial group re-runs the
+ * fixture: under one tag for every attempt the needle below also matched the previous
+ * attempt's questions, the library search returned two copies of the choice question, and
+ * the branch the preview test walks then had no number question to reveal.
+ */
+let RUN = "";
+let attempt = 0;
 
 /** Sorted so the library search returns the choice question first (questionId asc). */
-const FIRST = `e2e-assist-a-${RUN}`;
-const SECOND = `e2e-assist-b-${RUN}`;
-/** The needle that pins the fake's library search to this run's own two questions. */
-const NEEDLE = `e2e-assist-`;
+let FIRST = "";
+let SECOND = "";
+/** The needle that pins the fake's library search to this attempt's own two questions. */
+let NEEDLE = "";
 
 const FIRST_LABEL = "E2E Single choice question";
 const SECOND_LABEL = "E2E Number question";
@@ -99,6 +106,11 @@ function questionIdFor(slug: string): string {
 }
 
 test.beforeAll(async () => {
+  attempt += 1;
+  RUN = `${Date.now().toString(36)}x${String(attempt)}`;
+  FIRST = `e2e-assist-${RUN}-a`;
+  SECOND = `e2e-assist-${RUN}-b`;
+  NEEDLE = `e2e-assist-${RUN}-`;
   await createTestAdmin(EMAIL);
 });
 
@@ -282,13 +294,17 @@ test("header tooltips stay open across the gap and close on Escape from anywhere
   // is in the header on every screen.
   const toggle = page.getByTestId("qcms-assistant-close");
   const tip = page.getByTestId("qcms-assist-tip");
+
+  // Hoverable: from the button, down through the strip under it, onto the bubble. Through
+  // `hover` rather than a move to a box read beforehand, because the dock settles into its
+  // width after the first paint and a pointer sent to the earlier box lands beside the
+  // control; `hover` waits for the control to hold still and points at it.
+  await toggle.hover();
+  await expect(tip).toBeVisible();
+
   const button = await toggle.boundingBox();
   if (button === null) throw new Error("the Close control has no box");
   const x = button.x + button.width / 2;
-
-  // Hoverable: from the button, down through the strip under it, onto the bubble.
-  await page.mouse.move(x, button.y + button.height / 2);
-  await expect(tip).toBeVisible();
   const tipBox = await tip.boundingBox();
   if (tipBox === null) throw new Error("the tooltip has no box");
   // The tooltip's own box starts where the button ends: there is no uncovered strip.
