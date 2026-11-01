@@ -67,7 +67,11 @@ export function MembersPanel({
           <p className="text-sm text-(--color-text-muted)">{t("membership.members.none")}</p>
         ) : (
           <HeadingMarker control="membership.memberRole" block>
-            <div className="qcms-table min-w-0">
+            {/* Four columns of addresses, role sentences and the groups each member
+                holds: wider than the content column's measure as soon as a workspace has
+                real accounts in it, so the table scrolls rather than stretching the
+                screen past the cap issue 657 sets. */}
+            <div className="qcms-table qcms-table--wide min-w-0">
               <table>
                 <caption className="qcms-visually-hidden">{t("membership.members.table")}</caption>
                 <thead>
