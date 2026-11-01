@@ -1334,12 +1334,9 @@ function planStep(
 }
 
 /**
- * `plan-apply-draft`: the `default` script's draft, put up inside a plan with a second
- * builder kind behind it.
- *
- * The propose tool keeps one draft-applying step per plan, so the kind can only be
- * confirmed inside a plan beside a kind of another sort; the settings step is the
- * builder's own, which is what makes the plan one screen's.
+ * `plan-apply-draft`: the draft this turn proposes, inside a plan. The propose tool keeps
+ * one draft-applying step per plan, so the kind is confirmable in one only beside a kind
+ * of another sort; the settings step is the builder screen's own.
  */
 function planApplyDraftStep(
   prompt: readonly PromptMessage[],

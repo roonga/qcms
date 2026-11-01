@@ -132,8 +132,8 @@ export const retargetWebhook: ActionKindDef = {
     headingControl: "webhooks.retarget",
   },
   description:
-    "Point an endpoint at another URL. The card shows the endpoint's current target and " +
-    "the new one in full, query string included.",
+    "Point an endpoint at another URL. The card names the endpoint and shows the new " +
+    "target in full, query string included.",
 };
 
 export const deactivateWebhook: ActionKindDef = {

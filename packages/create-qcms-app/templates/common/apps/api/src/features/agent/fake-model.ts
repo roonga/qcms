@@ -56,6 +56,7 @@ export const FAKE_SCRIPTS = [
   "injection-follow",
   "read-only-user",
   // One multi-step plan per screen group, so every kind is also confirmed inside a plan.
+  "plan-apply-draft",
   "plan-form-screen",
   "plan-releases",
   "plan-links",
@@ -961,7 +962,9 @@ function actionPlanSteps(
         { kind: "access.groupRemove", args: { workspaceId, teamId } },
       ];
     }
-    // One endpoint's whole configuration, every later step naming what step 1 created.
+    // One endpoint's whole configuration, every later step naming what step 1 created, and
+    // the delivery verb last: it names a row the screen listed rather than step 1's
+    // endpoint, so it only runs on a screen whose form has delivered something.
     case "plan-webhooks": {
       const webhookId = { fromStep: 0, field: "webhookId" };
       return [
@@ -970,6 +973,7 @@ function actionPlanSteps(
         { kind: "webhook.deactivate", args: { formId, webhookId } },
         { kind: "webhook.reactivate", args: { formId, webhookId } },
         { kind: "webhook.rotate", args: { formId, webhookId } },
+        { kind: "webhook.redeliver", args: { formId, deliveryId: factDeliveryId(prompt) } },
       ];
     }
     case "plan-workspace-settings":
@@ -997,8 +1001,16 @@ function actionPlanSteps(
         releaseStep(formId, factVersion(prompt), "test"),
         releaseStep(formId, factVersion(prompt), "prod"),
       ];
+    // The endpoint change a workspace holds for a second approver, then the delivery verb
+    // behind it: the second step is what Not run has to be shown on.
     case "plan-pending-at-1":
-      return [releaseStep(formId, factVersion(prompt), "prod"), mintStep(formId, 5)];
+      return [
+        {
+          kind: "webhook.retarget",
+          args: { formId, webhookId: factWebhookId(prompt), url: FAKE_ENDPOINT_URL_ALT },
+        },
+        { kind: "webhook.redeliver", args: { formId, deliveryId: factDeliveryId(prompt) } },
+      ];
     case "plan-26-steps":
       return Array.from({ length: 26 }, (_, index) => mintStep(formId, index + 1));
     default:
@@ -1095,7 +1107,9 @@ const SINGLE_ACTIONS: Readonly<
     args: {
       formId: factFormId(prompt),
       webhookId: factWebhookId(prompt),
-      url: FAKE_ENDPOINT_URL,
+      // The second target, never the one a create script configured: a retarget to the
+      // URL the endpoint already holds succeeds and changes nothing a screen could show.
+      url: FAKE_ENDPOINT_URL_ALT,
     },
   }),
   "propose-webhook-reactivate": (prompt) => ({
@@ -1254,6 +1268,7 @@ const STATEFUL_PLANNERS: Readonly<
   "propose-questions": planProposeQuestionsStep,
   "narrate-then-tools": planNarrateStep,
   reasoning: planReasoningStep,
+  "plan-apply-draft": planApplyDraftStep,
 };
 
 function planStep(
@@ -1316,6 +1331,50 @@ function planStep(
   const planner = STATEFUL_PLANNERS[script];
   if (planner !== undefined) return planner(prompt, results);
   return planDefaultStep(prompt, results);
+}
+
+/**
+ * `plan-apply-draft`: the draft this turn proposes, inside a plan. The propose tool keeps
+ * one draft-applying step per plan, so the kind is confirmable in one only beside a kind
+ * of another sort; the settings step is the builder screen's own.
+ */
+function planApplyDraftStep(
+  prompt: readonly PromptMessage[],
+  results: Map<string, unknown>,
+): StreamPart[] {
+  if (!results.has("search_question_library")) {
+    const query = pickSearchQuery(prompt);
+    return [
+      toolCallPart("search_question_library", {
+        limit: 10,
+        ...(query === undefined ? {} : { query }),
+      }),
+      finishPart("tool-calls"),
+    ];
+  }
+  if (!results.has("propose_draft")) {
+    const draft = currentDraft(prompt) ?? {};
+    return [
+      toolCallPart("propose_draft", { definition: buildProposal(draft, libraryHits(results)) }),
+      finishPart("tool-calls"),
+    ];
+  }
+  if (!results.has("propose_plan")) {
+    const formId = currentDraft(prompt)?.formId ?? factFormId(prompt);
+    const input = {
+      steps: [
+        { kind: "apply-draft", args: { formId } },
+        { kind: "form.settings", args: { formId, challengeRequired: true, minSubmitMs: 1500 } },
+      ],
+    };
+    return [
+      ...textParts("Here is the draft and the abuse controls to go with it.", "t0"),
+      ...toolInputParts("propose_plan", input),
+      toolCallPart("propose_plan", input),
+      finishPart("tool-calls"),
+    ];
+  }
+  return [...textParts("The plan is on the card for you to confirm.", "t1"), finishPart("stop")];
 }
 
 /** The `default` script: search, propose the draft, then put it up as a card. */
