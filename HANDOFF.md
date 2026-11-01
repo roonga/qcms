@@ -21,7 +21,7 @@ the mode header and with it the environment selector. The links this branch adds
 that, exactly as the interim `/forms/{id}` link did.
 
 - **Option A: Operations-owned routes.** Add `/operations/forms/{formId}/{responses,links,
-  webhooks,versions}` and send the table's links there. Clean mode separation and an
+webhooks,versions}` and send the table's links there. Clean mode separation and an
   explicit URL for the Operations context, as the plan asks for elsewhere. Costs a second
   route per screen, a second rail slot per screen and a redirect policy for the existing
   addresses.

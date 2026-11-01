@@ -58,12 +58,9 @@ const fail = {
 } as const;
 
 /**
- * The cells a row reports as capabilities, in the order a rail would offer them.
- *
- * The reads are here as well as the writes because a row's operational contexts are what a
- * caller may open on it, and that is a read cell per context: without them the client would
- * have to infer access from a null field, which is also what a form with no release and no
- * response looks like.
+ * The cells a row reports, in the order a rail would offer them. The reads are here
+ * because a context a caller may open is a read cell, and inferring one from a null field
+ * cannot tell a refusal from a form with no release and no response.
  */
 const CAPABILITY_CELLS: readonly { readonly resource: Resource; readonly action: string }[] = [
   { resource: "form", action: "read" },

@@ -112,10 +112,7 @@ test("a row opens the form's operational contexts in the environment the chip na
   await page.goto("/operations");
   await waitForHydration(page);
 
-  const row = page
-    .getByTestId("qcms-operations-table")
-    .getByRole("row")
-    .filter({ hasText: ALPHA });
+  const row = page.getByTestId("qcms-operations-table").getByRole("row").filter({ hasText: ALPHA });
   // Every context link names its own row, so two rows' Responses links are distinguishable.
   const contexts = row.getByTestId("qcms-operations-contexts");
   for (const context of ["Versions", "Links", "Webhooks", "Responses"]) {
