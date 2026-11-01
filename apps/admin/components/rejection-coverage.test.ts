@@ -62,8 +62,6 @@ const COMPONENTS_ROOT = dirname(fileURLToPath(import.meta.url));
 const HANDLERS: Readonly<Record<string, readonly string[]>> = {
   // The four from task 035 and the five from issue #303, in file order.
   "forms/draft-preview.tsx": ["preview projection (forms/draft-preview-rejects.test.tsx)"],
-  // Publishing is the wizard's act, so its rejection handlers are the wizard's, not this file's.
-  "forms/form-actions.tsx": ["close/reopen (forms/form-actions-rejects.test.tsx)"],
   // Task 065's release action. Its refusal keeps the dialog open, because a release that
   // may or may not have landed in production is the one state an operator must not be
   // left guessing about.
@@ -91,6 +89,9 @@ const HANDLERS: Readonly<Record<string, readonly string[]>> = {
   "ops/endpoint-proposals.tsx": [
     "confirm and withdraw a pending prod endpoint change (ops/endpoint-proposals.test.tsx)",
   ],
+  // The intake door, which was `forms/form-actions.tsx` until the per-form operational
+  // screens moved under Operations (Code Owner, 2026-11-02).
+  "ops/form-intake.tsx": ["close/reopen (ops/form-intake-rejects.test.tsx)"],
   "ops/response-detail.tsx": [
     "release a withheld event (ops/response-detail-rejects.test.tsx)",
     "erase (ops/response-detail-rejects.test.tsx)",

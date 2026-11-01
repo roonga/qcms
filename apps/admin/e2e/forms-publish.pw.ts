@@ -572,7 +572,7 @@ test("mints, copies, exports and revokes a secure link (exit criterion 1)", asyn
   test.setTimeout(180_000);
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await signInWithTotp(page, EMAIL, totpSecret);
-  await page.goto(`/forms/${formId}/links`);
+  await page.goto(`/operations/forms/${formId}/links`);
   await chooseEnvironment(page, "prod");
 
   await expect(page.getByTestId("qcms-links-empty")).toBeVisible();

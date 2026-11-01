@@ -95,7 +95,7 @@ type Cap = keyof typeof CAP_PX;
 type Screen = { readonly path: string; readonly cap: Cap };
 
 /**
- * All twenty-three authenticated screens, in route order.
+ * All twenty-four authenticated screens, in route order.
  *
  * The response detail path is filled in once a response exists; everything else is
  * reachable from the seed. The screens are opened by URL rather than by clicking through,
@@ -107,10 +107,7 @@ function screens(sessionId: string): readonly Screen[] {
     { path: "/forms", cap: "list" },
     { path: "/forms/new", cap: "prose" },
     { path: `/forms/${FORM_ID}`, cap: "wide" },
-    { path: `/forms/${FORM_ID}/links`, cap: "wide" },
     { path: `/forms/${FORM_ID}/preview`, cap: "wide" },
-    { path: `/forms/${FORM_ID}/responses`, cap: "wide" },
-    { path: `/forms/${FORM_ID}/responses/${sessionId}`, cap: "wide" },
     // The rules screen (issue #669). Listed in route order beside its siblings, which is
     // where a reader looking for it will look; `rules-screen-poc.html` caps `.main` at
     // 1600 and draws nothing narrower inside it.
@@ -121,7 +118,6 @@ function screens(sessionId: string): readonly Screen[] {
     // beside: two wide tables of audit rows, and no POC draws it narrower because no POC
     // draws it at all.
     { path: `/forms/${FORM_ID}/publish`, cap: "wide" },
-    { path: `/forms/${FORM_ID}/webhooks`, cap: "wide" },
     { path: "/questions", cap: "list" },
     { path: `/questions/${QUESTION_ID}`, cap: "wide" },
     { path: "/questions/new", cap: "prose" },
@@ -131,6 +127,14 @@ function screens(sessionId: string): readonly Screen[] {
     // carries the same reading.
     { path: "/me/access", cap: "prose" },
     { path: "/operations", cap: "list" },
+    // One form's operational screens, which are Operations' (Code Owner, 2026-11-02). Each
+    // takes the cap its own POC draws, exactly as it did under the form's subtree; Intake is
+    // the one no POC draws, and it is one panel of state like My access above.
+    { path: `/operations/forms/${FORM_ID}/intake`, cap: "prose" },
+    { path: `/operations/forms/${FORM_ID}/links`, cap: "wide" },
+    { path: `/operations/forms/${FORM_ID}/responses`, cap: "wide" },
+    { path: `/operations/forms/${FORM_ID}/responses/${sessionId}`, cap: "wide" },
+    { path: `/operations/forms/${FORM_ID}/webhooks`, cap: "wide" },
     { path: "/responses", cap: "list" },
     { path: "/responses/erasures", cap: "log" },
     { path: "/settings", cap: "prose" },

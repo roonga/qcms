@@ -1,0 +1,230 @@
+import { expect, test } from "../../portal/e2e/support/gates.js";
+
+import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
+import { chooseEnvironment, environmentChip } from "./support/environment.js";
+import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
+import { submitResponse } from "./support/ops.js";
+
+/**
+ * One form's operational screens in a browser: the rail beside them, the tab each names,
+ * and the journey a response viewer actually walks (Code Owner, 2026-11-02).
+ *
+ * # Why this file exists beside `rail-screens.pw.ts`
+ *
+ * That spec sweeps the form SUBTREE's rail - the steps nested under the form's own row,
+ * the §7 sibling sections, the actions part. These five screens left that subtree: they
+ * read one environment, their rail is the four operational contexts and nothing else, and a
+ * row for them in that sweep would assert the wrong rail. `lib/route-registration.test.ts`
+ * sends every route under `/operations/forms/[formId]` here, so a sixth operational screen
+ * is a red there rather than a screen whose rail and browser tab are measured by nothing.
+ *
+ * # What only a browser can report
+ *
+ * `lib/rail-routes.test.ts` reads each slot page and checks which row it names, which is a
+ * fact about the source. That the rendered rail then marks that row, and that the document
+ * carries the title `lib/page-title.test.ts` proved was composed, are facts only a browser
+ * has. Five identical tabs across five screens of one form is the defect issue #536 was
+ * filed for, one scope along.
+ *
+ * # The response viewer's environment
+ *
+ * The journey below is this suite's narrowest persona: `responses.viewer` and no owner
+ * row, so the only context its rows offer is Responses - no links, no webhooks, no intake,
+ * and no authoring screen anywhere. It walks `test` first, because the ruling's claim is
+ * that these screens are the SELECTED environment's, and `test` is where that is visible:
+ * the viewer reaches Operations there and the form's responses there, and the list is
+ * empty because nothing was submitted into it.
+ *
+ * The one response is then read in the environment that has one. The respondent routes are
+ * mounted with a fixed environment (`fixedEnvironment`, the start-session handler), so this
+ * harness can submit into `prod` and no other - which is why the second leg names `prod`
+ * rather than the suite making a test-environment submission it has no respondent for.
+ */
+
+test.describe.configure({ mode: "serial" });
+
+/** The seeded insurance fixture: a published v1, released, with secure links. */
+const FORM_ID = "frm_auto_quote";
+const SLUG = "auto";
+const ACCIDENT = "q_at_fault_accident";
+
+const OPERATOR = uniqueAdminEmail("opsrail");
+/** `responses.viewer` only: one context on every row, and nothing authoring. */
+const VIEWER = uniqueAdminEmail("opsviewer");
+
+let operatorSecret = "";
+let viewerSecret = "";
+/** A production response, submitted through the real respondent routes. */
+let sessionId = "";
+
+/** One screen: its path, the rail row it marks, and the tab it names. */
+interface Screen {
+  readonly path: string;
+  /** The `data-rail-item` key that should carry `aria-current`. */
+  readonly current: string;
+  readonly title: string;
+}
+
+/** All five of one form's operational screens, in the order the rail draws its rows. */
+function screens(): readonly Screen[] {
+  return [
+    {
+      path: `/operations/forms/${FORM_ID}/responses`,
+      current: "section:responses",
+      title: `Responses: ${FORM_ID} - QCMS`,
+    },
+    {
+      path: `/operations/forms/${FORM_ID}/responses/${sessionId}`,
+      current: "section:responses",
+      // The session id alone: it identifies one response across the deployment, which is
+      // the complaint issue #510 was filed for and #536 finished.
+      title: `Response ${sessionId} - QCMS`,
+    },
+    {
+      path: `/operations/forms/${FORM_ID}/links`,
+      current: "section:links",
+      title: `Links: ${FORM_ID} - QCMS`,
+    },
+    {
+      path: `/operations/forms/${FORM_ID}/webhooks`,
+      current: "section:webhooks",
+      title: `Webhooks: ${FORM_ID} - QCMS`,
+    },
+    {
+      path: `/operations/forms/${FORM_ID}/intake`,
+      current: "section:intake",
+      title: `Intake: ${FORM_ID} - QCMS`,
+    },
+  ];
+}
+
+test.beforeAll(async ({ browser }) => {
+  await createTestAdmin(OPERATOR);
+  await createTestAdmin(VIEWER, { grants: ["responses.viewer"], owner: false });
+  const page = await browser.newPage();
+  try {
+    operatorSecret = await enrollNewAdmin(page, OPERATOR);
+    sessionId = await submitResponse(SLUG, [[ACCIDENT, false]]);
+  } finally {
+    await page.close();
+  }
+});
+
+test("every operational screen of one form marks its own rail row and names its own tab", async ({
+  page,
+}) => {
+  test.setTimeout(600_000);
+  await signInWithTotp(page, OPERATOR, operatorSecret);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await chooseEnvironment(page, "prod");
+
+  for (const screen of screens()) {
+    await page.goto(screen.path);
+    await expect(page.locator("main#main-content"), `${screen.path} is the shell`).toHaveCount(1);
+
+    // Soft throughout, so one sweep reports all five verdicts rather than stopping at the
+    // first screen that disagrees.
+    const rail = page.getByTestId("qcms-operations-form-rail");
+    await expect.soft(rail, `${screen.path} carries the Operations form rail`).toBeVisible();
+    await expect.soft(page, `${screen.path} names its own browser tab`).toHaveTitle(screen.title);
+    await expect
+      .soft(
+        rail.locator(`.qcms-rail__link[data-rail-item="${screen.current}"]`),
+        `${screen.path} marks ${screen.current} as the current row`,
+      )
+      .toHaveAttribute("aria-current", "page");
+    // The editor's screens are not reachable from here: this mode's reads are one
+    // environment's and authoring edits a draft that belongs to none.
+    for (const authoring of ["builder", "rules", "preview", "versions", "publish"]) {
+      await expect
+        .soft(
+          rail.locator(`[data-rail-item="section:${authoring}"]`),
+          `${screen.path} offers no ${authoring} row`,
+        )
+        .toHaveCount(0);
+    }
+    // The way back is the rail Header's back link, which is Operations itself (§7.0).
+    await expect
+      .soft(rail.getByRole("link", { name: "Operations" }), `${screen.path} offers the way back`)
+      .toBeVisible();
+  }
+});
+
+test("intake closes and reopens one environment from the screen that owns it", async ({ page }) => {
+  test.setTimeout(300_000);
+  await signInWithTotp(page, OPERATOR, operatorSecret);
+  await chooseEnvironment(page, "prod");
+  await page.goto(`/operations/forms/${FORM_ID}/intake`);
+
+  // The acts moved here from the builder, and they name the environment they land in: the
+  // closed state is per (form, environment) and closing the wrong one is not undoable (Q6).
+  await page.getByRole("button", { name: "Close in prod" }).click();
+  const closing = page.getByRole("alertdialog");
+  await expect(closing).toContainText("In prod.");
+  await closing.getByRole("button", { name: "Close it in prod" }).click();
+
+  await expect(page.getByTestId("qcms-form-closed")).toBeVisible();
+  await expect(page.getByTestId("qcms-form-intake-reading")).toHaveText("Closed");
+
+  // Put it back, so the fixture is where every other spec in the suite expects it.
+  await page.getByRole("button", { name: "Reopen in prod" }).click();
+  const reopening = page.getByRole("alertdialog");
+  await reopening.getByRole("button", { name: "Reopen it in prod" }).click();
+  await expect(page.getByTestId("qcms-form-intake-reading")).toHaveText("Open");
+});
+
+test("the builder offers no intake act, because that screen is authoring now", async ({ page }) => {
+  await signInWithTotp(page, OPERATOR, operatorSecret);
+  await page.goto(`/forms/${FORM_ID}`);
+
+  // Absent, not disabled. The editor is authoring (Code Owner, 2026-11-02), so a caller
+  // looking for the intake door is sent to Operations rather than offered a refusal here.
+  await expect(page.getByRole("button", { name: /^Close in /u })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Reopen in /u })).toHaveCount(0);
+  await expect(page.getByTestId("qcms-publish-entry")).toBeVisible();
+});
+
+test("a response viewer reaches Operations, a form's responses and one response", async ({
+  page,
+}) => {
+  test.setTimeout(600_000);
+  viewerSecret = await enrollNewAdmin(page, VIEWER);
+  await chooseEnvironment(page, "test");
+
+  // Operations in `test`, which is the only area this persona's grants admit it to beyond
+  // the claim's own workspace administration.
+  await page.goto("/operations");
+  await expect(page.getByTestId("qcms-mode-header")).toHaveAttribute("data-mode", "operations");
+  await expect(environmentChip(page)).toHaveAttribute("data-environment", "test");
+
+  const row = page
+    .getByTestId("qcms-operations-table")
+    .getByRole("row")
+    .filter({ hasText: FORM_ID });
+  // Responses is the one context `responses.viewer` holds a read cell for, so it is the
+  // form's name and the list beside it is empty.
+  const name = row.getByTestId("qcms-operations-name");
+  await expect(name).toHaveAttribute("data-context", "responses");
+  await expect(row.getByTestId("qcms-operations-contexts")).toHaveCount(0);
+  await name.click();
+
+  // The form's responses in `test`, which is this environment's list and holds nothing:
+  // the respondent harness submits into `prod`.
+  await expect(page).toHaveURL(new RegExp(`/operations/forms/${FORM_ID}/responses$`, "u"));
+  await expect(page.getByTestId("qcms-response-browser")).toBeVisible();
+  await expect(page.getByTestId("qcms-operations-form-rail")).toBeVisible();
+
+  // One response, read in the environment that has one. Same route, different pool, which
+  // is what makes "one environment and no other" something an operator can see.
+  await chooseEnvironment(page, "prod");
+  await page.goto(`/operations/forms/${FORM_ID}/responses`);
+  await page.getByTestId("qcms-response-browser").getByRole("link", { name: sessionId }).click();
+
+  await expect(page).toHaveURL(
+    new RegExp(`/operations/forms/${FORM_ID}/responses/${sessionId}$`, "u"),
+  );
+  await expect(page.getByRole("heading", { level: 1 })).toContainText(sessionId);
+  // A viewer erases nothing: the separation of read from disposition is the point of the
+  // two response roles.
+  await expect(page.getByRole("button", { name: "Erase respondent data…" })).toHaveCount(0);
+});

@@ -327,7 +327,7 @@ test("the export trigger is refused rather than inert while React is still in fl
   const held = holdScripts(page);
   try {
     // The responses screen, served whole, with React held outside the door.
-    await page.goto(`/forms/${RESPONSES_FORM_ID}/responses`, { waitUntil: "commit" });
+    await page.goto(`/operations/forms/${RESPONSES_FORM_ID}/responses`, { waitUntil: "commit" });
 
     // The server-rendered section is already on screen. That is the trap the CSV export
     // test fell into: its entry helper waited for exactly this and then pressed, and on a

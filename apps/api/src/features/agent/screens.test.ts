@@ -110,11 +110,18 @@ describe("the screen registry", () => {
       "apply-draft",
       "form.publish",
       "form.settings",
+    ]);
+    expect(SCREENS["/forms/[formId]/publish"].actionKinds).toEqual(["form.release"]);
+    expect(SCREENS["/operations/forms/[formId]/links"].actionKinds).toEqual([
+      "link.mint",
+      "link.revoke",
+    ]);
+    // The intake door is the Intake screen's, not the builder's (Code Owner, 2026-11-02):
+    // it acts on one environment's intake and the builder's draft belongs to none.
+    expect(SCREENS["/operations/forms/[formId]/intake"].actionKinds).toEqual([
       "form.close",
       "form.reopen",
     ]);
-    expect(SCREENS["/forms/[formId]/publish"].actionKinds).toEqual(["form.release"]);
-    expect(SCREENS["/operations/forms/[formId]/links"].actionKinds).toEqual(["link.mint", "link.revoke"]);
   });
 
   it("declares only registered tools, and declares them only where their port exists", () => {
@@ -145,18 +152,17 @@ describe("the screen registry", () => {
       "/operations/forms/[formId]/webhooks",
       "/operations/forms/[formId]/responses",
       "/operations/forms/[formId]/responses/[sessionId]",
+      "/operations/forms/[formId]/intake",
     ]);
     expect(isFormSubtreeScreen("/forms")).toBe(false);
   });
 
-  it("offers the whole form subtree's kinds on every form-scoped screen", () => {
-    const subtree = [
-      "apply-draft",
-      "form.publish",
-      "form.settings",
-      "form.close",
-      "form.reopen",
-      "form.release",
+  it("offers one form subtree's kinds per screen, and the two subtrees are separate", () => {
+    // TWO LISTS SINCE 2026-11-02 (Code Owner), because they are two contexts: an authoring
+    // plan edits a shared draft and an operational plan acts in one environment, so a plan
+    // spanning both would be one confirmation spanning two things.
+    const authoring = ["apply-draft", "form.publish", "form.settings", "form.release"];
+    const operational = [
       "link.mint",
       "link.revoke",
       "webhook.create",
@@ -168,9 +174,13 @@ describe("the screen registry", () => {
       "response.export",
       "response.erase",
       "response.unflag",
+      "form.close",
+      "form.reopen",
     ];
     for (const id of SCREEN_IDS.filter(isFormSubtreeScreen)) {
-      expect(offerableActionKinds(id), id).toEqual(subtree);
+      expect(offerableActionKinds(id), id).toEqual(
+        id.startsWith("/operations/") ? operational : authoring,
+      );
     }
   });
 

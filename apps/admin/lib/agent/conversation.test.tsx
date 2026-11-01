@@ -96,7 +96,7 @@ describe("the conversation context", () => {
     expect(outside.turns).toBe("");
 
     // Returning within the tab restores the form's own conversation.
-    view.rerender(at("/forms/frm_a/responses"));
+    view.rerender(at("/operations/forms/frm_a/responses"));
     expect(read()).toMatchObject({ id: builder.id, turns: "add a step" });
   });
 

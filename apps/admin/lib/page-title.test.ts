@@ -40,20 +40,17 @@ const APP = fileURLToPath(new URL("../app", import.meta.url));
 /**
  * The routes with no title, and the reason none of them needs one.
  *
- * Every one renders nothing: `app/page.tsx` reads the session and `redirect()`s to the
- * shell or to sign-in, `/responses` redirects to the Operations forms table, and the four
- * form-subtree addresses redirect to the Operations screens those three moved to. No
- * document any of them could title is ever produced. Listed rather than pattern-matched,
- * so a further exemption is a line someone writes and a reviewer reads.
+ * Both render nothing: `app/page.tsx` reads the session and `redirect()`s to the shell or
+ * to sign-in, and `/responses` redirects to the Operations forms table. No document either
+ * could title is ever produced. Listed rather than pattern-matched, so a further exemption
+ * is a line someone writes and a reviewer reads.
+ *
+ * The four addresses the operational screens had before they moved under Operations (Code
+ * Owner, 2026-11-02) are NOT here, and that is the point of how they were built: each is a
+ * `next.config.ts` redirect rather than a redirecting page, so none of them is a route in
+ * this tree and none costs a registration.
  */
-const NO_TITLE = [
-  "/",
-  "/responses",
-  "/forms/[formId]/links",
-  "/forms/[formId]/responses",
-  "/forms/[formId]/responses/[sessionId]",
-  "/forms/[formId]/webhooks",
-];
+const NO_TITLE = ["/", "/responses"];
 
 /** One screen: the route pattern it answers, and the file that answers it. */
 interface Screen {
@@ -112,18 +109,22 @@ describe("every route titles its own browser tab", () => {
       "/change-password",
       "/forms",
       "/forms/[formId]",
-      "/operations/forms/[formId]/links",
       "/forms/[formId]/preview",
       "/forms/[formId]/publish",
-      "/operations/forms/[formId]/responses",
-      "/operations/forms/[formId]/responses/[sessionId]",
       "/forms/[formId]/rules",
       "/forms/[formId]/versions",
       "/forms/[formId]/versions/[version]",
-      "/operations/forms/[formId]/webhooks",
       "/forms/new",
       "/me/access",
       "/operations",
+      // One form's operational screens, which are Operations' and not the editor's (Code
+      // Owner, 2026-11-02). Intake is the one that had no address before: close and reopen
+      // were the builder's and needed a screen in the selected environment to live on.
+      "/operations/forms/[formId]/intake",
+      "/operations/forms/[formId]/links",
+      "/operations/forms/[formId]/responses",
+      "/operations/forms/[formId]/responses/[sessionId]",
+      "/operations/forms/[formId]/webhooks",
       "/questions",
       "/questions/[questionId]",
       "/questions/new",

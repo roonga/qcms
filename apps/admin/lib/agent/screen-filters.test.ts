@@ -10,7 +10,7 @@ function withQuery(path: string, query: string) {
 describe("the response list's filters", () => {
   it("sends the filter set the operator is looking at", () => {
     const resolved = withQuery(
-      "/forms/frm_a/responses",
+      "/operations/forms/frm_a/responses",
       "version=2&from=2026-01-01&to=2026-01-31&flagged=true&tz=UTC",
     );
     expect(resolved?.params).toEqual({
@@ -25,11 +25,11 @@ describe("the response list's filters", () => {
   });
 
   it("sends no filters for an unfiltered list", () => {
-    expect(withQuery("/forms/frm_a/responses", "page=2")?.params).toEqual({ formId: "frm_a" });
+    expect(withQuery("/operations/forms/frm_a/responses", "page=2")?.params).toEqual({ formId: "frm_a" });
   });
 
   it("drops a value the screen itself would ignore", () => {
-    expect(withQuery("/forms/frm_a/responses", "flagged=maybe&from=03/01/2026")?.params).toEqual({
+    expect(withQuery("/operations/forms/frm_a/responses", "flagged=maybe&from=03/01/2026")?.params).toEqual({
       formId: "frm_a",
     });
   });

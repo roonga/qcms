@@ -6,7 +6,6 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 import { openRail } from "./support/forms.js";
-import { submitResponse } from "./support/ops.js";
 
 /**
  * The §7 rail across the form subtree (issue 561; issue 559 built it and wired one screen).
@@ -46,18 +45,14 @@ const EMAIL = uniqueAdminEmail("rail561");
 
 /** The seeded insurance fixture: one step, a published v1, four secure links. */
 const FORM_ID = "frm_auto_quote";
-const SLUG = "auto";
 const STEP_ID = "stp_history";
 const STEP_TITLE = "Driving history";
-const ACCIDENT = "q_at_fault_accident";
 
 /** The rail turns into its column at `--bp-sidebar`, which is 64rem at the default root size. */
 const SIDEBAR = 1024;
 
 /** Set in `beforeAll`; each test signs in again with it (serial shares no context). */
 let totpSecret = "";
-/** A submitted response, purely so the response-detail route has a subject. */
-let sessionId = "";
 
 /** One screen: the path, the sibling row its rail marks, and which groups it carries. */
 interface Screen {
@@ -69,23 +64,29 @@ interface Screen {
   /**
    * The browser-tab title (issue #536).
    *
-   * These nine screens are the sharp end of that issue: seven sections and two detail
+   * These screens are the sharp end of that issue: the form's authoring sections and its
    * routes of ONE form, which all produced the tab text "QCMS" until every route gained a
    * `generateMetadata`. `lib/page-title.test.ts` pins that each route has one and builds
    * it through the one helper, which is a fact about the source; that the browser then
-   * puts it in the document is the fact only a browser can report, and nine identical
+   * puts it in the document is the fact only a browser can report, and identical
    * titles here is exactly the defect.
    */
   readonly title: string;
 }
 
 /**
- * All ten form-scoped screens, in the order the rail draws their rows.
+ * The editor's six screens for one form, in the order the rail draws their rows.
  *
- * The two detail routes expect their SECTION rather than themselves, and that is the same
- * answer the app has given on those URLs since task 034: neither a stored version nor one
- * collected response is a row of §7's sibling group, and `components/forms/form-tabs.tsx`
- * resolves `/versions/3` to the version-history section and `/responses/{id}` to Responses.
+ * The version detail route expects its SECTION rather than itself, and that is the same
+ * answer the app has given on that URL since task 034: a stored version is not a row of
+ * §7's sibling group, and `components/forms/form-tabs.tsx` resolved `/versions/3` to the
+ * version-history section.
+ *
+ * LINKS, RESPONSES AND WEBHOOKS LEFT THIS LIST (Code Owner, 2026-11-02) along with the
+ * response detail route. They are Operations screens now, beside a rail of four contexts
+ * rather than this one's steps-and-sections tree, so a row here would be asserting the
+ * wrong rail; `e2e/operations-form-rail.pw.ts` is their sweep, and
+ * `lib/route-registration.test.ts` sends each operational route there.
  */
 function screens(): readonly Screen[] {
   return [
@@ -132,32 +133,6 @@ function screens(): readonly Screen[] {
       children: true,
       title: `Version 1: ${FORM_ID} - QCMS`,
     },
-    {
-      path: `/forms/${FORM_ID}/links`,
-      current: "section:links",
-      children: true,
-      title: `Links: ${FORM_ID} - QCMS`,
-    },
-    {
-      path: `/forms/${FORM_ID}/responses`,
-      current: "section:responses",
-      children: true,
-      title: `Responses: ${FORM_ID} - QCMS`,
-    },
-    {
-      path: `/forms/${FORM_ID}/responses/${sessionId}`,
-      current: "section:responses",
-      children: true,
-      // The session id alone: it identifies one response across the deployment, which is
-      // the literal complaint issue #510 was filed for and #536 finished.
-      title: `Response ${sessionId} - QCMS`,
-    },
-    {
-      path: `/forms/${FORM_ID}/webhooks`,
-      current: "section:webhooks",
-      children: true,
-      title: `Webhooks: ${FORM_ID} - QCMS`,
-    },
   ];
 }
 
@@ -187,13 +162,12 @@ test.beforeAll(async ({ browser }) => {
   const page = await browser.newPage();
   try {
     totpSecret = await enrollNewAdmin(page, EMAIL);
-    sessionId = await submitResponse(SLUG, [[ACCIDENT, false]]);
   } finally {
     await page.close();
   }
 });
 
-test("561 puts the rail on all ten form-scoped screens, marking the row the screen is", async ({
+test("561 puts the rail on every authoring screen of a form, marking the row the screen is", async ({
   page,
 }) => {
   test.setTimeout(600_000);
@@ -205,12 +179,12 @@ test("561 puts the rail on all ten form-scoped screens, marking the row the scre
     await page.goto(screen.path);
     await expect(page.locator("main#main-content"), `${screen.path} is the shell`).toHaveCount(1);
 
-    // Soft throughout, so one sweep reports all nine verdicts rather than stopping at the
+    // Soft throughout, so one sweep reports every verdict rather than stopping at the
     // first screen that disagrees.
     await expect
       .soft(page.getByTestId("qcms-rail"), `${screen.path} carries the rail`)
       .toBeVisible();
-    // Nine sibling screens of one form, nine different tabs (issue #536). Asserted as
+    // Sibling screens of one form, one tab each (issue #536). Asserted as
     // the whole string rather than "not QCMS": the pattern is the decision, and a title
     // that lost its page name or its app name would still pass a difference test.
     await expect.soft(page, `${screen.path} names its own browser tab`).toHaveTitle(screen.title);
@@ -442,7 +416,7 @@ test("561 puts every shared rail row in the same box on all three builder-family
 
   // THE RULES SCREEN IS A ROUTE since issue #669, so its rail is the SERVER-rendered one,
   // like Preview's. That is what this comparison is for: the row that leads to it is drawn
-  // by one component on all nine screens now, and the two-branch row it replaced is exactly
+  // by one component on every authoring screen now, and the two-branch row it replaced is exactly
   // the shape that produced the 8px defect recorded above.
   await page.locator('[data-rail-item="section:rules"]').click();
   await expect(page).toHaveURL(/\/rules$/u);
@@ -561,7 +535,7 @@ test("1116 heads every form screen's rail the same way, and leaves no breadcrumb
       // something no row of this rail carries.
       //
       // Compared against the FIRST screen's Header rather than against the slug, which is
-      // the stronger claim and the one §7.0 makes: ten screens of one form, one Header. The
+      // the stronger claim and the one §7.0 makes: every screen of one form, one Header. The
       // name itself is the form's title where it has one and its slug where it does not
       // (`formDisplayName`), so pinning the string here would pin the fixture instead.
       const summary = rail.locator("summary.qcms-rail__summary");
@@ -597,7 +571,7 @@ test("1116 heads every form screen's rail the same way, and leaves no breadcrumb
   await page.setViewportSize({ width: SIDEBAR, height: 900 });
 
   // ONE HEADER, TWENTY READINGS. The chevron is `aria-hidden` and outside the text, so what
-  // is compared is the name and its status tag: the same line on all ten screens at both
+  // is compared is the name and its status tag: the same line on every one of them at both
   // widths, which is what "the rail looks the same everywhere" means for the part a reader
   // sees first.
   const names = new Set(headers.map((entry) => entry.split(": ").slice(1).join(": ")));

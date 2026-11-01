@@ -517,14 +517,14 @@ export function openDeliverer(): {
  * hydrated page it resolves on its first poll.
  */
 export async function openResponses(page: Page, formId: string): Promise<void> {
-  await page.goto(`/forms/${formId}/responses`);
+  await page.goto(`/operations/forms/${formId}/responses`);
   await expect(page.getByTestId("qcms-response-browser")).toBeVisible();
   await waitForHydration(page);
 }
 
 /** Open a form's webhooks tab and wait for the config to be on screen. */
 export async function openWebhooks(page: Page, formId: string): Promise<void> {
-  await page.goto(`/forms/${formId}/webhooks`);
+  await page.goto(`/operations/forms/${formId}/webhooks`);
   await expect(page.getByTestId("qcms-webhook-config")).toBeVisible();
 }
 

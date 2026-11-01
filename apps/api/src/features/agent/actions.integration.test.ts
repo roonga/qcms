@@ -364,16 +364,19 @@ describe("a plan reaches the user as one card and runs nothing (criterion 4)", (
         script: "plan-three",
         conversationId: "cnv_plan_three",
       });
-      // A form-scoped screen offers the whole subtree's kinds, so publish, release and
-      // mint are one card. Each step still runs its own screen's action, which
-      // `provenance.integration.test.ts` drives over the three real routes.
+      // An authoring screen offers its own subtree's kinds, so publish, release and the
+      // settings change are one card. Each step still runs its own screen's action.
+      //
+      // The third step was `link.mint`, and that is the one thing a plan may no longer do
+      // (Code Owner, 2026-11-02): minting is operational and these two are authoring, so
+      // one confirmation cannot span them.
       const [plan, ...rest] = proposals(events);
       expect(rest).toEqual([]);
       expect(plan?.type).toBe("plan");
       expect(plan === undefined ? [] : stepSummary(plan)).toEqual([
         { kind: "form.publish", environment: "test" },
         { kind: "form.release", environment: "prod" },
-        { kind: "link.mint", environment: "test" },
+        { kind: "form.settings", environment: "test" },
       ]);
       expect(plan?.proposal.steps[1]?.args["version"]).toEqual({ fromStep: 0, field: "version" });
       expect(await countLinks()).toBe(links);

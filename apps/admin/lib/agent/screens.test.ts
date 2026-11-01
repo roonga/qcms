@@ -45,7 +45,7 @@ describe("the agent screen table", () => {
       screen: "/forms/[formId]",
       params: { formId: "frm_x" },
     });
-    expect(screenForPath("/forms/frm_x/responses/ses_y")).toEqual({
+    expect(screenForPath("/operations/forms/frm_x/responses/ses_y")).toEqual({
       screen: "/operations/forms/[formId]/responses/[sessionId]",
       params: { formId: "frm_x", sessionId: "ses_y" },
     });

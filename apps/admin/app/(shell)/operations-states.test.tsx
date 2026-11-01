@@ -228,7 +228,7 @@ describe("the Operations forms table's states", () => {
     listResult = { status: "ok", page: page([RELEASED], "cur2") };
     const html = await render({ env: "test", q: "in" });
 
-    expect(html).toContain('href="/forms/frm_intake"');
+    expect(html).toContain('href="/operations/forms/frm_intake/responses"');
     expect(html).toContain('data-testid="qcms-operations-pager"');
     expect(html).toContain("cursor=cur2");
     // The page position rides with the filters rather than replacing them.
@@ -241,20 +241,21 @@ describe("the Operations forms table's states", () => {
 
     const html = await render();
 
-    // The combined row: the form's own screen under its name, the other four beside it.
-    expect(html).toContain('href="/forms/frm_intake"');
-    expect(html).toContain('href="/forms/frm_intake/versions"');
-    expect(html).toContain('href="/forms/frm_intake/links"');
-    expect(html).toContain('href="/forms/frm_intake/webhooks"');
-    expect(html).toContain('href="/forms/frm_intake/responses"');
+    // The combined row: its first operational context under the form's name, the rest
+    // beside it. No authoring screen is offered from here (Code Owner, 2026-11-02).
+    expect(html).toContain('href="/operations/forms/frm_intake/responses"');
+    expect(html).toContain('href="/operations/forms/frm_intake/links"');
+    expect(html).toContain('href="/operations/forms/frm_intake/webhooks"');
+    expect(html).toContain('href="/operations/forms/frm_intake/intake"');
+    expect(html).not.toContain('href="/forms/frm_intake"');
+    expect(html).not.toContain('href="/forms/frm_intake/versions"');
     // The response-only row reaches its responses and nothing else about the form.
-    expect(html).toContain('href="/forms/frm_survey/responses"');
+    expect(html).toContain('href="/operations/forms/frm_survey/responses"');
+    expect(html).not.toContain('href="/operations/forms/frm_survey/links"');
     expect(html).not.toContain('href="/forms/frm_survey"');
-    expect(html).not.toContain('href="/forms/frm_survey/versions"');
-    expect(html).not.toContain('href="/forms/frm_survey/links"');
     // The eraser's row names the form and links nowhere.
     expect(html).toContain("Leavers");
-    expect(html).not.toContain("/forms/frm_leavers");
+    expect(html).not.toContain("frm_leavers/");
   });
 
   it("asks for the chip's environment, so Last release is read where the chip says", async () => {

@@ -188,7 +188,7 @@ describe("resolving a live pathname to a cap", () => {
     expect(measureFor("/forms/frm_auto_quote")).toBe("wide");
     expect(measureFor("/forms/frm_auto_quote/versions")).toBe("wide");
     expect(measureFor("/forms/frm_auto_quote/versions/3")).toBe("wide");
-    expect(measureFor("/forms/frm_auto_quote/responses/ses_abc")).toBe("wide");
+    expect(measureFor("/operations/forms/frm_auto_quote/responses/ses_abc")).toBe("wide");
   });
 
   it("prefers a literal segment over a dynamic one, the way Next resolves them", () => {
@@ -204,7 +204,7 @@ describe("resolving a live pathname to a cap", () => {
   });
 
   it("keeps a trailing slash and a query-free path meaning the same route", () => {
-    expect(measureFor("/forms/frm_auto_quote/links/")).toBe("wide");
+    expect(measureFor("/operations/forms/frm_auto_quote/links/")).toBe("wide");
   });
 
   it("falls back to the readable measure for a path no route claims", () => {

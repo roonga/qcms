@@ -49,7 +49,7 @@ let railSlug = "";
 
 /** The reference screen: the rail is wired on the secure-links route (issue 559). */
 function linksPath(): string {
-  return `/forms/${formId}/links`;
+  return `/operations/forms/${formId}/links`;
 }
 
 /** The boxes the geometry assertions are about, read in one round trip. */

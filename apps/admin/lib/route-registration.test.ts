@@ -44,10 +44,14 @@ import { MEASURE_BY_ROUTE } from "./measure.js";
  * missing pair at once. `apps/admin/app/(shell)/AGENTS.md` states the same six in prose,
  * for a lane that reads before it runs.
  *
- * ONE OF THE SIX IS CONDITIONAL, and it is the only one that is. `e2e/rail-screens.pw.ts`
- * is the form subtree's spec: it opens the screens under one form and asserts each marks
- * its own rail row and names its own tab. A screen outside `/forms/[formId]` has nothing
- * to do there, so it is asked of form-scoped routes only rather than waived per screen.
+ * THE SIXTH IS CONDITIONAL, and it is the only one that is. It is a rail sweep: a spec that
+ * opens the screens about one form and asserts each marks its own rail row and names its
+ * own tab. There are two of them, because since 2026-11-02 (Code Owner) there are two
+ * rails: `e2e/rail-screens.pw.ts` for the editor's subtree, whose rail nests the form's
+ * steps, and `e2e/operations-form-rail.pw.ts` for the operational screens, whose rail is
+ * the four contexts of one environment. A route belongs to exactly one, and a route about
+ * no form belongs to neither, so the place is asked per route rather than waived per
+ * screen. Every route still answers to six.
  *
  * ## The enumeration is git's, not the filesystem's
  *
@@ -159,9 +163,20 @@ function walkedRoutes(spec: string, routes: readonly string[]): ReadonlySet<stri
   return walked;
 }
 
-/** A screen inside one form, which is what `e2e/rail-screens.pw.ts` sweeps. */
+/** A screen inside one form's editor, which is what `e2e/rail-screens.pw.ts` sweeps. */
 function isFormScoped(route: string): boolean {
   return route.startsWith("/forms/[formId]");
+}
+
+/**
+ * One form's operational screens, which `e2e/operations-form-rail.pw.ts` sweeps instead.
+ *
+ * The same registration asked of a different spec (Code Owner, 2026-11-02): each of these
+ * carries a rail of operational contexts rather than the editor's steps-and-sections tree,
+ * so a row in the other sweep would assert the wrong rail.
+ */
+function isFormOperational(route: string): boolean {
+  return route.startsWith("/operations/forms/[formId]");
 }
 
 /**
@@ -185,6 +200,7 @@ function places(routes: readonly string[]): readonly Place[] {
   const slots = railSlotRoutes();
   const measured = walkedRoutes("e2e/measure.pw.ts", routes);
   const railed = walkedRoutes("e2e/rail-screens.pw.ts", routes);
+  const operated = walkedRoutes("e2e/operations-form-rail.pw.ts", routes);
 
   return [
     {
@@ -244,6 +260,15 @@ function places(routes: readonly string[]): readonly Place[] {
             "names: this list is hand-written too, and a form screen left out of it has its rail " +
             "and its title measured by nothing",
     },
+    {
+      file: "apps/admin/e2e/operations-form-rail.pw.ts",
+      missing: (route) =>
+        !isFormOperational(route) || operated.has(route)
+          ? undefined
+          : "add the screen to `screens()` with the rail row it marks and the browser tab it " +
+            "names: this list is hand-written as well, and an operational screen left out of it " +
+            "has its rail and its title measured by nothing",
+    },
   ];
 }
 
@@ -285,12 +310,16 @@ describe("every admin screen is registered in all six places", () => {
     );
   });
 
-  it("opens no screen in either hand-written list that the route tree does not have", () => {
-    // The other direction of the two hand-written lists, and the cheaper half to get wrong:
-    // a row left behind by a route that moved does not fail in the browser as a missing row
+  it("opens no screen in any hand-written list that the route tree does not have", () => {
+    // The other direction of the hand-written lists, and the cheaper half to get wrong: a
+    // row left behind by a route that moved does not fail in the browser as a missing row
     // does, it fails as a 404 measured at whatever the shell gives an unknown path.
     const routes = shellRoutes();
-    for (const spec of ["e2e/measure.pw.ts", "e2e/rail-screens.pw.ts"]) {
+    for (const spec of [
+      "e2e/measure.pw.ts",
+      "e2e/rail-screens.pw.ts",
+      "e2e/operations-form-rail.pw.ts",
+    ]) {
       const stale = screenPathsIn(spec).filter((path) => patternFor(path, routes) === undefined);
       expect(stale, `\`screens()\` in \`${spec}\` names a route that does not exist`).toEqual([]);
     }

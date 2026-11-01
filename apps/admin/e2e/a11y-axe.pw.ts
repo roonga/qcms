@@ -1094,7 +1094,7 @@ test("publish, preview, history and secure links have zero violations", async ({
   await expect(page.getByTestId("qcms-version-view")).toBeVisible({ timeout: 60_000 });
   await expectNoViolations(page, "one published version, rendered from storage");
 
-  await page.goto(`/forms/${formId}/links`);
+  await page.goto(`/operations/forms/${formId}/links`);
   await chooseEnvironment(page, "prod");
   await expect(page.getByTestId("qcms-links-empty")).toBeVisible();
   // The mint and revoke outcomes are announced only because their container is a live
@@ -1224,7 +1224,7 @@ async function sweepOperations(
   await expect(page.getByRole("heading", { name: "Erasure log" })).toBeVisible();
   await expectNoViolations(page, "the erasure log");
 
-  await page.goto(`/forms/${OPS_FORM_ID}/responses`);
+  await page.goto(`/operations/forms/${OPS_FORM_ID}/responses`);
   const responses = page.getByTestId("qcms-responses-table");
   await expect(responses).toBeVisible();
   // Asserted, not assumed: the sweep's claim is that it measures BOTH flag tints, and
@@ -1239,7 +1239,7 @@ async function sweepOperations(
   await expectNoViolations(page, "the export dialog");
   await page.keyboard.press("Escape");
 
-  await page.goto(`/forms/${OPS_FORM_ID}/responses/${sessionId}`);
+  await page.goto(`/operations/forms/${OPS_FORM_ID}/responses/${sessionId}`);
   await expect(page.getByTestId("qcms-response-detail")).toBeVisible();
   await expectNoViolations(page, "a response detail with its ledger");
 
@@ -1269,11 +1269,11 @@ async function sweepOperations(
   // `FormPageHeader` with no component around it. The defect #511 was filed for lived
   // only in that second render, so a sweep that reached the first one and stopped was
   // blind to it by construction.
-  await page.goto(`/forms/${OPS_FORM_ID}/responses/${sessionId}`);
+  await page.goto(`/operations/forms/${OPS_FORM_ID}/responses/${sessionId}`);
   await expect(page.getByTestId("qcms-tombstone")).toBeVisible({ timeout: 30_000 });
   await expectNoViolations(page, "the tombstone route, opened cold");
 
-  await page.goto(`/forms/${pub.formId}/webhooks`);
+  await page.goto(`/operations/forms/${pub.formId}/webhooks`);
   await expect(page.getByTestId("qcms-webhook-config")).toBeVisible();
   // Issue #307: the secret's live region is mounted from the first render and is
   // empty, rather than arriving already full. A region that appears already populated
@@ -1363,7 +1363,7 @@ async function sweepDeliveries(
     passes,
     "the planted backlog must outlast one claim batch, or this proves nothing",
   ).toBeGreaterThan(1);
-  await page.goto(`/forms/${pub.formId}/webhooks`);
+  await page.goto(`/operations/forms/${pub.formId}/webhooks`);
   const deliveries = page.getByTestId("qcms-deliveries-table");
   await expect(deliveries.locator('[data-status="pending"]')).toHaveCount(2);
   await expectNoViolations(page, "the delivery dashboard with a rejected delivery");
@@ -1454,7 +1454,7 @@ async function sweepDeliveries(
 
   // The pass that succeeds: `delivered`, `--color-success-subtle`.
   await deliverer.pass();
-  await page.goto(`/forms/${pub.formId}/webhooks`);
+  await page.goto(`/operations/forms/${pub.formId}/webhooks`);
   await expect(deliveries.locator('[data-status="delivered"]')).toHaveCount(2);
   await expectNoViolations(page, "the delivery dashboard with a delivered delivery");
 

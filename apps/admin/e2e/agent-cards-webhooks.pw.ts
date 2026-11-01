@@ -141,7 +141,7 @@ function pendingPanel(page: Page): Locator {
 }
 
 async function openWebhooks(page: Page, form: string): Promise<void> {
-  await page.goto(`/forms/${form}/webhooks`);
+  await page.goto(`/operations/forms/${form}/webhooks`);
   await expect(page.getByTestId("qcms-webhook-config")).toBeVisible();
   await waitForHydration(page);
   await openPanel(page);
@@ -295,7 +295,7 @@ test("confirms a redelivery alone, and drains the queue again afterwards", async
   await chooseEnvironment(page, "prod");
   await releaseThroughWizard(page, { formId: deliverFormId, version: 1, environment: "prod" });
 
-  await page.goto(`/forms/${deliverFormId}/webhooks`);
+  await page.goto(`/operations/forms/${deliverFormId}/webhooks`);
   await waitForHydration(page);
   await addEndpoint(page, consumer.url());
 
@@ -385,7 +385,7 @@ test("ends the plan on Pending approval when production holds the change", async
 
   // The endpoint is configured before the switch goes on: with it on, a production create
   // is held too, and what this test is about is a change proposed against a live endpoint.
-  await page.goto(`/forms/${prodFormId}/webhooks`);
+  await page.goto(`/operations/forms/${prodFormId}/webhooks`);
   await waitForHydration(page);
   await addEndpoint(page, ENDPOINT_URL);
   await setSecondApprover(page, true);

@@ -90,11 +90,16 @@ const { messages } = await import("../../lib/i18n/en.ts");
 const SLUG = "Life insurance";
 
 /**
- * The five sections this component heads, each with the name it is expected to carry.
+ * Every section this component heads, each with the name it is expected to carry.
  *
  * "Version history" and not "History": see the note on `forms.tab.versions` in the catalog
  * for why that section was renamed rather than left to compose into "History: Life
  * insurance".
+ *
+ * Four are Operations screens since 2026-11-02 (Code Owner), served from a different root,
+ * which the route table below carries. Nothing about the heading changed with the move: a
+ * section is a NAME here, and what 679 asked for is that sibling screens of one form do
+ * not share one.
  */
 const SECTIONS = [
   ["rules", "Rules"],
@@ -103,6 +108,7 @@ const SECTIONS = [
   ["links", "Links"],
   ["responses", "Responses"],
   ["webhooks", "Webhooks"],
+  ["intake", "Intake"],
 ] as const;
 
 /** The route file each section is served from, relative to this directory. */
@@ -110,9 +116,10 @@ const ROUTE_FILES: Readonly<Record<(typeof SECTIONS)[number][0], string>> = {
   rules: "forms/[formId]/rules/page.tsx",
   preview: "forms/[formId]/preview/page.tsx",
   versions: "forms/[formId]/versions/page.tsx",
-  links: "forms/[formId]/links/page.tsx",
-  responses: "forms/[formId]/responses/page.tsx",
-  webhooks: "forms/[formId]/webhooks/page.tsx",
+  links: "operations/forms/[formId]/links/page.tsx",
+  responses: "operations/forms/[formId]/responses/page.tsx",
+  webhooks: "operations/forms/[formId]/webhooks/page.tsx",
+  intake: "operations/forms/[formId]/intake/page.tsx",
 };
 
 function routeSource(relative: string): string {

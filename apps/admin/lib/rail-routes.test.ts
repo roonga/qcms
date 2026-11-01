@@ -55,10 +55,26 @@ const CURRENT_SECTION: Readonly<Record<string, string>> = {
   "/forms/[formId]/versions": "versions",
   "/forms/[formId]/versions/[version]": "versions",
   "/forms/[formId]/publish": "publish",
-  "/operations/forms/[formId]/links": "links",
+};
+
+/**
+ * The same table for one form's OPERATIONAL screens, which carry a second rail (Code
+ * Owner, 2026-11-02).
+ *
+ * Two tables because they are two rails, not one rail on two roots: the editor's carries
+ * the form's steps and its authoring screens, and
+ * `components/ops/operations-form-rail.tsx` carries the four contexts that read one
+ * environment. A slot page names its row as `current="links"` there, and as
+ * `current={{ kind: "section", section: "links" }}` here, which is the difference the two
+ * rails' own types make. The response detail route is the row worth reading twice: it is
+ * not a row of either rail, so it marks the context it lives under.
+ */
+const CURRENT_CONTEXT: Readonly<Record<string, string>> = {
   "/operations/forms/[formId]/responses": "responses",
   "/operations/forms/[formId]/responses/[sessionId]": "responses",
+  "/operations/forms/[formId]/links": "links",
   "/operations/forms/[formId]/webhooks": "webhooks",
+  "/operations/forms/[formId]/intake": "intake",
 };
 
 /**
@@ -107,9 +123,14 @@ function railSlotRoutes(): string[] {
   return routePatternsUnder(`${SHELL}/@rail`, "");
 }
 
-/** The screens under one form: everything below `/forms/[formId]`, and that route itself. */
+/** The editor's screens for one form: everything below `/forms/[formId]`, and that route. */
 function formScopedScreens(): string[] {
   return shellScreens().filter((pattern) => pattern.startsWith("/forms/[formId]"));
+}
+
+/** One form's operational screens, which are Operations' (Code Owner, 2026-11-02). */
+function formContextScreens(): string[] {
+  return shellScreens().filter((pattern) => pattern.startsWith("/operations/forms/[formId]"));
 }
 
 function slotSource(route: string): string {
@@ -127,6 +148,7 @@ describe("every screen has a page in the slot, whether or not it has a rail", ()
   it("accounts for every route as either carrying a rail or deliberately not", () => {
     const withRail = [
       ...Object.keys(CURRENT_SECTION),
+      ...Object.keys(CURRENT_CONTEXT),
       "/questions/[questionId]",
       "/settings",
       // Listed rather than derived, for the reason the table above is: a list read out of
@@ -157,21 +179,26 @@ describe("every screen has a page in the slot, whether or not it has a rail", ()
 });
 
 describe("which screens carry the form-subtree section", () => {
-  it("counts the ten form-scoped screens: the audit's eight, the rules route and publish", () => {
+  it("counts eleven screens about one form, split between the editor's six and Operations' five", () => {
     // `plan/admin-ux-audit.md` §1: "of the sixteen authenticated screens, eight are
-    // form-scoped and would get a populated rail". The list has grown twice since, each
-    // time by a deliberate ruling; an eleventh entry is the moment the same question has to
-    // be asked again, so it fails here.
+    // form-scoped and would get a populated rail". The list has grown three times since,
+    // each time by a deliberate ruling, and on 2026-11-02 it SPLIT: a screen about one form
+    // is either authoring or operational, and the two sets carry different rails. A twelfth
+    // entry, or a screen that moved from one list to the other, is the moment the same
+    // question has to be asked again, so it fails here.
     expect(sorted(formScopedScreens())).toEqual([
       "/forms/[formId]",
-      "/operations/forms/[formId]/links",
       "/forms/[formId]/preview",
       "/forms/[formId]/publish",
-      "/operations/forms/[formId]/responses",
-      "/operations/forms/[formId]/responses/[sessionId]",
       "/forms/[formId]/rules",
       "/forms/[formId]/versions",
       "/forms/[formId]/versions/[version]",
+    ]);
+    expect(sorted(formContextScreens())).toEqual([
+      "/operations/forms/[formId]/intake",
+      "/operations/forms/[formId]/links",
+      "/operations/forms/[formId]/responses",
+      "/operations/forms/[formId]/responses/[sessionId]",
       "/operations/forms/[formId]/webhooks",
     ]);
   });
@@ -211,6 +238,14 @@ describe("which of the rail's rows each screen's section carries", () => {
       expect(slotSource(route)).not.toContain("interactiveSteps");
     }
   });
+
+  it("asks for the shared Operations rail on every operational slot, the same way", () => {
+    for (const route of Object.keys(CURRENT_CONTEXT)) {
+      expect(slotSource(route), `${route} renders the shared Operations form rail`).toContain(
+        "OperationsFormRailSlot",
+      );
+    }
+  });
 });
 
 describe("which row of the section each screen marks", () => {
@@ -222,8 +257,17 @@ describe("which row of the section each screen marks", () => {
     }
   });
 
-  it("expects a current row for every form-scoped slot, so a new one cannot arrive unstated", () => {
+  it("marks the context the screen is, and marks the detail route's parent context", () => {
+    for (const [route, context] of Object.entries(CURRENT_CONTEXT)) {
+      expect(slotSource(route), `${route} marks ${context} as the current rail row`).toContain(
+        `current="${context}"`,
+      );
+    }
+  });
+
+  it("expects a current row for every slot about one form, so a new one cannot arrive unstated", () => {
     expect(sorted(Object.keys(CURRENT_SECTION))).toEqual(sorted(formScopedScreens()));
+    expect(sorted(Object.keys(CURRENT_CONTEXT))).toEqual(sorted(formContextScreens()));
   });
 
   it("marks a step as current on no screen at all", () => {

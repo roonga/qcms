@@ -17,9 +17,14 @@ import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 import { addStep, createForm, pinQuestion, waitForSaved } from "./support/forms.js";
 
 /**
- * Criterion 11 for `form.settings`, the one form-screen kind the group's own spec does not
- * cover: confirmed alone, confirmed inside the plan that also closes and reopens intake,
- * and a cancel that changes neither setting.
+ * Criterion 11 for `form.settings`, the one builder kind the group's own spec does not
+ * cover: confirmed alone, cancelled, and the intake pair confirmed as one plan on the
+ * screen that owns it.
+ *
+ * The plan below used to carry all three, and that is the one shape a plan may no longer
+ * take (Code Owner, 2026-11-02): a settings change is authoring and the intake acts are
+ * operational, so one confirmation cannot span them. `plan-three` in the API's own
+ * integration suite is where a settings change inside a plan is confirmed now.
  *
  * ## Why a form of its own rather than the seeded one
  *
@@ -100,25 +105,26 @@ test("changes nothing when the card is cancelled", async ({ page }) => {
   expect(auditDelta(before, await auditTally())).toEqual({});
 });
 
-test("confirms the settings, the close and the reopen inside one plan", async ({ page }) => {
+test("confirms the close and the reopen inside one plan, on the Intake screen", async ({
+  page,
+}) => {
   test.setTimeout(600_000);
   await signInWithTotp(page, EMAIL, totpSecret);
-  await page.goto(`/forms/${formId}`);
+  await page.goto(`/operations/forms/${formId}/intake`);
   await openPanel(page);
   await expect(page.getByRole("button", { name: /^Close in/u })).toBeVisible();
 
   const before = await auditTally();
-  await propose(page, "plan-form-screen", "set the controls, close intake and reopen it");
+  await propose(page, "plan-intake", "close intake and reopen it");
   await expectWaitingStepStates(page, "Proposed");
 
-  await confirm(page, /^Done\. All 3 steps ran/u);
-  await expectStepChips(page, ["Done", "Done", "Done"]);
+  await confirm(page, /^Done\. All 2 steps ran/u);
+  await expectStepChips(page, ["Done", "Done"]);
   await expectAxeClean(page, "done plan");
 
   // The pair restores what it changed, so the screen offers the close again.
   await expect(page.getByRole("button", { name: /^Close in/u })).toBeVisible({ timeout: 30_000 });
   expect(auditDelta(before, await auditTally())).toEqual({
-    "form.settings": 1,
     "form.close": 1,
     "form.reopen": 1,
   });

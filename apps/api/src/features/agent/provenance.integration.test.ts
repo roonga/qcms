@@ -564,7 +564,7 @@ describe("a two-environment plan verifies step by step (criterion 1, plan-two-en
   });
 });
 
-describe("`plan-three` runs end to end, with the reference checked (criterion 4)", () => {
+describe("a three-step plan runs end to end, with the reference checked (criterion 4)", () => {
   const FORM_ID = "frm_prov_ref";
 
   beforeAll(async () => {

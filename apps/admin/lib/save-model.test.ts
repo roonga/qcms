@@ -189,22 +189,27 @@ const SCREENS: readonly ScreenRow[] = [
     why: "Navigation only. §7 gives the rail no actions at all, so there is nothing on it to save.",
   },
   {
-    route: "app/(shell)/@rail/forms/[formId]/links/page.tsx",
+    route: "app/(shell)/@rail/operations/forms/[formId]/links/page.tsx",
     model: "readonly",
     why: "Navigation only. §7 gives the rail no actions at all, so there is nothing on it to save.",
   },
   {
-    route: "app/(shell)/@rail/forms/[formId]/responses/page.tsx",
+    route: "app/(shell)/@rail/operations/forms/[formId]/responses/page.tsx",
     model: "readonly",
     why: "Navigation only. §7 gives the rail no actions at all, so there is nothing on it to save.",
   },
   {
-    route: "app/(shell)/@rail/forms/[formId]/responses/[sessionId]/page.tsx",
+    route: "app/(shell)/@rail/operations/forms/[formId]/responses/[sessionId]/page.tsx",
     model: "readonly",
     why: "Navigation only. §7 gives the rail no actions at all, so there is nothing on it to save.",
   },
   {
-    route: "app/(shell)/@rail/forms/[formId]/webhooks/page.tsx",
+    route: "app/(shell)/@rail/operations/forms/[formId]/webhooks/page.tsx",
+    model: "readonly",
+    why: "Navigation only. §7 gives the rail no actions at all, so there is nothing on it to save.",
+  },
+  {
+    route: "app/(shell)/@rail/operations/forms/[formId]/intake/page.tsx",
     model: "readonly",
     why: "Navigation only. §7 gives the rail no actions at all, so there is nothing on it to save.",
   },
@@ -271,17 +276,17 @@ const SCREENS: readonly ScreenRow[] = [
     why: "Returns null. The route has a rail, contributes no section of its own, and so has nothing on it to save.",
   },
   {
-    route: "app/(shell)/forms/[formId]/links/page.tsx",
+    route: "app/(shell)/operations/forms/[formId]/links/page.tsx",
     model: "action",
     why: "Mint and revoke. Its live region reports the outcome of a completed action, not a save state.",
   },
   {
-    route: "app/(shell)/forms/[formId]/responses/page.tsx",
+    route: "app/(shell)/operations/forms/[formId]/responses/page.tsx",
     model: "readonly",
     why: "Browse, filter and export. Nothing is authored.",
   },
   {
-    route: "app/(shell)/forms/[formId]/responses/[sessionId]/page.tsx",
+    route: "app/(shell)/operations/forms/[formId]/responses/[sessionId]/page.tsx",
     model: "action",
     why: "Erase and unflag, announced through the shell announcer as completed actions.",
   },
@@ -301,9 +306,14 @@ const SCREENS: readonly ScreenRow[] = [
     why: "One discrete act built up over three steps (ADR-40, issue #1197): a source, its destinations, then one confirmation. Nothing accumulating is saved, and that is the contract rather than an omission - back and cancel write nothing at all, so a half-built intent has to be unrecoverable by construction.",
   },
   {
-    route: "app/(shell)/forms/[formId]/webhooks/page.tsx",
+    route: "app/(shell)/operations/forms/[formId]/webhooks/page.tsx",
     model: "action",
     why: "Add, retarget, rotate, activate. Each is a discrete confirmed operation with its own outcome region.",
+  },
+  {
+    route: "app/(shell)/operations/forms/[formId]/intake/page.tsx",
+    model: "action",
+    why: "Close and reopen, each one confirmed act in one environment with its own outcome region. The reading above them is not authored.",
   },
   {
     route: "app/(shell)/questions/page.tsx",

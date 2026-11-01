@@ -73,7 +73,7 @@ test("confirms a mint and a revoke alone, changing the screen and recording each
   totpSecret = await enrollNewAdmin(page, EMAIL);
   formId = await createForm(page, `agent-links-${RUN}`, "Agent links");
 
-  await page.goto(`/forms/${formId}/links`);
+  await page.goto(`/operations/forms/${formId}/links`);
   await openPanel(page);
   await expect(page.getByTestId("qcms-links-empty")).toBeVisible();
 
@@ -101,7 +101,7 @@ test("confirms a mint and a revoke alone, changing the screen and recording each
 test("mints nothing when the card is cancelled", async ({ page }) => {
   test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);
-  await page.goto(`/forms/${formId}/links`);
+  await page.goto(`/operations/forms/${formId}/links`);
   await openPanel(page);
 
   const before = await auditTally();
@@ -117,7 +117,7 @@ test("mints nothing when the card is cancelled", async ({ page }) => {
 test("confirms both kinds inside one plan", async ({ page }) => {
   test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);
-  await page.goto(`/forms/${formId}/links`);
+  await page.goto(`/operations/forms/${formId}/links`);
   await openPanel(page);
 
   const before = await auditTally();
@@ -138,7 +138,7 @@ test("stops at the step that failed and runs nothing after it", async ({ page })
   await signInWithTotp(page, EMAIL, totpSecret);
   emptyFormId = await createForm(page, `agent-links-empty-${RUN}`, "Agent links empty");
 
-  await page.goto(`/forms/${emptyFormId}/links`);
+  await page.goto(`/operations/forms/${emptyFormId}/links`);
   await openPanel(page);
   await expect(page.getByTestId("qcms-links-empty")).toBeVisible();
 

@@ -78,7 +78,7 @@ test.describe("response filters: what was applied is what is claimed", () => {
     totpSecret = await enrollNewAdmin(page, EMAIL);
     formId = await createForm(page, `filter-validation-${RUN}`, "Filter validation");
 
-    await page.goto(`/forms/${formId}/responses`);
+    await page.goto(`/operations/forms/${formId}/responses`);
     await expect(page.getByTestId("qcms-responses-empty")).toContainText(UNFILTERED);
     await expect(page.getByTestId("qcms-responses-ignored-filters")).toHaveCount(0);
   });
@@ -90,7 +90,7 @@ test.describe("response filters: what was applied is what is claimed", () => {
     // The reported defect. `flagged` reaches the API only as `true` or `false`, so
     // `maybe` was never sent, and the page still announced a filtered empty result for
     // it: a statement about a filter that did not exist.
-    await page.goto(`/forms/${formId}/responses?flagged=maybe`);
+    await page.goto(`/operations/forms/${formId}/responses?flagged=maybe`);
     await expect(page.getByTestId("qcms-responses-empty")).toContainText(UNFILTERED);
     await expect(page.getByTestId("qcms-responses-ignored-filters")).toContainText("Flagged");
     // The toolbar agrees: no flag filter is selected, because none was applied.
@@ -106,7 +106,7 @@ test.describe("response filters: what was applied is what is claimed", () => {
     // screen was a 500 (`Invalid ISO 8601 date string: xyz`), not a list behind an error
     // alert. Both are unreachable once a value that does not parse is not a filter: the
     // empty state is the unfiltered one, and neither failure surface is on screen.
-    await page.goto(`/forms/${formId}/responses?from=xyz`);
+    await page.goto(`/operations/forms/${formId}/responses?from=xyz`);
     await expect(page.getByTestId("qcms-responses-empty")).toContainText(UNFILTERED);
     await expect(page.getByText("The responses could not be loaded.")).toHaveCount(0);
     await expect(page.getByTestId("qcms-responses-ignored-filters")).toContainText(
@@ -118,7 +118,7 @@ test.describe("response filters: what was applied is what is claimed", () => {
     await signInWithTotp(page, EMAIL, totpSecret);
     // A valid filter alongside two invalid ones: the valid one applies (so the filtered
     // sentence is true), and the invalid ones are named rather than counted.
-    await page.goto(`/forms/${formId}/responses?flagged=true&from=nope&version=abc`);
+    await page.goto(`/operations/forms/${formId}/responses?flagged=true&from=nope&version=abc`);
     await expect(page.getByTestId("qcms-responses-empty")).toContainText(FILTERED);
     const ignored = page.getByTestId("qcms-responses-ignored-filters");
     await expect(ignored).toContainText("Version");
@@ -134,11 +134,11 @@ test.describe("response filters: what was applied is what is claimed", () => {
     // accepts; they match nothing here, and that is exactly what the filtered sentence
     // is for. A fix that made every empty result read as "nothing submitted" would be
     // caught here rather than in production.
-    await page.goto(`/forms/${formId}/responses?from=2020-01-01&to=2020-01-02`);
+    await page.goto(`/operations/forms/${formId}/responses?from=2020-01-01&to=2020-01-02`);
     await expect(page.getByTestId("qcms-responses-empty")).toContainText(FILTERED);
     await expect(page.getByTestId("qcms-responses-ignored-filters")).toHaveCount(0);
 
-    await page.goto(`/forms/${formId}/responses?flagged=true`);
+    await page.goto(`/operations/forms/${formId}/responses?flagged=true`);
     await expect(page.getByTestId("qcms-responses-empty")).toContainText(FILTERED);
     await expect(page.getByTestId("qcms-responses-ignored-filters")).toHaveCount(0);
   });
@@ -151,7 +151,7 @@ test.describe("response filters: what was applied is what is claimed", () => {
     // `"0001"` matched none of them and the control read "Any version" beside a filtered
     // table. This needs the seeded form rather than the empty one created above,
     // because the option only exists on a form that has a published version.
-    await page.goto(`/forms/${SEEDED_FORM_ID}/responses?version=0001`);
+    await page.goto(`/operations/forms/${SEEDED_FORM_ID}/responses?version=0001`);
     await expect(page.getByRole("button", { name: /Version$/ })).toContainText("v1");
     await expect(page.getByTestId("qcms-responses-ignored-filters")).toHaveCount(0);
   });

@@ -43,7 +43,7 @@ function rail(current: Parameters<typeof formSubtreeRail>[0]["current"], counts 
 }
 
 describe("the form-subtree rail's contents", () => {
-  it("carries the eight sibling routes in §7's order, and Validation is not one of them", () => {
+  it("carries the five authoring routes in §7's order, and Validation is not one of them", () => {
     // RULES IS ONE OF THEM SINCE 2026-09-05 and Validation still is not, which is the pair
     // reading as a decision rather than as an inconsistency. Rule editing moved to a route
     // (issue #669) with its anchors rebuilt as route-plus-fragment links; Validation could
@@ -52,15 +52,16 @@ describe("the form-subtree rail's contents", () => {
     // RELEASES JOINED THEM WITH TASK 065, directly after the version history: what is
     // released to each environment is a different question from what versions exist, and
     // under ADR-40 it is the question that decides what a respondent is served.
+    // LINKS, RESPONSES AND WEBHOOKS LEFT (Code Owner, 2026-11-02). Each reads one
+    // environment's data and this rail sits beside a shared draft that has none, so the
+    // three are Operations screens with a rail of their own
+    // (`components/ops/operations-form-rail.tsx`). What is left here is authoring.
     expect([...RAIL_SECTIONS]).toStrictEqual([
       "builder",
       "rules",
       "preview",
       "versions",
       "publish",
-      "links",
-      "responses",
-      "webhooks",
     ]);
   });
 
@@ -88,9 +89,6 @@ describe("the form-subtree rail's contents", () => {
       "Versions",
       // The publish wizard, named the same way: the rail carries the screen's own name.
       "Publish",
-      "Links",
-      "Responses",
-      "Webhooks",
     ]);
   });
 
@@ -102,9 +100,6 @@ describe("the form-subtree rail's contents", () => {
       "/forms/frm_life/preview",
       "/forms/frm_life/versions",
       "/forms/frm_life/publish",
-      "/forms/frm_life/links",
-      "/forms/frm_life/responses",
-      "/forms/frm_life/webhooks",
     ]);
   });
 
@@ -141,7 +136,7 @@ describe("the form-subtree rail's contents", () => {
   it("marks exactly one row current, and marks the right one", () => {
     const groups = rail({ kind: "section", section: "publish" });
     const current = [...groups.children, ...groups.siblings].filter((item) => item.isCurrent);
-    expect(current.map((item) => item.key)).toStrictEqual(["section:responses"]);
+    expect(current.map((item) => item.key)).toStrictEqual(["section:publish"]);
   });
 
   it("marks a step current when the screen is that step", () => {
