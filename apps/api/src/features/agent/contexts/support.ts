@@ -173,8 +173,14 @@ export async function requireCell(
   return resolved;
 }
 
-/** The workspaces the caller holds a cell in, which is what narrows a list screen's read. */
-export async function workspacesHolding(
+/**
+ * The workspaces the caller holds a cell in, or none.
+ *
+ * Distinct from {@link workspacesHolding}, which refuses the turn: the grant filter asks
+ * the same question to decide what to offer, and a caller who may create nowhere is
+ * offered nothing rather than refused.
+ */
+export async function workspacesHoldingOrNone(
   input: ScreenBuildInput,
   args: { readonly resource: Resource; readonly action: string },
 ): Promise<readonly string[]> {
@@ -182,9 +188,17 @@ export async function workspacesHolding(
     userId: input.principal.userId,
     claim: input.principal.claim,
   });
-  const request = requestFor({ ...args, environment: input.environment });
-  const allowed = workspacesAllowing(resolved, request);
+  return workspacesAllowing(resolved, requestFor({ ...args, environment: input.environment }));
+}
+
+/** The workspaces the caller holds a cell in, which is what narrows a list screen's read. */
+export async function workspacesHolding(
+  input: ScreenBuildInput,
+  args: { readonly resource: Resource; readonly action: string },
+): Promise<readonly string[]> {
+  const allowed = await workspacesHoldingOrNone(input, args);
   if (allowed.length === 0) {
+    const request = requestFor({ ...args, environment: input.environment });
     throw forbidden(
       decideAccess({ memberRole: undefined, grants: [], request }).reason ?? "Refused",
     );

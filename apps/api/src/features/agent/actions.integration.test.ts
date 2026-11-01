@@ -210,6 +210,8 @@ async function turn(args: {
   readonly screen: string;
   readonly script: string;
   readonly formId?: string;
+  /** For a screen with no subject of its own, which takes no `formId`. */
+  readonly params?: Readonly<Record<string, string>>;
   readonly conversationId?: string;
 }): Promise<AssistEvent[]> {
   await deps.rateLimitStore.reset(`rl:agent-assist:${args.caller.userId}`);
@@ -219,7 +221,7 @@ async function turn(args: {
     body: JSON.stringify({
       conversation: [{ role: "user", content: `do the thing #qcms-fake:${args.script}` }],
       screen: args.screen,
-      params: { formId: args.formId ?? FORM_ID },
+      params: args.params ?? { formId: args.formId ?? FORM_ID },
       conversationId: args.conversationId ?? `cnv_${args.script}`,
     }),
   });
@@ -264,6 +266,43 @@ async function countAgentRows(): Promise<number> {
   );
   return (res.rows[0] as { n: number }).n;
 }
+
+describe("a screen with no subject of its own still offers its create (D6, D7)", () => {
+  it(
+    "proposes `form.create` on the forms list",
+    async () => {
+      // The library screen names no form and no workspace, and the kind it offers is the
+      // one that makes a form: the filter judges it against a workspace this caller may
+      // create in, and the route decides which one the act lands in.
+      const events = await turn({
+        caller: owner,
+        screen: "/forms",
+        params: {},
+        script: "propose-form-create",
+      });
+      const [action, ...rest] = proposals(events);
+      expect(rest).toEqual([]);
+      expect(action === undefined ? [] : stepSummary(action)).toEqual([
+        { kind: "form.create", environment: "test" },
+      ]);
+    },
+    CONTAINER_BOOT_TIMEOUT_MS,
+  );
+
+  it(
+    "offers a caller who may create nowhere nothing there",
+    async () => {
+      const events = await turn({
+        caller: viewer,
+        screen: "/forms",
+        params: {},
+        script: "propose-form-create",
+      });
+      expect(proposals(events)).toEqual([]);
+    },
+    CONTAINER_BOOT_TIMEOUT_MS,
+  );
+});
 
 describe("a plan reaches the user as one card and runs nothing (criterion 4)", () => {
   it(

@@ -765,8 +765,17 @@ function releaseStep(
   formId: string,
   version: number | Record<string, unknown>,
   environment: string,
+  fromEnvironment?: string,
 ): Record<string, unknown> {
-  return { kind: "form.release", args: { formId, version, environment } };
+  return {
+    kind: "form.release",
+    args: {
+      formId,
+      version,
+      environment,
+      ...(fromEnvironment === undefined ? {} : { fromEnvironment }),
+    },
+  };
 }
 
 /** How many times this turn has already called one tool, which P1's script needs. */
@@ -809,7 +818,7 @@ function actionPlanSteps(
     case "plan-releases":
       return [
         { kind: "form.publish", args: { formId, environment: "test" } },
-        releaseStep(formId, { fromStep: 0, field: "version" }, "test"),
+        releaseStep(formId, { fromStep: 0, field: "version" }, "prod"),
       ];
     case "plan-links":
       return [mintStep(formId, 2), revokeStep(formId, factActiveLinkId(prompt))];
@@ -817,20 +826,19 @@ function actionPlanSteps(
       return [createFormStep(prompt, "a"), createFormStep(prompt, "b")];
     case "plan-questions-create":
       return [createQuestionStep(prompt, "a"), createQuestionStep(prompt, "b")];
+    // The library's four lifecycle verbs over one draft version, in the order the screen
+    // allows them: save it, publish it, open the next draft, retire the one just published.
     case "plan-question-lifecycle": {
       const questionId = factQuestionId(prompt);
-      const opened = { fromStep: 0, field: "version" };
+      const version = factQuestionVersion(prompt, "draft");
       return [
-        { kind: "question.newVersion", args: { questionId } },
         {
           kind: "question.saveDraft",
-          args: { questionId, version: opened, definition: fakeQuestionDefinition(questionId) },
+          args: { questionId, version, definition: fakeQuestionDefinition(questionId) },
         },
-        { kind: "question.publish", args: { questionId, version: opened } },
-        {
-          kind: "question.deprecate",
-          args: { questionId, version: factQuestionVersion(prompt, "published") },
-        },
+        { kind: "question.publish", args: { questionId, version } },
+        { kind: "question.newVersion", args: { questionId } },
+        { kind: "question.deprecate", args: { questionId, version } },
       ];
     }
     case "plan-responses": {
@@ -921,7 +929,10 @@ const SINGLE_ACTIONS: Readonly<
     kind: "form.publish",
     args: { formId: factFormId(prompt), environment: "test" },
   }),
-  "propose-form-release": (prompt) => releaseStep(factFormId(prompt), factVersion(prompt), "test"),
+  // The promotion that names its own destination: a version already in `test` moved on to
+  // production, which is the release the screen's own wizard offers once evidence exists.
+  "propose-form-release": (prompt) =>
+    releaseStep(factFormId(prompt), factVersion(prompt), "prod", "test"),
   "propose-response-erase": (prompt) => ({
     kind: "response.erase",
     args: {

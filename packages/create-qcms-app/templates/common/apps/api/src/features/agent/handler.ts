@@ -28,6 +28,7 @@ import {
 import type { Resource } from "../membership/policy.js";
 import { PRODUCTION_ENVIRONMENT } from "../membership/policy.js";
 import { holdsInstallationClaim, resolveGrants } from "../membership/resolver.js";
+import { actionKind } from "./actions/registry.js";
 import { offeredActionKinds, offersNoAction } from "./grant-filter.js";
 import { buildProposal } from "./tools/propose.js";
 import { AGENT_PROPOSE_TOOL_NAMES, type AgentToolName } from "./tools/registry.js";
@@ -36,6 +37,7 @@ import {
   requireCell,
   requireForm,
   requireQuestion,
+  workspacesHoldingOrNone,
   type ScreenBuildInput,
   type ScreenParams,
 } from "./contexts/support.js";
@@ -240,11 +242,17 @@ async function actionPorts(args: {
   readonly ports: Partial<Pick<AgentContext, "propose" | "offeredActionKinds">>;
 }> {
   const kinds = offerableActionKinds(args.screen);
-  if (kinds.length === 0 || args.workspaceId === undefined) return { tools: [], ports: {} };
+  if (kinds.length === 0) return { tools: [], ports: {} };
+
+  // A library screen has no subject of its own, and the kinds it offers are the ones that
+  // make one. The filter judges them against a workspace the caller may create in; which
+  // workspace the act lands in stays the route's own, from the arguments.
+  const workspaceId = args.workspaceId ?? (await creatableWorkspace(args.build, kinds));
+  if (workspaceId === undefined) return { tools: [], ports: {} };
 
   const resolved = await resolveGrants(args.deps.databases.control, {
     userId: args.build.principal.userId,
-    workspaceId: args.workspaceId,
+    workspaceId,
     claim: args.build.principal.claim,
   });
   const offered = offeredActionKinds({
@@ -259,7 +267,7 @@ async function actionPorts(args: {
   // changes nothing here.
   if (offersNoAction(offered)) return { tools: [], ports: { offeredActionKinds: offered } };
 
-  const workspace = await getWorkspace(args.deps.databases.control, args.workspaceId);
+  const workspace = await getWorkspace(args.deps.databases.control, workspaceId);
   return {
     tools: AGENT_PROPOSE_TOOL_NAMES,
     ports: {
@@ -279,6 +287,20 @@ async function actionPorts(args: {
         }),
     },
   };
+}
+
+/** The first workspace the caller holds one of these kinds' cells in, or none. */
+async function creatableWorkspace(
+  input: ScreenBuildInput,
+  kinds: readonly string[],
+): Promise<string | undefined> {
+  for (const name of kinds) {
+    const def = actionKind(name);
+    if (def === undefined) continue;
+    const [first] = await workspacesHoldingOrNone(input, def.cell);
+    if (first !== undefined) return first;
+  }
+  return undefined;
 }
 
 /** The workspace a tool's cell is judged against: the screen's own subject. */

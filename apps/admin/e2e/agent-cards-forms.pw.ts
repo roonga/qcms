@@ -2,8 +2,8 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import {
-  auditCount,
-  auditedKinds,
+  auditDelta,
+  auditTally,
   cancel,
   card,
   cardChip,
@@ -65,7 +65,7 @@ test("confirms a close and a reopen on the form screen, changing the screen and 
   await page.goto(`/forms/${FORM_ID}`);
   await openPanel(page);
 
-  const before = await auditCount();
+  const before = await auditTally();
   await propose(page, "propose-form-close", "close intake in this environment");
   // While the card waits every step shares the card's state, so the heading chip says it
   // once and each step keeps its state word for assistive technology alone (issue #1131).
@@ -81,9 +81,7 @@ test("confirms a close and a reopen on the form screen, changing the screen and 
   await confirm(page, /^Done\./u);
   await expect(page.getByRole("button", { name: /^Close in/u })).toBeVisible();
 
-  const kinds = await auditedKinds();
-  expect(kinds.length - before).toBe(2);
-  expect(kinds.slice(-2)).toEqual(["form.close", "form.reopen"]);
+  expect(auditDelta(before, await auditTally())).toEqual({ "form.close": 1, "form.reopen": 1 });
 });
 
 test("sends nothing when the card is cancelled", async ({ page }) => {
@@ -92,12 +90,12 @@ test("sends nothing when the card is cancelled", async ({ page }) => {
   await page.goto(`/forms/${FORM_ID}`);
   await openPanel(page);
 
-  const before = await auditCount();
+  const before = await auditTally();
   await propose(page, "propose-form-close", "close intake in this environment");
   await cancel(page);
   await expectAxeClean(page, "cancelled");
 
-  expect(await auditCount()).toBe(before);
+  expect(auditDelta(before, await auditTally())).toEqual({});
   // The screen still offers the close it was never asked to perform.
   await expect(page.getByRole("button", { name: /^Close in/u })).toBeVisible();
 });
@@ -172,7 +170,7 @@ test("ticks a waiting card into Expired once its window runs out", async ({ page
   await page.goto(`/forms/${FORM_ID}`);
   await openPanel(page);
 
-  const before = await auditCount();
+  const before = await auditTally();
   await propose(page, "propose-form-close", "close intake in this environment");
   await runOutProposalWindow(page);
 
@@ -180,5 +178,5 @@ test("ticks a waiting card into Expired once its window runs out", async ({ page
   await expect(card(page)).toContainText("Expired - ask again");
   await expect(confirmButton(page)).toBeDisabled();
   await expectAxeClean(page, "expired");
-  expect(await auditCount()).toBe(before);
+  expect(auditDelta(before, await auditTally())).toEqual({});
 });

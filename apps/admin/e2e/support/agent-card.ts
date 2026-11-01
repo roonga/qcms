@@ -117,25 +117,15 @@ export async function expectStepChips(page: Page, words: readonly string[]): Pro
   await expect(stepChips(page)).toHaveText([...words]);
 }
 
-/** The kinds this proposal recorded in `control.agent_actions`, in step order (Q12). */
-export async function auditedKinds(proposalPrefix?: string): Promise<readonly string[]> {
+/** Every kind recorded in `control.agent_actions` (Q12). */
+async function auditedKinds(): Promise<readonly string[]> {
   const handle = openDbHandle(readFixtures().databaseUrl);
   try {
-    const rows = await handle.query(
-      `select kind, step_index, proposal_id from control."agent_actions"
-         where ($1::text is null or proposal_id like $1 || '%')
-         order by confirmed_at, step_index`,
-      [proposalPrefix ?? null],
-    );
+    const rows = await handle.query(`select kind from control."agent_actions"`);
     return rows.rows.map((row) => String((row as Record<string, unknown>)["kind"]));
   } finally {
     await handle.close();
   }
-}
-
-/** How many rows the audit holds now, which a cancel path compares against. */
-export async function auditCount(): Promise<number> {
-  return (await auditedKinds()).length;
 }
 
 /**
