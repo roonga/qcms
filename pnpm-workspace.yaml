@@ -19,6 +19,7 @@ minimumReleaseAgeStrict: true
 
 overrides:
   "drizzle-orm>@opentelemetry/api": ~1.9.1
+  "@hono/otel>@opentelemetry/api": ~1.9.1
   postcss: ^8.5.23
   minimatch@5: ^11.0.1
   minimatch@9: ^11.0.1
