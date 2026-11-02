@@ -81,7 +81,7 @@ export const TWO_FACTOR_COOKIE = `${COOKIE_PREFIX}.two_factor`;
  *
  * A bare `cookies().get(TWO_FACTOR_COOKIE)` therefore finds nothing in production and the
  * challenge screen bounces to sign-in forever. The library solves this for itself by
- * trying both names (`dist/cookies/index.mjs:266`:
+ * trying both names (`dist/cookies/index.mjs:268`:
  * `parsedCookie.get(\`__Secure-${name}\`) ?? parsedCookie.get(name)`), and this is that
  * fallback on our side of the hop.
  *
@@ -200,7 +200,7 @@ export function verifyBackupCode(requestHeaders: Headers, code: string): Promise
  * Issue a fresh set of recovery codes, replacing the set on record (issue #319).
  *
  * better-auth requires the account password here
- * (`dist/plugins/two-factor/backup-codes/index.mjs:279-281`), which is the whole
+ * (`dist/plugins/two-factor/backup-codes/index.mjs:285-287`), which is the whole
  * reason this replaced the route that read the stored codes back: re-authentication
  * arrives with the operation instead of needing a freshness rule of our own, and
  * whatever set was on record stops working the moment the new one is written.

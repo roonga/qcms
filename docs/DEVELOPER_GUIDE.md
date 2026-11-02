@@ -124,7 +124,7 @@ the ten recovery codes survive an unpinned restart because better-auth stores th
 plain JSON - that was wrong (issue #319). The plugin defaults `storeBackupCodes` to
 `"encrypted"` (`dist/plugins/two-factor/index.mjs:25-27`; the decoder
 `getBackupCodes` at `.../backup-codes/index.mjs:44` takes its encrypted branch on `:45`
-and falls through to the plain-JSON `return safeJSONParse(backupCodes)` on `:50` only
+and falls through to the plain-JSON `return safeJSONParse(backupCodes)` on `:56` <!-- expect: return safeJSONParse(backupCodes) --> only
 when a caller _overrides_ the default), so
 the codes are ciphertext under the same key as the TOTP secret and die with it. There is
 no re-enrolment screen, and until issue #432 there was no way out at all short of a fresh

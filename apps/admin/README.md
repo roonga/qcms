@@ -96,7 +96,8 @@ better-auth instance:
   checked against the source of better-auth 1.7.14, the pinned version, not inferred:
   `symmetricEncrypt({ key: ctx.context.secretConfig, ... })` at
   `dist/plugins/two-factor/index.mjs:135-138`, decrypt at
-  `dist/plugins/two-factor/totp/index.mjs:188` (and `:122` for the URI reveal). Change the
+  `dist/plugins/two-factor/totp/index.mjs:19-20`, <!-- expect: symmetricDecrypt(options) -->
+  called at `:153-156` for verification and `:102-105` for the URI reveal. Change the
   secret and the authenticator's codes are rejected for good - **and so are the recovery
   codes**, which this file used to claim survive because better-auth stores them as plain
   JSON. It does not: the plugin defaults `storeBackupCodes` to `"encrypted"`
