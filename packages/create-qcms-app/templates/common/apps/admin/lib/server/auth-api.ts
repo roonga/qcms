@@ -67,34 +67,7 @@ export const SESSION_COOKIE = `${COOKIE_PREFIX}.session_token`;
 /** The short-lived cookie carrying a pending 2FA challenge, without its security prefix. */
 export const TWO_FACTOR_COOKIE = `${COOKIE_PREFIX}.two_factor`;
 
-/**
- * Read one of better-auth's cookies by its **unprefixed** name (issue #317).
- *
- * better-auth renames its own cookies when it is issuing secure ones:
- * `createCookieGetter` builds the name as `${secureCookiePrefix}${prefix}.${cookieName}`
- * and sets `secureCookiePrefix` to `__Secure-` whenever `advanced.useSecureCookies` is
- * true (better-auth 1.7.14, the pinned version: `dist/cookies/index.mjs:23` decides the
- * prefix, `:28-32` composes the name). So the cookie
- * this app has to find is `qcms_admin.two_factor` in development and
- * `__Secure-qcms_admin.two_factor` in any deployment with secure cookies on - which is
- * the default compose shape, since `docker/admin.Dockerfile` bakes `NODE_ENV=production`.
- *
- * A bare `cookies().get(TWO_FACTOR_COOKIE)` therefore finds nothing in production and the
- * challenge screen bounces to sign-in forever. The library solves this for itself by
- * trying both names (`dist/cookies/index.mjs:268`:
- * `parsedCookie.get(\`__Secure-${name}\`) ?? parsedCookie.get(name)`), and this is that
- * fallback on our side of the hop.
- *
- * It matches by **suffix** rather than by trying the two literal spellings, for the same
- * reason `auth.integration.test.ts` does: `__Host-` is the other prefix the spec defines
- * and better-auth already has a constant for it, so an upstream switch to it stays
- * covered. The suffix is anchored with a leading `.` from `COOKIE_PREFIX`, so
- * `qcms_admin.session_token` can never satisfy a lookup for `qcms_admin.two_factor`.
- *
- * Not caught by any gate we have, which is why it shipped in 031 and survived 056's green
- * runs: the browser suite runs over http on localhost with secure cookies off, so the
- * prefixed form never appears in CI.
- */
+/** Vendor cookies may carry either security prefix. */
 export async function readAuthCookie(unprefixedName: string): Promise<string | undefined> {
   const jar = await cookies();
   const exact = jar.get(unprefixedName)?.value;
@@ -196,15 +169,7 @@ export function verifyBackupCode(requestHeaders: Headers, code: string): Promise
   });
 }
 
-/**
- * Issue a fresh set of recovery codes, replacing the set on record (issue #319).
- *
- * better-auth requires the account password here
- * (`dist/plugins/two-factor/backup-codes/index.mjs:285-287`), which is the whole
- * reason this replaced the route that read the stored codes back: re-authentication
- * arrives with the operation instead of needing a freshness rule of our own, and
- * whatever set was on record stops working the moment the new one is written.
- */
+/** Recovery-code rotation reauthenticates with the account password. */
 export function generateBackupCodes(requestHeaders: Headers, password: string): Promise<Response> {
   return authApiFetch("/two-factor/generate-backup-codes", {
     method: "POST",

@@ -182,10 +182,7 @@ export interface Config {
    * provider and must not be made to carry its secret.
    */
   readonly adminAuth: {
-    /**
-     * In the pinned better-auth 1.7.14 this is the legacy fallback: the key used to read
-     * ciphertext written before the versioned envelope existed.
-     */
+    /** Decrypt-only fallback for ciphertext predating versioned key envelopes. */
     readonly secret: string;
     /**
      * First entry is current and is what new ciphertext is written under; the rest are

@@ -41,10 +41,7 @@ export const authSession = controlSchema.table("session", {
   userId: text("userId")
     .notNull()
     .references(() => authUser.id, { onDelete: "cascade" }),
-  /**
-   * Nullable session scope, never writable from request input (better-auth 1.7.14).
-   * `dist/plugins/organization/organization.mjs:863-876` <!-- expect: input: false -->
-   */
+  /** The vendor refuses request input for these session scope fields. */
   activeOrganizationId: text("activeOrganizationId"),
   activeTeamId: text("activeTeamId"),
 });
@@ -92,17 +89,7 @@ export const authTwoFactor = controlSchema.table("twoFactor", {
   lockedUntil: timestamp("lockedUntil"),
 });
 
-/**
- * The fields are read off better-auth 1.7.14, which declares `organization`, `member` and `invitation`:
- * `dist/plugins/organization/organization.mjs:704-840` <!-- expect: const schema = { -->
- * and `team`, `teamMember` only when `teams.enabled` is on:
- * `dist/plugins/organization/organization.mjs:585-660` <!-- expect: const teamSchema = teamSupport -->
- * `dist/plugins/organization/organization.mjs:419`. <!-- expect: const teamSupport = opts.teams?.enabled -->
- * The adapter reads only `notNull` and `hasDefault`
- * (`@better-auth/drizzle-adapter/dist/schema-check-BSenoulG.mjs:124-139`), <!-- expect: if (!is(table, Table)) continue -->
- * and `diffSchema` asks two questions (`@better-auth/core/dist/db/schema-diff.mjs:41-54`). <!-- expect: kind: "unexpected-required-column" -->
- * So the Postgres schema a `pgSchema` table belongs to is invisible to the check.
- */
+/** The vendor checks column nullability and defaults, not the Postgres schema owning a table. */
 
 /** A workspace. */
 export const authOrganization = controlSchema.table(
@@ -176,11 +163,7 @@ export const authTeam = controlSchema.table("team", {
   createdAt: timestamp("createdAt").notNull().defaultNow(),
   updatedAt: timestamp("updatedAt"),
   role: text("role").notNull(),
-  /**
-   * A set of `control.environments` names, or the single element `all`. `text[]` is what
-   * `@better-auth/drizzle-adapter` maps a `string[]` additional field to on `pg`
-   * (`@better-auth/drizzle-adapter/dist/generate-drizzle-schema-CO7dqwud.mjs:116-118`). <!-- expect: text('${name}').array() -->
-   */
+
   environments: text("environments").array().notNull(),
   /** A list of form ids, or the single element `all`. */
   forms: text("forms").array().notNull(),

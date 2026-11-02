@@ -188,6 +188,27 @@ Only a curated header set crosses the hop (`cookie`, `origin`, `referer`, `user-
 What crosses instead is `X-QCMS-Client-Address`, the single address the admin resolved from its own inbound chain by counting `QCMS_ADMIN_TRUSTED_PROXY_HOPS` entries from the right, and better-auth is configured to resolve the client address from that header alone (issue #374, §8).
 Nothing verifies a session by cookie signature alone at any point: the admin resolves a session by asking the API, which reads the row.
 
+### Vendor source evidence
+
+These constraints are checked against better-auth 1.7.14 and its matching core and Drizzle adapter packages. Keep version evidence here rather than in code comments.
+
+| Constraint                                                         | Checked source                                                                                                             |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| Real adapter transactions are opt-in.                              | `@better-auth/drizzle-adapter/dist/index.mjs:566` <!-- expect: transaction: config.transaction ?? false -->                |
+| Disabling transactions runs callbacks without a transaction.       | `@better-auth/core/dist/db/adapter/factory.mjs:427` <!-- expect: lazyLoadTransaction = createAsIsTransaction(adapter) -->  |
+| Password changes use the transaction wrapper.                      | `dist/api/routes/update-user.mjs:173` <!-- expect: const newSession = await runWithTransaction( -->                        |
+| Session output filters to declared fields.                         | `dist/db/schema.mjs:25-26` <!-- expect: filterOutputFields(user, schema) -->                                               |
+| Additional user fields participate in that schema.                 | `dist/db/schema.mjs:12` <!-- expect: options[modelName]?.additionalFields -->                                              |
+| Field defaults apply on account creation.                          | `dist/db/schema.mjs:98` <!-- expect: action === "create" -->                                                               |
+| Non-input fields cannot be assigned by requests.                   | `dist/db/schema.mjs:77` <!-- expect: is not allowed to be set -->                                                          |
+| Session organization and team scope fields reject request input.   | `dist/plugins/organization/organization.mjs:863-876` <!-- expect: input: false -->                                         |
+| The adapter checks column shape without Postgres schema ownership. | `@better-auth/drizzle-adapter/dist/schema-check-BSenoulG.mjs:124-139` <!-- expect: if (!is(table, Table)) continue -->     |
+| Missing fields and unexpected required columns are rejected.       | `@better-auth/core/dist/db/schema-diff.mjs:41-54` <!-- expect: kind: "unexpected-required-column" -->                      |
+| Organization fields come from the plugin schema.                   | `dist/plugins/organization/organization.mjs:704-840` <!-- expect: const schema = { -->                                     |
+| Team models depend on the teams switch.                            | `dist/plugins/organization/organization.mjs:585-660` <!-- expect: const teamSchema = teamSupport -->                       |
+| String-array additional fields use native Postgres arrays.         | `@better-auth/drizzle-adapter/dist/generate-drizzle-schema-CO7dqwud.mjs:116-118` <!-- expect: text('${name}').array() -->  |
+| Recovery-code regeneration checks the account password.            | `dist/plugins/two-factor/backup-codes/index.mjs:285-287` <!-- expect: ctx.context.password.checkPassword(user.id, ctx) --> |
+
 ### 2.2 Respondents - SEC-2
 
 Launch modes only (OTP/social are Phase 4 behind the same seam):
