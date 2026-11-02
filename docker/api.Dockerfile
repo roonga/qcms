@@ -4,7 +4,7 @@
 # the same base rather than whatever `24-bookworm-slim` points at then. The `docker`
 # ecosystem in `.github/dependabot.yml` moves the tag and the digest together, and
 # records why pinning and that coverage had to land in one change.
-FROM node:24-bookworm-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205 AS build
+FROM node:24-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS build
 
 WORKDIR /workspace
 RUN corepack enable
@@ -61,7 +61,7 @@ RUN pnpm --filter qcms-api... build
 # a devDependency, so a regression here is red before an image is pushed.
 RUN pnpm --filter qcms-api deploy --legacy --prod --no-optional /opt/qcms
 
-FROM node:24-bookworm-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205 AS runtime
+FROM node:24-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS runtime
 
 ARG VERSION=dev
 LABEL org.opencontainers.image.title="qcms-api" \
