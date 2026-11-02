@@ -2,7 +2,11 @@ import { fileURLToPath } from "node:url";
 
 import { defineProject } from "vitest/config";
 
-// Shared aliases keep imports and mocks bound to the same module in both test projects.
+export const APP_ROOT = fileURLToPath(new URL(".", import.meta.url));
+
+/** Shared with the DOM project so imports and mocks resolve to the same module. */
+export const APP_ALIAS = [{ find: /^@\/(.*)$/, replacement: `${APP_ROOT}$1` }];
+
 export default defineProject({
   test: {
     name: "qcms-admin",
