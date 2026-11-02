@@ -183,7 +183,7 @@ export interface Config {
    */
   readonly adminAuth: {
     /**
-     * In the pinned better-auth 1.7.10 this is the legacy fallback: the key used to read
+     * In the pinned better-auth 1.7.14 this is the legacy fallback: the key used to read
      * ciphertext written before the versioned envelope existed.
      */
     readonly secret: string;

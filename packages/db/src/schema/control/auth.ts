@@ -42,7 +42,7 @@ export const authSession = controlSchema.table("session", {
     .notNull()
     .references(() => authUser.id, { onDelete: "cascade" }),
   /**
-   * `required: false` and `input: false` in better-auth 1.7.10
+   * `required: false` and `input: false` in better-auth 1.7.14
    * (`dist/plugins/organization/organization.mjs:858-871`), <!-- expect: activeOrganizationId: { -->
    * so no request body can set them. `activeTeamId` is created even when `teams.enabled`
    * is off.
@@ -95,13 +95,13 @@ export const authTwoFactor = controlSchema.table("twoFactor", {
 });
 
 /**
- * The fields are read off better-auth 1.7.10, which declares `organization`, `member` and `invitation`:
+ * The fields are read off better-auth 1.7.14, which declares `organization`, `member` and `invitation`:
  * `dist/plugins/organization/organization.mjs:704-840` <!-- expect: const schema = { -->
  * and `team`, `teamMember` only when `teams.enabled` is on:
  * `dist/plugins/organization/organization.mjs:585-660` <!-- expect: const teamSchema = teamSupport -->
  * `dist/plugins/organization/organization.mjs:419`. <!-- expect: const teamSupport = opts.teams?.enabled -->
  * The adapter reads only `notNull` and `hasDefault`
- * (`@better-auth/drizzle-adapter/dist/schema-check-Dqk6A4Es.mjs:121-136`), <!-- expect: if (!is(table, Table)) continue -->
+ * (`@better-auth/drizzle-adapter/dist/schema-check-BSenoulG.mjs:124-139`), <!-- expect: if (!is(table, Table)) continue -->
  * and `diffSchema` asks two questions (`@better-auth/core/dist/db/schema-diff.mjs:41-54`). <!-- expect: kind: "unexpected-required-column" -->
  * So the Postgres schema a `pgSchema` table belongs to is invisible to the check.
  */
@@ -181,7 +181,7 @@ export const authTeam = controlSchema.table("team", {
   /**
    * A set of `control.environments` names, or the single element `all`. `text[]` is what
    * `@better-auth/drizzle-adapter` maps a `string[]` additional field to on `pg`
-   * (`@better-auth/drizzle-adapter/dist/generate-drizzle-schema-iWvrXnu0.mjs:112-114`). <!-- expect: text('${name}').array() -->
+   * (`@better-auth/drizzle-adapter/dist/generate-drizzle-schema-CO7dqwud.mjs:116-118`). <!-- expect: text('${name}').array() -->
    */
   environments: text("environments").array().notNull(),
   /** A list of form ids, or the single element `all`. */

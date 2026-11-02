@@ -19,8 +19,11 @@ minimumReleaseAgeStrict: true
 
 overrides:
   postcss: ^8.5.23
-  minimatch@5: ^10.2.5
-  minimatch@9: ^10.2.5
+  minimatch@5: ^11.0.1
+  minimatch@9: ^11.0.1
+  minimatch@10: ^11.0.1
+  glob@10: ^14.0.2
+  glob@13: ^14.0.2
   brace-expansion@5: ^5.0.9
   esbuild@0.18.20: ^0.25.12
 

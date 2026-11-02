@@ -30,7 +30,7 @@ import { pluginWriteBackstop } from "./plugin-write-backstop.js";
  * Stored factors are ciphertext under the admin auth secret and re-encode on use:
  * `dist/plugins/two-factor/index.mjs:135-138` <!-- expect: const encryptedSecret = await symmetricEncrypt( -->
  * `.../backup-codes/index.mjs:19-22` <!-- expect: storeBackupCodes === "encrypted" -->
- * `.../backup-codes/index.mjs:215` <!-- expect: encodeBackupCodes(validate.updated -->
+ * `.../backup-codes/index.mjs:221` <!-- expect: encodeBackupCodes(validate.updated -->
  * Promoting a key version signs every live admin out: `dist/context/create-context.mjs:76` <!-- expect: secret = secretsArray[0].value -->
  */
 
@@ -258,9 +258,9 @@ export function createAdminAuth(input: AdminAuthInput) {
     database: drizzleAdapter(input.db, {
       provider: "pg",
       // The default is `false`, where a `runWithTransaction` wrap rolls nothing back:
-      // `@better-auth/drizzle-adapter/dist/index.mjs:563` <!-- expect: transaction: config.transaction ?? false -->
+      // `@better-auth/drizzle-adapter/dist/index.mjs:566` <!-- expect: transaction: config.transaction ?? false -->
       // `@better-auth/core/dist/db/adapter/factory.mjs:31` <!-- expect: transaction: cfg.transaction ?? false -->
-      // `@better-auth/core/dist/db/adapter/factory.mjs:422` <!-- expect: lazyLoadTransaction = createAsIsTransaction(adapter) -->
+      // `@better-auth/core/dist/db/adapter/factory.mjs:427` <!-- expect: lazyLoadTransaction = createAsIsTransaction(adapter) -->
       // `@better-auth/core/dist/db/adapter/factory.mjs:18` <!-- expect: (adapter) => (fn) => fn(adapter) -->
       // `/change-password` must commit as one act (SEC-1):
       // `dist/api/routes/update-user.mjs:173` <!-- expect: const newSession = await runWithTransaction( -->
@@ -316,11 +316,11 @@ export function createAdminAuth(input: AdminAuthInput) {
         // `input: false` is the load-bearing part: the SEC-3 claim cannot be self-assigned.
         role: { type: "string", required: false, defaultValue: "admin", input: false },
         // A DECLARED field, since the gate reads it off the session user and output is filtered by declared fields:
-        // `dist/db/schema.mjs:25` <!-- expect: filterOutputFields(user, getFields(options, "user", "output")) -->
+        // `dist/db/schema.mjs:25-26` <!-- expect: filterOutputFields(user, schema) -->
         // `dist/db/schema.mjs:12` <!-- expect: options[modelName]?.additionalFields -->
-        // `defaultValue: true` sets the flag on every account-creation path: `dist/db/schema.mjs:95` <!-- expect: action === "create" -->
+        // `defaultValue: true` sets the flag on every account-creation path: `dist/db/schema.mjs:98` <!-- expect: action === "create" -->
         // `input: false` stops any update writing it, so a session holder cannot clear it:
-        // `dist/db/schema.mjs:74` <!-- expect: is not allowed to be set -->
+        // `dist/db/schema.mjs:77` <!-- expect: is not allowed to be set -->
         mustChangePassword: {
           type: "boolean",
           required: false,

@@ -34,7 +34,7 @@ function adminAuthConfig(
     breachedPasswordCheck: false,
     // Costs this file nothing: every request goes through `auth.api.*` in process, and
     // better-auth's limiter runs in the router's `onRequest` hook, which only
-    // `auth.handler` reaches (better-auth 1.7.10, `dist/api/index.mjs:165-173`).
+    // `auth.handler` reaches (better-auth 1.7.14, `dist/api/index.mjs:165-173`).
     // <!-- expect: const rateLimitResponse = await onRequestRateLimit(currentRequest, ctx); -->
     signInThrottle: true,
   };

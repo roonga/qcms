@@ -2,7 +2,7 @@
 // @ts-check
 /**
  * Runs a Next build, waiting out a concurrent build of the same app: `next build` locks `<distDir>/lock`
- * (next 16.4.2, `packages/next/src/build/index.ts:1370-1376`; message in `packages/next/src/build/lockfile.ts:225`), re-read on a `next` bump.
+ * (next 16.4.3, `packages/next/src/build/index.ts:1370-1376`; message in `packages/next/src/build/lockfile.ts:225`), re-read on a `next` bump.
  * Only a live build of this app holds it, never a sibling worktree or a stale file, so this waits and names the holder.
  */
 
