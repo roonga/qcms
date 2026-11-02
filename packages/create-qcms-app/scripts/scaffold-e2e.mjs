@@ -98,16 +98,8 @@ const PINNED_DEPENDENCIES = {
   "@hono/zod-openapi": "1.5.1",
 };
 
-/** The `overrides:` block that redirects the packed packages at the vendored tarballs. */
-function overridesBlock(tarballNames) {
-  const lines = [
-    "",
-    "# Added by scaffold-e2e.mjs, never by create-qcms-app. The @roonga/qcms-* packages are",
-    "# not published yet, so this run resolves them from tarballs `pnpm pack` produced.",
-    "# The paths are relative so they mean the same thing on the host and inside the",
-    "# image, where the build context has copied apps/ (and this directory with it).",
-    "overrides:",
-  ];
+function overrideEntries(tarballNames) {
+  const lines = [];
   for (const [name, file] of Object.entries(tarballNames)) {
     lines.push(`  "${name}": "file:./${VENDOR_DIRECTORY}/${file}"`);
   }
@@ -233,10 +225,33 @@ function buildScaffold(workspace) {
   for (const file of Object.values(names)) cpSync(join(tarballs, file), join(vendor, file));
 
   const workspaceFile = join(scaffold, "pnpm-workspace.yaml");
-  writeFileSync(workspaceFile, readFileSync(workspaceFile, "utf8") + overridesBlock(names));
+  const workspaceYaml = readFileSync(workspaceFile, "utf8");
+  if (!/^overrides:[ \t]*$/m.test(workspaceYaml))
+    throw new Error("The scaffold has no overrides block.");
+  writeFileSync(
+    workspaceFile,
+    workspaceYaml.replace(/^overrides:[ \t]*$/m, `overrides:\n${overrideEntries(names).trimEnd()}`),
+  );
   writeFileSync(join(scaffold, "docker-compose.smoke.yml"), apiPublishOverride());
 
   pnpm(["install"], scaffold);
+  pnpm(
+    [
+      "--filter",
+      "qcms-api",
+      "exec",
+      "node",
+      "--input-type=module",
+      "-e",
+      `import assert from "node:assert/strict";
+import { createRequire } from "node:module";
+import { resolve } from "node:path";
+const app = createRequire(resolve("package.json"));
+const middleware = createRequire(app.resolve("@hono/otel"));
+assert.equal(app("@opentelemetry/api").trace, middleware("@opentelemetry/api").trace, "The middleware must share the runtime tracing API.");`,
+    ],
+    scaffold,
+  );
   pnpm(["-r", "typecheck"], scaffold);
   return scaffold;
 }
