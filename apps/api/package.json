@@ -49,7 +49,7 @@
     "@roonga/qcms-db": "workspace:*",
     "@roonga/qcms-observability": "workspace:*",
     "ai": "^7.0.142",
-    "better-auth": "1.7.10",
+    "better-auth": "1.7.14",
     "drizzle-orm": "^0.45.4",
     "hono": "^4.13.13",
     "pg": "^8.23.1",
