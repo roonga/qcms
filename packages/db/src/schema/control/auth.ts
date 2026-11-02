@@ -42,10 +42,8 @@ export const authSession = controlSchema.table("session", {
     .notNull()
     .references(() => authUser.id, { onDelete: "cascade" }),
   /**
-   * `required: false` and `input: false` in better-auth 1.7.14
-   * (`dist/plugins/organization/organization.mjs:858-871`), <!-- expect: activeOrganizationId: { -->
-   * so no request body can set them. `activeTeamId` is created even when `teams.enabled`
-   * is off.
+   * Nullable session scope, never writable from request input (better-auth 1.7.14).
+   * `dist/plugins/organization/organization.mjs:863-876` <!-- expect: input: false -->
    */
   activeOrganizationId: text("activeOrganizationId"),
   activeTeamId: text("activeTeamId"),
