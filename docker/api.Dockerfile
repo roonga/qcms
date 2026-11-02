@@ -18,8 +18,6 @@ COPY tooling ./tooling
 
 RUN pnpm install --frozen-lockfile
 RUN pnpm --filter qcms-api... build
-# `--no-optional` is load-bearing, and `--prod` alone was not enough (issue #877).
-#
 # --prod retains tooling supplied as optional peers; --no-optional keeps it out.
 # Non-legacy deploy requires a workspace injection mode this repository does not use.
 RUN pnpm --filter qcms-api deploy --legacy --prod --no-optional /opt/qcms

@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # check=skip=SecretsUsedInArgOrEnv
-# The server manifest contains this key regardless of how it reaches the build.
-# Published images receive no key; see SEC-7 in docs/SECURITY_DESIGN.md.
+# NEXT_SERVER_ACTIONS_ENCRYPTION_KEY also lives in the server manifest; see SEC-7.
+# Published images receive no key.
 FROM node:24-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS build
 
 WORKDIR /workspace
