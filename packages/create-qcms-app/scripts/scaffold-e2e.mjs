@@ -226,11 +226,15 @@ function buildScaffold(workspace) {
 
   const workspaceFile = join(scaffold, "pnpm-workspace.yaml");
   const workspaceYaml = readFileSync(workspaceFile, "utf8");
-  if (!/^overrides:[ \t]*$/m.test(workspaceYaml))
+  if (!/^overrides:[ 	]*$/m.test(workspaceYaml))
     throw new Error("The scaffold has no overrides block.");
   writeFileSync(
     workspaceFile,
-    workspaceYaml.replace(/^overrides:[ \t]*$/m, `overrides:\n${overrideEntries(names).trimEnd()}`),
+    workspaceYaml.replace(
+      /^overrides:[ 	]*$/m,
+      `overrides:
+${overrideEntries(names).trimEnd()}`,
+    ),
   );
   writeFileSync(join(scaffold, "docker-compose.smoke.yml"), apiPublishOverride());
 
