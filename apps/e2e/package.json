@@ -13,6 +13,6 @@
     "@playwright/test": "^1.64.1",
     "@roonga/qcms-db": "workspace:*",
     "@types/node": "^24.19.2",
-    "otplib": "^13.5.0"
+    "otplib": "^13.6.0"
   }
 }
