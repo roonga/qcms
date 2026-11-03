@@ -3,6 +3,7 @@ import type { Page } from "@playwright/test";
 
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
+import { waitForHydration } from "./support/hydration.js";
 import { TEST_ENVIRONMENT_STORAGE } from "./support/environment.js";
 import { pinProposalClock } from "./support/agent.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
@@ -290,8 +291,8 @@ test("header tooltips stay open across the gap and close on Escape from anywhere
   await page.goto(`/forms/${formId}`);
   await expect(page.getByTestId("qcms-assistant-panel")).toBeVisible({ timeout: 30_000 });
 
-  // The dock's header owns these controls, so the criterion is measured on Close, which
-  // is in the header on every screen.
+  await waitForHydration(page);
+
   const toggle = page.getByTestId("qcms-assistant-close");
   const tip = page.getByTestId("qcms-assist-tip");
 
@@ -422,6 +423,8 @@ test("Enter sends and Shift+Enter adds a line (exit criterion 5)", async ({ page
   await page.goto(`/forms/${formId}`);
   await expect(page.getByTestId("qcms-assistant-panel")).toBeVisible({ timeout: 30_000 });
 
+  await waitForHydration(page);
+
   const field = composer(page);
   await field.click();
   await page.keyboard.insertText("first");
@@ -430,7 +433,6 @@ test("Enter sends and Shift+Enter adds a line (exit criterion 5)", async ({ page
   await expect(field).toHaveValue("first\nsecond");
 
   await page.keyboard.press("Enter");
-  // The composer empties because the turn was sent, and the turn is on screen.
   await expect(field).toHaveValue("");
   await expect(page.getByTestId("qcms-assistant-turns")).toContainText("first", {
     timeout: 30_000,
