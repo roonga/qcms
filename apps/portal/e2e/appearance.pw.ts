@@ -38,7 +38,6 @@ async function px(target: Locator, property: string): Promise<number> {
   return Number.parseFloat(await computed(target, property));
 }
 
-/** The truth about what is rendered. */
 async function liveMode(page: Page): Promise<string | undefined> {
   return page.evaluate(
     (modes) => modes.find((mode) => document.documentElement.classList.contains(mode)),

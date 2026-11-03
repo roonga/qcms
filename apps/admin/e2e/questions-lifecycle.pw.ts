@@ -958,12 +958,6 @@ test("a frozen number version renders cleanly with its bounds saved", async ({ p
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Draft saved.")).toBeVisible();
 
-  // The bounds are still on screen after the save. React 19 resets a form once its action
-  // resolves, and this editor is controlled, so an un-prevented reset used to hand every
-  // constraint control back its mount-time value here - silently for a NumberField, whose
-  // empty state is a number (`NaN`) rather than an absent value. The author saw "Draft
-  // saved." over an editor that had quietly emptied itself, and the next save would have
-  // written that emptiness over the stored document.
   await expect(field(page, "Smallest value")).toHaveValue("1");
   await expect(field(page, "Largest value")).toHaveValue("10");
 

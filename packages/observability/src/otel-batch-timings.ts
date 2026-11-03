@@ -1,9 +1,5 @@
-/**
- * Batch export timings, resolved from the standard `OTEL_*` variables, which the
- * OpenTelemetry 2.x processor constructors do not read: a deployment that sets a
- * schedule delay otherwise gets the library default silently. The defaults below
- * are the specification's, so a deployment that sets nothing is unaffected.
- */
+// Processor constructors do not read the standard OTEL_* timing variables.
+// Resolve them explicitly so deployment settings do not silently fall back to defaults.
 
 /** No ambient `process.env` access: the environment is passed in. */
 export type BatchTimingEnv = Record<string, string | undefined>;
