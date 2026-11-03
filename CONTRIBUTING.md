@@ -290,7 +290,7 @@ QCMS_PORT_SEAT=0 pnpm verify:browser   # the Playwright suite (portal e2e + a11y
 | `pnpm check:docker-job-guards`                                                  | `pnpm check:all`                                                                                     |
 | `pnpm check:ci-parity`                                                          | `pnpm check:all`                                                                                     |
 | `pnpm check:templates`                                                          | `pnpm check:all`                                                                                     |
-| `pnpm check:comments` (comment length, history markers; pending admin excluded) | `pnpm check:all`                                                                                     |
+| `pnpm check:comments` (comment length, history markers; admin support included) | `pnpm check:all`                                                                                     |
 | `changes (ci)` PR body step (`scripts/check-pr-body.mjs`)                       | Not a local gate (reads the PR body)                                                                 |
 | `pnpm check:plan` (fast-lane pull requests only)                                | `pnpm check:plan` - a superset of `check:all`, see "The instruction and plan fast lane" below        |
 | `api-e2e` job (`--project qcms-api-e2e`)                                        | `pnpm test` (apps/api's `test` script runs that project)                                             |
@@ -299,6 +299,9 @@ QCMS_PORT_SEAT=0 pnpm verify:browser   # the Playwright suite (portal e2e + a11y
 | `create-app-e2e` job in `create-app-e2e.yml`                                    | **`QCMS_PORT_SEAT=<0-9> pnpm qcms:scaffold-e2e`** - deliberately not in `verify`, see below          |
 | `codeql.yml`, `mirror-test-images.yml`                                          | Not local gates (GitHub-hosted analysis, `plan/` excluded / image mirroring)                         |
 | `scan` job in `images.yml` (grype over the three image SBOMs)                   | **`pnpm qcms:scan-images`** - deliberately not in `verify`, see `docs/operations.md`                 |
+
+`pnpm check:comments` includes `apps/admin/e2e/support/`. Other admin paths remain
+excluded until their comment sweep is complete.
 
 `check:changeset` is new with this gate: it enforces the "Changeset for any change to a publishable package" merge requirement (issue #55, folded into #19), locally and in CI.
 
