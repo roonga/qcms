@@ -221,9 +221,30 @@ describe("scope", () => {
     expect(isInScope("packages/create-qcms-app/src/a.ts")).toBe(true);
   });
 
+  it("checks reviewed admin support without admitting pending or generated neighbors", () => {
+    for (const file of ["flow.ts", "hydration.ts", "admin-server.mjs", "admin-server.test.ts"]) {
+      expect(isInScope(`apps/admin/e2e/support/${file}`), file).toBe(true);
+    }
+    for (const file of [
+      "apps/admin/e2e/supportive/flow.ts",
+      "apps/admin/e2e/support/__snapshots__/flow.ts",
+      "apps/admin/e2e/support/flow.generated.ts",
+      "apps/admin/e2e/agent-assist.pw.ts",
+      "apps/admin/lib/server/session.ts",
+    ]) {
+      expect(isInScope(file), file).toBe(false);
+    }
+  });
+
   it("lists real files, this gate among them", () => {
     const files = filesInScope();
     expect(files).toContain("scripts/check-comments.mjs");
-    expect(files.some((path) => path.startsWith("apps/admin/"))).toBe(false);
+    expect(files).toContain("apps/admin/e2e/support/hydration.ts");
+    expect(files).toContain("apps/admin/e2e/support/admin-server.mjs");
+    expect(
+      files
+        .filter((path) => path.startsWith("apps/admin/"))
+        .every((path) => path.startsWith("apps/admin/e2e/support/")),
+    ).toBe(true);
   });
 });
