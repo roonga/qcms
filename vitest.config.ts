@@ -3,11 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import { defineConfig } from "vitest/config";
 
-/**
- * A percentage so it scales on a small CI runner. Vitest 5.0.4 made `maxWorkers`
- * per-project, and two projects in one scheduling group with different budgets is a
- * hard refusal, so every project entry below has to carry this same value.
- */
+// Scheduling groups require the same worker budget across projects.
 const MAX_WORKERS = "25%";
 
 /**
@@ -103,9 +99,8 @@ export default defineConfig({
         },
       },
     ],
-    // `include` matches relative to the PROJECT root in Vitest 5, so `src/**`: the repo-relative spelling
-    // matched nothing and still exited 0. `packages/core`'s `coverage` script chains
-    // `scripts/check-coverage-measured.mjs` because Vitest cannot fail an empty report.
+    // Coverage paths are relative to each project root, not the repository.
+    // The core coverage script checks that the report contains measured files.
     coverage: {
       provider: "v8",
       include: ["src/**"],

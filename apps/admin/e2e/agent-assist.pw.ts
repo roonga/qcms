@@ -124,7 +124,6 @@ async function publishQuestion(page: Page, slug: string, typeLabel: string): Pro
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
 }
 
-/** The composer is a multi-line text area. */
 function composer(page: Page) {
   return page.getByTestId("qcms-assistant-composer");
 }

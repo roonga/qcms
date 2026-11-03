@@ -17,7 +17,7 @@ dist-attestations/
 dist-image-scan/
 .turbo/
 coverage/
-# Where Vitest 5 puts everything it generates that is not a coverage report:
+# Test-runner reports and attachments:
 # `.vitest/attachments/`, `.vitest/blob/`, `.vitest/index.html`, `.vitest/json/` and
 # `.vitest/junit/` ("generated reports are now in the .vitest directory",
 # https://vitest.dev/guide/migration). No committed configuration enables any of those

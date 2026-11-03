@@ -99,8 +99,7 @@ export const StepViewProjection = z
 /**
  * Scoped to the rendered step's visible questions (SEC); values are never logged (SEC-8).
  * `null` is outside the union because a retraction is an ABSENT key (ADR-33).
- * `AnswerValue` stays inline: zod 4 copies `.openapi()` at construction, so a kernel
- * schema built before `@hono/zod-openapi` never gains it.
+ * Keep `AnswerValue` inline: schemas created before the OpenAPI extension loads lack its metadata.
  */
 export const HeldValues = z.record(z.string(), AnswerValue).openapi({
   description:
