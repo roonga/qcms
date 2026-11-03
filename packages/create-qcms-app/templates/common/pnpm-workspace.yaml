@@ -33,3 +33,7 @@ allowBuilds:
 # version back; do not add an exclusion you will never remove.
 minimumReleaseAge: 1440
 minimumReleaseAgeStrict: true
+
+overrides:
+  "drizzle-orm>@opentelemetry/api": ~1.9.1
+  "@hono/otel>@opentelemetry/api": ~1.9.1

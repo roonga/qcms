@@ -254,7 +254,7 @@ describe("the buildx argument vector", () => {
   });
 });
 
-/** Copied verbatim from a probe build on buildx v0.35.0, not written from memory. */
+/** Captured from buildx output. */
 const REAL_MANIFEST_LIST = {
   manifests: [
     {

@@ -5,40 +5,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { buildAdminCsp } from "./lib/server/csp";
 import { REQUEST_ID_HEADER, normalizeRequestId } from "./lib/server/request-id";
 
-/**
- * Security headers for every admin response (task 031, SEC-9).
- *
- * Next 16 renamed this file convention from `middleware` to `proxy` (issue #32), and the
- * export name is part of the convention: the framework resolves `mod.proxy || mod.default`.
- *
- * ## The nonce chain
- *
- * A fresh nonce per request authorizes the inline scripts **Next itself** emits (the RSC
- * payload arrives as inline `self.__next_f.push(...)` calls), so `script-src` never needs
- * `'unsafe-inline'`. The mechanism is the same one the portal uses: the CSP goes on the
- * *request* headers via `NextResponse.next({ request: { headers } })` so the framework can
- * read the nonce and stamp its own scripts, and on the response so the browser enforces
- * it. Unlike the portal, the admin authors no inline script of its own, so no `x-nonce`
- * request header is set and no React component takes a nonce prop - which is why none of
- * issue #20's hydration-warning handling is needed here.
- *
- * ## This is not the authentication gate
- *
- * Deliberately. It runs before every request and could cheaply bounce a cookie-less
- * visitor, but it cannot answer the question that matters - does the session behind that
- * cookie exist, is it expired, has 2FA completed - without a database read. So the
- * authority is `lib/server/session.ts`, called from the authenticated route group's
- * layout, and this file does headers only. A cookie-presence check here would look like
- * security while being worth nothing (a forged cookie passes it), and would add a second
- * place to keep the route list in sync.
- *
- * `Referrer-Policy: no-referrer` is **stricter than the portal's `same-origin`** since
- * 2026-10-01 (SEC-9 as amended), and deliberately so: admin URLs carry form and response
- * identifiers, and nothing should learn them from an outbound link. The portal was
- * widened for a Next Server Action reachable without scripting, which Next's own origin
- * check refuses under `no-referrer`; this app has no such action, so it keeps the
- * stricter value and its belt reasoning below keeps depending on `Origin: null`.
- */
+/** Next reads the request CSP to nonce its scripts; browsers enforce the response CSP. */
 export function proxy(request: NextRequest): NextResponse {
   const nonceBytes = crypto.getRandomValues(new Uint8Array(16));
   const nonce = btoa(String.fromCharCode(...nonceBytes));

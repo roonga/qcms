@@ -152,9 +152,6 @@ describe("the treatment layer is contained by the carrier", () => {
     expect(token(inside, "min-height")).toBe("var(--space-control-h)");
     expect(token(inside, "padding-inline")).toBe("var(--space-control-pad-x)");
 
-    // A host can import this sheet without restyling its own control layer. Under jsdom 30 an untouched shorthand
-    // resolves to `""` and a longhand to its initial value (`auto` for `min-height`); both are asserted as-is.
-    // Either way the treatment rule's `var(...)` is absent, which is the property under test.
     expect(token(outside, "border-radius")).toBe("");
     expect(token(outside, "min-height")).toBe("auto");
     expect(token(outside, "padding-inline")).toBe("");
@@ -167,9 +164,7 @@ describe("the treatment layer is contained by the carrier", () => {
     const { outside } = mountBoth();
 
     expect(token(outside, "border-radius")).toBe("var(--radius-control)");
-    // `color-scheme` rather than `box-shadow`, for the reason the header gives: the
-    // flat-surfaces reading is the initial value as well since jsdom 30.1.3, so it
-    // can no longer tell a treated control from an untreated one.
+    // box-shadow has the same value before and after treatment; color-scheme distinguishes them.
     expect(token(outside, "color-scheme")).toBe("light");
   });
 });

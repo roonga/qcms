@@ -59,7 +59,7 @@ A cookie or a session claim would be cleared by a restart, a sign-out or a secon
 It is a **declared better-auth field** (`user.additionalFields`, `input: false`, `defaultValue: true`) rather than a column added behind the library's back: better-auth writes the declared default when it creates the account, so the command marks it without naming it and any future account-creation path inherits the marking; `input: false` means no request body can set or clear it; and the field is returned on the session user, which is where the admin's gate reads it.
 A column the library did not know about would be absent from that session object exactly where the gate needs it.
 It is cleared by a database hook on the credential account's password write - the one event that means a password was successfully changed - and by nothing else: not by a failed attempt, not by signing out and in again, not by a session refresh.
-better-auth 1.7.10 ships no "force password change" option, plugin or hook, so the enforcement is entirely QCMS's; the admin plugin's `banned` field is the nearest shape and is the wrong semantics, since a banned account is refused rather than sent to a remedy.
+better-auth 1.7.14 ships no "force password change" option, plugin or hook, so the enforcement is entirely QCMS's; the admin plugin's `banned` field is the nearest shape and is the wrong semantics, since a banned account is refused rather than sent to a remedy.
 
 **The clearing fails closed, because the password change commits as one act (Code Owner, 2026-10-22).**
 `POST /change-password` revokes the account's other sessions, writes the new credential and issues a replacement session, and since version 1.7.8 the library wraps all three in one `runWithTransaction`.
@@ -116,7 +116,7 @@ The CLI reports both outcomes as a named refusal with an actionable line rather 
 
 **The corpus refusal is shown specifically at the admin change-password surface, and the oracle that costs is accepted knowingly (Code Owner ruling, 2026-09-03; issue #437).**
 Every other failure on that form reports one generic sentence, because SEC-1 requires a wrong current password to be indistinguishable from a rejected new one; a corpus hit is the single exception, mapped to copy that says the password appears in public breach data and to choose another.
-The cost is that better-auth 1.7.10 hashes the new password - where the check hooks - before it verifies the current one (`dist/api/routes/update-user.mjs:168` <!-- expect: password.hash(newPassword) --> against `:169-172`, <!-- expect: password.verify --> measured on issue #437 and re-read at this version), so the specific copy is visible to any session holder whether or not they know the current password: a corpus-membership oracle for arbitrary candidates.
+The cost is that better-auth 1.7.14 hashes the new password - where the check hooks - before it verifies the current one (`dist/api/routes/update-user.mjs:168` <!-- expect: password.hash(newPassword) --> against `:169-172`, <!-- expect: password.verify --> measured on issue #437 and re-read at this version), so the specific copy is visible to any session holder whether or not they know the current password: a corpus-membership oracle for arbitrary candidates.
 It is accepted because the corpus is pwnedpasswords, a free public API anyone may query anonymously, so the oracle duplicates information already available at the source and the marginal leak is effectively nil against a real gain for a legitimate admin.
 Rejected: pre-verifying the current password first (an extra round trip or an upstream reorder, buying the closure of an oracle whose contents are public) and keeping the generic failure (the gap the issue exists for).
 The change is display only - the refusal, its status, its timing and its ordering are unchanged - and lives in `apps/admin/lib/server/password-refusal.ts`.
@@ -187,6 +187,27 @@ Only a curated header set crosses the hop (`cookie`, `origin`, `referer`, `user-
 `X-Forwarded-For` and `X-Real-IP` are **not** among them: they used to be, relayed verbatim so that per-IP sign-in throttling had an address to key on, and that made the throttle forgeable, since the browser writes both and a caller rotating one bought a fresh backoff allowance every attempt.
 What crosses instead is `X-QCMS-Client-Address`, the single address the admin resolved from its own inbound chain by counting `QCMS_ADMIN_TRUSTED_PROXY_HOPS` entries from the right, and better-auth is configured to resolve the client address from that header alone (issue #374, §8).
 Nothing verifies a session by cookie signature alone at any point: the admin resolves a session by asking the API, which reads the row.
+
+### Vendor source evidence
+
+These constraints are checked against better-auth 1.7.14 and its matching core and Drizzle adapter packages. Keep version evidence here rather than in code comments.
+
+| Constraint                                                         | Checked source                                                                                                             |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------- |
+| Real adapter transactions are opt-in.                              | `@better-auth/drizzle-adapter/dist/index.mjs:566` <!-- expect: transaction: config.transaction ?? false -->                |
+| Disabling transactions runs callbacks without a transaction.       | `@better-auth/core/dist/db/adapter/factory.mjs:427` <!-- expect: lazyLoadTransaction = createAsIsTransaction(adapter) -->  |
+| Password changes use the transaction wrapper.                      | `dist/api/routes/update-user.mjs:173` <!-- expect: const newSession = await runWithTransaction( -->                        |
+| Session output filters to declared fields.                         | `dist/db/schema.mjs:25-26` <!-- expect: filterOutputFields(user, schema) -->                                               |
+| Additional user fields participate in that schema.                 | `dist/db/schema.mjs:12` <!-- expect: options[modelName]?.additionalFields -->                                              |
+| Field defaults apply on account creation.                          | `dist/db/schema.mjs:98` <!-- expect: action === "create" -->                                                               |
+| Non-input fields cannot be assigned by requests.                   | `dist/db/schema.mjs:77` <!-- expect: is not allowed to be set -->                                                          |
+| Session organization and team scope fields reject request input.   | `dist/plugins/organization/organization.mjs:863-876` <!-- expect: input: false -->                                         |
+| The adapter checks column shape without Postgres schema ownership. | `@better-auth/drizzle-adapter/dist/schema-check-BSenoulG.mjs:124-139` <!-- expect: if (!is(table, Table)) continue -->     |
+| Missing fields and unexpected required columns are rejected.       | `@better-auth/core/dist/db/schema-diff.mjs:41-54` <!-- expect: kind: "unexpected-required-column" -->                      |
+| Organization fields come from the plugin schema.                   | `dist/plugins/organization/organization.mjs:704-840` <!-- expect: const schema = { -->                                     |
+| Team models depend on the teams switch.                            | `dist/plugins/organization/organization.mjs:585-660` <!-- expect: const teamSchema = teamSupport -->                       |
+| String-array additional fields use native Postgres arrays.         | `@better-auth/drizzle-adapter/dist/generate-drizzle-schema-CO7dqwud.mjs:116-118` <!-- expect: text('${name}').array() -->  |
+| Recovery-code regeneration checks the account password.            | `dist/plugins/two-factor/backup-codes/index.mjs:285-287` <!-- expect: ctx.context.password.checkPassword(user.id, ctx) --> |
 
 ### 2.2 Respondents - SEC-2
 
@@ -370,16 +391,16 @@ Building the overlap window is a product change, not a documentation one, and is
 Task 056 wrote down two claims.
 The first was that this key has no rotation story at all, so changing it destroys every enrolled account's authenticator permanently.
 The second was that the recovery codes survive such a change, because QCMS configures no `storeBackupCodes` and better-auth's default stores them as plain JSON.
-**The first is now false and the second was never true**, and the second is the more instructive error: it was reached by reading the _decoder_ (`dist/plugins/two-factor/backup-codes/index.mjs:45`, which plain-JSON parses when the option is absent) without reading the caller that supplies it (`dist/plugins/two-factor/index.mjs:25-27`), which defaults `storeBackupCodes` to `"encrypted"`.
+**The first is now false and the second was never true**, and the second is the more instructive error: it was reached by reading the _decoder_ (`dist/plugins/two-factor/backup-codes/index.mjs:56`, <!-- expect: return safeJSONParse(backupCodes) --> which plain-JSON parses when the option is absent) without reading the caller that supplies it (`dist/plugins/two-factor/index.mjs:25-27`), which defaults `storeBackupCodes` to `"encrypted"`.
 Asserted against the stored column, not against the type: `apps/api/src/features/auth/backup-code-storage.integration.test.ts`.
 
 So **both** stored factors are ciphertext under this key, and always have been: the TOTP secret (`dist/plugins/two-factor/index.mjs:135-138`) <!-- expect: const encryptedSecret = await symmetricEncrypt( --> and the recovery codes (`.../backup-codes/index.mjs:19-22`, <!-- expect: storeBackupCodes === "encrypted" --> ten per account per `:15`, <!-- expect: options?.amount ?? 10 --> `amount ?? 10`). There was never an accidental last door standing open behind a lost auth secret, which matters for how the break-glass gap is prioritised (issue #432): it is a real gap and not a newly created one.
 
-**What is genuinely new is the rotation path.** better-auth 1.7.10, the version this repo pins, carries a versioned key set: `secrets?: Array<{ version, value }>` (`@better-auth/core/dist/types/init-options.d.mts:518,529`). <!-- expect: secrets?: Array<{ -->
+**What is genuinely new is the rotation path.** better-auth 1.7.14, the version this repo pins, carries a versioned key set: `secrets?: Array<{ version, value }>` (`@better-auth/core/dist/types/init-options.d.mts:526,537`). <!-- expect: secrets?: Array<{ -->
 `symmetricEncrypt` writes a `$ba$<version>$<hex>` envelope under the current version, `symmetricDecrypt` selects the key by the envelope's version, and the singular `secret` is retained as a **legacy fallback** for bare-hex ciphertext written before the envelope existed (`dist/crypto/index.mjs`).
 QCMS wires this as `QCMS_ADMIN_AUTH_SECRETS`, defaulting to a single version-1 entry holding `QCMS_ADMIN_AUTH_SECRET`, so a deployment that never rotates behaves exactly as it did.
 
-Rotation is therefore additive rather than destructive: add a new version at the head of the list, keep the old one for reading, and stored material re-encodes under the current version **as it is used** - recovery-code blobs on every redemption (`.../backup-codes/index.mjs:215`). Three limits, stated rather than implied:
+Rotation is therefore additive rather than destructive: add a new version at the head of the list, keep the old one for reading, and stored material re-encodes under the current version **as it is used** - recovery-code blobs on every redemption (`.../backup-codes/index.mjs:221`). Three limits, stated rather than implied:
 
 - **Live sessions end.** better-auth derives its cookie-signing secret from the current version (`dist/context/create-context.mjs:76`), <!-- expect: secret = secretsArray[0].value --> so promoting a new version signs every admin out. That is the correct consequence of a key change; it is not the loss of a factor.
 - **The TOTP secret does not re-encode on use.** It is written once at enrollment and only read afterwards, so it stays readable through whichever version wrote it (or through the legacy fallback) and never migrates forward on its own. Retiring an old version means re-enrolling accounts whose secret was written under it.
@@ -450,9 +471,9 @@ The list above read `Referrer-Policy: strict-origin-when-cross-origin` until iss
 The API does **not** emit HSTS: ADR-20 puts it at the operator's ingress, the only hop that terminates TLS, and `docker/Caddyfile` remains the single emitter.
 The no-CORS assertion is now made against the API as well as the admin proxy.
 
-**better-auth 1.7.10 accepts `Origin: null` when Fetch Metadata says the request is same-origin, and the Code Owner accepted that on 2026-09-01 (issue #757, from PR #740).**
+**better-auth 1.7.14 accepts `Origin: null` when Fetch Metadata says the request is same-origin, and the Code Owner accepted that on 2026-09-01 (issue #757, from PR #740).**
 Earlier versions refused a state-changing request whose `Origin` serialized as the literal `null` outright.
-1.7.2 relaxed it, and `dist/api/middlewares/origin-check.mjs` is byte-identical in better-auth 1.7.10: when `Sec-Fetch-Site: same-origin` accompanies the null origin, the library infers the origin from the request itself and validates the inferred value against `trustedOrigins` (`validateOrigin`).
+1.7.2 relaxed it, and `dist/api/middlewares/origin-check.mjs` is byte-identical in better-auth 1.7.14: when `Sec-Fetch-Site: same-origin` accompanies the null origin, the library infers the origin from the request itself and validates the inferred value against `trustedOrigins` (`validateOrigin`).
 That is a live path here rather than a theoretical one, and for the reason the paragraph above already gives: `Referrer-Policy: no-referrer` makes a navigation POST serialize its `Origin` as `null`, so the admin's form posts arrive in exactly the shape this branch was written for.
 It was accepted as a **compatibility fix, not a widened surface**, on three properties a reviewer can check rather than on the vendor's framing: the discriminator is `Sec-Fetch-Site`, which the browser sets and which a cross-site page cannot forge; `advanced.trustedProxyHeaders` is unset in `apps/api/src/features/auth/instance.ts`, so the inference reads the request's own host rather than a header a caller could steer; and `trustedOrigins` is `[adminAuth.baseUrl]`, the admin origin alone, so an inferred origin still has to equal the single origin QCMS trusts.
 A request carrying neither a usable `Origin` nor that Fetch Metadata pair is still refused.
@@ -637,7 +658,7 @@ Owned by 026 (rate limits, honeypot, min-time, session binding, challenge adapte
 **Every rate limit in this system is per-process, so N API replicas enforce N times the documented allowance (issue #488).** This section stated the placement rule and said nothing about replica count, which made every limit below quietly weaker than documented for any adopter who scaled horizontally - no setting changed, no warning emitted. Both per-address controls have the property, and until now only one of them was written down anywhere:
 
 - **The respondent limiters** keep their tallies in `InMemoryRateLimitStore` (`apps/api/src/rate-limit.ts`), correctly described in its own comment as the single-process default, with a shared store as the adopter swap that task 017's `RateLimitStore` seam exists for. `docs/deploy-enterprise.md` §5 already says this of `api-public`.
-- **The admin sign-in throttle** has the same property and was documented nowhere. better-auth resolves `rateLimit.storage` to `"memory"` unless a secondary storage is configured (better-auth 1.7.10, `dist/context/create-context.mjs:175`), <!-- expect: "secondary-storage" : "memory" --> and QCMS configures none, so each process that mounts `admin` keeps its own tally of SEC-1's three attempts per ten seconds per client address. Two such processes mean six attempts per ten seconds against an admin password.
+- **The admin sign-in throttle** has the same property and was documented nowhere. better-auth resolves `rateLimit.storage` to `"memory"` unless a secondary storage is configured (better-auth 1.7.14, `dist/context/create-context.mjs:175`), <!-- expect: "secondary-storage" : "memory" --> and QCMS configures none, so each process that mounts `admin` keeps its own tally of SEC-1's three attempts per ten seconds per client address. Two such processes mean six attempts per ten seconds against an admin password.
 
 Three answers, in the order they cost an adopter least: divide the configured maxima by the replica count; enforce the outer limit at the ingress, which is the one hop that sees all of the traffic; or implement `RateLimitStore` against a shared store (Redis, with real per-key TTLs). Whether QCMS should **ship** a shared store, and whether better-auth's limiter could be pointed at the same one through its `secondaryStorage` option, is a larger question that stays open and is not what this paragraph settles. The operator-facing statement of the same fact is in `docs/operations.md`.
 
