@@ -1,7 +1,7 @@
 /**
- * CSV field serialization shared by every QCMS export. The formula-injection guard runs
- * first (a leading `=`, `+`, `-` or `@` gains an apostrophe; {@link NUMERIC_LITERAL} is
- * exempt), then RFC 4180 quoting. Cell contents are never logged (SEC-8).
+ * CSV field serialization shared by every QCMS export. The formula-injection guard runs first (a leading
+ * `=`, `+`, `-` or `@` gains an apostrophe; {@link NUMERIC_LITERAL} is exempt), then RFC 4180 quoting. Cell
+ * contents are never logged.
  */
 
 export * from "./zip.js";

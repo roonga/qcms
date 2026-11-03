@@ -8,12 +8,6 @@ import { LIBRARY_SEARCH_MAX_LENGTH } from "@/lib/library-search";
 import type { QuestionListFilters } from "@/lib/questions/list-filters";
 import { QUESTION_TYPES } from "@/lib/questions/types";
 
-/**
- * The question library's rail: a Header, three Filters and the creating action
- * (`plan/admin-design-contracts.md` §7.0).
- *
- * No Sections: a row per question would repeat the table beside it.
- */
 export function QuestionsListRail({ filters }: { readonly filters: QuestionListFilters }) {
   const { status, type, search, activeCount } = filters;
 
@@ -33,7 +27,6 @@ export function QuestionsListRail({ filters }: { readonly filters: QuestionListF
             label={t("questions.filter.search")}
             description={t("questions.filter.searchHint")}
             defaultValue={search}
-            // The API answers 400 past this length.
             maxLength={LIBRARY_SEARCH_MAX_LENGTH}
           />
           <Select

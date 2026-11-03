@@ -1,32 +1,11 @@
 name: qcms
 
-# The solo topology. TLS and public routing are deliberately outside this file:
-# an operator-provided ingress publishes portal and admin only (ADR-20).
-#
-# The two published ports come from the STABLE 7Sxx block (R8, docs/PORTS.md):
-# this stack is long-running and human-facing, which is what decides the block,
-# not the fact that a test suite can also drive it. It therefore takes seat 0's
-# portal and admin slots (7000 / 7040) and cannot run alongside `pnpm dev:portal`
-# at the same seat. Move both with QCMS_PORTAL_PORT / QCMS_ADMIN_PORT to run it
-# at another seat.
-#
-# Both publishes name an explicit bind address, and it defaults to loopback. A
-# bare "PORT:3000" makes Docker listen on 0.0.0.0, which puts the authoring admin
-# on every network the host can reach, past any host firewall (Docker's own
-# forwarding rules sit ahead of it). Set QCMS_BIND_ADDRESS=0.0.0.0 only where a
-# separate ingress host has to reach these containers.
-#
-# Nothing in this repo overrides it. The full-stack harness runs from inside the dev
-# container, where a host-loopback publish is unreachable, and it solves that by
-# joining this stack's network and forwarding rather than by widening the bind
-# (scripts/loopback-forward.mjs, issue #316). This default is load-bearing, not a
-# placeholder.
+# Keep app publishes on loopback unless a separate ingress host must reach them.
+# Docker forwarding can bypass host firewall rules; tests must use network forwarding rather than widen binds.
+# This stack consumes stable seat slots and cannot share a seat with frontend dev servers.
 services:
   postgres:
-    # Overridable so CI can point at the GHCR mirror the Testcontainers jobs already
-    # use (issues #74 and #150): an unmirrored Docker Hub pull on every pull request
-    # is the availability dependency those issues exist to remove. An operator with
-    # no override gets the same image as before.
+    # Allow CI and operators to use a mirror without changing the public default.
     image: ${QCMS_POSTGRES_IMAGE:-postgres:16-alpine}
     environment:
       POSTGRES_DB: ${QCMS_DB_NAME:-qcms}
@@ -41,63 +20,9 @@ services:
       retries: 12
     restart: unless-stopped
 
-  # One-shot: create the two least-privilege roles SEC-10 splits the database
-  # credential into, and hand the schema to the one that migrates. It runs before
-  # `migrate`, because the migration has to connect as a role that already exists.
-  #
-  # ## Why the split (SEC-10, issue #492)
-  #
-  # Until this service existed, one credential did everything: the API connected as
-  # the role that owned the schema, so the process serving respondent traffic could
-  # DROP TABLE. The Code Owner's ruling of 2026-09-02 splits it in two:
-  #
-  #   qcms_migrate      owns every schema and holds the DDL rights drizzle-kit needs.
-  #                     It is used by `migrate` and by nothing else.
-  #   qcms_app_control  DML on `control`, with `two_factor_resets` carved out entirely,
-  #                     and INSERT on each environment's `outbox` and nothing else in
-  #                     any data schema. It serves better-auth, authoring, grants,
-  #                     releases and closes.
-  #   qcms_app_<env>    DML on its OWN `data_<env>`, USAGE and SELECT on its own
-  #                     `reporting_<env>`, and on `control` a named SELECT list plus
-  #                     UPDATE on `secure_links`. No privilege at all on the identity,
-  #                     session, membership or grant tables. One per environment.
-  #
-  # Under ADR-40 (Code Owner, 2026-09-29, Q40 as amended by Q48, Q49 and Q52) the single
-  # `qcms_app` becomes those last two kinds, so a defect on the anonymous respondent path
-  # cannot rewrite a grant row or a staff session, and an author never reads a production
-  # answer at the database. Each role has its OWN password: sharing one would let a
-  # process holding the control credential connect as an environment role and the whole
-  # boundary would be a convention rather than a control.
-  #
-  # **The grants themselves live in the baseline migration**, guarded on each role
-  # existing, because the migration that creates a table is the only place that runs as
-  # its owner in the same step (migration 0021's rule). What this service does is create
-  # the roles with their passwords and hand the schemas over; what it does NOT do is
-  # re-derive the grant model, which would be a second copy to keep in step.
-  #
-  # The role names are literals rather than variables, exactly as `qcms_reporting`
-  # is in docs/reporting-view.md and `qcms_ro` is in docker-compose.dev-tools.yml:
-  # only the passwords vary per deployment, and a name that can drift is a name an
-  # assertion cannot pin. The operator recipe, the same SQL for a database this file
-  # does not manage, is the "Least-privilege database roles" section of
-  # docs/operations.md.
-  #
-  # ## Why a service rather than a Postgres init script
-  #
-  # The same reason `dev-tools-role` gives in docker-compose.dev-tools.yml: a script
-  # in /docker-entrypoint-initdb.d runs only when the data directory is EMPTY. Every
-  # stack that already has data - which is every stack after the first boot, and
-  # every stack upgrading into this change - would never create the roles, and
-  # `migrate` would fail to connect with no clue why. A one-shot that runs on every
-  # `up` is idempotent instead, which is what makes the upgrade path work at all.
-  #
-  # The SQL is inline rather than mounted for the reason that file also gives: a
-  # relative bind mount resolves on the DAEMON's filesystem, and the canonical
-  # developer seat drives the host daemon from inside a dev container (ADR-29),
-  # where this repository's path does not exist.
-  #
-  # The bootstrap superuser (QCMS_DB_USER) is the only role that can do this work,
-  # and it does no other work in the stack after this container exits.
+  # Use separate passwords for migration, control and environment roles to enforce database boundaries.
+  # Create roles on every up: initdb scripts miss existing volumes; migrations own the grants.
+  # Inline SQL reaches the host daemon without relying on dev-container bind paths.
   db-roles:
     image: ${QCMS_POSTGRES_IMAGE:-postgres:16-alpine}
     environment:
@@ -109,9 +34,7 @@ services:
       TEST_PASSWORD: ${QCMS_DB_APP_TEST_PASSWORD:?set QCMS_DB_APP_TEST_PASSWORD in .env - the API's test pool connects as qcms_app_test with it}
       PROD_PASSWORD: ${QCMS_DB_APP_PROD_PASSWORD:?set QCMS_DB_APP_PROD_PASSWORD in .env - the API's prod pool connects as qcms_app_prod with it}
       MIGRATE_PASSWORD: ${QCMS_DB_MIGRATE_PASSWORD:?set QCMS_DB_MIGRATE_PASSWORD in .env - the migration connects as qcms_migrate with it}
-    # Passwords reach psql through \getenv rather than through argv, so they are not
-    # in the process list of a container anyone can exec into. The heredoc is quoted,
-    # so the shell expands nothing and what psql reads is exactly what is written.
+    # Use psql getenv to keep passwords out of argv; quote the heredoc to prevent shell expansion.
     entrypoint:
       - sh
       - -c
@@ -211,64 +134,31 @@ services:
     build:
       context: .
       dockerfile: docker/api.Dockerfile
-      # Every Dockerfile declares `ARG VERSION=dev` and stamps it into
-      # `org.opencontainers.image.version`. Without this nothing ever passed a value,
-      # so every locally built image claimed to be `dev` and the label was useless for
-      # telling two builds apart. `pnpm qcms:build-images` derives a real value
-      # (package version + short git SHA); a bare `docker compose build` still gets
-      # `dev`, which is honest about what it is.
+      # Unstamped local builds retain dev; the build wrapper supplies a commit-derived version.
       args: &image-build-args
         VERSION: ${QCMS_IMAGE_VERSION:-dev}
-    # The package's own bin, not a path into its `dist/` (issue #294). A deep
-    # filesystem path resolves nothing: it worked only by bypassing the `exports`
-    # map @roonga/qcms-db publishes, which pinned a build layout that package is otherwise
-    # free to change. `qcms-db-migrate` is on PATH because docker/api.Dockerfile
-    # puts this image's `node_modules/.bin` there.
+    # Use the public package bin so changes to its internal build layout cannot break migration startup.
     command: ["qcms-db-migrate"]
     environment: &api-env
-      # THE MIGRATION ROLE, and the one place in this file that holds it (SEC-10,
-      # issue #492). It owns the schema and can issue DDL, which is exactly what a
-      # one-shot that runs drizzle-kit needs and exactly what the process serving
-      # traffic must not have.
-      #
-      # This key is on the anchor `api` shares, and `api` OVERRIDES it with the
-      # runtime credential: a key written directly in a mapping wins over one pulled
-      # in by `<<`, so the API never receives this value. `scripts/compose-config.test.ts`
-      # asserts both resolved usernames rather than trusting that sentence.
+      # Only the migration process may hold DDL credentials.
+      # The API must override this anchored URL with its runtime role; direct mapping keys win over merges.
       DATABASE_URL: postgres://qcms_migrate:${QCMS_DB_MIGRATE_PASSWORD:?set QCMS_DB_MIGRATE_PASSWORD in .env}@postgres:5432/${QCMS_DB_NAME:-qcms}
       QCMS_LINK_KEYS: ${QCMS_LINK_KEYS:?set QCMS_LINK_KEYS in .env}
       QCMS_SESSION_KEYS: ${QCMS_SESSION_KEYS:?set QCMS_SESSION_KEYS in .env}
       QCMS_INTERNAL_TOKEN: ${QCMS_INTERNAL_TOKEN:?set QCMS_INTERNAL_TOKEN in .env}
       QCMS_APP_KEY: ${QCMS_APP_KEY:?set QCMS_APP_KEY in .env}
       QCMS_PORTAL_BASE_URL: ${QCMS_PORTAL_BASE_URL:?set QCMS_PORTAL_BASE_URL in .env}
-      # better-auth runs in the API since task 056 (ADR-35 as amended), so its two
-      # values belong to this service and not to admin. Both are the ADMIN's public
-      # identity: the browser only ever reaches the admin origin, so that is the origin
-      # cookies are scoped to and the only origin better-auth trusts.
+      # Auth runs in the API, but cookies and trusted origins use the browser-facing admin identity.
       QCMS_ADMIN_AUTH_SECRET: ${QCMS_ADMIN_AUTH_SECRET:?set QCMS_ADMIN_AUTH_SECRET in .env}
       QCMS_ADMIN_BASE_URL: ${QCMS_ADMIN_BASE_URL:?set QCMS_ADMIN_BASE_URL in .env}
-      # The versioned rotation list for the auth secret above (issue #319). Empty means
-      # unset, so the API runs a single version-1 entry holding QCMS_ADMIN_AUTH_SECRET.
-      # It has to be forwarded here or the rotation runbook in docs/operations.md cannot
-      # be followed on this stack; it rides the `api-env` anchor so `docker compose exec
-      # api` running the bootstrap CLI reads the same list the API does.
+      # Forward the same rotation list to the API and bootstrap CLI so operational rotation is consistent.
       QCMS_ADMIN_AUTH_SECRETS: ${QCMS_ADMIN_AUTH_SECRETS:-}
-      # One knob for every cookie set on the admin origin. This service decides it for
-      # better-auth's session and two-factor cookies; the admin service reads the same
-      # value for the enrollment, recovery-view and appearance cookies it sets itself.
-      # Empty means unset, so the image's NODE_ENV=production decides (Secure on).
+      # The API and admin must agree on cookie security; empty defers to the production runtime default.
       QCMS_ADMIN_SECURE_COOKIES: ${QCMS_ADMIN_SECURE_COOKIES:-}
-      # SEC-1's breach-corpus check (issue #178). Empty means unset, so the default
-      # (on) applies; an operator sets it false only for a deployment with no egress
-      # to api.pwnedpasswords.com, because the check fails closed and would otherwise
-      # make `qcms:create-admin` unable to create the first admin there. It rides the
-      # `api-env` anchor so the api service and any `docker compose exec api` running
-      # the bootstrap CLI read the same value.
+      # The breach check fails closed; offline deployments must explicitly disable it to bootstrap an admin.
       QCMS_ADMIN_PASSWORD_BREACH_CHECK: ${QCMS_ADMIN_PASSWORD_BREACH_CHECK:-}
       QCMS_MOUNT: all
-    # `db-roles` rather than `postgres`: the migration connects as qcms_migrate, so
-    # the role has to exist and own the schema before this container starts. That
-    # one-shot depends on postgres being healthy, so the ordering still holds.
+    # The migration role must exist and own the schemas before migration startup.
     depends_on:
       db-roles:
         condition: service_completed_successfully
@@ -282,82 +172,30 @@ services:
       args: *image-build-args
     environment:
       <<: *api-env
-      # THE RUNTIME ROLE, and the override that makes the SEC-10 split real (issue
-      # #492). It holds SELECT/INSERT/UPDATE/DELETE on the operational tables and
-      # USAGE on sequences: no CREATE on public, no DDL of any kind, not the schema
-      # owner. The process that serves respondent and authoring traffic therefore
-      # cannot DROP TABLE, which is the property this line exists for.
-      #
-      # It must appear AFTER the `<<` merge is written above to read naturally, but
-      # not because of ordering: a directly written key always wins over a merged one.
-      # `docker compose exec api` inherits it, so the bootstrap CLI (`qcms:create-admin`)
-      # runs as this role too, which is correct - creating an administrator is INSERT.
-      # The CONTROL pool: better-auth, authoring, grants, releases, closes.
+      # Override the anchored migration credential with the least-privilege control role.
+      # Direct mapping keys win over merges regardless of ordering; bootstrap exec inherits this role too.
       DATABASE_URL: postgres://qcms_app_control:${QCMS_DB_APP_CONTROL_PASSWORD:?set QCMS_DB_APP_CONTROL_PASSWORD in .env}@postgres:5432/${QCMS_DB_NAME:-qcms}
-      # One pool per environment (ADR-40, Q2). The names are configuration because a
-      # process cannot read `control.environments` before it has a connection; the API
-      # checks this list against that table at boot and refuses when they disagree.
+      # Configure environments before opening pools; boot verifies this list against the database.
       QCMS_ENVIRONMENTS: ${QCMS_ENVIRONMENTS:-test,prod}
       QCMS_DATABASE_URL_TEST: postgres://qcms_app_test:${QCMS_DB_APP_TEST_PASSWORD:?set QCMS_DB_APP_TEST_PASSWORD in .env}@postgres:5432/${QCMS_DB_NAME:-qcms}
       QCMS_DATABASE_URL_PROD: postgres://qcms_app_prod:${QCMS_DB_APP_PROD_PASSWORD:?set QCMS_DB_APP_PROD_PASSWORD in .env}@postgres:5432/${QCMS_DB_NAME:-qcms}
       PORT: 3000
-      # Tracing's single switch (ADR-34). Compose forwards only what a service names
-      # here, so without this line setting the variable in .env reached nothing and
-      # the stack could not export telemetry at all, whatever an operator configured
-      # (issue #417). Empty is the default and means OFF: the composition root starts
-      # no SDK rather than starting one that dials a collector nobody is running.
-      #
-      # It is on `api` rather than on the `*api-env` anchor because the anchor is
-      # shared with `migrate`, a one-shot that starts no SDK and would only appear in
-      # a trace backend as a service that never sends anything.
-      #
-      # docker-compose.dev-tools.yml overrides this with its own collector's address.
+      # An empty endpoint starts no SDK. Keep it off the migration anchor, which starts no telemetry.
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
-      # The admin TOTP policy (SEC-1). Present for the same reason the line above is:
-      # Compose forwards only what a service names, so `QCMS_ADMIN_2FA=optional` in
-      # .env reached nothing here and the documented development escape hatch could
-      # not be exercised against this stack at all.
-      #
-      # The default is `required` and this line does not change it. Relaxing it is a
-      # development-only act, deliberately opt-in per stack rather than implied by
-      # NODE_ENV or by the stack being local: SECURITY_DESIGN.md records why a
-      # general-purpose variable must not decide a security control.
-      #
-      # The admin service takes the SAME value, and must - the two sides fail closed,
-      # so relaxing it on one makes every admin API call 401.
-      #
-      # It is on `api` rather than on the `*api-env` anchor because the anchor is
-      # shared with `migrate`, which serves no admin traffic and reads no auth policy.
+      # Admin and API must share the two-factor policy or their fail-closed checks reject every call.
+      # Relaxing it is an explicit development opt-in, independent of NODE_ENV.
       QCMS_ADMIN_2FA: ${QCMS_ADMIN_2FA:-required}
-      # A DECLARATION, never acted on here. The admin service is the one that counts
-      # hops off its own inbound X-Forwarded-For; this process reads only whether the
-      # variable is set, to decide the issue #482 boot warning - the throttle is on and
-      # nothing declares a proxy in front of the admin, so better-auth keys every caller
-      # into one `no-trusted-ip` bucket and three attempts from anyone hold admin
-      # sign-in closed for everybody until the ten-second window rolls.
-      #
-      # Deliberately NO `:-1` default, unlike the admin service's line below: a default
-      # would declare a proxy this stack does not ship and silence the warning on
-      # exactly the shape it exists to report. Empty means "nothing declared", which on
-      # the proxy-less default is the truth.
+      # This process reads only whether a trusted proxy was declared; admin interprets the count.
+      # Do not default it here: an undeclared proxy must retain the shared-throttle boot warning.
       QCMS_ADMIN_TRUSTED_PROXY_HOPS: ${QCMS_ADMIN_TRUSTED_PROXY_HOPS:-}
-      # Agent-assisted authoring (task 041, ADR-25, issue #1063). docs/agent-authoring.md
-      # says to set these on the API, and before this block setting them in .env reached
-      # nothing: the same silent failure #499 and #752 were about. Every one defaults to
-      # empty, which reads as unset, so the shipped default stays `none` - assist routes
-      # unmounted, no key required at boot. Enabling it is an explicit opt-in.
-      #
-      # The provider key lives on THIS service and nowhere else: the browser talks to the
-      # admin's BFF, which talks to the API, which talks to the provider. Not on the
-      # `api-env` anchor, so the one-shot migration never holds it.
+      # Keep provider credentials on the API only, off the shared migration anchor.
+      # Empty settings leave assist routes unmounted.
       QCMS_FLAG_AGENT_AUTHORING: ${QCMS_FLAG_AGENT_AUTHORING:-}
       QCMS_AGENT_MODEL: ${QCMS_AGENT_MODEL:-}
       QCMS_AGENT_API_KEY: ${QCMS_AGENT_API_KEY:-}
       QCMS_AGENT_BASE_URL: ${QCMS_AGENT_BASE_URL:-}
       QCMS_AGENT_MAX_STEPS: ${QCMS_AGENT_MAX_STEPS:-}
-      # Forwarded to `api` and to nothing else: the admin renders the Thinking
-      # disclosure because the events arrived, never because it learned a value
-      # (ADR-24, task 081).
+      # The admin derives disclosure from events; it must not receive the provider setting.
       QCMS_AGENT_THINKING: ${QCMS_AGENT_THINKING:-}
       QCMS_RL_AGENT_ASSIST_WINDOW_MS: ${QCMS_RL_AGENT_ASSIST_WINDOW_MS:-}
       QCMS_RL_AGENT_ASSIST_MAX: ${QCMS_RL_AGENT_ASSIST_MAX:-}
@@ -371,73 +209,26 @@ services:
     build:
       context: .
       dockerfile: docker/portal.Dockerfile
-      # The one service whose build args are not just the shared anchor, and the extra
-      # one is a BUILD input rather than a runtime variable (issue #1035). Pinning Next's
-      # Server Action salt is what lets a no-JS respondent's held repeating step survive
-      # a deploy; left unset it is empty, which Next treats as absent, so the image
-      # behaves exactly as it always has. It is a secret: `docker/portal.Dockerfile`
-      # carries why pinning it does not expose it anywhere new, and SEC-7 carries the rule
-      # for the published images. Not on the anchor, because the admin has no
-      # no-JS Server Action and the api is not a Next app.
+      # A stable build-time action salt lets held no-JS forms survive deploys.
+      # It is recoverable from the image manifest; never use a shared salt in publicly published images.
       args:
         <<: *image-build-args
         NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: ${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY:-}
     environment:
       QCMS_API_BASE_URL: http://api:3000
       QCMS_INTERNAL_TOKEN: ${QCMS_INTERNAL_TOKEN:?set QCMS_INTERNAL_TOKEN in .env}
-      # The respondent portal's cookie-security knob, defaulted the same way the admin's
-      # is below: empty means unset, so the image's NODE_ENV=production decides and the
-      # cookies carry `Secure`. That is correct behind TLS and fine over http://localhost,
-      # which browsers treat as a trustworthy origin. It used to default to `false` here,
-      # which handed a TLS deployment a silent downgrade the moment the operator copied
-      # .env.compose.example (issue #292); the portal now refuses to start on that shape.
+      # Empty defers cookie security to the production runtime; never silently downgrade TLS deployments.
       QCMS_SECURE_COOKIES: ${QCMS_SECURE_COOKIES:-}
       QCMS_PORTAL_BASE_URL: ${QCMS_PORTAL_BASE_URL:?set QCMS_PORTAL_BASE_URL in .env}
-      # The non-prod environments this portal serves, each under `/<env>/` (ADR-40, Q21),
-      # and optionally the hostname each one's traffic arrives on (SEC-14's first handle).
-      # Both default to empty, which serves `prod` only: an environment nobody listed has
-      # no addresses, which is the fail-closed direction. Keep the first in step with the
-      # API's QCMS_MOUNT.
+      # Unlisted environments have no portal addresses. Keep these mounts aligned with the API.
       QCMS_PORTAL_ENVIRONMENTS: ${QCMS_PORTAL_ENVIRONMENTS:-}
       QCMS_PORTAL_ENVIRONMENT_HOSTS: ${QCMS_PORTAL_ENVIRONMENT_HOSTS:-}
       QCMS_PORTAL_TRUSTED_PROXY_HOPS: ${QCMS_PORTAL_TRUSTED_PROXY_HOPS:-1}
-      # The deployment's managed portal theme (ADR-30). Compose forwards only what a
-      # service names, so before issue #499 setting this in .env reached neither app
-      # and an operator got the base theme with nothing reporting why: a deployment
-      # that boots successfully into the wrong brand. Empty means unset, so the
-      # portal's own default (`slate`) applies and an unrecognised value falls back
-      # silently exactly as it does outside Compose.
-      #
-      # The admin service takes the SAME value, and docs/operations.md says so: it is
-      # the appearance the builder's preview island opens in, so an author sees a
-      # question as this deployment serves it. It is not on the `api-env` anchor
-      # because neither the API nor the one-shot migration renders anything.
-      # The deployment's formatting locale (Code Owner ruling 2026-10-19, ADR-27): how dates,
-      # times and numbers are written and the order a date field draws its day, month and
-      # year in, on both sides of hydration. The admin takes the SAME value, so an author's
-      # preview matches what respondents see. Empty means unset, which is en-GB; a malformed
-      # tag refuses to boot naming the variable. Not on the `api-env` anchor: the API
-      # formats nothing for a reader.
+      # Admin previews must share the portal theme and formatting locale, including hydration.
       QCMS_LOCALE: ${QCMS_LOCALE:-}
       QCMS_PORTAL_THEME: ${QCMS_PORTAL_THEME:-}
-      # The rest of the appearance group `apps/portal/lib/server/theme.ts` reads, and it
-      # is one group rather than six knobs: theme, corners, mode, density, font, the
-      # curated font list and the brand mark are the whole of what an operator can say
-      # about how the portal looks, and forwarding one of them while dropping the others
-      # is the same silent failure #499 was about, six more times (issue #752). Every one
-      # is documented in `apps/portal/.env.example`, `docs/theming.md` and the
-      # `docs/operations.md` table, so before this the documentation described knobs the
-      # shipped Compose file could not deliver.
-      #
-      # Empty means unset throughout, so each falls back to the portal's own documented
-      # default and an unrecognised value degrades to that default rather than throwing
-      # (theme.ts is deliberately tolerant: presentation config must not take a
-      # deployment down).
-      #
-      # Portal only, unlike the theme above. The admin reads `QCMS_PORTAL_THEME` for its
-      # preview island and reads none of these: its own chrome is never adopter-themeable
-      # (ADR-26), so forwarding a brand name or a font curation to it would name a
-      # variable nothing in that image reads.
+      # Appearance settings degrade to portal defaults; they must not bring a deployment down.
+      # Only the portal reads these values; admin chrome is not adopter-themeable.
       QCMS_PORTAL_CORNERS: ${QCMS_PORTAL_CORNERS:-}
       QCMS_PORTAL_MODE: ${QCMS_PORTAL_MODE:-}
       QCMS_PORTAL_DENSITY: ${QCMS_PORTAL_DENSITY:-}
@@ -445,9 +236,6 @@ services:
       QCMS_PORTAL_FONTS: ${QCMS_PORTAL_FONTS:-}
       QCMS_PORTAL_BRAND_NAME: ${QCMS_PORTAL_BRAND_NAME:-}
       QCMS_PORTAL_BRAND_LOGO: ${QCMS_PORTAL_BRAND_LOGO:-}
-      # The api service's twin; the reasoning is written out there. Both apps read the
-      # same variable name and each defaults its own service name, so one endpoint
-      # here traces the whole BFF hop.
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
     depends_on:
       api:
@@ -462,46 +250,24 @@ services:
       context: .
       dockerfile: docker/admin.Dockerfile
       args: *image-build-args
-    # No DATABASE_URL, and that absence is a control rather than an omission: after
-    # task 056 the API is the only process in this stack that holds a database
-    # credential of any kind (ADR-35 as amended 2026-07-31). The admin is a pure BFF -
-    # domain data and auth traffic both reach Postgres through the API - so adding one
-    # back here would be a regression the admin's import-surface test also refuses.
+    # The API alone holds database credentials; admin must remain a pure BFF.
     environment:
       QCMS_API_BASE_URL: http://api:3000
       QCMS_INTERNAL_TOKEN: ${QCMS_INTERNAL_TOKEN:?set QCMS_INTERNAL_TOKEN in .env}
       QCMS_ADMIN_BASE_URL: ${QCMS_ADMIN_BASE_URL:?set QCMS_ADMIN_BASE_URL in .env}
-      # The SAME value the api service gets, and it has to be: this service sets the
-      # enrollment, recovery-view and appearance cookies while the API sets better-auth's,
-      # on one origin. If the two disagreed, the browser would keep one family and drop
-      # the other, and enroll would redirect to sign-in which redirects back to enroll.
+      # Cookie security must agree with the API or enrollment and sign-in can loop.
       QCMS_ADMIN_SECURE_COOKIES: ${QCMS_ADMIN_SECURE_COOKIES:-}
-      # The portal's knob has an admin twin because the two apps are two hostnames and
-      # an operator may put a CDN in front of one only. Both shipped ingress recipes
-      # front this app the way they front the portal, so 1 is right for both by default.
+      # Each frontend needs its own trusted-hop count when their proxy topologies differ.
       QCMS_ADMIN_TRUSTED_PROXY_HOPS: ${QCMS_ADMIN_TRUSTED_PROXY_HOPS:-1}
-      # The respondent portal's public origin, so the builder can show a published form's
-      # own address. This service makes no request to the portal; it writes the URL down.
-      # Optional here and required of `api` and `portal`, which is why it takes the same
-      # variable without the `:?` guard those two carry.
+      # Admin only renders the public portal URL; it makes no request and does not require the value at boot.
       QCMS_PORTAL_BASE_URL: ${QCMS_PORTAL_BASE_URL:-}
-      # The portal's twin, and it takes the same value: this app reads it to open the
-      # question preview island in the appearance the deployment serves respondents
-      # (task 058). It changes nothing about this app's own chrome, which is never
-      # adopter-themeable (ADR-26). See the portal service for the rest of the reasoning.
+      # Use the respondent theme for previews; admin chrome remains fixed.
       QCMS_PORTAL_THEME: ${QCMS_PORTAL_THEME:-}
-      # The portal's twin, and it takes the same value: the admin formats its own dates in it
-      # and renders the A2UI previews on it. See the portal service.
       QCMS_LOCALE: ${QCMS_LOCALE:-}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
-      # The api service's twin, and it must hold the same value: that service decides
-      # whether an unenrolled session is accepted, this one decides whether the
-      # enrollment screen can be skipped. Disagreement fails closed, not silently.
-      # The reasoning, and why the default stays `required`, is written out there.
+      # The API session policy and admin enrollment screen must agree; disagreement fails closed.
       QCMS_ADMIN_2FA: ${QCMS_ADMIN_2FA:-required}
-      # The api service's twin for agent authoring, and the flag ONLY: this app reads it
-      # to decide whether the builder renders the assist panel. The model and the key are
-      # the API's configuration and never reach this process (ADR-25, SEC-7).
+      # Admin receives only the feature flag; model and provider credentials stay on the API.
       QCMS_FLAG_AGENT_AUTHORING: ${QCMS_FLAG_AGENT_AUTHORING:-}
     depends_on:
       api:

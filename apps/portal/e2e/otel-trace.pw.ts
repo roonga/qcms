@@ -70,7 +70,6 @@ async function waitFor<T>(
   return { captured, note: `${what}: ${otlpDeliveryNote(elapsedMs)}` };
 }
 
-/** Wait until the captured spans satisfy `ready`, then return them. */
 async function waitForSpans(
   what: string,
   ready: (spans: CapturedSpan[]) => boolean,
@@ -88,7 +87,6 @@ async function waitForLogs(
 /** OTLP span kinds, as they appear on the wire. */
 const SPAN_KIND_SERVER = 2;
 
-/** True when any string attribute of the span contains `needle`. */
 function mentions(span: CapturedSpan, needle: string): boolean {
   return Object.values(span.attributes).some(
     (value) => typeof value === "string" && value.includes(needle),

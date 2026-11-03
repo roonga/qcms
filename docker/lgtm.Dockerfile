@@ -1,9 +1,6 @@
 # syntax=docker/dockerfile:1
 
-# Keep Grafana Labs' development stack intact and add only version-controlled
-# QCMS dashboard provisioning. A wrapper image is used instead of bind mounts:
-# the supported dev-container workflow talks to the host Docker daemon, where the
-# repository's container-side path does not exist (ADR-29).
+# The host daemon cannot resolve dev-container bind paths; copy provisioning files into the image.
 ARG QCMS_LGTM_IMAGE=grafana/otel-lgtm:latest
 FROM ${QCMS_LGTM_IMAGE}
 

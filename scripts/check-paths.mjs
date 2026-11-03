@@ -148,7 +148,6 @@ export function main() {
   return 1;
 }
 
-// Only when run as a command, so `check-paths.test.ts` can import the pure helpers above
 if (argv[1] !== undefined && import.meta.url === pathToFileURL(argv[1]).href) {
   process.exit(main());
 }

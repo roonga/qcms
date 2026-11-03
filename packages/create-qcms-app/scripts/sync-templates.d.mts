@@ -1,5 +1,3 @@
-/** Types for `sync-templates.mjs`, declaring only what its test touches. */
-
 export declare const REPOSITORY_ROOT: string;
 export declare const TEMPLATE_DIR: string;
 

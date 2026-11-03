@@ -3,7 +3,6 @@ import type { Page } from "@playwright/test";
 // Loaded only by Playwright, which transpiles this source the way it transpiles a spec,
 // so the package produces no build output.
 
-/** How long any one animation may hold up the settle before it is left behind. */
 const MAX_ANIMATION_MS = 1000;
 
 /**

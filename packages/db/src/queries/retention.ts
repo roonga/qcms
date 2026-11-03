@@ -21,9 +21,9 @@ export const DEFAULT_SESSION_TTL: SessionTtlConfig = {
 };
 
 /**
- * Compute a new session's `expiresAt`. For `secure_link` it is clamped to
- * `min(link expiry, now + ttl)`, so a session never outlives the token that authorized it
- * and a long-lived link cannot mint an over-long session (SEC-2).
+ * Compute a new session's `expiresAt`. For `secure_link` it is clamped to `min(link expiry, now + ttl)`, so
+ * a session never outlives the token that authorized it and a long-lived link cannot mint an over-long
+ * session.
  */
 export function sessionExpiresAt(input: {
   accessMode: AccessMode;

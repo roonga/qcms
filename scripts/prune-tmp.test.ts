@@ -107,7 +107,6 @@ describe("matchPrefix", () => {
   });
 
   it("claims nothing this repository does not create", () => {
-    // Both really sit in `/tmp` on the development host. Neither is ours to remove.
     expect(matchPrefix("playwright_chromiumdev_profile-Ab12Cd")).toBeUndefined();
     expect(matchPrefix("systemd-private-abc")).toBeUndefined();
   });
@@ -240,7 +239,7 @@ describe("countInodes", () => {
     const path = workspace(root, "qcms-scaffold-counted", 3);
     mkdirSync(join(path, "nested"));
     writeFileSync(join(path, "nested", "deep.txt"), "x\n", "utf8");
-    expect(countInodes(path)).toBe(6); // the directory, 3 files, `nested`, and its file
+    expect(countInodes(path)).toBe(6);
   });
 });
 

@@ -10,25 +10,12 @@ import { pageMetadata } from "@/lib/page-title";
 import { readAuthCookie, TWO_FACTOR_COOKIE } from "@/lib/server/auth-api";
 import { SIGN_IN_PATH } from "@/lib/server/session";
 
-/** The browser-tab title for this route (issue #536). */
 export function generateMetadata(): Metadata {
   return pageMetadata(t("challenge.title"));
 }
 
-/**
- * The 2FA challenge (task 031; screen contract state `2FA-challenge`).
- *
- * Reached only with a pending challenge, which is the short-lived two-factor cookie
- * better-auth sets in place of a session when a password verifies for an enrolled
- * account. No cookie means no challenge is open - a direct visit, or a lapsed one -
- * so the page sends the visitor back to sign in rather than presenting a code field
- * that could never succeed.
- *
- * There is deliberately no session here and nothing about the account on screen: not
- * the email, not a masked hint, not "welcome back". The password has been accepted
- * but authentication is not complete, and anything identifying rendered at this point
- * would be a free oracle for whoever holds the password (SEC-1).
- */
+/* Until the second factor verifies, render no account identity or hint that could become an authentication
+   oracle. */
 export default async function ChallengePage({
   searchParams,
 }: {
@@ -37,8 +24,6 @@ export default async function ChallengePage({
   const pending = await readAuthCookie(TWO_FACTOR_COOKIE);
   if (pending === undefined || pending === "") redirect(SIGN_IN_PATH);
 
-  // Shared with sign-in so the throttled state survives the trip to this screen: this
-  // line used to read `error` alone, which reported a `429` as a wrong code (issue #805).
   const error = authFailureMessage(await searchParams);
 
   return (

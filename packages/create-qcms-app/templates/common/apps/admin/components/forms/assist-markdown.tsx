@@ -6,12 +6,6 @@ import {
   type MarkdownInline,
 } from "@/lib/forms/assist-markdown";
 
-/**
- * Assistant prose, rendered from the safe Markdown subset in `lib/forms/assist-markdown.ts`.
- *
- * Every string reaches React as a text child and nothing here sets HTML. `trailing` goes at
- * the end of the last block, where the streaming caret belongs.
- */
 export function AssistMarkdown({
   text,
   trailing,
@@ -25,7 +19,6 @@ export function AssistMarkdown({
     <div className="qcms-assist-md">
       {blocks.map((block, index) => (
         <Block
-          // Blocks have no identity beyond their position, and a stream only ever appends.
           key={index}
           block={block}
           trailing={index === blocks.length - 1 ? trailing : undefined}

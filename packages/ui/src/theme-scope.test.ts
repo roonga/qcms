@@ -65,7 +65,6 @@ describe("a scoped container resolves the portal token set", () => {
     loadSheets(THEME_CSS, HOST_ROOT_CSS);
     const island = mountIsland('data-theme="harbor" class="dark"');
 
-    // The divergence an island that re-declared only colours would miss.
     expect(token(island, "--radius-control")).toBe("6px");
     expect(token(island, "--radius-card")).toBe("10px");
     expect(token(document.documentElement, "--radius-control")).toBe("4px");
@@ -111,7 +110,6 @@ describe("a scoped container resolves the portal token set", () => {
 });
 
 describe("the treatment layer is contained by the carrier", () => {
-  /** A host's own chrome is built from the same `[data-rac]` kit as these controls. */
   function mountBoth(): { readonly inside: HTMLElement; readonly outside: HTMLElement } {
     document.body.innerHTML = `
       <div data-qcms-theme-scope class="hc">
@@ -133,9 +131,7 @@ describe("the treatment layer is contained by the carrier", () => {
     loadSheets(COMPONENTS_CSS);
     const { inside, outside } = mountBoth();
 
-    // A weak assertion: an unset `box-shadow` now resolves to `none` too, so this
-    // would still read `none` if the flat-surfaces rule were deleted from the sheet.
-    // It is measured on rendered pixels in the portal's browser suite.
+    // An unset box-shadow also resolves to none; rendered browser pixels own the stronger assertion.
     expect(token(inside, "box-shadow")).toBe("none");
 
     // `color-scheme: light` sits on the carrier and reaches the control inside by inheritance, while one outside

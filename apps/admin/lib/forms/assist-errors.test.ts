@@ -2,12 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { errorForResponse, messageForError } from "./assist-errors.ts";
 
-/**
- * The HTTP answers a turn can get before any event streams, and the one body-parse guard
- * in this app's assistant path: a failing response whose body is not JSON still has to
- * reach the operator as a status number rather than escaping the send path as an unhandled
- * parse rejection.
- */
 describe("errorForResponse", () => {
   it("reads a rate limit's retry hint when the header carries one", async () => {
     const response = new Response("", { status: 429, headers: { "retry-after": "12" } });

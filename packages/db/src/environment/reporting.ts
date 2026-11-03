@@ -1,7 +1,6 @@
 /**
- * An operator command rather than an API route because creating a view is DDL and
- * `qcms_app_control` holds no DDL (SEC-10). So `docs/reporting-view.md` says to run this
- * after creating a workspace.
+ * An operator command rather than an API route because creating a view is DDL and `qcms_app_control` holds
+ * no DDL. So `docs/reporting-view.md` says to run this after creating a workspace.
  */
 
 import { sql } from "drizzle-orm";

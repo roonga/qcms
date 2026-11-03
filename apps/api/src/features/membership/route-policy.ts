@@ -1,5 +1,4 @@
-// A route with **no row is refused**: failing closed beats open and silent (SEC-3,
-// ADR-41). Whether a path is served is the router's question, not this table's.
+// Refuse routes with no policy row; whether the router serves the path is a separate decision.
 
 import type { Resource } from "./policy.js";
 
@@ -93,9 +92,8 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     installationOnly: true,
   },
   {
-    // The release workflow is installation-wide, so no workspace's grants reach it. It
-    // reuses `workspace: update` rather than adding a tenth resource, and each write
-    // lands as a SEC-15 `setting` row.
+    // The installation-wide release workflow uses workspace: update authority; no individual workspace grant
+    // applies. Write each setting change to the audit.
     method: "PUT",
     path: "/admin/release-workflow",
     resource: "workspace",
@@ -304,9 +302,9 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
   // The agent-authoring routes exist only under `QCMS_FLAG_AGENT_AUTHORING`, so the test's
   // route derivation cannot see them; name their rows here or they become a 403.
   {
-    // One row, because this table is keyed by path and this path serves every screen. The
-    // union admits a caller who may read something somewhere; the screen's own cell is
-    // checked by its context builder through this evaluator before it reads (SEC-17).
+    // One row, because this table is keyed by path and this path serves every screen. The union admits a caller
+    // who may read something somewhere; the screen's own cell is checked by its context builder through this
+    // evaluator before it reads.
     method: "POST",
     path: "/admin/assist",
     resource: "form",
@@ -592,9 +590,8 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
   },
 
   {
-    // The union of the operational cells, because no single cell admits the five grants
-    // this screen serves without widening one. No audit kind: an aggregate response count
-    // is not a SEC-15 read, though showing one needs `response: read` per form.
+    // Use the union of operational grants without widening any one. Aggregate counts require response: read per
+    // form but do not write a response-read audit row.
     method: "GET",
     path: "/admin/operations/forms",
     resource: "form",

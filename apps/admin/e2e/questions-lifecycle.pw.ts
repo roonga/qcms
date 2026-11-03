@@ -24,45 +24,17 @@ import {
   useRowMenu,
 } from "./support/questions.js";
 
-/**
- * The question library, driven through the browser (task 032, exit criteria 1 and 2).
- *
- * The centrepiece is a full lifecycle walk over **all seven question types**: create a
- * draft, publish it, open version 2, deprecate version 1. Seven types is not thoroughness
- * for its own sake - each renders a different constraint panel and compiles to a different
- * A2UI control, so a type-specific break (a panel that throws, a definition shape the
- * kernel refuses) is invisible to a walk that only exercises short text. It has to be a
- * browser test rather than a slice test because what is under examination is the assembly:
- * an editor holding a document, a server action forwarding it, the kernel judging it, and
- * the answer landing back on the right field.
- *
- * Everything runs in one signed-in session rather than one per type. Enforced 2FA makes a
- * sign-in three navigations plus a TOTP generation, so seven of them would cost more wall
- * clock than the assertions they carry.
- *
- * `fillStable` everywhere rather than `fill`, for the reason issue #210 records: under
- * `next dev` a route compiled on demand can replace the document after Playwright has
- * typed into it, and the empty required field that results fails a silent browser
- * constraint check much later, as a timeout on a screen the test thought it had left.
- */
+// fillStable protects against dev-server route compilation replacing the document after typing.
 
 test.describe.configure({ mode: "serial" });
 
 const EMAIL = uniqueAdminEmail("questions");
 
-/** Set by the first test; every later test signs in with it. */
 let totpSecret = "";
 
-/**
- * A per-run slug suffix.
- *
- * Question ids are never reused (R6) and the harness database can be reused across local
- * runs, so a fixed slug would make the second run fail with `QUESTION_ID_REUSED` on a
- * screen that is working perfectly. This makes each run's ids its own.
- */
+// Ids cannot be reused, and the harness database survives local reruns.
 const RUN = Date.now().toString(36);
 
-/** The seven types, by the label the picker shows. */
 const TYPES = [
   { slug: "short-text", label: "Short text" },
   { slug: "long-text", label: "Long text" },
@@ -85,13 +57,11 @@ test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
 });
 
-/** Create, publish, branch a new version, and deprecate one question of a given type. */
 async function walkLifecycle(page: Page, types: readonly { slug: string; label: string }[]) {
   for (const type of types) {
     await createDraft(page, slugFor(type.slug), type.label);
     await expect(page.getByRole("heading", { name: questionIdFor(type.slug) })).toBeVisible();
-    // A brand-new question is a draft, and the badge says so in words rather than in
-    // colour (the a11y requirement, asserted rather than assumed).
+
     await expect(page.locator(".qcms-tag").first()).toHaveText("Draft");
 
     await confirmLifecycle(page, /^Publish version 1$/, "Publish");
@@ -101,11 +71,10 @@ async function walkLifecycle(page: Page, types: readonly { slug: string; label: 
     await page.waitForURL(/\?v=2$/);
     await expect(page.getByRole("link", { name: /Version 2/ })).toContainText("Draft");
 
-    // Deprecation is a property of the published version, so it happens on v1's screen.
     await page.goto(`/questions/${questionIdFor(type.slug)}?v=1`);
     await confirmLifecycle(page, /^Deprecate version 1$/, "Deprecate");
     await expect(page.getByRole("link", { name: /Version 1/ })).toContainText("Deprecated");
-    // Nothing was deleted: v2 is still there, still a draft (R6).
+
     await expect(page.getByRole("link", { name: /Version 2/ })).toContainText("Draft");
   }
 }
@@ -126,26 +95,16 @@ test("option ids survive a relabel and a reorder (exit criterion 2)", async ({ p
   test.setTimeout(120_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await createDraft(page, slugFor("options"), "Single choice");
-  // THE OPTIONS PANEL, chosen from the rail (Code Owner, 2026-09-27). The detail screen shows
-  // the preview and one panel of the selected version, so a step that works on the option grid
-  // says so first, exactly as an author does. `createDraft` needs no such call: it works on
-  // `/questions/new`, which has no rail and shows every panel at once.
+
   await openPanel(page, "options");
   await addOption(page, "Green");
 
-  // The ids as minted, and they are minted from the labels the options were added with.
-  // Everything after this asserts they are still exactly these, in whatever order the
-  // options have been moved into.
   const minted = await optionIds(page);
   expect(minted).toEqual(["opt_yes_always", "opt_no_never", "opt_green"]);
 
   await fillStable(field(page, "Option 1 label"), "Crimson");
   expect(await optionIds(page)).toEqual(minted);
 
-  // Reorder by keyboard, which under the 057 grid is Arrow Up/Down on the focused grip
-  // rather than a pair of move buttons. The grip travels with its row, so it is still the
-  // focused element afterwards - which is what makes a second press move the same option
-  // again instead of walking a fixed slot.
   await moveOptionByKey(page, 0, "ArrowDown");
   expect(await optionIds(page)).toEqual([minted[1], minted[0], minted[2]]);
   await expect(page.locator('[data-option-index="1"] [data-option-grip]')).toBeFocused();
@@ -153,15 +112,11 @@ test("option ids survive a relabel and a reorder (exit criterion 2)", async ({ p
   await moveOptionByKey(page, 2, "ArrowUp");
   expect(await optionIds(page)).toEqual([minted[1], minted[2], minted[0]]);
 
-  // The label that travelled with the first minted id is the assertion that catches a
-  // reorder implemented over labels rather than over whole options.
   await expect(field(page, "Option 3 label")).toHaveValue("Crimson");
 
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Draft saved.")).toBeVisible();
 
-  // And they are still the same ids after a round trip through the API and the database,
-  // which is the property every rule and every stored answer depends on.
   await page.reload();
   expect(await optionIds(page)).toEqual([minted[1], minted[2], minted[0]]);
   await expect(field(page, "Option 3 label")).toHaveValue("Crimson");
@@ -178,21 +133,14 @@ test("an abandoned ghost row consumes no option id (the minting ruling, 2026-08-
   const before = await optionIds(page);
   expect(before).toEqual(["opt_yes_always", "opt_no_never"]);
 
-  // Open the ghost add-row. A row appears, and it is NOT an option: it has no id, so it
-  // has no `data-option-index` and contributes nothing to the list of minted ids.
   await page.getByRole("button", { name: "Add option" }).click();
   await expect(pendingRow(page)).toBeFocused();
   expect(await optionIds(page)).toEqual(before);
 
-  // Tab past it without typing, which is the case the ruling is about: the row is
-  // abandoned and the document is exactly what it was.
   await pendingRow(page).blur();
   await expect(pendingRow(page)).toHaveCount(0);
   expect(await optionIds(page)).toEqual(before);
 
-  // The option the author does name earns the id its own label derives, unsuffixed. Under
-  // minting-at-render this would be `opt_option` (or `opt_green_2` behind a consumed one),
-  // and because ids are permanent (R6) that damage would never be repairable.
   await addOption(page, "Green");
   expect(await optionIds(page)).toEqual([...before, "opt_green"]);
 
@@ -208,11 +156,9 @@ test("insert lands an option at the top, between two rows and at the bottom", as
   await createDraft(page, slugFor("insert"), "Single choice");
   await openPanel(page, "options");
 
-  // Pointer path: the insert point above a row. Above the first row is the top of the list.
   await insertOptionAbove(page, 0, "Top");
   expect(await optionIds(page)).toEqual(["opt_top", "opt_yes_always", "opt_no_never"]);
 
-  // Between two rows.
   await insertOptionAbove(page, 2, "Middle");
   expect(await optionIds(page)).toEqual([
     "opt_top",
@@ -221,7 +167,6 @@ test("insert lands an option at the top, between two rows and at the bottom", as
     "opt_no_never",
   ]);
 
-  // The end of the list is the ghost add-row, which is what the card makes it.
   await addOption(page, "Bottom");
   expect(await optionIds(page)).toEqual([
     "opt_top",
@@ -231,8 +176,6 @@ test("insert lands an option at the top, between two rows and at the bottom", as
     "opt_bottom",
   ]);
 
-  // Keyboard path: the row menu on the grip, which is the parity route for insertion and
-  // the only route to remove. Insert below row 1 puts a row at index 2.
   await useRowMenu(page, 0, /^Insert option below Top$/);
   await expect(pendingRow(page)).toBeFocused();
   await fillStable(pendingRow(page), "Second");
@@ -249,7 +192,6 @@ test("insert lands an option at the top, between two rows and at the bottom", as
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Draft saved.")).toBeVisible();
 
-  // Every insert survives the round trip in the position it was put in.
   await page.reload();
   expect(await optionIds(page)).toEqual([
     "opt_top",
@@ -279,7 +221,7 @@ test("a real drag reorders to the position the drop indicator marks", async ({ p
 
   await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
   await page.mouse.down();
-  // Past the last row's midpoint, so the live indicator marks the end of the list.
+
   await page.mouse.move(from.x + from.width / 2, to.y + to.height - 2, { steps: 8 });
   await expect(page.locator(".qcms-opt-insert--drop")).toBeVisible();
   await expect(page.locator(".qcms-opt-row.is-dragging")).toHaveCount(1);
@@ -302,8 +244,6 @@ test("the row menu reorders an option with a single pointer and no dragging", as
   const minted = await optionIds(page);
   expect(minted).toEqual(["opt_yes_always", "opt_no_never", "opt_maybe"]);
 
-  // A middle row's menu, opened by one press that travels nowhere. Five items, in the
-  // order all three POCs draw, each naming the row it acts on.
   const middle = await openRowMenuByPointer(page, 1);
   await expect(middle.getByRole("menuitem")).toHaveText([
     "Insert option above No, never",
@@ -313,20 +253,15 @@ test("the row menu reorders an option with a single pointer and no dragging", as
     "Remove option No, never",
   ]);
 
-  // The reorder itself, and the whole point of the issue: a tap on an ordinary control
-  // moved the row, with no gesture anywhere in it.
   await middle.getByRole("menuitem", { name: "Move No, never up", exact: true }).click();
   expect(await optionIds(page)).toEqual(["opt_no_never", "opt_yes_always", "opt_maybe"]);
   await expect(page.getByTestId("qcms-announcer")).toHaveText(
     "No, never moved to position 1 of 3.",
   );
-  // The menu closes and the moved row keeps the operator, at its NEW index rather than on
-  // whatever slid into the old slot.
+
   await expect(page.getByRole("menu")).toHaveCount(0);
   await expect(grip(page, 0)).toBeFocused();
 
-  // The first row: Move up is gone, and it is gone as a native `disabled` button rather
-  // than a live control that refuses.
   const first = await openRowMenuByPointer(page, 0);
   await expect(
     first.getByRole("menuitem", { name: "Move No, never up", exact: true }),
@@ -335,8 +270,6 @@ test("the row menu reorders an option with a single pointer and no dragging", as
     first.getByRole("menuitem", { name: "Move No, never down", exact: true }),
   ).toBeEnabled();
 
-  // Which puts a dead item at position three of five, the arrangement issue 517 fixed:
-  // arrowing down has to skip it, or Move down and Remove are unreachable by keyboard.
   await expect(first.getByRole("menuitem").first()).toBeFocused();
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("ArrowDown");
@@ -348,20 +281,15 @@ test("the row menu reorders an option with a single pointer and no dragging", as
     first.getByRole("menuitem", { name: "Remove option No, never", exact: true }),
   ).toBeFocused();
 
-  // And the other direction moves too, by pointer, back to where the row started.
   await first.getByRole("menuitem", { name: "Move No, never down", exact: true }).click();
   expect(await optionIds(page)).toEqual(minted);
   await expect(grip(page, 1)).toBeFocused();
 
-  // The last row is the mirror image.
   const last = await openRowMenuByPointer(page, 2);
   await expect(last.getByRole("menuitem", { name: "Move Maybe down", exact: true })).toBeDisabled();
   await expect(last.getByRole("menuitem", { name: "Move Maybe up", exact: true })).toBeEnabled();
   await page.keyboard.press("Escape");
 
-  // A single-option grid has no move to offer at all, and no Remove either. Reached by
-  // removing rows through the same pointer path, since that is the state an author gets
-  // to it from.
   const lastMenu = await openRowMenuByPointer(page, 2);
   await lastMenu.getByRole("menuitem", { name: "Remove option Maybe", exact: true }).click();
   const middleMenu = await openRowMenuByPointer(page, 1);
@@ -378,8 +306,7 @@ test("the row menu reorders an option with a single pointer and no dragging", as
   await expect(
     only.getByRole("menuitem", { name: "Remove option Yes, always", exact: true }),
   ).toBeDisabled();
-  // Three of five dead, and the menu still opens onto a live item rather than stranding
-  // focus on a button that cannot take it.
+
   await expect(only.getByRole("menuitem").first()).toBeFocused();
   await page.keyboard.press("Escape");
 });
@@ -390,18 +317,13 @@ test("the grid's hidden controls are reachable without a pointer", async ({ page
   await createDraft(page, slugFor("keys"), "Single choice");
   await openPanel(page, "options");
 
-  // The grip and the insert point are hidden at rest and revealed by hover OR focus.
-  // Focus is the half a pointer-only implementation forgets, so it is the half asserted -
-  // and asserted on computed OPACITY, because the card hides them with opacity and
-  // Playwright counts an opacity-0 element as visible.
+  // Measure opacity: Playwright considers opacity-zero controls visible, so visibility alone misses this failure.
   const insert = page.locator('[data-option-index="0"] .qcms-opt-insert').first();
   const opacityOf = (target: Locator): Promise<string> =>
     target.evaluate((element) => getComputedStyle(element).opacity);
   expect(await opacityOf(insert), "the insert point is hidden at rest").toBe("0");
   expect(await opacityOf(grip(page, 0)), "the grip is hidden at rest").toBe("0");
 
-  // Reached by real keyboard travel, in the order the card specifies: the label's cell
-  // walks back through the grip and then the insert point.
   await field(page, "Option 1 label").focus();
   await page.keyboard.press("Shift+Tab");
   await expect(grip(page, 0)).toBeFocused();
@@ -410,8 +332,6 @@ test("the grid's hidden controls are reachable without a pointer", async ({ page
   await expect(insert).toBeFocused();
   await expect.poll(() => opacityOf(insert)).toBe("1");
 
-  // Enter on the focused grip opens the row menu; Escape closes it and hands focus back,
-  // so a keyboard operator is never stranded inside a closed popup.
   await grip(page, 0).focus();
   await grip(page, 0).press("Enter");
   await expect(page.getByRole("menu")).toBeVisible();
@@ -419,52 +339,31 @@ test("the grid's hidden controls are reachable without a pointer", async ({ page
   await expect(page.getByRole("menu")).toHaveCount(0);
   await expect(grip(page, 0)).toBeFocused();
 
-  // Enter in a label commits and moves to the next row's label; on the last row it moves
-  // to the ghost add-row, which is where the card puts the end of the rhythm.
   await field(page, "Option 1 label").focus();
   await page.keyboard.press("Enter");
   await expect(field(page, "Option 2 label")).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("button", { name: "Add option" })).toBeFocused();
 
-  // Escape inside a cell reverts the in-flight edit and keeps focus where it was.
   await field(page, "Option 1 label").focus();
   await page.keyboard.type("XX");
   await page.keyboard.press("Escape");
   await expect(field(page, "Option 1 label")).toHaveValue("Yes, always");
   await expect(field(page, "Option 1 label")).toBeFocused();
 
-  // Remove lives in the row menu rather than in a second row-end control, per the card,
-  // which makes that menu the ONLY route to it - so it has to be reachable with a pointer
-  // as well as without one, on a two-option list, which is what this draft is and what a
-  // new choice question seeds. Asserted here because this is the test that used to walk
-  // straight past the defect: it drove the menu on exactly this configuration while
-  // "Remove option" hung 95px below the grid's clipped bottom edge.
   await grip(page, 1).focus();
   await grip(page, 1).press("Enter");
   const remove = page.getByRole("menuitem", { name: /^Remove option No, never$/u });
   await expect(remove).toBeVisible();
-  // One assertion over both answers, so a red reports the clipping box AND what a press
-  // would have hit instead, rather than stopping at whichever question was asked first.
+
   expect(
     await mouseReachOf(remove),
     "Remove option is inside every box that clips it, and a press at its centre lands on it",
   ).toEqual({ clippedBy: null, hit: "the control" });
 
-  // Then press it, from the menu just proved reachable: `useRowMenu` would re-press the
-  // grip and toggle this menu shut, and a fresh one is not the one that was measured.
   await remove.click();
   expect(await optionIds(page)).toEqual(["opt_yes_always"]);
 
-  // One option left, so Remove is now the disabled item, and roving has to cope with it.
-  //
-  // This grid shares `components/row-menu.tsx` with the step editor's pin list (issue 517),
-  // and the pin list is where a disabled item in the MIDDLE of the list first stranded the
-  // items behind it. Here the disabled item is LAST, which is why nothing was ever visibly
-  // broken and why the defect stayed latent: no live item sits behind Remove. What was
-  // still wrong is the wrap - pressing ArrowDown on the last live item aimed at the dead
-  // Remove and did nothing, so the ring was open. Asserted here rather than only on the
-  // pin list, so the shared component is proved in both item orders its callers use.
   const menuItem = (key: string): Locator =>
     page.locator(`[role="menuitem"][data-row-menu-item="${key}"]`);
   await grip(page, 0).focus();
@@ -483,23 +382,8 @@ test("the grid's hidden controls are reachable without a pointer", async ({ page
   await expect(page.getByRole("menu")).toHaveCount(0);
 });
 
-/**
- * Can a mouse actually reach `target`, with any programmatic scroll undone first?
- *
- * The undoing is the whole point, and it is why neither `toBeVisible()` nor a plain
- * `.click()` can stand in for this. Chromium scrolls an `overflow: hidden` box
- * programmatically, so `focus()` and Playwright's own scroll-into-view both haul a
- * clipped control back into the box before they touch it: on the CSS this replaced,
- * focusing "Remove option" moved the grid's `scrollTop` from 0 to 96 and the click
- * landed, on a configuration where a person with a mouse could not press it at all. A
- * hidden box has no scrollbar, so a user can neither cause that scroll nor undo it.
- *
- * So the offsets go back to 0 on every clipping ancestor first, and then the two
- * questions a pointer really asks get asked: is the control inside every box that
- * clips it, and does a press at its centre land on it. `elementFromPoint` alone would
- * be the better single check, but it reports only "something else is there" - the
- * ancestor walk names the box, which is what turns a red into a diagnosis.
- */
+// Undo programmatic scrolling before hit-testing. focus and Playwright's scroll-into-view can reveal
+// a clipped control inside overflow:hidden and hide a pointer-reachability failure.
 async function mouseReachOf(target: Locator): Promise<{ clippedBy: string | null; hit: string }> {
   return target.evaluate((element) => {
     const nameOf = (node: Element): string =>
@@ -539,15 +423,9 @@ test("a cleared label renders the grid's error state, joined to its message line
   await createDraft(page, slugFor("blank"), "Single choice");
   await openPanel(page, "options");
 
-  // Clearing a committed row is now the ONLY route to a blank option: the pending path
-  // abandons a row it cannot name, so an empty label can no longer be created. That makes
-  // this state both harder to reach and the one most likely to lose coverage, so it is
-  // asserted in the standing browser suite.
   await fillStable(field(page, "Option 2 label"), "");
   await page.getByRole("button", { name: "Save draft" }).click();
 
-  // The kernel's issue lands on `options.1.label`, so the SECOND row wears the error and
-  // the first does not - an error rendered on every row would pass a looser assertion.
   const errored = page.locator('[data-option-index="1"]');
   await expect(errored).toHaveClass(/is-error/);
   await expect(page.locator('[data-option-index="0"]')).not.toHaveClass(/is-error/);
@@ -555,22 +433,17 @@ test("a cleared label renders the grid's error state, joined to its message line
   const cell = errored.locator("textarea");
   await expect(cell).toHaveAttribute("aria-invalid", "true");
 
-  // The message line sits BELOW the grid rather than in the cell (the card's layout), so
-  // the two are only one thing for an assistive technology if `aria-describedby` joins
-  // them. That join is the whole reason the split placement is acceptable, so it is the
-  // part asserted rather than the mere presence of some red text.
+  // The message is outside the cell; aria-describedby is required to associate it with the input.
   const describedBy = await cell.getAttribute("aria-describedby");
   expect(describedBy, "the erroring cell names its message line").toBe("qcms-option-error-1");
   const line = page.locator(`#${String(describedBy)}`);
   await expect(line).toBeVisible();
   await expect(line).toHaveClass(/qcms-opt-grid-error/);
-  // Named by position, so a reader of a line under a six-row grid knows which row it is.
+
   await expect(line).toContainText("Option 2:");
 
-  // And exactly one line: an error rendered per row would stack duplicates under the grid.
   await expect(page.locator(".qcms-opt-grid-error")).toHaveCount(1);
 
-  // The state clears when the author fixes it, which is the half a one-way assertion misses.
   await fillStable(field(page, "Option 2 label"), "No, never");
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Draft saved.")).toBeVisible();
@@ -589,12 +462,6 @@ test("the narrow layout folds the ID under the label, keyed off the editor's wid
   const label = page.locator('[data-option-index="0"] .qcms-opt-cell--label');
   const id = page.locator('[data-option-index="0"] .qcms-opt-cell--id');
 
-  // SETTLE AFTER EACH RESIZE BEFORE MEASURING. The fold is a CONTAINER query on the grid, so
-  // it re-resolves when the column's width changes, and `setViewportSize` resolves on the
-  // resize rather than on the frame that reflowed from it. This screen got taller than the
-  // viewport at 390 when the editor became one panel under a collapsed rail, which is what
-  // made the unsettled read start returning a box from the frame in between - the ID above
-  // the label rather than folded under it, on a grid that folds correctly once it has.
   await page.setViewportSize({ width: 1280, height: 800 });
   await settleTransitions(page);
   const wideLabel = await label.boundingBox();
@@ -605,9 +472,6 @@ test("the narrow layout folds the ID under the label, keyed off the editor's wid
   expect(wideId.x, "the ID column is to the right of the label").toBeGreaterThan(wideLabel.x);
   expect(Math.abs(wideId.y - wideLabel.y), "and on the same line").toBeLessThan(12);
 
-  // Narrow: two columns, the ID folded onto a second line inside the label's column. This
-  // is a CONTAINER query on the grid, not a viewport media query, so the same DOM reflows
-  // and no option id is ever rendered twice.
   await page.setViewportSize({ width: 390, height: 844 });
   await settleTransitions(page);
   const tightLabel = await label.boundingBox();
@@ -619,7 +483,7 @@ test("the narrow layout folds the ID under the label, keyed off the editor's wid
   expect(tightId.x, "and sits in the label's column, not the grip's").toBeGreaterThan(
     tightLabel.x - 4,
   );
-  // One DOM, one id: the fold must not be a second copy of the cell.
+
   await expect(page.locator('[data-option-index="0"] .qcms-opt-cell--id')).toHaveCount(1);
   await page.setViewportSize({ width: 1280, height: 800 });
 });
@@ -627,38 +491,20 @@ test("the narrow layout folds the ID under the label, keyed off the editor's wid
 test("a long label-derived option id renders whole at both gate widths", async ({ page }) => {
   test.setTimeout(120_000);
 
-  // Issue #595. `plan/admin-design-contracts.md` §2's 2026-08-21 amendment splits the id
-  // rule by minting convention: an opaque id renders as prefix-plus-8 with a copy control,
-  // a DERIVED one renders whole, never truncated and never ellipsized. This column did the
-  // opposite - `text-overflow: ellipsis` in the frozen card's 140px, with the value only in
-  // a `title` tooltip - and it was the app's one id-truncating site.
-  //
-  // The acceptance asks for frames at 390px and 1280px showing a long label-derived id
-  // rendered whole. What is asserted here instead is the property a frame would be read
-  // FOR, at exactly those two widths: every character present in the cell, and the cell not
-  // clipping its own content. A measurement fails on the next regression; a picture has to
-  // be looked at.
   await signInWithTotp(page, EMAIL, totpSecret);
   await createDraft(page, slugFor("longid"), "Single choice");
   await openPanel(page, "options");
 
-  // `mintOptionId` slugs the author's label, so this names its own expected id. It is the
-  // contract's own example of a real derived id, and 23 characters against the column's
-  // measured 25.
   await addOption(page, "Roadside assistance");
   const cell = page.locator('[data-option-index="2"] .qcms-opt-cell--id');
   await expect(cell).toHaveText("opt_roadside_assistance");
 
   for (const width of [1280, 390]) {
     await page.setViewportSize({ width, height: 900 });
-    // Still every character, at this width. `toHaveText` reads the DOM, so it would pass
-    // over a clipped cell too - which is what the overflow measurement below is for.
+    // DOM text survives clipping, so also measure overflow to prove every character can be read.
     await expect(cell, `the whole id at ${String(width)}px`).toHaveText("opt_roadside_assistance");
 
     const overflow = await cell.evaluate((node) => ({
-      // Nothing cut horizontally, and nothing cut vertically either: at 1280 the id fits
-      // the column on one line, and at 390 it wraps inside the folded row rather than
-      // being clipped by a fixed height.
       overflowX: node.scrollWidth - node.clientWidth,
       overflowY: node.scrollHeight - node.clientHeight,
       textOverflow: getComputedStyle(node).textOverflow,
@@ -668,14 +514,11 @@ test("a long label-derived option id renders whole at both gate widths", async (
       1,
     );
     expect(overflow.overflowY, `no vertical clipping at ${String(width)}px`).toBeLessThanOrEqual(1);
-    // The two declarations that used to do the truncating. Asserted on the COMPUTED style,
-    // so a rule reintroduced anywhere in the cascade fails here rather than only in a diff.
+
     expect(overflow.textOverflow, `no ellipsis at ${String(width)}px`).not.toBe("ellipsis");
     expect(overflow.whiteSpace, `the id may wrap at ${String(width)}px`).not.toBe("nowrap");
   }
 
-  // The tooltip is gone with the truncation it existed to work around: a `title` carrying
-  // a value the cell already shows whole is a second copy of the same string.
   await expect(cell).not.toHaveAttribute("title", /opt_/u);
 
   await page.setViewportSize({ width: 1280, height: 800 });
@@ -686,61 +529,29 @@ test("the version preview renders the real control for the type", async ({ page 
   await createDraft(page, slugFor("preview"), "Long text");
   await openPanel(page, "preview");
 
-  // The preview is compiled by the API and drawn by the shared renderer, so what appears
-  // here is literally the control a respondent gets: a long-text question compiles to a
-  // TextArea, which is a textbox carrying the question's label.
   const preview = page.locator(".qcms-preview");
   await expect(preview).toBeVisible();
   await expect(preview.getByRole("textbox", { name: "E2E Long text question" })).toBeVisible();
-  // No abuse decoy in a preview: the honeypot belongs to a respondent-facing step.
+
   await expect(preview.locator("[name^=qcms_]")).toHaveCount(0);
 });
 
-/**
- * The preview is LOCALLY interactive: a control accepts input, and nothing leaves the
- * browser (task 032 review batch, item 7).
- *
- * Both halves matter, and the first one is a regression test for a real defect the Code
- * Owner found at the gate. The renderer is controlled, so the original component - which
- * passed a document but no `onChange` - produced controls that were focusable and looked
- * live but were FROZEN: every click wrote back the value the control already had, and a
- * checkbox could not be ticked. That is not "what a respondent sees" either, which was
- * the whole reason the preview deliberately avoids `disabled`/`inert`, and it left the
- * on-screen promise that nothing is saved describing behaviour the control could not
- * exhibit.
- *
- * The second half is the property that makes the first one safe, and it is asserted as an
- * ABSENCE of requests rather than as "the click worked". An absence is only worth
- * asserting if the instrument was armed, so the recorder stays attached through a
- * positive control at the end: an action that must talk to the server, proving the same
- * listener does see traffic when traffic exists.
- */
 test("a preview control accepts input, and nothing leaves the browser", async ({ page }) => {
   test.setTimeout(120_000);
   await signInWithTotp(page, EMAIL, totpSecret);
-  // Multiple choice, because the checkbox is the control the defect was found on and the
-  // one whose frozen state is most obviously wrong to a human.
+
   await createDraft(page, slugFor("interactive"), "Multiple choice");
   await openPanel(page, "preview");
 
   const preview = page.locator(".qcms-preview");
   const yes = preview.getByRole("checkbox", { name: "Yes, always", exact: true });
   const no = preview.getByRole("checkbox", { name: "No, never", exact: true });
-  // Clicked by their visible label text, not by the input: react-aria puts a decorative
-  // indicator over the real checkbox, which intercepts pointer events. This is the same
-  // convention `apps/portal/e2e/support/kitchen-sink.ts` encodes for the same controls.
+
   const tick = async (label: string): Promise<void> => {
     await preview.getByText(label, { exact: true }).click();
   };
   await expect(yes).not.toBeChecked();
 
-  /**
-   * Every request the page issues from here on.
-   *
-   * `_next/static` chunks and the favicon are the dev server's own asset traffic, not
-   * this app talking to its BFF: `next dev` compiles routes on demand, so a chunk can
-   * arrive at any moment for reasons that have nothing to do with the click.
-   */
   const requests: string[] = [];
   const record = (url: string): void => {
     if (url.includes("/_next/static/") || url.includes("/_next/image")) return;
@@ -751,28 +562,16 @@ test("a preview control accepts input, and nothing leaves the browser", async ({
     record(request.url());
   });
 
-  // THE CLICK LANDS. This is the assertion the frozen preview failed.
   await tick("Yes, always");
   await expect(yes).toBeChecked();
-  // A second control, so the answers map is proven to hold more than one entry rather
-  // than to be a single latched boolean, and the first one is proven not to be cleared.
+
   await tick("No, never");
   await expect(no).toBeChecked();
   await expect(yes).toBeChecked();
 
-  // AND NOTHING WAS SENT. Ticking two boxes is two ADR-31 commit moments' worth of
-  // gesture on the respondent side; here it must produce no request at all, because the
-  // preview has no `postAnswer`, no fetch and nothing to persist to.
   expect(requests, "a preview interaction must issue no request").toEqual([]);
 
-  // POSITIVE CONTROL: the recorder above is armed. Saving the draft is the same screen's
-  // one deliberate trip to the server, so if this list were also empty the assertion
-  // above would be measuring a listener that never fires.
-  //
-  // Save lives with the editing panels rather than with the preview - a panel with nothing
-  // to save says nothing (contract §6) - so the panel switch comes first. It is deliberately
-  // AFTER the assertion above: switching a panel is a `replaceState` and no request, which
-  // this ordering also happens to prove.
+  // Saving is the request recorder's positive control; perform it after asserting preview interactions sent nothing.
   await openPanel(page, "content");
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Draft saved.")).toBeVisible();
@@ -780,9 +579,7 @@ test("a preview control accepts input, and nothing leaves the browser", async ({
     0,
   );
 
-  // The answers are discarded on a version switch. The switch is a `?v=` navigation on
-  // the same route, so React can reconcile the preview in place and keep its state; v1's
-  // ticks must not reappear under v2's controls, whichever navigation kind Next chooses.
+  // The version switch can reconcile the same component; discard answers so one version's state cannot leak into another.
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
   await confirmLifecycle(page, /^New version$/, "Create draft");
   await page.waitForURL(/\?v=2/);
@@ -795,44 +592,27 @@ test("errors from the API are readable, and land on the field that caused them",
 }) => {
   test.setTimeout(120_000);
   await signInWithTotp(page, EMAIL, totpSecret);
-  // Scoped to the page content: Next renders its own empty `role="alert"` route announcer
-  // outside `<main>`, so an unscoped `getByRole("alert")` is a strict-mode violation on
-  // every screen in the app.
+
   const alert = page.getByRole("main").getByRole("alert");
 
-  // 1. A kernel rejection, addressed by path: shortest above longest is
-  //    MIN_LENGTH_ABOVE_MAX_LENGTH at ["constraints","minLength"], so it has to appear on
-  //    the "Shortest answer" field rather than as a banner with no home.
   await createDraft(page, slugFor("invalid"), "Short text");
   await openPanel(page, "constraints");
   await setNumericConstraint(page, "Shortest answer", "10");
   await setNumericConstraint(page, "Longest answer", "5");
-  // Anchor on the commit landing before clicking Save (task 048), for the reason
-  // `setNumericConstraint` gives at length: a `NumberField` reports its value on blur, so a
-  // test that fills and immediately clicks is racing the commit. The anchor used to be the
-  // message field the commit inserted BELOW the constraints; the message fields are their own
-  // panel now, so what the commit visibly produces on this screen is the rail growing a
-  // Validation messages row - which is the same anchor and also says the rail is reading the
-  // document the editor is holding rather than the one it last saved.
+
   await expect(page.locator('[data-rail-panel="messages"]')).toBeVisible();
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(alert).toContainText("The engine rejected this draft");
-  // The refusal is at `["constraints","minLength"]`, so the panel it belongs to is the one
-  // already open, and the editor moves focus onto the field rather than merely marking it.
+
   await expect(field(page, "Shortest answer")).toHaveAttribute("aria-invalid", "true");
   await expect(field(page, "Shortest answer")).toBeFocused();
 
-  // 2. R6 in the one place an author meets it: a slug that resolves to an id already used.
-  //    The two slugs differ, the ids do not.
   await page.goto("/questions/new");
   await fillStable(field(page, "Slug"), slugFor("invalid").replaceAll("-", "_"));
   await fillStable(field(page, "Label"), "Duplicate id");
   await page.getByRole("button", { name: "Create draft" }).click();
   await expect(alert).toContainText("never reused");
 
-  // 3. VERSION_IMMUTABLE, reached the way an author actually reaches it: two tabs on the
-  //    same draft, one of which publishes it. The stale tab still shows a live editor, and
-  //    its save has to explain the rule rather than fail silently.
   await createDraft(page, slugFor("immutable"), "Short text");
   const stale = page.url();
   const other = await page.context().newPage();
@@ -853,16 +633,12 @@ test("the list filters, and says something useful when it finds nothing", async 
   await expect(page.getByRole("heading", { name: "Questions", level: 1 })).toBeVisible();
   await expect(page.getByRole("table", { name: "Question library" })).toBeVisible();
 
-  // A search that matches nothing is a different state from an empty library, and says so:
-  // suggesting the seed command to someone whose library is full would be noise.
   await fillStable(field(page, "Search"), `no-such-question-${RUN}`);
   await page.getByRole("button", { name: "Apply" }).click();
   await expect(page.getByText("No question matches this search.")).toBeVisible();
 
-  // The filter lives in the URL, so it is a place an author can link to.
   await expect(page).toHaveURL(/[?&]q=no-such-question/);
 
-  // Scoped to the column: the panel carries §3's CTA and the rail carries one of its own.
   await page.getByRole("main").getByRole("link", { name: "Clear filters" }).click();
   await expect(page.getByRole("table", { name: "Question library" })).toBeVisible();
 });
@@ -870,19 +646,14 @@ test("the list filters, and says something useful when it finds nothing", async 
 test("the type column and the type filter narrow the library (issue #218)", async ({ page }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
 
-  // Scoped to this run's questions, so the assertions do not depend on what else the
-  // harness database happens to hold.
   await page.goto(`/questions?q=e2e-number-${RUN}`);
   const numberRow = page.getByRole("row").filter({ hasText: questionIdFor("number") });
   await expect(numberRow).toContainText("Number");
 
-  // The filter is the API's, so it has to survive the round trip rather than hide rows
-  // client-side: the date question exists and matches the search, and must still be gone.
   await page.goto(`/questions?q=e2e-&type=date`);
   await expect(page.getByRole("row").filter({ hasText: questionIdFor("date") })).toBeVisible();
   await expect(page.getByRole("row").filter({ hasText: questionIdFor("number") })).toHaveCount(0);
 
-  // And it is reachable from the control in the rail, not just from a hand-written URL.
   await page.goto("/questions");
   const picker = page.getByRole("button", { name: /Type$/ });
   await picker.click();
@@ -893,33 +664,13 @@ test("the type column and the type filter narrow the library (issue #218)", asyn
 });
 
 test("a row opens its question from the keyboard alone", async ({ page }) => {
-  // Not an axe check: axe cannot tell whether the route into a row is *reachable*.
-  //
-  // ## What this test used to have to do, and why it does not any more (issue 570)
-  //
-  // Until issue 570 the vendored kit table's ROW was the navigation, and reaching it from
-  // the keyboard needed a retried `row.focus()` with `data-focused` as the readiness
-  // discriminator, because the server rendered the row already carrying `tabindex="-1"`
-  // and a focus arriving before hydration succeeded on a node React then replaced (issue
-  // #419). Contract §2 retired that handler: the identifying cell carries a real anchor
-  // now, the component is not even a client component any more, and an anchor in server
-  // HTML is focusable and activatable from the moment the document parses. There is no
-  // hydration race left to time around, so the retry is gone with the thing it was
-  // guarding.
-  //
-  // The assertion is stronger than the one it replaces, not weaker. Tabbing to the link
-  // proves it is in the document's own tab order rather than merely programmatically
-  // focusable, which is what a keyboard author actually has.
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto(`/questions?q=${slugFor("preview")}`);
 
   const link = page.getByRole("link", { name: `Open question ${questionIdFor("preview")}` });
   await expect(link).toBeVisible();
 
-  // Tab from the top of the document until the link takes focus, rather than focusing it
-  // directly. A bounded walk: the toolbar above the table is a handful of controls, and a
-  // regression that drops the link out of the tab order exhausts the budget and fails
-  // here rather than passing on a `focus()` no keyboard can perform.
+  // Tab through the real order: direct focus can reach a link that a keyboard cannot.
   for (
     let step = 0;
     step < 40 && !(await link.evaluate((el) => el === document.activeElement));
@@ -933,18 +684,6 @@ test("a row opens its question from the keyboard alone", async ({ page }) => {
   await expect(page).toHaveURL(new RegExp(questionIdFor("preview")));
 });
 
-/*
- * The coverage gap behind issue #220, in two halves.
- *
- * The lifecycle walk above publishes every type with an *empty* constraint panel, so no
- * spec ever rendered a frozen version whose constraint controls carry saved values - and a
- * frozen panel is the one place those controls are disabled. A fault that needs both
- * (disabled *and* valued) was invisible to the whole suite while being reproducible by
- * hand. The two halves are separate tests rather than one so a failure names the control
- * that produced it: the numeric panel and the date panel are different vendored components
- * with different controlled-state behaviour.
- */
-
 test("a frozen number version renders cleanly with its bounds saved", async ({ page }) => {
   test.setTimeout(120_000);
   await signInWithTotp(page, EMAIL, totpSecret);
@@ -953,7 +692,7 @@ test("a frozen number version renders cleanly with its bounds saved", async ({ p
   await openPanel(page, "constraints");
   await setNumericConstraint(page, "Smallest value", "1");
   await setNumericConstraint(page, "Largest value", "10");
-  // Same anchor as the API-errors test above, for the same reason (`setNumericConstraint`).
+
   await expect(page.locator('[data-rail-panel="messages"]')).toBeVisible();
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Draft saved.")).toBeVisible();
@@ -963,10 +702,7 @@ test("a frozen number version renders cleanly with its bounds saved", async ({ p
 
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
 
-  // The hard navigation is the point: a client-side link would never server-render this
-  // screen, so only `goto` puts the frozen panel through hydration. `&panel=` is the other
-  // half of it: a panel is addressable, so the frozen constraints are reached by asking for
-  // them rather than by pressing a rail row after arriving (`lib/questions/panels.ts`).
+  // Hard navigation exercises frozen-panel hydration; a client-side link alone cannot prove that path.
   await page.goto(`/questions/${questionIdFor("frozen-number")}?v=1&panel=constraints`);
   await expect(field(page, "Smallest value")).toHaveValue("1");
   await expect(field(page, "Smallest value")).toBeDisabled();
@@ -983,11 +719,6 @@ test("a frozen date version renders cleanly with its bounds saved", async ({ pag
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Draft saved.")).toBeVisible();
 
-  // Both dates survive the save. This is the loud half of the same fault: a DatePicker's
-  // empty state is an absent value, so the reset also flipped it from controlled to
-  // uncontrolled and react-stately said so on the console - which is how issue #220's
-  // console fault was reachable at all.
-  // Drawn in QCMS_LOCALE, unset in the harness, so en-GB day-first (Code Owner, 2026-10-19).
   await expect(page.getByRole("group", { name: "Earliest date" })).toContainText("01/01/2030");
   await expect(page.getByRole("group", { name: "Latest date" })).toContainText("31/12/2030");
 
@@ -996,18 +727,6 @@ test("a frozen date version renders cleanly with its bounds saved", async ({ pag
   await page.goto(`/questions/${questionIdFor("frozen-date")}?v=1&panel=constraints`);
   await expect(page.getByRole("group", { name: "Earliest date" })).toContainText("2030");
 });
-
-/*
- * Author-supplied validation messages and boolean label overrides (task 048, ADR-32 and
- * ADR-36), exit criteria 4 and 5.
- *
- * The property under examination is a **three-state field**: no field at all, a field
- * showing the default as a placeholder, and a field holding an override. Only the browser
- * can distinguish the first two, because "the box is empty and the default is visible in it"
- * is a rendering fact rather than a data one, and the unit tests can only prove what leaves
- * the editor. Both halves are needed: `lib/questions/definition.test.ts` proves the wire
- * payload, these prove the author's screen.
- */
 
 const TOO_SHORT = "Message when the answer is too short";
 
@@ -1019,16 +738,9 @@ test("a validation message inherits until it is written, then round-trips (048)"
   await createDraft(page, slugFor("messages"), "Short text");
   await openPanel(page, "constraints");
 
-  // NO CONSTRAINT, NO FIELD - AND NO PANEL EITHER (Code Owner, 2026-09-27). This is the whole
-  // reason the kernel's ORPHAN_MESSAGE_KEY is unreachable from this screen rather than merely
-  // caught by it. It used to be a panel standing empty under a sentence saying why; a panel is
-  // absent now while it has nothing to hold, so the empty state is the absence of a rail row.
   await expect(field(page, TOO_SHORT)).toHaveCount(0);
   await expect(page.locator('[data-rail-panel="messages"]')).toHaveCount(0);
 
-  // Setting the constraint reveals its message field, and the field's PLACEHOLDER is the
-  // sentence a respondent would see, with this question's own bound interpolated. The panel
-  // and its rail row arrive together, because both read `authoredMessageKeys`.
   await setNumericConstraint(page, "Shortest answer", "8");
   await openPanel(page, "messages");
   await expect(field(page, TOO_SHORT)).toHaveAttribute(
@@ -1037,13 +749,9 @@ test("a validation message inherits until it is written, then round-trips (048)"
   );
   await expect(field(page, TOO_SHORT)).toHaveValue("");
 
-  // BLANK INHERITS. Saving an untouched box must store nothing, so after the round trip the
-  // default is still a placeholder rather than having become the author's content - which is
-  // what keeps a later improvement to the shipped wording reaching this question.
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Draft saved.")).toBeVisible();
-  // The reload keeps the panel, because choosing one writes it into the address: this is the
-  // `?panel=` half of `lib/questions/panels.ts` proven end to end rather than asserted on a URL.
+
   await page.reload();
   await expect(field(page, TOO_SHORT)).toHaveValue("");
   await expect(field(page, TOO_SHORT)).toHaveAttribute(
@@ -1051,7 +759,6 @@ test("a validation message inherits until it is written, then round-trips (048)"
     "Answer must be at least 8 characters",
   );
 
-  // NON-BLANK OVERRIDES, through the API and the database and back.
   const authored = "A policy number is 8 characters long.";
   await fillStable(field(page, TOO_SHORT), authored);
   await page.getByRole("button", { name: "Save draft" }).click();
@@ -1059,9 +766,6 @@ test("a validation message inherits until it is written, then round-trips (048)"
   await page.reload();
   await expect(field(page, TOO_SHORT)).toHaveValue(authored);
 
-  // And clearing the constraint takes the message with it: the field goes, the next save
-  // drops the orphaned key, and bringing the constraint back brings back an EMPTY field
-  // rather than a remembered sentence for a rule that stopped existing.
   await openPanel(page, "constraints");
   await setNumericConstraint(page, "Shortest answer", "");
   await expect(field(page, TOO_SHORT)).toHaveCount(0);
@@ -1082,13 +786,11 @@ test("each boolean label overrides independently of the other (048, ADR-36)", as
 
   const yes = field(page, "Label for the affirmative choice");
   const no = field(page, "Label for the negative choice");
-  // Both start on the lexicon, shown as placeholders.
+
   await expect(yes).toHaveAttribute("placeholder", "Yes");
   await expect(no).toHaveAttribute("placeholder", "No");
   await expect(yes).toHaveValue("");
 
-  // Override ONE. The mixed pair is the case worth the browser: a paired control would have
-  // dragged "No" along, and the compiler's per-label fallback would never be exercised.
   await fillStable(yes, "I was at fault");
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Draft saved.")).toBeVisible();
@@ -1097,8 +799,6 @@ test("each boolean label overrides independently of the other (048, ADR-36)", as
   await expect(field(page, "Label for the negative choice")).toHaveValue("");
   await expect(field(page, "Label for the negative choice")).toHaveAttribute("placeholder", "No");
 
-  // The preview is compiled by the API and drawn by the shared renderer, so it is where the
-  // resolved pair shows: the override for one label, the lexicon for the other.
   await openPanel(page, "preview");
   const preview = page.locator(".qcms-preview");
   await expect(preview.getByText("I was at fault", { exact: true })).toBeVisible();
@@ -1106,21 +806,13 @@ test("each boolean label overrides independently of the other (048, ADR-36)", as
 });
 
 test("the type picker is locked once the question exists", async ({ page }) => {
-  // R6 made visible: after creation the picker is gone entirely, replaced by a sentence
-  // that says why. A screen that merely disabled it would leave an author waiting for it
-  // to become enabled.
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto(`/questions/${questionIdFor("preview")}`);
   await expect(page.getByRole("button", { name: /Type$/ })).toHaveCount(0);
-  // STATED ONCE, IN THE RAIL (Code Owner, 2026-09-27). "Type is locked to Long text." used to
-  // sit at the top of the version card as well, which was two sentences for one immutable fact
-  // and put one of them inside the editor it constrains. The rail's details group says it
-  // beside the slug and the created day, which are the question's other permanent facts (R6).
+
   await expect(page.getByTestId("qcms-question-rail")).toContainText("Long text (locked)");
   await expect(page.getByRole("main")).not.toContainText("Type is locked to");
 
-  // And the creation screen still offers it, so the assertion above is about this screen
-  // rather than about a picker that stopped rendering everywhere.
   await page.goto("/questions/new");
   await chooseType(page, "Date");
 });

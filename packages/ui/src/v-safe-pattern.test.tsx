@@ -15,14 +15,9 @@ import { toVSafePattern } from "./v-safe-pattern.ts";
 /** Valid under `u`, a SyntaxError under `v`. */
 const CORPUS_PATTERN = "^[A-Za-z][A-Za-z .,'-]{0,99}$";
 
-/**
- * Roughly sixteen times the measured idle cost of rendering one golden step, which is
- * the headroom a loaded machine needs and no more, so a render that genuinely got an
- * order of magnitude slower per step still goes red.
- */
+/** Allow parallel-run headroom while keeping per-step performance regressions visible. */
 const MS_PER_GOLDEN_STEP = 1_500;
 
-/** Scaled, so appending a golden step raises the budget with it. */
 const CORPUS_TIMEOUT_MS = loadGoldenSteps().length * MS_PER_GOLDEN_STEP;
 
 function compilesUnderV(value: string): boolean {
@@ -93,8 +88,6 @@ describe("toVSafePattern (issue #29)", () => {
     expect(toVSafePattern(pattern)).toBe(pattern);
   });
 
-  // Each rewrite swaps a class literal for its escaped spelling, so the matched set is
-  // unchanged.
   it.each([
     ["trailing class dash", "^[a-z-]+$", "^[a-z\\-]+$"],
     ["leading class dash", "^[-a-z]+$", "^[\\-a-z]+$"],
@@ -124,7 +117,6 @@ describe("toVSafePattern (issue #29)", () => {
     },
   );
 
-  // The semantics-preservation claim, tested rather than asserted.
   it("normalization preserves u-mode semantics", () => {
     const samples = [
       "",
@@ -191,8 +183,6 @@ describe("rendered pattern attribute (issue #29)", () => {
     expect(renderedPattern("^[a-z-0-9]+$")).toBeNull();
   });
 
-  // The budget is scaled per step, because this renders every golden step through the real renderer and its cost
-  // grows with each one; a flat number sat close enough to Vitest's 5s default to fail under parallel lanes.
   it(
     "emits only v-compilable patterns across the entire golden corpus",
     () => {
@@ -245,7 +235,6 @@ describe("the kernel and the renderer normalize identically", () => {
   });
 
   it("agrees that an absent pattern stays absent", () => {
-    // Only the renderer takes `undefined`; the kernel is only handed one that exists.
     expect(toVSafePattern(undefined)).toBeUndefined();
   });
 });

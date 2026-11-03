@@ -21,7 +21,6 @@ import { nextSteps } from "./next-steps.js";
 import { promptMissing, stdioAsker } from "./prompt.js";
 import { scaffold, TargetNotEmpty } from "./scaffold.js";
 
-/** This package's version, read from the manifest beside the built entry point. */
 function version(): string {
   const manifest: unknown = JSON.parse(
     readFileSync(new URL("../package.json", import.meta.url), "utf8"),
@@ -64,7 +63,6 @@ function initialiseRepository(options: ScaffoldOptions): string | undefined {
   return undefined;
 }
 
-/** The two post-stamp side effects, each reporting rather than throwing. */
 function finishSetUp(options: ScaffoldOptions): readonly string[] {
   const warnings: string[] = [];
   try {
@@ -84,7 +82,6 @@ function finishSetUp(options: ScaffoldOptions): readonly string[] {
   return warnings;
 }
 
-/** Ask for whatever the flags left open, when there is a terminal to ask through. */
 async function resolveOptions(
   parsed: { readonly options: PartialOptions; readonly assumeYes: boolean },
   cwd: string,

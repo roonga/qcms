@@ -16,8 +16,8 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..
 const RUNNER = path.join(REPO_ROOT, "scripts", "eslint-workspace.mjs");
 
 /**
- * A spawning case is bounded by host scheduling rather than by its own work, so the
- * budget is an order of magnitude over the worst measurement on a loaded machine.
+ * Spawning depends on host scheduling; allow a generous budget so contention does not fail an otherwise
+ * idle lint process.
  */
 const SPAWN_TIMEOUT_MS = 300_000;
 

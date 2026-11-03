@@ -11,13 +11,11 @@ import { describe, expect, it } from "vitest";
 
 import { safeEventName } from "./otlp-log-allowlist.js";
 
-/** Resolved from this file rather than from the process cwd. */
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
 /**
- * Messages deliberately not part of the export vocabulary: each is a diagnostic
- * for an operator already reading stdout rather than an event anyone counts, and
- * admitting one is a privacy decision (ADR-34, SEC-13).
+ * Messages deliberately not part of the export vocabulary: each is a diagnostic for an operator already
+ * reading stdout rather than an event anyone counts, and admitting one is a privacy decision (ADR-34).
  */
 const INTENTIONALLY_OPAQUE = new Set([
   "challenge provider 'turnstile' is not implemented yet (029); failing closed",
@@ -32,7 +30,6 @@ const INTENTIONALLY_OPAQUE = new Set([
 const SOURCE_ROOTS = ["apps", "packages"] as const;
 const SOURCE_DIRS = new Set(["src", "lib"]);
 
-/** Every `.ts`/`.tsx` file under a workspace member's `src` or `lib`, tests aside. */
 function shippedSources(): readonly string[] {
   const found: string[] = [];
 

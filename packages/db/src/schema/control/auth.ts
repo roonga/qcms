@@ -20,11 +20,11 @@ export const authUser = controlSchema.table("user", {
   createdAt: timestamp("createdAt").notNull().defaultNow(),
   updatedAt: timestamp("updatedAt").notNull().defaultNow(),
   twoFactorEnabled: boolean("twoFactorEnabled"),
-  /** SEC-3 claim, declared to better-auth with `input: false` so no request body sets it. */
+  /** Declare this authorization claim with input: false so no request body can set it. */
   role: text("role").notNull().default("admin"),
   /**
-   * Whether this account still holds the provisional credential `qcms:create-admin` set
-   * (SEC-1). Cleared only by a successful password change.
+   * Whether this account still holds the provisional credential `qcms:create-admin` set. Cleared only by a
+   * successful password change.
    */
   mustChangePassword: boolean("mustChangePassword").notNull().default(false),
 });
@@ -83,7 +83,7 @@ export const authTwoFactor = controlSchema.table("twoFactor", {
   userId: text("userId")
     .notNull()
     .references(() => authUser.id, { onDelete: "cascade" }),
-  /** `verified` marks a confirmed factor; the other two are the plugin's brute-force lockout state (SEC-1). */
+  /** `verified` marks a confirmed factor; the other two are the plugin's brute-force lockout state. */
   verified: boolean("verified").default(true),
   failedVerificationCount: integer("failedVerificationCount").default(0),
   lockedUntil: timestamp("lockedUntil"),

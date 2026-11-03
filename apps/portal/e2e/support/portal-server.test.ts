@@ -44,11 +44,11 @@ type WrapperProcess = ChildProcessByStdio<null, Readable, Readable>;
 
 interface Wrapper {
   readonly child: WrapperProcess;
-  /** Resolves when the wrapper process ends. */
+
   readonly ended: Promise<{ readonly code: number | null; readonly elapsedMs: number }>;
-  /** Everything the wrapper wrote to stderr, which is what Playwright forwards. */
+
   stderr: () => string;
-  /** The tee'd child output, which is how a stub reports the pids it created. */
+
   stdout: () => string;
 }
 

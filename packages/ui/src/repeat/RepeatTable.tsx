@@ -5,9 +5,8 @@ import { totalLabelFor } from "./repeat-table-node.ts";
 import type { RepeatColumn, RepeatTableNode } from "./repeat-table.schema.ts";
 
 /**
- * The table presentation's `<table>`: native and never `role="grid"`, whose author-managed focus is a tab trap
- * without scripting; nothing here may grow a roving tabindex or edit mode (ADR-43). The `<caption>` is the
- * accessible name; the `<tfoot>` total is presentation only. Cells are `position: relative` (1.4.10).
+ * Use a native table: grid focus management would trap keyboard users without scripting.
+ * Totals are presentation only; positioned cells contain hidden labels.
  */
 
 function columnTotal(
@@ -40,7 +39,7 @@ export function RepeatTable({
   const values = useQcmsValues();
   const locale = useQcmsLocale();
   const totals = columns.map((column) => columnTotal(column, values));
-  // An empty total row is a row a respondent reads past for nothing.
+
   const hasTotals = totals.some((total) => total !== undefined);
   const format = new Intl.NumberFormat(locale);
 

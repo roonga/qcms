@@ -1,7 +1,6 @@
 /**
- * SEC-13: spans leave our erasure reach, so an allowlist over attribute keys (never values)
- * decides what appears. Never exported: answer values, `LocalizedText`, link tokens, the
- * SEC-4 token, secrets. Query strings and `exception.message`/`stacktrace` go whole.
+ * Exported spans leave our erasure reach: allowlist attribute keys, drop secrets and answer content, and
+ * remove query strings and exception messages/stacks entirely.
  */
 
 import type { Attributes } from "@opentelemetry/api";

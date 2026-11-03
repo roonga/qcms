@@ -3,34 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ResolvedEnvironment } from "../environment.ts";
 import { t } from "../i18n/en.ts";
 
-/**
- * Every environment-sensitive server action refuses to act in an environment its screen
- * did not show (local UX list A1).
- *
- * The defect this pins was reproduced live: tab A rendered "Close it in prod", tab B
- * switched the shared cookie to `test`, and confirming in tab A closed the form in `test`.
- * Each action now takes the environment its page rendered, bound next to the form id, and
- * `confirmShownEnvironment` compares it with the request's one resolution before anything
- * is forwarded.
- *
- * ## The seam
- *
- * `requestEnvironment` in `lib/server/api.ts` is faked, because it reads a cookie and the
- * API's live set; everything above it (`environments.ts`'s check, `lib/environment.ts`'s
- * rule, and the three action modules) runs as shipped. The `lib/server` modules that would
- * reach the API are faked with a counter each, and the assertion that matters is that the
- * counter did not move: a refused action must not have sent anything.
- *
- * The file lives under `lib/` for the reason `lib/forms/actions.test.ts` gives: `app/` is
- * route-scanned by Next.
- */
-
 /** What the request resolves to; set before each test. Hoisted, so it cannot name the type. */
 const current = vi.hoisted((): { value: unknown } => ({ value: undefined }));
 
 const sent = vi.hoisted(() => ({ count: 0, environments: [] as string[], resolutions: 0 }));
 
-/** One forwarded call, and the environment it named when it named one. */
 function forwarded(environment?: string): Promise<unknown> {
   sent.count += 1;
   if (environment !== undefined) sent.environments.push(environment);
@@ -74,8 +51,7 @@ vi.mock("@/lib/server/links", () => ({
     forwarded(request.environment).then(() => ({ ok: true, data: [] })),
   revokeLink: () => forwarded().then(() => ({ ok: true, data: { linkId: "lnk_1" } })),
 }));
-// The wizard's own calls bind no environment and are deliberately absent from the table
-// below: the destinations are chosen in its body and authorised again at commit.
+
 vi.mock("@/lib/server/releases", () => ({
   releaseVersion: (_s: unknown, _f: string, input: { environment: string }) =>
     forwarded(input.environment),
@@ -101,11 +77,6 @@ const forms = await import("../../app/(shell)/forms/actions.ts");
 const responses = await import("../../app/(shell)/responses/actions.ts");
 const webhooks = await import("../../app/(shell)/webhooks/actions.ts");
 
-/**
- * Every environment-sensitive action, called as its page binds it with `shown` as the
- * environment that page rendered. One table, so an action added to the list is checked by
- * every case below rather than by whichever one its author remembered.
- */
 const ACTIONS: readonly {
   readonly name: string;
   readonly run: (shown: string | undefined) => Promise<{ status: string; message?: string }>;
@@ -162,7 +133,6 @@ beforeEach(() => {
 
 describe.each(ACTIONS)("$name", ({ run }) => {
   it("refuses, sending nothing, when another tab has switched the environment", async () => {
-    // Tab A rendered prod; tab B has since switched the shared cookie to test.
     current.value = resolvedTo("test");
 
     const state = await run("prod");
@@ -173,7 +143,6 @@ describe.each(ACTIONS)("$name", ({ run }) => {
   });
 
   it("refuses the reverse direction too, which is the dangerous one", async () => {
-    // A dialog naming test must never act in prod.
     current.value = resolvedTo("prod");
 
     const state = await run("test");
@@ -206,7 +175,7 @@ describe.each(ACTIONS)("$name", ({ run }) => {
 
     expect(state.status).not.toBe("error");
     expect(sent.count).toBeGreaterThan(0);
-    // Where the call names its environment, it names the one that was shown.
+
     expect(sent.environments.every((environment) => environment === "test")).toBe(true);
   });
 });
@@ -225,8 +194,6 @@ describe("a release bound to the selected environment", () => {
     expect(sent.environments).toEqual(["test"]);
   });
 
-  // A promotion names where it lands, which is what lets one plan span two environments.
-  // The destination is still authorised against the caller's own cell at the API.
   it("releases into the named destination while the tab stays coherent with the selection", async () => {
     current.value = resolvedTo("test");
     const state = await forms.releaseVersionAction("frm_a", "test", {

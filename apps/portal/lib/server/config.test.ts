@@ -236,7 +236,6 @@ describe("assertSecureCookiesConfigured", () => {
 });
 
 describe("assertNoPlaceholderSecrets", () => {
-  /** Verbatim from the committed example files. */
   const SHIPPED = "replace-with-a-random-32-character-internal-token";
 
   it("passes a real-looking token", () => {

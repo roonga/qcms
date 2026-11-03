@@ -17,7 +17,7 @@ export const RepeatGroupSchema = z.object({
     .object({
       /** What the roster, the field names and the `__qop` values key on. */
       groupId: z.string(),
-      /** The collection's own authored name. */
+
       label: z.string(),
       /** `{n}` intact, because the ordinal is live state. */
       instanceLabel: z.string(),

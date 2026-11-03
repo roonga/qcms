@@ -1,14 +1,4 @@
-/**
- * Admin server-process registration (issue #292).
- *
- * Next's documented startup hook: a root `instrumentation.ts` exporting `register()`,
- * which Next calls once per server process before anything serves. That makes it the
- * only place in a Next app where "refuse to boot" can mean boot rather than "500 on the
- * first request", which is why the cookie-security guard is called from here.
- *
- * The portal's twin (`apps/portal/instrumentation.ts`) follows the same cookie guard,
- * tracing, propagation and safe-log recipe. Registration belongs here, after the guard.
- */
+/** Run cookie and placeholder guards before registering telemetry or serving requests. */
 
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
 import { BatchLogRecordProcessor } from "@opentelemetry/sdk-logs";
@@ -35,48 +25,13 @@ function apiOrigin(): string | undefined {
   }
 }
 
-/**
- * Refuse to start on a configuration this process must not serve.
- *
- * Two refusals, both boot-time and both fatal: a cookie policy a browser will not
- * protect (issue #292) and a secret still holding an example-file placeholder
- * (issue #491). Their reasoning lives beside each assertion in `lib/server/config.ts`.
- *
- * **Exiting rather than only throwing is load-bearing**: Next catches an error from this
- * hook, reports `Failed to prepare server`, and then leaves a process listening that
- * answers every request with a 500. Nothing is served and no cookie is ever set, so the
- * security property holds either way, but neither app has a Compose healthcheck, so that
- * process reads as "running" to an operator and to `docker compose ps`. A non-zero exit is
- * the same refusal made visible: the container dies, `restart: unless-stopped` restarts
- * it, and the message is the last thing in `docker logs`.
- *
- * The guard on `process.exit` is for Next's edge runtime, which loads this hook too and
- * has no such function. Neither app runs anything on the edge runtime today; if one ever
- * does, it re-throws and gets the 500-on-everything behaviour instead of a `TypeError`
- * that hides the real message. `process.stderr` is absent in that sandbox for the same
- * reason, and the write stays optional-called because a missing stream must not become
- * the exception that swallows a refusal an operator needs to read.
- *
- * The `NEXT_RUNTIME` gate around that write is about **compilation**, not the call
- * (issue #829). Turbopack compiles this file for the edge target as well as the Node
- * one, and a bare `process.stderr` there is a Node API the edge runtime does not have,
- * so every `pnpm dev:admin` boot and every build reported `Ecmascript file had an error`
- * against this line. Next substitutes a literal for `process.env.NEXT_RUNTIME` at build
- * time, so the edge bundle compiles to `if ("edge" === "nodejs")` and drops the branch,
- * reference and all, while the Node bundle keeps the write unchanged.
- *
- * The twin is `apps/portal/instrumentation.ts`. **Change one, change the other.**
- */
+/** Exit nonzero because Next catches hook throws and otherwise leaves a listener returning 500. Keep Node streams behind NEXT_RUNTIME so the edge compiler drops them; edge failures must still rethrow. */
 function refuseUnsafeConfiguration(): void {
   try {
     assertSecureCookiesConfigured();
-    // Second because the cookie refusal is the older one and its message is the one an
-    // operator following `.env.compose.example` is most likely to need. Both are boot
-    // refusals with the same exit shape, so a deployment carrying both defects sees the
-    // first, fixes it, and is told about the second on the next start.
+
     assertNoPlaceholderSecrets();
-    // Third: an unusable QCMS_LOCALE (Code Owner ruling 2026-10-19). Not a security
-    // refusal, but the same "fail at boot, name the variable" posture as other config.
+
     assertLocaleConfigured();
   } catch (error) {
     if (process.env.NEXT_RUNTIME === "nodejs") {
@@ -100,10 +55,7 @@ export function register(): void {
       allowlistingLogRecordProcessor(),
       new BatchLogRecordProcessor({
         exporter: new OTLPLogExporter({ url: `${endpoint}/v1/logs` }),
-        // `OTEL_BLRP_SCHEDULE_DELAY` and `OTEL_BLRP_EXPORT_TIMEOUT`, which this
-        // constructor does not read for itself (issue #901). Unset, these resolve to
-        // the SDK's own defaults, so nothing changes for a deployment that sets
-        // neither.
+        /** The SDK constructor does not read these OTel environment settings itself. */
         ...batchLogExportTimings(process.env),
       }),
     ],

@@ -98,8 +98,8 @@ describe("the SEC-15 access audit's grants and revokes (task 069, Q40 with Q56)"
   });
 
   it("carries no trigger and no foreign key, both deliberately", () => {
-    // SEC-15: only `qcms_migrate` may alter an audit row, so a trigger would refuse the
-    // one role allowed to.
+    // Only the migration role may alter audit rows; an unconditional append-only trigger would refuse that
+    // allowed maintenance too.
     expect(sql).not.toContain("CREATE TRIGGER");
     expect(sql).not.toContain("FOREIGN KEY");
   });
@@ -136,7 +136,7 @@ describe("the pending `prod` endpoint change's grants (task 070, Q30 with Q51)",
   });
 
   it("carries no append-only trigger, unlike `form_releases`", () => {
-    // These rows are updated in place; the append-only record is the SEC-15 audit.
+    // These rows update in place; their append-only history lives in the separate audit table.
     expect(sql).not.toContain("CREATE TRIGGER");
   });
 

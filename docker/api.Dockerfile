@@ -8,12 +8,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc tsconfig.base.json .
 COPY apps ./apps
 COPY packages ./packages
 COPY scripts ./scripts
-# `tooling/*` is a workspace glob too, so every manifest under it has to be here or
-# `pnpm install --frozen-lockfile` refuses the workspace outright: a package that
-# declares a `workspace:*` dependency on something the image never copied is not a
-# missing file, it is an unresolvable graph. Nothing from here reaches the runtime
-# stage - the deploy step below prunes it - so this is the build stage paying for a
-# complete workspace, exactly as `scripts` above does.
+# Frozen installs need every workspace manifest even when deploy prunes it from the runtime image.
 COPY tooling ./tooling
 
 RUN pnpm install --frozen-lockfile
@@ -31,11 +26,7 @@ LABEL org.opencontainers.image.title="qcms-api" \
 
 WORKDIR /app
 ENV NODE_ENV=production
-# So this image's dependency bins are runnable by name, which is what lets the
-# `migrate` service call `qcms-db-migrate` instead of reaching into
-# `node_modules/@roonga/qcms-db/dist/` past that package's `exports` map (issue #294).
-# Appended rather than prepended: a dependency bin must never shadow a system
-# binary this image or a healthcheck relies on.
+# Append dependency bins so they cannot shadow system binaries used by the image or healthcheck.
 ENV PATH="${PATH}:/app/node_modules/.bin"
 COPY --from=build --chown=node:node /opt/qcms ./
 USER node

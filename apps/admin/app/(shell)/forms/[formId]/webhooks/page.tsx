@@ -25,7 +25,6 @@ import {
   withdrawEndpointChangeAction,
 } from "../../../webhooks/actions";
 
-/** The browser-tab title for this route (issue #536): the section, and the form it belongs to. */
 export async function generateMetadata({
   params,
 }: {
@@ -35,30 +34,6 @@ export async function generateMetadata({
   return pageMetadata(formSectionName("webhooks", formId));
 }
 
-/**
- * One form's webhook endpoints and their delivery history (task 035; screen contract
- * "webhook config", "delivery dashboard").
- *
- * Configuration and deliveries are on the same screen deliberately: the operator loop
- * this task exists to serve is "the target is wrong -> fix it -> put the failed
- * deliveries back", and splitting the two halves across routes would make the loop a
- * navigation instead of a glance. The queue itself is cross-form and lives at
- * `/webhooks`, because that is the shape of the API that backs it.
- *
- * A failed deliveries read renders as a notice above the config rather than failing
- * the page: configuring an endpoint is still possible and is often what the operator
- * came for.
- *
- * Both list reads reach their components as a `ReadState` (`lib/read-state.ts`, issue
- * 543) rather than as `ok ? data : []` (issues 572, 544). That fallback made a failed
- * read indistinguishable from a form with no endpoint and no delivery, so each component
- * drew its empty state - and the endpoint one is §3's panel with a primary **Add
- * endpoint** call to action, printed directly beneath this page's own alert saying the
- * endpoint list could not be loaded. What each component keeps through a failure is its
- * own decision, which is the point of the type: `WebhookConfig` keeps offering creation
- * because creation does not depend on the list that failed, and `DeliveryDashboard` has
- * nothing to keep.
- */
 export default async function FormWebhooksPage({
   params,
 }: {
@@ -71,15 +46,10 @@ export default async function FormWebhooksPage({
     getForm(session, formId),
     listWebhooks(session, formId),
     listDeliveries(session, formId),
-    // What is waiting for a second approver (task 070). Read beside the endpoints rather
-    // than on a screen of its own, because the question "what is live here" and the
-    // question "what is waiting to be" are asked in one glance - and a pending change is
-    // not a state of an endpoint, which is why it renders as its own panel.
     listEndpointProposals(session, formId),
     resolvedEnvironment(session),
   ]);
-  // Endpoints live in one environment's data plane, so every mutation below carries the
-  // environment this render read them from and is refused once that has changed (A1).
+  // Bind the displayed environment so a later switch in another tab refuses these mutations.
   const shown = shownEnvironment(resolved);
 
   if (!detail.ok) {
@@ -94,11 +64,6 @@ export default async function FormWebhooksPage({
       {!webhooks.ok && (
         <Alert variant="error">{t("ops.webhooks.listFailed", { message: webhooks.message })}</Alert>
       )}
-      {/* Above the endpoint list deliberately: a change the operator proposed a moment
-          ago, or one a colleague is waiting on, is what they came back for, and the list
-          below shows the endpoint still doing what it did. The panel renders nothing at
-          all when nothing is waiting, which is the ordinary case - the rule gates `prod`
-          alone and is off by default (Q13). */}
       <EndpointProposals
         proposals={readState(proposals)}
         confirm={confirmEndpointChangeAction.bind(null, form.formId, shown)}

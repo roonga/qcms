@@ -1,4 +1,3 @@
-/** The controlled A2UI step renderer, over vendored a2-react-aria components (ADR-22). */
 export { A2UIStepRenderer } from "./A2UIStepRenderer.tsx";
 export type { A2UIStepDocument, A2UIStepRendererProps } from "./A2UIStepRenderer.tsx";
 

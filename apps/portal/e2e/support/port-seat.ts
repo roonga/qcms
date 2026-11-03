@@ -36,7 +36,6 @@ export {
   stablePort,
 } from "../../../../scripts/ports.mjs";
 
-/** A harness service that takes a port from the seat's `17Sxx` block. */
 export type HarnessService = keyof typeof HARNESS_SERVICES;
 
 const HARNESS_SERVICE_REUSE: Record<
@@ -52,7 +51,6 @@ const HARNESS_SERVICE_REUSE: Record<
 /** The repo root this harness belongs to, resolved from this file, not the cwd. */
 export const HARNESS_REPO_ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
 
-/** A process found listening on one of this seat's harness ports. */
 export interface SeatPortOccupant {
   readonly service: HarnessService;
   readonly port: number;
@@ -65,7 +63,6 @@ export interface SeatPortOccupant {
 /** `st` value for `TCP_LISTEN` in `/proc/net/tcp`. */
 const TCP_LISTEN = "0A";
 
-/** Inode numbers of every listening TCP socket bound to `port`, from `/proc`. */
 function listeningSocketInodes(port: number): Set<string> {
   const inodes = new Set<string>();
   for (const table of ["/proc/net/tcp", "/proc/net/tcp6"]) {
@@ -88,7 +85,6 @@ function listeningSocketInodes(port: number): Set<string> {
   return inodes;
 }
 
-/** True when pid directory `entry` has any of `targets` open as a file descriptor. */
 function processHoldsAny(entry: string, targets: Set<string>): boolean {
   let descriptors;
   try {
@@ -106,7 +102,6 @@ function processHoldsAny(entry: string, targets: Set<string>): boolean {
   return false;
 }
 
-/** The pid holding any of `inodes` open, by scanning `/proc/<pid>/fd`. */
 function pidHoldingSocket(inodes: Set<string>): number | undefined {
   if (inodes.size === 0) return undefined;
   let entries;
@@ -123,7 +118,6 @@ function pidHoldingSocket(inodes: Set<string>): number | undefined {
   return undefined;
 }
 
-/** `pid`'s working directory, which is the repo root a dev server was spawned in. */
 function cwdOf(pid: number | undefined): string | undefined {
   if (pid === undefined) return undefined;
   try {
@@ -149,7 +143,6 @@ export function occupantOfPort(
   return { pid, cwd: cwdOf(pid) };
 }
 
-/** Every one of this seat's harness ports that already has a listener. */
 export function seatOccupants(seat: number = PORT_SEAT): SeatPortOccupant[] {
   const found: SeatPortOccupant[] = [];
   for (const { service, port } of harnessPorts(seat)) {
@@ -166,13 +159,10 @@ function isInside(cwd: string, repoRoot: string): boolean {
   return path === root || path.startsWith(`${root}/`);
 }
 
-/** How long one readiness probe waits for an answer before calling the port dead. */
 export const READY_PROBE_TIMEOUT_MS = 5_000;
 
-/** The child process that does one readiness request. See `ready-probe.mjs`. */
 const READY_PROBE_SCRIPT = fileURLToPath(new URL("./ready-probe.mjs", import.meta.url));
 
-/** Verdicts already taken this process, keyed by the port and the budget probed. */
 const readyProbeResults = new Map<string, boolean>();
 
 export function probeServiceReady(
@@ -223,7 +213,6 @@ export function isAdoptable(
   return adoptionRefusal(occupant, repoRoot, probe) === undefined;
 }
 
-/** How one refused occupant reads in the thrown message. */
 export function describeOccupant(occupant: SeatPortOccupant, refusal?: AdoptionRefusal): string {
   const who =
     occupant.pid === undefined
@@ -311,7 +300,6 @@ export function seatPreflight(seat: number = PORT_SEAT): Set<HarnessService> {
   return adoptableServices(seat, HARNESS_REPO_ROOT, occupants);
 }
 
-/** Every startup refusal, in the order a run needs them. Exported for tests. */
 export function assertSeatUsable(seat: number = PORT_SEAT): void {
   assertPosixHost("pnpm verify:browser");
   assertSeatChosen();

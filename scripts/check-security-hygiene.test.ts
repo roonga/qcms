@@ -163,7 +163,6 @@ describe("the scanned roots cover the workspace they claim to", () => {
       );
 
     const scanned = new Set<string>(sourceFiles());
-    // The gate skips only itself, because it quotes the constructs it hunts.
     const missed = tracked.filter(
       (path: string) => !scanned.has(path) && path !== "scripts/check-security-hygiene.mjs",
     );
@@ -178,8 +177,6 @@ describe("the scanned roots cover the workspace they claim to", () => {
   });
 
   it("opens files in every root it claims, not just the ones with subdirectories", () => {
-    // A `scripts/**` pathspec matches nothing for files at the top level, because git
-    // fnmatch wants an intervening directory, so presence is asserted per root.
     const scanned = sourceFiles();
     for (const root of ["apps/", "packages/", "scripts/"]) {
       expect(
@@ -200,8 +197,6 @@ describe("backtick concatenation, the evasion a quote-only alternation missed", 
   });
 
   it("still leaves the sql tagged template alone, which is the safe form", () => {
-    // Adding a backtick to the quote class must not start flagging Drizzle's
-    // parameterizing template.
     expect(scanSql("probe.ts", "await exec.execute(sql`select ${a} from t`);")).toHaveLength(0);
     expect(scanSql("probe.ts", "await db.execute(sql`select 1`);")).toHaveLength(0);
   });
@@ -212,7 +207,6 @@ describe("backtick concatenation, the evasion a quote-only alternation missed", 
  * load-bearing in every case, because the rule reads `apps/api/src/` only.
  */
 describe("an environment identifier in a response body is refused", () => {
-  /** A path inside the scanned root, so the rule engages at all. */
   const API = "apps/api/src/features/auth/instance.ts";
 
   it("names a variable spelled straight into a wire-shaped property", () => {
@@ -225,8 +219,6 @@ describe("an environment identifier in a response body is refused", () => {
   });
 
   it("follows one hop through a named constant, which is how #910 hid", () => {
-    // The literal is nowhere near the response, so a scan of constructor arguments
-    // alone reads clean.
     const source = [
       'const FAILED = "... or set QCMS_ADMIN_PASSWORD_BREACH_CHECK=false ...";',
       'throw new APIError("SERVICE_UNAVAILABLE", { message: FAILED, code: "X" });',
@@ -242,7 +234,6 @@ describe("an environment identifier in a response body is refused", () => {
   });
 
   it("is not fooled by a comma inside the sentence", () => {
-    // A comma in the English must not end the property-value slice.
     const source =
       '  const e = {\n    message:\n      "Try a smaller request, or raise QCMS_AGENT_MAX_STEPS.",\n  };\n';
     const hits = scanEnvNamesInBodies(API, source);
@@ -270,11 +261,6 @@ describe("an environment identifier in a response body is refused", () => {
   });
 });
 
-/**
- * An unbalanced `)` inside a string literal closes a paren count early and makes the
- * slice SHORTER, so a later argument is never examined. A positional message,
- * `new ApiError(code, status, "...")`, has no second net, hence the quote-aware slice.
- */
 describe("a stray ) inside a string argument no longer hides the rest of the call", () => {
   const API = "apps/api/src/features/auth/instance.ts";
 
@@ -315,7 +301,6 @@ describe("a stray ) inside a string argument no longer hides the rest of the cal
   });
 
   it("treats an unterminated literal as running to the end rather than throwing", () => {
-    // A gate that cannot parse a file still has to answer for it.
     expect(() => scanEnvNamesInBodies(API, 'c.json("QCMS_A')).not.toThrow();
     expect(endOfStringLiteral('"abc', 0)).toBe(4);
   });
@@ -331,8 +316,6 @@ describe("the operator channels keep naming variables, because that is the point
   });
 
   it("leaves a boot refusal alone", () => {
-    // `config.ts` raises these before the process serves a request, so no client exists
-    // to receive one.
     const source = "issues.push(`QCMS_AGENT_MODEL is required when QCMS_FLAG_AGENT_AUTHORING=x`);";
     expect(scanEnvNamesInBodies(API, source)).toHaveLength(0);
   });
@@ -391,15 +374,11 @@ describe("comments are blanked without moving a single character", () => {
   });
 
   it("does not mistake a slash inside a string for the start of a comment", () => {
-    // "http://" is everywhere in this repository, and blanking from the first `//`
-    // would eat the rest of the line, including the variable name being hunted.
     const blanked = blankComments('const e = { message: "see http://x/ QCMS_A" };');
     expect(blanked).toContain("QCMS_A");
   });
 
   it("does not mistake an apostrophe in prose for an opening quote", () => {
-    // An apostrophe in a comment must not open a string that never closes, which would
-    // silently skip every literal after it.
     const source = ["// this process's environment", 'const e = { message: "QCMS_A" };'].join("\n");
     expect(scanEnvNamesInBodies("apps/api/src/x.ts", source)).toHaveLength(1);
   });

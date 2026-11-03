@@ -1,7 +1,4 @@
-/**
- * No error here may echo a value (SEC-8): every issue names the offending env var and a
- * generic reason only.
- */
+/** No error here may echo a value: every issue names the offending env var and a generic reason only. */
 
 import { HONEYPOT_FIELD_NAME } from "@roonga/qcms-a2ui-compiler";
 import { environmentDatabaseUrlVariableName } from "@roonga/qcms-db/environment";
@@ -13,15 +10,14 @@ import {
 } from "@roonga/qcms-db";
 import { z } from "zod";
 
-// Characters, not bytes: the check below compares `raw.length`, which counts UTF-16 code
-// units. SEC-4/SEC-7 ask for >= 32 random bytes, and a non-ASCII secret of 32 characters
-// exceeds that, so the unit errs safe.
+// This check counts UTF-16 characters, not bytes; non-ASCII material exceeds the random-byte minimum, so the
+// unit errs safe.
 export const MIN_SECRET_LENGTH = 32;
 export const APP_KEY_MIN_LENGTH = 32;
 
 /**
- * A deployment with placeholder secrets must refuse to boot (SEC-8). Matched on the
- * prefix rather than the exact example strings so the guard survives a reword.
+ * A deployment with placeholder secrets must refuse to boot. Matched on the prefix rather than the exact
+ * example strings so the guard survives a reword.
  */
 export const PLACEHOLDER_PREFIXES: readonly string[] = [
   "replace-",
@@ -69,8 +65,8 @@ export interface RateLimitClass {
 }
 
 /**
- * An unmounted group has no routes at all, so a request to one of its addresses is a
- * plain 404 rather than a handler's refusal (ADR-09, SEC-14).
+ * An unmounted group has no routes at all, so a request to one of its addresses is a plain 404 rather than a
+ * handler's refusal (ADR-09).
  */
 export interface MountFlags {
   readonly public: boolean;
@@ -103,7 +99,7 @@ export type AgentProvider = (typeof AGENT_PROVIDERS)[number];
 
 export interface Flags {
   readonly challengeProvider: "none" | "turnstile";
-  /** `optional` is the documented dev escape hatch (SEC-1). */
+  /** `optional` is the documented dev escape hatch. */
   readonly adminTwoFactor: "required" | "optional";
   readonly agentAuthoring: AgentProvider;
 }
@@ -121,8 +117,8 @@ export interface Config {
   readonly portalBaseUrl: string;
   readonly webhooks: {
     /**
-     * SSRF guard (SEC-6). When false, targets must be HTTPS and must not resolve to
-     * private/reserved/loopback/link-local hosts. True also permits plain HTTP.
+     * SSRF guard. When false, targets must be HTTPS and must not resolve to private/reserved/loopback/link-local
+     * hosts. True also permits plain HTTP.
      */
     readonly allowPrivateTargets: boolean;
     readonly deliveryTimeoutMs: number;
@@ -171,8 +167,8 @@ export interface Config {
     readonly retentionSweepIntervalMs: number;
   };
   /**
-   * Idle expiry is better-auth's own bookkeeping; the verifier adds the absolute cap,
-   * because an idle window alone can be renewed indefinitely by a warm session (SEC-1).
+   * Idle expiry is better-auth's own bookkeeping; the verifier adds the absolute cap, because an idle window
+   * alone can be renewed indefinitely by a warm session.
    */
   readonly adminSession: {
     readonly maxAgeMs: number;
@@ -201,15 +197,15 @@ export interface Config {
      */
     readonly secureCookies: boolean;
     /**
-     * Setting it false is a documented downgrade against NIST SP 800-63B Rev 4 section
-     * 3.1.1.2 and OWASP ASVS 5.0 6.2.12, for a structurally offline deployment. A
-     * config-plane decision a reviewer reads, never a runtime bypass (SEC-1).
+     * Setting it false is a documented downgrade against NIST SP 800-63B Rev 4 section 3.1.1.2 and OWASP ASVS
+     * 5.0 6.2.12, for a structurally offline deployment. A config-plane decision a reviewer reads, never a
+     * runtime bypass.
      */
     readonly breachedPasswordCheck: boolean;
     /**
-     * Passed through to better-auth explicitly because its own default resolves from
-     * `NODE_ENV`, which must not decide a security control. False serves an unlimited
-     * admin sign-in, change-password and two-factor surface (SEC-1).
+     * Passed through to better-auth explicitly because its own default resolves from `NODE_ENV`, which must not
+     * decide a security control. False serves an unlimited admin sign-in, change-password and two-factor
+     * surface.
      */
     readonly signInThrottle: boolean;
   };
@@ -238,10 +234,9 @@ export interface Config {
         readonly turnstile: { readonly siteKey: string; readonly secretKey: string };
       };
   /**
-   * A discriminated union so the provider key exists only in the enabled arm: a `none`
-   * deployment has no field that could hold a secret. `apiKey` is never logged, never
-   * echoed in a config error, and leaves this process only as an upstream
-   * `Authorization` header built inside the provider package (SEC-7, SEC-8).
+   * A discriminated union so the provider key exists only in the enabled arm: a `none` deployment has no field
+   * that could hold a secret. `apiKey` is never logged, never echoed in a config error, and leaves this
+   * process only as an upstream `Authorization` header built inside the provider package.
    */
   readonly agent:
     | { readonly provider: "none" }
@@ -253,7 +248,7 @@ export interface Config {
         /** Required for `openai-compatible`. */
         readonly baseUrl: string | undefined;
         readonly maxSteps: number;
-        /** Drops every reasoning part under `off`, even one a provider emits unasked (SEC-8). */
+        /** Drops every reasoning part under `off`, even one a provider emits unasked. */
         readonly thinking: AgentThinking;
       };
 }
@@ -348,9 +343,9 @@ function parseKeyList(env: Env, name: string, minLength: number, issues: string[
 }
 
 /**
- * "Newest first" because better-auth encrypts under the first entry, so an oldest-first
- * list would keep writing under the retired key. Parsed here, not by `parseSecretsEnv`,
- * whose refusals quote the offending entry (SEC-8).
+ * "Newest first" because better-auth encrypts under the first entry, so an oldest-first list would keep
+ * writing under the retired key. Parsed here, not by `parseSecretsEnv`, whose refusals quote the offending
+ * entry.
  */
 function parseSecretVersions(
   env: Env,
@@ -512,9 +507,8 @@ function parseInt_(
 }
 
 /**
- * `prod` is refused as a token rather than treated as a synonym for `public`, and an
- * environment the configuration does not name is an unknown surface rather than an empty
- * mount: a mount that silently served nothing is the shape SEC-14 cannot afford.
+ * Reject unknown environment names rather than silently mounting an empty surface or treating prod as
+ * public.
  */
 function parseMount(env: Env, environmentNames: readonly string[], issues: string[]): MountFlags {
   const mountable = environmentNames.filter((name) => name !== PROD_ENVIRONMENT);
@@ -587,7 +581,6 @@ function parseFlags(env: Env, issues: string[]): Flags {
 
 export const TURNSTILE_SITE_KEY_VAR = "QCMS_TURNSTILE_SITE_KEY";
 
-/** The old unprefixed spelling this process still accepts, with a boot warning. */
 export const DEPRECATED_TURNSTILE_SITE_KEY_VAR = "TURNSTILE_SITE_KEY";
 
 /**
@@ -705,7 +698,6 @@ const LOCAL_HOSTNAMES: ReadonlySet<string> = new Set([
 
 const LOCAL_HOST_SUFFIXES = [".local", ".localhost", ".internal"] as const;
 
-/** Loopback or RFC 1918 private ranges. */
 function isPrivateIpv4(hostname: string): boolean {
   const parts = hostname.split(".");
   if (parts.length !== 4) return false;
@@ -743,7 +735,7 @@ export function isLocalAgentEndpoint(baseUrl: string): boolean {
   return isPrivateIpv4(hostname);
 }
 
-/** Fail-fast; the issue names the variable and its values, never the supplied value (SEC-8). */
+/** Fail-fast; the issue names the variable and its values, never the supplied value. */
 function parseAgentThinking(env: Env, issues: string[]): AgentThinking {
   const raw = env.QCMS_AGENT_THINKING;
   if (raw === undefined || raw.trim() === "") return "off";
@@ -756,7 +748,7 @@ function parseAgentThinking(env: Env, issues: string[]): AgentThinking {
   return known;
 }
 
-/** Secrets exist only in the enabled arm; every issue names an env var, never a value (SEC-8). */
+/** Secrets exist only in the enabled arm; every issue names an env var, never a value. */
 function parseAgent(env: Env, flags: Flags, issues: string[]): Config["agent"] {
   const provider = flags.agentAuthoring;
   if (provider === "none") return { provider: "none" };
@@ -831,11 +823,11 @@ const DEFAULTS = {
   outboxJitterMs: 1_000,
   retentionSweepIntervalMs: 60 * 60 * 1000,
   readyDbTimeoutMs: 2_000,
-  adminSessionMaxAgeMs: 12 * 60 * 60 * 1000, // SEC-1
-  adminSessionIdleMs: 60 * 60 * 1000, // SEC-1
+  adminSessionMaxAgeMs: 12 * 60 * 60 * 1000,
+  adminSessionIdleMs: 60 * 60 * 1000,
   webhookTimeoutMs: 10_000,
   webhookBatchSize: 20,
-  bodyLimitBytes: 1_000_000, // SEC-9
+  bodyLimitBytes: 1_000_000,
   antiAbuseMinSubmitMs: 0,
   antiAbuseHoneypotField: HONEYPOT_FIELD_NAME,
 } as const;
@@ -869,20 +861,18 @@ export function parseAdminAuth(env: Env, issues: string[]): Config["adminAuth"] 
       1_000,
       issues,
     ),
-    // `assertSecureCookiesConfigured`'s downgrade refusal is deliberately NOT enforced here:
-    // safe only because browsers reach better-auth solely through the admin BFF, which refuses.
-    // (issue #402) check-comments: allow read by scripts/check-bff-config-guards.test.ts
+    // The API omits the secure-cookie downgrade guard only because browsers reach better-auth through the admin
+    // BFF, which refuses that downgrade.
     secureCookies: parseBool(
       env,
       "QCMS_ADMIN_SECURE_COOKIES",
       env.NODE_ENV === "production",
       issues,
     ),
-    // True in every environment, including development: a control the standards write as
-    // SHALL is not something a developer opts into.
+    // Do not let NODE_ENV relax the breach policy; offline deployments must explicitly opt out.
     breachedPasswordCheck: parseBool(env, "QCMS_ADMIN_PASSWORD_BREACH_CHECK", true, issues),
-    // Deliberately does not read `NODE_ENV`: that variable must not decide a security
-    // control, so an operator who configures nothing is throttled (SEC-1).
+    // Deliberately does not read `NODE_ENV`: that variable must not decide a security control, so an operator
+    // who configures nothing is throttled.
     signInThrottle: parseBool(env, "QCMS_ADMIN_SIGNIN_THROTTLE", true, issues),
   };
 }

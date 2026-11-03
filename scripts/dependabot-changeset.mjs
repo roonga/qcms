@@ -45,8 +45,6 @@ import {
  */
 
 /**
- * Seams a test replaces; production passes none of them.
- *
  * @typedef {{
  *   cwd?: string,
  *   templates?: Map<string, string>,
@@ -68,7 +66,6 @@ const DEPENDENCY_FIELDS = [
   "optionalDependencies",
 ];
 
-/** The one field whose range is part of what a consumer resolves against. */
 const CONTRACT_FIELD = "peerDependencies";
 
 function git(args, cwd) {
@@ -222,7 +219,6 @@ export function changesetFileName(branch) {
     .toLowerCase()
     .replaceAll(/[^a-z0-9]+/g, "-")
     .replaceAll(/^-+|-+$/g, "")
-    // Dependabot's own branches start with the word, and the prefix below adds it back.
     .replace(/^dependabot-/, "")
     .slice(0, 60);
   return `dependabot-${slug === "" ? "deps" : slug}.md`;
@@ -469,9 +465,6 @@ export function plan(mergeBase, options = {}) {
 }
 
 /**
- * Async because the regeneration it delegates to hands its output to Prettier, so no
- * separate `pnpm format` is needed.
- *
  * @param {string[]} args
  * @param {Options} options
  * @returns {Promise<number>} process exit code
@@ -497,8 +490,6 @@ export async function main(args = process.argv.slice(2), options = {}) {
     return 1;
   }
 
-  // Regenerated on every `--write`, drift or none: the generator is idempotent, and
-  // asking unconditionally is what makes this one command rather than two.
   if (write) await (options.syncTemplates ?? (() => syncTemplates(["--write"])))();
   else if (templateDrift.length > 0) {
     console.log(

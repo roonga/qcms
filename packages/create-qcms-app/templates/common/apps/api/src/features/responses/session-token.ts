@@ -12,7 +12,7 @@ import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
 
-/** Signed into the HMAC, so a link token can never authenticate as a session (SEC-7). */
+/** Signed into the HMAC, so a link token can never authenticate as a session. */
 const SESSION_PURPOSE = "session" as const;
 
 /** Newest-first order is preserved: the first key signs, all keys verify (rotation). */
@@ -36,8 +36,8 @@ export async function mintSessionToken(
 }
 
 /**
- * Every failure returns the same 401 so the response is no oracle. Callers must
- * still check the bound session matches the one the path addresses (SEC-2).
+ * Every failure returns the same 401 so the response is no oracle. Callers must still check the bound
+ * session matches the one the path addresses.
  */
 export async function authenticateSession(c: Context<ApiEnv>, deps: Deps): Promise<SessionId> {
   const header = c.req.header("authorization");

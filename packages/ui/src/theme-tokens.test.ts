@@ -11,7 +11,7 @@ const THEME_CSS = readFileSync(join(import.meta.dirname, "theme.css"), "utf8");
 
 const THEMES = ["slate", "harbor", "sand", "plum"] as const;
 type Theme = (typeof THEMES)[number];
-/** Polarity x contrast, flattened: the four states a root class combination can select. */
+
 type Mode = "light" | "dark" | "hc" | "dark-hc";
 
 // Both arguments are (0,1,0) and `:is()` takes its most specific one, so the ADR-38
@@ -35,7 +35,6 @@ function plus(a: Specificity, b: Specificity): Specificity {
   return [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
 }
 
-/** Zero when the cascade falls through to source order. */
 function compareSpecificity(a: Specificity, b: Specificity): number {
   return a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
 }
@@ -79,7 +78,6 @@ function splitList(list: string): readonly string[] {
   return parts.map((part) => part.trim()).filter((part) => part.length > 0);
 }
 
-/** What `:is()` takes. */
 function mostSpecific(list: string): Specificity {
   let best = ZERO;
   for (const part of splitList(list)) {
@@ -408,9 +406,6 @@ describe("the scope carrier and the specificity model it is measured with", () =
     );
   }
 
-  // A green suite is not evidence; one shown capable of going red is. Fed a
-  // mis-ordered sheet the resolver must produce the wrong answer, which is what makes
-  // its answer on the real sheet worth something.
   it("resolves a deliberately mis-ordered sheet to the wrong palette", () => {
     expect(resolve("harbor", "hc")["--color-text"]).toBe("#000000");
 
@@ -501,11 +496,6 @@ describe("High-contrast is one mode layer, not a palette per theme", () => {
     expect(dark["--color-border-strong"]).toBe("#ffffff");
   });
 
-  /**
-   * The rule a new theme follows: measure the light-HC accent against the dark-HC
-   * background and own a `.dark.hc` accent only when it misses. The measurement rather
-   * than a list of themes, so a fifth theme is told what it owes by the gate.
-   */
   it("gives a theme a dark-HC accent exactly when its light-HC accent misses on that field", () => {
     const target = TEXT_TARGET["dark-hc"];
     const field = resolve("slate", "dark-hc")["--color-background"];
@@ -534,12 +524,9 @@ describe("typography group: the WCAG 1.4.12 floors are carried by tokens", () =>
   const base = resolve("slate", "light");
   const rem = (value: string): number => Number.parseFloat(value.replace("rem", "")) * 16;
 
-  /** Prettier reflows a long value, so compare on content. */
   const flat = (value: string): string => value.replaceAll(/\s+/gu, " ").trim();
 
   it("declares the family tokens, and both delegate their tail to one token", () => {
-    // The fallback list is declared once, so a tail improvement cannot reach one
-    // surface and miss another.
     expect(base["--font-portal"]).toBe("var(--font-fallback-sans)");
     expect(base["--font-mono"]).toBe("var(--font-fallback-mono)");
   });
@@ -742,7 +729,6 @@ describe("spacing group: the three density levels x the two viewports", () => {
     }
   });
 
-  // --space-section-pad is the only token that moves with the viewport.
   it("only --space-section-pad moves with the viewport, and only downward on a phone", () => {
     for (const density of [null, ...DENSITY_CLASSES]) {
       const narrow = at(density, "narrow");

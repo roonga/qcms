@@ -11,13 +11,11 @@ export interface BatchExportTimings {
   readonly exportTimeoutMillis: number;
 }
 
-/** The specification defaults for the span pipeline. */
 const SPAN_DEFAULTS: BatchExportTimings = {
   scheduledDelayMillis: 5_000,
   exportTimeoutMillis: 30_000,
 };
 
-/** The specification defaults for the log pipeline. */
 const LOG_DEFAULTS: BatchExportTimings = {
   scheduledDelayMillis: 1_000,
   exportTimeoutMillis: 30_000,

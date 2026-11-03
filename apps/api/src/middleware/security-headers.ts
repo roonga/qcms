@@ -1,7 +1,6 @@
 /**
- * No CORS header is emitted here or anywhere in `apps/api`: under the BFF pattern no
- * cross-origin caller exists, so the absence is a control rather than an oversight
- * (SEC-9).
+ * No CORS header is emitted here or anywhere in `apps/api`: under the BFF pattern no cross-origin caller
+ * exists, so the absence is a control rather than an oversight.
  */
 
 import { secureHeaders } from "hono/secure-headers";
@@ -28,8 +27,8 @@ function apiCsp(): {
 }
 
 /**
- * Applied above the mounted groups so an unauthenticated refusal carries the headers
- * too: a 401 is still a response a browser might render (SEC-9).
+ * Applied above the mounted groups so an unauthenticated refusal carries the headers too: a 401 is still a
+ * response a browser might render.
  */
 export function securityHeaders(): MiddlewareHandler<ApiEnv> {
   return secureHeaders({

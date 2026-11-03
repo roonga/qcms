@@ -1,21 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-/**
- * Which endpoint an accepting save goes to (issue #823).
- *
- * `saveDraft` answers two different requests with one function, and the split is
- * the fix for a real defect rather than a convenience. An ordinary autosave is a
- * `PUT .../draft`. An accept that carries proposed NEW question definitions is a
- * `POST .../draft/assist/accept`, because those definitions have to be created
- * in the same transaction as the draft that pins them: the API used to have no
- * route that could do that, so accepting stored a draft pinning question ids
- * nothing had ever created and the builder rendered "Version not found".
- *
- * The subject here is the routing decision and the body shape, which is all this
- * layer owns (R2). Whether the definitions are acceptable is the kernel's
- * answer, pinned in `apps/api/src/features/forms/assist/assist.integration.test.ts`.
- */
-
 interface Call {
   readonly path: string;
   readonly method: string | undefined;
@@ -80,7 +64,7 @@ describe("saveDraft endpoint selection", () => {
     expect(calls).toHaveLength(1);
     expect(calls[0]?.path).toBe("/forms/frm_quote/draft");
     expect(calls[0]?.method).toBe("PUT");
-    // Not disclaimed on every keystroke: absent, not `false`.
+
     expect(calls[0]?.body).toEqual({ definition: DRAFT });
   });
 
@@ -98,8 +82,7 @@ describe("saveDraft endpoint selection", () => {
     expect(calls).toHaveLength(1);
     expect(calls[0]?.path).toBe("/forms/frm_quote/draft/assist/accept");
     expect(calls[0]?.method).toBe("POST");
-    // One request, carrying both halves: the draft and the questions it pins.
-    // Two requests could not be atomic, which is the whole point of the route.
+
     expect(calls[0]?.body).toEqual({
       definition: DRAFT,
       newQuestions: [{ definition: proposed }],

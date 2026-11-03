@@ -6,7 +6,6 @@ export function stepSubmit(page: Page) {
     .locator('form button[type="submit"]:not([name="__qop"]):not([data-qcms-implicit-submit])');
 }
 
-/** Submit the step's native form and wait for the page the 303 lands on. */
 export async function submitStep(page: Page): Promise<void> {
   const served = page.waitForResponse(
     (response) => response.request().isNavigationRequest() && response.status() === 200,

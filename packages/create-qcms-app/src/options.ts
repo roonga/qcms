@@ -132,7 +132,6 @@ function applyUrlFlag(
   return undefined;
 }
 
-/** Boolean flags, each mapping to one option. */
 const BOOLEAN_FLAGS: Readonly<Record<string, readonly [string, boolean]>> = {
   "--no-install": ["install", false],
   "--no-git": ["git", false],
@@ -142,7 +141,6 @@ const BOOLEAN_FLAGS: Readonly<Record<string, readonly [string, boolean]>> = {
 /** What reading one flag decided: keep going (having eaten `consumed` extra words), or stop. */
 type FlagOutcome = { readonly kind: "ok"; readonly consumed: number } | ParseResult;
 
-/** Mutable scratch the flag reader writes into. */
 interface ParseState {
   assumeYes: boolean;
 }
@@ -193,7 +191,6 @@ export function parseArguments(argv: readonly string[], cwd: string): ParseResul
   }
 
   if (projectName !== undefined) {
-    // The argument is a directory; the name is its last segment.
     const directory = resolveTarget(projectName, cwd);
     const name = basename(directory);
     const problem = validateProjectName(name);

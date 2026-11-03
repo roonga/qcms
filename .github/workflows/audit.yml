@@ -1,7 +1,4 @@
-# Scheduled advisory surfacing (issue #68): a weekly pnpm audit that fails
-# loudly by filing/updating a labeled issue, instead of advisories sitting
-# unseen on the Security tab until a Dependabot run fails. Deliberately NOT a
-# per-PR gate, so a newly published advisory never blocks unrelated work.
+# Scheduled advisories must surface without blocking unrelated pull requests.
 name: audit
 on:
   schedule:

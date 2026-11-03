@@ -94,7 +94,8 @@ const UNSAFE_IN_ATTRIBUTE = /[\s"'<>\\]/u;
 
 const DATA_IMAGE = /^data:image\/[\w.+-]+[,;]/u;
 
-// Accepts exactly what the shipped `img-src 'self' data:` policy permits (SEC-9), so a configured logo cannot render as a broken image or put pressure on the CSP to widen.
+// Accepts exactly what the shipped `img-src 'self' data:` policy permits, so a configured logo cannot render
+// as a broken image or put pressure on the CSP to widen.
 function isLoadableLogo(value: string): boolean {
   if (value === "" || UNSAFE_IN_ATTRIBUTE.test(value)) return false;
   if (value.startsWith("//")) return false;

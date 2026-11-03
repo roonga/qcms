@@ -7,11 +7,6 @@ import { messages } from "../i18n/en.ts";
 
 import { WORKSPACE_RAIL_PANELS } from "./rail-panels.ts";
 
-/**
- * The workspace rail's fragments resolve to elements that exist. A fragment matching
- * nothing fails silently, and the other end of each pair is a file this rail does not own.
- */
-
 const APP = fileURLToPath(new URL("../../", import.meta.url));
 
 describe("the workspace rail's sections", () => {

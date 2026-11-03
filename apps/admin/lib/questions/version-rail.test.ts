@@ -3,20 +3,6 @@ import { describe, expect, it } from "vitest";
 import type { QuestionDefinitionView, QuestionStatus, QuestionVersion } from "./types.ts";
 import { latestPublishedVersion, selectVersion, versionRailItems } from "./version-rail.ts";
 
-/**
- * What the question rail carries, as a decision rather than as pixels (issue 650).
- *
- * `plan/admin-shell-poc/question-editor-poc.html` draws one group of version rows, newest
- * first, with the selected one marked and a digest above them saying how many there are and
- * which is published. Three of those four claims are answerable without a DOM, so they are
- * answered here and the markup is tested next door for being markup.
- *
- * `selectVersion` is the one function on this screen that two React trees both call: the page
- * renders the version it returns and the rail marks the row it names, from the same address.
- * Its behaviour moved here unchanged from the page in issue 650, so the cases below are also
- * the record that nothing about `?v=` changed when the rail arrived.
- */
-
 const DEFINITION = { type: "shortText" } as unknown as QuestionDefinitionView;
 
 function version(n: number, status: QuestionStatus, publishedAt: string | null): QuestionVersion {
@@ -29,7 +15,6 @@ function version(n: number, status: QuestionStatus, publishedAt: string | null):
   };
 }
 
-/** Oldest first, as the API returns them: v1 deprecated, v2 and v3 published, v4 a draft. */
 const VERSIONS: readonly QuestionVersion[] = [
   version(1, "deprecated", "2025-06-20T09:00:00.000Z"),
   version(2, "published", "2025-11-02T09:00:00.000Z"),
@@ -103,8 +88,6 @@ describe("the digest's published version", () => {
     expect(latestPublishedVersion([version(1, "draft", null)])).toBeNull();
   });
 
-  // A deprecated version blocks new pins, so naming one as the published version would tell
-  // an operator something is current that is not.
   it("ignores a deprecated version, however recent", () => {
     expect(
       latestPublishedVersion([

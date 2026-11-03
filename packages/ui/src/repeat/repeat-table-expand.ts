@@ -14,13 +14,10 @@ import type { RepeatColumn } from "./repeat-table.schema.ts";
 import { keepControl, qualifyNames, stringProp } from "./repeat-walk.ts";
 
 /**
- * ADR-42 adds no question type: every cell is an ordinary question, so validation, retraction, rules and the
- * ledger and export grain work unchanged. A native `<table>` and never `role="grid"`, whose author-managed
- * focus is a tab trap without scripting; one tab stop per cell is the cost, bounded by the group's `max`
- * (SEC-16 sets no installation-wide ceiling).
+ * Repeated cells remain ordinary questions with unchanged validation and export semantics.
+ * Native table focus stays browser-owned; one tab stop per cell is bounded by the group max.
  */
 
-/** What the group's own expansion knows and this one needs. */
 export interface RepeatTableInput {
   readonly groupId: string;
   /** Becomes the `<caption>`, and nothing else. */

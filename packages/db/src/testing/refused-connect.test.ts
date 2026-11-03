@@ -12,7 +12,6 @@ import { afterEach, describe, expect, it } from "vitest";
 import { instrumentPool, instrumentQueryable } from "./pool-contention.js";
 import { createHarnessTeardown, type StoppableContainer } from "./teardown.js";
 
-/** The snapshot stand-in, so no host is read. */
 const SNAPSHOT = "  host: load 18.42/12.10/9.03 over 8 cpus (2.30 per cpu)";
 const line = () => SNAPSHOT;
 

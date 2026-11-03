@@ -57,13 +57,11 @@ export const REQUIREMENT_BY_HELPER = {
  * @property {"api" | "portal" | "admin" | "compose"} process which process reads it.
  * @property {"required" | "optional" | "conditional"} requirement
  * @property {string} fallback the default, or "" when there is none.
- * @property {boolean} [secret] true when the value is key material (SEC-7/SEC-8).
+ * @property {boolean} [secret] true when the value is key material.
  * @property {string} description
  */
 
 /**
- * Order within a process group is render order: required first, then optional.
- *
  * @type {readonly EnvVar[]}
  */
 export const ENV_REFERENCE = [
@@ -74,7 +72,7 @@ export const ENV_REFERENCE = [
     fallback: "",
     secret: true,
     description:
-      "Postgres connection string. The API is the only process in either topology that holds one (ADR-35). Compose builds it from the `QCMS_DB_*` values.",
+      "Postgres connection string held only by the API. Compose builds it from `QCMS_DB_*` values.",
   },
   {
     name: "QCMS_MOUNT",
@@ -82,7 +80,7 @@ export const ENV_REFERENCE = [
     requirement: "required",
     fallback: "",
     description:
-      "Which route groups this process serves: a comma-separated list of `public`, `internal`, `admin`, **the name of any non-prod environment in `QCMS_ENVIRONMENTS`**, or the shortcut `all`. `public` is `prod`'s respondent surface at its unprefixed addresses; an environment's own name mounts its respondent surface at `/<env>` (ADR-40, Q21). `all` means every surface plus every non-prod environment this deployment names. Unmounted routes do not exist (404, not 403 - ADR-09), which is how an operator restricts a test environment: leave it out and its addresses are a 404 rather than a refusal (SEC-14). `prod` is **refused** as a token, because prod is the unprefixed shape and `public` is what mounts it. The outbox deliverer and retention sweep run in the process that mounts `internal`.",
+      "Comma-separated route groups: `public`, `internal`, `admin`, non-prod names from `QCMS_ENVIRONMENTS`, or `all`. `public` serves unprefixed prod; environment names serve `/<env>`; `prod` itself is refused. `all` mounts every group and configured environment. Unmounted routes return 404. Outbox delivery and retention run where `internal` is mounted.",
   },
   {
     name: "QCMS_LINK_KEYS",
@@ -109,7 +107,7 @@ export const ENV_REFERENCE = [
     fallback: "",
     secret: true,
     description:
-      "Service tokens the BFFs present on every internal call (SEC-4), at least 32 characters each. Any listed token is accepted, which is what makes rotation a two-deploy operation.",
+      "BFF service tokens, at least 32 characters each. Any listed token is accepted; retain both during a two-deploy rotation.",
   },
   {
     name: "QCMS_APP_KEY",
@@ -118,7 +116,7 @@ export const ENV_REFERENCE = [
     fallback: "",
     secret: true,
     description:
-      "AES-256-GCM key (at least 32 characters) encrypting secrets at rest (SEC-6). It covers exactly one column, the per-webhook HMAC signing secret; stored two-factor material belongs to `QCMS_ADMIN_AUTH_SECRET`, not to this key (issue #319). **Set it once**: there is no in-place rotation, so changing it makes every stored webhook secret undecryptable at once and those deliveries dead-letter. That is recoverable without the old key by re-issuing each webhook's secret from the admin, which costs re-coordination with every consumer rather than data. See the app-encryption-key runbook below (issue #323).",
+      "AES-256-GCM key, at least 32 characters, for stored webhook HMAC secrets. Set once and back up: no in-place rotation exists, and replacement makes deliveries dead-letter. Recover by reissuing each webhook secret, coordinating consumers and redelivering. Two-factor keys use `QCMS_ADMIN_AUTH_SECRET`. See the App encryption key runbook in `docs/operations.md`.",
   },
   {
     name: "QCMS_PORTAL_BASE_URL",
@@ -135,7 +133,7 @@ export const ENV_REFERENCE = [
     fallback: "",
     secret: true,
     description:
-      "better-auth signing secret, at least 32 characters. Required when `QCMS_MOUNT` includes `admin`. It also protects stored two-factor material (TOTP secrets and recovery codes are encrypted under it), so back it up with the database. Rotate it through `QCMS_ADMIN_AUTH_SECRETS` rather than by editing this value, which would leave every enrolled authenticator unreadable (SEC-7).",
+      "better-auth signing and encryption secret, at least 32 characters; required when `admin` is mounted. Back up with the database: replacing it makes stored TOTP secrets and recovery codes unreadable. Rotate through `QCMS_ADMIN_AUTH_SECRETS`; see Admin auth secret rotation in `docs/operations.md`.",
   },
   {
     name: "QCMS_ADMIN_AUTH_SECRETS",
@@ -144,7 +142,7 @@ export const ENV_REFERENCE = [
     fallback: "unset - version 1 holds QCMS_ADMIN_AUTH_SECRET",
     secret: true,
     description:
-      "Versioned admin auth keys for non-destructive rotation, as comma-separated `<version>:<secret>` entries, newest first (for example `2:<new>,1:<old>`). The first entry encrypts new material; the rest stay readable. Each value has the same 32-character floor, and the API refuses to start on a list that is not in descending version order, since a list written the other way round would keep encrypting under the old key. Leave it unset unless you are rotating; the rotation runbook is in the key-rotation section below (SEC-7, issue #319).",
+      "Comma-separated `<version>:<secret>` keys, strictly descending, newest first, for example `2:<new>,1:<old>`. Each needs at least 32 characters. The first encrypts new material; retain older keys to read existing factors. Leave unset unless rotating. See Admin auth secret rotation in `docs/operations.md`.",
   },
   {
     name: "QCMS_ADMIN_BASE_URL",
@@ -152,7 +150,7 @@ export const ENV_REFERENCE = [
     requirement: "conditional",
     fallback: "",
     description:
-      "Public origin of the **admin app**, not of this API. Required when `QCMS_MOUNT` includes `admin`: it is the origin better-auth scopes cookies to and the only origin it trusts, so it must match what the browser sees exactly.",
+      "Browser-facing admin origin, required when `admin` is mounted. Must exactly match the origin seen by the browser and configured in the admin service; better-auth scopes cookies and trusted origins to it.",
   },
   {
     name: "QCMS_TURNSTILE_SITE_KEY",
@@ -160,7 +158,7 @@ export const ENV_REFERENCE = [
     requirement: "conditional",
     fallback: "",
     description:
-      "Turnstile site key. Required when `QCMS_FLAG_CHALLENGE_PROVIDER=turnstile`, ignored otherwise. The **same variable the portal reads**, spelled identically (issue #331): it is one public key, so one name.",
+      "Public Turnstile site key, required when `QCMS_FLAG_CHALLENGE_PROVIDER=turnstile`, ignored otherwise. Set the same value on API and portal.",
   },
   {
     name: "TURNSTILE_SITE_KEY",
@@ -168,7 +166,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "",
     description:
-      "**Deprecated** (issue #331). The pre-consolidation spelling of `QCMS_TURNSTILE_SITE_KEY`, still read as a fallback so an existing deployment keeps working; the API logs a one-line warning at boot when it is set. `QCMS_TURNSTILE_SITE_KEY` wins if both are set. Set the prefixed name and delete this one.",
+      "Deprecated fallback for `QCMS_TURNSTILE_SITE_KEY`; setting it produces a boot warning. The prefixed name wins when both are set. Migrate to the prefixed name and remove this one.",
   },
   {
     name: "TURNSTILE_SECRET_KEY",
@@ -200,7 +198,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "production (set by the image)",
     description:
-      "Decides the default for `QCMS_ADMIN_SECURE_COOKIES` when that is unset. The production Dockerfiles set it; do not unset it in a deployment. It does **not** decide whether admin sign-in is throttled, whatever better-auth's own documentation says about its limiter defaulting to production-only: `QCMS_ADMIN_SIGNIN_THROTTLE` decides that here, in every environment (SEC-1, issue #390).",
+      "Sets the default for `QCMS_ADMIN_SECURE_COOKIES`; keep the production Dockerfile value in deployment. Sign-in throttling is independently controlled by `QCMS_ADMIN_SIGNIN_THROTTLE` in every environment.",
   },
   {
     name: "QCMS_FLAG_CHALLENGE_PROVIDER",
@@ -208,7 +206,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "none",
     description:
-      "Abuse-control challenge provider (ADR-24 registry): `none` or `turnstile`. An unknown `QCMS_FLAG_*` variable fails boot rather than being ignored.",
+      "Challenge provider: `none` or `turnstile`. Unknown `QCMS_FLAG_*` names refuse boot.",
   },
   {
     name: "QCMS_ADMIN_2FA",
@@ -216,7 +214,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "required",
     description:
-      "Administrator TOTP policy (SEC-1): `required` or `optional`. `optional` is a development escape hatch, never a production setting.",
+      "TOTP policy: `required` for production; `optional` skips enrollment for development only.",
   },
   {
     name: "QCMS_ADMIN_SECURE_COOKIES",
@@ -224,7 +222,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "true when NODE_ENV=production",
     description:
-      "Whether cookies set on the admin origin carry `Secure`. It describes the **browser-facing** scheme, which this process cannot observe, so it is a knob rather than only an inference. Must hold the same value in the `api` and `admin` services or the browser keeps one cookie family and drops the other. The `admin` service refuses to start when it is false at a non-loopback `QCMS_ADMIN_BASE_URL` (issue #292), so a downgrade here is refused by the process the browser actually reaches.",
+      "Secure-cookie policy for the browser-facing admin origin. Match the admin service or different cookie families can cause sign-in loops. The admin refuses false on non-loopback origins; use TLS or a loopback tunnel.",
   },
   {
     name: "QCMS_ADMIN_TRUSTED_PROXY_HOPS",
@@ -232,7 +230,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "unset",
     description:
-      "**A declaration this process never acts on.** The `admin` service is what counts hops (see its own row below); this service reads only whether a proxy is declared at all, to decide one boot warning. While it is unset or `0`, and better-auth's per-IP sign-in throttle is on, the API warns at every boot that no client address is vouched for, so every caller shares one bucket: three sign-in attempts from anyone hold admin sign-in and two-factor closed for every administrator until the ten-second window rolls (issue #482). That fails safe - refusal, not admission - so it costs availability rather than confidentiality, and it is the property of the proxy-less default Compose shape. Set it here, to the same count as the `admin` service, once a proxy really is in front of the admin hostname; setting it without one silences the warning and keeps the shared bucket, because this process cannot see the admin's inbound chain.",
+      "Declares whether admin ingress has a proxy; the admin service resolves addresses. Unset or 0 warns that all callers share one throttle bucket: three attempts can block everyone for ten seconds. Set the same actual hop count in both services only after installing the proxy; declaring one here alone does not resolve addresses.",
   },
   {
     name: "QCMS_ADMIN_PASSWORD_BREACH_CHECK",
@@ -240,7 +238,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "true",
     description:
-      "Whether an admin password is checked against the public breach corpus before it is accepted (SEC-1; NIST SP 800-63B Rev 4 3.1.1.2, OWASP ASVS 5.0 6.2.12). When on, setting a password makes one HTTPS request to `api.pwnedpasswords.com/range/{prefix}` carrying the first five hex characters of the password's SHA-1 and nothing else; the password never leaves the process. **The check fails closed**: if that host is unreachable the password is refused, so on an air-gapped deployment `qcms:create-admin` cannot create the first admin at all until you set this to `false`. Doing so is a documented downgrade against both standards, supported for a structurally offline deployment and as the break-glass for rotating a leaked password while the corpus is unreachable; the API and the CLI each log a loud warning at startup for as long as it is off.",
+      "Checks passwords through `api.pwnedpasswords.com/range/{prefix}`, sending only five SHA-1 hex characters. Unreachable service refuses passwords, including first-admin creation. Disable only for offline operation or emergency rotation during an outage; API and CLI startup warn of the security downgrade.",
   },
   {
     name: "QCMS_ADMIN_SIGNIN_THROTTLE",
@@ -248,14 +246,14 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "true",
     description:
-      'Whether the admin sign-in surface is brute-force throttled (SEC-1). On, three attempts per ten seconds per client address are allowed on `/sign-in`, `/sign-up`, `/change-password`, `/change-email` and `/two-factor/*`, and a fourth is refused with a `429`. **Defaults to on in every environment**, so a deployment that configures nothing is throttled; `NODE_ENV` has no say in it either way, which is deliberate (issue #390) and is the one place QCMS departs from better-auth\'s documented default. Setting it false is a development escape hatch for a local loop that signs in repeatedly, and it is the only way to turn the control off: a deployment that sets it serves an unlimited admin sign-in surface. The API logs a loud warn line naming this variable at every boot for as long as it is off, so an image that carries the development value is visible from the first line of its log rather than from an incident. See "Checking that sign-in throttling is running" above.',
+      "Enabled in every environment: three attempts per client address per ten seconds across `/sign-in`, `/sign-up`, `/change-password`, `/change-email` and `/two-factor/*`; further attempts return 429. False permits unlimited attempts and logs a startup warning. Use that escape hatch only for local development. See the sign-in throttling runbook in `docs/operations.md`.",
   },
   {
     name: "QCMS_ADMIN_SESSION_IDLE_MS",
     process: "api",
     requirement: "optional",
     fallback: "3600000 (1h)",
-    description: "Idle window before an administrator session expires (SEC-1).",
+    description: "Idle window before an administrator session expires.",
   },
   {
     name: "QCMS_ADMIN_SESSION_MAX_AGE_MS",
@@ -263,7 +261,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "43200000 (12h)",
     description:
-      "Absolute administrator session lifetime measured from issue (SEC-1). Past it every admin call is a 401 regardless of activity, which is the cap an idle window alone cannot provide.",
+      "Absolute administrator lifetime from session issue. Beyond it every admin call returns 401 regardless of activity.",
   },
   {
     name: "QCMS_SESSION_TTL_MS",
@@ -278,7 +276,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "false",
     description:
-      "SSRF override (SEC-6). While false, webhook targets must be HTTPS and must not resolve to private, reserved, loopback or link-local hosts. Set true only for an on-prem topology that legitimately posts to an internal system.",
+      "SSRF override. False requires HTTPS and rejects private, reserved, loopback and link-local targets. Enable only for an on-prem deployment that legitimately delivers to internal systems.",
   },
   {
     name: "QCMS_WEBHOOK_TIMEOUT_MS",
@@ -324,7 +322,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "604800000 (7d)",
     description:
-      "How long a webhook delivery keeps the stored prefix of the consumer's response body, measured from the attempt. That body can echo a respondent's answers back, so it ages out; the rest of the attempt record is value-free and is kept. `0` removes it at the next sweep. **Per environment** (Q11): an environment row's `delivery_snippet_ttl_ms` overrides this for that environment, set with `pnpm qcms:environment create --delivery-snippet-ttl-ms`.",
+      "Retention from each delivery attempt for the stored consumer-response prefix, which may echo answers. Other attempt fields remain. 0 removes it at the next sweep. An environment row overrides this with `delivery_snippet_ttl_ms`; configure through `pnpm qcms:environment create --delivery-snippet-ttl-ms`.",
   },
   {
     name: "QCMS_OUTBOX_PAYLOAD_TTL_MS",
@@ -332,7 +330,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "2592000000 (30d)",
     description:
-      "How long a settled outbox event keeps the answers its payload carries, measured from the moment the event and its whole fan-out stopped moving. The payload is a second copy of the respondent's answers kept only so a delivery can be re-sent, so it ages out with that capability; the envelope and the delivery record are kept. `0` drops them as soon as the fan-out settles. **Per environment** (Q11): an environment row's `outbox_payload_ttl_ms` overrides this for that environment, set with `pnpm qcms:environment create --outbox-payload-ttl-ms`.",
+      "Retention from settlement of an event and its full fan-out for the answer-bearing payload used in redelivery. The envelope and delivery records remain; 0 removes the payload on settlement. An environment row overrides this with `outbox_payload_ttl_ms`; configure through `pnpm qcms:environment create --outbox-payload-ttl-ms`.",
   },
   {
     name: "QCMS_READY_DB_TIMEOUT_MS",
@@ -348,7 +346,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "1000000 (1MB)",
     description:
-      "Maximum request body the API accepts (SEC-9). Keep the ingress ceiling in step with it: both recipes set one.",
+      "Maximum accepted request body. Keep the ingress ceiling aligned; both ingress recipes configure one.",
   },
   {
     name: "QCMS_ANTIABUSE_MIN_SUBMIT_MS",
@@ -380,7 +378,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "20",
     description:
-      "Sessions one client address may start per window. The limiter keys on the address the portal BFF vouched for, which it resolves from the ingress's `X-Forwarded-For` by counting `QCMS_PORTAL_TRUSTED_PROXY_HOPS` entries from the right - a client-supplied value cannot move the bucket. **Behind no ingress at all** (the local Compose quickstart, or a deployment where the ingress writes no forwarded header) there is no address to vouch for and every respondent shares one `unknown-ip` bucket, making this a whole-deployment ceiling of 20 session starts per hour: set the ingress up per `docs/deploy-ingress.md`, or raise this to your expected peak.",
+      "Session starts per vouched client address per window. The portal resolves `X-Forwarded-For` using `QCMS_PORTAL_TRUSTED_PROXY_HOPS`. Without ingress or its forwarded header, everyone shares `unknown-ip`: the default becomes 20 starts per hour deployment-wide. Configure ingress with `docs/deploy-ingress.md`, or raise this for expected peak traffic.",
   },
   {
     name: "QCMS_RL_ANSWERS_SESSION_WINDOW_MS",
@@ -395,10 +393,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "10",
     description:
-      "Answers one session may submit per window (a burst ceiling, about 2/s sustained). One " +
-      "**batch** spends one unit per entry and may spend up to the step's own bound even where " +
-      "that exceeds this number, so a valid step always fits (ruling Q29); raising this above " +
-      "the bound keeps your number.",
+      "Answer entries per session per window, about 2/s sustained. A batch spends one unit per entry; its allowance is at least the step bound so every valid step fits. A larger configured allowance remains in force.",
   },
   {
     name: "QCMS_RL_ANSWERS_IP_WINDOW_MS",
@@ -436,7 +431,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "5000",
     description:
-      "Rate-limit window for `POST /sessions/{id}/roster`, keyed by session: the repeating-group Add and Remove (task 073, SEC-16). It has its own class rather than riding the answer write's, because adding an instance is a distinct action that is cheap to repeat; it limits how FAST a bounded operation may be repeated and never how large it may become, since the size bound is the group's author-set `max`.",
+      "Session-keyed window for repeating-group Add/Remove at `POST /sessions/{id}/roster`. This separately limits operation frequency; the authored group `max` bounds size.",
   },
   {
     name: "QCMS_RL_ROSTER_SESSION_MAX",
@@ -444,7 +439,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "10",
     description:
-      "Roster operations one session may make per window. The answer write's shape rather than the submit's, because a respondent filling a nine-passenger booking presses Add many times in a flow.",
+      "Roster operations per session per window. Sized for repeated Add presses while completing a multi-instance form.",
   },
   {
     name: "QCMS_RL_ROSTER_IP_WINDOW_MS",
@@ -468,7 +463,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "none",
     description:
-      "Agent-assisted authoring provider (ADR-25, task 041): `none`, `anthropic`, `openai`, `google`, `openai-compatible`, or `fake` (the deterministic test provider). `none` leaves the assist routes unmounted entirely, so a request to them 404s and no chat panel renders. Set the same value on the `admin` service. Full guide: `docs/agent-authoring.md`.",
+      "Provider: `none`, `anthropic`, `openai`, `google`, `openai-compatible`, or deterministic test provider `fake`. `none` leaves assist routes unmounted (404) and hides the panel. Match the admin setting. Setup: `docs/agent-authoring.md`.",
   },
   {
     name: "QCMS_AGENT_MODEL",
@@ -485,7 +480,7 @@ export const ENV_REFERENCE = [
     fallback: "",
     secret: true,
     description:
-      "Model provider key (SEC-7 inventory). Required when `QCMS_FLAG_AGENT_AUTHORING` names a real provider, **except** when `QCMS_AGENT_BASE_URL` points at a local endpoint (loopback, a private-range address, `host.docker.internal`, or a `.local`/`.localhost`/`.internal` hostname), because a locally hosted model has no key to give. Never logged and never echoed in a boot error.",
+      "Required for real model providers except local endpoints: loopback, private IP ranges, `host.docker.internal`, or `.local`, `.localhost` and `.internal` hosts. Never logged or echoed in boot errors.",
   },
   {
     name: "QCMS_AGENT_BASE_URL",
@@ -493,14 +488,14 @@ export const ENV_REFERENCE = [
     requirement: "conditional",
     fallback: "",
     description:
-      "Model endpoint override. **Required** for `QCMS_FLAG_AGENT_AUTHORING=openai-compatible`, which is how a locally hosted model is configured (Ollama, vLLM, LM Studio, llama.cpp-server); optional for the hosted providers, where it names a gateway or proxy.",
+      "Model endpoint override; required for `openai-compatible`, including Ollama, vLLM, LM Studio and llama.cpp-server. Hosted providers may use it for a gateway or proxy.",
   },
   {
     name: "QCMS_AGENT_MAX_STEPS",
     process: "api",
     requirement: "optional",
     fallback: "8",
-    description: "Hard ceiling on tool-loop steps in one agent turn (task 041).",
+    description: "Maximum tool-loop steps per agent turn.",
   },
   {
     name: "QCMS_AGENT_THINKING",
@@ -508,7 +503,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "off",
     description:
-      "Whether the model provider's own reasoning summary is shown in the assistant panel (task 081): `off` (default) or `summary`. Under `summary` the API asks the provider for a summarized view of its thinking and forwards it to the panel as a collapsed Thinking disclosure; under `off` reasoning is dropped even when a provider emits it unasked. Reasoning text is never logged, stored, exported in telemetry or replayed into the next turn (SEC-8); only a token count is logged. Reasoning tokens are billed output, bounded per turn by `QCMS_AGENT_MAX_STEPS`. Read by the API alone: the admin never learns the value.",
+      "`off` drops reasoning, including unsolicited parts; `summary` requests the provider summary for a collapsed Thinking disclosure. Text is never logged, stored, exported or replayed; only token counts are logged. Reasoning is billed output within the turn-step cap. API-only configuration; admin receives events, never this value.",
   },
   {
     name: "QCMS_RL_AGENT_ASSIST_WINDOW_MS",
@@ -531,7 +526,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "",
     description:
-      "OTLP collector endpoint (ADR-34). Unset is a hard no-op. Setting it exports traces plus SEC-13-allowlisted logs and adds `trace_id`/`span_id` to stdout records.",
+      "OTLP collector endpoint. Unset disables telemetry; set exports traces and allowlisted logs and adds `trace_id`/`span_id` to stdout records.",
   },
   {
     name: "OTEL_SERVICE_NAME",
@@ -556,7 +551,7 @@ export const ENV_REFERENCE = [
     fallback: "",
     secret: true,
     description:
-      "First-run bootstrap only, alongside `QCMS_ADMIN_EMAIL`. Pass it per-command, never in the `.env` file. Put the value in the environment of the command you run and name the variable with no value attached (`docker compose exec --env QCMS_ADMIN_PASSWORD ...`): `--env QCMS_ADMIN_PASSWORD=<value>` would place the password in the docker CLI's own argv, which is world-readable in a `ps` listing (issue #440). **This value is provisional** (SEC-1, task 061): the account is created marked `mustChangePassword`, the admin sends every route to the change-password screen on first sign-in until it is replaced, and the API refuses every admin route until then. The sequence on first sign-in is password change, then TOTP enrolment, then the recovery codes. An account created before this control shipped is not marked.",
+      "Bootstrap-only provisional password alongside `QCMS_ADMIN_EMAIL`. Pass through the command environment, never `.env` or CLI argv: use `docker compose exec --env QCMS_ADMIN_PASSWORD ...` without a value. First sign-in requires password replacement, then TOTP enrollment and recovery-code display; admin routes remain blocked until replacement.",
   },
   {
     name: "QCMS_ADMIN_NAME",
@@ -581,8 +576,7 @@ export const ENV_REFERENCE = [
     fallback: "",
     secret: true,
     description:
-      "The service token this BFF presents to the API (SEC-4). Must be one of the tokens the API accepts." +
-      " Like the API, this app **refuses to boot** when the value is still an example-file placeholder rather than generated material (issue #491); the refusal names the variable and never prints the value.",
+      "BFF service token; must match an accepted API token. Example-file placeholders refuse boot without echoing the value.",
   },
   {
     name: "QCMS_PORTAL_BASE_URL",
@@ -598,7 +592,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "",
     description:
-      "The **non-prod** environments this portal serves, comma-separated (ADR-40, Q21). Each gets its addresses under `/<env>/`, so a test secure link reads `https://forms.example.com/test/l/<token>` and is legible as non-production before anybody clicks it (Q16). `prod` carries no prefix and is always served, so listing it is ignored. **Absent means none**: an environment not listed here has no addresses at all and every `/<env>/` path is a 404, which is the fail-closed direction. A name must match `^[a-z][a-z0-9]*$` (Q42) or it is ignored rather than becoming a path segment. Keep it in step with the API's `QCMS_MOUNT`: an address this portal serves and the API does not mount answers a 404 from the API instead.",
+      "Comma-separated non-prod environments served under `/<env>/`, for example `https://forms.example.com/test/l/<token>`. Prod is always unprefixed; listing it is ignored. Absent lists none, so other environment paths return 404. Names must match `^[a-z][a-z0-9]*$`; invalid names are ignored. Match the API `QCMS_MOUNT`.",
   },
   {
     name: "QCMS_PORTAL_ENVIRONMENT_HOSTS",
@@ -606,7 +600,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "",
     description:
-      "The hostname each non-prod environment's traffic arrives on, as `<env>=<host>` pairs: `test=test-forms.example.com`. SEC-14's **first** handle, and what it buys is narrow and precise: on a host named here the portal does not serve `/f/{slug}` at all, so the public anonymous door does not exist on the restricted hostname even where one ingress forwards everything to one portal. It deliberately does **not** confine the `/<env>/` paths to that host - the two handles fail independently (Q21), so a path rule keeps working on a hostname somebody consolidated onto and a host rule keeps working through a proxy that rewrites paths. The network restriction itself (source network, VPN or identity-aware proxy) is ingress configuration; see the \"Restricting the test environment\" section of `docs/deploy-ingress.md`.",
+      "`<env>=<host>` pairs, for example `test=test-forms.example.com`. Listed hosts disable anonymous `/f/{slug}` access; they do not confine `/<env>/` paths to that hostname. Host and path restrictions work independently. Enforce network, VPN or identity access at ingress; see Restricting the test environment in `docs/deploy-ingress.md`.",
   },
   {
     name: "QCMS_PORTAL_TRUSTED_PROXY_HOPS",
@@ -614,7 +608,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "1",
     description:
-      "How many proxies you run between the internet and this app. The client address the API's rate limiters key on is the entry that many places from the **right** of the inbound `X-Forwarded-For`, so entries a client wrote itself are never reached. `1` is correct for both recipes in `docs/deploy-ingress.md`. **Setting it higher than the number of proxies that actually exist makes per-address rate limiting bypassable** (the resolver reads into client-supplied text); setting it lower is safe but coarse (respondents get bucketed by a proxy's egress address); `0` trusts no forwarded header and puts every respondent in one bucket. A non-numeric or out-of-range value is refused rather than defaulted.",
+      "Actual trusted hops counted from the right of `X-Forwarded-For`; 1 fits both ingress recipes in `docs/deploy-ingress.md`. Too many trusts client text and bypasses limits; too few merges buckets at a proxy. 0 trusts no forwarded address and shares one bucket. Invalid counts refuse boot.",
   },
   {
     name: "QCMS_SECURE_COOKIES",
@@ -622,7 +616,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "true when NODE_ENV=production",
     description:
-      "Whether respondent session cookies carry `Secure`. Setting it false is a downgrade, supported only when `QCMS_PORTAL_BASE_URL` is a loopback origin such as `http://localhost:7000`: at any other origin the portal **refuses to start**, naming this variable (issue #292). Leave it unset behind TLS. Accepts `true`/`1`/`yes`/`on` and `false`/`0`/`no`/`off`, case-insensitive and trimmed, the same spellings `QCMS_ADMIN_SECURE_COOKIES` accepts; **anything else refuses to boot** rather than being silently ignored (issue #401). Unset or blank still defaults from `NODE_ENV`.",
+      "Secure respondent cookies; leave unset behind TLS. False is allowed only on loopback such as `http://localhost:7000`; other origins refuse boot. Accepts trimmed, case-insensitive `true/1/yes/on` or `false/0/no/off`; invalid values refuse boot. Unset or blank uses `NODE_ENV`.",
   },
   {
     name: "NODE_ENV",
@@ -645,7 +639,7 @@ export const ENV_REFERENCE = [
     requirement: "conditional",
     fallback: "",
     description:
-      "Turnstile site key for the rendered widget. Required when the portal's challenge provider is `turnstile`. The **same variable the API reads** since issue #331 consolidated the two spellings onto this one, so set it once for both processes; the API still accepts the deprecated bare `TURNSTILE_SITE_KEY` and warns at boot.",
+      "Public site key for the Turnstile widget; required with that challenge provider. Match the API value. The API accepts deprecated `TURNSTILE_SITE_KEY` with a boot warning; use this prefixed name.",
   },
   {
     name: "QCMS_LOCALE",
@@ -653,21 +647,21 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "en-GB",
     description:
-      "The deployment's formatting locale (Code Owner ruling 2026-10-19, ADR-27): a BCP 47 tag such as `en-GB`, `en-US` or `de-DE`. It decides how dates, times, numbers and lists are formatted and the order a date field draws its day, month and year in, in the scripted date field and the no-JS fallback alike, so the server render and the hydrated render agree. It is formatting, not translation: the copy stays English whatever this says. **Set the same value on the `portal` and `admin` services**, so an author's preview matches what respondents see. Unset or blank is `en-GB`. A malformed tag, or one this runtime's `Intl` has no data for, **refuses to boot** naming the variable and never printing the value.",
+      "BCP 47 formatting tag, for example `en-GB`, `en-US` or `de-DE`; copy stays English. Controls scripted and scriptless date order, dates, times, numbers and lists. Match admin for preview fidelity. Blank defaults to `en-GB`; invalid tags or unavailable `Intl` data refuse boot without echoing the value.",
   },
   {
     name: "QCMS_PORTAL_THEME",
     process: "portal",
     requirement: "optional",
     fallback: "slate",
-    description: "Managed portal theme (ADR-30). An unrecognised value falls back silently.",
+    description: "Respondent theme; unknown values fall back to the default.",
   },
   {
     name: "QCMS_PORTAL_MODE",
     process: "portal",
     requirement: "optional",
     fallback: "auto",
-    description: "Default light/dark mode: `light`, `dark` or `auto`.",
+    description: "Default mode: `light`, `dark`, `auto` or `hc` (high contrast).",
   },
   {
     name: "QCMS_PORTAL_CORNERS",
@@ -688,14 +682,15 @@ export const ENV_REFERENCE = [
     process: "portal",
     requirement: "optional",
     fallback: "",
-    description: "Font stack selection from the allowlist in `apps/portal/lib/server/theme.ts`.",
+    description:
+      "Offered font registry keys from `apps/portal/lib/server/theme.ts`, separated by commas or spaces. Blank offers all; unknown keys are ignored and system is always offered.",
   },
   {
     name: "QCMS_PORTAL_FONT",
     process: "portal",
     requirement: "optional",
     fallback: "the system font stack",
-    description: "Single font family override.",
+    description: "Default font registry key. Unknown or excluded keys use the system stack.",
   },
   {
     name: "QCMS_PORTAL_BRAND_NAME",
@@ -717,7 +712,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "",
     description:
-      "OTLP collector endpoint (ADR-34). Unset means no SDK; set exports traces and SEC-13-allowlisted logs.",
+      "OTLP collector endpoint. Unset disables the SDK; set exports traces and allowlisted logs.",
   },
   {
     name: "OTEL_SERVICE_NAME",
@@ -733,7 +728,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "disabled",
     description:
-      "Only the exact value `true` enables password query-string prefill on the admin sign-in page. Set by `docker-compose.dev-tools.yml` for the local `pnpm dev:up` credential link; absent from the base deployment. Leave unset outside the local dev stack. Email prefill does not require this flag.",
+      "Only exact `true` enables password query-string prefill. The local `docker-compose.dev-tools.yml` credential link uses it; leave unset outside development. Email prefill needs no flag.",
   },
   {
     name: "QCMS_FLAG_AGENT_AUTHORING",
@@ -741,7 +736,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "none",
     description:
-      "Whether the agent-authoring chat panel renders in the form builder (ADR-25, task 041). The admin reads only the _effect_ of this flag, never its value in the browser, and holds no provider key: the key lives on the `api` service. Keep it in step with the API's value, or the panel appears against a surface that is not mounted.",
+      "Match the API provider setting to mount the panel and streaming proxy. Browser code receives enabled behavior; provider keys stay in the API.",
   },
   {
     name: "QCMS_API_BASE_URL",
@@ -749,7 +744,7 @@ export const ENV_REFERENCE = [
     requirement: "required",
     fallback: "",
     description:
-      "Internal origin of the API. Since task 056 this is the admin's only route to data of any kind: it holds no database credential (ADR-35).",
+      "Internal API origin; the admin reaches all domain data through it and holds no database credential.",
   },
   {
     name: "QCMS_INTERNAL_TOKEN",
@@ -758,8 +753,7 @@ export const ENV_REFERENCE = [
     fallback: "",
     secret: true,
     description:
-      "The service token this BFF presents to the API (SEC-4)." +
-      " Like the API, this app **refuses to boot** when the value is still an example-file placeholder rather than generated material (issue #491); the refusal names the variable and never prints the value.",
+      "BFF service token; must match an accepted API token. Example-file placeholders refuse boot without echoing the value.",
   },
   {
     name: "QCMS_ADMIN_BASE_URL",
@@ -767,7 +761,7 @@ export const ENV_REFERENCE = [
     requirement: "required",
     fallback: "",
     description:
-      "This app's own public origin. Used for the SEC-9 origin check on state-changing routes, and it must equal the value the API is given.",
+      "Browser-facing admin origin for state-changing origin checks. Match the API configuration exactly.",
   },
   {
     name: "QCMS_ADMIN_SECURE_COOKIES",
@@ -775,7 +769,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "true when NODE_ENV=production",
     description:
-      "Whether the cookies this app sets carry `Secure`. Must equal the API's value: the two set different cookies on one origin, and a disagreement makes sign-in loop. Setting it false is a downgrade, supported only when `QCMS_ADMIN_BASE_URL` is a loopback origin such as `http://localhost:7040`: at any other origin this app **refuses to start**, naming this variable (issue #292).",
+      "Match the API Secure-cookie policy or different cookie families can cause sign-in loops. False is allowed only on loopback such as `http://localhost:7040`; other origins refuse boot.",
   },
   {
     name: "QCMS_ADMIN_2FA",
@@ -790,7 +784,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "1",
     description:
-      "How many proxies you run between the internet and this app. The address better-auth's per-IP sign-in throttle (SEC-1) keys on is the entry that many places from the **right** of the inbound `X-Forwarded-For`, so entries a client wrote itself are never reached. `1` is correct for both recipes in `docs/deploy-ingress.md`, which front this app exactly as they front the portal. **Setting it higher than the number of proxies that actually exist makes sign-in throttling bypassable** (the resolver reads into client-supplied text, and an attacker rotating the header gets a fresh backoff allowance every attempt); setting it lower is safe but coarse (admins get bucketed by a proxy's egress address); `0` trusts no forwarded header and puts every sign-in attempt in one shared bucket. Separate from `QCMS_PORTAL_TRUSTED_PROXY_HOPS` because the two apps are two hostnames and may sit behind different ingresses - set both, and set them to the same value unless one of them has an extra proxy in front of it. A non-numeric or out-of-range value is refused rather than defaulted.",
+      "Actual trusted hops counted from the right of `X-Forwarded-For` for sign-in throttling; 1 fits the ingress recipes. Too many trusts client text and bypasses throttling; too few merges proxy buckets. 0 shares one bucket. Invalid counts refuse boot. Match the portal count unless ingress differs; see `docs/deploy-ingress.md`.",
   },
   {
     name: "QCMS_ADMIN_SESSION_MAX_AGE_MS",
@@ -805,7 +799,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "",
     description:
-      "The **portal's** variable, read here too: it is the origin a published form's public link is built against, so the builder can show the address respondents use (`${QCMS_PORTAL_BASE_URL}/f/<slug>`). Set the same value the API and the portal get. Unset, the builder shows no link rather than a broken one, which is why it is optional here and required of those two. This app never makes a request to the portal; it writes the address down for an operator to hand out.",
+      "Match the public portal origin used by API and portal, for example `${QCMS_PORTAL_BASE_URL}/f/<slug>`. The builder writes a shareable link and makes no portal request. Unset hides the link.",
   },
   {
     name: "QCMS_LOCALE",
@@ -813,7 +807,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "en-GB",
     description:
-      "The deployment's formatting locale (Code Owner ruling 2026-10-19, ADR-27): a BCP 47 tag such as `en-GB`, `en-US` or `de-DE`. It decides how dates, times, numbers and lists are formatted and the order a date field draws its day, month and year in, including the kit's date pickers and the A2UI previews. It is formatting, not translation: the copy stays English whatever this says. **Set the same value on the `portal` and `admin` services**, so an author's preview matches what respondents see. Unset or blank is `en-GB`. A malformed tag, or one this runtime's `Intl` has no data for, **refuses to boot** naming the variable and never printing the value. Admin times are shown on each operator's own clock with the zone named; the zone comes from the browser, not from this variable.",
+      "BCP 47 formatting tag, for example `en-GB`, `en-US` or `de-DE`; copy stays English. Match portal for preview dates, field order, numbers and lists. Blank defaults to `en-GB`; invalid tags or unavailable `Intl` data refuse boot without echoing the value. Operator timestamps use the browser zone.",
   },
   {
     name: "QCMS_PORTAL_THEME",
@@ -821,7 +815,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "slate",
     description:
-      "The **portal's** variable, read here too (task 058): it is the theme the preview island opens in, so an author sees a question in the appearance this deployment serves respondents rather than in this app's own Cobalt. Set the same value in both services. It changes nothing about this app's own chrome, which is never adopter-themeable (ADR-26), and an unrecognised value falls back silently exactly as it does on the portal.",
+      "Match the portal theme so previews show respondent appearance. Unknown values use the same fallback as portal; admin chrome keeps its own theme.",
   },
   {
     name: "NODE_ENV",
@@ -836,7 +830,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "",
     description:
-      "OTLP collector endpoint (ADR-34). Unset means no SDK; set exports traces and SEC-13-allowlisted logs.",
+      "OTLP collector endpoint. Unset disables the SDK; set exports traces and allowlisted logs.",
   },
   {
     name: "OTEL_SERVICE_NAME",
@@ -853,7 +847,7 @@ export const ENV_REFERENCE = [
     fallback: "",
     secret: true,
     description:
-      "Postgres **bootstrap** superuser password. Compose refuses to start without it. The `db-roles` one-shot uses it to create the least-privilege roles below - the migration role, the control role and one per environment - and nothing that serves traffic holds it (SEC-10).",
+      "Bootstrap superuser password, required by Compose. Only `db-roles` uses it to create migration, control and environment roles; traffic-serving processes must not hold it.",
   },
   {
     name: "QCMS_DB_MIGRATE_PASSWORD",
@@ -862,7 +856,7 @@ export const ENV_REFERENCE = [
     fallback: "",
     secret: true,
     description:
-      "Password for `qcms_migrate`, the role that owns the schema and runs the one-shot migration. Held by the `migrate` service and by nothing else. See [Least-privilege database roles](#least-privilege-database-roles).",
+      "Schema-owner password for the one-shot `qcms_migrate` role, held only by the migration service. See Least-privilege database roles in `docs/operations.md`.",
   },
   {
     name: "QCMS_DB_APP_CONTROL_PASSWORD",
@@ -871,7 +865,7 @@ export const ENV_REFERENCE = [
     fallback: "",
     secret: true,
     description:
-      "Password for `qcms_app_control`, the role the API's control pool runs as: DML on `control` with the break-glass audit carved out, and `INSERT` on each environment's `outbox` and nothing else in any data schema. See [Least-privilege database roles](#least-privilege-database-roles).",
+      "Control-pool password for `qcms_app_control`: control DML excluding break-glass audit, and INSERT-only environment outboxes. Use distinct application-role passwords. See Least-privilege database roles in `docs/operations.md`.",
   },
   {
     name: "QCMS_DB_APP_TEST_PASSWORD",
@@ -880,7 +874,7 @@ export const ENV_REFERENCE = [
     fallback: "",
     secret: true,
     description:
-      "Password for `qcms_app_test`, the role the API's `test` pool runs as: DML on `data_test` only, and a named read list on `control`. See [Least-privilege database roles](#least-privilege-database-roles).",
+      "Test-pool password for `qcms_app_test`: DML only on `data_test` and named control reads. Use distinct application-role passwords. See Least-privilege database roles in `docs/operations.md`.",
   },
   {
     name: "QCMS_DB_APP_PROD_PASSWORD",
@@ -889,7 +883,7 @@ export const ENV_REFERENCE = [
     fallback: "",
     secret: true,
     description:
-      "Password for `qcms_app_prod`, the role the API's `prod` pool runs as: DML on `data_prod` only, and a named read list on `control`. See [Least-privilege database roles](#least-privilege-database-roles).",
+      "Prod-pool password for `qcms_app_prod`: DML only on `data_prod` and named control reads. Use distinct application-role passwords. See Least-privilege database roles in `docs/operations.md`.",
   },
   {
     name: "QCMS_ENVIRONMENTS",
@@ -897,7 +891,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "test,prod",
     description:
-      "The live environment set, comma-separated. Each name needs its own `QCMS_DATABASE_URL_<ENV>`. The API reads `control.environments` at boot and refuses to start when the two disagree in either direction, so a credential without a row and a row without a credential are both a boot failure rather than an environment served from nowhere. It must include `prod`: a request that names no environment resolves there, which is every respondent request until the `/<env>/` route prefix exists (task 066) and every newly minted link until then too (ADR-40, Q53). An **admin** request carries the environment the administrator's switcher has selected, as `x-qcms-environment`, validated against this set and refused with a 400 when it names something not in it (task 065).",
+      "Comma-separated live environments, including `prod`. Each needs `QCMS_DATABASE_URL_<ENV>`; the API refuses boot unless the set exactly matches `control.environments`. Requests without an environment use prod. Admin `x-qcms-environment` selections must belong to this set or return 400.",
   },
   {
     name: "QCMS_DATABASE_URL_TEST",
@@ -906,7 +900,7 @@ export const ENV_REFERENCE = [
     fallback: "",
     secret: true,
     description:
-      "The `test` environment's connection string, connecting as `qcms_app_test`. There is one `QCMS_DATABASE_URL_<ENV>` per name in `QCMS_ENVIRONMENTS`, upper-cased, so an environment created later needs a new variable of the same shape. Never read from the database: a credential the database hands out is a credential the database can be made to hand out.",
+      "Test pool credential for `qcms_app_test`. Add one upper-cased `QCMS_DATABASE_URL_<ENV>` per configured environment. Credentials come from configuration, never from database rows.",
   },
   {
     name: "QCMS_DATABASE_URL_PROD",
@@ -915,7 +909,7 @@ export const ENV_REFERENCE = [
     fallback: "",
     secret: true,
     description:
-      "The `prod` environment's connection string, connecting as `qcms_app_prod`. See `QCMS_DATABASE_URL_TEST` for the naming rule.",
+      "Prod pool credential for `qcms_app_prod`; follows the `QCMS_DATABASE_URL_<ENV>` naming rule.",
   },
   {
     name: "QCMS_DB_NAME",
@@ -930,15 +924,14 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "qcms",
     description:
-      "Bootstrap superuser created on first boot of the Postgres volume. It creates the least-privilege roles and is used for nothing else (SEC-10).",
+      "Bootstrap superuser created with the Postgres volume; used only to create least-privilege roles.",
   },
   {
     name: "QCMS_POSTGRES_IMAGE",
     process: "compose",
     requirement: "optional",
     fallback: "postgres:16-alpine",
-    description:
-      "Postgres image. Override it to pull from a mirror rather than Docker Hub; CI does exactly this.",
+    description: "Postgres image; override to use an image mirror instead of Docker Hub.",
   },
   {
     name: "QCMS_PORTAL_PORT",
@@ -946,7 +939,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "7000",
     description:
-      "Host port the portal is published on. Comes from the stable block in `docs/PORTS.md` (R8); move it to run beside a dev server on the same seat.",
+      "Published portal host port from `docs/PORTS.md`; choose another allocated slot when running beside a dev server.",
   },
   {
     name: "QCMS_ADMIN_PORT",
@@ -978,7 +971,7 @@ export const ENV_REFERENCE = [
     fallback: "unset - Next generates a fresh key for every build",
     secret: true,
     description:
-      "Next's Server Action salt for the **portal image**, passed to `docker/portal.Dockerfile` as a build arg, so it applies only when you build that image yourself (issue #1035). `next build` hashes every Server Action id with a key it generates per build, so each image renames every id, and a respondent with scripting off who holds a repeating step across a deploy then gets a `409` on Add or Remove and loses what they had typed into that step since their last Continue. Pin this to one value, 32 bytes base64, and the ids survive the deploy. It is a secret, and it is **readable from any portal image either way**, because Next writes whichever key it used into that image's own server manifest; what pinning changes is that one image's key is also every other image's. The published `ghcr.io/roonga/qcms-portal` images are deliberately **not** built with a shared one (SEC-7). The operator's reading is in `docs/deploy-ingress.md`.",
+      "Portal-image build secret passed to `docker/portal.Dockerfile`: 32 bytes base64. Pinning preserves action ids across deploys, avoiding 409 and loss of unsaved values on held scriptless Add/Remove requests. Keys are readable in image manifests; pinning shares that exposure across builds. Published `ghcr.io/roonga/qcms-portal` images have no shared key. See `docs/deploy-ingress.md`.",
   },
   {
     name: "QCMS_CADDY_IMAGE",
@@ -1180,7 +1173,6 @@ const ENVIRONMENT_URL_CALL = /\benvironmentDatabaseUrlVariable\(/;
 /** The prefix that helper interpolates the environment into, read from its own body. */
 const ENVIRONMENT_URL_PREFIX = /return `([A-Z][A-Z0-9_]*_)\$\{environment\.toUpperCase\(\)\}`/;
 
-/** The environment set the API defaults to, read from `parseEnvironments`'s own fallback. */
 const DEFAULT_ENVIRONMENT_SET = /env\.QCMS_ENVIRONMENTS \?\? "([a-z0-9,]+)"/;
 
 const API_CONFIG = "apps/api/src/config.ts";
@@ -1289,7 +1281,6 @@ export function scanEnvNames(processName) {
   if (readsEnvironmentUrls) {
     for (const name of environmentDatabaseUrlVariables()) found.add(name);
   }
-  // A rate-class prefix is not itself a variable: it names a pair.
   for (const prefix of rateClassPrefixes) {
     found.delete(prefix);
     for (const suffix of suffixes) found.add(`${prefix}${suffix}`);

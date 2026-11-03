@@ -2,13 +2,6 @@ import { RailFrame } from "@/components/rail-frame";
 import { t } from "@/lib/i18n/en";
 import { WORKSPACE_RAIL_PANELS } from "@/lib/membership/rail-panels";
 
-/**
- * One workspace's rail: the way back, and the four panels as same-page anchors
- * (`plan/admin-design-contracts.md` §7.0).
- *
- * No Actions: every act here writes a grant or a setting, and stays in the panel that
- * performs it.
- */
 export function WorkspaceRail({ name }: { readonly name: string }) {
   return (
     <RailFrame

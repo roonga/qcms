@@ -1,7 +1,6 @@
 # syntax=docker/dockerfile:1
 # check=skip=SecretsUsedInArgOrEnv
-# NEXT_SERVER_ACTIONS_ENCRYPTION_KEY also lives in the server manifest; see SEC-7.
-# Published images receive no key.
+# The action key is recoverable from the server manifest; published images must receive no shared key.
 FROM node:24-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS build
 
 WORKDIR /workspace
@@ -12,40 +11,10 @@ COPY apps ./apps
 
 RUN pnpm install --frozen-lockfile
 
-# Next's Server Action salt, and the one build input that decides whether a no-JS
-# respondent survives a deploy (issue #1035, Code Owner 2026-10-10).
-#
-# `next build` hashes every Server Action id with a key it generates per build, caches
-# under `<distDir>/cache/.rscinfo` for fourteen days and reuses for later builds IN THE
-# SAME TREE. An image build is never the same tree, so every image gets a fresh key, so
-# every image renames every action id, so a respondent holding a repeating step across a
-# deploy posts an id the new build does not know and gets Next's `409`. Pin this and the
-# ids survive: the held page's Add still runs, including across a build that changed the
-# action's own implementation. `docs/deploy-ingress.md` has the operator's version and
-# `scripts/probe-action-id-stability.mjs` is the measurement.
-#
-# Empty, which is the default here, is what Next treats as absent, so an operator who
-# sets nothing gets exactly the behaviour this image has always had.
-#
-# **It is a secret, and pinning it does not put it anywhere it was not already.** Next
-# writes the key it used into `.next/server/server-reference-manifest.json`, which the
-# runtime stage copies, because `next/dist/server/app-render/encryption-utils.js` reads
-# the key from that manifest when the environment does not carry it. So the key is
-# recoverable from any portal image whether it is pinned or random; what pinning changes
-# is that one image's key is then also every other image's. SEC-7 carries the reading, in
-# `docs/SECURITY_DESIGN.md` section 4, including why the PUBLISHED
-# `ghcr.io/roonga/qcms-portal` images must never be built with a shared one.
-#
-# It is scoped to the build stage and consumed inside the RUN below rather than promoted
-# to an `ENV`, so no layer of the runtime image carries it and `docker history` shows the
-# unexpanded name.
+# A stable action key preserves held no-JS forms across deploys.
+# Next embeds the key in the server manifest: treat images as secrets and never share it in public images.
+# See docs/deploy-ingress.md for the operator procedure.
 ARG NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=""
-# The `pnpm --filter @roonga/qcms-db... build` prefix that used to lead this line is gone.
-# It existed because Next type-checked the portal's E2E support files, which import
-# @roonga/qcms-db even though the production portal has no runtime database dependency, and
-# building that package was one way to satisfy them. The image now excludes `**/e2e`
-# and `**/*.test.*` from the build context instead (.dockerignore), so those files
-# are not in the image to type-check and the workaround has nothing left to fix.
 RUN NEXT_SERVER_ACTIONS_ENCRYPTION_KEY="${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY}" \
     pnpm --filter qcms-portal build
 
@@ -61,29 +30,12 @@ LABEL org.opencontainers.image.title="{{projectName}}-portal" \
 
 WORKDIR /app
 ENV NODE_ENV=production
-# Next's standalone `server.js` reads its bind address and port from the environment
-# and defaults to `0.0.0.0:3000`; both are written here rather than left implicit so
-# `docker inspect` answers what the process binds without anyone reading Next's source.
-# This is the same contract the previous `next start --hostname 0.0.0.0 --port 3000`
-# command line expressed, moved from argv to the environment because the minimal
-# server takes no flags.
+# The standalone server reads its bind configuration from the environment, not command-line flags.
 ENV HOSTNAME=0.0.0.0 \
     PORT=3000
-# Next's own deployment output (`output: "standalone"`, apps/portal/next.config.ts).
-# `next build` traces the modules the server actually loads and writes them, with a
-# minimal `server.js`, under `<distDir>/standalone`. With `outputFileTracingRoot` at
-# the workspace root that tree mirrors the monorepo layout, so the app lands at
-# `apps/portal/` with one shared `node_modules` beside it, and nothing that only the
-# build needed - the toolchain, the other workspace packages' sources, the whole
-# `.next/cache` - comes with it. That is what replaced `pnpm deploy --prod` plus a
-# copy of the entire `.next` directory here.
+# The workspace tracing root preserves monorepo paths while copying only the server dependency closure.
 COPY --from=build --chown=node:node /workspace/apps/portal/.next/standalone ./
-# The one thing tracing deliberately leaves behind. Next's documentation is explicit
-# that the minimal server does not copy `.next/static` (or `public/`) into the
-# standalone tree, because a CDN is expected to serve them, and that copying them in
-# is how you serve them from the server itself - which is this deployment, since QCMS
-# ships no CDN assumption. There is no `public/` directory in either front end, so
-# this is the whole of it.
+# Standalone tracing omits static assets for CDN deployments; this server must carry them itself.
 COPY --from=build --chown=node:node /workspace/apps/portal/.next/static ./apps/portal/.next/static
 USER node
 EXPOSE 3000

@@ -104,7 +104,6 @@ describe("emitted line shape", () => {
   });
 
   it("emits one line per call with no trailing newline", () => {
-    // `write` is handed one line; the newline is the sink's job.
     const { logger, lines } = capture();
     logger.info("first");
     logger.error("second");

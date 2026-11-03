@@ -5,8 +5,8 @@ import { portalBaseUrl } from "@/lib/server/config";
 import { isSameOriginPost } from "@/lib/server/route-helpers";
 import { writeSessionToken } from "@/lib/server/session-cookie";
 
-// `prod`'s route alone (SEC-14): `proxy.ts` serves `/f` under no environment prefix and
-// on no hostname reserved for one, so the redirects below need no prefix.
+// `prod`'s route alone: `proxy.ts` serves `/f` under no environment prefix and on no hostname reserved for
+// one, so the redirects below need no prefix.
 const ERROR_STATE: Record<string, string> = {
   FORM_CLOSED: "closed",
   NO_PUBLISHED_VERSION: "closed",
@@ -18,8 +18,7 @@ export async function POST(
   ctx: { params: Promise<{ formSlug: string }> },
 ): Promise<NextResponse> {
   const { formSlug } = await ctx.params;
-  // SEC-9's CSRF belt, before anything is created. The refusal lands on the entry
-  // page's error state rather than a bare 403 so a misdirected respondent can read it.
+  // Check CSRF before creating state; show a readable entry-page failure instead of a bare 403.
   if (!isSameOriginPost(request)) {
     return NextResponse.redirect(new URL(`/f/${formSlug}?state=error`, portalBaseUrl()), 303);
   }

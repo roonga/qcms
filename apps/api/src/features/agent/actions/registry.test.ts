@@ -3,12 +3,6 @@ import { describe, expect, it } from "vitest";
 import { ACTION_KINDS, ACTION_KIND_NAMES, actionKind, actionKindForRoute } from "./registry.js";
 
 /**
- * The registry's own invariants, and criterion 8's per-kind result allowlist: what the next
- * turn may learn about a confirmed step is the kind's own list, and no entry on it can name
- * a credential (SEC-8, section 7.6).
- */
-
-/**
  * Field names that carry a credential, bytes or content. A kind that allowlisted one of
  * them would put it in the next request body, which is the one place section 7.6 says it
  * never goes. Matched as a word fragment so `webhookSecret` and `recoveryCodes` fail too.

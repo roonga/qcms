@@ -9,9 +9,8 @@ import { agentProvenance, agentProvenanceDisabled } from "./provenance-mount.js"
 import { PROPOSAL_HEADER, PROPOSAL_STEP_HEADER } from "./provenance.js";
 
 /**
- * The mount's own property: a request with no token is served exactly as it would be
- * without the middleware, and a request with one that fails is refused rather than served
- * as an ordinary human act (SEC-17, criterion 2).
+ * The mount's own property: a request with no token is served exactly as it would be without the middleware,
+ * and a request with one that fails is refused rather than served as an ordinary human act (criterion 2).
  */
 
 const MINT_PATH = "/admin/forms/frm_prov/links";

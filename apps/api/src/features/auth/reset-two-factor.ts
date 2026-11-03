@@ -10,9 +10,9 @@ import type { Executor } from "@roonga/qcms-db";
 import { eq } from "drizzle-orm";
 
 /**
- * Break-glass with no HTTP surface and no enabling flag: its only guard is possession of
- * the schema-owning migration role, refused as `qcms_app` (SEC-1, SEC-10). Live sessions
- * are left alone, each having passed a second factor when it was issued.
+ * Break-glass with no HTTP surface and no enabling flag: its only guard is possession of the schema-owning
+ * migration role, refused as `qcms_app`. Live sessions are left alone, each having passed a second factor
+ * when it was issued.
  */
 
 export type ResetRefusal =
@@ -125,7 +125,7 @@ async function countFactorRows(exec: Executor, userId: string): Promise<number> 
   return rows.length;
 }
 
-/** Must stay value-free: an address and a role name, never a credential (SEC-8). */
+/** Must stay value-free: an address and a role name, never a credential. */
 export function describeResetRefusal(refusal: ResetRefusal): string {
   switch (refusal.kind) {
     case "insufficient-database-role":

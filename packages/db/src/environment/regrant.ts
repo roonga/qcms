@@ -1,7 +1,7 @@
 /**
  * The step a restore needs: `pg_dump --no-privileges` carries no grant, while drizzle's journal rides in the
- * dump, so `migrate` re-applies nothing. Every database call runs inside {@link refuseWithoutStatement},
- * so no statement text reaches an operator's terminal (SEC-8).
+ * dump, so `migrate` re-applies nothing. Every database call runs inside {@link refuseWithoutStatement}, so
+ * no statement text reaches an operator's terminal.
  */
 
 import { sql } from "drizzle-orm";
@@ -32,7 +32,7 @@ export interface RegrantReport {
   readonly publicCreateGrantedToPublic: boolean;
 }
 
-/** Names the pass and nothing of the statement (SEC-8). */
+/** Names the pass and nothing of the statement. */
 function passSubject(pass: GrantPass): string {
   const where = pass.environment === undefined ? "" : ` for environment ${pass.environment}`;
   return `${pass.source}${where}`;
@@ -59,7 +59,6 @@ async function publicCreateGrantedToPublic(exec: Executor): Promise<boolean> {
  * One transaction, so a failure leaves the database exactly as it was and the command is
  * safe to retry. Idempotent, because a `GRANT` sets a privilege rather than adding one.
  */
-/** Re-applies the whole grant model to the live set, in one transaction. Idempotent. */
 export async function regrantEnvironments(exec: Executor): Promise<RegrantReport> {
   const environments = await refuseWithoutStatement(
     "read",
@@ -74,7 +73,6 @@ export async function regrantEnvironments(exec: Executor): Promise<RegrantReport
     );
   }
 
-  // Read before the transaction, so the transaction holds statements only.
   const passes = await refuseWithoutStatement(
     "read",
     `the grant model for ${environments.join(", ")}`,

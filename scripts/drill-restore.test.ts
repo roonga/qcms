@@ -47,8 +47,6 @@ describe("the schemas the drill covers", () => {
 
 describe("the effective-privilege map the restore gates compare", () => {
   it("is the one file, read by the drill and by `@roonga/qcms-db/testing` alike", () => {
-    // The drill reads the file directly because a recovery drill must not depend on
-    // `packages/db/dist` having been built.
     expect(privilegeMapSql()).toBe(readFileSync(PRIVILEGE_MAP_PATH, "utf8"));
     expect(readFileSync("packages/db/src/testing/privilege-map.ts", "utf8")).toContain(
       "../../privileges/privilege-map.sql",

@@ -10,10 +10,6 @@ import { listOperationsForms } from "@/lib/server/operations";
 import { navigableCapabilities, shellAccess } from "@/lib/server/shell";
 import { requireAdminSession } from "@/lib/server/session";
 
-/**
- * Operations' rail. The discovery read is memoized per request, so the workspace options
- * ride the page's round trip rather than asking a second time.
- */
 export default async function OperationsRailSlot({
   searchParams,
 }: {

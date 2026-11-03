@@ -1,5 +1,5 @@
-// The secret is show-once (SEC-6): it may appear only in a create or rotate response,
-// never in a listing or detail read.
+// The secret is show-once: it may appear only in a create or rotate response, never in a listing or detail
+// read.
 
 import { z } from "@hono/zod-openapi";
 
@@ -121,7 +121,7 @@ export const PendingEndpointChangeResponse = z
   .object({
     pending: z.literal(true).openapi({ example: true }),
     proposal: EndpointProposal,
-    // Shown at propose time because this is the only moment the plaintext exists (SEC-6).
+    // Shown at propose time because this is the only moment the plaintext exists.
     secret: z.string().optional().openapi({ example: "whsec_…" }),
   })
   .openapi("PendingEndpointChangeResponse");

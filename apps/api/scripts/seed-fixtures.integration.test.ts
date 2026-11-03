@@ -278,7 +278,6 @@ describe("the derivation boundary (issue #994 review)", () => {
     await db2.delete(questions).where(eq(questions.questionId, TAKEN));
     await seed(db2);
 
-    // A third version, on top of the published v1 and the draft v2 the seed wrote.
     const edited = QuestionId.parse("q_full_name");
     const theirs = await getQuestionVersion(db2, edited, 1);
     if (theirs === undefined) throw new Error("the seed wrote no q_full_name");

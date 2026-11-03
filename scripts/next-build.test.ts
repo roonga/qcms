@@ -356,7 +356,6 @@ describe("the wiring the wait depends on", () => {
   });
 
   it("derives that set from git, and the derivation reaches something", () => {
-    // A filter that matched nothing would leave the two assertions above vacuously true.
     const apps = nextApps();
     expect(apps.length).toBeGreaterThan(0);
     for (const app of apps) expect(app.directory.startsWith("apps/")).toBe(true);

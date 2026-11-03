@@ -12,81 +12,8 @@ import { t } from "@/lib/i18n/en";
 import { textOf } from "@/lib/questions/definition";
 import type { ReadState } from "@/lib/read-state";
 
-/**
- * The schema-aware JSON view of one rule's condition (task 033, ADR-19, ADR-22 exception).
- *
- * ## Secondary, deliberately
- *
- * ADR-19 orders these two surfaces and this is the second one. The structured pickers
- * beside this pane are where a condition is normally built, because every edit there goes
- * through `conditionForOp` and therefore cannot produce a shape the kernel rejects. This
- * pane is the escape hatch and the explanation: it shows the author the DSL their pickers
- * are writing, and lets them paste or hand-edit one when that is faster. Text that does
- * not parse changes nothing - the pickers keep the last condition that did.
- *
- * ## Why the editor is loaded, and owned, outside React
- *
- * CodeMirror owns its own DOM subtree and its own transaction model, so it cannot sit
- * inside React's reconciliation: the view is created once against a ref'd host element and
- * destroyed on unmount, and React never renders into it. Everything the editor needs from
- * the outside (the draft, the library, the change callback) is read through a ref that is
- * refreshed on every render, so the long-lived listeners always see current data without
- * being torn down and rebuilt.
- *
- * The modules are `import()`ed inside the effect rather than at the top of the file, for
- * two reasons and both are worth keeping: the whole CodeMirror bundle then loads only when
- * an author actually opens a rule, and it never runs during server rendering, where there
- * is no `document` for it to attach to. Until it arrives the pane renders the same JSON as
- * plain text, so the condition is readable before hydration.
- *
- * ## All six `@codemirror/*` packages move as one set
- *
- * `apps/admin/package.json` pins all six exactly, and they depend on each other through
- * `^6` ranges (issue #712), so moving some and not others lets pnpm keep two copies of a
- * shared package - and two copies of `@codemirror/view` declare two
- * structurally identical but separately-declared `KeyBinding` types that do not unify -
- * which surfaces here, on the `keymap.of(...)` call below, as `TS2345: Argument of type
- * '(KeyBinding | KeyBinding)[]' is not assignable to parameter of type 'readonly
- * KeyBinding[]'`. Reverting only `@codemirror/view` re-splits it the other way with
- * `@codemirror/lint` as the odd one out and a `LintSource` message instead.
- *
- * `.github/dependabot.yml` puts the six in their own `codemirror` group, so a scheduled
- * VERSION update cannot carry a subset. A Dependabot SECURITY update still can, and that
- * is the one case to complete by hand: `applies-to` defaults to `version-updates`, so the
- * group does not claim an advisory fix and a single-package one arrives on its own.
- *
- * The reason this is written down rather than left to be rediscovered: the message names
- * types and not versions, and `pnpm exec turbo run typecheck --filter=qcms-admin` passes
- * with the split tree while `next build` fails. So it reaches CI as a build failure and is
- * invisible to the package-scoped typecheck a contributor reaches for first. If it ever
- * fires, the fix is `pnpm update -r --depth Infinity @codemirror/view` to converge the
- * lockfile, then moving all six pins together.
- *
- * ## Accessibility, which is load-bearing for the axe gate
- *
- * CodeMirror's content DOM carries `role="textbox"` and `aria-multiline="true"` but
- * deliberately sets **no accessible name**, which fails axe's `aria-input-field-name`. The
- * name is supplied here through `EditorView.contentAttributes`, from the catalog rather
- * than a literal (ADR-27). `defaultKeymap` binds no Tab, so Tab still moves focus out of
- * the editor and a keyboard user is never trapped in it.
- *
- * ## The three completion sources
- *
- * `op`, `questionId` and `optionId`, exactly as the task names them, and all three come
- * from the draft rather than from a JSON Schema: there is no schema to load here, because
- * a schema is a runtime value and this app takes no `@roonga/qcms-core` value import (the
- * type-only import `lib/forms/condition.ts` uses is erased and carries no schema with
- * it). `questionId` offers the questions
- * this form **pins**, and `optionId` offers the options of the **pinned version** of the
- * question the surrounding node reads - which is precisely the pair a moved pin can
- * invalidate, so offering anything wider would be teaching the wrong thing.
- *
- * The library arrives as a `ReadState` (`lib/read-state.ts`, issues 572 and 544) and a
- * failed read simply offers fewer completions: labels and option ids are things the
- * library knows, and a library nobody read knows nothing. The pane still edits, which is
- * the point - completion is a convenience, and taking the editor away because a different
- * read failed would remove work an author can still do.
- */
+/* CodeMirror owns its DOM and transaction state; React must not reconcile inside the host. Parse failures
+   leave the last valid condition intact. */
 export function ConditionJsonPane({
   condition,
   draft,
@@ -107,7 +34,6 @@ export function ConditionJsonPane({
 
   const text = JSON.stringify(condition, null, 2);
 
-  // Everything the long-lived CodeMirror extensions need, refreshed every render.
   const latest = useRef({ draft, library, onChange, text });
   latest.current = { draft, library, onChange, text };
 
@@ -167,15 +93,9 @@ export function ConditionJsonPane({
       created.current?.destroy();
       view.current = null;
     };
-    // The label alone: it is baked into the editor's content attributes at build time, so a
-    // different accessible name means a different editor. It is derived from the rule id and
-    // therefore constant for the life of one pane, so in practice this runs exactly once and
-    // the author's cursor is never rebuilt underneath them.
+    // Keep the editor view for the pane's lifetime so parent updates do not rebuild the author's cursor.
   }, [label]);
 
-  // Push a condition the PICKERS changed into the document, and nothing else. When the
-  // author is the one typing, the text they typed and the condition it produced are the
-  // same JSON, so this comparison is what keeps their cursor where they left it.
   useEffect(() => {
     const editor = view.current;
     if (editor === null) return;
@@ -189,9 +109,6 @@ export function ConditionJsonPane({
       <p className="text-sm text-(--color-text-muted)">{t("forms.json.note")}</p>
       <div ref={host} data-testid="qcms-condition-json" />
       {!isReady && (
-        // `qcms-scroll-x` replaces a bare `overflow-x-auto`: the pane scrolled, but it
-        // still handed its longest JSON line (277px, measured) to every ancestor, and
-        // that reached the page as horizontal scroll at narrow widths (issue 616).
         <pre className="qcms-tabular qcms-scroll-x rounded-md border border-(--color-border) bg-(--color-background) p-2 text-sm text-(--color-text)">
           {text}
         </pre>
@@ -205,7 +122,6 @@ export function ConditionJsonPane({
   );
 }
 
-/** The pane's colours, taken from the ADR-30 tokens so it follows every mode. */
 const PANE_THEME = {
   "&": {
     backgroundColor: "var(--color-background)",
@@ -219,9 +135,6 @@ const PANE_THEME = {
     outlineOffset: "2px",
   },
   ".cm-content": {
-    // The token, not a list of its own (issue #27). This editor's own fallback
-    // stack was the sixth one written down in this repository and the only one
-    // outside a stylesheet, so nothing that swept the CSS could have seen it.
     fontFamily: "var(--font-mono)",
     caretColor: "var(--color-text)",
     padding: "0.5rem",
@@ -234,14 +147,6 @@ const PANE_THEME = {
   },
 };
 
-/**
- * Read the document, and push it up only when it is a condition.
- *
- * Two refusals, and they are different states an author needs told apart: text that is not
- * JSON at all (mid-edit, almost always) and JSON that is not a condition (a paste of the
- * wrong thing). Neither touches the draft, so the pickers keep working from the last shape
- * that was one.
- */
 function readDocument(
   raw: string,
   onChange: (next: DraftCondition) => void,
@@ -257,21 +162,12 @@ function readDocument(
   return null;
 }
 
-/**
- * A structural check, not a validation.
- *
- * The kernel is the only thing that decides whether a condition is legal and it is not
- * importable here (R2), so this asks the one question the *editor* needs answered before
- * it re-renders its pickers from a value: is there an `op` the pickers know how to draw?
- * Anything past that is the validate endpoint's answer and arrives as an issue.
- */
 function isCondition(value: unknown): value is DraftCondition {
   if (typeof value !== "object" || value === null) return false;
   const op = (value as { op?: unknown }).op;
   return typeof op === "string" && (CONDITION_OPS as readonly string[]).includes(op);
 }
 
-/** Whether two documents are the same JSON, ignoring whitespace and key order artefacts. */
 function sameJson(left: string, right: string): boolean {
   if (left === right) return true;
   try {
@@ -281,9 +177,6 @@ function sameJson(left: string, right: string): boolean {
   }
 }
 
-// --- completion -------------------------------------------------------------
-
-/** What the pane's extensions read on every keystroke, always the current render's. */
 interface PaneContext {
   readonly current: {
     readonly draft: DraftForm;
@@ -291,19 +184,10 @@ interface PaneContext {
   };
 }
 
-/** The JSON keys whose string values this pane can complete. */
 const COMPLETABLE_KEYS = ["op", "questionId", "value", "values"] as const;
 
 type CompletableKey = (typeof COMPLETABLE_KEYS)[number];
 
-/**
- * The one completion source, registered on the JSON language's data facet.
- *
- * It works from the **key the cursor's string belongs to** rather than from a regex over
- * the whole node, which is what keeps the patterns linear (a quantifier inside a quantifier
- * is what `sonarjs/super-linear-regex` rejects, for good reason on something that runs per
- * keystroke) and what makes it correct inside a nested `and` / `or` tree.
- */
 function completeCondition(context: CompletionContext, pane: PaneContext): CompletionResult | null {
   const match = context.matchBefore(/"\w*/);
   if (match === null) return null;
@@ -313,7 +197,6 @@ function completeCondition(context: CompletionContext, pane: PaneContext): Compl
 
   const options = optionsFor(key, before, pane);
   if (options.length === 0) return null;
-  // One past the opening quote: the completion replaces the partial id, not the quote.
   return { from: match.from + 1, options };
 }
 
@@ -325,7 +208,6 @@ function optionsFor(key: CompletableKey, before: string, pane: PaneContext): Com
   return optionCompletions(before, pane);
 }
 
-/** The completable key the cursor's string belongs to: the nearest one before it. */
 function nearestKey(before: string): CompletableKey | undefined {
   let found: CompletableKey | undefined;
   let at = -1;
@@ -339,7 +221,6 @@ function nearestKey(before: string): CompletableKey | undefined {
   return found;
 }
 
-/** Every question this form pins, in document order, with its label as the detail line. */
 function pinnedQuestionCompletions(pane: PaneContext): Completion[] {
   const { draft, library } = pane.current;
   return draftDocumentOrder(draft).map((entry) => {
@@ -353,14 +234,8 @@ function pinnedQuestionCompletions(pane: PaneContext): Completion[] {
   });
 }
 
-/**
- * The option ids of the **pinned version** of the question this node reads.
- *
- * A version's options are its own (R6), so completing from any other version would offer
- * ids the kernel will report as `DANGLING_OPTION_REF`. Finding the question by scanning
- * back to the nearest `"questionId"` is what makes this right inside a nested tree, where
- * several nodes each read a different question.
- */
+/* Complete options from the pinned question version; another version's ids could create dangling
+   references. */
 function optionCompletions(before: string, pane: PaneContext): Completion[] {
   const questionId = nearestQuestionId(before);
   if (questionId === undefined) return [];
@@ -379,7 +254,6 @@ function optionCompletions(before: string, pane: PaneContext): Completion[] {
   }));
 }
 
-/** Linear, no nested quantifier: one capture of everything up to the closing quote. */
 const QUESTION_ID_VALUE = /"questionId"\s*:\s*"([^"]*)"/;
 
 function nearestQuestionId(before: string): string | undefined {

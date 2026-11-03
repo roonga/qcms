@@ -30,8 +30,8 @@ import {
 } from "./support.js";
 
 /**
- * The authoring screens' facts: structure, configuration and release state, which is
- * everything these screens show. No screen here reaches a response (SEC-17).
+ * The authoring screens' facts: structure, configuration and release state, which is everything these
+ * screens show. No screen here reaches a response.
  */
 
 /** Author-written text, resolved to one locale so a fact line is a string. */

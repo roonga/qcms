@@ -10,27 +10,11 @@ import { pageMetadata } from "@/lib/page-title";
 import { readAuthCookie, TWO_FACTOR_COOKIE } from "@/lib/server/auth-api";
 import { SIGN_IN_PATH } from "@/lib/server/session";
 
-/** The browser-tab title for this route (issue #536). */
 export function generateMetadata(): Metadata {
   return pageMetadata(t("recoveryEntry.title"));
 }
 
-/**
- * Recovery-code entry (task 031; screen contract state `2FA-recovery-entry`).
- *
- * A separate route rather than a toggle on the challenge screen, for the same reason
- * the rest of this flow is route-based (ADR-35 / SEC-1): a recovery code is posted by a
- * plain form to a named server route, so it never passes through client JavaScript, each
- * state is one server-rendered page a test can land on directly, and each is linkable.
- * That reason is about where the credential goes, not about scripting being off - the admin
- * requires JavaScript and this screen is unreachable without it (Code Owner, 2026-09-27,
- * `plan/admin-design-contracts.md`), which changes nothing here.
- * The "use your authenticator app instead" link back makes the pair navigable in both
- * directions, which the screen contract's two states imply.
- *
- * Same pending-challenge precondition as the TOTP screen, and the same silence about
- * the account.
- */
+/* Post recovery credentials directly to a named server route so they never pass through client JavaScript. */
 export default async function RecoveryEntryPage({
   searchParams,
 }: {
@@ -39,8 +23,6 @@ export default async function RecoveryEntryPage({
   const pending = await readAuthCookie(TWO_FACTOR_COOKIE);
   if (pending === undefined || pending === "") redirect(SIGN_IN_PATH);
 
-  // Shared with sign-in so the throttled state survives the trip to this screen: this
-  // line used to read `error` alone, which reported a `429` as a wrong code (issue #805).
   const error = authFailureMessage(await searchParams);
 
   return (

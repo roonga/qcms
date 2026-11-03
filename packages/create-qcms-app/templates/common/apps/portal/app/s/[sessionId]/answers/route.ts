@@ -8,8 +8,7 @@ export async function POST(
   request: Request,
   ctx: { params: Promise<{ sessionId: string }> },
 ): Promise<NextResponse> {
-  // SEC-9's CSRF belt, above the credential read: a cross-site caller is refused
-  // before this handler touches the session cookie.
+  // Check origin before reading the session cookie so cross-site callers never reach credentials.
   if (!isSameOriginPost(request)) {
     return NextResponse.json({ error: { code: "forbidden" } }, { status: 403 });
   }

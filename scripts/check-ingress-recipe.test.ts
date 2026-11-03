@@ -53,8 +53,6 @@ describe("the recipe's address claims match what the product serves", () => {
   });
 
   it("pairs the two path rules in both directions", () => {
-    // Whitespace-insensitive, because the document is hard-wrapped and a reflow must not
-    // fail the gate.
     const flat = recipe.replace(/\s+/g, " ");
     expect(flat).toContain("deny `/<env>/` on the prod hostname");
     expect(flat).toContain("deny an unprefixed path on a non-prod one");

@@ -5,9 +5,6 @@ import { A2UIStepRenderer } from "./A2UIStepRenderer.tsx";
 import { withDemotedHeadings } from "./heading-demotion.ts";
 import { loadGoldenForms } from "./test-support/golden.ts";
 
-// Over the real golden corpus rather than a hand-written fixture, because the property
-// worth pinning is about every document the compiler produces (ADR-18).
-
 const forms = loadGoldenForms();
 
 /* The first step of every golden form is the one carrying the form-title `h1`. */

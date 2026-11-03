@@ -1,4 +1,4 @@
-/** Portal compatibility names for the shared Next.js SEC-13 processor. */
+/** Portal compatibility names for the shared Next.js telemetry redaction processor. */
 export {
   redactTelemetryPath as redactPath,
   redactingNextSpanProcessor as redactingSpanProcessor,

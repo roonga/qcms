@@ -23,11 +23,6 @@ import {
 } from "./tools/registry.js";
 import type { AgentContext } from "./types.js";
 
-/**
- * What the registry promises, checked rather than claimed: one row per screen, one door
- * per screen, and no field in any schema that could carry respondent content (SEC-17).
- */
-
 function turnContext(screen: ScreenId): AgentContext {
   return {
     screen,
@@ -43,7 +38,6 @@ function jsonSchemaOf(schema: z.ZodType): unknown {
   return z.toJSONSchema(schema, { io: "output", unrepresentable: "any" });
 }
 
-/** Every property name in a JSON Schema document, however deeply nested. */
 function propertyNames(node: unknown, found: Set<string> = new Set()): Set<string> {
   if (Array.isArray(node)) {
     for (const item of node) propertyNames(item, found);
@@ -123,7 +117,7 @@ describe("the screen registry", () => {
         expect(AGENT_TOOL_NAMES).toContain(name);
       }
     }
-    // The draft verbs belong to the builder, and the projection to the preview screen.
+
     expect(SCREENS["/forms/[formId]"].readTools).toEqual([
       "search_question_library",
       "propose_questions",

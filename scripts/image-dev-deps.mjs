@@ -32,9 +32,8 @@ export function workspaceManifestPaths(root = REPOSITORY_ROOT) {
 const TYPES_SCOPE = "@types/";
 
 /**
- * `peerDependencies` is deliberately not an exemption: the pair the API image was found
- * carrying is declared exactly that way, so treating a peer as production would exempt
- * the defect.
+ * Peers are not production dependencies for this gate; treating them as production would exempt dev-only
+ * peer packages from the image check.
  *
  * @param {string} [root]
  * @returns {Set<string>}

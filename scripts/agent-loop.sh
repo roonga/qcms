@@ -77,11 +77,10 @@ done
 positive_int --parallel "$parallel"
 positive_int --retry-minutes "$retry_minutes"
 positive_int --max-iterations "$max_iterations"
-# Validated up front because a non-numeric value would reach `$((10#...))` at
-# sentinel-match time, where it throws mid-run and the stop check never fires again.
+# Validate before arithmetic expansion, which would otherwise abort the stop check mid-run.
 [ -z "$stop_after_task" ] || positive_int --stop-after-task "$stop_after_task"
 
-# The single conductor owns one seat; its worktrees and subagents inherit it (R8).
+# One conductor owns the seat; its worktrees and subagents must inherit it.
 [ -n "$seat" ] || seat=0
 case "$seat" in
   [0-9]) ;;
@@ -113,21 +112,18 @@ group_alive() { # $1 = pgid
   kill -0 -- "-$1" 2>/dev/null
 }
 
-# Clears session_pgid first, so the EXIT trap after a signal handler is a no-op rather
-# than a second round of kills against a recycled id. `reaping_pgid` holds the group
-# during the grace period, so a signal arriving mid-reap still has something to act on.
+# Clear the active id before EXIT cleanup to avoid killing a recycled process group.
+# Retain the reaping id so a second signal can still escalate during the grace period.
 reap_session_group() {
   local pgid="$session_pgid" waited=0
   session_pgid=""
   [ -n "$pgid" ] || return 0
-  # Unreachable in the current shape, and kept because signalling the supervisor's own
-  # group is the one mistake here that would be fatal rather than untidy.
+  # Never signal the supervisor's own process group.
   if [ -n "$own_pgid" ] && [ "$pgid" = "$own_pgid" ]; then
     log "WARNING: session shares the supervisor's process group ($pgid) - not reaping, orphans may survive"
     return 0
   fi
-  # Also what a failed `set -m` looks like from here, so that case is a silent possible
-  # orphan: a warning would otherwise fire on every clean iteration.
+  # A missing group is normal after a clean exit and cannot distinguish failed job control.
   group_alive "$pgid" || return 0
 
   reaping_pgid="$pgid"
@@ -139,7 +135,6 @@ reap_session_group() {
       reaping_pgid=""
       return 0
     }
-    # A second interrupt cuts the grace short and goes straight to SIGKILL.
     if [ "$escalate_reap" = 1 ]; then
       log "second interrupt - not waiting out the ${session_reap_grace_sec}s grace, killing process group $pgid now"
       break
@@ -161,9 +156,7 @@ reap_session_group() {
   log "WARNING: process group $pgid still present after SIGKILL - check for stuck processes"
 }
 
-# Re-entrant by design: a signal arriving during the reap's `sleep 0.1` re-enters here.
-# The second entry escalates and RETURNS rather than re-raising, because re-raising
-# would kill the supervisor mid-grace and leave the session's descendants alive.
+# A second signal must escalate and return; re-raising would kill the supervisor before descendants.
 on_signal() { # $1 = signal name
   if [ -n "$reaping_pgid" ]; then
     escalate_reap=1
@@ -178,8 +171,7 @@ on_signal() { # $1 = signal name
 trap 'on_signal INT' INT
 trap 'on_signal TERM' TERM
 trap 'on_signal HUP' HUP
-# SIGQUIT reaches the foreground group only, which job control puts the session's own
-# group outside of, so without this the supervisor dies and the session survives.
+# Job control moves the session outside the foreground group; forward QUIT or its descendants survive.
 trap 'on_signal QUIT' QUIT
 trap reap_session_group EXIT
 
@@ -244,13 +236,11 @@ for ((i = 1; i <= max_iterations; i++)); do
     break
   fi
 
-  # A named reset time is slept to, with a buffer, instead of the blind interval.
   sleep_sec=$((retry_minutes * 60))
   if [[ "$out" =~ reset[s]?[[:space:]]+(at[[:space:]]+)?([0-9]{1,2}(:[0-9]{2})?[[:space:]]*([ap]m)?) ]]; then
     reset_at="${BASH_REMATCH[2]}"
     if target="$(date -d "$reset_at" +%s 2>/dev/null)"; then
       now="$(date +%s)"
-      # Reset time already passed today -> it is tomorrow.
       [ "$target" -lt "$now" ] && target="$(date -d "tomorrow $reset_at" +%s)"
       until_sec=$((target - now + 180))
       if [ "$until_sec" -gt 60 ] && [ "$until_sec" -lt 21600 ]; then

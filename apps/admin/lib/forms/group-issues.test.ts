@@ -15,27 +15,6 @@ import { stepGridRows } from "./pin-grid.ts";
 import { formSubtreeRail, railStepItems } from "./subtree-rail.ts";
 import type { DraftForm, FormIssue, PinnableQuestion } from "./types.ts";
 
-/**
- * The repeating group as the screens report it (task 074, ADR-42).
- *
- * Four things are asserted here and each one is a way the group could be invisible on a screen
- * that is otherwise working:
- *
- * 1. **The grid states the span.** A group is a contiguous run of pins, so the grid's rows are a
- *    boundary followed by its members, with every position counted against the CONTAINER - which
- *    is what makes Move up at a group's first member a no-op rather than a move out of the group.
- * 2. **A group that cannot be published says so where it is listed.** `max` is required on both
- *    bounded count sources (Q4 as amended by Q14) and the boundary row flags its absence from the
- *    draft alone, before any round trip.
- * 3. **A group-scoped refusal has somewhere to land.** Eight publish codes name a group and no
- *    question, so without an anchor of its own every one of them would render in the validation
- *    panel as plain text with nothing to move focus to.
- * 4. **The two composed sentences say what they have to say.** `RULE_TARGETS_SPAN_SCOPES` names
- *    the mechanical remedy, and `REPEAT_EVALUATION_BUDGET_EXCEEDED` says what it is NOT about -
- *    because the obvious reading of a refusal quoting two maxima is "my group is too big", and
- *    the author's next act would be to shrink a group for no reason.
- */
-
 const LIBRARY: readonly PinnableQuestion[] = [
   {
     questionId: "q_passport",
@@ -84,7 +63,6 @@ const LIBRARY: readonly PinnableQuestion[] = [
 
 const READ: ReadState<readonly PinnableQuestion[]> = { ok: true, data: LIBRARY };
 
-/** A step holding one pin, then a two-member group whose `max` is set. */
 function draftWith(max: number | undefined): DraftForm {
   return {
     formId: "frm_booking",
@@ -133,9 +111,6 @@ describe("stepGridRows", () => {
     const rows = stepGridRows(step, READ, []);
     const pins = rows.flatMap((row) => (row.kind === "pin" ? [row.pin] : []));
 
-    // The step's own pin is 1 of 1 - a group is ONE neighbour of it, not a run of two - and each
-    // member is counted among the group's members. That is what makes the row menu's Move up
-    // disabled at a group's first member rather than moving the pin out of the group.
     expect(pins.map((pin) => [pin.questionId, pin.position, pin.total, pin.groupId])).toStrictEqual(
       [
         ["q_trip", 1, 1, undefined],
@@ -168,9 +143,6 @@ describe("stepGridRows", () => {
     if (step === undefined) throw new Error("the fixture lost its step");
     const boundary = stepGridRows(step, READ, []).find((row) => row.kind === "group");
 
-    // `max` is the only limit on how many instances a respondent can create (SEC-16), so the grid
-    // says so where a step is scanned rather than leaving `REPEAT_MAX_MISSING` to arrive at
-    // publish. A range reading "1 to " would look like a rendering fault instead.
     expect(boundary?.kind === "group" ? boundary.group.maxMissing : undefined).toBe(true);
     expect(boundary?.kind === "group" ? boundary.group.countSummary : "").toBe(
       "respondent adds, no maximum set",
@@ -212,8 +184,6 @@ describe("a group-scoped issue", () => {
     const draft = draftWith(undefined);
     const gone: FormIssue = { ...BOUNDS, path: { group: "grp_gone" } };
 
-    // The same rule a `DANGLING_QUESTION_REF` follows: an anchor for something not on screen is a
-    // link to nothing, and the panel renders those as plain text instead.
     expect(anchorFor(gone, draft)).toBeUndefined();
   });
 
@@ -230,8 +200,6 @@ describe("a group-scoped issue", () => {
       path: { rule: "rul_one", group: "grp_passengers" },
     };
 
-    // A rule issue naming a group is a statement about the RULE. Showing it on the group's panel
-    // would invite an author to change the group's bounds to fix a rule.
     expect(issuesForGroup([BOUNDS, ruleIssue], "grp_passengers")).toStrictEqual([BOUNDS]);
   });
 });
@@ -248,8 +216,6 @@ describe("the two refusals the admin composes rather than quotes", () => {
       draft,
     );
 
-    // The remedy is mechanical and saying so is the point: the condition is copyable and neither
-    // half's meaning changes, so an author told only that the rule is refused has nowhere to go.
     expect(sentence).toContain("Passengers");
     expect(sentence).toContain("outside every repeating group");
     expect(sentence).toContain("split it into two");
@@ -291,8 +257,7 @@ describe("the two refusals the admin composes rather than quotes", () => {
     expect(sentence).toContain("9");
     expect(sentence, "the product of the two declared maxima").toContain("45000");
     expect(sentence).toContain("10000");
-    // The sentence that stops an author shrinking a group for no reason: there is no
-    // installation-wide ceiling (Q14) and this caps no group's maximum.
+
     expect(sentence).toContain("not about either group's size");
   });
 
@@ -369,8 +334,7 @@ describe("the rail tree", () => {
       ["step", "step:stp_travellers", false],
       ["group", "group:grp_passengers", true],
     ]);
-    // A group's issues are counted against its step, so a second count on the nested row would
-    // make the rail's numbers add up to more than the panel's (§5.6's named mistake).
+
     expect(rail.children.map((item) => item.issueCount)).toStrictEqual([2, 0]);
     expect(railStepItems(rail).map((item) => item.key)).toStrictEqual(["step:stp_travellers"]);
   });

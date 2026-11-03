@@ -14,9 +14,9 @@ export const QuestionRef = z.object({
 export type QuestionRef = z.infer<typeof QuestionRef>;
 
 /**
- * Where a group's instance count comes from (ADR-42). `max` is optional here and
- * required at publish, so a half-filled draft still round-trips; nothing caps
- * its value, an author's `max` being reviewed at form review (SEC-16).
+ * Where a group's instance count comes from (ADR-42). `max` is optional here and required at publish, so a
+ * half-filled draft still round-trips; nothing caps its value, an author's `max` being reviewed at form
+ * review.
  */
 export const RepeatCount = z.discriminatedUnion("source", [
   z.object({ source: z.literal("fixed"), count: z.number().int().min(1) }),
@@ -86,10 +86,9 @@ export const Step = z.object({
 export type Step = z.infer<typeof Step>;
 
 /**
- * The cost budget for one cross-group rule, in instance pairs (ADR-16, SEC-16).
- * A cost bound rather than an instance ceiling: per rule, and checked at publish
- * against declared maxima, so serving cost is known before a form publishes.
- * Moving it is a decision rather than a tuning, forms publishing against it.
+ * The cost budget for one cross-group rule, in instance pairs (ADR-16). A cost bound rather than an instance
+ * ceiling: per rule, and checked at publish against declared maxima, so serving cost is known before a form
+ * publishes. Moving it is a decision rather than a tuning, forms publishing against it.
  */
 export const REPEAT_EVALUATION_BUDGET = 10_000;
 

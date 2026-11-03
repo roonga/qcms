@@ -2,18 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { cellExpressions, maskLiteralsAndComments, tableCells } from "./jsx-cells.ts";
 
-/**
- * The scanner behind `app/(shell)/table-cell-rules.test.ts`, tested on its own.
- *
- * A gate built on a scanner is only as trustworthy as the scanner, and a scan that quietly
- * stops finding things passes every assertion downstream of it. So the cases here are the
- * ones that decide whether that gate means anything: a comment cannot become a finding, a
- * string cannot become a finding, an attribute is not a rendered child, and a value rendered
- * inside a conditional subtree still is one.
- *
- * `components/test-support/markup.test.ts` exists for the same reason, one layer down.
- */
-
 function childrenOf(source: string): readonly string[] {
   const masked = maskLiteralsAndComments(source);
   return tableCells(masked)
@@ -46,8 +34,6 @@ describe("masking", () => {
   });
 
   it("does not mistake a URL inside a string for a comment", () => {
-    // The failure this guards: a naive `//` strip eats the rest of the line, and the line
-    // after it, taking real code with it.
     const source = 'const url = "https://example.test/x";\nrender(row.sessionId);';
     const masked = maskLiteralsAndComments(source);
     expect(masked).toContain("render(row.sessionId);");
@@ -85,10 +71,6 @@ describe("classifying what a cell holds", () => {
   });
 
   it("reads a cell's children and not its own attributes", () => {
-    // The scanned range starts after the cell's opening tag, so `data-session-id={…}` on a
-    // `<td>` or a `<tr>` is outside it by construction rather than by classification. That
-    // is the right shape for the gate - those attributes are never rendered text - and it
-    // is stated here so the emptiness is not read as the classifier working.
     const source = "<td data-x={row.formId}>{row.label}</td>";
     expect(attributesOf(source)).toEqual([]);
     expect(childrenOf(source)).toEqual(["row.label"]);
@@ -99,8 +81,6 @@ describe("classifying what a cell holds", () => {
   });
 
   it("recurses into a conditional subtree rather than reporting it whole", () => {
-    // The first draft reported this group entire, which made the handler inside it look
-    // like rendered text and every conditional cell a false finding.
     const source = [
       "<td>",
       "  {isRevocable(link.state) && (",

@@ -24,7 +24,6 @@ function failedResult(message = "expect(received).toBeVisible()"): TestResult {
   return { status: "failed", errors: [{ message }] } as unknown as TestResult;
 }
 
-/** A reporter wired to a fake machine and a captured stdout. */
 function harness() {
   const printed: string[] = [];
   let samples = 0;
@@ -104,7 +103,7 @@ describe("ContentionReporter", () => {
     const { reporter, output } = harness();
     const flaky = testCase("submits the last step", "flaky");
     reporter.onBegin();
-    reporter.onTestEnd(flaky, failedResult("socket hang up")); // first attempt
+    reporter.onTestEnd(flaky, failedResult("socket hang up"));
     reporter.onEnd(); // the retry passed, so no second onTestEnd for a failure
 
     expect(output()).toBe("");

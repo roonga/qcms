@@ -14,8 +14,6 @@ export function useChanges() {
   return { record, onChange, latest };
 }
 
-// Owns `values` in state and feeds them back, as a real parent does, so the controls
-// are genuinely controlled rather than merely spied on.
 export function ControlledHost({
   document,
   onChange,

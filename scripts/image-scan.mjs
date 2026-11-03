@@ -50,9 +50,6 @@ export function severityRank(severity) {
 }
 
 /**
- * Accepts the in-toto statement the build persists or the bare SPDX document, because a
- * fixture is easier to write as the document itself.
- *
  * @param {any} statement
  * @returns {any}
  */

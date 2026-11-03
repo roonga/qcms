@@ -57,7 +57,6 @@ const fail = {
   noContext: (): Error => new Error("operations: no resolved membership on the request context"),
 } as const;
 
-/** The write acts a row reports as capabilities, in the order a rail would offer them. */
 const CAPABILITY_CELLS: readonly { readonly resource: Resource; readonly action: string }[] = [
   { resource: "form", action: "close" },
   { resource: "release", action: "create" },
@@ -80,7 +79,7 @@ interface Candidate {
     readonly name: string;
   };
   readonly state: FormEnvironmentState | undefined;
-  /** When this form last went out in the selected environment. */
+
   readonly lastReleaseAt: Date | undefined;
   readonly mayReadForm: boolean;
   readonly mayCount: boolean;
@@ -299,7 +298,6 @@ function displayNameOf(title: unknown, defaultLocale: string): string | undefine
   return undefined;
 }
 
-// Unreleased is a third answer, not a reading of closed.
 function intakeOf(candidate: Candidate): "open" | "closed" | "unreleased" {
   if (candidate.state === undefined) return "unreleased";
   return candidate.state.closed ? "closed" : "open";

@@ -3,10 +3,9 @@ import { bigint, integer, text, timestamp } from "drizzle-orm/pg-core";
 import { controlSchema } from "../schemas.js";
 
 /**
- * The live environment set. Rows are written only by the operator command under the
- * migration role, never over HTTP, because creating a schema is DDL and no application
- * role holds any (SEC-10). An environment's credential is deliberately not here: it
- * arrives through the typed configuration and is never echoed (SEC-8).
+ * The live environment set. Rows are written only by the operator command under the migration role, never over
+ * HTTP, because creating a schema is DDL and no application role holds any. An environment's credential is
+ * deliberately not here: it arrives through the typed configuration and is never echoed.
  */
 export const environments = controlSchema.table("environments", {
   /**

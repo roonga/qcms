@@ -13,7 +13,6 @@ const CARD_VIEWPORT = { width: 390, height: 844 };
 const ADD = "Add Vehicle";
 const removeName = (ordinal: number): string => `Remove Vehicle ${String(ordinal)}`;
 
-/** One table row, by the ordinal its row header reads. */
 function row(page: import("@playwright/test").Page, ordinal: number) {
   return page.locator("tbody tr[data-qcms-instance]").nth(ordinal - 1);
 }
@@ -27,7 +26,6 @@ async function startTableFlow(page: import("@playwright/test").Page): Promise<st
   return new URL(page.url()).pathname.split("/")[2]!;
 }
 
-/** Press Add or Remove and wait for the roster write the API answers. */
 async function rosterPress(page: import("@playwright/test").Page, name: string): Promise<void> {
   const written = page.waitForResponse(
     (response) =>
@@ -38,7 +36,6 @@ async function rosterPress(page: import("@playwright/test").Page, name: string):
   expect(response.status(), `POST /roster for "${name}"`).toBe(200);
 }
 
-/** Wait for the answer post for one question, by the question in its body. */
 function answerPosted(page: import("@playwright/test").Page, questionId: string): Promise<unknown> {
   return page.waitForResponse((response) => {
     if (response.request().method() !== "POST" || response.status() !== 200) return false;
@@ -65,7 +62,6 @@ async function fillCell(
   await posted;
 }
 
-/** The page's own horizontal overflow: the one number the portal's claim is about. */
 function pageOverflow(page: import("@playwright/test").Page): Promise<number> {
   return page.evaluate(
     () => document.documentElement.scrollWidth - document.documentElement.clientWidth,

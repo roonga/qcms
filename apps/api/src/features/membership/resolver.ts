@@ -1,5 +1,5 @@
-// Runs on the control pool: an environment role holds no privilege on `member`, `team` or
-// `teamMember`, so a defect on the respondent path cannot read a grant row (SEC-3).
+// Runs on the control pool: an environment role holds no privilege on `member`, `team` or `teamMember`, so a
+// defect on the respondent path cannot read a grant row.
 
 import {
   listGrantsForUser,

@@ -139,8 +139,6 @@ function isGuarded(filePath) {
 function main() {
   const baseRef = resolveBaseRef();
   if (baseRef === undefined) {
-    // No default branch to compare against: nothing to guard rather than a hard failure,
-    // since CI always has one.
     console.warn(
       `check-golden-append-only: no "${DEFAULT_BRANCH}" ref found; skipping (nothing to diff against).`,
     );
@@ -201,8 +199,6 @@ function main() {
   return 0;
 }
 
-// Only when run as a command, so the test can import the helpers without the scan firing
-// and without `process.exit` killing the run.
 if (argv[1] !== undefined && import.meta.url === pathToFileURL(argv[1]).href) {
   process.exit(main());
 }

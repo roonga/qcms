@@ -140,11 +140,32 @@ change as cleanup lands.
 
 ## Completed sweep areas
 
-| Authored area             | Coverage                                                                                                   |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `apps/admin/e2e/support/` | Browser, auth, form, question, delivery and server-harness helpers reviewed; included in `check:comments`. |
+The follow-up sweep removes the admin exclusion and includes JSON configuration in
+`check:comments`. The earlier counts remain an audit snapshot, not current failures.
 
-The browser-support sweep keeps concise hydration, autosave, lifecycle, delivery,
-normalization and subprocess constraints. Redundant helper descriptions and incident
-narratives are removed. The remaining admin tree is still excluded pending its own
-review; completing one area must not exempt generated files or adjacent directories.
+| Authored area                                                   | Review                                                                                                                                              |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Admin app, components, libraries and browser specs              | Remove restatements, issue narratives and bare security labels; retain concise auth, lifecycle, accessibility and shared-state constraints.         |
+| API, portal, published packages and tooling source              | Review the remaining short comments as well as history markers; preserve public contracts, directives, parser limitations and external workarounds. |
+| Root, package and dev-container JSON                            | Retain cache, workspace-resolution and host-Docker constraints; parsed configuration values are unchanged.                                          |
+| Workflows, Compose, Dockerfiles, shell scripts and ignore files | Retain credential boundaries, proxy trust, ordering, registry fallback and reproducibility constraints; remove incident history.                    |
+| Environment examples and privilege inventory SQL                | Retain operator setup, key rotation and recovery instructions; assignments and executable SQL are unchanged.                                        |
+
+The gate checks authored JS/TS/CSS/JSON under applications, packages and tooling,
+plus root configuration and `.devcontainer/`. Infrastructure formats are reviewed
+manually. Shell headers extracted as command help remain executable content, and
+machine directives and SHA-pinned Action version annotations stay intact.
+
+Vendored upstream bytes, generated artifacts and applied SQL migrations retain
+their own source of truth and immutability requirements. Scaffold mirrors are
+regenerated from the reviewed sources. The planning scratch tree remains outside
+production-source scope; the canonical admin theme generator and token sheet are
+kept in sync with the app.
+
+Comment-free source comparisons guard serving statements, types, strings and
+styles. Documentation-generation prose is curated at its source before regenerating
+the operator reference and scaffold examples. Tooling checks, workspace validation and browser CI cover the resulting
+tree. The cookie-boundary assertion checks the retained constraint immediately beside its
+read rather than requiring an obsolete issue number. Removing comment-only package
+mentions also exposes two unused admin scaffold dependencies; the generated manifest
+omits the database and compiler packages, consistent with the strict BFF boundary.

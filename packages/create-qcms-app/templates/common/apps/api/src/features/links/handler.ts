@@ -91,8 +91,8 @@ export function makeMintLinksHandler(deps: Deps): RouteHandler<typeof mintLinksR
 
     const expiresAtIso = expiry.toISOString();
     const site = agentStepSite(c);
-    // One transaction over the batch and its agent step row, so a confirmed step that
-    // fails halfway mints no link and writes no audit row (SEC-17).
+    // One transaction over the batch and its agent step row, so a confirmed step that fails halfway mints no
+    // link and writes no audit row.
     const links = await deps.databases.control.transaction(async (tx) => {
       const minted: Array<{ linkId: string; environment: string; url: string; expiresAt: string }> =
         [];

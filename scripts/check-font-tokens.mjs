@@ -171,9 +171,7 @@ export function scannedFiles() {
     for (const relative of trackedFilesUnder(`${ROOT}${dir}`)) {
       const path = `${dir}/${relative}`;
       if (!SCAN_EXTENSIONS.some((extension) => path.endsWith(extension))) continue;
-      // A string in a test asserts the shipped value, it is not a style a browser paints.
       if (/\.(?:test|spec|pw)\.tsx?$/u.test(path)) continue;
-      // ADR-22 keeps the vendor drop byte-for-byte upstream; a gate cannot ask it to change.
       if (isVendoredSource(path)) continue;
       files.push(path);
     }
@@ -193,7 +191,6 @@ export function checkFontTokens() {
     );
   }
 
-  // Fail closed on a scan that has quietly stopped covering the apps.
   if (files.length < MINIMUM_SCANNED) {
     problems.push(
       `the scan reached only ${files.length} files, below the floor of ${MINIMUM_SCANNED}` +

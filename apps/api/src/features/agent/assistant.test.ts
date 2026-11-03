@@ -134,7 +134,6 @@ async function collectWithThinking(
   return events;
 }
 
-/** The draft a turn's apply-draft card carries, with the server's own two lists. */
 function appliedDraft(events: readonly AssistEvent[]): ProposedDraftStep {
   const card = events.find((event) => event.type === "action");
   if (card?.type !== "action") {
@@ -147,7 +146,6 @@ function appliedDraft(events: readonly AssistEvent[]): ProposedDraftStep {
   return step.draft;
 }
 
-/** The turn's closing prose segment, which is what the card quotes as the reason. */
 function lastTextSegment(events: readonly AssistEvent[]): string {
   const segments = new Map<string, string>();
   let last = "";
@@ -610,7 +608,6 @@ describe("reasoning events", () => {
     expect(events.find((e) => e.type === "action")).toBeDefined();
   });
 
-  /** SEC-8: the sentinel reaches no log line and no conversation the model sees. */
   it("logs a reasoning token count and never a word of the text", async () => {
     const { logger, lines } = recordingLogger();
     const { ctx } = contextFor("#qcms-fake:reasoning a quote form");
@@ -650,7 +647,7 @@ describe("prompt framing", () => {
 
     const preview = toModelMessages(previewContext());
     expect(JSON.stringify(preview)).not.toContain("Propose changes to it");
-    // On preview the draft is the projection tool's own port, not something the prompt carries.
+
     expect(JSON.stringify(preview)).not.toContain("The current draft of this form is");
   });
 

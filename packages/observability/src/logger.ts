@@ -1,7 +1,7 @@
 /**
- * Structured server logging (SEC-8, ADR-34), an injected interface (R4). Secret-like and
- * content-like keys are redacted before serialization, as a backstop. `write` takes the
- * whole line; the OTLP path takes scalar fields only, as exports leave our erasure reach.
+ * Structured server logging (ADR-34), an injected interface (R4). Secret-like and content-like keys are
+ * redacted before serialization, as a backstop. `write` takes the whole line; the OTLP path takes scalar
+ * fields only, as exports leave our erasure reach.
  */
 
 import { trace } from "@opentelemetry/api";

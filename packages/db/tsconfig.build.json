@@ -1,17 +1,10 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    // Restated, because `tsconfig.json` widens `rootDir` to the package root so ESLint's
-    // type-aware rules can open the authoring-time emitter under `scripts/`. What is
-    // PUBLISHED is `src` alone, and a wider root here would emit `dist/src/...` and move
-    // every path in the `exports` map.
+    // Keep the published layout at dist/*; inheriting the authoring root would emit dist/src/*.
     "rootDir": "src"
   },
   "include": ["src"],
-  // `src/testing/**` used to be excluded here, so the `./testing` export had to point at
-  // raw TypeScript and could only be loaded by a transforming runner (issues #382, #407).
-  // It is a published subpath, so it is built like the main entry; only the tests are
-  // excluded. `docker-auth-config.ts` compiles with it, which is required: `harness.js`
-  // imports it as its first statement, for the side effect.
+  // Build the public testing subpath and its Docker-auth side-effect import; exclude only tests.
   "exclude": ["**/*.test.ts"]
 }

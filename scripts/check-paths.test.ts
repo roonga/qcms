@@ -104,8 +104,6 @@ describe("exemption matching", () => {
   });
 
   it("has no dead entry: every exemption still fires", () => {
-    // A dead exemption reads as evidence the gate inspects that file. Delete one that
-    // stops firing rather than leaving it.
     for (const rule of ALLOWED) {
       const text = readFileSync(join(REPO_ROOT, rule.file), "utf8");
       const fired = pathsIn(text).some((hit) => hit.kind === rule.kind && hit.match === rule.match);

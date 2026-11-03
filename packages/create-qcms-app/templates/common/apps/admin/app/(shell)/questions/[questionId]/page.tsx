@@ -18,12 +18,6 @@ import { requireAdminSession } from "@/lib/server/session";
 
 import { lifecycleAction, saveDraftAction } from "../actions";
 
-/**
- * The browser-tab title for this route (issue #536).
- *
- * The question id, which is what this screen's `<h1>` shows and what R6 makes permanent.
- * It is an identifier rather than prose, so there is nothing here for the catalog to hold.
- */
 export async function generateMetadata({
   params,
 }: {
@@ -32,50 +26,6 @@ export async function generateMetadata({
   const { questionId } = await params;
   return pageMetadata(questionId);
 }
-
-/**
- * One question: a rendered preview and the editor for the selected version (task 032;
- * screen contract "editor `form`").
- *
- * ## Every version is reachable, and only one is editable
- *
- * Every version the question has ever had is listed in the RAIL beside this column, because
- * that history *is* the governance record: what was published, when, and what replaced it.
- * Selecting one puts it in the URL (`?v=3`), so a specific version of a specific question is
- * a link an author can paste into a ticket. The rail and the lifecycle actions moved out of
- * this column in issue 650, to where `plan/admin-shell-poc/question-editor-poc.html` draws
- * them: `app/(shell)/@rail/questions/[questionId]/page.tsx` is the slot, and it reads the
- * same `?v=` through the same `selectVersion` this page does, so the marked row and the
- * rendered version cannot disagree.
- *
- * A draft renders an editable form; a published or deprecated version renders the same
- * form frozen, with the rule stated above it. Rendering the frozen version through the
- * *same* component rather than a separate read-only view is deliberate: an author sees
- * the identical layout whether or not they can type in it, so "why can I not edit this?"
- * is answered by the sentence at the top instead of by the screen looking unfamiliar.
- *
- * ## Which version is selected is decided in one place
- *
- * `selectVersion` and the ISO day formatter live in `lib/questions/version-rail.ts` rather
- * than here, because the rail beside this column has to answer the same question about the
- * same address. Two copies of that rule would be two answers the first time either changed.
- *
- * ## And so is which PANEL of the editor is open (Code Owner, 2026-09-27)
- *
- * The column is a preview and **one panel** of the selected version's editor, not the whole
- * form stacked: `lib/questions/panels.ts` says why, and the rail's rows under the selected
- * version are what switch between them. `panelFromParams` is the `selectVersion` of that
- * question, asked here and in the slot beside it about the same `?panel=`.
- *
- * ## What left this column, and why it is not repeated here
- *
- * The back link and the meta strip (slug, created, type) both moved into the rail on
- * 2026-09-27. They were the two things in this column that were not the question's content: a
- * link to another route above the `<h1>`, and a paragraph of facts about the question sitting
- * above one panel of one version of it. The rail is where this screen's navigation and this
- * question's identity live, and stating either in both places would be two surfaces to keep
- * equal - the same rule that kept the version list out of this column in issue 650.
- */
 
 export default async function QuestionDetailPage({
   params,
@@ -99,49 +49,19 @@ export default async function QuestionDetailPage({
   const isFrozen = selected.status !== "draft";
 
   const preview = await getPreview(session, questionId, selected.version);
-  // Resolved through the one function the rail's slot also calls, so the address and the
-  // rendered panel cannot be read off two different lists (`lib/questions/panels.ts`).
   const { panel } = questionPanelState(selected.definition, query, appLocale());
-  // The newest version, which is what "New version" would mint next and what the lifecycle
-  // dialogs name. The rail's slot reads the same list for the same reason.
   const latestVersion =
     detail.data.versions[detail.data.versions.length - 1]?.version ?? selected.version;
 
   return (
-    // THE 720px EDITOR COLUMN (issue 668). `question-editor-poc.html` puts a single
-    // `.editor-column` (`:313`, 720px) inside a 1600px `.main` (`:312`), and its comment
-    // says why: this screen is "prose-and-form shaped ... so the improvement here is a
-    // comfortable reading measure, not more width". Until issue 668 the app carried the 720
-    // as this route's cap on `<main>` instead, which rendered 672 - the cap this route
-    // actually took (`narrow`, 45rem) less the column's own padding, which the drawn
-    // element sits INSIDE rather than outside.
-    // The route now takes the POC's outer 1600 (`lib/measure.ts`) and this is the layer
-    // that was missing. It is here rather than in the measure table because it is one
-    // element on one screen; see that table's doc for why the two layers live apart.
     <div className="qcms-editor-column flex flex-col gap-6">
-      {/* THE SCREEN'S ONE HEADING ROW (Code Owner, 2026-09-28). It names the question AND the
-          version, carries the version's status once, and ends with Save.
-
-          The version used to be said three times over: this row, the rail's marked row, the
-          collapsed rail summary at 390, and again as an `<h2>Version 2</h2>` at the top of the
-          card. The card opens on its panel now and this row is the only place the number is
-          composed with the question's name.
-
-          `QuestionSave` is a client component and this page is not, which is the whole reason
-          the button is not rendered here directly: it needs the editor's pending state, and the
-          editor is in the card below. It reads that across the same module seam the rail's rows
-          use, and submits the form by id (`lib/questions/editor-bridge.ts`). On a frozen version
-          it renders nothing, and `app/globals.css` holds this row's height so the heading does
-          not move as a reader walks the version list. */}
+      {/* QuestionSave reads client pending state through the editor bridge and submits the editor's form by id. */}
       <div className="qcms-question-head">
         <div className="qcms-question-head__id">
           <h1>
             <span className="qcms-question-id">{detail.data.questionId}</span>{" "}
-            {/* Decorative: the two spans are already two facts, and "middle dot" read aloud
-                between them adds nothing. The spaces around it are NOT decorative - they are
-                real text nodes, so the heading's accessible name is "q_body_type Version 2"
-                rather than the two run together, which is what an aria-hidden separator with
-                no whitespace beside it produces. */}
+            {/* Keep real whitespace around the hidden separator so the heading's accessible name does not join the two
+   facts. */}
             <span className="qcms-question-head__sep" aria-hidden="true">
               {"·"}
             </span>{" "}
@@ -152,26 +72,8 @@ export default async function QuestionDetailPage({
           <StatusTag status={selected.status} />
         </div>
         <QuestionSave mode="edit" />
-        {/* THE LIFECYCLE PAIR, IN THIS ROW BESIDE SAVE (§7.0 ruling 5, issue #1116).
-            Publish and Deprecate were in the rail, stacked above the version list, from
-            issue 650 until the 2026-10-24 ruling took every lifecycle and destructive
-            action out of every rail and into the content heading row. At most one of the
-            two is ever offered - a draft publishes, a published version deprecates - and
-            this row already holds one control's height whether or not a control is in it,
-            which is what keeps the heading from moving as a reader walks the version list.
-
-            AFTER `QuestionSave` in document order, which is the one thing about the
-            placement that is not free: the save note is the first half of that component
-            and contract §6 wants a linear read to reach the statement on the way to the
-            control it describes. So the pair sits after both, and the stylesheet places it
-            in the row's last column.
-
-            `lifecycleAction` is the same server action the rail's New version posts to, so
-            there is still one `POST` and one revalidation for the three intents. */}
-        {/* One marker for this heading row's four kinds: a save, a publish, a deprecate
-            and a new version. Only one card ever waits, so one marker covers them, and it
-            sits in this cell rather than around Save because Save's two elements are the
-            grid's own children and a wrapper would move them. */}
+        {/* Place lifecycle controls after the save note and Save in document order so the note is read before its
+   control. */}
         <div className="qcms-question-head__lifecycle">
           <HeadingMarker control={["question.save", "question.lifecycle"]}>
             <VersionLifecycleActions
@@ -185,27 +87,11 @@ export default async function QuestionDetailPage({
         </div>
       </div>
 
-      {/* The version list, the back link and the question's own details all used to sit in
-          this column. They are the rail's now - the first since issue 650, which is where
-          the screen's POC draws it, and the other two since 2026-09-27 (Code Owner). None of
-          them is repeated here, because a navigation or a fact rendered twice on one screen
-          is two surfaces that can disagree:
-          `app/(shell)/@rail/questions/[questionId]/page.tsx`. The lifecycle pair went the
-          other way on 2026-10-24 and is in the heading row above. */}
-
       <div className="qcms-card">
         <Card padding="md" radius="md" border>
           <div className="flex flex-col gap-4">
-            {/* THE HEADING AND THE VERSION'S NOTES ARE THE EDITOR'S (Code Owner, 2026-09-28).
-                They sat here, above it. Save is in the card's header row now - the one part of
-                this card that is in the same place on every panel - and a button rendered by
-                this server component beside a heading could not read the action's pending
-                state without a second seam. So the editor owns that whole row, and this page
-                keeps the card around it. */}
-            {/* Keyed by the selected version: switching versions is a client-side
-                navigation of the same route, so without this React would keep the
-                mounted editor and its state, and `?v=2` would still be showing v1's
-                document in v2's form. */}
+            {/* Key by version: soft navigation otherwise preserves the previous editor state under the new version's
+   URL. */}
             <QuestionEditor
               key={`${detail.data.questionId}:${String(selected.version)}`}
               mode="edit"
@@ -216,11 +102,7 @@ export default async function QuestionDetailPage({
               isFrozen={isFrozen}
               isDeprecated={selected.status === "deprecated"}
               addressedPanel={panel}
-              // THE PREVIEW AS A SLOT (Code Owner, 2026-09-27). It was a card of its own above
-              // the editor, on screen whatever the author was doing; it is the last panel row
-              // in the rail now, and the column shows one panel at a time. Compiling it is a
-              // server read, so what crosses into the client editor is the finished subtree -
-              // the same seam the rail takes its lifecycle actions through.
+              // Compile preview server-side and pass the finished subtree into the client editor.
               preview={
                 preview.ok ? (
                   <QuestionPreview

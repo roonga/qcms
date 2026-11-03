@@ -23,7 +23,6 @@ const ASCENDING = [...SECONDS].sort((a, b) => a - b);
 
 describe("nearestRank", () => {
   it("takes the smallest sample at or above the rank, never an interpolated value", () => {
-    // ceil(0.5 * 14) = 7, so the 7th smallest: 1765, not (1765 + 1772) / 2.
     expect(nearestRank(ASCENDING, 50)).toBe(1765);
     expect(nearestRank(ASCENDING, 90)).toBe(1884);
     expect(ASCENDING).toContain(nearestRank(ASCENDING, 50));
@@ -213,7 +212,6 @@ describe("parseArgs", () => {
 
   it("refuses a missing job, a second job, an unknown flag and a non-positive count", () => {
     expect(() => parseArgs([])).toThrow(/usage: pnpm ci:durations/);
-    // The usage line and the header's option list have to agree.
     expect(() => parseArgs([])).toThrow(/--workflow W/);
     expect(() => parseArgs(["a", "b"])).toThrow(/only one job name/);
     expect(() => parseArgs(["a", "--nope"])).toThrow(/unknown option/);

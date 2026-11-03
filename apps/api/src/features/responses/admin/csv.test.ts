@@ -42,7 +42,7 @@ describe("csvField (RFC 4180 quoting)", () => {
 });
 
 describe("csvField (spreadsheet formula-injection guard, issue #470)", () => {
-  // Fixture text is deliberately inert rather than a working payload (SEC-8).
+  // Fixture text is deliberately inert rather than a working payload.
   const DANGEROUS_LEADS = ["=", "+", "-", "@", "\t", "\r"] as const;
 
   for (const lead of DANGEROUS_LEADS) {

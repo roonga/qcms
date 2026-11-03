@@ -27,11 +27,9 @@ import {
 } from "../../membership/resolver.js";
 
 /**
- * What a context builder is handed, and the grant checks every builder makes before it
- * reads anything.
- *
- * The browser sends a screen id and route ids and never context content, so everything a
- * turn tells the model is computed here under the caller's own grants (SEC-17).
+ * What a context builder is handed, and the grant checks every builder makes before it reads anything. The
+ * browser sends a screen id and route ids and never context content, so everything a turn tells the model is
+ * computed here under the caller's own grants.
  */
 
 /** Route ids and the response list's filters: the whole of what a turn may send. */
@@ -206,7 +204,6 @@ export async function workspacesHolding(
   return allowed;
 }
 
-/** How long one conversation's audited-read claims live. */
 const CONVERSATION_WINDOW_MS = 12 * 60 * 60 * 1_000;
 
 /**
@@ -223,10 +220,8 @@ const openClaims = new Map<string, OpenClaim>();
 const ignore = (): undefined => undefined;
 
 /**
- * Run an audited read, telling it whether it owes SEC-15 a `read` row: a conversation's
- * first turn on a subject in an environment does, later ones do not. A failed read releases
- * the claim, and a turn that would skip the row waits for an open claim first, so two
- * concurrent turns cannot leave a subject with no row; releasing can only ever add rows.
+ * Audit the conversation's first turn per subject and environment. A failed read releases its claim;
+ * concurrent turns wait for that claim so none can skip an unwritten row.
  */
 export async function auditedRead<T>(
   input: ScreenBuildInput,

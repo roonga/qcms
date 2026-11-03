@@ -90,9 +90,6 @@ export function parseLockHolderPids(text, inode) {
 }
 
 /**
- * The filesystem reads this module makes, injected so the tests can describe a host
- * rather than need one.
- *
  * @typedef {object} ProcIo
  * @property {(path: string) => string} readText
  * @property {(path: string) => string[]} readDir
@@ -146,8 +143,6 @@ export function lockHolders(lockPath, io = nodeProcIo) {
 }
 
 /**
- * The confirmation that makes matching on an inode alone safe.
- *
  * @param {number} pid
  * @param {string} lockPath
  * @param {ProcIo} io
@@ -159,8 +154,6 @@ function holdsFile(pid, lockPath, io) {
   try {
     entries = io.readDir(`/proc/${pid}/fd`);
   } catch {
-    // Unreadable, so report nothing: this text is read as an accusation, and an
-    // unconfirmed pid would be worse than silence.
     return false;
   }
   for (const entry of entries) {

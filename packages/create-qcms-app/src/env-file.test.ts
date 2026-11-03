@@ -2,11 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { fillEnv, generateSecret } from "./env-file.js";
 
-/**
- * A fixture in the exact shape the generator emits: prose, a marker line carrying the
- * attributes, then the assignment. Every assertion below depends on that shape, so
- * each test states which line it is exercising before it asserts the outcome.
- */
 const EXAMPLE = [
   "# Signing keys, at least 32 characters each.",
   "# (required, secret)",

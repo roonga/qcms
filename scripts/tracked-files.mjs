@@ -9,7 +9,6 @@ import { existsSync, statSync } from "node:fs";
 
 const GIT = process.platform === "win32" ? "git.exe" : "git";
 
-/** Room for a NUL-separated listing of a large tree. */
 const MAX_BUFFER = 32 * 1024 * 1024;
 
 /**
@@ -43,7 +42,6 @@ export function trackedFilesUnder(root, options = {}) {
 
   const all = listed.split("\0").filter((path) => path !== "");
 
-  // A subprocess can fail open, leaving every assertion over an empty set vacuously true.
   if (all.length === 0) {
     throw new Error(`trackedFilesUnder: git listed no files under ${root}`);
   }

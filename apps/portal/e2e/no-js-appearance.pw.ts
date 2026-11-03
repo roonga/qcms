@@ -9,7 +9,6 @@ import { HARNESS_FONT } from "./support/harness-config.js";
 
 test.use({ javaScriptEnabled: false });
 
-/** The two link-error headings the `?kind=` parameter chooses between (`lib/i18n/en.ts`). */
 const EXPIRED_TITLE = "This link has expired";
 const INVALID_TITLE = "This link is not valid";
 
@@ -48,7 +47,6 @@ async function applyAppearance(page: Page): Promise<string> {
   return await response.text();
 }
 
-/** The `qcms-` cookies currently in the jar, as a name -> value map. */
 async function appearanceCookies(page: Page): Promise<Record<string, string>> {
   const jar = await page.context().cookies();
   return Object.fromEntries(
@@ -56,7 +54,6 @@ async function appearanceCookies(page: Page): Promise<Record<string, string>> {
   );
 }
 
-/** The `class` attribute of `<html>` in a served document. */
 function rootClass(html: string): string {
   return /<html[^>]*\bclass="([^"]*)"/u.exec(html)?.[1] ?? "";
 }

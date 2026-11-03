@@ -140,8 +140,8 @@ function checkStructure(definition: FormDefinition): PublishError[] {
   return errors;
 }
 
-// Without `max` a respondent sizes the loop and an `open` group becomes an
-// unbounded write path (SEC-16). How small it must be is deliberately unchecked.
+// Without `max` a respondent sizes the loop and an `open` group becomes an unbounded write path. How small
+// it must be is deliberately unchecked.
 function checkRepeatBounds(group: RepeatGroup, stepId: StepId): PublishError[] {
   const errors: PublishError[] = [];
   const bounds = countBounds(group.count);
@@ -339,8 +339,6 @@ function checkRuleResolution(definition: FormDefinition): PublishError[] {
   return errors;
 }
 
-// Enumerated once and consumed by both text checks, so the two verdicts cannot
-// drift apart.
 interface TextSite {
   readonly text: LocalizedText;
   readonly subject: string;

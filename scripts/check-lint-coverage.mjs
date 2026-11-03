@@ -75,8 +75,7 @@ function isWorkspaceRunner(token) {
 }
 
 /**
- * A segment counts when it runs `eslint` directly or through `eslint-workspace.mjs`,
- * which is ESLint with the working directory pinned. Both take their targets the same way.
+ * Treat the pinned-cwd ESLint wrapper as an ESLint invocation when collecting targets.
  *
  * @param {string} script
  * @returns {{ tokens: string[]; index: number; pinned: boolean }[]}
@@ -86,7 +85,6 @@ function eslintSegments(script) {
   for (const segment of script.split(/&&|\|\||;/)) {
     const tokens = segment.trim().split(/\s+/);
     let index = 0;
-    // Strip a runner prefix so `pnpm exec eslint src` reads the same as `eslint src`.
     if (tokens[index] === "pnpm" && tokens[index + 1] === "exec") index += 2;
     else if (tokens[index] === "npx") index += 1;
     const pinned = tokens[index] === "node" && isWorkspaceRunner(tokens[index + 1]);
@@ -303,8 +301,6 @@ export async function main() {
   return 1;
 }
 
-// Only when run as a command, so the test can import the helpers without the scan firing
-// and without `process.exit` killing the run.
 if (argv[1] !== undefined && import.meta.url === pathToFileURL(argv[1]).href) {
   process.exit(await main());
 }

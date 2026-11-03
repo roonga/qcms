@@ -5,44 +5,14 @@ import { ADMIN_BASE_URL } from "./support/harness-config.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 import { waitForHydration } from "./support/hydration.js";
 
-/**
- * The shell's modes in a browser: what each caller's navigation offers, and where they
- * land.
- *
- * # What only a browser can report
- *
- * The rules themselves are unit-tested in `lib/shell/modes.test.ts`, exhaustively and
- * without a database. Two facts are not available there:
- *
- *   - a focused mode renders its own header **in place of** the application navigation, so
- *     the normal menus are absent from the document rather than styled away; and
- *   - `/` resolves to a different area per caller, which is a redirect chain.
- *
- * # Why one persona's landing, and the denied bookmark, are not asserted here
- *
- * Every account this harness creates holds the installation claim: `role` defaults to
- * `admin` in the auth instance, and the claim resolves as a `forms.owner` grant, which
- * carries `workspace: read`. So no browser persona can hold **nothing**, and the
- * no-grant landing on My access is asserted in the unit suite instead. The personas below
- * differ in the capabilities the harness can actually vary: authoring and operations come
- * from seeded access groups.
- *
- * Since the claim admits a caller to Operations, whose two global queues are its own
- * destinations, no persona here is refused a focused mode either. `permitsPath` and the
- * refusal's recovery are covered by `lib/shell/modes.test.ts` and
- * `app/(shell)/operations-states.test.tsx`.
- */
-
 test.describe.configure({ mode: "serial" });
 
-/** Every team role plus the owner row: authoring, operations and workspaces. */
 const EVERYTHING = uniqueAdminEmail("shellall");
-/** `responses.viewer` only: operations, and no authoring. */
+
 const OPERATIONS_ONLY = uniqueAdminEmail("shellops");
-/** No access group at all: the claim's workspace administration and nothing else. */
+
 const WORKSPACES_ONLY = uniqueAdminEmail("shellws");
 
-/** The workspace a bootstrapped installation is seeded with. */
 const WORKSPACE_ID = "org_default_workspace";
 
 let everythingSecret = "";
@@ -121,7 +91,6 @@ test("Settings opened from normal mode after a focused visit shows no focused he
 }) => {
   await signInWithTotp(page, EVERYTHING, everythingSecret);
 
-  // Operations first, so the mode is remembered, then back to an authoring screen.
   await page.goto("/operations");
   await expect(page.getByTestId("qcms-mode-header")).toHaveAttribute("data-mode", "operations");
   await page.getByTestId("qcms-mode-exit").click();
@@ -182,15 +151,12 @@ test("a caller holding only the claim gets the queues, no form rows and no names
 
   await page.goto("/operations");
 
-  // Decision 3's installation-claim row: no form is discovered, and the two global queues
-  // are its own destinations.
   await expect(page.getByTestId("qcms-operations-empty")).toBeVisible();
   await expect(page.getByTestId("qcms-operations-table")).toHaveCount(0);
   const rail = page.getByTestId("qcms-operations-rail");
   await expect(rail.getByRole("link", { name: "Delivery failures" })).toBeVisible();
   await expect(rail.getByRole("link", { name: "Erasure log" })).toBeVisible();
 
-  // The leak this guards is an empty answer that resolves an identifier to a title.
   const body = (await page.locator("body").textContent()) ?? "";
   expect(body).not.toContain("org_default_workspace");
   expect(body).not.toContain("frm_");
@@ -214,8 +180,6 @@ test("the root lands an authoring caller in authoring, whatever a mode remembere
   await page.goto(`/workspaces/${WORKSPACE_ID}`);
   await expect(page.getByRole("heading", { level: 2, name: "Members" })).toBeVisible();
 
-  // The root restores the context of the area this caller LANDS in, and theirs is
-  // authoring: a remembered workspace does not move the landing area itself.
   await page.goto("/");
   await expect(page).toHaveURL(/\/questions$/);
 });
@@ -225,13 +189,9 @@ test("the root restores the workspace a workspace-only caller was last on", asyn
 
   await page.goto(`/workspaces/${WORKSPACE_ID}`);
   await expect(page.getByRole("heading", { level: 2, name: "Members" })).toBeVisible();
-  // The context is remembered by a client effect, so a server-rendered heading is not
-  // evidence it has been written yet.
+  // Wait for hydration: the remembered context is written by a client effect, not by server rendering.
   await waitForHydration(page);
 
-  // Workspaces IS their landing area, so arriving with no route of their own restores the
-  // one they were on. The root is a page and resolves on every arrival; the shell's layout
-  // does not re-render on a soft navigation.
   await page.goto("/");
   await expect(page).toHaveURL(new RegExp(`/workspaces/${WORKSPACE_ID}$`));
 });
@@ -241,8 +201,6 @@ test("the root falls back to All workspaces when the remembered one is not permi
 }) => {
   await signInWithTotp(page, WORKSPACES_ONLY, workspacesSecret, /\/workspaces$/);
 
-  // A cookie left from a grant since revoked. It names a workspace this caller does not
-  // administer, so it restores nothing rather than deciding where they land.
   await page
     .context()
     .addCookies([{ name: "qcms-shell-workspace", value: "ws_revoked", url: ADMIN_BASE_URL }]);

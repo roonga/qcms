@@ -2,54 +2,6 @@ import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-/**
- * Issue 514: one table family and one empty state.
- *
- * `plan/admin-design-contracts.md` §2 and §3 define one table treatment and one empty-state
- * treatment. Three parts are structural, which is what this file pins, so a later edit cannot
- * quietly put a screen back into its own private shape:
- *
- * 1. The empty state is the panel - a `qcms-empty` element containing an `h2` - and not
- *    a bordered `Card` (the two library screens) or a bare muted paragraph (the seven
- *    others).
- * 2. A table is a plain `<table>` inside a `qcms-table` wrapper. Neither of the retired
- *    hand-authored class names may reappear on either element.
- * 3. A failed read renders its alert and NOTHING else: no table, no panel, and above all
- *    no "there are none" sentence about data the app did not manage to read (§3, issue
- *    513's rule). The erasure log broke this one, and it is the screen where breaking it
- *    matters most - it answers "was this subject request honoured?".
- *
- * ## Issue 543: the same rule, on the screen where breaking it is worse still
- *
- * `/webhooks` handed `DeadLetters` an empty array on a failed read, so the queue printed
- * "nothing is stuck" - the reassuring answer, and a positive claim - directly beneath the
- * alert saying it could not be read. The queue now takes a `ReadState` (`lib/read-state.ts`)
- * and can tell "the read failed" from "the queue is clear". The three tests at the bottom
- * of this file pin all three of its states, and the middle one is the control: a genuinely
- * empty read must STILL get §3's panel, so the fix cannot degenerate into deleting the
- * empty state.
- *
- * ## Why this layer
- *
- * The same reason `forms-list-states.test.tsx` gives, and this file is the sibling that
- * note anticipated when it left "the design of the zero state" to this issue. These are
- * server components whose reads run in the Next server process, so `page.route()` cannot
- * reach them and no browser gesture makes `listErasures` fail. Rendering the page
- * component with its read stubbed and asserting over the HTML it actually emits is the
- * highest layer that can see the failure branch at all (ADR-23's "highest layer that
- * exists for it"). The family's computed appearance - 44px rows, the header underline,
- * the absence of zebra - is a stylesheet question and belongs to the capture spec.
- *
- * ## Red-first
- *
- * Against the pre-change JSX: the empty-panel assertions fail on all three screens (the
- * markup carries `qcms-card`/`text-sm text-(--color-text-muted)` and no `qcms-empty`),
- * the wrapper assertions fail on the erasure table (`<table class="qcms-ops-table">`,
- * no wrapper), and the erasure failure-branch test fails on the "no empty claim"
- * assertion, because `rows` fell back to `[]` and the screen printed
- * `ops.erasures.empty` directly underneath the error alert.
- */
-
 const SESSION = {
   userId: "u_1",
   email: "admin@example.test",
@@ -59,7 +11,6 @@ const SESSION = {
   token: "tok_test",
 };
 
-/** Set per test before the page module is imported; each page reads once, at render. */
 let erasuresResult: unknown = { ok: true, data: [] };
 let questionsResult: unknown = { ok: true, data: [] };
 let formsResult: unknown = { ok: true, data: [] };
@@ -67,19 +18,8 @@ let deadLettersResult: unknown = { ok: true, data: [] };
 let formDetailResult: unknown = { ok: true, data: undefined };
 let responsesResult: unknown = { ok: true, data: undefined };
 
-/** Every page number the screen asked the list route for, in order (issue #550). */
 const listedPages: number[] = [];
 
-/**
- * `listResponses`, paging the way the API pages (issue #550).
- *
- * {@link responsesResult} describes the WHOLE result set - its rows, its page size and
- * its total - and this hands back the slice the caller asked for: the rows for a page
- * that exists, and an empty array for one past the end, which is exactly what the route
- * answers and exactly the input the clamp exists for. Before this, the stub returned the
- * same object for every page number, so a screen that asked for page 99 was handed page
- * 1's rows and the defect was unreachable from this layer.
- */
 function pagedResponses(page: number): unknown {
   const result = responsesResult as
     { ok?: unknown; data?: { responses: unknown[]; pageSize: number; total: number } } | undefined;
@@ -125,39 +65,10 @@ const ERASURE = {
   reason: "SUBJECT_REQUEST",
 };
 
-/**
- * `EmptyState` IS the subject here, so it is absent from the registrations below and runs
- * for real: a stub shaped like the panel would only assert that the stub is shaped like
- * the panel. The three `@/lib/questions/*` modules are pure helpers the question list
- * needs and are left real for the same reason - stubbing them would change what the page
- * renders.
- */
-
-/**
- * `DeadLetters` is the subject of the issue 543 block, so it too is left real rather than
- * stubbed (`forms-list-states.test.tsx` stubs it for the opposite
- * reason: there the queue is noise around a form list). Its two non-render helpers are
- * stubbed, because neither runs during a static render and neither changes the markup:
- * `focusPostAction` is called from an effect, and `unexpected` only from a rejected
- * action's `catch`.
- */
-
-/**
- * `ResponseBrowser` is the subject of the issue 521/572 block, so it is redirected to the
- * real module for the same reason `DeadLetters` is. Its three pure helpers go with it:
- * they compute page links, export choices and the answer preview, and stubbing them would
- * change the markup the assertions read.
- */
 vi.mock("@/components/forms/form-page-header", () => ({
   FormPageHeader: () => <div data-testid="qcms-form-page-header-stub" />,
 }));
 
-/**
- * The response browser is a client component, so a static render reaches `useRouter`,
- * which throws outside an app-router context. Only the two members this tree touches are
- * provided: `notFound` keeps the page's own not-found branch throwing, as the real one
- * does.
- */
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: () => undefined }),
   notFound: () => {
@@ -183,7 +94,6 @@ vi.mock("@/lib/server/questions", () => ({
 }));
 vi.mock("@/lib/server/forms", () => ({
   listForms: () => Promise.resolve(formsResult),
-  // The webhook screen and its rail share one round trip through the memoized wrapper.
   listAllForms: () => Promise.resolve(formsResult),
   getForm: () => Promise.resolve(formDetailResult),
 }));
@@ -191,28 +101,12 @@ vi.mock("@/lib/server/webhook-ops", () => ({
   listDeadLetters: () => Promise.resolve(deadLettersResult),
 }));
 
-/**
- * `t` answers with its own key, so every assertion below is about WHICH string a branch
- * chose rather than about the sentence it holds today. That is what lets the copy change
- * without this file noticing, and it is also what makes "the failed read does not print
- * the empty sentence" a precise claim rather than a substring guess.
- */
 vi.mock("@/lib/i18n/en", () => ({
   t: (key: string) => key,
   tPlural: (one: string) => one,
 }));
 
-/**
- * Marked stand-ins, so the real components' own markup never confuses the assertions.
- *
- * `Dialog` is not one of those, and the difference matters to whoever copies this block
- * next (issue #628). A react-aria `Dialog` renders through a `Modal`, a `Modal` renders
- * through a portal, and a portal has nowhere to go in a static render: the real component
- * makes `renderToStaticMarkup` return the EMPTY STRING for the whole tree containing it,
- * not just for the dialog. So without this stub every assertion in this file would pass
- * over nothing, with no error and no warning to say so. It is a property of the layer,
- * not a convenience.
- */
+/* The real Dialog portals; static rendering a tree containing it produces empty markup. */
 vi.mock("@/components/kit", () => ({
   Alert: ({ variant, children }: { variant?: string; children?: ReactNode }) => (
     <div data-testid="qcms-alert" data-variant={variant}>
@@ -223,7 +117,6 @@ vi.mock("@/components/kit", () => ({
   Card: ({ children }: { children?: ReactNode }) => (
     <div data-testid="qcms-card-stub">{children}</div>
   ),
-  // Required, not cosmetic. See the block comment above: the real one empties the render.
   Dialog: ({ children }: { children?: ReactNode }) => (
     <div data-testid="qcms-dialog-stub">{children}</div>
   ),
@@ -241,20 +134,14 @@ vi.mock("@/components/questions/questions-table", () => ({
 vi.mock("./forms/forms-table", () => ({
   FormsTable: () => <div data-testid="qcms-forms-table-stub" />,
 }));
-// `./forms/create-form` and `./forms/actions` used to be stubbed here, because the library
-// screen rendered the creating card and posted to the action. Issue 685 moved both to
-// `/forms/new`, so this page imports neither and a mock for them would name a module this
-// file's subject no longer reaches.
 vi.mock("@/components/ops/ops-tags", () => ({
   erasureReasonText: (reason: string) => reason,
   FlagTag: () => <span data-testid="qcms-flag-tag-stub" />,
 }));
 
-/** The panel §3 prescribes, and the `h2` it must contain. */
 const EMPTY_PANEL = /<div class="qcms-empty"[^>]*>/;
 const EMPTY_HEADING = /<h2 class="qcms-empty__heading">/;
 
-/** The two class names §2 retired. Neither may appear on any element, anywhere. */
 const RETIRED_TABLE_CLASSES = /qcms-ops-table|qcms-links-table/;
 
 async function renderErasures(): Promise<string> {
@@ -272,21 +159,11 @@ async function renderForms(searchParams: Record<string, string> = {}): Promise<s
   return renderToStaticMarkup(await Page({ searchParams: Promise.resolve(searchParams) }));
 }
 
-/**
- * The forms read on this page is pinned successful and empty by `beforeEach`, so the only
- * alert the assertions below can be seeing is the dead-letter queue's own.
- */
 async function renderWebhooks(searchParams: Record<string, string> = {}): Promise<string> {
   const { default: Page } = await import("./webhooks/page.tsx");
   return renderToStaticMarkup(await Page({ searchParams: Promise.resolve(searchParams) }));
 }
 
-/**
- * One form's response browser, at whatever querystring the case needs.
- *
- * The form read is pinned successful by `beforeEach`, so the only alert these assertions
- * can see is the response list's own.
- */
 async function renderResponses(searchParams: Record<string, string> = {}): Promise<string> {
   const { default: Page } = await import("./forms/[formId]/responses/page.tsx");
   return renderToStaticMarkup(
@@ -314,7 +191,6 @@ describe("the erasure log's three states (issue 514)", () => {
     const html = await renderErasures();
 
     expect(html).toContain('data-testid="qcms-alert"');
-    // No table, no panel, and no claim about how many erasures there are.
     expect(html).not.toMatch(/<table[\s>]/);
     expect(html).not.toMatch(EMPTY_PANEL);
     expect(html).not.toContain("ops.erasures.empty");
@@ -340,8 +216,6 @@ describe("the erasure log's three states (issue 514)", () => {
     expect(html).toContain('<div class="qcms-table"><table');
     expect(html).not.toMatch(RETIRED_TABLE_CLASSES);
     expect(html).not.toMatch(EMPTY_PANEL);
-    // The droppable column and the stamp columns declare themselves in the markup, which
-    // is what §2's compact-width and tabular-figures clauses are applied through.
     expect(html).toContain("qcms-cell--drop");
     expect(html).toContain("qcms-cell--num");
   });
@@ -355,8 +229,6 @@ describe("the library screens' empty state (issue 514)", () => {
     expect(html).toMatch(EMPTY_HEADING);
     expect(html).toContain("questions.empty.title");
     expect(html).toContain("questions.empty.body");
-    // §3's CTA, and the ONLY control on the screen offering it: the header link stands
-    // down in this one state rather than repeating the panel's accessible name.
     expect(html.match(/href="\/questions\/new"/g)).toHaveLength(1);
   });
 
@@ -365,12 +237,8 @@ describe("the library screens' empty state (issue 514)", () => {
 
     expect(html).toMatch(EMPTY_PANEL);
     expect(html).toContain("questions.empty.filtered");
-    // §3: the filtered variant keeps the panel and drops the explanatory sentence.
     expect(html).not.toContain("questions.empty.body");
-    // §3's CTA, which this panel keeps even though the rail offers one too: the way out is
-    // offered where the reader is looking.
     expect(html.match(/questions\.filter\.clear/gu)).toHaveLength(1);
-    // A filtered library is not an empty one, so the header's creating action stays.
     expect(html).toContain('href="/questions/new"');
   });
 
@@ -384,20 +252,12 @@ describe("the library screens' empty state (issue 514)", () => {
   });
 });
 
-/**
- * `ops.deadLetters.emptyTitle` starts with `ops.deadLetters.empty`, so one
- * `not.toContain("ops.deadLetters.empty")` rules out both halves of the panel's copy at
- * once. That is deliberate: the claim being pinned is "no part of the empty state",
- * not "not this one string".
- */
 describe("the dead-letter queue's three states (issue 543)", () => {
   it("makes no claim about the queue when the read fails", async () => {
     deadLettersResult = { ok: false, message: "upstream said 503" };
 
     const html = await renderWebhooks();
 
-    // The whole point of the issue: "nothing is stuck" is the reassuring answer, and a
-    // failed read does not have it. Neither the panel nor its copy nor the count.
     expect(html).not.toMatch(EMPTY_PANEL);
     expect(html).not.toContain("ops.deadLetters.empty");
     expect(html).not.toContain("ops.deadLetters.total");
@@ -411,8 +271,6 @@ describe("the dead-letter queue's three states (issue 543)", () => {
 
     expect(html).toContain('data-testid="qcms-alert"');
     expect(html).toContain("ops.deadLetters.loadFailed");
-    // The region keeps its heading, exactly as the form list below it does on the same
-    // page (issue 513): the alert needs a subject, and a heading claims nothing.
     expect(html).toContain('id="qcms-dead-letters-heading"');
   });
 
@@ -439,26 +297,6 @@ describe("the dead-letter queue's three states (issue 543)", () => {
   });
 });
 
-/**
- * Issue 521, and the site of issue 572 it shares a page with.
- *
- * The response browser had TWO ways to state something it did not know, one inside the
- * other. Which empty sentence it shows is chosen from the querystring, and it used to be
- * chosen from an expression other than the one the API request was built from, so
- * `?flagged=maybe` produced "no response matches these filters" about a filter the page
- * had discarded. And the page handed the component `ok ? data : an empty page`, so a read
- * that failed produced the empty panel and "0 responses" underneath its own error alert.
- *
- * Both are the same defect and both are pinned here rather than in the browser suite: the
- * failure branch needs `listResponses` to fail, which no gesture in a browser can make
- * happen against a server component (the erasure block above gives the full argument).
- * The querystring pair is asserted at both layers on purpose, because the sentence is
- * what an operator reads.
- *
- * Red-first against the pre-change tree: the failure test fails on every one of its four
- * assertions (the panel, `ops.responses.empty`, the total and the pager all render), and
- * `?flagged=maybe` renders `ops.responses.filteredEmpty`.
- */
 describe("the response browser's read states (issues 521, 572)", () => {
   it("makes no claim about responses when the list read fails", async () => {
     responsesResult = { ok: false, message: "upstream said 503" };
@@ -467,15 +305,11 @@ describe("the response browser's read states (issues 521, 572)", () => {
 
     expect(html).toContain('data-testid="qcms-alert"');
     expect(html).toContain("ops.responses.listFailed");
-    // No panel, no "nothing has been submitted", no count, no pager: every one of them
-    // is a statement about rows that never arrived.
     expect(html).not.toMatch(EMPTY_PANEL);
     expect(html).not.toContain("ops.responses.empty");
     expect(html).not.toContain("ops.responses.total");
     expect(html).not.toContain('data-testid="qcms-responses-paging"');
     expect(html).not.toMatch(/<table[\s>]/);
-    // The heading and the toolbar survive: the alert needs a subject, filtering is a
-    // navigation that triggers a fresh read, and Export is a separate request.
     expect(html).toContain('id="qcms-responses-heading"');
     expect(html).toContain('data-testid="qcms-response-filters"');
   });
@@ -486,8 +320,6 @@ describe("the response browser's read states (issues 521, 572)", () => {
     expect(html).toMatch(EMPTY_PANEL);
     expect(html).toMatch(EMPTY_HEADING);
     expect(html).toContain("ops.responses.emptyTitle");
-    // `ops.responses.emptyTitle` starts with `ops.responses.empty`, so the body has to be
-    // matched where it lands rather than by substring, exactly as the queue's is above.
     expect(html).toMatch(/qcms-empty__body">ops\.responses\.empty</);
     expect(html).not.toContain('data-testid="qcms-alert"');
   });
@@ -509,8 +341,6 @@ describe("the response browser's read states (issues 521, 572)", () => {
   it("says the unfiltered kind of empty for a filter value nothing accepts", async () => {
     const html = await renderResponses({ flagged: "maybe", from: "nope" });
 
-    // The reported defect: `maybe` never reached the API, so a filtered-empty claim about
-    // it was false. The notice names both parameters instead.
     expect(html).toContain("ops.responses.empty");
     expect(html).not.toContain("ops.responses.filteredEmpty");
     expect(html).toContain('data-testid="qcms-responses-ignored-filters"');
@@ -519,30 +349,12 @@ describe("the response browser's read states (issues 521, 572)", () => {
   it("keeps the filtered sentence when a valid filter survives beside a rejected one", async () => {
     const html = await renderResponses({ flagged: "true", from: "nope" });
 
-    // The control, and the case the screen contract line used to get wrong: an ignored value
-    // does not decide the empty state, the filters that DID parse do.
     expect(html).toContain("ops.responses.filteredEmpty");
     expect(html).toContain('data-testid="qcms-responses-ignored-filters"');
   });
 });
 
-/**
- * A page past the end of the result set (issue #550).
- *
- * The third arrival of this file's own subject: the screen making a claim about
- * something other than what it read. `?page=99` on a form with submissions rendered the
- * empty panel and "Nothing has been submitted to this form yet." Neither earlier fix
- * reaches it - a page is not a filter (521) and the read did not fail (543/572) - so it
- * needed the position itself to be corrected, which `lib/ops/paging.ts` argues for over
- * a third empty state.
- *
- * Red-first against the pre-change page: the first test fails on all three of its
- * assertions, because the screen renders the panel, `ops.responses.empty` and no table.
- * The second and third are the controls that stop the fix from becoming "clamp always",
- * which would re-read page 1 to rediscover an emptiness that was true the first time.
- */
 describe("a page past the end of the responses (issue #550)", () => {
-  /** One page of results, so `?page=99` is past the end while rows plainly exist. */
   const ONE_FULL_PAGE = {
     ok: true,
     data: { responses: [RESPONSE_ROW], page: 1, pageSize: 50, total: 1 },
@@ -556,16 +368,12 @@ describe("a page past the end of the responses (issue #550)", () => {
     expect(html).toContain('<div class="qcms-table"><table');
     expect(html).not.toMatch(EMPTY_PANEL);
     expect(html).not.toContain("ops.responses.empty");
-    // The correction is a second read at the last page, and only because the first read
-    // is what reported the total that says where the end is.
     expect(listedPages).toEqual([99, 1]);
   });
 
   it("reads once and keeps the empty panel when the form genuinely has nothing", async () => {
     const html = await renderResponses({ page: "99" });
 
-    // No rows on any page, so the empty sentence is a true statement and clamping to
-    // page 1 would buy a round trip and change nothing on screen.
     expect(html).toMatch(EMPTY_PANEL);
     expect(html).toContain("ops.responses.emptyTitle");
     expect(listedPages).toEqual([99]);

@@ -17,24 +17,6 @@ import {
 
 import type { ChoiceOptionView } from "./types.ts";
 
-/**
- * The deferred-minting invariant, asserted rather than merely implemented (task 057).
- *
- * The Code Owner ruled that an option id is minted when a row first acquires content, not
- * when the ghost add-row is rendered. That is a decision an optimiser would happily undo:
- * minting at open time is one line shorter, needs no pending-row concept, and every test
- * of "add an option and check its id" still passes afterwards. What it silently costs is
- * permanent, because an `optionId` can never be corrected (R6): every option authored
- * through the grid would mint from an empty label and become `opt_option`, `opt_option_2`,
- * `opt_option_3`, and the rule builder - which shows raw option ids as its picker labels,
- * with no label lookup anywhere - would offer an author a list of indistinguishable
- * entries.
- *
- * So the first `describe` below is a guard, not coverage. It was proven red before it was
- * accepted: with `openPendingRow` changed to append through `addOption` at open time, all
- * three of its cases fail. Anyone tempted to make that change again meets them.
- */
-
 function seeded(): readonly ChoiceOptionView[] {
   return addOption([], "Red");
 }
@@ -51,28 +33,18 @@ describe("deferred minting (the ruling of 2026-08-06)", () => {
   it("consumes no option id for a ghost add-row that is opened and abandoned", () => {
     const before: OptionGridState = { options: seeded(), pending: undefined };
 
-    // Opening the ghost add-row is an editing state, not a mutation. The document is
-    // identical - no row, and therefore no id, has come into existence.
     const ghost = openPendingRow(before, before.options.length);
     expect(ghost.options).toEqual(before.options);
     expect(ghost.pending).toEqual({ index: 1, label: "" });
 
-    // Tabbing past it and abandoning it leaves the document identical too, which is the
-    // observable form of "the abandoned row consumed nothing".
     expect(abandonPendingRow(ghost).options).toEqual(before.options);
 
-    // And the option the author does go on to name earns its own id, unsuffixed. Under
-    // eager minting the abandoned row would already be sitting in the list as
-    // `opt_option`, and this row would be the second entry rather than the second option.
     const named = commitPendingRow(setPendingLabel(ghost, "Blue"));
     expect(idsOf(named)).toEqual(["opt_red", "opt_blue"]);
     expect(named.pending).toBeUndefined();
   });
 
   it("consumes no option id for an INSERT-BETWEEN row that is opened and abandoned", () => {
-    // Insert is the path this task adds, and the easy place to mint eagerly: the code that
-    // knows the insert position already has a list it could call `addOption` on. Same
-    // three assertions as the ghost row, one row further up the list.
     const start: OptionGridState = { options: addOption(seeded(), "Blue"), pending: undefined };
 
     const inserted = openPendingRow(start, 1);
@@ -80,29 +52,18 @@ describe("deferred minting (the ruling of 2026-08-06)", () => {
     expect(inserted.pending).toEqual({ index: 1, label: "" });
     expect(abandonPendingRow(inserted).options).toEqual(start.options);
 
-    // The `_2` suffix is what makes this sharp. If the abandoned row had taken `opt_green`
-    // at open time and then been dropped, or were still present, this would not be a clean
-    // `opt_green` landing in the middle of the list.
     const named = commitPendingRow(setPendingLabel(inserted, "Green"));
     expect(idsOf(named)).toEqual(["opt_red", "opt_green", "opt_blue"]);
     expect(labelsOf(named)).toEqual(["Red", "Green", "Blue"]);
   });
 
   it("mints from the label the row was named with, never from the empty row it started as", () => {
-    // The other face of the same guard: an id minted at open time is minted from `""`, and
-    // `mintOptionId` falls back to `opt_option` for that. Naming the option "Option" is the
-    // case that proves the id came from the author's text and not from the fallback: under
-    // eager minting the empty row would already hold `opt_option`, so this would land as
-    // `opt_option_2`.
     const state: OptionGridState = { options: [], pending: undefined };
     const named = commitPendingRow(setPendingLabel(openPendingRow(state, 0), "Option"));
     expect(idsOf(named)).toEqual(["opt_option"]);
   });
 
   it("abandons a row whose label is only whitespace instead of minting from it", () => {
-    // "Acquires content" is content, not keystrokes. A row holding two spaces would mint
-    // `opt_option` (the identifier core of whitespace is empty), which is exactly the
-    // meaningless permanent id the ruling exists to prevent.
     const start: OptionGridState = { options: seeded(), pending: undefined };
     const committed = commitPendingRow(setPendingLabel(openPendingRow(start, 1), "   "));
     expect(committed.options).toEqual(start.options);
@@ -111,9 +72,6 @@ describe("deferred minting (the ruling of 2026-08-06)", () => {
   });
 
   it("has no shape that could carry an id on a pending row", () => {
-    // Structural, in the same spirit as "no input is bound to an optionId": a pending row
-    // cannot hold an id because there is nowhere to put one. A `PendingRow` that grew an
-    // `optionId` field would fail here as well as at the type level.
     const ghost = openPendingRow({ options: seeded(), pending: undefined }, 1);
     expect(Object.keys(ghost.pending ?? {}).sort()).toEqual(["index", "label"]);
   });
@@ -121,8 +79,6 @@ describe("deferred minting (the ruling of 2026-08-06)", () => {
 
 describe("openPendingRow", () => {
   it("commits an in-flight named row before opening the next one", () => {
-    // Clicking a second insert point while a row is half-named must not throw the typed
-    // label away: it acquired content, so it is an option.
     const start: OptionGridState = { options: seeded(), pending: undefined };
     const first = setPendingLabel(openPendingRow(start, 1), "Blue");
     const second = openPendingRow(first, 2);
@@ -131,8 +87,6 @@ describe("openPendingRow", () => {
   });
 
   it("shifts the new row past a commit that landed ahead of it", () => {
-    // The in-flight row was at index 0 and the new one was asked for at index 1. Once the
-    // first commits it occupies index 0, so "after Red" is now index 2, not 1.
     const start: OptionGridState = { options: seeded(), pending: undefined };
     const first = setPendingLabel(openPendingRow(start, 0), "Blue");
     const second = openPendingRow(first, 1);
@@ -160,7 +114,6 @@ describe("setPendingLabel", () => {
   });
 
   it("keeps whitespace exactly as typed", () => {
-    // Same reason `localizedDraft` exists: a trim here makes a trailing space unwritable.
     const ghost = openPendingRow({ options: [], pending: undefined }, 0);
     expect(setPendingLabel(ghost, "Blue ").pending?.label).toBe("Blue ");
   });
@@ -292,19 +245,6 @@ describe("committedIndexOf", () => {
   });
 });
 
-/**
- * The row menu's contents, which are conformance rather than convenience (issue 680).
- *
- * The grip reorders by pointer-drag. WCAG 2.2 SC 2.5.7 Dragging Movements (AA) asks that
- * everything a drag can do is also reachable with a single pointer and no dragging, and
- * Move up / Move down are that path. The grip's Arrow Up/Down is SC 2.1.1 Keyboard, a
- * different criterion, and it does not discharge 2.5.7: the operator these two items are
- * for is on a head pointer, a switch or an eye tracker, not on a keyboard.
- *
- * A menu that has quietly lost either item still looks fine in a screenshot, so the list is
- * asserted here. What the two items DO under a pointer is `questions-lifecycle.pw.ts`,
- * because a click is not a thing a unit test can observe.
- */
 describe("optionRowMenuItems", () => {
   const ORDER: readonly OptionRowAction[] = [
     "insertAbove",
@@ -338,8 +278,6 @@ describe("optionRowMenuItems", () => {
   });
 
   it("disables only the move that would run off the end of the list", () => {
-    // Disabled at position three of five, with two live items after it: the arrangement
-    // `components/row-menu.tsx` has to skip past rather than dead-end on (issue 517).
     const top = disabledIn(0, 3);
     expect(top.get("moveUp")).toBe(true);
     expect(top.get("moveDown")).toBe(false);
@@ -354,9 +292,9 @@ describe("optionRowMenuItems", () => {
     const only = disabledIn(0, 1);
     expect(only.get("moveUp")).toBe(true);
     expect(only.get("moveDown")).toBe(true);
-    // The list can never empty from the menu, which is the older rule this one joins.
+
     expect(only.get("remove")).toBe(true);
-    // And the two inserts stay live, so a one-option question is not a dead end.
+
     expect(only.get("insertAbove")).toBe(false);
     expect(only.get("insertBelow")).toBe(false);
   });

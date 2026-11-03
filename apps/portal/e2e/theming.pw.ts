@@ -11,7 +11,6 @@ import { KS, startKitchenSink } from "./support/kitchen-sink.js";
 import { walkToCoverStep } from "./support/no-js.js";
 import { starveScripts } from "./support/script-starve.js";
 
-/** The four corner presets and the `--radius-control` / `--radius-card` they set. */
 const CORNER_PRESETS = [
   { name: "subtle", rootClass: "", control: "6px", card: "10px" },
   { name: "sharp", rootClass: "radius-sharp", control: "0px", card: "0px" },
@@ -22,10 +21,8 @@ const CORNER_PRESETS = [
 const THEMES = ["slate", "harbor", "sand", "plum"] as const;
 const MODES = ["light", "dark", "hc"] as const;
 
-/** The origin the harness serves, for cookies seeded before a navigation. */
 const ORIGIN = `http://localhost:${PORTAL_PORT}`;
 
-/** Read one computed property off a locator. */
 function computed(target: Locator, property: string): Promise<string> {
   return target.evaluate(
     (element, name) => getComputedStyle(element).getPropertyValue(name),
@@ -33,12 +30,10 @@ function computed(target: Locator, property: string): Promise<string> {
   );
 }
 
-/** Numeric pixel value of a computed property. */
 async function px(target: Locator, property: string): Promise<number> {
   return Number.parseFloat(await computed(target, property));
 }
 
-/** Set the theme attribute and the mode / corners root classes on `<html>`. */
 async function applyAppearance(
   page: Page,
   appearance: { theme?: string; mode?: string; corners?: string },
@@ -56,7 +51,6 @@ async function applyAppearance(
   await settleTransitions(page);
 }
 
-/** Run axe over the current page state; fail on any violation, prove it ran. */
 async function expectNoAxeViolations(page: Page, label: string): Promise<void> {
   const results = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])

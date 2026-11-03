@@ -6,16 +6,6 @@ import type { DraftForm } from "@/lib/forms/types";
 import type { ResolvedScreen } from "@/lib/agent/screens";
 import { t } from "@/lib/i18n/en";
 
-/**
- * The turn the panel posts itself once an accept has settled.
- *
- * It is the only turn nobody typed, and it is what makes the publish card the second half
- * of one journey rather than something the person has to ask for twice. What this pins is
- * when it goes out and what it carries: after the accept's own save has landed, with the
- * conversation ending in the card's own `action-result` record, no user message appended to
- * it, and the draft token that save produced.
- */
-
 const DRAFT = {
   formId: "frm_quote",
   defaultLocale: "en",

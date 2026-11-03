@@ -9,7 +9,6 @@ import { basename, isAbsolute } from "node:path";
 
 import { PACKAGE_MANAGER } from "./options.js";
 
-/** Absolute locations a package manager shim is installed to, in likelihood order. */
 const PACKAGE_MANAGER_CANDIDATES = [
   "/usr/local/bin",
   "/usr/bin",
@@ -18,7 +17,6 @@ const PACKAGE_MANAGER_CANDIDATES = [
   "/usr/local/share/npm-global/bin",
 ];
 
-/** Absolute locations git is installed to. */
 const GIT_CANDIDATES = ["/usr/bin/git", "/bin/git", "/usr/local/bin/git", "/opt/homebrew/bin/git"];
 
 /** A resolved program: the executable, plus any arguments that must lead. */

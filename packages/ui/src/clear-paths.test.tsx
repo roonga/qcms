@@ -7,9 +7,7 @@ import { loadGoldenForms } from "./test-support/golden.ts";
 import { ControlledHost } from "./test-support/host.tsx";
 import { SELECT_STEP } from "./test-support/select-step.ts";
 
-// jsdom rather than the browser (ADR-23): none of this is layout-dependent, and the
-// Select is reachable here, which it is not from the portal. What each clear path
-// posts, and when, is pinned in the portal's own suite.
+// jsdom covers serialization without layout; browser specs pin the posted clear paths.
 
 const kitchen = loadGoldenForms().find((f) => f.version === "v2" && f.form === "kitchen-sink");
 if (!kitchen) throw new Error("kitchen-sink v2 golden not found");
@@ -38,8 +36,7 @@ function isChecked(element: HTMLElement): boolean {
   return (element as HTMLInputElement).checked;
 }
 
-// Cost scales with the CPU share the runner gets, so the budget is per file rather
-// than per test.
+// Use a file-level budget because rendering cost scales with runner CPU share.
 describe(
   "an emptied control reports absence, not an answer of nothing",
   { timeout: 30_000 },
@@ -136,7 +133,6 @@ describe("the discrete controls have no clear gesture", { timeout: 30_000 }, () 
     expect(changes).toHaveBeenCalledWith("q_at_fault_accident", true);
     changes.mockClear();
 
-    // Every gesture a respondent might try to un-answer with.
     await user.click(yes);
     yes.focus();
     await user.keyboard("{Delete}{Backspace}{Escape} ");
@@ -166,8 +162,7 @@ describe("the discrete controls have no clear gesture", { timeout: 30_000 }, () 
   });
 });
 
-// The native path has no `onChange`, so the posted bytes must agree with the scripted cases: a text box posts
-// itself empty and a multiChoice group posts nothing, so both are covered.
+// The native path has no onChange; serialized bytes must agree with scripted clears.
 
 describe("the native transport posts the same clear (issue #127)", { timeout: 30_000 }, () => {
   function renderNative(document: A2UIStepDocument, values: Record<string, unknown>) {
@@ -232,7 +227,7 @@ describe("the native transport posts the same clear (issue #127)", { timeout: 30
       expect(serialize()).toContainEqual([`${prefix}q_dob`, ""]);
     }
     expect(serialize()).toContainEqual(["__qa__q_dob", "1"]);
-    // The autofill mirror is not rendered on this path.
+
     expect(serialize().filter(([name]) => name === "q_dob")).toEqual([]);
   });
 

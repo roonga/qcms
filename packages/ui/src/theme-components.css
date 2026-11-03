@@ -1,7 +1,6 @@
 /*
- * Makes the vendored controls consume the spacing, radius and typography tokens, plus the High-contrast
- * scaffold (ADR-22 keeps their sources frozen). Unlayered so these beat `@layer utilities` without `!important`;
- * `[data-qcms-theme-scope]` is the sole anchor (ADR-38). Imported after `theme.css`; needs Tailwind v4. See docs/theming.md.
+ * Override frozen vendored styles with unlayered rules so token floors beat utility layers.
+ * Use the theme scope carrier and import after theme.css; see docs/theming.md.
  */
 
 /* Tailwind's `text-sm` and `text-xs` are below the WCAG 1.4.12 floors, and the
@@ -109,9 +108,6 @@
   font-feature-settings: var(--type-numeric);
 }
 
-/* The High-contrast treatment that is CSS rather than a token value; the `.hc`
-   values live in theme.css. */
-
 /* The only polarity-dependent rule here: the treatments below are edges, flatness and
    the focus ring, which read the same on either field. Naming the wrong field leaves
    the UA painting form controls and scrollbars against the palette. */
@@ -148,7 +144,6 @@
   box-shadow: none;
 }
 
-/* Above whatever a control draws for itself. */
 [data-qcms-theme-scope].hc
   :is(
     a,
@@ -225,10 +220,7 @@
   }
 }
 
-/*
- * Stacked repeating group (ADR-42, ADR-43). One input per row at any width is a ruling, written as one
- * declaration a reviewer can check: a side-by-side pair splits reading and tab order from visual order.
- */
+/* Keep one input per row so hidden fields cannot split reading and tab order from visual order. */
 
 [data-qcms-theme-scope] .qcms-repeat {
   display: flex;
@@ -267,18 +259,12 @@
   font-weight: 600;
 }
 
-/* Focus lands here after an add or a removal, and a destination with no visible
-   indicator fails 2.4.7. */
 [data-qcms-theme-scope] .qcms-repeat__heading:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
 }
 
-/*
- * One column deliberately, with no media query that widens it. `minmax(0, 1fr)` and not `1fr`, whose `auto`
- * floor is min-content: a date control exceeded a phone, and the mobile layout zoomed out (1.4.10 reflow
- * failure).
- */
+/* Use minmax(0, 1fr): a min-content floor can widen the entire mobile document. */
 [data-qcms-theme-scope] .qcms-repeat__fields {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -320,8 +306,6 @@
   cursor: not-allowed;
 }
 
-/* Announced, never drawn: no box, so an empty region occupies nothing and a filled
-   one does not move the page. */
 [data-qcms-theme-scope] .qcms-repeat__status {
   position: absolute;
   width: 1px;
@@ -338,7 +322,6 @@
  */
 
 [data-qcms-theme-scope] .qcms-repeat-table {
-  /* The containing block for every hidden label beneath it. */
   position: relative;
   overflow-x: auto;
   inline-size: 100%;
@@ -355,8 +338,6 @@
   border-spacing: 0;
 }
 
-/* The table's accessible name, and the only place that label appears, which is why
-   the expansion emits no heading node for a table-presented group. */
 [data-qcms-theme-scope] .qcms-repeat-table__caption {
   text-align: start;
   font-weight: 600;
@@ -364,7 +345,6 @@
 }
 
 [data-qcms-theme-scope] .qcms-repeat-table__table :is(th, td) {
-  /* The containing block for this cell's hidden label. */
   position: relative;
   padding: var(--space-stack);
   text-align: start;
@@ -401,14 +381,11 @@
   color: var(--color-text-muted);
 }
 
-/* It identifies its row rather than heading it, so it does not shout. */
 [data-qcms-theme-scope] .qcms-repeat-table__rowhead {
   font-weight: 400;
   white-space: nowrap;
 }
 
-/* Focus lands here after an add or a removal, and a destination with no visible
-   indicator fails 2.4.7. */
 [data-qcms-theme-scope] .qcms-repeat-table__rowhead:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;

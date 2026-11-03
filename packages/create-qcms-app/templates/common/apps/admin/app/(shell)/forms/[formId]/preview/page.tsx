@@ -12,7 +12,6 @@ import { requireAdminSession } from "@/lib/server/session";
 
 import { previewDraftAction } from "../../actions";
 
-/** The browser-tab title for this route (issue #536): the section, and the form it belongs to. */
 export async function generateMetadata({
   params,
 }: {
@@ -22,18 +21,7 @@ export async function generateMetadata({
   return pageMetadata(formSectionName("preview", formId));
 }
 
-/**
- * The live preview of a form's draft (task 034; screen contract "preview").
- *
- * A server component that loads the form and hands the draft to the pane. The action is
- * bound to **this route's** form id, exactly as the builder binds its four: the id comes
- * from the URL, so a client cannot aim a preview at another form whatever it puts in the
- * payload.
- *
- * The draft previewed is the stored one, which is also the one publish would freeze. The
- * builder autosaves, so walking from the builder to here shows the work that was just
- * done.
- */
+/* Preview the stored draft: it is the same definition publishing would freeze. */
 export default async function FormPreviewPage({
   params,
 }: {

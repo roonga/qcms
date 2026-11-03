@@ -47,7 +47,6 @@ describe("gitBinary", () => {
   });
 
   it("names every probed location, and the override, when git is nowhere", () => {
-    // Fake roots, so the assertion holds on whatever host runs the suite.
     expect(() => gitBinary(WINDOWS_ENV, "win32")).toThrow(
       new RegExp(`no git binary at any of:.*program-files.*${GIT_BIN_OVERRIDE_ENV_VAR}`, "s"),
     );

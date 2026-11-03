@@ -14,7 +14,7 @@ export function nonProdEnvironments(): readonly string[] {
     .filter((name) => name !== "" && name !== PROD_ENVIRONMENT && /^[a-z][a-z0-9]*$/.test(name));
 }
 
-/** SEC-14's first handle, as optional `<env>=<host>` pairs. */
+/** Optional <env>=<host> pairs select a named environment by hostname. */
 export function environmentHosts(): ReadonlyMap<string, string> {
   const raw = process.env.QCMS_PORTAL_ENVIRONMENT_HOSTS;
   const hosts = new Map<string, string>();

@@ -1,7 +1,6 @@
 import { cleanup } from "@testing-library/react";
 import { afterEach } from "vitest";
 
-// Keep test-environment wiring local; it is not part of the UI package API.
 if (typeof window.matchMedia !== "function") {
   window.matchMedia = (query: string): MediaQueryList => ({
     matches: false,

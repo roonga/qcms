@@ -3,9 +3,9 @@ import { integer, text, timestamp, unique, uuid } from "drizzle-orm/pg-core";
 import { controlSchema } from "../schemas.js";
 
 /**
- * The agent action audit (SEC-17, Q12), in SEC-15's precedent shape: append-only, no
- * foreign key, `INSERT` without `RETURNING` for application roles, and no column that may
- * carry an answer value, a secret or `LocalizedText` content, `detail` included.
+ * The agent action audit (Q12), in precedent shape: append-only, no foreign key, `INSERT` without
+ * `RETURNING` for application roles, and no column that may carry an answer value, a secret or
+ * `LocalizedText` content, `detail` included.
  */
 
 /** The table name, for the grant emitters and the migration that creates it. */
@@ -28,9 +28,7 @@ export const agentActions = controlSchema.table(
     workspaceId: text("workspace_id").notNull(),
     environment: text("environment"),
     formId: text("form_id"),
-    /** The action kind's registry name. */
     kind: text("kind").notNull(),
-    /** The screen id the kind's control sits on. */
     screen: text("screen").notNull(),
     proposedAt: timestamp("proposed_at", { withTimezone: true, mode: "date" }).notNull(),
     confirmedAt: timestamp("confirmed_at", { withTimezone: true, mode: "date" })

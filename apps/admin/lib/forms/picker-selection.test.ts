@@ -10,21 +10,6 @@ import {
 } from "./picker-selection.ts";
 import type { DraftForm, DraftPin, PinnableQuestion, PinnableVersion } from "./types.ts";
 
-/**
- * The add-question dialog's selection rules (issue 660).
- *
- * The dialog itself is a react-aria `Dialog`, so `renderToStaticMarkup` returns the empty
- * string for it (issue 628) and this app has no jsdom layer to press a checkbox in. Every
- * rule that multi-select adds is therefore stated here against the pure functions, and the
- * browser walk that proves the component is wired to them is
- * `apps/admin/e2e/picker-multi-select.pw.ts`.
- */
-
-/**
- * One listed version. The `definition` is required by the type and is irrelevant to every
- * rule under test here: nothing in `picker-selection.ts` reads past `version` and `status`.
- * Building it here rather than repeating it keeps that fact visible.
- */
 function version(
   questionId: string,
   at: number,
@@ -65,7 +50,6 @@ const LIBRARY: readonly PinnableQuestion[] = [
   },
 ];
 
-/** A draft holding one step, with `q_smoker` already pinned into it. */
 const DRAFT: DraftForm = {
   formId: "frm_test",
   defaultLocale: "en",
@@ -90,7 +74,6 @@ function find(rows: ReturnType<typeof withChoices>, questionId: string, version:
 
 describe("what the picker lists", () => {
   it("lists one row per non-draft version, so the row IS the pin", () => {
-    // q_systolic v1/v2/v3, q_height v1 (v2 is a draft), q_smoker v1. Five, not three.
     expect(ROWS.map((row) => rowId(row.questionId, row.version))).toEqual([
       "q_systolic@1",
       "q_systolic@2",
@@ -118,8 +101,6 @@ describe("choosing several versions", () => {
   });
 
   it("withdraws the checkbox from the sibling versions of a chosen question", () => {
-    // ONE PIN PER QUESTION. Ticking v3 must not leave v2 tickable, or the author would
-    // learn at the commit that only one of the two landed.
     const rows = withChoices(ROWS, [{ questionId: "q_systolic", version: 3 }]);
     expect(find(rows, "q_systolic", 3)?.checked).toBe(true);
     expect(find(rows, "q_systolic", 3)?.state).toBe("Chosen to add");
@@ -149,8 +130,6 @@ describe("choosing several versions", () => {
 
 describe("the chosen pane", () => {
   it("keeps a chosen version listed when a search hides its row", () => {
-    // This is the pane's whole reason for existing: the table is filtered, the choice is
-    // not, and without the pane the author would commit something invisible.
     const chosen: readonly DraftPin[] = [{ questionId: "q_systolic", version: 3 }];
     const filtered = pinnableRows(LIBRARY, DRAFT, "height");
     expect(filtered.some((row) => row.questionId === "q_systolic")).toBe(false);
@@ -171,23 +150,15 @@ describe("the chosen pane", () => {
   });
 
   it("drops a pin whose question has left the library, rather than listing it nameless", () => {
-    // The commit is driven off this list, so what falls out here cannot be added either.
     expect(chosenDetail(LIBRARY, [{ questionId: "q_vanished", version: 1 }])).toEqual([]);
   });
 });
 
 describe("the table-column type filter (task 077, Q12)", () => {
   it("offers only the allowed types and leaves the rest out entirely", () => {
-    // Filtered OUT rather than listed-and-disabled, which is the opposite of what this
-    // module does for a deprecated or already-pinned version. Those are states of a row an
-    // author might expect to be choosable, so the row has to be there to carry the reason;
-    // a type that cannot be a column is a different kind of question, and a list
-    // two-sevenths of which can never be chosen is a list the author reads past. The
-    // sentence saying why the others are absent is the dialog's, not this module's.
     const allowed = ["shortText", "number", "date"];
     const rows = pinnableRows(LIBRARY, DRAFT, "", allowed);
-    // `q_smoker` is a boolean, which this call's list does not admit, so it is absent;
-    // every number row survives, versions and all.
+
     expect(rows.map((row) => rowId(row.questionId, row.version))).toEqual([
       "q_systolic@1",
       "q_systolic@2",
@@ -204,7 +175,6 @@ describe("the table-column type filter (task 077, Q12)", () => {
   });
 
   it("lists everything when no filter is given, which is every existing caller", () => {
-    // The same call with no fourth argument at all, which is every existing caller.
     expect(pinnableRows(LIBRARY, DRAFT, "").map((row) => row.questionId)).toEqual(
       ROWS.map((row) => row.questionId),
     );

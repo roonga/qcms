@@ -14,7 +14,6 @@ import { getForm, getFormVersion } from "@/lib/server/forms";
 import { listReleases } from "@/lib/server/releases";
 import { requireAdminSession } from "@/lib/server/session";
 
-/** The browser-tab title for this route (issue #536): the section, and the form it belongs to. */
 export async function generateMetadata({
   params,
 }: {
@@ -24,43 +23,6 @@ export async function generateMetadata({
   return pageMetadata(formSectionName("versions", formId));
 }
 
-/**
- * Versions: what exists, who published it, where it is serving, and how it got there
- * (task 034, ADR-18; includes task 065's release history).
- *
- * ## Why the two screens became one
- *
- * They answered adjacent halves of one question and neither was usable alone. "What
- * versions exist" without "which of them is serving" tells an author nothing about what a
- * respondent sees; "what is serving where" without the version identities makes them leave
- * the screen to find out what they are about to release. An operator deciding what to
- * publish read both, in sequence, every time.
- *
- * Three readings sit here, in the order the decision is made: what each environment is
- * serving now, the immutable versions with their publisher and **Available in**, and the
- * append-only release history. The act that changes any of them is the publish wizard's,
- * which is one entry rather than a dialog on this screen - releasing into several
- * destinations is one transaction and a screen-local dialog could not express it.
- *
- * ## Available in is current releases, not every destination reached
- *
- * Derived from the release history by `currentEnvironmentsByVersion`, so a version replaced
- * or rolled away from is available nowhere. The filter above the table still reads "has
- * reached", because hiding a version an environment once served would be a worse answer
- * than the unfiltered list.
- *
- * ## Why the definitions are loaded here
- *
- * The diff compares two **frozen definitions**, and the detail read carries only version
- * summaries. So each version's snapshot is read once, here, in parallel, and the
- * definitions are handed down for a purely client-side comparison. A version whose read
- * fails is simply absent from the diff's data rather than failing the screen: the table,
- * which is the audit record, is what this page is for.
- *
- * It never calls `POST /admin/forms/{id}/draft/preview`. History renders what was stored at
- * publish time, and a recompilation would be a different document than the one respondents
- * were served (ADR-18).
- */
 export default async function FormVersionsPage({
   params,
 }: {
@@ -76,9 +38,6 @@ export default async function FormVersionsPage({
   }
   const form = detail.data;
 
-  // Where each version has reached and what each environment is serving (ADR-40, task 065).
-  // Read here rather than derived from the version rows, because a version row says when it
-  // was frozen and nothing about whether a respondent ever saw it.
   const [history, resolved, snapshots] = await Promise.all([
     listReleases(session, form.formId),
     resolvedEnvironment(session),
@@ -86,8 +45,7 @@ export default async function FormVersionsPage({
       form.versions.map(async (version) => getFormVersion(session, form.formId, version.version)),
     ),
   ]);
-  // An unknown environment set draws no summary rows rather than `prod` alone (A12): a
-  // table built from a list nobody read would claim an installation shape.
+  // An unread environment set cannot justify a fabricated production-only summary.
   const environments = resolved.status === "known" ? resolved.environments : [];
   const releases = history.ok ? history.data : [];
 
@@ -106,9 +64,6 @@ export default async function FormVersionsPage({
         <h2 className="text-base font-semibold">{t("forms.versions.summaryHeading")}</h2>
         <EnvironmentSummary releases={releases} environments={environments} />
         <div className="flex flex-wrap gap-2">
-          {/* The one publish entry. A link rather than a dialog, because the
-              wizard is three steps over an intent that must survive a reload and write
-              nothing until its last press. */}
           <Link
             className="qcms-button-link"
             data-testid="qcms-publish-entry"

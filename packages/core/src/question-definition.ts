@@ -247,7 +247,6 @@ export type QuestionDefinition = z.infer<typeof QuestionDefinition>;
 
 export type QuestionType = QuestionDefinition["type"];
 
-// The `satisfies` clause is the exhaustiveness check in both directions.
 const QUESTION_TYPE_SET = {
   shortText: true,
   longText: true,

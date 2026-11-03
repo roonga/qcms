@@ -14,12 +14,9 @@ import {
 } from "@/lib/appearance";
 import { t } from "@/lib/i18n/en";
 
-/*
- * Not react-aria's `Popover`: it closes on any scroll reaching the trigger, including the
- * zero-delta one a focused panel provokes under the sticky topbar's scroll padding.
- */
+/* Use a custom panel: react-aria Popover closes on the trigger's zero-delta focus scroll, producing a
+   flicker on open. */
 
-/** The check mark on the current preview tile. U+2713. */
 const SELECTED_MARK = "✓";
 
 const PREVIEW_STATES: readonly { readonly state: string; readonly value: Appearance }[] = [
@@ -42,10 +39,6 @@ function polarityLabel(polarity: Polarity): string {
   return t("appearance.polarity.light");
 }
 
-/**
- * The trigger's whole state in words. Auto says what it resolves to, because "Auto" on
- * its own does not tell a screen-reader operator which field they are looking at.
- */
 function stateLabel(appearance: Appearance, resolved: Polarity | undefined): string {
   const polarity =
     appearance.polarity === "auto" && resolved !== undefined
@@ -60,7 +53,6 @@ export function ThemeToggle({
   appearance: stored,
   secureCookies,
 }: {
-  /** The operator's stored choice, or `undefined` when they have not made one. */
   readonly appearance: Appearance | undefined;
   readonly secureCookies: boolean;
 }) {
@@ -91,15 +83,14 @@ export function ThemeToggle({
     [secureCookies],
   );
 
-  // `preventScroll`: `html` carries the sticky topbar's height as
-  // `scroll-padding-block-start`, so a plain `focus()` scrolls a panel already on screen.
+  // Prevent scroll when focusing: the sticky topbar's scroll padding would otherwise scroll an
+  // already-visible panel.
   useEffect(() => {
     if (!open) return;
     const selected = panelRef.current?.querySelector<HTMLElement>('input[type="radio"]:checked');
     selected?.focus({ preventScroll: true });
   }, [open]);
 
-  // Non-modal: there is no scrim, so the first press outside reaches the page it lands on.
   useEffect(() => {
     if (!open) return;
     const onPointerDown = (event: PointerEvent): void => {
@@ -130,11 +121,8 @@ export function ThemeToggle({
     focusControl(`input[type="radio"][value="${polarity}"]`);
   };
 
-  /**
-   * Home and End, which the radio-group pattern requires and react-aria's arrow-key
-   * handling does not cover. The selection moves with the focus, as it does on the
-   * arrows, so the two keys behave like a longer press of the same key.
-   */
+  /* Add Home and End because react-aria's arrow handling does not implement them for this radio-group
+     pattern. */
   const onGroupKeyDown = (event: React.KeyboardEvent<HTMLDivElement>): void => {
     if (event.key !== "Home" && event.key !== "End") return;
     const polarity = event.key === "Home" ? POLARITIES[0] : POLARITIES[POLARITIES.length - 1];
@@ -143,11 +131,8 @@ export function ThemeToggle({
     choosePolarity(polarity);
   };
 
-  /**
-   * Focus is not contained, so tabbing out has to close the panel. Measured next tick
-   * because a press inside reports focus passing through nothing, and the body means focus
-   * was dropped. A detached panel already closed, and acting on its blur shuts a reopen.
-   */
+  /* Check blur next tick: an internal press can temporarily report no focus. Ignore detached panels so stale
+     blur cannot close a reopen. */
   const onPanelBlur = (event: React.FocusEvent<HTMLDivElement>): void => {
     const panel = event.currentTarget;
     globalThis.setTimeout(() => {
@@ -227,7 +212,6 @@ export function ThemeToggle({
                 <span className="qcms-appearance__switchlabel">
                   {t("appearance.contrast.legend")}
                 </span>
-                {/* A state carried only by where a dot sits is shape alone (WCAG 1.4.1). */}
                 <span className="qcms-appearance__switchstate">
                   {highContrast ? t("appearance.contrast.on") : t("appearance.contrast.off")}
                 </span>
@@ -235,8 +219,8 @@ export function ThemeToggle({
               </SwitchButton>
             </SwitchField>
             <p className="qcms-appearance__note">{t("appearance.contrast.note")}</p>
-            {/* Hidden from assistive technology because it duplicates the two controls
-                above; the tiles refuse focus, which is what keeps `aria-hidden` valid. */}
+            {/* The tiles duplicate the controls and stay aria-hidden; prevent pointer presses from moving focus into
+   them. */}
             <div className="qcms-appearance__preview" aria-hidden="true">
               {PREVIEW_STATES.map(({ state, value }) => {
                 const current =
@@ -248,15 +232,12 @@ export function ThemeToggle({
                     tabIndex={-1}
                     data-current={current ? "true" : "false"}
                     className="qcms-appearance__tile"
-                    // A press must not take focus into an `aria-hidden` subtree.
                     onPointerDown={(event) => event.preventDefault()}
                     onClick={() => {
                       apply(value);
                       focusControl(`input[type="radio"][value="${value.polarity}"]`);
                     }}
                   >
-                    {/* The scoped carrier: `app/theme.css` gives this attribute the
-                        state's real token values. */}
                     <span className="qcms-themepreview" data-state={state}>
                       <span className="qcms-themepreview__bar" />
                       <span className="qcms-themepreview__text" />

@@ -4,80 +4,10 @@ import { useEffect, useSyncExternalStore } from "react";
 
 import type { DraftForm } from "./types.ts";
 
-/**
- * The seam between the form builder and the rail beside it (Code Owner, 2026-08-25).
- *
- * ## Why a store and not props
- *
- * The steps now live in the rail, and the rail is a parallel-route slot
- * (`app/(shell)/@rail/forms/[formId]/`) so that it renders BESIDE the capped content column
- * rather than inside it. That makes it a different React tree from the builder: nothing
- * renders both, so there is no component that could hold the draft and hand it down, and
- * the shell layout that renders both slots is shared by every screen in the app - putting a
- * builder provider there would make twenty-three screens carry a context one of them uses.
- *
- * This is the same problem the Settings rail solved the same way (`lib/settings-panel.ts`),
- * and for the same reason: two client trees on one page import one instance of one module
- * out of one bundle, so a module IS what they genuinely share. `useSyncExternalStore` is
- * React's own answer for reading a value that lives outside React.
- *
- * ## The builder owns the draft, and that does not change
- *
- * What crosses this seam is a snapshot plus the callbacks that mutate it, published by the
- * builder on every render. The draft, its history, its autosave and its validation stay
- * exactly where they were: the rail calls `rename`, the builder decides what that means.
- * Nothing here mutates anything, which is what keeps one owner for the draft rather than
- * two writers racing over one document (R2's shape, applied inside the client).
- *
- * ## What the rail does before the builder has published
- *
- * `undefined`, and the rail renders the steps the SERVER gave it as plain anchors. That is
- * the honest first paint: the slot already loaded the form's steps to render them, so the
- * reader sees the real list immediately, and it becomes interactive when the page hydrates.
- */
-/**
- * `choose` rather than `select`, and the name is load-bearing rather than a preference:
- * `lib/server/r2-import-surface.test.ts` reads every source file in this app and treats a
- * call named `select`, `insert`, `update`, `delete` or `transaction` as evidence of a
- * database query, because the admin is a strict BFF and is forbidden one (R2, ADR-35).
- * Choosing a step is not a query, but the tripwire cannot tell, and the right response to a
- * coarse security check is to stay clear of it rather than to carve an exemption into it.
- */
-/**
- * WHAT THE BUILDER IS SHOWING, and the two are exclusive (Code Owner, 2026-08-26).
- *
- * The builder used to show one screen: the selected step's editor with the form's own
- * title, settings, rules, test bench and validation stacked under it. Those five are
- * properties of the FORM, so every step showed them again, and a reader moving between
- * steps saw the same five panels follow them around as though each step had its own copy.
- *
- * `plan/admin-shell-poc/admin-shell-poc.html` draws two screens rather than one - its own
- * card subtitle says "left rail navigating a form screen and a step screen" - and the rail
- * is what switches between them. So the form's details are `kind: "form"`, reached from a
- * row of the rail, and a step is `kind: "step"`, reached from that step's row.
- *
- * THERE WAS A THIRD, `kind: "rules"`, from 2026-08-26 to 2026-09-05. It is gone because the
- * rules are a ROUTE now (Code Owner, issue #669): `plan/admin-shell-poc/rules-screen-poc.html`
- * is built as drawn. The reason it was a selection in the first place was
- * `plan/admin-ux-audit.md` §5.5's objection that a rules route resolves every rule-scoped
- * validation anchor to nothing; the ruling answers that objection instead of avoiding it,
- * by requiring every surviving link to carry the route as well as the fragment
- * (`ruleHref` in `lib/forms/issues.ts`). So the rail's Rules row is an ordinary sibling
- * link and nothing switches a selection to reach a rule.
- */
-/**
- * A THIRD was added by task 074, and unlike the retired `kind: "rules"` it is not a route in
- * waiting. A repeating group's settings are a panel of the STEP the group sits in: its member
- * list is the step editor's own ownership grid, its bounds are a property of where it sits in
- * document order, and the rail already nests the groups under their step. A route would make
- * `/forms/{id}/groups/{groupId}` a fourth place a draft is edited, with its own save model,
- * for a panel that is six fields - which is exactly the "step per route" shape
- * `plan/admin-ux-audit.md` §3.5 records as the POC's scope bug.
- *
- * It carries its `stepId` as well as its `groupId`, because the panel's member list is scoped
- * to the step and because a selection naming only a group would have to search the draft for
- * it on every render.
- */
+// The rail and editor are separate client trees. Share committed snapshots and mutators without giving the rail draft ownership.
+
+// Step and group selection are exclusive so the editor and rail cannot describe different active subjects.
+// Carry stepId with groupId so the step-scoped panel does not search the whole draft.
 export type BuilderSelection =
   | { readonly kind: "form" }
   | { readonly kind: "step"; readonly stepId: string }
@@ -87,16 +17,16 @@ export interface BuilderRailSnapshot {
   readonly draft: DraftForm;
   readonly issueCounts: ReadonlyMap<string, number>;
   readonly selection: BuilderSelection;
-  /** Show the form's own details rather than any step's. */
+
   readonly chooseForm: () => void;
   readonly choose: (stepId: string) => void;
   readonly add: (title: string) => void;
   readonly rename: (stepId: string, title: string) => void;
   readonly move: (stepId: string, delta: -1 | 1) => void;
   readonly remove: (stepId: string) => void;
-  /** Show one repeating group's settings panel (074). */
+
   readonly chooseGroup: (stepId: string, groupId: string) => void;
-  /** Add a repeating group to one step, and open its panel. */
+
   readonly addGroup: (stepId: string, label: string) => void;
   readonly renameGroup: (groupId: string, label: string) => void;
   readonly moveGroup: (stepId: string, groupId: string, delta: -1 | 1) => void;
@@ -105,14 +35,6 @@ export interface BuilderRailSnapshot {
 
 let snapshot: BuilderRailSnapshot | undefined;
 
-/**
- * Held as an immutable array that is replaced rather than mutated, for the reason
- * `lib/settings-panel.ts` writes out at length: `lib/server/r2-import-surface.test.ts` reads
- * every source file in this app and treats a call named `delete` as evidence of a database
- * query, because the admin is a strict BFF and is forbidden one (R2, ADR-35). A `Set`
- * removal is not a query, but the tripwire cannot tell, and the right response to a coarse
- * security check is to stay clear of it rather than to carve an exemption into it.
- */
 let listeners: readonly (() => void)[] = [];
 
 function emit(): void {
@@ -130,20 +52,11 @@ function getSnapshot(): BuilderRailSnapshot | undefined {
   return snapshot;
 }
 
-/** The server has no builder mounted, by construction, so it publishes nothing. */
 function getServerSnapshot(): undefined {
   return undefined;
 }
 
-/**
- * Publish the builder's current steps and mutators for the rail to render.
- *
- * Called from the builder's own render through an effect, so the value the rail reads is
- * the one the builder last committed rather than one from a render React discarded. The
- * cleanup clears it, which is what stops a stale draft being offered to the rail after the
- * builder unmounts - navigating from the builder to Preview leaves the rail rendering the
- * server's anchors again, which is correct: there is no builder to select a step in.
- */
+// Publish through an effect so the rail reads committed renders. Clear on cleanup so it cannot retain a stale draft after navigation.
 export function usePublishBuilderRail(next: BuilderRailSnapshot): void {
   useEffect(() => {
     snapshot = next;
@@ -155,7 +68,6 @@ export function usePublishBuilderRail(next: BuilderRailSnapshot): void {
   }, [next]);
 }
 
-/** The builder's published state, or `undefined` when no builder is mounted. */
 export function useBuilderRail(): BuilderRailSnapshot | undefined {
   return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }

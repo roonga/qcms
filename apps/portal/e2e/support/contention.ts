@@ -19,7 +19,6 @@ import { occupantOfPort } from "./port-seat.js";
 /** A harness service that takes a port from a seat's `17Sxx` block. */
 type HarnessService = keyof typeof HARNESS_SERVICES;
 
-/** One of another seat's harness ports, found occupied while this run was going. */
 export interface NeighbourStack {
   readonly seat: number;
   readonly service: HarnessService;
@@ -30,7 +29,6 @@ export interface NeighbourStack {
   readonly cwd: string | undefined;
 }
 
-/** One sample of the machine around this run. */
 export interface HostSnapshot {
   readonly at: string;
   readonly load: HostLoad | undefined;
@@ -67,7 +65,6 @@ export function neighbourStacks(
   return found;
 }
 
-/** One sample of the machine, taken now. */
 export function snapshotHost(selfSeat: number): HostSnapshot {
   return {
     at: new Date().toISOString(),
@@ -114,19 +111,16 @@ export const CONTENTION_SIGNATURES: readonly {
   },
 ];
 
-/** Which contention signature `text` matches, if any. */
 export function classifyFailure(text: string): string | undefined {
   return CONTENTION_SIGNATURES.find((signature) => signature.pattern.test(text))?.name;
 }
 
-/** One failed test, reduced to what the report needs. */
 export interface FailureNote {
   readonly title: string;
-  /** The contention signature its error text matched, when it matched one. */
+
   readonly signature: string | undefined;
 }
 
-/** Everything the report is rendered from. */
 export interface ContentionReport {
   readonly seat: number;
   readonly start: HostSnapshot;
@@ -137,7 +131,6 @@ export interface ContentionReport {
 /** Which of the run's two samples saw a neighbour. */
 export type NeighbourPresence = "start" | "end" | "both";
 
-/** A neighbour, plus when it was observed. */
 export interface ObservedNeighbour extends NeighbourStack {
   readonly seenAt: NeighbourPresence;
 }

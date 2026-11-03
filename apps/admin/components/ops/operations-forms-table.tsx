@@ -4,18 +4,6 @@ import { OperatorDateTime } from "@/components/operator-time";
 import { t } from "@/lib/i18n/en";
 import { intakeOf, type OperationsFormRow } from "@/lib/ops/operations-forms";
 
-/**
- * The Operations forms table: one row per form this caller operates in the selected
- * environment.
- *
- * A cell the caller holds no cell for reads the same as one with nothing to report, so no
- * column says which. Unreleased is its own intake reading rather than a shade of closed.
- *
- * Which columns drop at compact width (`plan/admin-design-contracts.md` §2): Workspace,
- * In progress and Last release describe; Form, Released, Intake and Submitted identify the
- * form and answer whether it is taking responses. No `min-inline-size` is declared, so
- * there is none to reset at the boundary.
- */
 export function OperationsFormsTable({ rows }: { readonly rows: readonly OperationsFormRow[] }) {
   return (
     <div className="qcms-table">

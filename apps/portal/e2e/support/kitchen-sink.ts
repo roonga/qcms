@@ -2,10 +2,8 @@ import { expect, type Locator, type Page, type Response } from "@playwright/test
 
 import { waitForHydration } from "./hydration.js";
 
-/** The kitchen-sink form's three step titles (headings), in order. */
 export const KS_STEP_TITLES = ["About you", "Driving history", "Your cover"] as const;
 
-/** Accessible names / labels the renderer emits for each question. */
 export const KS = {
   fullName: "Full name",
   dob: "Date of birth",
@@ -17,14 +15,12 @@ export const KS = {
   overnightParking: "Where is the vehicle usually parked overnight?",
 } as const;
 
-/** Wait for one `POST /answers` to be recorded server-side (status 200). */
 export function answerPosted(page: Page): Promise<Response> {
   return page.waitForResponse(
     (r) => r.url().includes("/answers") && r.request().method() === "POST" && r.status() === 200,
   );
 }
 
-/** Wait for a navigation `GET /step` (Continue/Back) to be served (status 200). */
 export function stepServed(page: Page): Promise<unknown> {
   return page.waitForResponse(
     (r) => r.url().includes("/step") && r.request().method() === "GET" && r.status() === 200,
@@ -44,7 +40,6 @@ export async function blurActive(page: Page): Promise<void> {
   });
 }
 
-/** Start the kitchen-sink flow anonymously and land on step 1 (About you). */
 export async function startKitchenSink(page: Page, slug: string): Promise<void> {
   await page.goto(`/f/${slug}`);
   await page.getByRole("button", { name: "Start" }).click();
@@ -88,7 +83,7 @@ export async function enterDate(page: Page, digits: string): Promise<void> {
   const parts = dateParts(digits);
   const first = group.getByRole("spinbutton", { name: new RegExp(order[0] ?? "month", "i") });
   await first.click();
-  await page.keyboard.type(order.map((part) => parts[part]).join("")); // e.g. 17/05/1990
+  await page.keyboard.type(order.map((part) => parts[part]).join(""));
   await expect(group.getByRole("spinbutton", { name: /month/i })).not.toHaveText(/mm/i);
   await blurActive(page);
   await recorded;
@@ -195,14 +190,12 @@ export async function advanceToCoverStep(page: Page, slug: string): Promise<void
   await continueStep(page);
 }
 
-/** Click Continue and wait for the next step to be served. */
 export async function continueStep(page: Page): Promise<void> {
   const served = stepServed(page);
   await page.getByTestId("primary-action").click();
   await served;
 }
 
-/** Click Back and wait for the previous step to be served. */
 export async function backStep(page: Page): Promise<void> {
   const served = stepServed(page);
   await page.getByTestId("back-action").click();

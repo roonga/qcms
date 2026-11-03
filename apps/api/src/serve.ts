@@ -10,7 +10,7 @@ try {
   const { main } = await import("./main.js");
   main(telemetry);
 } catch (err: unknown) {
-  // ConfigError messages name env vars only, never secret values (SEC-8).
+  // ConfigError messages name env vars only, never secret values.
   process.stderr.write(
     `qcms-api failed to start: ${err instanceof Error ? err.message : String(err)}\n`,
   );

@@ -1,21 +1,14 @@
 import type { MessageKey } from "../i18n/en.ts";
 
-/** One row of the workspace detail rail. */
 export interface WorkspaceRailPanel {
-  /** The heading id the row's fragment names, as the panel renders it. */
   readonly anchor: string;
-  /** The row's label, which is the panel's own heading. */
+
   readonly labelKey: MessageKey;
-  /** The panel component the id lives in, repo-relative, for the gate beside this file. */
+
   readonly source: string;
 }
 
-/**
- * The workspace detail rail's Sections, in the page's own order.
- *
- * Each anchor has to equal a heading id in another file, and a fragment that matches nothing
- * fails silently, so `rail-panels.test.ts` checks every pair against the panels' sources.
- */
+/** Test fragment IDs against rendered heading sources because broken fragment links otherwise fail silently. */
 export const WORKSPACE_RAIL_PANELS: readonly WorkspaceRailPanel[] = [
   {
     anchor: "qcms-members-heading",

@@ -3,16 +3,7 @@ import { describe, expect, it } from "vitest";
 import { countTargets, filterTargets, targetGroups, type TargetGroups } from "./rule-targets.ts";
 import type { DraftForm } from "./types.ts";
 
-/**
- * The target list at the scale the Code Owner named: an insurance organisation with ten
- * or more steps and hundreds of questions.
- *
- * That scale is the whole reason this module exists, so the fixture is built at it rather
- * than at the two-step size the rest of the builder's tests use. Ten steps of twenty
- * questions is two hundred targets plus ten step targets, which is enough for "grouped by
- * step" and "narrowed by a filter" to be claims about something rather than restatements
- * of a short list.
- */
+// Keep the fixture at ten steps and hundreds of targets so grouping and filtering are exercised beyond a short list.
 function insuranceDraft(): DraftForm {
   return {
     formId: "frm_motor",
@@ -30,12 +21,10 @@ function insuranceDraft(): DraftForm {
   };
 }
 
-/** Every option id a set of groups holds, in the order a reader meets them. */
 function idsOf(groups: readonly { readonly options: readonly { readonly id: string }[] }[]) {
   return groups.flatMap((group) => group.options.map((option) => option.id));
 }
 
-/** The step ids a set of groups renders headings for. */
 function stepIdsOf(groups: readonly { readonly stepId: string }[]) {
   return groups.map((group) => group.stepId);
 }
@@ -44,8 +33,6 @@ describe("targetGroups", () => {
   it("offers every question and every step of the form, and nothing else", () => {
     const groups = targetGroups(insuranceDraft(), []);
 
-    // 200 questions plus 10 whole-step targets. A condition that reads nothing pinned
-    // constrains nothing, so with no references every one of them is legal.
     expect(countTargets(groups)).toBe(210);
     expect(groups.ineligible).toEqual([]);
     expect(stepIdsOf(groups.eligible)).toHaveLength(10);
@@ -67,12 +54,8 @@ describe("targetGroups", () => {
   });
 
   it("puts what comes before the condition in its own group rather than hiding it", () => {
-    // ADR-16: the cut is at the LAST question the condition reads, so a condition reading
-    // the third question of section 2 makes everything up to and including it illegal.
     const groups = targetGroups(insuranceDraft(), ["q_s2_q2"]);
 
-    // `e2e/forms-builder.pw.ts` exit criterion 2 depends on this: the backward attempt has
-    // to stay reachable, so the count of everything on offer is unchanged by the cut.
     expect(countTargets(groups)).toBe(210);
     expect(idsOf(groups.ineligible)).toContain("q_s0_q0");
     expect(idsOf(groups.ineligible)).toContain("q_s2_q2");
@@ -83,16 +66,11 @@ describe("targetGroups", () => {
   it("lists the one straddling step in both groups, which is what the engine would do", () => {
     const groups = targetGroups(insuranceDraft(), ["q_s2_q2"]);
 
-    // Section 2 is cut in half. Its whole-step target is ILLEGAL, because the kernel
-    // expands a step target to every question in it and three of section 2's questions
-    // come before the condition; its later questions are legal on their own.
     expect(stepIdsOf(groups.ineligible)).toContain("stp_section_2");
     expect(stepIdsOf(groups.eligible)).toContain("stp_section_2");
     expect(idsOf(groups.ineligible)).toContain("stp_section_2");
     expect(idsOf(groups.eligible)).not.toContain("stp_section_2");
 
-    // And it is the only step that can straddle, because eligibility is one cut through
-    // document order rather than a per-step judgement.
     const both = stepIdsOf(groups.eligible).filter((id) =>
       stepIdsOf(groups.ineligible).includes(id),
     );
@@ -131,8 +109,6 @@ describe("filterTargets", () => {
   });
 
   it("keeps a whole step when the step's own title matches, questions included", () => {
-    // The gesture this exists for: "show the claim details step". Its questions are not
-    // named after it, so matching only ids would return the step target and nothing else.
     const narrowed = filterTargets(groups, "Section 7");
 
     expect(stepIdsOf(narrowed.eligible)).toEqual(["stp_section_7"]);
@@ -152,8 +128,6 @@ describe("filterTargets", () => {
   });
 
   it("narrows both groups at once, so a filtered backward target stays visible", () => {
-    // "_q3" is the fourth question of every step and of no other question: "_q13" does not
-    // contain it. So this is one match per step, spread across the cut at section 2.
     const narrowed = filterTargets(groups, "_q3");
 
     expect(countTargets(narrowed)).toBe(10);

@@ -44,7 +44,6 @@ const GLOBS = [
   ".env.example",
 ];
 
-/** The vendored half comes from the single definition, never a path typed here. */
 const EXCLUDES = [VENDORED_SOURCE_PATHSPEC, ":!plan/**"];
 
 /**
@@ -225,10 +224,6 @@ export const ALLOWED = [
   },
 ];
 
-/**
- * Computed from `scripts/ports.mjs`, never listed, so the gate cannot drift from the
- * arithmetic it enforces and adding a service stays a one-place edit (ADR-37).
- */
 export function sanctionedPorts() {
   const allowed = new Set();
   for (let seat = MIN_PORT_SEAT; seat <= MAX_PORT_SEAT; seat += 1) {
@@ -286,8 +281,6 @@ function tracked() {
 }
 
 /**
- * Exact repo-relative path, never a substring or suffix - see ALLOWED above.
- *
  * @param {string} file
  * @param {number} value
  * @returns {string | undefined}
@@ -363,7 +356,6 @@ export function main() {
   return 1;
 }
 
-// Guarded so the test can import the pure helpers without the scan firing.
 if (argv[1] !== undefined && import.meta.url === pathToFileURL(argv[1]).href) {
   process.exit(main());
 }

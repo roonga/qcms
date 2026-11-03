@@ -8,7 +8,6 @@
 
 import { execSync } from "node:child_process";
 
-// OSI-approved permissive licenses compatible with MIT redistribution.
 const ALLOWED = new Set([
   "MIT",
   "ISC",

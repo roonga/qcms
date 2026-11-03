@@ -9,7 +9,7 @@ export const SubmitButtonSchema = z.object({
   props: z
     .object({
       label: z.string(),
-      /** Host-app theming (ADR-26); the control is otherwise unstyled. */
+
       className: z.string().optional(),
       /**
        * Overrides the form's own action, and present only when that action is a Server

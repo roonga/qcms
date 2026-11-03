@@ -4,7 +4,6 @@ import type { Page } from "@playwright/test";
 import { readFixtures } from "./support/fixtures.js";
 import { COUNT_LABEL, chooseAccident, startAnonymousFlow } from "./support/flow.js";
 
-/** Submit from the final step, then assert the completion page's content hash. */
 async function submitAndExpectReceipt(page: Page): Promise<void> {
   await expect(page.getByTestId("primary-action")).toHaveText("Submit");
   await page.getByTestId("primary-action").click();

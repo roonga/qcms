@@ -98,8 +98,6 @@ export type LockedSubmission = z.infer<typeof LockedSubmission>;
  */
 export function canonicalJson(value: unknown): string {
   if (value === null || typeof value !== "object") {
-    // Primitive serialization is fully specified, so this is deterministic
-    // across platforms and runtime versions.
     return JSON.stringify(value) ?? "null";
   }
   if (Array.isArray(value)) {

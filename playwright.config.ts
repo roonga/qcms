@@ -60,7 +60,6 @@ const MULTI_VIEWPORT_SPECS = [
   "**/kitchen-sink-flow.pw.ts",
   "**/a11y-axe.pw.ts",
   "**/a11y-keyboard.pw.ts",
-  // Ruled one input per row at EVERY width, so this spec needs all three projects.
   "**/repeat-stacked.pw.ts",
 ];
 
@@ -86,7 +85,6 @@ export default defineConfig({
   reporter: [["list"], ["./apps/portal/e2e/support/contention-reporter.ts"]],
   use: {
     baseURL: `http://localhost:${PORT}`,
-    // Uploaded by ci.yml's if-failure artifact step; a local failure reproduces in place.
     screenshot: process.env.CI ? "only-on-failure" : "off",
     trace: process.env.CI ? "on-first-retry" : "off",
     // Under the test timeout, so a hung action is named rather than reported only as the
@@ -110,11 +108,8 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"], viewport: { width: 1280, height: 800 } },
     },
     {
-      // Desktop only: the admin is a desk tool, so a phone project would test a shape
-      // nobody uses.
       name: "admin-chromium",
       testDir: "./apps/admin/e2e",
-      // `apps/e2e/` runs through playwright.compose.config.ts, so no `testIgnore` here.
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 1280, height: 800 },
@@ -141,8 +136,7 @@ export default defineConfig({
         QCMS_PORTAL_ENVIRONMENTS: "test",
         // Also the switch that makes the portal's `instrumentation.ts` register OTel.
         OTEL_EXPORTER_OTLP_ENDPOINT: OTLP_ENDPOINT,
-        // JSON, not the default protobuf: the receiver greps the captured bytes for an
-        // answer string, which an encoder would hide (SEC-13).
+        // Use JSON so the receiver can grep raw payloads for answer values; protobuf encoding would hide them.
         OTEL_EXPORTER_OTLP_PROTOCOL: "http/json",
         OTEL_SERVICE_NAME: OTEL_SERVICE_NAMES.portal,
         // Both pipelines: without the BLRP pair, log records run on the SDK default.
@@ -172,7 +166,6 @@ export default defineConfig({
       timeout: SERVER_TIMEOUT_MS,
       env: {
         ADMIN_PORT: String(ADMIN_PORT),
-        // The SEC-9 origin check compares every state-changing POST against this value.
         QCMS_ADMIN_BASE_URL: ADMIN_BASE_URL,
         QCMS_API_BASE_URL: API_BASE_URL,
         QCMS_INTERNAL_TOKEN: FIXED_INTERNAL_TOKEN,

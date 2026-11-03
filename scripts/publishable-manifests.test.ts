@@ -80,7 +80,6 @@ describe("publishable package manifests", () => {
   );
 
   it("leaves private packages alone", () => {
-    // Ranges over nothing today, and is kept for the next private package.
     for (const dir of PACKAGE_DIRS) {
       const manifest = readManifest(dir);
       if (manifest.private !== true) continue;

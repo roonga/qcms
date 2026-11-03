@@ -182,11 +182,6 @@ describe("soleNetworkName", () => {
   });
 });
 
-/**
- * A failed join must be fatal rather than swallowed: the forwarder still binds and
- * prints `ready`, so forwarded connections hit Docker's cross-bridge isolation and
- * time out instead of being refused.
- */
 describe("joinComposeNetwork", () => {
   it("accepts a connect that failed because the endpoint was already there", () => {
     expect(() =>
@@ -301,7 +296,6 @@ describe("needsPosixHost", () => {
     for (const mode of ["test", "test-headed", "run", "run-headed"]) {
       expect(needsPosixHost(mode), mode).toBe(true);
     }
-    // An unrecognised mode reaches the usage error, and is guarded on the way.
     expect(needsPosixHost(undefined)).toBe(true);
     expect(needsPosixHost("nonsense")).toBe(true);
   });

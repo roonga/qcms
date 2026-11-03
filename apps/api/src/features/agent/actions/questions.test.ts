@@ -11,12 +11,6 @@ import {
 } from "./questions.js";
 import type { ActionKindDef, ActionRequestFacts, ActionRoute } from "./types.js";
 
-/**
- * D6's five kinds. The two properties every kind has, plus the two this group adds: a
- * definition travels in the arguments and is therefore bound by the digest, and the two
- * create-shaped kinds return the value a later step may reference.
- */
-
 const DEFS: readonly ActionKindDef[] = [
   createQuestion,
   saveQuestionDraft,

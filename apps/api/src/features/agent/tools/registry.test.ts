@@ -93,8 +93,7 @@ describe("the agent tool registry", () => {
     const offered = Object.keys(
       agentToolSet(builderTurnContext(contextFixture("hi")), createProposalState()),
     );
-    // The builder's four draft verbs and the two propose tools a writer is offered there;
-    // `project_draft` is registered and belongs to another screen.
+
     expect([...offered].sort()).toEqual([
       "propose_action",
       "propose_draft",

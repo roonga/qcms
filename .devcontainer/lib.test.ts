@@ -3,12 +3,8 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-// Provisioning helpers are shell, so the test drives them the way the container
-// does: source lib.sh in bash under the same shell options post-create.sh uses.
 const LIB = fileURLToPath(new URL("lib.sh", import.meta.url));
 
-// `sleep` is shadowed by a no-op function in every case that retries, so the
-// backoff is exercised without spending its wall-clock cost.
 function runBash(body: string) {
   const script = `set -euo pipefail\nsource "${LIB}"\nsleep() { :; }\n${body}\n`;
   return spawnSync("bash", ["-c", script], { encoding: "utf8" });
@@ -24,7 +20,6 @@ describe("retry", () => {
   });
 
   it("recovers when a command fails and then succeeds", () => {
-    // Fails on attempts 1 and 2, succeeds on 3: the case a registry hiccup hits.
     const res = runBash(`
       n=0
       flaky() { n=$((n + 1)); [ "$n" -ge 3 ]; }
@@ -49,8 +44,6 @@ describe("retry", () => {
   });
 
   it("returns non-zero so `set -e` aborts rather than provisioning half a container", () => {
-    // The regression that motivated this: a failed step must stop the script,
-    // not let the next step run against a broken toolchain.
     const res = runBash(`retry "always-fails" false\necho "SHOULD NOT REACH"`);
 
     expect(res.status).toBe(1);

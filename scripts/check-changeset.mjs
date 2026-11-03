@@ -42,8 +42,6 @@ function resolveBaseRef() {
 }
 
 /**
- * A narrow reader rather than a YAML dependency: it is a four-line file we own.
- *
  * @param {string} yaml
  * @returns {string[]}
  */
@@ -67,8 +65,7 @@ export function parseWorkspaceGlobs(yaml) {
 }
 
 /**
- * Exported so `scripts/image-dev-deps.mjs` shares one expander. Throws on an unsupported glob shape
- * rather than silently ceasing to guard those packages.
+ * Refuse unsupported workspace-glob shapes so packages cannot silently fall out of coverage.
  *
  * @param {string} root
  * @param {string[]} globs
@@ -127,10 +124,6 @@ export function isExemptPath(filePath) {
 }
 
 /**
- * Narrow by design: `@changesets/parse` is only a transitive dependency, so under pnpm's
- * strict layout it is not resolvable from a root script, and a direct devDependency for
- * three lines of frontmatter fails the minimal-dependency rule.
- *
  * @param {string} text
  * @returns {string[]}
  */
@@ -209,7 +202,6 @@ function packagesDeclaredInDiff(changes) {
 function main() {
   const baseRef = resolveBaseRef();
   if (baseRef === undefined) {
-    // A checkout with no default branch to diff against has nothing to compare.
     console.warn(
       `check-changeset: no "${DEFAULT_BRANCH}" ref found; skipping (nothing to diff against).`,
     );
@@ -253,7 +245,6 @@ function main() {
   console.log(`check-changeset: OK - ${summary} (vs ${baseRef}).`);
 }
 
-// Run as a script; stay silent when imported by the self-test.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main();
 }
