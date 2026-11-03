@@ -214,7 +214,7 @@ describe("reporting_<env>.answers_flat view", () => {
     ]);
   });
 
-  it("inherits the submitted-only, non-erased exclusion from ${REPORTING}.responses", async () => {
+  it(`inherits the submitted-only, non-erased exclusion from ${REPORTING}.responses`, async () => {
     const res = await testDb.client.query(
       `select 1 from ${REPORTING}.answers_flat where session_id = $1`,
       ["ses_erased"],
