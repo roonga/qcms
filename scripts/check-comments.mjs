@@ -24,9 +24,11 @@ export const MAX_EXPORT_JSDOC_LINES = 4;
 export const SOURCE_ROOTS = ["apps", "packages", "scripts", "tooling"];
 export const SOURCE_EXTENSION = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|css)$/;
 
-/** Each entry needs its reason; remove the admin one when its sweep lands. */
+export const REVIEWED_ADMIN_PREFIXES = ["apps/admin/e2e/support/"];
+
+/** Each entry needs its reason; remove pending areas when their sweep lands. */
 export const EXCLUDED_PATHS = [
-  { prefix: "apps/admin/", why: "deferred until the admin sweep lands" },
+  { prefix: "apps/admin/", why: "deferred outside reviewed admin subtrees" },
   { prefix: VENDORED_SOURCE_PREFIX, why: "vendored byte-for-byte (ADR-22)" },
   { prefix: "packages/create-qcms-app/templates/", why: "generated mirrors of app files" },
   { prefix: "plan/", why: "scratch tree" },
@@ -35,7 +37,14 @@ export const EXCLUDED_PATHS = [
 const GENERATED = /(?:\.generated\.)|(?:(?:^|\/)__snapshots__\/)|(?:\.snap$)/;
 
 export function isExcluded(path) {
-  return EXCLUDED_PATHS.some(({ prefix }) => path.startsWith(prefix)) || GENERATED.test(path);
+  return (
+    EXCLUDED_PATHS.some(
+      ({ prefix }) =>
+        path.startsWith(prefix) &&
+        (prefix !== "apps/admin/" ||
+          !REVIEWED_ADMIN_PREFIXES.some((reviewed) => path.startsWith(reviewed))),
+    ) || GENERATED.test(path)
+  );
 }
 
 export function isInScope(path) {

@@ -3,49 +3,14 @@ import { expect, type Locator, type Page } from "@playwright/test";
 import { fillStable } from "./flow.js";
 import { waitForHydration } from "./hydration.js";
 
-/**
- * Browser steps for the question library, shared by the lifecycle walk and the axe gate
- * (task 032).
- *
- * ## Why these locators use roles rather than labels
- *
- * The vendored controls append a decorative `*` to a required field's `<label>`, so its
- * text content is "Label *" while its accessible name is "Label" (the asterisk carries
- * `aria-hidden`). An exact `getByLabel("Label")` therefore matches nothing, and because
- * `fillStable` retries inside `toPass`, that surfaces as a bare fifteen-second timeout
- * with no indication of the cause - it cost a run to find. `getByRole` reads the
- * accessible name, which is both correct and the same string an assistive technology
- * announces.
- */
-
-/** One text input of the editor, addressed by its accessible name. */
 export function field(page: Page, name: string): Locator {
   return page.getByRole("textbox", { name, exact: true });
 }
 
-/** The panels of the question editor, as the rail addresses them. */
 export type QuestionPanelName =
   "content" | "options" | "constraints" | "messages" | "booleanLabels" | "preview";
 
-/**
- * Open one panel of the question editor from the rail (Code Owner, 2026-09-27).
- *
- * The detail screen shows **one** panel of the selected version, chosen from rows in the rail
- * beside it (`lib/questions/panels.ts`). So a step that fills a constraint, an option or a
- * message names the panel it is working in first, exactly as an author does - and so does one
- * that reads the preview, which is the last row rather than a card above the editor (Code
- * Owner, 2026-09-27).
- *
- * `/questions/new` needs none of this and must not call it: the creation screen has no rail and
- * shows every panel at once, because creation is one pass through a short document.
- *
- * Two things this helper absorbs rather than leaving to each caller:
- *
- * - **The rail may be shut.** Below `--bp-sidebar` it collapses to its summary, and this suite
- *   runs cases at 390px on purpose. The summary is pressed first when the disclosure is closed.
- * - **The rows are React's.** A press before the attach goes nowhere and the panel never opens,
- *   which is issue #815's shape on a new control.
- */
+// Only call on detail screens; creation renders every panel together rather than selecting one.
 export async function openPanel(page: Page, panel: QuestionPanelName): Promise<void> {
   await waitForHydration(page);
   const row = page.locator(`[data-rail-panel="${panel}"]`);
@@ -53,22 +18,7 @@ export async function openPanel(page: Page, panel: QuestionPanelName): Promise<v
   await openPanelRow(page, row);
 }
 
-/**
- * Open a panel **if this screen shows one at a time**, and do nothing at all if it does not.
- *
- * This is what the option and constraint helpers below call, and it is why none of their call
- * sites had to learn about panels. The same step runs on two screens with two shapes:
- * `/questions/new` shows every panel on screen at once, so there is nothing to open; the
- * detail screen shows one panel, so the row has to be pressed before the fields exist to be
- * typed into.
- *
- * Asking the DOM which of the two it is on, rather than taking a flag, is what keeps a helper
- * like `addOption` one helper. The alternative was a boolean threaded through every caller, and
- * the callers that forgot it failed as "the button is not there" five minutes later.
- *
- * It asks whether more than one panel is on screen, read off the EDITOR rather than the rail:
- * the creation screen's rail has panel rows too, and none of them is ever `aria-current`.
- */
+// Inspect the editor panels: the creation rail also has panel rows, so the rail cannot identify the layout.
 async function ensurePanel(page: Page, panel: QuestionPanelName): Promise<void> {
   if ((await page.locator("[data-question-panel]").count()) > 1) return;
   const row = page.locator(`[data-rail-panel="${panel}"]`);
@@ -77,7 +27,6 @@ async function ensurePanel(page: Page, panel: QuestionPanelName): Promise<void> 
   await openPanelRow(page, row);
 }
 
-/** Press one panel row, expanding the rail first when it is collapsed. */
 async function openPanelRow(page: Page, row: Locator): Promise<void> {
   const disclosure = page.locator("details.qcms-rail__disclosure");
   if ((await disclosure.getAttribute("open")) === null) {
@@ -87,11 +36,7 @@ async function openPanelRow(page: Page, row: Locator): Promise<void> {
   await expect(row).toHaveAttribute("aria-current", "page");
 }
 
-/** Pick a question type in the creation form's `Select`. */
 export async function chooseType(page: Page, label: string): Promise<void> {
-  // The picker is a vendored `Select`: server-rendered as a bare button, opened only by
-  // React. `a11y-axe.pw.ts` reaches this straight off a `goto`, so the press has to wait
-  // for the attach or it is swallowed and the option list never appears (issue #815).
   await waitForHydration(page);
   const picker = page.getByRole("button", { name: /Type$/ });
   await picker.click();
@@ -99,20 +44,12 @@ export async function chooseType(page: Page, label: string): Promise<void> {
   await expect(picker).toContainText(label);
 }
 
-/**
- * Create a draft question of one type and land on its detail screen.
- *
- * The wait is on the URL the create action redirects to, and that redirect is itself part
- * of what is under test: an author who has just named a question should be looking at it.
- */
 export async function createDraft(page: Page, slug: string, typeLabel: string): Promise<void> {
   await page.goto("/questions/new");
   await fillStable(field(page, "Slug"), slug);
   await chooseType(page, typeLabel);
   await fillStable(field(page, "Label"), `E2E ${typeLabel} question`);
-  // A choice question starts with an empty option list on purpose (an option's id is
-  // minted from the label it is added with), and the kernel requires at least one, so
-  // creating one means naming its options first.
+  // Option IDs mint from labels, and the kernel requires at least one option before a choice question can be created.
   if (typeLabel.includes("choice") || typeLabel.includes("Choice")) {
     await addOption(page, "Yes, always");
     await addOption(page, "No, never");
@@ -123,33 +60,17 @@ export async function createDraft(page: Page, slug: string, typeLabel: string): 
   ]);
 }
 
-/**
- * The pending row: the one the author has opened and not yet named (task 057).
- *
- * It has no `optionId` and therefore no `data-option-index`, which is what makes it
- * addressable separately from every committed row - and what makes "the abandoned ghost row
- * consumed no id" checkable in the browser rather than only in the unit tests.
- */
+// Pending rows have no option ID; they must not count as minted options.
 export function pendingRow(page: Page): Locator {
   return page.locator("[data-option-pending] textarea");
 }
 
-/** One row's grip: drag source, Arrow Up/Down reorder, and row-menu trigger in one. */
 export function grip(page: Page, index: number): Locator {
   return page.locator(`[data-option-index="${String(index)}"] [data-option-grip]`);
 }
 
-/**
- * Open the ghost add-row, name it, and let it settle.
- *
- * The rhythm the frozen card specifies, and the one that carries the Code Owner's minting
- * ruling: pressing "Add option" opens a row that holds NO id, and the id is minted when the
- * row acquires content. Blurring is what settles it, so the assertion below is against a
- * committed row rather than the pending one.
- */
+// Naming mints an option ID; blur settles the pending row before callers inspect committed options.
 export async function addOption(page: Page, label: string): Promise<void> {
-  // The ghost row is minted by React, so a press before the attach adds nothing and the
-  // focus assertion below then times out on a row that was never opened (issue #815).
   await waitForHydration(page);
   await ensurePanel(page, "options");
   await page.getByRole("button", { name: "Add option" }).click();
@@ -159,17 +80,8 @@ export async function addOption(page: Page, label: string): Promise<void> {
   await expect(page.getByRole("textbox", { name: /^Option \d+ label$/ }).last()).toHaveValue(label);
 }
 
-/**
- * Insert a named option at a row boundary through the pointer path.
- *
- * `index` is the row it lands ABOVE; `options.length` is the ghost add-row at the end. The
- * insert point is invisible at rest and revealed on hover, so the click is forced rather
- * than hover-then-click: what is under test here is where the option lands, and the
- * reveal-on-hover and reveal-on-focus behaviours are asserted on their own elsewhere.
- */
+// The insertion control is hidden until hover; forcing isolates insertion placement from separately tested reveal behavior.
 export async function insertOptionAbove(page: Page, index: number, label: string): Promise<void> {
-  // Same swallowed press as `addOption`, and `force` makes it quieter rather than safer:
-  // it skips the actionability checks, so nothing else here would notice (issue #815).
   await waitForHydration(page);
   await ensurePanel(page, "options");
   await page
@@ -181,27 +93,15 @@ export async function insertOptionAbove(page: Page, index: number, label: string
   await pendingRow(page).blur();
 }
 
-/** Reorder by keyboard: focus a row's grip and press an arrow, as the card specifies. */
 export async function moveOptionByKey(page: Page, index: number, key: "ArrowUp" | "ArrowDown") {
-  // The grip's arrow handling is React's, so an early press moves nothing (issue #815).
   await waitForHydration(page);
   await ensurePanel(page, "options");
   await grip(page, index).focus();
   await grip(page, index).press(key);
 }
 
-/**
- * Open a row's menu the way a pointer user does: one press on the grip that goes nowhere.
- *
- * This is the whole of the SC 2.5.7 path in one helper. `click()` moves the pointer to the
- * grip, presses, and releases at the same coordinate, so no `pointermove` ever lands
- * between down and up: the component's drag session records `moved: false` and treats the
- * press as a click. Anything that regressed the menu into opening on drag, or the move
- * items into needing a gesture, fails here rather than in a comment.
- */
+// A stationary grip click must open its menu without starting a drag.
 export async function openRowMenuByPointer(page: Page, index: number): Promise<Locator> {
-  // The same one-press-then-poll shape `openMenu` was filed for, on the row menu: press
-  // before the attach and the menu never opens and never will (issue #815).
   await waitForHydration(page);
   await ensurePanel(page, "options");
   await page.locator(".qcms-opt-grid").scrollIntoViewIfNeeded();
@@ -211,10 +111,7 @@ export async function openRowMenuByPointer(page: Page, index: number): Promise<L
   return menu;
 }
 
-/** Open a row's menu from the keyboard (Enter on the focused grip) and pick an item. */
 export async function useRowMenu(page: Page, index: number, item: RegExp): Promise<void> {
-  // As `openRowMenuByPointer`, by the keyboard route: Enter on a grip React has not
-  // attached to is Enter on a plain element (issue #815).
   await waitForHydration(page);
   await ensurePanel(page, "options");
   await grip(page, index).focus();
@@ -223,26 +120,11 @@ export async function useRowMenu(page: Page, index: number, item: RegExp): Promi
   await page.getByRole("menuitem", { name: item }).click();
 }
 
-/**
- * Type a date into a `DatePicker`, which has no text input to fill.
- *
- * react-aria renders a date as a row of spinbutton segments, so the value is typed rather
- * than set: focus the first segment and the digits roll through the segments in the order
- * the locale lays them out. That order is the deployment's `QCMS_LOCALE` since the Code
- * Owner ruling of 2026-10-19 (the admin wraps its tree in react-aria's `I18nProvider`), not
- * the browser's, and the harness leaves it unset, so it is en-GB's day, month, year.
- *
- * `digits` is `MMDDYYYY` whatever the locale, and this reads the field's real segment order
- * off the page and types the parts in it, so a caller never has to know the order. The
- * trailing-year assertion fails loudly rather than silently if the typing went astray.
- */
+// digits uses MMDDYYYY regardless of locale. Read the actual segment order from the page,
+// not the browser locale: the application provides its own locale.
 export async function fillDate(page: Page, label: string, digits: string): Promise<void> {
-  // A `DatePicker`'s segments hold no value of their own; the digits are read by React's
-  // key handling, so typing before the attach types into nothing (issue #815).
   await waitForHydration(page);
-  // A question's date bounds live in the Constraints panel. Every other `DatePicker` in the
-  // app - a secure link's expiry, say - is on a screen with no such row, so this does nothing
-  // there rather than needing to know which caller it has.
+  // Only question-date bounds have a Constraints panel; other DatePickers share this helper too.
   await ensurePanel(page, "constraints");
   const group = page.getByRole("group", { name: label });
   const parts: Record<string, string> = {
@@ -262,11 +144,7 @@ export async function fillDate(page: Page, label: string, digits: string): Promi
   await expect(group).toContainText(digits.slice(-4));
 }
 
-/** Open a lifecycle confirmation and accept it. */
 export async function confirmLifecycle(page: Page, open: RegExp, confirm: string): Promise<void> {
-  // The dialog is mounted by React, and both fixtures in `rail.ts` and `question-rail.ts`
-  // call this directly off a `page.goto`, which is the pre-hydration press exactly
-  // (issue #815).
   await waitForHydration(page);
   await page.getByRole("button", { name: open }).click();
   const dialog = page.getByRole("alertdialog");
@@ -275,39 +153,14 @@ export async function confirmLifecycle(page: Page, open: RegExp, confirm: string
   await expect(dialog).toBeHidden();
 }
 
-/**
- * Every option id the grid renders, in display order.
- *
- * Scoped to `[data-option-index]` on purpose: a pending row also has an ID cell, and what
- * it renders there is a placeholder rather than an id. Including it would make an
- * abandoned ghost row look like a minted option, which is the exact confusion the deferred
- * minting rule exists to prevent.
- */
+// Open the Options panel before reading IDs, and exclude the uncommitted ghost row.
 export async function optionIds(page: Page): Promise<string[]> {
-  // A read that may have to OPEN something first, which is worth the surprise: on the detail
-  // screen the grid is one panel of several, and a caller that has just created a question
-  // lands on Content. Reading zero ids from a panel that is merely not on screen is the
-  // failure this prevents, and it read as "the ids were never minted".
   await ensurePanel(page, "options");
   return page.locator("[data-option-index] .qcms-opt-cell--id").allTextContents();
 }
 
-/**
- * Fill one numeric constraint of the editor and COMMIT it, so anything derived from the
- * editor's document has caught up before the next step.
- *
- * A react-aria `NumberField` filled programmatically reports its value on **blur**, not on
- * the input event, so `fillStable` alone leaves the number on screen and absent from the
- * editor's state. Task 048 made that difference visible in two ways, both of which cost a
- * browser run to find: a message field appears when its constraint commits, so a test that
- * fills and immediately looks for the field is racing the commit; and the reflow that
- * insertion causes lands between a following click's mousedown (which fires the blur) and
- * its mouseup, so the two hit different elements and no `click` event fires at all.
- *
- * Blurring here makes the commit the fill's own last step. A test that then clicks a control
- * BELOW the constraints panel should still anchor on the message field it expects, so the
- * click waits for a page that has finished moving.
- */
+// NumberField commits a programmatic fill on blur. Blur before clicking below it,
+// or insertion of a derived field can move the click target between press and release.
 export async function setNumericConstraint(
   page: Page,
   label: string,

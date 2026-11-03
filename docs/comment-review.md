@@ -137,3 +137,14 @@ JS
 These commands reproduce parser diagnostics, not the heuristic infrastructure
 inventory or the semantic findings. Counts describe the audit snapshot and will
 change as cleanup lands.
+
+## Completed sweep areas
+
+| Authored area             | Coverage                                                                                                   |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `apps/admin/e2e/support/` | Browser, auth, form, question, delivery and server-harness helpers reviewed; included in `check:comments`. |
+
+The browser-support sweep keeps concise hydration, autosave, lifecycle, delivery,
+normalization and subprocess constraints. Redundant helper descriptions and incident
+narratives are removed. The remaining admin tree is still excluded pending its own
+review; completing one area must not exempt generated files or adjacent directories.

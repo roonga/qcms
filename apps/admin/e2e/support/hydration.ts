@@ -1,122 +1,21 @@
-/**
- * The admin browser suite's hydration wait (issue #210).
- *
- * ## What it is for
- *
- * Every admin screen is served as complete, interactive HTML before React runs. That is a
- * product property worth having and the auth loop depends on it, but it means "the page"
- * names two different states, and typing into the first one is thrown away when the second
- * arrives: react-aria's `TextField` renders a CONTROLLED input seeded empty, so the commit
- * that attaches React writes that empty value over whatever was typed. On the two-factor
- * challenge the field is `required`, so the Enter that follows is stopped by the browser's
- * own constraint validation - no submit event, no request, no error, nothing to read. The
- * spec then times out on a screen it believed it had left (issue #210, measured: 12 wipes
- * in 20 attempts, hydration landing 76-404ms after the document commit on an idle machine).
- *
- * ## Why a wait rather than a retry
- *
- * `fillStable` already retries a fill whose value did not stick, and a retry is the right
- * shape for a `next dev` recompile that replaces the document out of nowhere. It is the
- * wrong shape for this, because this is not unpredictable: there is an exact moment after
- * which typing is safe, the page knows when it arrives, and waiting for it removes the race
- * instead of paying for it repeatedly. A retry also cannot help the case that actually
- * fails here, where the value is wiped between the fill and the keystroke that submits it.
- *
- * ## The other half: a PRESS that lands before React attaches (issue #815)
- *
- * The wipe above is what a pre-hydration keystroke does. A pre-hydration *press* fails a
- * second way, and across far more of the admin than the auth loop. Every menu, popover,
- * dialog, tab and vendored picker in the shell belongs to React alone: the server renders
- * the trigger and none of its behaviour, so a press on it in that window is swallowed
- * whole. The support helpers that drive those controls each pressed ONCE and then polled
- * for the result, and a poll cannot recover a gesture that was never received - it can
- * only spend its entire timeout. That is how #815 was reported twice, as a shell account
- * trigger whose `aria-expanded` stayed false for fifteen seconds under a loaded host while
- * the same file passed alone in nine seconds.
- *
- * A retry is the wrong shape for most of these, because a menu trigger is a TOGGLE and
- * pressing it twice is pressing it never. So every support helper whose FIRST act is a
- * React-dependent interaction waits here before it, and a helper that begins by calling
- * one of those inherits the guarantee rather than repeating it - which is why `openStep`,
- * `addRule` and their neighbours carry no wait of their own and `openRail` does. On an
- * already-hydrated page the wait resolves on its first poll, so holding the rule
- * everywhere costs nothing.
- *
- * ## The signal
- *
- * `components/hydration-marker.tsx` stamps `data-qcms-hydrated` on `<html>` from a mount
- * effect in the root layout. A mount effect never runs on the server, so the attribute is
- * absent from the served bytes by construction; `hydration-wait.pw.ts` proves that against
- * the real server rather than against the theory, and proves the wait rejects a page whose
- * bundle never ran.
- */
-
 import { expect, type Page } from "@playwright/test";
 
 import { HYDRATED_ATTRIBUTE } from "../../lib/hydration.js";
 
-/** Options accepted by {@link waitForHydration}. */
 export interface HydrationWaitOptions {
-  /**
-   * Milliseconds to wait before failing. Defaults to Playwright's own timeout; only
-   * `hydration-wait.pw.ts` passes one, so that a page which must never satisfy the wait is
-   * rejected without burning the suite default.
-   */
+  // Defaults to Playwright's timeout; use a short override for a page expected never to hydrate.
   readonly timeout?: number;
 }
 
-/**
- * Whether the document was parsed with scripting DISABLED, read from the DOM.
- *
- * The HTML parser treats `<noscript>` differently depending on the document's scripting
- * flag: with scripting on its content is left as raw text, and with scripting off it is
- * parsed as real elements. So a `<noscript>` with element children means "this page will
- * never run its own scripts", which is a browser fact rather than a framework detail, and
- * `app/layout.tsx` already ships one for product reasons (the JavaScript-required gate,
- * Code Owner 2026-09-27; before that, hiding the two topbar menu triggers). Measured in both
- * modes: scripting on reports `childElementCount` 0, scripting off reports 1 with a
- * `<style>` child.
- *
- * Playwright's own `page.evaluate` is NOT a discriminator here and was tried first: it runs
- * in an isolated world that stays available with `javaScriptEnabled: false`, so it returns
- * happily on a page whose own scripts never ran.
- *
- * A page with no `<noscript>` at all reads as "scripting on", which is the safe direction:
- * the caller then waits and fails loudly on a timeout, rather than skipping the wait and
- * silently reopening the race the wait exists to close.
- */
+// The HTML parser creates noscript children only when scripting is disabled.
+// page.evaluate still runs in an isolated world, so it cannot detect that browser mode.
 async function scriptingDisabled(page: Page): Promise<boolean> {
   return page.evaluate(() =>
     [...document.querySelectorAll("noscript")].some((tag) => tag.childElementCount > 0),
   );
 }
 
-/**
- * Wait until React has attached to the current admin page, and prove it observed that.
- *
- * The value the page reported is read back and asserted rather than assumed: a wait that
- * can resolve without observing anything is worth nothing, and `waitForFunction` resolving
- * on a truthy value is the only thing that separates the two.
- *
- * ## The no-JavaScript case, which this has to get right
- *
- * On a page whose scripts will never run, React never attaches, so the marker never
- * appears and a wait for it is not merely useless but wrong: it turns such a spec into
- * minutes of timeout. It is also unnecessary, because the defect the wait exists for cannot
- * happen without React - nothing is ever going to overwrite what was typed.
- *
- * So the wait asks the document first and returns immediately when scripting is off. That
- * is a real hazard this shipped with before the full browser suite caught it: the three
- * `javaScriptEnabled: false` blocks the admin suite had then went red on nothing but this.
- *
- * **Who still needs it, now that the admin requires JavaScript** (Code Owner, 2026-09-27;
- * `plan/admin-design-contracts.md`). The auth loop is still a native form, but a scriptless
- * operator never reaches it: `app/layout.tsx` hides the app behind one message, which
- * `e2e/requires-js.pw.ts` asserts. So no spec types into a scriptless screen any more, and
- * the early return protects the next one somebody writes rather than a shipped path - it is
- * what makes such a spec fail on its own claim instead of on this helper's timeout.
- * `hydration-wait.pw.ts` keeps it tested for that reason.
- */
+// Pre-hydration interactions can be lost or overwritten; wait for the application's mount signal.
 export async function waitForHydration(
   page: Page,
   options: HydrationWaitOptions = {},
@@ -133,44 +32,8 @@ export async function waitForHydration(
   ).toBe(HYDRATED_ATTRIBUTE);
 }
 
-/**
- * Hold every script response until the caller releases it, so a spec decides exactly when
- * React attaches. Install it BEFORE the navigation, pair it with
- * `goto(url, { waitUntil: "commit" })`, and always `release()` in a `finally`.
- *
- * ## Why the control has to be this precise
- *
- * Because the window is not "before hydration", it is "hydration lands **between** the
- * typing and the submit". Type into the server render and never hydrate, and the value is
- * intact and the native form POST succeeds, because that post is the screen's real
- * mechanism rather than a fallback: the credential reaches a named server route without
- * passing through client JavaScript (ADR-35 / SEC-1). Hydrate first and the typing goes
- * through React. Only
- * the interleaving loses: the value is typed, the attaching commit overwrites it with
- * react-aria's empty state, and the Enter that follows submits an empty `required` field.
- * A regression test therefore has to schedule that interleaving rather than hope for it.
- *
- * ## Three amplifiers that do not produce it, measured rather than assumed
- *
- * **`Emulation.setCPUThrottlingRate`**, which is how the portal reproduces its version of
- * this race, does not. The portal's failure is a single click issued the moment a
- * navigation settles, so throttling delays hydration and nothing else. The admin's is a
- * keyboard sequence - two tabs, six keystrokes, another tab, Enter - dispatched into the
- * same throttled renderer, so throttling slows the typing by about as much as it slows
- * hydration. Four unwaited runs at rate 6 all passed.
- *
- * **A fixed script delay with a default `goto`** does not: `waitUntil: "load"` waits for
- * every subresource, so the navigation swallows the delay and hands back a hydrated page.
- * One unwaited run at a three-second delay passed for exactly that.
- *
- * **A fixed script delay with `waitUntil: "commit"`** does not either, and this is the
- * instructive one: it moves hydration to AFTER the whole sequence, Enter included, so the
- * pre-hydration native submit simply works. Two unwaited runs passed, faster than the
- * waited ones.
- *
- * All three are written down because each looks like a working amplifier from the outside,
- * and each would have shipped a regression test that cannot fail.
- */
+// Install before goto with waitUntil: "commit", and release in finally.
+// To reproduce the wipe, hydrate between typing and submitting, rather than delaying the whole sequence.
 export function holdScripts(page: Page): { release: () => void } {
   let open = (): void => {};
   const gate = new Promise<void>((resolve) => {

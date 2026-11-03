@@ -5,72 +5,19 @@ import { fillStable } from "./flow.js";
 import { waitForHydration } from "./hydration.js";
 import { chooseDestination, chooseSource, openPublishWizard } from "./publish.js";
 
-/**
- * Browser steps for the form builder, shared by the build walk and accessibility suite.
- *
- * ## Everything is addressed by accessible name
- *
- * Same contract 032's helpers state: the name is what an assistive technology announces,
- * so a locator that used a class would keep passing after the name went missing. The one
- * exception is the small set of `data-testid` hooks on live regions and flags
- * (`qcms-save-state`, `qcms-backward-flag`), which have no stable name of their own
- * because their content is the message.
- *
- * ## Why the rule controls are scoped to a rule
- *
- * A form has many rules and each renders the same three control names (Operator, Question,
- * Value). Every helper here therefore takes the rule's own region, found by its
- * `data-rule-id`, rather than reaching for a name that is ambiguous the moment a second
- * rule exists.
- *
- * ## THE SMALLEST PERSISTABLE FORM IS NOT "A FORM WITH ONE STEP" (issue 569)
- *
- * A step with no pinned question makes the draft unstoreable: `lib/forms/draft.ts`'s
- * `unsaveableReason` returns `emptyStep`, and `components/forms/form-builder.tsx` responds
- * by PAUSING autosave rather than posting a draft the API would 422. So the obvious minimal
- * fixture - {@link createForm} then {@link addStep} - never reaches the server, and the
- * next `page.goto` back to the form shows no steps at all.
- *
- * The failure does not read as "autosave is paused". It reads as "step button not found
- * after reload", which sends the reader looking at selectors and at timing, and it cost two
- * probe runs before it was written down. {@link waitForSaved} and {@link waitForSaveAfter}
- * now name the reason rather than timing out silently, and this is the paragraph they point
- * at: **the smallest persistable form is one step holding one pin of a PUBLISHED question**,
- * so the minimal fixture is three gestures of setup (publish a question, create the form,
- * add the step and pin into it) rather than one.
- *
- * The same rule bites twice more. `noSteps` pauses a form that has none yet, and
- * `ruleWithoutTarget` pauses a rule whose "Then show" is still empty - which is the state
- * every rule passes through while it is being authored.
- */
+// Autosave pauses on empty drafts, empty steps and rules without targets.
+// A persistable fixture needs a step holding a published question pin.
 
-/** One text input of the builder, addressed by its accessible name. */
 export function field(page: Page, name: string): Locator {
   return page.getByRole("textbox", { name, exact: true });
 }
 
-/**
- * Create a form and land on its builder.
- *
- * The form id is minted from the slug and is what the URL carries, so the return value is
- * read from the URL rather than recomputed: if the two ever disagreed, this would fail
- * here rather than several assertions later.
- *
- * Since issue 685 the fields are on `/forms/new` rather than in a card on the library
- * screen, and this one line is the whole of that change for the twenty-odd specs that
- * reach a builder through here. The control names did not move with the fields, which is
- * deliberate: "Slug", "Title" and "Create form" are what an assistive technology
- * announces, so keeping them means this helper still asserts the same contract it did
- * before the screen moved.
- */
 export async function createForm(page: Page, slug: string, title: string): Promise<string> {
   await page.goto("/forms/new");
   const switchToTest = page.getByRole("button", { name: "Switch to test", exact: true });
   if (await switchToTest.isVisible()) {
     await waitForHydration(page);
     await switchToTest.click();
-    // The screen's own control, not the chip: the chip is in the Operations header and this
-    // is a Normal-mode screen. Its own disappearance is what says the re-read landed.
     await expect(switchToTest).toHaveCount(0);
   }
 
@@ -85,72 +32,25 @@ export async function createForm(page: Page, slug: string, title: string): Promi
   return formId;
 }
 
-/**
- * Open the rail if it is shut, because below `--bp-sidebar` it opens that way.
- *
- * The steps live in the rail since 2026-08-25, and the rail is a disclosure that starts
- * collapsed on a narrow viewport (issue 707's decision). So on a phone, working on a step
- * begins by opening the rail - one press, and the summary above it names the form the whole
- * time. Every helper below goes through here rather than each one learning the width.
- *
- * A no-op at desktop widths, where the disclosure is already open.
- */
 export async function openRail(page: Page): Promise<void> {
-  // A MODAL DIALOG MAKES THE RAIL UNREACHABLE, and silently: every helper below that
-  // navigates goes through here, so with a rule's editor open they wait for a control the
-  // overlay is covering until the test times out five minutes later. Twice now that has
-  // cost a full suite run to diagnose, so it fails here instead, named.
   const dialog = page.getByRole("dialog");
   if ((await dialog.count()) > 0) {
     throw new Error(
       "the rail cannot be reached while a dialog is open - close it first (closeRuleEditor)",
     );
   }
-  // THIS IS THE GATE THE RAIL-ROUTED HELPERS INHERIT (issue #815). `openFormDetails`,
-  // `openStep`, `openRules`, `addRule`, `addStep` and `moveStep` all begin here and then
-  // press a control React owns, and most of them are reached straight off a `page.goto`.
-  // Waiting once, at the one point they share, is why none of them carries a wait of its
-  // own. The `data-ready` assertion below is NOT a substitute: it is skipped entirely on a
-  // screen with no disclosure, which is precisely when the caller's press is unguarded.
+  // All rail-driven interactions inherit this hydration wait, including screens without a disclosure.
   await waitForHydration(page);
   const disclosure = page.locator("details.qcms-rail__disclosure");
   if ((await disclosure.count()) === 0) return;
-  // WAIT FOR THE WIDTH TO HAVE BEEN DECIDED before reading `open`, or this races
-  // hydration and does nothing. The server ships the rail open - that is the safe answer,
-  // and the one the first painted frame carries - so an early read always sees `open` and
-  // returns, and the media query then shuts it a moment later. `data-ready` is the attribute
-  // `components/rail-disclosure.tsx` sets once it has read the query, which is exactly the
-  // moment this can trust what it sees.
+  // The server starts the rail open; wait for the viewport decision before trusting its open state.
   await expect(disclosure).toHaveAttribute("data-ready", "");
   if ((await disclosure.getAttribute("open")) !== null) return;
   await page.locator("summary.qcms-rail__summary").click();
   await expect(disclosure).toHaveAttribute("open", "");
 }
 
-/**
- * Show the form's own details: its title, settings, the read-only rules lens and validation.
- *
- * THE BUILDER IS TWO SCREENS behind one route since 2026-08-26, and the rail switches
- * between them. (It was three for ten days; issue #669 moved the rules to a route of their
- * own.) It opens on this one, so most callers need it only after having opened a step - but
- * calling it when it is already current is a press on a row that is already `aria-current`,
- * which changes nothing. Helpers below that act on a form-level panel go through here
- * rather than each spec remembering to.
- */
-/**
- * Release a form's newest published version through the publish wizard (ADR-40, task 065;
- * the publish wizard).
- *
- * **Every spec that publishes through the UI and then walks the portal needs this**, and
- * that is the model rather than a harness quirk: a published version is served nowhere
- * until a release record says where, so a spec that only published left a form no session
- * could start on and the respondent route answered 409 `NO_PUBLISHED_VERSION`.
- *
- * The wizard opens on the newest version, so the source needs no choosing. The switcher is
- * still set, because callers read operational data in that environment afterwards, but the
- * destination is the wizard's own and does not come from it. `prod` is the default because
- * that is the environment the respondent harness serves.
- */
+// Publishing alone serves no sessions: release a version into the respondent harness's environment too.
 export async function releaseNewestVersion(
   page: Page,
   formId: string,
@@ -173,23 +73,11 @@ export async function releaseNewestVersion(
 
 export async function openFormDetails(page: Page): Promise<void> {
   await openRail(page);
-  // BY ITS PLACE IN THE RAIL, not by its name. That row is named after the FORM now - it
-  // reads "Kitchen sink", not "Form details" - so a lookup by label had to know the
-  // fixture's title, and the one that used to be here silently waited five minutes for a
-  // control that no longer existed. `data-rail-item` is the row's identity and does not
-  // move with its copy.
+  // The rail row is named after the variable form title; its stable identity is the section marker.
   await page.locator('[data-rail-item="section:builder"]').click();
   await expect(field(page, "Form title")).toBeVisible();
 }
 
-/**
- * Add a step by title, and wait for its row to appear in the rail.
- *
- * The naming moved into a dialog on 2026-08-26, so this is now three gestures rather than
- * two: open the dialog, name the step, commit. The trigger and the commit are deliberately
- * NOT the same string - "Add step" opens, "Add" commits - because an exact-name lookup that
- * matched both would be ambiguous the moment the dialog is on screen.
- */
 export async function addStep(page: Page, title: string): Promise<void> {
   await openRail(page);
   await page.getByRole("button", { name: "Add step", exact: true }).click();
@@ -198,21 +86,7 @@ export async function addStep(page: Page, title: string): Promise<void> {
   await expect(page.getByRole("button", { name: `Open step ${title}` })).toBeVisible();
 }
 
-/**
- * Open a step from the rail, which is what decides which step the editor is editing.
- *
- * TWO GESTURES FOR ONE INTENT, because the rail has two states and a caller should not
- * have to know which one it is standing in. On the builder a step row is a BUTTON that
- * selects in place; on every other form screen - including `/forms/{formId}/rules` since
- * issue #669 - it is an ANCHOR that navigates to the builder carrying `#step-{stepId}`,
- * and the builder selects the step named by the fragment on arrival. Both land on the same
- * screen, which is why the assertion below is shared: it is the product's own promise that
- * a step is reachable from anywhere in the form's subtree.
- *
- * The anchor branch is not a fallback in the apologetic sense. It exercises the
- * cross-route step link, which is the mechanism `plan/admin-design-contracts.md` §7 minted
- * `stepAnchorId` for and the one the rules route now depends on.
- */
+// The builder selects in place; other form routes navigate back using a step fragment.
 export async function openStep(page: Page, title: string): Promise<void> {
   await openRail(page);
   const select = page.getByRole("button", { name: `Open step ${title}` });
@@ -228,41 +102,23 @@ export async function openStep(page: Page, title: string): Promise<void> {
   await expect(page.getByRole("heading", { name: `Step: ${title}` })).toBeVisible();
 }
 
-/**
- * The picker's control for one choosable row: a CHECKBOX since issue 660.
- *
- * The row used to BE the control (`onRowAction`); contract §2 retired that and issue 570
- * gave the row a named button, because a picker has no address to link to. Issue 660 made
- * the dialog multi-select, so the row control now stages a choice rather than committing
- * it and a checkbox is what states that. What did NOT change is the accessible name:
- * locating by it is deliberate, because it is the same string a screen-reader author
- * hears, so a regression that leaves the column full of bare unnamed checkboxes fails here
- * rather than in a manual pass.
- */
 export function pickerChoice(scope: Locator, questionId: string, version: number): Locator {
   return scope.getByRole("checkbox", { name: `Add ${questionId} version ${String(version)}` });
 }
 
-/** The dialog's one commit control, whose label carries the count it is about to add. */
 export function pickerCommit(scope: Locator, count: number): Locator {
   const label = count === 1 ? "Add 1 question to step" : `Add ${String(count)} questions to step`;
   return scope.getByRole("button", { name: label });
 }
 
-/** Pin one question version into the open step, through the library picker. */
 export async function pinQuestion(page: Page, questionId: string, version: number): Promise<void> {
   await pinQuestions(page, [{ questionId, version }]);
 }
 
-/**
- * Pin several question versions in ONE trip through the picker, which is what issue 660
- * added and what every caller of `pinQuestion` used to have to do one dialog at a time.
- */
 export async function pinQuestions(
   page: Page,
   pins: readonly { questionId: string; version: number }[],
 ): Promise<void> {
-  // The picker is a React dialog, so an early press opens nothing (issue #815).
   await waitForHydration(page);
   await page.getByRole("button", { name: "Add question from library" }).click();
   const dialog = page.getByRole("dialog");
@@ -279,30 +135,12 @@ export async function pinQuestions(
   }
 }
 
-/**
- * The pin row for one question at one version.
- *
- * Addressed by the row's own data attributes rather than by a `questionId@version` string
- * (issue 517). The ownership grid splits that string into its two columns because the two
- * halves have different owners - the id belongs to the question library and the version to
- * the form - so there is no longer one text node carrying both. Reading the attributes is
- * also what the text match was working around: the same string is the label of the
- * condition editor's question picker too, so `getByText` matched twice once a rule existed
- * and needed `.first()` to stay out of strict mode.
- */
+// IDs and versions occupy separate cells, and condition pickers can repeat their text; use the row attributes.
 export function pinLabel(page: Page, questionId: string, version: number): Locator {
   return page.locator(`[data-pin-question="${questionId}"][data-pin-version="${String(version)}"]`);
 }
 
-/**
- * One pin row's version control, addressed by its WHOLE accessible name (issue #879).
- *
- * The name is the visible `v{version}` followed by which pin it moves, in that order,
- * because a control whose name omits the text it paints fails WCAG 2.5.3: speech input
- * cannot target it and a screen-reader user hears something nobody else can see. `exact`
- * is set, so this locator is the browser-level statement of that order rather than a
- * convenience - a name that grew a prefix or lost the version would stop matching.
- */
+// The accessible name must start with the visible version so speech input can target the control.
 export function pinVersionTrigger(page: Page, questionId: string, version: number): Locator {
   return page.getByRole("button", {
     name: `v${String(version)}, move pin for ${questionId}`,
@@ -310,36 +148,21 @@ export function pinVersionTrigger(page: Page, questionId: string, version: numbe
   });
 }
 
-/** One pin row's grip: its reorder keys, and the only route to its row menu. */
 export function pinGrip(page: Page, questionId: string): Locator {
   return page.locator(`[data-pin-question="${questionId}"] [data-pin-grip]`);
 }
 
-/**
- * Open a pin row's grip menu and choose one of its five entries.
- *
- * The grip is `aria-haspopup="menu"` and opens on Enter, Space or a click; the menu it
- * opens is the APG pattern by hand (`components/row-menu.tsx`), so its items are real
- * `menuitem` roles and are addressed as such.
- */
 export async function usePinRowMenu(
   page: Page,
   questionId: string,
   action: "insertAbove" | "insertBelow" | "moveUp" | "moveDown" | "remove",
 ): Promise<void> {
-  // The grip's menu is the `openMenu` shape again: one press, then a poll that cannot
-  // recover a press React was not there to receive (issue #815).
   await waitForHydration(page);
   await pinGrip(page, questionId).click();
   await page.locator(`[role="menuitem"][data-row-menu-item="${action}"]`).click();
 }
 
-/**
- * One entry of whichever pin row menu is currently open.
- *
- * Addressed page-wide rather than scoped to a row, the way `usePinRowMenu` addresses it:
- * the step editor renders at most one menu at a time, so the key alone is unambiguous.
- */
+// The editor mounts at most one row menu at a time, so its key is unambiguous page-wide.
 export function pinRowMenuItem(
   page: Page,
   action: "insertAbove" | "insertBelow" | "moveUp" | "moveDown" | "remove",
@@ -347,29 +170,13 @@ export function pinRowMenuItem(
   return page.locator(`[role="menuitem"][data-row-menu-item="${action}"]`);
 }
 
-/** The pinned question ids of the open step, in the order the form serves them. */
 export async function pinnedOrder(page: Page): Promise<string[]> {
   return page
     .locator("[data-pin-question]")
     .evaluateAll((rows) => rows.map((row) => row.getAttribute("data-pin-question") ?? ""));
 }
 
-/**
- * Show the form's rules, which are a ROUTE of their own since issue #669.
- *
- * They were a panel on the form's details screen, then one of the builder's three
- * selections, and they are `/forms/{formId}/rules` now (Code Owner, 2026-09-05). Every
- * helper below that touches a rule goes through here rather than each spec remembering
- * where a rule lives this month.
- *
- * Driven through the rail's own row rather than by `page.goto`, because the row IS the
- * affordance under test on most of the specs that call this: a helper that navigated by
- * URL would keep passing after the row stopped leading anywhere.
- *
- * Idempotent. Pressing a row that is already `aria-current` re-navigates to the same URL,
- * which Next resolves without a reload, so a caller already on the rules screen pays a
- * no-op rather than a round trip.
- */
+// Exercise the rail link itself so a broken navigation affordance fails the journey.
 export async function openRules(page: Page): Promise<void> {
   await openRail(page);
   await page.locator('[data-rail-item="section:rules"]').click();
@@ -377,34 +184,13 @@ export async function openRules(page: Page): Promise<void> {
   await rulesHeading(page).waitFor();
 }
 
-/**
- * The rules screen's own `<h1>`.
- *
- * It was visually hidden until #1116, because the breadcrumb directly above it already
- * ended in "Rules"; §7.0 ruling 3 replaced that trail with the rail Header's back link, so
- * the heading is the one thing naming this screen in its own column and is visible. Located
- * by id rather than by role, because the rules editor labels its region with this same
- * heading and the id is what both sides read.
- */
+// The heading ID also labels the rule-editor region.
 export function rulesHeading(page: Page): Locator {
   return page.locator("#qcms-rules-heading");
 }
 
-/**
- * Add a rule, leaving the browser in its open wizard, and return the id it was minted as.
- *
- * THE ROW DOES NOT EXIST YET when this returns, and that is the buffering rather than a
- * race. Since 2026-08-30 (`plan/admin-design-contracts.md` §6) "Add rule" mints a rule and
- * opens the wizard on it; the rule reaches the draft when Save is pressed, which is what
- * `closeRuleEditor` does. So the id is read off the open dialog, not off the table - a
- * spec that expected a new row here would be waiting for something Save has not yet made.
- *
- * Every caller's next act is to change the condition anyway: a rule arrives as `answered`
- * against the first pinned question, which says nothing useful.
- */
+// Returns the buffered rule ID before any row exists in the draft. Save the wizard to persist it.
 export async function addRule(page: Page): Promise<string> {
-  // Rules have their own route now. A spec that has just been working on a step, or on the
-  // form's details, is looking at neither of the places this button is.
   await openRules(page);
   await page.getByRole("button", { name: "Add rule", exact: true }).click();
   const editing = page.locator("section[data-rule-id]");
@@ -414,13 +200,7 @@ export async function addRule(page: Page): Promise<string> {
   return added;
 }
 
-/**
- * Every rule region currently on screen, by id, in document order.
- *
- * "On screen" is load-bearing: the rules are a route of their own, so a caller that is not
- * on it gets an empty list rather than a failure. Callers that mean "this form's rules"
- * open the screen first, which `addRule` does for them.
- */
+// Returns only rendered rule regions; open the rules route first to read this form's rules.
 export async function ruleIds(page: Page): Promise<string[]> {
   const ids = await page
     .locator("tr[data-rule-id]")
@@ -428,113 +208,49 @@ export async function ruleIds(page: Page): Promise<string[]> {
   return ids.filter((id) => id !== "");
 }
 
-/** One rule's region, which every rule-scoped control is found inside. */
 export function rule(page: Page, ruleId: string): Locator {
   return page.locator(`section[data-rule-id="${ruleId}"]`);
 }
 
-/**
- * Open one rule's editor, which is a dialog since 2026-08-26 and a three-phase wizard in a
- * wide dialog since 2026-08-30.
- *
- * The rules screen is a table of sentences - a rule is small to state and large to change -
- * so the condition tree that `rule()` scopes to only exists while its dialog is open. A
- * spec that reached straight for a control inside it used to find it inline and now waits
- * for something that is not there, which is what five minutes of timeout looks like.
- *
- * It lands on the "When" phase, which is where the wizard opens. `openRulePhase` is how a
- * caller reaches the other two.
- *
- * Idempotent by intent rather than by check: pressing Edit on a row whose dialog is already
- * open is not a thing the screen allows, because the dialog is modal.
- */
 export async function openRuleEditor(page: Page, ruleId: string): Promise<void> {
   await openRules(page);
   await page.locator(`tr[data-rule-id="${ruleId}"]`).getByRole("button", { name: "Edit" }).click();
   await expect(rule(page, ruleId)).toBeVisible();
 }
 
-/**
- * The wizard's three phases, by the labels their tabs carry.
- *
- * Numbered in the product, so numbered here: the strings are what a screen reader
- * announces, and a helper that matched on "When" alone would keep passing after the phase
- * control lost its ordering.
- */
 export const RULE_PHASES = {
   when: "1. When",
   then: "2. Then show",
   test: "3. Test",
 } as const;
 
-/**
- * Move to one phase of the open rule wizard.
- *
- * `role="tab"` rather than a button, deliberately: the phase control is the APG tabs
- * pattern (`components/forms/rule-wizard.tsx` writes down why it is not a stepper), and
- * locating by the role is what makes this assert the pattern rather than merely find the
- * label. A stepper built out of plain buttons would fail here rather than pass quietly.
- */
 export async function openRulePhase(page: Page, phase: keyof typeof RULE_PHASES): Promise<void> {
-  // Tabs are React's: the panel switch and the `aria-selected` flip both arrive with the
-  // attach, so an early press leaves the poll below watching a static attribute. This also
-  // covers `toggleTarget`, whose own first act is this call (issue #815).
   await waitForHydration(page);
   const tab = page.getByRole("tab", { name: RULE_PHASES[phase], exact: true });
   await tab.click();
   await expect(tab).toHaveAttribute("aria-selected", "true");
 }
 
-/**
- * Commit the open rule wizard, which is what puts the rule into the draft.
- *
- * SAVE, not "Done", since 2026-08-30. The dialog buffers - nothing typed in it reaches the
- * draft until this press - so a spec that closed the editor any other way used to keep its
- * edits and now discards them. That is the point of the change rather than a hazard to work
- * around, and it is why `cancelRuleEditor` is a separate helper with its own name.
- */
+// Saving commits buffered edits; dismissing through Cancel discards them.
 export async function closeRuleEditor(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.locator("section[data-rule-id]")).toHaveCount(0);
 }
 
-/** Discard the open rule wizard. Every edit made inside it is thrown away. */
 export async function cancelRuleEditor(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(page.locator("section[data-rule-id]")).toHaveCount(0);
 }
 
-/**
- * Choose a value in a labelled picker, whichever of the two kinds it is.
- *
- * TWO SHAPES BEHIND ONE HELPER (Code Owner, 2026-08-30). Most pickers are the vendored
- * `Select`; the rule editor's Operator is a `ComboBox` you can type into. A caller does not
- * care - it wants the field named `label` set to `option` - and the alternative was
- * rewriting every call site the day a field changed shape, which is exactly what this
- * change would otherwise have cost: three specs failed on the combobox's toggle matching
- * the `Select` trigger's locator and reporting its chevron as the field's value.
- *
- * The combobox is tried FIRST and by exact role, because its toggle button also matches the
- * `Select` trigger's name pattern: the toggle is labelled "Show all options for {label}",
- * which ends with the label like every `Select` trigger does.
- *
- * For a `Select`, the trigger's accessible name is its **current value followed by its
- * label** - react-aria labels the button with the value element and then the label element,
- * in that order - so the match is a suffix. Getting this backwards costs a five-minute
- * timeout with a call log that only says the locator never resolved, which is what
- * `chooseType` in `questions.ts` encodes as `/Type$/` without saying why.
- */
+// Try the combobox first: its toggle also matches the Select trigger suffix.
+// A Select names its trigger with the current value followed by the label.
 export async function chooseOption(scope: Locator, label: string, option: string): Promise<void> {
-  // Both shapes are vendored controls whose option list only exists once React has
-  // attached, and `preview-theme-island.pw.ts` drives one from a scope it resolved itself
-  // rather than through a helper that had already waited (issue #815).
   await waitForHydration(scope.page());
   const combobox = scope.getByRole("combobox", { name: label, exact: true });
   if ((await combobox.count()) > 0) {
     const field = combobox.first();
     await field.click();
     await scope.page().getByRole("option", { name: option, exact: true }).click();
-    // The input's own text, not a trigger's label: a combobox displays the chosen item.
     await expect(field).toHaveValue(option);
     return;
   }
@@ -547,28 +263,12 @@ export async function chooseOption(scope: Locator, label: string, option: string
   await expect(trigger).toContainText(option);
 }
 
-/** A label used inside a name regex, with the characters a regex would otherwise read. */
 function escapeForName(label: string): string {
   return label.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/**
- * Tick or untick one `show` target of a rule.
- *
- * IT MOVES TO THE "THEN SHOW" PHASE FIRST, because since 2026-08-30 that is the only phase
- * the targets are on and react-aria mounts one panel at a time. A caller left on "When"
- * would otherwise wait five minutes for a checkbox that is not in the document. Switching
- * here rather than in each spec is the same call `openRules` makes about the screen.
- *
- * Clicked by its visible label rather than by the checkbox itself, which is the convention
- * `questions-lifecycle.pw.ts` and `apps/portal/e2e/support/kitchen-sink.ts` both encode for
- * the same vendored control: react-aria puts a decorative indicator over the real input, so
- * a click aimed at the input is intercepted. The assertion still reads the input, because
- * checked-ness is what is being asserted.
- *
- * A filter narrows the list, so the target may be behind one. Callers that filter clear it
- * themselves; this helper assumes the unfiltered list, which is how the dialog opens.
- */
+// Clear target filters before calling; filtered targets may not be mounted.
+// Click the label because the kit indicator covers the native checkbox input.
 export async function toggleTarget(
   page: Page,
   ruleId: string,
@@ -584,22 +284,17 @@ export async function toggleTarget(
   await expect(box).toBeChecked({ checked: shouldBeSelected });
 }
 
-/** The target filter of the open wizard's "Then show" phase. */
 export function targetFilter(page: Page): Locator {
   return field(page, "Filter targets");
 }
 
-/** Tick or untick a checkbox anywhere on the page, by its visible label. */
 export async function toggleCheckbox(
   page: Page,
   label: string,
   shouldBeSelected: boolean,
 ): Promise<void> {
-  // The nastiest member of the family, because it can pass while doing nothing
-  // (issue #815). `forms-builder.pw.ts` calls this straight off a `page.goto`, and a label
-  // press before the attach still flips the native input through the label association -
-  // so the assertion below is satisfied - while the settings change never reaches React
-  // and hydration puts the box back. A green helper and an unchanged form.
+  // A pre-hydration label click can flip the native checkbox and pass the assertion
+  // without updating React state; wait before pressing.
   await waitForHydration(page);
   const box = page.getByRole("checkbox", { name: label, exact: true });
   if ((await box.isChecked()) !== shouldBeSelected) {
@@ -608,20 +303,9 @@ export async function toggleCheckbox(
   await expect(box).toBeChecked({ checked: shouldBeSelected });
 }
 
-/**
- * Move one pin to another published version (R7: one pin, one version, no bulk).
- *
- * The menu is the only version change the builder has, which is why the helper drives the
- * menu rather than editing anything underneath it.
- */
 export async function movePin(page: Page, questionId: string, version: number): Promise<void> {
-  // A menu again, and the builder's only version change (issue #815).
   await waitForHydration(page);
-  // The trigger's name now STARTS with the version it paints (WCAG 2.5.3, issue #879), and
-  // the version it paints is the one being moved AWAY from, which this helper is not told.
-  // So it matches the tail, which Playwright's default name matching does: a `name` string
-  // with no `exact` is a case-insensitive SUBSTRING of the computed name. The exact whole
-  // name is asserted where the current version is known - `pinVersionTrigger` below.
+  // Match the stable suffix because the visible prefix names the current version, which the caller does not supply.
   await page
     .getByRole("button", { name: `move pin for ${questionId}` })
     .first()
@@ -630,33 +314,8 @@ export async function movePin(page: Page, questionId: string, version: number): 
   await expect(pinLabel(page, questionId, version)).toBeVisible();
 }
 
-/**
- * Run a read that needs the save strip, from whichever of the builder's two screens the
- * caller is standing on, and put them back where they were.
- *
- * THE SAVE STRIP IS ON THE FORM SCREEN ONLY on this route since 2026-08-26, so a spec
- * standing on a step cannot see it. That is the product's behaviour rather than a test
- * problem - a person editing a step has to look at the form screen too - and this is that
- * trip, made once here instead of scattered through a dozen specs as a pair of screen
- * switches that would then have to be kept in step with each other.
- *
- * THE RULES SCREEN NEEDS NO TRIP since issue #669. It is a route now and it stores the
- * draft itself, so §6 gives it a strip of its own: a caller standing there reads it where
- * it stands, and the branch that used to walk them to the builder and back is gone.
- *
- * The return leg reads the current step out of the rail rather than taking it as an
- * argument, so a caller that was on the form screen already makes no trip at all.
- */
+// Step and group panels have no save strip; temporarily read the form screen and restore the caller's selection.
 async function readingSaveState<T>(page: Page, read: () => Promise<T>): Promise<T> {
-  // Which of the builder's screens the caller is standing on, read from the rail rather than
-  // tracked, so a spec that navigated by any route still comes back to where it was. On the rules
-  // route no step and no group row is current, so both are `null` and the read happens where the
-  // caller stands - which is right, because that screen has its own strip.
-  //
-  // A GROUP ROW IS THE THIRD ANSWER (task 074). The builder's third screen is a repeating group's
-  // panel, reached from a row the rail nests under its step, and that panel has no save strip
-  // either - so a caller standing on one needs the same trip the step screens need, and gets put
-  // back on the group rather than on its step.
   const currentGroup = page.locator('[data-rail-group-select][aria-current="page"]');
   const group =
     (await currentGroup.count()) > 0
@@ -682,47 +341,17 @@ async function readingSaveState<T>(page: Page, read: () => Promise<T>): Promise<
   return value;
 }
 
-/**
- * Wait for the debounced autosave and the validation round trip behind it to land.
- *
- * The save indicator is the product's own statement that the draft reached the API, so
- * waiting on it is waiting on the thing under test rather than on a sleep. The timeout is
- * generous because `next dev` compiles the server action's route on first use.
- *
- * Since issue 518 the indicator is the builder's ambient save strip rather than a sentence
- * inside the validation panel. The testid did not move with it: it names the sentence, and
- * the sentence is the same one.
- *
- * ONLY HONEST FOR THE FIRST SAVE OF A VISIT. "Last saved" left over from an earlier save
- * satisfies this immediately, so after any second edit it says nothing at all: pair
- * `savedStamp` with `waitForSaveAfter` instead, which is what issues 748 and 750 cost.
- */
+// Only proves the first save of a visit. For later edits, use savedStamp and waitForSaveAfter.
 export async function waitForSaved(page: Page): Promise<void> {
   await readingSaveState(page, async () => {
-    // "Last saved ...", not "Saved ...": the strip shows the state alone now, with the
-    // model sentence behind a "?" beside it, so the state says which of the two it is.
     await expectSavedSentence(page);
   });
 }
 
-/**
- * The paused-autosave notice, rendered above every screen that edits the draft.
- *
- * `components/forms/save-notices.tsx` is rendered at the top of the builder's own tree
- * rather than inside its screen switch, and at the top of the rules route as well, so this
- * is findable from a step, from the rules screen and from the form's own screen alike.
- */
 function pausedNotice(page: Page): Locator {
   return page.getByTestId("qcms-autosave-paused");
 }
 
-/**
- * What a paused autosave means for the caller, per reason, in the caller's terms.
- *
- * The sentences the product shows are the author's ("a form needs at least one step");
- * these are the test author's, because the reader of this message is holding a fixture that
- * did not persist rather than a form they are building.
- */
 const PAUSE_HINTS: Readonly<Record<string, string>> = {
   noSteps: "the draft has no steps yet - add one, and pin a published question into it.",
   emptyStep:
@@ -733,21 +362,7 @@ const PAUSE_HINTS: Readonly<Record<string, string>> = {
     "waiting on a save.",
 };
 
-/**
- * Wait for the strip to say a save landed, and NAME A PAUSED AUTOSAVE rather than time out
- * on one (issue 569).
- *
- * Without this the whole family of unsaveable-draft traps presents as thirty seconds of
- * silence followed by "expected to contain text /^Last saved /", which reads like a
- * selector problem or a slow server and is neither: the draft was never posted, on purpose,
- * and no amount of waiting will change that. The reason is already in the DOM - the pause
- * notice carries `data-paused-reason` - so the wait ends by reading it and saying so.
- *
- * The read happens on FAILURE rather than before the wait, deliberately. A pause is
- * computed from the draft on every render, so it is on screen for the frame between an
- * `addStep` and the pin that fills it; failing fast on a glimpse of it would turn an
- * ordinary authoring sequence into a red. Thirty seconds of it standing is not a glimpse.
- */
+// Inspect pause reasons after the save wait fails: a transient empty step during authoring is not a failure.
 async function expectSavedSentence(page: Page): Promise<void> {
   try {
     await expect(saveState(page)).toContainText(/^Last saved /, { timeout: 30_000 });
@@ -756,15 +371,11 @@ async function expectSavedSentence(page: Page): Promise<void> {
   }
 }
 
-/** Rethrow `cause`, or a sentence naming the pause that is actually holding the save. */
 async function throwPausedAutosave(page: Page, cause: unknown): Promise<never> {
   const notice = pausedNotice(page);
   const reason =
     (await notice.count()) > 0 ? await notice.getAttribute("data-paused-reason") : null;
   if (reason === null || reason === "") throw cause;
-  // Repo-relative in the MESSAGE, unlike the app-relative paths this file's prose uses:
-  // the reader of this string is standing in a failing test report rather than in the app
-  // whose root the shorter form is implicitly against.
   const hint = PAUSE_HINTS[reason] ?? "see `unsaveableReason` in `apps/admin/lib/forms/draft.ts`.";
   throw new Error(
     `the draft never saved because AUTOSAVE IS PAUSED (unsaveableReason: ${reason}): ${hint}\n` +
@@ -774,67 +385,19 @@ async function throwPausedAutosave(page: Page, cause: unknown): Promise<never> {
   );
 }
 
-/** The save indicator's current sentence. */
 export function saveState(page: Page): Locator {
   return page.getByTestId("qcms-save-state");
 }
 
-/** The ambient save strip, which carries the machine-readable instant of the last save. */
 export function saveStatus(page: Page): Locator {
   return page.getByTestId("qcms-save-status");
 }
 
-/**
- * The sentence the strip shows while a save is armed or in flight.
- *
- * Hardcoded rather than imported from the app's catalogue, the same way every other name in
- * this file is: it is what a reader sees and what a screen reader would announce, so a
- * helper that read it from the same constant the component does would keep passing after
- * the string went missing.
- */
+// Keep the expected user-visible sentence independent of the catalog so copy regressions fail the test.
 const SAVING = "Saving...";
 
-/**
- * The instant of the last successful autosave, or `""` before the first one this visit.
- *
- * The attribute rather than the sentence, and that is the whole point of the attribute:
- * see `waitForSaveAfter`.
- *
- * ## It waits for the strip to settle first, and that is the fix for issues 748 and 750
- *
- * What this returns is a BASELINE: `waitForSaveAfter` proves an edit was stored by watching
- * the instant move off it. So a baseline read while an EARLIER save is still armed or in
- * flight is moved by that earlier save rather than by the edit under test, and the wait
- * that follows passes without the edit ever reaching the server. Both flakes are that one
- * sentence: `forms-publish.pw.ts` pinned a question (600ms of debounce), read the stamp
- * immediately, authored a rule, and waited for a change the pin's own save had already
- * made - then reloaded into a draft the rule had never reached, and published `0 rules.`.
- *
- * Waiting for the strip to stop saying "Saving..." is what makes the baseline final, and it
- * is exact rather than approximate: `components/forms/form-builder.tsx` sets the status to
- * `saving` in the effect that ARMS the debounce, not in the callback that fires it, so that
- * one sentence covers the armed window and the in-flight window together. Anything else on
- * the strip means no save is outstanding, and the next change to `data-saved-at` can only
- * be the caller's own edit.
- *
- * "Not saved yet" and "The last save failed." are settled states too, and are read rather
- * than waited out: a fresh visit has stored nothing, and a failed save is the caller's wait
- * to report rather than this helper's to hang on.
- *
- * ## "Saving..." CAN BE STALE, which is the one way this waits for something that will not
- * come (issue 569)
- *
- * The builder arms its debounce and sets `saving` in the same effect, and the effect's
- * cleanup cancels the timer when the draft changes. So an edit that makes the draft
- * unsaveable within the debounce window - adding a step, which is empty until something is
- * pinned into it - cancels the armed save and leaves the strip saying "Saving..." with
- * nothing in flight. The pause is what a caller has to act on, so this names it rather than
- * spending thirty seconds and reporting a locator.
- *
- * A caller avoids the state entirely by taking its baseline BEFORE the gesture that pauses
- * the draft rather than between that gesture and the edit that lifts the pause, which is
- * what every `addStep` caller in this directory now does.
- */
+// Settle armed and in-flight saves before reading the baseline.
+// Take it before a gesture that pauses autosave, or a cancelled debounce can leave Saving... stale.
 export async function savedStamp(page: Page): Promise<string> {
   return readingSaveState(page, async () => {
     try {
@@ -846,29 +409,7 @@ export async function savedStamp(page: Page): Promise<string> {
   });
 }
 
-/**
- * Wait for a NEW autosave to land, given the strip's `data-saved-at` from before the edit.
- *
- * `waitForSaved` on its own is not enough after an edit, and 034's gate capture is where
- * that stopped being theoretical: "Saved ..." is already on screen from the previous save,
- * so it returns immediately and the caller races the round trip it meant to wait for.
- * Publishing straight afterwards then freezes - or refuses to freeze - the PREVIOUS draft,
- * which reads as a bug in publish rather than as a test that jumped the queue.
- *
- * Waiting for the validation panel instead does not fix it either: validate is a separate
- * debounced call, so the panel can report the engine's verdict on a document the server
- * has not been given.
- *
- * This used to compare the indicator's TEXT, which worked only because that text carried
- * seconds. Issue 518 took the seconds out on purpose (`plan/admin-design-contracts.md` §2,
- * and a per-minute string is what keeps the live region quiet during sustained typing), so
- * two saves in the same minute now render identically. `data-saved-at` is the replacement:
- * the raw ISO instant, precise enough for a test and never announced to anyone.
- *
- * `previous` has to come from `savedStamp`, which settles before it reads. A baseline taken
- * any other way can be moved by a save the caller did not make, and then this returns
- * before the caller's own edit is stored - which is exactly what issues 748 and 750 were.
- */
+// Pass a settled savedStamp baseline. Compare the machine timestamp because visible labels omit seconds.
 export async function waitForSaveAfter(page: Page, previous: string): Promise<void> {
   await readingSaveState(page, async () => {
     try {
@@ -876,46 +417,25 @@ export async function waitForSaveAfter(page: Page, previous: string): Promise<vo
         timeout: 30_000,
       });
     } catch (cause) {
-      // The same rescue `expectSavedSentence` makes, and this is the leg that usually
-      // times out: a paused autosave leaves the PREVIOUS save's instant on the strip, so
-      // it is the stamp that never moves rather than the sentence that never arrives.
       await throwPausedAutosave(page, cause);
     }
     await expectSavedSentence(page);
   });
 }
 
-/** The issue summary the validation panel announces. */
 export function issueSummary(page: Page): Locator {
   return page.getByTestId("qcms-issue-summary");
 }
 
-/**
- * The builder's validation panel, which is where the anchored work list lives.
- *
- * Scoped by its heading rather than a testid, because the heading is what names the region
- * to a screen reader and is therefore the thing that cannot quietly change.
- */
+// The heading names the validation region for assistive technology.
 export function validationPanel(page: Page): Locator {
   return page.locator('section[aria-labelledby="qcms-validation-heading"]');
 }
 
-/** One issue code, wherever it is rendered (the panel, a rule, or a pin row). */
 export function issue(scope: Page | Locator, code: string): Locator {
   return scope.locator(`[data-issue-code="${code}"]`);
 }
 
-/**
- * Move one step within the form, from the rail's own row menu.
- *
- * The rail is where a step is reordered (`components/forms/rail-steps.tsx`), which is also
- * the only place it can be: the step screen shows one step and knows nothing about the
- * order of its siblings.
- *
- * Written for exit criterion 2, which needs a target to BECOME backward without anyone
- * choosing an ineligible one (Code Owner, 2026-08-30) - moving the step that holds it in
- * front of the question its rule reads is the way an author actually trips that.
- */
 export async function moveStep(page: Page, title: string, action: "up" | "down"): Promise<void> {
   await openRail(page);
   await page.getByRole("button", { name: `Actions for step ${title}`, exact: true }).click();
@@ -924,17 +444,6 @@ export async function moveStep(page: Page, title: string, action: "up" | "down")
     .click();
 }
 
-/**
- * Add a repeating group to the open step, and land on its panel (task 074, ADR-42).
- *
- * Three gestures, the same shape Add step has: open the dialog, name the group, commit. The
- * trigger and the commit are deliberately NOT the same string - "Add repeating group" opens and
- * "Add" commits - because an exact-name lookup matching both would be ambiguous while the dialog
- * is on screen.
- *
- * Adding a group is a request to work on it, so the builder selects it: a fresh group holds no
- * question and has no maximum, and both of those are set on the panel this lands on.
- */
 export async function addRepeatGroup(page: Page, label: string): Promise<void> {
   await waitForHydration(page);
   await page.getByRole("button", { name: "Add repeating group", exact: true }).click();
@@ -943,33 +452,17 @@ export async function addRepeatGroup(page: Page, label: string): Promise<void> {
   await expect(page.getByRole("heading", { name: `Repeating group: ${label}` })).toBeVisible();
 }
 
-/**
- * Open one repeating group's panel from the rail.
- *
- * The rail nests a group under the step that holds it, and the row is a BUTTON that switches the
- * panel beside the rail rather than an anchor that navigates (`docs/admin-constraints.md`). The
- * group panel exists only on the builder, so unlike `openStep` there is no second shape to fall
- * back to.
- */
+// Group panels exist only on the builder; their rail rows select in place rather than navigating across routes.
 export async function openGroupPanel(page: Page, label: string): Promise<void> {
   await openRail(page);
   await page.getByRole("button", { name: `Open repeating group ${label}` }).click();
   await expect(page.getByRole("heading", { name: `Repeating group: ${label}` })).toBeVisible();
 }
 
-/** The group panel currently on screen, which every group-scoped control is found inside. */
 export function groupPanel(page: Page): Locator {
   return page.getByTestId("qcms-group-panel");
 }
 
-/**
- * Choose one of a `ChoiceGroup`'s radios by its visible label.
- *
- * A native radio wearing `accent-color`, not a kit control (`components/forms/group-panel.tsx`
- * records why: the kit has no radio, and all three options have to be readable at once because
- * each changes which other fields exist). react-aria is not involved, so the label press is the
- * ordinary one and the assertion reads the input's own checked state.
- */
 export async function chooseRadio(page: Page, label: string): Promise<void> {
   await waitForHydration(page);
   const radio = page.getByRole("radio", { name: label, exact: true });
@@ -977,28 +470,12 @@ export async function chooseRadio(page: Page, label: string): Promise<void> {
   await expect(radio).toBeChecked();
 }
 
-/**
- * Choose one operator in a rule's condition editor, by its visible phrase.
- *
- * ## Why this is not `chooseOption`
- *
- * The operator picker is a `ComboBox` rather than a `Select` (Code Owner, 2026-08-30), and a
- * combobox that already holds a value FILTERS its list against that value when it reopens. So
- * `chooseOption` works for the first choice on a node and then waits five minutes for an option
- * the list is no longer showing - which is every sequence that changes its mind about an
- * operator, and task 074's walk through the three whole-group operators is the first spec to do
- * that three times on one node.
- *
- * Typing the whole phrase is the fix and it is also closer to what the control is FOR: sixteen
- * phrases in a popover you scan is why it is a combobox, and typing is the gesture the ruling
- * bought. The filter is then narrowed to the one option, which is what the click lands on.
- */
+// Reopening a valued combobox filters to that value; replace its text to expose the requested operator.
 export async function chooseConditionOperator(scope: Locator, label: string): Promise<void> {
   await waitForHydration(scope.page());
   const combobox = scope.getByRole("combobox", { name: "Operator", exact: true }).first();
   await combobox.click();
   await fillStable(combobox, label);
   await scope.page().getByRole("option", { name: label, exact: true }).click();
-  // The input's own text, not a trigger's label: a combobox displays the chosen item.
   await expect(combobox).toHaveValue(label);
 }
