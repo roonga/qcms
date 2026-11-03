@@ -398,6 +398,11 @@ describe("no reader of a lane path lives where the lane cannot see it", () => {
   const ALLOWED = [
     {
       file: "packages/create-qcms-app/scripts/sync-templates.mjs",
+      line: '"Scaffolded source follows the Code comments rule in `PROJECT_INSTRUCTIONS.md`:",',
+      why: "emits a documentation reference; does not read the instruction file",
+    },
+    {
+      file: "packages/create-qcms-app/scripts/sync-templates.mjs",
       line: '"CONTRIBUTING.md",',
       why: "APP_EXCLUDED_PATHS: an app-relative name the scaffold drops, never read from the root",
     },
