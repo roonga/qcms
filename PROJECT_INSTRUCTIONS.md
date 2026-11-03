@@ -54,7 +54,7 @@ Code Owner, 2026-10-24. Applies to every comment an agent writes or touches.
 - License headers and lint-disable or `as` justifications stay.
 - JSDoc on exported package APIs stays, concise: one short line, a few at most, saying what the name and types do not. No examples or history unless essential.
 - Never restate what the code does.
-- Keep dependency versions in manifests, lockfiles and live documentation, not code comments.
+- Keep dependency versions in manifests, lockfiles and live documentation, not explanatory code comments. Preserve machine-read annotations, including the same-line version on SHA-pinned third-party GitHub Actions required by `CONTRIBUTING.md`.
 - No history: no ticket narratives, no "was X, now Y", no dates, no record of who ruled what, and no issue or PR numbers unless one is the only pointer to a non-obvious constraint.
 - `pnpm check:comments` enforces the limits: a comment over 3 lines, export JSDoc over 4 lines (tag lines excluded), and history markers fail. `apps/admin/` is excluded until its sweep; `check-comments: allow <reason>` marks a justified exception.
 
