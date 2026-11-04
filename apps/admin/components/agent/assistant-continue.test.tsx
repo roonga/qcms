@@ -77,8 +77,10 @@ function conversationHandle(): ConversationHandle {
   let turns: readonly AgentTurnRecord[] = [];
   return {
     id: "cnv_1",
+    visitId: "vis_1",
     subject: "Quote",
     turns,
+    dropped: 0,
     current: () => turns,
     append: (next) => {
       turns = [...turns, ...next];
@@ -100,6 +102,7 @@ function mount(): void {
   render(
     <AssistantConversation
       screen={SCREEN}
+      environment="test"
       conversation={conversationHandle()}
       builder={{
         endpoint: "/forms/frm_quote/assist",

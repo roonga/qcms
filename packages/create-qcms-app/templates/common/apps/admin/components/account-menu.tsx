@@ -4,6 +4,7 @@ import { useRef } from "react";
 
 import { Menu } from "@/components/kit";
 import { menuClasses } from "@/components/menu-slots";
+import { clearStoredConversation } from "@/lib/agent/conversation";
 import { t } from "@/lib/i18n/en";
 import { initialsFor } from "@/lib/initials";
 import { MY_ACCESS_PATH, SETTINGS_PATH } from "@/lib/shell/modes";
@@ -29,7 +30,10 @@ export function AccountMenu({ email, name }: { readonly email: string; readonly 
         }
         classNames={menuClasses("qcms-avatar")}
         onAction={(key) => {
-          if (key === "sign-out") signOutForm.current?.requestSubmit();
+          if (key !== "sign-out") return;
+          // The POST does not clear tab storage, so the assistant conversation goes here.
+          clearStoredConversation();
+          signOutForm.current?.requestSubmit();
         }}
         items={[
           { id: "settings", label: t("nav.settings"), href: SETTINGS_PATH },

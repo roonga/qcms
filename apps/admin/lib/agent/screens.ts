@@ -106,6 +106,15 @@ export function conversationSubject(resolved: ResolvedScreen | undefined): strin
   return `screen:${resolved.screen}`;
 }
 
+const IDENTITY_IDS = ["formId", "questionId", "workspaceId", "sessionId", "version"] as const;
+
+/** One screen as a waiting card's binding reads it: the route and its own ids, not its filters. */
+export function screenIdentity(resolved: ResolvedScreen | undefined): string {
+  if (resolved === undefined) return "none";
+  const ids = IDENTITY_IDS.map((key) => `${key}=${String(resolved.params[key] ?? "")}`);
+  return [resolved.screen, ...ids].join("|");
+}
+
 const SEGMENT = /^[A-Za-z0-9._~-]+$/u;
 
 export function adminPageHref(target: string): string | undefined {

@@ -26,6 +26,7 @@ export async function POST(
         readonly screen?: unknown;
         readonly params?: unknown;
         readonly conversationId?: unknown;
+        readonly visitId?: unknown;
       }
     | undefined;
 
@@ -37,6 +38,7 @@ export async function POST(
     ...(typeof body?.screen === "string" ? { screen: body.screen } : {}),
     ...(params === undefined ? {} : { params }),
     ...(typeof body?.conversationId === "string" ? { conversationId: body.conversationId } : {}),
+    ...(typeof body?.visitId === "string" ? { visitId: body.visitId } : {}),
   });
 
   return new Response(upstream.body, {

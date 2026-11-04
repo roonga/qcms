@@ -1549,6 +1549,8 @@ export const messages = {
   "agent.announce.done": "The assistant finished.",
   "agent.announce.stopped": "The assistant stopped.",
   "agent.announce.failed": "The assistant could not finish that turn.",
+  "agent.announce.cardExpired": "The waiting card expired because you left the screen it was for.",
+  "agent.trimmed": "This conversation reached its length limit, so the oldest turns were dropped.",
   "agent.sidebar.shown": "Showed the sidebar and closed the assistant.",
   "forms.assist.step.project_draft": "Trying the draft out",
   "forms.assist.step.other": "Working on your request",

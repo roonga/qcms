@@ -176,6 +176,7 @@ export function assist(
     readonly screen?: string;
     readonly params?: AssistParamsRelay;
     readonly conversationId?: string;
+    readonly visitId?: string;
   },
 ): Promise<Response> {
   return adminApiFetch(session, `/forms/${encodeURIComponent(formId)}/draft/assist`, {
@@ -192,6 +193,7 @@ export function screenAssist(
     readonly screen: string;
     readonly params?: AssistParamsRelay;
     readonly conversationId: string;
+    readonly visitId?: string;
   },
 ): Promise<Response> {
   return adminApiFetch(session, "/assist", { method: "POST", body });

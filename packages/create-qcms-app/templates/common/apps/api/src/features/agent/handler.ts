@@ -326,6 +326,7 @@ function screenBuildInput(args: {
   readonly environment: string;
   readonly params: ScreenParams;
   readonly conversationId: string | undefined;
+  readonly visitId: string | undefined;
 }): ScreenBuildInput {
   return {
     deps: args.deps,
@@ -335,6 +336,8 @@ function screenBuildInput(args: {
     // A turn with no conversation id is deduplicated against nothing, so an audited read
     // writes its row every time rather than sharing a forged key.
     conversationId: args.conversationId ?? `turn:${crypto.randomUUID()}`,
+    // A client that names no stay keeps the conversation-wide key it had before.
+    visitId: args.visitId ?? "",
   };
 }
 
@@ -464,6 +467,7 @@ export function makeAssistHandler(deps: Deps): RouteHandler<typeof assistRoute, 
         // about another form.
         params: { ...(body.params ?? {}), formId },
         conversationId: body.conversationId,
+        visitId: body.visitId,
       }),
     });
 
@@ -527,6 +531,7 @@ export function makeScreenAssistHandler(
       environment: deps.databases.forRequest(c.get("requestEnvironment")).environment,
       params: body.params ?? {},
       conversationId: body.conversationId,
+      visitId: body.visitId,
     });
     const ctx = await buildScreenContext({
       deps,

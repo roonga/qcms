@@ -119,6 +119,11 @@ const screenRef = {
    * deduplicated by, never an identity: forging one can only add rows.
    */
   conversationId: z.string().min(1).max(64),
+  /**
+   * The conversation's current stay on one subject. It joins the dedup key, so a
+   * conversation that returns to a subject owes a new row and a forged one can only add.
+   */
+  visitId: z.string().min(1).max(64).optional(),
 };
 
 export const AssistBody = z
@@ -134,6 +139,7 @@ export const AssistBody = z
     // Absent means no deduplication rather than a shared key, which is the safe
     // direction: an audited read then writes its row for every turn.
     conversationId: screenRef.conversationId.optional(),
+    visitId: screenRef.visitId,
   })
   .openapi("AssistRequest");
 
