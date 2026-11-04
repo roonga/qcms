@@ -161,7 +161,9 @@ test("a response viewer reaches Operations, a form's responses and one response"
   page,
 }) => {
   test.setTimeout(600_000);
-  await enrollNewAdmin(page, VIEWER);
+  // Operations is this persona's landing: `responses.viewer` reaches no authoring area, so
+  // the default `/questions` is a wait that can only time out.
+  await enrollNewAdmin(page, VIEWER, /\/operations$/u);
   await chooseEnvironment(page, "test");
 
   // Operations in `test`, which is the only area this persona's grants admit it to beyond
