@@ -3,6 +3,7 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { chooseEnvironment, environmentChip } from "./support/environment.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
+import { waitForHydration } from "./support/hydration.js";
 import { submitResponse } from "./support/ops.js";
 
 /**
@@ -141,8 +142,13 @@ test("intake closes and reopens one environment from the screen that owns it", a
 });
 
 test("the builder offers no intake act, because that screen is authoring now", async ({ page }) => {
+  test.setTimeout(300_000);
   await signInWithTotp(page, OPERATOR, operatorSecret);
+  // The editing environment: in prod the builder is a read-only review of what is released,
+  // which offers no act of its own and would make the absence below prove nothing.
+  await chooseEnvironment(page, "test");
   await page.goto(`/forms/${FORM_ID}`);
+  await waitForHydration(page);
 
   // Absent, not disabled: a caller looking for the intake door is sent to Operations
   // rather than offered a refusal on an authoring screen.

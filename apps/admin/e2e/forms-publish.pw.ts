@@ -463,7 +463,7 @@ test("closes the form to new sessions and reopens it (deliverable: close/reopen)
 }) => {
   test.setTimeout(120_000);
   await signInWithTotp(page, EMAIL, totpSecret);
-  await page.goto(`/forms/${formId}`);
+  await page.goto(`/operations/forms/${formId}/intake`);
   await chooseEnvironment(page, "prod");
 
   await page.getByRole("button", { name: "Close in prod" }).click();

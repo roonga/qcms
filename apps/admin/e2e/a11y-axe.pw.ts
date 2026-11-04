@@ -582,13 +582,6 @@ test("publish, preview, history and secure links have zero violations", async ({
   // Release the published form before the operations sweep starts respondent sessions.
   pubForm = { formId, slug, choiceId, choiceOption, countId };
 
-  await page.goto(`/forms/${formId}`);
-  await waitForHydration(page);
-  await page.getByRole("button", { name: /^Close in / }).click();
-  await expect(page.getByRole("alertdialog")).toBeVisible();
-  await expectNoViolations(page, "close-form confirmation");
-  await page.keyboard.press("Escape");
-
   await page.goto(`/forms/${formId}/versions`);
   await chooseEnvironment(page, "prod");
   await expect(page.getByTestId("qcms-released-now")).toBeVisible();
@@ -742,6 +735,15 @@ async function sweepOperations(
   await page.goto("/operations");
   await expect(page.getByTestId("qcms-operations-table")).toBeVisible();
   await expectNoViolations(page, "the Operations forms table");
+
+  await page.goto(`/operations/forms/${pub.formId}/intake`);
+  await waitForHydration(page);
+  await expect(page.getByTestId("qcms-form-intake")).toBeVisible();
+  await expectNoViolations(page, "one form's intake");
+  await page.getByRole("button", { name: /^Close in / }).click();
+  await expect(page.getByRole("alertdialog")).toBeVisible();
+  await expectNoViolations(page, "close-form confirmation");
+  await page.keyboard.press("Escape");
 
   await page.goto("/responses/erasures");
   await expect(page.getByRole("heading", { name: "Erasure log" })).toBeVisible();
