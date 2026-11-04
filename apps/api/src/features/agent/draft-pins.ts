@@ -41,10 +41,7 @@ export async function savedDraftPins(
 }
 
 /** The revision alone, which is what a proposal built from the saved draft is bound to. */
-export async function savedDraftRevision(
-  deps: Deps,
-  formId: FormId,
-): Promise<number | undefined> {
+export async function savedDraftRevision(deps: Deps, formId: FormId): Promise<number | undefined> {
   return (await getDraft(deps.databases.control, formId))?.revision;
 }
 

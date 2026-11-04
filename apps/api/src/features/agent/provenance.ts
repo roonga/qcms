@@ -145,10 +145,7 @@ function withinRunWindow(input: ProvenanceInput): boolean {
  * from. Fails closed: no form, no reader, no draft row and a moved revision are one answer,
  * because each of them means the set the plan was checked against cannot be shown to hold.
  */
-async function draftUnmoved(
-  input: ProvenanceInput,
-  token: ProposalTokenPayload,
-): Promise<boolean> {
+async function draftUnmoved(input: ProvenanceInput, token: ProposalTokenPayload): Promise<boolean> {
   if (token.draftRevision === undefined) return true;
   if (token.formId === undefined || input.savedDraftRevision === undefined) return false;
   return (await input.savedDraftRevision(token.formId)) === token.draftRevision;

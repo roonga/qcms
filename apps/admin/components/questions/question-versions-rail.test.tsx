@@ -150,9 +150,7 @@ describe("the question rail's markup", () => {
   });
 
   it("makes every version row an anchor that goes somewhere", () => {
-    const anchors = [...(render()).matchAll(/<a href="(\/[^"]*)"/gu)].map(
-      (match) => match[1],
-    );
+    const anchors = [...render().matchAll(/<a href="(\/[^"]*)"/gu)].map((match) => match[1]);
     expect(anchors).toStrictEqual([
       "/questions",
       "/questions/q_smoking_status?v=3",
@@ -251,7 +249,7 @@ describe("the question rail's markup", () => {
   });
 
   it("states the selected version's status in the Header, as its one tag", () => {
-    const header = (render(2)).slice(0, (render(2)).indexOf("qcms-rail__facts"));
+    const header = render(2).slice(0, render(2).indexOf("qcms-rail__facts"));
     expect(header).toContain('data-status="published"');
     expect([...header.matchAll(/class="qcms-tag/gu)]).toHaveLength(1);
   });

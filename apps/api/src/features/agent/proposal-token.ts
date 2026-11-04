@@ -146,10 +146,7 @@ function payloadOf(args: ProposalTokenArgs): ProposalTokenPayload {
   };
 }
 
-export async function signProposalToken(
-  appKey: string,
-  args: ProposalTokenArgs,
-): Promise<string> {
+export async function signProposalToken(appKey: string, args: ProposalTokenArgs): Promise<string> {
   if (args.steps.length === 0) throw new Error("A proposal token carries at least one step");
   if (args.steps.length > PROPOSAL_MAX_STEPS) {
     throw new Error("A proposal token carries at most PROPOSAL_MAX_STEPS steps");
