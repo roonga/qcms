@@ -36,19 +36,19 @@ describe("the route-to-cap table", () => {
     expect(Object.values(MEASURE_BY_ROUTE)).not.toContain("default");
   });
 
-  it("counts the drawings: twelve at 1600, four at 40rem, two at 1080", () => {
+  it("counts the drawings: twelve at 1600, five at 40rem, two at 1080", () => {
     const measures = Object.values(MEASURE_BY_ROUTE);
     const count = (measure: string) => measures.filter((value) => value === measure).length;
 
     expect(count("wide")).toBe(12);
 
-    expect(count("prose")).toBe(4);
+    expect(count("prose")).toBe(5);
 
     expect(count("list")).toBe(4);
 
     expect(count("ops")).toBe(1);
     expect(count("log")).toBe(2);
-    expect(measures).toHaveLength(23);
+    expect(measures).toHaveLength(24);
   });
 
   it("offers no cap that no route can take, which is what issue 668 left behind", () => {
@@ -64,10 +64,10 @@ describe("the route-to-cap table", () => {
     expect(MEASURE_BY_ROUTE["/forms/[formId]"]).toBe("wide");
 
     expect(MEASURE_BY_ROUTE["/forms/[formId]/rules"]).toBe("wide");
-    expect(MEASURE_BY_ROUTE["/forms/[formId]/links"]).toBe("wide");
-    expect(MEASURE_BY_ROUTE["/forms/[formId]/webhooks"]).toBe("wide");
-    expect(MEASURE_BY_ROUTE["/forms/[formId]/responses"]).toBe("wide");
-    expect(MEASURE_BY_ROUTE["/forms/[formId]/responses/[sessionId]"]).toBe("wide");
+    expect(MEASURE_BY_ROUTE["/operations/forms/[formId]/links"]).toBe("wide");
+    expect(MEASURE_BY_ROUTE["/operations/forms/[formId]/webhooks"]).toBe("wide");
+    expect(MEASURE_BY_ROUTE["/operations/forms/[formId]/responses"]).toBe("wide");
+    expect(MEASURE_BY_ROUTE["/operations/forms/[formId]/responses/[sessionId]"]).toBe("wide");
     expect(MEASURE_BY_ROUTE["/forms/[formId]/versions"]).toBe("wide");
   });
 
@@ -108,7 +108,7 @@ describe("resolving a live pathname to a cap", () => {
     expect(measureFor("/forms/frm_auto_quote")).toBe("wide");
     expect(measureFor("/forms/frm_auto_quote/versions")).toBe("wide");
     expect(measureFor("/forms/frm_auto_quote/versions/3")).toBe("wide");
-    expect(measureFor("/forms/frm_auto_quote/responses/ses_abc")).toBe("wide");
+    expect(measureFor("/operations/forms/frm_auto_quote/responses/ses_abc")).toBe("wide");
   });
 
   it("prefers a literal segment over a dynamic one, the way Next resolves them", () => {
@@ -119,7 +119,7 @@ describe("resolving a live pathname to a cap", () => {
   });
 
   it("keeps a trailing slash and a query-free path meaning the same route", () => {
-    expect(measureFor("/forms/frm_auto_quote/links/")).toBe("wide");
+    expect(measureFor("/operations/forms/frm_auto_quote/links/")).toBe("wide");
   });
 
   it("falls back to the readable measure for a path no route claims", () => {

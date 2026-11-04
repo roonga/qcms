@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EnvironmentScope } from "./environment-scope.tsx";
 import { EnvironmentSwitcher } from "./environment-switcher.tsx";
 import { FormActions } from "./forms/form-actions.tsx";
+import { FormIntake } from "./ops/form-intake.tsx";
 import { ResponseDetail } from "./ops/response-detail.tsx";
 import { ENVIRONMENT_COOKIE } from "../lib/environment.ts";
 import { t } from "../lib/i18n/en.ts";
@@ -18,15 +19,24 @@ vi.mock("next/navigation", () => ({
 
 const SWITCHED = t("environment.switched", { shown: "prod", current: "test" });
 
-function formActions(setStatus = () => Promise.resolve({ status: "error", message: SWITCHED })) {
+function formIntake(setStatus = () => Promise.resolve({ status: "error", message: SWITCHED })) {
   return (
-    <FormActions
+    <FormIntake
       slug="intake"
-      formId="form-1"
       status="open"
       setStatus={setStatus as () => Promise<{ status: "error"; message: string }>}
       environment="prod"
     />
+  );
+}
+
+// One control waits on the switcher, one does not.
+function environmentBoundControls() {
+  return (
+    <>
+      <FormActions formId="form-1" environment="prod" />
+      {formIntake()}
+    </>
   );
 }
 
@@ -81,7 +91,7 @@ describe("an unknown environment", () => {
   it("disables close, and leaves the way to the publish wizard alone", () => {
     render(
       <EnvironmentScope selection="test" unknown>
-        {formActions()}
+        {environmentBoundControls()}
       </EnvironmentScope>,
     );
 
@@ -96,7 +106,7 @@ describe("an unknown environment", () => {
   it("leaves everything enabled outside the unknown state", () => {
     render(
       <EnvironmentScope selection="prod" unknown={false}>
-        {formActions()}
+        {formIntake()}
       </EnvironmentScope>,
     );
 
@@ -110,7 +120,7 @@ describe("an unknown environment", () => {
 describe("a refusal because another tab switched", { timeout: 30_000 }, () => {
   it("is said inside the close dialog, which stays open", async () => {
     const user = userEvent.setup();
-    render(formActions());
+    render(formIntake());
 
     await user.click(
       screen.getByRole("button", { name: t("forms.lifecycle.close", { environment: "prod" }) }),
@@ -148,6 +158,7 @@ describe("a refusal because another tab switched", { timeout: 30_000 }, () => {
         labelsFailed={false}
         linksHref="/forms/form-1/links"
         environment="prod"
+        erasable
         erase={() => Promise.resolve({ status: "error", message: SWITCHED })}
         unflag={() => Promise.resolve({ status: "error" })}
       />,

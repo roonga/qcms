@@ -26,21 +26,18 @@ function rail(current: Parameters<typeof formSubtreeRail>[0]["current"], counts 
 }
 
 describe("the form-subtree rail's contents", () => {
-  it("carries the eight sibling routes in §7's order, and Validation is not one of them", () => {
+  it("carries the five authoring routes in §7's order, and Validation is not one of them", () => {
     expect([...RAIL_SECTIONS]).toStrictEqual([
       "builder",
       "rules",
       "preview",
       "versions",
       "publish",
-      "links",
-      "responses",
-      "webhooks",
     ]);
   });
 
   it("puts the form's children first and its siblings second", () => {
-    const groups = rail({ kind: "section", section: "links" });
+    const groups = rail({ kind: "section", section: "versions" });
     expect(groups.children.map((item) => item.label)).toStrictEqual([
       "About you",
       "Health",
@@ -56,28 +53,22 @@ describe("the form-subtree rail's contents", () => {
       "Versions",
 
       "Publish",
-      "Links",
-      "Responses",
-      "Webhooks",
     ]);
   });
 
   it("points each sibling at its own route, with the builder as the form itself", () => {
-    const groups = rail({ kind: "section", section: "links" });
+    const groups = rail({ kind: "section", section: "versions" });
     expect(groups.siblings.map((item) => item.href)).toStrictEqual([
       "/forms/frm_life",
       "/forms/frm_life/rules",
       "/forms/frm_life/preview",
       "/forms/frm_life/versions",
       "/forms/frm_life/publish",
-      "/forms/frm_life/links",
-      "/forms/frm_life/responses",
-      "/forms/frm_life/webhooks",
     ]);
   });
 
   it("points a step at the builder's anchor for it, which is the only address a step has", () => {
-    const groups = rail({ kind: "section", section: "links" });
+    const groups = rail({ kind: "section", section: "versions" });
     expect(groups.children.map((item) => item.href)).toStrictEqual([
       "/forms/frm_life#step-stp_about",
       "/forms/frm_life#step-stp_health",
@@ -86,7 +77,7 @@ describe("the form-subtree rail's contents", () => {
   });
 
   it("makes a step row the destination for the id it points at, and a sibling row no destination", () => {
-    const groups = rail({ kind: "section", section: "links" });
+    const groups = rail({ kind: "section", section: "versions" });
     expect(groups.children.map((item) => item.anchorId)).toStrictEqual([
       "step-stp_about",
       "step-stp_health",
@@ -96,15 +87,15 @@ describe("the form-subtree rail's contents", () => {
   });
 
   it("numbers the steps in document order and leaves the sections unnumbered", () => {
-    const groups = rail({ kind: "section", section: "links" });
+    const groups = rail({ kind: "section", section: "versions" });
     expect(groups.children.map((item) => item.position)).toStrictEqual([1, 2, 3]);
     expect(groups.siblings.every((item) => item.position === undefined)).toBe(true);
   });
 
   it("marks exactly one row current, and marks the right one", () => {
-    const groups = rail({ kind: "section", section: "responses" });
+    const groups = rail({ kind: "section", section: "versions" });
     const current = [...groups.children, ...groups.siblings].filter((item) => item.isCurrent);
-    expect(current.map((item) => item.key)).toStrictEqual(["section:responses"]);
+    expect(current.map((item) => item.key)).toStrictEqual(["section:versions"]);
   });
 
   it("marks a step current when the screen is that step", () => {
@@ -114,13 +105,13 @@ describe("the form-subtree rail's contents", () => {
   });
 
   it("badges a step with its own issue count and never badges a section", () => {
-    const groups = rail({ kind: "section", section: "links" }, new Map([["stp_health", 2]]));
+    const groups = rail({ kind: "section", section: "versions" }, new Map([["stp_health", 2]]));
     expect(groups.children.map((item) => item.issueCount)).toStrictEqual([0, 2, 0]);
     expect(groups.siblings.every((item) => item.issueCount === 0)).toBe(true);
   });
 
   it("renders without badges rather than claiming a clean form when there is no verdict", () => {
-    const groups = rail({ kind: "section", section: "links" });
+    const groups = rail({ kind: "section", section: "versions" });
     expect(groups.children.every((item) => item.issueCount === 0)).toBe(true);
   });
 
@@ -140,7 +131,7 @@ describe("the form-subtree rail's contents", () => {
 describe("what the collapsed Header carries", () => {
   it("names the form whatever is current, and counts the form's own issues", () => {
     for (const current of [
-      { kind: "section", section: "links" },
+      { kind: "section", section: "versions" },
       { kind: "step", stepId: "stp_health" },
 
       { kind: "step", stepId: "stp_gone" },
@@ -162,7 +153,7 @@ describe("what the collapsed Header carries", () => {
 
   it("counts every step's issues, not the current row's", () => {
     const groups = rail(
-      { kind: "section", section: "links" },
+      { kind: "section", section: "versions" },
       new Map([
         ["stp_about", 1],
         ["stp_health", 2],

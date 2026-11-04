@@ -38,7 +38,7 @@ async function render(
   );
 }
 
-const LINKS: RailCurrent = { kind: "section", section: "links" };
+const LINKS: RailCurrent = { kind: "section", section: "versions" };
 
 describe("the rail's markup", () => {
   it("is an aside named for the form, holding a nav named for its sections", async () => {
@@ -90,9 +90,6 @@ describe("the rail's markup", () => {
       "/forms/frm_life/preview",
       "/forms/frm_life/versions",
       "/forms/frm_life/publish",
-      "/forms/frm_life/links",
-      "/forms/frm_life/responses",
-      "/forms/frm_life/webhooks",
     ]);
     const formRow = html.slice(html.indexOf('data-rail-item="section:builder"'));
     expect(formRow.slice(0, formRow.indexOf("</li>"))).toContain('data-rail-group="steps"');
@@ -115,8 +112,8 @@ describe("the rail's markup", () => {
   it("marks the current row with aria-current, and only that row", async () => {
     const html = await render(LINKS);
     expect([...html.matchAll(/aria-current="page"/gu)]).toHaveLength(1);
-    expect(html).toContain('href="/forms/frm_life/links" class="qcms-rail__link" ');
-    expect(html).toMatch(/href="\/forms\/frm_life\/links"[^>]*aria-current="page"/u);
+    expect(html).toContain('href="/forms/frm_life/versions" class="qcms-rail__link" ');
+    expect(html).toMatch(/href="\/forms\/frm_life\/versions"[^>]*aria-current="page"/u);
   });
 
   it("badges the step that has issues and leaves the others bare", async () => {

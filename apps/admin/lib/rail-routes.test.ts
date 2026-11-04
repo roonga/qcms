@@ -14,10 +14,16 @@ const CURRENT_SECTION: Readonly<Record<string, string>> = {
   "/forms/[formId]/versions": "versions",
   "/forms/[formId]/versions/[version]": "versions",
   "/forms/[formId]/publish": "publish",
-  "/forms/[formId]/links": "links",
-  "/forms/[formId]/responses": "responses",
-  "/forms/[formId]/responses/[sessionId]": "responses",
-  "/forms/[formId]/webhooks": "webhooks",
+};
+
+// Operations' rail is a second rail, not this one on another root: its slot pages name a
+// row as `current="links"` where the editor's say `section: "links"`.
+const CURRENT_CONTEXT: Readonly<Record<string, string>> = {
+  "/operations/forms/[formId]/responses": "responses",
+  "/operations/forms/[formId]/responses/[sessionId]": "responses",
+  "/operations/forms/[formId]/links": "links",
+  "/operations/forms/[formId]/webhooks": "webhooks",
+  "/operations/forms/[formId]/intake": "intake",
 };
 
 const NO_SECTION: readonly string[] = [];
@@ -52,6 +58,10 @@ function formScopedScreens(): string[] {
   return shellScreens().filter((pattern) => pattern.startsWith("/forms/[formId]"));
 }
 
+function formContextScreens(): string[] {
+  return shellScreens().filter((pattern) => pattern.startsWith("/operations/forms/[formId]"));
+}
+
 function slotSource(route: string): string {
   return readFileSync(`${SHELL}/@rail${route}/page.tsx`, "utf8");
 }
@@ -64,6 +74,7 @@ describe("every screen has a page in the slot, whether or not it has a rail", ()
   it("accounts for every route as either carrying a rail or deliberately not", () => {
     const withRail = [
       ...Object.keys(CURRENT_SECTION),
+      ...Object.keys(CURRENT_CONTEXT),
       "/questions/[questionId]",
       "/settings",
 
@@ -89,18 +100,21 @@ describe("every screen has a page in the slot, whether or not it has a rail", ()
 });
 
 describe("which screens carry the form-subtree section", () => {
-  it("counts the ten form-scoped screens: the audit's eight, the rules route and publish", () => {
+  it("counts the screens about one form, split between the editor's and Operations'", () => {
+    expect(sorted(formContextScreens())).toEqual([
+      "/operations/forms/[formId]/intake",
+      "/operations/forms/[formId]/links",
+      "/operations/forms/[formId]/responses",
+      "/operations/forms/[formId]/responses/[sessionId]",
+      "/operations/forms/[formId]/webhooks",
+    ]);
     expect(sorted(formScopedScreens())).toEqual([
       "/forms/[formId]",
-      "/forms/[formId]/links",
       "/forms/[formId]/preview",
       "/forms/[formId]/publish",
-      "/forms/[formId]/responses",
-      "/forms/[formId]/responses/[sessionId]",
       "/forms/[formId]/rules",
       "/forms/[formId]/versions",
       "/forms/[formId]/versions/[version]",
-      "/forms/[formId]/webhooks",
     ]);
   });
 
@@ -127,6 +141,11 @@ describe("which of the rail's rows each screen's section carries", () => {
   it("asks for the same rail on every one of them, with nothing per-screen to keep in step", () => {
     for (const route of Object.keys(CURRENT_SECTION)) {
       expect(slotSource(route), `${route} renders the shared form rail`).toContain("FormRailSlot");
+    }
+    for (const route of Object.keys(CURRENT_CONTEXT)) {
+      expect(slotSource(route), `${route} renders the Operations form rail`).toContain(
+        "OperationsFormRailSlot",
+      );
       expect(slotSource(route)).not.toContain("interactiveSteps");
     }
   });
@@ -141,8 +160,15 @@ describe("which row of the section each screen marks", () => {
     }
   });
 
-  it("expects a current row for every form-scoped slot, so a new one cannot arrive unstated", () => {
+  it("marks the context the screen is, and marks the detail route's parent context", () => {
+    for (const [route, context] of Object.entries(CURRENT_CONTEXT)) {
+      expect(slotSource(route), `${route} marks ${context}`).toContain(`current="${context}"`);
+    }
+  });
+
+  it("expects a current row for every slot about one form, so none can arrive unstated", () => {
     expect(sorted(Object.keys(CURRENT_SECTION))).toEqual(sorted(formScopedScreens()));
+    expect(sorted(Object.keys(CURRENT_CONTEXT))).toEqual(sorted(formContextScreens()));
   });
 
   it("marks a step as current on no screen at all", () => {

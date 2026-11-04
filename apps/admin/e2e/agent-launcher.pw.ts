@@ -50,9 +50,9 @@ const SHELL_PAGES: readonly string[] = [
   `/forms/${FORM_ID}/versions`,
   `/forms/${FORM_ID}/versions/${String(VERSION)}`,
   `/forms/${FORM_ID}/publish`,
-  `/forms/${FORM_ID}/links`,
-  `/forms/${FORM_ID}/webhooks`,
-  `/forms/${FORM_ID}/responses`,
+  `/operations/forms/${FORM_ID}/links`,
+  `/operations/forms/${FORM_ID}/webhooks`,
+  `/operations/forms/${FORM_ID}/responses`,
   "/me/access",
   "/operations",
   "/responses",
@@ -130,7 +130,7 @@ test("puts the button first in the trailing group on every shell screen, and on 
     [COUNT, 1],
   ]);
 
-  for (const path of [...SHELL_PAGES, `/forms/${FORM_ID}/responses/${sessionId}`]) {
+  for (const path of [...SHELL_PAGES, `/operations/forms/${FORM_ID}/responses/${sessionId}`]) {
     await page.goto(path);
     await expect(button(page), `${path} carries the assistant button`).toBeVisible();
     await expect.soft(button(page), `${path} carries exactly one`).toHaveCount(1);
@@ -378,7 +378,7 @@ test("names the screen in the context chip, and keeps the conversation across a 
   const chip = page.getByTestId("qcms-assistant-context");
   await expect(chip).toHaveText("Workspace settings");
 
-  await page.goto(`/forms/${FORM_ID}/responses`);
+  await page.goto(`/operations/forms/${FORM_ID}/responses`);
   await expect(chip).toContainText("no answers");
   await page.goto(`/forms/${FORM_ID}/publish`);
   await expect(chip).toContainText("publish");

@@ -393,10 +393,18 @@ Phase 6 ships in slices, as the workspace ruling allows. Each slice is one branc
 2. The Operations-only screen move and the redirects for the old form-subtree addresses
    (`fix/1204-operations-only-screens`), with the route registries and the tests that
    enumerate them. Intake close and reopen need a host screen under Operations, the one
-   screen Q87 calls Overview: `/operations/forms/{formId}`, carrying what the selected
-   environment serves, its intake and the two acts, with a row in both agent tables. The
-   Playwright journey proving a `response: read` account opens a response from Operations
-   lands here, with the response-viewer persona.
+   screen Q87 calls Overview; it ships as the rail's Intake item,
+   `/operations/forms/{formId}/intake`, carrying what the selected environment serves, its
+   intake and the two acts, with a row in both agent tables. The Playwright journey proving
+   a `response: read` account opens a response from Operations lands here, with the
+   response-viewer persona.
+   The old addresses are `redirects()` entries in `apps/admin/next.config.ts` rather than
+   redirecting pages, so each keeps its query and none of them costs the six registrations a
+   screen costs. One form therefore has two rails, so the conditional sixth registration
+   place is two browser sweeps: `apps/admin/e2e/rail-screens.pw.ts` for the editor's screens
+   and `apps/admin/e2e/operations-form-rail.pw.ts` for Operations'. The form subtree's
+   offerable action kinds become two lists, so no plan spans authoring and operational acts
+   in one confirmation.
 3. The leave warning: the kit Dialog, Stay focused by default, Escape is Stay, focus
    returned, nothing shown for navigation inside Operations, unit and Playwright coverage
    including browser back.
@@ -418,6 +426,7 @@ Addresses the move takes:
 | `/forms/{formId}/export`                | `/operations/forms/{formId}/export`                |
 | `/forms/{formId}/links`                 | `/operations/forms/{formId}/links`                 |
 | `/forms/{formId}/webhooks`              | `/operations/forms/{formId}/webhooks`              |
+| (none; the acts were the builder's)     | `/operations/forms/{formId}/intake`                |
 
 Rulings on the two questions phase 6 left open (Code Owner, 2026-11-04, on #1204):
 
@@ -430,6 +439,10 @@ Rulings on the two questions phase 6 left open (Code Owner, 2026-11-04, on #1204
 Operations keeps a visible "Exit Operations" control returning to where the user came
 from, and incidental links out of Operations show the Stay/Leave warning. Slice three
 builds the queue form names, the eraser screen, the Exit control and the leave warning.
+
+The Erase control on a response's detail shows only to a caller who holds the erase role
+for that form and environment; the API's refusal stays as it is (Code Owner,
+2026-11-05).
 
 Phase 2 delivered the authorized read model and nothing beyond it: the `anyOf`
 route-policy row shape and `environmentFrom: "query"`, `GET /admin/operations/forms` with

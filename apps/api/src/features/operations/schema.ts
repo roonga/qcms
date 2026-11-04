@@ -38,6 +38,14 @@ export const OperationsFormsQuery = z.object({
     .max(64)
     .optional()
     .openapi({ param: { name: "workspaceId", in: "query" } }),
+  // Narrows to one form, so a screen inside that form can read its own cells without
+  // paging the whole table. Authorisation happens before this filter, so a form the
+  // caller holds nothing on is absent rather than refused.
+  formId: z
+    .string()
+    .max(64)
+    .optional()
+    .openapi({ param: { name: "formId", in: "query" } }),
   intake: z
     .enum(OPERATIONS_INTAKE)
     .optional()

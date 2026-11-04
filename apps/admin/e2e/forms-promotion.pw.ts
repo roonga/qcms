@@ -157,7 +157,7 @@ test("publishes a draft, verifies it in test, then promotes the same version to 
   await expect(released.locator('tr[data-environment="test"]')).toContainText("v1");
   await expect(released.locator('tr[data-environment="prod"]')).toContainText("Nothing released");
 
-  await page.goto(`/forms/${formId}/links`);
+  await page.goto(`/operations/forms/${formId}/links`);
   await waitForHydration(page);
   await page.getByRole("button", { name: "Mint links", exact: true }).click();
   await fillDate(page, "Expires", "12312030");

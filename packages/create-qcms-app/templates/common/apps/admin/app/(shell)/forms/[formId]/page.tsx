@@ -17,12 +17,7 @@ import { resolvedEnvironment } from "@/lib/server/environments";
 import { getForm, loadPinnableQuestions } from "@/lib/server/forms";
 import { requireAdminSession } from "@/lib/server/session";
 
-import {
-  saveDraftAction,
-  setFormStatusAction,
-  updateSettingsAction,
-  validateDraftAction,
-} from "../actions";
+import { saveDraftAction, updateSettingsAction, validateDraftAction } from "../actions";
 
 /* Bind formId from the route, not the payload. A library failure leaves the successfully loaded draft
    editable. */
@@ -110,10 +105,6 @@ export default async function FormBuilderPage({
           <FormActions
             workflow={form.workflow}
             formId={form.formId}
-            slug={form.slug}
-            status={form.status}
-            // Bind the displayed environment so another tab's switch causes refusal rather than a mutation elsewhere.
-            setStatus={setFormStatusAction.bind(null, form.formId, shown)}
             environment={shown ?? t("environment.unknown")}
           />
         }

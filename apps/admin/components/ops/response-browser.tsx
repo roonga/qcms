@@ -77,7 +77,7 @@ export function ResponseBrowser({
     setFlagged(filters.flagged);
   }
 
-  const base = `/forms/${encodeURIComponent(formId)}/responses`;
+  const base = `/operations/forms/${encodeURIComponent(formId)}/responses`;
 
   const go = useCallback(
     (next: Readonly<Record<string, string>>) => {
@@ -442,7 +442,7 @@ function ExportDialog({
             <a
               className="qcms-button-link"
               data-testid="qcms-export-download"
-              href={`/forms/${encodeURIComponent(formId)}/export${exportQuery(choice)}`}
+              href={`/operations/forms/${encodeURIComponent(formId)}/export${exportQuery(choice)}`}
               download
               onClick={onClose}
             >

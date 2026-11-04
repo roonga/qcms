@@ -21,14 +21,16 @@ describe("the context chip", () => {
     expect(contextChipLabel(screenForPath("/forms/frm_quote/versions/3"))).toBe(
       "Form frm_quote: version 3",
     );
-    expect(contextChipLabel(screenForPath("/forms/frm_quote/responses/ses_1"))).toBe(
+    expect(contextChipLabel(screenForPath("/operations/forms/frm_quote/responses/ses_1"))).toBe(
       "Form frm_quote: session ses_1, metadata only",
     );
   });
 
   it("says the response screens carry no answers, which is the rule this phase spreads", () => {
     expect(contextChipLabel(screenForPath("/responses"))).toContain("no answers");
-    expect(contextChipLabel(screenForPath("/forms/frm_quote/responses"))).toContain("no answers");
+    expect(contextChipLabel(screenForPath("/operations/forms/frm_quote/responses"))).toContain(
+      "no answers",
+    );
   });
 
   it("leaves no placeholder unfilled on any screen", () => {

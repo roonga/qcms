@@ -483,6 +483,8 @@ export async function setFormStatusAction(
   if (!result.ok) return { status: "error", message: result.message };
   revalidatePath("/forms");
   revalidatePath(`/forms/${formId}`, "layout");
+  revalidatePath(`/operations/forms/${formId}`, "layout");
+  revalidatePath("/operations");
   return {
     status: "changed",
     formStatus: result.data.status,
@@ -527,7 +529,7 @@ export async function mintLinksAction(
     proposal,
   );
   if (!result.ok) return { status: "error", message: result.message };
-  revalidatePath(`/forms/${formId}/links`);
+  revalidatePath(`/operations/forms/${formId}/links`);
   return { status: "minted", links: result.data };
 }
 
@@ -549,6 +551,6 @@ export async function revokeLinkAction(
   if (!check.ok) return { status: "error", message: check.message };
   const result = await revokeLink(session, formId, linkId, proposal);
   if (!result.ok) return { status: "error", message: result.message };
-  revalidatePath(`/forms/${formId}/links`);
+  revalidatePath(`/operations/forms/${formId}/links`);
   return { status: "revoked", linkId: result.data.linkId };
 }

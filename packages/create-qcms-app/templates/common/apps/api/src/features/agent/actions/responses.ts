@@ -31,7 +31,7 @@ function bodyMember(facts: ActionRequestFacts, name: string): unknown {
 
 export const eraseResponse: ActionKindDef = {
   kind: "response.erase",
-  screen: "/forms/[formId]/responses/[sessionId]",
+  screen: "/operations/forms/[formId]/responses/[sessionId]",
   route: { method: "POST", path: "/admin/forms/{id}/responses/{sessionId}/erase" },
   cell: { resource: "response", action: "erase" },
   environmentFrom: "switcher",
@@ -60,7 +60,7 @@ export const eraseResponse: ActionKindDef = {
 
 export const unflagResponse: ActionKindDef = {
   kind: "response.unflag",
-  screen: "/forms/[formId]/responses/[sessionId]",
+  screen: "/operations/forms/[formId]/responses/[sessionId]",
   route: { method: "POST", path: "/admin/forms/{id}/responses/{sessionId}/unflag" },
   cell: { resource: "response", action: "dispose" },
   environmentFrom: "switcher",
@@ -103,7 +103,7 @@ const ExportArgs = z.strictObject({
 
 export const exportResponses: ActionKindDef = {
   kind: "response.export",
-  screen: "/forms/[formId]/responses",
+  screen: "/operations/forms/[formId]/responses",
   cell: { resource: "response", action: "export" },
   environmentFrom: "switcher",
   args: ExportArgs,

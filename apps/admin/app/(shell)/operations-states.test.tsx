@@ -1,3 +1,6 @@
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -130,8 +133,8 @@ vi.mock("@/components/kit", () => ({
 }));
 
 async function render(params: Record<string, string> = {}): Promise<string> {
-  const { default: OperationsPage } = await import("./operations/page.tsx");
-  return renderToStaticMarkup(await OperationsPage({ searchParams: Promise.resolve(params) }));
+  const { OperationsScreen } = await import("../../components/ops/operations-screen.tsx");
+  return renderToStaticMarkup(await OperationsScreen({ searchParams: Promise.resolve(params) }));
 }
 
 describe("the Operations forms table's states", () => {
@@ -211,7 +214,7 @@ describe("the Operations forms table's states", () => {
     listResult = { status: "ok", page: page([RELEASED], "cur2") };
     const html = await render({ env: "test", q: "in" });
 
-    expect(html).toContain('href="/forms/frm_intake"');
+    expect(html).toContain('href="/operations/forms/frm_intake/responses"');
     expect(html).toContain('data-testid="qcms-operations-pager"');
     expect(html).toContain("cursor=cur2");
     expect(html).toContain("q=in");
@@ -223,20 +226,21 @@ describe("the Operations forms table's states", () => {
 
     const html = await render();
 
-    // The combined row: the form's own screen under its name, the other four beside it.
-    expect(html).toContain('href="/forms/frm_intake"');
-    expect(html).toContain('href="/forms/frm_intake/versions"');
-    expect(html).toContain('href="/forms/frm_intake/links"');
-    expect(html).toContain('href="/forms/frm_intake/webhooks"');
-    expect(html).toContain('href="/forms/frm_intake/responses"');
+    // The combined row: its responses under the name, the other three beside it.
+    expect(html).toContain('href="/operations/forms/frm_intake/responses"');
+    expect(html).toContain('href="/operations/forms/frm_intake/links"');
+    expect(html).toContain('href="/operations/forms/frm_intake/webhooks"');
+    expect(html).toContain('href="/operations/forms/frm_intake/intake"');
+    // No authoring screen from a row, and no address outside the Operations subtree.
+    expect(html).not.toContain('href="/operations/forms/frm_intake/versions"');
+    expect(html).not.toContain('href="/forms/frm_intake');
     // The response-only row reaches its responses and nothing else about the form.
-    expect(html).toContain('href="/forms/frm_survey/responses"');
-    expect(html).not.toContain('href="/forms/frm_survey"');
-    expect(html).not.toContain('href="/forms/frm_survey/versions"');
-    expect(html).not.toContain('href="/forms/frm_survey/links"');
+    expect(html).toContain('href="/operations/forms/frm_survey/responses"');
+    expect(html).not.toContain('href="/operations/forms/frm_survey/links"');
+    expect(html).not.toContain('href="/operations/forms/frm_survey/intake"');
     // The eraser's row names the form and links nowhere.
     expect(html).toContain("Leavers");
-    expect(html).not.toContain("/forms/frm_leavers");
+    expect(html).not.toContain("frm_leavers/");
   });
 
   it("asks for the chip's environment, so Last release is read where the chip says", async () => {
@@ -265,7 +269,7 @@ describe("the Operations forms table's states", () => {
 
 describe("the state while the read is in flight", () => {
   it("says the forms are loading, and keeps the heading the page's own", async () => {
-    const { default: OperationsLoading } = await import("./operations/loading.tsx");
+    const { OperationsLoading } = await import("../../components/ops/operations-screen.tsx");
 
     const html = renderToStaticMarkup(<OperationsLoading />);
 
@@ -273,5 +277,15 @@ describe("the state while the read is in flight", () => {
     expect(html).toContain("operations.loading");
     expect(html).toContain("shell.mode.operations.name");
     expect(html).toContain('role="status"');
+  });
+
+  it("holds that boundary in the page, so a screen below it can still answer 404", () => {
+    // A `loading.tsx` at any of these levels wraps every `/operations/**` screen: the shell
+    // flushes first, and a nested `notFound()` then reaches the browser as 200.
+    const wrapping = ["../loading.tsx", "./loading.tsx", "./operations/loading.tsx"].filter(
+      (relative) => existsSync(fileURLToPath(new URL(relative, import.meta.url))),
+    );
+
+    expect(wrapping).toEqual([]);
   });
 });

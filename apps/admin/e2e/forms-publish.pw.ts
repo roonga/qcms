@@ -377,7 +377,7 @@ test("mints, copies, exports and revokes a secure link (exit criterion 1)", asyn
   test.setTimeout(180_000);
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await signInWithTotp(page, EMAIL, totpSecret);
-  await page.goto(`/forms/${formId}/links`);
+  await page.goto(`/operations/forms/${formId}/links`);
   await chooseEnvironment(page, "prod");
 
   await expect(page.getByTestId("qcms-links-empty")).toBeVisible();
@@ -463,7 +463,7 @@ test("closes the form to new sessions and reopens it (deliverable: close/reopen)
 }) => {
   test.setTimeout(120_000);
   await signInWithTotp(page, EMAIL, totpSecret);
-  await page.goto(`/forms/${formId}`);
+  await page.goto(`/operations/forms/${formId}/intake`);
   await chooseEnvironment(page, "prod");
 
   await page.getByRole("button", { name: "Close in prod" }).click();

@@ -6,23 +6,18 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 import { openRail } from "./support/forms.js";
-import { submitResponse } from "./support/ops.js";
 
 test.describe.configure({ mode: "serial" });
 
 const EMAIL = uniqueAdminEmail("rail561");
 
 const FORM_ID = "frm_auto_quote";
-const SLUG = "auto";
 const STEP_ID = "stp_history";
 const STEP_TITLE = "Driving history";
-const ACCIDENT = "q_at_fault_accident";
 
 const SIDEBAR = 1024;
 
 let totpSecret = "";
-
-let sessionId = "";
 
 interface Screen {
   readonly path: string;
@@ -72,31 +67,6 @@ function screens(): readonly Screen[] {
       children: true,
       title: `Version 1: ${FORM_ID} - QCMS`,
     },
-    {
-      path: `/forms/${FORM_ID}/links`,
-      current: "section:links",
-      children: true,
-      title: `Links: ${FORM_ID} - QCMS`,
-    },
-    {
-      path: `/forms/${FORM_ID}/responses`,
-      current: "section:responses",
-      children: true,
-      title: `Responses: ${FORM_ID} - QCMS`,
-    },
-    {
-      path: `/forms/${FORM_ID}/responses/${sessionId}`,
-      current: "section:responses",
-      children: true,
-
-      title: `Response ${sessionId} - QCMS`,
-    },
-    {
-      path: `/forms/${FORM_ID}/webhooks`,
-      current: "section:webhooks",
-      children: true,
-      title: `Webhooks: ${FORM_ID} - QCMS`,
-    },
   ];
 }
 
@@ -123,7 +93,6 @@ test.beforeAll(async ({ browser }) => {
   const page = await browser.newPage();
   try {
     totpSecret = await enrollNewAdmin(page, EMAIL);
-    sessionId = await submitResponse(SLUG, [[ACCIDENT, false]]);
   } finally {
     await page.close();
   }

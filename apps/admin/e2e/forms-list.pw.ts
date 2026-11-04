@@ -10,7 +10,6 @@ import {
   chooseOption,
   createForm,
   field,
-  openFormDetails,
   pinQuestion,
   waitForSaved,
 } from "./support/forms.js";
@@ -63,8 +62,7 @@ test("creates the library this spec reads, and closes one of its forms", async (
   await waitForSaved(page);
   await publishDraftThroughWizard(page, { formId: bravoId, version: 1, environment: "test" });
 
-  await page.goto(`/forms/${bravoId}`);
-  await openFormDetails(page);
+  await page.goto(`/operations/forms/${bravoId}/intake`);
   await page.getByRole("button", { name: "Close in test" }).click();
   const dialog = page.getByRole("alertdialog");
   await dialog.getByRole("button", { name: "Close it in test" }).click();

@@ -1,6 +1,5 @@
 import { Alert } from "@/components/kit";
 import { FormPageHeader } from "@/components/forms/form-page-header";
-import { FormActions } from "@/components/forms/form-actions";
 import { ReleasePanel } from "@/components/forms/release-panel";
 import { VersionView } from "@/components/forms/version-view";
 import { SwitchToTest } from "@/components/forms/switch-to-test";
@@ -11,11 +10,7 @@ import { getFormVersion } from "@/lib/server/forms";
 import { listReleases } from "@/lib/server/releases";
 import { requireAdminSession } from "@/lib/server/session";
 import { previewPortalTheme, secureCookies } from "@/lib/server/config";
-import {
-  releaseVersionAction,
-  reviewFormVersionAction,
-  setFormStatusAction,
-} from "@/app/(shell)/forms/actions";
+import { releaseVersionAction, reviewFormVersionAction } from "@/app/(shell)/forms/actions";
 
 export async function FormProductionReview({
   form,
@@ -47,15 +42,6 @@ export async function FormProductionReview({
       {environment === "prod" && environments.includes("test") && (
         <SwitchToTest secure={secureCookies()} />
       )}
-      <FormActions
-        lifecycleOnly
-        workflow={workflow}
-        formId={form.formId}
-        slug={form.slug}
-        status={form.status}
-        environment={environment}
-        setStatus={setFormStatusAction.bind(null, form.formId, environment)}
-      />
       {!history.ok ? (
         <Alert variant="error">{history.message}</Alert>
       ) : (

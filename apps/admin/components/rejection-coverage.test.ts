@@ -10,7 +10,6 @@ const COMPONENTS_ROOT = dirname(fileURLToPath(import.meta.url));
 
 const HANDLERS: Readonly<Record<string, readonly string[]>> = {
   "forms/draft-preview.tsx": ["preview projection (forms/draft-preview-rejects.test.tsx)"],
-  "forms/form-actions.tsx": ["close/reopen (forms/form-actions-rejects.test.tsx)"],
   "forms/release-panel.tsx": ["release (forms/release-panel-rejects.test.tsx)"],
   "forms/publish-wizard.tsx": [
     "read the review (forms/publish-wizard-rejects.test.tsx)",
@@ -32,6 +31,7 @@ const HANDLERS: Readonly<Record<string, readonly string[]>> = {
   "ops/endpoint-proposals.tsx": [
     "confirm and withdraw a pending prod endpoint change (ops/endpoint-proposals.test.tsx)",
   ],
+  "ops/form-intake.tsx": ["close/reopen (ops/form-intake-rejects.test.tsx)"],
   "ops/response-detail.tsx": [
     "release a withheld event (ops/response-detail-rejects.test.tsx)",
     "erase (ops/response-detail-rejects.test.tsx)",

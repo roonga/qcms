@@ -24,7 +24,7 @@ export function responsePageLink(formId: string, filters: AppliedFilters, target
     if (value !== "") search.set(key, value);
   }
   search.set("page", String(target));
-  return `/forms/${encodeURIComponent(formId)}/responses?${search.toString()}`;
+  return `/operations/forms/${encodeURIComponent(formId)}/responses?${search.toString()}`;
 }
 
 /** Untouched date ranges retain their applied zone; edited ranges use the operator zone. Changing another filter must not reinterpret the same days on a different clock. */

@@ -61,7 +61,7 @@ test.beforeAll(async () => {
 });
 
 function detail(sessionId: string): string {
-  return `/forms/${FORM_ID}/responses/${sessionId}`;
+  return `/operations/forms/${FORM_ID}/responses/${sessionId}`;
 }
 
 // The dialog can hold focus itself; descendant-only :focus matching misses that state.

@@ -297,13 +297,13 @@ export function openDeliverer(): {
 }
 
 export async function openResponses(page: Page, formId: string): Promise<void> {
-  await page.goto(`/forms/${formId}/responses`);
+  await page.goto(`/operations/forms/${formId}/responses`);
   await expect(page.getByTestId("qcms-response-browser")).toBeVisible();
   await waitForHydration(page);
 }
 
 export async function openWebhooks(page: Page, formId: string): Promise<void> {
-  await page.goto(`/forms/${formId}/webhooks`);
+  await page.goto(`/operations/forms/${formId}/webhooks`);
   await expect(page.getByTestId("qcms-webhook-config")).toBeVisible();
 }
 

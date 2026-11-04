@@ -26,8 +26,9 @@ let formId = "";
 
 let railSlug = "";
 
-function linksPath(): string {
-  return `/forms/${formId}/links`;
+// An editor section, because this spec measures the editor's rail frame.
+function sectionPath(): string {
+  return `/forms/${formId}/versions`;
 }
 
 async function boxes(page: Page): Promise<{
@@ -71,7 +72,7 @@ test("559 turns the rail into a 240px column at --bp-sidebar, and not one pixel 
   railSlug = fixture.slug;
 
   await page.setViewportSize({ width: SIDEBAR, height: 900 });
-  await page.goto(linksPath());
+  await page.goto(sectionPath());
   await expect(page.getByTestId("qcms-rail")).toBeVisible();
   const at = await boxes(page);
   expect(at.railWidth, "the rail is the 240px track §7 asks for").toBe(240);
@@ -84,7 +85,7 @@ test("559 turns the rail into a 240px column at --bp-sidebar, and not one pixel 
   );
 
   await page.setViewportSize({ width: SIDEBAR - 1, height: 900 });
-  await page.goto(linksPath());
+  await page.goto(sectionPath());
   const below = await boxes(page);
   expect(below.railWidth, "one pixel below the boundary the rail is the full width").toBe(
     below.viewportWidth,
@@ -101,7 +102,7 @@ test("559 collapses into a disclosure that works from the keyboard and says whic
   test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.setViewportSize({ width: 390, height: 900 });
-  await page.goto(linksPath());
+  await page.goto(sectionPath());
 
   const disclosure = page.locator("details.qcms-rail__disclosure");
   const summary = page.locator("summary.qcms-rail__summary");
@@ -131,12 +132,12 @@ test("the rail opens by default at --bp-sidebar and stays shut one pixel below i
   const disclosure = page.locator("details.qcms-rail__disclosure");
 
   await page.setViewportSize({ width: SIDEBAR, height: 900 });
-  await page.goto(linksPath());
+  await page.goto(sectionPath());
   await expect(disclosure, "at the boundary the sidebar is open").toHaveAttribute("open", "");
   await expect(page.locator('[data-rail-group="sections"]')).toBeVisible();
 
   await page.setViewportSize({ width: SIDEBAR - 1, height: 900 });
-  await page.goto(linksPath());
+  await page.goto(sectionPath());
   await expect(disclosure, "one pixel below it the band is shut").not.toHaveAttribute("open", "");
 
   await page.setViewportSize({ width: SIDEBAR, height: 900 });
@@ -147,7 +148,7 @@ test("559 names the form in the summary and keeps it on one line at 390", async 
   test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.setViewportSize({ width: 390, height: 900 });
-  await page.goto(linksPath());
+  await page.goto(sectionPath());
 
   await expect(page.locator(".qcms-rail__summary-text")).toHaveText(RAIL_FORM_TITLE);
   await expect(page.locator(".qcms-rail__summary-text")).not.toHaveText(railSlug);
@@ -177,7 +178,7 @@ test("559 wraps a long step title inside the column rather than hiding its end",
   test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.setViewportSize({ width: 1280, height: 900 });
-  await page.goto(linksPath());
+  await page.goto(sectionPath());
 
   const long = page
     .locator('[data-rail-group="steps"] a')
@@ -202,7 +203,7 @@ test("559 badges the step whose pin the library deprecated, from the API's own v
   test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.setViewportSize({ width: 1280, height: 900 });
-  await page.goto(linksPath());
+  await page.goto(sectionPath());
 
   const badged = page
     .locator('[data-rail-group="steps"] a')
@@ -224,7 +225,7 @@ test("559 lets a short screen's rail reach the bottom of the shell (N2)", async 
   await signInWithTotp(page, EMAIL, totpSecret);
 
   await page.setViewportSize({ width: 1280, height: 1600 });
-  await page.goto(linksPath());
+  await page.goto(sectionPath());
   await expect(page.getByTestId("qcms-rail")).toBeVisible();
 
   await waitForBarMeasurement(page);
@@ -304,13 +305,15 @@ test("559 gives every rail row a real destination, which is what anchors-not-but
   test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.setViewportSize({ width: 390, height: 900 });
-  await page.goto(linksPath());
+  await page.goto(sectionPath());
 
   const hrefs = await page
     .locator(".qcms-rail__link")
     .evaluateAll((links) => links.map((link) => link.getAttribute("href") ?? ""));
 
-  expect(hrefs).toHaveLength(10);
+  expect(hrefs, "the form, its two steps, and the four authoring screens beside it").toHaveLength(
+    7,
+  );
   expect(
     hrefs.filter((href) => href.endsWith("/publish")),
     "the publish row points at the wizard's route",
@@ -373,7 +376,7 @@ test("pins the rail to the viewport below the bar, at the height the token claim
   test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.setViewportSize({ width: 1280, height: 900 });
-  await page.goto(linksPath());
+  await page.goto(sectionPath());
   await expect(page.getByTestId("qcms-rail")).toBeVisible();
 
   await waitForBarMeasurement(page);
@@ -392,7 +395,7 @@ test("gives neither the rail nor the page a scrollbar when both fit", async ({ p
   await signInWithTotp(page, EMAIL, totpSecret);
   // Use a tall viewport to distinguish auto overflow from an always-reserved scrollbar gutter.
   await page.setViewportSize({ width: 1280, height: 1600 });
-  await page.goto(linksPath());
+  await page.goto(sectionPath());
   await expect(page.getByTestId("qcms-rail")).toBeVisible();
 
   await waitForBarMeasurement(page);
@@ -406,7 +409,7 @@ test("leaves the rail where it is while the screen beside it is scrolled", async
   await signInWithTotp(page, EMAIL, totpSecret);
   // Overflow both screen and rail to verify that scrolling either leaves the other fixed.
   await page.setViewportSize({ width: 1280, height: 400 });
-  await page.goto(linksPath());
+  await page.goto(sectionPath());
   await expect(page.getByTestId("qcms-rail")).toBeVisible();
 
   await waitForBarMeasurement(page);

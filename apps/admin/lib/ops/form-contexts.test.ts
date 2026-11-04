@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { formContextHref, formContextLinks, primaryFormContext } from "./form-contexts.ts";
+import {
+  FORM_OPERATIONAL_CONTEXTS,
+  formContextHref,
+  formContextLinks,
+  heldFormContexts,
+  primaryFormContext,
+} from "./form-contexts.ts";
 import type { OperationsFormRow } from "./operations-forms.ts";
 
 // The personas are proved against the policy in the API's `operations.integration.test.ts`;
@@ -28,9 +34,14 @@ function contexts(capabilities: readonly string[]): readonly string[] {
 }
 
 describe("a row's operational contexts", () => {
-  it("offers a forms viewer the form, its versions, its links and its webhooks", () => {
-    expect(contexts(VIEWER)).toEqual(["form", "versions", "links", "webhooks"]);
-    expect(primaryFormContext(row(VIEWER))?.context).toBe("form");
+  it("offers a forms viewer its links, webhooks and intake, and no authoring screen", () => {
+    // Intake arrives with `form: read`; changing it takes `form: close`, which the API
+    // checks at the act rather than at the link.
+    expect(contexts(VIEWER)).toEqual(["links", "webhooks", "intake"]);
+    expect(primaryFormContext(row(VIEWER))?.context).toBe("links");
+    // The builder, Rules, Preview, Versions and Publish are the editor's and are not
+    // offered here.
+    expect(FORM_OPERATIONAL_CONTEXTS).toEqual(["responses", "links", "webhooks", "intake"]);
   });
 
   it("offers a response viewer its responses and nothing else about the form", () => {
@@ -47,16 +58,23 @@ describe("a row's operational contexts", () => {
     // Minting a link is not reading the link list, and releasing is not reading releases.
     expect(contexts(["link:mint", "release:create", "webhook:configure"])).toEqual([]);
     expect(contexts([...VIEWER, "response:read"])).toEqual([
-      "form",
-      "versions",
+      "responses",
       "links",
       "webhooks",
-      "responses",
+      "intake",
     ]);
   });
 
-  it("addresses the form's own screen as the subtree's root", () => {
-    expect(formContextHref("frm a", "form")).toBe("/forms/frm%20a");
-    expect(formContextHref("frm_a", "responses")).toBe("/forms/frm_a/responses");
+  it("gives a form's rail the contexts it gives that form's row", () => {
+    const held = [...VIEWER, "response:read"];
+    expect(heldFormContexts(held)).toEqual(contexts(held));
+    expect(heldFormContexts(["response:read", "response:export"])).toEqual(["responses"]);
+    expect(heldFormContexts(["response:erase"])).toEqual([]);
+  });
+
+  it("addresses every context under Operations", () => {
+    expect(formContextHref("frm a", "responses")).toBe("/operations/forms/frm%20a/responses");
+    expect(formContextHref("frm_a", "webhooks")).toBe("/operations/forms/frm_a/webhooks");
+    expect(formContextHref("frm_a", "intake")).toBe("/operations/forms/frm_a/intake");
   });
 });

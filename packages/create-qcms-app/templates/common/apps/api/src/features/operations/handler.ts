@@ -174,6 +174,7 @@ export function makeOperationsFormsHandler(
       ) {
         return false;
       }
+      if (query.formId !== undefined && candidate.formId !== query.formId) return false;
       if (query.intake !== undefined && intakeOf(candidate) !== query.intake) return false;
       if (needle === undefined || needle === "") return true;
       return (

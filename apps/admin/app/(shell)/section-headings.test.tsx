@@ -16,15 +16,17 @@ const SECTIONS = [
   ["links", "Links"],
   ["responses", "Responses"],
   ["webhooks", "Webhooks"],
+  ["intake", "Intake"],
 ] as const;
 
 const ROUTE_FILES: Readonly<Record<(typeof SECTIONS)[number][0], string>> = {
   rules: "forms/[formId]/rules/page.tsx",
   preview: "forms/[formId]/preview/page.tsx",
   versions: "forms/[formId]/versions/page.tsx",
-  links: "forms/[formId]/links/page.tsx",
-  responses: "forms/[formId]/responses/page.tsx",
-  webhooks: "forms/[formId]/webhooks/page.tsx",
+  links: "operations/forms/[formId]/links/page.tsx",
+  responses: "operations/forms/[formId]/responses/page.tsx",
+  webhooks: "operations/forms/[formId]/webhooks/page.tsx",
+  intake: "operations/forms/[formId]/intake/page.tsx",
 };
 
 function routeSource(relative: string): string {

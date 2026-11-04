@@ -15,3 +15,13 @@ export const DEFAULT_ERASURE_REASON: ErasureReason = "subject_request";
 export function isErasureReason(value: string): value is ErasureReason {
   return (ERASURE_REASONS as readonly string[]).includes(value);
 }
+
+const ERASE_CELL = "response:erase";
+
+/**
+ * Whether the erasure door belongs on a response of this form and environment, from the
+ * cells the discovery read decided. The act itself is still authorized at the API.
+ */
+export function mayEraseResponses(capabilities: readonly string[]): boolean {
+  return capabilities.includes(ERASE_CELL);
+}

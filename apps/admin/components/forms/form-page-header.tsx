@@ -1,5 +1,6 @@
 import { t } from "@/lib/i18n/en";
 import { sectionHeadingId } from "@/lib/page-headings";
+import type { FormSection } from "@/lib/page-title";
 
 export function FormPageHeader({
   formId,
@@ -8,8 +9,7 @@ export function FormPageHeader({
   heading,
 }: {
   readonly formId: string;
-  readonly section:
-    "builder" | "rules" | "preview" | "versions" | "publish" | "links" | "responses" | "webhooks";
+  readonly section: FormSection;
   readonly status?: "open" | "closed";
   readonly heading?: { readonly id: string; readonly text: string };
 }) {

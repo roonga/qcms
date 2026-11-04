@@ -30,7 +30,7 @@ test("a response's detail offers no other environment when there is nothing else
   test.setTimeout(300_000);
   totpSecret = await enrollNewAdmin(page, EMAIL);
 
-  await page.goto(`/forms/${FORM_ID}/responses/${prodSession}`);
+  await page.goto(`/operations/forms/${FORM_ID}/responses/${prodSession}`);
   await expect(page.getByRole("button", { name: "Erase respondent data…" })).toBeVisible();
 
   await expect(page.getByTestId("qcms-erasure-elsewhere")).toHaveCount(0);
@@ -39,7 +39,7 @@ test("a response's detail offers no other environment when there is nothing else
 test("the erasure confirmation names the environment it would act in", async ({ page }) => {
   test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);
-  await page.goto(`/forms/${FORM_ID}/responses/${prodSession}`);
+  await page.goto(`/operations/forms/${FORM_ID}/responses/${prodSession}`);
 
   await page.getByRole("button", { name: "Erase respondent data…" }).click();
   const dialog = page.getByTestId("qcms-erase-dialog");
@@ -60,23 +60,23 @@ test("a response read reaches the selected environment and no other", async ({
     url: new RegExp(`/responses/${prodSession}$`),
   });
   await signInWithTotp(page, EMAIL, totpSecret);
-  await page.goto(`/forms/${FORM_ID}/responses`);
+  await page.goto(`/operations/forms/${FORM_ID}/responses`);
   await expect(page.getByTestId("qcms-response-browser")).toBeVisible();
 
   await chooseEnvironment(page, "test");
-  await page.goto(`/forms/${FORM_ID}/responses/${prodSession}`);
+  await page.goto(`/operations/forms/${FORM_ID}/responses/${prodSession}`);
   await expect(page.locator("body")).not.toContainText("Erase respondent data…");
 
-  await page.goto(`/forms/${FORM_ID}/responses`);
+  await page.goto(`/operations/forms/${FORM_ID}/responses`);
   await chooseEnvironment(page, "prod");
-  await page.goto(`/forms/${FORM_ID}/responses/${prodSession}`);
+  await page.goto(`/operations/forms/${FORM_ID}/responses/${prodSession}`);
   await expect(page.getByRole("button", { name: "Erase respondent data…" })).toBeVisible();
 });
 
 test("an export downloads under the environment it was read from (Q8)", async ({ page }) => {
   test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);
-  await page.goto(`/forms/${FORM_ID}/responses`);
+  await page.goto(`/operations/forms/${FORM_ID}/responses`);
   await expect(page.getByTestId("qcms-response-browser")).toBeVisible();
 
   await chooseEnvironment(page, "test");

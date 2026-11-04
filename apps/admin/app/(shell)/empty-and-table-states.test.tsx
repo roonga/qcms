@@ -165,7 +165,7 @@ async function renderWebhooks(searchParams: Record<string, string> = {}): Promis
 }
 
 async function renderResponses(searchParams: Record<string, string> = {}): Promise<string> {
-  const { default: Page } = await import("./forms/[formId]/responses/page.tsx");
+  const { default: Page } = await import("./operations/forms/[formId]/responses/page.tsx");
   return renderToStaticMarkup(
     await Page({
       params: Promise.resolve({ formId: "frm_one" }),

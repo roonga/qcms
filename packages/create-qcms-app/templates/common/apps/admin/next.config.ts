@@ -35,6 +35,33 @@ export default function adminNextConfig(phase: string): NextConfig {
           destination: "/forms/:formId/versions",
           permanent: false,
         },
+        // Config entries, not pages: a page is a route and costs six registrations while
+        // producing no document. Next carries the query; 308 keeps the export's method.
+        {
+          source: "/forms/:formId/responses",
+          destination: "/operations/forms/:formId/responses",
+          permanent: true,
+        },
+        {
+          source: "/forms/:formId/responses/:sessionId",
+          destination: "/operations/forms/:formId/responses/:sessionId",
+          permanent: true,
+        },
+        {
+          source: "/forms/:formId/links",
+          destination: "/operations/forms/:formId/links",
+          permanent: true,
+        },
+        {
+          source: "/forms/:formId/webhooks",
+          destination: "/operations/forms/:formId/webhooks",
+          permanent: true,
+        },
+        {
+          source: "/forms/:formId/export",
+          destination: "/operations/forms/:formId/export",
+          permanent: true,
+        },
       ]),
   };
 }

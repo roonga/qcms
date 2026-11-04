@@ -72,15 +72,15 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     await signInWithTotp(page, EMAIL, totpSecret);
     await openResponses(page, FORM_ID);
 
-    await page.goto(`/forms/${FORM_ID}/responses?from=2020-01-01&to=2020-01-02`);
+    await page.goto(`/operations/forms/${FORM_ID}/responses?from=2020-01-01&to=2020-01-02`);
     await expect(page.getByTestId("qcms-responses-empty")).toHaveText(
       "No response matches these filters.",
     );
 
-    await page.goto(`/forms/${FORM_ID}/responses`);
+    await page.goto(`/operations/forms/${FORM_ID}/responses`);
     await expect(page.getByTestId("qcms-responses-table")).toBeVisible();
 
-    await page.goto(`/forms/${FORM_ID}/responses?flagged=true`);
+    await page.goto(`/operations/forms/${FORM_ID}/responses?flagged=true`);
     await expect(
       page.getByRole("button", { name: /Flagged$/ }),
       "the toolbar shows the filter the server applied",
@@ -93,7 +93,7 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     page,
   }) => {
     await signInWithTotp(page, EMAIL, totpSecret);
-    await page.goto(`/forms/${FORM_ID}/responses/${revised}`);
+    await page.goto(`/operations/forms/${FORM_ID}/responses/${revised}`);
     await expect(page.getByTestId("qcms-response-detail")).toBeVisible();
 
     const entries = page.getByTestId("qcms-ledger").locator("li");
@@ -118,14 +118,14 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
   }) => {
     await signInWithTotp(page, EMAIL, totpSecret);
 
-    await page.goto(`/forms/${FORM_ID}/responses/${revised}`);
+    await page.goto(`/operations/forms/${FORM_ID}/responses/${revised}`);
     await expect(page.getByTestId("qcms-response-detail")).toBeVisible();
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(`Response ${revised}`);
 
     await expect(page.locator('[aria-label="Breadcrumb"]')).toHaveCount(0);
-    const rail = page.getByTestId("qcms-rail");
+    const rail = page.getByTestId("qcms-operations-form-rail");
     await expect(rail.locator("summary.qcms-rail__summary")).not.toBeEmpty();
-    await expect(rail.getByRole("link", { name: "Forms", exact: true })).toBeVisible();
+    await expect(rail.getByRole("link", { name: "Operations", exact: true })).toBeVisible();
 
     await expect(page.getByRole("heading", { name: `Response ${revised}` })).toHaveCount(1);
 
@@ -192,7 +192,7 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     // Declare only the expected nonexistent-session 404 so other admin errors still fail the console gate.
     browserGuard.expectRequestFailure({ status: 404, url: /\/responses\/ses_neverexisted$/ });
     await signInWithTotp(page, EMAIL, totpSecret);
-    await page.goto(`/forms/${FORM_ID}/responses/${erasable}`);
+    await page.goto(`/operations/forms/${FORM_ID}/responses/${erasable}`);
     await expect(page.getByTestId("qcms-response-detail")).toBeVisible();
 
     await page.getByRole("button", { name: "Erase respondent data…" }).click();
@@ -241,7 +241,7 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
 
     const [download] = await Promise.all([
       page.waitForEvent("download"),
-      page.goto(`/forms/${FORM_ID}/export?format=csv&version=1`).catch(() => undefined),
+      page.goto(`/operations/forms/${FORM_ID}/export?format=csv&version=1`).catch(() => undefined),
     ]);
     const { readFileSync } = await import("node:fs");
     const exported = readFileSync(await download.path()).toString("utf8");
@@ -257,7 +257,7 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
       "Data subject request",
     );
 
-    await page.goto(`/forms/${FORM_ID}/responses/${erasable}`);
+    await page.goto(`/operations/forms/${FORM_ID}/responses/${erasable}`);
     await expect(page.getByTestId("qcms-tombstone")).toContainText(erasable);
     await expect(page.getByTestId("qcms-locked-answers")).toHaveCount(0);
 
@@ -267,7 +267,7 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
       })
       .toEqual([`h1: Response ${erasable}`, "h2: Erased"]);
 
-    const unknown = await page.goto(`/forms/${FORM_ID}/responses/ses_neverexisted`);
+    const unknown = await page.goto(`/operations/forms/${FORM_ID}/responses/ses_neverexisted`);
     expect(unknown?.status()).toBe(404);
   });
 
@@ -543,7 +543,7 @@ function webhookRow(page: Page) {
 }
 
 async function eraseResponse(page: Page, sessionId: string): Promise<void> {
-  await page.goto(`/forms/${FORM_ID}/responses/${sessionId}`);
+  await page.goto(`/operations/forms/${FORM_ID}/responses/${sessionId}`);
   await page.getByRole("button", { name: "Erase respondent data…" }).click();
   const dialog = page.getByTestId("qcms-erase-dialog");
   await expect(dialog).toBeVisible();

@@ -313,7 +313,7 @@ describe("a plan reaches the user as one card and runs nothing (criterion 4)", (
 
       const events = await turn({
         caller: owner,
-        screen: "/forms/[formId]/links",
+        screen: "/operations/forms/[formId]/links",
         script: "plan-fails-at-2",
       });
       const [plan, ...rest] = proposals(events);
@@ -364,16 +364,15 @@ describe("a plan reaches the user as one card and runs nothing (criterion 4)", (
         script: "plan-three",
         conversationId: "cnv_plan_three",
       });
-      // A form-scoped screen offers the whole subtree's kinds, so publish, release and
-      // mint are one card. Each step still runs its own screen's action, which
-      // `provenance.integration.test.ts` drives over the three real routes.
+      // An authoring screen offers its own subtree's kinds, so these three are one card.
+      // No operational kind is among them: a plan never spans the two form subtrees.
       const [plan, ...rest] = proposals(events);
       expect(rest).toEqual([]);
       expect(plan?.type).toBe("plan");
       expect(plan === undefined ? [] : stepSummary(plan)).toEqual([
         { kind: "form.publish", environment: "test" },
         { kind: "form.release", environment: "prod" },
-        { kind: "link.mint", environment: "test" },
+        { kind: "form.settings", environment: "test" },
       ]);
       expect(plan?.proposal.steps[1]?.args["version"]).toEqual({ fromStep: 0, field: "version" });
       expect(await countLinks()).toBe(links);
@@ -390,7 +389,7 @@ describe("the two caps (criterion 15)", () => {
     async () => {
       const events = await turn({
         caller: owner,
-        screen: "/forms/[formId]/links",
+        screen: "/operations/forms/[formId]/links",
         script: "two-proposals",
       });
       const cards = proposals(events);
@@ -408,7 +407,7 @@ describe("the two caps (criterion 15)", () => {
     async () => {
       const events = await turn({
         caller: owner,
-        screen: "/forms/[formId]/links",
+        screen: "/operations/forms/[formId]/links",
         script: "plan-26-steps",
       });
       expect(proposals(events)).toEqual([]);
@@ -423,7 +422,7 @@ describe("a name outside the registry is refused at the one door", () => {
     async () => {
       const events = await turn({
         caller: owner,
-        screen: "/forms/[formId]/links",
+        screen: "/operations/forms/[formId]/links",
         script: "unknown-tool",
       });
       expect(events.find((event) => event.type === "tool-rejected")).toEqual({

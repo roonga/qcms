@@ -49,7 +49,7 @@ test("releasing a withheld event leaves focus on the response, not on the body",
 }) => {
   totpSecret = await enrollNewAdmin(page, EMAIL);
 
-  await page.goto(`/forms/${FORM_ID}/responses/${flagged}`);
+  await page.goto(`/operations/forms/${FORM_ID}/responses/${flagged}`);
   await expect(page.getByTestId("qcms-flag-panel")).toBeVisible();
 
   await page.getByRole("button", { name: "Release the withheld event" }).click();
@@ -69,7 +69,7 @@ test("releasing a withheld event leaves focus on the response, not on the body",
 test("erasing a response leaves focus on the tombstone, not on the body", async ({ page }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
 
-  await page.goto(`/forms/${FORM_ID}/responses/${erasable}`);
+  await page.goto(`/operations/forms/${FORM_ID}/responses/${erasable}`);
   await page.getByRole("button", { name: "Erase respondent data…" }).click();
   const dialog = page.getByTestId("qcms-erase-dialog");
   await expect(dialog).toBeVisible();
@@ -113,7 +113,7 @@ test("the erasure outcome is still announced after the revalidation replaces the
 }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
 
-  await page.goto(`/forms/${FORM_ID}/responses/${announceable}`);
+  await page.goto(`/operations/forms/${FORM_ID}/responses/${announceable}`);
   await expect(page.getByTestId("qcms-response-detail")).toBeVisible();
 
   const held = await holdLiveRegions(page);

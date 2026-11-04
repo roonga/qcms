@@ -48,13 +48,20 @@ production. The review step shows what freezes and, per destination, the version
 environment serves now and the version it will serve. A test release does not itself
 prove that manual testing passed. The diagram assumes intake is open in both environments.
 
-After a release, the Operations table is where a released form is operated. Its
-environment is the Operations header's own selector, and each row offers the contexts the
-operator holds a read for on that form in that environment: the form itself, its Versions,
-its Links, its Webhooks and its Responses. A row offers no context the operator's grants
-do not reach, so an account that may only read responses reaches the response browser and
-nothing else about the form, and an account that may only erase reaches no screen from the
-row at all.
+After a release, the Operations table is where a released form is operated, and it is the
+only place those screens live. Its environment is the Operations header's own selector, and
+each row offers the contexts the operator holds a read for on that form in that
+environment: its Responses, its Links, its Webhooks and its Intake. A row offers no context
+the operator's grants do not reach, so an account that may only read responses reaches the
+response browser and nothing else about the form, and an account that may only erase
+reaches no screen from the row at all. It offers no authoring screen either: the builder,
+Rules, Preview, Versions and the publish wizard work on a draft that belongs to no
+environment, while these screens are one environment's.
+
+Intake is where a form is closed to new sessions and reopened. Both the reading and the two
+acts are the selected environment's, because the closed state is per form and environment:
+closing production leaves a test run serving, and the confirmation names the environment it
+is about before anything happens.
 
 For Docker, set `QCMS_PORTAL_ENVIRONMENTS=test` in `.env` and recreate the portal
 container to serve test links under `/test/`. The portal serves only prod when this

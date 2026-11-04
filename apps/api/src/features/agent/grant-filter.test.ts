@@ -90,17 +90,14 @@ describe("the kinds a screen offers", () => {
   const kindsOn = (screen: ScreenId, grants: readonly HeldGrant[]) =>
     onScreen(screen, grants).map((entry) => entry.kind);
 
-  it("offers the whole form subtree's kinds from any form-scoped screen", () => {
+  it("offers one form subtree's kinds from a screen in it, and never the other's", () => {
     // Both roles, because publishing is the editor's cell and a production release is the
     // approver's.
     const approver = [editorIn(["test", "prod"]), approverIn(["test", "prod"])];
-    const subtree = [
-      "apply-draft",
-      "form.publish",
-      "form.settings",
-      "form.close",
-      "form.reopen",
-      "form.release",
+    // Two subtrees: an authoring plan edits a shared draft and an operational one acts in
+    // one environment, so one plan never spans both.
+    const authoring = ["apply-draft", "form.publish", "form.settings", "form.release"];
+    const operational = [
       "link.mint",
       "link.revoke",
       "webhook.create",
@@ -109,11 +106,13 @@ describe("the kinds a screen offers", () => {
       "webhook.reactivate",
       "webhook.deactivate",
       "webhook.redeliver",
+      "form.close",
+      "form.reopen",
     ];
-    expect(kindsOn("/forms/[formId]/links", approver)).toEqual(subtree);
-    expect(kindsOn("/forms/[formId]/responses", approver)).toEqual(subtree);
+    expect(kindsOn("/operations/forms/[formId]/links", approver)).toEqual(operational);
+    expect(kindsOn("/operations/forms/[formId]/responses", approver)).toEqual(operational);
 
-    expect(kindsOn("/forms/[formId]", approver)).toEqual([...subtree, "question.publish"]);
+    expect(kindsOn("/forms/[formId]", approver)).toEqual([...authoring, "question.publish"]);
   });
 
   // The data family is separate and neither implies the other (ADR-41), so the response
@@ -122,22 +121,25 @@ describe("the kinds a screen offers", () => {
     const eraser: readonly HeldGrant[] = [
       { role: "responses.eraser", environments: ["all"], forms: ["all"] },
     ];
-    expect(kindsOn("/forms/[formId]/responses/[sessionId]", eraser)).toEqual([
+    expect(kindsOn("/operations/forms/[formId]/responses/[sessionId]", eraser)).toEqual([
       "response.erase",
       "response.unflag",
     ]);
-    expect(kindsOn("/forms/[formId]/responses/[sessionId]", [editorIn(["all"])])).not.toContain(
-      "response.erase",
-    );
+    expect(
+      kindsOn("/operations/forms/[formId]/responses/[sessionId]", [editorIn(["all"])]),
+    ).not.toContain("response.erase");
   });
 
   it("still cuts the subtree's kinds to the pairs the caller holds", () => {
     const viewer: readonly HeldGrant[] = [
       { role: "forms.viewer", environments: ["all"], forms: ["all"] },
     ];
-    expect(kindsOn("/forms/[formId]/links", viewer)).toEqual([]);
-    const editor = onScreen("/forms/[formId]/responses", [editorIn(["test"])]);
-    expect(offeredEnvironments(editor, "form.release")).toEqual(["test"]);
+    expect(kindsOn("/operations/forms/[formId]/links", viewer)).toEqual([]);
+    const editor = onScreen("/operations/forms/[formId]/responses", [editorIn(["test"])]);
+    // `form.release` is the editor's own screen's and is not offered from here: a release
+    // is authoring. What an operational screen cuts to the pairs held is its own list.
+    expect(offeredEnvironments(editor, "form.release")).toEqual([]);
+    expect(offeredEnvironments(editor, "link.mint")).toEqual(["test"]);
     expect(editor.map((entry) => entry.kind)).toContain("link.mint");
   });
 

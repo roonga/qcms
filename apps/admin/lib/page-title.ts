@@ -5,7 +5,15 @@ import { t } from "./i18n/en.ts";
 /** Build metadata from route IDs without a second upstream read. Failed entity reads still need an identifying tab title. */
 
 export type FormSection =
-  "builder" | "rules" | "preview" | "versions" | "publish" | "links" | "responses" | "webhooks";
+  | "builder"
+  | "rules"
+  | "preview"
+  | "versions"
+  | "publish"
+  | "links"
+  | "responses"
+  | "webhooks"
+  | "intake";
 
 export function pageMetadata(page: string): Metadata {
   return { title: t("app.pageTitle", { page }) };

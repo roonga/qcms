@@ -62,12 +62,12 @@ describe("the propose tools' advertised schemas", () => {
     expect(schema).not.toContain("form.publish");
   });
 
-  it("accepts one plan spanning the form subtree's screens", () => {
-    const offered = offerableActionKinds("/forms/[formId]/links").map((kind) => ({
+  it("accepts a plan spanning one form subtree, and refuses one spanning both", () => {
+    const authoring = offerableActionKinds("/forms/[formId]").map((kind) => ({
       kind,
       environments: ["test"],
     }));
-    const parsed = proposePlanSchema(offered).safeParse({
+    const parsed = proposePlanSchema(authoring).safeParse({
       steps: [
         { kind: "form.publish", args: { formId: "frm_a", environment: "test" } },
         {
@@ -78,13 +78,22 @@ describe("the propose tools' advertised schemas", () => {
             environment: "test",
           },
         },
+      ],
+    });
+    expect(parsed.success).toBe(true);
+
+    // The two form subtrees are separate lists, so a step of the other kind is not in the
+    // schema the turn was offered.
+    const mixed = proposePlanSchema(authoring).safeParse({
+      steps: [
+        { kind: "form.publish", args: { formId: "frm_a", environment: "test" } },
         {
           kind: "link.mint",
           args: { formId: "frm_a", count: 2, expiresAt: "2026-12-01T00:00:00.000Z", oneTime: true },
         },
       ],
     });
-    expect(parsed.success).toBe(true);
+    expect(mixed.success).toBe(false);
   });
 
   it("lets any argument carry a symbolic reference to an earlier step", async () => {

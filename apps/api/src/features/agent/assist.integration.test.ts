@@ -800,7 +800,7 @@ describe("every screen's context, with a sentinel in the database", () => {
       await resetLimiter();
       const res = await post("/assist", {
         conversation: [{ role: "user", content: "how many came in" }],
-        screen: "/forms/[formId]/responses",
+        screen: "/operations/forms/[formId]/responses",
         params: { formId: FORM_ID, ...(flagged === undefined ? {} : { filters: { flagged } }) },
         conversationId,
       });
@@ -826,7 +826,7 @@ describe("every screen's context, with a sentinel in the database", () => {
     await resetLimiter();
     const walk = await post("/assist", {
       conversation: [{ role: "user", content: "what came in #qcms-fake:read-all" }],
-      screen: "/forms/[formId]/responses",
+      screen: "/operations/forms/[formId]/responses",
       params: { formId: FORM_ID },
       conversationId: "cnv_rows_tools",
     });
@@ -850,14 +850,14 @@ describe("every screen's context, with a sentinel in the database", () => {
     };
 
     const start = await readRowCount();
-    await turn("vis_1", "/forms/[formId]/responses");
-    await turn("vis_1", "/forms/[formId]/responses");
+    await turn("vis_1", "/operations/forms/[formId]/responses");
+    await turn("vis_1", "/operations/forms/[formId]/responses");
     // Two turns of one stay on the subject: one row.
     expect((await readRowCount()) - start).toBe(1);
 
     // The same conversation elsewhere, then back: the return owes its own row.
     await turn("vis_2", "/forms/[formId]/publish");
-    await turn("vis_3", "/forms/[formId]/responses");
+    await turn("vis_3", "/operations/forms/[formId]/responses");
     expect((await readRowCount()) - start).toBe(2);
   });
 });
@@ -1036,7 +1036,7 @@ describe("a reduced-grant caller over HTTP", () => {
   it("refuses the response read tools by refusing the screen they live on", async () => {
     const res = await turnAs(viewer, "/assist", {
       conversation: [{ role: "user", content: "how many came in #qcms-fake:read-all" }],
-      screen: "/forms/[formId]/responses",
+      screen: "/operations/forms/[formId]/responses",
       params: { formId: FORM_ID },
       conversationId: "cnv_viewer_responses",
     });

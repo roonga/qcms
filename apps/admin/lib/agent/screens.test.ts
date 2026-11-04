@@ -45,8 +45,8 @@ describe("the agent screen table", () => {
       screen: "/forms/[formId]",
       params: { formId: "frm_x" },
     });
-    expect(screenForPath("/forms/frm_x/responses/ses_y")).toEqual({
-      screen: "/forms/[formId]/responses/[sessionId]",
+    expect(screenForPath("/operations/forms/frm_x/responses/ses_y")).toEqual({
+      screen: "/operations/forms/[formId]/responses/[sessionId]",
       params: { formId: "frm_x", sessionId: "ses_y" },
     });
     expect(screenForPath("/forms/frm_x/versions/3")).toEqual({
@@ -80,17 +80,17 @@ describe("the agent screen table", () => {
   });
 
   it("binds a card to one screen and its own ids, and not to its filters", () => {
-    const list = screenForPath("/forms/frm_x/responses");
+    const list = screenForPath("/operations/forms/frm_x/responses");
     expect(screenIdentity(list)).toBe(screenIdentity(list));
-    expect(screenIdentity(screenForPath("/forms/frm_x/responses"))).not.toBe(
-      screenIdentity(screenForPath("/forms/frm_y/responses")),
+    expect(screenIdentity(screenForPath("/operations/forms/frm_x/responses"))).not.toBe(
+      screenIdentity(screenForPath("/operations/forms/frm_y/responses")),
     );
     expect(screenIdentity(screenForPath("/forms/frm_x"))).not.toBe(
       screenIdentity(screenForPath("/forms/frm_x/publish")),
     );
     expect(
       screenIdentity({
-        screen: "/forms/[formId]/responses",
+        screen: "/operations/forms/[formId]/responses",
         params: { formId: "frm_x", filters: { flagged: true } },
       }),
     ).toBe(screenIdentity(list));

@@ -21,13 +21,13 @@ export const MEASURE_BY_ROUTE = {
   /** rules-screen-poc.html .main is 1600 with no narrower inner content. */
   "/forms/[formId]/rules": "wide",
 
-  "/forms/[formId]/links": "wide",
+  "/operations/forms/[formId]/links": "wide",
   /** Use the outer 1600 cap here; the respondent frame owns its 640 width inside padding so author chrome cannot change respondent layout. */
   "/forms/[formId]/preview": "wide",
 
-  "/forms/[formId]/responses": "wide",
+  "/operations/forms/[formId]/responses": "wide",
 
-  "/forms/[formId]/responses/[sessionId]": "wide",
+  "/operations/forms/[formId]/responses/[sessionId]": "wide",
 
   "/forms/[formId]/versions": "wide",
   /** Match the adjacent version-history width so reviewing and publishing do not reflow the same rows. */
@@ -35,7 +35,9 @@ export const MEASURE_BY_ROUTE = {
   /** Stored and draft previews share the same respondent frame inside the outer cap. */
   "/forms/[formId]/versions/[version]": "wide",
 
-  "/forms/[formId]/webhooks": "wide",
+  "/operations/forms/[formId]/webhooks": "wide",
+  /** No POC draws Intake: one panel of state, so it takes `/me/access`' prose cap. */
+  "/operations/forms/[formId]/intake": "prose",
 
   "/questions": "list",
   /** question-editor-poc.html draws outer 1600 and inner editor-column 720; the inner element owns its own width. */

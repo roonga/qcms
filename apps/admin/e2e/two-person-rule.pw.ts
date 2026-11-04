@@ -154,7 +154,7 @@ test("the switch is off by default, and an owner turns it on through the panel",
 test("a prod endpoint change is stored waiting, and nothing is live", async ({ page }) => {
   test.setTimeout(300_000);
   await signInWithTotp(page, PROPOSER, proposerSecret);
-  await page.goto(`/forms/${FORM_ID}/webhooks`);
+  await page.goto(`/operations/forms/${FORM_ID}/webhooks`);
 
   await page.getByRole("button", { name: "Add endpoint" }).click();
   const dialog = page.getByTestId("qcms-webhook-url-dialog");
@@ -189,7 +189,7 @@ test("a prod endpoint change is stored waiting, and nothing is live", async ({ p
 test("the account that proposed it cannot confirm it, and is told why", async ({ page }) => {
   test.setTimeout(300_000);
   await signInWithTotp(page, PROPOSER, proposerSecret);
-  await page.goto(`/forms/${FORM_ID}/webhooks`);
+  await page.goto(`/operations/forms/${FORM_ID}/webhooks`);
 
   // Scope to the created proposal id so another spec's pending change cannot make Confirm ambiguous.
   await pendingRow(page).getByRole("button", { name: "Confirm" }).click();
@@ -213,7 +213,7 @@ test("the account that proposed it cannot confirm it, and is told why", async ({
 test("a second approver confirms it, and the endpoint goes live", async ({ page }) => {
   test.setTimeout(300_000);
   approverSecret = await enrollNewAdmin(page, APPROVER);
-  await page.goto(`/forms/${FORM_ID}/webhooks`);
+  await page.goto(`/operations/forms/${FORM_ID}/webhooks`);
 
   await pendingRow(page).getByRole("button", { name: "Confirm" }).click();
   const dialog = page.getByRole("alertdialog");
@@ -228,7 +228,7 @@ test("either account can withdraw a waiting change, and the endpoint is untouche
 }) => {
   test.setTimeout(300_000);
   await signInWithTotp(page, APPROVER, approverSecret);
-  await page.goto(`/forms/${FORM_ID}/webhooks`);
+  await page.goto(`/operations/forms/${FORM_ID}/webhooks`);
 
   const row = page.getByTestId("qcms-webhooks-table").locator("tr").filter({ hasText: AGREED_URL });
   await row.getByRole("button", { name: "Change URL" }).click();

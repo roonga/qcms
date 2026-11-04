@@ -582,13 +582,6 @@ test("publish, preview, history and secure links have zero violations", async ({
   // Release the published form before the operations sweep starts respondent sessions.
   pubForm = { formId, slug, choiceId, choiceOption, countId };
 
-  await page.goto(`/forms/${formId}`);
-  await waitForHydration(page);
-  await page.getByRole("button", { name: /^Close in / }).click();
-  await expect(page.getByRole("alertdialog")).toBeVisible();
-  await expectNoViolations(page, "close-form confirmation");
-  await page.keyboard.press("Escape");
-
   await page.goto(`/forms/${formId}/versions`);
   await chooseEnvironment(page, "prod");
   await expect(page.getByTestId("qcms-released-now")).toBeVisible();
@@ -661,7 +654,7 @@ test("publish, preview, history and secure links have zero violations", async ({
   await expect(page.getByTestId("qcms-version-view")).toBeVisible({ timeout: 60_000 });
   await expectNoViolations(page, "one published version, rendered from storage");
 
-  await page.goto(`/forms/${formId}/links`);
+  await page.goto(`/operations/forms/${formId}/links`);
   await chooseEnvironment(page, "prod");
   await expect(page.getByTestId("qcms-links-empty")).toBeVisible();
   // A live region must exist before its content changes for reliable announcements.
@@ -743,11 +736,20 @@ async function sweepOperations(
   await expect(page.getByTestId("qcms-operations-table")).toBeVisible();
   await expectNoViolations(page, "the Operations forms table");
 
+  await page.goto(`/operations/forms/${pub.formId}/intake`);
+  await waitForHydration(page);
+  await expect(page.getByTestId("qcms-form-intake")).toBeVisible();
+  await expectNoViolations(page, "one form's intake");
+  await page.getByRole("button", { name: /^Close in / }).click();
+  await expect(page.getByRole("alertdialog")).toBeVisible();
+  await expectNoViolations(page, "close-form confirmation");
+  await page.keyboard.press("Escape");
+
   await page.goto("/responses/erasures");
   await expect(page.getByRole("heading", { name: "Erasure log" })).toBeVisible();
   await expectNoViolations(page, "the erasure log");
 
-  await page.goto(`/forms/${OPS_FORM_ID}/responses`);
+  await page.goto(`/operations/forms/${OPS_FORM_ID}/responses`);
   const responses = page.getByTestId("qcms-responses-table");
   await expect(responses).toBeVisible();
 
@@ -760,7 +762,7 @@ async function sweepOperations(
   await expectNoViolations(page, "the export dialog");
   await page.keyboard.press("Escape");
 
-  await page.goto(`/forms/${OPS_FORM_ID}/responses/${sessionId}`);
+  await page.goto(`/operations/forms/${OPS_FORM_ID}/responses/${sessionId}`);
   await expect(page.getByTestId("qcms-response-detail")).toBeVisible();
   await expectNoViolations(page, "a response detail with its ledger");
 
@@ -782,11 +784,11 @@ async function sweepOperations(
   await expect(page.getByTestId("qcms-tombstone")).toBeVisible({ timeout: 30_000 });
   await expectNoViolations(page, "the tombstone");
 
-  await page.goto(`/forms/${OPS_FORM_ID}/responses/${sessionId}`);
+  await page.goto(`/operations/forms/${OPS_FORM_ID}/responses/${sessionId}`);
   await expect(page.getByTestId("qcms-tombstone")).toBeVisible({ timeout: 30_000 });
   await expectNoViolations(page, "the tombstone route, opened cold");
 
-  await page.goto(`/forms/${pub.formId}/webhooks`);
+  await page.goto(`/operations/forms/${pub.formId}/webhooks`);
   await expect(page.getByTestId("qcms-webhook-config")).toBeVisible();
   // The secret region must be mounted empty before the one-time reveal to announce it reliably.
   const secretRegion = page.getByTestId("qcms-webhook-secret-region");
@@ -837,7 +839,7 @@ async function sweepDeliveries(
     passes,
     "the planted backlog must outlast one claim batch, or this proves nothing",
   ).toBeGreaterThan(1);
-  await page.goto(`/forms/${pub.formId}/webhooks`);
+  await page.goto(`/operations/forms/${pub.formId}/webhooks`);
   const deliveries = page.getByTestId("qcms-deliveries-table");
   await expect(deliveries.locator('[data-status="pending"]')).toHaveCount(2);
   await expectNoViolations(page, "the delivery dashboard with a rejected delivery");
@@ -909,7 +911,7 @@ async function sweepDeliveries(
     .toBe("qcms-dead-letters-heading");
 
   await deliverer.pass();
-  await page.goto(`/forms/${pub.formId}/webhooks`);
+  await page.goto(`/operations/forms/${pub.formId}/webhooks`);
   await expect(deliveries.locator('[data-status="delivered"]')).toHaveCount(2);
   await expectNoViolations(page, "the delivery dashboard with a delivered delivery");
 

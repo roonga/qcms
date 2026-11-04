@@ -25,7 +25,7 @@ const HOSTILE_REASON =
 function step(overrides: Partial<AgentPlanStep> = {}): AgentPlanStep {
   return {
     kind: "link.mint",
-    screen: "/forms/[formId]/links",
+    screen: "/operations/forms/[formId]/links",
     args: { formId: "frm_quote", count: 20, expiresAt: "2026-11-30", oneTime: true },
     environment: "test",
     handOff: false,
@@ -54,7 +54,7 @@ const RELEASE_TO_PROD = step({
 
 const ERASE_SESSION = step({
   kind: "response.erase",
-  screen: "/forms/[formId]/responses/[sessionId]",
+  screen: "/operations/forms/[formId]/responses/[sessionId]",
   args: { formId: "frm_quote", sessionId: "ses_0f3a1b2c4d", reason: "subject_request" },
   card: {
     titleKey: "agent.card.response.erase.title",

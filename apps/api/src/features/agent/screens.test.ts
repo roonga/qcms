@@ -104,11 +104,18 @@ describe("the screen registry", () => {
       "apply-draft",
       "form.publish",
       "form.settings",
+    ]);
+    expect(SCREENS["/forms/[formId]/publish"].actionKinds).toEqual(["form.release"]);
+    expect(SCREENS["/operations/forms/[formId]/links"].actionKinds).toEqual([
+      "link.mint",
+      "link.revoke",
+    ]);
+    // The intake door is the Intake screen's rather than the builder's: it acts on one
+    // environment's intake and the builder's draft belongs to none.
+    expect(SCREENS["/operations/forms/[formId]/intake"].actionKinds).toEqual([
       "form.close",
       "form.reopen",
     ]);
-    expect(SCREENS["/forms/[formId]/publish"].actionKinds).toEqual(["form.release"]);
-    expect(SCREENS["/forms/[formId]/links"].actionKinds).toEqual(["link.mint", "link.revoke"]);
   });
 
   it("declares only registered tools, and declares them only where their port exists", () => {
@@ -135,22 +142,21 @@ describe("the screen registry", () => {
       "/forms/[formId]/versions",
       "/forms/[formId]/versions/[version]",
       "/forms/[formId]/publish",
-      "/forms/[formId]/links",
-      "/forms/[formId]/webhooks",
-      "/forms/[formId]/responses",
-      "/forms/[formId]/responses/[sessionId]",
+      "/operations/forms/[formId]/links",
+      "/operations/forms/[formId]/webhooks",
+      "/operations/forms/[formId]/responses",
+      "/operations/forms/[formId]/responses/[sessionId]",
+      "/operations/forms/[formId]/intake",
     ]);
     expect(isFormSubtreeScreen("/forms")).toBe(false);
   });
 
-  it("offers the whole form subtree's kinds on every form-scoped screen", () => {
-    const subtree = [
-      "apply-draft",
-      "form.publish",
-      "form.settings",
-      "form.close",
-      "form.reopen",
-      "form.release",
+  it("offers one form subtree's kinds per screen, and the two subtrees are separate", () => {
+    // Two lists, because they are two contexts: an authoring plan edits a shared draft and
+    // an operational plan acts in one environment, so a plan spanning both would be one
+    // confirmation spanning two things.
+    const authoring = ["apply-draft", "form.publish", "form.settings", "form.release"];
+    const operational = [
       "link.mint",
       "link.revoke",
       "webhook.create",
@@ -162,10 +168,15 @@ describe("the screen registry", () => {
       "response.export",
       "response.erase",
       "response.unflag",
+      "form.close",
+      "form.reopen",
     ];
+    const expectedFor = (id: string): readonly string[] => {
+      if (id.startsWith("/operations/")) return operational;
+      return id === "/forms/[formId]" ? [...authoring, "question.publish"] : authoring;
+    };
     for (const id of SCREEN_IDS.filter(isFormSubtreeScreen)) {
-      const expected = id === "/forms/[formId]" ? [...subtree, "question.publish"] : subtree;
-      expect(offerableActionKinds(id), id).toEqual(expected);
+      expect(offerableActionKinds(id), id).toEqual(expectedFor(id));
     }
   });
 

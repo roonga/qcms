@@ -6,8 +6,8 @@ import { StepEditor } from "../../components/forms/step-editor";
 import { readState } from "../../lib/read-state";
 
 import BuilderPage from "./forms/[formId]/page.tsx";
-import FormLinksPage from "./forms/[formId]/links/page.tsx";
-import FormWebhooksPage from "./forms/[formId]/webhooks/page.tsx";
+import FormLinksPage from "./operations/forms/[formId]/links/page.tsx";
+import FormWebhooksPage from "./operations/forms/[formId]/webhooks/page.tsx";
 
 const SESSION = {
   userId: "u_1",

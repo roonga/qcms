@@ -117,7 +117,7 @@ test("changes the builder, the releases screen and a response screen in one run"
 
   await chooseEnvironment(page, "prod");
 
-  await page.goto(`/forms/${formId}/responses/${erased}`);
+  await page.goto(`/operations/forms/${formId}/responses/${erased}`);
   await waitForHydration(page);
   await openPanel(page);
   await expect(page.getByTestId("qcms-locked-answers")).toContainText(ANSWER);
@@ -144,7 +144,7 @@ test("changes nothing when the tester cancels a proposal", async ({ page }) => {
   test.setTimeout(600_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await chooseEnvironment(page, "prod");
-  await page.goto(`/forms/${formId}/responses/${kept}`);
+  await page.goto(`/operations/forms/${formId}/responses/${kept}`);
   await waitForHydration(page);
   await openPanel(page);
 

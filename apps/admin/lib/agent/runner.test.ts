@@ -13,7 +13,7 @@ const WINDOW_LEFT = 10 * 60 * 1000;
 function step(overrides: Partial<AgentPlanStep> = {}): AgentPlanStep {
   return {
     kind: "link.mint",
-    screen: "/forms/[formId]/links",
+    screen: "/operations/forms/[formId]/links",
     args: { formId: "frm_a", count: 2 },
     environment: "test",
     handOff: false,

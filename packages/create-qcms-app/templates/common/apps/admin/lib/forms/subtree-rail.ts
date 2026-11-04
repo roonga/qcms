@@ -5,18 +5,9 @@ import { groupAnchorId, stepAnchorId } from "./issues.ts";
 import { isDraftGroup, type DraftGroup, type DraftStep } from "./types.ts";
 
 // Validation stays with builder controls because its entries move focus there; rule destinations include their own route.
-export const RAIL_SECTIONS = [
-  "builder",
-  "rules",
-  "preview",
-  "versions",
+export const RAIL_SECTIONS = ["builder", "rules", "preview", "versions", "publish"] as const;
 
-  "publish",
-  "links",
-  "responses",
-  "webhooks",
-] as const;
-
+/** One of the form's sibling screens. */
 export type RailSection = (typeof RAIL_SECTIONS)[number];
 
 export type RailCurrent =

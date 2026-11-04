@@ -29,7 +29,7 @@ test.describe("response filters: what was applied is what is claimed", () => {
     totpSecret = await enrollNewAdmin(page, EMAIL);
     formId = await createForm(page, `filter-validation-${RUN}`, "Filter validation");
 
-    await page.goto(`/forms/${formId}/responses`);
+    await page.goto(`/operations/forms/${formId}/responses`);
     await expect(page.getByTestId("qcms-responses-empty")).toContainText(UNFILTERED);
     await expect(page.getByTestId("qcms-responses-ignored-filters")).toHaveCount(0);
   });
@@ -39,7 +39,7 @@ test.describe("response filters: what was applied is what is claimed", () => {
   }) => {
     await signInWithTotp(page, EMAIL, totpSecret);
 
-    await page.goto(`/forms/${formId}/responses?flagged=maybe`);
+    await page.goto(`/operations/forms/${formId}/responses?flagged=maybe`);
     await expect(page.getByTestId("qcms-responses-empty")).toContainText(UNFILTERED);
     await expect(page.getByTestId("qcms-responses-ignored-filters")).toContainText("Flagged");
 
@@ -49,7 +49,7 @@ test.describe("response filters: what was applied is what is claimed", () => {
   test("a malformed date never reaches the API as an instant", async ({ page }) => {
     await signInWithTotp(page, EMAIL, totpSecret);
 
-    await page.goto(`/forms/${formId}/responses?from=xyz`);
+    await page.goto(`/operations/forms/${formId}/responses?from=xyz`);
     await expect(page.getByTestId("qcms-responses-empty")).toContainText(UNFILTERED);
     await expect(page.getByText("The responses could not be loaded.")).toHaveCount(0);
     await expect(page.getByTestId("qcms-responses-ignored-filters")).toContainText(
@@ -60,7 +60,7 @@ test.describe("response filters: what was applied is what is claimed", () => {
   test("both halves of a mixed querystring are handled on their own terms", async ({ page }) => {
     await signInWithTotp(page, EMAIL, totpSecret);
 
-    await page.goto(`/forms/${formId}/responses?flagged=true&from=nope&version=abc`);
+    await page.goto(`/operations/forms/${formId}/responses?flagged=true&from=nope&version=abc`);
     await expect(page.getByTestId("qcms-responses-empty")).toContainText(FILTERED);
     const ignored = page.getByTestId("qcms-responses-ignored-filters");
     await expect(ignored).toContainText("Version");
@@ -73,11 +73,11 @@ test.describe("response filters: what was applied is what is claimed", () => {
   }) => {
     await signInWithTotp(page, EMAIL, totpSecret);
 
-    await page.goto(`/forms/${formId}/responses?from=2020-01-01&to=2020-01-02`);
+    await page.goto(`/operations/forms/${formId}/responses?from=2020-01-01&to=2020-01-02`);
     await expect(page.getByTestId("qcms-responses-empty")).toContainText(FILTERED);
     await expect(page.getByTestId("qcms-responses-ignored-filters")).toHaveCount(0);
 
-    await page.goto(`/forms/${formId}/responses?flagged=true`);
+    await page.goto(`/operations/forms/${formId}/responses?flagged=true`);
     await expect(page.getByTestId("qcms-responses-empty")).toContainText(FILTERED);
     await expect(page.getByTestId("qcms-responses-ignored-filters")).toHaveCount(0);
   });
@@ -85,7 +85,7 @@ test.describe("response filters: what was applied is what is claimed", () => {
   test("a padded version number leaves the toolbar agreeing with the table", async ({ page }) => {
     await signInWithTotp(page, EMAIL, totpSecret);
 
-    await page.goto(`/forms/${SEEDED_FORM_ID}/responses?version=0001`);
+    await page.goto(`/operations/forms/${SEEDED_FORM_ID}/responses?version=0001`);
     await expect(page.getByRole("button", { name: /Version$/ })).toContainText("v1");
     await expect(page.getByTestId("qcms-responses-ignored-filters")).toHaveCount(0);
   });

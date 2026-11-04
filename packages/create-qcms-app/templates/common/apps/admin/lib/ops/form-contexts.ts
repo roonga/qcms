@@ -5,25 +5,20 @@ import { t } from "../i18n/en.ts";
 
 import type { OperationsFormRow } from "./operations-forms.ts";
 
-/** The operational contexts a form has, in the order a rail offers them. */
-export const FORM_CONTEXTS = ["form", "versions", "links", "webhooks", "responses"] as const;
-export type FormContext = (typeof FORM_CONTEXTS)[number];
+/** The contexts a form has under Operations, in the order a rail offers them. */
+export const FORM_OPERATIONAL_CONTEXTS = ["responses", "links", "webhooks", "intake"] as const;
+export type FormContext = (typeof FORM_OPERATIONAL_CONTEXTS)[number];
 
-/** The cell that admits each context, matching the route that serves it. */
+/**
+ * The cell that admits each context, matching the route that serves it. Intake takes
+ * `form: read`, not the `form: close` its acts carry: admitting on the write would hide
+ * the reading from everyone who may not change it.
+ */
 const ADMITTING_CELL: Readonly<Record<FormContext, string>> = {
-  form: "form:read",
-  versions: "release:read",
+  responses: "response:read",
   links: "link:read",
   webhooks: "webhook:read",
-  responses: "response:read",
-};
-
-const LABEL_KEY: Readonly<Record<FormContext, Parameters<typeof t>[0]>> = {
-  form: "forms.tab.builder",
-  versions: "forms.tab.versions",
-  links: "forms.tab.links",
-  webhooks: "forms.tab.webhooks",
-  responses: "forms.tab.responses",
+  intake: "form:read",
 };
 
 export interface FormContextLink {
@@ -32,19 +27,23 @@ export interface FormContextLink {
   readonly label: string;
 }
 
-/** Where one context lives. The form's own screen is the subtree's root. */
+/** Where one context lives. */
 export function formContextHref(formId: string, context: FormContext): string {
-  const base = `/forms/${encodeURIComponent(formId)}`;
-  return context === "form" ? base : `${base}/${context}`;
+  return `/operations/forms/${encodeURIComponent(formId)}/${context}`;
 }
 
-/** The contexts this row admits, in {@link FORM_CONTEXTS} order. */
+/** The contexts these cells admit, in {@link FORM_OPERATIONAL_CONTEXTS} order. */
+export function heldFormContexts(capabilities: readonly string[]): readonly FormContext[] {
+  const held = new Set(capabilities);
+  return FORM_OPERATIONAL_CONTEXTS.filter((context) => held.has(ADMITTING_CELL[context]));
+}
+
+/** The contexts this row admits, in {@link FORM_OPERATIONAL_CONTEXTS} order. */
 export function formContextLinks(row: OperationsFormRow): readonly FormContextLink[] {
-  const held = new Set(row.capabilities);
-  return FORM_CONTEXTS.filter((context) => held.has(ADMITTING_CELL[context])).map((context) => ({
+  return heldFormContexts(row.capabilities).map((context) => ({
     context,
     href: formContextHref(row.formId, context),
-    label: t(LABEL_KEY[context]),
+    label: t(`forms.tab.${context}`),
   }));
 }
 

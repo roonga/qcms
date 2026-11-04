@@ -448,7 +448,7 @@ describe("a replayed step rolls back on the unique constraint (criterion 1)", ()
       workspaceId: SEED_WORKSPACE_ID,
       environment: "prod",
       kind: "link.mint",
-      screen: "/forms/[formId]/links",
+      screen: "/operations/forms/[formId]/links",
       proposedAt: deps.clock.now(),
       confirmedAt: deps.clock.now(),
       detail: "1",
@@ -558,7 +558,7 @@ describe("a two-environment plan verifies step by step (criterion 1, plan-two-en
   });
 });
 
-describe("`plan-three` runs end to end, with the reference checked (criterion 4)", () => {
+describe("a three-step plan runs end to end, with the reference checked (criterion 4)", () => {
   const FORM_ID = "frm_prov_ref";
 
   beforeAll(async () => {
@@ -1376,7 +1376,7 @@ describe("a mint proposed in the shape the model may produce runs end to end", (
       steps: [
         { kind: "link.mint", args: { formId: FORM_ID, count: 2, expiresAt, oneTime: false } },
       ],
-      screen: "/forms/[formId]/links",
+      screen: "/operations/forms/[formId]/links",
       subject: owner.userId,
       appKey: deps.config.keys.app,
       current: "prod",

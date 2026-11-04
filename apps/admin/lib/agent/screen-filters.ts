@@ -2,7 +2,7 @@ import { parseResponseQuery } from "../ops/response-filters";
 
 import type { AgentResponseFilters, AgentScreenParams, ResolvedScreen } from "./screens";
 
-export const FILTERED_SCREEN = "/forms/[formId]/responses";
+export const FILTERED_SCREEN = "/operations/forms/[formId]/responses";
 
 export function screenWithFilters(
   resolved: ResolvedScreen | undefined,

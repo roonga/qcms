@@ -111,6 +111,9 @@ describe("one conversation across the app", () => {
     expect(read().subject).toBe("screen:/forms");
     view.rerender(at("/forms/frm_a/publish"));
     expect(read().subject).toBe("form:frm_a");
+    // One form, whichever of its two rails the operator stands beside.
+    view.rerender(at("/operations/forms/frm_a/responses"));
+    expect(read().subject).toBe("form:frm_a");
   });
 
   it("mints a new stay on each subject and again on return", () => {

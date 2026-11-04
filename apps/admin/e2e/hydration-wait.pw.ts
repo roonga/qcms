@@ -165,7 +165,7 @@ test("the export trigger is refused rather than inert while React is still in fl
 
   const held = holdScripts(page);
   try {
-    await page.goto(`/forms/${RESPONSES_FORM_ID}/responses`, { waitUntil: "commit" });
+    await page.goto(`/operations/forms/${RESPONSES_FORM_ID}/responses`, { waitUntil: "commit" });
 
     await expect(page.getByTestId("qcms-response-browser")).toBeVisible();
     await expect(

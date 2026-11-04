@@ -10,28 +10,46 @@ running anything.
 
 ## The six places
 
-| Place                                | What a new route writes there                                                                                                                                                                                   |
-| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/admin/lib/measure.ts`          | A `MEASURE_BY_ROUTE` row: the width cap this screen's own POC in `plan/admin-shell-poc/` draws, with the POC file and the selector the number was read from.                                                    |
-| `apps/admin/lib/save-model.test.ts`  | A `SCREENS` row for the page and one for its `@rail` slot page, each saying how the screen stores what an author does on it.                                                                                    |
-| `apps/admin/lib/page-title.test.ts`  | The route in the restated tree list. The page itself needs a `generateMetadata` built through `pageMetadata`, or its browser tab is the layout's one static title.                                              |
-| `apps/admin/lib/rail-routes.test.ts` | A slot page at `apps/admin/app/(shell)/@rail/<route>/page.tsx`, returning `NoRailSection` when the screen carries no rail, and the route named in `CURRENT_SECTION`, in `NO_SECTION` or in the `withRail` list. |
-| `apps/admin/e2e/measure.pw.ts`       | The screen in `screens()`, with the cap it takes, in route order.                                                                                                                                               |
-| `apps/admin/e2e/rail-screens.pw.ts`  | **Form-scoped screens only.** The screen in `screens()`, with the rail row it marks and the browser tab it names.                                                                                               |
+| Place                                       | What a new route writes there                                                                                                                                                                                   |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/admin/lib/measure.ts`                 | A `MEASURE_BY_ROUTE` row: the width cap this screen's own POC in `plan/admin-shell-poc/` draws, with the POC file and the selector the number was read from.                                                    |
+| `apps/admin/lib/save-model.test.ts`         | A `SCREENS` row for the page and one for its `@rail` slot page, each saying how the screen stores what an author does on it.                                                                                    |
+| `apps/admin/lib/page-title.test.ts`         | The route in the restated tree list. The page itself needs a `generateMetadata` built through `pageMetadata`, or its browser tab is the layout's one static title.                                              |
+| `apps/admin/lib/rail-routes.test.ts`        | A slot page at `apps/admin/app/(shell)/@rail/<route>/page.tsx`, returning `NoRailSection` when the screen carries no rail, and the route named in `CURRENT_SECTION`, in `NO_SECTION` or in the `withRail` list. |
+| `apps/admin/e2e/measure.pw.ts`              | The screen in `screens()`, with the cap it takes, in route order.                                                                                                                                               |
+| `apps/admin/e2e/rail-screens.pw.ts`         | **The editor's screens of one form only.** The screen in `screens()`, with the rail row it marks and the browser tab it names.                                                                                  |
+| `apps/admin/e2e/operations-form-rail.pw.ts` | **One form's operational screens only**, under `/operations/forms/[formId]`. The same row, in that spec's own `screens()`.                                                                                      |
 
-`lib/rail-routes.test.ts` holds **two further hand-written arrays** beyond `CURRENT_SECTION`,
-`NO_SECTION` and the `withRail` list: the shell's top-level roots, and the ten form-scoped
-screens. A new top-level area fails on the roots array as well as on `withRail`, and neither
-failure is one the table above predicts.
+The last two are **one place**, asked of whichever rail the screen sits beside. A screen
+about one form is either authoring or operational (Code Owner, 2026-11-02): the editor's rail
+nests the form's steps under its own row, and the Operations rail is the four contexts of the
+selected environment, so a row in the wrong sweep asserts a rail the screen does not have. A
+screen about no form is in neither, which is why the place is asked per route rather than
+waived per screen.
 
-Three of those rows are worth a sentence each. A route with **no slot page** does not
-render an empty rail: on a soft navigation Next keeps the previous screen's, so the rail
-stands beside a screen it says nothing about. And both `screens()` lists are
-**hand-written**, which is why the derived gate reads them too: a screen left out of the
-first stops being measured for width, a form screen left out of the second has its rail and
-its title measured by nothing, and neither absence fails on its own. That is not
-hypothetical. The rules route (issue #669) was missing from the second for two cycles while
-every gate stayed green.
+`lib/rail-routes.test.ts` holds **three further hand-written arrays** beyond
+`CURRENT_SECTION`, `CURRENT_CONTEXT`, `NO_SECTION` and the `withRail` list: the shell's
+top-level roots, the editor's screens of one form, and Operations'. A new top-level area
+fails on the roots array as well as on `withRail`, and neither failure is one the table above
+predicts.
+
+Those two current-row tables answer the same question for the two rails. `CURRENT_SECTION` is
+the editor's, whose slot pages say `current={{ kind: "section", section: "links" }}`;
+`CURRENT_CONTEXT` is Operations', whose slot pages say `current="links"`. A route in the wrong
+one fails on the assertions that read each slot's own source.
+
+**A moved address is not a screen.** `/forms/{formId}/responses`, `/links`, `/webhooks` and
+`/export` still arrive, as `redirects()` entries in `apps/admin/next.config.ts` rather than as
+redirecting pages. That is the pattern to copy: a page is a route in this tree and costs all
+six registrations while producing no document to rail, title or measure.
+
+Some of those rows are worth a sentence each. A route with **no slot page** does not render
+an empty rail: on a soft navigation Next keeps the previous screen's, so the rail stands
+beside a screen it says nothing about. And all three `screens()` lists are **hand-written**,
+which is why the derived gate reads them too: a screen left out of the width walk stops being
+measured, a screen left out of its rail sweep has its rail and its title measured by nothing,
+and neither absence fails on its own. That is not hypothetical. The rules route (issue #669)
+was missing from the rail sweep for two cycles while every gate stayed green.
 
 ## The conventions that go with them
 
@@ -40,11 +58,21 @@ every gate stayed green.
   a page is a defect rather than a shortcut.
 - **A section of a form is four things at once**: a `forms.tab.*` name, a breadcrumb crumb,
   an `<h1>` and a rail row. Adding one also means `FormSection` in
-  `apps/admin/lib/page-title.ts` and `RAIL_SECTIONS` in `apps/admin/lib/forms/subtree-rail.ts`.
+  `apps/admin/lib/page-title.ts`, plus `RAIL_SECTIONS` in
+  `apps/admin/lib/forms/subtree-rail.ts` for an authoring section or
+  `FORM_OPERATIONAL_CONTEXTS` in `apps/admin/lib/ops/form-contexts.ts` for an operational
+  one. The agent screen tables are a pair too: `apps/admin/lib/agent/screens.ts` with its
+  chip in `lib/agent/context-chip.ts`, and `apps/api/src/features/agent/screens.ts` with a
+  facts schema and a context builder.
 - **The screen count is spelled out in prose in several files** and every one of them moves
   when a screen arrives. `grep -rn "twenty-three screens" apps/admin packages/create-qcms-app`
   finds them, whatever the current number is. Issue #882 proposes deriving or deleting
   those counts; until that is decided they are hand-maintained.
+- **No `loading.tsx` above a screen that answers 404.** That file is a Suspense boundary
+  around its segment and everything under it, so the shell flushes before a nested page
+  runs and a `notFound()` below it reaches the browser as 200 with the 404 document. A
+  landing screen that wants a skeleton holds the boundary itself, as
+  `operations/page.tsx` does; `operations-states.test.tsx` refuses the file coming back.
 - **This app has a twin.** Non-test source under `apps/admin` is generated into
   `packages/create-qcms-app/templates/common/apps/admin`, so a new page means
   `pnpm qcms:sync-templates`; `pnpm check:templates` refuses the drift otherwise.
