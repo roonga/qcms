@@ -63,6 +63,11 @@ export interface ScreenBuildInput {
    * read is deduplicated by, never an identity.
    */
   readonly conversationId: string;
+  /**
+   * The conversation's current stay on one subject, minted by the admin on arrival. A
+   * conversation that leaves a subject and returns owes a new row.
+   */
+  readonly visitId: string;
 }
 
 /** How many rows of a list a screen's facts carry; a turn is a payload, not a page. */
@@ -220,7 +225,7 @@ const openClaims = new Map<string, OpenClaim>();
 const ignore = (): undefined => undefined;
 
 /**
- * Audit the conversation's first turn per subject and environment. A failed read releases its claim;
+ * Audit the first turn of each stay on a subject in an environment. A failed read releases its claim;
  * concurrent turns wait for that claim so none can skip an unwritten row.
  */
 export async function auditedRead<T>(
@@ -228,7 +233,7 @@ export async function auditedRead<T>(
   subject: string,
   run: (audit: boolean) => Promise<T>,
 ): Promise<T> {
-  const key = `agent-read:${input.principal.userId}:${input.environment}:${input.conversationId}:${subject}`;
+  const key = `agent-read:${input.principal.userId}:${input.environment}:${input.conversationId}:${input.visitId}:${subject}`;
   let open = openClaims.get(key);
   while (open !== undefined) {
     await open.done.then(ignore, ignore);

@@ -383,16 +383,47 @@ test("names the screen in the context chip, and keeps the conversation across a 
   await page.goto(`/forms/${FORM_ID}/publish`);
   await expect(chip).toContainText("publish");
 
+  // The conversation lives in this tab's session storage so a reload keeps it, and in no
+  // other store: `localStorage` would outlive the tab and reach every other one.
   const stored = await page.evaluate(() => ({
     local: Object.keys(window.localStorage),
     session: Object.keys(window.sessionStorage),
   }));
-  for (const key of [...stored.local, ...stored.session]) {
-    expect(key, "no assistant key in tab storage").not.toMatch(/assist|agent|conversation/iu);
+  for (const key of stored.local) {
+    expect(key, "no assistant key in localStorage").not.toMatch(/assist|agent|conversation/iu);
   }
+  expect(stored.session, "the conversation is in this tab's session storage").toContain(
+    "qcms-assistant-conversation",
+  );
 });
 
-test("carries the builder's turns across the form's subtree and starts fresh outside it (exit criterion 9)", async ({
+test("drops the stored conversation when a session ends without the account menu", async ({
+  page,
+}) => {
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.setViewportSize({ width: WIDE, height: 900 });
+  await page.goto(`/forms/${FORM_ID}`);
+  await open(page);
+  await fillStable(composer(page), "#qcms-fake:no-proposal what is on this screen");
+  await page.getByTestId("qcms-assistant-send").locator("button").click();
+  await expect(page.getByTestId("qcms-assistant-turns")).toContainText("what is on this screen");
+  expect(
+    await page.evaluate(() => Object.keys(window.sessionStorage)),
+    "the turn is stored before the session ends",
+  ).toContain("qcms-assistant-conversation");
+
+  // An expiry, not a sign-out: the account menu clears the tab on its way out, and it is
+  // not the only way a session ends.
+  await page.context().clearCookies();
+  await page.goto("/sign-in");
+  await waitForHydration(page);
+
+  await expect
+    .poll(async () => page.evaluate(() => Object.keys(window.sessionStorage)))
+    .not.toContain("qcms-assistant-conversation");
+});
+
+test("carries one conversation across the form's subtree and out of it, and a reload keeps it", async ({
   page,
 }) => {
   test.setTimeout(300_000);
@@ -416,18 +447,20 @@ test("carries the builder's turns across the form's subtree and starts fresh out
   await expect(turns, "the builder's turns are still here").toContainText("what is on this screen");
   await expect(turns).toContainText("more detail");
 
-  await page.locator("header").getByRole("link", { name: "Operations" }).click();
-  await page.waitForURL("**/operations");
-  await expect(page.getByTestId("qcms-assistant-empty")).toBeVisible();
-
-  await page.goBack();
-  await page.waitForURL(`**/forms/${FORM_ID}/publish`);
-  await expect(turns, "returning restores the conversation").toContainText(
+  await page.locator("header").getByRole("link", { name: "Workspaces" }).click();
+  await page.waitForURL("**/workspaces");
+  await expect(turns, "leaving the form keeps the conversation").toContainText(
     "what is on this screen",
   );
 
   await page.reload();
   await waitForHydration(page);
+  await expect(
+    page.getByTestId("qcms-assistant-turns"),
+    "a reload of the same tab keeps it",
+  ).toContainText("what is on this screen");
+
+  await page.getByTestId("qcms-assistant-new").click();
   await expect(page.getByTestId("qcms-assistant-empty")).toBeVisible();
 });
 

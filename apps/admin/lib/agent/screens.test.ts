@@ -4,7 +4,13 @@ import { describe, expect, it } from "vitest";
 
 import { trackedFilesUnder } from "../../../../scripts/tracked-files.mjs";
 
-import { AGENT_SCREENS, adminPageHref, conversationSubject, screenForPath } from "./screens.js";
+import {
+  AGENT_SCREENS,
+  adminPageHref,
+  conversationSubject,
+  screenForPath,
+  screenIdentity,
+} from "./screens.js";
 
 const SHELL = fileURLToPath(new URL("../../app/(shell)", import.meta.url));
 
@@ -71,6 +77,24 @@ describe("the agent screen table", () => {
     expect(conversationSubject(builder)).toBe(conversationSubject(publish));
     expect(conversationSubject(other)).not.toBe(conversationSubject(builder));
     expect(conversationSubject(screenForPath("/questions"))).toBe("screen:/questions");
+  });
+
+  it("binds a card to one screen and its own ids, and not to its filters", () => {
+    const list = screenForPath("/forms/frm_x/responses");
+    expect(screenIdentity(list)).toBe(screenIdentity(list));
+    expect(screenIdentity(screenForPath("/forms/frm_x/responses"))).not.toBe(
+      screenIdentity(screenForPath("/forms/frm_y/responses")),
+    );
+    expect(screenIdentity(screenForPath("/forms/frm_x"))).not.toBe(
+      screenIdentity(screenForPath("/forms/frm_x/publish")),
+    );
+    expect(
+      screenIdentity({
+        screen: "/forms/[formId]/responses",
+        params: { formId: "frm_x", filters: { flagged: true } },
+      }),
+    ).toBe(screenIdentity(list));
+    expect(screenIdentity(undefined)).toBe("none");
   });
 
   it("is the renderer's link allowlist, and admits no route handler", () => {

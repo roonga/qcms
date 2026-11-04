@@ -20,6 +20,7 @@ export async function POST(request: NextRequest): Promise<Response> {
         readonly screen?: unknown;
         readonly params?: unknown;
         readonly conversationId?: unknown;
+        readonly visitId?: unknown;
       }
     | undefined;
 
@@ -30,6 +31,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     screen: typeof body?.screen === "string" ? body.screen : "",
     ...(params === undefined ? {} : { params }),
     conversationId: typeof body?.conversationId === "string" ? body.conversationId : "",
+    ...(typeof body?.visitId === "string" ? { visitId: body.visitId } : {}),
   });
 
   return new Response(upstream.body, {

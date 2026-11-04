@@ -116,9 +116,16 @@ const screenRef = {
   params: ScreenParamsBody.optional(),
   /**
    * Random, minted by the admin when a conversation starts. The key an audited read is
-   * deduplicated by, never an identity: forging one can only add rows.
+   * deduplicated by, never an identity: a forged one adds a row or lands on a key this same
+   * user already holds, and can never leave a read unrecorded.
    */
   conversationId: z.string().min(1).max(64),
+  /**
+   * The conversation's current stay on one subject. It joins the dedup key, so a return to
+   * a subject owes a new row; a forged one adds a row or skips a stay this same user
+   * already has a row for in that environment, and leaves none unrecorded.
+   */
+  visitId: z.string().min(1).max(64).optional(),
 };
 
 export const AssistBody = z
@@ -134,6 +141,7 @@ export const AssistBody = z
     // Absent means no deduplication rather than a shared key, which is the safe
     // direction: an audited read then writes its row for every turn.
     conversationId: screenRef.conversationId.optional(),
+    visitId: screenRef.visitId,
   })
   .openapi("AssistRequest");
 

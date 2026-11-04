@@ -93,13 +93,13 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (556 files common to both shapes)
+### Scaffolded paths (558 files common to both shapes)
 
 | Path                                                                 | Files |
 | -------------------------------------------------------------------- | ----- |
 | `(project root)`                                                     | 8     |
-| `apps/`                                                              | 545   |
-| `apps/admin/`                                                        | 333   |
+| `apps/`                                                              | 547   |
+| `apps/admin/`                                                        | 335   |
 | `apps/admin/app/`                                                    | 83    |
 | `apps/admin/app/(shell)/`                                            | 64    |
 | `apps/admin/app/(shell)/@rail/`                                      | 26    |
@@ -171,7 +171,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/two-factor/recovery-codes/`                          | 2     |
 | `apps/admin/app/two-factor/recovery-codes/confirm/`                  | 1     |
 | `apps/admin/app/two-factor/recovery/verify/`                         | 1     |
-| `apps/admin/components/`                                             | 121   |
+| `apps/admin/components/`                                             | 122   |
 | `apps/admin/components/agent/`                                       | 8     |
 | `apps/admin/components/forms/`                                       | 42    |
 | `apps/admin/components/membership/`                                  | 8     |
@@ -179,8 +179,8 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/components/questions/`                                   | 15    |
 | `apps/admin/components/shell/`                                       | 4     |
 | `apps/admin/components/test-support/`                                | 3     |
-| `apps/admin/lib/`                                                    | 122   |
-| `apps/admin/lib/agent/`                                              | 12    |
+| `apps/admin/lib/`                                                    | 123   |
+| `apps/admin/lib/agent/`                                              | 13    |
 | `apps/admin/lib/forms/`                                              | 31    |
 | `apps/admin/lib/i18n/`                                               | 2     |
 | `apps/admin/lib/membership/`                                         | 2     |
@@ -273,7 +273,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (556)</summary>
+<summary>Every scaffolded file (558)</summary>
 
 ```
 .dockerignore
@@ -377,6 +377,7 @@ apps/admin/components/agent/step-actions.ts
 apps/admin/components/announcer.tsx
 apps/admin/components/appearance-glyph.tsx
 apps/admin/components/auth-screen.tsx
+apps/admin/components/clear-conversation.tsx
 apps/admin/components/copy-entity-id.tsx
 apps/admin/components/empty-state.tsx
 apps/admin/components/entity-id.tsx
@@ -489,6 +490,7 @@ apps/admin/instrumentation.ts
 apps/admin/lib/agent/builder-assist-bridge.ts
 apps/admin/lib/agent/card-copy.ts
 apps/admin/lib/agent/context-chip.ts
+apps/admin/lib/agent/conversation-state.ts
 apps/admin/lib/agent/conversation.tsx
 apps/admin/lib/agent/panel-context.ts
 apps/admin/lib/agent/panel.ts
