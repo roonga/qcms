@@ -6,6 +6,7 @@ import { FormPageHeader } from "@/components/forms/form-page-header";
 import { ResponseBrowser } from "@/components/ops/response-browser";
 import { formatList } from "@/lib/i18n/format";
 import { t, tPlural } from "@/lib/i18n/en";
+import { exportableVersions } from "@/lib/ops/export";
 import { clampedPage } from "@/lib/ops/paging";
 import { parseResponseQuery } from "@/lib/ops/response-filters";
 import { formSectionName, pageMetadata } from "@/lib/page-title";
@@ -53,11 +54,26 @@ export default async function FormResponsesPage({
 
   if (!detail.ok) {
     if (detail.code === "FORM_NOT_FOUND" || detail.code === "INVALID_FORM_ID") notFound();
-    return <Alert variant="error">{detail.message}</Alert>;
+    // Only a refusal passes: a response viewer's list is still theirs, while a read that
+    // failed for any other reason knows nothing and must not be rendered as a narrower grant.
+    if (detail.code !== "FORBIDDEN") return <Alert variant="error">{detail.message}</Alert>;
   }
-  const form = detail.data;
+  const form = detail.ok ? detail.data : undefined;
 
-  const header = <FormPageHeader formId={form.formId} section="responses" status={form.status} />;
+  const versions = exportableVersions(
+    form === undefined
+      ? undefined
+      : form.versions.map((version) => version.version).sort((left, right) => right - left),
+    responses.ok ? responses.data.formVersions : undefined,
+  );
+
+  const header = (
+    <FormPageHeader
+      formId={formId}
+      section="responses"
+      {...(form === undefined ? {} : { status: form.status })}
+    />
+  );
 
   const ignoredNotice = ignored.length > 0 && (
     <Alert variant="warning">
@@ -87,9 +103,9 @@ export default async function FormResponsesPage({
       )}
       {ignoredNotice}
       <ResponseBrowser
-        formId={form.formId}
+        formId={formId}
         page={readState(responses)}
-        versions={form.versions.map((version) => version.version).sort((a, b) => b - a)}
+        versions={versions}
         filters={applied}
         hasFilters={hasFilters}
       />

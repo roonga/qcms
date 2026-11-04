@@ -26,6 +26,7 @@ import {
   listResponses,
   listTombstones,
   type ReportingResponseRow,
+  responseFormVersions,
   SessionNotFoundError,
   writeAccessAuditRow,
   type Executor,
@@ -187,7 +188,7 @@ export function makeListResponsesHandler(
 
     const request = deps.databases.forRequest(c.get("requestEnvironment"));
     // The audit row is written first, so a read can never be served without one.
-    const { rows, total } = await request.exec.transaction(async (tx) => {
+    const { rows, total, formVersions } = await request.exec.transaction(async (tx) => {
       await recordResponseAccess(tx, {
         grant: c.get("grantContext"),
         actorId: c.get("adminPrincipal")?.userId,
@@ -196,13 +197,20 @@ export function makeListResponsesHandler(
         kind: "read",
         at: deps.clock.now(),
       });
-      return listResponses(tx, request.environment, {
+      const listed = await listResponses(tx, request.environment, {
         formId,
         ...filter,
         ...(q.flagged !== undefined ? { flagged: q.flagged === "true" } : {}),
         limit,
         offset,
       });
+      // The whole form's versions rather than this page's, and unfiltered: it is what the
+      // export's version control offers, and a caller without `form: read` has no other
+      // source for it.
+      return {
+        ...listed,
+        formVersions: await responseFormVersions(tx, request.environment, formId),
+      };
     });
 
     return c.json(
@@ -215,6 +223,7 @@ export function makeListResponsesHandler(
           flaggedReason: r.flaggedReason,
           answers: r.answers,
         })),
+        formVersions,
         page,
         pageSize,
         total,

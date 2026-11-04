@@ -22,6 +22,18 @@ export interface ExportChoice {
   readonly timeZone?: string;
 }
 
+/**
+ * The versions an export may name: the form's published list when the form is readable,
+ * and otherwise the versions this form's own responses carry. `undefined` is "neither was
+ * read", which is not an empty list.
+ */
+export function exportableVersions(
+  formVersions: readonly number[] | undefined,
+  responseVersions: readonly number[] | undefined,
+): readonly number[] | undefined {
+  return formVersions ?? responseVersions;
+}
+
 export function versionRequired(format: ExportFormat): boolean {
   return format === "csv";
 }

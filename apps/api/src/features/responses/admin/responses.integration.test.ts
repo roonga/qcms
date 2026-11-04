@@ -135,13 +135,14 @@ async function seedSubmitted(opts: {
   submittedAt: Date;
   contentHash?: string;
   flaggedReason?: string;
+  formVersion?: number;
 }): Promise<SessionId> {
   const sessionId = SessionId.parse(opts.sessionId);
   await createSession(testDb.db, {
     environment: DEFAULT_TEST_ENVIRONMENT,
     sessionId,
     formId: opts.formId,
-    formVersion: 1,
+    formVersion: opts.formVersion ?? 1,
     accessMode: "anonymous",
     expiresAt: new Date(Date.now() + 86_400_000),
   });
@@ -163,6 +164,7 @@ interface ListBody {
     flaggedReason: string | null;
     answers: Record<string, unknown>;
   }>;
+  formVersions: number[];
   page: number;
   pageSize: number;
   total: number;
@@ -203,6 +205,49 @@ describe("list, detail, and filters (exit criterion 1)", () => {
       await get("/forms/frm_list_api/responses?from=2026-02-05T00:00:00.000Z")
     ).json()) as ListBody;
     expect(windowed.responses.map((r) => r.sessionId)).toEqual(["ses_api_flagged"]);
+  });
+
+  it("reports every version this form's responses carry, whatever the filters narrow to", async () => {
+    // The export dialog's version list for a caller who cannot read the form definition:
+    // it comes off this route, so it describes the whole form and not the page.
+    const formId = await seedForm("frm_versions_api", [["stp_a", ["q_name"]]]);
+    await insertFormVersion(testDb.db, {
+      formId,
+      definition: formDefinition("frm_versions_api", [["stp_a", ["q_name"]]]),
+      compiled: emptyCompiled,
+      compilerVersion: "1.0.0",
+      a2uiSpecVersion: "1.0.0",
+      semanticsVersion: "1",
+    });
+    await seedSubmitted({
+      formId,
+      sessionId: "ses_versions_v1",
+      entries: [{ questionId: "q_name", value: "Ada" }],
+      submittedAt: new Date("2026-03-01T00:00:00.000Z"),
+    });
+    await seedSubmitted({
+      formId,
+      sessionId: "ses_versions_v2",
+      entries: [{ questionId: "q_name", value: "Grace" }],
+      submittedAt: new Date("2026-03-02T00:00:00.000Z"),
+      formVersion: 2,
+    });
+
+    const all = (await (await get("/forms/frm_versions_api/responses")).json()) as ListBody;
+    expect(all.formVersions).toEqual([2, 1]);
+
+    const narrowed = (await (
+      await get("/forms/frm_versions_api/responses?version=1")
+    ).json()) as ListBody;
+    expect(narrowed.responses.map((r) => r.sessionId)).toEqual(["ses_versions_v1"]);
+    expect(narrowed.formVersions).toEqual([2, 1]);
+  });
+
+  it("reports no version for a form nothing has been submitted to", async () => {
+    await seedForm("frm_no_versions_api", [["stp_a", ["q_name"]]]);
+
+    const empty = (await (await get("/forms/frm_no_versions_api/responses")).json()) as ListBody;
+    expect(empty.formVersions).toEqual([]);
   });
 
   it("surfaces every enumerated flag reason in the listing (task 026)", async () => {

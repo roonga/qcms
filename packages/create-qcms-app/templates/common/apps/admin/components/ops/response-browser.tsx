@@ -37,7 +37,8 @@ export function ResponseBrowser({
 }: {
   readonly formId: string;
   readonly page: ReadState<ResponsePage>;
-  readonly versions: readonly number[];
+  /** `undefined` is "not read": an unknown version list must not be shown as an empty one. */
+  readonly versions: readonly number[] | undefined;
   readonly filters: AppliedFilters;
   readonly hasFilters: boolean;
 }) {
@@ -147,7 +148,10 @@ export function ResponseBrowser({
           value={version}
           items={[
             { label: t("ops.responses.filter.anyVersion"), value: "" },
-            ...versions.map((entry) => ({ label: `v${String(entry)}`, value: String(entry) })),
+            ...(versions ?? []).map((entry) => ({
+              label: `v${String(entry)}`,
+              value: String(entry),
+            })),
           ]}
           onChange={setVersion}
         />
@@ -323,7 +327,7 @@ function ExportDialog({
   onClose,
 }: {
   readonly formId: string;
-  readonly versions: readonly number[];
+  readonly versions: readonly number[] | undefined;
   readonly initialVersion: string;
   readonly initialFrom: string;
   readonly initialTo: string;
@@ -351,7 +355,9 @@ function ExportDialog({
   const dayHint = t("ops.export.dayHint", { zone: timeZone ?? t("ops.common.yourZone") });
   const needsVersion = versionRequired(format);
   const needsShape = shapeApplies(format);
-  const ready = isExportable(choice) && versions.length > 0;
+  // An unknown version list does not block the formats that need no version: JSON records
+  // carry their own, so the only thing a failed version read costs is a CSV export.
+  const ready = isExportable(choice) && (versions === undefined || versions.length > 0);
 
   return (
     <Dialog
@@ -395,7 +401,10 @@ function ExportDialog({
             needsVersion ? t("ops.export.versionRequired") : t("ops.export.versionIgnored")
           }
           placeholder={t("ops.export.pickVersion")}
-          items={versions.map((entry) => ({ label: `v${String(entry)}`, value: String(entry) }))}
+          items={(versions ?? []).map((entry) => ({
+            label: `v${String(entry)}`,
+            value: String(entry),
+          }))}
           onChange={setVersion}
         />
         <DatePicker
@@ -412,7 +421,15 @@ function ExportDialog({
           value={to}
           onChange={setTo}
         />
-        {versions.length === 0 && (
+        {versions === undefined && (
+          <p
+            className="text-sm text-(--color-text-muted)"
+            data-testid="qcms-export-unknown-versions"
+          >
+            {t("ops.export.versionsUnknown")}
+          </p>
+        )}
+        {versions?.length === 0 && (
           <p className="text-sm text-(--color-text-muted)" data-testid="qcms-export-no-versions">
             {t("ops.export.noVersions")}
           </p>

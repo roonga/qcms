@@ -109,6 +109,11 @@ export const ResponseListItem = z
 export const ResponseListResponse = z
   .object({
     responses: z.array(ResponseListItem),
+    /**
+     * Every version this form's non-erased responses carry, newest first. It is what an
+     * export may name, and the only source for it a caller without `form: read` has.
+     */
+    formVersions: z.array(z.number().int().positive()).openapi({ example: [2, 1] }),
     page: z.number().int().positive().openapi({ example: 1 }),
     pageSize: z.number().int().positive().openapi({ example: 50 }),
     total: z.number().int().nonnegative().openapi({ example: 3 }),
