@@ -113,8 +113,6 @@ describe("resolveRoot", () => {
   });
 
   it("keeps this suite's own writes out of the root the lanes are using", () => {
-    // The default root holds live gate logs while `pnpm verify` runs this file, so a test
-    // here resolving it would clear them.
     expect(process.env["QCMS_AGENT_SCRATCH_ROOT"]).toBe(isolatedRoot);
     expect(resolveRoot(process.env)).not.toBe(join(tmpdir(), DEFAULT_ROOT_NAME));
     expect(
@@ -168,7 +166,6 @@ describe("scratchPath", () => {
     expect(() =>
       scratchPath({ directory: process.cwd(), environment, lane, name: "verify.log" }),
     ).toThrow(/already exists in this lane/);
-    // Neither silent answer is taken: the stale green is still there to be looked at.
     expect(readFileSync(join(root, "fix-602-stale", "verify.log"), "utf8")).toContain(
       "an earlier run",
     );

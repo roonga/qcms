@@ -20,5 +20,9 @@ binding a revision but naming no form, and a deployment that cannot read the dra
 no step of which was checked against the pin set records no revision and is unaffected, so
 an ordinary plan is not refused by a draft save.
 
+Publishing the form deletes the draft, so `propose_plan` refuses a bound plan carrying a
+further token step after `form.publish`: that step could only ever be refused, for a draft
+nobody touched.
+
 SEC-17 in `docs/SECURITY_DESIGN.md` and section 4 of `docs/agent-authoring.md` carry the
 ruling.

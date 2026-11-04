@@ -254,6 +254,23 @@ function publishOrderRefusal(steps: readonly ProposedStep[]): string | undefined
   );
 }
 
+/**
+ * Publishing the form deletes the saved draft, so a plan bound to that draft's revision
+ * ends at its publish: any later step carrying the token would be refused for a draft the
+ * user never touched, and the card would say the draft changed when it did not.
+ */
+function boundPublishLastRefusal(steps: readonly PlanStep[]): string | undefined {
+  const formAt = steps.findIndex((step) => step.kind === PUBLISH_FORM_KIND);
+  if (formAt < 0) return undefined;
+  const after = steps.findIndex((step, index) => index > formAt && carriesToken(step));
+  if (after < 0) return undefined;
+  return (
+    `Step ${String(formAt + 1)} publishes the form, which deletes the saved draft this plan's ` +
+    `question publishes were checked against, so step ${String(after + 1)} could not run. ` +
+    "Make the form publish the last step of this plan and propose the rest in the next turn."
+  );
+}
+
 function stepReferenceRefusal(
   input: ProposeInput,
   step: ProposedStep,
@@ -477,9 +494,17 @@ async function resolvedPins(
 }
 
 /** The refusals that are about the plan as a whole rather than about one step. */
-function planShapeRefusal(input: ProposeInput, steps: readonly PlanStep[]): string | undefined {
+function planShapeRefusal(
+  input: ProposeInput,
+  steps: readonly PlanStep[],
+  boundRevision: number | undefined,
+): string | undefined {
   const ordering = publishOrderRefusal(input.steps);
   if (ordering !== undefined) return ordering;
+  if (boundRevision !== undefined) {
+    const bound = boundPublishLastRefusal(steps);
+    if (bound !== undefined) return bound;
+  }
   const handOffAt = steps.findIndex((step) => step.handOff);
   if (handOffAt >= 0 && handOffAt !== steps.length - 1) {
     return `Step ${String(handOffAt + 1)} needs a secret the user types on the screen itself, so it may only be the last step of a plan.`;
@@ -505,7 +530,7 @@ export async function buildProposal(input: ProposeInput): Promise<ProposeOutcome
     steps.push(checked.step);
   }
 
-  const shape = planShapeRefusal(input, steps);
+  const shape = planShapeRefusal(input, steps, resolved.revision);
   if (shape !== undefined) return refuse(shape);
 
   const proposalId = `prp_${crypto.randomUUID().replaceAll("-", "")}`;

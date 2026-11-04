@@ -328,6 +328,11 @@ binding a revision but naming no form, and no reader for the draft at all. A
 plan no step of which was checked against the pin set records no revision, so an
 ordinary plan is not refused by a draft save.
 
+`form.publish` deletes the draft it publishes, so in a bound plan it is the last
+step that carries the token: `buildProposal` refuses a later token step rather
+than letting it run into `AGENT_PROPOSAL_DRAFT` and tell the user their draft
+changed when nothing touched it.
+
 ## Publishing goes through the batch route
 
 `form.publish` runs `POST /admin/forms/{id}/publish-batch`, the route the Publish

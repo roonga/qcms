@@ -1137,7 +1137,6 @@ describe("a plan built from the saved draft is bound to that draft", () => {
     const proposed = await reviewDraft(FORM_ID);
     const { token, proposalId } = await publishStep(proposed.draftRevision);
 
-    // The editor drops the pin between the card being proposed and Confirm.
     await saveDraft([{ questionId: "q_prov_it", version: 1 }]);
     expect((await reviewDraft(FORM_ID)).draftRevision).not.toBe(proposed.draftRevision);
 

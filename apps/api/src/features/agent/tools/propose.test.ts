@@ -656,6 +656,41 @@ describe("buildProposal: publishing the questions a saved draft pins (issue #120
     expect(verified.payload.draftRevision).toBeUndefined();
   });
 
+  it("refuses a token step after the form publish, which would outlive the bound draft", async () => {
+    const outcome = await propose({
+      steps: [
+        publishQuestion("q_given_name", 1),
+        publish,
+        { kind: "form.close", args: { formId: "frm_a" } },
+      ],
+      savedDraft: saved,
+    });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toContain("deletes the saved draft");
+    expect(outcome.reason).toContain("step 3");
+  });
+
+  it("accepts the same plan with the form publish last", async () => {
+    const outcome = await propose({
+      steps: [
+        { kind: "form.close", args: { formId: "frm_a" } },
+        publishQuestion("q_given_name", 1),
+        publish,
+      ],
+      savedDraft: saved,
+    });
+    expect(outcome.ok).toBe(true);
+  });
+
+  it("leaves a plan bound to no revision free to act after the form publish", async () => {
+    const outcome = await propose({
+      steps: [publish, { kind: "form.close", args: { formId: "frm_a" } }],
+      savedDraft: saved,
+    });
+    expect(outcome.ok).toBe(true);
+  });
+
   it("refuses the kind when the form has no saved draft to read a revision from", async () => {
     const outcome = await propose({
       steps: [publishQuestion("q_given_name", 1)],
