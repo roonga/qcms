@@ -82,6 +82,14 @@ export const SPEC_ALLOW: readonly {
   readonly pattern: RegExp;
 }[] = [
   {
+    // The draft binding working: this spec edits the saved draft under a proposed publish
+    // card on purpose, so the API logs the refusal it then owes the card, at warn.
+    file: "agent-blank-to-published.pw.ts",
+    title: "refuses the publish card after the editor changes the saved draft",
+    source: "api",
+    pattern: /"reason":"AGENT_PROPOSAL_DRAFT"/,
+  },
+  {
     // Under host load the abort lands mid-body often enough to be sampled, and the dev
     // server logs the truncated body's parse failure beside the socket's own abort. The
     // journey completes and every functional assertion passes.

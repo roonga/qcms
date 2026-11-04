@@ -11,7 +11,7 @@ import type { FormDefinition, QuestionDefinition } from "@roonga/qcms-core";
 import type { PublishIssue, PublishWarning } from "../../forms/handler.js";
 import { actionKind } from "../actions/registry.js";
 import type { ActionKindDef } from "../actions/types.js";
-import type { PinnedQuestion } from "../draft-pins.js";
+import type { PinnedQuestion, SavedDraftPins } from "../draft-pins.js";
 import { offeredEnvironments, type OfferedActionKind } from "../grant-filter.js";
 import type { ScreenId } from "../screens.js";
 import {
@@ -123,11 +123,11 @@ export interface ProposeInput {
       }
     | undefined;
   /**
-   * The question versions the form's saved draft pins unpublished, read when a step asks to
-   * publish one. Absent, a question publish away from the question's own page is refused
-   * rather than allowed unverified.
+   * The form's saved draft, read when a step asks to publish one of the versions it pins
+   * unpublished. Absent, a question publish away from the question's own page is refused
+   * rather than allowed unverified; a plan built from it is bound to its revision.
    */
-  readonly pinnedUnpublished?: (() => Promise<readonly PinnedQuestion[]>) | undefined;
+  readonly savedDraft?: (() => Promise<SavedDraftPins | undefined>) | undefined;
   /** The builder's own validation, so the card's two lists and a publish cannot disagree. */
   readonly validate?:
     | ((definition: FormDefinition) => Promise<{
@@ -251,6 +251,42 @@ function publishOrderRefusal(steps: readonly ProposedStep[]): string | undefined
     `Step ${String(formAt + 1)} publishes the form before step ${String(lastQuestion + 1)} ` +
     "publishes a question the draft pins, which would be refused as an unpublished pin. " +
     "Put every question publish before the form publish."
+  );
+}
+
+/**
+ * Publishing the form deletes the saved draft, so a plan bound to that draft's revision
+ * ends at its publish: any later step carrying the token would be refused for a draft the
+ * user never touched, and the card would say the draft changed when it did not.
+ */
+function boundPublishLastRefusal(steps: readonly PlanStep[]): string | undefined {
+  const formAt = steps.findIndex((step) => step.kind === PUBLISH_FORM_KIND);
+  if (formAt < 0) return undefined;
+  const after = steps.findIndex((step, index) => index > formAt && carriesToken(step));
+  if (after < 0) return undefined;
+  return (
+    `Step ${String(formAt + 1)} publishes the form, which deletes the saved draft this plan's ` +
+    `question publishes were checked against, so step ${String(after + 1)} could not run. ` +
+    "Make the form publish the last step of this plan and propose the rest in the next turn."
+  );
+}
+
+/**
+ * A local step saves the draft through the screen, which moves its revision, so in a plan
+ * bound to that revision no token step may follow one: it would be refused as a draft
+ * change the user never made.
+ */
+function boundAfterDraftWriteRefusal(steps: readonly PlanStep[]): string | undefined {
+  const writeAt = steps.findIndex((step) => step.local);
+  if (writeAt < 0) return undefined;
+  const after = steps.findIndex((step, index) => index > writeAt && carriesToken(step));
+  if (after < 0) return undefined;
+  const kind = steps[writeAt]?.kind ?? "";
+  return (
+    `Step ${String(writeAt + 1)} (${kind}) saves the form's draft, which changes the draft ` +
+    `this plan's question publishes were checked against, so step ${String(after + 1)} ` +
+    `could not run. Propose ${kind} on its own, and once the user has applied it, ` +
+    "propose the publish in the next turn."
   );
 }
 
@@ -444,28 +480,52 @@ function capRefusal(input: ProposeInput): string | undefined {
   return undefined;
 }
 
-/** The draft's unpublished pins, read only when a step asks to publish one of them. */
+/**
+ * The draft's unpublished pins, read only when a step asks to publish one of them, with
+ * the revision the token binds so Confirm can refuse a draft that has moved since.
+ */
 async function resolvedPins(
   input: ProposeInput,
-): Promise<{ readonly pinned: readonly PinnedQuestion[] } | { readonly reason: string }> {
+): Promise<
+  | { readonly pinned: readonly PinnedQuestion[]; readonly revision: number | undefined }
+  | { readonly reason: string }
+> {
   const needed =
     input.screen !== QUESTION_DETAIL_SCREEN &&
     input.steps.some((step) => step.kind === PUBLISH_QUESTION_KIND);
-  if (!needed) return { pinned: [] };
-  if (input.pinnedUnpublished === undefined) {
+  if (!needed) return { pinned: [], revision: undefined };
+  if (input.savedDraft === undefined) {
     return {
       reason:
         `This screen cannot say which question versions the form's draft pins, so ${PUBLISH_QUESTION_KIND} ` +
         "cannot be proposed here. Publish the question from its own page in the library.",
     };
   }
-  return { pinned: await input.pinnedUnpublished() };
+  const saved = await input.savedDraft();
+  if (saved === undefined) {
+    return {
+      reason:
+        `This form has no saved draft, so it pins no unpublished question version and ` +
+        `${PUBLISH_QUESTION_KIND} cannot be proposed here. Publish the question from its own page in the library.`,
+    };
+  }
+  return { pinned: saved.pins, revision: saved.revision };
 }
 
 /** The refusals that are about the plan as a whole rather than about one step. */
-function planShapeRefusal(input: ProposeInput, steps: readonly PlanStep[]): string | undefined {
+function planShapeRefusal(
+  input: ProposeInput,
+  steps: readonly PlanStep[],
+  boundRevision: number | undefined,
+): string | undefined {
   const ordering = publishOrderRefusal(input.steps);
   if (ordering !== undefined) return ordering;
+  if (boundRevision !== undefined) {
+    const bound = boundPublishLastRefusal(steps);
+    if (bound !== undefined) return bound;
+    const rewritten = boundAfterDraftWriteRefusal(steps);
+    if (rewritten !== undefined) return rewritten;
+  }
   const handOffAt = steps.findIndex((step) => step.handOff);
   if (handOffAt >= 0 && handOffAt !== steps.length - 1) {
     return `Step ${String(handOffAt + 1)} needs a secret the user types on the screen itself, so it may only be the last step of a plan.`;
@@ -491,7 +551,7 @@ export async function buildProposal(input: ProposeInput): Promise<ProposeOutcome
     steps.push(checked.step);
   }
 
-  const shape = planShapeRefusal(input, steps);
+  const shape = planShapeRefusal(input, steps, resolved.revision);
   if (shape !== undefined) return refuse(shape);
 
   const proposalId = `prp_${crypto.randomUUID().replaceAll("-", "")}`;
@@ -514,6 +574,7 @@ export async function buildProposal(input: ProposeInput): Promise<ProposeOutcome
           pid: proposalId,
           steps: tokenSteps,
           formId: input.formId,
+          draftRevision: resolved.revision,
           issuedAt: input.issuedAt,
         });
 

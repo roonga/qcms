@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
   DEFAULT_SLICE_SECONDS,
@@ -75,7 +75,21 @@ function killGroup(leader: number | undefined, signal: NodeJS.Signals): void {
   }
 }
 
+/**
+ * This suite's own scratch root, put in the ambient environment as well: a start path
+ * reached with `process.env` would resolve the live lane's directory and replace the run
+ * files a gate is writing there.
+ */
+let inheritedRoot: string | undefined;
+
+beforeAll(() => {
+  inheritedRoot = process.env["QCMS_AGENT_SCRATCH_ROOT"];
+  process.env["QCMS_AGENT_SCRATCH_ROOT"] = temporaryDirectory();
+});
+
 afterAll(async () => {
+  if (inheritedRoot === undefined) delete process.env["QCMS_AGENT_SCRATCH_ROOT"];
+  else process.env["QCMS_AGENT_SCRATCH_ROOT"] = inheritedRoot;
   // SIGKILL cannot be trapped, so a supervisor killed outright orphans its suite.
   for (const pid of spawnedPids) killPid(pid, "SIGTERM");
   for (const directory of temporaryDirectories) {

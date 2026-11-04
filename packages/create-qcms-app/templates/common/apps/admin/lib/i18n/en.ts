@@ -1771,6 +1771,8 @@ export const messages = {
   "agent.card.note.unresolvedReference": "This step needed a value an earlier step did not report.",
   "agent.card.note.unreachable": "The request did not reach the server.",
   "agent.card.note.stale": "This proposal is more than ten minutes old.",
+  "agent.card.note.draftMoved":
+    "This form's saved draft has changed since the plan was proposed. Ask the assistant again.",
   "agent.card.note.notWired": "This screen's control is not wired to the assistant yet.",
   "agent.card.note.noBuilder":
     "This draft can only be applied from the form's own screen, with the builder open.",

@@ -46,6 +46,7 @@ const FORM_CODE_MESSAGES: Readonly<Record<string, MessageKey>> = {
   ENDPOINT_CHANGE_PENDING: "ops.error.endpointChangePending",
   ENDPOINT_PROPOSAL_NOT_FOUND: "ops.error.endpointProposalNotFound",
   ENDPOINT_PROPOSAL_NOT_PENDING: "ops.error.endpointProposalNotPending",
+  AGENT_PROPOSAL_DRAFT: "agent.card.note.draftMoved",
   unauthorized: "forms.error.unauthorized",
   rate_limited: "forms.error.rateLimited",
   internal: "forms.error.internal",

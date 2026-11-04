@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import type { Metadata } from "next";
 
 import { AuthScreen } from "@/components/auth-screen";
+import { ClearStoredConversation } from "@/components/clear-conversation";
 import { Button, TextField } from "@/components/kit";
 import { authFailureMessage } from "@/lib/auth-failure-message";
 import { t } from "@/lib/i18n/en";
@@ -33,6 +34,7 @@ export default async function SignInPage({
 
   return (
     <AuthScreen title={t("signIn.title")} error={error}>
+      <ClearStoredConversation />
       <form method="post" action="/sign-in/submit" className="flex flex-col gap-4">
         <TextField
           name="email"

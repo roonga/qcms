@@ -93,13 +93,13 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (558 files common to both shapes)
+### Scaffolded paths (559 files common to both shapes)
 
 | Path                                                                 | Files |
 | -------------------------------------------------------------------- | ----- |
 | `(project root)`                                                     | 8     |
-| `apps/`                                                              | 547   |
-| `apps/admin/`                                                        | 335   |
+| `apps/`                                                              | 548   |
+| `apps/admin/`                                                        | 336   |
 | `apps/admin/app/`                                                    | 83    |
 | `apps/admin/app/(shell)/`                                            | 64    |
 | `apps/admin/app/(shell)/@rail/`                                      | 26    |
@@ -171,7 +171,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/two-factor/recovery-codes/`                          | 2     |
 | `apps/admin/app/two-factor/recovery-codes/confirm/`                  | 1     |
 | `apps/admin/app/two-factor/recovery/verify/`                         | 1     |
-| `apps/admin/components/`                                             | 121   |
+| `apps/admin/components/`                                             | 122   |
 | `apps/admin/components/agent/`                                       | 8     |
 | `apps/admin/components/forms/`                                       | 42    |
 | `apps/admin/components/membership/`                                  | 8     |
@@ -273,7 +273,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (558)</summary>
+<summary>Every scaffolded file (559)</summary>
 
 ```
 .dockerignore
@@ -377,6 +377,7 @@ apps/admin/components/agent/step-actions.ts
 apps/admin/components/announcer.tsx
 apps/admin/components/appearance-glyph.tsx
 apps/admin/components/auth-screen.tsx
+apps/admin/components/clear-conversation.tsx
 apps/admin/components/copy-entity-id.tsx
 apps/admin/components/empty-state.tsx
 apps/admin/components/entity-id.tsx
