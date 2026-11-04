@@ -1,3 +1,6 @@
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -109,8 +112,8 @@ vi.mock("@/components/kit", () => ({
 }));
 
 async function render(params: Record<string, string> = {}): Promise<string> {
-  const { default: OperationsPage } = await import("./operations/page.tsx");
-  return renderToStaticMarkup(await OperationsPage({ searchParams: Promise.resolve(params) }));
+  const { OperationsScreen } = await import("../../components/ops/operations-screen.tsx");
+  return renderToStaticMarkup(await OperationsScreen({ searchParams: Promise.resolve(params) }));
 }
 
 describe("the Operations forms table's states", () => {
@@ -222,7 +225,7 @@ describe("the Operations forms table's states", () => {
 
 describe("the state while the read is in flight", () => {
   it("says the forms are loading, and keeps the heading the page's own", async () => {
-    const { default: OperationsLoading } = await import("./operations/loading.tsx");
+    const { OperationsLoading } = await import("../../components/ops/operations-screen.tsx");
 
     const html = renderToStaticMarkup(<OperationsLoading />);
 
@@ -230,5 +233,15 @@ describe("the state while the read is in flight", () => {
     expect(html).toContain("operations.loading");
     expect(html).toContain("shell.mode.operations.name");
     expect(html).toContain('role="status"');
+  });
+
+  it("holds that boundary in the page, so a screen below it can still answer 404", () => {
+    // A `loading.tsx` at either level wraps every `/operations/**` screen: the shell flushes
+    // first, and a nested `notFound()` then reaches the browser as 200.
+    const wrapping = ["./loading.tsx", "./operations/loading.tsx"].filter((relative) =>
+      existsSync(fileURLToPath(new URL(relative, import.meta.url))),
+    );
+
+    expect(wrapping).toEqual([]);
   });
 });

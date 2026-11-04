@@ -100,8 +100,8 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `(project root)`                                                                | 8     |
 | `apps/`                                                                         | 551   |
 | `apps/admin/`                                                                   | 339   |
-| `apps/admin/app/`                                                               | 86    |
-| `apps/admin/app/(shell)/`                                                       | 67    |
+| `apps/admin/app/`                                                               | 85    |
+| `apps/admin/app/(shell)/`                                                       | 66    |
 | `apps/admin/app/(shell)/@rail/`                                                 | 28    |
 | `apps/admin/app/(shell)/@rail/forms/`                                           | 9     |
 | `apps/admin/app/(shell)/@rail/forms/[formId]/`                                  | 7     |
@@ -142,7 +142,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/(shell)/forms/new/`                                             | 2     |
 | `apps/admin/app/(shell)/me/`                                                    | 1     |
 | `apps/admin/app/(shell)/me/access/`                                             | 1     |
-| `apps/admin/app/(shell)/operations/`                                            | 8     |
+| `apps/admin/app/(shell)/operations/`                                            | 7     |
 | `apps/admin/app/(shell)/operations/forms/`                                      | 6     |
 | `apps/admin/app/(shell)/operations/forms/[formId]/`                             | 6     |
 | `apps/admin/app/(shell)/operations/forms/[formId]/export/`                      | 1     |
@@ -177,11 +177,11 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/two-factor/recovery-codes/`                                     | 2     |
 | `apps/admin/app/two-factor/recovery-codes/confirm/`                             | 1     |
 | `apps/admin/app/two-factor/recovery/verify/`                                    | 1     |
-| `apps/admin/components/`                                                        | 123   |
+| `apps/admin/components/`                                                        | 124   |
 | `apps/admin/components/agent/`                                                  | 8     |
 | `apps/admin/components/forms/`                                                  | 42    |
 | `apps/admin/components/membership/`                                             | 8     |
-| `apps/admin/components/ops/`                                                    | 14    |
+| `apps/admin/components/ops/`                                                    | 15    |
 | `apps/admin/components/questions/`                                              | 15    |
 | `apps/admin/components/shell/`                                                  | 4     |
 | `apps/admin/components/test-support/`                                           | 3     |
@@ -337,7 +337,6 @@ apps/admin/app/(shell)/operations/forms/[formId]/links/page.tsx
 apps/admin/app/(shell)/operations/forms/[formId]/responses/[sessionId]/page.tsx
 apps/admin/app/(shell)/operations/forms/[formId]/responses/page.tsx
 apps/admin/app/(shell)/operations/forms/[formId]/webhooks/page.tsx
-apps/admin/app/(shell)/operations/loading.tsx
 apps/admin/app/(shell)/operations/page.tsx
 apps/admin/app/(shell)/questions/[questionId]/page.tsx
 apps/admin/app/(shell)/questions/actions.ts
@@ -455,6 +454,7 @@ apps/admin/components/ops/form-intake.tsx
 apps/admin/components/ops/operations-form-rail.tsx
 apps/admin/components/ops/operations-forms-rail.tsx
 apps/admin/components/ops/operations-forms-table.tsx
+apps/admin/components/ops/operations-screen.tsx
 apps/admin/components/ops/ops-tags.tsx
 apps/admin/components/ops/response-browser.tsx
 apps/admin/components/ops/response-detail.tsx
