@@ -13,6 +13,7 @@ const API_CODES = [
   "VERSION_NOT_FOUND",
   "VERSION_IMMUTABLE",
   "INVALID_VERSION_STATE",
+  "AGENT_PROPOSAL_DRAFT",
   "unauthorized",
   "rate_limited",
   "internal",
@@ -29,6 +30,13 @@ describe("messageForCode", () => {
     expect(messageForCode("VERSION_IMMUTABLE")).toMatch(/frozen/i);
     expect(messageForCode("VERSION_IMMUTABLE")).toMatch(/new version/i);
     expect(messageForCode("QUESTION_ID_REUSED")).toMatch(/never reused/i);
+  });
+
+  it("tells a card whose plan the saved draft outran to ask again", () => {
+    const message = messageForCode("AGENT_PROPOSAL_DRAFT");
+
+    expect(message).toMatch(/saved draft has changed/i);
+    expect(message).toMatch(/ask the assistant again/i);
   });
 
   it("falls back without putting a bare code in front of a human", () => {
