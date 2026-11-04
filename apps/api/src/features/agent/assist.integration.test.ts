@@ -833,6 +833,39 @@ describe("every screen's context, with a sentinel in the database", () => {
     await readEvents(walk);
     expect((await countRows()) - start).toBe(4);
   });
+
+  it("writes a further read row when one conversation returns to a subject", async () => {
+    const countRows = async (): Promise<number> => {
+      const res = await testDb.client.query<{ n: number }>(
+        `select count(*)::int as n from control.access_audit where kind = 'read' and form_id = $1`,
+        [FORM_ID],
+      );
+      return (res.rows[0] as { n: number }).n;
+    };
+    const turn = async (visitId: string, screen: string): Promise<void> => {
+      await resetLimiter();
+      const res = await post("/assist", {
+        conversation: [{ role: "user", content: "how many came in" }],
+        screen,
+        params: { formId: FORM_ID },
+        conversationId: "cnv_visits",
+        visitId,
+      });
+      expect(res.status).toBe(200);
+      await readEvents(res);
+    };
+
+    const start = await countRows();
+    await turn("vis_1", "/forms/[formId]/responses");
+    await turn("vis_1", "/forms/[formId]/responses");
+    // Two turns of one stay on the subject: one row.
+    expect((await countRows()) - start).toBe(1);
+
+    // The same conversation elsewhere, then back: the return owes its own row.
+    await turn("vis_2", "/forms/[formId]/publish");
+    await turn("vis_3", "/forms/[formId]/responses");
+    expect((await countRows()) - start).toBe(2);
+  });
 });
 
 describe("one limiter key across every assist route (Q19)", () => {

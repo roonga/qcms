@@ -73,10 +73,16 @@ function wrapTab(event: ReactKeyboardEvent<HTMLDivElement>): void {
 export function AssistantProvider({
   initial,
   secureCookies,
+  userId,
+  environment,
   children,
 }: {
   readonly initial: PanelState;
   readonly secureCookies: boolean;
+  /** Who a stored conversation must belong to before this tab restores it. */
+  readonly userId: string;
+  /** The environment this render was served for, `""` when it could not be read. */
+  readonly environment: string;
   readonly children: ReactNode;
 }) {
   const pathname = usePathname();
@@ -141,6 +147,7 @@ export function AssistantProvider({
       working,
       announcement,
       screen: screenWithFilters(screenForPath(pathname), search ?? undefined),
+      environment,
       composerRef,
       show: () => {
         setOpen(true);
@@ -164,7 +171,18 @@ export function AssistantProvider({
       setWorking,
       announce: setAnnouncement,
     }),
-    [announcement, expanded, open, pathname, remember, search, sheet, width, working],
+    [
+      announcement,
+      environment,
+      expanded,
+      open,
+      pathname,
+      remember,
+      search,
+      sheet,
+      width,
+      working,
+    ],
   );
 
   useEffect(() => {
@@ -190,7 +208,9 @@ export function AssistantProvider({
   return (
     <AssistantContext.Provider value={control}>
       <ProposalSeamProvider onReview={control.show}>
-        <ConversationProvider pathname={pathname}>{children}</ConversationProvider>
+        <ConversationProvider pathname={pathname} userId={userId}>
+          {children}
+        </ConversationProvider>
       </ProposalSeamProvider>
     </AssistantContext.Provider>
   );
@@ -394,6 +414,7 @@ export function AssistantPanelSlot() {
         <AssistantConversation
           key={conversation.id}
           screen={control.screen}
+          environment={control.environment}
           conversation={conversation}
           builder={builder}
           composerRef={control.composerRef}

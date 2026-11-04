@@ -15,9 +15,9 @@ the PII boundary statement) is `docs/agent-authoring.md`.
 
 | Method & path                               | Scope (SEC-5)                    | Notes                                                                                                                         |
 | ------------------------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `POST /admin/forms/:id/draft/assist`        | `forms:write`                    | One agent turn. Body `{ conversation, clientState?, screen?, params?, conversationId? }`. Answers `text/event-stream`.        |
+| `POST /admin/forms/:id/draft/assist`        | `forms:write`                    | One agent turn. Body `{ conversation, clientState?, screen?, params?, conversationId?, visitId? }`. Answers `text/event-stream`.        |
 | `POST /admin/forms/:id/draft/assist/accept` | `forms:write`, `questions:write` | The human's Accept. Body `{ definition, newQuestions }`. Answers a saved-draft JSON body.                                     |
-| `POST /admin/assist`                        | `forms:read`                     | One turn on the screen the body names. Body `{ conversation, screen, params?, conversationId }`. Answers `text/event-stream`. |
+| `POST /admin/assist`                        | `forms:read`                     | One turn on the screen the body names. Body `{ conversation, screen, params?, conversationId, visitId? }`. Answers `text/event-stream`. |
 
 Both turn routes share **one per-principal limiter key** (Q19), so ten turns a
 minute is the caller's whole budget rather than one budget per route.
@@ -132,15 +132,21 @@ question which members of the definition differ **by name**. Not their content,
 because a diff of authored text is not what the model needs to tell a person
 what changed between two versions.
 
-## An audited read is audited once per conversation
+## An audited read is audited once per stay on a subject
 
 A screen whose own read writes a SEC-15 `read` row writes one from an agent turn
-too (Q10), once per conversation for each distinct filter set rather than once
-per turn. D4's `list_responses` and `count_responses` key their row by the
+too (Q10), once per stay on a subject for each distinct filter set rather than
+once per turn. D4's `list_responses` and `count_responses` key their row by the
 subject the facts builder keys it by, so a turn whose facts, list and count all
-run over one filter set writes one row and not three. The key is the actor, the conversation id the admin mints, and a digest
-of the normalised filters, so a forged or reused id can add rows or skip a set
-already recorded for that same user, and can never leave a set with no row.
+run over one filter set writes one row and not three.
+
+One conversation follows the user across screens, so the key is the actor, the
+environment, the conversation id the admin mints, the stay it mints whenever that
+conversation arrives at a subject, and a digest of the normalised filters. A
+conversation that leaves a subject and returns to it therefore writes a new row
+(Code Owner, 2026-11-02). A forged or reused id can add rows or skip a stay
+already recorded for that same user, and can never leave a stay with no row; a
+turn that names no stay keeps the conversation-wide key.
 
 ## The advisory validation is the server's
 

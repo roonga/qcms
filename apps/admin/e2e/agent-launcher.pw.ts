@@ -392,7 +392,7 @@ test("names the screen in the context chip, and keeps the conversation across a 
   }
 });
 
-test("carries the builder's turns across the form's subtree and starts fresh outside it (exit criterion 9)", async ({
+test("carries one conversation across the form's subtree and out of it, and a reload keeps it", async ({
   page,
 }) => {
   test.setTimeout(300_000);
@@ -416,18 +416,20 @@ test("carries the builder's turns across the form's subtree and starts fresh out
   await expect(turns, "the builder's turns are still here").toContainText("what is on this screen");
   await expect(turns).toContainText("more detail");
 
-  await page.locator("header").getByRole("link", { name: "Operations" }).click();
-  await page.waitForURL("**/operations");
-  await expect(page.getByTestId("qcms-assistant-empty")).toBeVisible();
-
-  await page.goBack();
-  await page.waitForURL(`**/forms/${FORM_ID}/publish`);
-  await expect(turns, "returning restores the conversation").toContainText(
+  await page.locator("header").getByRole("link", { name: "Workspaces" }).click();
+  await page.waitForURL("**/workspaces");
+  await expect(turns, "leaving the form keeps the conversation").toContainText(
     "what is on this screen",
   );
 
   await page.reload();
   await waitForHydration(page);
+  await expect(
+    page.getByTestId("qcms-assistant-turns"),
+    "a reload of the same tab keeps it",
+  ).toContainText("what is on this screen");
+
+  await page.getByTestId("qcms-assistant-new").click();
   await expect(page.getByTestId("qcms-assistant-empty")).toBeVisible();
 });
 
