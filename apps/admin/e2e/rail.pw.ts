@@ -312,10 +312,9 @@ test("559 gives every rail row a real destination, which is what anchors-not-but
     .locator(".qcms-rail__link")
     .evaluateAll((links) => links.map((link) => link.getAttribute("href") ?? ""));
 
-  expect(
-    hrefs,
-    "the form, its two steps, and the four authoring screens beside it",
-  ).toHaveLength(7);
+  expect(hrefs, "the form, its two steps, and the four authoring screens beside it").toHaveLength(
+    7,
+  );
   expect(
     hrefs.filter((href) => href.endsWith("/publish")),
     "the publish row points at the wizard's route",
