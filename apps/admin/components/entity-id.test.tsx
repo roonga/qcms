@@ -4,30 +4,12 @@ import { describe, expect, it } from "vitest";
 import { EntityId } from "./entity-id.tsx";
 import { stripTags } from "./test-support/markup.ts";
 
-/**
- * What an identifying cell actually renders (issue #582).
- *
- * `renderToStaticMarkup` IS the served HTML: no hydration, no handlers. So the assertions
- * below read the markup itself rather than a proxy for it, which matters here more than
- * usual - §2 treats the copy control as a convenience **because** the whole id is in the
- * markup anyway, selectable, announced and findable by in-page search, and the links and
- * webhooks tables have no detail route to carry it. This file is where that premise is
- * checked.
- */
-
 const SESSION = "ses_45cf634512ab9f0e77c1d2e3f4a5b6c7";
 
 function markupOf(element: Parameters<typeof renderToStaticMarkup>[0]): string {
   return renderToStaticMarkup(element);
 }
 
-/**
- * The rendered text with tags removed, which is what a reader and a selection both get.
- *
- * Through `stripTags` rather than a regex of its own: a single-pass strip is the shape
- * CodeQL flags as `js/incomplete-multi-character-sanitization`, and the repository already
- * has one scanner for this (`components/test-support/markup.ts`).
- */
 function textOf(markup: string): string {
   return stripTags(markup);
 }
@@ -43,9 +25,6 @@ describe("an opaque id", () => {
   it("keeps the whole value in the server HTML, where a selection and a reader find it", () => {
     const markup = markupOf(<EntityId kind="session" value={SESSION} copy={false} />);
     expect(textOf(markup)).toBe(SESSION);
-    // Clipped, not hidden: `.qcms-visually-hidden` stays in the accessibility tree, which
-    // `display: none` would not. The width cost is the point of the abbreviation, and this
-    // is what stops the abbreviation costing the value.
     expect(markup).toContain('<span class="qcms-visually-hidden">12ab9f0e77c1d2e3f4a5b6c7</span>');
   });
 
@@ -89,17 +68,12 @@ describe("an id that is its row's anchor", () => {
         linkLabel={(shown) => `${shown}, open response ${SESSION}`}
       />,
     );
-    // Interactive content cannot nest, and a button inside an anchor is exactly that. The
-    // anchor closes before the button opens.
     expect(markup.indexOf("</a>")).toBeLessThan(markup.indexOf("<button"));
     expect(markup).toContain(`aria-label="ses_45cf6345, open response ${SESSION}"`);
     expect(markup).toContain('href="/forms/frm_x/responses/ses_45cf634512ab9f0e77c1d2e3f4a5b6c7"');
   });
 
   it("names the destination in full, so the anchor identifies the row it opens", () => {
-    // The accessible name carries the WHOLE id even though the cell shows eight characters
-    // of it: the abbreviation is a width decision, and a row announced by a prefix would
-    // be a row a screen-reader user cannot tell from another.
     const markup = markupOf(
       <EntityId
         kind="session"
@@ -112,12 +86,6 @@ describe("an id that is its row's anchor", () => {
   });
 
   it("builds the name on the string the cell paints, so 2.5.3 cannot drift", () => {
-    // The label builder is handed the PAINTED head and nothing else, which is what stops a
-    // caller holding the whole value from opening the name with a 32-character string the
-    // cell never shows. axe-core 4.14.0 compares visible text to accessible name by WORD
-    // rather than by substring, so `ses_45cf6345` sitting inside the longer value is a
-    // violation there and was one here: a speech-input operator saying what the cell shows
-    // matched nothing (`docs/a11y.md`, "Label in name").
     let seen = "";
     const markup = markupOf(
       <EntityId
@@ -133,8 +101,6 @@ describe("an id that is its row's anchor", () => {
     );
     expect(seen).toBe("ses_45cf6345");
     expect(textOf(markup).startsWith(seen)).toBe(true);
-    // The front of the name IS the front of the cell, as one string rather than two that
-    // happen to agree.
     expect(markup).toContain('aria-label="ses_45cf6345, ');
   });
 });

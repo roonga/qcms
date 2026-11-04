@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { readAssistEvents, type AssistEvent } from "./assist-stream.ts";
 
-/** A `ReadableStream<Uint8Array>` that emits each string as its own chunk. */
 function streamOf(chunks: readonly string[]): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
   return new ReadableStream({
@@ -13,7 +12,6 @@ function streamOf(chunks: readonly string[]): ReadableStream<Uint8Array> {
   });
 }
 
-/** One frame, in the wire shape the API's SSE relay emits. */
 function frame(type: string, data: Record<string, unknown>): string {
   return `event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`;
 }
@@ -24,7 +22,6 @@ async function collect(body: ReadableStream<Uint8Array>): Promise<AssistEvent[]>
   return events;
 }
 
-/** One `apply-draft` step, in the wire shape the propose tools emit. */
 function applyDraftStep(draft: Record<string, unknown>): Record<string, unknown> {
   return {
     kind: "apply-draft",
@@ -115,9 +112,6 @@ describe("readAssistEvents", () => {
   });
 
   it("carries both advisory lists through on the step that applies a draft", async () => {
-    // Both channels, because they are two different claims about the same draft
-    // (issue #123) and a parser that read only the first would silently turn a
-    // warned draft into a clean one on the way to the card.
     const draft = {
       definition: { formId: "frm_a", steps: [], rules: [] },
       newQuestions: [],
@@ -134,8 +128,6 @@ describe("readAssistEvents", () => {
   });
 
   it("reads an applied draft with no warnings key as no warnings, not as absent", async () => {
-    // Defensive on the same side `parseIssues` already is: the card maps over this list,
-    // so a missing key has to arrive as `[]` rather than `undefined`.
     const events = await collect(
       streamOf([
         frame("action", {
@@ -168,7 +160,7 @@ describe("readAssistEvents", () => {
 
   it("reads a final frame that arrives with no trailing blank line", async () => {
     const whole = frame("text", { delta: "last one" });
-    // Cut the trailing "\n\n" off entirely, as a stream that ends right after `data:` would.
+
     const body = streamOf([whole.slice(0, -2)]);
     const events = await collect(body);
     expect(events).toEqual([{ type: "text", delta: "last one" }]);

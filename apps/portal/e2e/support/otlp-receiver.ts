@@ -4,10 +4,8 @@ import { dirname } from "node:path";
 
 import { OTLP_CAPTURE_PATH, OTLP_PORT } from "./harness-config.js";
 
-/** The scalar shapes an OTLP attribute value can flatten to. */
 export type CapturedAttributeValue = string | number | boolean;
 
-/** One span, flattened out of the OTLP JSON envelope for assertions. */
 export interface CapturedSpan {
   readonly traceId: string;
   readonly spanId: string;
@@ -15,7 +13,7 @@ export interface CapturedSpan {
   readonly name: string;
   /** OTLP span kind: 2 = SERVER, 3 = CLIENT, 1 = INTERNAL. */
   readonly kind: number;
-  /** `service.name` from the owning resource. */
+
   readonly serviceName: string;
   readonly attributes: Readonly<Record<string, CapturedAttributeValue>>;
 }
@@ -30,7 +28,6 @@ export interface CapturedLog {
 
 let server: Server | undefined;
 
-/** Start the receiver and truncate the capture file for this run window. */
 export async function startOtlpReceiver(): Promise<void> {
   if (server !== undefined) return;
   mkdirSync(dirname(OTLP_CAPTURE_PATH), { recursive: true });
@@ -68,7 +65,6 @@ export async function stopOtlpReceiver(): Promise<void> {
   });
 }
 
-/** Every exported OTLP payload received so far, as raw text (the SEC-13 grep). */
 export function readCapturedPayloads(): string {
   try {
     return readFileSync(OTLP_CAPTURE_PATH, "utf8");
@@ -117,7 +113,6 @@ interface OtlpResourceLogs {
   scopeLogs?: { logRecords?: OtlpLogRecord[] }[];
 }
 
-/** Flatten OTLP's typed attribute values to scalars, dropping anything else. */
 function flattenAttributes(
   attributes: OtlpAttribute[] | undefined,
 ): Record<string, CapturedAttributeValue> {
@@ -134,7 +129,6 @@ function flattenAttributes(
   return out;
 }
 
-/** Flatten every span carried by one resource, stamping its `service.name`. */
 function spansOfResource(resourceSpan: OtlpResourceSpans): CapturedSpan[] {
   const resource = flattenAttributes(resourceSpan.resource?.attributes);
   const service = resource["service.name"];

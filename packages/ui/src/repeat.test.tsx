@@ -25,9 +25,6 @@ import { axeViolations } from "./test-support/a11y.ts";
 import { loadGoldenForms } from "./test-support/golden.ts";
 import { documentForVisible } from "./visible.ts";
 
-// Every document comes from the golden corpus rather than being hand-written, so the
-// shapes asserted are the shapes the compiler emits.
-
 const OPEN_GROUP = "repeat-open-group";
 const COUNT_SOURCES = "repeat-count-sources";
 
@@ -63,7 +60,7 @@ describe("the qualified field name", () => {
 
   it("renumbers an instance label from the live ordinal and never from the id", () => {
     expect(instanceLabelFor("Vehicle {n}", 3)).toBe("Vehicle 3");
-    // A template with no placeholder is legal (a group of one) and resolves to itself.
+
     expect(instanceLabelFor("The vehicle", 2)).toBe("The vehicle");
     expect(removeLabelFor("Remove {label}", "Vehicle 3")).toBe("Remove Vehicle 3");
   });
@@ -119,9 +116,9 @@ describe("expansion clones the template per live instance", () => {
       expect(json).toContain(`"${qualifiedFieldName(instanceId, "q_rep_plate")}"`);
       expect(json).toContain(`"Vehicle ${String(index + 1)}"`);
     }
-    // The qualified name is the field's whole identity below the API.
+
     expect(json).not.toContain('"name":"q_rep_plate"');
-    // Roster order, not id order.
+
     const first = json.indexOf(roster[0]);
     const last = json.indexOf(roster[2]);
     expect(first).toBeLessThan(last);
@@ -227,7 +224,6 @@ describe("expansion clones the template per live instance", () => {
   });
 
   it("leaves a stacked group on the same step untouched by the narrowing", () => {
-    // Every instance of a stacked group beside it belongs on every page.
     const { document, spec } = goldenStep(COUNT_SOURCES, "stp_drivers");
     const roster = instances(2);
     const { container } = render(
@@ -264,13 +260,11 @@ describe("expansion clones the template per live instance", () => {
   });
 
   it("prunes an already-expanded instance against the visible set", () => {
-    // The hydrated portal's ordering: it hands the whole expanded tree to the
-    // commit-moment walk and the error summary, so the renderer's own pass is where the
-    // visible set can be applied.
+    // Prune the expanded tree before commit and summary walks so qualified visible names are available.
     const { document } = goldenStep(OPEN_GROUP, "stp_fleet");
     const roster = instances(2);
     const expanded = expandRepeatGroups(document.root, { rosters: { grp_vehicles: roster } });
-    // Every member of both instances, because no visible set was given.
+
     expect(JSON.stringify(expanded)).toContain(
       `"${qualifiedFieldName(roster[1], "q_rep_service_date")}"`,
     );
@@ -313,7 +307,7 @@ describe("expansion clones the template per live instance", () => {
     );
     everything.add("q_rep_fleet_name");
     expect(expandRepeatGroups(expanded, { visible: everything })).toBe(expanded);
-    // And with no visible set at all, which is the admin preview's call.
+
     expect(expandRepeatGroups(expanded, { rosters: { grp_vehicles: roster } })).toBe(expanded);
   });
 
@@ -352,7 +346,7 @@ describe("the instance card (plan section 4.3, Q11, Q12)", () => {
       expect(card).not.toBeNull();
       const legend = card!.querySelector("legend");
       expect(legend).not.toBeNull();
-      // One element naming the group and reachable by heading navigation.
+
       const heading = legend!.querySelector("h4");
       expect(heading?.textContent).toBe(`Vehicle ${String(index + 1)}`);
       expect(heading?.id).toBe(instanceId);
@@ -392,9 +386,6 @@ describe("the instance card (plan section 4.3, Q11, Q12)", () => {
   }
 
   it("marks the autofocus target the host named, and nothing else", () => {
-    // Asserted on the rendered attribute rather than the prop, because the way this
-    // broke was a renderer that accepted `autofocusId` and never put it in the repeat
-    // context, losing the focus move with nothing else looking wrong.
     const roster = instances(2);
     const second = roster[1] ?? "";
     const marked = autofocusTags(nativeMarkup(roster, second));
@@ -631,8 +622,7 @@ describe("an embedded document renumbers both repeat headings exactly once", () 
     });
     const demoted = withDemotedHeadings(expanded, 1);
     const json = JSON.stringify(demoted);
-    // The instance's level is clamped at the last one, which is the demotion list's
-    // tail behaviour rather than a second rule.
+
     expect(json).toContain('"as":"h4","size":"lg"');
     expect(json).toContain('"headingAs":"h4"');
   });

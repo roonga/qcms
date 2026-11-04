@@ -6,12 +6,6 @@ import type { AgentProposal } from "../forms/assist-stream.ts";
 import { proposalWindowMs } from "./plan-state.ts";
 import { remainingWindowMs, startedWindow, useExpiryTick } from "./proposal-window.ts";
 
-/**
- * The window a card waits in is the server's length counted from arrival on a monotonic
- * clock. What is asserted here is that the browser's own clock cannot move it, and that
- * the tick runs once, only while the card waits.
- */
-
 const PROPOSAL: AgentProposal = {
   proposalId: "prp_window",
   token: "tok",

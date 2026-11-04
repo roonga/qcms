@@ -8,12 +8,6 @@ import { t, tPlural } from "@/lib/i18n/en";
 
 import { ApplyDraftDetail } from "./apply-draft-detail";
 
-/**
- * What the `apply-draft` step shows: the diff against the working draft in full, and the
- * server's two advisory lists kept apart. Both were the shipped proposal panel's
- * guarantees and are now the card's.
- */
-
 const CURRENT: DraftForm = {
   formId: "frm_quote",
   defaultLocale: "en",
@@ -28,7 +22,6 @@ const CURRENT: DraftForm = {
   rules: [],
 };
 
-/** Mounts the bridge the builder publishes, which is where the card reads the draft from. */
 function WithBuilder({
   draft,
   current,
@@ -127,11 +120,6 @@ describe("the apply-draft step's detail", () => {
     );
   });
 
-  /**
-   * Issue #1065: a step pin on a question this same draft invents is reported by the
-   * kernel as dangling, and the builder's sentence for that code tells the author to pin a
-   * question that is already pinned. Say what actually happens instead.
-   */
   it("explains a pin on a question the draft itself invents", () => {
     const definition = {
       formId: "frm_quote",

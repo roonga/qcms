@@ -10,15 +10,10 @@ import {
 import { OPERATIONS_PATH } from "@/lib/shell/modes";
 
 /**
- * The rail beside one form's operational screens (Code Owner, 2026-11-02).
- *
- * Its rows are the operational contexts alone: a form's authoring screens are the editor's
- * and are not reachable from here, because this mode's reads are one environment's and
- * authoring edits a shared draft.
- *
- * Navigation beside a page rather than authority, as the form editor's rail is: a row the
- * caller holds no cell for leads to that screen's own refusal. What is narrowed by the
- * caller's cells is the Operations table, which is where a form is chosen.
+ * The rail beside one form's operational screens: the operational contexts alone, because
+ * this mode reads one environment and authoring edits a shared draft. It is navigation
+ * rather than authority, so a row the caller holds no cell for meets that screen's own
+ * refusal.
  */
 export function OperationsFormRail({
   formId,

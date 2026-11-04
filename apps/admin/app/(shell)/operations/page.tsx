@@ -26,18 +26,6 @@ export function generateMetadata(): Metadata {
   return pageMetadata(t("shell.mode.operations.name"));
 }
 
-/**
- * Operations: the forms a caller operates in one explicitly chosen environment.
- *
- * The filters, the order and the page position are the address, so a filtered table is a
- * link, survives a refresh and is restored by browser back; the `@rail` slot beside this
- * column reads that same address. The environment is the header's own control, and the
- * address records which one a view was built for so that leaving it resets the page.
- *
- * The capability gate here is what a denied bookmark meets, and it names nothing it
- * refused. It is not the authority: `GET /admin/operations/forms` re-decides per form,
- * cell and environment, and a discovery read that failed denies nothing.
- */
 export default async function OperationsPage({
   searchParams,
 }: {
@@ -50,9 +38,6 @@ export default async function OperationsPage({
   }
 
   const resolved = await resolvedEnvironment(session);
-  // One authority for the environment, and it is the header's control rather than the
-  // address: a chip saying `prod` beside a table reading `test` is the disagreement A12
-  // exists to prevent.
   const environment = shownEnvironment(resolved);
   const read = readOperationsListState(await searchParams);
   const state = environment === undefined ? read : operationsInEnvironment(read, environment);
@@ -78,12 +63,8 @@ export default async function OperationsPage({
         <Alert variant="error">{t("operations.loadFailed", { message: result.message })}</Alert>
       )}
 
-      {/* A refusal says this caller operates no form, which is the unfiltered empty panel
-          and not the alert above: the two states are told apart here rather than merged. */}
       {result?.status === "denied" && <NoForms state={{ ...state, isFiltered: false }} />}
 
-      {/* The table, both empty states and the pager are inside the ok branch: a read that
-          failed knows nothing about how many forms this installation has. */}
       {result?.status === "ok" &&
         (result.page.forms.length === 0 ? (
           <NoForms state={state} />
@@ -100,10 +81,6 @@ export default async function OperationsPage({
   );
 }
 
-/**
- * Nothing to show, in its two variants: a filter that matched nothing keeps the panel and
- * offers the way out, while an installation this caller operates nothing in says why.
- */
 function NoForms({ state }: { readonly state: OperationsListState }) {
   if (state.isFiltered) {
     return (
@@ -127,11 +104,7 @@ function NoForms({ state }: { readonly state: OperationsListState }) {
   );
 }
 
-/**
- * Forward paging, plus the way back to the first page. The route issues a position rather
- * than an offset and no backward cursor, so there is no previous-page link to render;
- * browser back walks the positions already visited.
- */
+/* The API returns a forward cursor only; browser Back revisits earlier positions. */
 function Pager({
   state,
   next,

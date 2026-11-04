@@ -1,59 +1,33 @@
 import type { FormIssue } from "./types.ts";
 import { parseIssues } from "./issues.ts";
 
-/**
- * The assist SSE stream, parsed client-side (task 041).
- *
- * The API relays `apps/api/src/features/agent/types.ts`'s `AssistEvent` union as
- * one `event: <type>\ndata: <json>\n\n` frame per item. This module redeclares that
- * union rather than importing it: the admin has no path across the app boundary (R2,
- * and there is no shared package for it), so what lives here is a *view* of the wire
- * bytes, the same stance `lib/forms/issues.ts` and `lib/server/forms.ts` take on every
- * other API payload. `FormIssue` is the one exception, reused rather than redeclared,
- * because a proposal's `issues` are literally the same `PublishIssue[]` shape the
- * builder's own validation panel already renders.
- *
- * A proposed draft and the questions it invents stay `unknown` here on purpose: turning
- * them into something the card can diff is `lib/forms/assist-diff.ts`'s job, not this
- * parser's.
- */
+// Mirror the API wire shape without cross-app imports. Keep proposed draft bytes unknown until the shared draft reader parses them.
 
 export interface AssistTurn {
   readonly role: "user" | "assistant";
   readonly content: string;
 }
 
-/**
- * The draft the one `apply-draft` step carries, which is what the card diffs and shows
- * the two advisory lists for. Both lists are the server's own validation of this draft,
- * so a card can never claim more about it than the server said.
- */
+// Preserve both server advisory lists; a card cannot claim more safety than the API reported.
 export interface AgentDraftProposal {
-  /** The kernel's `FormDefinition`, as JSON. Parsed by `assist-diff.ts`, not here. */
   readonly definition: unknown;
-  /** The kernel's `QuestionDefinition[]` for any questions the draft introduces. */
+
   readonly newQuestions: readonly unknown[];
-  /** What would block a publish. */
+
   readonly issues: readonly FormIssue[];
-  /** What would not block a publish but may not behave as written (issue #123). */
+
   readonly warnings: readonly FormIssue[];
 }
 
-/**
- * One step of a proposed action or plan, as the `action` and `plan` events carry it.
- * `args` stays an opaque map: the card renders each argument from the kind and
- * the catalog, and an argument may be a `{ fromStep, field }` reference the card resolves
- * from the earlier step's own returned state.
- */
+// Keep args opaque: a value may reference an earlier step result rather than carrying a literal.
 export interface AgentCardTemplate {
   readonly titleKey: string;
   readonly consequenceKeys: readonly string[];
-  /** The heading-row control the proposal marker sits on, or absent for none. */
+
   readonly headingControl?: string;
-  /** The argument the user retypes on the card, for a step whose dialog asks for one. */
+
   readonly typedConfirmation?: string;
-  /** For a create kind: the page route the card links the new item at, and the result
-   * field that fills the route's own id. */
+
   readonly createdLink?: AgentCreatedLink;
 }
 
@@ -64,42 +38,34 @@ export interface AgentCreatedLink {
 
 export interface AgentPlanStep {
   readonly kind: string;
-  /** The screen whose own server action Confirm calls for this step. */
+
   readonly screen: string;
   readonly args: Readonly<Record<string, unknown>>;
   readonly environment: string;
-  /** A step whose arguments include a secret the user types on the screen itself. */
+
   readonly handOff: boolean;
-  /** A step the screen's own save completes, which carries no token. */
+
   readonly local: boolean;
-  /** Present on the one step that applies the draft this turn proposed. */
+
   readonly draft?: AgentDraftProposal;
   readonly card: AgentCardTemplate;
-  /** The non-secret fields this step may report to the next turn (SEC-17 section 7.6). */
+  // Only these non-secret result fields may be reported to a subsequent assistant turn.
   readonly resultAllowlist: readonly string[];
 }
 
 export interface AgentProposal {
   readonly proposalId: string;
-  /** Absent when every step is a hand-off, which carries no token. */
+  // Hand-off-only plans have no confirmation token.
   readonly token: string | undefined;
   readonly steps: readonly AgentPlanStep[];
   readonly proposedAt: string;
   readonly expiresAt: string;
   readonly formId: string | undefined;
-  /** The environment the switcher named for the turn that proposed this. */
+
   readonly currentEnvironment: string;
 }
 
-/**
- * The API's assist error codes, mirrored here.
- *
- * Mirrored rather than imported: this app is a strict BFF and takes no value
- * import from the API (R2). The mirror is kept honest by
- * `assist-error-codes.test.ts`, which reads the API's own declaration as text and
- * fails when the two lists diverge - and which also asserts every code has copy,
- * because a code the panel cannot render is the defect `STEP_LIMIT` was.
- */
+// assist-error-codes tests compare this wire mirror with API declarations and require distinct catalog copy.
 export const ASSIST_ERROR_CODES = [
   "PROVIDER_ERROR",
   "PROVIDER_REJECTED",
@@ -116,13 +82,11 @@ export type AssistEvent =
       readonly type: "status";
       readonly phase: "thinking" | "tool";
       readonly tool?: string;
-      /** A `tool` status's per-turn step ordinal, which its `tool-outcome` names. */
+
       readonly step?: number;
     }
   | { readonly type: "tool-outcome"; readonly step: number; readonly outcome: "done" | "failed" }
-  /** A chunk of prose. `segment` is the provider's text-segment id; absent, every delta folds into one segment. */
   | { readonly type: "text"; readonly delta: string; readonly segment?: string }
-  /** A chunk of the provider's reasoning summary; the client renders it because events came, never from a flag (ADR-24). */
   | { readonly type: "reasoning"; readonly delta: string }
   | { readonly type: "reasoning-end" }
   | { readonly type: "tool-rejected"; readonly tool: string }
@@ -132,27 +96,13 @@ export type AssistEvent =
       readonly outputTokens: number;
       readonly steps: number;
     }
-  /** One proposed action, which is a plan of one step. */
   | { readonly type: "action"; readonly proposal: AgentProposal }
   | { readonly type: "plan"; readonly proposal: AgentProposal }
   | { readonly type: "error"; readonly code: AssistErrorCode; readonly message: string };
 
-/** SSE frames are separated by one blank line, whatever their own line endings are. */
 const FRAME_SEPARATOR = "\n\n";
 
-/**
- * Read every `AssistEvent` out of an SSE body, in the order the server sent them.
- *
- * A chunk from a browser `fetch` call's response body is not a frame: it is a slab of bytes that can split
- * a frame across two chunks, or carry several frames at once, at the network's own
- * discretion. `TextDecoder`'s `stream: true` keeps a partial multi-byte character
- * across chunk boundaries, and the buffer here keeps a partial *frame* the same way -
- * both are read out only once a complete unit is available. A frame this parser
- * cannot make sense of (no `data:` line, or a `data:` payload that is not the JSON
- * shape one of the variants above expects) is skipped rather than thrown: one
- * event this build does not recognise should not end a stream the rest of which is
- * perfectly good.
- */
+// Fetch chunks can split frames and UTF-8 characters. Decode incrementally and buffer frames rather than treating each chunk as an event.
 export async function* readAssistEvents(
   body: ReadableStream<Uint8Array>,
 ): AsyncGenerator<AssistEvent> {
@@ -173,8 +123,7 @@ export async function* readAssistEvents(
         boundary = buffer.indexOf(FRAME_SEPARATOR);
       }
     }
-    // A stream may end without a trailing blank line after its last frame. Flush the
-    // decoder's own pending bytes and give whatever is left one final try.
+    // Flush pending decoder bytes and an unterminated final frame when the stream closes.
     buffer += decoder.decode();
     const trailing = parseFrame(buffer);
     if (trailing !== undefined) yield trailing;
@@ -183,7 +132,6 @@ export async function* readAssistEvents(
   }
 }
 
-/** One `event: <type>\ndata: <json>` frame, or `undefined` when it cannot be read. */
 function parseFrame(frame: string): AssistEvent | undefined {
   const dataLines = frame
     .split("\n")
@@ -322,11 +270,7 @@ function toCardTemplate(raw: unknown): AgentCardTemplate | undefined {
   };
 }
 
-/**
- * One step, or `undefined` when the frame cannot be read. A step this build cannot read
- * drops the whole proposal rather than showing a plan with a gap in it: the card's second
- * rule is that every step is displayed, so a partial plan must not reach the screen.
- */
+// An unreadable step invalidates the whole proposal; never show a confirmation plan with omitted steps.
 function toAgentPlanStep(raw: unknown): AgentPlanStep | undefined {
   if (!isKeyedObject(raw)) return undefined;
   const kind = raw["kind"];
@@ -351,7 +295,6 @@ function toAgentPlanStep(raw: unknown): AgentPlanStep | undefined {
   };
 }
 
-/** The draft an `apply-draft` step carries, or nothing for every other kind. */
 function toDraftProposal(raw: unknown): AgentDraftProposal | undefined {
   if (!isKeyedObject(raw)) return undefined;
   const definition = raw["definition"];
@@ -382,8 +325,7 @@ function toAgentProposal(raw: unknown): AgentProposal | undefined {
   const token = raw["token"];
   const formId = raw["formId"];
   const currentEnvironment = raw["currentEnvironment"];
-  // Dropped rather than defaulted: a step that names its own destination is sent with the
-  // selection this turn ran under, and a frame without one could not be confirmed.
+  // Do not invent a missing destination environment: confirmation is bound to the selection under which the turn ran.
   if (typeof currentEnvironment !== "string" || currentEnvironment === "") return undefined;
   return {
     proposalId,

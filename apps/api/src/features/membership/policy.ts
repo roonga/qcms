@@ -1,6 +1,6 @@
-// Specification: section 6 of `plan/environments-and-workspaces.md`. `forms.` and
-// `responses.` roles are separate families and neither implies the other (ADR-41, SEC-3).
-// Conditions live in grant scope; `dynamicAccessControl` stays unused (no mixed-family roles).
+// Specification: section 6 of `plan/environments-and-workspaces.md`. `forms.` and `responses.` roles are
+// separate families and neither implies the other (ADR-41). Conditions live in grant scope;
+// `dynamicAccessControl` stays unused (no mixed-family roles).
 
 import { createAccessControl } from "better-auth/plugins/access";
 import { defaultStatements } from "better-auth/plugins/organization/access";

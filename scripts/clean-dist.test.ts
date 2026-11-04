@@ -25,8 +25,6 @@ afterAll(() => {
 
 describe("removing the build output", () => {
   it("removes a dist directory left by an earlier configuration", () => {
-    // `tsc` overwrites but never deletes, so a file a previous build emitted keeps
-    // resolving long after its source is gone.
     const dir = packageDir();
     mkdirSync(join(dir, "dist", "nested"), { recursive: true });
     writeFileSync(join(dir, "dist", "withdrawn-export.js"), "export const stale = 1;\n", "utf8");
@@ -46,8 +44,6 @@ describe("removing the build output", () => {
 
 describe("refusing anything that is not a package's own build output", () => {
   it("refuses a directory with no package.json beside it", () => {
-    // A recursive delete must fail closed: from the wrong cwd this would remove a
-    // `dist` belonging to nobody.
     const dir = mkdtempSync(join(tmpdir(), "clean-dist-bare-"));
     tempDirs.push(dir);
     expect(resolveTarget(dir, "dist")).toEqual({

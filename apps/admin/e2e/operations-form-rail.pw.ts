@@ -6,39 +6,8 @@ import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 import { submitResponse } from "./support/ops.js";
 
 /**
- * One form's operational screens in a browser: the rail beside them, the tab each names,
- * and the journey a response viewer actually walks (Code Owner, 2026-11-02).
- *
- * # Why this file exists beside `rail-screens.pw.ts`
- *
- * That spec sweeps the form SUBTREE's rail - the steps nested under the form's own row,
- * the §7 sibling sections, the actions part. These five screens left that subtree: they
- * read one environment, their rail is the four operational contexts and nothing else, and a
- * row for them in that sweep would assert the wrong rail. `lib/route-registration.test.ts`
- * sends every route under `/operations/forms/[formId]` here, so a sixth operational screen
- * is a red there rather than a screen whose rail and browser tab are measured by nothing.
- *
- * # What only a browser can report
- *
- * `lib/rail-routes.test.ts` reads each slot page and checks which row it names, which is a
- * fact about the source. That the rendered rail then marks that row, and that the document
- * carries the title `lib/page-title.test.ts` proved was composed, are facts only a browser
- * has. Five identical tabs across five screens of one form is the defect issue #536 was
- * filed for, one scope along.
- *
- * # The response viewer's environment
- *
- * The journey below is this suite's narrowest persona: `responses.viewer` and no owner
- * row, so the only context its rows offer is Responses - no links, no webhooks, no intake,
- * and no authoring screen anywhere. It walks `test` first, because the ruling's claim is
- * that these screens are the SELECTED environment's, and `test` is where that is visible:
- * the viewer reaches Operations there and the form's responses there, and the list is
- * empty because nothing was submitted into it.
- *
- * The one response is then read in the environment that has one. The respondent routes are
- * mounted with a fixed environment (`fixedEnvironment`, the start-session handler), so this
- * harness can submit into `prod` and no other - which is why the second leg names `prod`
- * rather than the suite making a test-environment submission it has no respondent for.
+ * One form's operational screens in a browser: their rail, their tabs, and the journey a
+ * response viewer walks. The editor's rail is swept by `rail-screens.pw.ts` instead.
  */
 
 test.describe.configure({ mode: "serial" });
@@ -75,8 +44,7 @@ function screens(): readonly Screen[] {
     {
       path: `/operations/forms/${FORM_ID}/responses/${sessionId}`,
       current: "section:responses",
-      // The session id alone: it identifies one response across the deployment, which is
-      // the complaint issue #510 was filed for and #536 finished.
+      // The session id alone: it identifies one response across the deployment.
       title: `Response ${sessionId} - QCMS`,
     },
     {
@@ -176,8 +144,8 @@ test("the builder offers no intake act, because that screen is authoring now", a
   await signInWithTotp(page, OPERATOR, operatorSecret);
   await page.goto(`/forms/${FORM_ID}`);
 
-  // Absent, not disabled. The editor is authoring (Code Owner, 2026-11-02), so a caller
-  // looking for the intake door is sent to Operations rather than offered a refusal here.
+  // Absent, not disabled: a caller looking for the intake door is sent to Operations
+  // rather than offered a refusal on an authoring screen.
   await expect(page.getByRole("button", { name: /^Close in /u })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /^Reopen in /u })).toHaveCount(0);
   await expect(page.getByTestId("qcms-publish-entry")).toBeVisible();

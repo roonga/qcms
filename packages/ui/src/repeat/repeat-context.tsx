@@ -6,9 +6,8 @@ import { createContext, useContext } from "react";
  * out a message delivered via a change in context.
  */
 export interface QcmsRepeatContextValue {
-  /** Scripted only: ask the host to add an instance to this group. */
   readonly onAdd?: (groupId: string) => void;
-  /** Scripted only: ask the host to remove this instance. */
+
   readonly onRemove?: (groupId: string, instanceId: string) => void;
   /**
    * A whole sentence, never a changing number, because 4.1.3's Understanding warns that
@@ -16,7 +15,7 @@ export interface QcmsRepeatContextValue {
    * a step holding two announces beside the one that changed.
    */
   readonly status?: { readonly groupId: string; readonly message: string };
-  /** The group a roster write is currently in flight for, so its controls can wait. */
+
   readonly busyGroupId?: string;
   /**
    * An instance id, or a group's Add button id when a removal emptied the group.

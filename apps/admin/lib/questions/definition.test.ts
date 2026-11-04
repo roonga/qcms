@@ -20,18 +20,6 @@ import {
 } from "./definition.ts";
 import { VALIDATION_MESSAGE_KEYS, type ChoiceOptionView } from "./types.ts";
 
-/**
- * Exit criterion 2 lives here, and in the Playwright walk.
- *
- * "Option ids are stable across reorder and relabel" is the one property in this task
- * whose violation is silent and unrecoverable: nothing fails, no error is raised, and
- * every rule and every stored answer that referenced the moved id now means something
- * else (R6). So it is asserted twice, at two levels - here over the pure functions that
- * make it true, and in the browser over the editor that uses them. This layer is the one
- * that can enumerate the awkward cases cheaply: a relabel to an empty string, a move that
- * would fall off either end, a remove from the middle.
- */
-
 const RED = "opt_red";
 const BLUE = "opt_blue";
 
@@ -57,9 +45,6 @@ describe("questionIdFromSlug", () => {
   });
 
   it("reports no id at all rather than an invalid one", () => {
-    // `q_` alone fails the kernel's `^q_[a-z0-9_]+$`, so proposing it would be an error
-    // the author could not act on. An empty proposal is what the screen renders as
-    // "enter a slug to see the ID".
     expect(questionIdFromSlug("!!!")).toBe("");
     expect(questionIdFromSlug("")).toBe("");
   });
@@ -95,8 +80,7 @@ describe("option ids never move (R6, exit criterion 2)", () => {
   it("carries the id with the option when it moves", () => {
     const moved = moveOption(options(), 0, 1);
     expect(idsOf(moved)).toEqual([BLUE, RED, "opt_green"]);
-    // The label that travelled with the id is the assertion that matters: a swap that
-    // moved labels rather than records would leave `opt_red` labelled "Blue".
+
     expect(textOf(moved[1]?.label)).toBe("Red");
     expect(moved[0]?.optionId).toBe(BLUE);
     expect(textOf(moved[0]?.label)).toBe("Blue");
@@ -132,9 +116,6 @@ describe("localized", () => {
 
 describe("blankDefinition", () => {
   it("starts a choice question with no options at all", () => {
-    // Deliberate, and the alternative was tried: a pre-seeded row would have its id
-    // minted from a blank label and then frozen forever (R6), leaving an author who typed
-    // "Red" with a permanent `opt_option`. Options are added, and named as they are added.
     expect(blankDefinition("singleChoice", "q_colour").options).toEqual([]);
   });
 
@@ -201,17 +182,12 @@ describe("CONSTRAINT_FIELDS", () => {
 
 describe("text a author is still typing", () => {
   it("keeps a trailing space so a sentence can be typed normally", () => {
-    // The bug this pins: `localized` trims, and in a fully controlled field the trimmed
-    // value flows straight back into the input, so the space is gone before the next
-    // keystroke. An author could add a space mid-sentence but never at the end.
     expect(localizedDraft("Your policy number ")).toEqual({ en: "Your policy number " });
     expect(localizedDraft(" leading")).toEqual({ en: " leading" });
     expect(localizedDraft("  ")).toEqual({ en: "  " });
   });
 
   it("still treats a genuinely empty field as absent", () => {
-    // The kernel rejects an empty LocalizedText value, so an untouched optional field
-    // has to be absent rather than { en: "" }.
     expect(localizedDraft("")).toBeUndefined();
   });
 
@@ -247,24 +223,6 @@ describe("text a author is still typing", () => {
   });
 });
 
-/**
- * Author-supplied validation messages and the boolean label overrides (task 048, ADR-32
- * and ADR-36), exit criteria 4 and 5.
- *
- * Two properties carry this feature and both are silent when broken, which is why they are
- * pinned here rather than left to the browser walk:
- *
- * 1. **A blank field inherits.** ADR-32 puts the fallback at the edit level, so "no
- *    override" has to reach the wire as an ABSENT key. A `{ en: "" }` or a `messages: {}`
- *    would each be a stored artefact of an author having looked at the box, and the first
- *    is a kernel validation error on a field nobody filled in.
- * 2. **An orphan never leaves the editor.** The editor renders a message field only for a
- *    constraint the question carries, and `forWire` prunes on the same rule, so clearing
- *    "Shortest answer" or switching a draft's type takes the message with it. If the two
- *    ever disagreed, publish would fail with `ORPHAN_MESSAGE_KEY` pointing at a field the
- *    screen no longer shows.
- */
-
 const SHORT_TEXT = {
   questionId: "q_policy",
   type: "shortText",
@@ -273,9 +231,6 @@ const SHORT_TEXT = {
 
 describe("VALIDATION_MESSAGE_KEYS", () => {
   it("restates the kernel's canonical key order exactly", () => {
-    // The admin cannot import `ValidationMessageKey` (R2), so this list is a copy, and the
-    // order is load-bearing twice over: the editor renders the fields in it and `forWire`
-    // serializes in it. A silent reorder here would change the bytes a save sends.
     expect([...VALIDATION_MESSAGE_KEYS]).toEqual([
       "required",
       "minLength",
@@ -292,8 +247,6 @@ describe("VALIDATION_MESSAGE_KEYS", () => {
 
 describe("authoredMessageKeys", () => {
   it("offers a message only for a constraint the question actually carries", () => {
-    // The type COULD have `minLength` and `pattern`; this question does not, so neither
-    // can ever produce an error and neither gets a field.
     expect(authoredMessageKeys({ ...SHORT_TEXT, constraints: { maxLength: 20 } })).toEqual([
       "maxLength",
     ]);
@@ -315,9 +268,6 @@ describe("authoredMessageKeys", () => {
   });
 
   it("drops a constraint the author cleared", () => {
-    // Both cleared states the editor can produce: a `NumberField` emptied to `undefined`
-    // and a `TextField` emptied to `""`. Either has to remove the message field, or the
-    // author is left writing a sentence for a rule that no longer exists.
     expect(
       authoredMessageKeys({
         ...SHORT_TEXT,
@@ -333,8 +283,6 @@ describe("authoredMessageKeys", () => {
   });
 
   it("ignores a constraint the type does not own", () => {
-    // A leftover from a draft that used to be another type: `pattern` on a number question
-    // is exactly the shape that would become an ORPHAN_MESSAGE_KEY at publish.
     const keys = authoredMessageKeys({
       questionId: "q_age",
       type: "number",
@@ -355,14 +303,7 @@ describe("authoredMessageKeys", () => {
 });
 
 describe("defaultMessageFor (the editor's placeholder)", () => {
-  /*
-   * These assertions are the drift alarm for a duplication the R2 boundary forces: the
-   * strings live in `lib/i18n/en.ts` as a mirror of `packages/core/src/validate-answer.ts`
-   * and `apps/portal/lib/i18n/en.ts`, because the admin may not import either. If the
-   * shipped wording changes and the mirror does not, the editor promises a default that no
-   * respondent will ever see, which is worse than no placeholder at all - so the exact
-   * sentences are pinned here rather than the shape of them.
-   */
+  // These exact defaults mirror core and portal wording across the BFF import boundary; shape checks cannot detect copy drift.
   it("interpolates the question's own bound into a length default", () => {
     expect(defaultMessageFor("minLength", { ...SHORT_TEXT, constraints: { minLength: 4 } })).toBe(
       "Answer must be at least 4 characters",
@@ -383,8 +324,6 @@ describe("defaultMessageFor (the editor's placeholder)", () => {
   });
 
   it("interpolates a date bound as the canonical date the kernel prints", () => {
-    // The kernel formats both bounds with `String(bound)`, so a date's default carries the
-    // stored `YYYY-MM-DD` rather than a locale rendering of it.
     const date = { questionId: "q_incident", type: "date", label: { en: "Incident" } } as const;
     expect(defaultMessageFor("min", { ...date, constraints: { min: "2030-01-01" } })).toBe(
       "Answer must be at least 2030-01-01",
@@ -419,8 +358,6 @@ describe("defaultMessageFor (the editor's placeholder)", () => {
   });
 
   it("leaves the token visible rather than printing undefined when a bound is missing", () => {
-    // Unreachable from the editor (no constraint, no field), and this is what it would do:
-    // show the template rather than "at least undefined characters".
     expect(defaultMessageFor("minLength", SHORT_TEXT)).toBe(
       "Answer must be at least {n} characters",
     );
@@ -443,8 +380,6 @@ describe("messageLabelFor", () => {
 
 describe("withMessage", () => {
   it("stores what the author is typing without trimming it", () => {
-    // Same reason as `localizedDraft`: a trim here makes a trailing space unwritable in a
-    // controlled field. The trim happens once, at `forWire`.
     expect(withMessage({}, "minLength", "Too short ")).toEqual({
       minLength: { en: "Too short " },
     });
@@ -489,7 +424,7 @@ describe("forWire: messages", () => {
     const wire = forWire({
       ...SHORT_TEXT,
       constraints: { minLength: 4, maxLength: 20 },
-      // Both blank shapes the editor can hold: a whitespace-only draft and an empty map.
+
       messages: { minLength: { en: "   " }, maxLength: {} },
     }) as unknown as Record<string, unknown>;
     expect(Object.hasOwn(wire, "messages")).toBe(false);
@@ -529,8 +464,6 @@ describe("forWire: messages", () => {
   });
 
   it("drops a message orphaned by a change of type", () => {
-    // A draft authored as short text and then switched to number: `pattern` is not a
-    // constraint a number question carries, so its message would be an ORPHAN_MESSAGE_KEY.
     const wire = forWire({
       questionId: "q_age",
       type: "number",
@@ -542,8 +475,6 @@ describe("forWire: messages", () => {
   });
 
   it("carries a message on a type with no constraints at all", () => {
-    // `boolean` has no constraint panel, but every type can be required, so `required` is
-    // the one message key it can hold.
     const wire = forWire({
       questionId: "q_at_fault",
       type: "boolean",
@@ -568,8 +499,7 @@ describe("forWire: boolean labels (ADR-36)", () => {
       unknown
     >;
     expect(wire["yesLabel"]).toEqual({ en: "I was at fault" });
-    // The other label stays absent, which is what makes it fall back to the compiler's
-    // lexicon on its own rather than being dragged along by its partner.
+
     expect(Object.hasOwn(wire, "noLabel")).toBe(false);
   });
 

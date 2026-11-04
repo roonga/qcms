@@ -28,7 +28,6 @@ export function stdioAsker(): Asker {
   };
 }
 
-/** Ask until the answer validates, offering `fallback` for an empty response. */
 async function askText(
   asker: Asker,
   label: string,
@@ -44,7 +43,6 @@ async function askText(
   }
 }
 
-/** Ask until the answer is one of `choices`, offering `fallback` for an empty response. */
 async function askChoice<T extends string>(
   asker: Asker,
   label: string,

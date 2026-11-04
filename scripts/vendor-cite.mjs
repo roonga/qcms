@@ -1,9 +1,8 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Resolves every vendored source citation against the package that ships the file; `check:vendor-pin`
- * checks only the version digit. A marker binds to the citation before it and `--expect` fails when the cited lines lack the phrase:
- *     (`dist/api/rate-limiter/index.mjs:293`) <!-- expect: ctx.rateLimit.enabled -->
+ * Resolve vendor citations against the package that owns each file. Bind expectations to the preceding
+ * citation and check its cited lines; version agreement is a separate gate.
  */
 
 import { execFileSync } from "node:child_process";
@@ -29,7 +28,6 @@ const LINES = String.raw`\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*`;
 
 const PATH_CHARS = String.raw`[A-Za-z0-9_.\-/]`;
 
-/** `.d.mts` ends in `.mts`, so both extensions are covered. */
 const EXT = String.raw`(?:mjs|mts)`;
 
 const FULL = new RegExp(
@@ -43,8 +41,8 @@ const SHORTHAND = new RegExp(String.raw`\`\.\.\.\/(${PATH_CHARS}+\.${EXT})(?::($
 const LINE_ONLY = new RegExp(String.raw`\`:(${LINES})\``, "g");
 
 /**
- * `.*?` rather than `.+?` so an empty marker is matched and then refused: with `.+?` it
- * matched anyway and passed `includes` against every line while counting as coverage.
+ * Match empty expectation markers so validation can refuse them; an empty includes check would otherwise
+ * pass every cited line.
  */
 const EXPECT = /<!--\s*expect:\s*(.*?)\s*-->/g;
 
@@ -568,8 +566,6 @@ function otherOwner(citation, owner, exists) {
   return null;
 }
 
-// Guarded so the tests can import the helpers without the scan firing and without
-// `process.exit` killing the run.
 if (argv[1] !== undefined && import.meta.url === pathToFileURL(argv[1]).href) {
   exit(main(argv.slice(2)));
 }

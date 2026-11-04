@@ -252,14 +252,14 @@ describe("compileForm (kitchen-sink)", () => {
       "Form",
       "Flex",
       "Text",
-      "TextField", // shortText
-      "TextArea", // longText
-      "NumberField", // number
-      "DatePicker", // date
-      "RadioGroup", // boolean + singleChoice ≤ 7
+      "TextField",
+      "TextArea",
+      "NumberField",
+      "DatePicker",
+      "RadioGroup",
       "Radio",
-      "Select", // singleChoice > 7
-      "CheckboxGroup", // multiChoice
+      "Select",
+      "CheckboxGroup",
       "Checkbox",
     ]) {
       expect(types).toContain(expected);
@@ -286,8 +286,8 @@ describe("compileForm (kitchen-sink)", () => {
       props: { granularity: "day", minValue: "1900-01-01", maxValue: "2025-12-31" },
     });
     expect(byName("q_at_fault_accident")).toMatchObject({ type: "RadioGroup" });
-    expect(byName("q_coverage")).toMatchObject({ type: "RadioGroup" }); // ≤ 7 options
-    expect(byName("q_country")).toMatchObject({ type: "Select" }); // > 7 options
+    expect(byName("q_coverage")).toMatchObject({ type: "RadioGroup" });
+    expect(byName("q_country")).toMatchObject({ type: "Select" });
     expect(byName("q_conditions")).toMatchObject({
       type: "CheckboxGroup",
       props: { orientation: "vertical" },

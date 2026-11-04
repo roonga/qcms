@@ -7,10 +7,8 @@ import type { ScreenBuildInput } from "./contexts/support.js";
 import type { AgentToolName } from "./tools/registry.js";
 
 /**
- * The frozen registry of admin screens: one row per `(shell)` page, holding its context
- * builder, its read tools and its action kinds. A screen id is the admin route pattern,
- * so the admin's table and this registry are checked against one route tree. A turn's
- * tool set is this registry intersected with the current screen's list (SEC-17).
+ * Intersect the current screen's declared tool set with the registry so a turn cannot gain tools from
+ * another screen.
  */
 export const SCREEN_IDS = [
   "/forms",
@@ -53,14 +51,12 @@ export interface ScreenDef {
    * answer value" a property of the shape rather than of a prompt.
    */
   readonly facts: z.ZodType;
-  /** Checks its own SEC-3 cell before it reads anything. */
   build(input: ScreenBuildInput): Promise<unknown>;
   readonly readTools: readonly AgentToolName[];
   /** A screen with no action kind offers explanation and navigation. */
   readonly actionKinds: readonly string[];
 }
 
-/** The builder's own four verbs. */
 const DRAFT_TOOLS: readonly AgentToolName[] = [
   "search_question_library",
   "propose_questions",
@@ -186,6 +182,15 @@ export function isFormSubtreeScreen(screenId: ScreenId): boolean {
   return FORM_AUTHORING_SCREENS.includes(screenId) || FORM_OPERATIONS_SCREENS.includes(screenId);
 }
 
+const BUILDER_SCREEN: ScreenId = "/forms/[formId]";
+
+/**
+ * Publishing a question the builder's own saved draft pins unpublished. The control lives
+ * on the question's own page and the step still runs that page's action; what the builder
+ * adds is the offer, and the propose tool refuses any other question id.
+ */
+const DRAFT_QUESTION_ACTION_KINDS: readonly string[] = Object.freeze(["question.publish"]);
+
 function kindsAcross(ids: readonly ScreenId[]): readonly string[] {
   const kinds: string[] = [];
   for (const id of ids) {
@@ -207,6 +212,9 @@ const FORM_OPERATIONS_ACTION_KINDS = kindsAcross(FORM_OPERATIONS_SCREENS);
 // authoring plan edits a shared draft, an operational plan acts in one environment, and a
 // plan mixing them would be one confirmation spanning both.
 export function offerableActionKinds(screenId: ScreenId): readonly string[] {
+  if (screenId === BUILDER_SCREEN) {
+    return [...FORM_AUTHORING_ACTION_KINDS, ...DRAFT_QUESTION_ACTION_KINDS];
+  }
   if (FORM_AUTHORING_SCREENS.includes(screenId)) return FORM_AUTHORING_ACTION_KINDS;
   if (FORM_OPERATIONS_SCREENS.includes(screenId)) return FORM_OPERATIONS_ACTION_KINDS;
   return SCREENS[screenId].actionKinds;

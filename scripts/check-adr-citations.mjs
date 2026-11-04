@@ -28,8 +28,7 @@ const TEXT_FILES = /\.(md|markdown|ts|tsx|mts|cts|js|jsx|mjs|cjs|ya?ml|sh|css|sq
 const EXCLUDED = [/^plan\//, VENDORED_SOURCE_PATTERN];
 
 /**
- * Do not add an example here: an example is itself a citation, and this gate reads its
- * own source, so the first version of this comment failed the gate.
+ * Do not write a literal citation example here: this gate scans its own source.
  */
 const CITATION = /\bADR-(\d{1,3})\b/g;
 
@@ -52,8 +51,6 @@ export function definedAdrs(indexText) {
 }
 
 /**
- * `07` and `7` are the same decision, so zero padding must not read as missing.
- *
  * @param {string} digits
  * @returns {string}
  */
@@ -137,7 +134,6 @@ export function main() {
   return 0;
 }
 
-// Guarded so an importing test triggers neither the scan nor the `process.exit`.
 if (argv[1] !== undefined && import.meta.url === pathToFileURL(argv[1]).href) {
   process.exit(main());
 }

@@ -1,38 +1,4 @@
-/**
- * The Markdown subset the assistant panel renders, parsed to plain data.
- *
- * Model prose arrives as Markdown, and shown as plain text it reads as stray asterisks and
- * backticks. A full Markdown renderer is a runtime dependency and a security-sensitive
- * parser; the panel needs very little of one, so this is a small in-house subset (the
- * Code Owner's working default for phase A of `plan/agent-everywhere.md`, which records
- * the dependency alternative as its Q14).
- *
- * ## What it understands
- *
- * Paragraphs, line breaks inside a paragraph, `**bold**`, `*italic*`, `` `inline code` ``,
- * fenced code blocks, and bullet and numbered lists. A `#` heading becomes a bold
- * paragraph rather than a heading element, so model text can never enter the page's
- * heading outline.
- *
- * ## What it refuses, and why it is safe by construction
- *
- * The output is a tree of strings and five inline kinds. Nothing here produces markup:
- * the renderer hands every string to React as a text child, so raw HTML such as
- * `<script>` or `<img onerror>` is shown as the literal characters it is. An image
- * (`![alt](url)`) always becomes its alt text and its URL is dropped, which is the
- * control against the classic exfiltration channel: a URL the browser fetches with no
- * click. The admin CSP is defence in depth behind it.
- *
- * ## Links
- *
- * A link survives only for a same-origin path that is a row of the screen table
- * (`lib/agent/screens.ts`), with no query or fragment; anything else renders as its text.
- * The table is closed rather than a prefix test because `/forms/frm_x/export` (a download
- * handler) must never become a link.
- *
- * Underscores only mark emphasis at a word boundary, so identifiers such as
- * `q_vehicle_make` are never italicised in the middle.
- */
+// Render strings through React, never raw HTML. Drop image URLs to prevent automatic exfiltration; permit only closed-list admin page links. Model headings must not enter the page heading outline.
 
 import { adminPageHref } from "../agent/screens";
 
@@ -41,7 +7,6 @@ export type MarkdownInline =
   | { readonly kind: "code"; readonly text: string }
   | { readonly kind: "strong"; readonly children: readonly MarkdownInline[] }
   | { readonly kind: "em"; readonly children: readonly MarkdownInline[] }
-  /** A link to an admin page route. `href` has already passed {@link adminPageHref}. */
   | {
       readonly kind: "link";
       readonly href: string;
@@ -51,13 +16,13 @@ export type MarkdownInline =
 export type MarkdownBlock =
   | {
       readonly kind: "paragraph";
-      /** One entry per source line; the renderer puts a line break between them. */
+
       readonly lines: readonly (readonly MarkdownInline[])[];
     }
   | {
       readonly kind: "list";
       readonly ordered: boolean;
-      /** The first item's number, for an ordered list that does not start at 1. */
+
       readonly start: number;
       readonly items: readonly (readonly MarkdownInline[])[];
     }
@@ -71,7 +36,6 @@ interface ListLine {
   readonly text: string;
 }
 
-/** A fence's marker (three or more backticks or tildes) when `line` opens one. */
 function fenceMarker(line: string): string | undefined {
   const trimmed = line.trimStart();
   const char = trimmed[0];
@@ -93,7 +57,6 @@ function listLine(line: string): ListLine | undefined {
   };
 }
 
-/** A `#` heading's text, or `undefined` when the line is not one. */
 function headingText(line: string): string | undefined {
   if (line.length - line.trimStart().length > 3) return undefined;
   const trimmed = line.trim();
@@ -107,7 +70,6 @@ function headingText(line: string): string | undefined {
   return stripped === "" || /\s$/u.test(stripped) ? stripped.trim() : text;
 }
 
-/** Accumulates blocks; a paragraph and a list each stay open until something ends them. */
 class BlockBuilder {
   readonly blocks: MarkdownBlock[] = [];
   private paragraph: string[] = [];
@@ -130,7 +92,6 @@ class BlockBuilder {
     this.list.items.push(item.text);
   }
 
-  /** An indented line under a list item continues that item. */
   continueListItem(line: string): boolean {
     if (this.list === undefined || !/^\s/u.test(line)) return false;
     const last = this.list.items.length - 1;
@@ -165,7 +126,6 @@ class BlockBuilder {
   }
 }
 
-/** Parse model prose into blocks. Pure; never throws. */
 export function parseSafeMarkdown(source: string): readonly MarkdownBlock[] {
   const lines = source.replace(/\r\n?/gu, "\n").split("\n");
   const builder = new BlockBuilder();
@@ -175,7 +135,6 @@ export function parseSafeMarkdown(source: string): readonly MarkdownBlock[] {
   return builder.blocks;
 }
 
-/** Read the block construct starting at `lines[index]`; returns the next line to read. */
 function consumeLine(lines: readonly string[], index: number, builder: BlockBuilder): number {
   const line = lines[index] ?? "";
   const marker = fenceMarker(line);
@@ -203,7 +162,6 @@ function consumeLine(lines: readonly string[], index: number, builder: BlockBuil
   return index + 1;
 }
 
-/** One inline construct: literal text to append, or nodes to emit, and where it ends. */
 type InlineStep =
   | { readonly text: string; readonly end: number }
   | { readonly nodes: readonly MarkdownInline[]; readonly end: number };
@@ -228,7 +186,7 @@ const readCodeSpan: InlineReader = (source, index) => {
   };
 };
 
-/** An image is never rendered: its alt text stands in for it, and its URL is gone. */
+// Drop image URLs entirely so model output cannot trigger an automatic browser request.
 const readImage: InlineReader = (source, index) => {
   if (source[index] !== "!" || source[index + 1] !== "[") return undefined;
   const link = readLink(source, index + 1);
@@ -276,7 +234,6 @@ function readInlineStep(source: string, index: number): InlineStep {
   return { text: source[index] ?? "", end: index + 1 };
 }
 
-/** One line of inline Markdown: code spans, emphasis, and links or images as text. */
 export function parseInline(source: string): readonly MarkdownInline[] {
   const out: MarkdownInline[] = [];
   let text = "";
@@ -300,7 +257,6 @@ function isWordChar(char: string | undefined): boolean {
   return char !== undefined && /[\p{L}\p{N}]/u.test(char);
 }
 
-/** Where the emphasis span opened at `start` closes, or `undefined` if it is not one. */
 function emphasisClose(source: string, start: number, marker: string): number | undefined {
   const contentStart = start + marker.length;
   const first = source[contentStart];
@@ -334,7 +290,7 @@ function readLink(
 ): { label: string; target: string; end: number } | undefined {
   const closeLabel = source.indexOf("]", start + 1);
   if (closeLabel === -1 || source[closeLabel + 1] !== "(") return undefined;
-  // The target may carry its own balanced parentheses, as `javascript:alert(1)` does.
+
   let depth = 1;
   for (let index = closeLabel + 2; index < source.length; index += 1) {
     if (source[index] === "(") depth += 1;

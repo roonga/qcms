@@ -1,7 +1,4 @@
--- Every QCMS role that is not a superuser. A superuser holds every privilege on every
--- object by definition rather than by a grant, so its rows would say nothing about the
--- grant model and would outnumber the ones that do. The bootstrap credential
--- (`QCMS_DB_USER`, `qcms` by default) matches the prefix and is one.
+-- Exclude superusers, including bootstrap: their implicit access would obscure the grant model.
 with qcms as (select rolname from pg_roles where rolname like 'qcms%' and not rolsuper),
      schemas as (
        select n.oid, n.nspname
@@ -16,7 +13,6 @@ with qcms as (select rolname from pg_roles where rolname like 'qcms%' and not ro
         where c.relkind in ('r', 'p', 'v', 'm', 'S')
      )
 select line from (
-  -- Tables, views and materialised views: the seven table privileges.
   select format('relation %s.%s %s %s', r.nspname, r.relname, q.rolname, p.privilege) as line
     from relations r
     cross join qcms q
@@ -24,15 +20,14 @@ select line from (
                        ('TRUNCATE'), ('REFERENCES'), ('TRIGGER')) as p(privilege)
    where r.relkind <> 'S' and has_table_privilege(q.rolname, r.oid, p.privilege)
   union all
-  -- Sequences take their own three, and `has_table_privilege` raises on them.
+  -- Sequences need their own privilege function; has_table_privilege raises on them.
   select format('sequence %s.%s %s %s', r.nspname, r.relname, q.rolname, p.privilege) as line
     from relations r
     cross join qcms q
     cross join (values ('USAGE'), ('SELECT'), ('UPDATE')) as p(privilege)
    where r.relkind = 'S' and has_sequence_privilege(q.rolname, r.oid, p.privilege)
   union all
-  -- Column-level privileges, listed only where the table does not already carry the same
-  -- one, so the map is not every table grant repeated once per column.
+  -- Omit column privileges already granted on the table to avoid repeating each grant per column.
   select format('column %s.%s.%s %s %s', s.nspname, c.relname, a.attname, q.rolname, p.privilege) as line
     from relations c
     join schemas s on s.nspname = c.nspname
@@ -50,17 +45,8 @@ select line from (
     cross join qcms q
    where has_function_privilege(q.rolname, f.oid, 'EXECUTE')
   union all
-  -- Enums AND domains. The filter was `= 'e'`, which left a `CREATE DOMAIN`'s `USAGE`
-  -- grant outside the equality; the tree carries four `CREATE TYPE` and no `CREATE DOMAIN`
-  -- today, so this closes a latent gap rather than a live one (PR #1099's round-2 review,
-  -- finding 5).
-  --
-  -- Not every `typtype`, though the review suggested dropping the filter. Composites
-  -- ('c') would be the wrong kind of complete: every table has an implicit row type in
-  -- `pg_type`, and its array type with it, so admitting them would repeat the relation
-  -- rows above once per table per role and bury the grants that are about the model. 'e'
-  -- and 'd' are the kinds an application schema creates and grants deliberately. A future
-  -- standalone composite, which QCMS does not use, would need this line revisited.
+  -- Include deliberate enum/domain grants, excluding implicit table row and array types.
+  -- Standalone composite types would require extending this filter.
   select format('type %s.%s %s USAGE', s.nspname, t.typname, q.rolname) as line
     from pg_catalog.pg_type t
     join schemas s on s.oid = t.typnamespace
@@ -73,8 +59,7 @@ select line from (
     cross join (values ('USAGE'), ('CREATE')) as p(privilege)
    where has_schema_privilege(q.rolname, s.oid, p.privilege)
   union all
-  -- No `has_*_privilege` form exists for either of the last two, so they stay on
-  -- `aclexplode`. Both are empty today, which is why a future one would stand out.
+  -- Default and large-object grants are not represented by relation privilege checks.
   select format('default %s %s %s %s %s', coalesce(n.nspname, '-'), d.defaclobjtype,
                 pg_get_userbyid(d.defaclrole), pg_get_userbyid(a.grantee), a.privilege_type) as line
     from pg_catalog.pg_default_acl d

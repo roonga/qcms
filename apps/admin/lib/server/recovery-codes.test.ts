@@ -1,30 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-/**
- * The carrier that replaced the recovery-code read-back route (issue #319).
- *
- * `POST /admin/auth/recovery-codes` decrypted the stored codes and returned them to any
- * live admin session, which is what made `SECURITY_DESIGN.md` §2.1's "shown once"
- * untrue. It is gone, and nothing anywhere reads the stored set. What is left are the
- * two moments better-auth *hands the codes over* - enrollment and regeneration - and a
- * short-lived cookie that carries them across the one redirect between that moment and
- * the screen that prints them.
- *
- * A cookie holding secrets earns a test rather than a comment, and the properties worth
- * pinning are the ones a careless edit would drop:
- *
- * - **Hardened the same way as the enrollment cookie.** `HttpOnly` (no script reads
- *   it), `SameSite=Strict` (no cross-site request carries it), path-scoped to
- *   `/two-factor` so it is not attached to every admin request, and short-lived.
- * - **`Secure` follows the deployment**, not a hard-coded default (issue #317 is the
- *   cost of getting cookie attributes wrong in one environment only).
- * - **Actually cleared**, not merely overwritten, when the display is spent - `Max-Age=0`
- *   is what makes "codes never shown again" true rather than aspirational.
- * - **A tampered value reads as nothing owed.** The only writer is this module, so
- *   anything else is a truncated or forged cookie, and the answer is the same redirect
- *   a missing cookie gets - never a crash, and never a partial render.
- */
-
 const mocks = vi.hoisted(() => ({
   jar: new Map<string, string>(),
   secure: false,
@@ -60,8 +35,7 @@ describe("recoveryCodesCookie", () => {
     expect(header).toContain("HttpOnly");
     expect(header).toContain("SameSite=Strict");
     expect(header).toContain("Path=/two-factor");
-    // Fifteen minutes: long enough to write the codes down, not long enough to be a
-    // credential the browser keeps.
+
     expect(header).toContain("Max-Age=900");
   });
 
@@ -74,8 +48,7 @@ describe("recoveryCodesCookie", () => {
   it("clearing the display expires the cookie rather than blanking it", () => {
     const header = clearRecoveryCodesCookie();
     expect(header).toContain("Max-Age=0");
-    // A blank value with a live Max-Age would leave the browser holding a cookie the
-    // app then has to reason about. Expiring it removes the question.
+
     expect(header).toContain(`${RECOVERY_CODES_COOKIE}=;`);
   });
 });

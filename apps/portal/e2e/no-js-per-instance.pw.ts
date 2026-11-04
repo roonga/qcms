@@ -9,12 +9,10 @@ const { repeatTourSlug, databaseUrl } = readFixtures();
 
 const ADD = "Add Vehicle";
 
-/** The one instance card this view draws. */
 function card(page: import("@playwright/test").Page) {
   return page.locator("fieldset[data-qcms-instance]");
 }
 
-/** Start the flow without scripting and land on the first view. */
 async function startTour(page: import("@playwright/test").Page): Promise<string> {
   await page.goto(`/f/${repeatTourSlug}`);
   await page.getByRole("button", { name: "Start" }).click();

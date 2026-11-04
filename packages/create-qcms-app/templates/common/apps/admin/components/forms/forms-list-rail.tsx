@@ -8,13 +8,6 @@ import { FORM_SORTS } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
 import { LIBRARY_SEARCH_MAX_LENGTH } from "@/lib/library-search";
 
-/**
- * The form library's rail: a Header, Search, Status, Sort and the creating action
- * (`plan/admin-design-contracts.md` §7.0).
- *
- * No Sections: a row per form would repeat the table beside it. The sort sits in the
- * Filters part but is not counted as active, since it hides no row.
- */
 export function FormsListRail({ filters }: { readonly filters: FormListFilters }) {
   const { status, sort, search, activeCount } = filters;
 
@@ -34,7 +27,6 @@ export function FormsListRail({ filters }: { readonly filters: FormListFilters }
             label={t("forms.filter.search")}
             description={t("forms.filter.searchHint")}
             defaultValue={search}
-            // The API answers 400 past this length.
             maxLength={LIBRARY_SEARCH_MAX_LENGTH}
           />
           <Select
@@ -48,8 +40,6 @@ export function FormsListRail({ filters }: { readonly filters: FormListFilters }
               { label: t("forms.status.closed"), value: "closed" },
             ]}
           />
-          {/* No "any" option: the list always comes back in some order, so the control shows
-              the one in force, resolved rather than raw. */}
           <Select
             name="sort"
             label={t("forms.filter.sort")}

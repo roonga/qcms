@@ -3,9 +3,9 @@ import { z } from "zod";
 import type { ActionKindDef, ActionRequestFacts } from "./types.js";
 
 /**
- * A created or rotated secret reaches the user's card once and is on no allowlist, so it
- * cannot travel into the next turn (SEC-6, SEC-8). Three of these kinds share one route
- * and method, so each declares the body member set that tells it apart.
+ * A created or rotated secret reaches the user's card once and is on no allowlist, so it cannot travel into
+ * the next turn. Three of these kinds share one route and method, so each declares the body member set that
+ * tells it apart.
  */
 
 const ENDPOINT_PATH = "/admin/forms/{id}/webhooks/{webhookId}";

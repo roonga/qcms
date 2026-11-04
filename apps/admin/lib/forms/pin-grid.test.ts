@@ -5,23 +5,6 @@ import type { ReadState } from "../read-state.ts";
 import { pinRowMenuItems, pinRows, pinStateLabel } from "./pin-grid.ts";
 import type { DraftStep, FormIssue, PinnableQuestion } from "./types.ts";
 
-/**
- * The pin list's view model (issue 517).
- *
- * Two things here are conformance rather than convenience, and this file exists so they
- * cannot be trimmed by a later edit without a test going red:
- *
- * 1. **The grip menu carries all five entries.** Insert above and insert below are the
- *    equivalent controls that let a row-boundary insert affordance meet WCAG 2.2
- *    SC 2.5.8 at all, and move up / move down are the single-pointer, non-dragging
- *    reorder path SC 2.5.7 asks for and the one `plan/admin-mobile-stance.md` puts on
- *    the supported-at-390 path. A menu that has quietly lost two of them still looks
- *    fine in a screenshot.
- * 2. **The library's half of a row is read from the library, never from the pin.** A
- *    row whose question the library no longer reports still renders, with the
- *    "not in library" line and no version to move to, rather than throwing.
- */
-
 const DEFINITION = {
   questionId: "q_at_fault_accident",
   type: "boolean" as const,
@@ -60,12 +43,6 @@ const COUNT = question({
   versions: [{ version: 2, status: "published", definition: { ...DEFINITION, type: "number" } }],
 });
 
-/**
- * A successful library read, which is what every case here but the last block uses.
- *
- * `pinRows` takes a `ReadState` (`lib/read-state.ts`) rather than an array, so a read
- * that FAILED is a distinct input rather than an empty library (issues 572, 544).
- */
 function ok(data: readonly PinnableQuestion[]): ReadState<readonly PinnableQuestion[]> {
   return { ok: true, data };
 }
@@ -77,7 +54,7 @@ describe("pinRows", () => {
     expect(rows.map((row) => row.questionId)).toEqual(["q_at_fault_accident", "q_accident_count"]);
     expect(rows[0]?.label).toBe("Were you at fault?");
     expect(rows[0]?.type).toBe("Yes or no");
-    // Form-owned: the version this form serves, and where the pin sits in the step.
+
     expect(rows[0]?.version).toBe(1);
     expect(rows[0]?.position).toBe(1);
     expect(rows[1]?.position).toBe(2);
@@ -87,8 +64,6 @@ describe("pinRows", () => {
   it("offers only other PUBLISHED versions to move to, never the current one and never a draft", () => {
     const rows = pinRows(STEP, ok([question(), COUNT]), []);
 
-    // v1 is pinned, v2 is published, v3 is a draft: a pin to something that can still
-    // change is not a pin (R7), so only v2 is on offer.
     expect(rows[0]?.otherVersions).toEqual([2]);
     expect(rows[1]?.otherVersions).toEqual([]);
   });
@@ -119,9 +94,6 @@ describe("pinRows", () => {
   });
 
   it("hands every row no verdict at all when it was given none (issue 625)", () => {
-    // Not `[]` per row. The builder has not validated anything when the screen opens, and
-    // an empty list here is what let the Issues column print `None` about a draft nobody
-    // had checked. The union is the same one `otherVersions` uses for the same reason.
     const rows = pinRows(STEP, ok([question(), COUNT]), undefined);
 
     expect(rows.map((row) => row.issues)).toEqual([undefined, undefined]);
@@ -167,10 +139,10 @@ describe("pinRowMenuItems", () => {
     expect(top.get("moveDown")).toBe(false);
     expect(bottom.get("moveUp")).toBe(false);
     expect(bottom.get("moveDown")).toBe(true);
-    // Removing the last pin is legal: an empty step is a state the editor renders.
+
     expect(top.get("remove")).toBe(false);
     expect(bottom.get("remove")).toBe(false);
-    // Insert is never off. It is what SC 2.5.8 leans on.
+
     expect(top.get("insertAbove")).toBe(false);
     expect(top.get("insertBelow")).toBe(false);
   });
@@ -195,18 +167,6 @@ describe("pinStateLabel", () => {
   });
 });
 
-/**
- * Issues 572 and 544: the library read that FAILED, which is not an empty library.
- *
- * Every library-owned cell of the grid is a lookup, so an empty library misses on all of
- * them. Handed `ok ? data : []` - the collapse issue 544 filed - a failed read claimed on
- * every pin in the form that there was no label in the library, that the version was not
- * found, and that there was nowhere else to move it. Four answers change; nothing
- * form-owned does.
- *
- * Red-first against the pre-change helper: `pinRows` did not accept this input at all
- * (`library.find is not a function`), which is the signature refusing the distinction.
- */
 describe("pinRows when the library read failed (issues 572, 544)", () => {
   const FAILED: ReadState<readonly PinnableQuestion[]> = { ok: false };
 
@@ -215,7 +175,7 @@ describe("pinRows when the library read failed (issues 572, 544)", () => {
 
     expect(rows[0]?.label).toBe("");
     expect(rows[0]?.labelFallback).toBe("Label not known");
-    // The control: a library that ANSWERED and carried no label still says so.
+
     expect(pinRows(STEP, ok([COUNT]), [])[0]?.labelFallback).toBe("No label in the library");
   });
 
@@ -224,15 +184,13 @@ describe("pinRows when the library read failed (issues 572, 544)", () => {
 
     expect(rows[0]?.versionStatus).toBe("unknown");
     expect(pinStateLabel(rows[0]?.versionStatus)).toBeUndefined();
-    // The control, and the case the tag exists for: read, and does not hold this version.
+
     expect(pinStateLabel(pinRows(STEP, ok([COUNT]), [])[0]?.versionStatus)).toBe(
       "Version not found",
     );
   });
 
   it("distinguishes nowhere to move from nobody asked", () => {
-    // `undefined`, never `[]`. The empty array is the answer "there is no other published
-    // version", which is a statement about a library this read never reached.
     expect(pinRows(STEP, FAILED, [])[0]?.otherVersions).toBeUndefined();
     expect(pinRows(STEP, ok([COUNT]), [])[0]?.otherVersions).toEqual([]);
   });
@@ -245,7 +203,7 @@ describe("pinRows when the library read failed (issues 572, 544)", () => {
     expect(rows[0]?.version).toBe(1);
     expect(rows[0]?.position).toBe(1);
     expect(rows[0]?.total).toBe(2);
-    // Every row action still works: they edit the draft, not the library.
+
     expect(pinRowMenuItems(rows[0]!).filter((item) => item.isDisabled)).toHaveLength(1);
   });
 });

@@ -12,12 +12,10 @@ import {
 /** Overrides are checked, so a made-up path is not a usable fixture. */
 const REAL_BINARY = process.execPath;
 
-/** Every `QCMS_*` variable an error message tells the operator to set. */
 function variablesNamedIn(message: string): string[] {
   return [...new Set(message.match(/QCMS_[A-Z_]+/g) ?? [])];
 }
 
-/** Resolvers honour their override before touching the filesystem. */
 const PROGRAMS = [
   {
     label: "the package manager",

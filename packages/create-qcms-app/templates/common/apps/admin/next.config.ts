@@ -3,33 +3,14 @@ import { fileURLToPath } from "node:url";
 import type { NextConfig } from "next";
 import { PHASE_DEVELOPMENT_SERVER } from "next/constants.js";
 
-// This app lives in a git worktree that shares the monorepo. Next would otherwise
-// infer the shared main checkout as the workspace root (multiple lockfiles) and
-// resolve modules from there; pin the root to this worktree.
+/** Pin this worktree root: lockfile discovery can otherwise resolve modules from the shared main checkout. */
 const WORKTREE_ROOT = fileURLToPath(new URL("../../", import.meta.url));
 
-/** Where `next build` / `next start` keep the production build. */
 const PRODUCTION_DIST_DIR = ".next";
-/** Where `next dev` keeps its own output (Next nests it one level: `<dir>/dev`). */
+
 const DEVELOPMENT_DIST_DIR = ".next-dev";
 
-/**
- * Admin Next.js config (task 031). The admin is a separate deployable from the
- * portal because the enterprise topology puts it behind a VPN (ARCHITECTURE §6),
- * and it uses the same strict-BFF pattern: route handlers own the session and the
- * server-held credentials and proxy to the API's `/admin` group only (R2).
- *
- * Exported as a phase function so the dev server and the production build write to
- * DIFFERENT top-level directories, adopted from the portal on day one rather than
- * rediscovered (issue #54, fixed for the portal in PR #56). They must not share
- * one: a turbo build task declares `.next/**` as its outputs, so any dev output
- * living under `.next` gets tarred into the build-cache artifact and a later
- * `pnpm build` cache hit RESTORES that stale snapshot (possibly from a sibling
- * worktree) over the live dev directory. A dev server then reads a stale or
- * partially-restored Turbopack cache and dies, and the only symptom is a bare
- * Playwright `webServer` timeout. Separate directories make the build cache
- * structurally unable to touch dev state.
- */
+/** Separate production and dev output roots so Turbo build-cache restoration cannot overwrite a live Turbopack cache. */
 export default function adminNextConfig(phase: string): NextConfig {
   return {
     distDir: phase === PHASE_DEVELOPMENT_SERVER ? DEVELOPMENT_DIST_DIR : PRODUCTION_DIST_DIR,
@@ -37,64 +18,16 @@ export default function adminNextConfig(phase: string): NextConfig {
     turbopack: {
       root: WORKTREE_ROOT,
     },
-    // Next's documented deployment output, and what docker/admin.Dockerfile ships
-    // (issue #291). `next build` traces the modules the server actually loads and
-    // writes them, with a minimal `server.js`, under `<distDir>/standalone`; the image
-    // copies that tree instead of running `pnpm deploy --prod` and then copying the
-    // whole `.next` directory over the top of it. The repository's standing preference
-    // is the vendor's documented setup path over a hand-rolled equivalent, and this is
-    // that path: https://nextjs.org/docs/app/api-reference/config/next-config-js/output
-    // (read 2026-09-10, page versioned 16.3.4).
-    //
-    // `outputFileTracingRoot` is not optional here, and the reason is the monorepo.
-    // Next traces from the PROJECT directory by default, so everything outside
-    // `apps/admin` - React, Next itself, every `@roonga/qcms-*` dist, all of which pnpm
-    // keeps in the workspace root's `node_modules` - would be left out of the copy and
-    // the container would die on its first require. It takes the same worktree root
-    // `turbopack.root` takes, and for the same reason: the root has to be pinned
-    // rather than inferred from a lockfile search that would find the shared main
-    // checkout. With it set, the standalone tree mirrors the workspace layout, so the
-    // server lands at `apps/admin/server.js` with one `node_modules` beside it.
-    //
-    // `next dev` ignores this; the standalone tree is produced by `next build` only.
+    /** Trace from the pinned workspace root so standalone output includes hoisted runtime dependencies outside apps/admin. */
     output: "standalone",
     outputFileTracingRoot: WORKTREE_ROOT,
-    // The admin never sends CORS headers (SEC-9): it is same-origin with its own
-    // BFF route handlers, and no cross-origin API exists. No `headers()` CORS
-    // entries here by design; the security headers are set in `proxy.ts`.
-    //
-    // No image optimization: the admin ships no optimized imagery, so Next needs
-    // no `sharp`. That optional dep pulls a native libvips binary under LGPL-3.0;
-    // dropping it (with pnpm.ignoredOptionalDependencies in the root package.json)
-    // keeps the MIT-redistribution no-copyleft policy pure and the check:licenses
-    // gate green.
+    /** Never add CORS headers to this same-origin BFF. Disable image optimization so the standalone image needs no optional sharp/libvips dependency. */
     images: { unoptimized: true },
     experimental: {
-      // NO UPGRADE NUDGE, for the reason the portal's config states at length (Code
-      // Owner, 2026-10-10, issue #1050). `experimental.agentUpgrade` defaults to
-      // `"security"` at next 16.4.0, and on that default
-      // `next/dist/lib/upgrade/nudge.js` reaches
-      // `https://registry.npmjs.org/-/npm/v1/security/advisories/bulk` whenever
-      // `@vercel/detect-agent` reports an agent - measured on 2026-10-10 against this
-      // app's real config with `CLAUDECODE=1`, `CI=1` and the output piped, which do
-      // not suppress it, and measured again with this setting, where no fetch happens.
-      //
-      // Set in both apps rather than once, because there is no shared Next config in
-      // this repository and a per-app config is the only place Next reads it from. The
-      // scaffolding templates carry the same setting, synced by
-      // `pnpm qcms:sync-templates`.
-      //
-      // `experimental.agentFeedback` is deliberately NOT set: it already defaults to
-      // `false`.
+      /** Prevent advisory network requests when the build detects an agent. */
       agentUpgrade: false,
     },
-    /**
-     * Legacy route aliases.
-     *
-     * `/forms/{id}/releases` redirects to Versions, which carries the release history. It is
-     * a redirect rather than a page so the route costs none of the six registrations a
-     * screen costs, and an old bookmark or outcome banner still lands on the right screen.
-     */
+    /** Keep legacy bookmarks as redirects without registering another screen. */
     redirects: () =>
       Promise.resolve([
         {
@@ -102,16 +35,8 @@ export default function adminNextConfig(phase: string): NextConfig {
           destination: "/forms/:formId/versions",
           permanent: false,
         },
-        // THE OPERATIONAL SCREENS LEFT THE FORM'S SUBTREE (Code Owner, 2026-11-02). Every
-        // one of these addresses is in bookmarks, in release outcomes and in copied URLs,
-        // so each still arrives. Config entries rather than redirecting pages for the
-        // reason `/releases` above is one: a page would cost the six registrations a
-        // screen costs, and these produce no document to rail, title or measure.
-        //
-        // Next carries the query string through a redirect it did not rewrite, which is
-        // the whole of what a response list's filters and an export's choices say. 308
-        // rather than 307, because the move is settled and the method survives it, which
-        // the export download needs.
+        // Config entries, not pages: a page is a route and costs six registrations while
+        // producing no document. Next carries the query; 308 keeps the export's method.
         {
           source: "/forms/:formId/responses",
           destination: "/operations/forms/:formId/responses",

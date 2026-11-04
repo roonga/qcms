@@ -135,16 +135,13 @@ describe("scaffold", () => {
       const dockerfile = read(`docker/${app}.Dockerfile`);
       expect(dockerfile).not.toContain("COPY packages ./packages");
       expect(dockerfile).not.toContain("COPY scripts ./scripts");
-      // Asserted on the filter: the only build command quoted in prose names `@roonga/qcms-db`.
       expect(dockerfile).not.toContain(`--filter qcms-${app}... build`);
       expect(dockerfile).toContain(`--filter qcms-${app} build`);
     }
   });
 
   it("forwards the admin 2FA policy to the two services that read it, exactly once each", () => {
-    // The generator used to INSERT this; the canonical compose file now carries it, so
-    // the generator asserts instead. Two, never four: a duplicate YAML key inside one
-    // service block is resolved silently rather than reported.
+    // Each service must carry the policy once: duplicate YAML keys resolve silently.
     const { read } = stamp();
     const compose = read("docker-compose.yml");
     expect(compose.match(/QCMS_ADMIN_2FA: \$\{QCMS_ADMIN_2FA:-required\}/g)).toHaveLength(2);

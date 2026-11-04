@@ -8,12 +8,6 @@ import { t } from "@/lib/i18n/en";
 
 import { ProposalSeamProvider, useHandOff, useProposalSeam, type WaitingProposal } from "./waiting";
 
-/**
- * The seam between the panel and the heading rows. What it carries is a control: a marker
- * that ran something, or a hand-off that sent a secret anywhere, would each be a security
- * failure rather than a visual one.
- */
-
 function Publisher({ waiting }: { readonly waiting: WaitingProposal | undefined }) {
   const seam = useProposalSeam();
   const publish = seam?.publish;
@@ -99,7 +93,7 @@ describe("the proposal seam", () => {
     await user.click(screen.getByRole("link"));
     expect(onReview).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("link").getAttribute("href")).toBe("#card-1");
-    // The words, not colour alone.
+
     expect(screen.getByRole("link").textContent).toContain(t("agent.marker.text"));
   });
 

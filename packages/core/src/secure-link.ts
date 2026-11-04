@@ -4,9 +4,8 @@ import { CompactTokenErrorCode, signCompactToken, verifyCompactToken } from "./c
 import { err, ok, type Result } from "./errors.js";
 import { FormId, LinkId } from "./ids.js";
 
-// A signature alone is never sufficient: the `secure_links` row must agree, so
-// one-time consumption and revocation stay storage's. No PII goes in a token,
-// the claims being opaque ids and an expiry (SEC-2).
+// A signature alone is never sufficient: the `secure_links` row must agree, so one-time consumption and
+// revocation stay storage's. No PII goes in a token, the claims being opaque ids and an expiry.
 
 /**
  * What a secure link asserts. `oneTime` is carried for the verifier's UX; the

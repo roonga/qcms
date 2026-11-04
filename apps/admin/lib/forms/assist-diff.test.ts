@@ -100,8 +100,6 @@ describe("proposalDiff", () => {
   });
 
   it("reports nothing for an echoed rule whose keys arrive in a different order", () => {
-    // The stored draft has been through Postgres jsonb, which reorders object keys, and a
-    // model writes them in its own order. Same content, so not a change (issue #1065).
     const current: DraftForm = {
       ...BASE,
       rules: [
@@ -170,7 +168,6 @@ describe("proposalDiff", () => {
 });
 
 describe("isPendingNewQuestionPin (issue #1065)", () => {
-  // A proposal inventing q_new, pinned by stp_new at version 1, and read by a rule.
   const proposed = {
     steps: [
       {
@@ -202,7 +199,6 @@ describe("isPendingNewQuestionPin (issue #1065)", () => {
   });
 
   it("does not match a step that does not pin the invented question", () => {
-    // The kernel's group-count check reports {question, step} for an unpinned count source.
     expect(
       isPendingNewQuestionPin(dangling({ step: "stp_other", question: "q_new" }), pending),
     ).toBe(false);
@@ -245,32 +241,6 @@ describe("acceptedDraft", () => {
   });
 });
 
-/**
- * A proposal that carries a repeating group (task 074, ADR-42).
- *
- * ## Why this block exists, and what it was red against
- *
- * This file's parser read a step's item list as "every entry carrying a `questionId`", which was
- * total while a step held nothing else and silently DROPS a group. Two consequences, the second
- * worse:
- *
- * - the diff an author approves omits the group and every question inside it, so they approve a
- *   change that does not mention what they are accepting;
- * - `acceptedDraft` takes `steps` wholesale, so accepting a proposal that merely echoes back an
- *   existing group DELETES the author's authored group and leaves the step empty - which trips
- *   `unsaveableReason` to `emptyStep` and parks autosave.
- *
- * Task 074 is the task that makes the shape reachable: it is where an author can create a group,
- * and where the draft assistant's prompt starts documenting one. Both readers of these bytes now
- * share `lib/forms/draft-payload.ts`, so the fix cannot come apart again.
- *
- * Red-first, verified rather than assumed: with `readStepItems` reverted to the question-only
- * filter, every case below fails - the added-step case reports `"items": []` in its own detail,
- * the echo case reports an unexpected `changed` entry, and both accept cases hand back a step
- * with no items at all.
- */
-
-/** One group as a proposal carries it: the airline shape the prompt now describes. */
 const PROPOSED_GROUP = {
   groupId: "grp_passengers",
   label: { en: "Passengers" },
@@ -283,7 +253,6 @@ const PROPOSED_GROUP = {
   presentation: "stacked",
 };
 
-/** The same group, as the builder's own draft holds it. */
 const AUTHORED_GROUP = {
   groupId: "grp_passengers",
   label: { en: "Passengers" },
@@ -315,8 +284,7 @@ describe("a proposal carrying a repeating group", () => {
       "grp_passengers",
     );
     expect(step?.detail).toContain("q_passport");
-    // The member questions are listed as questions in their own right, with their types: a
-    // question does not know it is repeated, so the diff names it the way it names any pin.
+
     expect(diff).toContainEqual(
       expect.objectContaining({
         kind: "question",
@@ -347,8 +315,6 @@ describe("a proposal carrying a repeating group", () => {
       rules: current.rules,
     };
 
-    // An echo is not a change. A parser that dropped the group would report the step as
-    // `changed` and show an author a diff of their own group disappearing.
     expect(proposalDiff(current, proposed, [])).toEqual([]);
   });
 
@@ -384,8 +350,6 @@ describe("a proposal carrying a repeating group", () => {
       ],
     };
 
-    // `acceptedDraft` takes `steps` wholesale, so this is the whole of the data-loss case: the
-    // accepted draft has to still hold the group and its two members.
     expect(acceptedDraft(current, proposed).steps[1]?.items).toEqual([AUTHORED_GROUP]);
   });
 
@@ -405,8 +369,6 @@ describe("a proposal carrying a repeating group", () => {
       ],
     };
 
-    // Loud rather than silent, for the reason `draft-payload.ts` gives: an invented count source
-    // would be shown in the panel and stored by the next autosave.
     expect(acceptedDraft(BASE, proposed).steps[1]?.items).toEqual([
       { questionId: "q_purpose", version: 1 },
     ]);

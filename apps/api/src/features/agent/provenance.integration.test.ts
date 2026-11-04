@@ -38,12 +38,6 @@ import { registerAgentProvenance } from "./provenance-mount.js";
 import { PROPOSAL_HEADER, PROPOSAL_STEP_HEADER } from "./provenance.js";
 import { buildProposal } from "./tools/propose.js";
 
-/**
- * SEC-17's D0 criteria against Postgres. The pure checks live in `provenance.test.ts`;
- * what is here needs the recorded rows, the real route policy and the handlers' own
- * transactions.
- */
-
 const ADMIN_ONLY = { public: false, internal: false, admin: true } as const;
 const FUTURE = "2026-12-31T23:59:59.000Z";
 
@@ -253,7 +247,6 @@ async function seedFormWithDraft(formId: string): Promise<void> {
   expect(saved.status).toBe(200);
 }
 
-/** A form with one published version, which is what a release step needs to exist. */
 async function seedPublishedForm(formId: string): Promise<number> {
   await seedFormWithDraft(formId);
   const published = await send({
@@ -288,7 +281,6 @@ interface DraftReview {
   readonly sequences: Readonly<Record<string, number | null>>;
 }
 
-/** The review the wizard reads before it confirms, which is what a publish step carries. */
 async function reviewDraft(formId: string): Promise<DraftReview> {
   const res = await send({
     caller: owner,
@@ -678,6 +670,7 @@ describe("a reference in a plan whose first step runs on the screen itself", () 
         },
       ],
       proposedDraft: { definition: draftFor(FORM_ID), newQuestions: [] },
+      screen: "/forms/[formId]",
       validate: () => Promise.resolve({ issues: [], warnings: [] }),
       subject: owner.userId,
       appKey: deps.config.keys.app,
@@ -1280,6 +1273,7 @@ describe("a mint proposed in the shape the model may produce runs end to end", (
       steps: [
         { kind: "link.mint", args: { formId: FORM_ID, count: 2, expiresAt, oneTime: false } },
       ],
+      screen: "/operations/forms/[formId]/links",
       subject: owner.userId,
       appKey: deps.config.keys.app,
       current: "prod",

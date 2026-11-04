@@ -14,7 +14,6 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-/** The seam every "did state change?" assertion reads. */
 const api = {
   startAnonymousSession: vi.fn(),
   startLinkSession: vi.fn(),

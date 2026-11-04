@@ -16,23 +16,8 @@ import { proposalHeaders, type AgentProposalRef } from "./agent-proposal.ts";
 import { adminApiFetch } from "./api.ts";
 import type { AdminSession } from "./session.ts";
 
-/**
- * The question library's calls into the API's `/admin` group (task 032, R2).
- *
- * Every one of these is a proxy: build a path, hand it to the one credentialed client
- * (`api.ts`), read the response. There is no rule here, no validation, no derived
- * decision about what a question means - the API owns all of that, and the R2
- * import-surface test is what keeps this file honest (it forbids every `@roonga/qcms-core` value
- * import and allows a request to be built in exactly one module).
- *
- * The one thing this file does add is a shape: `ApiResult`. A screen has to render an
- * error, and "the caller decides how to read a non-2xx" (see `api.ts`) means every screen
- * would otherwise re-derive envelope parsing. Normalising it once here is presentation,
- * not authority: the code and the issue paths are passed through untouched, so the API
- * remains the thing that said what went wrong.
- */
+/** Normalise API answers for presentation only; domain validation and compilation stay in the API. */
 
-/** Success carries the parsed payload; failure carries the API's own code and issues. */
 export type ApiResult<T> =
   | { readonly ok: true; readonly data: T }
   | {
@@ -42,16 +27,7 @@ export type ApiResult<T> =
       readonly issues: readonly DefinitionIssue[];
     };
 
-/**
- * Read a non-2xx into the failure shape.
- *
- * Two envelopes exist and both have to be survivable. The API's own errors are
- * `{ error: { code, message, details } }`. A request that fails the route's Zod schema
- * before any handler runs is answered by the validator middleware instead, with a body
- * that has no `code` at all - so a screen that assumed the first shape would render
- * "undefined". That path is reachable from here (a definition that is not a JSON object,
- * a missing slug), so it gets the generic sentence rather than a crash.
- */
+/** Schema middleware can return an envelope without an error code; fall back to generic copy rather than rendering undefined. */
 async function readFailure(response: Response): Promise<ApiResult<never>> {
   const body: unknown = await response.json().catch(() => undefined);
   const envelope = (body as { error?: { code?: unknown; details?: unknown } } | undefined)?.error;
@@ -61,13 +37,11 @@ async function readFailure(response: Response): Promise<ApiResult<never>> {
   return { ok: false, code, message: messageForCode(code), issues };
 }
 
-/** Parse a 2xx body, or normalise the failure. */
 async function read<T>(response: Response): Promise<ApiResult<T>> {
   if (!response.ok) return readFailure(response);
   return { ok: true, data: (await response.json()) as T };
 }
 
-/** `GET /admin/questions` - status and free-text filters are the API's, not ours. */
 export async function listQuestions(
   session: AdminSession,
   filters: {
@@ -89,30 +63,7 @@ export async function listQuestions(
   return result.ok ? { ok: true, data: result.data.questions } : result;
 }
 
-/**
- * `GET /admin/questions/{id}` - the question and every version, oldest first.
- *
- * ## Once per request, not once per tree (issue #808)
- *
- * The question detail screen is a page and a `@rail` slot rendered from one request.
- * They are separate React trees, neither can hand the other a value, and both need the
- * same question - the page to render the selected version, the rail to list every
- * version - so the same `GET /admin/questions/{id}` went out twice per render.
- * `lib/server/question-rail.ts` stated that cost in prose and named this as the place to
- * change it, which is what `cache()` here does.
- *
- * This is the question-side half of issue #626, which memoized `currentAdminSession` and
- * `getForm` for exactly this reason and stopped at form-scoped screens. The same two
- * properties carry over. **The memo key is the argument list, by identity**, so the
- * dedupe holds only because `currentAdminSession` is memoized too and every caller in a
- * request therefore holds the *same* session object. And **per request and no longer**,
- * so nothing here can serve a question a mutation has already changed: a server action
- * runs before the re-render it triggers, and no action in `app/(shell)/questions/actions.ts`
- * reads a question. Across requests this memo does not exist.
- *
- * The version preview beside it deliberately does NOT join: `getPreview` is a different
- * resource (one version's compiled document) and each render asks for exactly one.
- */
+/** React cache deduplicates the page and rail only within the request. Its session argument keys by identity and must come from the memoized session reader. */
 export const getQuestion: (
   session: AdminSession,
   questionId: string,
@@ -123,14 +74,7 @@ export const getQuestion: (
     ),
 );
 
-/**
- * `GET /admin/questions/{id}/versions/{v}/preview` - the A2UI document for one version.
- *
- * The compile happens in the API, on purpose (task 032's preview decision): the admin
- * never runs the compiler, so preview fidelity is not "the same package version" but
- * literally the same code path publishing uses, and the BFF keeps no domain capability
- * it could drift on. See `components/questions/question-preview.tsx` for the render half.
- */
+/** Compile previews in the API so they use the same path as publication; the BFF keeps no compiler authority. */
 export async function getPreview(
   session: AdminSession,
   questionId: string,
@@ -144,7 +88,6 @@ export async function getPreview(
   );
 }
 
-/** `POST /admin/questions` - the question and its draft v1, in one call. */
 export async function createQuestion(
   session: AdminSession,
   slug: string,
@@ -161,7 +104,6 @@ export async function createQuestion(
   );
 }
 
-/** `PUT /admin/questions/{id}/versions/{v}` - edit a draft. Published versions 409. */
 export async function saveVersion(
   session: AdminSession,
   questionId: string,
@@ -178,7 +120,6 @@ export async function saveVersion(
   );
 }
 
-/** `POST /admin/questions/{id}/versions` - draft vN+1, seeded from the latest version. */
 export async function createVersion(
   session: AdminSession,
   questionId: string,
@@ -192,7 +133,6 @@ export async function createVersion(
   );
 }
 
-/** `POST .../publish` - freeze a draft and make it pinnable. */
 export async function publishVersion(
   session: AdminSession,
   questionId: string,
@@ -208,7 +148,6 @@ export async function publishVersion(
   );
 }
 
-/** `POST .../deprecate` - block new pins. Forms already pinned to it are untouched. */
 export async function deprecateVersion(
   session: AdminSession,
   questionId: string,

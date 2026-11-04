@@ -4,8 +4,7 @@ import { describe, expect, it } from "vitest";
 import * as kit from "./kit.ts";
 import { axeViolations } from "./test-support/a11y.ts";
 
-// Deliberately shallow: the components are vendored and tested upstream. What is ours is the barrel,
-// hand-written over paths the a2ra CLI owns, so a rename upstream or a typo in a re-export is a QCMS defect.
+// Test the owned barrel rather than retesting vendored components; upstream path changes must fail here.
 
 const PRIMITIVES = [
   ["Alert", <kit.Alert variant="info">Something happened.</kit.Alert>],
@@ -62,7 +61,7 @@ const PRIMITIVES = [
         { id: "slug", label: "Slug" },
         { id: "status", label: "Status" },
       ]}
-      // `data`, keyed by column id, never `cells`.
+
       rows={[{ id: "r1", data: { slug: "auto-quote", status: "published" } }]}
     />,
   ],
@@ -98,7 +97,6 @@ describe("@roonga/qcms-ui/kit surface", () => {
   });
 
   it("exposes no A2UI document schema (those belong to the renderer, not the kit)", () => {
-    // `registryForSpecVersion` on the root export is the only door to the renderer.
     const leaked = Object.keys(kit).filter((name) => name.endsWith("Schema"));
     expect(leaked).toEqual([]);
   });

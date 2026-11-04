@@ -116,8 +116,6 @@ describe("resolving scope against the tree", () => {
 
     expect(scope.dirs).toEqual(["src/"]);
     expect(scope.missing).toEqual([]);
-    // The trailing slash is what keeps "starts with" from letting `sr/` be covered by a
-    // `src/` entry.
     expect(scope.dirs.some((dir) => "sr/other.ts".startsWith(dir))).toBe(false);
   });
 
@@ -213,15 +211,12 @@ describe("recognizing the copied source boundary", () => {
 
 describe("against this repository", () => {
   it("sees a non-trivial tree, so a passing run is not a run over nothing", () => {
-    // Vacuity floor: a gate that scanned zero files would report OK forever.
     expect(trackedSourceFiles().length).toBeGreaterThan(100);
     expect(trackedMarkdownFiles().length).toBeGreaterThan(50);
     expect(trackedManifests()).toContain("package.json");
   });
 
   it("lints both Next.js apps by directory rather than by a hand-written file list", () => {
-    // Derived from this file's own location rather than from cwd, so the assertion is
-    // about the repository and not about where the runner started.
     const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
     const scope = lintScope(["apps/portal/package.json", "apps/admin/package.json"], repoRoot);
 

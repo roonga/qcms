@@ -3,51 +3,10 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-// Plain JavaScript with a hand-written declaration file beside it, imported by relative
-// path the way `apps/api/e2e/support/check-fixture-domain.test.ts` imports its gate.
 import { trackedFilesUnder } from "../../../scripts/tracked-files.mjs";
-
-/**
- * Which screens carry a rail, and what each one's section carries, checked against the route
- * tree rather than claimed.
- *
- * §7.0 of `plan/admin-design-contracts.md` gives every screen a rail unless its own table
- * records an exception, so the `NO_SECTION` list below is empty and is the gate. Every screen
- * also has a PAGE under `app/(shell)/@rail`.
- *
- * **That is a correctness requirement, not tidiness.** On a soft navigation Next keeps the
- * previously active state of any slot the new URL does not match, and consults `default.tsx`
- * only after a full-page load. So a route with no page in the slot did not render an empty
- * rail: it rendered the PREVIOUS screen's section. Walking from Settings to the question
- * library left the Settings rail standing beside a screen it says nothing about, which is
- * the defect this coverage removes. A screen added without a slot page fails here rather
- * than being found months later as a rail that will not go away.
- *
- * ## All nine form screens carry the same tree, and the builder's alone is interactive
- *
- * REVERSED 2026-08-25 (Code Owner). The builder used to carry the sibling rows and no steps,
- * because a rail step item is `/forms/{formId}#step-{stepId}` - a cross-route link on the
- * other seven screens, a bare same-page fragment on the builder - and §7 barred those. That
- * clause is retired and `loadFormRail` no longer has a mode for leaving the steps out, so
- * the shape is now pinned by the type rather than by this file.
- *
- * What is still worth asserting is the split that replaced it: the builder is the ONE screen
- * whose steps can be worked on rather than only walked to, because it is the one screen with
- * a draft to change. A second screen turning that flag on would be claiming an editor it does
- * not have.
- */
 
 const SHELL = fileURLToPath(new URL("../app/(shell)", import.meta.url));
 
-/**
- * Which sibling row each form slot marks as current, restated rather than derived.
- *
- * A table read out of the files it is checking passes on any files, which is the same reason
- * `subtree-rail.test.ts` restates §7's section list instead of importing it. The two detail
- * routes are the rows worth reading twice: neither is a row of the rail, so each marks the
- * section it lives under, which is how the section strip this rail replaced resolved those
- * same two URLs from task 034 onward.
- */
 const CURRENT_SECTION: Readonly<Record<string, string>> = {
   "/forms/[formId]": "builder",
   "/forms/[formId]/rules": "rules",
@@ -57,18 +16,8 @@ const CURRENT_SECTION: Readonly<Record<string, string>> = {
   "/forms/[formId]/publish": "publish",
 };
 
-/**
- * The same table for one form's OPERATIONAL screens, which carry a second rail (Code
- * Owner, 2026-11-02).
- *
- * Two tables because they are two rails, not one rail on two roots: the editor's carries
- * the form's steps and its authoring screens, and
- * `components/ops/operations-form-rail.tsx` carries the four contexts that read one
- * environment. A slot page names its row as `current="links"` there, and as
- * `current={{ kind: "section", section: "links" }}` here, which is the difference the two
- * rails' own types make. The response detail route is the row worth reading twice: it is
- * not a row of either rail, so it marks the context it lives under.
- */
+// Operations' rail is a second rail, not this one on another root: its slot pages name a
+// row as `current="links"` where the editor's say `section: "links"`.
 const CURRENT_CONTEXT: Readonly<Record<string, string>> = {
   "/operations/forms/[formId]/responses": "responses",
   "/operations/forms/[formId]/responses/[sessionId]": "responses",
@@ -77,24 +26,8 @@ const CURRENT_CONTEXT: Readonly<Record<string, string>> = {
   "/operations/forms/[formId]/intake": "intake",
 };
 
-/**
- * The routes that carry no rail: the Exception column of §7.0's table, and empty.
- *
- * A screen granted an exception is an entry here and a row in that table, which is two edits
- * somebody reviews rather than one slot page quietly losing its rail.
- */
 const NO_SECTION: readonly string[] = [];
 
-/**
- * Every Next route pattern under one directory, read from the repository.
- *
- * Pointed at one root or the other: here the slot tree is the subject rather than the thing
- * being excluded, so a `@slot` segment *inside* the enumeration is dropped while `@rail` as
- * the root itself is not. Route groups still contribute no segment.
- *
- * The set comes from `git ls-files` rather than a directory walk, so a compiled `page.tsx`
- * left under `.next-dev` by a dev server cannot be read as a screen (issue #641).
- */
 function routePatternsUnder(directory: string, prefix: string): string[] {
   const patterns: string[] = [];
   for (const relative of trackedFilesUnder(directory, { match: /(?:^|\/)page\.tsx$/ })) {
@@ -113,22 +46,18 @@ function sorted(values: readonly string[]): string[] {
   return [...values].sort((a, b) => a.localeCompare(b));
 }
 
-/** Every authenticated screen: every route pattern with a page under `app/(shell)`. */
 function shellScreens(): string[] {
   return routePatternsUnder(SHELL, "");
 }
 
-/** Every route the `@rail` slot answers for. */
 function railSlotRoutes(): string[] {
   return routePatternsUnder(`${SHELL}/@rail`, "");
 }
 
-/** The editor's screens for one form: everything below `/forms/[formId]`, and that route. */
 function formScopedScreens(): string[] {
   return shellScreens().filter((pattern) => pattern.startsWith("/forms/[formId]"));
 }
 
-/** One form's operational screens, which are Operations' (Code Owner, 2026-11-02). */
 function formContextScreens(): string[] {
   return shellScreens().filter((pattern) => pattern.startsWith("/operations/forms/[formId]"));
 }
@@ -139,9 +68,6 @@ function slotSource(route: string): string {
 
 describe("every screen has a page in the slot, whether or not it has a rail", () => {
   it("gives the slot a page for every authenticated route, and none for a route that is not one", () => {
-    // Both directions in one assertion, and both matter. A screen with no slot page keeps
-    // the previous screen's section on a soft navigation; a slot page for a route that no
-    // longer exists is dead code that no screen can ever reach.
     expect(sorted(railSlotRoutes())).toEqual(sorted(shellScreens()));
   });
 
@@ -151,8 +77,7 @@ describe("every screen has a page in the slot, whether or not it has a rail", ()
       ...Object.keys(CURRENT_CONTEXT),
       "/questions/[questionId]",
       "/settings",
-      // Listed rather than derived, for the reason the table above is: a list read out of
-      // the files it checks passes on any files.
+
       "/questions",
       "/questions/new",
       "/forms",
@@ -169,23 +94,20 @@ describe("every screen has a page in the slot, whether or not it has a rail", ()
   });
 
   it("returns null from every slot page that carries no section, and only those", () => {
-    // Read off the files in both directions: a page that quietly grew a section would still
-    // be listed in `NO_SECTION`, and a page that quietly lost one is a screen whose rail
-    // went away without a ruling. Both sides are empty, so this also asserts that
-    // `no-section.ts` has no caller.
     const empty = railSlotRoutes().filter((route) => slotSource(route).includes("NoRailSection"));
     expect(sorted(empty)).toEqual(sorted(NO_SECTION));
   });
 });
 
 describe("which screens carry the form-subtree section", () => {
-  it("counts eleven screens about one form, split between the editor's six and Operations' five", () => {
-    // `plan/admin-ux-audit.md` §1: "of the sixteen authenticated screens, eight are
-    // form-scoped and would get a populated rail". The list has grown three times since,
-    // each time by a deliberate ruling, and on 2026-11-02 it SPLIT: a screen about one form
-    // is either authoring or operational, and the two sets carry different rails. A twelfth
-    // entry, or a screen that moved from one list to the other, is the moment the same
-    // question has to be asked again, so it fails here.
+  it("counts the screens about one form, split between the editor's and Operations'", () => {
+    expect(sorted(formContextScreens())).toEqual([
+      "/operations/forms/[formId]/intake",
+      "/operations/forms/[formId]/links",
+      "/operations/forms/[formId]/responses",
+      "/operations/forms/[formId]/responses/[sessionId]",
+      "/operations/forms/[formId]/webhooks",
+    ]);
     expect(sorted(formScopedScreens())).toEqual([
       "/forms/[formId]",
       "/forms/[formId]/preview",
@@ -194,18 +116,9 @@ describe("which screens carry the form-subtree section", () => {
       "/forms/[formId]/versions",
       "/forms/[formId]/versions/[version]",
     ]);
-    expect(sorted(formContextScreens())).toEqual([
-      "/operations/forms/[formId]/intake",
-      "/operations/forms/[formId]/links",
-      "/operations/forms/[formId]/responses",
-      "/operations/forms/[formId]/responses/[sessionId]",
-      "/operations/forms/[formId]/webhooks",
-    ]);
   });
 
   it("carries a rail on every root in the shell, with no screen left out", () => {
-    // Every root a screen lives under carries a rail, so a root missing from this list is a
-    // screen that lost one. `NO_SECTION` is where an exception would be written.
     const roots = new Set(
       railSlotRoutes()
         .filter((route) => !slotSource(route).includes("NoRailSection"))
@@ -226,24 +139,14 @@ describe("which screens carry the form-subtree section", () => {
 
 describe("which of the rail's rows each screen's section carries", () => {
   it("asks for the same rail on every one of them, with nothing per-screen to keep in step", () => {
-    // There was a flag here, `interactiveSteps`, and this asserted that the builder was the
-    // only page passing it. It is gone: interactivity comes from whether a builder has
-    // published to `lib/forms/builder-bridge.ts`, and only the builder mounts one, so the
-    // property the flag asserted is now true by construction rather than by agreement.
-    //
-    // What is worth pinning is what replaced it: every form slot page renders the same
-    // component the same way, so a screen cannot quietly grow a rail of its own.
     for (const route of Object.keys(CURRENT_SECTION)) {
       expect(slotSource(route), `${route} renders the shared form rail`).toContain("FormRailSlot");
-      expect(slotSource(route)).not.toContain("interactiveSteps");
     }
-  });
-
-  it("asks for the shared Operations rail on every operational slot, the same way", () => {
     for (const route of Object.keys(CURRENT_CONTEXT)) {
-      expect(slotSource(route), `${route} renders the shared Operations form rail`).toContain(
+      expect(slotSource(route), `${route} renders the Operations form rail`).toContain(
         "OperationsFormRailSlot",
       );
+      expect(slotSource(route)).not.toContain("interactiveSteps");
     }
   });
 });
@@ -259,23 +162,16 @@ describe("which row of the section each screen marks", () => {
 
   it("marks the context the screen is, and marks the detail route's parent context", () => {
     for (const [route, context] of Object.entries(CURRENT_CONTEXT)) {
-      expect(slotSource(route), `${route} marks ${context} as the current rail row`).toContain(
-        `current="${context}"`,
-      );
+      expect(slotSource(route), `${route} marks ${context}`).toContain(`current="${context}"`);
     }
   });
 
-  it("expects a current row for every slot about one form, so a new one cannot arrive unstated", () => {
+  it("expects a current row for every slot about one form, so none can arrive unstated", () => {
     expect(sorted(Object.keys(CURRENT_SECTION))).toEqual(sorted(formScopedScreens()));
     expect(sorted(Object.keys(CURRENT_CONTEXT))).toEqual(sorted(formContextScreens()));
   });
 
   it("marks a step as current on no screen at all", () => {
-    // `RailCurrent` also has a `step` shape, and nothing uses it: no step in this app is a
-    // route (`lib/forms/subtree-rail.ts` explains why minting one was refused), so no
-    // screen IS a step. It is kept because the type is what makes the section's own title
-    // fall back honestly, and this pins that no screen has quietly started claiming to be
-    // one.
     for (const route of Object.keys(CURRENT_SECTION)) {
       expect(slotSource(route)).not.toContain('kind: "step"');
     }

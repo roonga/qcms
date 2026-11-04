@@ -4,12 +4,9 @@ import { getForm } from "@/lib/server/forms";
 import { requireAdminSession } from "@/lib/server/session";
 
 /**
- * The one body every Operations form slot renders.
- *
- * The form read is memoized per request and is allowed to be refused: a caller holding
- * `response: read` and no `form: read` reaches that form's responses, so a rail that
- * needed the form's name would be a rail that disappeared for the one caller whose only
- * screen it is. The id stands in for the name in that case.
+ * The one body every Operations form slot renders. The form read may be refused: a caller
+ * with `response: read` and no `form: read` still reaches that form's responses, so the
+ * id stands in for the name rather than the rail disappearing.
  */
 export async function OperationsFormRailSlot({
   params,

@@ -5,9 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { loadGoldenForms } from "./test-support/golden.ts";
 import { ControlledHost } from "./test-support/host.tsx";
 
-// react-aria reports a date only when it becomes complete, and `null` only when every
-// segment is empty, so a complete date backspaced to a partial one emits nothing and
-// the parent's value stays at the old date, indistinguishable from untouched.
+// react-aria emits neither a complete value nor null for a partially cleared date; detect that clear at commit.
 
 const kitchen = loadGoldenForms().find((f) => f.version === "v2" && f.form === "kitchen-sink");
 if (!kitchen) throw new Error("kitchen-sink v2 golden not found");
@@ -30,12 +28,10 @@ describe("DatePicker clear is observable at the commit moment", { timeout: 30_00
     const blurs = vi.fn();
     render(<ControlledHost document={stepAbout} onChange={changes} onBlur={blurs} />);
 
-    // en-US order is MM/DD/YYYY.
     await user.click(segment(/month/i));
     await user.keyboard("05171990");
     expect(changes).toHaveBeenLastCalledWith("q_dob", "1990-05-17");
 
-    // The case react-aria never reports: incomplete but not empty.
     changes.mockClear();
     await user.click(segment(/month/i));
     await user.keyboard("{Backspace}");

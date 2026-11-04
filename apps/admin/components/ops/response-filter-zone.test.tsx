@@ -6,18 +6,6 @@ import { t } from "../../lib/i18n/en.ts";
 import { draftDayZone, type AppliedFilters } from "../../lib/ops/browse.ts";
 import { parseResponseQuery } from "../../lib/ops/response-filters.ts";
 
-/**
- * The response toolbar names the zone its days are ACTUALLY read in, and Apply and Export
- * keep that zone for a range nobody changed (review of PR #1077).
- *
- * The two defects this pins: a legacy address with no \`tz\` was widened in UTC by the
- * server while the hint said the operator's zone; and a range shared from Los Angeles was
- * silently re-read on the operator's Sydney clock the moment they pressed Apply, changing
- * the result set behind controls that had not changed.
- *
- * The router is stubbed to capture the address Apply pushes, which is then fed back
- * through the server's own parser: the round trip is the assertion.
- */
 const pushed: string[] = [];
 vi.mock("next/navigation", () => ({
   useRouter: () => ({
@@ -65,7 +53,6 @@ function hints(): string[] {
     .filter((text, index, all) => all.indexOf(text) === index);
 }
 
-/** Press Apply and return what the server would parse out of the pushed address. */
 async function applyAndReparse() {
   await userEvent
     .setup()
@@ -85,7 +72,6 @@ describe("the response toolbar's day zone", { timeout: 30_000 }, () => {
     const before = renderToolbar({ from: "2026-07-01", to: "2026-07-31" });
     expect(before.request.from).toBe("2026-07-01T00:00:00.000Z");
     expect(hints()).toEqual(["Whole days, in UTC."]);
-    // Apply without touching the days keeps them on UTC rather than moving them to Sydney.
     const { query, parsed } = await applyAndReparse();
     expect(query["tz"]).toBe("UTC");
     expect(parsed.request).toEqual(before.request);

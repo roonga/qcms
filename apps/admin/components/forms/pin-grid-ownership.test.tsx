@@ -3,52 +3,6 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import type { DraftForm, DraftStep, FormIssue, PinnableQuestion } from "../../lib/forms/types.ts";
 
-/**
- * The pin list's OWNERSHIP CONTRAST, pinned structurally (issue 517).
- *
- * `plan/admin-ux-audit.md` §8 item 5 calls the step editor's pin list the highest-value
- * design change in the admin redesign, and the whole of its value is one property:
- *
- * > Editable (form-owned) cells read as controls; library-owned cells read as plain text.
- *
- * A screenshot cannot hold that property. Someone dropping an inline "rename" affordance
- * into the label cell next year would produce a frame that still looks like a tidy table,
- * and the thing the redesign bought would be gone. So the split is stated in the markup
- * (`data-owner` on every cell) and asserted here: a library-owned cell may hold nothing
- * that could change its value, and every form-owned cell must hold a control.
- *
- * The one button a library-owned cell may hold is the copy affordance
- * `plan/admin-design-contracts.md` §2 requires of an identifying column, and it has to
- * say so in the markup (`data-readonly-action`) rather than being spotted by name. This
- * file also asserts §2's no-ellipsis rule for that column, and its requirement that the
- * copy control's accessible name carry the entity and the value rather than a bare "Copy".
- *
- * The third assertion, that the id is rendered WHOLE, is this table's stated DEVIATION
- * from §2 rather than a clause of it: §2 asks an identifying column for a type prefix plus
- * 8 characters, and `components/forms/step-editor.tsx` records why a slug-derived `q_` id
- * cannot take that treatment safely and raises it for a ruling. It is pinned here so the
- * deviation cannot drift silently while the question is open.
- *
- * ## Why this layer
- *
- * `renderToStaticMarkup` is the highest layer that can see the whole table at once,
- * including the two cells that DROP at compact width, without booting a browser (ADR-23:
- * the highest layer that exists for it). What needs a browser - keyboard reorder, the
- * menu's five entries while it is open, the version pin still being operable at 390 - is
- * `apps/admin/e2e/pin-grid.pw.ts`.
- *
- * ## Nothing below is a stub
- *
- * What renders is the real component tree, including the vendored kit.
- *
- * ## Red-first
- *
- * Against the pre-change component (kept beside this file as `.repro.tsx` while it was
- * being written): every assertion here fails. There is no `qcms-table` wrapper and no
- * `<table>` at all (the list was a `<ul>` of flex rows), no `data-owner` anywhere, no
- * copy control, and three of the five row controls were plain trailing buttons.
- */
-
 const DEFINITION = {
   questionId: "q_at_fault_accident",
   type: "boolean" as const,
@@ -112,7 +66,6 @@ async function render(step: DraftStep, issues: readonly FormIssue[] = []): Promi
   );
 }
 
-/** Every `<td>`/`<th>` of the rendered markup, as its attributes and its contents. */
 function cells(html: string): { attrs: string; inner: string }[] {
   const found: { attrs: string; inner: string }[] = [];
   const pattern = /<(td|th)\b([^>]*)>([\s\S]*?)<\/\1>/g;
@@ -128,20 +81,8 @@ function cellsOwnedBy(html: string, owner: string): { attrs: string; inner: stri
   return cells(html).filter((cell) => cell.attrs.includes(`data-owner="${owner}"`));
 }
 
-/** Anything that offers to CHANGE the value in the cell it sits in. */
 const VALUE_CONTROL = /<(?:input|select|textarea)\b|aria-haspopup=/;
 
-/**
- * Pay for the module graph once, before anything is timed against the 5s default.
- *
- * `render` reaches the component through `await import("./step-editor.tsx")`, and every
- * `@/` factory above is itself a dynamic import, so the FIRST call transforms and loads
- * the step editor, the vendored kit, the announcer and the whole i18n table. Measured on
- * this machine at about 5s cold against roughly 15ms warm: on the default timeout that is
- * a coin flip, and it landed red twice in four `turbo run test --force` runs, always on
- * whichever test happened to run first. Warming it here with room means no individual
- * test carries a cost that is not its own.
- */
 beforeAll(async () => {
   await render(STEP);
 }, 60_000);
@@ -151,7 +92,6 @@ describe("the pin list is an ownership grid", () => {
     const html = await render(STEP);
     const owned = cellsOwnedBy(html, "form");
 
-    // Two per row: the grip (position) and the version trigger.
     expect(owned).toHaveLength(4);
     for (const cell of owned) {
       expect(cell.inner).toMatch(/<button\b/);
@@ -162,12 +102,9 @@ describe("the pin list is an ownership grid", () => {
     const html = await render(STEP);
     const owned = cellsOwnedBy(html, "library");
 
-    // Three per row: the question identity, the type, the issues.
     expect(owned).toHaveLength(6);
     for (const cell of owned) {
       expect(cell.inner).not.toMatch(VALUE_CONTROL);
-      // The only button a library-owned cell may hold is the copy affordance §2
-      // requires, and it has to say so rather than be recognised by its markup.
       for (const button of cell.inner.match(/<button\b[^>]*>/g) ?? []) {
         expect(button).toContain('data-readonly-action="copy"');
       }
@@ -190,8 +127,6 @@ describe("the identifying column follows contract section 2", () => {
 
     expect(html).toContain("q_at_fault_accident");
     expect(html).toContain("q_accident_count");
-    // An ellipsis, in either spelling. A truncation that looks like data invites
-    // someone to copy a value that is not one, which is why §2 forbids it outright.
     expect(html).not.toContain("…");
     expect(html).not.toContain("text-overflow");
   });
@@ -209,7 +144,6 @@ describe("the pin list wears the table family", () => {
     const html = await render(STEP);
 
     expect(html).toMatch(/<div class="qcms-table qcms-table--pins"><table>/);
-    // No zebra, no private class on the table element: the family is the wrapper.
     expect(html).not.toMatch(/<table class=/);
   });
 
@@ -217,7 +151,6 @@ describe("the pin list wears the table family", () => {
     const html = await render(STEP);
     const dropped = cells(html).filter((cell) => cell.attrs.includes("qcms-cell--drop"));
 
-    // Type and Issues, header and both data rows: 2 columns x 3 rows.
     expect(dropped).toHaveLength(6);
     for (const cell of cells(html).filter((c) => c.attrs.includes("qcms-pincell--version"))) {
       expect(cell.attrs).not.toContain("qcms-cell--drop");
@@ -248,7 +181,6 @@ describe("the row keeps its issue flag where the Issues column cannot follow", (
       /<tr class="qcms-pinrow is-error"[^>]*data-pin-question="q_at_fault_accident"/,
     );
     expect(html).toContain('data-issue-code="PIN_DEPRECATED"');
-    // And the anchor the validation panel sends focus to is still in the row.
     expect(html).toContain('id="pin-q_at_fault_accident"');
   });
 });

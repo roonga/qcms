@@ -1,7 +1,7 @@
 /**
- * One frozen registry and one door: {@link runAgentTool} refuses every name outside the
- * current screen's declared list before anything is dispatched, and checks a tool's
- * declared SEC-3 cell for the calling principal first (SEC-17, ADR-25).
+ * One frozen registry and one door: {@link runAgentTool} refuses every name outside the current screen's
+ * declared list before anything is dispatched, and checks a tool's declared permission cell for the calling
+ * principal first (ADR-25).
  */
 
 import { asSchema, jsonSchema, tool, type JSONSchema7, type Schema, type ToolSet } from "ai";
@@ -50,7 +50,6 @@ export const AGENT_PROPOSE_TOOL_NAMES = ["propose_action", "propose_plan"] as co
 
 const PROPOSE: ReadonlySet<string> = new Set<string>(AGENT_PROPOSE_TOOL_NAMES);
 
-/** Every registered tool that reads: what a screen may declare and a walk can execute. */
 export const AGENT_READ_TOOL_NAMES: readonly AgentToolName[] = AGENT_TOOL_NAMES.filter(
   (name) => !PROPOSE.has(name),
 );
@@ -71,7 +70,6 @@ export class ToolNotAllowedError extends Error {
   }
 }
 
-/** One recorded action proposal, waiting to be emitted as its own SSE event. */
 export interface RecordedProposal {
   readonly variant: "action" | "plan";
   readonly proposal: Proposal;
@@ -81,7 +79,7 @@ export interface RecordedProposal {
 export interface ProposalState {
   proposedDraft: FormDefinition | undefined;
   readonly newQuestions: QuestionDefinition[];
-  /** Every action proposal this turn recorded, which P1 bounds at one. */
+
   readonly actionProposals: RecordedProposal[];
   /** Recorded but not yet emitted, so the stream can flush each one at once. */
   readonly unsentProposals: RecordedProposal[];
@@ -722,7 +720,6 @@ export function agentToolSet(ctx: AgentContext, state: ProposalState): ToolSet {
   return set as ToolSet;
 }
 
-/** One schema exactly as the provider is shown it, for the grant-filter assertions. */
 export async function advertisedJsonSchema(zodType: z.ZodType): Promise<JSONSchema7> {
   return asSchema(providerSchema(zodType)).jsonSchema;
 }

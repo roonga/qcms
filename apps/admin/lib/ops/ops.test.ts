@@ -25,17 +25,6 @@ import { labelFor, labelsForPins, orderedAnswerKeys, pinsOf } from "./labels.ts"
 import { t } from "../i18n/en.ts";
 import type { QuestionDetail } from "../questions/types.ts";
 
-/**
- * Unit cover for the operations screens' pure rules (task 035).
- *
- * Each of these encodes a promise the UI makes in words, which is the class of defect
- * 034's retro names: copy written from intent rather than from state. A dialog that
- * says "type the session id to confirm" has to be backed by a predicate that accepts
- * exactly that and nothing else; a hint that says "CSV needs a version" has to be
- * backed by the rule that disables the button. So the words and the behaviour are
- * pinned to the same functions here, and the browser suite asserts the words.
- */
-
 const choice = (overrides: Partial<ExportChoice> = {}): ExportChoice => ({
   format: "csv",
   version: "",
@@ -47,7 +36,7 @@ const choice = (overrides: Partial<ExportChoice> = {}): ExportChoice => ({
 describe("erasure confirmation", () => {
   it("accepts the exact session id and nothing else - no single-click path", () => {
     expect(isErasureConfirmed("ses_abc123", "ses_abc123")).toBe(true);
-    // Surrounding whitespace is a paste artefact, not a different intent.
+
     expect(isErasureConfirmed("  ses_abc123 ", "ses_abc123")).toBe(true);
   });
 
@@ -59,7 +48,6 @@ describe("erasure confirmation", () => {
   });
 
   it("refuses everything when there is no session id to match", () => {
-    // A screen that lost its session id must not be confirmable by typing nothing.
     expect(isErasureConfirmed("", "")).toBe(false);
   });
 
@@ -112,7 +100,7 @@ describe("export rules", () => {
     expect(query.get("from")).toBe("2026-06-30T14:00:00.000Z");
     expect(query.get("to")).toBe("2026-07-01T13:59:59.999Z");
     expect(query.get("tz")).toBe("Australia/Sydney");
-    // No days, no zone: it would describe nothing.
+
     expect(exportQuery(choice({ version: "2", timeZone: "Australia/Sydney" }))).toBe(
       "?format=csv&version=2",
     );
@@ -129,17 +117,12 @@ describe("export rules", () => {
     expect(exportFilename("frm_intake", "prod", choice({ format: "json" }))).toBe(
       "frm_intake-prod-responses.json",
     );
-    // The environment is in the name and in no column (Q8, task 067): an export reads one
-    // environment's pool, so a file can never mix two, and what the name answers is which
-    // environment the file on an operator's desktop came from. Before this, these two were
-    // the same name and a report built from the wrong one was indistinguishable from one
-    // built from the right one.
+
     expect(exportFilename("frm_intake", "test", choice({ version: "2" }))).not.toBe(
       exportFilename("frm_intake", "prod", choice({ version: "2" })),
     );
   });
 
-  // The CSV shape (task 075, ruling Q17).
   it("sends the chosen shape for CSV and never for JSON", () => {
     expect(exportQuery(choice({ version: "2", shape: "wide" }))).toBe(
       "?format=csv&version=2&shape=wide",
@@ -147,8 +130,7 @@ describe("export rules", () => {
     expect(exportQuery(choice({ version: "2", shape: "long" }))).toBe(
       "?format=csv&version=2&shape=long",
     );
-    // Switching format must not smuggle a parameter the dialog is showing as inert,
-    // which is the rule `version` already follows.
+
     expect(exportQuery(choice({ format: "json", version: "2", shape: "wide" }))).toBe(
       "?format=json",
     );
@@ -161,9 +143,6 @@ describe("export rules", () => {
   });
 
   it("names a zip when the API answered with one, not when the request asked for CSV", () => {
-    // The long shape of a form with a repeating group is several files, and only the
-    // API has read the pinned definition that says whether this version has a group.
-    // So the extension follows what arrived.
     expect(exportExtension("csv", "application/zip")).toBe("zip");
     expect(exportExtension("csv", "text/csv; charset=utf-8")).toBe("csv");
     expect(exportExtension("csv", null)).toBe("csv");
@@ -174,16 +153,6 @@ describe("export rules", () => {
   });
 });
 
-/**
- * Reading the export link back (issue 551).
- *
- * The link `exportQuery` writes and the filters `parseExportFilters` reads are the two
- * ends of one string, so the first case is the round trip: what the dialog builds is
- * what the route applies. The rest pin the borrowed validators - a value the response
- * browser drops is a value this refuses, rather than a second opinion about the same
- * three parameters. The route's own behaviour on a refusal (a 400, and no upstream
- * call) is asserted in `app/(shell)/forms/[formId]/export/route.test.ts`.
- */
 describe("export filter parsing", () => {
   const parse = (search: string) => parseExportFilters(new URLSearchParams(search));
 
@@ -217,7 +186,7 @@ describe("export filter parsing", () => {
       ok: true,
       filters: { from: "2026-07-01T07:00:00.000Z" },
     });
-    // An instant that is not a whole day on the named clock is still a partial instant.
+
     expect(parse("from=2026-07-01T00%3A00%3A00.000Z&tz=Australia%2FSydney")).toEqual({
       ok: false,
       invalid: ["from"],
@@ -278,8 +247,6 @@ describe("answer rendering", () => {
   });
 
   it("distinguishes an empty answer from no answer", () => {
-    // An empty string IS an answer; an absent one is not, and the caller words them
-    // differently. Collapsing the two would caption a real answer as missing.
     expect(answerText("")).toBe("");
     expect(answerText(undefined)).toBeNull();
     expect(answerText(null)).toBeNull();
@@ -289,10 +256,6 @@ describe("answer rendering", () => {
 
 describe("answer preview for the browser table (issue 515)", () => {
   it("previews the first two answered questions, in a deterministic order", () => {
-    // Keys deliberately out of order in the literal: the map arrives as parsed JSON and
-    // nothing guarantees the order it was written in, so the column has to sort. Two
-    // rows with the same answers must preview identically, and one row must preview the
-    // same way on every render.
     const preview = answerPreview({ q_c: "third", q_a: "first", q_b: "second" });
     expect(preview.entries.map((entry) => entry.questionId)).toEqual(["q_a", "q_b"]);
     expect(preview.entries.map((entry) => entry.value)).toEqual(["first", "second"]);
@@ -300,9 +263,6 @@ describe("answer preview for the browser table (issue 515)", () => {
   });
 
   it("bounds how much respondent-entered text a list row can show", () => {
-    // The privacy budget, asserted as a number rather than trusted as a comment. A free
-    // text answer must be cut mid-clause: the list is a scan aid, and reading a response
-    // is the detail screen's audited job.
     const essay = "x".repeat(500);
     const preview = answerPreview({ q_story: essay, q_other: essay });
     expect(preview.entries).toHaveLength(PREVIEW_ENTRIES);
@@ -310,7 +270,7 @@ describe("answer preview for the browser table (issue 515)", () => {
       expect(entry.value).toHaveLength(PREVIEW_VALUE_CHARS);
       expect(entry.clipped).toBe(true);
     }
-    // Whatever the answers hold, one row exposes at most this much of them.
+
     const shown = preview.entries.reduce((total, entry) => total + entry.value.length, 0);
     expect(shown).toBeLessThanOrEqual(PREVIEW_ENTRIES * PREVIEW_VALUE_CHARS);
   });
@@ -322,9 +282,6 @@ describe("answer preview for the browser table (issue 515)", () => {
   });
 
   it("renders every non-string encoding rather than leaking an object", () => {
-    // `[object Object]` in an operator's table is a defect, and so is a blank cell where
-    // a number or a boolean was answered. The preview reuses `answerText`, so the four
-    // canonical encodings and the unexpected shape all come out readable.
     const preview = answerPreview({ q_1: 12, q_2: false });
     expect(preview.entries.map((entry) => entry.value)).toEqual(["12", "false"]);
     expect(answerPreview({ q_1: ["opt_a", "opt_b"] }).entries[0]?.value).toBe("opt_a; opt_b");
@@ -334,29 +291,16 @@ describe("answer preview for the browser table (issue 515)", () => {
   });
 
   it("skips a question that carries no value, and does not count it as more", () => {
-    // A retracted or absent answer is not something to preview: spending a slot on a
-    // blank costs the next real answer its place, and counting it would tell the
-    // operator there is more to see when there is not.
     const preview = answerPreview({ q_a: null, q_b: [], q_c: "kept" });
     expect(preview.entries.map((entry) => entry.questionId)).toEqual(["q_c"]);
     expect(preview.hidden).toBe(0);
   });
 
   it("says nothing rather than something wrong when a response has no answers", () => {
-    // Every question optional, or every one hidden by a condition: a submitted response
-    // can legitimately hold nothing. The caller words this case; what matters here is
-    // that it is distinguishable from "two answers" and cannot throw.
     expect(answerPreview({})).toEqual({ entries: [], hidden: 0 });
   });
 });
 
-/**
- * The preview's punctuation, read from the catalog rather than retyped.
- *
- * The assertions below are then about the SHAPE the cell composes - pairs, separators,
- * a clip marker, a more marker - and not about which characters `en.ts` currently
- * spells them with, so a wording change is not a test change.
- */
 const SEPARATOR = t("ops.responses.preview.separator");
 const MORE = t("ops.responses.preview.more");
 const CLIP = t("ops.responses.preview.clipped", { value: "" });
@@ -368,16 +312,10 @@ describe("the answer-preview cell's text (issue 515)", () => {
   });
 
   it("carries no separator and no more-marker when one answer is all there is", () => {
-    // The `auto` fixture's own shape: answering "no" to the at-fault question hides the
-    // count, so a real submitted row holds exactly one answer.
     expect(answerPreviewText({ q_at_fault_accident: false })).toBe("q_at_fault_accident: false");
   });
 
   it("never puts a whole free-text answer into the markup", () => {
-    // The privacy claim the column rests on, asserted rather than asserted-in-prose.
-    // The clip happens on the string that BECOMES the text node, so there is no second
-    // copy anywhere for a tooltip or a data attribute to hold - which is exactly why
-    // this cell has no `title`.
     const secret = "I was driving my mother's car without telling the insurer about it";
     const text = answerPreviewText({ q_story: secret });
     expect(text).not.toContain(secret);
@@ -386,8 +324,6 @@ describe("the answer-preview cell's text (issue 515)", () => {
   });
 
   it("names the empty state instead of rendering an empty cell", () => {
-    // The state this layer exists to reach. A blank cell reads as a rendering failure
-    // to a sighted operator and announces as nothing at all to a screen reader.
     const text = answerPreviewText({});
     expect(text).toBe(t("ops.responses.preview.none"));
     expect(text.trim()).not.toBe("");
@@ -462,15 +398,14 @@ describe("question labels resolve through the pin", () => {
 
   it("captions with the PINNED version's wording, not the newest", () => {
     const labels = labelsForPins(pinsOf(definition), details);
-    // q_name was pinned at v1, and v1 said "Your name". v2 renamed it, and the
-    // response was never shown that wording.
+
     expect(labelFor(labels, "q_name")).toBe("Your name");
     expect(labelFor(labels, "q_age")).toBe("Age");
   });
 
   it("falls back to the id when the pinned version cannot be resolved", () => {
     const labels = labelsForPins(pinsOf(definition), details);
-    // Better an id than a label the respondent never saw.
+
     expect(labelFor(labels, "q_gone")).toBe("q_gone");
     expect(labelFor(labels, "q_never_heard_of")).toBe("q_never_heard_of");
   });
@@ -491,23 +426,14 @@ describe("response page links", () => {
   });
 
   it("omits absent filters rather than sending empty values", () => {
-    // `to` is "" above. An empty `to=` is not the same request as no `to` at all, and
-    // the API would have to guess which was meant.
     expect(responsePageLink("frm_auto_quote", applied, 3)).not.toContain("to=");
   });
 
   it("writes page 1 explicitly", () => {
-    // A "Previous page" link that reloads must land on the page it named, not on an
-    // implicit default that a later change to the default could move.
     expect(responsePageLink("frm_auto_quote", applied, 1)).toContain("page=1");
   });
 
   it("cannot carry a filter the operator has not applied", () => {
-    // The regression this function exists for. A date typed into "From" and never
-    // applied used to ride along with a "Next page" click, so the result set changed
-    // for two reasons and the operator had asked for one. There is no draft state in
-    // this module's scope, so a link built here can only ever describe the set the
-    // server applied: the same filters in, the same query out.
     const draftTyped = { ...applied, from: "1999-12-31" };
     expect(responsePageLink("frm_auto_quote", applied, 2)).not.toContain("1999-12-31");
     expect(responsePageLink("frm_auto_quote", draftTyped, 2)).toContain("1999-12-31");

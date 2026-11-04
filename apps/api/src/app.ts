@@ -52,8 +52,8 @@ export function createApp(
 
   app.onError(errorEnvelope(deps));
 
-  // Must sit above the request logger so the correlation id has a span to attach to.
-  // Header capture is left unset on purpose: SEC-13 keeps credentials out of every signal.
+  // Install telemetry before the request logger so correlation ids attach to spans; never capture credential
+  // headers.
   app.use("*", httpInstrumentationMiddleware());
 
   app.use("*", requestLogger(deps));
@@ -87,15 +87,15 @@ export function createApp(
 
   mount(flags.public, MOUNT_PREFIX.public, groups.respondent, PROD_ENVIRONMENT);
   mount(flags.public, MOUNT_PREFIX.public, groups.anonymous, PROD_ENVIRONMENT);
-  // The anonymous group's absence from every non-prod surface is what makes SEC-14
-  // structural rather than a handler check.
+  // The anonymous group's absence from every non-prod surface is what makes environment isolation structural
+  // rather than a handler check.
   for (const environment of flags.environments ?? []) {
     mount(true, environmentPrefix(environment), groups.respondent, environment);
   }
   mount(flags.internal, MOUNT_PREFIX.internal, groups.internal);
   mount(flags.admin, MOUNT_PREFIX.admin, groups.admin);
-  // Unauthenticated in the user sense, so the SEC-4 internal token `mount` installs is
-  // what keeps these endpoints off any public network.
+  // Unauthenticated in the user sense, so the internal token `mount` installs is what keeps these endpoints
+  // off any public network.
   mount(flags.admin, MOUNT_PREFIX.auth, groups.auth);
 
   return app;

@@ -249,8 +249,8 @@ export async function listTombstones(
 }
 
 /**
- * Response metadata, with no answer column selected and no answer table joined, so the
- * row type carries no field an answer value could arrive in (SEC-17).
+ * Response metadata, with no answer column selected and no answer table joined, so the row type carries no
+ * field an answer value could arrive in.
  */
 export type ResponseMetadataRow = {
   readonly sessionId: SessionId;

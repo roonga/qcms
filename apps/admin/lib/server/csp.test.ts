@@ -2,11 +2,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { buildAdminCsp } from "./csp";
 
-/**
- * SEC-9, and the one conditional the admin's policy has: `'unsafe-eval'` under `next dev`
- * and nowhere else. The production string is stated in full rather than probed, because
- * what has to hold is that no deployed policy changed at all.
- */
 const PRODUCTION =
   "default-src 'self'; " +
   "base-uri 'self'; " +

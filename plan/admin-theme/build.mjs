@@ -1,31 +1,7 @@
-// QCMS admin theme (Cobalt) - build script. Rev 2: aligned to the QCMS Design
-// System visual language (qcms-design-system.html in the Claude Design project):
-// brand cobalt #2456C6 / #7AA2FF, mode-following translucent topbar, 8px radius
-// base, tight heading tracking. Rev 1's fixed navy topbar and off-brand cobalt
-// (#1c4fd6) were divergences and are withdrawn.
-// Defines the admin token sets, verifies every critical contrast pair with the
-// WCAG 2.2 relative-luminance formula, and emits tokens.css, ADMIN_THEME.md and
-// the self-contained admin-theme.html preview. Fails the build if any pair
-// misses, so the published numbers cannot drift from the tokens.
-// Run: node build.mjs (from this directory)
-
 import { readFileSync, writeFileSync } from "node:fs";
 import { adminFontFaceCss } from "./admin-font.mjs";
 
-// ---------- The shared fallback tails ----------
-
-/**
- * The three `--font-fallback-*` lists, read from the product's token sheet
- * (issue #27). They are declared in exactly one place, `packages/ui/src/theme.css`,
- * and this app's face ends in one of them rather than restating it: the admin
- * token sheet used to carry its own sans tail and its own, different, mono tail,
- * and neither moved when the portal's did.
- *
- * `tokens.css` therefore emits `var(--font-fallback-sans)` and declares no mono
- * token at all - the app imports the shipped sheet ahead of its own, so both
- * resolve there. The preview below is standalone and has no such import, so it
- * inlines the values read here, under a comment saying where they come from.
- */
+/* Read fallback stacks from the shared sheet so the standalone preview cannot diverge from product fonts. */
 const THEME_SHEET = "../../packages/ui/src/theme.css";
 
 function fallbackTails() {
@@ -46,8 +22,6 @@ function fallbackTails() {
 
 const TAILS = fallbackTails();
 
-// ---------- WCAG math ----------
-
 const lin = (c) => {
   const s = c / 255;
   return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
@@ -62,17 +36,7 @@ const ratio = (fg, bg) => {
   return (hi + 0.05) / (lo + 0.05);
 };
 
-// ---------- Tokens ----------
-// Neutrals and semantic colours are the shipped slate values (051, already
-// WCAG-verified there). The accent is the design-system cobalt: #2456C6 light /
-// #7AA2FF dark (the values the DS overview and the portal focus ring already
-// use), so primary == focus-ring == info hue, as in the DS (--ring == --primary).
-
-// The environment family. An environment is a PLACE, not a state, so it takes a
-// family of its own rather than borrowing success, warning or danger: a warning
-// hue on the chip said "something is wrong" about an ordinary test environment
-// and left the app with no colour for a real warning beside it
-// (`plan/admin-design-contracts.md` §10).
+// Environment hues describe a place, not success or warning state.
 const envLight = {
   "--color-env-prod": "#1e293b",
   "--color-env-prod-foreground": "#ffffff",
@@ -187,9 +151,6 @@ const dark = {
   ...envDark,
 };
 
-// HC: the universal 051 HC mode-layer (carried verbatim from the portal theme
-// registry so this sheet is self-contained), plus the admin's cobalt accent -
-// the only part the admin actually contributes.
 const hcUniversal = {
   "--color-secondary": "#1c2433",
   "--color-secondary-hover": "#19202e",
@@ -232,9 +193,6 @@ const hcAccent = {
   "--color-primary-foreground": "#ffffff",
 };
 
-// The dark field, carried verbatim from the registry's `.dark.hc` layer for the
-// same reason the light one is: white text and edges on black surfaces, the same
-// flattened neutrals and fixed AAA semantics inverted.
 const darkHcUniversal = {
   "--color-secondary": "#cfd5e0",
   "--color-secondary-hover": "#e2e6ee",
@@ -270,8 +228,7 @@ const darkHcUniversal = {
   "--color-overlay": "rgb(0 0 0 / 0.8)",
 };
 
-// The light-HC cobalt above measures 2.27:1 on the black field, so this app owes a
-// dark accent - the rule any theme follows, enforced by the accent gate below.
+// The light high-contrast accent fails on black, requiring its own dark replacement.
 const darkHcAccent = {
   "--color-primary": "#a9c4ff",
   "--color-primary-hover": "#b8cfff",
@@ -279,8 +236,7 @@ const darkHcAccent = {
   "--color-primary-foreground": "#000000",
 };
 
-// The 4px scale is the whole spacing vocabulary: nothing outside it, and nothing
-// derived from `em`. The two odd steps are for chips only.
+// Use the fixed spacing scale; the two half-steps are reserved for chips.
 const spacing = {
   "--space-0-5": "2px",
   "--space-1": "4px",
@@ -294,9 +250,8 @@ const spacing = {
   "--space-10": "40px",
   "--space-12": "48px",
   "--admin-control-h": "40px",
-  // Literal rather than `var(--space-N)`: a custom property computes to its
-  // authored text, and these four are read back as lengths by `e2e/appearance.pw.ts`
-  // and `e2e/rail.pw.ts`. The equalities are 12 = space-3, 8 = space-2, 20 = space-5.
+  // Keep literal lengths: the appearance and rail tests read custom-property text as lengths rather than
+  // resolving var().
   "--admin-control-pad-x": "12px",
   "--admin-stack": "8px",
   "--admin-section-pad": "20px",
@@ -306,8 +261,6 @@ const spacing = {
   "--radius-sm": "2px",
   "--radius-modal": "8px",
 };
-
-// ---------- Contrast gates ----------
 
 const modePairs = (t) => [
   [`text / background`, t["--color-text"], t["--color-background"], 4.5],
@@ -445,10 +398,6 @@ const hcPairs = (t) => [
   [`env-test / background (bar edge)`, t["--color-env-test"], t["--color-background"], 3.0],
 ];
 
-// The rule a theme follows for the dark field: an accent that clears AAA against that
-// background rides the light-HC block for free, and one that misses owes a dark accent.
-// This app's light-HC cobalt misses, so the pair below is the measurement that says so
-// and the one that holds its replacement.
 const accentPairs = [
   [
     `light-HC accent / dark-HC background (measured; 7:1 here retires the dark accent)`,
@@ -472,10 +421,8 @@ const sections = [
   ["cobalt / the dark-field accent rule", accentPairs],
 ];
 
-// The first accent row is a measurement rather than a floor, and a target of 0 would
-// pass whatever it measured. Stated as its own assertion so the rule cannot quietly
-// invert: if the light accent ever clears AAA on the dark field, this app stops owing a
-// dark accent and the sheet should drop it rather than carry a redundant block.
+// Assert the light accent still misses dark AAA; otherwise the separate dark-accent block has become
+// redundant.
 if (ratio(hc["--color-primary"], darkHc["--color-background"]) >= 7.0) {
   console.error(
     "the light-HC accent now clears AAA on the dark field: drop the dark-HC accent block",
@@ -503,14 +450,11 @@ if (failed > 0) {
 }
 console.log("All contrast pairs pass.");
 
-// ---------- Emit tokens.css ----------
-
 const block = (sel, obj) =>
   `${sel} {\n${Object.entries(obj)
     .map(([k, v]) => `  ${k}: ${v};`)
     .join("\n")}\n}`;
 
-/** Indent a whole block by one level, for nesting it inside an at-rule. */
 const indent = (text) =>
   text
     .split("\n")
@@ -531,19 +475,8 @@ const previewBlocks = PREVIEW_STATES.map(([state, tokens]) =>
   block(`.qcms-themepreview[data-state="${state}"]`, colourTokens(tokens)),
 ).join("\n\n");
 
-const css = `/* QCMS app theme - Cobalt (rev 9, polarity x contrast).
-   Generated by plan/admin-theme/build.mjs. All values WCAG 2.2-verified at
-   build time; see ADMIN_THEME.md.
-   Appearance is polarity crossed with contrast, and the root classes match the
-   portal theme registry's convention:
-   (none) = Light   .dark = Dark   .hc = light High-contrast
-   .dark.hc = dark High-contrast   .light = Light pinned against the OS.
-   Emission order is fixed and load-bearing: light, dark, the auto dark block,
-   .hc, .dark.hc, then the auto dark-HC block.
-   Neutrals and semantic colours are the shipped slate values; the accent is the
-   design-system cobalt (#2456C6 / #7AA2FF; primary == focus-ring == info hue,
-   as the DS overview's --ring == --primary). The topbar is translucent and
-   mode-following (styled from standard tokens; no dedicated chrome group). */
+const css = `/* Generated by plan/admin-theme/build.mjs. Keep emission order: light, dark, auto-dark, high contrast,
+   dark high contrast, auto-dark high contrast. */
 
 ${block(":root", {
   ...light,
@@ -554,50 +487,28 @@ ${block(":root", {
 
 ${block(":root.dark", dark)}
 
-/* Auto: with no polarity class on the root, the sheet follows the operating
-   system. This is what makes "Auto" resolve to the machine's preference with no
-   script and no flash - the server can stamp a polarity class only when the
-   operator has chosen one, and this block covers the case where it cannot.
-   Polarity is the ONLY inferred axis: there is deliberately no prefers-contrast
-   companion, because high contrast is only ever an explicit choice.
-   :not(.light) is what makes an explicit Light choice stick on a
-   dark-preferring machine. Light is the bare :root block above, so the
-   light class carries no values of its own and exists only to opt out here.
-   :not(.hc) keeps this block, at (0,4,0), from outranking the .hc layer below;
-   the dark field under Auto is the second block further down, which is written
-   with .hc instead and so cannot collide with this one. */
+/* Infer polarity only; high contrast requires explicit choice. Exclude .light and .hc so auto dark cannot
+   override either selection. */
 @media (prefers-color-scheme: dark) {
 ${indent(block(":root:not(.light):not(.dark):not(.hc)", dark))}
 }
 
-/* High-contrast, the light field: the universal HC mode-layer (carried verbatim
-   from the 051 registry so this sheet is self-contained) plus the QCMS app's
-   cobalt accent - the accent is the only part the QCMS app contributes, like any
-   theme. */
+
 ${block(":root.hc", hc)}
 
-/* High-contrast, the dark field. .dark.hc is (0,3,0) and beats the .hc block
-   above on specificity, so it overrides only what the field flips. */
+/* The combined dark high-contrast selector must outrank the light high-contrast layer. */
 ${block(":root.dark.hc", darkHc)}
 
-/* High contrast under Auto polarity: the operator chose contrast but left
-   polarity to the machine, so the dark field has to be reachable with no .dark
-   class to select it. (0,4,0), above the .hc layer and disjoint from the auto
-   block at the top, which excludes .hc. */
+/* Auto dark high contrast must outrank .hc and stay disjoint from the ordinary auto-dark selector. */
 @media (prefers-color-scheme: dark) {
 ${indent(block(":root.hc:not(.light):not(.dark)", darkHc))}
 }
 
-/* The appearance control's preview tiles, which show the three states the
-   operator is NOT in. Scoped to the tile rather than the root, so each paints
-   from the real token values rather than from a second set of colours kept in
-   step by hand. Colour tokens only: a tile inherits every metric. */
+/* Preview tiles share real color tokens while inheriting metrics; do not maintain a second palette. */
 ${previewBlocks}
 `;
 
 writeFileSync("tokens.css", css);
-
-// ---------- Emit ADMIN_THEME.md ----------
 
 const md = `# QCMS app theme - Cobalt (rev 9)
 
@@ -776,8 +687,6 @@ the product truth; the overview should be regenerated from it at some point.
 `;
 
 writeFileSync("ADMIN_THEME.md", md);
-
-// ---------- Emit admin-theme.html ----------
 
 const html = `<!-- @dsCard group="QCMS" name="QCMS app theme - Cobalt" subtitle="Shell chrome, data table, auth card - light / dark / HC" -->
 <title>QCMS app theme - Cobalt</title>

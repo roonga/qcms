@@ -175,12 +175,10 @@ describe("authorMessageFor", () => {
 describe("the hydrated and no-JS paths resolve one message", () => {
   const CATALOG = "That answer is not valid.";
 
-  /** `components/step-flow.tsx`: both halves in one place, after the 422 is read. */
   function hydrated(authored: string | undefined, rejection: AnswerRejection | undefined): string {
     return authored ?? defaultAnswerMessage(rejection, CATALOG);
   }
 
-  /** The BFF route's default, then `native-step`'s per-constraint override. */
   function noJs(authored: string | undefined, rejection: AnswerRejection | undefined): string {
     const routeDefault = defaultAnswerMessage(rejection, CATALOG);
     return authored ?? routeDefault;

@@ -1,70 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-/**
- * SEC-9's CSRF belt on the admin's state-changing BFF routes, and the line each refusal
- * now writes (issue #620).
- *
- * ## What is being defended, stated at its real size
- *
- * Every route below is an authentication or credential route: sign-in, sign-out, the
- * TOTP challenge, TOTP enrolment, the recovery-code redemption and confirmation, and
- * the password change. `SameSite=Lax` on the session cookie is the primary control and
- * it holds; this belt is the second layer for a client that does not enforce it.
- *
- * That is also why the log line matters more here than on the portal, and for a
- * different reason. The portal's equivalent counts an accepted population of
- * respondents on browsers too old for Fetch Metadata. This one is the only trace a
- * cross-origin probe against the admin's authentication surface leaves anywhere: a
- * burst of refusals on `/two-factor/challenge/verify` is not an old browser, and nobody
- * files a support ticket to report that they are probing your two-factor endpoint. A
- * refusal that produces no line is a refusal that never happened as far as an operator
- * can tell.
- *
- * ## Why the assertions are shaped this way
- *
- * Every case asserts on the **collaborator seam**, not only on the status code. A route
- * that refuses after already calling the API's auth mount has not refused, and a status
- * assertion alone cannot tell the two apart: every refusal here is a 303, and so is
- * every success. So the invariant each case pins is "nothing downstream was reached",
- * which is what actually decides whether auth state changed.
- *
- * The negative cases send a genuinely foreign `Origin`, because a request with **no**
- * `Origin` header is not a discriminating probe on every guard shape.
- *
- * `Origin: null` has its own case. It is not a hypothetical: `proxy.ts` sets
- * `Referrer-Policy: no-referrer`, and per Fetch a navigation POST under that policy
- * serializes its origin as the literal string `null`. Every auth screen here is exactly
- * such a POST, and an attacker's page can declare the same policy, so it must be
- * refused rather than read as "local". `Sec-Fetch-Site` is what separates the two,
- * which is why it is read first (`docs/RETRO.md`, the 031 entry, is what happens when
- * it is not).
- *
- * ## The refusal is asserted to be observable
- *
- * Every refusal case pins that the belt wrote **exactly one** log line, and every
- * admitted case pins that it wrote none. Exactly-one rather than at-least-one because a
- * duplicated line on any route would silently double an operator's refusal count, and
- * on this surface that count is the alarm.
- *
- * The capture is a **real** `createJsonLogger` writing into an array, not a spy on the
- * logger interface: the assertions then read the serialized line the admin's stdout
- * would carry, so they see the SEC-8 redaction pass as well as the fields the caller
- * chose. A spy would assert what the belt *asked* to log, which is the weaker claim.
- */
-
 const ADMIN_BASE = "https://admin.qcms.test";
 
-/**
- * The server configuration the real `./config.ts` reads, which these tests deliberately
- * do not mock: the belt's `Origin` comparison must run against a genuinely configured
- * base URL, or it would be comparing a stub to itself.
- *
- * Applied once at module scope so the route imports below cannot observe an unset
- * environment, and re-applied per test because {@link afterEach} clears it. Restoring
- * matters here rather than being tidiness: Vitest shares a worker process across files,
- * so a stub left standing is a value some unrelated admin test reads without asking for
- * it.
- */
 function stubAdminEnv(): void {
   vi.stubEnv("QCMS_ADMIN_BASE_URL", ADMIN_BASE);
   vi.stubEnv("QCMS_API_BASE_URL", "http://api.internal");
@@ -77,7 +14,6 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-/** The session a signed-in admin has, for the two `(shell)/settings` handlers. */
 const SESSION = {
   userId: "u_1",
   email: "admin@example.test",
@@ -87,7 +23,6 @@ const SESSION = {
   token: "tok_test",
 };
 
-/** A better-auth response as the API's auth mount would return it. */
 function authResponse(body: unknown, init: ResponseInit = {}): Response {
   return new Response(JSON.stringify(body), {
     status: 200,
@@ -96,13 +31,6 @@ function authResponse(body: unknown, init: ResponseInit = {}): Response {
   });
 }
 
-/**
- * Every seam a belted admin handler can reach once it is past the belt.
- *
- * One object rather than a mock per route, so that "a refused request reached nothing"
- * can be asserted over the whole set on every route. A handler that refused its own
- * call but made a neighbour's has still let a cross-site caller act.
- */
 const seams = {
   signInEmail: vi.fn(),
   signOut: vi.fn(),
@@ -132,9 +60,6 @@ vi.mock("@/lib/server/auth-api", () => ({
   proxiedSession: seams.proxiedSession,
 }));
 
-// The assist proxies reach the API through `lib/server/forms.ts`. Only those two are
-// replaced, and only so the "a refused request reached nothing" sweep has something
-// to watch on these routes: the belt itself is the real one.
 vi.mock("@/lib/server/forms", async () => ({
   ...(await import("./forms.ts")),
   assist: seams.assist,
@@ -159,18 +84,9 @@ vi.mock("next/navigation", () => ({
   },
 }));
 
-/**
- * The admin's stdout, captured. `vi.hoisted` because the `vi.mock` factory below is
- * lifted above every other statement in this file, so an ordinary `const` would not
- * exist yet when the factory runs.
- */
+/** The admin's stdout, captured. `vi.hoisted` because the `vi.mock` factory below is lifted above every other statement in this file, so an ordinary `const` would not exist yet when the factory runs. */
 const { emitted } = vi.hoisted(() => ({ emitted: [] as string[] }));
 
-/**
- * The one substitution: the logger's **sink**, not the logger. `createJsonLogger` is the
- * real one, so redaction, field ordering and serialization all run exactly as they do in
- * the admin, and `emitted` holds the very lines an operator would grep.
- */
 vi.mock("./logger.ts", async () => {
   const { createJsonLogger } = await import("@roonga/qcms-observability/logger");
   return {
@@ -185,12 +101,6 @@ beforeEach(() => {
   emitted.length = 0;
 });
 
-/*
- * `route-helpers` and `config` carry no registration at all: they are where the belt under
- * test lives, and faking either would make every assertion below a tautology. `session` is
- * the real module too, so the redirect paths the handlers use are the ones the app uses -
- * only its request guard is a spy, because it reaches the API.
- */
 vi.mock("@/lib/server/session", async () => ({
   ...(await import("./session.ts")),
   requireAdminSessionForRequest: seams.requireAdminSessionForRequest,
@@ -209,39 +119,23 @@ const codesRoute = await import("../../app/(shell)/settings/recovery-codes/route
 const assistRoute = await import("../../app/(shell)/forms/[formId]/assist/route.ts");
 const screenAssistRoute = await import("../../app/(shell)/assist/route.ts");
 
-/** The refusal lines written since the last test started, parsed. */
 function refusalLines(): Record<string, unknown>[] {
   return emitted
     .map((line) => JSON.parse(line) as Record<string, unknown>)
     .filter((line) => line["msg"] === "origin.belt.refused");
 }
 
-/**
- * The refusal outcome read back off a real refusal response, in the same vocabulary the
- * log line uses.
- *
- * Derived from the wire rather than from the route table, so that comparing the two says
- * something. A navigation refusal is a 303, and what separates those two is whether the
- * redirect carries the opaque failure marker that makes a screen render its one generic
- * sentence. Task 041's assist turn is reached by `fetch` rather than by a form, so its
- * refusal is a bare status with no `Location` to read at all.
- */
 function outcomeOnTheWire(response: Response): string {
   if (response.status !== 303) return `refused-${response.status}`;
   const location = new URL(response.headers.get("location") ?? "", ADMIN_BASE);
   return location.search === "" ? "redirect-without-message" : "redirect-with-failure";
 }
 
-/** One header shape a POST can arrive with, and whether the belt lets it through. */
 interface OriginCase {
   readonly name: string;
   readonly headers: Record<string, string>;
   readonly allowed: boolean;
-  /**
-   * How the refusal line must classify these headers. Required on every refused case and
-   * absent on every admitted one, which is checked below: a refused case that forgot its
-   * expectation would otherwise assert only that *some* line was written.
-   */
+
   readonly logged?: { readonly beltFetchSite: string; readonly beltOrigin: string };
 }
 
@@ -283,8 +177,7 @@ const ORIGIN_CASES: readonly OriginCase[] = [
     name: "Origin: null and no Fetch Metadata (Referrer-Policy: no-referrer, either side)",
     headers: { origin: "null" },
     allowed: false,
-    // The shape that separates the honest old browser from the forgery: no Fetch
-    // Metadata at all, and the `null` origin the admin's own auth forms produce.
+
     logged: { beltFetchSite: "absent", beltOrigin: "null" },
   },
   {
@@ -295,39 +188,19 @@ const ORIGIN_CASES: readonly OriginCase[] = [
   },
 ];
 
-/** One state-changing route, driven end to end through its exported `POST`. */
 interface GuardedRoute {
-  /** Repo-relative path, so a red names the file to open. */
   readonly path: string;
-  /** Invoke `POST` with these request headers. */
+
   readonly post: (headers: Record<string, string>) => Promise<Response> | Response;
-  /** The seam this route reaches once it is past the belt. */
+
   readonly reached: () => (typeof seams)[keyof typeof seams];
-  /**
-   * Where a refusal lands, as an app-relative `Location`, or `null` for a route that
-   * answers a status rather than redirecting (task 041's `fetch`-reached assist turn).
-   */
+
   readonly refusalLocation: string | null;
-  /** The refusal's status. `303` for every navigation route; the assist turn answers 403. */
+
   readonly refusalStatus?: number;
-  /**
-   * The route template the refusal line must carry, and the outcome it must name.
-   *
-   * `beltOutcome` is asserted here, beside {@link refusalLocation}, on purpose: the belt
-   * runs before the handler builds its response, so the outcome is derived from the
-   * route rather than observed, and the two would otherwise be free to drift. Asserting
-   * the real response and the logged claim about it in one case makes a drift a red.
-   */
+
   readonly logged: { readonly beltRoute: string; readonly beltOutcome: string };
-  /**
-   * The proxied session this route's own guard requires, when the default will not do.
-   *
-   * Only the forced change-password handler declares one (task 061): its guard admits
-   * exactly the session every other guard refuses, so the shared default would send it
-   * to the shell and the "proceeds past the belt" case would never reach its seam. The
-   * guard itself is the real module, which is the point - a stub would make this file
-   * assert a handler production does not run.
-   */
+
   readonly session?: unknown;
 }
 
@@ -380,10 +253,7 @@ const ROUTES: readonly GuardedRoute[] = [
     reached: () => seams.verifyTotp,
     refusalLocation: "/two-factor/enroll?error=1",
     logged: { beltRoute: "/two-factor/enroll/verify", beltOutcome: "redirect-with-failure" },
-    // Since task 061 this handler carries `requireEnrollingSessionForRequest()`, so the
-    // shared default above - which names no `session` key and reports an enrolled user -
-    // would send every probe to the shell before the belt could be observed. The session
-    // this route exists to serve is mid-enrollment and past the password change.
+
     session: {
       session: { createdAt: new Date().toISOString(), token: "session-token" },
       user: { id: "usr_1", twoFactorEnabled: false, mustChangePassword: false },
@@ -404,7 +274,7 @@ const ROUTES: readonly GuardedRoute[] = [
     post: (headers) =>
       confirmRoute.POST(formPost("/two-factor/recovery-codes/confirm", headers, form({}))),
     reached: () => seams.clearRecoveryCodesCookie,
-    // The shell home, which is the root resolver: there is no one area every caller holds.
+
     refusalLocation: "/",
     logged: {
       beltRoute: "/two-factor/recovery-codes/confirm",
@@ -426,9 +296,6 @@ const ROUTES: readonly GuardedRoute[] = [
     logged: { beltRoute: "/settings/password", beltOutcome: "redirect-with-failure" },
   },
   {
-    // The forced change on first sign-in after bootstrap (task 061). Belted like every
-    // other state-changing handler, and reached by an account that cannot reach the
-    // shell at all - which is why it carries its own session below.
     path: "app/change-password/submit/route.ts",
     post: (headers) =>
       forcedPasswordRoute.POST(
@@ -461,8 +328,6 @@ const ROUTES: readonly GuardedRoute[] = [
     logged: { beltRoute: "/settings/recovery-codes", beltOutcome: "redirect-with-failure" },
   },
   {
-    // The flag is stubbed on because with it off the handler answers 404 before the belt
-    // runs at all: a route that does not exist cannot be posted to cross-origin either.
     path: "app/(shell)/forms/[formId]/assist/route.ts",
     post: (headers) => {
       vi.stubEnv("QCMS_FLAG_AGENT_AUTHORING", "fake");
@@ -481,8 +346,6 @@ const ROUTES: readonly GuardedRoute[] = [
     logged: { beltRoute: "/forms/{formId}/assist", beltOutcome: "refused-403" },
   },
   {
-    // The flag is stubbed on for the same reason the per-form route's case stubs it:
-    // with it off the handler answers 404 before the belt runs.
     path: "app/(shell)/assist/route.ts",
     post: (headers) => {
       vi.stubEnv("QCMS_FLAG_AGENT_AUTHORING", "fake");
@@ -510,16 +373,11 @@ describe("isSameOriginPost", () => {
 
   it.each(ORIGIN_CASES)("$name -> writes one line only when it refuses", ({ headers, allowed }) => {
     isSameOriginPost(new Request(`${ADMIN_BASE}/sign-in/submit`, { method: "POST", headers }));
-    // At the belt itself rather than only through the routes: this is the seam that
-    // guarantees the count, so a second `return false` branch added here without a
-    // second line, or with two, is caught before any route is involved.
+
     expect(refusalLines()).toHaveLength(allowed ? 0 : 1);
   });
 
   it("every refused case says what the line must classify it as", () => {
-    // Guards the table rather than the code. A refused case added below without a
-    // `logged` expectation would still pass the route assertions, having asserted only
-    // that some line was written - which is the weaker claim this file is avoiding.
     for (const probe of ORIGIN_CASES) {
       expect({ name: probe.name, hasExpectation: probe.logged !== undefined }).toEqual({
         name: probe.name,
@@ -529,8 +387,6 @@ describe("isSameOriginPost", () => {
   });
 
   it("compares against the configured base URL rather than the request's own host", () => {
-    // The request URL is attacker-chosen on a forged POST, so reading the origin back off
-    // it would compare a value to itself and pass everything.
     const request = new Request("https://evil.example/sign-in/submit", {
       method: "POST",
       headers: { origin: "https://evil.example" },
@@ -539,9 +395,6 @@ describe("isSameOriginPost", () => {
   });
 
   it("covers every belted route the module claims", async () => {
-    // The enumeration in `origin-belt-log.test.ts` derives the belted set from disk. This
-    // asserts that the set is the set driven end to end here, so a route added to the
-    // table without a case below is a red rather than an untested handler.
     const { BELTED_ROUTE_TEMPLATES } = await import("./origin-belt-log.ts");
     const order = (a: string, b: string): number => a.localeCompare(b);
     expect(ROUTES.map((route) => route.logged.beltRoute).sort(order)).toEqual(
@@ -563,8 +416,7 @@ describe.each(ROUTES)("$path", (route) => {
       authResponse({ totpURI: "otpauth://", backupCodes: [] }),
     );
     seams.proxiedSession.mockResolvedValue({ user: { twoFactorEnabled: true } });
-    // An upstream SSE turn the assist proxy relays. Empty body: this file is about the
-    // belt, and what the panel does with the stream is `assist-stream.test.ts`'s.
+
     seams.assist.mockResolvedValue(
       new Response(null, { status: 200, headers: { "content-type": "text/event-stream" } }),
     );
@@ -580,9 +432,7 @@ describe.each(ROUTES)("$path", (route) => {
     async ({ headers }) => {
       await route.post(headers);
       expect(route.reached()).toHaveBeenCalled();
-      // An admitted request writes no refusal line. Without this, a belt that logged
-      // unconditionally would pass every "exactly one" assertion below while making the
-      // count useless.
+
       expect(refusalLines()).toEqual([]);
     },
   );
@@ -591,9 +441,7 @@ describe.each(ROUTES)("$path", (route) => {
     "changes nothing and refuses with $name",
     async ({ headers }) => {
       const response = await route.post(headers);
-      // Nothing anywhere downstream may have been reached: a route that refused its own
-      // call but made another has still let a cross-site caller act. `requireAdminSession
-      // ForRequest` is in the sweep too, so a refusal must not even resolve the session.
+
       for (const seam of Object.values(seams)) expect(seam).not.toHaveBeenCalled();
       expect(response.status).toBe(route.refusalStatus ?? 303);
       expect(response.headers.get("location")).toBe(route.refusalLocation);
@@ -605,8 +453,7 @@ describe.each(ROUTES)("$path", (route) => {
     "writes exactly one refusal line, carrying route, signals and outcome, with $name",
     async ({ headers, logged }) => {
       await route.post(headers);
-      // `toEqual` on the whole array rather than a length check plus a member check: it
-      // fails readably on a duplicate and pins the fields at the same time.
+
       expect(refusalLines()).toEqual([
         expect.objectContaining({
           level: "warn",
@@ -621,10 +468,6 @@ describe.each(ROUTES)("$path", (route) => {
   );
 
   it("names the outcome the person at the keyboard actually gets", async () => {
-    // The belt runs before the handler builds its response, so `beltOutcome` is derived
-    // from the route rather than observed. This is the cross-check that keeps the
-    // derivation honest: the response asserted here is the real one this route returns,
-    // and the mapping under test is what the log line claims about it.
     const refused = ORIGIN_CASES.find((probe) => !probe.allowed);
     const response = await route.post(refused?.headers ?? {});
     expect(response.headers.get("location")).toBe(route.refusalLocation);

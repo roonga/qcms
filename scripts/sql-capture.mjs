@@ -24,7 +24,6 @@ export const BUILD_HINT = "pnpm --filter @roonga/qcms-db build";
  */
 export const STATEMENT_LIMIT = 50;
 
-/** A refusal a caller is meant to print, rather than a bug. */
 export class SqlCaptureError extends Error {
   /** @param {string} message */
   constructor(message) {
@@ -201,8 +200,8 @@ export async function loadQueries() {
 export function rowsForStatement(rows, index) {
   const configured = index < rows.length ? rows[index] : undefined;
   if (configured === null) return [];
-  // One row, no columns: every field read off it is `undefined`, which is enough for a
-  // probe-then-act helper to take its found-something branch.
+  // Default to one column-less row so probe-then-act helpers execute their mutation paths; an empty result
+  // would stop at the probe.
   return configured ?? [[]];
 }
 
@@ -319,8 +318,6 @@ export function formatCapture({ name, statements }) {
   const count = statements.length;
   const lines = [`${name}: ${String(count)} statement${count === 1 ? "" : "s"}`];
   statements.forEach((statement, index) => {
-    // Trimmed only at the ends: a raw template arrives with the source file's leading
-    // newline and closing indentation, and the internal shape is worth keeping.
     lines.push("", `-- statement ${String(index + 1)}`, statement.sql.trim());
     if (statement.params.length === 0) {
       lines.push("-- no parameters");

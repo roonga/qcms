@@ -1,7 +1,6 @@
 /**
- * The lock, status flip and outbox event share one transaction. Values are never logged
- * (SEC-8); hidden answers never reach the locked set or webhook (I6); a flagged submit
- * returns the same receipt as a clean one.
+ * The lock, status flip and outbox event share one transaction. Values are never logged; hidden answers
+ * never reach the locked set or webhook (I6); a flagged submit returns the same receipt as a clean one.
  */
 
 import type { RouteHandler } from "@hono/zod-openapi";
@@ -97,7 +96,7 @@ async function loadFrozenSnapshot(
   };
 }
 
-/** The token must bind the `id` in the path: a session id alone grants nothing (SEC-2). */
+/** The token must bind the `id` in the path: a session id alone grants nothing. */
 async function authorizedSessionId(c: Context<ApiEnv>, deps: Deps, id: string): Promise<SessionId> {
   const authedSessionId = await authenticateSession(c, deps);
   if (authedSessionId !== id) throw fail.crossSession();
@@ -137,7 +136,7 @@ function detectAbuse(
   return undefined;
 }
 
-/** The 422 detail carries question ids only, never answer content (SEC-8). */
+/** The 422 detail carries question ids only, never answer content. */
 function toSubmissionDetail(errors: readonly SubmissionError[]): {
   missingRequired: QuestionId[];
   errors: readonly SubmissionError[];

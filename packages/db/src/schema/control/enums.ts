@@ -9,7 +9,6 @@ export const questionStatus = controlSchema.enum("question_status", [
   "deprecated",
 ]);
 
-/** How a respondent reached a session (secure links = SEC-2). */
 export const accessMode = controlSchema.enum("access_mode", ["anonymous", "secure_link"]);
 
 /** Respondent session lifecycle. */

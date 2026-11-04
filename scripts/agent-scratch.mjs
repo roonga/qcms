@@ -1,9 +1,8 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * The harness calls its scratchpad session-specific, but one directory per checkout is shared by
- * every session. The lane key is the branch, and a named path is made run-fresh so a stale file
- * cannot pass as this run's output; `--path` resolves one without removing it.
+ * Key scratch paths by branch and refresh named paths so stale output cannot satisfy a new run. Concurrent
+ * sessions on one branch need distinct lane overrides; --path resolves without removal.
  */
 
 import { execFileSync } from "node:child_process";

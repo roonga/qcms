@@ -31,40 +31,22 @@ import { t, tPlural } from "@/lib/i18n/en";
 
 import { ApplyDraftDetail } from "./apply-draft-detail";
 
-/**
- * The action card, which a plan of one step also is (SEC-17 section 4.10). The four rules
- * it has to keep:
- *
- * 1. Every title, consequence sentence and argument label comes from `card-copy.ts`; the
- *    model's words appear in `reason` alone, as quoted plain text below the steps.
- * 2. Every step and every argument is displayed, in run order, in full: no truncation, no
- *    disclosure, no "and N more".
- * 3. Never weaker than the screen's own dialog, and a step needing a typed secret is a
- *    hand-off that opens that screen's field.
- * 4. One plan, one Confirm: the runner sequences the steps, this component owns the press,
- *    the focus and the live region.
- */
+/* Proposal consequences must come from trusted step data; model prose cannot weaken the screen's own
+   confirmation requirements. */
 
 export interface ActionCardProps {
-  /** The article's element id, when the caller owns it so the marker can link to it. */
   readonly id?: string;
   readonly proposal: AgentProposal;
   readonly card: AgentCardView;
-  /** The model's own words, already clamped by the caller. The one place they appear. */
   readonly reason?: string;
-  /** Pressed once: the runner takes over from here. */
   readonly onConfirm: () => void;
   readonly onCancel: () => void;
   readonly onStop: () => void;
-  /** Opens the screen the first not-yet-run step belongs to. */
   readonly onOpenScreen?: () => void;
-  /** True only when focus was already inside the panel when the card arrived. */
   readonly focusOnArrival?: boolean;
-  /** What is left of the window counted from this card's arrival; the full window if absent. */
   readonly remainingMs?: number;
 }
 
-/** One shape per state, so a state is never colour alone. */
 function stepIcon(state: AgentStepState): React.ReactElement {
   const common = {
     className: "qcms-acard__icon",
@@ -152,7 +134,6 @@ function stepIcon(state: AgentStepState): React.ReactElement {
   }
 }
 
-/** What each earlier step reported, keyed by index, which is what resolves a reference. */
 function reportedResults(
   card: AgentCardView,
 ): Readonly<Record<number, Readonly<Record<string, string | number | boolean>>>> {
@@ -181,10 +162,6 @@ function EnvironmentLine({ step }: { readonly step: AgentPlanStep }): React.Reac
   );
 }
 
-/**
- * Which controls the footer offers: Confirm and Cancel while the card waits, Stop while it
- * runs, and after that the one result line that stays in the conversation as the record.
- */
 function CardFooter(
   props: ActionCardProps & {
     readonly base: string;
@@ -289,7 +266,7 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
 
   useEffect(() => {
     if (props.focusOnArrival === true) headingRef.current?.focus();
-    // Arrival only: a later render must not steal focus from whatever the user is doing.
+    // Focus on arrival only; later renders must not interrupt the operator.
   }, [props.focusOnArrival]);
 
   const settled = resultLine(card);
@@ -305,11 +282,6 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
   const confirmable = canConfirm(card) && isTypedConfirmed(typed, required);
   const live = liveLine(card);
 
-  /**
-   * Escape cancels the card, never the turn (section 4.3). While a step is in flight the
-   * only cancellation that exists is Stop: a request already sent cannot be recalled, and
-   * saying it was would be a weaker card than the screen.
-   */
   function onKeyDown(event: KeyboardEvent<HTMLElement>): void {
     if (event.key !== "Escape") return;
     event.stopPropagation();
@@ -335,8 +307,6 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
           </span>
         </header>
 
-        {/* One card-level band for a card carrying an act with no inverse, beside the
-            per-step production line rather than inside a step. */}
         {hasIrreversibleStep(proposal.steps) ? (
           <p className="qcms-acard__band" data-kind="irreversible">
             {t("agent.card.band.irreversible")}
@@ -375,16 +345,12 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
                   ))}
                   {step.handOff ? <span>{t("agent.card.handOffHint")}</span> : null}
                 </p>
-                {/* The one step that carries a document rather than arguments alone: its
-                    diff against the working draft, and its two advisory lists, in full. */}
                 {step.draft === undefined ? null : (
                   <ApplyDraftDetail draft={step.draft} id={`${base}-${String(index)}`} />
                 )}
                 {view?.message === undefined ? null : (
                   <p className="qcms-acard__note">{view.message}</p>
                 )}
-                {/* A create step's screen control redirects; this card does not, so the
-                    new item arrives as a link the user may follow when they choose. */}
                 {createdHref(step, view?.result) === undefined ? null : (
                   <p className="qcms-acard__note">
                     <a className="qcms-acard__link" href={createdHref(step, view?.result)}>
@@ -392,7 +358,6 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
                     </a>
                   </p>
                 )}
-                {/* Shown once, as the screen shows it. It reaches no later turn. */}
                 {view?.revealed === undefined ? null : (
                   <p className="qcms-acard__reveal">
                     <span>{t("agent.card.revealOnce")}</span>
@@ -428,7 +393,6 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
         />
       </article>
 
-      {/* Progress in words, one polite region, never token by token. */}
       <p className="qcms-visually-hidden" role="status">
         {live === undefined ? "" : t(live.key, live.params)}
       </p>

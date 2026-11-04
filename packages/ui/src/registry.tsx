@@ -55,11 +55,7 @@ import {
 } from "./native-submit.ts";
 import { toVSafePattern } from "./v-safe-pattern.ts";
 
-/**
- * `A2Renderer` has no channel for the parent-owned value or error, so every adapter reaches the controlled
- * state through `useQcmsField`; all qcms wiring lives here (ADR-22). Adapters report an emptied control as
- * `undefined`, so the host posts one ADR-33 retraction.
- */
+/** A2Renderer cannot carry parent-owned values or errors; adapters use context and report clears as undefined. */
 
 function isStringArray(value: A2UIAnswerValue | undefined): value is readonly string[] {
   return Array.isArray(value);
@@ -75,8 +71,6 @@ function absentIfEmptyText(value: string): string | undefined {
 }
 
 function absentIfNoSelection(values: readonly string[]): readonly string[] | undefined {
-  // Canonical multiChoice is deduplicated. RAC never emits duplicates; this keeps the
-  // encoding canonical whatever it emits.
   const selected = [...new Set(values)];
   return selected.length > 0 ? selected : undefined;
 }
@@ -93,7 +87,6 @@ const NO_SELECTION = null;
  * marks the question answered, so a marked field arriving empty is the respondent clearing it.
  */
 function FieldMarkers({ name, kind }: { readonly name?: string; readonly kind: NativeFieldKind }) {
-  // Called before the early return, because a conditional hook is not allowed.
   const field = useQcmsField(name);
   if (name === undefined) return null;
   return (
@@ -136,11 +129,7 @@ function FieldBlur({
   );
 }
 
-/**
- * Every adapter keys its control by the question's `name`, because `A2Renderer` keys children by index:
- * otherwise a step swap or branch prune reconciles a mounted control onto another question, and a RadioGroup's
- * `lastFocusedValue` left every radio at `tabIndex=-1`.
- */
+/** Key controls by question name: index reconciliation can retain a previous radio group's unreachable focus key. */
 
 type TextFieldProps = NonNullable<TextFieldNode["props"]>;
 function TextFieldField(props: Readonly<TextFieldProps>) {
@@ -205,10 +194,7 @@ type NumberFieldProps = NonNullable<NumberFieldNode["props"]>;
  */
 const INTEGER_NUMBER_FORMAT: Intl.NumberFormatOptions = { maximumFractionDigits: 0 };
 
-/**
- * The compiler emits `step: 1` for an integer-constrained question and nothing
- * otherwise, so a missing or non-integral step is the fractional case.
- */
+/** Missing or non-integral step represents a fractional question; integer constraints compile to step one. */
 export function numberFieldAdmitsFractions(step: number | undefined): boolean {
   return step === undefined || !Number.isInteger(step);
 }
@@ -283,8 +269,7 @@ type DatePickerProps = NonNullable<DatePickerNode["props"]>;
 function DatePickerField(props: Readonly<DatePickerProps>) {
   const field = useQcmsField(props.name);
   const native = useQcmsNativeSubmit();
-  // Bumped only when a clear is observed, so the vendored control remounts with the now-empty value; without it
-  // react-aria takes its uncontrolled path and redisplays the cleared date. Never bumped while typing.
+  // Remount only after an observed clear; uncontrolled react-aria state would otherwise redisplay the old date.
   const [clearedGeneration, setClearedGeneration] = useState(0);
 
   /** The ADR-31 commit moment, where the clear `onChange` cannot report is observed. */
@@ -344,9 +329,8 @@ type RadioGroupProps = NonNullable<RadioGroupNode["props"]> & { readonly childre
 function RadioGroupField(props: RadioGroupProps) {
   const field = useQcmsField(props.name);
   const native = useQcmsNativeSubmit();
-  // boolean and singleChoice both compile to RadioGroup, so the value shape picks a JSON boolean or an OptionId.
-  // Native mode keeps `undefined`: the vendored control seeds form state from any defined `defaultValue`.
-  // No clear gesture exists (a selected radio cannot be toggled off); only whole-session erasure unanswers it (ADR-33).
+  // The answer shape selects a boolean or an option id. Native undefined must not seed vendored form state.
+  // Selected radios have no clear gesture; only session erasure unanswers them.
   let controlValue: string | undefined;
   if (field.value === undefined) {
     controlValue = undefined;
@@ -398,7 +382,6 @@ function CheckboxGroupField(props: CheckboxGroupProps) {
   const modeProps: Partial<ComponentProps<typeof CheckboxGroup>> = native
     ? { defaultValue: isStringArray(field.value) ? [...field.value] : undefined }
     : {
-        // Not `undefined`, as with the TextField above.
         value: isStringArray(field.value) ? [...field.value] : [],
         onChange: (values: string[]) => field.setValue(absentIfNoSelection(values)),
       };
@@ -484,8 +467,6 @@ function SelectField(props: Readonly<SelectProps>) {
 function buildV1Registry(): ComponentRegistry {
   return createRegistry(
     {
-      // An adapter only because a form's action may be a function (ADR-43 as amended);
-      // it delegates to the vendored component otherwise.
       Form: { component: FormField, schema: FormSchema },
       Flex: { component: Flex, schema: FlexSchema },
       Text: { component: Text, schema: TextSchema },

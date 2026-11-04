@@ -1,5 +1,5 @@
-// Literal-string SSRF checks only (SEC-6): no DNS resolution here, so DNS-rebinding
-// protection has to happen at delivery time.
+// Literal-string SSRF checks only: no DNS resolution here, so DNS-rebinding protection has to happen at
+// delivery time.
 
 export type WebhookUrlRejection =
   "not-a-url" | "unsupported-scheme" | "https-required" | "private-host";

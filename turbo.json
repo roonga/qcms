@@ -1,29 +1,18 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  // Stops turbo maintaining a managed block in a root `AGENTS.md`. That file is loaded as
-  // directory-scoped instructions here, so leaving it generated lets an upstream package
-  // co-author this repository's agent rules, and re-author them on every upgrade.
+  // Do not let an upstream tool maintain repository-scoped agent instructions.
   "agentGuidance": false,
-  // `scripts/eslint-workspace.mjs` sits outside every package but every `lint` task runs
-  // through it, so without the entry `turbo run lint` replays a pre-change verdict.
+  // Every lint task calls the root wrapper; hash it so wrapper edits invalidate cached lint verdicts.
   "globalDependencies": [
     "eslint.config.js",
     "scripts/eslint-workspace.mjs",
     ".prettierrc*",
     "tsconfig.base.json"
   ],
-  // turbo's default of 10 multiplies with each test task's own Vitest worker pool. Paired
-  // with `maxWorkers` in vitest.config.ts; this cuts process count, not peak CPU.
+  // Task concurrency multiplies with each Vitest worker pool; pair the budgets.
   "concurrency": "50%",
-  // turbo runs tasks in strict env mode: a task sees only what is declared here, so an
-  // undeclared knob is stripped silently. passThrough rather than `env` because these
-  // choose where identical work happens, and hashing them would miss the cache for
-  // byte-identical results. Prove a new knob arrives by giving it an unusable value and
-  // checking the task fails.
-  //
-  // `OTEL_*` is deliberately absent: passing it through would turn exporting on inside
-  // `pnpm test` for anyone who has an endpoint exported for a local trace viewer. The
-  // Playwright suite runs without turbo and sets its own.
+  // Pass execution-location controls without hashing identical outputs.
+  // Do not pass OTEL_* into unit tests: a developer endpoint must not enable exports inside the suite.
   "globalPassThroughEnv": [
     "QCMS_PORT_SEAT",
     "QCMS_TEST_POSTGRES_IMAGE",
@@ -35,9 +24,7 @@
     "DOCKER_AUTH_CONFIG"
   ],
   "tasks": {
-    // Prints what actually reached a task turbo ran, which is the only way to observe
-    // strict env mode from outside. A root task so no package owns a script for it, and
-    // uncached because a replayed log would report an earlier run's environment.
+    // Never replay environment diagnostics from a different process.
     "//#env-arrival": {
       "cache": false
     },
@@ -45,12 +32,8 @@
       "dependsOn": ["^build"],
       "outputs": ["dist/**"]
     },
-    // An `outputs` glob must match only what the build writes: turbo tars whatever matches,
-    // and a later cache hit restores that over whatever is on disk, in any worktree.
-    // `.next/dev` is a dev server's working directory and `.next/cache` is Next's
-    // incremental cache, so neither may be restored over newer local state. `next build`
-    // type-checks the same program as `qcms-portal#typecheck`, so it needs that task's
-    // extra edges too (the reason is on that task).
+    // Never restore .next/dev or .next/cache over live local state.
+    // The extra build edges cover transitive API-harness imports during Next typechecking.
     "qcms-portal#build": {
       "dependsOn": [
         "^build",
@@ -60,9 +43,7 @@
       ],
       "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**"]
     },
-    // Without this entry the generic `build` task's `dist/**` glob matches nothing the
-    // admin writes, so turbo caches none of the build. Carve-outs and extra edges for the
-    // reasons on `qcms-portal#build`.
+    // Next writes .next rather than the generic dist output; retain the same cache exclusions as the portal.
     "qcms-admin#build": {
       "dependsOn": ["^build", "@roonga/qcms-db#build", "@roonga/qcms-a2ui-compiler#build"],
       "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**"]
@@ -70,12 +51,8 @@
     "test": {
       "dependsOn": ["build"]
     },
-    // This suite walks every workspace member's `src` and `lib`, but its cache key would
-    // be this package and its dependencies, and the arrow points the wrong way: it is
-    // imported BY the apps it scans, so no `dependsOn` reaches them and turbo replays a
-    // green for a tree it never read. `scripts/turbo-scan-inputs.test.ts` fails if these
-    // globs and the scan's own reach drift apart. `$TURBO_DEFAULT$` keeps the package's
-    // own files, which the globs do not name.
+    // This test scans its importers, which dependency edges cannot reach.
+    // Hash the scanned source trees as well as the package defaults to prevent stale green results.
     "@roonga/qcms-observability#test": {
       "dependsOn": ["build"],
       "inputs": [
@@ -89,28 +66,20 @@
     "typecheck": {
       "dependsOn": ["^build"]
     },
-    // ESLint runs typed rules here (`parserOptions.projectService` in `eslint.config.js`),
-    // so it reads the same `dist` declaration files `tsc` does. Without this edge every
-    // workspace import resolves to `error` in an unbuilt tree.
+    // Typed ESLint resolves workspace declaration files, so dependency builds must finish first.
     "lint": {
       "dependsOn": ["^build"]
     },
-    // Both program-shaped tasks below: `apps/admin/tsconfig.json` takes in the Playwright
-    // harness, which imports apps/api source by relative path, so the program transitively
-    // reads two dists the admin's own manifest names neither of and `^build` cannot reach.
-    // Declared here rather than as manifest dependencies, which would undo the admin
-    // having no database client of its own.
+    // The admin harness imports API source and its database/compiler declarations transitively.
+    // Build those declarations without adding database dependencies to the frontend manifest.
     "qcms-admin#typecheck": {
       "dependsOn": ["^build", "@roonga/qcms-db#build", "@roonga/qcms-a2ui-compiler#build"]
     },
     "qcms-admin#lint": {
       "dependsOn": ["^build", "@roonga/qcms-db#build", "@roonga/qcms-a2ui-compiler#build"]
     },
-    // Both tasks below have the admin's undeclared reach: the portal's tsconfig takes in
-    // its Playwright harness, which imports apps/api source by relative path, so the
-    // program reads three dists the portal's manifest names none of. Declared here rather
-    // than as manifest dependencies, which would undo the portal holding no database
-    // credential (R2, ADR-35).
+    // The portal harness imports API source and its database/compiler/CSV declarations transitively.
+    // Build those declarations without adding database dependencies to the frontend manifest.
     "qcms-portal#typecheck": {
       "dependsOn": [
         "^build",
@@ -127,9 +96,7 @@
         "@roonga/qcms-csv#build"
       ]
     },
-    // `apps/e2e` reaches `@roonga/qcms-core` and `@roonga/qcms-a2ui-compiler` through its
-    // `@roonga/qcms-db` devDependency, but not these two, which its one spec consumes
-    // through the admin harness and the API source behind it.
+    // The full-stack harness reaches CSV and observability through frontend/API source rather than declared dependencies.
     "qcms-e2e#typecheck": {
       "dependsOn": ["^build", "@roonga/qcms-csv#build", "@roonga/qcms-observability#build"]
     },

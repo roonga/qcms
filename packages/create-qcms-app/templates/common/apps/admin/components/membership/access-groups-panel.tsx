@@ -7,35 +7,8 @@ import { t } from "@/lib/i18n/en";
 import { HeadingMarker } from "@/components/agent/heading-marker";
 import type { AccessGroupList, MembershipActionState } from "@/lib/membership/types";
 
-/**
- * The access groups: one grant per row, and the write path for all of them (task 069).
- *
- * # The name is a label and this panel says so
- *
- * `membership.groups.nameHelp` is the four rules in one sentence: the role and the scope
- * on the group decide what it grants, **nothing parses a name to authorise**, a name out
- * of step with the fields is refused on save, and the name is never the join key. The
- * panel therefore asks for a name and sends it; it does not derive one and silently agree
- * with itself, because a derived name is a name no operator could get wrong and criterion
- * 13 is about what happens when one does.
- *
- * The **full name** and the **directory name** are shown beside each stored name and are
- * the API's derivations, stored nowhere: renaming the workspace's slug changes them and
- * strands nothing.
- *
- * # A group with no holders grants nobody anything
- *
- * Creating a group writes no audit row, and the confirmation says why: team membership is
- * the grant, so the row arrives when somebody holds it. Granting and revoking are the two
- * acts that write one, and removing a whole group writes one revoke per holder.
- *
- * # The scope note comes from the API
- *
- * `all` on a `forms.editor` is `dev` and `test` in effect, because every production action
- * belongs to a `forms.approver`. That sentence is served by the API rather than written
- * here, because it is a statement about the permissions matrix and it should be true where
- * the matrix is enforced.
- */
+/* Group names are labels, never authorization inputs or join keys; grants come from role, scope, and
+   membership. */
 export function AccessGroupsPanel({
   list,
   message,
@@ -174,14 +147,8 @@ export function AccessGroupsPanel({
                         <span className="min-w-0 text-xs break-all text-(--color-text-muted)">
                           {holder.email}
                         </span>
-                        {/*
-                         * "Revoke" visible, the address in the accessible name. An email
-                         * in the label makes the control as wide as the address, and a
-                         * screen with several holders then stops fitting a 320px viewport
-                         * (SC 1.4.10); the accessible name still says which holder, which
-                         * is what tells one of several buttons from another, and it
-                         * contains the visible text as WCAG 2.5.3 requires.
-                         */}
+                        {/* Keep holder identity in the accessible name without widening the visible Revoke control past the mobile
+   viewport. */}
                         <Button
                           variant="secondary"
                           isDisabled={pending}
@@ -251,10 +218,6 @@ export function AccessGroupsPanel({
                 create(workspaceId, {
                   name,
                   role,
-                  // A hyphen-joined set is what the stored name's environments segment
-                  // carries, so the field takes the same spelling the name does and the
-                  // API refuses one out of the environments table's order rather than
-                  // this screen guessing at it.
                   environments: scope
                     .split("-")
                     .map((entry) => entry.trim())

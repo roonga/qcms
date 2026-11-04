@@ -83,7 +83,6 @@ export function findLiteralColours(text) {
     );
 }
 
-/** A string is a key when the next non-space character after it is a colon. */
 export function catalogValues(source) {
   const stripped = stripComments(source, true);
   const values = [];

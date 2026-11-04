@@ -2,14 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { definitionLines, diffDefinitions } from "./version-diff.ts";
 
-/**
- * The version-to-version definition diff (task 034).
- *
- * The properties that matter are all about *not lying to an author*: a difference in key
- * order is not an edit and must not read as one; a reordering of steps is an edit and must;
- * and every row has to be readable with colour off.
- */
-
 const v1 = {
   formId: "frm_demo",
   defaultLocale: "en",

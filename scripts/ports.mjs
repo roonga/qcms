@@ -11,7 +11,6 @@ export const DEFAULT_PORT_SEAT = 0;
 
 export const MIN_PORT_SEAT = 0;
 
-/** A single digit is what keeps `7Sxx` four digits and `17Sxx` five. */
 export const MAX_PORT_SEAT = 9;
 
 const STABLE_BLOCK_BASE = 7000;

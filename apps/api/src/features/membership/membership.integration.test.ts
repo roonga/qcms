@@ -749,7 +749,6 @@ describe("the self-grant rule (criteria 20 and 21, Q56)", () => {
   });
 
   it("applies the same rule to the installation administrator", async () => {
-    // The refusal above was this account's, and this is what says it holds the claim.
     const claimHolder = await as(ownerToken, "GET", "/me/access");
     expect(((await claimHolder.json()) as { installationAdmin: boolean }).installationAdmin).toBe(
       true,
@@ -1027,7 +1026,7 @@ describe("the agent audit is read exactly as the access audit is (SEC-17)", () =
       environment: "test",
       detail: "environment=test",
     });
-    // Resolved for display from an actor id the row holds no key to.
+
     expect(mine[0]?.actorEmail).not.toBeNull();
   });
 

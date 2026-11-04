@@ -12,25 +12,6 @@ import {
   RAIL_SHORT_STEP_TITLE,
 } from "./support/rail.js";
 
-/**
- * The form-subtree rail in a browser (`plan/admin-design-contracts.md` §7, issue 559).
- *
- * The markup and the contents are pinned without a browser
- * (`components/forms/form-subtree-rail.test.tsx`, `lib/forms/subtree-rail.test.ts`). What
- * is left is everything that is a computed style, a measured box or an interaction, and
- * that is what this file is: the 240px track appearing at `--bp-sidebar` and not one pixel
- * below it, the disclosure being operable from the keyboard, a long title behaving the way
- * this change says it behaves, the badge arriving from a real API verdict, N2's
- * viewport-fill, and every row being an anchor with a real destination.
- *
- * ## The 1023 / 1024 pair
- *
- * Same shape issue 557's pair takes, and for the same reason: a boundary is only pinned by
- * measuring both sides of it. §1 gives the app two breakpoints and `--bp-sidebar` is the
- * one the rail turns at, so a rail that collapsed at 1000 or at 1100 would be a third
- * boundary nobody wrote down.
- */
-
 test.use({ storageState: TEST_ENVIRONMENT_STORAGE });
 
 test.describe.configure({ mode: "serial" });
@@ -38,21 +19,17 @@ test.describe.configure({ mode: "serial" });
 const EMAIL = uniqueAdminEmail("rail559");
 const RUN = Date.now().toString(36);
 
-/** `--bp-sidebar` is 64rem, and the browser's default root size makes that 1024px. */
 const SIDEBAR = 1024;
 
-/** Set by the first test; every later one signs in and reuses the fixture it built. */
 let totpSecret = "";
 let formId = "";
-/** The fixture form's slug, which is what the collapsed summary names (issue 693). */
+
 let railSlug = "";
 
-/** The reference screen: the rail is wired on the secure-links route (issue 559). */
 function linksPath(): string {
   return `/operations/forms/${formId}/links`;
 }
 
-/** The boxes the geometry assertions are about, read in one round trip. */
 async function boxes(page: Page): Promise<{
   readonly railWidth: number;
   readonly railRight: number;
@@ -129,23 +106,15 @@ test("559 collapses into a disclosure that works from the keyboard and says whic
   const disclosure = page.locator("details.qcms-rail__disclosure");
   const summary = page.locator("summary.qcms-rail__summary");
 
-  // SHUT BY DEFAULT HERE (Code Owner decision, 2026-08-23). A narrow viewport opens on the
-  // one summary line rather than on a rail pushing the screen's own content down, and the
-  // state is real rather than painted: the attribute is what the browser announces, so a
-  // rail that merely LOOKED shut would tell a screen reader the opposite of the picture.
   await expect(disclosure).not.toHaveAttribute("open", "");
   await expect(page.locator('[data-rail-group="sections"]')).toBeHidden();
 
-  // Focusable by construction rather than by a tabindex we added: `focus()` moves nothing
-  // if the element cannot take focus, so this is the check and not a formality.
   await summary.focus();
   expect(
     await page.evaluate(() => document.activeElement?.tagName.toLowerCase()),
     "the summary takes keyboard focus",
   ).toBe("summary");
 
-  // A native `<details>` is what carries the announced state, so Enter is the browser's
-  // own toggle and there is no `aria-expanded` of ours that could drift from it.
   await page.keyboard.press("Enter");
   await expect(disclosure).toHaveAttribute("open", "");
   await expect(page.locator('[data-rail-group="sections"]')).toBeVisible();
@@ -161,9 +130,6 @@ test("the rail opens by default at --bp-sidebar and stays shut one pixel below i
   await signInWithTotp(page, EMAIL, totpSecret);
   const disclosure = page.locator("details.qcms-rail__disclosure");
 
-  // The pair, because a default that flipped at 900 or at 1200 would be a third boundary
-  // nobody wrote down. `open` is an attribute and no media query sets one, so this is the
-  // assertion that the browser-side decision agrees with the stylesheet's boundary.
   await page.setViewportSize({ width: SIDEBAR, height: 900 });
   await page.goto(linksPath());
   await expect(disclosure, "at the boundary the sidebar is open").toHaveAttribute("open", "");
@@ -173,7 +139,6 @@ test("the rail opens by default at --bp-sidebar and stays shut one pixel below i
   await page.goto(linksPath());
   await expect(disclosure, "one pixel below it the band is shut").not.toHaveAttribute("open", "");
 
-  // Resizing across the boundary re-decides it, which is the half a reload cannot show.
   await page.setViewportSize({ width: SIDEBAR, height: 900 });
   await expect(disclosure).toHaveAttribute("open", "");
 });
@@ -184,14 +149,6 @@ test("559 names the form in the summary and keeps it on one line at 390", async 
   await page.setViewportSize({ width: 390, height: 900 });
   await page.goto(linksPath());
 
-  // The FORM, not the section this screen is (issue 693). Shut, at this width, that one
-  // line is the whole rail, and what it owes a reader is the scope the rail belongs to: the
-  // section is named by the row inside the rail and by the screen's own `<h1>`, which since
-  // issue 692 reads "Links: <slug>" and would otherwise have the summary as its first half.
-  // WHAT THE AUTHOR CALLED IT, not how it is addressed (Code Owner, 2026-08-26). The
-  // summary named the slug; it names the form's title now, falling back to the slug only
-  // for a form nobody has titled. `createRailFixture` gives this one "Household cover",
-  // and the slug is asserted absent so the fallback cannot pass this by accident.
   await expect(page.locator(".qcms-rail__summary-text")).toHaveText(RAIL_FORM_TITLE);
   await expect(page.locator(".qcms-rail__summary-text")).not.toHaveText(railSlug);
 
@@ -207,7 +164,7 @@ test("559 names the form in the summary and keeps it on one line at 390", async 
   expect(summary.textOverflow, "§7's ellipsis").toBe("ellipsis");
   expect(summary.overflow).toBe("hidden");
   expect(summary.whiteSpace).toBe("nowrap");
-  // The slug is short, so the row it sits in must not be scrolling sideways at 390 either.
+
   expect(summary.overflows).toBe(false);
   const row = page.locator("summary.qcms-rail__summary");
   const fits = await row.evaluate((element) => element.scrollWidth <= element.clientWidth);
@@ -232,9 +189,7 @@ test("559 wraps a long step title inside the column rather than hiding its end",
   const shortBox = await short.boundingBox();
   expect(longBox, "the long-titled step renders").not.toBeNull();
   expect(shortBox, "the short-titled step renders").not.toBeNull();
-  // The decision this change makes, measured: in a permanent 240px sidebar a long title
-  // takes more lines rather than losing its end, because the end is often the only thing
-  // that tells two steps apart and nothing here carries the untruncated text.
+  // Wrap long step titles: their ends may be the only distinguishing text, with no other untruncated copy.
   expect(longBox?.width ?? 0, "the row stays inside the 240px track").toBeLessThanOrEqual(240);
   expect(longBox?.height ?? 0, "and it wraps rather than truncating").toBeGreaterThan(
     shortBox?.height ?? 0,
@@ -255,8 +210,7 @@ test("559 badges the step whose pin the library deprecated, from the API's own v
     .locator("[data-rail-issues]");
   await expect(badged, "the step holding the deprecated pin carries its count").toBeVisible();
   await expect(badged).toHaveText(/^\d+ issues?$/u);
-  // The other step's pin is untouched, so it carries nothing: a badge on every row would
-  // mean the count was decoration rather than a verdict.
+
   await expect(
     page
       .locator('[data-rail-group="steps"] a')
@@ -268,9 +222,7 @@ test("559 badges the step whose pin the library deprecated, from the API's own v
 test("559 lets a short screen's rail reach the bottom of the shell (N2)", async ({ page }) => {
   test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);
-  // Taller than this screen's content on purpose: N2 is invisible at a viewport the
-  // content already fills, which is why `plan/admin-redesign-implementation-plan.md` §1
-  // records it as a thing to verify at a viewport taller than the content.
+
   await page.setViewportSize({ width: 1280, height: 1600 });
   await page.goto(linksPath());
   await expect(page.getByTestId("qcms-rail")).toBeVisible();
@@ -298,7 +250,7 @@ test("559 lets a short screen's rail reach the bottom of the shell (N2)", async 
     filled.contentHeight,
     "the fixture screen has to be shorter than the viewport for this to mean anything",
   ).toBeLessThanOrEqual(filled.viewportHeight);
-  // The property issue 522 found untested, stated the way its own comment asks for.
+
   expect(filled.shellBottom, "the shell fills the viewport").toBeCloseTo(filled.viewportHeight, 0);
   expect(filled.railBottom, "and the rail's own surface ends where the column does").toBeCloseTo(
     filled.mainBottom,
@@ -308,12 +260,7 @@ test("559 lets a short screen's rail reach the bottom of the shell (N2)", async 
     filled.railBottom - filled.railContentBottom,
     "which is well below where the rail's own content stops",
   ).toBeGreaterThan(100);
-  // THE HALF THIS TEST DID NOT CATCH, and the Code Owner reported it against the running
-  // stack: the rail reached the bottom of the SHELL BODY, which is what the two assertions
-  // above measure, and stopped short of the SCREEN. A `Signed in as ...` footer spanned
-  // both tracks underneath it, so the rail's surface and its border ended a footer's height
-  // above the viewport's bottom edge on every screen that had a rail. The footer is gone
-  // and the account menu carries the email instead.
+
   expect(
     filled.railBottom,
     "and it reaches the bottom of the screen, not just the body",
@@ -347,26 +294,10 @@ test("1117 starts the content column where the rail's track ends", async ({ page
     offset.railRight,
     0,
   );
-  // And the rail's track is the ruled width rather than whatever its contents need.
+
   expect(offset.railWidth, "the rail takes its own 240px track").toBeCloseTo(240, 0);
 });
 
-/*
- * This was a `without JavaScript` block and is CONVERTED (Code Owner, 2026-09-27: the admin
- * requires JavaScript and stops at a message without it,
- * `plan/admin-design-contracts.md`). `e2e/requires-js.pw.ts` now asserts that a scriptless
- * operator never reaches this screen at all.
- *
- * It made two claims and they part company under that ruling. The anchors claim SURVIVES
- * and is kept below, because scripting was never what it rested on: it is
- * `plan/admin-design-contracts.md` §7's "a row that navigates is an anchor", whose live half
- * after the 2026-08-22 correction is that an anchor is what open-in-new-tab and middle-click
- * act on. A rail built out of buttons would fail it with scripting fully on. The disclosure
- * claim is DROPPED, because "it opens and closes with nothing loaded" is the half that was
- * about scripting, and the scripted behaviour it would become is already the subject of
- * "559 collapses into a disclosure that works from the keyboard and says which state it is
- * in" above.
- */
 test("559 gives every rail row a real destination, which is what anchors-not-buttons buys", async ({
   page,
 }) => {
@@ -375,13 +306,10 @@ test("559 gives every rail row a real destination, which is what anchors-not-but
   await page.setViewportSize({ width: 390, height: 900 });
   await page.goto(linksPath());
 
-  // Every row is a real anchor with a real destination, so middle-click and open-in-new-tab
-  // work. A rail built out of buttons would be inert to both.
   const hrefs = await page
     .locator(".qcms-rail__link")
     .evaluateAll((links) => links.map((link) => link.getAttribute("href") ?? ""));
-  // TEN: the form's own row, its two steps, and the seven sibling screens, Rules and the
-  // publish wizard among them as ordinary sibling links.
+
   expect(hrefs).toHaveLength(10);
   expect(
     hrefs.filter((href) => href.endsWith("/publish")),
@@ -411,8 +339,7 @@ const scrollState = async (
     const header = document.querySelector("header");
     if (rail === null || header === null) throw new Error("the shell must be on screen");
     const root = document.documentElement;
-    // The token resolved to pixels, by letting the browser resolve it: it is a `calc`
-    // over another custom property, so reading the string would prove nothing.
+
     const probe = document.createElement("div");
     probe.style.blockSize = "var(--admin-topbar-layout-h, var(--admin-topbar-h))";
     probe.style.position = "absolute";
@@ -451,8 +378,7 @@ test("pins the rail to the viewport below the bar, at the height the token claim
 
   await waitForBarMeasurement(page);
   const at = await scrollState(page);
-  // The effective value is the measured one, which includes whatever the sticky header
-  // actually carries. A derived single-row height would leave the rail behind it.
+  // Use the measured sticky-header height; wrapped navigation exceeds the derived single-row height.
   expect(at.barHeight, "the effective height includes the entire header").toBeCloseTo(
     at.barToken,
     0,
@@ -464,9 +390,7 @@ test("pins the rail to the viewport below the bar, at the height the token claim
 test("gives neither the rail nor the page a scrollbar when both fit", async ({ page }) => {
   test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);
-  // Tall enough that this screen and the rail both fit, which is the only viewport at
-  // which "only if required" says anything: `overflow-y: auto` offers nothing here,
-  // where `scroll` would reserve a gutter in the rail on every screen.
+  // Use a tall viewport to distinguish auto overflow from an always-reserved scrollbar gutter.
   await page.setViewportSize({ width: 1280, height: 1600 });
   await page.goto(linksPath());
   await expect(page.getByTestId("qcms-rail")).toBeVisible();
@@ -480,9 +404,7 @@ test("gives neither the rail nor the page a scrollbar when both fit", async ({ p
 test("leaves the rail where it is while the screen beside it is scrolled", async ({ page }) => {
   test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);
-  // Short enough that this screen overflows the viewport. The rail may overflow here
-  // too - it has nine rows and this is 400px - and that is fine: what is asserted is
-  // that moving one does not move the other.
+  // Overflow both screen and rail to verify that scrolling either leaves the other fixed.
   await page.setViewportSize({ width: 1280, height: 400 });
   await page.goto(linksPath());
   await expect(page.getByTestId("qcms-rail")).toBeVisible();
@@ -495,8 +417,7 @@ test("leaves the rail where it is while the screen beside it is scrolled", async
   await page.mouse.wheel(0, 400);
   await expect.poll(async () => (await scrollState(page)).pageScrollY).toBeGreaterThan(0);
   const scrolled = await scrollState(page);
-  // PINNED, which is the property the old layout could not give: the rail's rows used
-  // to leave the screen as soon as the reader went down the page.
+
   expect(scrolled.railTop, "the rail stayed under the bar").toBeCloseTo(at.railTop, 0);
   expect(scrolled.railScrollTop, "and its own rows did not move with the page").toBe(0);
 });

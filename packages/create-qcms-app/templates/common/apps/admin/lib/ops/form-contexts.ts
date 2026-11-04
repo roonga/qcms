@@ -10,12 +10,9 @@ export const FORM_OPERATIONAL_CONTEXTS = ["responses", "links", "webhooks", "int
 export type FormContext = (typeof FORM_OPERATIONAL_CONTEXTS)[number];
 
 /**
- * The cell that admits each context, matching the route that serves it.
- *
- * Intake takes `form: read` and not `form: close`. Every context here is a READ: that
- * screen states what the selected environment serves and whether it is taking responses,
- * and the two acts beside that state carry their own `form: close` check at the API.
- * Admitting on the write would hide the reading from everyone who may not change it.
+ * The cell that admits each context, matching the route that serves it. Intake takes
+ * `form: read`, not the `form: close` its acts carry: admitting on the write would hide
+ * the reading from everyone who may not change it.
  */
 const ADMITTING_CELL: Readonly<Record<FormContext, string>> = {
   responses: "response:read",

@@ -102,7 +102,7 @@ async function sweepEnvironment(
     new Date(now.getTime() - window.deliveryResponseSnippetMs),
   );
   if (snippets.redactedCount > 0) {
-    // A count, never a snippet: these bytes can hold respondent content (SEC-13).
+    // A count, never a snippet: these bytes can hold respondent content.
     deps.logger.info("delivery response snippets redacted", {
       environment,
       redactedCount: snippets.redactedCount,
@@ -113,7 +113,7 @@ async function sweepEnvironment(
     new Date(now.getTime() - window.outboxPayloadMs),
   );
   if (payloads.redactedCount > 0) {
-    // A count, never a payload: the member dropped is the respondent's answer set (SEC-13).
+    // A count, never a payload: the member dropped is the respondent's answer set.
     deps.logger.info("outbox payload answers redacted", {
       environment,
       redactedCount: payloads.redactedCount,

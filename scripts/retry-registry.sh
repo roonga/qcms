@@ -1,15 +1,10 @@
 #!/usr/bin/env bash
-# The retry is conditional on the output naming a registry or transport failure,
-# because a plain retry would rebuild a genuine build failure twice for nothing.
-#
-# Every marker must name a registry, a registry status or a transport failure in as many
-# words. A bare errno is deliberately not one: a local failure produces those too.
+# Retry only registry or transport failures; a bare errno can also indicate a local build defect.
 set -uo pipefail
 
 ATTEMPTS="${QCMS_REGISTRY_RETRY_ATTEMPTS:-3}"
 
-# `unexpected status: 5` covers a registry 5xx without matching a 4xx, which is a real
-# answer rather than an outage.
+# Match registry server failures without treating client responses as outages.
 REGISTRY_MARKERS='failed to resolve source metadata|failed to resolve reference|pull access denied|authorization failed|unauthorized: authentication required|toomanyrequests|too many requests|unexpected status: 5|failed to do request|registry-1\.docker\.io|auth\.docker\.io|index\.docker\.io|context deadline exceeded|i/o timeout|connection reset by peer|TLS handshake timeout|503 Service Unavailable|502 Bad Gateway'
 
 if [ "$#" -eq 0 ]; then

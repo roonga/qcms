@@ -84,7 +84,7 @@ function created(result: StartResult): {
   };
 }
 
-/** Anonymous entry, mounted on `prod`'s respondent surface alone (SEC-14). */
+/** Anonymous entry, mounted on `prod`'s respondent surface alone. */
 export function makeStartSessionHandler(
   deps: Deps,
 ): RouteHandler<typeof startSessionRoute, ApiEnv> {
@@ -196,8 +196,7 @@ async function startFromSecureLink(
   const linkExpiresAt = new Date(linkExpiresAtIso);
 
   const row = await getSecureLink(request.exec, linkId);
-  // A validly-signed link with no server row was never minted here: a signature alone
-  // is never sufficient (SEC-2).
+  // A validly-signed link with no server row was never minted here: a signature alone is never sufficient.
   if (row === undefined) throw fail.linkInvalid();
   // Refused, never redirected: redirecting would turn a leaked production link into a
   // working one for anybody who found the test address. Ahead of `assertLinkUsable`,
@@ -211,7 +210,7 @@ async function startFromSecureLink(
   const form = await getForm(request.exec, formId);
   await enforceChallenge(deps, request, form?.challengeRequired ?? false, challenge);
 
-  // Session expiry never outlives the link, nor the TTL ceiling (SEC-2).
+  // Session expiry never outlives the link, nor the TTL ceiling.
   const expiresAt = sessionExpiresAt({
     accessMode: "secure_link",
     now,
@@ -248,8 +247,8 @@ async function startFromSecureLink(
 }
 
 /**
- * Server-side state, because signature validity is never enough on its own (SEC-2). Run
- * before the form's own state, so the refusal describes the link rather than the form.
+ * Server-side state, because signature validity is never enough on its own. Run before the form's own state,
+ * so the refusal describes the link rather than the form.
  */
 function assertLinkUsable(row: SecureLinkRow, now: Date): void {
   if (row.revokedAt !== null) throw fail.linkRevoked();
@@ -306,7 +305,7 @@ async function importLinkKeys(config: Config): Promise<CryptoKey[]> {
   );
 }
 
-/** The token must bind the `id` in the path: possession of a session id grants nothing (SEC-2). */
+/** The token must bind the `id` in the path: possession of a session id grants nothing. */
 export function makeGetSessionHandler(deps: Deps): RouteHandler<typeof getSessionRoute, ApiEnv> {
   return async (c) => {
     const { id } = c.req.valid("param");

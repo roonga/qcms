@@ -14,32 +14,8 @@ import type { ApiResult } from "./api-result.ts";
 import { readResult } from "./api-result.ts";
 import type { AdminSession } from "./session.ts";
 
-/**
- * The webhook configuration and delivery-operations screens' calls into the API's
- * `/admin` group (task 035, R2).
- *
- * ## The secret exists once, and this file is the narrowest place it passes through
- *
- * `POST /forms/{id}/webhooks` and a rotating `PUT` are the only two responses that
- * will ever carry a webhook's plaintext secret: the API stores AES-256-GCM
- * ciphertext under `QCMS_APP_KEY` and has no route that decrypts it back out
- * (SEC-6). So the value is handed straight to the component that displays it and
- * touches nothing else on the way - it is never logged, never written to a cache,
- * never put in an error message, and never sent back up to be echoed (SEC-8,
- * SEC-13). {@link listWebhooks} has no field for it at all, which is the structural
- * half of the same promise: a screen cannot render a secret it was never given.
- *
- * ## Redelivery is per-item, including the bulk button
- *
- * The API's unit is one delivery (`POST /forms/{formId}/deliveries/{deliveryId}/redeliver`);
- * there is
- * no bulk endpoint and this file does not invent one. The bulk action loops here,
- * over ids the operator can see, and reports each outcome separately - so a queue
- * where three of ten targets are still broken tells the operator that, instead of
- * failing whole or claiming whole.
- */
+/** Plaintext secrets exist only in create/rotate results: pass them straight to the reveal UI, never logs, caches or errors. Bulk redelivery calls the per-delivery API and reports each outcome. */
 
-/** `GET /admin/forms/{id}/webhooks` - the configured endpoints, secrets absent. */
 export async function listWebhooks(
   session: AdminSession,
   formId: string,
@@ -51,15 +27,7 @@ export async function listWebhooks(
   return { ok: true, data: rows(result.data.webhooks).filter(isWebhook).map(parseWebhook) };
 }
 
-/**
- * `POST /admin/forms/{id}/webhooks` - configure one. The secret comes back once.
- *
- * **Or the change is stored pending** (Q30, Q51; task 070): in a workspace that requires a
- * second approver for production, a new `prod` endpoint is a proposal and no endpoint
- * exists yet. The secret is still revealed here, because this is the only moment its
- * plaintext exists - and nothing signs with it until a second account confirms the change,
- * which is what `pending` tells the screen to say.
- */
+/** Pending production changes reveal the secret once now, but nothing signs with it until a second account confirms. */
 export async function createWebhook(
   session: AdminSession,
   formId: string,
@@ -77,14 +45,7 @@ export async function createWebhook(
   return { ok: true, data: outcome(result.data, () => parseRevealed(result.data)) };
 }
 
-/**
- * `PUT /admin/forms/{id}/webhooks/{webhookId}` - rotate the secret.
- *
- * Rotation is its own call rather than a flag on an edit, because it has its own
- * consequence: every consumer verifying with the old secret starts rejecting the
- * moment the next delivery is signed with the new one. The screen states that before
- * it asks.
- */
+/** Rotation immediately invalidates old-secret verification on the next signed delivery; confirmation must state that consequence. */
 export async function rotateWebhookSecret(
   session: AdminSession,
   formId: string,
@@ -105,13 +66,7 @@ export async function rotateWebhookSecret(
   };
 }
 
-/**
- * `DELETE /admin/forms/{id}/webhooks/{webhookId}` - stop delivering to it.
- *
- * A soft deactivate: the row stays, so its delivery history stays readable and the
- * endpoint can be reactivated. Nothing in flight is cancelled - a delivery already
- * materialized keeps its own retry state.
- */
+/** Deactivation preserves history and permits reactivation. Already-materialized deliveries retain their own retry state. */
 export async function deactivateWebhook(
   session: AdminSession,
   formId: string,
@@ -132,7 +87,6 @@ export async function deactivateWebhook(
   };
 }
 
-/** `PUT .../{webhookId}` with `active: true` - put a deactivated endpoint back in service. */
 export async function reactivateWebhook(
   session: AdminSession,
   formId: string,
@@ -153,7 +107,6 @@ export async function reactivateWebhook(
   };
 }
 
-/** `PUT .../{webhookId}` with a new url - repointing a broken target. */
 export async function retargetWebhook(
   session: AdminSession,
   formId: string,
@@ -178,7 +131,6 @@ export async function retargetWebhook(
   };
 }
 
-/** `GET /admin/forms/{id}/deliveries` - the dashboard's rows, newest first. */
 export async function listDeliveries(
   session: AdminSession,
   formId: string,
@@ -197,13 +149,7 @@ export async function listDeliveries(
   };
 }
 
-/**
- * `GET /admin/outbox/dead-letters` - the queue, across every form.
- *
- * Deliberately not form-scoped: "what is stuck anywhere" is the question this
- * worklist answers. Each row names its own form so the form-scoped redeliver call
- * can be built from the list (#305).
- */
+/** Dead letters span forms; each row must retain formId for scoped redelivery. */
 export async function listDeadLetters(
   session: AdminSession,
 ): Promise<ApiResult<readonly DeadLetterItem[]>> {
@@ -220,7 +166,7 @@ export async function listDeadLetters(
         eventId: text(entry["eventId"], ""),
         eventType: text(entry["eventType"], ""),
         webhookId: text(entry["webhookId"], ""),
-        // The form the row belongs to, needed to build its redeliver call (#305).
+
         formId: text(entry["formId"], ""),
         url: text(entry["url"], ""),
         attempts: count(entry["attempts"], 0),
@@ -231,20 +177,12 @@ export async function listDeadLetters(
   };
 }
 
-/**
- * `POST /admin/forms/{formId}/deliveries/{deliveryId}/redeliver` - reset one
- * delivery to due-now.
- *
- * The form is required (issue #305): redelivery is form-scoped server-side, and a
- * delivery id alone never said which form the caller was acting within. Dead-letter
- * rows carry their own `formId` for exactly this call, since that worklist is
- * cross-form.
- */
+/** Redelivery is form-scoped; a delivery ID alone cannot establish the target form. */
 export async function redeliver(
   session: AdminSession,
   formId: string,
   deliveryId: string,
-  /** The confirmed environment, so a redeliver-all loop resolves it once, not per row. */
+
   environment: string,
   proposal?: AgentProposalRef,
 ): Promise<ApiResult<{ readonly deliveryId: string; readonly nextAttemptAt: string }>> {
@@ -265,9 +203,6 @@ export async function redeliver(
   };
 }
 
-// --- the pending `prod` endpoint change (Q30, Q51; task 070) ---------------
-
-/** `GET /admin/forms/{id}/webhooks/proposals` - what is waiting, in the shown environment. */
 export async function listEndpointProposals(
   session: AdminSession,
   formId: string,
@@ -284,13 +219,7 @@ export async function listEndpointProposals(
   };
 }
 
-/**
- * `POST .../proposals/{proposalId}/confirm` - the second of Q51's two acts.
- *
- * Refused for the account that proposed it, and refused for anybody who does not hold
- * `forms.approver` with this environment in scope. Neither refusal is this app's to make:
- * the API answers both, and this screen renders the answer (R2).
- */
+/** The API refuses self-approval and requires environment-scoped approver grants; the BFF only renders the result. */
 export async function confirmEndpointProposal(
   session: AdminSession,
   formId: string,
@@ -308,7 +237,6 @@ export async function confirmEndpointProposal(
   return { ok: true, data: parseProposal(asRecord(result.data.proposal)) };
 }
 
-/** `DELETE .../proposals/{proposalId}` - end a pending change without applying it. */
 export async function withdrawEndpointProposal(
   session: AdminSession,
   formId: string,
@@ -326,24 +254,13 @@ export async function withdrawEndpointProposal(
   return { ok: true, data: parseProposal(asRecord(result.data.proposal)) };
 }
 
-// --- reading the API's payloads ---------------------------------------------
-
 function asRecord(raw: unknown): Record<string, unknown> {
   return typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : {};
 }
 
 const PROPOSAL_KINDS: readonly EndpointProposal["kind"][] = ["create", "update", "deactivate"];
 
-/**
- * Read one pending change.
- *
- * An unrecognised `kind` reads as `update`, which is the direction a delivery row's
- * unknown status already takes and for the same reason: a change this build cannot classify
- * is still one an approver has to be able to see and withdraw, so it stays in the list
- * rather than vanishing from the only screen that can end it. `url` stays **null** when the
- * API sent none, because a deactivation names no target and an empty string in that cell
- * would read as "pointed at nothing".
- */
+/** Unknown changes must stay visible and withdrawable. Null URL means no target, as on deactivation, rather than a target set to empty text. */
 function parseProposal(entry: Record<string, unknown>): EndpointProposal {
   return {
     proposalId: text(entry["proposalId"], ""),
@@ -361,16 +278,7 @@ function parseProposal(entry: Record<string, unknown>): EndpointProposal {
   };
 }
 
-/**
- * The pending change a configure call was stored as, or `undefined` when it applied at
- * once.
- *
- * One reader for all five mutations, because a `202` means the same thing on every one of
- * them: the workspace requires a second approver for production, so nothing happened to
- * the endpoint yet. Keyed off the body's own `pending` marker rather than off the status
- * code, so a caller that does not inspect the response still cannot mistake one for the
- * other.
- */
+/** A pending body means no endpoint change has applied; read the marker for every mutation rather than assuming success from status alone. */
 function pendingOf(entry: Record<string, unknown>): EndpointProposal | undefined {
   if (entry["pending"] !== true) return undefined;
   return parseProposal(asRecord(entry["proposal"]));
@@ -421,15 +329,7 @@ function parseWebhook(entry: Record<string, unknown>): WebhookSummary {
   };
 }
 
-/**
- * Read a create/rotate response.
- *
- * A response with no `secret` is a failure of this app's contract, not a variant to
- * render: the two routes that reach here always rotate. It reads as an empty string
- * rather than throwing, and the reveal panel renders `ops.webhooks.secretMissing` for
- * that case - recoverable (rotate again) in a way that a crashed screen is not, and
- * stated rather than shown as an empty box under "Copy this secret now".
- */
+/** Missing secret is a contract failure shown as recoverable copy, never an empty reveal or a crashed screen. */
 function parseRevealed(entry: Record<string, unknown>): RevealedWebhook {
   return {
     webhookId: text(entry["webhookId"], ""),
@@ -439,14 +339,7 @@ function parseRevealed(entry: Record<string, unknown>): RevealedWebhook {
   };
 }
 
-/**
- * Read one delivery row.
- *
- * An unrecognised `status` reads as `pending`, and the direction is deliberate for
- * the same reason a link's unknown state reads as active: a delivery this build
- * cannot classify is one an operator may still need to act on, so it stays in the
- * list rather than being filtered out of the only screen that can redeliver it.
- */
+/** Unknown deliveries remain visible and actionable as pending; filtering them out would hide work that may need redelivery. */
 function parseDelivery(entry: Record<string, unknown>): DeliveryItem {
   return {
     deliveryId: entry["deliveryId"] as string,
@@ -472,7 +365,6 @@ function parseDelivery(entry: Record<string, unknown>): DeliveryItem {
   };
 }
 
-/** Only string-valued header entries survive; anything else is not a header. */
 function headerMap(raw: unknown): Readonly<Record<string, string>> | null {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return null;
   const entries = Object.entries(raw).filter(
@@ -481,28 +373,18 @@ function headerMap(raw: unknown): Readonly<Record<string, string>> | null {
   return entries.length === 0 ? null : Object.fromEntries(entries);
 }
 
-/**
- * What a configure call did: applied at once, or stored pending for a second approver
- * (Q30, Q51; task 070).
- *
- * One union for all five mutations, because the two-person rule answers each of them the
- * same way and a screen that handled it per call site would be five places for the pending
- * case to be forgotten - and forgetting it means telling an operator a production endpoint
- * changed when it did not.
- */
+/** Every configuration mutation must distinguish applied from pending so the UI cannot claim an unapproved production change occurred. */
 export type ConfigureOutcome<T> =
   | { readonly pending: false; readonly applied: T }
   | { readonly pending: true; readonly proposal: EndpointProposal; readonly secret?: string };
 
-/** Read a configure response into {@link ConfigureOutcome}. */
 function outcome<T>(entry: Record<string, unknown>, applied: () => T): ConfigureOutcome<T> {
   const proposal = pendingOf(entry);
   if (proposal === undefined) return { pending: false, applied: applied() };
   return {
     pending: true,
     proposal,
-    // Present only when the pending change sets a new signing secret, and shown exactly
-    // once here as it would have been on a change that applied at once (SEC-6).
+    /** Present only when the pending change sets a new signing secret, and shown exactly once here as it would have been on a change that applied at once (SEC-6). */
     ...(typeof entry["secret"] === "string" ? { secret: entry["secret"] } : {}),
   };
 }

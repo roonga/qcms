@@ -19,7 +19,6 @@ import {
   startKitchenSink,
 } from "./support/kitchen-sink.js";
 
-/** WCAG 2.2 AA, the same rule set the admin gate uses. */
 const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 
 const EXTRA_RULES = { "label-content-name-mismatch": { enabled: true } };

@@ -3,10 +3,8 @@ import { useId } from "react";
 import { getNumberFieldStyles } from "./components/a2ui/number-field/number-field.styles.ts";
 
 /**
- * The number question's control in native (no-JS) submit mode. The vendored NumberField cannot serve it: its
- * visible box has no `name` and the value rides a hidden input, so a typed answer posted nothing.
- * `type="number"` posts unformatted digits, as the BFF's `Number(...)` coercion expects. Browser refusals
- * are a convenience; the kernel is the authority.
+ * Native number input must post unformatted digits; the vendored visible input has no field name.
+ * Browser validation is advisory; the kernel remains authoritative.
  */
 export interface NativeNumberFieldProps {
   /** The questionId, which is the posted field name. */
@@ -26,8 +24,7 @@ export interface NativeNumberFieldProps {
   readonly defaultValue?: number;
 }
 
-// Matches the vendored `inputGroup` classes. `min-h-11` is a floor, so the control
-// never collapses in a host that has not imported the theme layer.
+// Retain the height floor even if the host has not imported the theme layer.
 
 const INPUT_CLASS = [
   "flex items-center min-h-11 w-full border border-(--color-border) rounded px-3 py-1",
@@ -60,8 +57,7 @@ export function NativeNumberField({
   const inputId = useId();
   const descriptionId = `${inputId}-description`;
   const errorId = `${inputId}-error`;
-  // Both ids when both are drawn, or a screen reader hears the hint or the refusal
-  // rather than both (WCAG 3.3.2, 3.3.1).
+  // Keep both hint and refusal ids so assistive technology announces both.
   const describedBy =
     [
       description === undefined ? undefined : descriptionId,

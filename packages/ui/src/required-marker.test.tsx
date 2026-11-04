@@ -7,17 +7,13 @@ import { instanceLabelFor, qualifiedFieldName } from "./repeat/repeat-node.ts";
 import { cellLabelFor } from "./repeat/repeat-table-node.ts";
 import { loadGoldenSteps, syntheticRoster } from "./test-support/golden.ts";
 
-// The marker is rendered by each vendored control inside its own label, so a control shipping without one is
-// silently missing it for every required question of that type. Cases are derived from the corpus.
+// Every required control type must carry its marker; derive cases from the corpus.
 
 interface RequiredControl {
   readonly type: string;
   readonly label: string;
   readonly name: string;
 }
-
-// What a group puts round its members, including the row label the table presentation
-// prefixes each cell's label with.
 
 interface GroupScope {
   readonly instanceId?: string;
@@ -142,8 +138,7 @@ function markersIn(wrapper: HTMLElement): HTMLElement[] {
 describe("every required control renders the required marker (issue #99)", () => {
   it("derives its cases from the corpus, and the corpus has some", () => {
     expect(cases.length).toBeGreaterThan(0);
-    // Without more than one control type the derivation proves nothing about
-    // consistency across controls.
+
     expect(new Set(cases.map((c) => c.control.type)).size).toBeGreaterThan(1);
   });
 
@@ -206,9 +201,6 @@ describe("every required control renders the required marker (issue #99)", () =>
   });
 
   it("pins exactly which controls convey required only visually", () => {
-    // The reason the per-case check is a plain `toBe(true)`: the exception is stated
-    // once, here, where a regression names the control rather than reddening every
-    // case.
     const byType = new Map(cases.map((c) => [c.control.type, c]));
     const visualOnly = new Set<string>();
     for (const { step, specVersion, control, rosters } of byType.values()) {

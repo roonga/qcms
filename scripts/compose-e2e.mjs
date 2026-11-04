@@ -96,7 +96,6 @@ const e2eEnvironment = {
   ...composeEnvironmentOverrides({ portalPort, adminPort }),
 };
 
-/** A bad or missing subcommand: a user error, so it prints without a stack trace. */
 class UsageError extends Error {
   /** @param {string} message */
   constructor(message) {
@@ -317,9 +316,6 @@ function connectContainerToNetwork(network, containerId) {
 }
 
 /**
- * A no-op outside a container: on a host checkout and on CI the published port is already
- * on `localhost`, and the container-only path must never run where it is not needed.
- *
  * @returns {Promise<void>}
  */
 async function startLoopbackForwarding() {
@@ -399,8 +395,6 @@ function stopLoopbackForwarding() {
     }
     forwarder = undefined;
   }
-  // Container-only: outside one no run ever joins a network, so this would only fire a
-  // `docker network disconnect` that always fails and is always discarded.
   if (!isInDockerContainer()) return;
   // Attempted even when this run recorded no join, so an interrupted previous run's
   // leftover endpoint gets cleaned rather than blocking `compose down`.
@@ -413,7 +407,7 @@ function stopLoopbackForwarding() {
 }
 
 /**
- * Not exported: `createInitialAdmin` is the sole door and closes once an account exists (SEC-1).
+ * Not exported: `createInitialAdmin` is the sole door and closes once an account exists.
  *
  * @returns {{ email: string, password: string }}
  */
@@ -451,12 +445,10 @@ export async function up() {
   down();
   run(docker, [...compose, "up", "--detach", "--build", "--wait"], e2eEnvironment);
   bootstrapAdmin();
-  // Last, so it only ever points at a stack that is already up and bootstrapped.
   await startLoopbackForwarding();
 }
 
 export function down() {
-  // Before Compose: it cannot remove a network this container is still attached to.
   stopLoopbackForwarding();
   run(docker, [...compose, "down", "--volumes", "--remove-orphans"], e2eEnvironment);
   if (existsSync(credentialsPath)) unlinkSync(credentialsPath);
@@ -518,8 +510,6 @@ async function runComplete({ headed = false } = {}) {
 }
 
 /**
- * So the seat refusal offers the fix for the command in front of the reader.
- *
  * @param {string | undefined} command
  * @returns {string}
  */
@@ -572,8 +562,6 @@ async function main() {
     );
 }
 
-// Only when run as a command, so the tests can import the pure helpers above without a
-// Compose run firing on import.
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
   // This command holds the process open rather than backgrounding the stack, because the
   // forwarder is tethered to this process's stdin. So the interrupt paths below are what

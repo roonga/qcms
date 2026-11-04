@@ -42,7 +42,7 @@ export const mintLinks: ActionKindDef = {
     oneTime: bodyMember(facts, "oneTime") ?? false,
   }),
   references: ["count"],
-  // Never `url` or `links`: a link URL carries a bearer token (SEC-8).
+  // Never `url` or `links`: a link URL carries a bearer token.
   resultAllowlist: ["count", "expiresAt", "environment"],
   card: {
     titleKey: "agent.card.link.mint.title",

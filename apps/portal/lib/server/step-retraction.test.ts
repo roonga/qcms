@@ -14,7 +14,6 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-/** The internal API client: the seam every "what did the server hear?" assertion reads. */
 const api = {
   startSession: vi.fn(),
   batchAnswers: vi.fn(),
@@ -84,7 +83,6 @@ const { STEP_CTX_COOKIE } = await import("./route-helpers");
 
 const SESSION_ID = "ses_127";
 
-/** A projection the route can read `readyToSubmit` off. */
 function projection(readyToSubmit: boolean) {
   return {
     step: null,
@@ -97,7 +95,6 @@ function projection(readyToSubmit: boolean) {
   };
 }
 
-/** POST the given form fields to the whole-step route as a same-origin navigation. */
 async function postStep(
   fields: readonly (readonly [string, string])[],
   headers: Record<string, string> = { "sec-fetch-site": "same-origin" },

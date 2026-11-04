@@ -1,5 +1,3 @@
-/** Runs on fakes and needs no Docker. */
-
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -183,7 +181,7 @@ describe("createHarnessTeardown and a client checked out at teardown time", () =
     const journal: Journal = [];
     const teardown = createHarnessTeardown(fakeContainer(journal));
     const pool = teardown.register(fakePool(journal, "pool"), "pool");
-    await pool.connect(); // deliberately never released by the test
+    await pool.connect();
 
     expect(pool.checkedOutCount()).toBe(1);
     await teardown.run();

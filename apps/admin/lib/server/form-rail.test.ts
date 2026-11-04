@@ -3,22 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ApiResult } from "./api-result.ts";
 import type { DraftForm, FormDetail, FormIssue } from "../forms/types.ts";
 
-/**
- * The rail's two reads, and what each failure does instead of raising (issue 559).
- *
- * A rail is navigation beside a page, never the page, so `lib/server/form-rail.ts` states
- * that every failure degrades: a form that cannot be read gets no rail at all and leaves
- * the screen's own 404 or error alert to speak, and a validation that fails gets a rail
- * with no badges rather than one quietly claiming every step is clean. That is a promise
- * the browser cannot easily be made to break on demand - both failures need the API to be
- * down or the draft to be unparseable - so it is pinned here, where the two answers can
- * simply be handed back.
- *
- * The happy path is proved end to end in `apps/admin/e2e/rail.pw.ts` against a real
- * verdict, which is why the only thing asserted about it here is that the counts come from
- * the issues rather than from anywhere else.
- */
-
 const getForm = vi.fn<(...args: never[]) => Promise<ApiResult<FormDetail>>>();
 const validateDraft =
   vi.fn<

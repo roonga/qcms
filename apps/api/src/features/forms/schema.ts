@@ -90,8 +90,8 @@ const RosterProjection = z.array(
 );
 
 /**
- * `answers` is answer-shaped, so it falls under the answer rules (SEC-13 / ADR-34):
- * never logged, never persisted, never echoed back.
+ * `answers` is answer-shaped, so it falls under the answer rules (ADR-34): never logged, never persisted,
+ * never echoed back.
  */
 export const PreviewConditionBody = z
   .strictObject({
@@ -106,8 +106,8 @@ export const PreviewConditionBody = z
   .openapi("PreviewConditionBody");
 
 /**
- * `answers` is answer-shaped, so it falls under the answer rules (SEC-13 / ADR-34):
- * never logged, never persisted, never echoed back.
+ * `answers` is answer-shaped, so it falls under the answer rules (ADR-34): never logged, never persisted,
+ * never echoed back.
  */
 export const PreviewDraftBody = z
   .strictObject({

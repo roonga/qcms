@@ -12,13 +12,6 @@ import { requireAdminSession } from "@/lib/server/session";
 import { previewPortalTheme, secureCookies } from "@/lib/server/config";
 import { releaseVersionAction, reviewFormVersionAction } from "@/app/(shell)/forms/actions";
 
-/**
- * Production reads immutable content; it never renders the shared draft builder.
- *
- * It carried close and reopen until 2026-11-02 (Code Owner), because a prod-locked form's
- * builder is a review screen and those were the only acts left on it. They are Operations'
- * now, on `/operations/forms/{formId}/intake`, so this screen reads and releases only.
- */
 export async function FormProductionReview({
   form,
   environments,

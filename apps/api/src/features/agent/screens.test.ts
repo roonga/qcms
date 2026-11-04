@@ -23,11 +23,6 @@ import {
 } from "./tools/registry.js";
 import type { AgentContext } from "./types.js";
 
-/**
- * What the registry promises, checked rather than claimed: one row per screen, one door
- * per screen, and no field in any schema that could carry respondent content (SEC-17).
- */
-
 function turnContext(screen: ScreenId): AgentContext {
   return {
     screen,
@@ -43,7 +38,6 @@ function jsonSchemaOf(schema: z.ZodType): unknown {
   return z.toJSONSchema(schema, { io: "output", unrepresentable: "any" });
 }
 
-/** Every property name in a JSON Schema document, however deeply nested. */
 function propertyNames(node: unknown, found: Set<string> = new Set()): Set<string> {
   if (Array.isArray(node)) {
     for (const item of node) propertyNames(item, found);
@@ -130,7 +124,7 @@ describe("the screen registry", () => {
         expect(AGENT_TOOL_NAMES).toContain(name);
       }
     }
-    // The draft verbs belong to the builder, and the projection to the preview screen.
+
     expect(SCREENS["/forms/[formId]"].readTools).toEqual([
       "search_question_library",
       "propose_questions",
@@ -178,10 +172,23 @@ describe("the screen registry", () => {
       "form.reopen",
     ];
     for (const id of SCREEN_IDS.filter(isFormSubtreeScreen)) {
-      expect(offerableActionKinds(id), id).toEqual(
-        id.startsWith("/operations/") ? operational : authoring,
-      );
+      const expected = id.startsWith("/operations/")
+        ? operational
+        : id === "/forms/[formId]"
+          ? [...authoring, "question.publish"]
+          : authoring;
+      expect(offerableActionKinds(id), id).toEqual(expected);
     }
+  });
+
+  it("offers a question publish on the builder alone, and on no other screen of the subtree", () => {
+    expect(offerableActionKinds("/forms/[formId]")).toContain("question.publish");
+    for (const id of SCREEN_IDS.filter(
+      (candidate) => isFormSubtreeScreen(candidate) && candidate !== "/forms/[formId]",
+    )) {
+      expect(offerableActionKinds(id), id).not.toContain("question.publish");
+    }
+    expect(offerableActionKinds("/questions/[questionId]")).toContain("question.publish");
   });
 
   it("keeps a screen outside a form subtree on its own kinds", () => {

@@ -30,7 +30,7 @@ export interface A2UIStepRendererProps {
   readonly errors?: A2UIErrors;
   /** `undefined` when the control was cleared. */
   readonly onChange?: (name: string, value: A2UIAnswerValue | undefined) => void;
-  /** Touched semantics. */
+
   readonly onBlur?: (name: string) => void;
   /** BCP-47; compiled text is already resolved. */
   readonly locale?: string;

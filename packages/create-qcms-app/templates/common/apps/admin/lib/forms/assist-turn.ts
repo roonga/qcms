@@ -2,42 +2,21 @@ import type { MessageKey } from "../i18n/en.ts";
 
 import type { AssistEvent } from "./assist-stream.ts";
 
-/**
- * One assistant turn as the panel shows it: prose and tool steps, interleaved in the
- * order they arrived.
- *
- * The wire carries `text` deltas, `status` events and `tool-outcome` events. Folding
- * them here, rather than in the component, keeps the timeline rules in one testable
- * place.
- *
- * ## A step is done only on evidence
- *
- * A `tool` status opens a running step under the ordinal the API gave it, and only the
- * `tool-outcome` naming that ordinal settles it: `done` when the call worked, `failed`
- * when it did not. Nothing else is read as success - not a later status (a model calls
- * the next tool after a failed one as readily as after a good one), and not the end of
- * the stream. A step still running when the turn ends, however it ends (a terminal
- * error, a dropped connection, a read failure, or an API that sent no outcome), is
- * `interrupted`: the panel says it did not finish rather than guessing.
- *
- * The tool's identifier never reaches the screen; it is mapped to a plain-language
- * catalog label, and a name this build does not know reads as a generic step.
- */
+// Only the matching tool-outcome settles a step; later tools, prose and proposals are not success evidence.
+// Map tool ids to catalog labels rather than exposing internal names.
 
 export type StepState = "running" | "done" | "failed" | "interrupted";
 
 export interface TurnStep {
   readonly label: MessageKey;
   readonly state: StepState;
-  /** The API's per-turn ordinal, which a `tool-outcome` names. */
+
   readonly step: number | undefined;
 }
 
 export type TurnSegment =
-  /** One prose segment; a delta joins it only when it carries the same `id`. */
   | { readonly kind: "text"; readonly id: string | undefined; readonly text: string }
   | { readonly kind: "steps"; readonly steps: readonly TurnStep[] }
-  /** The provider's reasoning summary; `endedAt` is set by `reasoning-end` or the turn ending. */
   | {
       readonly kind: "thinking";
       readonly text: string;
@@ -49,10 +28,6 @@ export interface AssistantTurnView {
   readonly segments: readonly TurnSegment[];
 }
 
-/**
- * The tool names the API registers (`apps/api/src/features/agent/tools/registry.ts`,
- * `AGENT_TOOL_NAMES`), each with what a person would call it.
- */
 export const TOOL_STEP_LABELS: Readonly<Record<string, MessageKey>> = {
   search_question_library: "forms.assist.step.search_question_library",
   propose_questions: "forms.assist.step.propose_questions",
@@ -120,7 +95,6 @@ function appendStep(turn: AssistantTurnView, step: TurnStep): AssistantTurnView 
   return { segments: [...turn.segments, { kind: "steps", steps: [step] }] };
 }
 
-/** Append to the open thinking segment (the last, with no `endedAt`), or open one. */
 function appendThinking(turn: AssistantTurnView, delta: string, now: number): AssistantTurnView {
   if (delta === "") return turn;
   const last = turn.segments.at(-1);
@@ -137,7 +111,6 @@ function appendThinking(turn: AssistantTurnView, delta: string, now: number): As
   };
 }
 
-/** Settle every open thinking segment. */
 function endThinking(turn: AssistantTurnView, now: number): AssistantTurnView {
   let changed = false;
   const segments = turn.segments.map((segment): TurnSegment => {
@@ -148,12 +121,6 @@ function endThinking(turn: AssistantTurnView, now: number): AssistantTurnView {
   return changed ? { segments } : turn;
 }
 
-/**
- * Apply one stream event to the turn. Events that carry nothing visible return
- * it unchanged.
- *
- * `now` is an argument so the fold stays pure and durations are testable.
- */
 export function applyTurnEvent(
   turn: AssistantTurnView,
   event: AssistEvent,
@@ -181,10 +148,7 @@ export function applyTurnEvent(
   }
 }
 
-/**
- * The turn once its stream has ended, for whatever reason. A step with no outcome is
- * `interrupted`, never `done`; an unclosed thinking segment is closed.
- */
+// An unfinished step is interrupted, never completed; close any unfinished reasoning segment.
 export function finishTurn(turn: AssistantTurnView, now: number = Date.now()): AssistantTurnView {
   return endThinking(
     mapSteps(turn, (step) => (step.state === "running" ? { ...step, state: "interrupted" } : step)),
@@ -192,23 +156,16 @@ export function finishTurn(turn: AssistantTurnView, now: number = Date.now()): A
   );
 }
 
-/** Every prose segment, joined: what the turn said, for the conversation history. */
 export function turnText(turn: AssistantTurnView): string {
   return turn.segments
     .flatMap((segment) => (segment.kind === "text" ? [segment.text] : []))
     .join("");
 }
 
-/**
- * The turn's closing prose segment, which is what a card quotes as the reason. The last
- * one rather than all of them: the earlier prose narrates the tool calls and is already in
- * the conversation above the card.
- */
 export function lastTextSegment(turn: AssistantTurnView): string {
   return turn.segments.findLast((segment) => segment.kind === "text")?.text ?? "";
 }
 
-/** The most recently started step still running, if any: what the status line names. */
 export function runningStep(turn: AssistantTurnView): TurnStep | undefined {
   const steps = turn.segments.flatMap((segment) => (segment.kind === "steps" ? segment.steps : []));
   return steps.findLast((step) => step.state === "running");

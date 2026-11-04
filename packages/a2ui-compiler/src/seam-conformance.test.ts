@@ -18,8 +18,6 @@ import {
 } from "@roonga/qcms-core";
 import { describe, expect, it } from "vitest";
 
-// An adaptive resolver would sit exactly where this test double sits.
-
 function buildSnapshot(): FrozenSnapshot {
   const en = (value: string): { en: string } => ({ en: value });
   const rawQuestions = [
@@ -85,7 +83,6 @@ const snapshot = buildSnapshot();
 
 describe("StepResolver seam is implementable from the public surface", () => {
   it("routes every step through an externally-authored resolver double", () => {
-    // Exported types alone, as an external resolver would have to be.
     const seen: string[] = [];
     const stub: StepResolver = {
       resolveStep: (step: Step, context: StepResolverContext): A2UIDocument => {

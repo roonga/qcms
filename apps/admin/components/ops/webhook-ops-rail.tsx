@@ -7,27 +7,15 @@ import { t } from "@/lib/i18n/en";
 import type { WebhookOpsFilters } from "@/lib/ops/list-filters";
 import { OPERATIONS_PATH } from "@/lib/shell/modes";
 
-/** One form, as the rail lists it and as an option on the form filter. */
 export interface WebhookRailForm {
   readonly formId: string;
   readonly slug: string;
 }
 
-/**
- * The webhook operations rail: the dead-letter queue and a row per form as Sections, and a
- * form filter over the queue (`plan/admin-design-contracts.md` §7.0).
- *
- * Redelivery stays on the queue's own rows: the rail holds no destructive action
- * (`plan/admin-ux-audit.md` §3.7).
- */
 export function WebhookOpsRail({
   forms,
   filters,
 }: {
-  /**
-   * The installation's forms, or empty when there are none or the read failed. The page is
-   * what reports a failed read.
-   */
   readonly forms: readonly WebhookRailForm[];
   readonly filters: WebhookOpsFilters;
 }) {

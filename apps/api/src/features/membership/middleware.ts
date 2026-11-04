@@ -1,5 +1,5 @@
-// Mounted after the admin-session gate and environment middleware, ahead of every admin
-// slice: a route with no policy row is refused (SEC-3, ADR-41).
+// Mounted after the admin-session gate and environment middleware, ahead of every admin slice: a route with
+// no policy row is refused (ADR-41).
 
 import { getForm, getQuestion } from "@roonga/qcms-db";
 import type { MiddlewareHandler } from "hono";

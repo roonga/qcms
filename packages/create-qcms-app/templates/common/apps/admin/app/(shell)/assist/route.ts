@@ -6,19 +6,7 @@ import { screenAssist } from "@/lib/server/forms";
 import { isSameOriginPost } from "@/lib/server/route-helpers";
 import { requireAdminSessionForRequest } from "@/lib/server/session";
 
-/**
- * The assist turn for a screen with no form in its route.
- *
- * It does with the upstream body exactly what `forms/[formId]/assist/route.ts` does:
- * forwards the request with the admin's credentials and hands the stream back unbuffered,
- * forwarding only the headers that hop forwards (R2).
- *
- * The flag gate is first and answers a bare 404, so with
- * `QCMS_FLAG_AGENT_AUTHORING=none` the whole surface is absent rather than hidden and an
- * unauthenticated probe learns nothing. A route handler under `(shell)` is reached
- * directly by the browser, so it carries its own session gate and SEC-9's origin belt,
- * both enforced by `lib/server/shell-route-guards.test.ts`.
- */
+/* Keep the upstream body unbuffered so SSE frames reach the panel as they arrive. */
 export async function POST(request: NextRequest): Promise<Response> {
   if (!agentAuthoringEnabled()) return new Response(null, { status: 404 });
   if (!isSameOriginPost(request)) return new Response(null, { status: 403 });

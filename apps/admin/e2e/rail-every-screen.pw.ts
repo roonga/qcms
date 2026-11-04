@@ -5,41 +5,20 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 
-/**
- * A rail on every authenticated screen, and the list filters inside it (§7.0 of
- * `plan/admin-design-contracts.md`).
- *
- * The column's x is measured rather than the rail's presence asserted, because a rail
- * rendered with no width would pass the weaker claim. The filter round trip is here because
- * it is three documents and a navigation. `rail.pw.ts`, `rail-screens.pw.ts` and
- * `settings-rail.pw.ts` cover the rail itself.
- */
-
 test.describe.configure({ mode: "serial" });
 
 const EMAIL = uniqueAdminEmail("raileveryscreen1117");
 
-/** `--bp-sidebar` is 64rem, which the browser's default root size makes 1024px. */
 const SIDEBAR = 1024;
 
-/** The width the column's left edge is compared at. */
 const WIDE = 1440;
 
-/** The seeded insurance fixture, as every form-scoped spec in this suite uses it. */
 const FORM_ID = "frm_auto_quote";
 
-/** The workspace a bootstrapped installation is seeded with. */
 const WORKSPACE_ID = "org_default_workspace";
 
-/** Set by the first test; the rest sign in again with it. */
 let totpSecret = "";
 
-/**
- * Every authenticated screen, with the `data-testid` its own rail carries. One screen stands
- * for each of the two rails a form has, the editor's and Operations'; the question detail
- * screen needs an id and has its own spec. `lib/rail-routes.test.ts` is the gate that no
- * screen is missing.
- */
 function screens(): readonly { readonly path: string; readonly testId: string }[] {
   return [
     { path: "/questions", testId: "qcms-questions-rail" },
@@ -49,8 +28,8 @@ function screens(): readonly { readonly path: string; readonly testId: string }[
     { path: `/forms/${FORM_ID}`, testId: "qcms-rail" },
     { path: "/me/access", testId: "qcms-my-access-rail" },
     { path: "/operations", testId: "qcms-operations-rail" },
-    // One of a form's operational screens stands for the five `operations-form-rail.pw.ts`
-    // walks: they carry the other rail a form has, the four contexts of one environment.
+    // One operational screen of a form stands for the five its own sweep walks: they carry
+    // the other rail a form has.
     { path: `/operations/forms/${FORM_ID}/responses`, testId: "qcms-operations-form-rail" },
     { path: "/responses", testId: "qcms-operations-rail" },
     { path: "/responses/erasures", testId: "qcms-erasures-rail" },
@@ -61,11 +40,6 @@ function screens(): readonly { readonly path: string; readonly testId: string }[
   ];
 }
 
-/**
- * Where the content column starts, and the rail s width beside it. Both, so a wrong x with no
- * rail (a missing slot page) is distinguishable from one with a zero-width rail (a missing
- * grid branch).
- */
 async function columnStart(page: Page): Promise<{ readonly left: number; readonly rail: number }> {
   return page.evaluate(() => {
     const main = document.querySelector("main#main-content")?.getBoundingClientRect();
@@ -91,8 +65,7 @@ test("1117 gives every shell screen one rail, and the content column the same le
   const measured: Record<string, { readonly left: number; readonly rail: number }> = {};
   for (const screen of screens()) {
     await page.goto(screen.path);
-    // By its own handle: `aside.qcms-rail` alone would pass on a stale rail left in the slot
-    // by the previous screen.
+
     await expect(
       page.getByTestId(screen.testId),
       `${screen.path} renders its own rail`,
@@ -122,7 +95,7 @@ test("1117 puts the list filters in the rail and nowhere else", async ({ page })
     await page.goto(path);
     const filters = page.getByTestId("qcms-rail-filters");
     await expect(filters, `${path} has the Filters part`).toBeVisible();
-    // Inside the rail, and gone from the content column: moved rather than duplicated.
+
     await expect
       .soft(
         page.getByTestId(screenRail(path)).getByTestId("qcms-rail-filters"),
@@ -154,20 +127,17 @@ test("1117 applies a filter from the rail into the URL, and reloads the URL back
   await filters.getByLabel("Search").fill("smoking");
   await filters.getByRole("button", { name: "Apply" }).click();
 
-  // Apply is a native GET submission, so this is a real navigation and the URL carries it.
   await expect(page).toHaveURL(/[?&]q=smoking/u);
   await expect(
     page.getByTestId("qcms-rail-summary-count"),
     "and the Header states how many filters are in force",
   ).toHaveText("1 active");
 
-  // A fresh document, which is the only way to tell the state from what the first render held.
   const url = page.url();
   await page.goto(url);
   await expect(page.getByTestId("qcms-rail-filters").getByLabel("Search")).toHaveValue("smoking");
   await expect(page.getByTestId("qcms-rail-summary-count")).toHaveText("1 active");
 
-  // Scoped to the rail: the filtered-empty panel carries §3's CTA under the same name.
   const clear = page.getByTestId("qcms-rail-filters").getByRole("link", { name: "Clear filters" });
   await expect(clear).toHaveCount(1);
   await clear.click();
@@ -181,12 +151,10 @@ test("1117 shuts the rail below --bp-sidebar into a summary naming the subject a
   test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);
 
-  // One pixel under the boundary, so a collapse anywhere else is a third breakpoint.
   await page.setViewportSize({ width: SIDEBAR - 1, height: 900 });
   await page.goto("/questions?status=draft&q=smoking");
 
-  // `data-ready` rather than `openRail`, which would open it. The server ships the rail open,
-  // so reading `open` before the media query has been read races hydration.
+  // Wait for data-ready without opening the rail: server open state precedes the client media-query decision.
   const disclosure = page.locator("details.qcms-rail__disclosure");
   await expect(disclosure).toHaveAttribute("data-ready", "");
   expect(
@@ -194,7 +162,6 @@ test("1117 shuts the rail below --bp-sidebar into a summary naming the subject a
     "the rail is shut below the boundary",
   ).toBe(false);
 
-  // The summary is the whole rail here: the subject plus at most one count.
   const summary = page.locator("summary.qcms-rail__summary");
   await expect(summary).toContainText("Questions");
   await expect(summary.getByTestId("qcms-rail-summary-count")).toHaveText("2 active");
@@ -202,7 +169,6 @@ test("1117 shuts the rail below --bp-sidebar into a summary naming the subject a
   await summary.click();
   await expect(page.getByTestId("qcms-rail-filters").getByLabel("Search")).toHaveValue("smoking");
 
-  // And above the boundary the body is open (ruling 2.1).
   await page.setViewportSize({ width: SIDEBAR, height: 900 });
   await page.goto("/questions?status=draft&q=smoking");
   await expect(disclosure).toHaveAttribute("data-ready", "");
@@ -212,7 +178,6 @@ test("1117 shuts the rail below --bp-sidebar into a summary naming the subject a
   ).toBe(true);
 });
 
-/** Which rail handle a list screen carries, so the loop above can scope into it. */
 function screenRail(path: string): string {
   if (path === "/questions") return "qcms-questions-rail";
   if (path === "/forms") return "qcms-forms-rail";

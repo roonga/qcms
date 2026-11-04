@@ -7,9 +7,8 @@ import { trackedFilesUnder } from "./tracked-files.mjs";
 import { declaresUseServer } from "./use-server-directive.mjs";
 
 /**
- * SEC-9's CSRF belt over every state-changing BFF route handler and `"use server"` module in every
- * Next app. It lives in `scripts/` so turbo cannot cache it against one app's inputs. It reads that
- * the belt is CALLED, not that its answer is used; an unclassifiable export fails by name.
+ * Check CSRF calls in every state-changing BFF handler and action. This source scan proves the call exists,
+ * not that its response is used; unclassifiable exports fail by name.
  */
 
 const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -161,16 +160,13 @@ const ROUTES: ScannedRoute[] = APPS.flatMap((app) =>
 
 describe("issue #487: state-changing BFF route handlers carry SEC-9's CSRF belt", () => {
   it("finds the Next apps it is supposed to be scanning", () => {
-    // Non-vacuity: a rename of `apps/` or `app/` would otherwise leave every assertion
-    // below passing over an empty list. A superset, so a new app does not fail here.
     expect(APPS.map((app) => app.name)).toEqual(expect.arrayContaining(["admin", "portal"]));
   });
 
   it.each(APPS)(
     "apps/$name has state-changing route handlers for this gate to check",
     ({ name }) => {
-      // Per app, not over the total: the total was already nonzero while the portal
-      // contributed nothing to it.
+      // Assert each app separately; a nonzero total can still hide an app missing from enumeration.
       const mutating = ROUTES.filter((route) => route.app === name).reduce(
         (sum, route) => sum + route.mutating,
         0,
@@ -187,8 +183,6 @@ describe("issue #487: state-changing BFF route handlers carry SEC-9's CSRF belt"
   });
 
   it.each(ROUTES)("$path exports only shapes this scan can read", ({ source }) => {
-    // Ordered before the belt rule: the belt rule would pass an unreadable export in
-    // silence.
     expect(unscannableExports(source)).toEqual([]);
   });
 
@@ -197,7 +191,6 @@ describe("issue #487: state-changing BFF route handlers carry SEC-9's CSRF belt"
   });
 
   it("covers the handlers issue #487 was filed about", () => {
-    // Pinned by path: a rename would otherwise drop one out of coverage in silence.
     expect(ROUTES.map((route) => route.path)).toEqual(
       expect.arrayContaining([
         "apps/portal/app/f/[formSlug]/start/route.ts",
@@ -208,11 +201,6 @@ describe("issue #487: state-changing BFF route handlers carry SEC-9's CSRF belt"
     );
   });
 });
-
-/*
- * Written here rather than on disk: every broken shape worth asserting on is one no file
- * in the tree has, and a parser that stopped matching would otherwise report green.
- */
 
 function serverActionModules(): string[] {
   const found: string[] = [];
@@ -232,7 +220,6 @@ function serverActionModules(): string[] {
 
 const SERVER_ACTIONS = serverActionModules();
 
-/** Read out of each proxy, so the premise below is checked against code, not prose. */
 function referrerPolicyOf(app: string): string | undefined {
   const source = readFileSync(`${REPO_ROOT}apps/${app}/proxy.ts`, "utf8");
   return /"Referrer-Policy",\s*"([^"]+)"/.exec(source)?.[1];
@@ -254,30 +241,25 @@ describe("task 073: a Server Action carries the belt too (R-B2)", () => {
       "apps/admin/app/(shell)/questions/actions.ts",
       "apps/admin/app/(shell)/responses/actions.ts",
       "apps/admin/app/(shell)/webhooks/actions.ts",
-      // The admin is the case R-B2 left alone: unreachable without JavaScript, and each of
-      // these actions proxies a QCMS endpoint whose own grant check is the authority.
       "apps/admin/app/(shell)/workspaces/[workspaceId]/actions.ts",
     ]);
   });
 
   it("finds the actions in the tree, and they are exactly these", () => {
-    // An exact list, not a superset: a second portal action is a decision to take here,
-    // because SEC-9's belt does not cover an action entry point by itself.
+    // Keep an exact action list: the origin belt does not automatically guard new action entry points.
     expect(SERVER_ACTIONS).toEqual([
       "apps/admin/app/(shell)/forms/actions.ts",
       "apps/admin/app/(shell)/questions/actions.ts",
       "apps/admin/app/(shell)/responses/actions.ts",
       "apps/admin/app/(shell)/webhooks/actions.ts",
       "apps/admin/app/(shell)/workspaces/[workspaceId]/actions.ts",
-      // The one action reachable without scripting, which is why the portal's referrer
-      // policy had to move.
       "apps/portal/app/s/[sessionId]/roster-action.ts",
     ]);
   });
 
   /**
    * Per Fetch, a navigation POST under `Referrer-Policy: no-referrer` sends `Origin: null`, which Next
-   * refuses, so the portal (a no-JS action) serves `same-origin` and the admin keeps `no-referrer` (SEC-9).
+   * refuses, so the portal (a no-JS action) serves `same-origin` and the admin keeps `no-referrer`.
    */
   it("serves same-origin on the portal, whose action is reachable without scripting", () => {
     expect(referrerPolicyOf("portal")).toBe("same-origin");
@@ -288,7 +270,6 @@ describe("task 073: a Server Action carries the belt too (R-B2)", () => {
   });
 
   it("has an action on every app it read a policy for", () => {
-    // Non-vacuity: the pair above would still pass if the enumeration found nothing.
     const apps = new Set(SERVER_ACTIONS.map((path) => path.split("/")[1]));
     expect([...apps].sort((a, b) => a.localeCompare(b))).toEqual(["admin", "portal"]);
   });
@@ -307,10 +288,6 @@ const UNGUARDED = [
   "}",
 ];
 
-/**
- * A fixture rather than a reliance on the one synchronous handler in the tree, so that
- * deleting that route cannot quietly delete this coverage with it.
- */
 const UNGUARDED_SYNC = [
   "export function POST(request: Request): Response {",
   "  return new Response(null, { status: 204 });",
@@ -343,8 +320,6 @@ describe("the rule fails on the shapes it exists to catch", () => {
   });
 
   it("does not let a handler free-ride on its neighbour's belt", () => {
-    // The file contains the belt and the second handler does not, so a file-level
-    // substring check would pass this.
     expect(unbeltedHandlers([...GUARDED, "", ...UNGUARDED].join("\n"))).toEqual(["POST"]);
   });
 

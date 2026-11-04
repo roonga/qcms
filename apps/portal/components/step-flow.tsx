@@ -487,7 +487,6 @@ export function StepFlow({
             }),
           });
           if (res.status !== 200) {
-            // "Try again" is as untrue for a roster write as it is for an answer.
             if ((await readRefusal(res)) === "reload") {
               reloadFlow();
               return;

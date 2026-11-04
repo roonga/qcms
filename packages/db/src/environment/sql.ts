@@ -38,7 +38,6 @@ import {
 
 const dialect = new PgDialect();
 
-/** Postgres identifier quoting, with the doubling rule. */
 function quote(identifier: string): string {
   return `"${identifier.replaceAll('"', '""')}"`;
 }
@@ -161,7 +160,6 @@ export function environmentObjectNames(environment: string): EnvironmentObjectNa
     }
   }
   for (const trigger of DATA_PLANE_TRIGGERS) guards.push(trigger.name);
-  // The one guard whose text differs per environment.
   guards.push(SESSION_ENVIRONMENT_CHECK);
 
   return {
@@ -312,7 +310,6 @@ export function grantEnvironmentStatements(environment: string): string[] {
     `GRANT USAGE ON SCHEMA ${quote(reporting)} TO ${quote(role)}`,
     `GRANT SELECT ON ALL TABLES IN SCHEMA ${quote(reporting)} TO ${quote(role)}`,
     `GRANT USAGE ON SCHEMA ${quote(CONTROL_SCHEMA)} TO ${quote(role)}`,
-    // The guarded members are emitted below instead.
     ...CONTROL_READ_TABLES.filter(
       (table) => !CONTROL_READ_TABLES_GUARDED_ON_EXISTENCE.includes(table),
     ).map((table) => `GRANT SELECT ON ${quote(CONTROL_SCHEMA)}.${quote(table)} TO ${quote(role)}`),
@@ -334,8 +331,8 @@ export function grantEnvironmentStatements(environment: string): string[] {
         `GRANT SELECT ON ${quote(CONTROL_SCHEMA)}.${quote(table)} TO ${quote(role)}`,
       ]),
     ),
-    // `INSERT` and nothing else, so an environment role may add an audit row and may not
-    // read, change or remove one (SEC-15, and SEC-17 on the same terms).
+    // `INSERT` and nothing else, so an environment role may add an audit row and may not read, change or remove
+    // one (and on the same terms).
     ...[ACCESS_AUDIT_TABLE, AGENT_ACTIONS_TABLE].map((auditTable) =>
       guardedOnRoleAndTable(role, CONTROL_SCHEMA, auditTable, [
         `GRANT INSERT ON ${quote(CONTROL_SCHEMA)}.${quote(auditTable)} TO ${quote(role)}`,
@@ -404,20 +401,14 @@ export function grantControlTableStatements(table: string): string[] {
 }
 
 /**
- * The SEC-15 access audit's grants: `INSERT` for every application role, `SELECT` for the
- * control role alone, and `UPDATE` and `DELETE` revoked from all of them so a credential
- * serving traffic cannot rewrite the record of what it did.
- *
- * An environment role therefore cannot use `RETURNING` on an audit insert.
+ * Application roles may insert audit rows but never update or delete them. Only the control role may read,
+ * so environment roles cannot use RETURNING on inserts.
  */
 export function grantAccessAuditStatements(): string[] {
   return appendOnlyAuditGrantStatements(ACCESS_AUDIT_TABLE);
 }
 
-/**
- * SEC-17's agent audit takes the same grant set, emitted by the same function rather than
- * written out again, so the two tables cannot diverge.
- */
+/** Emit agent-audit grants through the same function as access-audit grants so the two tables cannot diverge. */
 export function grantAgentActionsStatements(): string[] {
   return appendOnlyAuditGrantStatements(AGENT_ACTIONS_TABLE);
 }
@@ -555,9 +546,9 @@ $$;`;
 }
 
 /**
- * Takes every privilege on `control.two_factor_resets` back from every `qcms_app%` role, since an audit row a
- * traffic-serving credential could rewrite proves nothing (SEC-10). A revoke, because no grant form carves
- * one table out of a schema.
+ * Takes every privilege on `control.two_factor_resets` back from every `qcms_app%` role, since an audit row
+ * a traffic-serving credential could rewrite proves nothing. A revoke, because no grant form carves one
+ * table out of a schema.
  */
 export function revokeMigrateOnlyStatement(): string {
   return `DO $$

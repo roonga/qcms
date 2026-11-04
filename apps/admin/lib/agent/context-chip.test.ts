@@ -5,13 +5,6 @@ import { t } from "../i18n/en.ts";
 import { contextChipKey, contextChipLabel } from "./context-chip.ts";
 import { AGENT_SCREENS, screenForPath } from "./screens.ts";
 
-/**
- * The context chip names what the agent can see on **this** screen (section 4.8).
- *
- * The property worth a test is that the lines are per screen rather than one generic
- * string: a chip that said the same thing on the response list and on Settings would tell
- * an operator nothing about what the next turn carries.
- */
 describe("the context chip", () => {
   it("has a distinct line for every screen", () => {
     const lines = AGENT_SCREENS.map((screen) => t(contextChipKey(screen)));

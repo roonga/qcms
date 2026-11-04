@@ -24,30 +24,16 @@ import {
   type SidebarSetting,
 } from "@/lib/sidebar";
 
-/**
- * The Hide sidebar pair, and the state they share
- * (`plan/admin-design-contracts.md` §7.0 ruling 8).
- *
- * The two buttons sit in different subtrees - one in the rail, one above the content column
- * - so the state is a context in the shell rather than a prop either could pass the other.
- *
- * What actually hides the rail is the attribute on `<html>`, which the server already
- * stamped: the CSS reads it, so the state here is for the labels, for `aria-expanded` and
- * for the hold a later surface takes. `setSetting` writes the attribute synchronously
- * rather than from an effect, so the rail's display has changed by the time focus moves to
- * the button that undoes it.
- */
+/* Update the hiding attribute synchronously before moving focus to the control that reveals the rail
+   again. */
 export interface SidebarControl {
-  /** The operator's own choice, which is the only thing the cookie holds. */
   readonly setting: SidebarSetting;
-  /** Whether the rail is hidden right now, the operator's choice or a hold over it. */
   readonly hidden: boolean;
   readonly setSetting: (next: SidebarSetting) => void;
-  /** Take or release a temporary hold on the width, writing no cookie. */
+  /* A temporary width hold must never overwrite the operator's persisted sidebar choice. */
   readonly hold: (held: boolean) => void;
 }
 
-/** A rail rendered outside the shell gets the shown state and inert controls. */
 const INERT: SidebarControl = {
   setting: "shown",
   hidden: false,
@@ -86,9 +72,8 @@ export function SidebarProvider({
     [secureCookies],
   );
 
-  // Stable identity, and the whole shell depends on it: the assistant's hold effect lists
-  // `hold` in its dependencies, so a function rebuilt on each render would re-run that
-  // effect on each render, and the `setHeld` inside it would schedule the next one.
+  // Keep hold's identity stable: changing it would rerun the assistant effect, whose setHeld would schedule
+  // another render.
   const hold = useCallback((next: boolean) => {
     setHeld(next);
     if (next) document.documentElement.setAttribute(SIDEBAR_HOLD_ATTRIBUTE, "hidden");
@@ -107,7 +92,6 @@ export function useSidebar(): SidebarControl {
   return useContext(SidebarContext);
 }
 
-/** The rail's own toggle. Hidden below `--bp-sidebar`, where the disclosure governs. */
 export function HideSidebarButton() {
   const { hidden, setSetting } = useSidebar();
   return (
@@ -129,10 +113,6 @@ export function HideSidebarButton() {
   );
 }
 
-/**
- * The way back, above the content column, carrying the count of filters set in the rail
- * nobody can see.
- */
 export function ShowSidebarButton({ filterCount }: { readonly filterCount: number }) {
   const { hidden, setSetting } = useSidebar();
   const assistant = useAssistant();
@@ -153,10 +133,7 @@ export function ShowSidebarButton({ filterCount }: { readonly filterCount: numbe
         aria-expanded={!hidden}
         onClick={() => {
           setSetting("shown");
-          // Between 1024 and 1279px the open panel is what hid the rail, so showing it
-          // again has to close the panel or the rail would not fit (ruling O2). The
-          // announcement goes through the shell's region, because the panel's own is
-          // inside the panel that is closing.
+          // Announce through the shell region because this action closes the panel containing its own region.
           if (assistant?.open === true) {
             assistant.close();
             announce(t("agent.sidebar.shown"));

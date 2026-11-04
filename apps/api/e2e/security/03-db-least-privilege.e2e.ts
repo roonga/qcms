@@ -34,7 +34,6 @@ const HOME_PROD_REPORTING_ROLE = workspaceReportingRoleName("prod", HOME_WORKSPA
 
 const DML = ["SELECT", "INSERT", "UPDATE", "DELETE"] as const;
 
-/** SEC-15's audit and SEC-17's, which carry one grant set between them. */
 const AUDIT_TABLES: readonly string[] = [ACCESS_AUDIT_TABLE, AGENT_ACTIONS_TABLE];
 
 // Each planner probe needs a session of its own: `pg_temp` is per session, and a notice
@@ -1063,7 +1062,6 @@ describe("a per-workspace reporting role reads one workspace in one environment 
       );
     }
 
-    /** Every `SAW` notice one query raised, which is every value the qual was handed. */
     async function noticesFrom(sql: string): Promise<string[]> {
       // A client of its own: a notice listener on the shared one would collect another
       // case's notices, and `pg_temp` is per session anyway.

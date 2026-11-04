@@ -13,7 +13,6 @@ import { requireAdminSession } from "@/lib/server/session";
 
 import { previewConditionAction, saveDraftAction, validateDraftAction } from "../../actions";
 
-/** The browser-tab title for this route (issue #536): the section, and the form it belongs to. */
 export async function generateMetadata({
   params,
 }: {
@@ -23,43 +22,8 @@ export async function generateMetadata({
   return pageMetadata(formSectionName("rules", formId));
 }
 
-/**
- * One form's rules (Code Owner, 2026-09-05, issue #669;
- * `plan/admin-shell-poc/rules-screen-poc.html`).
- *
- * ## Why this route exists
- *
- * `admin-shell-poc.html` draws the builder's Rules card as a compact read-only lens and
- * `rules-screen-poc.html` draws the editing on a screen of its own. That is the POC
- * speaking rather than the POC failing to speak - a card's contents are exactly what a
- * static drawing expresses - and under POC-wins the ruling is to build it as drawn.
- * `plan/admin-ux-audit.md` §5.5 priced the move as a two-hop path for rule-scoped issues,
- * "a real degradation to accept knowingly rather than discover", and it is accepted.
- *
- * The audit's objection was not the two hops, it was that anything resolving against ids on
- * the builder page would silently stop resolving. The ruling's mandatory constraint answers
- * it: every link that has to survive carries the route as well as the fragment
- * (`/forms/{formId}/rules#rule-{ruleId}`, `lib/forms/issues.ts`'s `ruleHref`), and the
- * handler switches route and then focuses. Validation went the other way and stays a
- * builder selection (#659, built as #719) because its entries point at controls the builder
- * itself renders; the pair is written up in `plan/admin-design-contracts.md` §7 so the two
- * halves read as one decision.
- *
- * ## Why the reads are the builder's reads
- *
- * This screen edits the same document, so it needs the same two things: the form's detail
- * (for the stored draft) and the pinnable-question library (for the sentences the table and
- * the condition editor read questions by). They are independent, so they run together, and
- * a library failure renders as a notice above a working editor rather than a 404 - a rule's
- * structure is still editable when the library cannot be listed. The library reaches the
- * client as a `ReadState` (`lib/read-state.ts`, issues 543, 544, 572) rather than as
- * `ok ? data : []`, because an empty library is not a neutral stand-in: every question
- * lookup misses against one, and "Unknown question" is a claim the failed read cannot
- * support.
- *
- * The three actions are bound to this route's form id, so a client cannot aim a save at a
- * form other than the one on screen whatever it puts in the payload.
- */
+/* Rule issue links need the rules route and fragment; a builder-only fragment cannot focus an unmounted
+   rule. */
 export default async function FormRulesPage({
   params,
 }: {
@@ -80,10 +44,6 @@ export default async function FormRulesPage({
   const form = detail.data;
   if (form.workflow?.enabled && !form.workflow.canEdit)
     redirect(`/forms/${encodeURIComponent(formId)}`);
-  // The engine's verdict on the stored draft, so a reader who arrived from an issue link
-  // sees the issue on the rule they were sent to rather than a clean table. Memoized per
-  // request, so it is the same dry run the rail beside this screen already runs
-  // (`lib/server/form-verdict.ts`). A form with no draft has nothing to validate.
   const verdict =
     form.draft === null ? undefined : await formVerdict(session, form.formId, form.draft);
 

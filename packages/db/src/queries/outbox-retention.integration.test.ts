@@ -1,5 +1,3 @@
-/** Driven against the Testcontainers harness DB. Requires Docker. */
-
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { FormId } from "@roonga/qcms-core";
@@ -333,10 +331,7 @@ describe("redactAgedOutboxPayloads above its candidate budget (issue #781)", () 
     return res.rows.map((row) => row.id);
   }
 
-  /**
-   * 60 s rather than Vitest's 5 s default: the 10,002-row insert costs whatever the
-   * host is otherwise doing, and it overran 5 s under a parallel verify.
-   */
+  /** Allow the full backlog insert its own budget; it exercises the unbounded fallback rather than the candidate probe alone. */
   it("redacts the whole backlog, not the subset the probe could name", async () => {
     const ids = await seedBacklog();
     expect(ids).toHaveLength(SEEDED_ROWS);

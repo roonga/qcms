@@ -46,6 +46,7 @@ Code Owner, 2026-10-24; the full rules are "Code comments" and "Written text" in
   - A PR body is `## Summary` (a few bullets, plus any `Fixes #NN` line) and `## Test plan` (gates run, one line each), nothing else unless a ruling or risk needs calling out.
 - Code comments: the default is no comment. Write one only when a reader needs something the code cannot say: a non-obvious why, a safety or security constraint, or an external-bug workaround. License headers and lint-disable or `as` justifications stay.
   - JSDoc on exported package APIs stays, one short line or a few at most, saying what the name and types do not.
+  - Keep dependency versions in manifests, lockfiles and live documentation, not explanatory comments. Preserve machine-read annotations required by tooling, including GitHub Actions version annotations.
   - Never restate the code. No history: no dates, rulings, "was X, now Y", or issue and PR numbers unless one is the only pointer to a non-obvious constraint.
 
 ## Verification

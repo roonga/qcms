@@ -52,8 +52,6 @@ describe("the grant filter (section 6.1, criterion 3)", () => {
   });
 
   it("offers an editor scoped to every environment no production release at all", () => {
-    // ADR-41's production split, unchanged: the environment enum carries no `prod` even
-    // though the grant's own scope does (criterion 3).
     const offered = filterFor({ grants: [editorIn(["all"])], current: "test" });
     expect(offeredEnvironments(offered, "form.release")).toEqual(["test"]);
   });
@@ -113,7 +111,8 @@ describe("the kinds a screen offers", () => {
     ];
     expect(kindsOn("/operations/forms/[formId]/links", approver)).toEqual(operational);
     expect(kindsOn("/operations/forms/[formId]/responses", approver)).toEqual(operational);
-    expect(kindsOn("/forms/[formId]", approver)).toEqual(authoring);
+
+    expect(kindsOn("/forms/[formId]", approver)).toEqual([...authoring, "question.publish"]);
   });
 
   // The data family is separate and neither implies the other (ADR-41), so the response

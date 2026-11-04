@@ -871,7 +871,6 @@ describe("concurrency (live, pooled connections)", () => {
   let db: NodePgDatabase<typeof schema>;
 
   beforeAll(() => {
-    // Registered with the harness so teardown drains it before the container stops.
     pool = testDb.register(
       new Pool({
         connectionString: testDb.connectionUri,

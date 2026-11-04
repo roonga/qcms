@@ -3,10 +3,10 @@ import { z } from "zod";
 import { err, ok, type Result } from "./errors.js";
 import { canonicalJson } from "./prepare-submission.js";
 
-// Hand-rolled: JWT libraries pull Node-only dependencies (breaking R4) and ship algorithm
-// agility. HMAC-SHA256 only (SEC-7), so there is no header segment.
+// Hand-rolled: JWT libraries pull Node-only dependencies (breaking R4) and ship algorithm agility.
+// HMAC-SHA256 only, so there is no header segment.
 
-/** Each purpose has its own key list (SEC-7). */
+/** Each purpose has its own key list. */
 export const TOKEN_PURPOSES = ["link", "session"] as const;
 export const TokenPurpose = z.enum(TOKEN_PURPOSES);
 export type TokenPurpose = z.infer<typeof TokenPurpose>;
@@ -35,15 +35,14 @@ const CompactTokenPayload = z.looseObject({
   expiresAt: z.iso.datetime().optional(),
 });
 
-/** The only algorithm compact tokens ever use (SEC-7). */
+/** The only algorithm compact tokens ever use. */
 export const COMPACT_TOKEN_KEY_ALGORITHM = { name: "HMAC", hash: "SHA-256" } as const;
 
-/** SEC-7 floor on signing-key length. */
 export const COMPACT_TOKEN_MIN_KEY_BYTES = 32;
 
 /**
- * Imports as non-extractable, and throws below the SEC-7 floor, a weak key
- * being a deployment bug rather than an expected failure.
+ * Import non-extractable keys and reject weak signing material as a deployment error rather than an expected
+ * verification failure.
  */
 export async function importCompactTokenKey(
   rawKey: Uint8Array<ArrayBuffer> | ArrayBuffer,
@@ -116,9 +115,8 @@ export async function signCompactToken(
 }
 
 /**
- * Verify against a key list, newest first, so rotation is prepending a key
- * (SEC-7). Nothing decoded is trusted before the signature check passes, so the
- * order is shape, signature, purpose, expiry.
+ * Verify against a key list, newest first, so rotation is prepending a key. Nothing decoded is trusted
+ * before the signature check passes, so the order is shape, signature, purpose, expiry.
  */
 export async function verifyCompactToken(
   purpose: TokenPurpose,

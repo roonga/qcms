@@ -4,8 +4,6 @@ import { readWebhookOpsFilters } from "./list-filters.ts";
 
 describe("readWebhookOpsFilters", () => {
   it("reads no filter from an empty query string, and from an empty parameter", () => {
-    // An empty `?form=` is what the "Any form" option submits, so it has to mean the same
-    // thing as the parameter's absence.
     expect(readWebhookOpsFilters({})).toEqual({ formId: undefined, activeCount: 0 });
     expect(readWebhookOpsFilters({ form: "" })).toEqual({ formId: undefined, activeCount: 0 });
   });

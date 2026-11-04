@@ -6,12 +6,6 @@ import { trackedFilesUnder } from "../../../../scripts/tracked-files.mjs";
 
 import { AGENT_SCREENS, adminPageHref, conversationSubject, screenForPath } from "./screens.js";
 
-/**
- * The screen table against the route tree, the way `lib/rail-routes.test.ts` checks the
- * rail's slot: a `(shell)` page with no row would leave the assistant guessing what the
- * screen can see, and a row for a route that no longer exists is a dead screen id.
- */
-
 const SHELL = fileURLToPath(new URL("../../app/(shell)", import.meta.url));
 
 function shellScreens(): string[] {
@@ -81,7 +75,7 @@ describe("the agent screen table", () => {
 
   it("is the renderer's link allowlist, and admits no route handler", () => {
     expect(adminPageHref("/forms/frm_x/publish")).toBe("/forms/frm_x/publish");
-    // The export download is a route handler, so it is not a screen and never a link.
+
     expect(adminPageHref("/forms/frm_x/export")).toBeUndefined();
     expect(adminPageHref("/forms/frm_x/assist")).toBeUndefined();
     expect(adminPageHref("/assist")).toBeUndefined();

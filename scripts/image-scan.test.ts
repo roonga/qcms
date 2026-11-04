@@ -111,7 +111,6 @@ const REPORT = {
       status: {
         schemaVersion: "v6.1.9",
         built: "2026-09-18T06:30:15Z",
-        // A placeholder, because a committed fixture never hard-codes one machine's path.
         path: "<cache-dir>/grype/db/6/vulnerability.db",
         valid: true,
       },
@@ -382,7 +381,6 @@ describe("Markdown that ends up in an issue body", () => {
     expect(escapeCell("# heading")).toBe("`# heading`");
     expect(escapeCell("@roonga")).toBe("`@roonga`");
     expect(escapeCell("[x](https://example.invalid)")).toBe("`[x](https://example.invalid)`");
-    // A backtick would close the span that does the neutralising.
     expect(escapeCell("a`b")).toBe("`a'b`");
     expect(escapeCell("")).toBe("``");
   });

@@ -243,7 +243,6 @@ function sentAt(timestamp: string): Date {
   return new Date(Number(timestamp) * 1_000);
 }
 
-// The verification `docs/webhooks.md` tells a consumer to implement.
 function consumerAccepts(
   secret: string,
   timestamp: string,

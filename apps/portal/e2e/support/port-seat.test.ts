@@ -33,10 +33,8 @@ import {
   stablePort,
 } from "./port-seat.js";
 
-/** Sockets opened by a test, closed even if an expectation throws. */
 const opened: Server[] = [];
 
-/** Close one listener and wait for the port to be released. */
 async function close(server: Server): Promise<void> {
   await new Promise<void>((resolve) => server.close(() => resolve()));
 }
@@ -66,7 +64,6 @@ function occupant(overrides: Partial<SeatPortOccupant> = {}): SeatPortOccupant {
 const alwaysReady: ReadinessProbe = () => true;
 const neverReady: ReadinessProbe = () => false;
 
-/** Child fixtures started by a test, killed even if an expectation throws. */
 const spawned: ChildProcess[] = [];
 
 afterEach(() => {

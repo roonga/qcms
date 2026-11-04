@@ -1,12 +1,8 @@
 import { OperationsFormRailSlot } from "../../rail-slot";
 
 /**
- * The rail on one response's screen, marking Responses: one collected response is not a
- * row of the rail, which is the answer the section strip and the breadcrumb both gave on
- * this URL.
- *
- * The rail carries no action, so the erasure door stays in the main column and is never
- * reachable from a navigation surface.
+ * Marks Responses: one collected response is not a rail row. The rail carries no action,
+ * so the erasure door stays in the main column.
  */
 export default function OperationsResponseDetailRail({
   params,

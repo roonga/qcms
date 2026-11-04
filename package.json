@@ -96,16 +96,16 @@
     "@playwright/test": "^1.64.1",
     "@vitest/coverage-v8": "5.0.5",
     "chrome-launcher": "^1.2.2",
-    "eslint": "^10.13.0",
+    "eslint": "^10.14.0",
     "eslint-plugin-sonarjs": "^4.2.2",
     "jscpd": "^5.4.1",
-    "lighthouse": "^13.5.0",
+    "lighthouse": "^13.6.0",
     "otplib": "^13.5.0",
     "prettier": "^3.9.10",
     "tsx": "^4.23.15",
-    "turbo": "^2.11.8",
+    "turbo": "^2.11.10",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.71.2",
+    "typescript-eslint": "^8.72.1",
     "vitest": "^5.0.5"
   }
 }

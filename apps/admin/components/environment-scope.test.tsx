@@ -11,17 +11,6 @@ import { ENVIRONMENT_COOKIE } from "../lib/environment.ts";
 import { t } from "../lib/i18n/en.ts";
 import type { ResponseDetail as ResponseDetailData } from "../lib/ops/types.ts";
 
-/**
- * What a tab does about an environment it can no longer vouch for (local UX list A1, A12).
- *
- * Three behaviours, each at the layer that owns it: the shell's scope re-reads a tab that
- * comes back into view under a cookie another tab changed; controls that act in one
- * environment are disabled while the shell could not confirm which; and when an action is
- * refused because the environment changed, the refusal is said inside the dialog the
- * operator is looking at rather than behind it. The refusal itself is the server action's
- * and is pinned in `lib/server/environment-actions.test.ts`.
- */
-
 const refresh = vi.hoisted(() => vi.fn());
 
 vi.mock("next/navigation", () => ({
@@ -41,12 +30,7 @@ function formIntake(setStatus = () => Promise.resolve({ status: "error", message
   );
 }
 
-/**
- * The two controls, on the two screens that carry them since 2026-11-02 (Code Owner).
- *
- * They were one component until the intake acts moved under Operations, and the claim the
- * pair supports is unchanged: one waits on the switcher and the other does not.
- */
+// Two components since the intake acts moved: one waits on the switcher, one does not.
 function environmentBoundControls() {
   return (
     <>
@@ -116,8 +100,6 @@ describe("an unknown environment", () => {
     });
 
     expect(close.hasAttribute("disabled")).toBe(true);
-    // The wizard binds no environment at all: its destinations are chosen in its own body
-    // and authorised again at commit, so it does not wait on the switcher.
     expect(screen.getByRole("link", { name: t("forms.versions.publishEntry") })).toBeTruthy();
   });
 
@@ -198,8 +180,6 @@ describe("a refusal because another tab switched", { timeout: 30_000 }, () => {
 
 describe("the switcher after a re-read", () => {
   it("shows the selection the server re-rendered, not the one it was mounted with", () => {
-    // The CI failure this pins: the re-read on return worked and the server said test, but
-    // the switcher kept the name its state was initialised with and went on saying prod.
     const { rerender } = render(
       <EnvironmentSwitcher environments={["prod", "test"]} selected="prod" secureCookies={false} />,
     );

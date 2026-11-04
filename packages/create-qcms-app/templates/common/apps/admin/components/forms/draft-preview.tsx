@@ -26,60 +26,6 @@ import { t, tPlural } from "@/lib/i18n/en";
 import { unexpected } from "@/lib/ops/unexpected";
 import type { PreviewTheme } from "@/lib/preview-theme";
 
-/**
- * The live draft preview (task 034; screen contract "preview").
- *
- * ## Why this is the same thing a respondent gets, and not a lookalike
- *
- * Three pieces have to be shared for a preview to be worth anything, and all three are:
- *
- * 1. **The compile.** The draft is compiled by `compileForm` in the API - the same call,
- *    in the same process, that publish makes. There is no admin-side compiler (there could
- *    not be one: `renderer-surface.test.ts` forbids importing `@roonga/qcms-a2ui-compiler` here).
- * 2. **The projection.** `documentForVisible` from `@roonga/qcms-ui` is the function the portal
- *    uses to drop the questions the flow says are not visible. It moved into the shared
- *    package for this screen, precisely so there is one of it.
- * 3. **The renderer.** `A2UIStepRenderer` from `@roonga/qcms-ui` is the component the portal
- *    serves respondents with (ARCHITECTURE §6).
- *
- * So the preview's DOM for a step is the portal's DOM for that step, structurally, rather
- * than by resemblance.
- *
- * ## Why the branch walk is a round trip
- *
- * The screen contract describes "live rule evaluation (core evaluator client-side)". That is not
- * implementable and has already been ruled on once: the admin imports no `@roonga/qcms-core`
- * value at all (R2, `r2-import-surface.test.ts`), and 033's rule bench was moved into the
- * API for exactly this reason. It is also not what the
- * portal does - the portal receives an authoritative `visibleQuestions` list and projects
- * onto it, performing no evaluation of its own. Doing the same here is therefore not a
- * compromise, it is the fidelity: a second evaluator in the admin would be the one part of
- * the preview that could disagree with what a respondent gets.
- *
- * Answers change, the pane re-asks, the API answers with the visible set. The answers live
- * in this component and die with it: no persistence, no session, nothing stored anywhere.
- *
- * ## The rendered step sits inside a styling seam
- *
- * `qcms-preview-surface` is a single container element that owns the preview's styling
- * boundary, and it is the *only* element the rendered step hangs off (Code Owner ruling,
- * 2026-08-02). Two things follow, and both are structural rather than visual:
- *
- * - Nothing in this path assumes the preview shares the admin's theme context. The
- *   surface is where a step's styling begins, so a change of styling context is a change
- *   to that one element and to nothing else.
- * - Task 058 mounted the theme island on that container and moved the container's markup
- *   into `PreviewThemeIsland`, so the boundary is now declared in one place and all three
- *   preview surfaces mount the same one. The container carries `data-qcms-theme-scope`
- *   (ADR-38) plus the selected theme and mode, so what renders below is the respondent
- *   token set rather than this app's Cobalt.
- *
- * It also protects exit criterion 3. The fidelity comparison is of the rendered form
- * subtree *inside* the surface, so wrapping the surface later changes nothing the
- * deep-match asserts.
- */
-
-/** How long to wait after the last keystroke before re-asking for the projection. */
 const DEBOUNCE_MS = 250;
 
 export function DraftPreview({
@@ -88,7 +34,6 @@ export function DraftPreview({
   defaultTheme,
 }: {
   readonly draft: DraftForm | null;
-  /** The deployment's configured portal theme, read on the server by the page. */
   readonly defaultTheme: PreviewTheme;
   readonly preview: (input: {
     readonly draft: DraftForm;
@@ -100,25 +45,14 @@ export function DraftPreview({
   const [answers, setAnswers] = useState<A2UIValues>({});
   const [state, setState] = useState<DraftPreviewState>(IDLE_DRAFT_PREVIEW);
   const [stepIndex, setStepIndex] = useState(0);
-  /**
-   * How many hypothetical instances of each group the pane is previewing, when the author has
-   * typed a number. A group with no entry previews at its own `min` (ADR-42 §6.5).
-   *
-   * **The preview mints its own roster and that is the whole of the mechanism.** A roster is
-   * state the server owns at serve time, out of the session's instance ledger; a preview has
-   * no session, so nothing could hand it one. `evaluateRules` takes the roster as a parameter
-   * rather than deriving it from the answers precisely so a caller in this position can supply
-   * one - and the ids are minted HERE rather than by the API because the same request carries
-   * answers keyed by them, which a server-minted id could not do without a second round trip.
-   */
+  /* Mint hypothetical instance ids before the request because the same request's answer keys already
+     reference them. */
   const [counts, setCounts] = useState<Readonly<Record<string, number>>>({});
 
   const groups = useMemo(() => (draft === null ? [] : draftGroups(draft)), [draft]);
   const instances = useMemo(() => previewRoster(groups, counts), [groups, counts]);
 
-  // Only the newest request may write the pane. Without this, a slow early request can
-  // land after a fast later one and show the branch state for answers that are two
-  // keystrokes stale, which reads exactly like a rule that does not work.
+  // Ignore stale responses: an earlier slow request must not overwrite the branch state for newer answers.
   const requestId = useRef(0);
 
   useEffect(() => {
@@ -133,14 +67,6 @@ export function DraftPreview({
         .then((next) => {
           if (requestId.current === id) setState(next);
         })
-        // `.catch` is not defensive decoration. `adminApiFetch` documents that it does not
-        // throw for a non-2xx, which is true and is the trap: a transport failure still
-        // rejects with a TypeError, and `readResult`'s `response.json()` rejects on a
-        // truncated body. Without this the promise rejects unhandled, no state is set,
-        // and the pane sits on "loading" looking like a slow network forever.
-        //
-        // Guarded by the same request id as the success path: a stale rejection has no
-        // more right to write the pane than a stale success does.
         .catch(() => {
           if (requestId.current === id) setState({ status: "error", message: unexpected() });
         });
@@ -153,9 +79,6 @@ export function DraftPreview({
   const handleChange = useCallback((name: string, value: A2UIAnswerValue | undefined): void => {
     setAnswers((previous) => {
       const next = { ...previous };
-      // Delete rather than store `undefined`: the adapters read "no answer" as an absent
-      // key, and a present key holding `undefined` sends react-aria down its uncontrolled
-      // path (COMPONENT_GUIDELINES item 11). The portal does exactly this.
       if (value === undefined) delete next[name];
       else next[name] = value;
       return next;
@@ -165,32 +88,17 @@ export function DraftPreview({
   const reset = useCallback(() => {
     setAnswers({});
     setStepIndex(0);
-    // The instance counts go back to the draft's own minima with everything else: a walk-through
-    // is one hypothetical response, and a roster is as much a part of it as an answer is.
     setCounts({});
   }, []);
 
-  // The pane's page list, which after task 076 is a list of **views** rather than of
-  // steps: a `perInstanceStep` group paginates one step into one page per live instance,
-  // so Previous and Next move one view and the "of N" counts views. For a draft with no
-  // repeating group the kernel emits no view list and this is `visibleSteps` in document
-  // order, which is the sequence this pane already walked.
   const views = useMemo(
     () => previewViews(state.preview?.documents ?? [], state.preview?.flow),
     [state.preview],
   );
 
-  // A branch can remove the view the author is standing on. Clamping during render rather
-  // than in an effect avoids painting one frame of an out-of-range step.
   const index = views.length === 0 ? 0 : Math.min(stepIndex, views.length - 1);
   const step = views[index]?.step;
-  // The roster the API answered WITH, not the one the pane asked for: it truncates against the
-  // author's own declared maxima, so rendering the asked-for list would draw instances the
-  // projection does not carry and whose fields would all be pruned as not visible.
   const served = useMemo(() => rosterRecord(state.preview?.flow.rosters ?? []), [state.preview]);
-  // The per-instance page this is, or `undefined` for every ordinary page (task 076): the
-  // same `view` the portal hands the renderer, so a "One page per instance" group draws one
-  // instance per page here exactly as it does for a respondent.
   const view = previewViewNarrowing(draft, views[index], served);
   const instanceLabel = previewInstanceLabel(draft, served, view);
 
@@ -204,15 +112,9 @@ export function DraftPreview({
         <h2 id="qcms-preview-heading" className="text-lg font-semibold text-(--color-text)">
           {t("forms.preview.heading")}
         </h2>
-        {/* Plain prose, not an `Alert`: this banner is always on screen and never
-            announces a change, and `Alert` is a live region. */}
         <p className="qcms-preview-banner" data-testid="qcms-preview-banner">
           {t("forms.preview.banner")}
         </p>
-        {/* Capped at the frame's own width, which is what the POC does with it
-            (`preview-versions-poc.html:616-619`): this screen's `<main>` is 1600 since
-            issue 668 and prose running the full 1600 above a 640px inset reads as two
-            unrelated columns rather than as one screen. */}
         <p className="qcms-respondent-note text-sm text-(--color-text-muted)">
           {t("forms.preview.explain")}
         </p>
@@ -222,13 +124,7 @@ export function DraftPreview({
         <p className="text-sm text-(--color-text-muted)">{t("forms.preview.noSteps")}</p>
       )}
 
-      {/* Testid on the region rather than only on its contents, so the `aria-live` can be
-          asserted directly (#368). */}
       <div aria-live="polite" className="flex flex-col gap-2" data-testid="qcms-preview-status">
-        {/* Loading and error announce from here; a REJECTION did not, because the panel
-            below is a sibling of this region rather than a child of it (#377). Same
-            summary-not-payload rule as the publish rejection, and for the same reason: the
-            entries are focus-moving links. */}
         {state.status === "rejected" && draft !== null && (
           <p className="qcms-visually-hidden">
             {tPlural(
@@ -274,8 +170,6 @@ export function DraftPreview({
       {state.preview !== undefined && step !== undefined && (
         <>
           <p className="text-sm text-(--color-text-muted)" data-testid="qcms-preview-step">
-            {/* A per-instance page names its instance, as the portal's indicator does:
-                without it three passengers read as three identical "Step n" lines. */}
             {instanceLabel === undefined
               ? t("forms.preview.stepOf", {
                   index: index + 1,
@@ -290,10 +184,6 @@ export function DraftPreview({
                 })}
           </p>
 
-          {/* The drawn frame (issue 668): everything outside it on this screen is authoring
-              chrome and everything inside it is what a respondent would see, which is the
-              distinction `preview-versions-poc.html` makes with a border rather than with a
-              narrower column. */}
           <PreviewThemeIsland defaultTheme={defaultTheme} frameLabel={t("forms.preview.frame")}>
             <A2UIStepRenderer
               document={documentForVisible(
@@ -303,37 +193,15 @@ export function DraftPreview({
               values={answers}
               onChange={handleChange}
               specVersion={state.preview.a2uiSpecVersion}
-              /* THE SAME EXPANSION THE PORTAL USES, through the same prop (073, ADR-42). A
-                 compiled `RepeatGroup` is a TEMPLATE carrying its member controls once -
-                 the compiler is answer-blind and an instance count is answer-dependent - so
-                 the clone-per-instance happens in the renderer, from the roster the API's
-                 projection supplies. The preview hands it the hypothetical roster and the
-                 same qualified visible set, which is what makes exit criterion 61 a
-                 structural property rather than a resemblance: there is one expansion, and
-                 both surfaces call it.
-                 No `onAdd`/`onRemove`: the roster here is the AUTHOR's hypothesis, set by the
-                 control below the frame, not a respondent's to change. */
               repeat={{
                 rosters: served,
                 ...(view !== undefined ? { view } : {}),
                 visible: new Set(state.preview.flow.visibleQuestions),
               }}
-              // The locale the previewed controls format on (issue #906). Without it the
-              // renderer falls back to `@roonga/qcms-ui`'s own `en-US`, which is a tag this app
-              // never chose; `usePreviewLocale` is QCMS_LOCALE, the tag the portal renders on.
+              // Pass the deployment locale explicitly; the renderer's default may differ from the portal's controls.
               locale={previewLocale}
-              // Same embed as the version view, and the same reason (issue #537): this
-              // route's own `h1` names the page ("Draft preview: <slug>"), and the compiled
-              // document arrives carrying the outline it would have as a whole page on the
-              // portal. #537 was filed against version-detail and flagged this route as
-              // likely to share the defect; it does, so both are corrected in one pass.
               headingLevelOffset={1}
             />
-            {/* A visible step whose every question is currently hidden renders as an empty
-                box, which reads as a broken preview rather than as the branch state it is.
-                Whether that is the case is pure draft geometry - which questions this step
-                pins, intersected with the visible set the API returned - so it needs no
-                knowledge of what an A2UI node means (`renderer-surface.test.ts`). */}
             {!hasVisibleQuestion(
               draft,
               step.stepId,
@@ -352,10 +220,6 @@ export function DraftPreview({
             </p>
           )}
 
-          {/* THE INSTANCE DIMENSION, under the frame rather than inside it: how many
-              hypothetical instances a group has is part of the author's walk-through, exactly
-              as an answer is, but it is not something a respondent sets - so it belongs with
-              the Previous / Next / Reset controls and not in the respondent surface above. */}
           {groups.length > 0 && (
             <div className="flex flex-wrap items-end gap-3" data-testid="qcms-preview-instances">
               {groups.map((group) => (
@@ -366,10 +230,8 @@ export function DraftPreview({
                   })}
                   value={counts[group.groupId] ?? countBounds(group.count).min}
                   minValue={0}
-                  /* The author's own declaration where there is one, and the preview-only cap
-                     where there is not (`PREVIEW_INSTANCE_CAP`). Without a ceiling a typed
-                     seven-figure count allocates an array in the author's own browser before
-                     the API ever gets the chance to truncate it. */
+                  /* Bound roster counts before allocation so a typed huge number cannot exhaust the browser before the API
+                     truncates it. */
                   maxValue={countBounds(group.count).max ?? PREVIEW_INSTANCE_CAP}
                   onChange={(next) => {
                     setCounts((current) => ({
@@ -420,50 +282,22 @@ export function DraftPreview({
   );
 }
 
-/**
- * The step's authored title, for the "Step 2 of 3" line.
- *
- * Read from the draft rather than out of the compiled document: the compiled tree is the
- * renderer's, and reaching into it to find a heading node would be this app knowing what a
- * node means, which is the one thing it must not do (`renderer-surface.test.ts`). The
- * draft has the title in the open, in the form's default locale.
- */
+/* Read headings from the draft; compiled nodes are opaque and belong to the renderer. */
 function stepTitle(draft: DraftForm | null, stepId: string): string {
   const step = draft?.steps.find((candidate) => candidate.stepId === stepId);
   const title = step?.title[draft?.defaultLocale ?? ""];
   return title === undefined || title === "" ? stepId : title;
 }
 
-/**
- * Whether any question this step pins is in the visible set.
- *
- * Read from the draft rather than by walking the compiled tree, for the same reason
- * `stepTitle` is: the node tree belongs to the renderer, and this app is not allowed to
- * know what a node means. A step whose pins are all hidden is a real branch state, not a
- * failure, and saying so is the difference between a preview and an empty box.
- */
-/**
- * The ids the pane previews one group with, minted from the count the author asked for.
- *
- * Deterministic and positional (`ins_p1`, `ins_p2`, ...), which is the right shape for a
- * hypothesis and the wrong shape for a session: an `InstanceId` is minted once and never
- * renumbered, because an ordinal reused as a key would re-target a removed instance's answers
- * at whoever took its place (R6 one level down). Nothing here is a session's id, nothing is
- * stored, and the ids exist for one request - so a positional mint costs nothing and keeps the
- * author's typed answers attached to the same card when they add one more.
- */
+/* Positional ids are safe only for these unstored hypotheses; real session instance ids must never be
+   renumbered or reused. */
 function previewRoster(
   groups: readonly DraftGroup[],
   counts: Readonly<Record<string, number>>,
 ): Readonly<Record<string, readonly string[]>> {
   const rosters: Record<string, readonly string[]> = {};
   for (const group of groups) {
-    // The author's own `min` is the default, which is the §6.5 recommendation: it is the
-    // smallest roster a respondent could legally submit, so it is the honest first render.
     const asked = counts[group.groupId] ?? countBounds(group.count).min;
-    // Bounded here as well as in the field, because a value can reach this from a count the
-    // author typed before the ceiling applied and because the API truncates anyway: minting a
-    // list this surface knows will be cut is work nobody reads.
     const ceiling = countBounds(group.count).max ?? PREVIEW_INSTANCE_CAP;
     rosters[group.groupId] = Array.from(
       { length: Math.min(Math.max(0, asked), ceiling) },
@@ -473,7 +307,6 @@ function previewRoster(
   return rosters;
 }
 
-/** The projection read back as the record the renderer's expansion takes. */
 function rosterRecord(
   rosters: readonly { readonly groupId: string; readonly instances: readonly string[] }[],
 ): Readonly<Record<string, readonly string[]>> {
@@ -482,7 +315,6 @@ function rosterRecord(
   return record;
 }
 
-/** A group's name for the instance-count field, which is the author's own or its id. */
 function groupDisplayName(group: DraftGroup, draft: DraftForm | null): string {
   const label = group.label[draft?.defaultLocale ?? ""] ?? Object.values(group.label)[0] ?? "";
   return label === "" ? group.groupId : label;
@@ -496,12 +328,8 @@ function hasVisibleQuestion(
 ): boolean {
   const step = draft?.steps.find((candidate) => candidate.stepId === stepId);
   if (step === undefined) return true;
-  // THE QUALIFIED KEY, not the bare question id (ADR-42, ADR-43). The visible set the API
-  // sends carries `ins_7k2/q_passport` for a question inside a repeating group, because a
-  // rule targeting inside a group is evaluated once per live instance and a member can be
-  // visible in one instance and hidden in another. So a pin inside a group is looked for
-  // under every instance of that group's preview roster, and a pin outside one is looked for
-  // under its bare id, byte-identically to before.
+  // Visibility for group members is instance-qualified; the same question can be visible in one instance and
+  // hidden in another.
   const visible = new Set(visibleQuestions);
   const groupOf = draft === null ? new Map<string, string>() : questionGroupIds(draft);
   return stepPins(step).some((pin) => {

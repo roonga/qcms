@@ -75,7 +75,8 @@ export default async function RootLayout({ children }: { readonly children: Reac
       suppressHydrationWarning
     >
       <head>
-        {/* The `nonce` prop is required (SEC-9): Next does not nonce app-authored scripts, so dropping it gets this script CSP-blocked. */}
+        {/* The `nonce` prop is required: Next does not nonce app-authored scripts, so dropping it gets this script
+   CSP-blocked. */}
         <script
           nonce={nonce}
           suppressHydrationWarning

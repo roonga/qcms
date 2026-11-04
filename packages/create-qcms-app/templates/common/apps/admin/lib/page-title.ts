@@ -2,60 +2,8 @@ import type { Metadata } from "next";
 
 import { t } from "./i18n/en.ts";
 
-/**
- * The browser-tab title of one admin route (issue #536).
- *
- * ## What was wrong
- *
- * `app/layout.tsx` set one static `title` and no route in the app defined
- * `generateMetadata`, so `/forms`, `/questions`, `/settings`, every section of every form
- * and every detail route all produced the same tab text. Issue #510 fixed the `<h1>` half
- * of that complaint - a screen-reader user gets the right landmark heading - and left the
- * tab strip untouched, which is the half a sighted operator with six tabs open reads.
- *
- * ## One pattern, decided once
- *
- * Every title is `<page name> - QCMS` (`app.pageTitle`), and every page name comes from
- * the catalog rather than from a literal, because ADR-27 is binding and a title is
- * user-facing text like any other. The argument for the ordering is on that key.
- *
- * List routes get one as well as entity routes. The issue asks the question and the
- * answer is that the defect it describes is not specific to entities: `/forms` and
- * `/questions` were as indistinguishable from each other as two responses were.
- *
- * ## Titles are composed from route params, never from a fetch
- *
- * `generateMetadata` runs beside the page rather than inside it, so anything it wants
- * that the params do not carry is a second upstream read of the same resource. Naming a
- * tab is not worth doubling `GET /admin/forms/{id}` on ten screens, and a title derived
- * from params also survives the failure paths: a form that 404s still renders its route's
- * error state under a tab that says which form it was.
- *
- * The cost is that a form appears as `frm_life_insurance` rather than `Life insurance`.
- * That is the identifier the address bar is already showing, it is permanent (R6), and it
- * is what the section screens' own breadcrumb resolves against.
- *
- * ## Where the pattern is enforced
- *
- * `lib/page-title.test.ts` walks the route tree the way `lib/rail-routes.test.ts` does
- * and fails when a page has no `generateMetadata` or builds one without going through
- * here, so a route added without a title cannot ship quietly.
- */
+/** Build metadata from route IDs without a second upstream read. Failed entity reads still need an identifying tab title. */
 
-/**
- * The nine sections of one form, as `forms.tab.*` names them.
- *
- * Six until issue #669, which gave rule editing a route (`/forms/{formId}/rules`) rather
- * than leaving it a selection on the builder. The seventh and eighth are Versions, which
- * answers what exists and what is serving where in one screen, and Publish, the one entry
- * that changes either. A section here is a screen with a tab title, a
- * breadcrumb crumb, an `<h1>` and a rail row, and both are all four.
- *
- * THEY ARE NO LONGER ONE SUBTREE (Code Owner, 2026-11-02). Links, Responses, Webhooks and
- * the ninth, Intake, live under `/operations/forms/{formId}` and the rest are the editor's.
- * One list still, because a section is a NAME here - the tab title, the `<h1>` and the rail
- * row of a screen about one form - whichever rail carries it.
- */
 export type FormSection =
   | "builder"
   | "rules"
@@ -67,18 +15,11 @@ export type FormSection =
   | "webhooks"
   | "intake";
 
-/** One route's metadata: its page name, in the app's one title pattern. */
 export function pageMetadata(page: string): Metadata {
   return { title: t("app.pageTitle", { page }) };
 }
 
-/**
- * The page name for one of a form's section screens: `Version history: frm_life_insurance`.
- *
- * The section's name comes from the same `forms.tab.*` key the rail row, the last
- * breadcrumb crumb and the screen's own `<h1>` read, so a section cannot end up called one
- * thing in the tab and another on the page.
- */
+/** Use the same section catalog key as heading, breadcrumb and rail so one destination cannot acquire multiple names. */
 export function formSectionName(section: FormSection, formId: string): string {
   return t("title.formSection", { section: t(`forms.tab.${section}`), formId });
 }

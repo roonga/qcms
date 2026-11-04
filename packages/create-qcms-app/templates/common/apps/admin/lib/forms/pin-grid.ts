@@ -15,29 +15,7 @@ import {
   type RepeatPresentation,
 } from "./types.ts";
 
-/**
- * The pin list's view model (issue 517).
- *
- * The step editor's pin list is the app's one genuinely **mixed-ownership** table, and
- * this module is where that split is written down rather than implied by JSX:
- *
- * - **form-owned**: the pin's position in the step, and the version it points at. Both
- *   are editable here, and the grid draws them as controls.
- * - **library-owned**: `questionId`, `label` and `type`. None of them can be changed
- *   from a form, so the grid draws them as text.
- *
- * Keeping the row shape and the menu's contents out of the component buys two things.
- * The component becomes a rendering of a value, so an ownership test can assert over
- * markup without driving a browser; and the five menu entries the acceptance names are
- * a list that can be asserted directly, instead of only existing while a popup is open.
- *
- * ## Why `remove` is never disabled and `moveUp`/`moveDown` are
- *
- * A step may legitimately hold no questions - `forms.step.empty` is a real state the
- * editor renders - so removing the last pin is allowed. Moving past either end is not a
- * state, it is a no-op, and `movePinWithinStep` already refuses it; the menu says so
- * up front rather than offering an item that does nothing.
- */
+// Position and pin version are form-owned controls; identity, label and type remain library-owned text.
 export type PinRowAction = "insertAbove" | "insertBelow" | "moveUp" | "moveDown" | "remove";
 
 export interface PinRowMenuItem {
@@ -47,87 +25,29 @@ export interface PinRowMenuItem {
   readonly isDanger: boolean;
 }
 
-/** One pin, as the ownership grid renders it. Positions are 1-based, as authors count. */
 export interface PinRowView {
-  /** Library-owned, and the row's identity: `q_at_fault_accident`. */
   readonly questionId: string;
-  /**
-   * The repeating group this pin sits inside, or `undefined` for a pin the step holds
-   * directly (ADR-42).
-   *
-   * **It is what every position in this row is counted against.** `position` and `total` are
-   * the pin's place in its own CONTAINER, so a member of a six-question group reads "3 of 6"
-   * rather than its offset in a step that also holds four other things - and Move up at
-   * position 1 of a group is disabled rather than silently moving the pin out of the group,
-   * which is a thing no reorder gesture in this app does (`movePinWithinGroup`).
-   */
+  // Count position within the pin's own container; reorder must not move a member out of its group.
   readonly groupId?: string | undefined;
-  /** Form-owned: which frozen version this form serves (R7 - never auto-upgraded). */
+  // A form owns its frozen pin version; never auto-upgrade it.
   readonly version: number;
   readonly position: number;
   readonly total: number;
-  /** Library-owned display text, or `""` when there is none to show. */
+
   readonly label: string;
-  /**
-   * What the empty label cell says instead, already localized.
-   *
-   * Resolved here rather than in the component because it is one of the four
-   * library-owned facts whose wording depends on whether the library was READ, and
-   * keeping all four in one place is what stops the next one being decided in JSX
-   * (issue 572). A library that answered and carried no label says "no label in the
-   * library"; a library that did not answer says only that the label is not known.
-   */
+  // Distinguish a missing label from an unread library; a failed read cannot establish absence.
   readonly labelFallback: string;
-  /** Library-owned type, already localized, or the "unknown" line. */
+
   readonly type: string;
-  /**
-   * The pinned version's own status.
-   *
-   * `undefined` means the library was read and does not hold this version, which is a
-   * finding worth a tag. `"unknown"` means the library was not read at all, which is not
-   * a finding about anything and gets no tag (`pinStateLabel`).
-   */
+  // undefined means the read found no version; unknown means the library could not be read.
   readonly versionStatus: string | undefined;
-  /**
-   * The published versions this pin could be moved to, excluding the current one, or
-   * `undefined` when the library was not read.
-   *
-   * A union rather than an empty array for the same reason `ReadState` is a union rather
-   * than a `failed` flag (issues 543, 572, `lib/read-state.ts`): "there is nowhere else
-   * to move this pin" and "nobody managed to ask" are different answers, and an empty
-   * array can only say the first one. The move menu said the first one for years of
-   * every failed library read.
-   */
+  // undefined means no library verdict; an empty array asserts that no alternate versions exist.
   readonly otherVersions: readonly number[] | undefined;
-  /**
-   * What the engine said about this pin, or `undefined` when it has not been asked yet.
-   *
-   * A union for exactly the reason `otherVersions` above is one, and issue 625 is where
-   * the empty array cost something: the builder seeds its issue list empty and only
-   * validates once the author has changed something, so every pin of an untouched form
-   * rendered `Issues: None` about a draft nothing had checked. "No issues here" and "no
-   * verdict yet" are different answers and an empty array can only say the first.
-   */
+  // undefined means unchecked; an empty issue list asserts a real all-clear.
   readonly issues: readonly FormIssue[] | undefined;
 }
 
-/**
- * The rows of one step, in the order the form serves them.
- *
- * ## Why the library arrives as a `ReadState` (issues 572, 544)
- *
- * Every library-owned cell of this grid is a lookup, and an empty library is not a
- * neutral input to a lookup: every one of them misses. Handed `ok ? data : []` - the
- * collapse issue 544 filed - a library that could not be read produced a grid claiming,
- * on EVERY pin in the form, that there was no label in the library, that the type was
- * unknown, that the version was not found, and that there was no other version to move
- * to. Four positive claims about a library nobody managed to read, printed under the
- * page's own alert saying so, and together they read as "this form has been gutted".
- *
- * A failed read now says only that these things are not known. Nothing else about the
- * row changes: position, version and the engine's issues are form-owned facts that came
- * from a read that succeeded, and every control the grid draws still works.
- */
+// Preserve failed library reads rather than replacing them with empty data; otherwise every lookup invents absence.
 export function pinRows(
   step: DraftStep,
   library: ReadState<readonly PinnableQuestion[]>,
@@ -138,53 +58,27 @@ export function pinRows(
   );
 }
 
-/**
- * One row of the step's grid: a pin, or the boundary that opens a repeating group.
- *
- * ## Why a boundary is a ROW and not a nested table
- *
- * A group inside a step's question list is a **span**, not a cell: its members are ordinary
- * pins in document order, drawn by the same ownership grid, and their position in the form is
- * exactly where the span sits. A nested table would say the opposite - that a group's
- * questions are a different kind of thing - which is the one claim ADR-42 exists to refuse: a
- * question does not know it is repeated.
- *
- * So the boundary is a row of its own that states what the span is and what decides its size,
- * the member pins follow it, and {@link GroupBoundaryView.members} is how the grid knows where
- * the span ends. That is also what lets one `<tbody>` carry both and one row menu serve both,
- * which matters more than it sounds: two lists would be two reorder paths, two insert-boundary
- * calculations and two sets of ownership rules to keep in step.
- */
 export type StepGridRow =
   | { readonly kind: "pin"; readonly pin: PinRowView }
   | { readonly kind: "group"; readonly group: GroupBoundaryView };
 
-/** A repeating group's boundary row: what the span is, and what decides its size. */
 export interface GroupBoundaryView {
   readonly groupId: string;
-  /** The author's own name for the group, or the untitled stand-in. */
+
   readonly label: string;
-  /** How many questions the span holds, which is where the grid ends it. */
+
   readonly members: number;
-  /** The member count as a sentence, pluralised (ADR-27). */
+
   readonly memberSummary: string;
-  /** Where the instance count comes from, in one localized phrase. */
+
   readonly countSummary: string;
   readonly presentation: RepeatPresentation;
   readonly presentationLabel: string;
-  /**
-   * Whether this group's count source needs a `max` and has none (Q4 as amended by Q14).
-   *
-   * Carried on the boundary rather than left to the panel because the grid is where an author
-   * scans a step: a group that cannot be published should say so where it is listed, not only
-   * on the screen that sets the field. It is the same statement `REPEAT_MAX_MISSING` makes at
-   * publish, said earlier, and it is derived from the draft rather than from a verdict - so it
-   * is honest before any round trip has happened.
-   */
+  // Show group publishability at its listed boundary, not only inside an editor panel.
   readonly maxMissing: boolean;
-  /** This group's own issues, or `undefined` when no check has landed yet (issue 625). */
+
   readonly issues: readonly FormIssue[] | undefined;
-  /** This group's position among its step's items, 1-based, and the item total. */
+
   readonly position: number;
   readonly total: number;
 }
@@ -194,8 +88,6 @@ export function stepGridRows(
   library: ReadState<readonly PinnableQuestion[]>,
   issues: readonly FormIssue[] | undefined,
 ): readonly StepGridRow[] {
-  // The pins the STEP holds directly, counted among themselves: a group is one neighbour of
-  // theirs rather than a run of its members, which is what the step-level reorder means.
   const ownPins = step.items.filter((item) => !isDraftGroup(item));
   let ownIndex = 0;
   return step.items.flatMap((item, index): readonly StepGridRow[] => {
@@ -242,8 +134,7 @@ function pinRow(
     otherVersions: library.ok
       ? pinnableVersions(question ?? EMPTY_QUESTION).filter((version) => version !== pin.version)
       : undefined,
-    // The absence of a verdict is carried down to every row rather than flattened into
-    // an empty one, so the cell that renders it can tell the two apart (issue 625).
+    // Carry an unchecked verdict through to rows instead of fabricating an empty successful result.
     issues: issues === undefined ? undefined : issuesForPin(issues, pin.questionId),
   };
 }
@@ -275,14 +166,6 @@ function groupBoundary(
   };
 }
 
-/**
- * Where a group's instances come from, in one phrase.
- *
- * A `fixed` count says only the number, because the number is also its bound. Both bounded
- * sources say their range, and a missing `max` is named as missing rather than printed as a
- * blank: the field is required, and a range reading "1 to " would look like a rendering fault
- * rather than an unanswered question.
- */
 function countSummary(group: DraftGroup): string {
   const count = group.count;
   if (count.source === "fixed") {
@@ -302,7 +185,6 @@ function countSummary(group: DraftGroup): string {
     : t("forms.group.countSummary.open", { min: count.min, max: count.max });
 }
 
-/** A stand-in so the version helpers can be asked about a question the library lost. */
 const EMPTY_QUESTION: PinnableQuestion = {
   questionId: "",
   slug: "",
@@ -311,7 +193,6 @@ const EMPTY_QUESTION: PinnableQuestion = {
   versions: [],
 };
 
-/** The issues that belong to one pin: about this question, and not about a rule. */
 export function issuesForPin(
   issues: readonly FormIssue[],
   questionId: string,
@@ -321,19 +202,7 @@ export function issuesForPin(
   );
 }
 
-/**
- * The five entries of a row's grip menu.
- *
- * **Insert above and insert below are not a convenience.** They are the equivalent
- * controls that let a row-boundary insert affordance exist at all under WCAG 2.2
- * SC 2.5.8, and they are the single-pointer, non-dragging reorder path SC 2.5.7 asks
- * for wherever a drag exists. Both are why `plan/admin-mobile-stance.md` calls the
- * menu's move items "how reordering actually happens on the supported path" rather
- * than a conformance formality. Removing either is a conformance regression, not a
- * simplification, so the list is built here and asserted in `pin-grid.test.ts`.
- *
- * Every label names its row. Two rows' menus are otherwise five identical words.
- */
+// Include row identity so menu names distinguish otherwise identical actions.
 export function pinRowMenuItems(row: PinRowView): readonly PinRowMenuItem[] {
   const questionId = row.questionId;
   return [
@@ -370,14 +239,6 @@ export function pinRowMenuItems(row: PinRowView): readonly PinRowMenuItem[] {
   ];
 }
 
-/**
- * What a pinned version's status is worth saying, or nothing for the ordinary case.
- *
- * `"unknown"` joins `"published"` in saying nothing, and for the same reason rather than
- * a different one: neither is a finding. A published pin is what the author asked for,
- * and an unread library has found nothing at all (issue 572). Only `undefined` - the
- * library answered and does not hold this version - is worth a tag.
- */
 export function pinStateLabel(status: string | undefined): string | undefined {
   if (status === "published" || status === "unknown") return undefined;
   if (status === "deprecated") return t("forms.step.pinDeprecated");

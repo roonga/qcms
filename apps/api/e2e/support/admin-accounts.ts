@@ -24,9 +24,8 @@ function authFor(
     DATABASE_URL: databaseUrl,
     QCMS_ADMIN_AUTH_SECRET: authSecret,
     QCMS_ADMIN_BASE_URL: adminBaseUrl,
-    // Off for this harness only: SEC-1's breach check is a live HTTPS call on every
-    // password set. The control is covered against a stubbed corpus in
-    // `apps/api/src/features/auth/breached-password.integration.test.ts`.
+    // Off for this harness only: breach check is a live HTTPS call on every password set. The control is covered
+    // against a stubbed corpus in `apps/api/src/features/auth/breached-password.integration.test.ts`.
     QCMS_ADMIN_PASSWORD_BREACH_CHECK: "false",
   });
   // No `search_path`, unlike `openDbHandle` below: better-auth's tables are control-plane

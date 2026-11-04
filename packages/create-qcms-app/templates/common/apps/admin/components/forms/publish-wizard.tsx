@@ -31,40 +31,17 @@ import type { ReadState } from "@/lib/read-state";
 import { t, tPlural } from "@/lib/i18n/en";
 import { unexpected } from "@/lib/ops/unexpected";
 
-/**
- * The publish wizard: one entry, one confirmation, every destination or none.
- *
- * Nothing is persisted between steps, so a half-built intent is unrecoverable by
- * construction rather than by a cleanup path somebody has to remember: the source, the
- * destinations and the review live in this component's state and the only call that writes
- * is the last press.
- *
- * Eligibility is the server's. Every destination the review omits is one the caller holds
- * no `release: create` in, and every blocker it reports is a refusal the confirmation would
- * raise, so nothing here computes a prerequisite, a workflow rule or a second-approver
- * verdict. A disabled destination still states its reason, because a control that is simply
- * inert teaches the operator nothing.
- *
- * One call, never a loop: a client-side loop over single-target releases would leave the
- * first release standing after the second was denied.
- *
- * The idempotency key is minted once per confirmed intent and kept, so an uncertain answer
- * offers a result lookup and a replay of the same key, neither of which can create a second
- * version. Changing the source or the destinations mints a new key, because that is a
- * different act.
- */
+/* Confirm all destinations in one transaction; a client loop could leave partial releases. Reuse the key
+   only for the same intent. */
 
-/** Which step is on screen. Source and destinations are chosen before anything is read. */
 type Step = "source" | "destinations" | "review";
 
-/** The step's own heading, which is what the live region announces when a step replaces one. */
 function stepName(step: Step): string {
   if (step === "source") return t("forms.publish.step.source");
   if (step === "destinations") return t("forms.publish.step.destinations");
   return t("forms.publish.step.review");
 }
 
-/** The blocker's sentence, by the code the API sends. An unknown code names itself. */
 function blockerSentence(blocker: ReleaseBlockerRecord, environment: string): string {
   switch (blocker.code) {
     case "TEST_RELEASE_REQUIRED":
@@ -85,7 +62,6 @@ function blockerSentence(blocker: ReleaseBlockerRecord, environment: string): st
   }
 }
 
-/** What a destination is serving, in one phrase, before and after this confirmation. */
 function transition(target: ReviewTarget, review: ReleaseReview): string {
   const isDraft = review.source.kind === "draft";
   if (target.currentVersion === null) {
@@ -112,7 +88,6 @@ function transition(target: ReviewTarget, review: ReleaseReview): string {
   });
 }
 
-/** The source the review will be read for, or `undefined` while there is nothing to read. */
 function sourceOf(
   kind: "draft" | "version",
   version: number | undefined,
@@ -122,13 +97,6 @@ function sourceOf(
   return { kind: "version", version };
 }
 
-/**
- * What the recorded outcome looks like, with a way into each affected Operations context.
- *
- * A component of its own because it is a different screen: once a confirmation has
- * committed there is nothing left to choose, and offering the wizard's controls beside the
- * result would invite a second press of a spent intent.
- */
 function PublishResult({
   formId,
   state,
@@ -142,14 +110,6 @@ function PublishResult({
   const [isPending, startTransition] = useTransition();
   const releases = state.releases ?? [];
 
-  /**
-   * Open Operations in the environment this release reached.
-   *
-   * Operations takes its environment from the selector's cookie and not from its address,
-   * so reaching it in a named environment means making that selection first: this writes
-   * the same cookie the header's own control writes, which is why pressing it is the
-   * operator's explicit choice rather than a URL parameter overriding one.
-   */
   const openOperations = (environment: string): void => {
     document.cookie = environmentCookie(environment, secureCookies);
     startTransition(() => {
@@ -158,9 +118,6 @@ function PublishResult({
   };
   return (
     <section className="flex flex-col gap-4" data-testid="qcms-publish-result">
-      {/* Testid on the region rather than only on its contents, so the `aria-live` can be
-          asserted directly: the outcome appears on screen either way, and without the
-          attribute it simply stops being spoken (issue #368). */}
       <div
         aria-live="polite"
         className="flex flex-col gap-2"
@@ -214,14 +171,8 @@ function PublishResult({
   );
 }
 
-/**
- * What freezing this draft will capture, read back to the author before the press that
- * freezes it.
- *
- * Computed from the **stored** draft rather than a document in a browser tab, because that
- * is what the confirmation freezes. The builder autosaves, so in practice they are the same
- * document; where they differ, this describes what pressing Confirm will actually do.
- */
+/* Review the stored draft because that is what confirmation freezes, independently of unsaved browser
+   state. */
 function FreezeSummary({
   draft,
   agentAssisted,
@@ -261,14 +212,6 @@ function FreezeSummary({
   );
 }
 
-/**
- * What a refused draft publish leaves behind: a count, and the way to the work list.
- *
- * The list itself stays on the builder. Every entry in it is a link that moves focus to the
- * rule, step or pin at fault, which it can only do on the screen those are rendered on -
- * and the builder's validation panel already renders the same issues, because they are the
- * same issues. Nothing was persisted.
- */
 function PublishRejected({ formId, count }: { readonly formId: string; readonly count: number }) {
   return (
     <section
@@ -298,16 +241,7 @@ function PublishRejected({ formId, count }: { readonly formId: string; readonly 
   );
 }
 
-/**
- * The confirm step's control, which is three different controls depending on what the last
- * press answered.
- *
- * Separate because the three are not variations of one button. Confirm commits. After an
- * uncertain answer the primary action is the **lookup**, because confirming again is only
- * safe as the replay it would be and reading the recorded result is the shorter path to the
- * same truth. After a stale refusal the only action is reading the review again: nothing
- * was written, and the expectation the operator held is gone.
- */
+/* After an uncertain response, look up the recorded result before offering a replay with the same key. */
 function ConfirmControls({
   state,
   isPending,
@@ -362,15 +296,10 @@ export function PublishWizard({
   secureCookies,
 }: {
   readonly formId: string;
-  /** Every published version, newest first. */
   readonly versions: readonly number[];
-  /** Whether a saved draft exists to publish. A seeded draft is not one. */
   readonly hasDraft: boolean;
-  /** Whether this caller holds `form: publish`, which is what a draft source needs. */
   readonly canPublishDraft: boolean;
-  /** The stored draft, for the freeze summary. Null when there is nothing to freeze. */
   readonly draft: DraftForm | null;
-  /** ADR-25: whether the stored draft carries any agent-assisted change (task 041). */
   readonly agentAssisted?: boolean;
   readonly review: (
     source: { kind: "draft" } | { kind: "version"; version: number },
@@ -382,7 +311,6 @@ export function PublishWizard({
     targets: readonly PublishDestination[];
   }) => Promise<PublishBatchState>;
   readonly lookup: (idempotencyKey: string) => Promise<PublishBatchState>;
-  /** Whether the environment cookie this screen's Operations link writes carries `Secure`. */
   readonly secureCookies: boolean;
 }) {
   const [step, setStep] = useState<Step>("source");
@@ -397,14 +325,10 @@ export function PublishWizard({
   const [key, setKey] = useState<string>();
   const [state, setState] = useState<PublishBatchState>(IDLE_PUBLISH_BATCH);
   const [isPending, startTransition] = useTransition();
-  // A callback ref because the three steps head themselves with different elements, and one
-  // object ref cannot be typed for a legend and a heading at once.
   const headingRef = useRef<HTMLElement | null>(null);
   const setHeading = useCallback((node: HTMLElement | null) => {
     headingRef.current = node;
   }, []);
-  // Counts the step changes rather than watching `step`, so the first render leaves focus
-  // where the operator put it and only a Continue or a Back moves it.
   const [moves, setMoves] = useState(0);
 
   const goTo = useCallback((next: Step) => {
@@ -412,23 +336,12 @@ export function PublishWizard({
     setMoves((count) => count + 1);
   }, []);
 
-  /**
-   * The step that replaced the unmounted one takes focus, because the control the operator
-   * pressed went with it: without this, focus falls to the document and a keyboard or
-   * screen-reader user restarts from the top of the page on every step.
-   */
+  /* Focus the next step after unmounting the previous one so keyboard users do not restart at the document
+     body. */
   useEffect(() => {
     if (moves > 0) headingRef.current?.focus();
   }, [moves]);
 
-  /**
-   * Changing the source clears everything that depended on it.
-   *
-   * The destinations, the review and the idempotency key all describe one source. Keeping
-   * any of them across a change would carry an expectation about a different act, and the
-   * key is the one that matters: reusing it for a changed intent is refused by the API, so
-   * the operator would meet a 422 for having changed their mind.
-   */
   const resetFromSource = useCallback(() => {
     setChosen([]);
     setPublishOnly(false);
@@ -454,9 +367,6 @@ export function PublishWizard({
             setReview(result.data);
             goTo(next);
           })
-          // `adminApiFetch` does not throw on a non-2xx, which is the trap: a transport
-          // failure still rejects, and without this the step would sit there looking like
-          // a slow network forever.
           .catch(() => {
             setReviewFailed(true);
           });
@@ -471,11 +381,6 @@ export function PublishWizard({
   const destinations: readonly PublishDestination[] = publishOnly
     ? []
     : selected.map((target) => {
-        // WHERE THE PROMOTION CAME FROM, recorded rather than inferred later: the release
-        // history's source column is an audit answer, and the evidence this review already
-        // reported is the committed row that satisfied the destination's prerequisite. A
-        // row in the destination itself is a rollback rather than a promotion, and the API
-        // refuses a source equal to its target, so it is left unsaid.
         const from = target.evidence.find((row) => row.environment !== target.environment);
         return {
           environment: target.environment,
@@ -491,8 +396,6 @@ export function PublishWizard({
       review.source.kind === "draft"
         ? { kind: "draft", draftRevision: review.source.draftRevision }
         : { kind: "version", version: review.source.version };
-    // Minted once per intent and kept: a retry from `uncertain` resends this exact key, so
-    // the API replays the stored result instead of freezing a second snapshot.
     const idempotencyKey = key ?? crypto.randomUUID();
     setKey(idempotencyKey);
     startTransition(() => {
@@ -503,8 +406,6 @@ export function PublishWizard({
         targets: destinations,
       })
         .then(setState)
-        // A rejected promise here is a lost answer, not a refusal: the confirmation may
-        // have committed. The one safe next move is to look the result up by its key.
         .catch(() => {
           setState({ status: "uncertain", message: unexpected() });
         });
@@ -549,9 +450,8 @@ export function PublishWizard({
             {t("forms.publish.wizardFailed", { message: state.message ?? "" })}
           </Alert>
         )}
-        {/* A state of its own rather than an inference from idle: only a lookup that
-            answered 404 knows the confirmation never landed, and nothing else may claim
-            it. The key is kept, so confirming again replays that same key. */}
+        {/* Only a lookup 404 proves the confirmation did not commit; idle state or an existing key cannot establish
+   that. */}
         {state.status === "not-committed" && (
           <div data-testid="qcms-publish-nothing-committed">
             <Alert variant="info">{t("forms.publish.lookupNothing")}</Alert>
@@ -563,9 +463,6 @@ export function PublishWizard({
         </span>
       </div>
 
-      {/* Outside the live region, as the builder's work list was: a screenful of issues
-          announced as one flat interruption is neither navigable nor wanted. The count
-          above is what gets spoken. */}
       {state.status === "rejected" && (state.issues ?? []).length > 0 && (
         <PublishRejected formId={formId} count={(state.issues ?? []).length} />
       )}
@@ -575,9 +472,6 @@ export function PublishWizard({
           <legend className="text-base font-semibold" ref={setHeading} tabIndex={-1}>
             {t("forms.publish.step.source")}
           </legend>
-          {/* A radio pair rather than a checkbox: "an existing version" is a real choice an
-              approver makes without holding draft-edit or publish permission, not the
-              absence of the other one. */}
           <RadioGroup
             className="flex flex-col gap-3"
             aria-label={t("forms.publish.step.source")}
@@ -694,8 +588,6 @@ export function PublishWizard({
                     {t("forms.publish.destinations.closedNote")}
                   </span>
                 )}
-                {/* Disabled with a reason, never merely inert: the review already knows why
-                    the confirmation would refuse this destination. */}
                 {target.blockers.map((blocker) => (
                   <span
                     key={blocker.code}
@@ -710,10 +602,8 @@ export function PublishWizard({
             );
           })}
           {review.source.kind === "draft" && (
-            // The exclusive choice the plan names, and the only route to a first version on
-            // a production-only deployment with the second-approver rule on (ADR-41): the
-            // releasing account must differ from the publisher, so the draft is frozen here
-            // and released by somebody else.
+            // A production release may require a different account from the publisher; freezing without releasing
+            // enables that handoff.
             <div data-testid="qcms-publish-only">
               <Checkbox
                 label={t("forms.publish.destinations.publishOnly")}
@@ -834,8 +724,6 @@ export function PublishWizard({
               onConfirm={run}
               onLookup={runLookup}
               onRefresh={() => {
-                // The review is read again and the operator confirms the new one. The key
-                // is dropped with it: a changed expectation is a different act.
                 setKey(undefined);
                 setState(IDLE_PUBLISH_BATCH);
                 loadReview("review");

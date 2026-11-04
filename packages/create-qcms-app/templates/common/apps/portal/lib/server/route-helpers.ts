@@ -12,7 +12,6 @@ import { logOriginBeltRefusal } from "./origin-belt-log";
  * receipt through httpOnly cookies. No rule evaluation.
  */
 
-/** SEC-9's CSRF belt. */
 export function isSameOriginPost(request: Request): boolean {
   const allowed = admitsAsSameOrigin(request);
   if (!allowed) logOriginBeltRefusal(request);

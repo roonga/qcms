@@ -4,43 +4,8 @@ import { generate } from "otplib";
 import { TEST_PASSWORD } from "./admin-account.js";
 import { waitForHydration } from "./hydration.js";
 
-/**
- * Fill a field and prove the value stuck.
- *
- * ## The wait, which is the part that fixes the defect (issue #210)
- *
- * These screens are served as complete, interactive HTML and React attaches to them
- * afterwards, 76-404ms later on an idle machine and longer under load. react-aria's
- * `TextField` renders a CONTROLLED input seeded empty, so the commit that attaches React
- * writes that empty value over anything typed in the meantime. Where the field is
- * `required` - the sign-in password, the six-digit code - the submit that follows is then
- * stopped by the browser's own constraint validation: no submit event, no request, no
- * error message, and a spec left parked on the screen it believed it had left, with the
- * field mysteriously empty. Waiting for the page's own hydration marker removes that
- * window rather than retrying through it, and it is the reason the marker exists.
- *
- * ## The retry, which is a backstop for something else
- *
- * `toPass` re-runs fill-then-check, and it stays. It answers a different failure: under
- * `next dev` a route is compiled on demand and the reload that follows can replace the
- * document *after* Playwright resolved the field and filled it. That one genuinely cannot
- * be waited for, so one retry is the right price. It is not what makes the hydration case
- * safe, and it never was - the value it re-checks is wiped after the check, not before it.
- *
- * ## Why the wait is INSIDE the retry
- *
- * Because the two failures compose, and putting the wait outside left the composition
- * uncovered. The retry exists precisely for the case where the document was replaced, and
- * a replaced document is a NEW pre-hydration document: waiting once before the loop proves
- * something about a page that no longer exists, and the retry then fills a fresh
- * server-rendered form whose React is still in flight - reopening, on the retry path, the
- * exact race this helper was changed to close. Re-waiting each attempt costs nothing on an
- * already-hydrated page (the marker is on `<html>` and the check returns at once) and is
- * the only version that holds for every attempt rather than only the first.
- *
- * Nothing here papers over a product failure: a rejected code still redirects and still
- * renders its message, and the assertions about that are untouched.
- */
+// Hydration can overwrite pre-attach input, and dev recompilation can replace the whole document.
+// Re-wait inside each retry so a replacement document cannot reopen the hydration race.
 export async function fillStable(field: Locator, value: string): Promise<void> {
   await expect(async () => {
     await waitForHydration(field.page());
@@ -49,48 +14,9 @@ export async function fillStable(field: Locator, value: string): Promise<void> {
   }).toPass({ timeout: 15_000 });
 }
 
-/**
- * Browser steps every admin auth spec reuses (task 031).
- *
- * These exist because of a Playwright property that is easy to design around wrongly:
- * `test.describe.configure({ mode: "serial" })` controls **ordering**, not the browser
- * context. Each `test()` still gets a fresh context, so no cookie survives from one test to
- * the next, and a spec written as "step 1 signs in, step 2 continues" fails at step 2 with
- * a locator timeout rather than anything that names the cause. (Measured: two tests, one
- * minute each, waiting for a control on a page they had been redirected away from.)
- *
- * Sharing one context across the file would fix that and would also **silently disable the
- * shared console gate**, which attaches to the injected `page` fixture. So every test
- * instead re-establishes its own session through the real screens, using the steps here.
- * Serial mode is still declared, because the account's 2FA state advances in the database
- * and a later test depends on an earlier one having enrolled it.
- */
+// Serial mode preserves test order, not browser cookies; each test must establish its own session.
 
-/**
- * Submit the sign-in form and wait for it to land. Where it lands depends on the
- * account's 2FA state: the challenge, enrollment, the shell, or back to `?error=1`.
- *
- * The wait is load-bearing. `click()` resolves once the navigation is *initiated*, and
- * callers immediately either assert a URL or type into the screen the POST redirects
- * to - both of which race the in-flight response. Waiting for the URL to leave the bare
- * `/sign-in` means every caller starts from a document that has actually arrived.
- *
- * **The hydration wait before the first keystroke is one poll, and it is redundant by
- * design** (PR #1100, and its round-two review's finding 5). `fillStable` already waits for
- * the marker inside its retry loop, so this line is not what makes a fill land; what it does
- * is make the guarantee explicit at the one place every caller shares, and pay it once
- * before any attempt rather than leaving the loop's 15-second budget to absorb it.
- *
- * It was added while chasing the intermittent "admin sign-in loop" - a fill failing with
- * "Execution context was destroyed, most likely because of a navigation" against a dev
- * server compiling `/sign-in` for the first time in a run - and the spec that reproduced it
- * went from failing four attempts out of four to passing. That is the evidence it is worth
- * keeping, and it is deliberately weaker than a causal claim: the retry loop's own wait was
- * already there, so the honest reading is that paying it at the entry point helps rather
- * than that its absence was the cause.
- *
- * It early-returns when scripting is disabled, so the no-JS specs are untouched.
- */
+// Wait for the redirect to commit before another navigation can race the sign-in POST.
 export async function submitSignIn(page: Page, email: string): Promise<void> {
   await page.goto("/sign-in");
   await waitForHydration(page);
@@ -102,51 +28,25 @@ export async function submitSignIn(page: Page, email: string): Promise<void> {
   ]);
 }
 
-/**
- * Read the TOTP secret off the enrollment screen's manual setup key - the same field an
- * operator uses when they cannot scan the QR code.
- *
- * Read it **within the test that uses it**: a sign-in by an account with no confirmed
- * factor re-provisions enrollment, so each visit to this screen carries a *new* secret and
- * one cached from an earlier test is already stale.
- *
- * One account provisions from somewhere else, and it does not change the rule above: for
- * an account still holding the provisional bootstrap credential the sign-in POST
- * deliberately provisions nothing, and the forced change-password handler does it instead
- * (task 061). The secret is still minted on the way to this screen, and still new each
- * time.
- */
+// Read within the enrollment flow: each unconfirmed sign-in provisions a fresh secret.
 export async function readSetupKey(page: Page): Promise<string> {
   return page.getByLabel(/Setup key/).inputValue();
 }
 
-/** Enter a freshly generated TOTP code and verify. Used for enrollment and challenge. */
 export async function submitTotp(page: Page, secret: string): Promise<void> {
   await fillStable(page.getByLabel(/Six-digit code/), await generate({ secret }));
   await page.getByRole("button", { name: "Verify" }).click();
 }
 
-/** Enter a recovery code and verify, from the recovery-entry screen. */
 export async function submitRecoveryCode(page: Page, code: string): Promise<void> {
   await fillStable(page.getByLabel(/Recovery code/), code);
   await page.getByRole("button", { name: "Verify" }).click();
 }
 
-/**
- * Where a full-grant account lands. A narrower persona passes its own, rather than every
- * spec here waiting for any route, which would stop reporting a sign-in that went astray.
- */
+// A narrower persona must specify its own landing route so a wrong redirect cannot pass.
 const DEFAULT_LANDING = /\/questions$/;
 
-/**
- * Sign in an already-enrolled account all the way to the shell, via its TOTP factor.
- *
- * The `waitForURL` is not decoration. `click()` returns once the navigation has been
- * *initiated*, so a caller that immediately called `page.goto("/settings")` raced the
- * in-flight POST and landed somewhere unrelated - which surfaced as a missing heading on a
- * page the test had never actually reached. Waiting for the shell here means every caller
- * starts from a known place.
- */
+// Wait for the shell before callers navigate again; the factor POST may still be redirecting.
 export async function signInWithTotp(
   page: Page,
   email: string,
@@ -158,23 +58,7 @@ export async function signInWithTotp(
   await page.waitForURL(landing);
 }
 
-/**
- * The topbar's two menu triggers (task 032), by their accessible names.
- *
- * By NAME and not by class, because the name is the contract: the appearance trigger is
- * a wordless glyph and the account trigger's two letters are hidden from the
- * accessibility tree, so `aria-label` is the entire control as far as a screen reader is
- * concerned, and a test that found them by class would keep passing after the labels went
- * missing.
- *
- * The appearance trigger's name carries its current mode, so the match is a prefix.
- *
- * The account trigger's name now OPENS with the initials the disc paints, which is the
- * whole point of issue #1010 (WCAG 2.2 SC 2.5.3), so it can no longer be anchored at the
- * start: those letters vary with the account and this helper serves every spec. The comma
- * and the words after it are the stable part, and matching them is still unambiguous -
- * nothing else on an admin screen says that sentence.
- */
+// Match accessible names so missing labels fail; account initials are variable and precede the stable suffix.
 export function appearanceTrigger(page: Page): Locator {
   return page.getByRole("button", { name: /^Appearance: / });
 }
@@ -183,42 +67,7 @@ export function accountTrigger(page: Page): Locator {
   return page.getByRole("button", { name: /, account menu for / });
 }
 
-/**
- * Open a menu from its trigger and wait for the popover to be on screen.
- *
- * ## The wait, which is what closes issue #815
- *
- * A menu trigger belongs to React alone. The server renders a button carrying
- * `aria-expanded="false"` and nothing behind it: the popover, the attribute flip and the
- * keyboard contract all arrive with the commit that attaches React, and until then a press
- * on that button does nothing whatsoever. This helper used to press ONCE and then poll the
- * attribute, so a press that landed in that window was never re-issued and the poll spent
- * its entire timeout watching an attribute nobody was going to change.
- *
- * That is what `auth-2fa.pw.ts` failed on twice inside {@link signOut}, both times under a
- * loaded host: `aria-expanded` stayed false for the full fifteen seconds while three other
- * `signOut` calls in the same run passed, and the file passed alone in under nine seconds.
- * A menu defect does not fail one call in four; a press landing before hydration does.
- *
- * The wait is the same mechanism `fillStable` carries for the same class (issue #210), and
- * it costs nothing on a page that has already hydrated - the marker is an attribute on
- * `<html>`, so the check returns on its first poll - and returns immediately on a page
- * whose scripts will never run, so it cannot turn such a page into a timeout.
- *
- * ## Why NOT a retry around the press
- *
- * Issue #815 offered either shape, and for a menu only this one is safe: a trigger is a
- * TOGGLE, the one control where re-issuing the gesture undoes it. A `toPass` loop that
- * pressed again after a slow first attempt would shut the menu it had just opened, and
- * could sit alternating until the budget ran out. `fillStable` may retry because filling a
- * field twice with the same value is filling it once; pressing a toggle twice is pressing
- * it never. The retry there is also documented as answering a different failure - a
- * `next dev` recompile replacing the document - rather than this one.
- *
- * So the wait removes the window rather than paying for it, which is what this window
- * deserves: there is an exact moment after which the press is meaningful, and the page
- * says when it arrives.
- */
+// Wait before the first press: retrying a slow toggle can close the menu it just opened.
 export async function openMenu(trigger: Locator): Promise<void> {
   await waitForHydration(trigger.page());
   await trigger.click();
@@ -226,11 +75,6 @@ export async function openMenu(trigger: Locator): Promise<void> {
   await expect(trigger.page().getByRole("menu")).toBeVisible();
 }
 
-/**
- * The appearance panel, which is a non-modal dialog rather than a menu and so needs the
- * same hydration wait against a different role. Everything {@link openMenu} argues about
- * pressing before React attaches applies unchanged.
- */
 export async function openAppearance(page: Page): Promise<void> {
   const trigger = appearanceTrigger(page);
   await waitForHydration(page);
@@ -239,20 +83,7 @@ export async function openAppearance(page: Page): Promise<void> {
   await expect(page.getByRole("dialog", { name: "Appearance" })).toBeVisible();
 }
 
-/**
- * Sign out through the account menu.
- *
- * There are two sign-out controls in the DOM on every authenticated page and only
- * one of them is ever reachable: the menu item, and the `<noscript>` fallback form's
- * button, which CSS keeps hidden while scripts run. A bare
- * `getByRole("button", { name: "Sign out" })` therefore matches nothing in a scripted
- * browser (Playwright's role engine skips what is hidden from the accessibility
- * tree), which is why every caller goes through here.
- *
- * The wait is the same one the old standalone button needed: `click()` resolves when
- * the navigation is initiated, so without it the POST is still in flight when the
- * next flow starts.
- */
+// The reachable sign-out control is a menu item; the fallback button is hidden while scripting runs.
 export async function signOut(page: Page): Promise<void> {
   await openMenu(accountTrigger(page));
   await Promise.all([
@@ -261,19 +92,7 @@ export async function signOut(page: Page): Promise<void> {
   ]);
 }
 
-/**
- * Take a brand-new account all the way from first sign-in to the shell, and return its
- * TOTP secret so later tests in the file can sign in again.
- *
- * Every spec that needs an authenticated screen has to do this once, because enforced 2FA
- * means a fresh account's first sign-in lands on enrollment rather than on the shell. The
- * steps are the real screens throughout: nothing here reaches into better-auth to mark a
- * factor confirmed, so a regression in enrollment fails the specs that depend on it
- * rather than being quietly bypassed.
- *
- * Read the secret inside the flow, never cached across tests: a sign-in by an account
- * with no confirmed factor re-provisions enrollment, so each visit carries a new one.
- */
+// Exercise real enrollment and verification instead of setting a confirmed factor behind the browser.
 export async function enrollNewAdmin(
   page: Page,
   email: string,
@@ -281,8 +100,7 @@ export async function enrollNewAdmin(
 ): Promise<string> {
   await submitSignIn(page, email);
   await expect(page).toHaveURL(/\/two-factor\/enroll$/);
-  // The URL commits before the enrol page has a DOM, so without this `readSetupKey`
-  // lands mid-navigation on a cold dev server and the context is destroyed under it.
+  // The URL can commit before the enrollment DOM is ready for the secret read.
   await waitForHydration(page);
   const secret = await readSetupKey(page);
   await submitTotp(page, secret);
@@ -292,15 +110,7 @@ export async function enrollNewAdmin(
   return secret;
 }
 
-/**
- * What currently holds focus, as its `id` when it has one and its tag name otherwise.
- *
- * A string rather than a locator assertion, because the interesting failures are the
- * ones where focus went somewhere nobody chose: `toBeFocused()` reports only that the
- * expected element is not focused, while this reports `BODY` and names the defect
- * (issue #308). Poll it - focus after an action that unmounts its own trigger is set
- * in an effect, and React Aria's own restore runs in the same commit.
- */
+// Poll after unmounting actions: focus restoration happens in an effect. Return the actual target for diagnostics.
 export function activeElementId(page: Page): Promise<string> {
   return page.evaluate(() => {
     const active = document.activeElement;

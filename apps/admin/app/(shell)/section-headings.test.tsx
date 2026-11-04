@@ -4,103 +4,11 @@ import { fileURLToPath } from "node:url";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-/**
- * Issue 679: the section routes of one form name their section in the `<h1>`.
- *
- * SIX SINCE ISSUE #669, which gave rule editing a route (`/forms/[formId]/rules`) and
- * therefore a sixth screen headed by this component. It arrived after the 2026-08-26
- * amendment below, so it never carried the composed form-plus-section heading and takes the
- * section's name alone like the five it joined.
- *
- * `/forms/[formId]/preview`, `/versions`, `/links`, `/responses` and `/webhooks` all
- * rendered the same heading - the form's slug - so five sibling screens of one form were
- * five pages with identical page headings, and the one landmark heading a screen reader
- * user navigates by answered "which form" rather than "which page" on every one of them.
- * That is the defect issue #510 fixed for the two child-entity routes and left standing
- * one scope out. The approved drawing for two of the five composes both parts:
- * `plan/admin-shell-poc/preview-versions-poc.html` heads them "Draft preview: Life
- * insurance" and "Version history: Life insurance".
- *
- * ## The construction, and why it is one string rather than five
- *
- * ## AMENDED 2026-08-26 (Code Owner): the section's name, and not the form's
- *
- * The heading was `"{section}: {slug}"` - "Links: kitchen-sink" - directly beneath a
- * breadcrumb reading "Forms / kitchen-sink / Links". It was a mashup of two crumbs a line
- * below them, and the form's identity is now on screen three times over: that breadcrumb,
- * the rail beside it, and the form id line under the heading itself.
- *
- * **679's fix is kept, because its defect was a different one.** All five section screens
- * used to render the SAME heading, the form's slug, so the one landmark heading a screen
- * reader navigates by answered "which form" rather than "which page" on every one of them.
- * Five DISTINCT headings is what that was for, and five section names are five distinct
- * headings. The test below that asserts they differ is the one carrying that property, and
- * it is unchanged.
- *
- * What this deviates from is the drawing: `preview-versions-poc.html` and
- * `responses-poc.html` compose both parts. They were drawn before this rail carried the
- * form's name on every one of these screens. Ruled on by the Code Owner rather than
- * transcribed, the same way 679 itself was - the two POCs disagreed on the connector, and
- * `forms.section.heading` was the string that resolved it. That string went unused by the
- * amendment and was deleted from the catalog by issue #538's dead-key sweep, so the
- * assertion below is now belt to the type checker's brace: `t` takes a `MessageKey`, and
- * a key that is not in the catalog no longer type-checks anywhere in the app.
- *
- * ## The builder is the deliberate asymmetry, and this file pins it
- *
- * `/forms/[formId]` was exempt from this, and is no longer - see the last block, which
- * records the reversal and why the exemption's premise expired. What survives is that it
- * does not render `FormPageHeader` at all: it composes its own two-row header, carrying the
- * publish controls and the save state on the heading's row, and a later pass at consistency
- * routing it through the shared header would quietly take those with it.
- *
- * ## Why this layer
- *
- * `renderToStaticMarkup` of `FormPageHeader` with the real catalog is the smallest render
- * that produces the actual heading string, and the heading string is the whole claim. The
- * five routes reach it by passing no `heading` override, which is a fact about the route
- * files rather than about anything a render can observe, so it is read off their source
- * here, while the ordinary browser suite checks the routed screens.
- *
- * ## The breadcrumb this file used to assert
- *
- * §7.0 ruling 3 (issue #1116) replaced the content-column breadcrumb with the rail Header's
- * back link on every screen, so the six per-section crumb assertions became assertions of
- * its absence, and the default heading stopped being visually hidden. The rail's own side of
- * that trade - that a railed screen with a parent really does carry a back link, at 1440 and
- * at 390 - is `e2e/rail-screens.pw.ts`, because it is a rendered rail rather than a header
- * component.
- */
-
-// The real kit, and the real catalog: this file is about which string the heading holds,
-// so a `t` that answers with its own key would assert nothing. `Breadcrumb` reaches no
-// react-aria `Modal`, so nothing here meets the empty-markup trap of issue 628.
-
 const { FormPageHeader } = await import("../../components/forms/form-page-header.tsx");
 const { messages } = await import("../../lib/i18n/en.ts");
 
-/**
- * A form name, kept only to assert that the heading does NOT contain it.
- *
- * It used to be a prop: `FormPageHeader` took the form's slug for its breadcrumb, and §7.0
- * ruling 3 (issue #1116) took both the trail and the prop away. The claim it supports here
- * is unchanged and is the one issue 679's amendment turned on - this heading names the
- * SECTION, never the form.
- */
 const SLUG = "Life insurance";
 
-/**
- * Every section this component heads, each with the name it is expected to carry.
- *
- * "Version history" and not "History": see the note on `forms.tab.versions` in the catalog
- * for why that section was renamed rather than left to compose into "History: Life
- * insurance".
- *
- * Four are Operations screens since 2026-11-02 (Code Owner), served from a different root,
- * which the route table below carries. Nothing about the heading changed with the move: a
- * section is a NAME here, and what 679 asked for is that sibling screens of one form do
- * not share one.
- */
 const SECTIONS = [
   ["rules", "Rules"],
   ["preview", "Preview"],
@@ -111,7 +19,6 @@ const SECTIONS = [
   ["intake", "Intake"],
 ] as const;
 
-/** The route file each section is served from, relative to this directory. */
 const ROUTE_FILES: Readonly<Record<(typeof SECTIONS)[number][0], string>> = {
   rules: "forms/[formId]/rules/page.tsx",
   preview: "forms/[formId]/preview/page.tsx",
@@ -126,7 +33,6 @@ function routeSource(relative: string): string {
   return readFileSync(fileURLToPath(new URL(relative, import.meta.url)), "utf8");
 }
 
-/** The text of the first `<h1>` in a static render, with no markup around it. */
 function headingText(markup: string): string {
   const match = /<h1[^>]*>([^<]*)<\/h1>/u.exec(markup);
   expect(match, "the header should render an h1").not.toBeNull();
@@ -139,12 +45,6 @@ describe("the section routes name their section in the h1 (issue 679)", () => {
       <FormPageHeader formId="frm_alpha" section={section} status="open" />,
     );
 
-    // AMENDED 2026-08-26 (Code Owner): the section's name alone. It read
-    // "{section}: {slug}", and the breadcrumb then directly above said
-    // "Forms / {slug} / {section}" - the heading was a mashup of two crumbs one line
-    // below them. The trail went to the rail in #1116 and the form's name with it; the
-    // heading is unchanged. What 679 was actually for survives untouched and is asserted
-    // by the next test: five screens, five DIFFERENT headings.
     expect(headingText(markup)).toBe(name);
     expect(headingText(markup), "the form's name is the rail Header's job").not.toContain(SLUG);
   });
@@ -159,11 +59,6 @@ describe("the section routes name their section in the h1 (issue 679)", () => {
     expect(new Set(headings).size).toBe(SECTIONS.length);
   });
 
-  // THE BREADCRUMB IS GONE FROM THIS HEADER (§7.0 ruling 3, issue #1116). Six tests stood
-  // here, one per section, asserting that the last crumb and the heading read the same
-  // string - which they did, from one catalog key. The way back is the rail Header's back
-  // link now, so what is asserted is the absence: a trail restored here would be the form's
-  // name and the section's said twice on one screen, which is what the ruling removed.
   it.each(SECTIONS)("names the %s section without a trail above it", (section, name) => {
     const markup = renderToStaticMarkup(
       <FormPageHeader formId="frm_alpha" section={section} status="open" />,
@@ -171,8 +66,6 @@ describe("the section routes name their section in the h1 (issue 679)", () => {
 
     expect(markup.slice(0, markup.indexOf("<h1")), "nothing leads the heading").not.toContain(name);
     expect(markup).not.toContain("<nav");
-    // And the heading is VISIBLE now, which is the consequence of the same change: it was
-    // hidden from 2026-08-26 only because the breadcrumb above it had just said the word.
     expect(markup).not.toContain("qcms-visually-hidden");
   });
 
@@ -183,9 +76,6 @@ describe("the section routes name their section in the h1 (issue 679)", () => {
     expect(source).not.toContain("heading=");
   });
 
-  // The two child-entity routes name their own subject and are not touched by any of this
-  // (issue #510). Their override still wins outright rather than being composed with a
-  // section name, which would read "Version history: Version 3".
   it("leaves a route that overrides the heading holding exactly its override", () => {
     const markup = renderToStaticMarkup(
       <FormPageHeader
@@ -200,35 +90,10 @@ describe("the section routes name their section in the h1 (issue 679)", () => {
   });
 });
 
-/**
- * The sixth sibling, and its exemption is spent.
- *
- * REVERSED 2026-08-26 (Code Owner). Issue 679 exempted `/forms/[formId]` from naming its
- * section, on the reasoning that "the `<h1>` names the page's subject, and on the builder
- * the subject IS the form". That was true of one screen, and the builder is two now: this
- * route's form screen is the form's DETAILS, and its step screen heads itself with the
- * step. So the exemption's own premise no longer holds, and the slug it kept was being
- * repeated from the breadcrumb directly above it and from the rail beside it.
- *
- * What has NOT changed is that this route hand-rolls its heading rather than rendering
- * `FormPageHeader`: it composes its own two-row header, with the publish controls and the
- * save state on the heading's row. The assertions below still hold that in place, because
- * a later pass at consistency routing this screen through the shared header would quietly
- * take those with it.
- */
 describe("the builder route names its screen, not its form (reversal of issue 679)", () => {
   it("renders no FormPageHeader, and heads itself from the client", () => {
     const source = routeSource("forms/[formId]/page.tsx");
 
-    // The heading and the breadcrumb moved into `builder-breadcrumb.tsx` on 2026-08-26,
-    // because this route is two screens and only the browser knows which one is showing:
-    // the crumb said "Form details" while the reader was looking at a step's questions.
-    // The breadcrumb itself went on 2026-10-24 (§7.0 ruling 3, issue #1116) and that
-    // component with it; the screen-naming lookup it was written around survived as
-    // `lib/forms/screen-name.ts`, because the builder's own `<h1>` still needs it.
-    // What is asserted here is what still belongs to the route file - that it composes its
-    // own header rather than routing through the shared one, which would take the publish
-    // controls and the save state with it.
     expect(source).not.toContain("BuilderBreadcrumb");
     expect(source).not.toContain("Breadcrumb");
     expect(source).not.toContain('"forms.builder.heading"');
@@ -237,14 +102,7 @@ describe("the builder route names its screen, not its form (reversal of issue 67
   });
 
   it("names every one of its screens from one lookup, so none can answer to two names", () => {
-    // The heading and the rail's row for the form both resolve the form screen's name
-    // through `currentScreenName` (`lib/forms/screen-name.ts`). Asserted as the strings,
-    // because the defect this replaced was two lookups disagreeing: the rail read "Form
-    // details" while the retired breadcrumb's last crumb read "Builder".
     expect(messages["forms.tab.builder"]).toBe("Form details");
-    // "Rules" comes from `forms.tab.rules` since issue #669, not from a rail-only key. One
-    // name for one screen: the rail row, the breadcrumb crumb, the `<h1>` and the browser
-    // tab all read it, so the rail cannot give the screen a second name.
     expect(messages["forms.tab.rules"]).toBe("Rules");
   });
 });

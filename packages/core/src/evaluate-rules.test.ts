@@ -870,7 +870,7 @@ describe("insurance fixture (exit criterion 3)", () => {
       setup(),
       answersOf([
         ["q_at_fault_accident", false],
-        ["q_accident_count", 20], // stale ledger-latest answer, now hidden
+        ["q_accident_count", 20],
       ]),
     );
     expect(visibleIds(state)).toEqual(["q_at_fault_accident"]);

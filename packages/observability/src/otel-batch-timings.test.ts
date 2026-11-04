@@ -2,8 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { batchLogExportTimings, batchSpanExportTimings } from "./otel-batch-timings.js";
 
-// The two halves silence can hide: a set value arrives as a number a processor
-// can be constructed with, and an unset one resolves to the SDK's own default.
 describe("batchSpanExportTimings", () => {
   it("falls back to the specification defaults when nothing is configured", () => {
     expect(batchSpanExportTimings({})).toEqual({

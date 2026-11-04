@@ -13,7 +13,7 @@ import { requireAdminSession } from "@/lib/server/session";
 
 import { setFormStatusAction } from "../../../../forms/actions";
 
-/** The browser-tab title for this route (issue #536): the section, and the form it belongs to. */
+/** The section, and the form it belongs to. */
 export async function generateMetadata({
   params,
 }: {
@@ -25,18 +25,8 @@ export async function generateMetadata({
 
 /**
  * One form's intake in the selected environment: what is serving there, whether it is
- * taking responses, and the two acts that change that (Code Owner, 2026-11-02).
- *
- * THE SCREEN EXISTS BECAUSE THE ACTS HAD NOWHERE ELSE TO GO. Close and reopen were the
- * builder's, next to the way into the publish wizard, and the ruling that moved every
- * per-form operational screen under Operations takes them with it: the closed state is per
- * (form, environment), and the editor's draft belongs to no environment. The rail beside
- * this screen calls it Intake rather than Overview, which is what it reports on.
- *
- * It states the reading and nothing more. What is released here, and whether intake is
- * open, closed or not yet released, are the same three readings the Operations table's own
- * columns give, so a reader arriving from that row finds the row's words again rather than
- * a second vocabulary.
+ * taking responses, and the two acts that change that. The three readings are the
+ * Operations table's own, so a reader arriving from a row meets no second vocabulary.
  */
 export default async function FormIntakePage({
   params,

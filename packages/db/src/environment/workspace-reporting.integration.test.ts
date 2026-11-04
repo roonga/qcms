@@ -12,8 +12,6 @@ import { authOrganization } from "../schema/index.js";
 import { createEnvironment } from "./command.js";
 import { reconcileWorkspaceReporting } from "./reporting.js";
 
-/** Requires Docker, like every `*.integration.test.ts`. */
-
 const TIMEOUT_MS = 60_000;
 
 let testDb: TestDb;
@@ -137,7 +135,6 @@ describe("reconciling the per-workspace reporting view sets", { timeout: TIMEOUT
            where grantee = 'qcms_reporting_prod_home' and table_schema = 'reporting_prod'
            order by table_name`,
     );
-    // Least privilege: not the unfiltered pair, and not another workspace's set.
     expect(granted.rows.map((row) => row.table_name)).toEqual([
       "home_answers_flat",
       "home_responses",

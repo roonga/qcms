@@ -16,59 +16,18 @@ import {
 } from "./support/forms.js";
 import { publishDraftThroughWizard } from "./support/publish.js";
 
-/**
- * The form library's search, status filter and sort, in the browser (issue 686).
- *
- * ## What only this layer can prove
- *
- * The render tests one directory over already prove that the screen hands the three
- * values to the API and reads them back out of the URL. What they cannot prove is that
- * the controls exist as controls: a vendored `Select` is a server-rendered button with a
- * hidden native `<select>` behind it, an author operates it by name, and the whole
- * filter form is a `<form method="get">` whose Apply is a real navigation. So the assertions
- * here are the two properties a stubbed render cannot see - that pressing each control
- * and pressing Apply lands on a URL carrying that control's parameter, and that opening
- * such a URL cold reproduces the same view with the same controls showing the same
- * values.
- *
- * The controls are in the rail, and every locator below still resolves: the same
- * `<form class="qcms-filters">` over the same named controls.
- *
- * ## Why the fixtures are three forms and not one
- *
- * A sort is only observable across rows, and a filter is only observable when it removes
- * something that would otherwise be there. Three forms, one of them closed, is the
- * smallest set where each control has a visible effect: the search narrows by title as
- * well as by slug, the status filter separates the closed one from the open ones, and the
- * sort reverses an order long enough to be an order.
- *
- * Every assertion is scoped by this run's slug prefix, because the harness database
- * survives a rerun and holds whatever every other admin spec created.
- */
-
 test.use({ storageState: TEST_ENVIRONMENT_STORAGE });
 
 test.describe.configure({ mode: "serial" });
 
 const EMAIL = uniqueAdminEmail("forms-list");
 
-/** Set by the first test; every later test signs in with it. */
 let totpSecret = "";
 
-/** Ids are never reused (R6) and the harness database survives a local rerun. */
 const RUN = Date.now().toString(36);
 
-/**
- * A search term that selects this run's three forms and nothing else in a database every
- * other admin spec has also written to.
- *
- * The run id goes BEFORE the distinguishing letter, so this string is a real prefix of
- * all three slugs. With the letter in the middle the scope matched nothing and the
- * library came back empty, which is a false red that looks exactly like a broken filter.
- */
 const SCOPE = `e2e-list-${RUN}`;
 
-/** The three fixture forms, in slug order. Titles differ so the search can find them. */
 const ALPHA = `${SCOPE}-a`;
 const BRAVO = `${SCOPE}-b`;
 const CHARLIE = `${SCOPE}-c`;
@@ -77,35 +36,18 @@ test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
 });
 
-/** Open the library filtered to this run's forms, with any extra parameters appended. */
 async function openLibrary(page: Page, extra = ""): Promise<void> {
   await page.goto(`/forms?q=${SCOPE}${extra}`);
   await expect(page.getByRole("heading", { name: "Forms", level: 1 })).toBeVisible();
 }
 
-/** The slugs on screen, in the order the table lists them. */
 async function listedSlugs(page: Page): Promise<string[]> {
   const cells = page.getByRole("rowheader");
   return (await cells.allInnerTexts()).map((text) => text.trim());
 }
 
-/**
- * Why the fixtures are slugs and titles rather than slugs, titles and stored drafts.
- *
- * These three forms are created and left alone, so their stored drafts carry `title: {}`:
- * `POST /admin/forms` takes `formId`, `slug` and `defaultLocale` only, and the title an
- * author types on `/forms/new` reaches the draft through the builder's first autosave.
- * Making that autosave happen here is not one more line - the builder refuses to save an
- * unpersistable draft, and the smallest persistable form is one step holding one pin of a
- * PUBLISHED question (`support/forms.ts` says so at the top). Building that three times
- * would triple this fixture to prove a matching rule that belongs to the API and is
- * pinned there, against a real stored title, in `forms.integration.test.ts`.
- *
- * So the browser assertions below are about the CONTROLS - each one operated, each one
- * landing in the URL, the whole view restored from a link - and the slug is what they
- * search on. What the search matches is the route's business and is tested as such
- * (ADR-23: at the highest layer that exists for it, not the highest layer there is).
- */
+// POST creates an empty title; a builder title reaches storage only through a persistable draft's autosave.
+// These fixtures test identity slugs without constructing published questions just to save titles.
 
 test("creates the library this spec reads, and closes one of its forms", async ({ page }) => {
   test.setTimeout(300_000);
@@ -113,28 +55,14 @@ test("creates the library this spec reads, and closes one of its forms", async (
 
   await createForm(page, ALPHA, "Alpha zebra");
 
-  // Bravo is the closed one, and it is closed here rather than later because
-  // `createForm` leaves the browser on the builder of the form it just made.
-  //
-  // **It has to be published and released first, since task 066** (Q18). The closed state
-  // is per (form, environment) and lives on the per-environment release state, so there
-  // is no intake to close in an environment nothing is released to - and that is the
-  // honest shape of the thing the Status filter narrows on: a closed form in the library
-  // is one that was serving somewhere and was stopped. It used to be the identity row's
-  // own column, which is why this fixture used to need no publish.
-  //
-  // The pinned question is one the harness seeds, so this adds no question authoring to a
-  // fixture that is deliberately about the library's controls.
+  // Publish and release before closing: intake state belongs to an environment's release, not the form identity.
   const bravoId = await createForm(page, BRAVO, "Bravo quokka");
   await addStep(page, "Driving history");
   await pinQuestion(page, "q_at_fault_accident", 2);
-  // The wizard is a screen of its own, which server-renders the STORED draft: a page
-  // opened before the autosave landed would offer an empty draft to freeze.
+
   await waitForSaved(page);
   await publishDraftThroughWizard(page, { formId: bravoId, version: 1, environment: "test" });
 
-  // Back to the form's own screen: the lifecycle actions live there, and the wizard is a
-  // screen of its own.
   await page.goto(`/forms/${bravoId}`);
   await openFormDetails(page);
   await page.getByRole("button", { name: "Close in test" }).click();
@@ -156,7 +84,6 @@ test("searches the library from the toolbar, and puts the term in the URL", asyn
   await fillStable(field(page, "Search"), ALPHA);
   await page.getByRole("button", { name: "Apply" }).click();
 
-  // The term is in the address, which is what makes a filtered library a link.
   await expect(page).toHaveURL(new RegExp(`[?&]q=${ALPHA}`));
   expect(await listedSlugs(page)).toEqual([ALPHA]);
   await expect(page.getByTestId("qcms-forms-count")).toHaveText("1 form.");
@@ -173,8 +100,6 @@ test("filters by status from the toolbar", async ({ page }) => {
   await expect(page).toHaveURL(/[?&]status=closed/);
   expect(await listedSlugs(page)).toEqual([BRAVO]);
 
-  // The narrowing is the API's, so it survives the round trip rather than hiding rows in
-  // the browser: the two open forms exist and match the search, and must still be gone.
   await expect(page.getByRole("rowheader", { name: ALPHA })).toHaveCount(0);
 });
 
@@ -194,8 +119,6 @@ test("reopens a filtered library from its URL alone, controls and all", async ({
   test.setTimeout(120_000);
   await signInWithTotp(page, EMAIL, totpSecret);
 
-  // No interaction with the toolbar at all: this is the bookmark case, and it has to
-  // reproduce both the rows and the state of the three controls that produced them.
   await openLibrary(page, "&status=open&sort=slug-desc");
 
   expect(await listedSlugs(page)).toEqual([CHARLIE, ALPHA]);
@@ -203,8 +126,7 @@ test("reopens a filtered library from its URL alone, controls and all", async ({
 
   const toolbar = page.locator("form.qcms-filters");
   await expect(field(page, "Search")).toHaveValue(SCOPE);
-  // A `Select` trigger announces its current value followed by its label, so the value
-  // is what the button reads out - which is what an author navigating by name hears.
+
   await expect(toolbar.getByRole("button", { name: /Status$/ })).toContainText("Open");
   await expect(toolbar.getByRole("button", { name: /Sort by$/ })).toContainText("Slug (Z to A)");
 });
@@ -219,14 +141,9 @@ test("says something useful when the filters match nothing, and offers the way b
   await fillStable(field(page, "Search"), `no-such-form-${RUN}`);
   await page.getByRole("button", { name: "Apply" }).click();
 
-  // A search that matches nothing is a different state from a library with no forms in
-  // it, and says so: offering "create the first form" to someone whose library is full
-  // would be noise.
   await expect(page.getByText("No form matches this search.")).toBeVisible();
   await expect(page.getByTestId("qcms-forms-count")).toHaveCount(0);
 
-  // The panel's own CTA (contract §3). The rail offers one too, so this is scoped to the
-  // column rather than resolved by name across the screen.
   await page.getByRole("main").getByRole("link", { name: "Clear filters" }).click();
   await expect(page).toHaveURL(/\/forms$/);
   await expect(page.getByRole("table", { name: "Form library" })).toBeVisible();
@@ -237,16 +154,11 @@ test("the toolbar is reachable and operable from the keyboard alone", async ({ p
   await signInWithTotp(page, EMAIL, totpSecret);
   await openLibrary(page);
 
-  // Every control is named, which is what a screen-reader user navigates by. Asserting
-  // the accessible names resolve is the check axe cannot make: axe sees a labelled
-  // control, not whether the label is the one an author would look for.
   await expect(field(page, "Search")).toBeVisible();
   const toolbar = page.locator("form.qcms-filters");
   await expect(toolbar.getByRole("button", { name: /Status$/ })).toBeVisible();
   await expect(toolbar.getByRole("button", { name: /Sort by$/ })).toBeVisible();
 
-  // Apply from the keyboard, without ever pointing at it: a native submit, so Enter in
-  // the search field is enough and no handler has to be attached for it to work.
   await field(page, "Search").focus();
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(new RegExp(`[?&]q=${SCOPE}`));

@@ -4,17 +4,6 @@ import { ENVIRONMENT_COOKIE } from "../environment.ts";
 
 import { ENVIRONMENT_HEADER } from "./request-environment.ts";
 
-/**
- * The API header and the screen read ONE resolution of the environment (local UX list A12).
- *
- * Before this the header carried the raw cookie while the shell validated it against the
- * live set and fell back to `prod`, so a stale selection showed production in the chrome
- * while every read went to whatever the cookie still named. This drives the real
- * `adminApiFetch` over a faked `fetch` and asserts what crosses the hop: the read of the
- * set carries no environment (a stale one would have the API refuse that very read), and
- * every other call carries exactly what `requestEnvironment` resolved.
- */
-
 const jar = vi.hoisted(() => ({ value: undefined as string | undefined }));
 
 vi.mock("next/headers", () => ({
@@ -38,9 +27,8 @@ const SESSION = {
   token: "session-token-for-this-test-only",
 };
 
-/** Each request the fake API saw: its path and the environment header it carried. */
 let seen: { path: string; environment: string | null }[] = [];
-/** What `GET /admin/environments` answers with; `undefined` makes it fail. */
+
 let set: readonly string[] | undefined = ["prod", "test"];
 
 beforeEach(() => {
@@ -71,7 +59,6 @@ afterEach(() => {
   delete process.env.QCMS_INTERNAL_TOKEN;
 });
 
-/** The environment header the one non-set call carried. */
 function headerOfTheCall(): string | null | undefined {
   return seen.find((entry) => entry.path === "/admin/forms")?.environment;
 }
@@ -92,7 +79,7 @@ describe("the environment header", () => {
     await adminApiFetch(SESSION, "/forms");
 
     expect(resolved).toMatchObject({ status: "known", environment: "prod" });
-    // The regression: this used to be "staging" under a chrome that said prod.
+
     expect(headerOfTheCall()).toBe("prod");
   });
 
@@ -114,7 +101,6 @@ describe("the environment header", () => {
   });
 
   it("reads the cookie the shell writes", () => {
-    // The fake jar above answers one name; this keeps it the real one.
     expect(ENVIRONMENT_COOKIE).toBe("qcms-environment");
   });
 });

@@ -19,42 +19,20 @@ import { TEST_ENVIRONMENT_STORAGE } from "./support/environment.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 import { createForm } from "./support/forms.js";
 
-/**
- * Criterion 11 on the links screen: `link.mint` and `link.revoke` confirmed alone and
- * inside one plan, a cancel that mints nothing, and the states a partly run plan reaches.
- *
- * ## Why this group works on forms it creates
- *
- * The seeded insurance form carries five fixture links in four states, and which of them
- * sorts first is not this spec's to decide: a revoke aimed at "the first link" would
- * revoke whichever row the list happened to return, and a plan meant to fail at its
- * revoke would succeed the day that order changed. Each form here starts with no links,
- * so every state on screen is one of this spec's own acts.
- *
- * The second form exists only to be empty: `plan-fails-at-2` names the link the screen
- * listed, and on a form with none it names an absent id, which is a 404 from the links
- * route itself rather than a simulated failure. That is how the Failed and Not run states
- * are reached through the product's own refusal.
- */
+// Use forms with no links so ordering cannot select another spec's link.
+// The empty second form makes the planned revoke fail through the real route with an absent id.
 
-/**
- * Every test starts in `test`, because a link acts in the switcher's environment and a
- * serial test gets a fresh context: without this the first test would work in the
- * environment `createForm` moved it to and the next would silently be in production.
- */
+// Serial tests get fresh contexts; set test explicitly so link actions cannot fall back to production.
 test.use({ storageState: TEST_ENVIRONMENT_STORAGE });
 
 test.describe.configure({ mode: "serial" });
 
 const EMAIL = uniqueAdminEmail("agentcards083links");
 
-/** Ids are never reused (R6) and the harness database survives a local rerun. */
 const RUN = Date.now().toString(36);
 
-/** Set by the first test; the rest sign in again, since serial shares no browser context. */
 let totpSecret = "";
 
-/** The form this spec mints on, and the empty one the failing plan runs against. */
 let formId = "";
 let emptyFormId = "";
 
@@ -87,8 +65,6 @@ test("confirms a mint and a revoke alone, changing the screen and recording each
   await expectAxeClean(page, "done");
   await expect(linkRows(page)).toHaveCount(2, { timeout: 30_000 });
 
-  // The facts the next turn reads are the API's own, so the link just minted is already
-  // the one a revoke names: no reload stands between the two turns.
   await propose(page, "propose-link-revoke", "revoke one of them again");
   await confirm(page, /^Done\./u);
   await expect(page.getByTestId("qcms-links-table").getByText("Revoked")).toBeVisible({
@@ -150,7 +126,6 @@ test("stops at the step that failed and runs nothing after it", async ({ page })
   await expectStepChips(page, ["Done", "Failed", "Not run"]);
   await expectAxeClean(page, "failed plan");
 
-  // Only the step that committed left a row, and the step after the failure never ran.
   expect(auditDelta(before, await auditTally())).toEqual({ "link.mint": 1 });
   await expect(linkRows(page)).toHaveCount(1, { timeout: 30_000 });
 });

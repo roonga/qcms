@@ -2,7 +2,6 @@ import { expect, type Page } from "@playwright/test";
 
 import { HYDRATED_ATTRIBUTE } from "../../lib/hydration.js";
 
-/** Options accepted by `waitForHydration`. */
 export interface HydrationWaitOptions {
   /**
    * Milliseconds to wait before failing. Defaults to Playwright's own timeout;

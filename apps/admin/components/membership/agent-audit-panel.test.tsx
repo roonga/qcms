@@ -5,11 +5,6 @@ import type { AgentAuditPage, AgentAuditRow } from "@/lib/membership/types";
 
 import { AgentAuditPanel } from "./agent-audit-panel";
 
-/**
- * A refused read has to say so. An empty table would tell a workspace owner "the
- * assistant has changed nothing here", which is the one thing a refusal does not know.
- */
-
 function row(overrides: Partial<AgentAuditRow> = {}): AgentAuditRow {
   return {
     id: "aa_1",

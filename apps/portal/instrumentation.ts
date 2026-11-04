@@ -54,7 +54,7 @@ export function register(): void {
 
   registerOTel({
     serviceName: process.env.OTEL_SERVICE_NAME ?? DEFAULT_SERVICE_NAME,
-    // SEC-13 redaction runs before the environment's exporter.
+    // Redact spans before handing them to the exporter's queue.
     spanProcessors: [redactingSpanProcessor(), "auto"],
     logRecordProcessors: [
       allowlistingLogRecordProcessor(),

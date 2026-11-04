@@ -4,19 +4,11 @@ import { RailFrame } from "@/components/rail-frame";
 import { t } from "@/lib/i18n/en";
 import { MY_ACCESS_PATH } from "@/lib/shell/modes";
 
-/** One workspace, as the rail lists it. */
 export interface WorkspaceRailRow {
   readonly workspaceId: string;
   readonly name: string;
 }
 
-/**
- * The workspaces screen's rail: a row per workspace, then the reader's own access
- * (`plan/admin-design-contracts.md` §7.0).
- *
- * The one list screen whose rail carries a row per thing: the list is short and the body is
- * panels rather than a scannable table, so a row navigates between siblings.
- */
 export function WorkspacesRail({
   workspaces,
 }: {

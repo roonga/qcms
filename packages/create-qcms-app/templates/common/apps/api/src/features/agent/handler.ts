@@ -29,6 +29,7 @@ import type { Resource } from "../membership/policy.js";
 import { PRODUCTION_ENVIRONMENT } from "../membership/policy.js";
 import { holdsInstallationClaim, resolveGrants } from "../membership/resolver.js";
 import { actionKind } from "./actions/registry.js";
+import { unpublishedDraftPins } from "./draft-pins.js";
 import { offeredActionKinds, offersNoAction } from "./grant-filter.js";
 import { buildProposal } from "./tools/propose.js";
 import { AGENT_PROPOSE_TOOL_NAMES, type AgentToolName } from "./tools/registry.js";
@@ -226,16 +227,16 @@ async function buildScreenContext(args: {
 }
 
 /**
- * The propose tools' port and the kinds the grant filter offered this caller. A caller
- * holding none gets neither the port nor the tools, which is how "a read-only user is
- * offered no write" is structural rather than a prompt (principle point 1, SEC-17).
+ * The propose tools' port and the kinds the grant filter offered this caller. A caller holding none gets
+ * neither the port nor the tools, which is how "a read-only user is offered no write" is structural rather
+ * than a prompt (principle point 1).
  */
 async function actionPorts(args: {
   readonly deps: Deps;
   readonly build: ScreenBuildInput;
   readonly screen: ScreenId;
   readonly workspaceId: string | undefined;
-  /** The builder's own validation, which is what gives an applied draft its two lists. */
+
   readonly validate: ValidateDraftPort | undefined;
 }): Promise<{
   readonly tools: readonly AgentToolName[];
@@ -268,6 +269,9 @@ async function actionPorts(args: {
   if (offersNoAction(offered)) return { tools: [], ports: { offeredActionKinds: offered } };
 
   const workspace = await getWorkspace(args.deps.databases.control, workspaceId);
+  const named = args.build.params.formId;
+  const parsedForm = named === undefined ? undefined : parseFormId(named);
+  const formId = parsedForm?.ok === true ? parsedForm.value : undefined;
   return {
     tools: AGENT_PROPOSE_TOOL_NAMES,
     ports: {
@@ -278,7 +282,11 @@ async function actionPorts(args: {
           subject: args.build.principal.userId,
           appKey: args.deps.config.keys.app,
           current: args.build.environment,
+          screen: args.screen,
           offered,
+          ...(formId === undefined
+            ? {}
+            : { pinnedUnpublished: () => unpublishedDraftPins(args.deps, formId) }),
           requireSecondApprover: workspace?.requireSecondApprover ?? false,
           productionEnvironment: PRODUCTION_ENVIRONMENT,
           formId: args.build.params.formId,
@@ -289,7 +297,6 @@ async function actionPorts(args: {
   };
 }
 
-/** The first workspace the caller holds one of these kinds' cells in, or none. */
 async function creatableWorkspace(
   input: ScreenBuildInput,
   kinds: readonly string[],
@@ -303,7 +310,6 @@ async function creatableWorkspace(
   return undefined;
 }
 
-/** The workspace a tool's cell is judged against: the screen's own subject. */
 async function screenWorkspace(input: ScreenBuildInput): Promise<string | undefined> {
   if (input.params.formId !== undefined) return (await requireForm(input)).workspaceId;
   if (input.params.questionId !== undefined) return (await requireQuestion(input)).workspaceId;
@@ -440,7 +446,7 @@ export function makeAssistHandler(deps: Deps): RouteHandler<typeof assistRoute, 
     if (!isFormSubtreeScreen(screen)) throw fail.screenOutsideForm();
 
     const controller = new AbortController();
-    // The request's own signal is the client's disconnect: relay it upstream.
+
     c.req.raw.signal.addEventListener("abort", () => {
       controller.abort();
     });
@@ -498,9 +504,9 @@ function callerOf(c: {
 }
 
 /**
- * The turn for a screen with no form in its route. One screen id, one context builder,
- * one door: the registry decides what this turn may read, and the builder checks its own
- * SEC-3 cell before it reads it.
+ * The turn for a screen with no form in its route. One screen id, one context builder, one door: the
+ * registry decides what this turn may read, and the builder checks its own permission cell before it reads
+ * it.
  */
 export function makeScreenAssistHandler(
   deps: Deps,
@@ -572,8 +578,8 @@ function codeOf(error: unknown): string {
 }
 
 /**
- * Every refusal takes this path, so one event name counts them together and tells them
- * apart by `reason`. Ids and codes only, never the definition itself (SEC-8).
+ * Every refusal takes this path, so one event name counts them together and tells them apart by `reason`.
+ * Ids and codes only, never the definition itself.
  */
 function logRefusal(
   deps: Deps,

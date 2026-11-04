@@ -16,30 +16,8 @@ import {
   TestConsumer,
 } from "./support/ops.js";
 
-/**
- * The operations arc (task 035, stage 8a exit gate): browse seeded responses, export
- * CSV, erase one and see it gone, then poison a webhook target, watch it dead-letter,
- * fix the target and redeliver until it is delivered.
- *
- * ## It runs against the seeded insurance form on purpose
- *
- * `frm_auto_quote` has a published version with stored compiled A2UI, so the
- * respondent path works and these responses are real submissions written by the real
- * submit slice (020) - locked answers, a content hash, an append-only ledger and an
- * outbox event. 034's suite authored its own questions through the UI because it
- * needed `compileDraft`, which the seed could not then satisfy: its question versions
- * were never published, whatever its doc comment said. That was issue #275 and it is
- * fixed - the seed publishes them now, so a seeded fixture compiles - but nothing here
- * compiles a draft anyway, and the cheaper fixture is still the right one.
- *
- * ## Serial, with one enrollment
- *
- * `mode: "serial"` orders the tests; it does NOT share a browser context (031's note
- * in `support/flow.ts`), so each test signs in again with the TOTP secret the first
- * one enrolled. That also means **`-g` is not an iteration tool here**: filtering out
- * the first test drops the enrollment every later test depends on, and the run dies on
- * an unrelated locator timeout.
- */
+// Serial tests advance shared enrollment and response state but get fresh browser contexts.
+// Include enrollment when filtering: later tests need its secret.
 
 const SLUG = "auto";
 const FORM_ID = "frm_auto_quote";
@@ -48,19 +26,11 @@ const COUNT = "q_accident_count";
 
 const EMAIL = uniqueAdminEmail("ops");
 let totpSecret = "";
-/** The response the erasure test destroys, kept off every other test's path. */
+
 let erasable = "";
-/** The response whose ledger carries a revision (exit criterion 4). */
+
 let revised = "";
-/**
- * The endpoint this spec configures.
- *
- * Every row action is scoped to it by `data-webhook-id`. The suite shares one database,
- * so the endpoints table can hold rows an earlier spec left behind (deactivated by
- * `deactivateExistingWebhooks`, but still listed - deactivation is soft so the delivery
- * history survives), and a bare `getByRole("button", { name: "Change URL" })` then
- * matches every row at once.
- */
+// Deactivated endpoints remain listed to preserve delivery history; scope row actions to this spec's webhook id.
 let opsWebhookId = "";
 
 test.describe.configure({ mode: "serial" });
@@ -73,8 +43,6 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
   test("an operator browses the responses a form collected", async ({ page }) => {
     totpSecret = await enrollNewAdmin(page, EMAIL);
 
-    // Three real submissions. The second is revised before submitting, so its ledger
-    // has two revisions of one question and the timeline has something to prove.
     erasable = await submitResponse(SLUG, [
       [ACCIDENT, true],
       [COUNT, 1],
@@ -94,8 +62,7 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     for (const sessionId of [erasable, revised]) {
       await expect(table.locator(`[data-session-id="${sessionId}"]`)).toBeVisible();
     }
-    // The count is the API's total for the filtered set, not the row count of this
-    // page, so it is asserted as a sentence rather than inferred from the table.
+
     await expect(page.getByTestId("qcms-responses-total")).toContainText(/^\d{1,6} responses$/);
   });
 
@@ -105,10 +72,6 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     await signInWithTotp(page, EMAIL, totpSecret);
     await openResponses(page, FORM_ID);
 
-    // A date range in the past matches nothing. The message must be the FILTERED
-    // empty state, not "nothing has been submitted" - the form plainly has responses,
-    // and 034's retro names copy that describes intent rather than state as the
-    // recurring defect in this train.
     await page.goto(`/operations/forms/${FORM_ID}/responses?from=2020-01-01&to=2020-01-02`);
     await expect(page.getByTestId("qcms-responses-empty")).toHaveText(
       "No response matches these filters.",
@@ -117,9 +80,6 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     await page.goto(`/operations/forms/${FORM_ID}/responses`);
     await expect(page.getByTestId("qcms-responses-table")).toBeVisible();
 
-    // The controls re-seed from what the SERVER applied. Navigating back to a filtered
-    // URL used to leave them showing the previous set, so the toolbar and the table
-    // beside it disagreed about what was on screen.
     await page.goto(`/operations/forms/${FORM_ID}/responses?flagged=true`);
     await expect(
       page.getByRole("button", { name: /Flagged$/ }),
@@ -136,9 +96,6 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     await page.goto(`/operations/forms/${FORM_ID}/responses/${revised}`);
     await expect(page.getByTestId("qcms-response-detail")).toBeVisible();
 
-    // Exit criterion 4. Three revisions were written: the accident answer, then the
-    // count twice (2, then 3). The timeline shows every one of them, in order, and the
-    // LOCKED answer is only the last.
     const entries = page.getByTestId("qcms-ledger").locator("li");
     await expect(entries).toHaveCount(3);
     await expect(entries.nth(0)).toHaveAttribute("data-question-id", ACCIDENT);
@@ -147,17 +104,12 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     await expect(entries.nth(1)).toContainText("2");
     await expect(entries.nth(2)).toContainText("3");
 
-    // The locked set carries the final value only: the ledger is the history, the
-    // answers are the state.
     const answers = page.getByTestId("qcms-locked-answers");
     await expect(answers.locator(`[data-question-id="${COUNT}"]`)).toBeVisible();
     await expect(answers).toContainText("3");
 
-    // The content hash is the audit anchor and is rendered, not implied.
     await expect(page.getByTestId("qcms-content-hash")).not.toBeEmpty();
 
-    // Captions come from the pinned question version, so they are words rather than
-    // ids when the wording resolves.
     await expect(answers.locator(`dt[data-question-id="${ACCIDENT}"]`)).not.toHaveText(ACCIDENT);
   });
 
@@ -166,35 +118,17 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
   }) => {
     await signInWithTotp(page, EMAIL, totpSecret);
 
-    // Issue #510. Every form section used to render the same `<h1>` - the form's slug -
-    // so two tabs open on two responses of one form were two identical page headings,
-    // and the one landmark heading a screen reader user navigates by answered "which
-    // form" rather than "which page". The detail route's subject is the response.
     await page.goto(`/operations/forms/${FORM_ID}/responses/${revised}`);
     await expect(page.getByTestId("qcms-response-detail")).toBeVisible();
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(`Response ${revised}`);
 
-    // The form is still there, as context rather than as the subject. That context is the
-    // rail's Header since §7.0 ruling 3 (issue #1116): the trail that used to carry it
-    // below the bar is gone from every railed screen, and the Header names the form and
-    // offers the way back to the list.
-    //
-    // Asserted as "a Header with a name in it", not as the slug: the Header shows what the
-    // author called the form and falls back to the slug only for a form nobody has named
-    // (`formDisplayName`), so naming the string here would pin the seeded fixture's title
-    // rather than this route's behaviour.
     await expect(page.locator('[aria-label="Breadcrumb"]')).toHaveCount(0);
     const rail = page.getByTestId("qcms-rail");
     await expect(rail.locator("summary.qcms-rail__summary")).not.toBeEmpty();
     await expect(rail.getByRole("link", { name: "Forms", exact: true })).toBeVisible();
 
-    // Said once. The response id was an `<h2>` inside the detail body, and moving the
-    // page heading onto it without removing that would have stated the same thing
-    // twice at two levels.
     await expect(page.getByRole("heading", { name: `Response ${revised}` })).toHaveCount(1);
 
-    // Production shows the immutable review. Its heading names that screen while
-    // the form's name remains in the rail.
     await page.goto(`/forms/${FORM_ID}`);
     await expect(page.locator("h1").first()).toHaveText("Published form");
     await expect(page.locator("h1").first(), "and not the form's name").not.toHaveText(SLUG);
@@ -210,16 +144,9 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     const dialog = page.getByTestId("qcms-export-dialog");
     await expect(dialog).toBeVisible();
 
-    // CSV without a version cannot be downloaded: the API needs the version to know
-    // the column set, and the dialog says so rather than letting the operator find out
-    // from a 400.
     await expect(dialog.getByRole("button", { name: "Download" })).toBeDisabled();
     await expect(dialog).toContainText("a version is required");
 
-    // The empty-result sentence describes the file the SELECTED format would produce.
-    // An empty CSV is its header row; an empty JSON export is a list with nothing in
-    // it, and one sentence claiming a header row for both was wrong for whichever
-    // format was not chosen.
     const emptyNote = dialog.getByTestId("qcms-export-empty-note");
     await expect(emptyNote).toContainText("only its header row");
     await dialog.getByRole("button", { name: /Format$/ }).click();
@@ -233,11 +160,6 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     await dialog.getByRole("button", { name: /Version$/ }).click();
     await page.getByRole("option", { name: "v1", exact: true }).click();
 
-    // The CSV shape control (task 075, ruling Q17). Its description is the one place
-    // an operator meets the wide shape's cost BEFORE paying it: the header is the
-    // version's declared maximum number of instances, so it moves when that moves,
-    // and a pipeline reading it has to pin the version it was built against. That
-    // sentence is the deliverable, so it is asserted rather than assumed present.
     const shapeControl = dialog.getByRole("button", { name: /CSV shape$/ });
     await expect(dialog).toContainText("the header does not change");
     await shapeControl.click();
@@ -250,14 +172,9 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
       page.waitForEvent("download"),
       dialog.getByTestId("qcms-export-download").click(),
     ]);
-    // The environment is in the name and in no column (Q8, task 067): one file can never
-    // mix two environments, so a column would change a file adopters parse for no
-    // information the name does not already carry. `prod` is the switcher's default here.
+
     expect(download.suggestedFilename()).toBe(`${FORM_ID}-prod-v1-responses.csv`);
 
-    // The bytes are the API's: a UTF-8 BOM, then a header row naming the metadata
-    // columns and the version's questions. Asserting the BOM proves this app streamed
-    // the body rather than re-encoding it.
     const path = await download.path();
     const { readFileSync } = await import("node:fs");
     const bytes = readFileSync(path);
@@ -272,10 +189,7 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     page,
     browserGuard,
   }) => {
-    // The last step navigates to a session that never existed, and the browser reports
-    // that 404 as a console error. Declared per test and per URL rather than allowed
-    // globally: a 404 from any other admin URL in this test is still a failure, and a
-    // declaration that never fires fails the test, so this cannot rot into a mute.
+    // Declare only the expected nonexistent-session 404 so other admin errors still fail the console gate.
     browserGuard.expectRequestFailure({ status: 404, url: /\/responses\/ses_neverexisted$/ });
     await signInWithTotp(page, EMAIL, totpSecret);
     await page.goto(`/operations/forms/${FORM_ID}/responses/${erasable}`);
@@ -285,14 +199,9 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     const dialog = page.getByTestId("qcms-erase-dialog");
     await expect(dialog).toBeVisible();
 
-    // Exit criterion 2, first half: no single-click path. The dialog states the three
-    // ADR-17 facts, and the confirm button is inert until the id is typed back.
     await expect(dialog).toContainText("There is no undo");
     await expect(dialog).toContainText("A tombstone remains");
-    // The third fact has three clauses, and each is a separate promise about a
-    // different copy of the data (059). Asserted one at a time so a rewrite that drops
-    // one fails here rather than passing on the other two; the behaviour behind each is
-    // asserted in test 6 below and in the @roonga/qcms-db integration suite.
+
     await expect(dialog).toContainText("An event already delivered stays delivered");
     await expect(dialog).toContainText(
       "the consumer's to erase, as an independent data controller",
@@ -311,35 +220,25 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     await expect(confirm).toBeEnabled();
     await confirm.click();
 
-    // Exit criterion 2, second half: the post-state is right everywhere.
     const tombstone = page.getByTestId("qcms-tombstone");
     await expect(tombstone).toBeVisible();
     await expect(tombstone).toContainText(erasable);
-    // The compliance surface must not leak the machine enum: the dialog that recorded
-    // this offered "Data subject request", and the record of it has to say the same.
+
     await expect(page.getByTestId("qcms-tombstone-reason")).toHaveText("Data subject request");
-    // The answers are gone from the screen that was showing them a moment ago.
+
     await expect(page.getByTestId("qcms-locked-answers")).toBeHidden();
 
-    // Issue #511: and the outline the answers left behind has no hole in it. The
-    // tombstone's heading was an `<h3>`, sitting under an `<h2>` that named the response
-    // inside `ResponseDetail`; #510 removed that `<h2>` as a restatement of the page
-    // `<h1>`, which left this screen stepping h1 to h3. Asserted as the whole outline
-    // rather than as one element's level, because "no skipped level" is a claim about
-    // the sequence and a per-element check cannot make it.
     await expect
       .poll(async () => headingOutline(page), {
         message: "the in-place tombstone's heading outline",
       })
       .toEqual([`h1: Response ${erasable}`, "h2: Erased"]);
 
-    // Gone from the list.
     await openResponses(page, FORM_ID);
     await expect(
       page.getByTestId("qcms-responses-table").locator(`[data-session-id="${erasable}"]`),
     ).toHaveCount(0);
 
-    // Gone from the export.
     const [download] = await Promise.all([
       page.waitForEvent("download"),
       page.goto(`/operations/forms/${FORM_ID}/export?format=csv&version=1`).catch(() => undefined),
@@ -349,7 +248,6 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     expect(exported, "an erased session must not be exportable").not.toContain(erasable);
     expect(exported, "the surviving responses are still exported").toContain(revised);
 
-    // Present in the erasure log, which is the compliance evidence that replaces it.
     await page.goto("/responses/erasures");
     const logged = page
       .getByTestId("qcms-erasures-table")
@@ -359,24 +257,16 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
       "Data subject request",
     );
 
-    // The detail URL keeps working and keeps telling the truth: the tombstone, served
-    // from the erasure log, rather than a stale render or a 404 for a URL an operator
-    // may have in a ticket.
     await page.goto(`/operations/forms/${FORM_ID}/responses/${erasable}`);
     await expect(page.getByTestId("qcms-tombstone")).toContainText(erasable);
     await expect(page.getByTestId("qcms-locked-answers")).toHaveCount(0);
 
-    // The SAME outline from a cold load, which is a different render: here the route
-    // puts the card straight under `FormPageHeader` with no `ResponseDetail` around it
-    // (issue #511). This is the render an operator gets from a link in a ticket, and it
-    // is the one the defect was reported against.
     await expect
       .poll(async () => headingOutline(page), {
         message: "the tombstone route's heading outline, opened cold",
       })
       .toEqual([`h1: Response ${erasable}`, "h2: Erased"]);
 
-    // A session that never existed is still a 404.
     const unknown = await page.goto(`/operations/forms/${FORM_ID}/responses/ses_neverexisted`);
     expect(unknown?.status()).toBe(404);
   });
@@ -390,17 +280,8 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     await consumer.start();
     const deliverer = openDeliverer();
     try {
-      // 1. Configure an endpoint pointing at nothing. The secret is revealed once.
-      //    Any endpoint an earlier spec left on this form is deactivated first, so the
-      //    fan-out is exactly one endpoint wide and the counts below mean what they say.
       await deactivateExistingWebhooks(page, FORM_ID);
 
-      // The screen's own claim about what consumers receive, pinned. The submit slice
-      // enqueues `response.submitted` only for an unflagged submission
-      // (`apps/api/src/features/responses/submit/handler.ts`), and this task ships the
-      // unflag action whose whole premise is that a flagged one was withheld - so an
-      // intro promising "every submission" would be a sentence the same diff disproves.
-      // Asserted rather than reviewed, because that copy shipped once already.
       await expect(page.getByTestId("qcms-webhook-config")).toContainText(
         "withheld until an operator releases it",
       );
@@ -417,8 +298,6 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
       expect(secret.length, "a secret was revealed").toBeGreaterThan(0);
       await page.getByRole("button", { name: "I have copied it" }).click();
 
-      // Read the id off the row rather than guessing it, and scope every later action to
-      // it. The row is found by the URL it was just given, which is unique to this spec.
       opsWebhookId =
         (await page
           .getByTestId("qcms-webhooks-table")
@@ -427,23 +306,13 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
           .getAttribute("data-webhook-id")) ?? "";
       expect(opsWebhookId, "the created endpoint owns a row").toMatch(/^whk_/u);
 
-      // Reloading proves the reveal was one-time: nothing on the reloaded screen
-      // carries the value, because no read route can produce it (SEC-6).
       await page.reload();
       await expect(page.getByTestId("qcms-webhooks-table")).toContainText(
         "Stored, not retrievable",
       );
       expect(await page.content()).not.toContain(secret);
 
-      // 2. Every event this form has queued fans out to it, and every attempt fails
-      //    until they all dead-letter.
-      //
-      //    "Every event", not "the one I just submitted": the outbox is drained on the
-      //    first pass, and the earlier tests' submissions were still sitting in it
-      //    unfanned because no webhook existed yet. That is the product working as
-      //    designed (an endpoint configured today receives the events already queued),
-      //    so the assertions count what the screen actually holds rather than a number
-      //    this test wishes were one.
+      // Drain all queued events: submissions made before endpoint creation fan out too, so counts are not fixed.
       const stuck = await submitResponse(SLUG, [[ACCIDENT, false]]);
       expect(stuck).toMatch(/^ses_/);
       await deliverer.drive(11);
@@ -455,26 +324,11 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
       expect(deadCount, "the broken target dead-lettered every delivery").toBeGreaterThan(0);
       await expect(deliveries.locator("tbody tr[data-delivery-id]")).toHaveCount(deadCount);
 
-      // Every row is collapsed on arrival, which is the state the disclosure spends most
-      // of its life in and the state that used to carry a dangling `aria-controls`
-      // (issue 520).
       expect(
         await danglingAriaControls(page),
         "no collapsed row names a detail panel that is not in the document",
       ).toEqual([]);
 
-      // The attempt record is real: the deliverer never got a response from a refused
-      // connection, so there is no status and the error names the transport failure.
-      //
-      // THE ROW IS NAMED AND THE PANEL IS ITS OWN (issue 547). This used to open the first
-      // row's disclosure and then address `qcms-delivery-detail` across the whole document,
-      // which is only unambiguous while exactly one panel is rendered - a property of the
-      // dashboard rendering the panel conditionally, not a property of the screen. It
-      // already cost one fix its better shape: issue 520 could not render the panel always
-      // and hide it, because that would put a `qcms-delivery-detail` node in every row and
-      // turn this locator into a strict-mode multi-match. Reading the panel off the opened
-      // row's own `aria-controls` says "the panel of the row I opened" and stops caring how
-      // many exist.
       const openedRow = deliveries.locator("tbody tr[data-delivery-id]").first();
       await openedRow.getByRole("button", { name: /^Show request and response/ }).click();
       const panelId =
@@ -484,15 +338,11 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
       expect(panelId, "the open row names its panel").toMatch(/^qcms-delivery-detail-/);
       const detail = page.locator(`#${panelId}`);
       await expect(detail.getByTestId("qcms-delivery-no-response")).toContainText("network_error");
-      // The signature header is present and masked, in the data rather than the render.
+
       await expect(detail.getByTestId("qcms-delivery-headers")).toContainText("x-qcms-signature");
       await expect(detail.getByTestId("qcms-delivery-headers")).toContainText("v1=<masked>");
       expect(await detail.textContent()).not.toMatch(/v1=[0-9a-f]{64}/);
 
-      // Issue 520, the other half: with a panel open the reference must exist AND resolve.
-      // Asserting only that nothing dangles would also pass if the attribute had simply
-      // been deleted in every state, which would be a different defect wearing this
-      // fix's clothes.
       const opened = openedRow.getByRole("button", { name: /^Hide request and response/ });
       await expect(opened).toHaveAttribute("aria-expanded", "true");
       await expect(detail).toBeVisible();
@@ -501,8 +351,6 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
         "and no other row names a panel that is not in the document",
       ).toEqual([]);
 
-      // The panel is still the second `tr` of the same row group, not a nested table:
-      // the row that holds it is the immediate next sibling of the row that opened it.
       expect(
         await detail.evaluate((element) => {
           const panelRow = element.closest("tr");
@@ -515,7 +363,6 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
         "the detail sits in a second row of the same row group",
       ).toEqual({ sameGroup: true, summaryIsDeliveryRow: true });
 
-      // Collapsing it again takes the reference away with the panel it named.
       await opened.click();
       await expect(
         openedRow.getByRole("button", { name: /^Show request and response/ }),
@@ -524,20 +371,13 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
         [],
       );
 
-      // 3. The queue shows them, across every form.
       await page.goto("/webhooks");
       await expect(page.getByTestId("qcms-dead-letters-table").locator("tbody tr")).toHaveCount(
         deadCount,
       );
       await expect(page.getByTestId("qcms-dead-letter-error").first()).toHaveText("network_error");
 
-      // 3b. ADR-17 as amended 2026-08-02 (task 059): erasure reaches this queue.
-      //
-      //     Two orderings matter, and this test now covers both.
-      //
-      //     `erasable` was submitted in test 1 and erased in test 5, BEFORE any
-      //     endpoint existed. Its outbox row was redacted then, so the materialize
-      //     phase above declined to fan it out at all: it never became a delivery.
+      // Cover both erasure orders: before fan-out no delivery materialises; after dead-lettering the row is cancelled in place.
       const redactedEarly = await deliverer.outboxPayloadsForSession(erasable);
       expect(redactedEarly.length, "the erased session's event row survives").toBeGreaterThan(0);
       expect(
@@ -554,9 +394,6 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
         "a session erased before fan-out never gets a delivery row at all",
       ).toBe(0);
 
-      //     `stuck` is the other ordering, and the one 035's handler-only guard could
-      //     not reach: submitted at the top of this test, already dead-lettered above,
-      //     and erased now. Its delivery is cancelled in place.
       await eraseResponse(page, stuck);
 
       const cancelled = await deliverer.cancelledDeliveries(stuck);
@@ -568,7 +405,6 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
       ).not.toHaveProperty("answers");
       const cancelledCount = cancelled.length;
 
-      // 4. Fix the target through the UI, then redeliver ONE from the queue.
       await openWebhooks(page, FORM_ID);
       await webhookRow(page).getByRole("button", { name: "Change URL" }).click();
       const retarget = page.getByTestId("qcms-webhook-url-dialog");
@@ -578,10 +414,7 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
 
       await page.goto("/webhooks");
       const queue = page.getByTestId("qcms-dead-letters-table");
-      // The cancelled delivery is OFF this queue (059): the queue is a worklist of rows
-      // being offered back for redelivery, and a cancelled one may never be sent. No
-      // exclusion selector is needed any more - before 059 this test had to compute one
-      // so it would not press a button the API was about to refuse.
+
       const queueAfterErasure = deadCount - cancelledCount;
       await expect(
         queue.locator("tr[data-delivery-id]"),
@@ -592,12 +425,11 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
         .first()
         .getByRole("button", { name: /^Redeliver response\.submitted to / })
         .click();
-      // The button queues; it does not deliver, and the message says exactly that.
+
       await expect(page.getByTestId("qcms-redeliver-summary")).toHaveText(
         "1 delivery is queued for the next pass.",
       );
 
-      // 5. The next pass delivers that one to the real consumer, signed for real.
       await deliverer.pass();
       expect(consumer.received.length, "the fixed consumer received the delivery").toBe(1);
       expect(consumer.received[0]?.headers["x-qcms-signature"]).toMatch(/^v1=[0-9a-f]{64}$/);
@@ -607,16 +439,9 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
         .getByTestId("qcms-deliveries-table")
         .locator('[data-status="delivered"]');
       await expect(deliveredRow).toHaveCount(1);
-      // Read from the DELIVERED row rather than the first row on screen: the table is
-      // ordered by creation and the redelivered one is not necessarily at the top. A
-      // first-time success after the reset shows zero FAILED attempts, which is what
-      // that column counts (`markDeliveryDelivered` in @roonga/qcms-db explains why).
+      // Select the delivered row by status: creation order need not put the redelivered row first.
       await expect(deliveredRow.getByTestId("qcms-delivery-attempts")).toHaveText("0");
 
-      // 6. Bulk redeliver takes everything that is left. Nothing is refused, because
-      //    nothing refusable is on the queue any more - the erased session's row was
-      //    removed from it by the cancellation rather than left on it to be pressed and
-      //    rejected. That is the whole shape of the 059 change in one assertion.
       await page.goto("/webhooks");
       const remaining = queueAfterErasure - 1;
       await page.getByRole("button", { name: "Redeliver all" }).click();
@@ -624,11 +449,7 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
         .getByRole("alertdialog")
         .getByRole("button", { name: "Redeliver all of them" })
         .click();
-      // Pluralised, because `remaining` is not a fixed number: it is whatever the
-      // outbox held when this test drove its passes, and the axe sweep earlier in the
-      // run now drains the backlog of submissions made before any endpoint existed
-      // (issue #306). The screen says "1 delivery is" for one, and a hard-coded plural
-      // here would fail on the count rather than on the behaviour.
+      // The backlog depends on earlier specs; derive singular or plural from the remaining count.
       await expect(page.getByTestId("qcms-redeliver-summary")).toHaveText(
         remaining === 1
           ? "1 delivery is queued for the next pass."
@@ -640,10 +461,6 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
         queueAfterErasure,
       );
 
-      // 7. The payload assertion this whole test exists for: nothing the consumer
-      //    received names an erased session, or carries a redacted answer set. Same
-      //    shape as the CSV assertion three tests up, pointed at the bytes that
-      //    actually leave the deployment.
       for (const request of consumer.received) {
         for (const erasedSession of [erasable, stuck]) {
           expect(
@@ -653,9 +470,6 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
         }
       }
 
-      // 8. The cancelled delivery is not hidden - it is on the dashboard with its
-      //    status and the reason, which is where "what happened to that delivery" gets
-      //    answered now that it is off the queue.
       await openWebhooks(page, FORM_ID);
       const table = page.getByTestId("qcms-deliveries-table");
       await expect(table.locator('[data-status="delivered"]')).toHaveCount(queueAfterErasure);
@@ -704,20 +518,7 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
   });
 });
 
-/**
- * Every `aria-controls` inside the delivery dashboard that names an id no element in the
- * document carries (issue 520).
- *
- * An IDREF that resolves to nothing is not a weaker reference than one that resolves: it
- * is an invalid one, and this dashboard's disclosure spent most of its life holding one,
- * because the panel it named was rendered only while its row was open. Axe downgrades
- * exactly that to `incomplete` once `aria-expanded="false"` is present, so the a11y gate
- * could not be the thing that caught it. Hence a direct assertion, run in both states.
- *
- * Resolution is done with `getElementById` against the whole document rather than by
- * searching the dashboard: an IDREF is document-scoped, so a panel rendered anywhere on
- * the page would satisfy the reference and this must not report it as dangling.
- */
+// Axe marks a collapsed disclosure's unresolved aria-controls incomplete, so assert IDREF resolution directly.
 async function danglingAriaControls(page: Page): Promise<readonly string[]> {
   return page
     .getByTestId("qcms-delivery-dashboard")
@@ -728,21 +529,7 @@ async function danglingAriaControls(page: Page): Promise<readonly string[]> {
     );
 }
 
-/**
- * Every heading on the page, in document order, as `"h2: Erased"` (issue #511).
- *
- * Levels **and** text together, because the two failure modes this guards against are
- * different defects that a check on either half alone would let through: a skipped level
- * is a hole in the outline a screen-reader user navigates by, and a repeated subject is
- * the same thing said twice at two levels, which is what #510 removed from this screen.
- *
- * `:visible`, since the admin requires JavaScript (Code Owner, 2026-09-27). Every page now
- * carries the JavaScript-required message's `<h1>`, kept hidden by `globals.css`
- * (`app/layout.tsx`), so a bare tag query returns an outline with one entry in it that no
- * operator can ever hear. The subject here is the outline a screen reader navigates, which
- * is the visible one - and that hidden heading is only ever visible in the state where it is
- * the ONLY visible one, so this can never hide a real entry.
- */
+// Read visible headings only: the hidden JavaScript-required message carries another h1 on every page.
 async function headingOutline(page: Page): Promise<readonly string[]> {
   return page
     .locator("h1:visible, h2:visible, h3:visible, h4:visible, h5:visible, h6:visible")
@@ -751,18 +538,10 @@ async function headingOutline(page: Page): Promise<readonly string[]> {
     );
 }
 
-/** This spec's endpoint row, by the id read off it when it was created. */
 function webhookRow(page: Page) {
   return page.getByTestId("qcms-webhooks-table").locator(`tr[data-webhook-id="${opsWebhookId}"]`);
 }
 
-/**
- * Erase one submitted response through the operator's own door (task 059).
- *
- * The same steps test 5 walks in full, minus its copy and disabled-state assertions:
- * this is used where the erasure is the *setup* for something else, and duplicating
- * those assertions would spread the dialog's contract across two places.
- */
 async function eraseResponse(page: Page, sessionId: string): Promise<void> {
   await page.goto(`/operations/forms/${FORM_ID}/responses/${sessionId}`);
   await page.getByRole("button", { name: "Erase respondent data…" }).click();

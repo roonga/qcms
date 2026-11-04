@@ -7,19 +7,6 @@ import { t } from "../../lib/i18n/en.ts";
 import type { ResponseDetail as ResponseDetailData } from "../../lib/ops/types.ts";
 import { unexpected } from "../../lib/ops/unexpected.ts";
 
-/**
- * What an operator sees when releasing a withheld event or erasing a response REJECTS
- * (issue #352, handlers 8 and 9 of nine).
- *
- * The erasure one is the worst place in the app for this failure and is the reason the
- * class was worth chasing: an ADR-17 erasure is irreversible, so an operator who confirms
- * one and is told nothing cannot tell whether it ran. It did not, and the sentence has to
- * say so.
- *
- * The actions are props, so the fakes are the props; the confirmation gate, the
- * `useTransition`, the `.then` chains and the alerts are all the real component.
- */
-
 const DETAIL: ResponseDetailData = {
   sessionId: "ses_01HQ",
   formId: "form-1",
@@ -39,7 +26,6 @@ const DETAIL: ResponseDetailData = {
   ],
 };
 
-/** The rejection an unreachable API produces, which is the whole subject here. */
 function transportFailure(): Promise<never> {
   return Promise.reject(new TypeError("fetch failed"));
 }
@@ -62,8 +48,6 @@ function renderDetail(props: {
   );
 }
 
-// react-aria interaction under jsdom is CPU-bound, and the erase gate requires typing a
-// full session id before its confirm button leaves the disabled state.
 describe("a rejected response action", { timeout: 30_000 }, () => {
   it("says the event was not released", async () => {
     const user = userEvent.setup();
@@ -84,8 +68,6 @@ describe("a rejected response action", { timeout: 30_000 }, () => {
     await user.click(screen.getByRole("button", { name: t("ops.erase.button") }));
     const dialog = await screen.findByTestId("qcms-erase-dialog");
 
-    // The confirm button is gated on typing the session id back, so the action cannot be
-    // reached without answering that field for real.
     await user.type(
       within(dialog).getByRole("textbox", { name: t("ops.erase.confirmLabel") }),
       DETAIL.sessionId,
@@ -93,9 +75,6 @@ describe("a rejected response action", { timeout: 30_000 }, () => {
     await user.click(within(dialog).getByRole("button", { name: t("ops.erase.confirm") }));
 
     expect(await screen.findByText(t("ops.erase.failed", { message: unexpected() }))).toBeTruthy();
-    // The second half, and the one that matters most here: a tombstone is drawn from the
-    // outcome the action returns, so its absence is the screen stating that the
-    // irreversible half did not happen.
     expect(screen.queryByTestId("qcms-tombstone")).toBeNull();
   });
 });

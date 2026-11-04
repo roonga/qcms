@@ -1,7 +1,7 @@
 /**
- * The provenance check as the admin group mounts it (SEC-17). It runs after the grant
- * check, so a request carrying a token is authorised by exactly the policy that authorises
- * the same request without one, and a token that fails is refused rather than served.
+ * The provenance check as the admin group mounts it. It runs after the grant check, so a request carrying a
+ * token is authorised by exactly the policy that authorises the same request without one, and a token that
+ * fails is refused rather than served.
  */
 
 import { listProposalSteps } from "@roonga/qcms-db";
@@ -44,7 +44,6 @@ function headers(c: Ctx): { readonly token?: string; readonly step?: string } {
   };
 }
 
-/** The path parameters by placeholder name, from the policy row's own template. */
 function paramsFor(template: string, path: string): Record<string, string> {
   const want = template.split("/");
   const got = path.split("/");

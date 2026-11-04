@@ -2,13 +2,6 @@ import { parseResponseQuery } from "../ops/response-filters";
 
 import type { AgentResponseFilters, AgentScreenParams, ResolvedScreen } from "./screens";
 
-/**
- * The response list's filters, read off the address the operator is looking at.
- *
- * Through the same parse the screen itself uses, so the facts the agent is given describe
- * the rows on screen and the SEC-15 `read` row records that filter set rather than the
- * unfiltered list. A value the screen would ignore is no filter here either.
- */
 export const FILTERED_SCREEN = "/operations/forms/[formId]/responses";
 
 export function screenWithFilters(

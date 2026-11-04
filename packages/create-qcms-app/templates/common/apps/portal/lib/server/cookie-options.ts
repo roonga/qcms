@@ -1,7 +1,6 @@
 /**
- * Kept free of `next/headers` so the cookie's security attributes are unit-testable in
- * plain Vitest. The session token lives only in this httpOnly cookie and never in client
- * JS (SEC).
+ * Kept free of `next/headers` so the cookie's security attributes are unit-testable in plain Vitest. The
+ * session token lives only in this httpOnly cookie and never in client JS.
  */
 
 export interface SessionCookieOptions {

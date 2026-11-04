@@ -15,8 +15,6 @@ import {
   type TestDb,
 } from "./testing/harness.js";
 
-/** Requires Docker, like every container-backed file in this package. */
-
 const DRIZZLE_JOURNAL_SCHEMA = "drizzle";
 
 /**

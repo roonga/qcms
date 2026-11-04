@@ -18,8 +18,6 @@ const URL_WITH_SECRET = "postgres://qcms:s3cr3t-not-real@postgres:5432/qcms";
 
 describe("databaseUrlFor", () => {
   it("dials the service name, because the host has no route to that database", () => {
-    // `postgres:5432` is reachable only from inside the Compose network, which is why
-    // the loader runs in a container at all.
     expect(
       databaseUrlFor({ QCMS_DB_USER: "qcms", QCMS_DB_PASSWORD: "pw", QCMS_DB_NAME: "qcms" }),
     ).toBe("postgres://qcms:pw@postgres:5432/qcms");
@@ -32,8 +30,6 @@ describe("databaseUrlFor", () => {
   });
 
   it("refuses to compose a URL with no password rather than one that cannot work", () => {
-    // Defaulting an empty password would turn a missing credential into an
-    // authentication failure from inside a container.
     expect(() => databaseUrlFor({})).toThrow(/QCMS_DB_PASSWORD/u);
     expect(() => databaseUrlFor({ QCMS_DB_PASSWORD: "" })).toThrow(/QCMS_DB_PASSWORD/u);
   });
@@ -60,7 +56,6 @@ describe("buildSeedRun", () => {
     expect(run.argv).toContain("DATABASE_URL");
     expect(run.argv.join(" "), "no argument carries the value").not.toContain("s3cr3t-not-real");
     expect(run.environment.DATABASE_URL).toBe(URL_WITH_SECRET);
-    // The `--env` immediately before it is the pass-through flag, not a `KEY=value`.
     expect(run.argv[run.argv.indexOf("DATABASE_URL") - 1]).toBe("--env");
   });
 

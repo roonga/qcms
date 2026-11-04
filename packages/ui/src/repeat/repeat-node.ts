@@ -90,7 +90,6 @@ export function instanceLabelFor(template: string, ordinal: number): string {
   return template.replaceAll(INSTANCE_ORDINAL_PLACEHOLDER, () => text);
 }
 
-/** The `{label}` placeholder the compiled `removeLabel` carries. */
 export const REMOVE_LABEL_PLACEHOLDER = "{label}";
 
 /** Puts the distinguishing words first, per APG's naming practice. */

@@ -33,7 +33,7 @@ function assertUsableTarget(directory: string, force: boolean): void {
     entries = readdirSync(directory);
   } catch (error) {
     if (error instanceof TargetNotEmpty) throw error;
-    return; // Nothing there yet, which is the ordinary case.
+    return;
   }
   if (entries.length > 0 && !force) throw new TargetNotEmpty(directory);
 }

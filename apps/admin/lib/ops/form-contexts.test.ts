@@ -9,11 +9,8 @@ import {
 import type { OperationsFormRow } from "./operations-forms.ts";
 
 /**
- * Which contexts each persona of Q87's discovery table is offered on a row.
- *
- * The personas themselves are proved against the policy in the API's
- * `operations.integration.test.ts`; what is decided here is only what the client does with
- * the cells that read came back with.
+ * Which contexts each persona of Q87's discovery table is offered on a row. The personas
+ * themselves are proved against the policy in the API's own integration test.
  */
 
 function row(capabilities: readonly string[]): OperationsFormRow {
@@ -39,9 +36,8 @@ function contexts(capabilities: readonly string[]): readonly string[] {
 
 describe("a row's operational contexts", () => {
   it("offers a forms viewer its links, webhooks and intake, and no authoring screen", () => {
-    // Intake arrives with `form: read`, which is what the reading is - what this
-    // environment serves, and whether it is taking responses. Changing it takes
-    // `form: close`, which the API checks at the act rather than at the link.
+    // Intake arrives with `form: read`; changing it takes `form: close`, which the API
+    // checks at the act rather than at the link.
     expect(contexts(VIEWER)).toEqual(["links", "webhooks", "intake"]);
     expect(primaryFormContext(row(VIEWER))?.context).toBe("links");
     // The builder, Rules, Preview, Versions and Publish are the editor's and are not

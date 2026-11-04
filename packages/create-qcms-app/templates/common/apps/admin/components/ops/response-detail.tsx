@@ -29,26 +29,6 @@ import { OperatorDateTime } from "@/components/operator-time";
 import { t } from "@/lib/i18n/en";
 import { HeadingMarker } from "@/components/agent/heading-marker";
 
-/**
- * One response, with its audit ledger, its flag disposition and its erasure door
- * (task 035; screen contract "detail", "erasure").
- *
- * ## Two states, and the second one is the point
- *
- * Before erasure this renders the locked answers and the ledger. After it, the same
- * screen renders the **tombstone** and nothing else, because that is what remains
- * (ADR-17). It is one component rather than two routes so the transition is visible
- * where the operator performed it, and so there is no moment where the screen still
- * shows answers the database no longer holds.
- *
- * ## The ledger is a list, and it says what each entry did
- *
- * Chronology is carried in the text of each entry, not in the layout, so it survives
- * a screen reader linearising the page (the screen contract's a11y note). A retraction is
- * announced as "cleared" rather than rendered as an answer with no value: ADR-33
- * makes clearing an appended fact of its own, and flattening it would turn "the
- * respondent removed their answer" into "the respondent answered with nothing".
- */
 export function ResponseDetail({
   detail,
   pins,
@@ -62,19 +42,10 @@ export function ResponseDetail({
   readonly detail: ResponseDetailData;
   readonly pins: readonly QuestionPin[];
   readonly labels: ReadonlyMap<string, string>;
-  /** True when the pinned wording could not be read, so captions are ids. */
   readonly labelsFailed: boolean;
   readonly linksHref: string;
-  /**
-   * The environment this response belongs to: the operator's Q6 switcher selection, which
-   * is also the environment the API read it from (ADR-40, task 065).
-   *
-   * It is named in the erasure confirmation because **an erasure performed against the
-   * wrong environment is not undoable**, which is the failure mode Q6's restatement rule
-   * exists for. ADR-02's amendment makes an erasure act in the selected environment only
-   * and never cross a boundary in one act; task 067 builds the cross-environment hint that
-   * goes with it.
-   */
+  /* An erasure acts in one selected environment only; the confirmation must name it because the act cannot
+     be undone. */
   readonly environment: string;
   readonly erase: (
     sessionId: string,
@@ -94,10 +65,6 @@ export function ResponseDetail({
   const [erasureNote, setErasureNote] = useState<string>("");
   const [unflagNote, setUnflagNote] = useState<string>("");
   const [flagged, setFlagged] = useState<string | null>(detail.flaggedReason);
-  // Re-seeded when the server's own disposition changes under it, as the response browser
-  // re-seeds its filter draft: a release performed anywhere but this screen's own button
-  // revalidates the route, and state initialised once would leave the operator reading
-  // "Flagged" about an event already on its way.
   const [seededFlag, setSeededFlag] = useState<string | null>(detail.flaggedReason);
   if (seededFlag !== detail.flaggedReason) {
     setSeededFlag(detail.flaggedReason);
@@ -108,12 +75,7 @@ export function ResponseDetail({
   const [isPending, startTransition] = useTransition();
   const environmentUnknown = useEnvironmentUnknown();
 
-  // Showing an outcome and announcing it are one event, never two, so neither path can
-  // acquire a message the other does not have. The announcement goes to the shell's
-  // live region rather than to the container below, because erasing revalidates this
-  // route and the route unmounts this whole subtree a few hundred milliseconds later -
-  // a region that leaves the document mid announcement says nothing (issue #355,
-  // `lib/announce.ts`).
+  // Announce through the shell region because erasure revalidation unmounts this subtree mid-announcement.
   const noteErasure = useCallback((message: string) => {
     setErasureNote(message);
     announce(message);
@@ -123,20 +85,6 @@ export function ResponseDetail({
     announce(message);
   }, []);
 
-  // Both actions on this screen remove the button that opened their confirmation: the
-  // erase button goes with the answers it belonged to, and the release button goes with
-  // the whole flag panel. Focus is therefore placed deliberately (issue #308).
-  //
-  // The two land in different places because different things replaced them. After an
-  // erasure the tombstone IS the post-action state, so its heading is where an operator
-  // should be standing; its id is looked up rather than held in a ref because the card
-  // is also rendered by the route on a later visit, and threading a ref through for one
-  // of its two callers would put this screen's concern inside it. After a release
-  // nothing replaces the panel, so the successor is the page's own heading, with the
-  // outcome alert directly beneath it (the announcement of that outcome is made from
-  // the shell's live region, not from here - issue #355). That heading now belongs to
-  // the route's chrome rather than to this component (issue #510), so it is looked up
-  // by id for the same reason the tombstone's is: a ref cannot reach out of the tree.
   useEffect(() => {
     if (tombstone === null) return undefined;
     const { sessionId } = tombstone;
@@ -144,17 +92,8 @@ export function ResponseDetail({
     const settled = claimPostActionFocus(TOMBSTONE_HEADING_ID, sessionId);
     return () => {
       settled?.();
-      // Erasing revalidates this response's own route, and the route then renders the
-      // SAME url as its own tombstone - which unmounts this subtree a few hundred
-      // milliseconds after the focus above landed, dropping focus back to the body. So
-      // re-arm on the way out: the card that replaces this one takes the request.
-      //
-      // The re-arm is still unconditional, because a cleanup runs before its successor
-      // exists and so cannot observe one. What makes that safe is the SUBJECT carried
-      // with the request (issue #357): it names this response, so only this response's
-      // tombstone can claim it. An operator who navigates away inside the TTL and opens
-      // a different erased response no longer has focus taken on arrival, which is the
-      // steal the TTL alone was left to prevent and did not.
+      // Scope pending focus to this response and clean it up on navigation so another tombstone cannot collect
+      // it.
       requestPostActionFocus(TOMBSTONE_HEADING_ID, sessionId);
     };
   }, [tombstone]);
@@ -172,8 +111,8 @@ export function ResponseDetail({
             noteUnflag(t("ops.detail.unflagFailed", { message: state.message ?? "" }));
             return;
           }
-          // `released` distinguishes "this call released the withheld event" from "there
-          // was nothing withheld", so the confirmation never claims the first for both.
+          // Only released means this call released a withheld event; success alone may mean there was nothing
+          // withheld.
           noteUnflag(
             state.released === true ? t("ops.detail.unflagged") : t("ops.detail.unflagNoop"),
           );
@@ -181,11 +120,6 @@ export function ResponseDetail({
           setDialog(null);
           setReleased(true);
         })
-        // `.catch` is not defensive decoration. `adminApiFetch` documents that it does not
-        // throw for a non-2xx, which is true and is the trap: a transport failure still
-        // rejects with a TypeError, and `readResult`'s `response.json()` rejects on a
-        // truncated body. Without this the promise rejects unhandled, no state is set,
-        // and the dialog sits there looking like a slow network forever.
         .catch(() => {
           noteUnflag(t("ops.detail.unflagFailed", { message: unexpected() }));
         });
@@ -209,9 +143,6 @@ export function ResponseDetail({
             );
             setDialog(null);
           })
-          // The same trap as the other three call sites, and the worst place for it:
-          // a silent failure here leaves an operator staring at a confirmed erasure
-          // dialog with no idea whether an irreversible ADR-17 action ran (it did not).
           .catch(() => {
             noteErasure(t("ops.erase.failed", { message: unexpected() }));
           });
@@ -221,26 +152,12 @@ export function ResponseDetail({
   );
 
   return (
-    // Labelled by the route's own <h1>, which names this response (issue #510). The
-    // heading is not repeated here: it was an <h2> saying exactly what the page heading
-    // now says, and a page that states its subject twice at two levels is noise to
-    // anyone reading the outline rather than the pixels.
     <section
       aria-labelledby={RESPONSE_HEADING_ID}
       className="flex flex-col gap-6"
       data-testid="qcms-response-detail"
     >
-      {/* Deliberately NOT a live region (issue #355). It was one until an erasure was
-          watched to the end: the action revalidates this route, the route re-renders the
-          same url as its own tombstone, and this whole subtree unmounts a few hundred
-          milliseconds later - taking the region and the sentence it had just been given.
-          The announcement is made through `announce()` into the shell's region, which is
-          above the page and survives that swap; these alerts stay here because what a
-          sighted operator needs is the message beside the state that produced it. Two
-          live regions holding the same sentence would say it twice. */}
       <div className="flex flex-col gap-2">
-        {/* Not while the dialog that produced the note is open: it says the note itself,
-            in front of the operator, and this copy would be behind it. */}
         {erasureNote !== "" && dialog !== "erase" && (
           <Alert variant={tombstone === null ? "error" : "success"}>{erasureNote}</Alert>
         )}
@@ -303,9 +220,6 @@ export function ResponseDetail({
             if (!isOpen) setDialog(null);
           }}
         >
-          {/* A failure is said inside the modal, which is where the operator is looking: the
-              page's own alert is behind it (a refusal for a switched environment is the
-              case that made this matter, local UX list A1). */}
           {unflagNote !== "" && <Alert variant="error">{unflagNote}</Alert>}
           <div className="flex flex-wrap gap-2">
             <Button variant="primary" size="md" isDisabled={isPending} onPress={runUnflag}>
@@ -341,7 +255,6 @@ export function ResponseDetail({
   );
 }
 
-/** Provenance: when, which version, how they got in, and the audit anchor. */
 function Summary({
   detail,
   flagged,
@@ -385,7 +298,6 @@ function Summary({
   );
 }
 
-/** The locked set, in document order, captioned with the pinned wording. */
 function Answers({
   detail,
   pins,
@@ -398,9 +310,6 @@ function Answers({
   const keys = orderedAnswerKeys(detail.answers, pins);
   return (
     <section aria-labelledby="qcms-answers-heading" className="flex flex-col gap-2">
-      {/* h2, not h3: the response's own heading is the page's <h1> now (issue #510), so
-          this section sits directly under it. Size is unchanged - the level is an outline
-          fact, not a type scale. */}
       <h2 id="qcms-answers-heading" className="text-base font-semibold text-(--color-text)">
         {t("ops.detail.answers")}
       </h2>
@@ -428,13 +337,6 @@ function Answers({
   );
 }
 
-/**
- * One caption/value pair.
- *
- * An empty string and an absent value get different words: a question CAN be answered
- * with an empty string, and rendering both as blank would tell an operator the same
- * thing about two different facts.
- */
 function AnswerRow({
   questionId,
   label,
@@ -460,14 +362,6 @@ function AnswerRow({
   );
 }
 
-/**
- * The audit timeline: every revision, oldest first, exactly as `answerLedger` holds
- * it (exit criterion 4).
- *
- * An ordered list rather than a table, because the claim it makes is sequence: each
- * item states its own time, its own question and what happened to it, so nothing is
- * inferred from the row above.
- */
 function LedgerTimeline({
   detail,
   labels,
@@ -491,9 +385,6 @@ function LedgerTimeline({
             const rendered = answerText(entry.value);
             return (
               <li
-                // The ledger is append-only and can hold two revisions of one question
-                // at the same recorded instant, so neither the question nor the time is
-                // a key on its own; the position in an immutable, ordered list is.
                 key={`${entry.questionId}-${String(index)}`}
                 data-question-id={entry.questionId}
                 data-retracted={entry.retracted ? "true" : "false"}
@@ -519,19 +410,6 @@ function LedgerTimeline({
   );
 }
 
-/**
- * The type-to-confirm erasure dialog (exit criterion 2).
- *
- * Three separate sentences before the input, and each is a distinct fact rather than
- * a rewording of "are you sure": what is deleted, what remains, and what is NOT
- * affected. The third exists because it is the question an operator actually has at
- * this moment - a consumer already holds the submission, and no erasure here can
- * reach it. Saying so is more honest than leaving it to be assumed either way.
- *
- * The confirm button is disabled until the typed text matches the session id exactly,
- * which is `isErasureConfirmed` and is unit-tested against the same string this
- * dialog puts on screen.
- */
 function EraseDialog({
   sessionId,
   environment,
@@ -543,7 +421,6 @@ function EraseDialog({
   readonly sessionId: string;
   readonly environment: string;
   readonly isPending: boolean;
-  /** The failure of the last attempt, said inside the modal rather than behind it (A1). */
   readonly error?: string | undefined;
   readonly onConfirm: (reason: ErasureReason) => void;
   readonly onClose: () => void;
@@ -566,9 +443,6 @@ function EraseDialog({
         <p className="text-sm text-(--color-text)">{t("ops.erase.irreversible")}</p>
         <p className="text-sm text-(--color-text)">{t("ops.erase.tombstoneStays")}</p>
         <p className="text-sm text-(--color-text)">{t("ops.erase.consumersUnaffected")}</p>
-        {/* Q6's restatement, on the one act in this app that cannot be undone at all. The
-            typed-confirmation field below asks the operator to prove they mean this
-            session; this line is what tells them which environment's copy of it. */}
         <p className="text-sm font-semibold" data-testid="qcms-erase-environment">
           {t("environment.inThis", { environment })}
         </p>

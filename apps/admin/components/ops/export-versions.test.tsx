@@ -6,12 +6,8 @@ import { t } from "../../lib/i18n/en.ts";
 import { parseResponseQuery } from "../../lib/ops/response-filters.ts";
 
 /**
- * The export dialog's version control says only what was read.
- *
- * A `responses.viewer` holds `response: read` and `response: export` and no `form: read`,
- * so the form's published version list is refused to it and the versions its own responses
- * carry are the list it is given. The reported defect: that persona was told "This form has
- * no published version" about a form that has versions, and its export was disabled.
+ * The export dialog's version control says only what was read: a `responses.viewer` is
+ * refused the form's published list and gets the versions its own responses carry.
  */
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: () => undefined }),

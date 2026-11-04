@@ -35,7 +35,6 @@ function withPlatform<T>(overrides: Readonly<Record<string, string>>, body: () =
   }
 }
 
-/** No `navigator` at all, which is the branch a Node render takes. */
 function withoutNavigator<T>(body: () => T): T {
   Object.defineProperty(window, "navigator", { value: undefined, configurable: true });
   try {
@@ -52,10 +51,6 @@ function numberStep(props: Readonly<Record<string, unknown>>): A2UIStepDocument 
   };
 }
 
-/**
- * Exactly one input carries `inputmode`, so a second match means the render changed
- * shape and the assertions below would be reading the wrong element.
- */
 function soleInput(root: ParentNode): Element {
   const withInputMode = root.querySelectorAll("input[inputmode]");
   expect(withInputMode).toHaveLength(1);
@@ -63,7 +58,6 @@ function soleInput(root: ParentNode): Element {
   return input;
 }
 
-/** Read together, because React compares every attribute in one pass. */
 interface EnvironmentAttributes {
   readonly inputMode: string | null;
   readonly roleDescription: string | null;
@@ -150,9 +144,7 @@ describe("the residuals that need an upstream passthrough (issue #945)", () => {
   });
 });
 
-// `step` is the only trace an integer constraint leaves in the compiled props, so what
-// counts as an integral one is the whole of the rule. These are the edges the renders
-// above do not reach, including a non-integral step an authored document could carry.
+// Only step survives compilation as an integer constraint.
 
 describe("numberFieldAdmitsFractions", () => {
   it.each([

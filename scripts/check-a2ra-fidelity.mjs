@@ -87,9 +87,6 @@ export function vendoredFiles(vendoredRoot) {
 }
 
 /**
- * Read from the tree rather than from a list, so adding or removing a component cannot
- * leave the refresh fetching a stale set.
- *
  * @param {string[]} files
  * @returns {string[]}
  */
@@ -227,9 +224,6 @@ export async function main(args = []) {
   /** @type {{ pin?: unknown; componentsDir?: unknown; files?: unknown }} */
   const manifest = JSON.parse(readFileSync(join(REPO_ROOT, MANIFEST), "utf8"));
 
-  // First, because a manifest generated at a different commit says nothing about this
-  // one: comparing anyway reports stale-record drift or a clean tree against the wrong
-  // upstream.
   if (manifest.pin !== pin.pin || manifest.componentsDir !== vendoredDir) {
     console.error(
       [
@@ -297,8 +291,6 @@ export async function main(args = []) {
   return 1;
 }
 
-// Only when run as a command, so the test can import the helpers without the scan firing
-// and without `process.exit` killing the run.
 if (argv[1] !== undefined && import.meta.url === pathToFileURL(argv[1]).href) {
   process.exit(await main(argv.slice(2)));
 }

@@ -5,11 +5,6 @@ import type { AgentPlanStep, AgentProposal } from "../forms/assist-stream.ts";
 import { initialCard, startRun, type AgentCardView } from "./plan-state.ts";
 import { hasUnresolvedReference, resolveArgs, runPlan, type RunStepRequest } from "./runner.ts";
 
-/**
- * The sequential runner: in order, one at a time,
- * stop at the first failure, never retry, and send nothing after a hold or a Stop.
- */
-
 const PROPOSED_AT = "2026-07-20T00:00:00.000Z";
 const EXPIRES_AT = "2026-07-20T00:10:00.000Z";
 const NOW = new Date(PROPOSED_AT);
@@ -190,7 +185,7 @@ describe("runPlan", () => {
       windowLeftMs: () => WINDOW_LEFT,
       runStep,
     });
-    // Step 0 reported nothing, so step 1's reference has nothing to resolve to.
+
     expect(runStep).toHaveBeenCalledTimes(1);
     expect(card.steps[1]?.state).toBe("failed");
   });

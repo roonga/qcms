@@ -13,13 +13,11 @@ import {
 
 import type { Page } from "@playwright/test";
 
-/** The answer-post URL, as the browser reports it on a failed load. */
 const ANSWERS_URL = /\/answers$/;
 
 /** A value `q_full_name`'s pattern (`^[A-Za-z][A-Za-z .,'-]{0,99}$`) forbids. */
 const REFUSED = "Ada1";
 
-/** A value it accepts, and the one the server ends up holding. */
 const HELD = "Ada Lovelace";
 
 const INVALID = "Answer does not match the required format";

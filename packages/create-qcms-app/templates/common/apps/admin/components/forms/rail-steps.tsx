@@ -13,42 +13,6 @@ import { issueCountLabel, type RailItem } from "@/lib/forms/subtree-rail";
 import { t } from "@/lib/i18n/en";
 import { textOf } from "@/lib/questions/definition";
 
-/**
- * The form's steps, inside the rail, on the builder (Code Owner, 2026-08-25).
- *
- * ## Why this is not `steps-rail.tsx` moved
- *
- * The builder used to carry its own step list as a card in the content column, beside a
- * rail that had none: one screen with two step lists and no single place that owned them.
- * That card cannot simply be relocated. It is a panel - a border, a surface, `p-4` - headed
- * by an `<h2>`, and the rail renders BEFORE `<main>` in document order, so a heading here
- * would sit above the screen's own `<h1>` and be a `heading-order` violation on this screen
- * in all three modes. What the rail needs is rail rows, so this is rail rows.
- *
- * `plan/admin-shell-poc/admin-shell-poc.html` is the drawing: a step row carries its
- * ordinal, its title, its issue badge and a menu of Rename / Move up / Move down / Remove
- * step. §7's clause forbidding actions in a rail was retired on 2026-08-25 for exactly
- * this; the question detail rail's lifecycle block had already overruled it in practice.
- *
- * **The Add step control is not here any more (§7.0, issue #1116).** The drawing puts it
- * under the list and this file used to own it, its dialog and the fragment another screen
- * arrives with; §7.0 gives the rail one Actions part at its foot and names Add step as one
- * of the structural actions that belong there, so all three moved to
- * `components/forms/rail-add-step.tsx`. The form row's menu is still the second way in and
- * still opens the one dialog, through `lib/forms/add-step-request.ts`.
- *
- * ## Two states, and the first one is not a placeholder
- *
- * Before the builder hydrates, this renders the steps the SERVER resolved, as ordinary
- * anchors to `#step-{id}`. That is a real, usable list rather than a skeleton: the slot had
- * already loaded those steps in order to render them, the anchors land on the step they
- * name, and `lib/forms/issues.ts` mints the same fragment the validation panel's focus links
- * use.
- *
- * Once the builder publishes (`lib/forms/builder-bridge.ts`), the rows become buttons that
- * select a step in place and the menus appear. The list does not move or reorder as it
- * upgrades: it is the same steps in the same order, gaining behaviour.
- */
 export function RailSteps({
   item,
   serverItems,
@@ -59,22 +23,7 @@ export function RailSteps({
   const builder = useBuilderRail();
   if (builder === undefined) {
     return (
-      // THE SAME WRAPPER THE BUILDER'S BRANCH USES (Code Owner, 2026-08-30), and it is the
-      // fix for a whole class of defect rather than a tidy-up. These two branches render
-      // the same rail and they used to be shaped differently: a fragment here, a `div` with
-      // its own spacing there. Every rule written for one silently did not apply to the
-      // other, and each divergence showed only as MOVEMENT when a reader walked between the
-      // builder and one of the six routes - which is invisible from inside either screen.
-      //
-      // Two were live when this wrapper went in: the 8px under Rules came from this div's
-      // margin, so it existed on the builder's two screens and not on the other six; and
-      // `.qcms-rail-steps [data-rail-item^="step:"]`'s 30px reserve never reached the
-      // server-rendered step rows at all, so a long step title wrapped at a different point
-      // on each side of a navigation - the exact defect that reserve was written to prevent.
       <div className="qcms-rail-steps">
-        {/* The row the server rendered, restated rather than imported: this file is a
-            client component and `form-subtree-rail.tsx` is not, so taking its `RailRow`
-            would pull that module into the client bundle to reuse four lines of markup. */}
         <Link
           href={item.href}
           className="qcms-rail__link"
@@ -90,17 +39,6 @@ export function RailSteps({
 
   return (
     <div className="qcms-rail-steps">
-      {/* THE FORM'S OWN ROW IS THIS ROW, not a second one under it. It briefly was a
-          second one, which put "Form details" directly beneath "Builder" with both marked
-          current: two rows, one meaning, and no way to tell which was which. The row that
-          leads to this screen from the other seven IS the row that selects the form's own
-          details once you are here, so it carries `item.label` - renamed to "Form details",
-          because that is the screen it opens.
-
-          A button rather than a link, unlike the same row on the other seven screens: this
-          route is already the one the reader is standing on, so choosing it changes what
-          the column beside the rail shows rather than navigating anywhere
-          (`docs/admin-constraints.md`, an anchor navigates and a button acts). */}
       <div className="qcms-rail-steps__row">
         <button
           type="button"
@@ -109,22 +47,10 @@ export function RailSteps({
           aria-current={builder.selection.kind === "form" ? "page" : undefined}
           onClick={builder.chooseForm}
         >
-          {/* A span rather than a bare text node, so the label is a flex ITEM the row can
-              clip. Bare, it is an anonymous flex item that `text-overflow` cannot reach. */}
           <span>{item.label}</span>
         </button>
-        {/* THE FORM'S OWN MENU, so adding a step is reachable from the top of the list as
-            well as the foot of the rail (Code Owner, 2026-08-26). With enough steps the
-            control in the Actions part scrolls out of the rail, and this one never moves.
-
-            It does NOT replace that control: Add step appends, so the control nearest where
-            the new step appears is the one that matches what pressing it does. This is the
-            second way in, not the way in, and the menu is where the form's other row-level
-            commands will go when there are some.
-
-            It opens the one dialog through `lib/forms/add-step-request.ts`, because since
-            §7.0 moved the control into the Actions part the two are different components
-            with no component between them to hold the state (issue #1116). */}
+        {/* Both controls open one dialog through the shared request store; separate dialogs would hold competing
+   title drafts. */}
         <Menu
           triggerLabel={t("forms.rail.formMenu", { title: item.label })}
           trigger={<span aria-hidden="true">{"⋮"}</span>}
@@ -161,12 +87,6 @@ export function RailSteps({
                 builder.remove(step.stepId);
               }}
             />
-            {/* THE REPEATING GROUPS INSIDE THIS STEP, nested one level further (task 074,
-                ADR-42). They are listed under their step because that is where they sit in
-                document order, and their position decides where their whole span sits - so a
-                flat list beside the steps would be a second ordering of one list. A group's
-                MEMBER questions are not rows here, for the same reason a step's pins never
-                were: the rail navigates containers, and the grid lists what is in them. */}
             {groupsOf(step).length > 0 && (
               <ol
                 className="qcms-rail__group qcms-rail-steps__groups"
@@ -203,36 +123,15 @@ export function RailSteps({
           </li>
         ))}
       </ol>
-      {/* NO RULES ROW HERE ANY MORE (issue #669). This subtree used to end with one, on all
-          eight form screens, because rule editing was a SELECTION the builder made and only
-          the builder could make it - so the row had to be an anchor over there and a button
-          here, and the two had to be kept the same height or the rail's lower half moved as
-          a reader walked between screens.
-
-          Rules is a ROUTE now, so it is an ordinary member of `RAIL_SECTIONS` and
-          `form-subtree-rail.tsx` renders it exactly like Preview or Links: one row, one
-          shape, on every screen, with `aria-current` decided by which route is open. The
-          two-branch row is gone rather than relocated, and so is the class of defect that
-          came with it. */}
     </div>
   );
 }
 
-/**
- * The pre-hydration list.
- *
- * Deliberately the same markup the other seven form screens' steps use, so the rail does
- * not change shape when the builder takes it over.
- */
 function ServerSteps({ items }: { readonly items: readonly RailItem[] }) {
   if (items.length === 0) return null;
   return (
     <ol className="qcms-rail__group" aria-label={t("forms.rail.steps")} data-rail-group="steps">
       {items.map((item) => (
-        // `id` on the row rather than on a hidden span inside the link: the row IS the
-        // destination, and a span carrying the title inside a link that already reads the
-        // title would say it twice. `tabIndex={-1}` for the reason the interactive row's
-        // anchor has it - a destination, not a stop on the way past.
         <li
           key={item.key}
           {...(item.anchorId === undefined ? {} : { id: item.anchorId })}
@@ -262,19 +161,7 @@ function ServerSteps({ items }: { readonly items: readonly RailItem[] }) {
   );
 }
 
-/**
- * One interactive step row: a button that selects, and a menu that acts on it.
- *
- * A button rather than an anchor, and that is the rule rather than an exception to it
- * (`docs/admin-constraints.md`: an anchor navigates, a button acts). Selecting a step
- * changes what the editor beside the rail is showing on the screen the reader is already
- * standing on; there is nothing to open in a new tab.
- *
- * REORDER IS A MENU COMMAND, NEVER A DRAG, which is the call the step list has made since
- * task 033 and the reason is unchanged: a drag-only reorder is unusable by keyboard and by
- * anyone with a motor impairment, and a second "accessible alternative" path is a second
- * path to keep in sync. Move up and move down are ordinary menu items.
- */
+/* Reorder through menu commands so keyboard and motor-impaired users have the same path as pointer users. */
 function StepRow({
   stepId,
   title,
@@ -311,11 +198,6 @@ function StepRow({
         aria-current={isSelected ? "page" : undefined}
         onClick={onSelect}
       >
-        {/* The accessible name is the whole sentence, and the visible composite is hidden
-            from the tree so it is not read twice. Same shape the retired in-page step list
-            used, and deliberately the same STRING: `openStep` and `addStep` in
-            `e2e/support/forms.ts` name a step row this way, and so does anyone who has
-            learned the screen. Moving the list should not rename its rows. */}
         <span className="qcms-visually-hidden">{t("forms.steps.select", { title })}</span>
         <span className="qcms-rail__position" aria-hidden="true">
           {t("forms.rail.stepPosition", { position })}
@@ -333,11 +215,6 @@ function StepRow({
         trigger={<span aria-hidden="true">{"⋮"}</span>}
         menuLabel={t("forms.steps.menu", { title })}
         classNames={menuClasses("qcms-rail-steps__menu")}
-        // Greyed rather than silently inert. `moveStep` is a no-op out of range, so
-        // leaving them enabled corrupts nothing - but a menu that offers a command it
-        // will not perform tells an assistive technology the wrong thing about what is
-        // available, and tells everyone else nothing about why the list did not move.
-        // Same rule the retired in-page list applied at the same two positions.
         disabledKeys={disabledCommands(position, total)}
         onAction={(key) => {
           if (key === "rename") {
@@ -355,24 +232,11 @@ function StepRow({
         ]}
       />
 
-      {/* THE FOCUS TARGET FOR A STEP-LEVEL ISSUE, and it has to live wherever the step
-          list does. `lib/forms/issues.ts` mints this id for the validation panel's "jump
-          to the offending step" links, and the rail's own step rows on the other seven
-          screens point at `/forms/{formId}#step-{stepId}`, which is this. It moved here
-          with the list; when the list was deleted from the page it went with it, and the
-          links pointed at nothing until this was restored.
-
-          Out of the tab order (`tabIndex={-1}`) because it is a destination rather than a
-          stop: reachable when something sends focus to it, never by tabbing past it. */}
+      {/* This is a programmatic focus destination, not an additional Tab stop. */}
       <span id={stepAnchorId(stepId)} tabIndex={-1} className="qcms-visually-hidden">
         {title}
       </span>
 
-      {/* Rename is a dialog rather than an inline field, because the row is 240px wide and
-          an input inside it would be narrower than most step titles. Removing a step takes
-          its pins with it and leaves any rule that named it dangling, so it stays behind
-          the confirm the step list has always had (`components/forms/steps-rail.tsx`'s
-          reasoning, kept when its markup was not). */}
       {renaming && (
         <Dialog
           isOpen
@@ -399,9 +263,6 @@ function StepRow({
         </Dialog>
       )}
 
-      {/* Removing a step takes its pins with it and leaves any rule that named it
-          dangling, so it asks first. That confirm is not new here: it is the one the step
-          list has had since task 033, kept when its markup was not. */}
       {removing && (
         <Dialog
           isOpen
@@ -439,24 +300,10 @@ function StepRow({
   );
 }
 
-/** The repeating groups one step holds, in document order. */
 function groupsOf(step: DraftStep): readonly DraftGroup[] {
   return step.items.filter(isDraftGroup);
 }
 
-/**
- * One repeating group's row: a button that opens its panel, and a menu that acts on it.
- *
- * A button rather than an anchor, for the rule the step row follows
- * (`docs/admin-constraints.md`: an anchor navigates, a button acts) - choosing a group
- * switches the panel beside the rail on the screen the reader is already standing on.
- *
- * RENAME IS NOT HERE, and that is the one way this row differs from a step's. A group's name
- * is the first field of its own panel, which this row opens, so a rename dialog would be a
- * second way to type one string - and `rail-steps.tsx`'s own note on the Add step dialog says
- * why two drafts of one title is the defect to avoid. A step has no panel of its own, which is
- * why its row has to carry one.
- */
 function GroupRow({
   groupId,
   label,
@@ -487,9 +334,6 @@ function GroupRow({
         aria-current={isSelected ? "page" : undefined}
         onClick={onSelect}
       >
-        {/* The accessible name is the whole sentence and the visible composite is hidden from
-            the tree, so it is not read twice - the same shape the step row uses, and
-            deliberately the same shape: a reader who has learned one has learned both. */}
         <span className="qcms-visually-hidden">{t("forms.group.select", { label })}</span>
         <span aria-hidden="true">{label}</span>
       </button>
@@ -512,12 +356,7 @@ function GroupRow({
         ]}
       />
 
-      {/* The focus destination for a group-scoped publish refusal, for the reason the step's
-          own anchor exists: `anchorFor` sends an issue about a group's bounds or its instance
-          heading here, and the rail is the one part of this route every screen shows. The grid
-          carries the same id on its boundary row, which is not a collision - the boundary row
-          only exists while that step is selected, and `document.getElementById` resolving to
-          whichever is in the tree is exactly the behaviour both call sites want. */}
+      {/* The rail and selected grid boundary share a group focus id; either destination is valid when both exist. */}
       <span id={groupAnchorId(groupId)} tabIndex={-1} className="qcms-visually-hidden">
         {label}
       </span>
@@ -559,7 +398,6 @@ function GroupRow({
   );
 }
 
-/** The commands that do not apply at this position, so the menu greys them out. */
 function disabledCommands(position: number, total: number): string[] {
   const disabled: string[] = [];
   if (position === 1) disabled.push("up");

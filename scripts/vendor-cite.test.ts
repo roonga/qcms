@@ -22,13 +22,9 @@ import {
  * pin written out here would be read as a real claim.
  */
 
-/** Assembled, so no literal citation appears in this file. */
 const DIST = "dist";
-/** Likewise the abbreviation prefix, which would otherwise resolve against nothing. */
 const ABBREV = `${"."}..`;
-/** In halves, so the gate beside this file does not read the fixture as a claim. */
 const mark = (phrase: string): string => `${"<!"}-- expect: ${phrase} --${">"}`;
-/** Likewise: a literal `name@version` here would read as an assertion about the pin. */
 const AT = "@";
 const VERSION = "9.9.9";
 const OLDER = "9.9.8";
@@ -36,7 +32,6 @@ const OLDER = "9.9.8";
 const CORE = "@better-auth/core";
 const MAIN = "better-auth";
 
-/** The context module, shipped by `better-auth` and by nothing else. */
 const CONTEXT_PATH = `${DIST}/context/create-context.mjs`;
 /** Shipped by `@better-auth/core` and by nothing else, so a path written without its scope must not resolve. */
 const ENV_PATH = `${DIST}/env/env-impl.mjs`;
@@ -72,7 +67,6 @@ function installAt(
   return directory;
 }
 
-/** One package in the pnpm store, at an exact version, with a peer-hash suffix. */
 function install(name: string, version: string, files: Record<string, string[]>): string {
   return installAt(`${name.replace("/", "+")}${AT}${version}_peerhash`, name, version, files);
 }
@@ -91,7 +85,6 @@ const truncatedRoot = installAt(
   VERSION,
   {},
 );
-/** The same truncation shape at a version nobody pinned, which must stay a miss. */
 const OTHER_TRUNCATED = `${"@better-auth"}/stripe`;
 installAt(`${"@better-auth+strip"}_peerhash`, OTHER_TRUNCATED, OLDER, {});
 
@@ -252,9 +245,7 @@ describe("--expect", () => {
   });
 
   it("refuses an empty phrase instead of passing vacuously", () => {
-    // `"".includes` is true of every line there is, so an empty marker passed whatever
-    // the vendor did AND counted towards coverage - a marker that reads as checked and
-    // is not, which is worse than no marker at all.
+    // An empty marker matches every line through includes and would falsely count as checked coverage.
     const empty = citationsIn(`${cited} ${mark("")}`);
     expect(empty.citations[0]?.expect).toBeNull();
     expect(empty.problems).toEqual([expect.stringContaining("empty or too short")]);
@@ -270,8 +261,6 @@ describe("--expect", () => {
   });
 
   it("refuses an expectation on a citation that names a path only", () => {
-    // There are no cited lines to check it against, and falling back to the whole file
-    // is a far weaker assertion wearing the same words.
     const [citation] = citationsIn(`\`${CONTEXT_PATH}\` ${mark("isProduction")}`).citations;
     expect(citation?.spans).toEqual([]);
     expect(checkCitation(citation!, sourceOf(null, citation!.path), true).failure).toBe(

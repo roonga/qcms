@@ -25,7 +25,6 @@ function nextLogPath(name: string): string {
   return join(dir, `${name}-${counter}.log`);
 }
 
-/** Write `text` as a fresh log file and return the gate's verdict on all of it. */
 function gateVerdict(
   source: "api" | "postgres" | "portal",
   text: string,
@@ -40,14 +39,12 @@ function gateVerdict(
 }
 
 interface Case {
-  /** A single line as it appears in `.playwright/server-logs/portal.log`. */
   readonly line: string;
-  /** Why this line has the verdict it does (the test name). */
+
   readonly why: string;
   readonly reported?: string;
 }
 
-/** The fault text the gate is expected to report for a case. */
 function reportedText(c: Case): string {
   return c.reported ?? c.line;
 }

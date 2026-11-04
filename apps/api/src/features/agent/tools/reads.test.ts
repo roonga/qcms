@@ -27,7 +27,6 @@ type PortName = Exclude<
   | "offeredActionKinds"
 >;
 
-/** One read tool, the screen that declares it, the port it reaches and a valid input. */
 const READS: readonly {
   readonly tool: AgentToolName;
   readonly screen: ScreenId;
@@ -201,7 +200,7 @@ describe("the read tools of D1 to D7", () => {
         },
       });
       const output = await runAgentTool(read.tool, read.input, ctx, createProposalState());
-      // The port is handed the parsed input, and the model is handed what the port said.
+
       expect(inputs).toHaveLength(1);
       expect(TOOLS[read.tool].outputSchema.parse(output)).toEqual(read.result);
     },

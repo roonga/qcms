@@ -4,9 +4,9 @@ import { SESSION_COOKIE, secureCookies } from "./config";
 import { sessionCookieOptions } from "./cookie-options";
 
 /**
- * The respondent session token lives only in an httpOnly cookie and never in client JS
- * (SEC). `sameSite: "lax"` lets the top-level navigation from a secure-link email carry
- * the cookie while blocking cross-site POST use.
+ * The respondent session token lives only in an httpOnly cookie and never in client JS. `sameSite: "lax"`
+ * lets the top-level navigation from a secure-link email carry the cookie while blocking cross-site POST
+ * use.
  */
 
 export async function readSessionToken(): Promise<string | undefined> {

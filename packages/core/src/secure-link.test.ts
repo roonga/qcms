@@ -105,7 +105,7 @@ describe("mintSecureLink / verifySecureLink", () => {
     const key = await importCompactTokenKey(keyBytes(1));
     const token = await signCompactToken(
       "link",
-      { formId: FORM_ID, expiresAt: CLAIMS.expiresAt }, // linkId missing
+      { formId: FORM_ID, expiresAt: CLAIMS.expiresAt },
       key,
     );
     const result = await verifySecureLink(token, [key], NOW);

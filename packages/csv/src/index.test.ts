@@ -7,7 +7,6 @@ import { csvField, csvFieldAlwaysQuoted } from "./index.js";
 
 const DANGEROUS_LEADS = ["=", "+", "-", "@", "\t", "\r"] as const;
 
-/** The cell as a spreadsheet sees it, with any quoting undone. */
 function cellText(emitted: string): string {
   if (!emitted.startsWith('"')) return emitted;
   return emitted.slice(1, -1).replaceAll('""', '"');

@@ -4,10 +4,8 @@ import type { SelectItem } from "./components/a2ui/select/index.ts";
 import { getSelectStyles } from "./components/a2ui/select/select.styles.ts";
 
 /**
- * The single-choice control in native (no-JS) submit mode. The vendored Select cannot serve it: its `<select>`
- * sits in an `aria-hidden` container behind a trigger only JavaScript opens.
- * The empty-valued first option keeps an untouched `required` select invalid and, posted beside the answered
- * marker, is the ADR-33 retraction. No `appearance: none`: the browser's arrow is the only affordance.
+ * The vendored select needs JavaScript to become operable; native mode needs a visible select.
+ * Its empty option supports required validation and retraction. Preserve the browser arrow affordance.
  */
 export interface NativeSelectFieldProps {
   /** The questionId, which is the posted field name. */
@@ -38,10 +36,8 @@ const SELECT_CLASS = [
 ].join(" ");
 
 /**
- * Restates the vendored control's own default, which ADR-22 forbids editing, so both
- * renderings of a question say the same thing. That makes it a hardcoded user-facing
- * string which ADR-27 would otherwise localize, and localizing it needs a compiler and
- * golden-corpus change or an upstream one.
+ * Match the immutable vendored placeholder so both renders agree.
+ * Localizing it requires a compiler/corpus change or an upstream change.
  */
 export const NATIVE_SELECT_PLACEHOLDER = "Select an option";
 
@@ -62,8 +58,7 @@ export function NativeSelectField({
   const selectId = useId();
   const descriptionId = `${selectId}-description`;
   const errorId = `${selectId}-error`;
-  // Both ids when both are drawn, or a screen reader hears the hint or the refusal
-  // rather than both (WCAG 3.3.2, 3.3.1).
+  // Keep both hint and refusal ids so assistive technology announces both.
   const describedBy =
     [
       description === undefined ? undefined : descriptionId,

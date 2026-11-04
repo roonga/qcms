@@ -2,58 +2,6 @@ import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-/**
- * Issues 572 and 544: the four remaining `ok ? data : []` sites, one per read.
- *
- * Issue 544 filed the pattern - a `Result`-shaped read unwrapped with `ok ? data : []`, so
- * a failed read arrives at the component as a successful empty one and the screen renders
- * its zero-items state about data it never saw. Issue 572 holds the concrete list and the
- * reason it got worse: after issue 514 the zero-items state is no longer a muted sentence
- * but §3's panel, a centred dashed surface with an `h2` and, where the screen has a
- * creating action, a primary call to action.
- *
- * Four sites were still open on `main` when this file was written (the other four named
- * across the two issues were closed by issues 513, 514, 543 and 521):
- *
- * 1. `forms/[formId]/webhooks/page.tsx` -> `WebhookConfig`
- * 2. `forms/[formId]/webhooks/page.tsx` -> `DeliveryDashboard`
- * 3. `forms/[formId]/links/page.tsx` -> `SecureLinks`
- * 4. `forms/[formId]/page.tsx` -> `FormBuilder`
- *
- * All four now hand the component a `ReadState` (`lib/read-state.ts`, issue 543), and each
- * decides for itself what a failure suppresses. The rule being applied is the one issue
- * 521 derived at the response browser and this file asserts at each site: "and nothing
- * else" means nothing that CLAIMS anything about the failed read. Chrome that stays true
- * is fine, including a creating action that still works. So each block below has a
- * failure test that pins BOTH halves - what went, and what stayed - plus an empty-read
- * control, because a fix that deleted the empty state instead of gating it would pass a
- * one-sided test and break §3 from the other direction.
- *
- * ## Why this layer, and not Playwright
- *
- * The same argument `forms-list-states.test.tsx` and `empty-and-table-states.test.tsx`
- * give, and it is structural rather than a preference. These reads run in the Next
- * **server** process, so `page.route()` never sees the request and no browser gesture can
- * make `listWebhooks` fail; `playwright.config.ts` records the underlying constraint (a
- * `webServer` cannot be booted twice with two environments). Rendering the server
- * component with its read stubbed and asserting over the HTML it emits is the highest
- * layer that can reach the failure branch at all (ADR-23).
- *
- * A sibling file rather than more blocks in `empty-and-table-states.test.tsx`, because
- * these four screens need a much wider `@/components/kit` stand-in and a set of bound
- * server actions that file has no use for.
- *
- * ## What this layer cannot reach
- *
- * Two of the claims corrected for the builder live behind a control the operator has to
- * press: the library picker's "no published version matches this search" panel is inside a
- * dialog opened from step state, and the move-pin menu's "No other published version" is
- * inside a popover. A static render of the page reaches neither. The menu is asserted
- * below by rendering `StepEditor` directly with a `Menu` stand-in that renders its `items`
- * eagerly, which is what the real popover renders once opened. The picker's failure copy
- * is not asserted anywhere at this layer, and that is stated rather than hidden.
- */
-
 const SESSION = {
   userId: "u_1",
   email: "admin@example.test",
@@ -130,21 +78,12 @@ const LINK = {
   createdAt: "2026-08-01T10:00:00.000Z",
 };
 
-/** Set per test before the page module is imported; each page reads once, at render. */
 let formDetailResult: unknown = { ok: true, data: FORM_DETAIL };
 let webhooksResult: unknown = { ok: true, data: [] };
 let deliveriesResult: unknown = { ok: true, data: [] };
 let linksResult: unknown = { ok: true, data: [] };
 let libraryResult: unknown = { ok: true, data: [] };
 
-/**
- * The subjects carry no registration at all and run for real, for the reason
- * `empty-and-table-states.test.tsx` gives: a stand-in shaped like the thing under test
- * only asserts that the stand-in is shaped like the thing under test. `EmptyState` is
- * §3's panel and is what "no empty claim" is measured against, `read-state` is the
- * contract itself, and `DeliveryDashboard` is one of the four sites listed above.
- */
-// The seam the builder publishes its steps through, for the rail beside it.
 vi.mock("@/lib/announce", () => ({ announce: () => undefined }));
 vi.mock("@/components/ops/ops-tags", () => ({
   cancelledReasonText: (reason: string) => reason,
@@ -162,39 +101,15 @@ vi.mock("@/components/save-model", () => ({
 vi.mock("@/components/forms/form-actions", () => ({
   FormActions: () => <div data-testid="qcms-form-actions-stub" />,
 }));
-// Stubbed like the actions beside it: this file is about what the page hands the builder
-// when a read fails, and the public link is neither read nor affected by one. Its own
-// behaviour is asserted in `lib/forms/public-link.test.ts`, which is where the decision
-// about when a link exists at all actually lives.
 vi.mock("@/components/forms/public-form-link", () => ({
   PublicFormLink: () => <div data-testid="qcms-public-link-stub" />,
 }));
-// The screen-naming lookup the builder heads itself from. A pure function, stubbed to a
-// fixed answer because this file is about what a failed READ does and the screen's name is
-// neither read nor affected by one. It used to be stubbed as part of
-// `components/forms/builder-breadcrumb.tsx`, which §7.0 ruling 3 retired with the
-// breadcrumb itself (issue #1116).
 vi.mock("@/lib/forms/screen-name", () => ({
   currentScreenName: () => "Form details",
 }));
-// The page reads the portal's origin to build a published form's public address. Absent
-// here, which is a real deployment state and the one that renders nothing: this file is
-// about what a FAILED READ does to the builder, and the link is neither read nor affected.
 vi.mock("@/lib/server/config", () => ({ portalBaseUrl: () => undefined }));
-// Redirected to the real module rather than stubbed: it is a pure function and this file
-// wants the page's real answer about whether a link exists, not a fixed one.
-// The rules table writes an issue count the way the rail's step rows write theirs, which
-// is why it reaches for the rail's helper. Redirected to the real module: it is a pure
-// pluralisation and this file wants the real words.
-// Pure cookie helpers, redirected to the real module: this file wants the page's real
-// answer about whether the concurrent notice has been dismissed, which with no cookie on
-// the request is "no".
 vi.mock("@/lib/ops/unexpected", () => ({ unexpected: () => "ops.error.unexpected" }));
 
-// The page reads one cookie - whether the concurrent-edit notice has been dismissed - and
-// `cookies()` throws outside a request scope, which a direct render of the page is. An
-// empty jar is the honest stand-in: it is what a first visit sends, and it is the branch
-// that renders the notice, so nothing here is hidden by the stub.
 vi.mock("next/headers", () => ({
   cookies: () => Promise.resolve({ get: () => undefined }),
 }));
@@ -211,10 +126,6 @@ vi.mock("@/lib/server/forms", () => ({
   getForm: () => Promise.resolve(formDetailResult),
   loadPinnableQuestions: () => Promise.resolve(libraryResult),
 }));
-// The builder, the links screen and the webhooks screen read the request's resolved
-// environment, because every confirmation on those screens names it. Mocked at the same
-// seam as the reads above, so this file keeps testing the read states and nothing about
-// environments.
 vi.mock("@/lib/server/environments", () => ({
   resolvedEnvironment: () =>
     Promise.resolve({
@@ -227,9 +138,6 @@ vi.mock("@/lib/server/environments", () => ({
 vi.mock("@/lib/server/webhook-ops", () => ({
   listWebhooks: () => Promise.resolve(webhooksResult),
   listDeliveries: () => Promise.resolve(deliveriesResult),
-  // Task 070's pending list. Always empty here: these cases are about the endpoint and
-  // delivery reads' own three states, and the pending panel renders nothing at all when
-  // nothing is waiting, which is the ordinary case this screen is in (Q13's default).
   listEndpointProposals: () => Promise.resolve({ ok: true, data: [] }),
 }));
 vi.mock("@/lib/server/links", () => ({
@@ -258,30 +166,12 @@ vi.mock("./forms/actions", () => ({
   validateDraftAction: NOOP_ACTION,
 }));
 
-/**
- * `t` answers with its own key, so every assertion is about WHICH string a branch chose
- * rather than about the sentence it holds today. That is what makes "the failed read does
- * not print the empty sentence" a precise claim rather than a substring guess.
- */
 vi.mock("@/lib/i18n/en", () => ({
   t: (key: string) => key,
   tPlural: (one: string) => one,
 }));
 
-/**
- * Marked stand-ins, so the real controls' markup never confuses the assertions.
- *
- * `Menu` renders its `items` eagerly, which the real one does only once opened. That is
- * the point for the move-pin block below: the popover's contents are what an operator
- * reads after pressing the trigger, and this is the only layer that can read them at all.
- *
- * `Dialog` is a different case and is REQUIRED rather than convenient (issue #628). A
- * react-aria `Dialog` renders through a `Modal`, a `Modal` renders through a portal, and
- * a portal has nowhere to go in a static render: the real component makes
- * `renderToStaticMarkup` return the EMPTY STRING for the whole tree containing it, not
- * just for the dialog. Drop this stub and every assertion in this file passes over
- * nothing, silently - no error, no warning, just `""`.
- */
+/* The real Dialog portals; static rendering a tree containing it produces empty markup. */
 vi.mock("@/components/kit", () => ({
   Alert: ({ variant, children }: { variant?: string; children?: ReactNode }) => (
     <div data-testid="qcms-alert" data-variant={variant}>
@@ -329,7 +219,6 @@ vi.mock("@/components/kit", () => ({
   TextField: () => <input aria-label="stub" />,
 }));
 
-/** The panel §3 prescribes, and the `h2` it must contain. */
 const EMPTY_PANEL = /<div class="qcms-empty"[^>]*>/;
 const EMPTY_HEADING = /<h2 class="qcms-empty__heading">/;
 
@@ -361,18 +250,6 @@ beforeEach(() => {
   libraryResult = { ok: true, data: [] };
 });
 
-/**
- * The site issue 572 leads with, and the one where the false claim is loudest: a prominent
- * "No endpoint yet" panel with a primary **Add endpoint** button, directly beneath an
- * alert saying the endpoint list could not be loaded.
- *
- * The creating action survives the failure and that is not an oversight: this page's own
- * comment already required that `WebhookConfig` keep offering creation when the list read
- * fails, because an operator who cannot load the existing endpoints may still legitimately
- * need to add one. Suppressing the whole component would remove a working capability
- * because a different read failed, which is the mistake issue 521's first attempt made and
- * reverted before landing.
- */
 describe("the per-form webhook config's read states (issues 572, 544)", () => {
   it("makes no claim about endpoints when the list read fails", async () => {
     webhooksResult = { ok: false, message: "upstream said 503" };
@@ -381,8 +258,6 @@ describe("the per-form webhook config's read states (issues 572, 544)", () => {
 
     expect(html).toContain('data-testid="qcms-alert"');
     expect(html).toContain("ops.webhooks.listFailed");
-    // `ops.webhooks.emptyTitle` starts with `ops.webhooks.empty`, so one assertion rules
-    // out both halves of the panel's copy.
     expect(html).not.toContain("ops.webhooks.empty");
     expect(html).not.toContain('data-testid="qcms-webhooks-empty"');
     expect(html).not.toContain('data-testid="qcms-webhooks-table"');
@@ -393,11 +268,7 @@ describe("the per-form webhook config's read states (issues 572, 544)", () => {
 
     const html = await renderFormWebhooks();
 
-    // The alert needs a subject, and a heading claims nothing.
     expect(html).toContain('id="qcms-webhooks-heading"');
-    // Creation does not depend on the list that failed, so it stays - and stays exactly
-    // once, because the panel that would otherwise carry the same accessible name is
-    // suppressed.
     expect(html.match(/ops\.webhooks\.add/g)).toHaveLength(1);
   });
 
@@ -408,8 +279,6 @@ describe("the per-form webhook config's read states (issues 572, 544)", () => {
     expect(html).toMatch(EMPTY_HEADING);
     expect(html).toContain('data-testid="qcms-webhooks-empty"');
     expect(html).toContain("ops.webhooks.emptyTitle");
-    // §3's CTA, and the only control on the screen offering it: the standalone button
-    // stands down in this one state rather than repeating the panel's accessible name.
     expect(html.match(/ops\.webhooks\.add/g)).toHaveLength(1);
   });
 
@@ -420,21 +289,10 @@ describe("the per-form webhook config's read states (issues 572, 544)", () => {
 
     expect(html).toContain('<div class="qcms-table"><table');
     expect(html).toContain('data-testid="qcms-webhooks-table"');
-    // Scoped to this section's own panel: the delivery dashboard below is separately
-    // empty in this case, so a bare `EMPTY_PANEL` assertion would be reading its markup.
     expect(html).not.toContain('data-testid="qcms-webhooks-empty"');
   });
 });
 
-/**
- * The second site on the same page, and the one where the false claim is the reassuring
- * one: an operator chasing a webhook a consumer says never arrived would read "Nothing has
- * been delivered for this form yet." as the answer.
- *
- * Nothing is kept here beyond the heading and intro, and that is the right answer rather
- * than an inconsistency with the block above: this screen has no creating action at all,
- * because deliveries are made by the system when a response is submitted.
- */
 describe("the delivery dashboard's read states (issues 572, 544)", () => {
   it("makes no claim about deliveries when the read fails", async () => {
     deliveriesResult = { ok: false, message: "upstream said 503" };
@@ -445,7 +303,6 @@ describe("the delivery dashboard's read states (issues 572, 544)", () => {
     expect(html).not.toContain("ops.deliveries.emptyTitle");
     expect(html).not.toContain('data-testid="qcms-deliveries-empty"');
     expect(html).not.toContain('data-testid="qcms-deliveries-table"');
-    // The alert needs a subject, and a heading claims nothing.
     expect(html).toContain('id="qcms-deliveries-heading"');
   });
 
@@ -467,15 +324,6 @@ describe("the delivery dashboard's read states (issues 572, 544)", () => {
   });
 });
 
-/**
- * The secure-link screen. "No links have been minted for this form." underneath a warning
- * that the link list could not be loaded tells an author the links they minted an hour ago
- * are gone, and the natural response to that is to mint more.
- *
- * Minting survives, for the same reason creation survives on the webhook screen and for
- * one this page states itself: whether this form can mint is decided by its published
- * versions, which came from the form read, not from the list read that failed.
- */
 describe("the secure-link list's read states (issues 572, 544)", () => {
   it("makes no claim about links when the list read fails", async () => {
     linksResult = { ok: false, message: "upstream said 503" };
@@ -484,8 +332,6 @@ describe("the secure-link list's read states (issues 572, 544)", () => {
 
     expect(html).toContain('data-testid="qcms-alert"');
     expect(html).toContain("forms.links.listFailed");
-    // `forms.links.emptyTitle` starts with `forms.links.empty`, so one assertion rules out
-    // both halves of the panel's copy.
     expect(html).not.toContain("forms.links.empty");
     expect(html).not.toContain('data-testid="qcms-links-empty"');
     expect(html).not.toContain('data-testid="qcms-links-table"');
@@ -497,8 +343,6 @@ describe("the secure-link list's read states (issues 572, 544)", () => {
     const html = await renderLinks();
 
     expect(html).toContain('id="qcms-links-heading"');
-    // Minting is a separate write and this form has a published version, so the control
-    // stays and the "publish first" note stays away.
     expect(html).toContain("forms.links.mint");
     expect(html).not.toContain('data-testid="qcms-links-needs-publish"');
   });
@@ -524,37 +368,6 @@ describe("the secure-link list's read states (issues 572, 544)", () => {
   });
 });
 
-/**
- * The builder, where the symptom is not §3's panel and had to be assessed rather than
- * assumed (issue 544 asks for exactly that, having found this site by grep).
- *
- * An empty question library is not a neutral stand-in on this screen: every pin lookup
- * misses against one. So `ok ? data : []` tagged EVERY pinned question in the form
- * "Version not found" and "No label in the library" - claims about the library, printed
- * on every row beneath the page's own warning that the library could not be loaded, and
- * together read as "this form has been gutted".
- *
- * The four answers themselves are asserted where they are decided, in
- * `lib/forms/pin-grid.test.ts` (issue 517 moved the grid's view model into a pure
- * helper). What is asserted HERE is the wiring the page owns: that the page hands the
- * builder a failed `ReadState` at all, and that the whole builder survives it.
- *
- * ## Why the pin assertions render the step editor rather than the page
- *
- * The builder became two screens on 2026-08-26 - the form's own details, and one step -
- * and the rail switches between them. It opens on the form, which the drawing has current,
- * so a static render of the page reaches the form screen and never the pin grid. Nor can a
- * gesture take it there: the switch lives in the `@rail` slot, a different React tree that
- * this render does not include, so there is no control inside this markup to press.
- *
- * The same answer the move-pin block below already gives, for the same reason it gives it:
- * render `StepEditor` with the `ReadState` the page resolved. What that costs is stated
- * rather than hidden - the page-to-builder-to-editor chain is no longer covered end to end
- * at this layer, so the page half is asserted through what the page itself renders (the
- * warning, and the absence of any library claim on the form screen) and the editor half
- * through the value the page computes. `e2e/questions-lifecycle.pw.ts` crosses the whole
- * chain in a browser, where the rail exists and can be clicked.
- */
 describe("the form builder's library read states (issues 572, 544)", () => {
   async function renderPinGrid(): Promise<string> {
     const { StepEditor } = await import("../../components/forms/step-editor");
@@ -585,21 +398,10 @@ describe("the form builder's library read states (issues 572, 544)", () => {
 
     expect(page).toContain('data-testid="qcms-alert"');
     expect(page).toContain("forms.error.libraryFailed");
-    // ONE VOCABULARY THROUGHOUT, which this set did not have before the `@/` alias
-    // resolved under Vitest (issues 252, 566, 652). `lib/forms/pin-grid.ts` is the subject
-    // here so it runs for real, and it reaches the catalog by relative path while the
-    // components reach it as `@/lib/i18n/en`. Those were two module ids, so the stub
-    // caught only the second: the library-owned cells came back in English and everything
-    // else came back as keys. They are one module now, the stub reaches both, and every
-    // assertion is again about WHICH string a branch chose.
-    //
-    // Both tags below say the library was asked and answered. It was not asked.
     expect(grid).not.toContain("forms.step.pinMissing");
     expect(grid).not.toContain('data-pin-state="missing"');
     expect(grid).not.toContain("forms.step.labelMissing");
     expect(grid).toContain('data-fallback="forms.step.labelUnknown"');
-    // And the form screen the page actually opens on says nothing about the library
-    // either, which is the claim the warning above it would otherwise contradict.
     expect(page).not.toContain("forms.step.pinMissing");
     expect(page).not.toContain('data-pin-state="missing"');
   });
@@ -609,20 +411,14 @@ describe("the form builder's library read states (issues 572, 544)", () => {
 
     const html = await renderPinGrid();
 
-    // The pin is still listed, as a row of the ownership grid, and its form-owned cells
-    // still carry the facts the draft read supplied.
     expect(html).toContain('data-pin-question="q_one"');
     expect(html).toContain('data-pin-version="1"');
-    // Every control that acts on the draft is still there: the row grip that opens the
-    // reorder menu, the version menu, and the library button.
     expect(html).toContain("forms.step.rowActions");
     expect(html).toContain("forms.step.movePin");
     expect(html).toContain("forms.step.addQuestion");
   });
 
   it("still tags a pin the library really has lost when the read succeeds", async () => {
-    // The control. A library that WAS read and does not hold `q_one` is the case the tag
-    // exists for, so gating it on the read must not delete it.
     const grid = await renderPinGrid();
 
     expect(grid).toContain("forms.step.pinMissing");
@@ -632,14 +428,6 @@ describe("the form builder's library read states (issues 572, 544)", () => {
   });
 });
 
-/**
- * The move-pin menu, rendered from `StepEditor` directly because its contents live inside
- * a popover a static render of the page never opens (see the file header).
- *
- * "No other published version" is a statement about the library, and a read that failed is
- * not entitled to it: with `ok ? data : []` every pin in every form reported that there
- * was nowhere else to move it.
- */
 describe("the move-pin menu's account of the library (issues 572, 544)", () => {
   const STEP = FORM_DETAIL.draft.steps[0];
 

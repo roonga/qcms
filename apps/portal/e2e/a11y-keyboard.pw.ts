@@ -15,7 +15,6 @@ import {
   startKitchenSink,
 } from "./support/kitchen-sink.js";
 
-/** Select an at-fault-accident radio by keyboard and await the recorded answer. */
 async function keyboardChoose(page: Page, answer: "Yes" | "No"): Promise<void> {
   const radio = page.getByRole("radio", { name: answer, exact: true });
   const recorded = page.waitForResponse(

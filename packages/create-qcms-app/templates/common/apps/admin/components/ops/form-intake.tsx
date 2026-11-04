@@ -12,13 +12,8 @@ import { unexpected } from "@/lib/ops/unexpected";
 
 /**
  * The intake door: closing one form to new sessions in the selected environment, and
- * reopening it.
- *
- * IT LIVED ON THE BUILDER UNTIL 2026-11-02 (Code Owner), beside the way to the publish
- * wizard. Closing intake is an operational act in ONE environment - the closed state is
- * per (form, environment), and an act performed against the wrong one is not undoable
- * (Q6) - while the builder edits a draft that belongs to no environment at all. So it is
- * an Operations screen's control now, and the editor is authoring.
+ * reopening it. The closed state is per (form, environment) and an act against the wrong
+ * one is not undoable (Q6), so the control carries the environment it acts in.
  */
 export function FormIntake({
   slug,
@@ -91,8 +86,7 @@ export function FormIntake({
         </p>
       )}
 
-      {/* Testid on the region rather than only on its contents, so the `aria-live` can be
-          asserted directly (#368). */}
+      {/* Testid on the region, so the `aria-live` can be asserted directly. */}
       <div aria-live="polite" className="flex flex-col gap-2" data-testid="qcms-form-intake-status">
         {lifecycle.status === "error" && (
           <Alert variant="error">

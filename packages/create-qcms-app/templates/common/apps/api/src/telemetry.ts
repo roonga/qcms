@@ -106,7 +106,7 @@ export async function startTelemetry(options: TelemetryOptions = {}): Promise<Te
 
   const sdk = new NodeSDK({
     serviceName: env.OTEL_SERVICE_NAME ?? DEFAULT_SERVICE_NAME,
-    // SEC-13 first: the allowlist runs before the batch processor queues anything.
+    // Run the redaction allowlist before the batch processor can retain any attributes.
     spanProcessors: [
       redactingSpanProcessor(),
       suppressDuplicateIncomingHttpSpans(
@@ -116,7 +116,7 @@ export async function startTelemetry(options: TelemetryOptions = {}): Promise<Te
         }),
       ),
     ],
-    // SEC-13 runs before batching: unsafe fields never enter an exporter queue.
+    // Redact before batching so unsafe fields never enter an exporter queue.
     logRecordProcessors: [
       allowlistingLogRecordProcessor(),
       new BatchLogRecordProcessor({
@@ -129,8 +129,7 @@ export async function startTelemetry(options: TelemetryOptions = {}): Promise<Te
       // span is dropped above.
       new HttpInstrumentation(),
       new UndiciInstrumentation(),
-      // SEC-13: parameterized statement text may be recorded, bound parameter values may
-      // not, and an answer value is a bound parameter on every insert.
+      // Record parameterized statement text only; bound parameters can contain answers and must never be recorded.
       new PgInstrumentation({
         enhancedDatabaseReporting: false,
         addSqlCommenterCommentToQueries: false,

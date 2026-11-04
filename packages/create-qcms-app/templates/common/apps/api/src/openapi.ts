@@ -3,7 +3,7 @@ import { z } from "@hono/zod-openapi";
 import type { VerifiedProposal } from "./features/agent/provenance.js";
 import type { GrantContext } from "./features/membership/context.js";
 
-/** `scopes` is SEC-5 metadata, reserved for `/api/v1` and inert at launch. */
+/** Scope metadata is reserved for /api/v1 and enforces nothing at launch. */
 export interface AdminPrincipal {
   readonly userId: string;
   /** Nothing branches on it: authorization at launch is "authenticated admin". */
@@ -22,15 +22,14 @@ export interface ApiEnv {
      */
     requestEnvironment?: string;
     /**
-     * Mounted on the admin group alone, so absent on every respondent request. A handler
-     * reads this rather than resolving a grant again: a second resolution is a second
-     * chance to disagree with the first (ADR-41, SEC-3).
+     * Mounted on the admin group alone, so absent on every respondent request. A handler reads this rather than
+     * resolving a grant again: a second resolution is a second chance to disagree with the first (ADR-41).
      */
     grantContext?: GrantContext;
     /**
-     * Set only by the provenance middleware, and only for a request whose token verified
-     * against the authenticated principal. Its presence is what makes a handler write a
-     * `control.agent_actions` row; it carries no authority of its own (SEC-17).
+     * Set only by the provenance middleware, and only for a request whose token verified against the
+     * authenticated principal. Its presence is what makes a handler write a `control.agent_actions` row; it
+     * carries no authority of its own.
      */
     agentProposal?: VerifiedProposal;
   };
@@ -153,7 +152,7 @@ export function errorResponses(
   return out;
 }
 
-/** SEC-5 taxonomy, reserved for `/api/v1`: erase is never bundled into a broad grant. */
+/** Reserved /api/v1 scopes keep erasure separate from broad read grants. */
 export const SCOPES = [
   "forms:read",
   "forms:write",
@@ -170,7 +169,7 @@ export type Scope = (typeof SCOPES)[number];
 
 export const PAT_SECURITY_SCHEME = "MachineToken";
 
-/** Documents the scopes `/api/v1` will require; enforces nothing at launch (SEC-5). */
+/** Documents the scopes `/api/v1` will require; enforces nothing at launch. */
 export function withScopes(...scopes: readonly Scope[]): {
   security: Array<Record<string, Scope[]>>;
 } {

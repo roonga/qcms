@@ -23,9 +23,7 @@ import { axeViolations } from "./test-support/a11y.ts";
 import { loadGoldenForms } from "./test-support/golden.ts";
 import { documentForVisible } from "./visible.ts";
 
-// Layout, focus-obscuring and axe on a filled table only exist rendered with real
-// layout, so they belong to the portal's browser suite. The document is the committed
-// golden, so every shape asserted is one the compiler emits.
+// Real layout, focus and axe coverage belong in the browser suite; golden documents keep structural cases current.
 
 const TABLE_FORM = "repeat-table-group";
 const GROUP = "grp_vehicles";
@@ -169,13 +167,12 @@ describe("the expansion produces one cell per column per row", () => {
     const rows = container.querySelectorAll<HTMLElement>("tbody tr");
     expect(rows).toHaveLength(2);
     for (const row of rows) {
-      // The same count whatever the rule decided.
       expect(row.children).toHaveLength(COLUMNS.length + 2);
     }
     const hidden = rows[1]?.querySelector<HTMLElement>('td[data-qcms-column="q_rep_odometer"]');
     expect(hidden).not.toBeNull();
     expect(hidden?.querySelector("input")).toBeNull();
-    // The first row's odometer is still answerable.
+
     expect(
       rows[0]?.querySelector<HTMLElement>('td[data-qcms-column="q_rep_odometer"] input'),
     ).not.toBeNull();
@@ -223,8 +220,7 @@ describe("the native table structure (acceptance case 39)", () => {
     expect(container.innerHTML).not.toContain('role="grid"');
     expect(container.querySelectorAll('[role="row"]')).toHaveLength(0);
     expect(container.querySelectorAll('[role="columnheader"]')).toHaveLength(0);
-    // The other half of the refusal: one tab stop per cell is the documented cost of
-    // the ruled choice.
+    // Native tables keep one tab stop per cell; focus must never be managed as a grid.
     const cells = [...container.querySelectorAll<HTMLElement>("td, th:not([scope='row'])")];
     expect(cells.length).toBeGreaterThan(0);
     for (const cell of cells) expect(cell.hasAttribute("tabindex")).toBe(false);
@@ -243,7 +239,6 @@ describe("the native table structure (acceptance case 39)", () => {
 
 describe("every cell input is named from the accessibility tree (acceptance case 40)", () => {
   it("names each control with its row and its column, at every column type", () => {
-    // The name assistive technology speaks, rather than the markup carrying it.
     const { container, roster } = renderTable(2);
     for (const [index, instanceId] of roster.entries()) {
       for (const column of COLUMNS) {
@@ -280,8 +275,7 @@ describe("every cell input is named from the accessibility tree (acceptance case
   });
 
   it("clips the label and the hint, and NOTHING the respondent has to read", () => {
-    // Each of these the clip selector did reach at some point, and clipping a field
-    // error would be a 3.3.1 failure.
+    // Never clip field errors; hiding them would violate error identification.
     const { container } = renderTable(1);
     const clipped = [...container.querySelectorAll<HTMLElement>(CLIP_SELECTOR)];
     expect(clipped.length).toBeGreaterThan(0);

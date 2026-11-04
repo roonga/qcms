@@ -50,85 +50,15 @@ import {
 import { confirmShownEnvironment } from "@/lib/server/environments";
 import { requireAdminSession, type AdminSession } from "@/lib/server/session";
 
-/**
- * The form builder's mutations (task 033).
- *
- * ## Why server actions, and why only one of them is a form post
- *
- * 032's reasoning applies unchanged: the builder holds a live document, and its failure
- * mode is a validation error that has to land on a rule **without throwing the author's
- * unsaved work away**. A redirect-back-with-a-code round trip re-renders the page from the
- * stored draft, which is precisely the state the edit that caused the error is missing
- * from. An action returns state to the same mounted component, so the document survives
- * its own rejection.
- *
- * `createFormAction` is a real `<form action={...}>` post driven by `useActionState`,
- * because creating a form is a discrete submission with a redirect at the end. The other
- * four are called **imperatively** from the builder (autosave on a debounce, validate on a
- * debounce, settings on a Save press, the bench on a Run press), so they take typed
- * arguments rather than a `FormData`. That is the same server-action mechanism either way
- * (a POST to this origin, origin-checked by Next, covered by `form-action 'self'` and the
- * SameSite session cookie); what differs is only who assembles the payload.
- *
- * Each of the four takes `formId` first so the builder page can bind it
- * (`saveDraftAction.bind(null, formId)`) and hand the builder exactly the one-argument
- * callback the component contract names. The form id therefore comes from the *route*, not
- * from the client, which is worth stating: a caller cannot aim an autosave at a different
- * form by editing the payload.
- *
- * ## Every action authenticates itself
- *
- * A server action is a POST endpoint and the `(shell)` layout does not run for one, so
- * every action here starts with `requireAdminSession()` rather than trusting that the
- * screen which rendered it was itself guarded. Same gap issue #177 recorded for
- * `settings/password/route.ts`, closed here by construction.
- *
- * ## Every environment-sensitive action carries the environment it showed
- *
- * The selection is a cookie every tab shares, so the environment an action runs in and the
- * environment its dialog named could differ: a tab rendered under `prod` kept saying `prod`
- * after another tab switched to `test`, and confirming closed the form in `test` (local UX
- * list A1). So each action that acts in one environment takes the environment its screen
- * showed, bound by the page next to the form id, and `confirmShownEnvironment` refuses a
- * difference before anything is forwarded. The environment is still not an authority taken
- * from the client: the cookie selects it, the API validates it, and the bound value can only
- * earn a refusal.
- *
- * ## Still a proxy (R2)
- *
- * None of these decides anything. A draft arrives already assembled by the builder and is
- * forwarded. Whether it is a legal form, whether a target is reachable, whether a pin
- * points at a published version: all the kernel's answers, returned as path-addressed
- * issues that the panel renders and anchors.
- */
+/* Every action authenticates independently: layouts do not run for action POSTs. Bound environment values
+   can only cause refusal, not grant authority. */
 
-/** Cap on the serialized draft, so an absurd post cannot make the BFF chew. */
 const MAX_DEFINITION_BYTES = 64 * 1024;
 
-/**
- * The state for a post this BFF could not even forward.
- *
- * It reuses the API's own code so the builder has one error path rather than two: as far
- * as the screen is concerned, a draft it could not serialize and a draft the engine
- * refused are the same event. The sentence comes from the catalog rather than from a
- * literal here (ADR-27).
- */
 const MALFORMED_CODE = "INVALID_FORM_DEFINITION";
 
-/**
- * Whether a document is small enough to forward.
- *
- * React has already deserialized the argument by the time an action body runs, so the cap
- * is applied to the bytes this app would *send* rather than to the bytes it received. It
- * still does the job it is here for: nothing unbounded leaves the BFF, and a document that
- * cannot be serialized at all (a cycle) is refused rather than thrown.
- *
- * The measurement is the **UTF-8 byte length**, not the string length: a JS string is
- * counted in UTF-16 code units, so a CJK character scores 1 against the 3 bytes it costs
- * on the wire and an astral emoji scores 2 against 4. Counting code units would therefore
- * let a localized draft through at up to three times the cap this constant names, and
- * localized content is the normal case for a questionnaire rather than an edge of it.
- */
+/* React has already deserialized the input; this cap bounds outgoing UTF-8 bytes, not received bytes or
+   UTF-16 code units. */
 function withinCap(document: unknown): boolean {
   try {
     return Buffer.byteLength(JSON.stringify(document), "utf8") <= MAX_DEFINITION_BYTES;
@@ -137,21 +67,13 @@ function withinCap(document: unknown): boolean {
   }
 }
 
-/** Read a required string form field. */
 function readText(formData: FormData, name: string): string {
   const raw = formData.get(name);
   return typeof raw === "string" ? raw : "";
 }
 
-/**
- * Create a form identity and its empty first draft, then open the builder on it.
- *
- * The title travels to the builder in the query string rather than in the create call,
- * and that is the API's shape rather than an oversight: `POST /forms` takes an identity
- * (`formId`, `slug`, `defaultLocale`), while the title belongs to the *definition*. The
- * builder page seeds the working draft's title from that parameter, and the first autosave
- * is what stores it.
- */
+/* The create endpoint accepts identity only; the title seeds the builder draft and is stored by its first
+   autosave. */
 export async function createFormAction(
   _previous: CreateFormState,
   formData: FormData,
@@ -169,17 +91,10 @@ export async function createFormAction(
       submitted: { slug, title, defaultLocale },
     };
   }
-  // Outside any guard on purpose: `redirect` signals by throwing, so it must not sit
-  // anywhere a `catch` could swallow it.
+  // redirect throws; keep it outside catches that would swallow navigation.
   redirect(`/forms/${encodeURIComponent(created.formId)}?title=${encodeURIComponent(title)}`);
 }
 
-/**
- * The same create, answered rather than navigated away from, for the card a proposal
- * confirms (SEC-17's create-variant ruling): the same validation, the same grant check
- * through the same route, the same audit path, and the new id as the one result a later
- * step may reference.
- */
 export async function createFormForCardAction(
   input: { readonly slug: string; readonly defaultLocale: string; readonly workspaceId?: string },
   proposal?: AgentProposalRef,
@@ -203,10 +118,7 @@ type CreatedForm =
   | { readonly ok: true; readonly formId: string }
   | { readonly ok: false; readonly code: string; readonly message: string };
 
-/**
- * The validation and the call both callers share. The id is derived here rather than
- * taken from the caller, which is why a proposal's digest need only bind the slug.
- */
+/* Derive the id from the slug here, so a proposal digest need bind only the slug. */
 async function createFormIdentity(
   session: AdminSession,
   input: { readonly slug: string; readonly defaultLocale: string; readonly workspaceId?: string },
@@ -214,11 +126,6 @@ async function createFormIdentity(
 ): Promise<CreatedForm> {
   const formId = formIdFromSlug(input.slug);
 
-  // Two distinct failures, kept distinct: a slug that yields no id and a blank default
-  // locale are different mistakes on different fields, and the catalog already has a
-  // sentence for each. Collapsing them would tell an author with an empty locale box that
-  // their (perfectly good) slug is invalid, and would leave `INVALID_DEFAULT_LOCALE`
-  // mapped but unreachable from this screen.
   if (formId === "") {
     return {
       ok: false,
@@ -249,18 +156,8 @@ async function createFormIdentity(
   return { ok: true, formId: result.data.formId };
 }
 
-/**
- * Autosave the working draft (022's advisory semantics).
- *
- * An inconsistent draft saves fine and comes back with the issues that would block a
- * publish, so a `saved` status carrying a non-empty `issues` list is the normal case
- * rather than a contradiction.
- *
- * `newQuestions` is the one exception to "saves fine": an accept carrying proposed
- * question definitions creates them alongside the draft (issue #823), and a definition
- * the authoring boundary refuses fails the whole save, so a draft never pins a question
- * that was not created. The error names which question and why.
- */
+/* Draft inconsistencies are advisory, but rejected proposed questions fail the whole save to prevent
+   dangling pins. */
 export async function saveDraftAction(
   formId: string,
   draft: DraftForm,
@@ -289,11 +186,8 @@ export async function saveDraftAction(
     };
   }
   revalidatePath("/forms");
-  // "layout", NOT the default "page" (issue #669). A form's draft is rendered by TWO routes
-  // now - the builder and `/forms/{formId}/rules` - and the default type invalidates the
-  // exact page only, so a save made on one of them left the other's cached render standing.
-  // "layout" invalidates this segment and everything nested under it, which is exactly the
-  // set of screens that render this form.
+  // Invalidate the layout: both the builder and rules route render this draft, and page invalidation misses
+  // the sibling.
   revalidatePath(`/forms/${formId}`, "layout");
   return {
     status: "saved",
@@ -304,15 +198,6 @@ export async function saveDraftAction(
   };
 }
 
-/**
- * Dry-run the draft against the publish rules, without saving it.
- *
- * This is where the backward-target and cycle findings come from: the kernel's
- * `analyzeRuleGraph` runs inside the same compile the publish path uses, so
- * `RULE_BACKWARD_TARGET` and `RULE_CYCLE` arrive here with no extra endpoint and no
- * second implementation of the analysis in this app (there could not be one - the admin
- * takes no `@roonga/qcms-core` value import at all).
- */
 export async function validateDraftAction(
   formId: string,
   draft: DraftForm,
@@ -346,21 +231,12 @@ export async function validateDraftAction(
   };
 }
 
-/** The keys the settings patch may carry (ADR-24 tier 2, task 026). */
 interface SettingsPatch {
   readonly challengeRequired?: boolean;
   readonly minSubmitMs?: number | null;
 }
 
-/**
- * Patch the per-form abuse-control settings.
- *
- * The body is a **partial** patch and the route's schema refuses an empty one, so the
- * outgoing object is rebuilt from the two keys this app knows rather than forwarded as it
- * arrived: a key the panel did not touch is absent, `minSubmitMs: null` is kept because
- * `null` is a value ("use the deployment's floor") rather than an omission, and a patch
- * that ends up carrying neither key becomes a state here instead of a 400 from the API.
- */
+/* Preserve null as a value and omit untouched keys; the API refuses an empty patch. */
 export async function updateSettingsAction(
   formId: string,
   patch: SettingsPatch,
@@ -387,26 +263,15 @@ export async function updateSettingsAction(
   };
 }
 
-/** What the rule test bench sends: the unsaved draft, one rule, and hypothetical answers. */
 interface PreviewRequest {
   readonly draft: DraftForm;
   readonly ruleId: string;
   readonly answers: Readonly<Record<string, unknown>>;
-  /**
-   * The hypothetical roster per group (074, ADR-42 §6.4). Ids, not counts, because the same
-   * request's answer keys are qualified with them.
-   */
+  /* Roster ids must match this request's instance-qualified answer keys. */
   readonly instances: Readonly<Record<string, readonly string[]>>;
 }
 
-/**
- * Evaluate one rule's condition against hypothetical answers (read-only preview).
- *
- * SEC-13 / ADR-34: the `answers` payload is answer-shaped, so it is **never logged**,
- * never stored, and never echoed back in a message. It is forwarded to the API, a verdict
- * comes back, and the verdict is all that is returned. That is also why the failure path
- * returns a catalog sentence rather than anything derived from the request.
- */
+/* Hypothetical answers must never be logged, stored, or echoed in failure messages. */
 export async function previewConditionAction(
   formId: string,
   input: PreviewRequest,
@@ -424,10 +289,8 @@ export async function previewConditionAction(
   });
   if (!result.ok) return { status: "error", message: result.message };
   const { outcome, reason, references, rosters, targetGroupId, instanceOutcomes } = result.data;
-  // Each optional key is spread only when it is present, which `exactOptionalPropertyTypes`
-  // requires and which matters here beyond the type: `instanceOutcomes` absent means the rule
-  // is not per-instance, and `instanceOutcomes: []` means it is and the group is empty. Writing
-  // `undefined` into the key would collapse those two into one.
+  // Absence means a non-instance rule; an empty instanceOutcomes array means a per-instance rule over an
+  // empty group.
   return {
     status: "ok",
     outcome,
@@ -439,27 +302,8 @@ export async function previewConditionAction(
   };
 }
 
-// --- publish, preview, lifecycle and secure links (task 034) ----------------
-
-/**
- * Release a published version to an environment, or promote it there (ADR-40, task 065).
- *
- * The environment comes from the **client** here, unlike the form id, and that is correct
- * rather than an oversight: the operator is choosing it in the dialog, the API validates it
- * against the live set and refuses one this deployment does not serve, and nothing about
- * which environment a release names is a privilege this app could grant. What a caller
- * cannot do is aim the release at another form, because the id is bound from the route.
- *
- * It is the one environment-naming action **not** confirmed against the switcher (A1), and
- * deliberately: its target is chosen in the dialog, named there, and sent in the body, so
- * the release lands where the dialog said whatever another tab did to the cookie, and
- * releasing to an environment other than the selected one is what promotion is.
- *
- * **Releasing an earlier version is a rollback and is this same call.** There is no second
- * action, because there is no second mechanism: the API derives the marking from the
- * release's predecessor and reports it, and the screen says so afterwards.
- */
-/** Review the exact published version in the environment the confirmation shows. */
+/* The dialog chooses the release destination; confirming against the switcher would incorrectly forbid
+   promotion. */
 export async function reviewFormVersionAction(
   formId: string,
   shown: string | undefined,
@@ -477,11 +321,6 @@ export async function releaseVersionAction(
   input: {
     readonly version: number;
     readonly fromEnvironment?: string;
-    /**
-     * Where the release lands, when that is not the environment the screen is showing. The
-     * release panel omits it; a promotion names it, and the API authorises `release: create`
-     * against the destination rather than against the selection.
-     */
     readonly environment?: string;
   },
   proposal?: AgentProposalRef,
@@ -500,8 +339,6 @@ export async function releaseVersionAction(
     proposal,
   );
   if (!result.ok) return { status: "error", message: result.message };
-  // The release screen, the version list and the form's own header all describe what is
-  // released, so the whole subtree is re-read rather than one route of it.
   revalidatePath("/forms");
   revalidatePath(`/forms/${formId}`, "layout");
   return {
@@ -512,17 +349,6 @@ export async function releaseVersionAction(
   };
 }
 
-// --- the publish wizard ------------------------------
-
-/**
- * Read what releasing one source would do, per destination this caller may release into.
- *
- * No environment is bound here and none is confirmed against the switcher, deliberately:
- * the review reports **every** permitted destination and the wizard chooses among them, so
- * the Operations selector decides operational data and not where a draft is released
- * (the plan's "Versions and publishing flow"). The API filters the list to the caller's
- * own `release: create` grants, so a destination outside their access never arrives.
- */
 export async function reviewReleaseAction(
   formId: string,
   source: { readonly kind: "draft" } | { readonly kind: "version"; readonly version: number },
@@ -531,20 +357,8 @@ export async function reviewReleaseAction(
   return readState(await reviewRelease(session, formId, source));
 }
 
-/**
- * Confirm one publish or release: one call, one transaction, every destination or none.
- *
- * Its arguments are plain data on purpose - a source, a list of destinations, the two
- * expectations the review reported and the idempotency key - so the same act can be driven
- * by the wizard or by another caller that holds the review (task 083). Nothing about the
- * intent is recovered from component state.
- *
- * **The key is minted by the caller and is the whole retry story.** The same key with the
- * same intent replays the stored result, so a retry after an uncertain response answers
- * what the first attempt did rather than freezing a second snapshot; the same key with a
- * different intent is refused. A `STALE_REVIEW` leaves the key free, because only
- * successes are stored.
- */
+/* Reuse the caller's key after uncertain responses to replay a committed result; STALE_REVIEW leaves the
+   key unused. */
 export async function confirmPublishAction(
   formId: string,
   request: {
@@ -579,13 +393,7 @@ export async function confirmPublishAction(
   return committedPublish(formId, result.data);
 }
 
-/**
- * Look one confirmation's recorded result up by its idempotency key.
- *
- * The other half of the uncertain-response contract. A 404 means the confirmation never
- * committed and the same key may be resent, which is `not-committed` rather than an error:
- * "nothing happened" is an answer the wizard acts on.
- */
+/* A lookup 404 means no confirmation committed, so the same idempotency key may be resent. */
 export async function lookupPublishResultAction(
   formId: string,
   idempotencyKey: string,
@@ -601,7 +409,6 @@ export async function lookupPublishResultAction(
   return committedPublish(formId, result.data);
 }
 
-/** The refusal, with `STALE_REVIEW` kept apart because its recovery is a re-read. */
 function refusedPublish(result: {
   readonly code: string;
   readonly message: string;
@@ -614,7 +421,6 @@ function refusedPublish(result: {
   return { status: "error", message: result.message };
 }
 
-/** A committed confirmation. The whole form subtree is re-read: its header says what is released. */
 function committedPublish(formId: string, outcome: BatchOutcome): PublishBatchState {
   revalidatePath("/forms");
   revalidatePath("/operations");
@@ -632,26 +438,13 @@ function committedPublish(formId: string, outcome: BatchOutcome): PublishBatchSt
   };
 }
 
-/** What the preview pane sends: the draft on screen, and the answers walked in with. */
 interface DraftPreviewRequest {
   readonly draft: DraftForm;
   readonly answers: Readonly<Record<string, unknown>>;
-  /** The roster the pane minted for each repeating group (074, ADR-42 §6.5). */
   readonly instances: Readonly<Record<string, readonly string[]>>;
 }
 
-/**
- * Compile the draft on the author's screen and project it for their answers.
- *
- * SEC-13 / ADR-34 again: `answers` is answer-shaped, so it is forwarded and nothing more.
- * It is never logged here, never stored, and the failure path returns a catalog sentence
- * rather than anything derived from the request.
- *
- * Rule evaluation happens in the API, where the kernel lives. That is not a shortcut: the
- * admin imports no `@roonga/qcms-core` value at all (R2), and the portal does not evaluate rules
- * either - it renders an authoritative visible set the API computed. Running the preview
- * the same way is what makes it a preview rather than a lookalike.
- */
+/* Forward hypothetical answers without logging or storage; the API alone evaluates rules. */
 export async function previewDraftAction(
   formId: string,
   input: DraftPreviewRequest,
@@ -675,18 +468,8 @@ export async function previewDraftAction(
   return { status: "ok", preview: result.data };
 }
 
-/**
- * Close a form to new sessions **in the selected environment**, or reopen it.
- *
- * R1 is half the semantics and the dialog copy carries it: this changes what happens to
- * sessions that have not started. Every session already under way keeps its pinned
- * version and finishes normally.
- *
- * Q18 is the other half, and the copy carries that too: it changes one **environment's**
- * intake. Closing `prod` leaves a `test` run serving and the reverse holds, which is why
- * the confirmation restates the environment before the act, and why the act runs only in
- * the environment that confirmation named (`shown`, bound by the page).
- */
+/* Closing affects new sessions in one environment; existing sessions keep their pinned version and finish
+   normally. */
 export async function setFormStatusAction(
   formId: string,
   shown: string | undefined,
@@ -699,11 +482,7 @@ export async function setFormStatusAction(
   const result = await setFormStatus(session, formId, action, check.environment, proposal);
   if (!result.ok) return { status: "error", message: result.message };
   revalidatePath("/forms");
-  // "layout", for the reason `saveDraftAction` records: closing a form changes the header
-  // of every screen under it, and the rules route is one of them (issue #669).
   revalidatePath(`/forms/${formId}`, "layout");
-  // The screen the act now happens on, and the table it was reached from (Code Owner,
-  // 2026-11-02): both state this form's intake in this environment.
   revalidatePath(`/operations/forms/${formId}`, "layout");
   revalidatePath("/operations");
   return {
@@ -713,21 +492,14 @@ export async function setFormStatusAction(
   };
 }
 
-/** What the mint dialog sends. `count` is bounded here as well as at the route. */
 interface MintRequest {
   readonly expiresAt: string;
   readonly oneTime: boolean;
   readonly count: number;
 }
 
-/**
- * Mint one or more secure links.
- *
- * The returned URLs carry signed tokens and are bearer credentials for the form. They are
- * handed straight back to the screen that asked for them and are not logged, stored or
- * revalidated into any cache here (SEC-13). The API cannot reissue them: it stores a
- * link's state row and never its token.
- */
+/* Returned signed URLs are bearer credentials: do not log, store, or cache them. The API cannot reissue
+   their tokens. */
 export async function mintLinksAction(
   formId: string,
   shown: string | undefined,
@@ -743,9 +515,6 @@ export async function mintLinksAction(
     return { status: "error", message: messageForFormCode("LINK_EXPIRY_INVALID") };
   }
 
-  // The environment the mint dialog named, confirmed against the request's (Q19, A1). The
-  // API requires the field and refuses a caller that omits it, so there is no shape in
-  // which this screen mints into an environment nobody chose or was not shown.
   const check = await confirmShownEnvironment(session, shown);
   if (!check.ok) return { status: "error", message: check.message };
   const result = await mintLinks(
@@ -764,34 +533,13 @@ export async function mintLinksAction(
   return { status: "minted", links: result.data };
 }
 
-/**
- * Widen a calendar day to the instant it ends, in UTC.
- *
- * The mint dialog asks for a day, because "which day does this stop working" is the
- * question an author has, and a date picker is the control for it. The API wants an
- * instant. Taking the **end** of the chosen day rather than its start is the direction that
- * matches what the author was told: a link dated the 31st works on the 31st.
- *
- * The zone is UTC and the dialog's hint says so, which is the second half of the same
- * decision. Widening in the author's local zone would make the stored instant depend on the
- * machine the link was minted from - two operators picking the same day would mint links
- * that die up to a day apart. One clock, named in the copy where the promise is made.
- *
- * This is the recorded UTC carve-out (`plan/admin-design-contracts.md` section 2), and it
- * deliberately survives the operator-locale change of 2026-10-19: that change moved how
- * instants are DISPLAYED, not what this promise means. The links table shows the same
- * instant on the operator's own clock with the zone named, so a reader east of UTC sees
- * the next morning's local time beside a day the dialog called UTC; both labels say which
- * clock they are on, which is what keeps the pair honest.
- *
- * A value that already carries a time is passed through untouched, so a future control
- * with finer granularity needs no change here.
- */
+/* Use the end of the chosen UTC day so a link remains valid throughout its labelled day, independently of
+   the operator's zone. */
 function endOfDay(value: string): string {
   return /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T23:59:59.999Z` : value;
 }
 
-/** Revoke one link. 018 refuses it from that moment; an in-flight session is unaffected. */
+/* Revocation stops new use; an in-flight session is unaffected. */
 export async function revokeLinkAction(
   formId: string,
   shown: string | undefined,
@@ -799,10 +547,6 @@ export async function revokeLinkAction(
   proposal?: AgentProposalRef,
 ): Promise<RevokeLinkState> {
   const session = await requireAdminSession();
-  // Scoped to the switcher's environment by the API, which the one door's header carries:
-  // an administrator revokes what the environment they are looking at listed, and a link
-  // in another environment takes the same 404 a cross-form link takes (task 066). The
-  // check makes "looking at" true of this tab rather than of whichever tab switched last.
   const check = await confirmShownEnvironment(session, shown);
   if (!check.ok) return { status: "error", message: check.message };
   const result = await revokeLink(session, formId, linkId, proposal);

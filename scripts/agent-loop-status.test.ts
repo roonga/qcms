@@ -66,8 +66,6 @@ describe("findSupervisors", () => {
   });
 
   it("does not count a process that merely mentions the script", () => {
-    // A grep, an open editor or this check itself names the script without being it, and
-    // counting one would be a false all-clear.
     const proc = procWith({
       "201": ["grep", "-r", "agent-loop.sh", "."],
       "202": ["node", "scripts/agent-loop-status.mjs"],

@@ -1,22 +1,9 @@
-// QCMS dev container - the canonical development environment (ADR-29, task 046).
-//
-// Shape: a single Ubuntu 24.04 image plus Features. The dev database is NOT part
-// of this container: it stays in `docker-compose.dev.yml` (and the merge gate's
-// database is ephemeral Testcontainers, ADR-23), which is why the
-// `javascript-node-postgres` template is deliberately not used.
-//
-// Docker reaches the HOST daemon through a mounted socket
-// (`docker-outside-of-docker`), so Testcontainers spins *sibling* containers on
-// the host. ADR-29 records that trade-off. See `docs/DEVELOPER_GUIDE.md` for the
-// launch path, the `TESTCONTAINERS_HOST_OVERRIDE` note and the rollback steps.
+// The dev database remains on the host; Testcontainers uses sibling containers through the mounted Docker socket.
 {
   "name": "qcms-dev-container",
   "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
 
   "features": {
-    // zsh + oh-my-zsh as the default shell, so a contributor gets a usable
-    // terminal instead of raw bash. The autosuggestion / syntax-highlight
-    // plugins are wired in post-create.sh.
     "ghcr.io/devcontainers/features/common-utils:2": {
       "installZsh": true,
       "configureZshAsDefaultShell": true,
@@ -24,64 +11,20 @@
       "installOhMyZshConfig": true,
       "upgradePackages": false
     },
-    // Node 24 = the repo's pinned LTS floor (`engines.node >= 24.15.0`, .nvmrc).
-    // The feature resolves the newest 24.x, which is well past the .15 patch
-    // floor jsdom 30 imposes on the development tree (issue #113); `.nvmrc`
-    // stays a bare major for the same reason.
-    // pnpm itself is activated by corepack from the `packageManager` pin.
+    // Match the runtime floor in .nvmrc; Corepack reads the pnpm pin from packageManager.
     "ghcr.io/devcontainers/features/node:1": { "version": "24" },
-    // Testcontainers (ADR-23) needs a Docker daemon: mount the host socket.
     "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
       "moby": true,
       "installDockerBuildx": true,
       "installDockerComposeSwitch": true
     },
     "ghcr.io/devcontainers/features/github-cli:1": {},
-    // The autonomous loop runs INSIDE this container with
-    // `--permission-mode bypassPermissions` (ADR-29): the container is the
-    // blast radius.
     "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {}
   },
 
-  // Dev ports. THE allocation table is `docs/PORTS.md` (R8, ADR-37) and is not
-  // restated here: in brief, `7Sxx` is the stable human-facing block and `17Sxx`
-  // the ephemeral test-harness block, for machine seat S (`QCMS_PORT_SEAT`,
-  // default 0). The values below are seat 0.
-  //
-  // The harness block is deliberately absent: those ports are bound by whichever
-  // host runs the tests, are reached only from that same host, and are never
-  // published out of the container. So this list needs nothing for it.
-  //
-  // `appPort` is static JSON and cannot read a runtime value, so a SECOND seat
-  // cannot be served from here; `docs/PORTS.md` records the honest alternatives
-  // and marks them as design intent rather than something exercised.
-  //
-  // `next dev` and the Hono `serve()` both listen on 0.0.0.0 by default, so a host
-  // browser can reach them once the ports leave the container (verified in task
-  // 046; no source change needed).
-  //
-  // TWO mechanisms, because they cover different launchers:
-  //   - `appPort` publishes the ports on the Docker host (`docker run -p`), so
-  //     they work under ANY launcher, including a bare `devcontainer up` from
-  //     the CLI. This is what makes http://localhost:7000 work outside VS Code.
-  //   - `forwardPorts` is the VS Code / Codespaces editor tunnel, which also
-  //     gives the labels below. It does nothing on the CLI route.
-  //
-  // 7020 (seat 0's 7S20) is deliberately NOT in `appPort`: nothing here listens on
-  // it. The dev Postgres runs on the HOST via docker-compose.dev.yml, which
-  // publishes 7020 itself, so claiming it here would take the port away from the
-  // database and make `docker compose -f docker-compose.dev.yml up -d` fail with
-  // "port is already allocated" (and, in the other order, make container
-  // creation fail). It stays in `forwardPorts` only for the VS Code label; the
-  // editor tunnel is a no-op here, not a host bind.
-  //
-  // 7040 (seat 0's 7S40) joined the list for issue #281. The allocation had existed
-  // since ADR-37 but nothing published it, so the admin started fine inside the
-  // container and a host browser got connection refused: the one app in the repo a
-  // human could not open by following the docs. `pnpm dev:admin` listens on it. Adding
-  // it here is a config change like any other on this list, so it only takes effect
-  // after a container REBUILD - `up` reuses a running container and ignores a changed
-  // `appPort` (see docs/DEV_CONTAINER.md).
+  // Static port publishes fix this container to seat 0; rebuild after changing them.
+  // The host Compose stack owns the database port, which must not be published here.
+  // appPort serves CLI launchers; forwardPorts supplies editor tunnels and labels.
   "appPort": [7000, 7010, 7030, 7040],
   "forwardPorts": [7000, 7010, 7020, 7030, 7040],
   "portsAttributes": {
@@ -92,45 +35,9 @@
     "7040": { "label": "admin (next dev)", "onAutoForward": "notify" }
   },
 
-  // `host.docker.internal` resolves to the host from inside the container: the
-  // documented address for the dev Postgres published by docker-compose.dev.yml
-  // and the `TESTCONTAINERS_HOST_OVERRIDE` fallback if sibling containers are
-  // not reachable on localhost.
-  // `--ipc=host` is required for Chromium: Docker's default 64 MB /dev/shm is
-  // too small for Chrome's shared-memory allocations, and the portal Playwright
-  // suite hangs on the first JavaScript-heavy page without it (Playwright's own
-  // documented Docker recommendation).
-  //
-  // `--name` makes the container legible in `docker ps` and gives the port
-  // conflict above a one-line fix (`docker stop qcms-dev-container`) instead of
-  // hunting a random Docker name. The matching compose-project label groups it
-  // with the dev database in Docker Desktop, so the whole dev environment reads
-  // as one unit. Both are safe because only one of these can run at a time
-  // anyway: `appPort` already makes the ports exclusive machine-wide. That is a
-  // property of THIS config, not of the allocation - `docs/PORTS.md` defines seats
-  // 0-9 and records what a second container seat would need (a distinct name and
-  // distinct publishes), marked as design intent rather than something exercised.
-  //
-  // `--restart=unless-stopped` is the blast-radius layer of issue #260 (Code Owner
-  // decision, 2026-09-02). This container mounts the host Docker socket so
-  // Testcontainers works (ADR-29), and that is full daemon authority: any process
-  // inside can stop the container it is running in, taking every session with it -
-  // measured once at 4m38s of unexplained downtime. `scripts/devcontainer.sh`
-  // refuses `stop`/`down`/`rebuild` from inside, which closes the accidental path,
-  // but a direct `docker stop` never goes near that script.
-  //
-  // What this policy does and does not cover, MEASURED on Docker 29.6.2 rather than
-  // assumed: a crash exit restarts (`RestartCount` climbs), and so does an OOM kill,
-  // a daemon restart or a host reboot. A `docker stop` or `docker kill` issued
-  // THROUGH the mounted socket does not: the container ends `status=exited` with
-  // `RestartCount=0` and stays down. Docker's restart manager treats any explicit
-  // stop as manual and skips the policy, and the daemon cannot tell an API client
-  // inside the container from one outside, so there is no split to exploit here.
-  //
-  // So this narrows the blast radius to the crash class; it does not cover the
-  // deliberate-stop path, which remains guarded only by `refuse_from_inside` and
-  // only for callers of that script. The residual authority, and why the socket
-  // proxy was not built, are recorded plainly in `docs/DEV_CONTAINER.md`.
+  // Chromium needs host IPC to avoid shared-memory exhaustion.
+  // The Docker socket grants host-daemon authority; wrappers cannot block direct manual stops.
+  // The restart policy recovers crashes, not manual stops.
   "runArgs": [
     "--init",
     "--ipc=host",
@@ -141,47 +48,23 @@
   ],
 
   "containerEnv": {
-    // corepack must never stop for a "download this pnpm version?" prompt: the
-    // loop runs unattended.
     "COREPACK_ENABLE_DOWNLOAD_PROMPT": "0",
-    // Keep Claude Code's config + credentials in the mounted ~/.claude, so a
-    // container rebuild does not throw away the login.
     "CLAUDE_CONFIG_DIR": "/home/vscode/.claude",
-    // Tells scripts/devcontainer.sh that it is executing inside the container it
-    // targets, so `stop`, `down` and `rebuild` refuse instead of destroying the
-    // environment they are running in (issues #244, #260). The script also falls
-    // back to matching this hostname against the container id, because
-    // containerEnv does not reach an already-running container.
+    // Lifecycle wrappers use this marker to refuse stopping or rebuilding their own container.
+    // Hostname detection covers already-running containers that did not receive the environment setting.
     "QCMS_DEVCONTAINER": "qcms-dev-container"
-    // The dev database address is not set here: scripts/dev-portal.mjs detects
-    // it, which keeps host and container checkouts on the same code path.
+    // Leave database-address detection to dev-portal so host and container checkouts share one path.
   },
 
-  // Secrets are provisioned at RUNTIME, never committed: `.env` (gitignored)
-  // arrives with the workspace bind mount, `gh auth login` writes into the
-  // mounted host `~/.config/gh` (so it survives rebuilds; log in once on the
-  // host), and Claude Code credentials live in the mounted ~/.claude. No
-  // secret value appears in this file.
+  // Provision secrets through runtime files and host auth mounts so rebuilds retain credentials.
   "mounts": [
-    // The a2-react-aria sibling repo (ADR-22): upstream component sources and
-    // docs are required reading for the UI tasks. initializeCommand creates the
-    // directory on the host first so the bind never fails on a fresh clone.
+    // Create the upstream checkout directory before binding it, including on a fresh clone.
     "source=${localWorkspaceFolder}/../a2-react-aria,target=/workspaces/a2-react-aria,type=bind,consistency=cached",
-    // Claude Code config + credentials, shared with the host user.
     "source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind,consistency=cached",
-    // gh CLI config + token, shared with the host user for the same reason as
-    // ~/.claude: a container rebuild must not wipe auth the loop depends on
-    // (2026-07-26: a rebuild severed gh auth and blocked the PR-review loop for
-    // a day). Log in once on the WSL2 host; every container has it.
     "source=${localEnv:HOME}/.config/gh,target=/home/vscode/.config/gh,type=bind,consistency=cached"
   ],
-  // Runs in the HOST shell before the container is created. KNOWN LIMITATION:
-  // this form is POSIX-only (`mkdir -p`, `$HOME`), so on a Windows host running
-  // Docker Desktop natively it is a no-op that prints an error rather than
-  // creating the directories; `${localEnv:HOME}` is likewise empty on Windows
-  // (which uses USERPROFILE). Windows contributors should either use WSL2 (the
-  // tested path) or create `..\a2-react-aria` and `%USERPROFILE%\.claude` by
-  // hand once. Verified on Linux/WSL2 only; tracked as a follow-up issue.
+  // This host command and localEnv:HOME require POSIX. Windows contributors must use WSL
+  // or create the upstream and credential directories themselves; see docs/DEV_CONTAINER.md.
   "initializeCommand": "mkdir -p \"${localWorkspaceFolder}/../a2-react-aria\" \"$HOME/.claude\" \"$HOME/.config/gh\" || true",
 
   "postCreateCommand": "bash .devcontainer/post-create.sh",
