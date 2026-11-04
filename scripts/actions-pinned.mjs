@@ -1,19 +1,15 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * The action-pin rule as functions over text; SEC-11 of `docs/SECURITY_DESIGN.md` has the reasoning.
- * An unrecognised spelling of `uses` is refused by file and line rather than skipped. This is not a
- * YAML parser: deliberate obfuscation of a key is left to review.
+ * Refuse unrecognized uses spellings by file and line. This is a text scan, so deliberate YAML-key
+ * obfuscation remains a review responsibility.
  */
 
 /**
- * The entire carve-out: any other owner is third-party and must be a SHA, so a new owner
- * fails until someone pins it. Case-sensitive on purpose, so `Actions/checkout@v7` is held to
- * the third-party rule.
+ * Owner matching is case-sensitive; differently cased official owners follow the third-party SHA rule.
  */
 export const FIRST_PARTY_OWNERS = new Set(["actions", "github"]);
 
-/** A full-length commit SHA as git writes one. Lowercase hex, exactly 40. */
 export const FULL_SHA = /^[0-9a-f]{40}$/;
 
 /**
@@ -40,9 +36,6 @@ export const ACTION_FILES = /^\.github\/(?:workflows|actions)\/.*\.ya?ml$/;
 
 const SCANNED_LOCAL_PREFIXES = ["./.github/actions/", "./.github/workflows/"];
 
-// Read by shape because no YAML parser is resolvable from this repository, and a dependency
-// for a one-property read is not worth adding.
-
 /**
  * @typedef {"first-party" | "third-party" | "local" | "docker" | "unknown"} Kind
  */
@@ -68,21 +61,17 @@ const BLOCK_SCALAR = /^(?:-[ \t]+)?[A-Za-z0-9_.-]+:[ \t]*[|>][+-]?\d*[ \t]*$/;
 /** The one spelling this reader parses. Everything else that mentions the key is refused. */
 const CANONICAL_USES = /^[ \t]*(?:-[ \t]+)?uses:(?:[ \t]+(\S.*?))?[ \t]*$/;
 
-/** The flow indicators after which a key can begin. */
 const FLOW_INDICATORS = /[{[,]/g;
 
 /** A leading sequence dash, whose width a block-scalar's key column has to account for. */
 const SEQUENCE_DASH = /^-(?:[ \t]+|$)/;
 
-/** `owner/repo` or `owner/repo/path`, with no ref attached. Anchored on both sides. */
 const ACTION_PATH =
   /^([A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)\/([A-Za-z0-9._-]+)(?:\/[A-Za-z0-9._\-/]+)?$/;
 
 /**
- * A `#` begins a comment only at the start of the content or after whitespace, and only
- * outside a quoted scalar. The backslash escape is honoured for double quotes alone, because
- * YAML has none for single quotes: without it `{ name: "a\" # ", uses: evil/action@v1 }`
- * closes the string early and the `uses` key after it is never seen.
+ * Honor backslash escapes only in double-quoted YAML scalars; an escaped quote can otherwise expose a hash
+ * that hides a later uses key.
  *
  * @param {string} line
  * @returns {{ code: string; comment: string | undefined }}
@@ -250,7 +239,6 @@ export function classify(value) {
   const owner = parsed?.[1];
   const repo = parsed?.[2];
   if (owner === undefined || repo === undefined) return { kind: "unknown", ...none };
-  // An empty or whitespace-bearing ref is not a ref; refuse rather than treat it as absent.
   if (ref !== undefined && (ref === "" || /\s/.test(ref))) return { kind: "unknown", ...none };
 
   return {
@@ -270,7 +258,6 @@ export function usesReferences(file, text) {
   /** @type {Reference[]} */
   const references = [];
   const lines = text.split("\n");
-  /** Column of the key that opened the current block scalar, or undefined outside one. */
   let blockKeyColumn;
 
   for (const [index, withCr] of lines.entries()) {
@@ -352,10 +339,9 @@ export function dependabotActionsDirectories(dependabotYaml) {
   for (const line of lines.slice(updatesAt + 1)) {
     if (line.trim() === "") continue;
     const indent = line.length - line.trimStart().length;
-    if (indent === 0) break; // back out to another top-level key
+    if (indent === 0) break;
     const body = line.trimStart();
 
-    // A `directories:` block list stays open only while its own deeper items continue.
     if (inDirectoriesBlock !== undefined) {
       const listItem = /^-[ \t]+(\S+)$/.exec(body);
       if (indent > inDirectoriesBlock && listItem !== null) {
@@ -434,7 +420,7 @@ function stripQuotes(text) {
 
 /**
  * A directory `D` reaches `D/.github/workflows/<file>` and `D/action.yml`, not
- * `D/.github/actions/<name>/action.yml` (GitHub's semantics, SEC-11). `*` matches within a
+ * `D/.github/actions/<name>/action.yml` (GitHub's semantics). `*` matches within a
  * segment and `**` spans segments.
  *
  * @param {string} path repository-relative, slash-separated

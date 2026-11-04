@@ -50,4 +50,61 @@ describe("what an assist route forwards", () => {
       { role: "assistant", content: "hello" },
     ]);
   });
+
+  it("forwards a settled card's record, with its scalar result fields", () => {
+    expect(
+      parseAssistConversation([
+        { role: "user", content: "build me a form" },
+        {
+          role: "action-result",
+          proposalId: "prp_1",
+          steps: [
+            { kind: "apply-draft", outcome: "done", result: { changes: 4, newQuestions: 12 } },
+          ],
+        },
+      ]),
+    ).toEqual([
+      { role: "user", content: "build me a form" },
+      {
+        role: "action-result",
+        proposalId: "prp_1",
+        steps: [{ kind: "apply-draft", outcome: "done", result: { changes: 4, newQuestions: 12 } }],
+      },
+    ]);
+  });
+
+  it("drops a record with no proposal, an unknown outcome, or a step that is not an object", () => {
+    expect(
+      parseAssistConversation([
+        { role: "action-result", steps: [{ kind: "apply-draft", outcome: "done" }] },
+        { role: "action-result", proposalId: "prp_2", steps: [{ kind: "x", outcome: "maybe" }] },
+        { role: "action-result", proposalId: "prp_3", steps: ["apply-draft"] },
+        { role: "action-result", proposalId: "prp_4", steps: [] },
+      ]),
+    ).toEqual([]);
+  });
+
+  it("drops a result field that is not a scalar, which is how content would travel", () => {
+    expect(
+      parseAssistConversation([
+        {
+          role: "action-result",
+          proposalId: "prp_5",
+          steps: [
+            {
+              kind: "response.export",
+              outcome: "done",
+              result: { count: 2, rows: [{ q_a: "an answer" }], nested: { q_b: "another" } },
+            },
+          ],
+        },
+      ]),
+    ).toEqual([
+      {
+        role: "action-result",
+        proposalId: "prp_5",
+        steps: [{ kind: "response.export", outcome: "done", result: { count: 2 } }],
+      },
+    ]);
+  });
 });

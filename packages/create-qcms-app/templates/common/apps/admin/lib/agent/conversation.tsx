@@ -5,16 +5,7 @@ import { createContext, useContext, useMemo, useRef, useState, type ReactNode } 
 import type { ActionResultTurn } from "./plan-state";
 import { conversationSubject, screenForPath } from "./screens";
 
-/**
- * One conversation per subject, held in memory for as long as the tab's shell lives.
- *
- * A form's whole subtree is one subject, so walking from the builder to Releases keeps the
- * conversation and the next turn is prefaced with the new screen. Leaving the form starts a
- * new conversation keyed by the new subject, and returning within the tab restores the old
- * one. Nothing is written to `localStorage` or `sessionStorage`: sign-out is a form post
- * that does not clear tab storage, so a shared workstation would otherwise show the next
- * user the last user's conversation (Q15).
- */
+/** Keep conversations only in shell memory. Sign-out does not clear tab storage, so persistence could expose one operator conversation to the next user. */
 
 export interface AgentProseTurn {
   /** `result` is the builder panel's own record of a card's outcome, never a model turn. */
@@ -22,21 +13,13 @@ export interface AgentProseTurn {
   readonly content: string;
 }
 
-/**
- * One confirmed card's report (section 5.3). The admin writes it from the card's
- * own fold and each kind's result allowlist, so it carries no model text, no content and
- * no secret, and the API renders it to the model from these fields rather than from prose.
- */
+/** Action-result turns are built from the card fold and registered result allowlists, never model prose, content or secrets. */
 export type AgentTurnRecord = AgentProseTurn | ActionResultTurn;
 
 export function isProseTurn(turn: AgentTurnRecord): turn is AgentProseTurn {
   return turn.role !== "action-result";
 }
 
-/**
- * The history a turn replays: the prose without the panel's own outcome lines, and every
- * `action-result` turn as the structured record it is.
- */
 export type PromptTurn =
   { readonly role: "user" | "assistant"; readonly content: string } | ActionResultTurn;
 
@@ -48,12 +31,13 @@ export function promptTurns(turns: readonly AgentTurnRecord[]): readonly PromptT
 }
 
 export interface ConversationHandle {
-  /** Random, minted when the conversation starts; the key audited reads are grouped by. */
   readonly id: string;
   readonly subject: string;
   readonly turns: readonly AgentTurnRecord[];
+  /** Read live turns when appending and posting before React renders again; the handle snapshot may already be stale. */
+  readonly current: () => readonly AgentTurnRecord[];
   readonly append: (turns: readonly AgentTurnRecord[]) => void;
-  /** New conversation: a fresh id and an empty history for this subject. */
+
   readonly restart: () => void;
 }
 
@@ -61,6 +45,7 @@ const INERT: ConversationHandle = {
   id: "none",
   subject: "none",
   turns: [],
+  current: () => [],
   append: () => undefined,
   restart: () => undefined,
 };
@@ -93,9 +78,8 @@ export function ConversationProvider({
       subject,
       id: existing.id,
       turns: existing.turns,
-      // Read back from the map rather than from this handle: a panel that appends twice in
-      // one turn holds the handle it started with, and appending onto that handle's own
-      // snapshot would drop whichever turn was recorded first.
+      current: () => held.current.get(subject)?.turns ?? existing.turns,
+      /** Append against the current map entry so two appends from one render cannot overwrite each other. */
       append: (turns) => {
         const current = held.current.get(subject) ?? existing;
         replace({ id: current.id, turns: [...current.turns, ...turns] });
@@ -104,7 +88,6 @@ export function ConversationProvider({
         replace({ id: mint(), turns: [] });
       },
     };
-    // `revision` is what republishes the handle after an append.
   }, [subject, revision]);
 
   return <ConversationContext.Provider value={handle}>{children}</ConversationContext.Provider>;

@@ -2,19 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { DraftForm } from "../forms/types.ts";
 
-/**
- * The preview projection surviving the trip back from the API (task 076, local UX list A2).
- *
- * `previewDraft` reads the endpoint's `flow` into the pane's view type field by field, and it
- * read four fields and dropped `visibleStepViews`, which the API sends whenever the draft holds
- * a repeating group. The pane then always fell back to the visible steps, so a "One page per
- * instance" group previewed as one page drawing every instance. Only the browser walk noticed;
- * this is the same property at the layer that owns it.
- *
- * Absent stays absent rather than becoming `[]`: the API omits the field for a draft with no
- * repeating group, and `previewViews` reads the absence as "walk the visible steps".
- */
-
 const adminApiFetch = vi.fn(() =>
   Promise.resolve(
     new Response(JSON.stringify(body), {
@@ -44,7 +31,6 @@ const DRAFT: DraftForm = {
   rules: [],
 };
 
-/** Set per case; `adminApiFetch` answers the preview call with it. */
 let body: Record<string, unknown> = {};
 
 function previewBody(flow: Record<string, unknown>): Record<string, unknown> {

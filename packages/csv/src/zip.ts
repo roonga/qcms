@@ -161,7 +161,6 @@ function concat(left: Uint8Array, right: Uint8Array): Uint8Array {
   return joined;
 }
 
-/** Names the limit and the way past it. */
 function tooLarge(what: string): Error {
   return new Error(
     `zipStream: ${what} exceeds this archive format's 4 GiB limit; ZIP64 headers are not written`,

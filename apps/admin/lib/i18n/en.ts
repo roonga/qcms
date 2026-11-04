@@ -1,58 +1,16 @@
-/**
- * Admin shell message catalog (task 031) - owned source, single locale (en).
- *
- * Same structure as the portal's catalog (ADR-11): a flat map of dotted keys to
- * templates. Only shell and auth chrome lives here. A second locale is a new
- * catalog module selected by the same key set; the launch cut-line has one (R7).
- *
- * Two families of string are worded on purpose rather than for tone:
- *
- * - **`signIn.error` and `signIn.throttled`** are the only failure messages any screen
- *   that reads an auth refusal can render: sign-in, the three 2FA screens, and both
- *   Settings forms. They say nothing about which factor was wrong or whether the account
- *   exists, because SEC-1 requires an unknown email and a wrong password to be
- *   indistinguishable. Making them one string each is what stops a future edit from
- *   adding a helpful, enumerating variant. The `signIn.` prefix is now load-bearing
- *   rather than historical: `lib/auth-failure-message.ts` is the single mapping every one
- *   of those screens reads, which is what makes the claim above true (it was not, until
- *   issue #805 - the 2FA screens could render only the first of the two, and reported a
- *   throttled `429` as a wrong code - and Settings joined them on the Code Owner ruling
- *   of 2026-09-12, issue #845, keeping one throttled sentence app-wide rather than
- *   writing a second for a screen with its own copy set).
- * - **`recovery.*`** never promises the codes can be seen again, because they
- *   cannot: they are ciphertext at rest and no route decrypts them for a reader
- *   (issue #319 removed the one that did), so this is their one display.
- *   `settings.recoveryCodes*` offers the only remedy that exists - a fresh set,
- *   which retires the old one - and says so rather than implying a lookup.
- */
+/** Auth refusals must stay opaque across every screen to prevent enumeration. Recovery copy must never promise redisplay: only regeneration can produce another set. */
 
 export const messages = {
-  // THE RAIL, which is one rail on every screen that has one
-  // (`plan/admin-design-contracts.md` §7.0, Code Owner 2026-10-24; issue #1116).
-  //
-  // One string, because the frame has one name to compose and the parts fill themselves
-  // from what they already carry. The `<aside>` is named for its SUBJECT - a form's name, a
-  // question's id, "Settings" - which the caller already has, and the navigation inside it
-  // is that subject's sections. Three per-rail label strings stood here until #1116
-  // ("{slug} steps and sections", "Versions of {questionId}", "Settings sections"), which
-  // is three wordings for one landmark and three things for a translator to keep parallel.
-  //
-  // It names what the navigation carries rather than what it is: a `nav` is already
-  // announced as a navigation landmark, so repeating the word would have a screen reader
-  // say it twice. Naming the subject is what keeps it distinct from the topbar's own
-  // landmark on the same page.
+  /** Name the rail subject without repeating the navigation role a screen reader already announces. */
   "rail.sections": "{subject} sections",
 
-  // The rail's Filters part, shared by every screen that filters; its controls keep their
-  // own labels. "Filters" is also the search region's accessible name.
   "rail.filters": "Filters",
   "rail.filters.activeOne": "1 active",
   "rail.filters.active": "{count} active",
   "rail.filters.apply": "Apply",
   "rail.filters.clear": "Clear filters",
 
-  // The operator's sidebar toggle, above `--bp-sidebar` only. The show button carries the
-  // filter count, because a hidden rail is where a set filter would otherwise be invisible.
+  /** Include active filter count when the hidden rail would otherwise conceal it. */
   "rail.hide": "Hide sidebar",
   "rail.show": "Show sidebar",
   "rail.show.filtered": "Show sidebar · {filters}",
@@ -62,38 +20,12 @@ export const messages = {
   "app.title": "QCMS",
   "app.description": "Author questionnaires, publish forms, and review responses.",
 
-  // The browser-tab title, one pattern for every route (issue #536). Until this landed,
-  // `app/layout.tsx` set a single static `app.title` and no route defined
-  // `generateMetadata`, so every screen in the app produced the tab text "QCMS" - and an
-  // operator working several responses or several forms side by side, which is how this
-  // app is used, could not tell one tab from another at all.
-  //
-  // Page name FIRST. A tab strip truncates from the right, and the tail is the half every
-  // tab shares; leading with "QCMS - " would spend the surviving characters saying the
-  // same word on every tab. The app name is kept rather than dropped because a tab is
-  // also a browser history entry and a bookmark, where the product name is the context
-  // nothing else supplies. `lib/page-title.ts` is the only caller.
+  /** Put the page name first because tab strips truncate the right; keep the product name for bookmarks and history. */
   "app.pageTitle": "{page} - QCMS",
-  // A form's section screen, for the tab only. The `<h1>` on those screens deliberately
-  // says the section alone (Code Owner, 2026-08-26): the breadcrumb above it and the rail
-  // beside it both name the form, so composing both there repeated two crumbs a line
-  // below them. A tab has no breadcrumb and no rail, so it is the one place the pairing
-  // still earns its width - six sibling screens of one form, and several forms open at
-  // once, is the exact case that made the sections indistinguishable.
-  //
-  // `{formId}` rather than `{slug}`: the route knows its `formId` from its own params,
-  // and reading the slug would mean a second `GET /admin/forms/{id}` per render purely to
-  // name a tab. The id is what the address bar already shows and what R6 makes permanent.
+  /** Use route identity for tab titles to avoid a second upstream read solely for metadata. */
   "title.formSection": "{section}: {formId}",
 
-  // The whole page an operator with scripting disabled ever sees (Code Owner,
-  // 2026-09-27). The admin requires JavaScript, so `app/layout.tsx` hides the app and
-  // reveals this rather than serving a shell full of controls that cannot open.
-  //
-  // The body names the remedy and not the cause: enabling JavaScript is the only action
-  // available to this reader, and the reload is spelled out because nothing on the page
-  // can notice the setting changing. No-JS remains a PORTAL requirement and is untouched
-  // (`docs/PROJECT_GOAL.md` scopes it to the browsers a respondent runs).
+  /** The admin requires JavaScript; name enabling it and reloading as the actionable remedy. */
   "requiresJs.title": "JavaScript is required",
   "requiresJs.body":
     "QCMS needs JavaScript to run. Turn on JavaScript in your browser settings, then reload this page.",
@@ -105,22 +37,13 @@ export const messages = {
   "action.savePassword": "Change password",
   "action.changePassword": "Change password",
 
-  // The copy control on an identifying column (issue #582), one pair of strings per
-  // entity. `plan/admin-design-contracts.md` §2 requires the accessible name to carry the
-  // entity AND the value rather than a bare "Copy" repeated down the column, and
-  // `components/copy-entity-id.tsx` composes the key from the entity kind - so a new kind
-  // of identifying column fails to typecheck until its two strings are written here.
-  //
-  // Written out per entity rather than assembled from "Copy {entity} id {id}" plus a noun,
-  // for the reason ADR-27 puts prose in a catalog at all: a locale that inflects the noun,
-  // or orders the sentence differently, cannot be served by concatenation.
+  /** Keep per-entity full sentence templates so translation can inflect nouns and accessible names identify both entity and value. */
   "ids.copy.session": "Copy session id {id}",
   "ids.copy.link": "Copy link id {id}",
   "ids.copy.webhook": "Copy webhook id {id}",
   "ids.copy.form": "Copy form id {id}",
   "ids.copy.question": "Copy question id {id}",
-  // A repeating group's id is DERIVED from the author's own name for it, exactly as a form's
-  // and a question's are, so it renders whole and takes the derived rule (`lib/entity-id.ts`).
+
   "ids.copy.group": "Copy group id {id}",
   "ids.copied.session": "Copied session id {id}",
   "ids.copied.link": "Copied link id {id}",
@@ -129,72 +52,44 @@ export const messages = {
   "ids.copied.question": "Copied question id {id}",
   "ids.copied.group": "Copied group id {id}",
 
-  // The appearance control: polarity crossed with contrast. Every label an operator
-  // reads goes through here, the axis values included (ADR-27) - a control that exists
-  // to make the app usable is the last one that should be hard-coded to English.
   "appearance.title": "Appearance",
   "appearance.theme.legend": "Theme",
   "appearance.polarity.auto": "Auto",
   "appearance.polarity.light": "Light",
   "appearance.polarity.dark": "Dark",
-  // The trigger shows a glyph and no words, so this string is the entire control as
-  // far as a screen reader is concerned. It names the control AND its whole current
-  // state, both axes, because nothing else on screen spells either one out.
+  /** The icon-only trigger must announce both appearance axes because no visible text states them. */
   "appearance.trigger": "Appearance: {state}",
   "appearance.state.auto": "Auto, {resolved} now",
   "appearance.state.withContrast": "{polarity}, high contrast",
-  // Under the Theme group: what Auto currently resolves to, or that the choice is
-  // pinned. Auto is the only state where the page can change without the operator.
+
   "appearance.hint.following": "Following your system: {resolved} now.",
   "appearance.hint.fixed": "Fixed.",
   "appearance.contrast.legend": "High contrast",
   "appearance.contrast.on": "On",
   "appearance.contrast.off": "Off",
-  // The one thing about this control an operator cannot discover by using it.
+
   "appearance.contrast.note": "High contrast never follows your system.",
   "appearance.preview.light": "Light",
   "appearance.preview.dark": "Dark",
   "appearance.preview.lightHc": "Light, high contrast",
   "appearance.preview.darkHc": "Dark, high contrast",
 
-  // The environment chip (ADR-40 Q6). The environment NAMES are data, not copy: they come
-  // from `control.environments` and an operator may create a third, so no key here spells
-  // one.
+  /** Environment names are API data, never a closed catalog vocabulary. */
   "environment.legend": "Environment",
   "environment.trigger": "Environment: {environment}",
-  // Announced after a switch and not on first render: the chip already names the
-  // environment, so a region that spoke on every navigation would be ignored.
+  /** Announce switches only; first render already names the environment. */
   "environment.nowWorking": "Now working in {environment}.",
-  // Named in a destructive confirmation, which Q6 requires of each one: an erasure
-  // performed against the wrong environment is not undoable.
+  /** Destructive confirmations must restate the environment because targeting the wrong one cannot be undone. */
   "environment.inThis": "In {environment}.",
-  // The shell when the live set could not be read (local UX list A12). Never shown as
-  // `prod`: a screen that could not check the selection must not look like one that did.
+  /** Unknown discovery must never look like confirmed prod. */
   "environment.unknown": "Environment unknown",
-  // An environment-sensitive action refusing to run (local UX list A1). The selection is a
-  // cookie every tab shares, so a tab can be showing one environment after another tab
-  // switched to a different one; the action refuses rather than act where it was not shown.
+  /** Refuse stale page-bound environments instead of retargeting an action after another tab switches. */
   "environment.switched":
     "This tab was showing {shown}; you have since switched to {current}. Nothing was changed. Reload to continue.",
   "environment.unconfirmed":
     "QCMS could not confirm which environment this tab is showing, so nothing was changed. Reload to try again.",
 
-  // The account menu (task 032). Unlike the appearance trigger above, this one is NOT
-  // wordless: it paints an initials monogram, and WCAG 2.2 SC 2.5.3 (label in name)
-  // requires an accessible name that contains the text a sighted operator can read. It
-  // said only "Account menu for {email}" until issue #1010, and for the bootstrap default
-  // - `Administrator`, which paints "AD", at any address without those letters in it -
-  // the name and the button shared no word at all: an operator saying "click AD" opened
-  // nothing, and a screen reader announced a name nobody could point at.
-  //
-  // The initials come FIRST, so the visible text is a pronounceable prefix rather than a
-  // fragment buried mid-sentence, and the email stays after them because that is what says
-  // which account is acting. One entry with two placeholders rather than two strings
-  // concatenated in markup, so the whole sentence - including whether a second locale
-  // still wants the initials in front - stays a catalogue decision (ADR-27). Same shape
-  // and same reason as `forms.step.movePin` (issue #879).
-  //
-  // Lower-case "account" mid-sentence is deliberate: the initials open the sentence now.
+  /** Include the visible initials in the accessible name for speech input, with email to distinguish the acting account. */
   "account.trigger": "{initials}, account menu for {email}",
   "account.menuLabel": "Account",
   "account.signedInAs": "Signed in as",
@@ -204,12 +99,9 @@ export const messages = {
   "nav.forms": "Forms",
   "nav.workspaces": "Workspaces",
   "nav.settings": "Settings",
-  // The Operations entry is separated from the authoring menus, because entering it
-  // replaces them rather than adding a sixth peer to them.
+
   "nav.operations": "Operations",
 
-  // THE SHELL'S MODES. A focused mode states its own name where the application
-  // navigation would be, and offers the way out only when the caller holds another area.
   "shell.mode.operations.name": "Operations",
   "shell.mode.operations.exit": "Exit Operations",
   "shell.mode.operations.announce": "Operations. The authoring menus are not shown here.",
@@ -217,8 +109,7 @@ export const messages = {
   "shell.mode.workspaces.exit": "Exit Workspaces",
   "shell.mode.workspaces.announce": "Workspaces. The authoring menus are not shown here.",
 
-  // A bookmark into an area this caller does not hold. It names nothing it was refused:
-  // resolving an identifier to a title would tell an outsider that it exists.
+  /** Do not resolve refused IDs to titles: that would disclose their existence. */
   "shell.denied.title": "You do not have access to this area",
   "shell.denied.body":
     "Your access may have changed, or the address may belong to an area you were never " +
@@ -228,9 +119,7 @@ export const messages = {
 
   "operations.intro": "The forms you can operate, and the installation's delivery queues.",
 
-  // THE OPERATIONS FORMS TABLE. Every cell that is empty because the caller holds no cell
-  // for it reads the same way as one that is empty because there is nothing to report, so
-  // no sentence here says which: the table states what it knows and claims nothing else.
+  /** Missing grants and missing data must remain indistinguishable in table cells. */
   "operations.count.one": "1 form",
   "operations.count.other": "{count} forms",
   "operations.table": "Forms you can operate",
@@ -241,18 +130,14 @@ export const messages = {
   "operations.column.lastRelease": "Last release",
   "operations.column.submitted": "Submitted",
   "operations.column.inProgress": "In progress",
-  // One row's context link reads exactly like every other row's, so each says which form
-  // it belongs to.
   "operations.context.named": "{context} for {form}",
-  // Unreleased is a third reading rather than a shade of closed: a form with no release
-  // accepts no session and mints no usable link.
+
   "operations.intake.open": "Open",
   "operations.intake.closed": "Closed",
   "operations.intake.unreleased": "No release",
   "operations.release.none": "No release",
   "operations.loading": "Loading the forms you can operate.",
-  // The forms table is one environment's, so a set this app could not read leaves it with
-  // no environment to ask about.
+
   "operations.environmentUnknown":
     "QCMS could not read the environment list, so it cannot say which environment to show " +
     "these forms for. Reload to try again.",
@@ -278,13 +163,10 @@ export const messages = {
   "operations.pagination": "Pages",
   "operations.page.next": "Next page",
   "operations.page.first": "First page",
-  // The two installation-wide destinations. They are independent of the table's filters
-  // and of any selected form, so they sit apart from both.
+
   "operations.queue.deliveryFailures": "Delivery failures",
   "operations.queue.erasureLog": "Erasure log",
 
-  // Everybody holds this, so it is where a caller with no feature grant lands rather than
-  // being given a fabricated authoring screen.
   "access.title": "My access",
   "access.intro": "What this account holds, and who to ask for more.",
   "access.none":
@@ -294,29 +176,19 @@ export const messages = {
   "signIn.title": "Sign in to QCMS",
   "signIn.email": "Email",
   "signIn.password": "Password",
-  // One message for every failure: wrong password, unknown email, wrong TOTP code,
-  // wrong recovery code (SEC-1, no enumeration).
+  /** Wrong password, unknown email, wrong TOTP and wrong recovery code must share one failure message. */
   "signIn.error": "Those details did not match. Please try again.",
   "signIn.throttled": "Too many attempts. Please try again later.",
   "signIn.expired": "Your session expired. Please sign in again.",
 
-  // The forced change on first sign-in after bootstrap (task 061, SEC-1). The intro
-  // says WHY rather than only what, because the reader did not ask for this screen and
-  // the reason is the whole point: the password they just used came from somewhere a
-  // standing credential should not live. It names no environment variable and no
-  // command - the person in front of it is the administrator, not the operator who ran
-  // the bootstrap, and they may be neither the same person nor able to act on either.
+  /** Explain why a provisioning password must change without exposing operator commands or variable names to the administrator. */
   "forcedPassword.title": "Choose your own password",
   "forcedPassword.intro":
     "The password this account was created with was set for you, so it is temporary. Choose one only you know before you continue.",
   "forcedPassword.current": "Temporary password",
   "forcedPassword.new": "New password",
   "forcedPassword.confirm": "Confirm new password",
-  // Its own sentence rather than the generic one, on the same principle as the corpus
-  // refusal below: it is a statement about two values the reader just typed, not about
-  // the account, so it tells nobody anything they did not already have. Saying "those
-  // details did not match" here would send someone back to re-examine a temporary
-  // password that was perfectly correct.
+  /** Specific mismatch feedback discloses only submitted values, not account state. */
   "forcedPassword.mismatch": "The two new passwords did not match. Please type them again.",
 
   "enroll.title": "Set up two-factor authentication",
@@ -329,11 +201,7 @@ export const messages = {
   "recovery.intro":
     "Each code signs you in once if you lose your authenticator. This is the only time they are shown.",
   "recovery.listLabel": "Recovery codes",
-  // The copy control and its status line, worded as both POCs draw them
-  // (`plan/admin-shell-poc/auth-poc.html`, `settings-newquestion-poc.html`). The failure
-  // sentence names the remedy rather than the cause: an absent clipboard API and a refused
-  // write leave the operator with the same thing to do, and "insecure context" is jargon
-  // that helps nobody standing in front of ten codes they cannot see again.
+  /** Both absent and denied clipboard access require the same manual-copy remedy; do not expose browser jargon. */
   "recovery.copy": "Copy codes",
   "recovery.copied": "Codes copied.",
   "recovery.copyFailed": "Could not copy automatically. Select the codes above and copy manually.",
@@ -357,13 +225,7 @@ export const messages = {
   "settings.currentPassword": "Current password",
   "settings.newPassword": "New password",
   "settings.passwordChanged": "Your password was changed and other sessions were signed out.",
-  // The one change-password failure with a sentence of its own (issue #437, Code Owner
-  // ruling 2026-09-03). It names what to do, because unlike every other refusal on this
-  // form it can: the password was found in public breach data, so the reader has to pick
-  // a different one and no amount of care with the current-password field will help. It
-  // says nothing about the account, which is what keeps SEC-1's anti-oracle property
-  // intact at the level of the copy; `lib/server/password-refusal.ts` carries the rest of
-  // the argument, including the cost the ruling accepted.
+  /** Breach-corpus feedback may be specific because it says nothing about the account. */
   "settings.passwordCompromised":
     "That new password appears in public breach data, so it was not accepted. Choose a different password.",
   "settings.twoFactorTitle": "Two-factor authentication",
@@ -375,20 +237,7 @@ export const messages = {
   "settings.recoveryCodesPassword": "Your password",
   "settings.recoveryCodesAction": "Generate new recovery codes",
 
-  // ---------------------------------------------------------------------------
-  // The question library (task 032).
-  //
-  // Two wording rules run through this whole block and are worth stating once.
-  //
-  // 1. **Confirmations teach the rule, not the click.** "Are you sure?" tells an
-  //    author nothing; "publishing freezes this version and makes it pinnable"
-  //    tells them what the system will now guarantee. Every lifecycle dialog and
-  //    every error sentence here names the governing rule, because these rules
-  //    (immutability, no id reuse, deprecate-not-delete) are the product's
-  //    identity and the UI is where they are taught (ADR-02).
-  // 2. **No sentence blames the author for a rule they were never shown.** An
-  //    error says what the engine decided and what to do next, in that order.
-  // ---------------------------------------------------------------------------
+  /** Confirmations teach immutable versions and permanent IDs; refusal copy names the rule and remedy without blaming the author. */
   "questions.title": "Questions",
   "questions.intro": "The governed library. Every version is published, never overwritten.",
   "questions.new": "New question",
@@ -413,17 +262,7 @@ export const messages = {
   "questions.column.created": "Created",
 
   "questions.empty.title": "Nothing in the library yet",
-  // The command names the ONE path that reaches the stack a reader of this screen is
-  // most likely looking at (issue #618). It used to say "run pnpm qcms:seed-fixtures
-  // against a development database", and against the composed stack `pnpm dev:up`
-  // creates there was no way to do that: the loader takes a `DATABASE_URL` and that
-  // stack's Postgres publishes no host port. Worse than useless, because the sentence
-  // had a success mode that changed nothing on screen - run against the separate dev
-  // database it CAN reach, the command reports success and this library stays empty.
-  // `pnpm dev:seed` runs the same loader inside the network (`scripts/dev-compose.mjs`,
-  // documented in `docs/DEVELOPER_GUIDE.md`), so the remedy and the screen are on one
-  // database. It is still qualified as a development command, because this screen
-  // cannot know which database backs it and a deployed instance has no dev stack.
+  /** Point development seeding at the composed database; a successful seed of another database would leave this screen unchanged. */
   "questions.empty.body":
     "Create the first question. To explore with the sample insurance library instead, run pnpm dev:seed against a local development stack.",
   "questions.empty.filtered": "No question matches this search.",
@@ -452,11 +291,7 @@ export const messages = {
   "questions.create.typeNote":
     "Locked once the question exists. A different type is a different answer shape, so changing it means creating a new question rather than editing this one (R6).",
   "questions.create.submit": "Create draft",
-  // TIGHTENED FOR THE HEADING ROW (Code Owner, 2026-09-28). The note sits under the screen's
-  // heading now, beside the button rather than above a column, so the clause naming the control
-  // ("Nothing is stored until you select Create draft") was the button repeating itself two
-  // inches away. What is left is §6's opening vocabulary, which every manual screen shares, and
-  // the part an author cannot see from the controls: that leaving loses the work.
+
   "questions.create.manualModel":
     "This editor does not save automatically. Leaving this page discards what you have written.",
 
@@ -481,10 +316,7 @@ export const messages = {
   "questions.constraint.patternMatch": "The sample matches this pattern.",
   "questions.constraint.patternNoMatch": "The sample does not match this pattern.",
   "questions.constraint.patternUnreadable": "This is not a readable expression yet.",
-  // The #52 normalization, offered at the source (issue #53). A browser compiles the HTML
-  // `pattern` attribute under stricter rules than this expression follows, so the renderer
-  // rewrites it on every render. Storing the rewritten spelling instead makes that
-  // unnecessary; the suggestion means the same thing as what was typed.
+  /** HTML pattern compilation has stricter syntax; offer equivalent normalized text before persistence. */
   "questions.constraint.patternVSuggestion":
     "A browser reads the pattern attribute more strictly than this and would ignore this expression. The same rule written as {suggestion} works everywhere.",
   "questions.constraint.patternVUnsafe":
@@ -497,18 +329,7 @@ export const messages = {
   "questions.constraint.minSelected": "Fewest selections",
   "questions.constraint.maxSelected": "Most selections",
 
-  // Author-supplied validation messages (task 048, ADR-32) and the boolean label
-  // overrides (ADR-36). Both are edit-level fallbacks: the field shows the default as its
-  // placeholder and a blank field means "inherit", so nothing here is ever stored.
-  //
-  // THE `questions.message.default.*` AND `questions.booleanLabel.default*` VALUES BELOW
-  // ARE MIRRORS ACROSS THE R2 BOUNDARY, not this app's own wording. They restate what a
-  // respondent would actually be shown, which the admin cannot import: the constraint
-  // messages come from `packages/core/src/validate-answer.ts` (plus the required-answer
-  // sentence from `apps/portal/lib/i18n/en.ts`) and the yes/no labels from
-  // `BOOLEAN_AFFIRMATION` in `packages/a2ui-compiler/src/mapping.ts`. Change one of those
-  // and change the twin here in the same commit, or the editor promises a default that is
-  // not the one shown. `{n}` and `{bound}` are filled with the constraint's own bound.
+  /** Default constraint messages and boolean labels mirror respondent copy across the BFF boundary. Change both copies together or the placeholder promises wording respondents never see. */
   "questions.editor.messages": "Validation messages",
   "questions.message.note":
     "Optional. Leave a field blank and the respondent sees the default shown inside it. A field appears only for a constraint this question carries, so clearing the constraint clears its message too.",
@@ -522,8 +343,7 @@ export const messages = {
   "questions.message.label.integer": "Message when the answer is not a whole number",
   "questions.message.label.minSelected": "Message when too few options are selected",
   "questions.message.label.maxSelected": "Message when too many options are selected",
-  // A date's bounds are the same two keys wearing different words: "too small" describes a
-  // number, and an author reading it beside "Earliest date" would have to translate.
+
   "questions.message.label.date.min": "Message when the date is too early",
   "questions.message.label.date.max": "Message when the date is too late",
 
@@ -545,17 +365,7 @@ export const messages = {
   "questions.booleanLabel.defaultYes": "Yes",
   "questions.booleanLabel.defaultNo": "No",
 
-  // THE EDITOR'S PANELS, AND THE DIGEST EACH RAIL ROW CARRIES UNDER ITS NAME (Code Owner,
-  // 2026-09-27; `lib/questions/panels.ts`). Only Content needs a name of its own here: the
-  // other four rows read the legend their own section already carries
-  // (`questions.options.legend`, `questions.editor.constraints`, `questions.editor.messages`,
-  // `questions.editor.booleanLabels`), because a rail must not give a place a second name
-  // (`apps/admin/app/(shell)/AGENTS.md`).
-  //
-  // The digests are deliberately terse: they sit under a panel's name in a 240px track, so
-  // "min 0, max 200" is what fits where "Smallest value 0, largest value 200" would not. The
-  // long form is on the control the row opens. A bound is written as a phrase rather than
-  // assembled from a symbol and a number in the component, so a locale can reorder it (ADR-27).
+  /** Rail labels must reuse their panel names; digests are catalog phrases so translations can reorder bounds. */
   "questions.panel.content": "Content",
   "questions.panel.contentRequired": "Required",
   "questions.panel.contentOptional": "Optional",
@@ -566,14 +376,12 @@ export const messages = {
   "questions.panel.constraintsNone": "None set",
   "questions.panel.constraintMin": "min {value}",
   "questions.panel.constraintMax": "max {value}",
-  // A date bound reads as a range rather than an extreme, which is how its own fields are
-  // labelled ("Earliest date", "Latest date").
+
   "questions.panel.constraintFrom": "from {value}",
   "questions.panel.constraintTo": "to {value}",
   "questions.panel.constraintPattern": "pattern",
   "questions.panel.constraintInteger": "whole numbers",
-  // The Preview row is last and is the one panel that is not a set of fields, so its digest
-  // says what it is for rather than what is in it.
+
   "questions.panel.previewDigest": "As a respondent sees it",
 
   "questions.options.legend": "Options",
@@ -584,18 +392,14 @@ export const messages = {
   "questions.options.idPending": "Pending",
   "questions.options.idPendingTitle":
     "This row has no ID yet. One is generated from the label, once the row is named.",
-  // The row's own name, as the card writes it ("Option 2 label"). Every other control on
-  // the row names the row by its LABEL instead, so two rows' menus stay distinguishable
-  // from each other; `rowFallback` is what an unnamed or blank row is called in that slot.
+
   "questions.options.label": "Option {position} label",
   "questions.options.rowFallback": "option {position}",
   "questions.options.reorder": "Reorder {row}",
   "questions.options.rowActions": "{row} row actions",
   "questions.options.insertAbove": "Insert option above {row}",
   "questions.options.insertBelow": "Insert option below {row}",
-  // The single-pointer, non-dragging reorder path (WCAG 2.2 SC 2.5.7). Named per row like
-  // every other item in this menu and like the pin list's own pair, so a screen reader
-  // hears which option is about to move rather than two identical words.
+  /** Name the row in the non-drag reorder alternative so repeated controls remain distinguishable. */
   "questions.options.moveUp": "Move {row} up",
   "questions.options.moveDown": "Move {row} down",
   "questions.options.remove": "Remove option {row}",
@@ -607,20 +411,11 @@ export const messages = {
   "questions.preview.note":
     "Rendered by the same engine that serves a respondent, so this is exactly what they will see. Nothing typed here is saved.",
   "questions.preview.unavailable": "This version could not be rendered. {message}",
-  // Shown only while the editor is holding an edit the stored version does not have: the
-  // preview is compiled by the API from what was saved, so it cannot show what was typed.
+  /** Preview compiles stored content and cannot show unsaved edits. */
   "questions.preview.stale":
     "This preview is the version that was last saved. Save the draft to see your latest changes here.",
 
-  // The preview theme island (task 058, ADR-38). Two controls above every preview,
-  // shared by the question preview, the draft preview and the published version view.
-  //
-  // The theme names are the palette's own names and are NOT translated as words: they
-  // name a specific shipped theme, the way a typeface name does, so a locale that
-  // rendered "Sand" as its word for sand would be naming something else. They stay in
-  // the catalog regardless (ADR-27), because a locale may still need to transliterate
-  // them, and because a label an operator reads has no business being a literal in a
-  // component. The two mode names ARE prose and do translate.
+  /** Theme names identify shipped palettes; preserve identity while permitting transliteration. Mode names are ordinary translated prose. */
   "preview.island.theme": "Preview theme",
   "preview.island.theme.slate": "Slate",
   "preview.island.theme.harbor": "Harbor",
@@ -631,11 +426,6 @@ export const messages = {
   "preview.island.mode.dark": "Dark",
   "preview.island.mode.hc": "High contrast",
 
-  // `questions.editor.heading` ("Version {version}") stood here until 2026-09-28. It headed the
-  // version card, which was the third place that number appeared on this screen: the rail marks
-  // the version's row, the collapsed rail summary repeats it at 390, and the card said it again
-  // directly underneath. The screen's one `<h1>` composes the question id with
-  // `questions.detail.version` below, and the card opens on its panel.
   "questions.detail.versions": "Versions",
   "questions.detail.version": "Version {version}",
   "questions.detail.publishedAt": "Published {date}",
@@ -643,27 +433,16 @@ export const messages = {
   "questions.detail.slug": "Slug",
   "questions.detail.type": "Type",
   "questions.detail.created": "Created",
-  // The type, stated once, in the rail's details group (Code Owner, 2026-09-27). It replaces
-  // `questions.editor.typeLocked` ("Type is locked to {type}."), which said the same thing a
-  // second time at the top of the version card: R6 makes the type permanent, so the rail
-  // states it where it states the question's other permanent facts, and the editor states
-  // nothing. A parenthesis rather than a sentence, because it is the value half of a
-  // label-and-value pair now rather than a line of prose.
+
   "questions.detail.typeLocked": "{type} (locked)",
   "questions.detail.deprecatedNote":
     "This version is deprecated: no new form can pin it. Forms that already pin it keep working exactly as they are, and no answer already collected changes.",
 
-  // The question detail screen's rail (issue 650). The digest is four whole sentences
-  // rather than a count and a fragment joined in the component: a locale that puts the
-  // published version first, or that needs a different separator, changes it here (ADR-27).
-  // `tPlural` picks the singular, which is the state a question spends its first minute in.
   "questions.rail.digestOne": "{count} version, v{version} published",
   "questions.rail.digest": "{count} versions, v{version} published",
   "questions.rail.digestNoneOne": "{count} version, none published",
   "questions.rail.digestNone": "{count} versions, none published",
-  // The panel rows nested under the selected version (Code Owner, 2026-09-27). The list's
-  // name, and the badge a refused save puts on a row - the same count the builder's step rows
-  // carry, worded the same way, because they are one device on two screens.
+
   "questions.rail.panels": "Editor panels",
   "questions.rail.issuesOne": "1 issue",
   "questions.rail.issues": "{count} issues",
@@ -703,32 +482,7 @@ export const messages = {
   "questions.error.unknown": "The request failed ({code}).",
   "questions.error.listFailed": "The library could not be loaded. {message}",
 
-  // ---------------------------------------------------------------------------
-  // The form builder and condition editor (task 033).
-  //
-  // Four rules the wording teaches, stated once here rather than argued in each
-  // string. Every sentence below that touches one of them is written to make the
-  // rule obvious at the moment an author meets it, because these are the rules
-  // that make a questionnaire engine trustworthy and the UI is where they are
-  // learned (ADR-02).
-  //
-  // 1. **A pin is manual, always (R6/R7).** Every reference shows
-  //    `questionId@version`, a moved pin moves one pin, and publishing question v3
-  //    changes nothing about a form pinned to v2. There is no auto-upgrade and no
-  //    bulk move, and the copy says so rather than leaving the absence to be
-  //    discovered.
-  // 2. **Evaluation is one forward pass (ADR-16).** A rule can only show something
-  //    that comes *after* every question its condition reads. Ineligible targets
-  //    stay selectable so the mistake can be made and explained, and the sentences
-  //    name the reason rather than reporting a refusal.
-  // 3. **Set equality is not containment (ADR-21).** On a multiple-choice question
-  //    `equals` compares the whole answer, and `contains` / `containsAny` are the
-  //    membership tests. The operator names say which is which.
-  // 4. **A challenge is a deployment capability (ADR-24).** Requiring one on a form
-  //    does nothing while the deployment's provider is `none`, so the panel says
-  //    that out loud instead of showing a switch that promises protection it
-  //    cannot deliver.
-  // ---------------------------------------------------------------------------
+  /** Copy must teach manual frozen pins, forward-only targets, set equality versus containment, and deployment-dependent challenges; none may imply protection or upgrades the API does not provide. */
   "forms.title": "Forms",
   "forms.intro": "Compose published questions into steps, and branch between them with rules.",
   "forms.new": "New form",
@@ -750,10 +504,6 @@ export const messages = {
   "forms.version.value": "v{version}",
   "forms.version.valueAt": "v{version} on {date}",
 
-  // The library's filters. Worded from `plan/admin-shell-poc/library-lists-poc.html`,
-  // which draws all three controls on this screen and labels each one; the question
-  // library's equivalent keys are the sibling wording, so "Search" and "Status" read the
-  // same on both screens and only the hint differs by what each list holds.
   "forms.filter.search": "Search",
   "forms.filter.searchHint": "Matches the slug and the form title.",
   "forms.filter.status": "Status",
@@ -764,9 +514,7 @@ export const messages = {
   "forms.filter.sort.published-desc": "Newest published",
   "forms.filter.sort.published-asc": "Oldest published",
   "forms.filter.clear": "Clear filters",
-  // The POC's result count, which is the one line that says how many rows the filters
-  // just produced. Singular and plural are separate keys rather than one string with a
-  // conditional "s", because a second locale is a catalog swap and not a code change.
+  /** Keep counted phrases in catalog plural forms; do not append an English s in code. */
   "forms.count.one": "{count} form.",
   "forms.count.other": "{count} forms.",
 
@@ -789,12 +537,6 @@ export const messages = {
   "forms.create.submit": "Create form",
   "forms.create.submitting": "Creating the form...",
 
-  // The identity line under the heading on every form screen. This paragraph used to say
-  // the builder's five sibling sections composed `forms.section.heading` while the builder
-  // headed itself with the bare slug; neither half survived. The Code Owner's 2026-08-26
-  // amendment heads all six with the section's name alone, that key is gone with issue
-  // #538's sweep, and `app/(shell)/section-headings.test.tsx` is where the reasoning for
-  // both now lives.
   "forms.builder.formId": "Form ID",
   "forms.builder.status": "Status",
   "forms.builder.draftSource.open": "Editing the saved draft.",
@@ -823,9 +565,7 @@ export const messages = {
     "Autosave is paused: a form needs at least one step before it can be stored.",
   "forms.save.pausedEmptyStep":
     "Autosave is paused: every step needs at least one question before the draft can be stored.",
-  // The group's own copy of the sentence above, because the state is the same one for the
-  // same reason: `RepeatGroup.items` is at-least-one in the kernel, so a group an author has
-  // just added and not yet filled is an unparseable draft rather than an inconsistent one.
+  /** An empty new group is temporarily unparseable, not merely inconsistent. */
   "forms.save.pausedEmptyGroup":
     "Autosave is paused: every repeating group needs at least one question before the draft can be stored.",
   "forms.save.pausedNoTarget":
@@ -836,15 +576,10 @@ export const messages = {
   "forms.validation.countOne": "1 issue would block a publish.",
   "forms.validation.count": "{count} issues would block a publish.",
   "forms.validation.checking": "Checking the draft...",
-  // The panel's refusal to vouch. It says what it does NOT know rather than reporting a
-  // count it could not compute, because the alternative on a failed check is the panel
-  // falling through to "No issues" and asserting publish-readiness it has no basis for.
+  /** A failed check must not fall through to an all-clear. */
   "forms.validation.unchecked":
     "The draft could not be checked, so this is not a current count of what would block a publish.",
-  // The panel before it has checked anything at all, which is a different thing from a
-  // check that failed and from a check that came back empty. The builder validates on the
-  // first change rather than on load, so on a form opened and not touched this is the only
-  // honest sentence: the zero it was seeded with is an initial value, not a verdict.
+  /** Unchecked is distinct from failed and from an empty successful verdict. */
   "forms.validation.notChecked":
     "This draft has not been checked yet. The check runs on your first change, and again when you publish.",
 
@@ -873,13 +608,7 @@ export const messages = {
   "forms.step.addQuestion": "Add question from library",
   "forms.step.pinNote":
     "A pin names one frozen version. Publishing a newer version of a question changes nothing here until someone moves this pin by hand (R7).",
-  // Label-in-name, WCAG 2.5.3 (issue #879). The control PAINTS `forms.step.pinVersion`
-  // and nothing else, so its name has to start with that same text or a speech-input user
-  // saying "click v3" targets nothing and a screen-reader user hears a name no sighted
-  // colleague can point at. `{versionLabel}` is that message, substituted by the caller
-  // rather than spelled again here: one string is the visible text, so the two cannot
-  // drift apart. What follows it is why the control carries a label at all - "v3" alone
-  // repeats down a column of pins and says nothing about which pin it moves.
+  /** Accessible names must contain the painted version label for speech input and identify the pin among repeated controls. */
   "forms.step.movePin": "{versionLabel}, move pin for {questionId}",
   "forms.step.movePinTo": "Move to v{version}",
   "forms.step.movePinNone": "No other published version",
@@ -903,19 +632,12 @@ export const messages = {
   "forms.step.column.version": "Version",
   "forms.step.column.issues": "Issues",
   "forms.step.noIssues": "None",
-  // The same distinction the validation panel makes, one row at a time: "None" is a
-  // verdict that came back empty for this pin, and this is the absence of a verdict.
+  /** No verdict is distinct from a successful empty verdict. */
   "forms.step.issuesUnchecked": "Not checked",
   "forms.step.labelMissing": "No label in the library",
   "forms.step.labelUnknown": "Label not known",
 
-  // --- the repeating group (task 074, ADR-42) ---
-  //
-  // A group is ONE primitive with three presentations, and the panel's wording has to carry
-  // that: an author who thinks "a looping page" and an author who thinks "a table" are both
-  // looking at the same object with one field different, and the vocabulary is what stops
-  // them becoming two mental models of two data models (`plan/repeating-groups-and-table-
-  // input.md` §2.3's named cost of choosing a presentation over a question type).
+  /** One repeating-group primitive has three layouts; wording must not imply separate data models. */
   "forms.group.add": "Add repeating group",
   "forms.group.newName": "New group name",
   "forms.group.addDone": "Add",
@@ -942,9 +664,7 @@ export const messages = {
   "forms.group.addQuestion": "Add question from library",
   "forms.group.memberCountOne": "1 question",
   "forms.group.memberCount": "{count} questions",
-  // The count source, as a three-way radio. Each option's own sentence says what the
-  // respondent experiences rather than what the field is called, because that is the choice
-  // an author is actually making.
+
   "forms.group.countLegend": "How many instances",
   "forms.group.count.fixed": "Always the same number",
   "forms.group.count.fixedHint":
@@ -961,10 +681,7 @@ export const messages = {
     "No number question is pinned before this group yet. Pin one earlier in the form and it will be offered here.",
   "forms.group.min": "Minimum instances",
   "forms.group.max": "Maximum instances",
-  // `max` is REQUIRED on both bounded sources (Q4 as amended by Q14), and the panel says so
-  // HERE rather than leaving `REPEAT_MAX_MISSING` to arrive at publish: with no
-  // installation-wide ceiling, this field is the only bound on how many instances a
-  // respondent can create, so it is a security-relevant declaration and not a nicety.
+  /** A bounded group maximum is security-relevant: no installation-wide ceiling bounds respondent-created instances. */
   "forms.group.maxRequired":
     "Required. This is the only limit on how many instances a respondent can create.",
   "forms.group.maxMissing": "Set a maximum. Until you do, this form cannot be published.",
@@ -973,9 +690,7 @@ export const messages = {
     "Use {n} where the instance's position should go: Passenger {n}. A heading with no {n} is allowed, which suits a group of one.",
   "forms.group.instanceLabelPreview": "A respondent reads",
   "forms.group.instanceLabelPreviewEmpty": "Nothing yet: type a heading above.",
-  // The presentation, as a three-way radio. All three are offered because the field is the
-  // kernel's; what sits behind the table option is task 077's and behind the step option is
-  // task 076's, and neither changes a single answer, key or id (ADR-42).
+
   "forms.group.presentationLegend": "How the instances are laid out",
   "forms.group.presentation.stacked": "All instances on one page",
   "forms.group.presentation.stackedHint":
@@ -987,9 +702,7 @@ export const messages = {
   "forms.group.presentation.tableHint":
     "Instances become rows and the group's questions become columns. Only some question types can be a column.",
   "forms.group.issues": "Issues with this group",
-  // The step editor's boundary rows. A group inside a step's question list is a SPAN rather
-  // than a row, so the grid states where it starts and what it holds; `plan/repeating-
-  // groups-and-table-input.md` §6.2 asks the grid for group boundaries and this is them.
+
   "forms.group.boundary": "Repeating group: {label}",
   "forms.group.boundaryEnd": "End of repeating group {label}",
   "forms.group.boundarySummary": "{members}, {count}",
@@ -997,9 +710,7 @@ export const messages = {
   "forms.group.countSummary.fixed": "always {count}",
   "forms.group.countSummary.fromAnswer": "from {questionId}, {min} to {max}",
   "forms.group.countSummary.open": "respondent adds, {min} to {max}",
-  // A missing maximum is NAMED rather than printed as a blank: the field is required on both
-  // bounded sources, and a range reading "1 to " would look like a rendering fault instead of
-  // an unanswered question.
+  /** Name an unset required maximum instead of showing a range that looks accidentally truncated. */
   "forms.group.countSummary.fromAnswerNoMax": "from {questionId}, no maximum set",
   "forms.group.countSummary.openNoMax": "respondent adds, no maximum set",
   "forms.group.railGroups": "Repeating groups",
@@ -1013,10 +724,7 @@ export const messages = {
   "forms.picker.hint":
     "Each version chosen here becomes a pin frozen at that version. Nothing upgrades it afterwards, and every pin stays changeable in the step's grid.",
   "forms.picker.column.choose": "Choose",
-  // The checkbox's accessible name, and the same string the version's entry in the
-  // chosen list is removed by. A checkbox announced as "checkbox, unchecked" on every
-  // one of thirty rows tells a screen-reader author nothing about which row it sits in,
-  // which is the property issue 570 put on this row's control and multi-select keeps.
+  /** Checkbox and removal names must identify the exact question version among repeated rows. */
   "forms.picker.addNamed": "Add {questionId} version {version}",
   "forms.picker.removeNamed": "Remove {questionId} version {version} from the chosen list",
   "forms.picker.column.questionId": "Question ID",
@@ -1028,19 +736,12 @@ export const messages = {
   "forms.picker.stateDeprecated": "Deprecated",
   "forms.picker.statePinned": "Already in this form",
   "forms.picker.stateChosen": "Chosen to add",
-  // A question is pinned once per form, so choosing one version of it rules out its
-  // siblings for as long as that choice stands. Saying which is the point: the author is
-  // looking at a row whose checkbox has just gone, and the reason is two rows away.
+  /** Explain the selected sibling version because the hidden checkbox no longer explains itself. */
   "forms.picker.stateOtherVersionChosen": "Version {version} of this question is chosen",
-  // No plural rule: the noun is inside the count's parentheses, not after it, so English
-  // and every locale that renders this heading pick the same form. `tPlural` is for the
-  // commit label below, where the noun does inflect.
+
   "forms.picker.chosenHeading": "Chosen ({count})",
   "forms.picker.chosenEmpty": "Nothing chosen yet. Check a version to add it.",
-  // ADR-27: the count is a substitution into a chosen plural form, never a number
-  // concatenated onto a fixed noun. The zero case is its own message rather than the
-  // "other" form with a 0 in it, because "Add 0 questions to step" is a sentence no
-  // locale wants and the button it sits on cannot be pressed anyway.
+  /** Choose a plural form with substitution; zero has its own disabled-action message. */
   "forms.picker.commitNone": "Add questions to step",
   "forms.picker.commit.one": "Add 1 question to step",
   "forms.picker.commit.other": "Add {count} questions to step",
@@ -1048,12 +749,7 @@ export const messages = {
   "forms.picker.loadFailed":
     "The question library could not be loaded, so there is nothing to choose from. Close this dialog and reload the page to try again.",
   "forms.picker.cancel": "Cancel",
-  // --- the table presentation's column view and its filtered picker (task 077) ---
-  //
-  // Under ADR-42 there is no table question, so the "column editor" is the group's own
-  // member list seen as columns: one row per column, each showing its label, the question
-  // underneath it and that question's type. The type is SHOWN and never chosen, because it
-  // is the question's own.
+  /** Table columns are group members; their type comes from the pinned question and is never edited here. */
   "forms.columns.title": "Columns",
   "forms.columns.description":
     "Each column of the table is one question in this group, and the order below is the order the columns are drawn in. A column's type is the question's own: change it in the question, not here.",
@@ -1064,12 +760,10 @@ export const messages = {
   "forms.columns.column.type": "Type",
   "forms.columns.add": "Add column",
   "forms.columns.empty": "No columns yet. Add a question to this group and it becomes a column.",
-  // The one sentence the picker, the column view and the publish error all say, so an
-  // author meets the same five types and the same way out wherever they are refused.
+
   "forms.columns.typeNote":
     "A table column holds one of {types}. Long text and multiple choice do not fit a cell, and they are worse again on the phone, where the table becomes one card per row. Present this group as stacked instead: that presentation allows every question type.",
-  // Said on the row itself, because a member added before the presentation was switched to
-  // a table is still in the group and publish will name it.
+  /** Keep unsupported existing members visible so authors can repair the publish refusal. */
   "forms.columns.refused": "Not allowed as a column",
   "forms.columns.refusedHint":
     "This question's type cannot be a table column, so this form cannot be published while it is one. Remove it from the group, or present the group as stacked.",
@@ -1077,47 +771,27 @@ export const messages = {
   "forms.rules.title": "Rules",
   "forms.rules.add": "Add rule",
   "forms.rules.empty": "No rules yet. A rule shows questions or steps when its condition matches.",
-  // --- the builder's read-only rules lens (issue #669) ---
-  //
-  // The builder stopped editing rules on 2026-09-05 and started summarising them, so the
-  // card needs words for what it is rather than for what it does. `lensNote` is the POC's
-  // own sentence (`plan/admin-shell-poc/admin-shell-poc.html`), which states the scope of
-  // the list rather than describing the control - a reader who has just published knows
-  // what a rule is and wants to know which of them this card is counting.
+
   "forms.rules.lensNote":
     "Lists rules whose conditions read, or whose targets include, questions in this form.",
   "forms.rules.lensCountOne": "1 rule",
   "forms.rules.lensCount": "{count} rules",
-  // The lens's way through to the screen that edits. Named for the destination rather than
-  // for the gesture ("Edit rules", not "Open"), because it is the only place in the builder
-  // that says rule editing happens somewhere else.
+
   "forms.rules.editAll": "Edit rules",
   "forms.rules.needPin": "Pin a question first: a condition has to read one.",
   "forms.rules.column.rule": "Rule",
   "forms.rules.column.issues": "Issues",
   "forms.rules.edit": "Edit",
   "forms.rules.remove": "Remove",
-  // The dialog's own title names the rule being changed rather than saying "Edit rule",
-  // because a form can have several and the reader has just chosen one of them. Since the
-  // editor became a wizard (2026-08-30) it is also the dialog's only heading, so the rule
-  // id has to be in it: the condition panel used to repeat it and no longer does.
+
   "forms.rules.editTitle": "Edit rule {ruleId}",
 
-  // --- the rule wizard's three phases (Code Owner, 2026-08-30) ---
-  //
-  // TABS, so this string is what a screen reader announces before "tab 1 of 3". It names
-  // what the three choices are ABOUT rather than repeating the dialog's own title, which
-  // is already announced when the dialog opens.
   "forms.rules.phases": "Rule editing phases",
-  // Numbered because the phases have a natural order and stating it costs nothing. The
-  // numbers describe; nothing here enforces them, and an author may work in any order.
+
   "forms.rules.phaseWhen": "1. When",
   "forms.rules.phaseThen": "2. Then show",
   "forms.rules.phaseTest": "3. Test",
-  // Phase navigation (Code Owner, 2026-08-30). The visible words are "Back" and "Next";
-  // the accessible name names the phase each one goes to, so a reader who cannot see which
-  // tab is selected is told where the press leads rather than only that it leads onward.
-  // Both accessible names contain the visible word, which is what SC 2.5.3 asks for.
+  /** Accessible phase-navigation names must contain the visible Back or Next word and state the destination. */
   "forms.rules.phaseBack": "Back",
   "forms.rules.phaseNext": "Next",
   "forms.rules.phaseBackTo": "Back to {phase}",
@@ -1127,8 +801,7 @@ export const messages = {
   "forms.rule.heading": "Rule {ruleId}",
   "forms.rule.when": "When",
   "forms.rule.show": "Show",
-  // The combobox's own two strings. The toggle is named by the field it belongs to,
-  // because a condition with five leaves renders five of them.
+  /** Name each combobox by its field so repeated condition controls remain distinguishable. */
   "forms.combobox.toggle": "Show all options for {label}",
   "forms.combobox.noMatch": "No match.",
   "forms.rule.op": "Operator",
@@ -1144,29 +817,14 @@ export const messages = {
     "Nothing in this form comes after the questions this condition reads, so the rule has nowhere to point yet.",
   "forms.rule.targetStep": "Step {stepId}",
 
-  // --- the target list at scale (Code Owner, 2026-08-30) ---
-  //
-  // The stated case is ten or more steps and hundreds of questions, where a flat wrap of
-  // checkboxes is a wall rather than a control. These are the strings the grouping and the
-  // filter need; `lib/forms/rule-targets.ts` owns what they describe.
   "forms.rule.targetsFilter": "Filter targets",
   "forms.rule.targetsFilterHint": "Matches a question id, a step id, or a step's name.",
   "forms.rule.targetsShowing": "Showing {shown} of {total} targets.",
   "forms.rule.targetsNoMatch": "No target matches that filter.",
-  // Stated ABOVE the filter and never narrowed by it, because a filter that hides a target
-  // an author has already ticked must not make the choice invisible. Same answer the
-  // library picker's chosen pane gives to the same problem.
+  /** Never narrow the selected-target summary with the search filter or selected choices become invisible. */
   "forms.rule.targetsSelected": "Selected: {targets}",
   "forms.rule.targetsSelectedNone": "Nothing selected yet. This rule would show nothing.",
-  // USER-FACING, so it says the thing rather than citing where the thing is decided (Code
-  // Owner, 2026-08-30). It carried "one forward pass" and "(ADR-16)", which name an
-  // internal record and a piece of engine vocabulary to somebody who is trying to build a
-  // form. The rule itself is simple enough to state in a sentence, and stating it is the
-  // whole reason this list is on screen instead of hidden.
-  //
-  // PLAIN, in the same pass: no second-guessing what the reader might be feeling ("rather
-  // than wondering where a question went") and no describing the rendering back to them
-  // ("greyed out"). Each sentence is one fact about the rule or about this list.
+
   "forms.rule.targetsHelpLabel": "Why these cannot be shown",
   "forms.rule.targetsHelpDetail":
     "A rule can only show something the respondent has not reached yet, so it cannot point at anything at or before the last question its condition reads. Those targets are listed here rather than hidden, and cannot be selected. A whole step appears here when any one of its questions does, because showing a step shows every question in it. A rule that points backwards cannot be published.",
@@ -1174,40 +832,26 @@ export const messages = {
     "{targets} comes before a question this condition reads. A rule can only show something the respondent has not reached yet, so this rule cannot be published until that target is cleared.",
   "forms.rule.issues": "Issues with this rule",
 
-  // --- scope, which is SHOWN and never authored (ADR-42 §3.4, §6.4) ---
-  //
-  // A rule whose target sits inside a repeating group is evaluated once per live instance,
-  // and a reference to another question in that same group resolves to THAT instance's
-  // answer. No syntax says so, which is what keeps the airline's per-passenger rule an
-  // ordinary rule - and the price is that an author cannot see the scope in the condition
-  // they wrote. This chip is what pays that price, so it is a deliverable rather than a
-  // decoration, and `{noun}` is the author's own word for one instance.
+  /** Scope is derived, not authored; show the instance scope because condition syntax alone does not reveal it. */
   "forms.rule.scopePerInstance": "evaluated per {noun}",
   "forms.rule.scopeNote":
     "This rule shows something inside {group}, so it is evaluated once for each {noun}. A question it reads from the same group reads that {noun}'s own answer.",
-  // The spanning case is a publish refusal said before the round trip, with the mechanical
-  // remedy beside it; `forms.issue.targetsSpanScopes` is the same thing after it.
+
   "forms.rule.scopeSpanning":
     "This rule shows things in more than one scope, which it cannot do: one rule is evaluated in one scope. Split it into two rules, one per scope - the condition is the same in both.",
-  // The group pickers of the three whole-group operators.
+
   "forms.rule.group": "Group",
   "forms.rule.instanceCompare": "Comparison",
-  // "Instance count" rather than "Number of instances", which is what the GROUP PANEL's fixed
-  // count field is called. Two fields with one name are two fields a speech-input user cannot
-  // tell apart, and these two mean opposite things: the panel's sets how many instances there
-  // are, and this one is the number a condition compares that count against.
+  /** Distinguish the condition comparison from the group count field so speech input can address each one. */
   "forms.rule.instanceValue": "Instance count",
   "forms.rule.compare.equals": "is exactly",
   "forms.rule.compare.gt": "is more than",
   "forms.rule.compare.gte": "is at least",
   "forms.rule.compare.lt": "is fewer than",
   "forms.rule.compare.lte": "is at most",
-  // What a nested condition under `anyInstance` / `everyInstance` is called, so the tree
-  // says whose answer the branch below it reads.
+
   "forms.rule.groupBranch": "For one instance of {group}",
-  // `everyInstance`'s reading, stated at the control as well as in the sentence (Q7). The
-  // editor is where an author decides to use the operator, so it is where the empty-group
-  // reading has to be legible rather than discovered later.
+  /** State the non-vacuous empty-group reading where the operator is chosen. */
   "forms.rule.everyInstanceReading":
     "With no instances at all this is false, not true. Negating it therefore matches a response with no instances, which is worth checking if you are writing a warning.",
 
@@ -1224,62 +868,28 @@ export const messages = {
   "forms.op.and": "all of",
   "forms.op.or": "any of",
   "forms.op.not": "not",
-  // --- the three WHOLE-GROUP operators (ADR-42, ADR-03 as amended 2026-09-29) ---
-  //
-  // Worded to say OUT LOUD that they read a group rather than a question, because the
-  // picker that offers them is otherwise a list of twelve question operators with three
-  // strangers in it: an author who picks one and then looks for the Question field needs
-  // the label to have told them there is a Group field instead.
+
   "forms.op.anyInstance": "at least one instance of a group matches",
   "forms.op.everyInstance": "every instance of a group matches",
   "forms.op.instanceCount": "how many instances a group has",
-  // Why one of the three cannot be chosen here, which is only ever one reason: this form
-  // declares no repeating group, so there is no group for the operator to read. Said as
-  // the state of the FORM rather than as a property of the operator, because the remedy is
-  // on the step editor and not in this dialog.
+
   "forms.op.needsGroup": "Add a repeating group to a step before a rule can read one.",
 
-  // --- the rules table's read-only sentence (`lib/forms/rule-sentence.ts`) ---
-  //
-  // Every entry here is a SENTENCE FRAME with placeholders, not a word to be glued to
-  // its neighbours at the call site. That is ADR-27 taken seriously rather than
-  // nominally: word order is part of a translation, and a module that concatenated
-  // `"When "` + condition + `", show "` + targets would have hard-coded English clause
-  // order in TypeScript while pretending the strings were localized. A locale that
-  // fronts the consequent rewrites `forms.sentence.frame` here and nothing else.
-  //
-  // The frames are also why the module can hand the table SEGMENTS rather than prose:
-  // it splits each frame on its own placeholders, so the emphasised names arrive already
-  // separated from the punctuation and connectives around them.
+  /** Keep whole sentence frames and placeholders in the catalog so clause order remains translatable. */
   "forms.sentence.frame": "When {condition}, show {targets}",
-  // A rule whose targets have not been chosen yet is a state the editor lets an author
-  // sit in (`forms.rule.targetsNone`), so the table has to say what it does rather than
-  // trail off after "show".
+
   "forms.sentence.frameNoTargets": "When {condition}, show nothing",
-  // Grouping is a separate frame so a locale can bracket differently; see the module's
-  // note on why a nested `and`/`or` is always bracketed.
+
   "forms.sentence.group": "({condition})",
   "forms.sentence.not": "not ({condition})",
   "forms.sentence.listComma": "{left}, {right}",
   "forms.sentence.listAnd": "{left} and {right}",
   "forms.sentence.listOr": "{left} or {right}",
-  // Both defensive: the kernel's `and`/`or` are `.min(1)` and its `in`/`containsAny`
-  // values are too, so neither empty shape is publishable. They are still reachable in a
-  // draft the API handed back, and a sentence that silently omitted the branch would
-  // read as a complete condition that is missing a clause.
+  /** Malformed empty branches must render an explicit admission rather than disappear into an apparently complete sentence. */
   "forms.sentence.noBranches": "a group with no branches",
-  // Reached by an ordinary edit rather than only by a malformed draft: a freshly created
-  // `equals` against a text question carries `""` (`condition.ts`, `startingOperand`),
-  // and "is exactly" followed by nothing reads as a truncated sentence.
+
   "forms.sentence.emptyValue": "an empty value",
 
-  // One frame per leaf operator. These are prose, so they are worded to be read in a
-  // sentence rather than picked from a list: `forms.op.*` is the operator picker's
-  // vocabulary and says "is greater than or equal to", which is exact but stops a reader
-  // mid-scan. The comparison each pair states is identical.
-  // A step target names itself as one: `show` mixes question ids and step ids, and showing
-  // a step is a different act from showing a question (they are separate visibility layers
-  // that AND together). Without this a reader cannot tell the two apart in the sentence.
   "forms.sentence.stepTarget": "the step {name}",
   "forms.sentence.op.answered": "{question} is answered",
   "forms.sentence.op.equals": "{question} is exactly {value}",
@@ -1291,45 +901,21 @@ export const messages = {
   "forms.sentence.op.gte": "{question} is at least {value}",
   "forms.sentence.op.lt": "{question} is less than {value}",
   "forms.sentence.op.lte": "{question} is at most {value}",
-  // --- the three whole-group reads, and the two sentences that state their own reading ---
-  //
-  // `{group}` is the author's own name for the group and `{noun}` is what ONE instance is
-  // called, derived from their instance-label template ("Passenger {n}" gives "Passenger").
-  // Both are substituted rather than composed, so a locale that needs the count clause
-  // first, or needs no article, rewrites the frame here.
-  // `{noun}` rather than `{group}` in the three frames that quantify over instances, and that is
-  // a wording choice with a reason: the group's label is a PLURAL an author wrote for a set
-  // ("Passengers"), and "at least one Passengers" is not English. `{noun}` is what one instance
-  // is called, taken from their own instance-heading template, so these read as sentences about
-  // one instance - which is what the operators are about. The count frames below keep `{group}`,
-  // because a count is about the set.
+  /** Use the authored singular instance template for quantification; group labels name plural sets. */
   "forms.sentence.op.anyInstance": "at least one {noun} where {condition}",
-  // IT STATES ITS OWN READING, and that clause is a decision rather than a flourish (Q7,
-  // ruled 2026-09-29). `everyInstance` over a group with NO live instance is FALSE, which
-  // is deliberately not classical universal quantification: "every passenger holds a
-  // passport" is not a true statement about a booking with no passengers. An author reading
-  // a bare "every passenger ..." would supply the classical reading, so the sentence says
-  // the non-vacuous half out loud.
+  /** everyInstance is false over an empty group; the sentence must state that non-classical reading. */
   "forms.sentence.op.everyInstance":
     "every {noun} where {condition}, and there is at least one {noun}",
-  // THE MIRROR TRAP, and the one an author is MORE likely to write (ADR-42's own note).
-  // Closing the vacuous reading for `everyInstance` makes its negation vacuous: this is
-  // TRUE over an empty group, so "show the warning unless every passenger has a passport"
-  // fires for a booking with no passengers. A warning is usually phrased as a negation, so
-  // this is the sentence that costs somebody a wrong warning if it goes unworded.
+  /** Negating everyInstance is true over an empty group, so warning copy must expose that consequence. */
   "forms.sentence.op.notEveryInstance":
     "not every {noun} is one where {condition}, which includes there being no {noun} at all",
-  // `instanceCount` reuses the comparison NAMES of the ordering operators as a field rather
-  // than as a second vocabulary, so these five read as the five `forms.sentence.op.*`
-  // comparisons do, about a count rather than about an answer.
+
   "forms.sentence.count.equals": "the number of {group} is exactly {value}",
   "forms.sentence.count.gt": "the number of {group} is more than {value}",
   "forms.sentence.count.gte": "the number of {group} is at least {value}",
   "forms.sentence.count.lt": "the number of {group} is fewer than {value}",
   "forms.sentence.count.lte": "the number of {group} is at most {value}",
-  // The same promise `forms.issue.unknown` makes for a publish code this build has never
-  // heard of: an operator with no frame here still renders, and it renders as an
-  // admission rather than as its own token dressed up as English.
+  /** Unknown operators must render an admission, never an internal token dressed as prose. */
   "forms.sentence.op.unknown": "a condition this build cannot describe ({op})",
 
   "forms.operand.true": "Yes",
@@ -1353,12 +939,7 @@ export const messages = {
   "forms.bench.note":
     "A read-only preview. Answers typed here are evaluated against the draft on your screen and are never saved, never logged, and never seen by a respondent.",
   "forms.bench.answers": "Hypothetical answers",
-  // --- the bench's instance dimension (task 074, ADR-42 §6.4) ---
-  //
-  // The bench is where an author finds out that a rule they wrote reads the whole group rather
-  // than one instance, so it has to be able to vary the roster as well as the answers. The note
-  // names the zero case out loud, because that is the one the Q7 ruling exists for and the one
-  // nobody thinks to try.
+  /** The bench must vary group rosters as well as answers and make the zero-instance case discoverable. */
   "forms.bench.instances": "Hypothetical instances",
   "forms.bench.instancesNote":
     "Set how many instances each repeating group has. Zero is worth trying: a rule that reads a whole group behaves differently when the group is empty.",
@@ -1383,14 +964,6 @@ export const messages = {
     "One of the questions this condition reads has no answer the engine could resolve.",
   "forms.bench.failed": "The preview could not be run. {message}",
 
-  // The bench's summary digest (issue 519; `plan/admin-ux-audit.md` §3.7). Facts only,
-  // and every one of them is also inside the panel: the rule is the dialog's own title
-  // and the question count is the number of entries the "Hypothetical answers" fieldset
-  // renders. Nothing here counts issues - the validation panel owns the screen's one
-  // authoritative issue count (§5.6).
-  //
-  // "No rules to try" is reachable from the SCREEN's bench only (2026-08-30): the wizard's
-  // is reached through a rule, so there is no state in which that one has none.
   "forms.bench.digest.noRules": "No rules to try",
   "forms.bench.digest": "{rule}, reads {questions}",
   "forms.bench.digest.questionOne": "1 question",
@@ -1401,25 +974,16 @@ export const messages = {
   "forms.settings.challengeRequired": "Require a challenge before answering",
   "forms.settings.challengeHint":
     "Starting a session has to pass this deployment's challenge check first.",
-  // Says what is true of the deployment, not which provider flag it is running.
-  // The admin is told behaviour, never a flag value (ADR-24, issue #725).
+  /** Describe deployment behavior without exposing provider flags. */
   "forms.settings.challengeUnenforceable":
     "This deployment cannot check a challenge, so requiring one here enforces nothing until an operator configures a challenge provider.",
   "forms.settings.minSubmitDefault": "Use the deployment's minimum time",
   "forms.settings.minSubmit": "Minimum time before a submit is accepted (milliseconds)",
   "forms.settings.minSubmitHint":
     "A submit that arrives faster than this is refused. It exists to make an instant automated post fail, so keep it well under the time a person needs.",
-  // No "Save settings" and no "Settings saved." (Code Owner, 2026-08-29). The settings
-  // autosave on the builder's own debounce, so there is no press to label and no second
-  // confirmation to give: `plan/admin-design-contracts.md` §6 gives this screen exactly
-  // one statement of when work was stored and the ambient strip is it. A refusal still
-  // has to be said, because a switch that did not take is the one thing an author cannot
-  // see for themselves.
+
   "forms.settings.failed": "The settings could not be saved. {message}",
-  // The settings summary digest (issue 519; `plan/admin-ux-audit.md` §3.7). It states
-  // the two switches the panel holds and nothing else - in particular it makes no claim
-  // about saving, because `plan/admin-design-contracts.md` §6 gives this screen exactly
-  // one save statement and the builder's ambient strip is it.
+
   "forms.settings.digest": "{challenge}, {minSubmit}",
   "forms.settings.digest.challengeOn": "Challenge required",
   "forms.settings.digest.challengeOff": "No challenge",
@@ -1436,8 +1000,7 @@ export const messages = {
   "forms.issue.unpublishedPin":
     "A form can only pin a published version. Publish that version, or pin one that already is.",
   "forms.issue.localeIncomplete": "This has no text for the form's default locale.",
-  // Also user-facing, and cleaned with the picker's help text on 2026-08-30 for the same
-  // reason: an author reading a refused publish needs the rule, not its citation.
+
   "forms.issue.backwardTarget":
     "A rule can only show something that comes after every question its condition reads, so a target earlier in the form could never fire.",
   "forms.issue.cycle":
@@ -1450,32 +1013,19 @@ export const messages = {
   "forms.issue.duplicateStep": "Two steps share an ID, so a rule targeting it would be ambiguous.",
   "forms.issue.deprecatedPin":
     "This pin points at a deprecated version. It keeps working exactly as it is, and a new pin cannot be made to it.",
-  // The workspace pin rule (ADR-41, task 068). Deliberately parallel to the sentence
-  // above, because the shape of the answer is the same: what is already pinned keeps
-  // working, and a new pin needs a question this form's workspace may pin. The two ways
-  // forward are both named, since an author who cannot see them reads this as a wall.
+  /** Existing pins keep working; only new pins are subject to the workspace rule. */
   "forms.issue.foreignWorkspacePin":
     "This pin points at a question another workspace owns. Pins that were already published keep working; a new one needs a question in this form's own workspace or in the shared library.",
   "forms.issue.unknown": "The engine reported an issue this screen has no wording for ({code}).",
-  // Blank authored text (issue #366). The publish gate names the question and the locale;
-  // this is the sentence that says why a value made of spaces is not a value.
+
   "forms.issue.blankText":
     "This text is only whitespace, so it would reach a respondent as no text at all. Type something, or remove the entry.",
 
-  // --- the repeating group's refusals (ADR-42; Q24 to Q27, ruled 2026-09-29) ---
-  //
-  // Every sentence here names the AUTHORING GESTURE that answers it rather than restating
-  // the code, because each of these closes a shape that used to publish cleanly and never
-  // fire - the worst kind of authoring defect, since nothing anywhere said so. The kernel
-  // owns the verdict; this app owns only the words (R2).
   "forms.issue.duplicateGroup":
     "Two repeating groups share an ID, so a rule reading one of them would be ambiguous.",
   "forms.issue.danglingGroup":
     "This rule reads a repeating group the form does not have, so it would publish and never fire. Point it at a group this form declares, or remove the condition.",
-  // `max` is REQUIRED on both bounded sources (Q4 as amended by Q14): with no
-  // installation-wide ceiling, a group's own max is the only bound on how many instances a
-  // respondent can create. The panel marks the field required where the author sets it, so
-  // this sentence is the backstop rather than the first warning.
+  /** A bounded group maximum is required because it is the only declared respondent instance ceiling. */
   "forms.issue.repeatMaxMissing":
     "This group needs a maximum. Its count is not fixed, so the maximum is the only limit on how many instances a respondent can add.",
   "forms.issue.repeatMinAboveMax":
@@ -1493,29 +1043,20 @@ export const messages = {
     "One group read sits inside another, which costs the product of the two groups' maxima however small the rule looks. Put the two reads side by side under all of / any of instead of inside one another.",
   "forms.issue.readsGroupWithoutOperator":
     'This condition reads a question inside a repeating group, which has one answer per instance rather than one value. Wrap the condition in "at least one instance" or "every instance" over that group, or point the rule at a target inside the same group.',
-  // RULE_TARGETS_SPAN_SCOPES: the remedy is MECHANICAL and saying so is the point (ADR-42
-  // §3.4). One rule is evaluated in one scope, so a list straddling two has no reading at
-  // all; the split is always possible because the condition is copyable and neither half's
-  // meaning changes.
+  /** Split scope-spanning rules into separate rules with the same condition; each retains its meaning. */
   "forms.issue.targetsSpanScopes":
     "This rule shows things in more than one scope ({scopes}). One rule is evaluated in one scope, so split it into two: copy the condition into a second rule, and give each rule the targets from one scope. Neither rule's meaning changes.",
   "forms.issue.targetsSpanScopesBare":
     "This rule shows things in more than one scope. One rule is evaluated in one scope, so split it into two: copy the condition into a second rule, and give each rule the targets from one scope. Neither rule's meaning changes.",
-  // What a target outside every repeating group is called, in the scopes list above.
+
   "forms.issue.scopeForm": "outside every repeating group",
-  // REPEAT_EVALUATION_BUDGET_EXCEEDED: it names both groups, both maxima and the product,
-  // and then says what it is NOT about. The obvious reading of a refusal mentioning two
-  // maxima is "my group is too big", and the author's next act would be to shrink a group
-  // for no reason: there is no installation-wide instance ceiling (Q14), this caps no
-  // group's maximum, and two large groups with no rule reading across them publish.
+  /** The evaluation budget limits cross-group work, not either group maximum; copy must not prescribe shrinking unrelated groups. */
   "forms.issue.budgetExceeded":
     "This rule is shown once per {targetGroup} (up to {targetMax}) and reads all of {readGroup} (up to {readMax}) each time, which is {product} combinations every time anything is answered - above the engine's limit of {budget}. This is about this one rule's cost, not about either group's size: neither maximum is too large, and both groups publish fine without a rule that reads across them. Narrow the rule, or show it somewhere outside {targetGroup}.",
   "forms.issue.tableColumnType":
     "A table column cannot be this question's type. Change the group's presentation to stacked, or use a question of an allowed type.",
 
-  // Warnings (issue #123). Worded apart from the issue list above because the two say
-  // different things: an issue is why a publish is refused, a warning is something that
-  // will publish and probably will not behave the way it reads.
+  /** Warnings do not block publication; keep that distinction from refusal issues. */
   "forms.warning.heading": "Worth a look",
   "forms.warning.countOne": "1 thing would publish but may not behave as written.",
   "forms.warning.count": "{count} things would publish but may not behave as written.",
@@ -1537,10 +1078,7 @@ export const messages = {
   "forms.error.unauthorized": "Your session is no longer valid. Sign in again.",
   "forms.error.rateLimited": "Too many requests just now. Try again shortly.",
   "forms.error.internal": "Something went wrong on the server. Try again.",
-  // Accepting an agent proposal that carried new questions (issue #823). The whole
-  // accept is refused when one proposed definition is not acceptable, so the sentence
-  // has to name WHICH question and say that nothing at all was stored - an operator
-  // looking at a card listing three questions cannot act on "the request failed".
+  /** A refused accept stores nothing; name the offending question so a multi-question card can be repaired. */
   "forms.error.proposedQuestionRefused":
     "Nothing was saved. The question \u201c{question}\u201d that the assistant proposed was refused: {reason}",
   "forms.error.proposedQuestionIdReused":
@@ -1550,8 +1088,7 @@ export const messages = {
   "forms.error.unknownEnvironment":
     "This deployment serves no such environment. Pick one from the environment switcher.",
   "forms.error.unknown": "The request failed ({code}).",
-  // Task 070's two release-path refusals, in the operator's words. Both are states of the
-  // version rather than of the caller, so each says what to do with the version.
+
   "forms.error.approverIsAuthor":
     "You published this version, so you cannot release it to production. This workspace requires an approver other than the version's author: ask another approver to release it.",
   "forms.error.approverUnknownAuthor":
@@ -1560,64 +1097,18 @@ export const messages = {
   "forms.error.listFailed": "The form library could not be loaded. {message}",
   "forms.error.libraryFailed": "The question library could not be loaded. {message}",
 
-  // --- publish, preview, version history, secure links (task 034) -----------
-  //
-  // Two wording constraints run through this whole block and are not stylistic.
-  //
-  // R1 is taught, never assumed. Publishing, closing and reopening all change what
-  // happens to *new* sessions and never to in-flight ones, and an author who does not
-  // know that will read "close" as "stop everything". Every one of those three controls
-  // says what happens to sessions already under way.
-  //
-  // A secure-link URL is shown exactly once. The API stores a state row and never the
-  // token, so it genuinely cannot be shown again - the copy says so at the moment it
-  // matters rather than leaving an operator to discover it.
-
-  // The `forms.tab.*` names outlived the tab strip they were written for: the §7 rail
-  // carries the same six sections on all eight form screens (issue 561), the breadcrumb
-  // builds its last crumb from the same names, the section screens' own `<h1>` is one of
-  // them, and issue #536 composes each screen's browser-tab title from them, so all six
-  // are still one place. Only the strip's own landmark label went with `form-tabs.tsx`.
-  //
-  // The name says what the screen lists, because a bare "History" is ambiguous once
-  // composed into a heading: "History: Life insurance" could as easily mean a form's edit
-  // history or its responses. The rail follows the screen's name by the rule
-  // `plan/admin-design-contracts.md` §7 records.
-  //
-  // `forms.section.heading` ("{section}: {slug}") stood here until issue #538's sweep.
-  // The Code Owner's 2026-08-26 amendment took it out of the `<h1>`, which left it
-  // defined and read by nothing; `app/(shell)/section-headings.test.tsx` records why the
-  // heading no longer composes it. The browser-tab title issue #536 adds does compose a
-  // section name with a form's identity, but from the route's `formId` rather than a slug
-  // it would have to fetch, so it carries its own key (`title.formSection`).
-  // "Form details" rather than "Builder" since 2026-08-26 (Code Owner). The row leads to
-  // the screen carrying the form's own title, settings, rules, test bench and validation,
-  // and `admin-shell-poc.html` labels it for its subject rather than for the tool. It also
-  // stopped being the only row that meant that: the builder briefly carried a second,
-  // nested "Form details" row beside this one, which is two rows saying one thing. Naming
-  // this one correctly is what let the other go. The builder route's own `<h1>` is the
-  // bare slug (issue 679), so nothing else on the screen moves with this.
+  /** Lifecycle controls affect new sessions, never already-pinned sessions. Secure-link URLs are revealed only once because the API does not store bearer tokens. */
   "forms.tab.builder": "Form details",
-  // The seventh section, and the newest (issue #669, Code Owner 2026-09-05). Rule
-  // editing moved from a selection on the builder to a route of its own, so "Rules" is
-  // now a screen name like the five beside it rather than a rail-only label: it heads
-  // `/forms/{formId}/rules`, ends that screen's breadcrumb, names its rail row and
-  // composes its browser-tab title. `forms.rail.rules` was the old label and is gone -
-  // one name for one screen is what keeps the rail from inventing a second one.
+
   "forms.tab.rules": "Rules",
   "forms.tab.preview": "Preview",
   "forms.tab.versions": "Versions",
   "forms.tab.links": "Links",
-  // The eighth section (ADR-40). "Publish" is a screen name like the seven beside it: it
-  // heads `/forms/{formId}/publish`, ends that screen's breadcrumb, names its rail row and
-  // composes its browser-tab title.
+
   "forms.tab.publish": "Publish",
 
   "forms.publish.action": "Publish",
-  // Assembled from three counted phrases rather than written as one sentence with three
-  // numbers in it, because "Freezes 1 steps, 1 pinned questions, 1 rules." is what the
-  // single-sentence version says on a small form - and a small form is what an author
-  // publishes first. `tPlural` picks the form; the sentence just joins them.
+  /** Pluralize each count separately; a single sentence cannot choose the correct form for three independent numbers. */
   "forms.publish.freezes": "Freezes {steps}, {pins}, {rules}.",
   "forms.publish.freezes.steps.one": "1 step",
   "forms.publish.freezes.steps.other": "{count} steps",
@@ -1629,16 +1120,11 @@ export const messages = {
     "A published version is never edited. Your next change starts a fresh draft, seeded from this one.",
   "forms.publish.blocked": "This draft cannot be published yet.",
   "forms.publish.blockedCount": "{count} issues block publishing. Each one links to its cause.",
-  // Spoken, not shown (issue #377). The work list below carries the detail and every
-  // entry in it is a link, so what the live region owes an operator is that the publish
-  // did not happen and roughly how much there is to fix - not the list read aloud.
+
   "forms.publish.blockedAnnounce.one": "Publish blocked: 1 issue to fix, listed below.",
   "forms.publish.blockedAnnounce.other": "Publish blocked: {count} issues to fix, listed below.",
 
-  // Closing is per (form, environment) since task 066 (Q18), and every one of these
-  // strings had to say so: "Close this form" read as "everywhere", which is precisely the
-  // reading Q18 removed. Closing `prod` intake while a test run continues is an ordinary
-  // operation, so the environment is named in the title, the body and the button.
+  /** Closing targets one environment; title, body and confirm control must not imply a global stop. */
   "forms.lifecycle.close": "Close in {environment}",
   "forms.lifecycle.reopen": "Reopen in {environment}",
   "forms.lifecycle.closeTitle": "Close {slug} to new sessions in {environment}?",
@@ -1661,8 +1147,6 @@ export const messages = {
   "forms.lifecycle.alreadyOpenHere":
     "Intake in this environment is already open. Nothing changed, and nothing was recorded.",
 
-  // Releases and promotion (ADR-40, task 065). A release is a RECORD: nothing is copied,
-  // nothing is reverted, and rolling back is releasing an earlier version.
   "forms.releases.currentHeading": "Released now",
   "forms.releases.currentTable": "The version released to each environment",
   "forms.releases.column.environment": "Environment",
@@ -1681,9 +1165,7 @@ export const messages = {
     "This form has never been released. Publishing a version does not serve it: release it to an environment to put it in front of respondents.",
   "forms.releases.notPublished":
     "There is nothing to release yet: publish a version first, and it becomes releasable.",
-  // Derived from the row and its predecessor, never typed by an administrator. "Released
-  // version 4 after version 7" is the shape an incident review reads, so the history says
-  // so rather than leaving an operator to count backwards.
+
   "forms.releases.rollback": "Rollback",
   "forms.releases.rollbackFrom": "Rolled back from v{replaced}",
   "forms.releases.replaced": "Replaced v{replaced}",
@@ -1694,9 +1176,7 @@ export const messages = {
     "This becomes the version new sessions in {environment} start on. Sessions already under way stay on the version they pinned, and every earlier release stays in the history.",
   "forms.releases.rollbackWarning":
     "This is a rollback: {environment} is on v{current}, and v{version} is older.",
-  // The two-person rule for production (task 070, Q51), said before the operator presses
-  // anything. One switch, and the rule is about two accounts rather than two kinds of
-  // person: the account that published the version, against the account releasing it.
+  /** The production rule compares two accounts: publisher and releaser, not job titles. */
   "forms.releases.twoPersonSelf":
     "You published v{version}, so you cannot release it to {environment}. This workspace requires an approver other than the version's author: ask another approver to release it.",
   "forms.releases.twoPersonSecond":
@@ -1713,16 +1193,13 @@ export const messages = {
   "forms.releases.failed": "Nothing was released. {message}",
   "forms.releases.rollbackDone": "v{version} is released to {environment} again, as a rollback.",
 
-  // The Versions view and the publish wizard. "Available in" names
-  // the environments a version is serving NOW, not every environment it ever reached: a
-  // column that kept the old destination would present history as what is live.
+  /** Available in means serving now; historical destinations must not appear live. */
   "forms.versions.availableIn": "Available in",
   "forms.versions.availableNowhere": "Nowhere",
   "forms.versions.publishedBy": "Published by",
   "forms.versions.publisherUnknown": "Not recorded",
   "forms.versions.review": "Review",
-  // Not "Review v{version}": the row's own version link is named "View v{version}", and an
-  // accessible name holding another's whole name is ambiguous to anything matching by name.
+
   "forms.versions.reviewVersion": "Review version {version}",
   "forms.versions.summaryHeading": "What each environment is serving",
   "forms.versions.intakeOpen": "Open",
@@ -1819,8 +1296,6 @@ export const messages = {
     "its cause.",
   "forms.publish.wizardBlockedLink": "Open the builder",
 
-  // The environment-bound release surface. One intent is one act, and it publishes a real,
-  // immutable version and keeps it - nothing here skips publishing.
   "forms.workflow.release": "Release v{version} to {environment}",
   "forms.workflow.publishedForm": "Published form",
   "forms.workflow.intake": "Intake",
@@ -1853,28 +1328,23 @@ export const messages = {
 
   "forms.preview.heading": "Preview",
   "forms.preview.banner": "Preview - not published",
-  // The respondent frame's bar (issue 668), drawn in
-  // `plan/admin-shell-poc/preview-versions-poc.html:627`. It names the boundary the frame
-  // draws: outside it is authoring chrome, inside it is what a respondent would see.
+
   "forms.preview.frame": "Respondent view",
   "forms.preview.explain":
     "This is your draft compiled and rendered through the same renderer a respondent uses. Answer the questions to walk your own branches. Nothing here is saved.",
   "forms.preview.stepOf": "Step {index} of {total}: {title}",
-  // A "One page per instance" page (task 076): the step line names the instance it draws,
-  // as the portal's progress indicator does ("Step 2 of 3: Vehicle 2").
+
   "forms.preview.stepOfInstance": "Step {index} of {total}: {title}, {instance}",
   "forms.preview.previous": "Previous step",
   "forms.preview.next": "Next step",
-  // The preview's own instance dimension (074, ADR-42 §6.5). A roster is state the server owns
-  // at serve time, so a preview has none: the pane mints one from each group's `min`, and this
-  // field is the count the author types instead.
+
   "forms.preview.instances": "Instances of {group}",
   "forms.preview.reset": "Reset answers",
   "forms.preview.loading": "Compiling the draft...",
   "forms.preview.unavailable": "This draft cannot be previewed yet.",
   "forms.preview.unavailableHint":
     "A preview of a draft that publish would refuse would be a promise about what a respondent sees that publish will not keep. Fix these first.",
-  // Spoken, not shown (issue #377), and worded to the same rule as the publish summary.
+
   "forms.preview.unavailableAnnounce.one": "Preview unavailable: 1 issue to fix, listed below.",
   "forms.preview.unavailableAnnounce.other":
     "Preview unavailable: {count} issues to fix, listed below.",
@@ -1889,9 +1359,7 @@ export const messages = {
   "forms.history.emptyTitle": "Not published yet",
   "forms.history.empty": "This form has never been published.",
   "forms.history.table": "Published versions",
-  // The second churn mitigation finding 2 accepted, and it is presentation only: every
-  // `dev` iteration is an immutable published version and R1 keeps it, so the list grows.
-  // The DEFAULT shows every version, so nothing is hidden by surprise.
+  /** Default history shows every immutable version; hiding iterations must be an explicit presentation filter. */
   "forms.history.filter.all": "Every version",
   "forms.history.filter.released": "Released anywhere",
   "forms.history.filter.legend": "Show",
@@ -1910,9 +1378,7 @@ export const messages = {
   "forms.history.stored":
     "Rendered from the compiled documents stored with v{version}. Nothing was recompiled.",
   "forms.history.readOnly": "Read only: a published version is never edited (R1).",
-  // The same frame, with the sentence the drawing gives it on this screen
-  // (`preview-versions-poc.html:830`). The tense is the whole difference: what is inside is
-  // what a respondent SAW on this version, not what one would see now.
+
   "forms.history.frame": "Respondent view, as stored at publish",
   "forms.history.backToHistory": "Back to version history",
   "forms.history.stepOf": "Step {index} of {total}: {title}",
@@ -1937,23 +1403,12 @@ export const messages = {
   "forms.links.needsPublish":
     "Publish this form before minting links: a link opens the newest published version, and there is not one yet.",
   "forms.links.mint": "Mint links",
-  // The environment is in the dialog's TITLE rather than only in the banner above the
-  // page (Q6, Q19). Minting is a distributing action: the links leave the building, and
-  // which environment they reach decides where a respondent's answers land. So the
-  // environment is restated in the one place an operator has to read before the act, and
-  // again on the confirm button, because a title is read once and a button is pressed.
+  /** Restate mint environment in title and confirmation because links determine where respondent answers land. */
   "forms.links.mintTitle": "Mint secure links for {environment}",
   "forms.links.mintEnvironment":
     "These links will start sessions in {environment}, and nowhere else. A non-production link carries the environment's name in its address.",
   "forms.links.expiresAt": "Expires",
-  // The zone is named here because this is where the promise is made, and it stays UTC
-  // even though the links table went operator-local in issue #279. The two are not in
-  // tension. The stored instant is the end of the chosen day in UTC (`endOfDay` in the
-  // forms actions), so this sentence states the rule the API will actually enforce for a
-  // respondent who may be anywhere, while the table states that same instant on the clock
-  // the operator reading it is on. A dialog promising "the end of your today" would be
-  // promising something the stored value does not say, and two operators picking the same
-  // calendar day would mint links dying up to a day apart.
+  /** Mint expiry is end-of-day UTC; operator-local table display must not change that promise. */
   "forms.links.expiresAtHint": "The link stops working at the end of this day, UTC, used or not.",
   "forms.links.oneTime": "One-time (stops working after the first use)",
   "forms.links.count": "How many",
@@ -1967,10 +1422,7 @@ export const messages = {
   "forms.links.mintedOnce":
     "Copy these now. The server stores a link's state, never its token, so these URLs cannot be shown again.",
   "forms.links.mintedEnvironment": "These links are for {environment}.",
-  // Spoken, not shown (issue #377). Deliberately NOT the URLs: a token read aloud cannot
-  // be copied, and the panel that holds them stays on screen until the operator dismisses
-  // it. What the announcement owes is that the mint succeeded and that the panel is the
-  // only chance to take the URLs out of it.
+  /** Never announce bearer URLs aloud; announce success and the one-time opportunity to copy them. */
   "forms.links.mintedAnnounce.one":
     "1 secure link minted. It is listed below and cannot be shown again.",
   "forms.links.mintedAnnounce.other":
@@ -1980,12 +1432,7 @@ export const messages = {
   "forms.publicLink.copy": "Copy",
   "forms.publicLink.opensNewTab": "(opens in a new tab)",
   "forms.publicLink.helpLabel": "What is this link?",
-  // Both hints are the POC's sentence, split by the state the form is actually in rather
-  // than stating the condition and leaving the reader to work out which half applies.
-  // "the links below" rather than "on the Links screen" since 2026-08-26: this block moved
-  // ONTO that screen, and a sentence pointing at the screen it is standing on would send a
-  // reader looking for somewhere else. The distinction it draws is the whole reason the two
-  // are allowed to sit together, so it names what is actually beneath it.
+
   "forms.publicLink.hintOpen":
     "Anyone with this link can start a response while this form stays published and open. It never expires and it is never used up, which is what makes it different from the secure links below.",
   "forms.publicLink.hintClosed":
@@ -2030,33 +1477,21 @@ export const messages = {
   "forms.error.noDraft": "There is no draft to publish.",
   "forms.error.publishRejected": "The draft cannot be published yet. The reasons are listed below.",
   "forms.error.previewRejected": "The draft cannot be previewed yet. The reasons are listed below.",
-  // The rules-would-not-evaluate case, which has nothing to list. It exists so the
-  // sentence above can keep promising a list: a code that carries no issues gets its own
-  // copy rather than borrowing one that describes a screen the author is not looking at.
+
   "forms.error.previewUnavailable":
     "This draft compiled, but its rules could not be evaluated for the answers entered. Reset the answers to start again.",
   "forms.error.versionNotFound": "That version does not exist.",
 
-  // --- agent-assisted form building (task 041, flag-gated) --------------------
-  //
-  // The panel's own copy. Two rules from the 041 deliverable and
-  // ADR-25 shape everything below: Accept "merges the proposal into the working
-  // draft; never publishes" (there is no publish/erase/link/webhook affordance here
-  // at all, by construction), and every diff line is worded so `+`/`~` is never the
-  // only signal - the marker travels in the sentence itself.
-  // `agent.title` is the mark's `aria-label`, which names the panel landmark (ADR-27).
+  /** Accept updates only the working draft and never publishes. Diff meaning must not depend on plus signs or color alone. */
   "agent.title": "Assistant",
   "forms.assist.working": "The assistant is working.",
   "forms.assist.thinking": "Thinking",
   "forms.assist.thoughtFor": "Thought for {seconds} s",
-  // The step timeline. Each tool is named by what it does for the author, never by its
-  // identifier; `step.other` covers a name this build does not know.
+
   "forms.assist.stepsLabel": "Steps the assistant took",
   "forms.assist.stepRunning": "In progress",
   "forms.assist.stepDone": "Done",
-  // A step is only ever "Done" on the API's word that it worked. One that errored is
-  // "Failed"; one still open when the turn ended (an error, a lost connection) did not
-  // finish, and the panel does not guess how it would have gone.
+  /** Only the API can mark a step done; a stream ending without an outcome means interrupted. */
   "forms.assist.stepFailed": "Failed",
   "forms.assist.stepInterrupted": "Did not finish",
   "forms.assist.step.search_question_library": "Searching the question library",
@@ -2137,17 +1572,11 @@ export const messages = {
   "forms.assist.newQuestionPending":
     "New question {questionId}. Accepting creates it as an unpublished draft in the question library. Publish it there before you publish this form.",
 
-  // THE ACTION CARD (SEC-17 section 4.10).
-  //
-  // Every title, consequence sentence, state word, argument label and result line is
-  // here rather than assembled from model text, and the consequence sentences are the
-  // ones the screen's own dialog uses word for word, so a card can never say less than
-  // the dialog it mirrors. This block is a control, not copy.
+  /** Action-card consequences must mirror ordinary dialog consequences and come only from registered catalog templates, never model prose. */
   "agent.card.planTitle.one": "1 step",
   "agent.card.planTitle.other": "Plan · {count} steps",
   "agent.card.stepsLabel": "The steps this plan runs, in order",
-  // The assistant's mark replaces the word before it, and is named "Assistant" by
-  // `agent.title`, so a screen reader reads "Assistant Reason".
+
   "agent.card.reasonLabel": "Reason",
 
   "agent.card.question.create.title": "Create the question {slug} in the library",
@@ -2246,11 +1675,11 @@ export const messages = {
   "agent.card.link.revoke.title": "Revoke link {linkId}",
   "agent.card.link.revoke.consequence":
     "The link stops working from now on. A session already in progress is unaffected.",
-  // Carried inline on the step's own environment line, with one chip per step.
+
   "agent.card.environment.production": "Production: changes where respondents' answers are sent.",
   "agent.card.environmentLabel": "Environment",
   "agent.card.usesStep": "Uses the {field} step {step} sets",
-  // The same reference in a title, which is one sentence rather than a line of its own.
+
   "agent.card.fromStepShort": "step {step}'s {field}",
 
   "agent.card.openCreated": "Open what this created",
@@ -2293,9 +1722,7 @@ export const messages = {
   "agent.card.arg.yes": "Yes",
   "agent.card.arg.no": "No",
 
-  // Each state is a word and an icon, never colour alone. Where only the heading chip is
-  // visible, each step carries its word as visually hidden text, so the accessible name
-  // of a step row still gives it.
+  /** Each state needs words and an icon; color alone cannot communicate it. */
   "agent.card.state.proposed": "Proposed",
   "agent.card.state.running": "Running",
   "agent.card.state.done": "Done",
@@ -2314,7 +1741,6 @@ export const messages = {
   "agent.card.chip.cancelled": "Cancelled",
   "agent.card.chip.expired": "Expired",
 
-  // The dialog's own cost in front of an act with no inverse, asked for on the card.
   "agent.card.band.irreversible":
     "This cannot be undone. Nothing here is archived and nothing can be restored.",
   "agent.card.revealOnce": "Shown once, here only:",
@@ -2350,24 +1776,18 @@ export const messages = {
   "agent.card.note.noDraftToPublish":
     "There is no draft to publish into that environment any more. Read the form again and ask for a fresh proposal.",
 
-  // The marker is a link to the card and never a second Confirm.
+  /** The marker links to the existing card and must never become another Confirm action. */
   "agent.marker.text": "proposed · Review",
   "agent.marker.description":
     "Moves focus to the assistant's card for {summary}. Nothing runs from here.",
-  // One, always: a turn ends with at most one card or one plan (P1).
+
   "agent.launcher.toReview": "1 action to review",
 
-  // Two provider failures, two sentences, because the advice is opposite
-  // (issue #818). Neither repeats what the provider said: no vendor message,
-  // no vendor error code, no URL and no key material reaches this copy
-  // (SEC-8). The split is decided upstream from the SDK's `isRetryable`.
+  /** Never expose provider messages, error codes, URLs or keys; retry guidance comes from the upstream retryability classification. */
   "forms.assist.error.PROVIDER_ERROR": "The assistant is unavailable right now. Try again shortly.",
   "forms.assist.error.PROVIDER_REJECTED":
     "The model provider refused this request, and trying again will not help. Check the provider account and the assistant settings for this deployment.",
-  // Reached whenever the model answers in prose and proposes nothing: a refusal it explained
-  // itself, an answer to a question, or a request it could not turn into a draft. The reply is
-  // already shown above, so this says what that means rather than guessing why (issue #1065:
-  // "try a smaller change" read as nonsense under "I can't publish anything").
+
   "forms.assist.error.NO_PROPOSAL":
     "This reply has no proposal, so there is nothing to accept. To get one, describe a change to this form's steps, questions or rules.",
   "forms.assist.error.REFUSED": "The assistant declined that request. {message}",
@@ -2385,26 +1805,13 @@ export const messages = {
 
   "forms.assist.provenance": "draft includes agent-assisted changes",
 
-  // --- operations: responses, erasure, webhooks (task 035) -------------------
-  //
-  // Two families of string here describe what the SYSTEM does rather than what the
-  // screen looks like, and both are asserted in the browser suite rather than left
-  // as prose a later edit could quietly falsify:
-  //
-  // - **`ops.erase.*`** states ADR-17 in the operator's terms: the answers go, the
-  //   tombstone stays, and webhook consumers that already received the submission are
-  //   not affected by any of it. It is worded as consequences, not as "are you sure",
-  //   because the confirmation's job is to make an irreversible act deliberate.
-  // - **`ops.webhooks.secret*`** never promises the secret can be recovered, because
-  //   it cannot: the API stores ciphertext and has no route that decrypts it back out
-  //   (SEC-6). Same rule as `recovery.*` above.
+  /** Erasure copy states irreversible answer deletion and retained tombstones without claiming recall from consumers. Webhook secrets are revealed only once and cannot be recovered. */
 
   "forms.tab.responses": "Responses",
   "forms.tab.webhooks": "Webhooks",
 
   "ops.common.none": "-",
-  // Stands in for an IANA zone name in a hint for the moment before the browser has said
-  // which zone it is on (`components/operator-time.tsx`, Code Owner 2026-10-19).
+
   "ops.common.yourZone": "your time zone",
   "ops.common.cancel": "Cancel",
   "ops.common.working": "Working…",
@@ -2415,25 +1822,15 @@ export const messages = {
   "ops.area.responses.formsFailed": "The form list could not be loaded. {message}",
 
   "ops.area.webhooks.title": "Webhook operations",
-  // "screen", not "tab" (issue #651). This sentence is the one place the app explains the
-  // deployment-wide / per-form split to an operator who has landed here looking for where
-  // to add an endpoint, so sending them to a control that does not exist is the specific
-  // failure it was written to prevent. Issue #561 replaced the in-header section strip
-  // with the `@rail` slot on all eight form-scoped screens and deleted `form-tabs.tsx`;
-  // a form's siblings are now rows in a navigation column beside the content, listed
-  // under "Sections" (`forms.rail.sections`). The clause naming the list below is what
-  // makes the sentence actionable rather than merely accurate - the destination is one
-  // click away on this page.
+
   "ops.area.webhooks.intro":
     "The dead-letter queue below covers every form. Endpoints are configured per form, on that form's Webhooks screen - open one from the list below.",
-  // `{slug}` and not `{title}`: `GET /admin/forms` answers with no title, so a
-  // placeholder named for one would be a promise the catalog cannot keep.
+
   "ops.area.webhooks.pickForm": "Configure webhooks for {slug}",
   "ops.area.webhooks.noForms": "No forms exist yet, so there is nothing to deliver.",
   "ops.area.webhooks.filter.form": "Form",
   "ops.area.webhooks.filter.formAll": "Any form",
 
-  // The response browser.
   "ops.responses.heading": "Responses",
   "ops.responses.filters": "Filters",
   "ops.responses.filter.version": "Version",
@@ -2446,17 +1843,9 @@ export const messages = {
   "ops.responses.filter.onlyClean": "Not flagged",
   "ops.responses.filter.apply": "Apply filters",
   "ops.responses.filter.clear": "Clear filters",
-  // `{zone}` is the clock the days are actually read on (Code Owner, 2026-10-19): the
-  // applied filter's zone while its days are untouched (UTC for an address that names
-  // none), else the operator's own; an IANA zone name, or `ops.common.yourZone`.
+
   "ops.responses.filter.dayHint": "Whole days, in {zone}.",
-  // A filter value the address carried that no filter accepts (issue 521): a mistyped
-  // date, a `flagged` that is not true or false, a version that is not a number. The
-  // toolbar cannot produce one, so the operator either hand-edited the address or
-  // followed a link someone else did. It is named rather than dropped in silence
-  // because the count beside the table is a number an operator acts on, and a total
-  // for the whole form read as a total for one week is the same false statement this
-  // screen was fixed for, only quieter.
+  /** Name ignored malformed filters so an unfiltered total cannot masquerade as the requested date range. */
   "ops.responses.filter.ignored.one":
     "One filter was not applied: the address set {fields} to a value it does not accept.",
   "ops.responses.filter.ignored.other":
@@ -2467,12 +1856,7 @@ export const messages = {
   "ops.responses.column.submittedAt": "Submitted",
   "ops.responses.column.access": "Access",
   "ops.responses.column.flag": "Flag",
-  // The answer preview (issue 515). Every part of the cell is a key, separator and
-  // ellipsis included (ADR-27): a locale that writes lists differently, or that does
-  // not use "…" as a continuation mark, has nothing to change in the component.
-  // `preview.clipped` marks a value cut to its character budget; `preview.more` marks
-  // answers the row did not have room for. They read alike on purpose and are separate
-  // keys because they say different things.
+  /** Clipped values and omitted answers need separate translation keys even when English renders the same marker. */
   "ops.responses.column.preview": "Answer preview",
   "ops.responses.preview.pair": "{question}: {value}",
   "ops.responses.preview.separator": " · ",
@@ -2487,12 +1871,7 @@ export const messages = {
   "ops.responses.reason.MIN_TIME": "Submitted faster than the minimum time",
   "ops.responses.reason.RATE_ANOMALY": "Unusual submission rate",
   "ops.responses.reason.unknown": "Flagged as {reason}",
-  // The empty-state headings (issue 514). `plan/admin-design-contracts.md` §3 gives
-  // every empty state a heading and one sentence; the seven screens that shipped a
-  // bare muted paragraph already had the sentence, so what each gains here is the
-  // heading above it. The FILTERED variants add no key at all: §3 swaps the heading
-  // to a "no matches" line and drops the sentence, and the "no matches" line each
-  // screen already had is exactly that heading.
+
   "ops.responses.emptyTitle": "No responses yet",
   "ops.responses.empty": "Nothing has been submitted to this form yet.",
   "ops.responses.filteredEmpty": "No response matches these filters.",
@@ -2501,17 +1880,10 @@ export const messages = {
   "ops.responses.pageOf": "Page {page} of {pages}",
   "ops.responses.previous": "Previous page",
   "ops.responses.next": "Next page",
-  // The painted abbreviation first, then the whole id: same shape and same reason as
-  // `account.trigger` and `forms.step.movePin` (WCAG 2.5.3, `docs/a11y.md`). The cell
-  // paints `ses_45cf6345` and this name used to open with the 32-character value, so the
-  // two had no WORD in common even though one was a prefix of the other - a name no
-  // speech-input operator could say. `{shownId}` is what the cell paints, `{sessionId}`
-  // the whole value, which stays in the name so a row is still announced by an id that
-  // identifies it (issue #582).
+  /** The accessible name must include the painted abbreviation for speech input and the complete ID for unambiguous identification. */
   "ops.responses.open": "{shownId}, open response {sessionId}",
   "ops.responses.listFailed": "The responses could not be loaded. {message}",
 
-  // Export.
   "ops.export.open": "Export",
   "ops.export.title": "Export responses",
   "ops.export.format": "Format",
@@ -2522,11 +1894,7 @@ export const messages = {
   "ops.export.versionRequired":
     "CSV has one column per question of a single version, so a version is required.",
   "ops.export.versionIgnored": "JSON records carry their own version, so no version is needed.",
-  // The CSV shape (task 075, ruling Q17). The long shape is the default and is
-  // offered first. The wide shape's description is the one place an operator meets
-  // the cost before paying it: its header is the version's declared maximum number
-  // of instances, so it changes when that maximum changes, and a pipeline reading it
-  // has to pin the version it was built against.
+  /** Wide CSV headers depend on the frozen version maximum; consumers need a pinned version. Long shape avoids that changing-width contract. */
   "ops.export.shape": "CSV shape",
   "ops.export.shapeLong": "Long (default)",
   "ops.export.shapeWide": "Wide",
@@ -2540,22 +1908,15 @@ export const messages = {
   "ops.export.to": "Submitted to",
   "ops.export.dayHint": "Whole days, in {zone}.",
   "ops.export.download": "Download",
-  // A response viewer cannot read the form's published versions, so its list is the
-  // versions its own responses carry; an empty list means nothing to export either way,
-  // and "no published version" would have been a claim about a list that was not read.
   "ops.export.noVersions": "This form has no version to export from.",
   "ops.export.versionsUnknown":
     "This form's versions could not be read, so no version can be chosen. A JSON export " +
     "carries each response's own version.",
-  // One sentence per format, because they are different files: an empty CSV is its
-  // header row, an empty JSON export is `[]`. The dialog already knows the selected
-  // format (`ops.export.versionIgnored` turns on it), so a single sentence describing
-  // CSV while JSON was selectable was a claim the control above it disproved.
+  /** Empty CSV contains a header; empty JSON is an empty array. State the selected format rather than promising one shape for both. */
   "ops.export.emptyNote.csv":
     "A CSV export that matches nothing downloads as a file with only its header row.",
   "ops.export.emptyNote.json": "A JSON export that matches nothing downloads as an empty list.",
 
-  // The response detail.
   "ops.detail.heading": "Response {sessionId}",
   "ops.detail.back": "Back to responses",
   "ops.detail.answers": "Locked answers",
@@ -2575,10 +1936,7 @@ export const messages = {
     "The audit anchor: re-deriving it from the locked answers proves they have not changed.",
   "ops.detail.noAnswer": "Not answered",
   "ops.detail.emptyAnswer": "Answered with an empty value",
-  // "screen", not "tab", and the link's own label with it (issue #651). Same staleness as
-  // `ops.area.webhooks.intro`: the tab strip went with `form-tabs.tsx` in issue #561, and
-  // the anchor beside this sentence goes to the form's Links screen, which is a row in the
-  // rail rather than a tab in a header.
+
   "ops.detail.secureLinkNote":
     "This response came in through a secure link. Link lifecycle is on the form's Links screen.",
   "ops.detail.secureLinkGo": "Open the Links screen",
@@ -2597,20 +1955,13 @@ export const messages = {
   "ops.detail.labelsFailed":
     "Question wording could not be loaded, so answers are captioned with their question ids.",
 
-  // Erasure (ADR-17).
   "ops.erase.button": "Erase respondent data…",
   "ops.erase.title": "Erase this respondent's data?",
   "ops.erase.irreversible":
     "This deletes every answer and the submission for this session. There is no undo: no soft delete, and nothing this screen can restore from.",
   "ops.erase.tombstoneStays":
     "A tombstone remains - the session id, the form, the version, when it was erased and why. That is the compliance record, and it holds no answers.",
-  // Three separate facts, and each has an assertion behind it (task 059): a delivered
-  // event is genuinely beyond reach and the consumer's to erase as an independent
-  // controller; an undelivered one is cancelled by `eraseSession` and filtered out of
-  // both `claimDueDeliveries` and the redeliver door, so "never sent" is structural
-  // rather than a promise; and QCMS's own `outbox.payload` copy of the answers is
-  // redacted in place. 035's wording ("it may still be sent") described the pre-059
-  // behaviour truthfully and is now false - do not restore it.
+  /** Delivered events belong to the consumer. Erasure cancels undelivered events and redacts retained outbox answers; copy must not imply they may still send. */
   "ops.erase.consumersUnaffected":
     "An event already delivered stays delivered: that copy is the consumer's to erase, as an independent data controller. An event for this session that has not been delivered is cancelled and will never be sent. QCMS's own stored copy of the answers, in the queued event, is redacted.",
   "ops.erase.reason": "Reason",
@@ -2625,12 +1976,7 @@ export const messages = {
   "ops.erase.alreadyErased": "That session was already erased. Nothing changed.",
   "ops.erase.failed": "Nothing was erased. {message}",
 
-  // Q7's cross-environment offer (task 067, ADR-17's Note). An erasure acts in the
-  // selected environment only, so a data subject's request is several deliberate acts;
-  // these strings are what make that visible instead of leaving an operator to remember
-  // it. Every one is written so nothing reads as already done or about to happen: the
-  // heading says "also exists", the body says what will be asked for, and the control says
-  // "go to", because it navigates and erases nothing.
+  /** Cross-environment erasure is a navigation offer, never an automatic action or a claim that erasure already occurred. */
   "ops.erase.elsewhere.title": "This session id also exists in another environment",
   "ops.erase.elsewhere.body":
     "An erasure acts in the environment you are looking at and in no other, so nothing here has been erased anywhere else. To finish a data subject's request, go to each environment below and erase there. Each one asks you to confirm again, and names its own environment when it does.",
@@ -2645,13 +1991,9 @@ export const messages = {
   "ops.tombstone.formVersion": "Form version",
   "ops.tombstone.erasedAt": "Erased",
   "ops.tombstone.reason": "Reason",
-  // A reason this build does not recognise is quoted back inside a sentence rather
-  // than rendered raw as if it were prose - the same closed-vocabulary-plus-fallback
-  // shape `flagReasonText` uses. The column is free text at the database, so an
-  // unrecognised value has to survive as far as here.
+  /** Quote unfamiliar stored reasons inside catalog prose; never present raw database tokens as authored sentences. */
   "ops.erase.reason.unknown": "Recorded as {reason}",
 
-  // The erasure log.
   "ops.erasures.title": "Erasure log",
   "ops.erasures.intro":
     "Every erasure, newest first. A row is the evidence that a session existed and was erased; it holds no answers.",
@@ -2667,15 +2009,8 @@ export const messages = {
   "ops.erasures.total.other": "{count} erasures",
   "ops.erasures.loadFailed": "The erasure log could not be loaded. {message}",
 
-  // Webhook configuration.
   "ops.webhooks.heading": "Webhook endpoints",
-  // "except a flagged one" is not a hedge, it is what the submit slice does:
-  // `apps/api/src/features/responses/submit/handler.ts` enqueues `response.submitted`
-  // only when `flaggedReason === undefined`, and the release door is the unflag action
-  // on the response detail (`ops.detail.unflag`). "Operator" rather than "admin":
-  // `scripts/check-admin-theme.mjs` fails any user-facing string naming this app that,
-  // and operator is the vocabulary the rest of the catalog uses. The earlier wording
-  // promised "every submission", which this task's own unflag flow disproves.
+  /** Flagged submissions withhold webhook events until explicit unflagging; never promise delivery for every submission. */
   "ops.webhooks.intro":
     "Each active endpoint receives a signed response.submitted request for every submission except a flagged one, whose event is withheld until an operator releases it on the response.",
   "ops.webhooks.add": "Add endpoint",
@@ -2702,9 +2037,7 @@ export const messages = {
   "ops.webhooks.secretOnce":
     "This is the only time this secret is shown. The server keeps it encrypted and has no way to show it again; if it is lost, rotate to a new one.",
   "ops.webhooks.secretLabel": "Signing secret for {webhookId}",
-  // The API's create and rotate routes always return a secret, so this is the shape of
-  // a broken contract rather than a variant. It says so plainly and names the recovery,
-  // because an empty box under "Copy this secret now" tells an operator nothing.
+  /** Missing create/rotate secrets indicate a contract failure; show the recovery rather than an empty reveal. */
   "ops.webhooks.secretMissing":
     "The server returned no secret for this endpoint. Rotate the secret to get one.",
   "ops.webhooks.secretDismiss": "I have copied it",
@@ -2729,13 +2062,7 @@ export const messages = {
   "ops.webhooks.confirmRetarget": "Save the URL",
   "ops.webhooks.retargetFailed": "The URL was not changed. {message}",
 
-  // The two-person rule for a production endpoint change (task 070, Q30, Q51). The
-  // workspace setting that turns it on is the membership screen's; what these strings do
-  // is tell an operator the difference between "changed" and "waiting", because that is
-  // the one distinction the mechanism exists to make visible.
-  // The six refusals task 070's rule can raise, in the operator's words rather than as a
-  // code. Each says what would make the act work, because every one of them is a refusal
-  // the caller cannot clear by retrying.
+  /** Distinguish applied production changes from changes waiting for a second account; retrying alone cannot clear approval refusals. */
   "ops.error.proposerCannotConfirm":
     "You proposed this change, so you cannot confirm it. Another approver who holds production in scope has to.",
   "ops.error.endpointChangePending":
@@ -2760,16 +2087,11 @@ export const messages = {
   "ops.proposals.kind.deactivate": "Stop delivering to this endpoint",
   "ops.proposals.rotates": "Confirming this also rotates the signing secret.",
   "ops.proposals.state.waiting": "Waiting for a second approver",
-  // The two-pool window, stated in the row rather than left to be inferred: somebody
-  // confirmed and the endpoint write did not land, so the endpoint is still the old one.
-  // Confirming again finishes it and records no second confirmation.
+  /** Confirmed with no applied write is not live. Retrying completes application without another confirmation. */
   "ops.proposals.state.unapplied": "Confirmed, not yet applied. Confirm again to finish it.",
   "ops.proposals.confirm": "Confirm",
   "ops.proposals.confirmTitle": "Confirm this endpoint change?",
-  // One sentence per kind, because the generic one was wrong for two of the three: a
-  // deactivation stops delivery, and an update that only rotates the secret or flips
-  // `active` names no URL at all, so "starts delivering to " told the approver the
-  // opposite of what pressing Confirm would do (PR #1100's review, finding 4).
+  /** Consequences depend on change kind: deactivation stops delivery, while secret-only updates name no new URL. */
   "ops.proposals.confirmBody.create":
     "A new endpoint in {environment} starts receiving deliveries at {url} as soon as this is confirmed.",
   "ops.proposals.confirmBody.retarget":
@@ -2785,14 +2107,11 @@ export const messages = {
   "ops.proposals.withdrawTitle": "Withdraw this endpoint change?",
   "ops.proposals.withdrawBody":
     "The change is discarded and the endpoint in {environment} is left exactly as it is. Proposing it again starts over.",
-  // The confirmed-but-unapplied row's own withdrawal, which is the operator's way out when
-  // an apply keeps failing: nothing is live to unpick, and withdrawing releases the
-  // endpoint so a fresh change can be proposed for it.
+  /** Withdrawing an unapplied confirmed proposal releases the endpoint for a fresh change; nothing live needs undoing. */
   "ops.proposals.withdrawBodyConfirmed":
     "This change was confirmed and never reached the endpoint, so there is nothing live to undo. Withdrawing it releases the endpoint in {environment} so a new change can be proposed for it.",
   "ops.proposals.withdrawFailed": "That change was not withdrawn. {message}",
 
-  // The delivery dashboard.
   "ops.deliveries.heading": "Recent deliveries",
   "ops.deliveries.intro":
     "One row per event and endpoint. Each row records the most recent attempt made for it.",
@@ -2807,9 +2126,7 @@ export const messages = {
   "ops.deliveries.status.deadLettered": "Dead-lettered",
   "ops.deliveries.status.pending": "Pending",
   "ops.deliveries.status.cancelled": "Cancelled",
-  // The cancelled row stays on the dashboard with its reason rather than vanishing,
-  // because the operator question this screen answers is "what happened to that
-  // delivery" and a missing row answers nothing (task 059).
+  /** Keep cancelled deliveries visible with a reason so disappearance cannot hide their outcome. */
   "ops.deliveries.cancelled.session_erased":
     "Cancelled: the respondent's data was erased, so this event was never sent and its stored copy of the answers has been redacted.",
   "ops.deliveries.cancelled.unknown": "Cancelled. Recorded reason: {reason}.",
@@ -2817,21 +2134,12 @@ export const messages = {
   "ops.deliveries.attemptsHint":
     "Attempts that failed. A delivery that succeeded first time shows zero.",
   "ops.deliveries.latency": "{ms} ms",
-  // Two states reach this sentence and it used to describe only one (issue #312). A row
-  // that has never been tried and a row that was redelivered are identical here on
-  // purpose: `resetDeliveryForRedelivery` clears the whole last-attempt record rather
-  // than the error alone, precisely so a cleared error cannot sit beside a stale
-  // `last_status: 500` (`packages/db/src/queries/deliveries.ts`). So "yet" was a claim
-  // about history the panel cannot make. What it CAN say is true of both: nothing has
-  // been attempted since this delivery was queued, and the second sentence names the
-  // reason a row with attempts behind it can read that way.
+  /** Redelivery clears the whole last-attempt record; absence does not prove a delivery was never tried. */
   "ops.deliveries.noAttempt":
     "No attempt on record: nothing has been sent since this delivery was queued. Redelivering clears the previous attempt, so a row queued again reads the same as one never tried.",
   "ops.deliveries.showDetail": "Show request and response for {event}",
   "ops.deliveries.hideDetail": "Hide request and response for {event}",
-  // The row trigger's digest (issue 519; `plan/admin-ux-audit.md` §3.8). Three facts,
-  // each of which the panel below also states in full: the trigger is a shorthand for
-  // the record, never the only copy of it (§3.7).
+
   "ops.deliveries.digest": "{status}, {attempts}",
   "ops.deliveries.digest.withLatency": "{status}, {attempts}, {latency}",
   "ops.deliveries.digest.attemptOne": "1 failed attempt",
@@ -2841,23 +2149,17 @@ export const messages = {
   "ops.deliveries.signatureMasked":
     "The signature is masked before it is stored, so this record never held the HMAC.",
   "ops.deliveries.responseCode": "Response code",
-  // "stored prefix" rather than a character count: the API keeps a bounded prefix and
-  // this app is not told how long the bound is, so naming a number here would be a
-  // claim about a constant in another package that nothing keeps in step.
+  /** The API exposes only a bounded stored prefix; do not promise a length this app cannot verify. */
   "ops.deliveries.responseBody": "Response body (stored prefix)",
   "ops.deliveries.noResponse": "No response arrived: {error}",
   "ops.deliveries.emptyBody": "The response body was empty.",
-  // Cause-free on purpose: the body is removed by erasure *and* by the retention
-  // sweep, and a sentence naming one would be false whenever the other did it. Where
-  // the cause matters the row already carries it (a cancelled delivery states its
-  // reason). "Removed" rather than "expired" for the same reason.
+  /** Erasure and retention both remove snippets; cause-free wording remains true for both. */
   "ops.deliveries.redactedBody": "The stored response body was removed on {when}.",
   "ops.deliveries.lastError": "Last error",
   "ops.deliveries.emptyTitle": "No deliveries yet",
   "ops.deliveries.empty": "Nothing has been delivered for this form yet.",
   "ops.deliveries.loadFailed": "The deliveries could not be loaded. {message}",
 
-  // The dead-letter queue.
   "ops.deadLetters.heading": "Dead-letter queue",
   "ops.deadLetters.intro":
     "Deliveries that exhausted their retries. Fix the target, then redeliver: a redelivered item is queued for the next delivery pass.",
@@ -2885,43 +2187,16 @@ export const messages = {
     "{queued} queued, {failed} refused. The refused ones are still in the queue below.",
   "ops.deadLetters.loadFailed": "The dead-letter queue could not be loaded. {message}",
 
-  // Error codes raised by the 023/024/025 routes.
   "ops.error.invalidQuery": "One of those filters is not a value the server accepts.",
   "ops.error.invalidSessionId": "That is not a valid session id.",
   "ops.error.responseNotFound": "There is no such response for this form. It may have been erased.",
   "ops.error.sessionNotFound": "There is no such session.",
   "ops.error.submissionNotFound": "That session has not been submitted.",
   "ops.error.webhookNotFound": "That endpoint no longer exists for this form.",
-  // Stated as the deployment's rule rather than as an absolute one (issue #312). The https
-  // requirement and the private-address ban are both lifted by
-  // `QCMS_WEBHOOK_ALLOW_PRIVATE`, which on-prem topologies that post to internal systems
-  // legitimately set (`apps/api/src/features/webhooks/ssrf.ts`), so the old sentence told
-  // an operator working in one of those deployments a rule their own API does not enforce.
-  // The flag is NOT named: ADR-24's "clients receive behavior, not flag values" is
-  // absolute since 2026-08-31, and an admin screen has no business printing an
-  // environment variable at an author either way. "unless this deployment allows private
-  // targets" is the behaviour statement that leaves the sentence true in both
-  // configurations without saying which one is in force.
+  /** Describe the deployment target policy without naming flags: private targets may be allowed by operator configuration. */
   "ops.error.webhookUrlRejected":
     "That URL was refused. A webhook target must be an absolute URL, and unless this deployment allows private targets it must also use https and must not point at a private or reserved address.",
-  // The four specific sentences, one per `details.reason` the API sends with a
-  // `WEBHOOK_URL_REJECTED` 422 (issue #756, the half of #312 that #755 deferred).
-  // `apps/api/src/features/webhooks/ssrf.ts` owns the reason enum; `lib/forms/errors.ts`
-  // maps it onto these keys and falls back to the general sentence above when the
-  // envelope carries no reason this build recognises, so a reason added on the API side
-  // degrades to a true sentence rather than to a blank.
-  //
-  // These are the admin's own prose, NOT the API's `error.message` echoed. That is the
-  // rule rather than a preference: the envelope's message is English developer text that
-  // never passes through the catalog (ADR-27), and an app that renders whatever the other
-  // side wrote has no way to keep either promise - localisation, or the SEC-8 one that a
-  // response body is not put in front of a human. The reason is a closed enum of four
-  // values and is the only part of the envelope read here.
-  //
-  // None of them names `QCMS_WEBHOOK_ALLOW_PRIVATE`, for the reason the general sentence
-  // above already states: ADR-24's "clients receive behavior, not flag values" is absolute
-  // since 2026-08-31. "This deployment" is the behaviour statement that stays true in both
-  // configurations without saying which is in force.
+  /** Select catalog copy only from closed SSRF reason codes. Never echo API error messages or expose deployment flag values; unknown reasons use general copy. */
   "ops.error.webhookUrlNotAbsolute":
     "That URL was refused. A webhook target must be a complete, absolute URL with a scheme and a host.",
   "ops.error.webhookUrlScheme": "That URL was refused. A webhook target must use http or https.",
@@ -2930,67 +2205,23 @@ export const messages = {
   "ops.error.webhookUrlPrivateHost":
     "That URL was refused. It points at a private or reserved address, which this deployment does not deliver to.",
   "ops.error.deliveryNotFound": "That delivery no longer exists.",
-  // A server action that REJECTED rather than returning a failure state - a transport
-  // error, or a body that would not parse. Deliberately says nothing about the thrown
-  // value: it can carry a URL or a body fragment, and neither belongs on screen.
+  /** Never render thrown values: transport errors can carry URLs, headers or body fragments. */
   "ops.error.unexpected":
     "That did not reach the server, so nothing changed. Check the connection and try again.",
-  // The 409 `DELIVERY_NOT_REDELIVERABLE` answer, for a delivery whose response the
-  // database no longer holds. Two ways in, and the sentence covers both because the
-  // API cannot tell them apart and neither can the operator act on the difference:
-  //
-  //  - **Erasure** (task 059) landed between render and click. Erasure cancels the
-  //    session's still-sendable deliveries and the dead-letter queue excludes
-  //    cancelled rows, so a freshly loaded queue has no erased row to press; the race
-  //    remains, where the queue renders, the erasure commits, and the operator then
-  //    presses Redeliver (or "Redeliver all" iterates ids it displayed before the
-  //    commit). The bulk summary's refused variant
-  //    (`ops.deadLetters.redeliverPartial`) exists for the same race.
-  //  - **Retention** (issue #329) aged the payload out. This one is no race at all:
-  //    a dead letter older than QCMS_OUTBOX_PAYLOAD_TTL_MS (default 30 days) sits on
-  //    the queue looking redeliverable, and pressing Redeliver is refused. It is the
-  //    ordinary path an operator will meet.
-  //
-  // Do NOT re-describe this path as dead, and do not narrow the sentence back to
-  // erasure. It is a live guard on a privacy control, and a comment claiming
-  // otherwise is an invitation to delete it - which is exactly how the "sole/only
-  // door" comments this repo warns about rot.
+  /** Missing retained payload can result from erasure races or ordinary retention expiry. Both must refuse redelivery; do not narrow the message to erasure. */
   "ops.error.deliveryNotRedeliverable":
     "The response that delivery carries is no longer held, so it will not be re-sent.",
-  // Reachable only from a forged or malformed action payload: the dialog offers a
-  // closed set of reasons and the action re-checks it, because the value is written
-  // onto a tombstone that outlives the data it describes. It is in the catalog anyway
-  // (ADR-27) - a defensive branch that renders is still a rendered string.
+  /** Validate closed erasure reasons before recording them on tombstones that outlive respondent data. */
   "ops.error.invalidErasureReason":
     "That erasure reason is not one this build records, so nothing was erased.",
 
-  // --- the form-subtree rail (`plan/admin-design-contracts.md` §7, issue 559) ---
-  //
   "forms.rail.steps": "Steps",
   "forms.rail.formMenu": "Actions for {title}",
   "forms.rail.sections": "Sections",
-  // The ordinal beside a step title. A separate string rather than a template at the
-  // call site because a locale that numbers differently changes it here (ADR-27).
+
   "forms.rail.stepPosition": "{position}.",
 
-  // --- membership and the access audit (ADR-41, task 069) ---------------------
-  //
-  // ## One string in here is a control rather than copy
-  //
-  // `membership.settings.seedHelp` is the admin's help text for
-  // `seedNewEditorsWithTestData`, and Q57 does not leave its wording to taste: it says
-  // this record, the plan and **the admin's help text** state in those terms that a grant
-  // on `test` responses is a grant on **personal data**, because a test run can involve
-  // real respondents. A warning nobody renders is the failure mode, so the browser suite
-  // asserts this sentence is on screen rather than only in the catalog.
-  //
-  // ## What the names say, and what they deliberately do not
-  //
-  // An access group's name is a **label**: the role and the scope on the row are
-  // authoritative, nothing parses a name to authorise, and a name out of step with the
-  // fields is a validation error on save. So `membership.groups.nameHelp` explains the
-  // grammar and says the fields decide - it does not offer to fix a name, because the
-  // write path refuses one rather than rewriting it.
+  /** Test response grants are grants on personal data, including real respondents. Access-group names are labels; role and scope fields alone authorize. */
   "membership.area.title": "Workspaces",
   "membership.area.intro":
     "A workspace owns forms and questions, and its membership is what authorises work on them. A grant is a role and its scope, and a person holds as many grants as their job needs.",
@@ -3010,18 +2241,14 @@ export const messages = {
     "Who is a member of this workspace, and which access groups each one holds. Only this workspace's owners and the holder of the installation-wide claim can read this list.",
   "membership.members.loadFailed": "The membership list could not be read: {message}",
   "membership.members.none": "This workspace has no members yet.",
-  // The accessible name of each table, visually hidden, because a table needs one and
-  // the heading above it names the panel rather than the table (issue #616's siblings on
-  // every other admin table do the same).
+
   "membership.members.table": "Members of this workspace and the access groups each holds",
   "membership.audit.table": "The access audit for this workspace, newest first",
   "membership.members.columnEmail": "Account",
   "membership.members.columnRole": "Member row",
   "membership.members.columnGroups": "Access groups",
   "membership.members.noGroups": "None",
-  // The empty role, named rather than shown as a bare word: the row grants nothing and
-  // exists so a team grant is expressible, and a reader seeing `member` would reasonably
-  // read it as a rank.
+
   "membership.members.emptyRole": "Member (grants nothing on its own)",
   "membership.members.ownerRole": "Workspace owner",
   "membership.members.makeOwner": "Make a workspace owner",
@@ -3060,11 +2287,7 @@ export const messages = {
   "membership.groups.holderAdded": "{email} now holds {name}.",
   "membership.groups.holderFailed": "The grant was not written: {message}",
   "membership.groups.removeHolder": "Revoke",
-  // The accessible name of one holder's revoke control. The visible label is "Revoke" and
-  // this contains it, which is what WCAG 2.5.3 Label in Name requires of a name that says
-  // more than the text does; the email is what makes one of several buttons tellable
-  // apart. It is NOT the visible label, because an email in a button makes the button as
-  // wide as the address and the screen stops fitting a 320px viewport (SC 1.4.10).
+  /** The accessible revoke name includes its visible word and holder email; keep the email out of the painted button to preserve narrow layouts. */
   "membership.groups.removeHolderFor": "Revoke this access group from {email}",
   "membership.groups.holderRemoved":
     "The grant was revoked, and the revoke is on the access audit.",
@@ -3075,7 +2298,7 @@ export const messages = {
   "membership.settings.twoPersonHelp":
     "One switch, three effects. A release to production is refused for the account that published the version; a production endpoint change takes a second approver's confirmation; and nobody can grant themselves a responses role - a second workspace owner, or the holder of the installation-wide claim, has to make that grant. Off by default, because an installation with one account cannot satisfy the rule at all.",
   "membership.settings.seed": "Seed a new editor with dev and test response access",
-  // Q57's sentence, and the wording is the ruling's rather than this screen's.
+
   "membership.settings.seedHelp":
     "A grant on test responses is a grant on personal data, because a test run can involve real respondents. With this on, onboarding a forms.editor also grants them a responses.viewer role on dev and test - an ordinary access group you can see in the list above and revoke. Off by default, and turning it on is written to the access audit.",
   "membership.settings.save": "Save settings",
@@ -3095,9 +2318,7 @@ export const messages = {
   "membership.audit.columnDetail": "Detail",
   "membership.audit.empty": "-",
   "membership.audit.total": "{total} row(s)",
-  // The actor is stored as an account id with no key to the account, deliberately: an
-  // audit row that cascades away with what it describes is not an audit row. So a row
-  // whose account has since been removed shows the id.
+  /** Audit records must survive account deletion and fall back to account IDs rather than cascading away. */
   "membership.audit.unknownActor": "{actor} (account removed)",
 
   "membership.agentAudit.heading": "Assistant actions",
@@ -3133,18 +2354,7 @@ export const messages = {
 
 export type MessageKey = keyof typeof messages;
 
-/**
- * Resolve a counted message, picking the singular or the plural form.
- *
- * Both keys are passed in rather than assembled from a base string, so a missing form is a
- * type error here instead of a `undefined` rendered to an operator. `count` is substituted
- * as `{count}` on top of any other parameters.
- *
- * English has two forms, which is what this covers. A locale with more (Polish has four,
- * Arabic six) needs `Intl.PluralRules` to choose between a wider key set - a change to this
- * one function and to the catalog, which is exactly the seam ADR-27 asks for and the reason
- * the plural choice does not live at the call sites.
- */
+/** Pass both typed plural keys so missing forms fail at build time. Locales with more forms need a wider Intl.PluralRules selection here. */
 export function tPlural(
   one: MessageKey,
   other: MessageKey,
@@ -3154,7 +2364,6 @@ export function tPlural(
   return t(count === 1 ? one : other, { ...params, count });
 }
 
-/** Resolve a message, substituting `{name}` placeholders. */
 export function t(key: MessageKey, params?: Readonly<Record<string, string | number>>): string {
   const template: string = messages[key];
   if (params === undefined) return template;

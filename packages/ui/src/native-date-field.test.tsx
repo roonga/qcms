@@ -13,9 +13,7 @@ import {
 } from "./native-submit.ts";
 import { loadGoldenForms } from "./test-support/golden.ts";
 
-// jsdom pins the markup contract: which elements carry which names, their order, and
-// what the browser will validate. Whether the browser then submits is browser behaviour
-// (ADR-23), asserted in the portal's own suite.
+// jsdom checks the markup contract; the browser suite owns actual submission behavior.
 
 const kitchenSink = loadGoldenForms().find((f) => f.version === "v1" && f.form === "kitchen-sink");
 if (!kitchenSink) throw new Error("v1 kitchen-sink golden not found");
@@ -180,8 +178,7 @@ describe("the no-JS date control", () => {
   });
 });
 
-// Without the forced calendar a non-Gregorian default drew the same stored value as a
-// different date once hydrated, while the no-JS boxes kept posting Gregorian numbers.
+// Force Gregorian dates so native and hydrated renders agree under non-Gregorian locale defaults.
 
 describe("the calendar policy across both renders", () => {
   const NON_GREGORIAN = ["th-TH", "fa-IR", "zh-CN-u-ca-chinese", "en-US-u-ca-buddhist", "ar-EG"];

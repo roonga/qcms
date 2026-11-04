@@ -15,28 +15,8 @@ import type { ApiResult } from "./api-result.ts";
 import { readResult } from "./api-result.ts";
 import type { AdminSession } from "./session.ts";
 
-/**
- * The response, erasure and export screens' calls into the API's `/admin` group
- * (task 035, R2).
- *
- * The same proxy shape as `forms.ts` and `links.ts`: attach credentials, forward,
- * parse the payload into the app's own types. Nothing here decides anything. In
- * particular this app does **not** decide that an erased session is hidden - the API
- * reads a reporting view with a tombstone anti-join, so an erased session is absent
- * from the list, absent from the detail (404) and absent from the export by
- * construction, and a bug in this file cannot resurrect one.
- *
- * ## Answer values are payload, never log lines
- *
- * Everything crossing this module carries respondent answers. They are handed to the
- * screen and to the download stream and go nowhere else: no `console`, no error
- * message, no cache key (SEC-8, SEC-13). The export is deliberately a `Response`
- * passed through untouched rather than a parsed structure, so a whole export never
- * lands in this process's memory at once and cannot be accidentally serialized into
- * a log or a React payload.
- */
+/** Respondent answers may reach screens and streams only, never logs, errors or cache keys. Pass exports through without buffering the entire response. */
 
-/** The filters the browser toolbar can apply, all optional. */
 export interface ResponseFilters {
   readonly version?: string;
   readonly from?: string;
@@ -46,11 +26,7 @@ export interface ResponseFilters {
   readonly pageSize?: number;
 }
 
-/**
- * The export dialog's choices. `version` is required by the API for CSV.
- *
- * `shape` is CSV-only and absent means the API's own default, `long` (task 075).
- */
+/** CSV requires version; omitted shape uses the API long default. */
 export interface ExportRequest {
   readonly format: "csv" | "json";
   readonly shape?: "long" | "wide";
@@ -59,7 +35,6 @@ export interface ExportRequest {
   readonly to?: string;
 }
 
-/** Build a query string from the entries that carry a value. */
 function query(entries: Readonly<Record<string, string | number | undefined>>): string {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(entries)) {
@@ -72,7 +47,6 @@ function query(entries: Readonly<Record<string, string | number | undefined>>): 
   return rendered === "" ? "" : `?${rendered}`;
 }
 
-/** `GET /admin/forms/{id}/responses` - one filtered page of submitted responses. */
 export async function listResponses(
   session: AdminSession,
   formId: string,
@@ -101,7 +75,6 @@ export async function listResponses(
   };
 }
 
-/** `GET /admin/forms/{id}/responses/{sessionId}` - the locked set and its ledger. */
 export async function getResponse(
   session: AdminSession,
   formId: string,
@@ -127,14 +100,7 @@ export async function getResponse(
   };
 }
 
-/**
- * `GET /admin/forms/{id}/export` - the raw streamed `Response`, passed through.
- *
- * Not parsed, not buffered, not re-encoded. The API emits `text/csv` with a UTF-8
- * BOM and CRLF records (or `application/json`), and any of those three that this app
- * touched would change the bytes an operator's spreadsheet opens. The route handler
- * that calls this copies the body and the content headers straight to the browser.
- */
+/** Preserve export bytes, including CSV BOM and CRLF. Relay the body and content headers without parsing or re-encoding. */
 export function exportResponses(
   session: AdminSession,
   formId: string,
@@ -150,16 +116,7 @@ export function exportResponses(
   return adminApiFetch(session, path);
 }
 
-/**
- * `POST /admin/forms/{formId}/responses/{sessionId}/erase` - ADR-17, and it does not
- * come back.
- *
- * The API deletes the answers and the submission and writes a tombstone in one
- * transaction. There is no undo anywhere in the system: no soft-delete column, no
- * archive table, no backup this app can reach. The dialog that calls this says so in
- * those terms, and `alreadyErased` lets the screen tell "this call erased it" from
- * "it was already gone" instead of claiming the first for both.
- */
+/** Erasure is irreversible; alreadyErased distinguishes a newly completed act from an earlier one. */
 export async function eraseSession(
   session: AdminSession,
   formId: string,
@@ -182,21 +139,7 @@ export async function eraseSession(
   };
 }
 
-/**
- * `GET /admin/forms/{formId}/responses/{sessionId}/erasure-scope` - where else the same
- * subject identifier has something (Q7, task 067).
- *
- * A read that erases nothing. It exists so the screen can **offer** the repetition an
- * erasure per environment requires, and the offer is a navigation: each repetition is
- * performed in its own environment with its own type-to-confirm. This app adds no
- * judgement to the answer - the API has already narrowed the list to the environments
- * this operator may erase in, so an empty list is an empty list and not something to
- * filter.
- *
- * A failure is **not** an error on this screen. The response and its erasure door are
- * what the operator came for, and a hint that could not be fetched is a hint missing
- * rather than a screen broken; the caller renders nothing for it.
- */
+/** Cross-environment erasure is navigation to a fresh confirmation per environment, never an automatic loop. A missing hint must not block this response screen. */
 export async function erasureScope(
   session: AdminSession,
   formId: string,
@@ -214,8 +157,7 @@ export async function erasureScope(
       environment: text(raw["environment"], ""),
       alreadyErased: raw["alreadyErased"] === true,
       otherEnvironments: others.flatMap((entry) => {
-        // The API's payload is `unknown` at this boundary by design (this module's header
-        // says why), so each field is read off a widened shape and then checked.
+        /** Payload fields are unknown at the wire boundary; widen to a record before checking each one. */
         const row = entry as { environment?: unknown; alreadyErased?: unknown };
         if (typeof row.environment !== "string" || row.environment === "") return [];
         return [{ environment: row.environment, alreadyErased: row.alreadyErased === true }];
@@ -224,7 +166,6 @@ export async function erasureScope(
   };
 }
 
-/** `GET /admin/erasures` - the tombstones, newest first. Compliance evidence. */
 export async function listErasures(
   session: AdminSession,
   formId?: string,
@@ -240,16 +181,7 @@ export async function listErasures(
   };
 }
 
-/**
- * `POST /admin/forms/{formId}/responses/{sessionId}/unflag` - release a withheld
- * webhook event.
- *
- * A flagged submission (020/026 honeypot or minimum-time) is stored but its
- * `response.submitted` event is held back, so consumers never saw it. Unflagging
- * releases that event, which is a one-way door in the same sense a delivery is: once
- * the consumer has it, this app cannot recall it. `released` reports whether THIS
- * call did the releasing, so a second press does not claim the same thing twice.
- */
+/** Unflagging releases the withheld event irreversibly; released distinguishes this call from repeat presses. */
 export async function unflagResponse(
   session: AdminSession,
   formId: string,
@@ -272,8 +204,6 @@ export async function unflagResponse(
     },
   };
 }
-
-// --- reading the API's payloads ---------------------------------------------
 
 function text(raw: unknown, fallback: string): string {
   return typeof raw === "string" && raw !== "" ? raw : fallback;
@@ -301,14 +231,7 @@ function rows(raw: unknown): readonly Record<string, unknown>[] {
   );
 }
 
-/**
- * The answers object, carried through with its values untouched.
- *
- * Only the shape is checked (an object keyed by questionId). The values stay
- * `unknown`: they are canonical encodings and this app must not narrow, coerce or
- * re-encode them, because the detail view's whole claim is that it shows what was
- * locked.
- */
+/** Answer values stay unknown and untouched: canonical encodings must not be coerced or re-encoded when showing the locked response. */
 function answerMap(raw: unknown): Readonly<Record<string, unknown>> {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) return {};
   return raw as Record<string, unknown>;
@@ -328,13 +251,7 @@ function parseResponses(raw: unknown): readonly ResponseListItem[] {
     }));
 }
 
-/**
- * Read the ledger.
- *
- * `retracted` defaults to `false` only when the field is absent, and a row with no
- * `questionId` is dropped rather than rendered anonymously: a timeline entry that
- * cannot say which question it belongs to is not audit evidence.
- */
+/** Drop ledger entries with no question ID; anonymous entries are not audit evidence. */
 function parseLedger(raw: unknown): readonly LedgerEntry[] {
   return rows(raw)
     .filter((entry) => typeof entry["questionId"] === "string")

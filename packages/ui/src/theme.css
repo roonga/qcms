@@ -62,7 +62,6 @@
   --space-stack: 0.5rem;
 }
 
-/* 36px controls still clear 2.5.8 by 12px, option rows included. */
 :is(:root, [data-qcms-theme-scope]).density-compact {
   --space-control-h: 36px;
   --space-control-pad-x: 0.7rem;
@@ -71,7 +70,6 @@
   --space-stack: 0.375rem;
 }
 
-/* For coarse pointers, tremor, and anyone who finds a dense form hard to track. */
 :is(:root, [data-qcms-theme-scope]).density-spacious {
   --space-control-h: 52px;
   --space-control-pad-x: 1.1rem;
@@ -202,8 +200,6 @@
   --color-overlay: rgb(0 0 0 / 0.6);
 }
 
-/* harbor */
-
 :is(:root, [data-qcms-theme-scope])[data-theme="harbor"] {
   --color-primary: #1f5eb8;
   --color-primary-hover: #1c55a6;
@@ -282,8 +278,6 @@
   --color-overlay: rgb(0 0 0 / 0.6);
 }
 
-/* sand */
-
 :is(:root, [data-qcms-theme-scope])[data-theme="sand"] {
   --color-primary: #a24e2c;
   --color-primary-hover: #924628;
@@ -361,8 +355,6 @@
   --color-focus-ring: #e08a5f;
   --color-overlay: rgb(0 0 0 / 0.6);
 }
-
-/* plum */
 
 :is(:root, [data-qcms-theme-scope])[data-theme="plum"] {
   --color-primary: #6d28a8;
@@ -487,9 +479,6 @@
   --color-overlay: rgb(0 0 0 / 0.7);
 }
 
-/* The dark field: pure white text and edges on pure black surfaces, the same flattened neutrals and fixed AAA
-   semantics the light field uses, inverted. It exists so contrast and a dark field stop being a choice. */
-
 :is(:root, [data-qcms-theme-scope]).dark.hc {
   --color-primary: #7fe0d0;
   --color-primary-hover: #92e6d8;
@@ -529,8 +518,6 @@
   --color-overlay: rgb(0 0 0 / 0.8);
 }
 
-/* The per-theme AAA accent, the only thing HC varies; slate is in the two blocks above. */
-
 :is(:root, [data-qcms-theme-scope])[data-theme="harbor"].hc {
   --color-primary: #0a3a8a;
   --color-primary-hover: #052e73;
@@ -552,8 +539,7 @@
   --color-primary-foreground: #ffffff;
 }
 
-/* Every light-HC accent is a deep tint for a white field and measures under 2.5:1 on the dark one, so all three
-   alternates owe a dark accent here. */
+/* Light-HC accents miss contrast on dark fields; each alternate needs a dark-HC override. */
 
 :is(:root, [data-qcms-theme-scope])[data-theme="harbor"].dark.hc {
   --color-primary: #8ab4ff;

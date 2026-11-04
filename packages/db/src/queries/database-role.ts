@@ -3,9 +3,9 @@ import { sql } from "drizzle-orm";
 import { CONTROL_SCHEMA } from "../schema/schemas.js";
 import type { Executor } from "./executor.js";
 
-// Ownership rather than a name match on `current_user` (SEC-10): role names are only a
-// recipe, so a name test would pass for an adopter connected as the application
-// credential. `pg_has_role(..., 'USAGE')` so membership in the owning role counts too.
+// Ownership rather than a name match on `current_user`: role names are only a recipe, so a name test would
+// pass for an adopter connected as the application credential. `pg_has_role(..., 'USAGE')` so membership in
+// the owning role counts too.
 
 /**
  * `two_factor_resets` is included because a role that could clear a factor but not record

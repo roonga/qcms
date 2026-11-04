@@ -70,7 +70,6 @@ function postedValues(body: string, field: string): string[] {
   return new URLSearchParams(body).getAll(field);
 }
 
-/** The live instance ids on the page, in the order their cards are drawn. */
 async function instanceIds(page: import("@playwright/test").Page): Promise<string[]> {
   return page
     .locator("fieldset[data-qcms-instance]")

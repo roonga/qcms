@@ -18,10 +18,8 @@ export const SLEEP_MS = 2000;
  */
 export const MIN_ADVANCE_MS = 1500;
 
-/** Milliseconds on the wall clock, which can be set, stepped, slewed or frozen. */
 const wallClockNow = () => Date.now();
 
-/** Milliseconds on the monotonic clock, which can only ever move forwards. */
 const monotonicNow = () => Number(hrtime.bigint() / 1000n) / 1000;
 
 /**

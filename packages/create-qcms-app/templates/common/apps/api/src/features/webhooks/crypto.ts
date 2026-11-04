@@ -1,5 +1,5 @@
-// The signing secret must be recoverable to compute each delivery HMAC, so it is
-// encrypted rather than hashed (SEC-6/SEC-8). Stored as `v1.<base64(iv‖ct‖tag)>`.
+// The signing secret must be recoverable to compute each delivery HMAC, so it is encrypted rather than
+// hashed. Stored as `v1.<base64(iv‖ct‖tag)>`.
 
 const IV_BYTES = 12;
 const SCHEME_PREFIX = "v1.";
@@ -45,7 +45,7 @@ export class WebhookSecretDecryptError extends Error {
   }
 }
 
-// Error messages must never carry key or secret material (SEC-8).
+// Error messages must never carry key or secret material.
 export async function decryptWebhookSecret(stored: string, appKey: string): Promise<string> {
   if (!stored.startsWith(SCHEME_PREFIX)) {
     throw new WebhookSecretDecryptError("unrecognized webhook-secret envelope version");
@@ -70,7 +70,6 @@ export async function decryptWebhookSecret(stored: string, appKey: string): Prom
   }
 }
 
-// 32 random bytes keeps this at the SEC-7 minimum for key material.
 export function generateWebhookSecret(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
   let binary = "";

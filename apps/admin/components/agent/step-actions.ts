@@ -44,13 +44,6 @@ import type { AgentPlanStep } from "@/lib/forms/assist-stream";
 import type { RunStepRequest } from "@/lib/agent/runner";
 import { t } from "@/lib/i18n/en";
 
-/**
- * One step's screen action: each kind runs through that screen's own exported server
- * action rather than a generic endpoint, so it keeps the session gate, origin check,
- * route, authorisation and revalidation a human press has (R2). A kind with no entry
- * here is not runnable from a card and reports a failure rather than doing nothing.
- */
-
 function text(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback;
 }
@@ -65,7 +58,6 @@ function strings(value: unknown): readonly string[] {
     : [];
 }
 
-/** A whole number, or nothing: a resolved reference arrives as the value its step reported. */
 function whole(value: unknown): number | undefined {
   const parsed = typeof value === "number" ? value : Number.parseInt(text(value), 10);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
@@ -80,11 +72,6 @@ function proposalRef(
   return agentProposal === undefined ? undefined : { agentProposal, step: tokenStep };
 }
 
-/**
- * The step that applies the draft this turn proposed. It sends nothing of its own: the
- * builder owns the draft, so Confirm hands it the accepted draft and the questions it
- * invents, and the builder's own save stores both with the agent-assisted mark.
- */
 const applyDraftRunner: StepRunner = ({ step }) => {
   const proposed = step.draft;
   const builder = builderAssistSnapshot();
@@ -99,7 +86,6 @@ const applyDraftRunner: StepRunner = ({ step }) => {
   });
 };
 
-/** Close and reopen are one screen control and one route pair, so they share a runner. */
 function intakeRunner(action: "close" | "reopen"): StepRunner {
   return async ({ step, tokenStep, args, agentProposal }) => {
     const state = await setFormStatusAction(
@@ -118,11 +104,6 @@ function intakeRunner(action: "close" | "reopen"): StepRunner {
   };
 }
 
-/**
- * One endpoint change's answer. The two-person rule makes `pending` a third outcome rather
- * than an error: the change is stored, the endpoint is as it was, and the plan ends there
- * with the screen's own sentence about who confirms it.
- */
 function endpointOutcome(
   state: WebhookActionState,
   step: AgentPlanStep,
@@ -131,13 +112,11 @@ function endpointOutcome(
   if (state.status === "error") {
     return { outcome: "failed", message: text(state.message) };
   }
-  // The secret exists in plaintext here and on the card, and nowhere else (SEC-6).
   const revealed = state.revealed?.secret;
   const result = { webhookId, environment: step.environment };
   if (state.status === "pending") {
     return {
       outcome: "pending-approval",
-      // The screen's own sentence about who confirms it, word for word.
       message: t("ops.proposals.stored", { environment: step.environment }),
       result,
       ...(revealed === undefined ? {} : { revealed }),
@@ -146,12 +125,8 @@ function endpointOutcome(
   return { outcome: "done", result, ...(revealed === undefined ? {} : { revealed }) };
 }
 
-/**
- * Publishing runs the wizard's own confirmation, so the card inherits its stale-review and
- * workflow-revision checks: the review is read here, immediately before Confirm, and its
- * two expectations travel with the request. A draft saved in between is refused and
- * nothing is written, exactly as it is for the wizard.
- */
+/* Read review immediately before confirmation and forward both expectations; an intervening save must
+   refuse without writes. */
 const publishStep: StepRunner = async ({ step, tokenStep, args, agentProposal }) => {
   const formId = text(args["formId"]);
   const review = await reviewReleaseAction(formId, { kind: "draft" });
@@ -180,10 +155,6 @@ const publishStep: StepRunner = async ({ step, tokenStep, args, agentProposal })
   };
 };
 
-/**
- * A membership act's answer. ADR-41's self-grant refusal and the last-owner refusal arrive
- * as the screen's own `error` sentence, so a card reports exactly what a press reports.
- */
 function membershipOutcome(
   state: MembershipActionState,
   result: Readonly<Record<string, unknown>>,
@@ -261,9 +232,8 @@ const MEMBERSHIP_RUNNERS: Readonly<Record<string, StepRunner>> = {
   "workspace.settings": async ({ tokenStep, args, agentProposal }) => {
     const state = await saveWorkspaceSettingsAction(
       text(args["workspaceId"]),
-      // Only the settings the card displayed. A default sent for one it never showed
-      // would change a setting nobody confirmed, and the digest the API verifies is taken
-      // over exactly the members the card carried.
+      // Send only settings the card showed; defaults would change unconfirmed values and invalidate the reviewed
+      // digest.
       {
         ...(typeof args["requireSecondApprover"] === "boolean"
           ? { requireSecondApprover: args["requireSecondApprover"] }
@@ -282,10 +252,6 @@ const MEMBERSHIP_RUNNERS: Readonly<Record<string, StepRunner>> = {
   },
 };
 
-/**
- * The library's lifecycle acts are one `useActionState` form, so the card posts the
- * `FormData` that form would post rather than a second shape the screen never sends.
- */
 function lifecycleRunner(intent: "publish" | "deprecate"): StepRunner {
   return async ({ tokenStep, args, agentProposal }) => {
     const version = whole(args["version"]);
@@ -410,8 +376,6 @@ const RUNNERS: Readonly<Record<string, StepRunner>> = {
     }
     return {
       outcome: "done",
-      // `minSubmitMs: null` is the deployment's own floor, so it is reported as absent
-      // rather than as a number nobody set.
       result: {
         challengeRequired: settings.challengeRequired,
         ...(typeof settings.minSubmitMs === "number" ? { minSubmitMs: settings.minSubmitMs } : {}),
@@ -448,8 +412,6 @@ const RUNNERS: Readonly<Record<string, StepRunner>> = {
   },
   "response.erase": async ({ step, tokenStep, args, agentProposal }) => {
     const reason = text(args["reason"]);
-    // Refused rather than defaulted: the reason is written onto a tombstone, and the
-    // digest binds the one the card displayed.
     if (!isErasureReason(reason)) {
       return { outcome: "failed", message: t("ops.error.invalidErasureReason") };
     }
@@ -570,8 +532,6 @@ const RUNNERS: Readonly<Record<string, StepRunner>> = {
     if (state.status !== "minted") {
       return { outcome: "failed", message: text(state.message) };
     }
-    // The URLs reach the screen and stop there: `link.mint` allowlists the count, the
-    // expiry and the environment, and the card filters the rest out (SEC-8, section 7.6).
     const links = state.links ?? [];
     return {
       outcome: "done",
@@ -597,7 +557,6 @@ const RUNNERS: Readonly<Record<string, StepRunner>> = {
   },
 };
 
-/** The kinds a card can run today. The rest arrive with their screen group. */
 export const RUNNABLE_ACTION_KINDS: readonly string[] = Object.keys(RUNNERS);
 
 export function isRunnableKind(kind: string): boolean {
@@ -607,7 +566,6 @@ export function isRunnableKind(kind: string): boolean {
 export const runStepAction: StepRunner = async (request) => {
   const runner = RUNNERS[request.step.kind];
   if (runner === undefined) {
-    // Said rather than left blank: a step that quietly did nothing is the worst report.
     return { outcome: "failed", message: t("agent.card.note.notWired") };
   }
   return runner(request);

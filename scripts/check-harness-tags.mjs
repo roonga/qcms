@@ -15,7 +15,6 @@ import { VENDORED_SOURCE_PATTERN } from "./vendored-source.mjs";
 
 const REPO_ROOT = fileURLToPath(new URL("../", import.meta.url));
 
-/** Extensions, because reading a binary as UTF-8 matches no needle anyway. */
 const TEXT_FILES =
   /\.(md|markdown|ts|tsx|mts|cts|js|jsx|mjs|cjs|json|ya?ml|sh|css|html|txt|sql|toml|Dockerfile)$|(^|\/)(Dockerfile|\.env[^/]*)$/i;
 
@@ -99,7 +98,6 @@ export function main() {
   return 1;
 }
 
-// Guarded so an importing test triggers neither the scan nor the `process.exit`.
 if (argv[1] !== undefined && import.meta.url === pathToFileURL(argv[1]).href) {
   process.exit(main());
 }

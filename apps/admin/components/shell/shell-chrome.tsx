@@ -15,15 +15,6 @@ import {
   type ShellMode,
 } from "@/lib/shell/modes";
 
-/**
- * The topbar's middle: the application navigation in normal mode, and a focused mode's own
- * header in place of it.
- *
- * A client component for the reason `AdminNav` is one: the mode is a fact about the route
- * and a layout is never told which child rendered. `usePathname` resolves during server
- * rendering too, so the first HTML already carries the right header rather than swapping
- * one in on hydration.
- */
 export function ShellChrome({
   capabilities,
   rememberedMode,
@@ -32,10 +23,8 @@ export function ShellChrome({
   trailing,
 }: {
   readonly capabilities: ShellCapabilities;
-  /** Which mode the shell was last in, so a personal route can stay inside it. */
   readonly rememberedMode: ShellMode | undefined;
   readonly secureCookies: boolean;
-  /** The environment chip. Only the Operations header renders it. */
   readonly environment: ReactNode;
   readonly trailing: ReactNode;
 }) {
@@ -58,7 +47,6 @@ export function ShellChrome({
         )}
       </div>
       <div className="flex flex-shrink-0 items-center gap-x-2">{trailing}</div>
-      {/* A header swapping for a navigation is a change of place rather than of styling. */}
       <span className="qcms-visually-hidden" role="status" data-testid="qcms-shell-mode-status">
         {focused === undefined ? "" : t(`shell.mode.${focused}.announce`)}
       </span>
@@ -66,7 +54,6 @@ export function ShellChrome({
   );
 }
 
-/** Remembers which workspace the Workspaces mode was on, so re-entering it returns there. */
 export function RememberWorkspace({
   workspaceId,
   secureCookies,

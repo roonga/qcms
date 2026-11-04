@@ -3,10 +3,6 @@ import { readWebhookOpsFilters } from "@/lib/ops/list-filters";
 import { listAllForms } from "@/lib/server/forms";
 import { requireAdminSession } from "@/lib/server/session";
 
-/**
- * The webhook operations rail. `listAllForms` is memoized per request, so this shares the
- * page's round trip.
- */
 export default async function WebhookOpsRailSlot({
   searchParams,
 }: {

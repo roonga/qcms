@@ -44,8 +44,7 @@ export const FAKE_SCRIPTS = [
   "narrate-then-tools",
   "reasoning",
   "read-all",
-  // D0's action scripts (083, SEC-17). Each proposes and runs nothing: Confirm is the
-  // user's, on the card.
+  // These scripts propose actions only; the user's card confirmation is the sole execution trigger.
   "plan-three",
   "plan-fails-at-2",
   "plan-two-envs",
@@ -58,6 +57,8 @@ export const FAKE_SCRIPTS = [
   // One multi-step plan per screen group, so every kind is also confirmed inside a plan.
   "plan-apply-draft",
   "plan-apply-draft-release",
+  "blank-to-published",
+  "plan-publish-pins",
   "plan-form-screen",
   "plan-releases",
   "plan-links",
@@ -69,13 +70,14 @@ export const FAKE_SCRIPTS = [
   "plan-webhooks",
   "plan-workspace",
   "plan-workspace-settings",
-  // One card per kind, for each screen group's own confirm and cancel paths.
+
   "propose-form-create",
   "propose-link-mint",
   "propose-link-revoke",
   "propose-question-create",
   "propose-question-save-draft",
   "propose-question-publish",
+  "propose-question-publish-foreign",
   "propose-question-deprecate",
   "propose-question-new-version",
   "propose-form-publish",
@@ -274,7 +276,6 @@ function textParts(text: string, id = "t0"): StreamPart[] {
   ];
 }
 
-/** The input phase that precedes a parsed call; the timeline row appears on its first part. */
 function toolInputParts(toolName: string, input: unknown, nonce = ""): StreamPart[] {
   // The input phase keys on `id`, which the matching `tool-call` spells `toolCallId`.
   const id = `call_${toolName}${nonce}`;
@@ -288,7 +289,7 @@ function toolInputParts(toolName: string, input: unknown, nonce = ""): StreamPar
 function finishPart(finishReason: string): StreamPart {
   return {
     type: "finish",
-    // The provider spec carries a unified reason plus the vendor's raw one.
+
     finishReason: { unified: finishReason, raw: finishReason },
     usage: {
       inputTokens: { total: 100 },
@@ -365,7 +366,6 @@ function directiveWord(prompt: readonly PromptMessage[]): string {
   return word === "" ? "question" : word;
 }
 
-/** A slug the create scripts propose, in the grammar a form id is derived from. */
 function newSlug(prompt: readonly PromptMessage[]): string {
   return `fake-new-${directiveWord(prompt).replaceAll("_", "-")}`;
 }
@@ -601,7 +601,6 @@ function planReadAllStep(
  * has rather than a canned id.
  */
 
-/** Every fenced JSON block in the user messages: the draft preamble and the facts. */
 function jsonBlocks(prompt: readonly PromptMessage[]): Record<string, unknown>[] {
   const text = userText(prompt);
   const blocks: Record<string, unknown>[] = [];
@@ -748,7 +747,6 @@ function factMember(prompt: readonly PromptMessage[]): { userId: string; email: 
   return named ?? members[0] ?? { userId: "usr_absent", email: wanted ?? "absent@qcms.invalid" };
 }
 
-/** The question detail screen's own facts, which name no form. */
 function questionFacts(prompt: readonly PromptMessage[]): Record<string, unknown> {
   return jsonBlocks(prompt).find((block) => typeof block["questionId"] === "string") ?? {};
 }
@@ -758,7 +756,6 @@ function factQuestionId(prompt: readonly PromptMessage[]): string {
   return typeof questionId === "string" ? questionId : "q_absent";
 }
 
-/** The first version of the named status the detail screen listed, or 1. */
 function factQuestionVersion(prompt: readonly PromptMessage[], status: string): number {
   const rows = questionFacts(prompt)["versions"];
   if (!Array.isArray(rows)) return 1;
@@ -770,12 +767,10 @@ function factQuestionVersion(prompt: readonly PromptMessage[], status: string): 
   return 1;
 }
 
-/** A question definition a create or a save proposes, in the kernel's own shape. */
 function fakeQuestionDefinition(questionId: string): Record<string, unknown> {
   return { questionId, type: "shortText", label: { en: "What the assistant proposed" } };
 }
 
-/** The first endpoint and the first delivery the webhooks screen listed. */
 function factWebhookId(prompt: readonly PromptMessage[]): string {
   return firstId(screenFacts(prompt)["endpoints"], "webhookId", "wh_absent");
 }
@@ -888,7 +883,6 @@ function workspaceSettingsStep(prompt: readonly PromptMessage[]): Record<string,
   };
 }
 
-/** How many times this turn has already called one tool, which P1's script needs. */
 function toolCallCount(prompt: readonly PromptMessage[], name: string): number {
   let count = 0;
   for (const message of prompt) {
@@ -902,7 +896,6 @@ function toolCallCount(prompt: readonly PromptMessage[], name: string): number {
   return count;
 }
 
-/** A name outside the registry, which the one door refuses before anything is dispatched. */
 const UNREGISTERED_TOOL = "run_action";
 
 function actionPlanSteps(
@@ -951,7 +944,7 @@ function actionPlanSteps(
         { kind: "question.deprecate", args: { questionId, version } },
       ];
     }
-    // One group's whole life, each step naming the group the first step records.
+
     case "plan-workspace": {
       const workspaceId = factWorkspaceId(prompt);
       const teamId = { fromStep: 0, field: "teamId" };
@@ -1012,6 +1005,8 @@ function actionPlanSteps(
         },
         { kind: "webhook.redeliver", args: { formId, deliveryId: factDeliveryId(prompt) } },
       ];
+    case "plan-publish-pins":
+      return publishPinsSteps(prompt);
     case "plan-26-steps":
       return Array.from({ length: 26 }, (_, index) => mintStep(formId, index + 1));
     default:
@@ -1019,10 +1014,6 @@ function actionPlanSteps(
   }
 }
 
-/**
- * One card per kind: `propose-<kind>` puts that kind alone up for review, which is what a
- * screen group's confirm and cancel paths drive.
- */
 const SINGLE_ACTIONS: Readonly<
   Record<string, (prompt: readonly PromptMessage[]) => Record<string, unknown>>
 > = {
@@ -1058,6 +1049,12 @@ const SINGLE_ACTIONS: Readonly<
   "propose-question-new-version": (prompt) => ({
     kind: "question.newVersion",
     args: { questionId: factQuestionId(prompt) },
+  }),
+  // A question this form's draft does not pin, which is what the builder's own refusal is
+  // about: an id the model names is never what decides whether it may be published here.
+  "propose-question-publish-foreign": () => ({
+    kind: "question.publish",
+    args: { questionId: "q_not_pinned_here", version: 1 },
   }),
   "propose-form-settings": (prompt) => ({
     kind: "form.settings",
@@ -1236,10 +1233,10 @@ const ACTION_SCRIPTS: readonly FakeScript[] = [
   "plan-webhooks",
   "plan-workspace",
   "plan-workspace-settings",
+  "plan-publish-pins",
   ...(Object.keys(SINGLE_ACTIONS) as FakeScript[]),
 ];
 
-/** The tool names this turn offered, which is the screen's own list. */
 function offeredTools(tools: unknown): readonly string[] {
   if (!Array.isArray(tools)) return [];
   const names: string[] = [];
@@ -1256,7 +1253,6 @@ const CHUNK_DELAY_MS: Readonly<Partial<Record<FakeScript, number>>> = {
   "narrate-then-tools": 150,
 };
 
-/** Scripts whose next step depends on what has already run, keyed by name. */
 const STATEFUL_PLANNERS: Readonly<
   Partial<
     Record<
@@ -1271,6 +1267,7 @@ const STATEFUL_PLANNERS: Readonly<
   reasoning: planReasoningStep,
   "plan-apply-draft": planApplyDraftStep,
   "plan-apply-draft-release": planApplyDraftReleaseStep,
+  "blank-to-published": planBlankToPublishedStep,
 };
 
 function planStep(
@@ -1424,7 +1421,274 @@ function planApplyDraftReleaseStep(
   return [...textParts("The plan is on the card for you to confirm.", "t1"), finishPart("stop")];
 }
 
-/** The `default` script: search, propose the draft, then put it up as a card. */
+/**
+ * A patient-registration form's questions, one per kernel type, each filling every
+ * authoring field its type supports. It is what the `blank-to-published` journey publishes,
+ * so "complete rather than minimal" is asserted rather than only described in a prompt.
+ */
+function patientQuestions(prompt: readonly PromptMessage[]): Record<string, unknown>[] {
+  const base = newQuestionId(prompt);
+  const id = (suffix: string): string => `${base}_${suffix}`;
+  return [
+    {
+      questionId: id("given_name"),
+      type: "shortText",
+      label: { en: "Given name" },
+      help: { en: "As it appears on your Medicare card." },
+      required: true,
+      constraints: { minLength: 1, maxLength: 60 },
+      messages: {
+        required: { en: "We need your given name to register you." },
+        minLength: { en: "Enter at least one character." },
+        maxLength: { en: "Use 60 characters or fewer." },
+      },
+    },
+    {
+      questionId: id("family_name"),
+      type: "shortText",
+      label: { en: "Family name" },
+      help: { en: "Your surname, as it appears on your Medicare card." },
+      required: true,
+      constraints: { minLength: 1, maxLength: 60 },
+      messages: {
+        required: { en: "We need your family name to register you." },
+        maxLength: { en: "Use 60 characters or fewer." },
+      },
+    },
+    {
+      questionId: id("date_of_birth"),
+      type: "date",
+      label: { en: "Date of birth" },
+      help: { en: "We use this to match you to existing records." },
+      required: true,
+      constraints: { min: "1900-01-01", max: "2026-12-31" },
+      messages: {
+        required: { en: "We need your date of birth." },
+        min: { en: "Enter a date from 1900 onwards." },
+        max: { en: "Enter a date that has already happened." },
+      },
+    },
+    {
+      questionId: id("email"),
+      type: "shortText",
+      label: { en: "Email address" },
+      help: { en: "Where we send appointment reminders." },
+      required: true,
+      constraints: { maxLength: 200, pattern: "^[^@\\s]+@[^@\\s]+$" },
+      messages: {
+        required: { en: "We need an email address for reminders." },
+        pattern: { en: "Enter an email address in the form name@example.com." },
+      },
+    },
+    {
+      questionId: id("phone"),
+      type: "shortText",
+      label: { en: "Mobile number" },
+      help: { en: "Digits only, including the area code." },
+      required: false,
+      constraints: { minLength: 8, maxLength: 15, pattern: "^[0-9]+$" },
+      messages: {
+        minLength: { en: "A mobile number has at least eight digits." },
+        pattern: { en: "Use digits only, with no spaces." },
+      },
+    },
+    {
+      questionId: id("height_cm"),
+      type: "number",
+      label: { en: "Height in centimetres" },
+      help: { en: "Your best estimate is fine." },
+      required: false,
+      constraints: { min: 30, max: 250, integer: true },
+      messages: {
+        min: { en: "Enter a height of at least 30 cm." },
+        max: { en: "Enter a height of 250 cm or less." },
+        integer: { en: "Enter a whole number of centimetres." },
+      },
+    },
+    {
+      questionId: id("sex_at_birth"),
+      type: "singleChoice",
+      label: { en: "Sex recorded at birth" },
+      help: { en: "Some screening recommendations depend on this." },
+      required: true,
+      options: [
+        { optionId: "opt_female", label: { en: "Female" } },
+        { optionId: "opt_male", label: { en: "Male" } },
+        { optionId: "opt_intersex", label: { en: "Intersex" } },
+        { optionId: "opt_not_stated", label: { en: "Prefer not to say" } },
+      ],
+      messages: { required: { en: "Choose one option." } },
+    },
+    {
+      questionId: id("allergies"),
+      type: "multiChoice",
+      label: { en: "Known allergies" },
+      help: { en: "Choose every one that applies. Leave blank if you have none." },
+      required: false,
+      options: [
+        { optionId: "opt_penicillin", label: { en: "Penicillin" } },
+        { optionId: "opt_latex", label: { en: "Latex" } },
+        { optionId: "opt_peanuts", label: { en: "Peanuts" } },
+        { optionId: "opt_shellfish", label: { en: "Shellfish" } },
+        { optionId: "opt_other", label: { en: "Something else" } },
+      ],
+      constraints: { minSelected: 0, maxSelected: 5 },
+      messages: { maxSelected: { en: "Choose no more than five." } },
+    },
+    {
+      questionId: id("medications"),
+      type: "longText",
+      label: { en: "Medications you take regularly" },
+      help: { en: "One per line, with the dose if you know it." },
+      required: false,
+      constraints: { maxLength: 2000 },
+      messages: { maxLength: { en: "Use 2000 characters or fewer." } },
+    },
+    {
+      questionId: id("conditions"),
+      type: "longText",
+      label: { en: "Ongoing medical conditions" },
+      help: { en: "Anything a clinician seeing you for the first time should know." },
+      required: false,
+      constraints: { maxLength: 2000 },
+      messages: { maxLength: { en: "Use 2000 characters or fewer." } },
+    },
+    {
+      questionId: id("gp_name"),
+      type: "shortText",
+      label: { en: "Your usual GP" },
+      help: { en: "Leave blank if you do not have one." },
+      required: false,
+      constraints: { maxLength: 120 },
+      messages: { maxLength: { en: "Use 120 characters or fewer." } },
+    },
+    {
+      questionId: id("consent_share"),
+      type: "boolean",
+      label: { en: "May we share your summary with your usual GP?" },
+      help: { en: "You can change this at any later visit." },
+      required: true,
+      yesLabel: { en: "Yes, share it" },
+      noLabel: { en: "No, keep it here" },
+      messages: { required: { en: "Choose whether we may share your summary." } },
+    },
+  ];
+}
+
+function patientDraft(prompt: readonly PromptMessage[]): Record<string, unknown> {
+  const draft = currentDraft(prompt) ?? {};
+  const locale = typeof draft.defaultLocale === "string" ? draft.defaultLocale : "en";
+  const questions = patientQuestions(prompt);
+  const pin = (from: number, to: number): Record<string, unknown>[] =>
+    questions.slice(from, to).map((question) => ({ questionId: question.questionId, version: 1 }));
+  return {
+    formId: draft.formId ?? factFormId(prompt),
+    defaultLocale: locale,
+    title: { [locale]: "Patient registration" },
+    steps: [
+      { stepId: "stp_identity", title: { [locale]: "Who you are" }, items: pin(0, 5) },
+      { stepId: "stp_health", title: { [locale]: "Your health" }, items: pin(5, 10) },
+      { stepId: "stp_consent", title: { [locale]: "Your GP and consent" }, items: pin(10, 12) },
+    ],
+    rules: [],
+  };
+}
+
+function factUnpublishedPins(
+  prompt: readonly PromptMessage[],
+): { questionId: string; version: number }[] {
+  // Scanned across every block rather than read off `screenFacts`: the builder's turn
+  // carries the draft preamble as well, and that block names a form too.
+  const rows = jsonBlocks(prompt).find((block) => Array.isArray(block["unpublishedPins"]))?.[
+    "unpublishedPins"
+  ];
+  if (!Array.isArray(rows)) return [];
+  const pins: { questionId: string; version: number }[] = [];
+  for (const entry of rows) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const row = entry as { questionId?: unknown; version?: unknown };
+    if (typeof row.questionId === "string" && typeof row.version === "number") {
+      pins.push({ questionId: row.questionId, version: row.version });
+    }
+  }
+  return pins;
+}
+
+function draftApplied(prompt: readonly PromptMessage[]): boolean {
+  return userText(prompt).includes("apply-draft: done");
+}
+
+/**
+ * The second card: one publish per question version the saved draft pins unpublished, then
+ * the form's own publish into the lowest environment. The ids come from the screen's facts,
+ * so the plan names what the saved draft pins rather than what an earlier turn proposed.
+ */
+function publishPinsSteps(prompt: readonly PromptMessage[]): Record<string, unknown>[] {
+  return [
+    ...factUnpublishedPins(prompt).map((pin) => ({
+      kind: "question.publish",
+      args: { questionId: pin.questionId, version: pin.version },
+    })),
+    { kind: "form.publish", args: { formId: factFormId(prompt), environment: "test" } },
+  ];
+}
+
+function planBlankToPublishedStep(
+  prompt: readonly PromptMessage[],
+  results: Map<string, unknown>,
+): StreamPart[] {
+  if (draftApplied(prompt)) {
+    if (toolCallCount(prompt, "propose_plan") > 0) {
+      return [
+        ...textParts("The publish plan is on the card for you to confirm.", "p1"),
+        finishPart("stop"),
+      ];
+    }
+    const input = { steps: publishPinsSteps(prompt) };
+    return [
+      ...textParts(
+        "The draft is saved. May I publish the questions it pins and then the form into test? Promoting it further is a separate act for someone else.",
+        "p0",
+      ),
+      ...toolInputParts("propose_plan", input),
+      toolCallPart("propose_plan", input),
+      finishPart("tool-calls"),
+    ];
+  }
+
+  if (!results.has("search_question_library")) {
+    const query = pickSearchQuery(prompt);
+    return [
+      ...textParts("Let me check the library before inventing anything.", "t0"),
+      toolCallPart("search_question_library", {
+        limit: 10,
+        ...(query === undefined ? {} : { query }),
+      }),
+      finishPart("tool-calls"),
+    ];
+  }
+  if (!results.has("propose_questions")) {
+    return [
+      toolCallPart("propose_questions", { questions: patientQuestions(prompt) }),
+      finishPart("tool-calls"),
+    ];
+  }
+  if (!results.has("propose_draft")) {
+    return [
+      toolCallPart("propose_draft", { definition: patientDraft(prompt) }),
+      finishPart("tool-calls"),
+    ];
+  }
+  if (!results.has("propose_action")) return applyDraftCall(prompt);
+  return [
+    ...textParts(
+      "I wrote a patient registration form with twelve questions, each with help text, validation and its own messages. Review the diff and accept it; I will ask about publishing after that.",
+      "t1",
+    ),
+    finishPart("stop"),
+  ];
+}
+
 function planDefaultStep(
   prompt: readonly PromptMessage[],
   results: Map<string, unknown>,

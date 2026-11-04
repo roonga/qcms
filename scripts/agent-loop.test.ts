@@ -135,9 +135,8 @@ function readBackgroundPid(pidFile: string): number {
   return Number(raw);
 }
 
-// Widens the launch window between forking the session and learning its group id.
-// `set +m` is the anchor because it sits inside that window only in the shape being
-// guarded against, so one injected delay exercises the old and new shapes alike.
+// Delay after set +m so interruption tests whether process-group tracking is already established before job
+// control is disabled.
 const LAUNCH_WINDOW_HOLD_SEC = 5;
 const LAUNCH_WINDOW_INTERRUPT_MS = 1_500;
 
@@ -292,7 +291,6 @@ describe("agent-loop.sh argument validation", () => {
 
 describe("agent-loop.sh supervisor loop", () => {
   it("accepts valid arguments and runs an iteration", () => {
-    // NOTHING is the ledger-exhausted sentinel, so the loop stops after one pass.
     const res = runWithStubbedClaude("NEXT-WORK: NOTHING", "-p", "2", "-r", "5", "-m", "3");
 
     expect(res.status).toBe(0);
@@ -393,12 +391,7 @@ describe.skipIf(!HAS_PROCFS)("agent-loop.sh session process groups", () => {
       // The session runs in its own process group, so a terminal Ctrl+C does not reach
       // it. spawnSync's timeout sends SIGTERM to the supervisor, which is that path.
       const res = runWithSessionStub(
-        [
-          "sleep 600 >/dev/null 2>&1 &",
-          'echo "$!" >"$PID_FILE"',
-          // Outlives the interrupt, so the session really is mid-flight.
-          "sleep 600",
-        ].join("\n"),
+        ["sleep 600 >/dev/null 2>&1 &", 'echo "$!" >"$PID_FILE"', "sleep 600"].join("\n"),
         INTERRUPT_AFTER_MS,
       );
 
@@ -414,12 +407,7 @@ describe.skipIf(!HAS_PROCFS)("agent-loop.sh session process groups", () => {
       // Aimed into the held launch window (see holdLaunchWindowOpen), where the group
       // id is not yet known.
       const res = runWithSessionStub(
-        [
-          "sleep 600 >/dev/null 2>&1 &",
-          'echo "$!" >"$PID_FILE"',
-          // Outlives the interrupt, so the session really is mid-flight.
-          "sleep 600",
-        ].join("\n"),
+        ["sleep 600 >/dev/null 2>&1 &", 'echo "$!" >"$PID_FILE"', "sleep 600"].join("\n"),
         LAUNCH_WINDOW_INTERRUPT_MS,
         holdLaunchWindowOpen,
       );
@@ -436,7 +424,6 @@ describe.skipIf(!HAS_PROCFS)("agent-loop.sh second interrupt (issue #258)", () =
   const SIGTERM_IGNORING_DESCENDANT = [
     `bash -c 'trap "" TERM; while :; do sleep 1; done' >/dev/null 2>&1 &`,
     'echo "$!" >"$PID_FILE"',
-    // Outlives the interrupts, so the session really is mid-flight.
     "sleep 600",
   ].join("\n");
 
@@ -528,8 +515,6 @@ describe("agent-loop.sh port seat (R8)", () => {
   });
 
   it("exports the seat rather than only computing it", () => {
-    // Read from the stub's own environment, which is the property that matters:
-    // every consumer downstream reads the environment.
     const res = runWithStubbedClaude("done", "-m", "1", "-S", "3");
 
     expect(res.seat).not.toBe("<unset>");

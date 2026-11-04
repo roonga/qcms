@@ -111,8 +111,8 @@ async function serving(label, tree, probe) {
       // to be a loopback origin the cookie-security refusal accepts.
       QCMS_API_BASE_URL: `http://127.0.0.1:${String(stablePort("api"))}`,
       QCMS_PORTAL_BASE_URL: origin,
-      // Generated per run and never written down: a literal would put a
-      // credential-shaped string in the tree for no benefit (SEC-8).
+      // Generated per run and never written down: a literal would put a credential-shaped string in the tree for
+      // no benefit.
       QCMS_INTERNAL_TOKEN: Buffer.from(crypto.getRandomValues(new Uint8Array(24))).toString(
         "base64url",
       ),

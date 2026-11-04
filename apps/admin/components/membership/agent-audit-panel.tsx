@@ -4,19 +4,8 @@ import { OperatorDateTime } from "@/components/operator-time";
 import { t } from "@/lib/i18n/en";
 import type { AgentAuditPage } from "@/lib/membership/types";
 
-/**
- * The agent audit for one workspace (SEC-17).
- *
- * It sits beside the access audit because it answers the same question for the same
- * readers: the workspace's owners and the installation administrator, enforced by the
- * API's own grant check, so a refused read arrives as a message rather than as an empty
- * table that would say "the assistant has changed nothing here".
- *
- * **Every row is an act a human confirmed.** The step index and count are what make a
- * plan legible after the fact, and `detail` is one non-content fact: a version, an
- * environment name, a count or a role name. No answer value, no secret and no authored
- * text can reach it, because the row never carried one.
- */
+/* Audit human-confirmed acts using non-content facts only; never include answers, secrets, or authored
+   text. */
 export function AgentAuditPanel({
   audit,
   message,
@@ -47,8 +36,6 @@ export function AgentAuditPanel({
             <p className="text-xs text-(--color-text-muted)">
               {t("membership.agentAudit.total", { total: audit.total })}
             </p>
-            {/* Eight columns of facts do not fit the workspace column's measure, so this
-                table scrolls rather than widening the screen past its cap. */}
             <div className="qcms-table qcms-table--wide min-w-0">
               <table>
                 <caption className="qcms-visually-hidden">

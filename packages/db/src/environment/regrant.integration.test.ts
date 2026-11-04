@@ -86,7 +86,6 @@ beforeAll(async () => {
   // Cast: `drizzle(pool)` with no schema satisfies `Executor` structurally but not
   // nominally, and nothing under test reads a declared table through it.
   db = drizzle(pool) as unknown as Executor;
-  // Required setup: without it the database holds no per-workspace view.
   await reconcileWorkspaceReporting(db);
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
@@ -189,7 +188,6 @@ describe("the re-grant subcommand", { timeout: REGRANT_TIMEOUT_MS }, () => {
     // Cast: a narrowing the compiler cannot make through `unknown`.
     const thrown = failure as Error;
 
-    // What the entry file actually writes to stderr, which is the layer that matters.
     const printed = `qcms-db environment failed: ${describeError(thrown)}`;
     for (const leak of [/\bGRANT\b/, /\bREVOKE\b/, /Failed query/, /DO \$\$/, /params:/]) {
       expect(printed, `stderr must not carry ${String(leak)}`).not.toMatch(leak);
@@ -219,7 +217,6 @@ describe("the re-grant subcommand", { timeout: REGRANT_TIMEOUT_MS }, () => {
   });
 
   it("names the read and never the query when a READ fails (SEC-8)", async () => {
-    // A rename is the cheapest way to make one of the reads fail.
     await owner.query(`alter table control.environments rename to environments_sec8_renamed`);
     try {
       const failure = await regrantEnvironments(db).then(

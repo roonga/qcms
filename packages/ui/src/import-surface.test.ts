@@ -3,8 +3,6 @@ import { dirname, join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-// The exhaustive allow-list for ADR-22; the eslint rule is the fast fence. Test files
-// are exempt.
 const ALLOWED = new Set([
   "@a2ra/core",
   "react",

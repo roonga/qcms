@@ -1,20 +1,12 @@
-/**
- * The Operations forms table: what a row carries, and the URL that asks for it.
- *
- * The screen's whole state is the address, so the page and its `@rail` slot read one
- * definition and every control is a link or a native GET form rather than a handler.
- */
+/** Share URL state between page and rail; controls are links or native GET forms. */
 
 import { OPERATIONS_PATH } from "../shell/modes.ts";
 
-/** One raw search-param value, as Next hands it over. */
 export type SearchParam = string | string[] | undefined;
 
-/** The three intake readings a form can have in one environment. */
 export const OPERATIONS_INTAKES = ["open", "closed", "unreleased"] as const;
 export type OperationsIntake = (typeof OPERATIONS_INTAKES)[number];
 
-/** The orders the API guarantees, each total on `(slug, formId)`. */
 export const OPERATIONS_SORTS = [
   "slug-asc",
   "slug-desc",
@@ -33,14 +25,12 @@ export interface OperationsWorkspace {
   readonly name: string;
 }
 
-/** What is serving in this environment. Null without `form: read` on the form. */
 export interface OperationsRelease {
   readonly version: number;
   readonly releasedAt: string;
   readonly closed: boolean;
 }
 
-/** Null unless the caller holds `response: read` for this form and environment. */
 export interface OperationsCounts {
   readonly submitted: number;
   readonly inProgress: number;
@@ -62,31 +52,23 @@ export interface OperationsFormRow {
 export interface OperationsFormsPage {
   readonly environment: string;
   readonly forms: readonly OperationsFormRow[];
-  /** How many rows matched the filters, before the page was cut. */
+
   readonly total: number;
   readonly nextCursor: string | null;
-  /** The workspaces that contributed a row to this caller's unfiltered set. */
+
   readonly workspaces: readonly OperationsWorkspace[];
 }
 
-/** What the URL says the table should list. */
 export interface OperationsListState {
-  /**
-   * The environment the address names, or `undefined` when it names none and the
-   * remembered preference resolves it.
-   */
   readonly environment: string | undefined;
   readonly search: string;
   readonly workspaceId: string | undefined;
   readonly intake: OperationsIntake | undefined;
   readonly sort: OperationsSort;
   readonly cursor: string | undefined;
-  /**
-   * Whether the URL hides a row. The sort and the cursor do not, so neither counts: a
-   * table that comes back empty under a non-default order is empty full stop.
-   */
+  /** Sort and cursor change position, not row membership, so neither implies a filtered empty state. */
   readonly isFiltered: boolean;
-  /** How many filters are set, for the rail's active count. */
+
   readonly activeCount: number;
 }
 
@@ -104,7 +86,6 @@ function parseIntake(raw: SearchParam): OperationsIntake | undefined {
   return OPERATIONS_INTAKES.find((intake) => intake === value);
 }
 
-/** An unrecognised order is the default, so a hand-edited address still opens the table. */
 function parseSort(raw: SearchParam): OperationsSort {
   const value = firstValue(raw);
   return OPERATIONS_SORTS.find((sort) => sort === value) ?? DEFAULT_OPERATIONS_SORT;
@@ -141,10 +122,6 @@ function href(parts: readonly (readonly [string, string | undefined])[]): string
   return serialized === "" ? OPERATIONS_PATH : `${OPERATIONS_PATH}?${serialized}`;
 }
 
-/**
- * The address this state is, with an optional cursor in place of its own. The order of
- * the parameters is fixed so one view is one address whatever the controls were touched in.
- */
 export function operationsHref(
   state: OperationsListState,
   overrides: { readonly cursor?: string | undefined } = {},
@@ -160,13 +137,7 @@ export function operationsHref(
   ]);
 }
 
-/**
- * This state read in the environment now selected.
- *
- * The environment is the Operations header's own control, so an address can name one the
- * operator has since left. Meeting that is an Operations-wide change: it resets the page
- * position and drops the workspace filter, whose options are one environment's answer.
- */
+/** An environment switch resets cursor and workspace filter because those workspace choices belong to one environment. */
 export function operationsInEnvironment(
   state: OperationsListState,
   environment: string,
@@ -183,12 +154,10 @@ export function operationsInEnvironment(
   };
 }
 
-/** The unfiltered table in the same environment, for the rail's clear link. */
 export function operationsClearHref(state: OperationsListState): string {
   return href([["env", state.environment]]);
 }
 
-/** The query `GET /admin/operations/forms` takes for this state in this environment. */
 export function operationsApiQuery(state: OperationsListState, environment: string): string {
   const query = new URLSearchParams({ environment });
   const term = state.search.trim();
@@ -200,7 +169,6 @@ export function operationsApiQuery(state: OperationsListState, environment: stri
   return query.toString();
 }
 
-/** A row's intake reading, which separates unreleased from closed. */
 export function intakeOf(row: OperationsFormRow): OperationsIntake | undefined {
   if (!row.hasRelease) return "unreleased";
   if (row.release === null) return undefined;

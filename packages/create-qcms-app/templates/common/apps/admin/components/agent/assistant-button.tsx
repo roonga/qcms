@@ -5,15 +5,6 @@ import { AssistTip, useAssistTip } from "@/components/forms/assist-tip";
 import { t } from "@/lib/i18n/en";
 import { ASSISTANT_BUTTON_ID, PANEL_ID } from "@/lib/agent/panel";
 
-/**
- * The assistant's entry: a 32 CSS px button in the top bar's trailing group, before the
- * account avatar.
- *
- * Its badge is short text immediately after it, so a running turn is never signalled by
- * colour or motion alone. Its tooltip prints the keyboard shortcut and is the panel's own
- * dismissible, hoverable and persistent one rather than a native `title`, which satisfies
- * none of those (WCAG 2.2 SC 1.4.13).
- */
 export function AssistantButton({
   open,
   working,
@@ -37,8 +28,6 @@ export function AssistantButton({
           aria-expanded={open}
           aria-controls={PANEL_ID}
           onClick={() => {
-            // The pointer rests on this button after the press and the panel is now what the
-            // reader is looking at, so the tooltip goes rather than hanging over it.
             tip.dismiss();
             onPress();
           }}

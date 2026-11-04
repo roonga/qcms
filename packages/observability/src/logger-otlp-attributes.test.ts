@@ -3,9 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { createJsonLogger } from "./logger.js";
 
-// The logger's own half of the SEC-13 control, in front of the allowlisting
-// processor: only scalar fields become attributes, so an error, which redaction
-// turns into an object, never becomes one at all.
+// Only scalar fields become exported log attributes; errors redact to objects and must remain excluded.
 
 const ERROR_CANARY = "OTLP_LOGGER_ERROR_CANARY";
 const STACK_CANARY = "OTLP_LOGGER_STACK_CANARY";
@@ -42,8 +40,6 @@ describe("logger to OTLP attributes", () => {
     error.stack = `Error: ${ERROR_CANARY}\n    at ${STACK_CANARY} (redacted.ts:1:1)`;
     logger.error("unhandled error", { requestId: "req_1", status: 500, err: error });
 
-    // An absence assertion over a record never emitted would pass for the
-    // wrong reason.
     expect(records).toHaveLength(1);
     const record = records[0]!;
     expect(record.body).toBe("unhandled error");
@@ -54,7 +50,6 @@ describe("logger to OTLP attributes", () => {
     expect(JSON.stringify(record)).not.toContain(ERROR_CANARY);
     expect(JSON.stringify(record)).not.toContain(STACK_CANARY);
 
-    // The same call's stdout line keeps both, which makes the drop a decision.
     expect(lines).toHaveLength(1);
     expect(lines[0]).toContain(ERROR_CANARY);
     expect(lines[0]).toContain(STACK_CANARY);

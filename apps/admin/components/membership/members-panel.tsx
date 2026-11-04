@@ -7,26 +7,8 @@ import { t } from "@/lib/i18n/en";
 import { HeadingMarker } from "@/components/agent/heading-marker";
 import type { MembershipActionState, WorkspaceMember } from "@/lib/membership/types";
 
-/**
- * The membership list, and the one grant that is not an access group (Q32, Q35; task 069).
- *
- * `forms.owner` lives on the **member row** rather than on a team, so it is set here and
- * nowhere else, and both directions are written to the access audit because both change
- * what somebody may do.
- *
- * **The empty role is named rather than shown as a bare word.** A row carrying the
- * library's own `member` name grants nothing at all and exists so a team grant is
- * expressible (finding G); rendered as "member" it would read as a rank, which is the one
- * thing this model does not have.
- *
- * **The groups each member holds are in the list.** Finding 17's point is that access is
- * visible rather than inferred, and a list of member rows alone would say nothing about
- * what anybody may do.
- *
- * `.qcms-table` is the one table wrapper in this app (issue #616): the table scrolls
- * inside its own box rather than widening the page, which is what keeps every screen
- * inside a 320px viewport (SC 1.4.10) while a data table stays a data table.
- */
+/* The library's member role grants nothing by itself; forms.owner belongs to the member row, independently
+   of groups. */
 export function MembersPanel({
   workspaceId,
   members,
@@ -67,10 +49,6 @@ export function MembersPanel({
           <p className="text-sm text-(--color-text-muted)">{t("membership.members.none")}</p>
         ) : (
           <HeadingMarker control="membership.memberRole" block>
-            {/* Four columns of addresses, role sentences and the groups each member
-                holds: wider than the content column's measure as soon as a workspace has
-                real accounts in it, so the table scrolls rather than stretching the
-                screen past the cap issue 657 sets. */}
             <div className="qcms-table qcms-table--wide min-w-0">
               <table>
                 <caption className="qcms-visually-hidden">{t("membership.members.table")}</caption>

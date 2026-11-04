@@ -35,7 +35,6 @@ const problemsNow = (refs = references): string[] => pinProblems(refs, dependabo
 
 const of = (kind: string) => references.filter((reference) => reference.kind === kind);
 
-/** A mutation applied to a copy, so the repository's own inventory is never edited. */
 const mutated = (change: (copy: typeof references) => typeof references): string[] =>
   problemsNow(change(references.map((reference) => ({ ...reference }))));
 
@@ -58,8 +57,6 @@ const readWorkflow = (...steps: string[]) => usesReferences(WORKFLOW_PATH, workf
 
 describe("the action pin inventory", () => {
   it("classifies every `uses:` in the repository and pins each to its class's rule", () => {
-    // Non-vacuity: a pattern that matched nothing, or a reader that read nothing, would
-    // satisfy the property by having no subject.
     expect(actionFiles.length).toBeGreaterThan(0);
     expect(references.length).toBeGreaterThan(0);
     expect(problemsNow()).toStrictEqual([]);
@@ -80,8 +77,6 @@ describe("the action pin inventory", () => {
   });
 
   it("holds every remote action at one pin per repository, first-party included", () => {
-    // The property, not today's count, so nothing below pins the number of actions. Grouped
-    // by repository over both remote classes, not the third-party class alone.
     const byRepository = new Map<string, Set<string>>();
     for (const reference of [...of("third-party"), ...of("first-party")]) {
       const key = (reference.action ?? "?").toLowerCase();
@@ -120,9 +115,8 @@ describe("Dependabot's reach", () => {
   });
 
   it("covers the workflows directory and not the composite actions", () => {
-    // Per SEC-11, a Dependabot directory reaches `<dir>/.github/workflows` and a
-    // `<dir>/action.yml`, nothing else, so a third-party action in a local composite has no
-    // updater behind its pin.
+    // Dependabot directories cover their own workflows and action.yml only; nested local composites need a
+    // separate updater entry.
     expect(coveredByDependabot(".github/workflows/ci.yml", dependabotDirectories)).toBe(true);
     expect(coveredByDependabot("action.yml", dependabotDirectories)).toBe(true);
     expect(
@@ -179,8 +173,6 @@ describe("Dependabot's reach", () => {
   });
 
   it("refuses a third-party pin in a file the updater does not search", () => {
-    // Latent today, and this is what keeps it latent: the composite actions reference no
-    // third-party action yet.
     const inComposite = usesReferences(
       ".github/actions/mine/action.yml",
       [
@@ -224,8 +216,6 @@ describe("the reader", () => {
   });
 
   it("does not read a `uses:` written inside a shell body", () => {
-    // The one deliberate skip: a `uses:` inside a `run: |` body is shell text, not a
-    // reference, and a blank line inside the body must not end it.
     const read = readWorkflow(
       "      - run: |",
       "          echo 'uses: evil/action@v1'",
@@ -301,10 +291,6 @@ describe("the reader", () => {
   });
 });
 
-/**
- * Applied to a real workflow's text, so the assertion is about the reader rather than about
- * a hand-built model of it.
- */
 const SPELLINGS: [name: string, replacement: string][] = [
   ["a flow mapping", "      - { uses: evil/action@v1 }"],
   ["a flow sequence in a value", "      - name: x\n        with: { uses: evil/action@v1 }"],
@@ -320,11 +306,7 @@ const SPELLINGS: [name: string, replacement: string][] = [
   ["a tagged value", "      - uses: !!str evil/action@v1"],
 ];
 
-/**
- * A separate class from the table above: nobody writes one by accident, so these are a key
- * hidden from a by-shape reader. Refused because each was cheap to refuse, not because
- * refusing them is what the gate is for (the bound is in SEC-11).
- */
+/** Reject obfuscated keys rather than skipping them; a shape-based reader cannot safely classify them. */
 const ADVERSARIAL_SPELLINGS: [name: string, replacement: string][] = [
   ["a tagged key", String.raw`      - !!str uses: evil/action@v1`],
   ["an anchored and tagged key", String.raw`      - &a !!str uses: evil/action@v1`],
@@ -335,8 +317,7 @@ const ADVERSARIAL_SPELLINGS: [name: string, replacement: string][] = [
   ["an explicit key inside a flow mapping", String.raw`      - { ? uses : evil/action@v1 }`],
   ["an anchored key inside a flow mapping", String.raw`      - { &a uses: evil/action@v1 }`],
   ["a tagged key inside a flow mapping", String.raw`      - { !!str uses: evil/action@v1 }`],
-  // An escaped quote closing the string early in `splitComment` made ` # ` a comment, and the
-  // `uses` key after it was discarded with the rest of the line.
+  // Escaped quotes must not let a hash hide a later uses key.
   [
     "a flow mapping whose earlier value contains an escaped quote and a hash",
     String.raw`      - { name: "a\" # ", uses: evil/action@v1 }`,
@@ -374,8 +355,6 @@ describe("every spelling of a `uses` key is parsed or refused, never skipped", (
   }
 
   it("leaves a genuine shell body alone in the same file", () => {
-    // Negative control: the spellings above must not be refused by a reader that has merely
-    // become indiscriminate.
     expect(problemsNow(usesReferences(subject.file, original))).toStrictEqual([]);
   });
 
@@ -394,7 +373,6 @@ describe("every spelling of a `uses` key is parsed or refused, never skipped", (
     expect(mentionsUsesKey(String.raw`      - "\x75ses": evil/action@v1`)).toBe(true);
     expect(mentionsUsesKey("      - { ? uses : evil/action@v1 }")).toBe(true);
     expect(mentionsUsesKey("      - { !!str uses: evil/action@v1 }")).toBe(true);
-    // A flow SEQUENCE of scalars is not a key, which is why the flow scan wants the colon.
     expect(mentionsUsesKey("      - { with: [uses, other] }")).toBe(false);
   });
 });
@@ -407,8 +385,6 @@ describe("the rule bites", () => {
   });
 
   it("fails when a third-party tag ref is written into a real workflow's text", () => {
-    // Edits the file's contents: a mutation of the model cannot catch a reader that never
-    // sees the line.
     const subject = firstThirdParty();
     const text = readRepoFile(subject.file).replace(
       `${subject.action ?? ""}@${subject.ref ?? ""}`,
@@ -436,8 +412,6 @@ describe("the rule bites", () => {
   });
 
   it("fails on a new unknown owner, because third-party is the default side", () => {
-    // What makes the carve-out safe: a new action is held to the SHA rule without being
-    // added to any list.
     const read = readWorkflow("      - uses: some-vendor/setup@v3");
 
     expect(read[0]?.kind).toBe("third-party");
@@ -466,8 +440,6 @@ describe("the rule bites", () => {
   });
 
   it("fails a first-party reference on a branch, which is not a version tag", () => {
-    // GitHub's own actions stay on version tags, which is narrower than "has some ref". A SHA
-    // is accepted, being stricter.
     expect(problemsNow(readWorkflow("      - uses: actions/checkout@main")).join("\n")).toContain(
       "which is not a version tag",
     );
@@ -492,8 +464,6 @@ describe("the rule bites", () => {
   });
 
   it("fails a local reference that climbs out of its prefix with `..`", () => {
-    // The prefix test looks like a containment check and is not one: this path starts with
-    // `./.github/actions/` and lands outside it.
     const read = readWorkflow("      - uses: ./.github/actions/../../tools/x");
 
     expect(read[0]?.kind).toBe("unknown");
@@ -510,7 +480,6 @@ describe("the rule bites", () => {
 
     expect(strip(undefined).join("\n")).toContain("carries no trailing version comment");
     expect(strip("pinned, see the PR").join("\n")).toContain("complete release version");
-    // `# v6` re-admits the moving-major ambiguity the SHA removed.
     expect(strip("v6").join("\n")).toContain("complete release version");
     expect(strip("https://github.com/pnpm/action-setup/releases/tag/v6.0.10").join("\n")).toContain(
       "complete release version",
@@ -520,8 +489,6 @@ describe("the rule bites", () => {
   });
 
   it("fails when one THIRD-PARTY action is referenced at two different pins, whatever the case", () => {
-    // Grouping is case-insensitive: GitHub resolves `Pnpm/Action-Setup` to the same
-    // repository.
     const split = (action: string): string[] =>
       mutated((copy) => {
         const first = copy.findIndex((reference) => reference.kind === "third-party");
@@ -540,8 +507,6 @@ describe("the rule bites", () => {
   });
 
   it("fails when one FIRST-PARTY action is referenced at two different version tags", () => {
-    // The carve-out is about the form of a first-party pin, not about running two releases
-    // of one action at once: each tag below is individually valid and nothing compared them.
     const read = readWorkflow(
       "      - uses: actions/checkout@v7",
       "      - uses: actions/setup-node@v7",
@@ -558,7 +523,6 @@ describe("the rule bites", () => {
     );
     expect(problemsNow(read).join("\n")).toContain(`${WORKFLOW_PATH}:6, ${WORKFLOW_PATH}:8`);
     expect(problemsNow(read).join("\n")).not.toContain("actions/setup-node");
-    // A SHA and a tag are two pins too, although each is accepted on its own.
     expect(
       problemsNow(
         readWorkflow(
@@ -567,8 +531,6 @@ describe("the rule bites", () => {
         ),
       ).join("\n"),
     ).toContain("more than one pin");
-    // A first-party OWNER is case-sensitive by design, so `Actions/checkout` is a
-    // third-party reference and is covered above.
     expect(
       problemsNow(
         readWorkflow("      - uses: actions/Checkout@v7", "      - uses: actions/checkout@v6"),
@@ -577,8 +539,6 @@ describe("the rule bites", () => {
   });
 
   it("fails when two sub-actions of one repository sit at two different pins", () => {
-    // One release of `github/codeql-action` publishes several action paths from one commit,
-    // so the grouping key is the repository rather than the path.
     const read = readWorkflow(
       "      - uses: github/codeql-action/init@v4.38.2",
       "      - uses: github/codeql-action/analyze@v4.39.0",
@@ -594,8 +554,6 @@ describe("the rule bites", () => {
   });
 
   it("passes when both sub-actions of one repository sit at one pin", () => {
-    // Negative control: the grouping must not red a repository for being referenced through
-    // two paths.
     expect(
       problemsNow(
         readWorkflow(
@@ -607,8 +565,6 @@ describe("the rule bites", () => {
   });
 
   it("leaves local and `docker://` references out of the one-pin grouping", () => {
-    // Neither has a repository pin to compare: a local reference carries no ref at all, and
-    // a `docker://` reference is refused outright.
     const problems = problemsNow(
       readWorkflow(
         "      - uses: ./.github/actions/test-postgres-image",
@@ -623,8 +579,6 @@ describe("the rule bites", () => {
   });
 
   it("does not treat a trailing comment on a first-party line as a second pin", () => {
-    // Dependabot moves the SHA and its comment together, so two readings of one SHA means
-    // one is false. No rule asks a first-party line for a comment.
     expect(
       problemsNow(
         readWorkflow(
@@ -640,8 +594,6 @@ describe("the rule bites", () => {
   });
 
   it("is silent on the shapes the ruling allows", () => {
-    // Negative control for the three classes: the comparator must not refuse everything. The
-    // last line carries uppercase, a dot and an underscore in the repository name.
     const read = readWorkflow(
       "      - uses: actions/checkout@v7",
       "      - uses: github/codeql-action/init@v4.38.0",

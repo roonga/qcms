@@ -6,21 +6,6 @@ import type { DraftPreviewState } from "../../lib/forms/builder-state.ts";
 import type { DraftForm } from "../../lib/forms/types.ts";
 import { t } from "../../lib/i18n/en.ts";
 
-/**
- * A "One page per instance" group in the draft preview (task 076, local UX list A2).
- *
- * The pane walks views rather than steps, and a per-instance view has to draw ONE instance
- * of the group, through the same renderer `view` option the portal passes, and say which
- * instance it is in the step line. Before this the pane walked the right number of pages
- * and drew every instance on each of them.
- *
- * Only the network edge is faked. The `preview` prop goes through the real `previewDraft`
- * read in `lib/server/forms.ts`, fed the endpoint's wire body, because that read is where the
- * view list was once dropped on its way to a component that handled it correctly. Below it
- * the view list, the narrowing, the shared projection and the shared renderer are all real.
- */
-
-/** What the fake network edge answers the preview call with; set per case. */
 let wireBody: Record<string, unknown> = {};
 
 vi.mock("../../lib/server/api.ts", () => ({
@@ -48,7 +33,6 @@ const SESSION: Parameters<typeof previewDraft>[0] = {
 
 const ROSTER = ["ins_p1", "ins_p2", "ins_p3"] as const;
 
-/** One compiled step shaped as the compiler emits a group: a template carrying its member once. */
 const PAX_STEP = {
   stepId: "stp_pax",
   root: {
@@ -95,7 +79,6 @@ const DRAFT: DraftForm = {
   rules: [],
 };
 
-/** The endpoint's body for this draft, as `apps/api`'s preview handler sends it. */
 function wire(visibleStepViews: readonly unknown[]): Record<string, unknown> {
   return {
     documents: [PAX_STEP],
@@ -111,7 +94,6 @@ function wire(visibleStepViews: readonly unknown[]): Record<string, unknown> {
   };
 }
 
-/** The pane's `preview` prop, through the real read, as the server action maps it. */
 async function preview(input: {
   readonly draft: DraftForm;
   readonly answers: Readonly<Record<string, unknown>>;
@@ -163,8 +145,6 @@ describe("a per-instance page in the draft preview", () => {
         instance: "Passenger 2",
       }),
     );
-    // Passenger 2 alone, and still called Passenger 2: the ordinal is its place in the full
-    // roster rather than in the one-element list the page draws.
     expect(surface.querySelectorAll("[data-qcms-instance]")).toHaveLength(1);
     expect(within(surface).getByRole("heading", { name: "Passenger 2" })).toBeTruthy();
     expect(drawnFields()).toEqual(["ins_p2/q_pax_name"]);

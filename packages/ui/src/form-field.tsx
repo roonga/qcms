@@ -9,12 +9,7 @@ import { useQcmsFormAction, useQcmsFormHiddenFields } from "./field-context.tsx"
 // as a string where the component narrows it to the four legal values.
 type FormProps = ComponentProps<typeof Form>;
 
-/**
- * The root `Form` adapter, needed only because an action may be a function: the
- * vendored `Form` types and forwards `action` as a string and ADR-22 freezes it, so
- * this delegates to it whenever no function action is supplied, and otherwise renders
- * the `<form>` itself with that component's class and `validationBehavior` context.
- */
+/** The vendored Form cannot forward function actions. Delegate string actions to it and adapt only Server Actions. */
 export function FormField(props: Readonly<FormProps>) {
   const formAction = useQcmsFormAction();
   const hiddenFields = useQcmsFormHiddenFields();

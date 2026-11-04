@@ -1,7 +1,6 @@
 /**
- * `X-Forwarded-For` and `X-Real-IP` are ignored: only an address a BFF asserted over the
- * SEC-4 channel is trustworthy. The value is a rate-limit bucket key only, never logged,
- * attributed to a span, returned or persisted (SEC-13).
+ * Trust only the client address asserted by the BFF over the authenticated internal channel; use it solely
+ * as a rate-limit bucket key, never telemetry or stored identity.
  */
 
 import type { Context } from "hono";

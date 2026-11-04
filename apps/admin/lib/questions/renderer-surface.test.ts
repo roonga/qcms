@@ -3,87 +3,26 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-/**
- * Exit criterion 3: the preview renders through the shared renderer, and there is no
- * second renderer.
- *
- * "No second renderer" is not a thing a screenshot can show and not a thing review
- * reliably catches, because a second renderer never arrives announced. It arrives as a
- * helpful little `switch (node.type)` in a preview component, or as a direct
- * `react-aria-components` import "just for this one control", and by the time anyone
- * notices, admin preview and respondent serving have quietly diverged - which is exactly
- * the property preview exists to guarantee (ARCHITECTURE §6).
- *
- * So the four things that would have to be true for a second one to exist are asserted
- * instead:
- *
- * 1. `A2UIStepRenderer` is imported in exactly one module, and it comes from `@roonga/qcms-ui`.
- * 2. Nothing reaches `@a2ra/core` (the renderer engine) directly. Only `@roonga/qcms-ui` may.
- * 3. Nothing imports `react-aria-components` directly. The vendored components are
- *    reachable only through `@roonga/qcms-ui/kit`, which is ADR-22's single-stack rule stated
- *    as a test.
- * 4. Nothing imports `@roonga/qcms-a2ui-compiler`. Compilation happens in the API, which is
- *    what makes preview fidelity structural rather than a version coincidence (see
- *    `components/questions/question-preview.tsx` for the full argument).
- */
-
 const ADMIN_ROOT = fileURLToPath(new URL("../../", import.meta.url));
 const SCAN_DIRS = ["app", "components", "lib"];
 
-/**
- * The modules allowed to render an A2UI document.
- *
- * Three, and each is a different *thing being rendered*, not a different renderer: one
- * question version (032), a compiled draft (034's preview), and a stored published
- * snapshot (034's history view). All three mount the same `A2UIStepRenderer` from
- * `@roonga/qcms-ui`, which is what the assertions below check. Adding a fourth entry here is
- * where review gets to ask why a screen is drawing A2UI.
- */
 const RENDERING_MODULES = [
   "components/forms/draft-preview.tsx",
   "components/forms/version-view.tsx",
   "components/questions/question-preview.tsx",
 ];
 
-/**
- * The one module that owns the preview's styling boundary and the ADR-38 scope carrier
- * (task 058). It renders no A2UI itself - it is the container the three modules above
- * render their step inside - which is why it is not in the list above.
- */
 const PREVIEW_ISLAND = "components/preview-theme-island.tsx";
 
-/** The module that writes the carrier's name down once, for the island to stamp. */
 const SCOPE_VOCABULARY = "lib/preview-theme.ts";
 
-/**
- * The module that declares where the previews' locale comes from, once (issue #906): since
- * the Code Owner ruling of 2026-10-19 that is the deployment's `QCMS_LOCALE`, read on the
- * server and provided to the client tree, and the previews take it through one hook.
- *
- * It is the fourth module allowed to name {@link PREVIEW_LOCALE_CONSTANT}, and the only
- * one that is not a rendering surface: it is where the hook is written down.
- */
 const LOCALE_VOCABULARY = "components/locale-context.tsx";
 
-/** The name of that hook, spelled here so the assertions cannot drift from it. */
 const PREVIEW_LOCALE_CONSTANT = "usePreviewLocale";
 
-/**
- * A locale spelled out at a call site, in every shape JSX and TypeScript allow.
- *
- * The first version of this pattern was `/locale=["{]["']/u`, which reads as if it covers
- * the ground and does not: it matches `locale={"en"}`, `locale={'en'}` and the empty
- * `locale=""`, and misses `locale="en"` - the ONE shape a person actually writes, because
- * a JSX string attribute needs no braces. Copilot caught it on PR #938. The gap was closed
- * indirectly (each module must also contain `locale={previewLocale}`, and TSX refuses a
- * duplicate attribute on one element) but only for a second mount inside the SAME element,
- * which is not what the assertion claims. {@link LOCALE_LITERAL_SHAPES} pins the pattern
- * against each spelling, so a guard that stops guarding fails here rather than passing
- * quietly, which is the whole failure mode this file exists to prevent.
- */
+// Exercise JSX literal and expression spellings: a source guard that misses locale="..." would miss the common case.
 const LOCALE_LITERAL = /locale=(?:["']|\{\s*["'])/u;
 
-/** Every spelling {@link LOCALE_LITERAL} has to catch, and two it must not. */
 const LOCALE_LITERAL_SHAPES = {
   caught: [
     'locale="en"',
@@ -96,7 +35,6 @@ const LOCALE_LITERAL_SHAPES = {
   passed: ["locale={previewLocale}", "locale={locale}"],
 } as const;
 
-/** ADR-38's carrier attribute, spelled here so the assertion cannot drift from it. */
 const THEME_SCOPE_ATTRIBUTE = "data-qcms-theme-scope";
 
 function walk(dir: string): string[] {
@@ -114,7 +52,6 @@ const files = SCAN_DIRS.flatMap(walk).map((relative) => ({
   text: readFileSync(`${ADMIN_ROOT}${relative}`, "utf8"),
 }));
 
-/** Modules that name a symbol, ignoring the comments that explain why they do not. */
 function modulesMentioning(needle: string): string[] {
   return files
     .filter(({ text }) => stripComments(text).includes(needle))
@@ -122,7 +59,6 @@ function modulesMentioning(needle: string): string[] {
     .sort((left, right) => left.localeCompare(right));
 }
 
-/** Blank out comments, keeping newlines, so a doc comment naming a ban is not a use. */
 function stripComments(text: string): string {
   return text
     .replaceAll(/\/\*[\s\S]*?\*\//g, "")
@@ -149,9 +85,6 @@ describe("A2UI rendering surface (exit criterion 3)", () => {
   });
 
   it("takes the visibility projection from @roonga/qcms-ui too, so the portal shares it", () => {
-    // The preview drops the questions the flow says are not visible with exactly the
-    // function the portal uses. A local reimplementation here would be the one part of
-    // the preview free to disagree with what a respondent gets (ARCHITECTURE §6).
     const modules = modulesMentioning("documentForVisible");
     expect(modules).toEqual(["components/forms/draft-preview.tsx"]);
     const preview = files.find((file) => file.path === "components/forms/draft-preview.tsx");
@@ -160,16 +93,6 @@ describe("A2UI rendering surface (exit criterion 3)", () => {
   });
 
   it("mounts every render inside the one preview styling seam", () => {
-    // Code Owner ruling, 2026-08-02: the preview renders inside a SINGLE container that
-    // owns its styling boundary. Task 034 built that container on the two form-level
-    // surfaces; task 058 moved its markup into `PreviewThemeIsland` and gave the
-    // question preview the same seam, so the boundary is now declared once and mounted
-    // three times rather than spelled out per surface.
-    //
-    // So the assertion moved with it: each rendering module must hang its renderer off
-    // the island, and the island must declare exactly one container. It is deliberately
-    // NOT relaxed to "somebody somewhere renders a seam" - a second container would make
-    // "the styling boundary" ambiguous again, which is the property 034 bought.
     for (const path of RENDERING_MODULES) {
       const module = files.find((file) => file.path === path);
       expect(module, `${path} should be scanned`).toBeDefined();
@@ -180,54 +103,24 @@ describe("A2UI rendering surface (exit criterion 3)", () => {
     const island = files.find((file) => file.path === PREVIEW_ISLAND);
     expect(island, `${PREVIEW_ISLAND} should be scanned`).toBeDefined();
     const text = stripComments(island!.text);
-    // The class and the test id, and nothing else: one container, not two.
+
     expect(text.split("qcms-preview-surface").length - 1).toBe(2);
   });
 
   it("themes the preview island and nothing else in the app (058)", () => {
-    // THE INVERSE of the guard task 034 carried here.
-    //
-    // Until 058 this asserted that the preview modules named none of `qcms-app-mode`,
-    // `QCMS_PORTAL_THEME`, `portalTheme` or `setTheme`, because 034 built the boundary
-    // and explicitly not the switcher. 058 is the task that fills it, so the ban had to
-    // be relaxed - and a deleted guard is a check that looks at nothing and passes
-    // exactly as loudly as a real one. It is replaced by the property that now matters
-    // and is just as easy to break by accident: the scope carrier is on the island and
-    // on NOTHING else.
-    //
-    // That direction is the one worth guarding. ADR-38's attribute makes any element
-    // wearing it resolve the whole respondent token set, so a stray copy on a layout, a
-    // card or a page wrapper would silently repaint a slice of the authoring app in a
-    // respondent theme - a change that looks like a styling accident rather than like
-    // the two-surface breach (ADR-26) it would be.
-    // Two modules may name it and no others: the island, which stamps it, and the
-    // vocabulary module, which is where the string is written down once so the island,
-    // the styles and these assertions cannot drift apart. Anything else in `app/`,
-    // `components/` or `lib/` naming it is the accident described above.
     expect(modulesMentioning(THEME_SCOPE_ATTRIBUTE)).toEqual([PREVIEW_ISLAND, SCOPE_VOCABULARY]);
 
     const island = stripComments(files.find((file) => file.path === PREVIEW_ISLAND)!.text);
     expect(island, "the island should stamp the scope carrier").toContain(THEME_SCOPE_ATTRIBUTE);
-    // And the theme and mode it selects have to land on that same element, or the
-    // attribute is present and inert.
+
     expect(island).toContain("data-theme={theme}");
 
-    // The app's own mode control stays untouched: the island's selection is ephemeral
-    // and per-render, so nothing in it may reach the operator's mode cookie.
     expect(island, "the island must not touch the operator's mode").not.toContain("qcms-app-mode");
   });
 
   it("renders every preview on the one declared locale, from one declaration (906)", () => {
-    // `A2UIStepRenderer`'s `locale` prop is OPTIONAL and `@roonga/qcms-ui`'s own default is
-    // `en-US`, so a surface that omits it does not fail: it silently renders respondent
-    // controls - a date field's segment order, its calendar, a number field's stepper
-    // announcements - on a tag this app never chose. All three did, until #906. The portal
-    // half of the same defect was #729.
-    //
-    // This is the guard that has to be at the source level rather than in the DOM, and the
-    // reason is measured in `packages/ui/src/locale.test.tsx`: `en` and `en-US` render the
-    // golden corpus identically, so NO rendered assertion can witness a dropped prop. What
-    // can be checked is that the prop is there and comes from one place.
+    // The renderer defaults locale silently; assert every source passes the server-resolved preview locale.
+    // DOM segment order alone cannot distinguish an explicit locale from a coincidentally matching default.
     for (const path of RENDERING_MODULES) {
       const module = files.find((file) => file.path === path);
       expect(module, `${path} should be scanned`).toBeDefined();
@@ -239,28 +132,20 @@ describe("A2UI rendering surface (exit criterion 3)", () => {
       expect(text, `${path} should take it from ${LOCALE_VOCABULARY}`).toContain(
         'from "@/components/locale-context"',
       );
-      // And not as a literal of its own, which is the shape three sites drift apart in.
+
       expect(text, `${path} should not spell a locale out`).not.toMatch(LOCALE_LITERAL);
     }
 
-    // One declaration, three call sites: the modules naming the constant are exactly the
-    // three rendering surfaces plus the module that declares it. A fourth entry here is
-    // where review gets to ask which screen grew a locale.
     expect([...modulesMentioning(PREVIEW_LOCALE_CONSTANT)].sort()).toEqual(
       [...RENDERING_MODULES, LOCALE_VOCABULARY].sort(),
     );
   });
 
   it("catches a locale literal in every shape someone would write one (906)", () => {
-    // The guard above is a regex over source text, and a regex that has stopped matching
-    // looks exactly like a codebase that is clean. So the pattern is exercised directly
-    // against each spelling rather than trusted: this is the assertion that was missing
-    // when `/locale=["{]["']/u` shipped matching four shapes and missing `locale="en"`.
     for (const shape of LOCALE_LITERAL_SHAPES.caught) {
       expect(LOCALE_LITERAL.test(shape), `${shape} should be caught`).toBe(true);
     }
-    // And the two legitimate shapes stay legitimate, or the guard would fail the very
-    // call sites it exists to require.
+
     for (const shape of LOCALE_LITERAL_SHAPES.passed) {
       expect(LOCALE_LITERAL.test(shape), `${shape} should be allowed`).toBe(false);
     }

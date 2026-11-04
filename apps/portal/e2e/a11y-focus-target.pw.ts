@@ -15,20 +15,17 @@ import {
   startKitchenSink,
 } from "./support/kitchen-sink.js";
 
-/** The properties that decide whether a focus target is the right one. */
 interface FocusTarget {
-  /** The question whose `[data-qcms-field]` wrapper contains the focused element. */
   readonly questionId: string | null;
   readonly tag: string;
   readonly type: string | null;
   readonly role: string | null;
   /** False for a `display: none` / detached element, where `.focus()` is a no-op. */
   readonly rendered: boolean;
-  /** True when the element sits in a subtree hidden from the accessibility tree. */
+
   readonly inAriaHidden: boolean;
 }
 
-/** Read the focused element's identifying properties out of the page. */
 function focusTarget(page: Page): Promise<FocusTarget | null> {
   return page.evaluate(() => {
     const element = document.activeElement;

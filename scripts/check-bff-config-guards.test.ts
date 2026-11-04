@@ -154,6 +154,15 @@ describe("issue #402: the guards the API's unguarded cookie read depends on", ()
   it("the API records the reliance beside the read, rather than leaving it silent", () => {
     // The exemption must stay visible at the site of the read, so this pins the comment
     // in `apps/api/src/config.ts` that records it. Removing that comment fails here.
-    expect(read("apps/api/src/config.ts")).toContain("issue #402");
+    const lines = read("apps/api/src/config.ts").split("\n");
+    const readAt = lines.findIndex((line) => line.trim() === "secureCookies: parseBool(");
+    expect(readAt).toBeGreaterThan(0);
+    const comments: string[] = [];
+    for (let at = readAt - 1; at >= 0; at -= 1) {
+      const line = lines[at]?.trim() ?? "";
+      if (!line.startsWith("//")) break;
+      comments.unshift(line);
+    }
+    expect(comments.join(" ")).toContain("secure-cookie downgrade guard only because");
   });
 });

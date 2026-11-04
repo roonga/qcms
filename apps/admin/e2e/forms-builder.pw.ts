@@ -43,53 +43,16 @@ import {
   useRowMenu,
 } from "./support/questions.js";
 
-/**
- * The form builder, driven through the browser (task 033, exit criteria 1, 2 and 3).
- *
- * ## Why the whole insurance form is built through the UI
- *
- * The thing under examination is the assembly, not any one component: a client holding a
- * working draft, pure helpers mutating it, a server action forwarding it, the kernel
- * judging it in the API, and path-addressed issues landing back on the rule or the pin
- * that caused them. Every seam in that chain is invisible to a unit test and every one of
- * them is where 033 could break. So the form is built the way an author builds one - three
- * questions authored and published first, then a form, steps, pins and a rule - and the
- * assertions are on what the author sees.
- *
- * ## The three findings each have their own test, and each is a different mechanism
- *
- * - **Exit 1** is the build: the form saves, and the validation panel reports a draft that
- *   would publish cleanly.
- * - **Exit 2** is the backward target, and it is deliberately asserted twice. The instant
- *   flag comes from `eligibleTargets`, which is pure draft geometry with no round trip, so
- *   it is asserted *before* the debounce can have landed. The `RULE_BACKWARD_TARGET` issue
- *   comes from the kernel's own `analyzeRuleGraph`, inside the validate call, and is
- *   asserted at the rule afterwards. Two mechanisms, two assertions: a test that only
- *   checked the second would pass with the instant feedback deleted.
- * - **Exit 3** is the pin move. The rule compares against an option id that exists in v1
- *   and not in v2, so moving the pin has to make a previously clean draft dirty. That is
- *   the whole R7 argument in one interaction: nothing auto-upgrades, and when an author
- *   moves a pin themselves the consequence surfaces immediately rather than at publish.
- *
- * `fillStable` throughout, for the reason issue #210 records.
- */
-
 test.use({ storageState: TEST_ENVIRONMENT_STORAGE });
 
 test.describe.configure({ mode: "serial" });
 
 const EMAIL = uniqueAdminEmail("forms");
 
-/** Set by the first test; every later test signs in with it. */
 let totpSecret = "";
 
-/**
- * A per-run suffix. Ids are never reused (R6) and the harness database can be reused
- * across local runs, so a fixed slug would fail the second run on a screen that works.
- */
 const RUN = Date.now().toString(36);
 
-/** The questions the insurance form pins, and the ids they were minted as. */
 const AT_FAULT = `e2e-at-fault-accident-${RUN}`;
 const ACCIDENT_COUNT = `e2e-accident-count-${RUN}`;
 const CLAIM_NOTES = `e2e-claim-notes-${RUN}`;
@@ -99,18 +62,16 @@ function questionIdFor(slug: string): string {
   return `q_${slug.replaceAll("-", "_")}`;
 }
 
-/** The option id the at-fault question's first option was minted as. Read, never guessed. */
 let atFaultYesOption = "";
-/** The option id v1 of the cover-level question carries, which v2 will not. */
+
 let coverV1Option = "";
-/** The insurance form, built by the first test and edited by the second. */
+
 let insuranceFormId = "";
 
 test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
 });
 
-/** Author one question and publish v1, leaving the browser on its detail screen. */
 async function publishQuestion(page: Page, slug: string, typeLabel: string): Promise<void> {
   await createDraft(page, slug, typeLabel);
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
@@ -122,9 +83,6 @@ test("builds the insurance form through the UI and saves it (exit criterion 1)",
   test.setTimeout(300_000);
   totpSecret = await enrollNewAdmin(page, EMAIL);
 
-  // A form can only pin PUBLISHED versions (022), so the library is authored first. The
-  // three shapes are the ones the rule needs: a choice question to branch on, a number to
-  // reveal, and a long text in a later step to target across a step boundary.
   await publishQuestion(page, AT_FAULT, "Single choice");
   const options = await optionIds(page);
   atFaultYesOption = options[0] ?? "";
@@ -142,39 +100,14 @@ test("builds the insurance form through the UI and saves it (exit criterion 1)",
   await addStep(page, "Claim details");
   await pinQuestion(page, questionIdFor(CLAIM_NOTES), 1);
 
-  // WAIT FOR THE PINS TO REACH THE SERVER BEFORE LEAVING THIS ROUTE (issue #669). The rules
-  // screen renders the draft the SERVER holds, so crossing inside the 600ms debounce would
-  // open it on a form with no steps - which is a form no rule can be added to, and the
-  // screen says so by disabling Add rule. The product does not lose the edit (the loop
-  // flushes what it is holding when the screen goes away, `lib/forms/autosave.ts`), but the
-  // flush and the next screen's own read are two requests in flight at once, so a walk that
-  // wants to SEE the pins has to wait for them rather than race them.
+  // Wait before crossing routes: the rules screen reads the stored draft while autosave is debounced.
   await waitForSaved(page);
 
-  // Rules belong to the FORM, so reaching them means leaving the step screen pinning left
-  // us on. The rules are a ROUTE of their own since issue #669, reached from the rail row
-  // that used to switch a selection on this one.
   await openRules(page);
 
-  // The section that lists rules is headed "Rules", which is the word its own button, its
-  // entities and the bench beside it already use (issue 661). It used to read
-  // "Conditions", so an author read one name in the heading and another in everything
-  // under it. The condition inside a rule keeps the word "condition": that is the `when`
-  // half of a rule, not another name for the whole thing.
-  // An `h1`, and unpainted. It is the rules SCREEN's heading since the rules moved onto
-  // one of their own, so it is the level a screen reader navigates by; the breadcrumb above
-  // says "Rules" for everyone else, which is why it is not drawn twice.
   await expect(page.getByRole("heading", { level: 1, name: "Rules", exact: true })).toBeAttached();
 
-  // The at-fault-accident rule: when the driver says yes, ask for the notes in the next
-  // step. A new rule starts as `answered` against the first pinned question, which is
-  // already the one this rule reads.
-  // A STAMP BEFORE THE EDITOR OPENS, and `waitForSaveAfter` after it closes. This is the
-  // hazard `waitForSaveAfter`'s own docblock names, and buffering is what made it bite here:
-  // the whole rule now reaches the draft in ONE mutation when Save is pressed, where it used
-  // to arrive keystroke by keystroke and be long saved by the time anything reloaded. So
-  // "Saved" is already on screen from the pins, `waitForSaved` returns instantly, and the
-  // reload below races the only round trip the rule ever gets.
+  // Capture the save baseline before opening the buffered editor; its Save makes one mutation.
   const beforeRule = await savedStamp(page);
   const ruleId = await addRule(page);
   const scope = rule(page, ruleId);
@@ -184,30 +117,17 @@ test("builds the insurance form through the UI and saves it (exit criterion 1)",
   await closeRuleEditor(page);
 
   await waitForSaveAfter(page, beforeRule);
-  // The verdict on the rule is read where the rule is: the table tags a rule that carries
-  // issues and stays silent about one that does not, which is this screen's half of the
-  // engine's answer.
+
   await expect(page.locator("tr[data-rule-id] [data-rule-issues]")).toHaveCount(0);
 
-  // WHAT CROSSING THE ROUTE BOUNDARY COSTS, asserted rather than left to be discovered
-  // (issue #669). The builder is a fresh mount when it is navigated to, and its panel only
-  // ever reports a check IT ran - `forms.validation.notChecked` is the honest sentence for
-  // a mount that has not run one, and issue 625 is why it is a sentence rather than a
-  // fabricated zero. That was already true walking back from Preview or Links; the rules
-  // route joined that set rather than inventing the behaviour. The rail's step badges
-  // beside it are the server's own dry run and do carry a verdict on arrival.
   await openFormDetails(page);
   await expect(issueSummary(page)).toContainText("has not been checked yet");
-  // And the count it CAN make is the form's, once this mount has checked anything: one
-  // keystroke in the form's title is enough to arm the round trip.
+
   const beforeTitle = await savedStamp(page);
   await field(page, "Form title").fill("Insurance quote");
   await waitForSaveAfter(page, beforeTitle);
   await expect(issueSummary(page)).toHaveText("No issues. Everything here would pass a publish.");
 
-  // The draft is on the server, not just on screen: a reload rebuilds it from the API. Each
-  // of the three surfaces - the builder's steps, its form details, the rules route - is
-  // asked for its own half of it.
   await page.reload();
   await expect(page.getByRole("button", { name: "Open step Driving history" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Open step Claim details" })).toBeVisible();
@@ -220,32 +140,18 @@ test("builds the insurance form through the UI and saves it (exit criterion 1)",
 test("the builder's rules card reads, and every way out of it crosses to the rules route", async ({
   page,
 }) => {
-  // ISSUE #669'S ACCEPTANCE, in the browser, from the side the ruling is most specific
-  // about. Rule editing moved to `/forms/{formId}/rules` and the builder kept a compact
-  // READ-ONLY lens; the constraint attached to that move is that nothing an author could
-  // do before may quietly stop working, and that links carry "the route as well as the
-  // fragment, not a bare `#fragment` that resolves to nothing off-page".
-  //
-  // The failure this guards against is invisible: a bare fragment renders, announces as a
-  // link, takes focus and does nothing at all. So each affordance is followed rather than
-  // inspected - the assertion is where the browser ENDED UP, plus what has focus once it
-  // got there.
   test.setTimeout(180_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto(`/forms/${insuranceFormId}`);
 
   const lens = page.getByTestId("qcms-rules-lens");
   await expect(lens).toBeVisible();
-  // READ-ONLY: the table's per-row controls are the ones that must not be here. A lens
-  // that grew an Edit button would be the builder editing rules again.
+
   await expect(lens.locator(".qcms-rule-action")).toHaveCount(0);
   await expect(lens.locator("button")).toHaveCount(0);
-  // And it states what it is a lens ON: one rule, counted where the drawing counts it.
+
   await expect(lens.locator("[data-rule-count]")).toHaveAttribute("data-rule-count", "1");
 
-  // 1. A RULE LINE. It carries the route and the fragment, and following it lands with
-  //    focus on the row rather than merely scrolled near it - which is the half a
-  //    fragment cannot do for itself across a navigation.
   const ruleUrl = (await lens.locator("a[href*='#rule-']").first().getAttribute("href")) ?? "";
   expect(ruleUrl, "a rule line addresses the route, not a bare fragment").toContain(
     `/forms/${insuranceFormId}/rules#rule-`,
@@ -257,20 +163,13 @@ test("the builder's rules card reads, and every way out of it crosses to the rul
     const focused = await page.evaluate(() => document.activeElement?.id ?? "");
     expect(focused, "the lens line focuses the rule it names").toBe(anchored);
   }).toPass({ timeout: 30_000 });
-  // The row it landed on is the rule's own row in the editing table, so the two-hop path
-  // ends where the work is rather than at the top of a screen.
+
   await expect(page.locator(`tr[data-rule-id="${anchored.replace("rule-", "")}"]`)).toBeVisible();
 
-  // 2. "EDIT RULES", the plain way through, which is the affordance the rules rail row
-  //    used to be when it switched a selection.
   await page.goto(`/forms/${insuranceFormId}`);
   await page.getByTestId("qcms-rules-lens-edit").click();
   await expect(page).toHaveURL(`/forms/${insuranceFormId}/rules`);
 
-  // 3. "ADD RULE". Adding a rule was a button on the builder before the split, so it has
-  //    to remain reachable from the builder: it is an anchor carrying `#new-rule`, and the
-  //    rules screen opens its wizard on arrival. A link that navigated and then sat there
-  //    would have lost the affordance while appearing to keep it.
   await page.goto(`/forms/${insuranceFormId}`);
   await page.getByTestId("qcms-rules-lens-add").click();
   await expect(page).toHaveURL(/\/rules(?:#new-rule)?$/u);
@@ -279,7 +178,7 @@ test("the builder's rules card reads, and every way out of it crosses to the rul
     timeout: 30_000,
   });
   await cancelRuleEditor(page);
-  // Cancelled, so nothing was added: the wizard buffers and only Save reaches the draft.
+
   await expect(page.locator("tr[data-rule-id]")).toHaveCount(1);
 });
 
@@ -293,106 +192,57 @@ test("a backward target is flagged instantly and refused by the engine (exit cri
   await openRules(page);
   const ruleId = (await ruleIds(page))[0] ?? "";
   expect(ruleId, "the saved draft should still carry its rule").toMatch(/^rul_/u);
-  // The table is the read view; the condition tree lives in the row's editor, which is a
-  // three-phase wizard since 2026-08-30. The targets are its second phase.
+
   await openRuleEditor(page, ruleId);
   const scope = rule(page, ruleId);
   await openRulePhase(page, "then");
 
-  // The rule's condition reads the at-fault question, so the at-fault question itself is
-  // strictly before it in document order and cannot be a target. The picker LISTS it under
-  // its own heading rather than hiding it, so an author is told the rule instead of finding
-  // an option missing - but since 2026-08-30 (Code Owner) it cannot be chosen from: an
-  // editable list of things this rule cannot show read as a list of things it could.
   await expect(scope.getByText("Comes before this condition")).toBeVisible();
   await expect(
     scope.getByRole("checkbox", { name: questionIdFor(AT_FAULT), exact: true }),
   ).toBeDisabled();
 
-  // So a backward target is reached the way one is actually reached: the target stops
-  // being legal underneath a rule that was fine when it was written. This rule shows the
-  // claim-notes question, which sits in a LATER step; moving that step in front of the one
-  // holding the question the condition reads puts the target before the condition without
-  // anything about the rule changing.
   await cancelRuleEditor(page);
-  // REORDERING IS THE BUILDER'S, and reaching it is a navigation since issue #669. The rail
-  // beside the rules route is the same navigation rail the other six form screens carry -
-  // anchors, no per-step menu - because there is no step editor here to act on. This is
-  // that trip, and it is a step affordance rather than a rule one: it did not move, the
-  // reader did.
+
   await openFormDetails(page);
   await moveStep(page, "Claim details", "up");
-  // The move landed, asserted before the save is waited on: a wait that times out because
-  // the thing it is waiting for never happened is the least informative failure there is.
+
   await expect(page.locator("[data-rail-step-select]").first()).toHaveAttribute(
     "data-rail-step-select",
     "Claim details",
   );
-  // The form's own count, on the mount that computed it. The move is a builder edit, so
-  // this screen's own round trip produced the verdict - which is what makes this the right
-  // place to read the FORM-level number, rather than after a navigation that remounts the
-  // panel with nothing checked (issue 625's sentence, and `lib/server/form-verdict.ts` on
-  // why the rules route is seeded and this one is not).
+
   await expect(issueSummary(page)).toContainText("would block a publish", { timeout: 30_000 });
   await openRuleEditor(page, ruleId);
   await openRulePhase(page, "then");
 
-  // Instant, and asserted with a short timeout on purpose: this comes from draft geometry
-  // in the browser, so it cannot be the debounced round trip arriving early. It is also
-  // the ONLY half of exit criterion 2 available before Save now, because the dialog buffers
-  // and nothing revalidates until the rule reaches the draft.
+  // The short timeout distinguishes immediate client geometry feedback from debounced validation.
   await expect(page.getByTestId("qcms-backward-flag")).toBeVisible({ timeout: 2000 });
   await expect(page.getByTestId("qcms-backward-flag")).toContainText(questionIdFor(CLAIM_NOTES));
 
-  // AND THE TARGET IS STILL CLEARABLE, which is the half that makes disabling the group
-  // safe. A checkbox is disabled only when it is NOT selected: an author looking at the
-  // reason their form will not publish must have the control that fixes it, and this one
-  // has just moved from the eligible group into the ineligible one underneath them.
+  // Selected ineligible targets must remain clearable or the author cannot repair the rule.
   await expect(
     scope.getByRole("checkbox", { name: questionIdFor(CLAIM_NOTES), exact: true }),
   ).toBeEnabled();
 
-  // The editor is modal, so leaving it is part of the journey rather than cleanup.
-  //
-  // A VERDICT IS THE WAIT WHERE ONE FOLLOWS, and a save stamp is the wait where a
-  // NAVIGATION follows. The two are different jobs, and issue #669 is what made the second
-  // one necessary: a verdict assertion is strictly stronger than a stamp, because a stamp
-  // that moved for some other reason would satisfy the stamp and not the verdict - but it
-  // says nothing about whether the draft reached the SERVER, which is what the screen on
-  // the other side of a route boundary reads. So each step move above is followed by the
-  // panel's own count, and each crossing is preceded by a stamp.
+  // A validation verdict proves the client state; a changed save stamp proves persistence before route navigation.
   await closeRuleEditor(page);
-  // The same verdict as a per-rule tag, on the screen the rule lives on. The rules route is
-  // seeded with the server's own dry run precisely so a reader who ARRIVED here from an
-  // issue link is shown the issue rather than a clean table (issue #669).
+
   await expect(page.locator(`tr[data-rule-id="${ruleId}"] [data-rule-issues]`)).toBeVisible({
     timeout: 30_000,
   });
 
-  // And the engine's own finding, from `analyzeRuleGraph` inside the validate call, lands
-  // on this rule rather than in a general list. Two mechanisms, two assertions: a test that
-  // only checked this one would pass with the instant feedback deleted.
-  //
-  // The stamp is taken with no dialog on screen, because the strip sits behind the modal
-  // overlay once one is open, and nothing saves between here and the Save below.
+  // Read the save stamp before opening the modal, whose overlay blocks the strip.
   const beforeReopen = await savedStamp(page);
   await openRuleEditor(page, ruleId);
   await expect(issue(scope, "RULE_BACKWARD_TARGET")).toBeVisible({ timeout: 30_000 });
 
-  // PUT THE STEP BACK, and the form is publishable again: the flag is a statement about the
-  // draft, not a latch. Undoing the move rather than unticking the target, which is what
-  // this used to do - the rule has ONE target, so unticking it leaves a rule that shows
-  // nothing, which is its own issue (`unsaveableReason`'s `ruleWithoutTarget`) and would
-  // leave the draft refused for a different reason while appearing to prove this one.
-  //
-  // It also restores the form for the rest of this file, which expects the order criterion
-  // 1 built.
+  // Restore step order: clearing the only target creates a different refusal and breaks later serial tests.
   await closeRuleEditor(page);
   await waitForSaveAfter(page, beforeReopen);
   await openFormDetails(page);
   await moveStep(page, "Claim details", "down");
-  // Read here, on the mount whose own round trip the move armed, for the reason given at
-  // the first of these two assertions.
+
   await expect(issueSummary(page)).toHaveText("No issues. Everything here would pass a publish.", {
     timeout: 30_000,
   });
@@ -407,9 +257,6 @@ test("moving a pin re-runs validation and surfaces the broken option ref (exit c
   test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);
 
-  // v1 carries the options `createDraft` names; v2 replaces both, so an option id that is
-  // legal against v1 is dangling against v2. That is the state exit criterion 3 is about,
-  // and it is reached the way an author reaches it: by publishing a second version.
   await publishQuestion(page, COVER_LEVEL, "Single choice");
   const v1Options = await optionIds(page);
   coverV1Option = v1Options[0] ?? "";
@@ -417,13 +264,10 @@ test("moving a pin re-runs validation and surfaces the broken option ref (exit c
 
   await confirmLifecycle(page, /^New version$/, "Create draft");
   await page.waitForURL(/\?v=2$/);
-  // Added before the originals are removed, and that order is the editor's rule rather than
-  // a preference: the kernel requires a choice question to declare at least one option, so
-  // the editor disables removing the last one. Emptying the list first is not a state a
-  // choice question is allowed to pass through.
+  // Add replacement options first: a choice question must always retain at least one option.
   await addOption(page, "Full cover");
   await addOption(page, "Basic cover");
-  // Remove lives in the row's own menu under the 057 grid, not in a trailing button.
+
   await useRowMenu(page, 0, /^Remove option /);
   await useRowMenu(page, 0, /^Remove option /);
   await expect(page.getByRole("textbox", { name: /^Option \d+ label$/ })).toHaveCount(2);
@@ -433,7 +277,6 @@ test("moving a pin re-runs validation and surfaces the broken option ref (exit c
   expect(v2Options, "v2 should carry different option ids than v1").not.toContain(coverV1Option);
   await confirmLifecycle(page, /^Publish version 2$/, "Publish");
 
-  // A second form, so the first one's assertions stay about the first one.
   await createForm(page, `e2e-cover-choice-${RUN}`, "Cover choice");
   await addStep(page, "Cover");
   await pinQuestion(page, questionIdFor(COVER_LEVEL), 1);
@@ -448,37 +291,23 @@ test("moving a pin re-runs validation and surfaces the broken option ref (exit c
   await toggleTarget(page, ruleId, questionIdFor(CLAIM_NOTES), true);
   await closeRuleEditor(page);
   await waitForSaveAfter(page, beforeRule);
-  // The rule saved clean, read where the rule is. The form's own panel is a fresh mount
-  // after the walk back and reports no check of its own until one runs - see the note on
-  // the build walk above, which asserts that boundary directly.
+
   await expect(page.locator("tr[data-rule-id] [data-rule-issues]")).toHaveCount(0);
 
-  // The move itself: one pin, one version, chosen from the menu that lists published
-  // versions only (R7). Nothing else in the draft changes.
   await openFormDetails(page);
   await openStep(page, "Cover");
   const beforeMove = await savedStamp(page);
   await movePin(page, questionIdFor(COVER_LEVEL), 2);
 
-  // The version change is on screen, validation re-ran on its own, and the consequence is
-  // reported at the rule that carries the now-dangling option id.
   await expect(pinLabel(page, questionIdFor(COVER_LEVEL), 2)).toBeVisible();
-  // The save is waited on before leaving this route, and that is not belt and braces: the
-  // rules screen is a different render since issue #669, so it reads the draft the SERVER
-  // holds. Navigating mid-debounce would show it the draft before the move.
+  // Wait for persistence before navigating to the rules screen, which reads the server's draft.
   await waitForSaveAfter(page, beforeMove);
-  // Three screens, three readings of one consequence: the pin is the step's, the finding is
-  // on the rule and therefore on the rules screen, and the count is the form's.
+
   await openRuleEditor(page, ruleId);
-  // Cancel rather than Save: nothing was changed in the dialog, and pressing Save would
-  // store a rule the author did not touch. The dialog buffers, so Cancel is the exit that
-  // says "I only looked".
+
   await expect(issue(scope, "DANGLING_OPTION_REF")).toBeVisible({ timeout: 30_000 });
   await cancelRuleEditor(page);
-  // The same finding as a COUNT, which is the form's rather than the rule's. Read on the
-  // rules screen's own table, because that mount has the verdict: the tag on the row is
-  // the third reading of one consequence, after the pin's version on the step and the
-  // issue inside the rule's own editor.
+
   await expect(page.locator(`tr[data-rule-id="${ruleId}"] [data-rule-issues]`)).toBeVisible({
     timeout: 30_000,
   });
@@ -487,19 +316,6 @@ test("moving a pin re-runs validation and surfaces the broken option ref (exit c
 test("the settings panel says a required challenge is unenforceable, and stores it unpressed", async ({
   page,
 }) => {
-  // Two claims in one visit, because the second is what the first now depends on.
-  //
-  // Task file line 26: a challenge is a deployment capability, and the harness configures
-  // no provider, so the switch enforces nothing until an operator sets one up. A panel
-  // that stayed silent would let an author believe a form was protected. Since issue #725
-  // the panel learns that from the API's derived `challengeEnforceable` boolean rather
-  // than from the provider flag's value (ADR-24), so this is also the end-to-end proof
-  // that the derivation survives the whole round trip.
-  //
-  // And since 2026-08-29 (`plan/admin-design-contracts.md` §6) there is no "Save settings"
-  // to press. The switch reaches the API on the builder's own debounce, which makes the
-  // reload below the assertion that matters: nothing on this screen was pressed, and the
-  // setting is still there.
   test.setTimeout(120_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto(`/forms/${insuranceFormId}`);
@@ -511,12 +327,8 @@ test("the settings panel says a required challenge is unenforceable, and stores 
     "the settings panel has no save control of its own any more",
   ).toHaveCount(0);
 
-  // The screen's ONE save statement reports it. The strip opens on "Not saved yet" every
-  // visit, so a timestamp here can only have come from the settings write - the draft has
-  // not been touched.
   await expect(saveState(page)).toContainText(/^Last saved /, { timeout: 30_000 });
 
-  // It survives a reload, which is what makes it a setting rather than a checkbox.
   await page.reload();
   await expect(
     page.getByRole("checkbox", { name: "Require a challenge before answering" }),
@@ -526,14 +338,6 @@ test("the settings panel says a required challenge is unenforceable, and stores 
 test("a settings write the API refuses is said, with no press to have reported it", async ({
   page,
 }) => {
-  // The failure an explicit Save button used to make obvious. Autosave has no press to
-  // report back to, so a refused write would otherwise leave an author believing a
-  // deployment switch is set when it is not - which is the whole risk the 2026-08-29
-  // amendment to §6 had to answer for before the button could go.
-  //
-  // The refusal is the real route's: `UpdateFormSettingsBody` caps the override at one
-  // hour, and the field offers no upper bound, so a larger number is a 400 from the API
-  // rather than anything mocked here.
   test.setTimeout(120_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto(`/forms/${insuranceFormId}`);
@@ -542,45 +346,31 @@ test("a settings write the API refuses is said, with no press to have reported i
   const minSubmit = field(page, "Minimum time before a submit is accepted (milliseconds)");
   await minSubmit.click();
   await minSubmit.fill("7200000");
-  // The number field commits on blur rather than per keystroke, which is also what keeps a
-  // typed figure from being saved digit by digit on its way to being finished.
+
   await minSubmit.blur();
 
   await expect(page.getByTestId("qcms-settings-state")).toContainText("could not be saved", {
     timeout: 30_000,
   });
-  // And the screen's one save statement agrees with it rather than still claiming a clean
-  // save. Two scopes, one sentence about how the last write went.
+
   await expect(saveState(page)).toHaveText("The last save failed.");
 
-  // The refused value is still on screen: snapping the control back to what the API kept
-  // would hide the very edit the sentence is about.
-  // A pattern rather than the digits: the number field formats what it shows, so the
-  // assertion is that the figure is still the author's, not that it is unformatted.
   await expect(minSubmit).toHaveValue(/7[\s,.]?200[\s,.]?000/);
 });
 
 test("the rule test bench answers with the engine's own verdict", async ({ page }) => {
-  // A read-only aid, but the aid is only worth anything if it agrees with the engine, and
-  // it agrees by construction: the evaluation happens in the API, on core's own evaluator.
   test.setTimeout(180_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto(`/forms/${insuranceFormId}`);
 
-  // The bench is the wizard's third phase since 2026-08-30 (Code Owner): it answers "what
-  // would THIS rule do", so the rule is chosen by opening it rather than by a picker.
   await openRules(page);
   const ruleId = (await ruleIds(page))[0] ?? "";
   await openRuleEditor(page, ruleId);
   await openRulePhase(page, "test");
-  // SCOPED TO THE WIZARD'S BENCH. There are two on this screen since 2026-08-30 - the
-  // screen's, under the rules table, and this one - and they deliberately share their
-  // testids because they are the same panel about different rules. `qcms-bench` is the
-  // dialog's section; `qcms-bench-screen` is the other.
+  // Both benches share child testids; scope to the wizard's bench rather than the screen's bench.
   const wizardBench = page.getByTestId("qcms-bench");
   const bench = wizardBench.getByTestId("qcms-bench-outcome");
-  // The bench labels each answer control with the pin it is answering for, not "Value":
-  // the author is entering an ANSWER to a pinned question, not an operand of a condition.
+
   await chooseOption(rule(page, ruleId), `${questionIdFor(AT_FAULT)}@1`, atFaultYesOption);
   await wizardBench.getByRole("button", { name: "Run preview", exact: true }).click();
   await expect(bench).toHaveAttribute("data-outcome", "match", { timeout: 30_000 });
@@ -591,30 +381,15 @@ test("the rule test bench answers with the engine's own verdict", async ({ page 
 test("the operator picker filters as you type, and keeps the ones that do not apply", async ({
   page,
 }) => {
-  // A `Select` is a list you scan; this one is SIXTEEN phrases and only grows, so it is a
-  // combobox (Code Owner, 2026-08-30 - thirteen then, and task 074's three whole-group
-  // operators are the growth that ruling predicted). Both halves are asserted, because the
-  // second is the one a filter tends to eat: an operator this question's type does not accept
-  // stays in the list, disabled, so "that exists but not here" is still readable.
   test.setTimeout(180_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto(`/forms/${insuranceFormId}`);
 
-  // The rules are on their own screen, so the table this reads is not on the one the form
-  // opens to.
   await openRules(page);
   const ruleId = (await ruleIds(page))[0] ?? "";
   await openRuleEditor(page, ruleId);
   await openRulePhase(page, "when");
 
-  // Issue #27, riding along on the one state in this suite that already has the JSON
-  // pane on screen. The pane's fallback stack was the only one outside a stylesheet -
-  // a literal list inside a CodeMirror theme object - so no sweep of the CSS could see
-  // it, and after the fix it is the only one of the three admin edits with no browser
-  // assertion: `preview-theme-island.pw.ts:138` covers `--font-portal` in the island and
-  // `appearance.pw.ts:203` covers `--font-admin`. What a browser has to settle here is
-  // narrower than "is the value right": whether a `var()` inside a theme object survives
-  // StyleModule's injection into a declaration that still resolves against the root.
   const monoToken = await page.evaluate(() =>
     getComputedStyle(document.documentElement).getPropertyValue("--font-mono"),
   );
@@ -626,16 +401,10 @@ test("the operator picker filters as you type, and keeps the ones that do not ap
 
   const operator = page.getByRole("combobox", { name: "Operator" });
   await operator.click();
-  // The rule reads a single-choice question, so the numeric operators are listed and
-  // unavailable rather than absent.
+
   await expect(page.getByRole("option", { name: "is at least", exact: true })).toBeDisabled();
   await expect(page.getByRole("option", { name: "equals (the whole answer)" })).toBeEnabled();
 
-  // Typing narrows it to what was typed, which is the whole point of the control. Sixteen
-  // operators down to the two that carry the typed text, NAMED rather than merely counted:
-  // "at le" matched one phrase until task 074 added "at least one instance of a group
-  // matches", and a count on its own would read as a regression rather than as the list
-  // having grown an honest second match.
   await operator.fill("at le");
   await expect(page.getByRole("option")).toHaveCount(2);
   await expect(page.getByRole("option", { name: "is at least", exact: true })).toBeVisible();
@@ -643,13 +412,9 @@ test("the operator picker filters as you type, and keeps the ones that do not ap
     page.getByRole("option", { name: "at least one instance of a group matches", exact: true }),
   ).toBeVisible();
 
-  // A filter that matches nothing says so rather than closing the list, which would be
-  // indistinguishable from the control having failed.
   await operator.fill("zzzz");
   await expect(page.getByText("No match.")).toBeVisible();
 
-  // Escape first: the popover stays open over an empty collection now, and it covers the
-  // dialog's footer, so Cancel is behind it until the list is dismissed.
   await operator.press("Escape");
   await expect(page.getByText("No match.")).toBeHidden();
   await cancelRuleEditor(page);
@@ -658,10 +423,6 @@ test("the operator picker filters as you type, and keeps the ones that do not ap
 test("Back and Next walk the wizard's phases without gating them (Code Owner, 2026-08-30)", async ({
   page,
 }) => {
-  // The buttons are a second way to set one piece of state, not a stepper: the tabs stay
-  // live throughout, which is what keeps an author who knows where they are going from
-  // having to walk. Both halves are asserted, because a stepper is exactly what this
-  // would become if a later change disabled the tabs while the buttons were pressed.
   test.setTimeout(180_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto(`/forms/${insuranceFormId}`);
@@ -675,8 +436,6 @@ test("Back and Next walk the wizard's phases without gating them (Code Owner, 20
   const next = page.getByRole("button", { name: /^Next/ });
   const tab = (name: string) => page.getByRole("tab", { name, exact: true });
 
-  // At the first phase there is nowhere back to, and the control says so by being
-  // disabled rather than by disappearing, which would reflow the row under the pointer.
   await expect(tab("1. When")).toHaveAttribute("aria-selected", "true");
   await expect(back).toBeDisabled();
   await expect(next).toBeEnabled();
@@ -687,28 +446,17 @@ test("Back and Next walk the wizard's phases without gating them (Code Owner, 20
 
   await next.click();
   await expect(tab("3. Test")).toHaveAttribute("aria-selected", "true");
-  // ...and at the last phase there is nowhere on to.
+
   await expect(next).toBeDisabled();
 
   await back.click();
   await expect(tab("2. Then show")).toHaveAttribute("aria-selected", "true");
 
-  // NOT GATED. The tab list is still the primary control: jumping straight back to the
-  // first phase from the last has to work, or the buttons have quietly become a stepper.
   await openRulePhase(page, "test");
   await openRulePhase(page, "when");
   await expect(tab("1. When")).toHaveAttribute("aria-selected", "true");
   await expect(back).toBeDisabled();
 
-  // AND NOTHING MOVES WHILE WALKING (Code Owner, 2026-08-30). The wizard's column capped
-  // its height rather than fixing it, so it shrank to whichever phase was selected - and
-  // the dialog is centred, so a shorter phase pulled the whole thing down the screen: 560,
-  // 750 and 440 pixels tall on the three tabs, with the top edge moving up to 95px. The
-  // control an author had just pressed slid out from under the pointer.
-  //
-  // Measured on the dialog's own box, once per phase, reached through the tabs AND through
-  // Next, because those are two different ways to change `phase` and a fix that held for
-  // one would be worth nothing if it did not hold for the other.
   const dialogBox = async (): Promise<string> => {
     const box = await scope.boundingBox();
     return `top=${String(Math.round(box?.y ?? -1))} height=${String(Math.round(box?.height ?? -1))}`;
@@ -728,11 +476,6 @@ test("Back and Next walk the wizard's phases without gating them (Code Owner, 20
 test("the screen's own bench is expanded under the table, with a picker (Code Owner, 2026-08-30)", async ({
   page,
 }) => {
-  // TWO BENCHES, and this is the other one. The wizard's is about the rule being EDITED,
-  // against the draft the dialog is buffering; this one is about the rules as they are
-  // STORED, and it is on screen the moment the rules screen is: no disclosure to open and
-  // no dialog to be inside. Both halves of that are asserted here, because "expanded all
-  // the time" is exactly the property a later refactor takes away without noticing.
   test.setTimeout(180_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto(`/forms/${insuranceFormId}`);
@@ -740,18 +483,15 @@ test("the screen's own bench is expanded under the table, with a picker (Code Ow
 
   const screenBench = page.getByTestId("qcms-bench-screen");
   await expect(screenBench).toBeVisible();
-  // An `h2` here and an `h3` in the dialog, and the level is the whole difference: this
-  // one sits under the screen's `h1`, and the dialog's under the dialog's own title.
+
   await expect(page.getByRole("heading", { level: 2, name: "Rule test bench" })).toBeVisible();
-  // Nothing was opened to reach it. `qcms-bench` is the wizard's section, and it is absent.
+
   await expect(page.getByTestId("qcms-bench")).toHaveCount(0);
 
-  // The picker is what chooses the rule here, so the digest names the rule it is showing.
   const ruleId = (await ruleIds(page))[0] ?? "";
   expect(ruleId).not.toBe("");
   await expect(screenBench.getByTestId("qcms-bench-digest")).toContainText(ruleId);
 
-  // And it runs against the engine, from the screen, with no rule editor involved.
   await chooseOption(screenBench, `${questionIdFor(AT_FAULT)}@1`, atFaultYesOption);
   await screenBench.getByRole("button", { name: "Run preview", exact: true }).click();
   await expect(screenBench.getByTestId("qcms-bench-outcome")).toHaveAttribute(
@@ -764,26 +504,13 @@ test("the screen's own bench is expanded under the table, with a picker (Code Ow
 test("both panels are in the heading outline, with a digest the panel repeats", async ({
   page,
 }) => {
-  // Issue 519. Two claims, and neither is visible to the axe sweep beside this file:
-  // `heading-order` cannot see that a section has NO heading (only that levels skip), and
-  // nothing in a rendered tree notices that a digest has become the only copy of a fact.
-  //
-  // TWO SCREENS since 2026-08-26, and one of the two is no longer a disclosure: the
-  // settings stayed on the form's screen and stopped collapsing when they were left there
-  // alone, and the bench went to the rules. Both of 519's claims survive the move and are
-  // what is still asserted - a heading in the outline, and a digest whose facts exist as
-  // controls inside the panel. Only "collapsible" was ever incidental to them.
   test.setTimeout(180_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto(`/forms/${insuranceFormId}`);
 
-  // `plan/admin-ux-audit.md` §4.3: both panels have an entry in the outline, at the level
-  // every other section of their screen uses.
   const settingsHeading = page.getByRole("heading", { level: 2, name: "Form settings" });
   await expect(settingsHeading).toBeVisible();
 
-  // §3.7 on the settings panel: whichever of the two challenge phrases the digest chose,
-  // the panel's own checkbox is the fact behind it, so opening the panel finds it again.
   const settingsDigest = await page.getByTestId("qcms-settings-digest").innerText();
   const challenge = page.getByRole("checkbox", { name: "Require a challenge before answering" });
   expect(
@@ -791,11 +518,6 @@ test("both panels are in the heading outline, with a digest the panel repeats", 
     "the settings digest agrees with the checkbox inside the panel",
   ).toBe(await challenge.isChecked());
 
-  // The bench is the rule wizard's third phase since 2026-08-30, and its heading is an
-  // `h3`: a modal `aria-hidden`s the rest of the document, so the outline a reader
-  // navigates inside the dialog starts at the dialog's own title. 519's claim is unchanged
-  // and is what is asserted - the panel has an entry in that outline, and the count its
-  // digest states is a count of entries that exist inside the panel.
   await openRules(page);
   const benchRuleId = (await ruleIds(page))[0] ?? "";
   await openRuleEditor(page, benchRuleId);
@@ -813,32 +535,22 @@ test("both panels are in the heading outline, with a digest the panel repeats", 
 test("the rule wizard buffers: Cancel discards, Save commits (Code Owner, 2026-08-30)", async ({
   page,
 }) => {
-  // The claim `plan/admin-design-contracts.md` §6's 2026-08-30 amendment makes, asserted
-  // through the one surface that can see it: the rules table's own sentence, which is a
-  // read of the DRAFT rather than of the dialog. If an edit reached the draft as it was
-  // typed - which is what the editor did until this change - the sentence would already
-  // carry the cancelled target and this test would fail on the line after Cancel.
   test.setTimeout(180_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto(`/forms/${insuranceFormId}`);
 
   await openRules(page);
   const ruleId = (await ruleIds(page))[0] ?? "";
-  // The row's SENTENCE, which is a read of the draft rather than of the dialog: if an edit
-  // reached the draft as it was typed - which is what the editor did until this change -
-  // the sentence would already carry the cancelled target.
+
   const sentence = page.locator(`tr[data-rule-id="${ruleId}"] p.qcms-rule-sentence`);
   const before = (await sentence.innerText()).trim();
   expect(before, "the saved rule already reads as a sentence").not.toBe("");
 
-  // CANCEL. A target ticked, then thrown away.
   await openRuleEditor(page, ruleId);
   await toggleTarget(page, ruleId, questionIdFor(ACCIDENT_COUNT), true);
   await cancelRuleEditor(page);
   expect((await sentence.innerText()).trim(), "Cancel leaves the rule as it was").toBe(before);
 
-  // And it did not merely fail to REDRAW: reloading rebuilds the draft from the API, so
-  // this is the server's copy agreeing that nothing was stored.
   await page.reload();
   await openRules(page);
   expect((await sentence.innerText()).trim()).toBe(before);
@@ -848,11 +560,9 @@ test("the rule wizard buffers: Cancel discards, Save commits (Code Owner, 2026-0
     rule(page, ruleId).getByRole("checkbox", { name: questionIdFor(ACCIDENT_COUNT), exact: true }),
     "the cancelled target is not in the stored rule",
   ).not.toBeChecked();
-  // The stamp is read through the save strip on the form's screen, which is behind the
-  // overlay while a dialog is open, so the dialog is closed before it is taken.
+
   await cancelRuleEditor(page);
 
-  // SAVE. The same edit, kept.
   const beforeSave = await savedStamp(page);
   await openRuleEditor(page, ruleId);
   await toggleTarget(page, ruleId, questionIdFor(ACCIDENT_COUNT), true);
@@ -870,8 +580,7 @@ test("the rule wizard buffers: Cancel discards, Save commits (Code Owner, 2026-0
   ).toBeChecked();
   await cancelRuleEditor(page);
 
-  // Put the form back the way the earlier tests left it, because this file is serial and
-  // the later ones read the same draft.
+  // Restore the shared draft because later serial tests read it.
   const beforeRestore = await savedStamp(page);
   await openRuleEditor(page, ruleId);
   await toggleTarget(page, ruleId, questionIdFor(ACCIDENT_COUNT), false);
@@ -881,11 +590,6 @@ test("the rule wizard buffers: Cancel discards, Save commits (Code Owner, 2026-0
 });
 
 test("Add rule leaves nothing behind when it is cancelled", async ({ page }) => {
-  // The half of the buffering that removed a defect rather than adding a promise. "Add
-  // rule" used to put a targetless rule straight into the draft, and `unsaveableReason`
-  // reads a rule with no target as an unsaveable draft: adding one and closing the editor
-  // paused the whole screen's autosave until somebody picked a target. Minting on Add and
-  // adding on Save is what closed that window.
   test.setTimeout(180_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto(`/forms/${insuranceFormId}`);
@@ -898,20 +602,12 @@ test("Add rule leaves nothing behind when it is cancelled", async ({ page }) => 
   await cancelRuleEditor(page);
   expect(await ruleIds(page)).toEqual(before);
 
-  // And nothing is left to pause the screen's autosave. The notice is rendered above the
-  // screen split, so it is on the rules screen too, and its absence is exactly the state
-  // the old behaviour could not reach: `unsaveableReason` names a targetless rule as an
-  // unsaveable draft, so an added-then-abandoned rule used to raise this and hold it.
   await expect(page.getByTestId("qcms-autosave-paused")).toHaveCount(0);
 });
 
 test("the targets are grouped by step, keep the ineligible ones, and can be filtered", async ({
   page,
 }) => {
-  // Requirement 3 of the wizard, at the shape this form has. The scale it is DESIGNED for
-  // (ten steps, hundreds of questions) is asserted in `lib/forms/rule-targets.test.ts`,
-  // which can build that form in a millisecond; what a browser adds is that the grouping
-  // and the filter are really wired to the control an author uses.
   test.setTimeout(180_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto(`/forms/${insuranceFormId}`);
@@ -921,11 +617,6 @@ test("the targets are grouped by step, keep the ineligible ones, and can be filt
   await openRuleEditor(page, ruleId);
   const scope = rule(page, ruleId);
 
-  // FULL WIDTH, asserted as a number rather than trusted to a stylesheet. The kit's
-  // `Dialog` writes `max-w-md` (28rem, 448px) onto its modal and takes no width prop, so
-  // the wide treatment is a rule in `app/globals.css` keyed on a marker attribute this
-  // component renders - a coupling that breaks silently if either half is renamed. At this
-  // project's 1280px viewport a dialog still wearing the kit's default measures 448px.
   const dialogBox = await page.getByRole("dialog").boundingBox();
   expect(dialogBox?.width ?? 0, "the rule wizard is wider than the kit's default").toBeGreaterThan(
     900,
@@ -933,26 +624,16 @@ test("the targets are grouped by step, keep the ineligible ones, and can be filt
 
   await openRulePhase(page, "then");
 
-  // GROUPED BY STEP, addressed by the step's own id. Three groups for two steps, and the
-  // extra one is the design rather than a duplicate: this rule reads the at-fault question,
-  // so the step holding it STRADDLES the cut ADR-16 makes. Its own whole-step target is
-  // illegal (the kernel expands a step target to every question in it, and one of them
-  // comes before the condition) while its later question is legal, so it is named under
-  // both headings. `lib/forms/rule-targets.test.ts` proves only one step can ever straddle.
   await expect(scope.locator("[data-target-step]")).toHaveCount(3);
   await expect(scope.locator('[data-target-step="stp_driving_history"]')).toHaveCount(2);
   await expect(scope.locator('[data-target-step="stp_claim_details"]')).toHaveCount(1);
 
-  // THE INELIGIBLE GROUP IS STILL LISTED AND STILL LABELLED. The rule reads the at-fault
-  // question, so that question and its step come before the condition and cannot be
-  // targeted - and are on screen anyway, which is what keeps exit criterion 2 reachable.
   await expect(scope.getByText("Comes before this condition")).toBeVisible();
   await expect(scope.getByText("Comes after this condition")).toBeVisible();
   await expect(
     scope.getByRole("checkbox", { name: questionIdFor(AT_FAULT), exact: true }),
   ).toBeVisible();
 
-  // THE FILTER NARROWS THE LIST, and says by how much in a live region.
   const count = page.getByTestId("qcms-targets-count");
   const total = Number(/of (\d+) targets/.exec(await count.innerText())?.[1] ?? "-1");
   expect(total, "the count states the whole list before anything is typed").toBeGreaterThan(1);
@@ -962,19 +643,14 @@ test("the targets are grouped by step, keep the ineligible ones, and can be filt
   await expect(scope.locator('[data-target-step="stp_claim_details"]')).toBeVisible();
   await expect(count).not.toHaveText(new RegExp(`Showing ${String(total)} of`));
 
-  // A filter that matches nothing says the filter is why, rather than showing an empty box.
   await fillStable(targetFilter(page), "no such target");
   await expect(scope.getByText("No target matches that filter.")).toBeVisible();
 
-  // And what is already chosen stays visible through all of it, which is the trap the
-  // library picker's chosen pane answers for the same gesture: a filter must not hide a
-  // choice the author has already made.
   await expect(page.getByTestId("qcms-targets-selected")).toContainText(questionIdFor(CLAIM_NOTES));
 
   await cancelRuleEditor(page);
 });
 
-/** The form library lists what was built, which is the screen the builder is reached from. */
 test("the form library lists the forms that were built", async ({ page }) => {
   test.setTimeout(120_000);
   await signInWithTotp(page, EMAIL, totpSecret);

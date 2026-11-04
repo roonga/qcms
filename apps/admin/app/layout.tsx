@@ -14,8 +14,6 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: t("app.title"),
   description: t("app.description"),
-  // The admin is an internal tool behind auth; keep it out of every index even if
-  // an operator exposes it publicly by mistake.
   robots: { index: false, follow: false },
 };
 
@@ -24,83 +22,8 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-/**
- * The admin root layout (task 031; mode stamping added by task 055).
- *
- * Deliberately thinner than the portal's, and it stays that way: there is still no
- * inline theme-bootstrap script here, and therefore no CSP nonce to thread for one -
- * which keeps the app's CSP free of any `script-src` allowance of our own (see
- * `lib/server/csp.ts`).
- *
- * Appearance is resolved in two halves, and the split is what removes the script:
- *
- * - An EXPLICIT choice is a cookie, readable here, stamped as the root classes before
- *   a byte of HTML leaves. No flash, and no client code involved in the first paint.
- * - Auto polarity means no polarity class at all, and the token sheet's own
- *   `prefers-color-scheme` blocks then apply the dark field (`app/theme.css`), at
- *   either contrast level. That is the one input a server cannot see, handled by the
- *   one mechanism that does not need to run in the document.
- *
- * High contrast is never inferred by either half: `.hc` appears only when the cookie
- * says the operator chose it.
- *
- * Reading a cookie makes every route dynamic. That costs nothing here: every screen
- * in this app is already per-request (session lookups, search params), and there is
- * no page worth caching in an authoring tool behind auth.
- *
- * The skip link is the same structure as the portal's, so the keyboard walkthrough
- * and the axe gate inherited from task 030 start from a known-good shape.
- *
- * THIS LAYOUT IS ALSO WHERE THE APP STOPS WITHOUT JAVASCRIPT - see `REQUIRES_JS_CSS`.
- */
-
-/**
- * The scripting gate (Code Owner, 2026-09-27: the admin requires JavaScript and stops at
- * a message without it, recorded in `plan/admin-design-contracts.md`).
- *
- * This is the first place every admin route passes through, sign-in included, so it is the
- * only place the check has to be made once. Below it there is nothing to check: no screen
- * in this app has a scriptless mode to fall back to.
- *
- * ## The mechanism, and why it is this one
- *
- * A `<noscript><style>` in `<head>`, hiding every child of `<body>` except the message.
- * Three properties made it the simplest thing that works:
- *
- * - **It needs no nonce and no CSP change.** `lib/server/csp.ts` grants
- *   `style-src 'self' 'unsafe-inline'` because Tailwind injects a stylesheet, so an inline
- *   `<style>` is already allowed. The alternative directions both cost more than they
- *   return: a hash would have to be recomputed by hand on every edit to the rule, and the
- *   nonce is threaded for `script-src` only and deliberately never reaches React
- *   (`lib/server/csp.ts` explains why the admin avoids that propagation entirely).
- * - **Nothing script-shaped is involved**, so the app's `script-src` stays free of any
- *   allowance of our own. A gate written as `document.documentElement.classList.add(...)`
- *   would be the one thing that cannot run in the case it exists for.
- * - **No flash with scripting ON.** The message is `display: none` from `globals.css`, a
- *   stylesheet in `<head>`, so it is hidden before the first paint rather than by client
- *   code after it. The `<noscript>` rule is never applied at all in that case, because the
- *   browser does not parse `<noscript>` content as CSS when scripting is enabled.
- *
- * `display: none` on the hidden half rather than `visibility` or an offscreen shift,
- * because the requirement is that nothing else is usable: `display: none` removes the
- * subtree from the tab order and from the accessibility tree together, so the sign-in
- * form behind the message is neither focusable nor announced.
- *
- * `!important` on both rules, which is not a specificity fight. Next injects the
- * `globals.css` link into the same `<head>`, and the relative order of that link and this
- * element is Next's business rather than ours: an override that must win whatever the
- * sheet order is says so, rather than depending on it.
- *
- * What this REPLACED, because the replacement retired a shipped affordance rather than
- * only chrome. The block used to hide the two topbar menu triggers and reveal a plain POST
- * sign-out button beside them, so that a scriptless operator could still end a session
- * (task 032, and the Code Owner's 2026-07-31 sign-out decision). Both rules are dead here:
- * the whole shell is hidden, so there is no topbar to correct and no button worth showing.
- * That 2026-07-31 decision is superseded as of 2026-09-27 and the button is deleted with
- * it; `plan/admin-design-contracts.md` records the supersession. What stays in
- * `components/account-menu.tsx` is the POST form itself, `hidden`, because
- * `requestSubmit()` on it is how the scripted menu item signs out.
- */
+/* Render the no-script message unconditionally and reveal it with noscript CSS; only then hide all other
+   body children. */
 const REQUIRES_JS_CSS =
   "body>:not(.qcms-requires-js){display:none!important}" +
   ".qcms-requires-js{display:flex!important}";
@@ -108,9 +31,6 @@ const REQUIRES_JS_CSS =
 export default async function AdminRootLayout({ children }: { readonly children: ReactNode }) {
   const cookieStore = await cookies();
   const appearance = parseAppearance(cookieStore.get(MODE_COOKIE)?.value);
-  // Stamped here for the reason the appearance classes are: the rail is hidden by CSS
-  // reading this attribute, so a rail the operator put away is absent in the first byte of
-  // HTML rather than taken off the screen after it.
   const sidebar = parseSidebarSetting(cookieStore.get(SIDEBAR_COOKIE)?.value);
 
   return (
@@ -120,42 +40,17 @@ export default async function AdminRootLayout({ children }: { readonly children:
       {...{ [SIDEBAR_ATTRIBUTE]: sidebar }}
     >
       <head>
-        {/* The scripting gate. See `REQUIRES_JS_CSS` above for the whole argument. */}
         <noscript>
           <style>{REQUIRES_JS_CSS}</style>
         </noscript>
       </head>
       <body>
-        {/* Renders nothing. It stamps `data-qcms-hydrated` on `<html>` from a mount
-            effect, which is the only truthful moment for the browser suite to wait
-            for before it types into a server-rendered form (issue #210): react-aria's
-            controlled inputs discard anything typed before React attaches, silently.
-            Mounted here rather than per screen because this is the one root every
-            admin page shares and nothing under `app/` declares a Suspense boundary,
-            so this effect runs after the whole page has committed. */}
+        {/* Mount at the shared root so the hydration marker runs after the whole page commits. */}
         <HydrationMarker />
         <a href="#main-content" className="skip-link">
           {t("action.skipToContent")}
         </a>
-        {/* The deployment's formatting locale (QCMS_LOCALE, Code Owner 2026-10-19), read
-            here on the server. The provider renders no element, so the scripting gate's
-            `body>` rule is unaffected. */}
         <LocaleProvider locale={appLocale()}>{children}</LocaleProvider>
-        {/* LAST in the body, and that position is measured rather than chosen for looks.
-            Document order does not matter to the reader this is for: in the state where it
-            is visible it is the only thing in the accessibility tree, because the rule
-            above takes every sibling out of it. What document order does matter to is the
-            app's own suite, which reads `page.locator("h1").first()` on two screens - and
-            with this block first, `.first()` was this heading on every page in the app.
-            Nothing the scripted app presents comes after it now.
-
-            `role="alert"` on the panel rather than on the full-height centring wrapper, so
-            the announced region is the two strings and not a page-sized box. The `<h1>` is
-            what a heading walk finds, since this is the page's only content in that state -
-            which also means the app still has exactly one level-1 heading in the
-            accessibility tree, one of the two always being `display: none`. A spec that
-            spelled that invariant as a DOM count rather than a role query was corrected
-            with this change (`e2e/forms-publish.pw.ts`). */}
         <div className="qcms-requires-js">
           <div role="alert" className="qcms-requires-js__panel">
             <h1 className="qcms-requires-js__title">{t("requiresJs.title")}</h1>

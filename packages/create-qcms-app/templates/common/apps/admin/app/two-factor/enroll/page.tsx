@@ -10,44 +10,18 @@ import { pageMetadata } from "@/lib/page-title";
 import { pendingEnrollment } from "@/lib/server/enrollment";
 import { requireEnrollingSession, SIGN_IN_PATH } from "@/lib/server/session";
 
-/** The browser-tab title for this route (issue #536). */
 export function generateMetadata(): Metadata {
   return pageMetadata(t("enroll.title"));
 }
 
-/**
- * 2FA enrollment (task 031; screen contract state `2FA-enroll`).
- *
- * The QR code is rendered **server-side, inline, as SVG**. That is three decisions
- * at once, each worth stating:
- *
- * - *Server-side*, so the TOTP secret is encoded into markup by the same process
- *   that already holds it, rather than shipped to a client library.
- * - *Inline*, so no image request carries the secret in a URL where a proxy log or a
- *   browser history entry would keep it.
- * - *SVG*, so it stays crisp at any zoom (WCAG 1.4.4) and needs no `sharp`/canvas
- *   dependency in a Next build that deliberately has none.
- *
- * The manual setup key beside it is not a convenience: the screen contract's a11y notes
- * make it the accessible alternative to the QR image, so it is a labelled, readable,
- * selectable field rather than decoration. The QR image itself is marked
- * `aria-hidden` with the field carrying the accessible content, because a screen
- * reader announcing "QR code image" and then a separate secret is one useful item
- * and one dead end.
- *
- * A missing enrollment cookie means the fifteen-minute window lapsed (or the screen
- * was reached directly). There is nothing to show and no way to re-provision without
- * the password, so the honest answer is to send them back to sign in, which
- * re-provisions on the way through.
- */
+/* Render QR SVG inline server-side so no image URL carries the TOTP secret into logs; the labelled key is
+   its accessible alternative. */
 export default async function EnrollPage({
   searchParams,
 }: {
   readonly searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   await requireEnrollingSession();
-  // Shared with sign-in so the throttled state survives the trip to this screen: this
-  // line used to read `error` alone, which reported a `429` as a wrong code (issue #805).
   const error = authFailureMessage(await searchParams);
 
   const totpUri = await pendingEnrollment();
@@ -56,14 +30,8 @@ export default async function EnrollPage({
   const secret = new URL(totpUri).searchParams.get("secret") ?? "";
   const qrSvg = await QRCode.toString(totpUri, {
     type: "svg",
-    // The quiet zone belongs to the CODE, not to a frame around it. Task 031 got it
-    // with a white CSS background on the wrapper, which was the only literal colour
-    // left in the app and, worse, the wrong mechanism: a scanner needs the light
-    // margin whatever mode the operator is in, and the generated SVG already paints
-    // its own. Two modules is the visual equivalent of the frame it replaces.
+    // The QR code's own light quiet zone must survive every theme; a wrapper background cannot guarantee it.
     margin: 2,
-    // Fixed size rather than scale: the SVG is inlined and then constrained by CSS,
-    // so the intrinsic size only needs to be large enough to stay legible.
     width: 200,
   });
 
@@ -72,16 +40,14 @@ export default async function EnrollPage({
       <div
         aria-hidden="true"
         className="qcms-qr"
-        // The SVG is generated from the otpauth URI by `qrcode` in this process:
-        // no user input reaches it, so there is no injection surface here.
+        // This SVG comes only from the server-generated otpauth URI; no user-supplied markup enters it.
         dangerouslySetInnerHTML={{ __html: qrSvg }}
       />
       <TextField
         label={t("enroll.manualLabel")}
         value={secret}
         isReadOnly
-        // Not `autoComplete="off"`: this is not a completable field at all, and a
-        // browser must never offer to remember it.
+        // The setup key is not a completable field; browsers must never offer to remember it.
         autoComplete="off"
       />
       <form method="post" action="/two-factor/enroll/verify" className="flex flex-col gap-4">

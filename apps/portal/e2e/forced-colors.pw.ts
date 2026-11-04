@@ -185,7 +185,6 @@ async function openAppearance(page: Page): Promise<void> {
   await expect(page.getByTestId("appearance-mode")).toBeVisible();
 }
 
-/** Drive the kitchen-sink walk from step 1 into an answered step 2. */
 async function walkToAnsweredStepTwo(page: Page, slug: string): Promise<void> {
   await startKitchenSink(page, slug);
   await fillText(page, KS.fullName, "Ada Lovelace");

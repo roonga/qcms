@@ -41,7 +41,6 @@ function advertisedArgs(def: ActionKindDef, environments: readonly string[]): z.
   return z.strictObject(members);
 }
 
-/** One offered kind as a step the model may name, or nothing when it is not offered. */
 function stepMember(entry: OfferedActionKind): z.ZodType | undefined {
   const def = actionKind(entry.kind);
   if (def === undefined) return undefined;

@@ -6,25 +6,6 @@ import { createForm } from "./support/forms.js";
 import { enrollNewAdmin, fillStable, signInWithTotp } from "./support/flow.js";
 import { waitForHydration } from "./support/hydration.js";
 
-/**
- * The Operations forms table in a browser: its URL state, its filter boundaries and the
- * two global queues that share its mode.
- *
- * # What only a browser can report
- *
- * The address arithmetic is unit-tested in `lib/ops/operations-forms.test.ts` and the six
- * render states in `app/(shell)/operations-states.test.tsx`. Three facts are not available
- * at either layer: that applying a filter leaves the mode header, the environment and the
- * page heading where they were; that browser back restores the view the operator left; and
- * that the moved routes land where they say they do.
- *
- * # One persona
- *
- * Every account this harness creates holds the installation claim (`shell-modes.pw.ts`
- * explains why), so the queue links a claim-only caller would see cannot be varied here.
- * The capability rule itself is in `lib/shell/modes.test.ts`.
- */
-
 test.describe.configure({ mode: "serial" });
 
 const EMAIL = uniqueAdminEmail("opsforms");
@@ -51,7 +32,7 @@ test("lists the forms this caller operates, separating unreleased from closed in
   await expect(table).toBeVisible();
   await expect(table.getByRole("row").filter({ hasText: ALPHA })).toHaveCount(1);
   await expect(table.getByRole("row").filter({ hasText: BETA })).toHaveCount(1);
-  // Neither has been released, which is its own reading rather than closed intake.
+
   await expect(
     table.getByRole("row").filter({ hasText: ALPHA }).getByText("No release"),
   ).toHaveCount(2);
@@ -74,7 +55,7 @@ test("a filter narrows the rows below it and changes nothing above them", async 
   await expect(page).toHaveURL(new RegExp(`q=${ALPHA}`, "u"));
   const table = page.getByTestId("qcms-operations-table");
   await expect(table.getByRole("row").filter({ hasText: BETA })).toHaveCount(0);
-  // The header, the mode, the environment and the heading are all where they were.
+
   await expect(page.getByTestId("qcms-mode-header")).toHaveAttribute("data-mode", "operations");
   await expect(heading).toBeVisible();
   await expect(chip).toHaveAttribute("data-environment", environment ?? "");
@@ -84,19 +65,15 @@ test("leaving the environment an address names resets the page and keeps the ter
   page,
 }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
-  // The selection is this browser context's own, so it is made here rather than inherited
-  // from the test that created the forms: Playwright gives each test a fresh context.
+
   await chooseEnvironment(page, "test");
 
-  // The address now names an environment the operator is not in.
   await page.goto(`/operations?env=prod&q=${ALPHA}&cursor=stale`);
   await waitForHydration(page);
 
   const chip = page.getByTestId("qcms-mode-header").getByTestId("qcms-environment-switcher");
   await expect(chip).toHaveAttribute("data-environment", "test");
 
-  // The term survives; the page position does not, and every link names the environment
-  // in force rather than the one the address asked for.
   const clear = page.getByTestId("qcms-rail-filters").getByRole("link", { name: "Clear filters" });
   await expect(clear).toHaveAttribute("href", "/operations?env=test");
   await expect(
@@ -153,7 +130,7 @@ test("the global queues are Operations destinations, reached from its rail", asy
   await expect(page).toHaveURL(/\/webhooks$/u);
   await expect(page.getByTestId("qcms-mode-header")).toHaveAttribute("data-mode", "operations");
   await expect(page.getByRole("navigation", { name: "Primary" })).toHaveCount(0);
-  // The queue's own rail offers the way back to the table.
+
   await page.getByTestId("qcms-webhooks-rail").getByRole("link", { name: "Operations" }).click();
   await expect(page).toHaveURL(/\/operations$/u);
 

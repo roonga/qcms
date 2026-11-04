@@ -11,13 +11,13 @@ export interface AdminSessionRow {
   readonly sessionId: string;
   /** Idle expiry better-auth maintains on the row; past it the session is dead. */
   readonly expiresAt: Date;
-  /** The SEC-1 absolute-lifetime anchor. */
+  /** The absolute session lifetime is anchored to this timestamp, independently of activity. */
   readonly createdAt: Date;
   readonly userId: string;
   readonly email: string;
   readonly role: string;
   readonly twoFactorEnabled: boolean;
-  /** The API must refuse a session holding a provisional credential (SEC-1). */
+  /** The API must refuse a session holding a provisional credential. */
   readonly mustChangePassword: boolean;
 }
 
@@ -61,11 +61,8 @@ export async function getAdminSessionByToken(
 }
 
 /**
- * Clear the provisional-credential flag on one account.
- *
- * Call only from the `account.update.after` better-auth hook in
- * `apps/api/src/features/auth/instance.ts`: a successful password change is the only event
- * SEC-1 lets clear the flag, so no route handler, sign-in or session refresh may call it.
+ * Clear the provisional flag only from better-auth's account.update.after hook after a successful password
+ * change, never from sign-in, session refresh, or a route handler.
  */
 export async function clearMustChangePassword(exec: Executor, userId: string): Promise<void> {
   await exec

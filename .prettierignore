@@ -1,59 +1,35 @@
-# Build and dependency output
 node_modules/
 .pnpm-store/
 dist/
 .turbo/
 coverage/
-# Vitest 5's generated reports and attachments (see `.gitignore`). Their JSON, XML and
-# HTML are tool output, and Prettier walks the working tree rather than the index.
+# Prettier walks the working tree, so git ignores alone do not exclude generated reports.
 .vitest/
 pnpm-lock.yaml
 
-# Next.js output (production build in .next, dev server in .next-dev - issue #54),
-# generated ambient types, and Playwright output
 .next/
 .next-dev/
 **/next-env.d.ts
 apps/portal/.playwright/
 
-# Generated API documents and static design showcases
 docs/openapi/
 plan/*.html
 plan/**/*.html
 plan/**/*.json
 plan/**/*.css
 
-# drizzle-kit generates these in a non-Prettier format (task 014 friction)
+# The migration generator owns this formatting.
 packages/db/migrations/meta/
 
-# Generated scaffolding templates (task 037): derived from `apps/` by
-# `pnpm qcms:sync-templates`, which owns their bytes. Prettier owns the SOURCES, and
-# `pnpm check:templates` proves each template equals its source modulo the declared
-# transforms, so formatting the copy independently buys nothing and costs the gate:
-# a transform that shortens a line (issue #457 rewrites two message strings) makes
-# Prettier reflow the generated file, and the next `--check` reports drift the
-# generator did not cause. Same structural reason as the ESLint ignore in
-# `eslint.config.js`.
+# Only format template sources; generated transforms may change wrapping and must remain byte-exact.
 packages/create-qcms-app/templates/
 
-# Vendored a2-react-aria component sources (task 028): upstream-owned, kept
-# byte-for-byte (tabs/format) for a clean `a2ra diff` (ADR-22). Vitest snapshots
-# are tool-generated.
+# Preserve vendored upstream bytes and generated snapshots.
 packages/ui/src/components/a2ui/
 **/__snapshots__/
 
-# Chromium profile directories a Lighthouse run drops in the repository root under
-# WSL (see `.gitignore` for why the name contains backslashes). Prettier walks the
-# working tree rather than the index, so ignoring them in git alone still leaves
-# `pnpm lint` failing on a few hundred `README` and `LOG` files after any browser
-# run on this platform.
-#
-# Written without the backslashes git needs: Prettier's matcher does not read them
-# as escapes the way gitignore does, and no path in this repository begins `C:`.
+# Prettier walks the working tree; its matcher does not use gitignore backslash escapes.
 C:*
 
-# Throwaway ESLint fixture trees `scripts/eslint-workspace.test.ts` writes at the
-# repository root (issue #899, see `.gitignore`). Formatting a fixture whose whole
-# purpose is to carry one deliberate rule violation buys nothing, and a run that died
-# before its cleanup must not turn the next `prettier --check .` red.
+# Lint fixtures deliberately contain violations; cover runs that die before cleanup.
 .lint-cwd-fixture-*/

@@ -4,9 +4,7 @@ import { describe, expect, it } from "vitest";
 import { A2UIStepRenderer, type A2UIStepDocument } from "./A2UIStepRenderer.tsx";
 import { NATIVE_FIELD_ANSWERED_PREFIX, NATIVE_FIELD_KIND_PREFIX } from "./native-submit.ts";
 
-// jsdom pins the markup contract (name carrier, reachability, validation, serialization); the browser half is
-// asserted in the portal's suite (ADR-23). The document is hand-written because no golden form compiles a
-// `Select`.
+// No golden form compiles a Select; use a synthetic document for native markup coverage.
 
 const QUESTION = "q_body_type";
 
@@ -59,8 +57,6 @@ describe("the no-JS single-choice select (issue #988)", () => {
   });
 
   it("puts the select where the respondent can see and reach it", () => {
-    // The only element carrying the question's name used to be a `tabindex="-1"`
-    // select inside an `aria-hidden`, clipped container.
     const { container } = renderNative();
     const select = postedSelects(container)[0];
     expect(select.closest("[aria-hidden='true']")).toBeNull();
@@ -96,7 +92,6 @@ describe("the no-JS single-choice select (issue #988)", () => {
   });
 
   it("keeps the browser's own required check, because HTML can express this rule", () => {
-    // HTML carries "exactly one option chosen", unlike a required checkbox group.
     const { container } = renderNative();
     expect(postedSelects(container)[0].required).toBe(true);
   });

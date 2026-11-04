@@ -3,19 +3,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ResponseDetail as ResponseDetailData } from "../../lib/ops/types.ts";
 
-/**
- * The responses list and a response's detail page name the same day and zone for one
- * submission (Code Owner ruling 2026-10-19, local UX list A9).
- *
- * What prompted the ruling: one submission read as Oct 17 on the list and Oct 18 on its
- * detail, because one surface was still showing the pinned-UTC first render while the
- * other had moved to the operator's clock. Both now go through
- * `components/operator-time.tsx`, which never paints UTC, so the two must agree for an
- * instant that falls on different days in UTC and in the operator's zone.
- *
- * The router is the one thing stubbed: the browser pushes a URL on Apply, which a static
- * tree has no app router for.
- */
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: () => undefined }),
 }));
@@ -23,7 +10,6 @@ vi.mock("next/navigation", () => ({
 const { ResponseBrowser } = await import("./response-browser.tsx");
 const { ResponseDetail } = await import("./response-detail.tsx");
 
-/** 23:30 UTC on 17 October is already 18 October in Sydney (UTC+11 in October). */
 const SUBMITTED = "2026-10-17T23:30:00.000Z";
 
 const DETAIL: ResponseDetailData = {

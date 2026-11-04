@@ -38,7 +38,6 @@ const FORM_ID = `frm_scaffold_${RUN}`;
 
 let adminSession = "";
 
-/** Every API call carries the SEC-4 service token; admin calls add the session. */
 function headers(extra: Readonly<Record<string, string>> = {}): Record<string, string> {
   return { "x-qcms-internal-token": INTERNAL_TOKEN, "content-type": "application/json", ...extra };
 }
@@ -48,9 +47,8 @@ function adminHeaders(): Record<string, string> {
 }
 
 /**
- * SEC-9's CSRF belt refuses a POST without `Sec-Fetch-Site: same-origin` or an `Origin`
- * equal to `QCMS_PORTAL_BASE_URL`. Sending the configured value, not the dialled address,
- * fails if the scaffolder wrote the wrong one to `.env`.
+ * Send the configured portal origin rather than the dialed address so the CSRF check also detects a wrongly
+ * scaffolded base URL.
  */
 function portalPostHeaders(sessionCookie: string): Record<string, string> {
   return {
@@ -108,8 +106,8 @@ describe("a scaffolded QCMS deployment", () => {
         body: JSON.stringify({
           currentPassword: ADMIN_PASSWORD,
           newPassword: CHOSEN_PASSWORD,
-          // SEC-1: a stolen session must not outlive the credential. The token below
-          // comes from this response because the sign-in session is revoked.
+          // Read the new session token after password change; the sign-in session must be revoked so a stolen token
+          // cannot outlive its credential.
           revokeOtherSessions: true,
         }),
       },
@@ -154,7 +152,6 @@ describe("a scaffolded QCMS deployment", () => {
   });
 
   it("completes the scenario-1 loop: author, publish, release, link, respond, submit, read back", async () => {
-    // 1. Author a question and publish version 1.
     await json(
       `${API}/admin/questions`,
       {
@@ -178,7 +175,6 @@ describe("a scaffolded QCMS deployment", () => {
       [200],
     );
 
-    // 2. Author a one-step form and publish it.
     await json(
       `${API}/admin/forms`,
       {
@@ -246,8 +242,7 @@ describe("a scaffolded QCMS deployment", () => {
     );
     expect(released["version"]).toBe(1);
 
-    // 3. Mint a secure link; its URL is built from QCMS_PORTAL_BASE_URL.
-    //    `environment` is required with no default (ADR-40, Q19).
+    // Environment is required without a default; minting also verifies the configured public origin.
     const minted = await json(
       `${API}/admin/forms/${FORM_ID}/links`,
       {
@@ -278,7 +273,6 @@ describe("a scaffolded QCMS deployment", () => {
     const sessionPath = new URL(redeemed.headers.get("location") ?? "", PORTAL).pathname;
     expect(sessionPath).toMatch(/^\/s\/ses_/);
 
-    // 5. Answer and submit.
     const step = await json(
       `${PORTAL}${sessionPath}/step`,
       { headers: { cookie: sessionCookie } },
@@ -322,7 +316,6 @@ describe("a scaffolded QCMS deployment", () => {
         method: "POST",
         headers: adminHeaders(),
         body: JSON.stringify({
-          // A name out of step with the group's fields is refused on save (Q37).
           name: "all.responses.viewer",
           role: "responses.viewer",
           environments: ["all"],
@@ -340,7 +333,6 @@ describe("a scaffolded QCMS deployment", () => {
       [201],
     );
 
-    // 6. Read it back through the admin API.
     const responses = await json(
       `${API}/admin/forms/${FORM_ID}/responses`,
       { headers: adminHeaders() },

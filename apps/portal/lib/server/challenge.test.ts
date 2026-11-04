@@ -2,10 +2,6 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { challengeProvider } from "./challenge";
 
-/**
- * ADR-24 / SEC-9: the challenge provider is resolved solely from the typed env
- * flag (no client-side flag evaluation). Default is `none`.
- */
 describe("challenge provider flag", () => {
   const original = process.env.QCMS_FLAG_CHALLENGE_PROVIDER;
   afterEach(() => {

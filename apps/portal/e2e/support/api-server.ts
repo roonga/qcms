@@ -34,7 +34,6 @@ import {
   SERVER_LOG_FILES,
 } from "./harness-config.js";
 
-/** The wire-stable SEC-4 internal-token header (matches the portal + API). */
 const INTERNAL_TOKEN_HEADER = "x-qcms-internal-token";
 const ADMIN_SESSION_HEADER = "x-qcms-admin-session";
 
@@ -232,7 +231,6 @@ export async function startApiServer(): Promise<void> {
   running = { testDb, server };
 }
 
-/** Stop the API server and tear down the database container. */
 export async function stopApiServer(): Promise<void> {
   const current = running;
   running = undefined;

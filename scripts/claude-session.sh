@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# SAFETY: bypassPermissions gives the session unrestricted tool access. Run it only in
-# a disposable environment such as the dev container, which is the blast radius (ADR-29).
+# bypassPermissions gives unrestricted tool access; run only in a disposable environment.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 if [ ! -f /.dockerenv ] && [ -z "${REMOTE_CONTAINERS:-}" ] && [ -z "${CODESPACES:-}" ]; then

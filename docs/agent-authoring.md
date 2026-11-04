@@ -152,6 +152,11 @@ The header's context chip names what the assistant can see from where you are, s
 - **Propose a draft `FormDefinition`** for the form you have open: steps, question pins, and visibility rules, with the questions it had to invent. You see the diff and the same publish validation the builder runs, and Accept puts it in your draft.
 - **Propose any act you could perform yourself from an admin screen.** Publish and release a version, close or reopen intake, mint or revoke links, export or erase a response, release a withheld submission, configure, rotate, retarget, deactivate or reactivate a delivery endpoint, redeliver a stuck delivery, create a form or a question and move a question through its versions, create or remove an access group, grant or revoke it, set a member's role, save workspace settings.
 - **Put several of those in one plan**, in the order they will run, which one Confirm runs end to end.
+- **Take a blank form all the way to a published one in the lowest environment, from the builder.** The goal is that an editor describes the form they want and ends with it published in `test`, with every authoring field filled in rather than the minimum: labels, help text, the required flag, the validation constraints, a message per constraint, option labels, a boolean's own two labels (Code Owner, 2026-11-02). `prod` is out: a production release stays a separate act for another account, under ADR-41's own rules.
+
+**That journey is two cards, not one plan (Code Owner, 2026-11-02).** The first card applies the draft and nothing else, so you review the diff and can edit the form before anything is published. Once you confirm it, the assistant asks for approval and proposes a second card: one step per question version your **saved** draft pins unpublished, then the form's own publish into the lowest environment, under one Confirm. The second card is built from the saved draft on the server rather than from the proposal you just accepted, so the edits you made in between are what gets published; a question you removed is not in the plan, and one you added is. Ask to publish later and you get the same card.
+
+Publishing a question from the builder reaches only the versions that draft pins unpublished. Any other question id is refused when the assistant proposes it, and its own page in the library is where it is published from.
 
 Each proposal arrives as a **card**: the act, every argument in full, the consequence sentence the screen's own dialog uses, and Confirm and Cancel. A plan's card lists every step. Nothing happens until you press Confirm.
 
@@ -208,13 +213,13 @@ It is assembled from the kernel's own exports where the kernel exposes a list (q
 5. You see a proposal card with a diff of steps, questions and rules against your current draft, the validation result, and the Accept and Discard buttons together at its foot. The assistant's explanation is shown once, in the conversation, and the card refers to it. It is the same verdict, from the same kernel call, that the builder's own validation panel would show for that draft, so accepting a proposal never changes what you are told about it. The card moves your keyboard focus to itself only if you were already in the panel: a turn finishing while you are editing the form never takes your caret away. Accept and Discard each leave a line in the conversation saying what happened, and focus lands on it.
 6. **Accept into draft** saves the proposal through the builder's own autosave and live validation; nothing bypasses them. When the proposal introduced new questions, that save also creates them (below).
 7. The draft is marked "includes agent-assisted changes". The mark is sticky and shows on the builder and on the publish confirmation, so whoever publishes knows what they are signing.
-8. You publish, or not, exactly as you would for a hand-authored form.
+8. You publish, or not, exactly as you would for a hand-authored form. The assistant posts one turn of its own at this point, carrying the card's record and no words of yours, so it can ask whether to publish what the draft now pins; that turn is the only one the panel starts without you typing, and it happens only after an accept whose every step succeeded.
 
 ### What happens to questions the agent invented
 
 A proposal can pin questions that are not in your library yet, and accepting it **creates them as unpublished drafts** in the question library alongside the form draft.
 
-That is the "a human publishes" half of the rule, and it is what makes the advice you are given performable. The accepted draft pins those questions, the validation panel says they are pinned but not published, and the fix is the one it names: open the question in the library, review the definition the agent wrote, and publish it. Do that for each one and the pins resolve. Nothing is published on your behalf.
+That is the "a human publishes" half of the rule, and it is what makes the advice you are given performable. The accepted draft pins those questions, the validation panel says they are pinned but not published, and the fix is the one it names: review the definition the agent wrote, and publish it. You can do that question by question in the library, or take the second card described in section 4, which does all of them at once: one step per question, each visible on the card and each writing its own audit row. Either way nothing is published until you press Confirm, and what is published is what your saved draft pins.
 
 Three things worth knowing:
 

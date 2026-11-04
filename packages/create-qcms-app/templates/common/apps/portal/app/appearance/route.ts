@@ -46,8 +46,8 @@ function configuredBaseUrl(): string | undefined {
 }
 
 export async function POST(request: Request): Promise<Response> {
-  // SEC-9's belt first, and a refusal reads nothing the request carried: a request that
-  // cannot prove its origin does not get to choose the redirect either.
+  // Check origin before reading the request: a cross-site caller must not choose even the refusal's redirect
+  // target.
   if (!isSameOriginPost(request)) return seeOther(DEFAULT_RETURN);
 
   const form = await readForm(request);

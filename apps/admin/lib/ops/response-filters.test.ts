@@ -2,26 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { parseResponseQuery } from "./response-filters.ts";
 
-/**
- * The response browser's filter parsing (issue 521).
- *
- * Two promises are pinned here, and they are the same promise seen from two sides:
- *
- *  - **What is sent.** A value that does not parse never reaches the API. The old page
- *    concatenated `from` into an ISO instant without looking at it, so `?from=xyz`
- *    travelled as `xyzT00:00:00.000Z` and cost the operator the whole list behind a
- *    400. There is no browser assertion that can see the request string, so it is
- *    asserted here.
- *  - **What is claimed.** `hasFilters` decides between "nothing has been submitted" and
- *    "no response matches these filters", and it now reads off the same parse the
- *    request does. The browser suite asserts the sentences; this asserts the rule they
- *    are rendered from.
- *
- * The third case in each direction is the control: a VALID filter must still be a
- * filter. A fix that made `hasFilters` always false would satisfy the first two and
- * destroy the distinction the issue is about.
- */
-
 describe("response filter parsing: flagged", () => {
   it("takes the API's two values", () => {
     for (const value of ["true", "false"] as const) {
@@ -34,8 +14,6 @@ describe("response filter parsing: flagged", () => {
   });
 
   it("does not count a value it refused to send as an applied filter", () => {
-    // The defect in issue 521: dropped from the request, kept in `hasFilters`, so the
-    // page announced a filtered empty result for a filter it never applied.
     const parsed = parseResponseQuery({ flagged: "maybe" });
     expect(parsed.request.flagged).toBeUndefined();
     expect(parsed.applied.flagged).toBe("");
@@ -66,14 +44,12 @@ describe("response filter parsing: dates", () => {
       expect(parsed.applied.from).toBe("");
       expect(parsed.hasFilters).toBe(false);
     }
-    // Empty is absent, which is not a mistake to report; the rest are.
+
     expect(parseResponseQuery({ from: "xyz" }).ignored).toEqual(["from"]);
     expect(parseResponseQuery({ from: "" }).ignored).toEqual([]);
   });
 
   it("refuses a day that does not exist rather than rolling it forward", () => {
-    // `new Date("2026-02-31T00:00:00.000Z")` is March 3rd, so a pattern check alone
-    // would silently filter on a different day than the address named.
     const parsed = parseResponseQuery({ to: "2026-02-31" });
     expect(parsed.request.to).toBeUndefined();
     expect(parsed.ignored).toEqual(["to"]);
@@ -88,10 +64,6 @@ describe("response filter parsing: version", () => {
   });
 
   it("normalizes to the decimal form the toolbar and the page links use", () => {
-    // `0001` is a version number, so it filters the table to v1. The Version select
-    // builds its options as `String(entry)`, so an un-normalized `"0001"` matches none
-    // of them and the control reads "Any version" beside a table that is filtered - the
-    // toolbar contradicting the rows next to it.
     for (const value of ["0001", "01", "000000001"]) {
       const parsed = parseResponseQuery({ version: value });
       expect(parsed.request.version, `version=${value}`).toBe("1");
@@ -102,19 +74,11 @@ describe("response filter parsing: version", () => {
   });
 
   it("keeps a version that exists nowhere: matching nothing is a real answer", () => {
-    // The filtered empty state is TRUE for `?version=9999` on a form with one version.
-    // Only a value that is not a version number at all is dropped.
     expect(parseResponseQuery({ version: "9999" }).hasFilters).toBe(true);
     expect(parseResponseQuery({ version: "9999" }).ignored).toEqual([]);
   });
 
   it("drops what is not a version number in the form this app writes", () => {
-    // `abc`, `0`, `-1` and `1.5` are values the API itself rejects. `2e3` is the one
-    // exception and the comment must not overstate it: the API's `parseVersion` does
-    // `Number(v)`, so it would accept `2e3` as 2000. This page is stricter on purpose,
-    // because canonical decimal is the only spelling the Version select's options, the
-    // page links and the applied set use, and a value none of them can carry is not a
-    // filter this screen is able to show honestly.
     for (const value of ["abc", "0", "-1", "1.5", "2e3"]) {
       const parsed = parseResponseQuery({ version: value });
       expect(parsed.request.version, `version=${value}`).toBeUndefined();
@@ -128,7 +92,7 @@ describe("response filter parsing: the whole querystring", () => {
   it("keeps the valid half of a mixed set and reports only the rest", () => {
     const parsed = parseResponseQuery({ version: "3", from: "nope", flagged: "maybe" });
     expect(parsed.request).toEqual({ version: "3" });
-    // A page link carries what was applied, so a rejected value must not ride along.
+
     expect(parsed.applied).toEqual({ version: "3", from: "", to: "", flagged: "" });
     expect(parsed.hasFilters).toBe(true);
     expect(parsed.ignored).toEqual(["from", "flagged"]);
@@ -148,8 +112,7 @@ describe("response filter parsing: the whole querystring", () => {
 
   it("treats the page as a position, not a filter", () => {
     expect(parseResponseQuery({ page: "4" }).page).toBe(4);
-    // An unreadable page is the first page, and it is not a filter, so it neither
-    // changes the empty message nor gets reported as a dropped filter.
+
     const parsed = parseResponseQuery({ page: "nonsense" });
     expect(parsed.page).toBe(1);
     expect(parsed.hasFilters).toBe(false);
@@ -159,11 +122,6 @@ describe("response filter parsing: the whole querystring", () => {
   });
 });
 
-/**
- * Whole days on the operator's clock (Code Owner ruling 2026-10-19). The toolbar writes the
- * operator's zone as `tz` beside the days, so the filter reads the days in the zone the
- * rows are shown in, and a shared link keeps meaning the same rows.
- */
 describe("response filter parsing: the day's zone", () => {
   it("widens the days in the named zone", () => {
     const parsed = parseResponseQuery({
@@ -196,14 +154,8 @@ describe("response filter parsing: the day's zone", () => {
   });
 });
 
-/**
- * The day boundary at clock jumps and odd years, through the parser the page uses
- * (review of PR #1077).
- */
 describe("response filter parsing: boundaries", () => {
   it("starts a day whose midnight daylight saving skips at the first instant it exists", () => {
-    // America/Santiago: 00:00 on 2026-09-06 becomes 01:00. The old arithmetic began the
-    // filter at 23:00 on the 5th, an hour of another day's rows.
     const parsed = parseResponseQuery({
       from: "2026-09-06",
       to: "2026-09-05",

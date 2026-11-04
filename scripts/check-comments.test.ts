@@ -187,6 +187,25 @@ describe("allowlist", () => {
   });
 });
 
+describe("JSON configuration comments", () => {
+  it("checks prose without treating comment-like strings as comments", () => {
+    const text = [
+      "{",
+      '  "url": "https://example.test/#123",',
+      '  "sample": "/* issue #123 */",',
+      "  // issue #123",
+      '  "enabled": true',
+      "}",
+    ].join("\n");
+    expect(rules(text, "turbo.json")).toEqual(["history"]);
+    expect(rules(text, ".devcontainer/example.jsonc")).toEqual(["history"]);
+  });
+
+  it("enforces length on adjacent JSON comment lines", () => {
+    expect(rules(`{\n${lines(4, "// ").join("\n")}\n}`, "tsconfig.json")).toEqual(["length"]);
+  });
+});
+
 describe("scope", () => {
   it("covers source roots and root configs", () => {
     for (const path of [
@@ -199,6 +218,10 @@ describe("scope", () => {
       "tooling/x/a.js",
       "vitest.config.ts",
       "eslint.config.js",
+      "turbo.json",
+      "packages/db/tsconfig.json",
+      "apps/api/src/a.json",
+      ".devcontainer/devcontainer.json",
     ]) {
       expect(isInScope(path), path).toBe(true);
     }
@@ -212,7 +235,6 @@ describe("scope", () => {
       "docs/a.ts",
       ".github/a.mjs",
       "apps/api/migrations/0001.sql",
-      "apps/api/src/a.json",
     ]) {
       expect(isInScope(path), path).toBe(false);
     }
@@ -221,9 +243,33 @@ describe("scope", () => {
     expect(isInScope("packages/create-qcms-app/src/a.ts")).toBe(true);
   });
 
+  it("covers every admin subtree while excluding generated output", () => {
+    for (const file of ["flow.ts", "hydration.ts", "admin-server.mjs", "admin-server.test.ts"]) {
+      expect(isInScope(`apps/admin/e2e/support/${file}`), file).toBe(true);
+    }
+    for (const file of [
+      "apps/admin/e2e/supportive/flow.ts",
+      "apps/admin/e2e/agent-assist.pw.ts",
+      "apps/admin/lib/server/session.ts",
+      "apps/admin/components/forms/builder.tsx",
+      "apps/admin/app/globals.css",
+    ])
+      expect(isInScope(file), file).toBe(true);
+    for (const file of [
+      "apps/admin/e2e/support/__snapshots__/flow.ts",
+      "apps/admin/e2e/support/flow.generated.ts",
+    ]) {
+      expect(isInScope(file), file).toBe(false);
+    }
+  });
+
   it("lists real files, this gate among them", () => {
     const files = filesInScope();
     expect(files).toContain("scripts/check-comments.mjs");
-    expect(files.some((path) => path.startsWith("apps/admin/"))).toBe(false);
+    expect(files).toContain("apps/admin/e2e/support/hydration.ts");
+    expect(files).toContain("apps/admin/e2e/support/admin-server.mjs");
+    expect(files).toContain("apps/admin/e2e/agent-assist.pw.ts");
+    expect(files).toContain("apps/admin/lib/server/session.ts");
+    expect(files).toContain("apps/admin/app/globals.css");
   });
 });

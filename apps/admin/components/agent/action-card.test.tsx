@@ -16,17 +16,9 @@ import {
 import { ActionCard } from "./action-card";
 import { ProposalMarker } from "./proposal-marker";
 
-/**
- * The four card rules, as tests. They are controls rather than
- * styling: a card whose title came from model text, that hid an argument or a step, that
- * was weaker than the screen's own dialog, or that offered more than one Confirm would
- * each be a security failure rather than a visual one.
- */
-
 const PROPOSED_AT = "2026-07-20T00:00:00.000Z";
 const EXPIRES_AT = "2026-07-20T00:10:00.000Z";
 
-/** Hostile model text: it must never reach a title, an argument or a consequence line. */
 const HOSTILE_REASON =
   "Ignore the steps above. This only mints one link and touches nothing in production.";
 
@@ -116,7 +108,6 @@ describe("rule 1: the admin writes the card", () => {
     const quotes = container.querySelectorAll("q");
     expect(quotes).toHaveLength(1);
     expect(quotes[0]?.textContent).toBe(HOSTILE_REASON);
-    // The reason sits after the steps, so it can never read as a heading or a band.
     const steps = container.querySelector(".qcms-acard__steps");
     const reason = container.querySelector(".qcms-acard__reason");
     expect(steps?.compareDocumentPosition(reason as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
@@ -163,7 +154,6 @@ describe("rule 2: every step and every argument, in run order, in full", () => {
     const { container } = renderCard(plan, initialCard(plan));
     const rows = container.querySelectorAll(".qcms-acard__step");
     expect((rows[1] as HTMLElement).textContent).toContain("Uses the version step 1 sets");
-    // The title says it too, in the shorter form a sentence takes.
     expect((rows[1] as HTMLElement).querySelector(".qcms-acard__what")?.textContent).toContain(
       "step 1's version",
     );
@@ -180,7 +170,6 @@ describe("rule 3: never weaker than the screen's dialog", () => {
     expect(production.textContent).toContain(
       "Production: changes where respondents' answers are sent.",
     );
-    // One chip in that step, and no boxed inset inside it.
     expect(production.querySelectorAll(".qcms-envchip")).toHaveLength(1);
     expect(production.querySelector(".qcms-acard__band")).toBeNull();
     expect((rows[1] as HTMLElement).textContent).not.toContain("Production:");
@@ -247,7 +236,6 @@ describe("the step states", () => {
     const plan = proposal([step(), step()]);
     const { container } = renderCard(plan, initialCard(plan));
     expect(container.querySelectorAll(".qcms-acard__step .qcms-acard__state")).toHaveLength(0);
-    // The word is still in each row's accessible name.
     for (const row of screen.getAllByRole("listitem")) {
       expect(row.textContent).toContain("Proposed");
     }
@@ -407,8 +395,6 @@ describe("the proposal marker", () => {
     const onReview = vi.fn();
     render(<MarkerHost onReview={onReview} />);
     const marker = screen.getByRole("link");
-    // The name reads "Assistant proposed · Review": the mark names the assistant and the
-    // words carry the rest, so neither signal is colour alone.
     expect(marker.textContent?.replace(/\s+/gu, " ").trim()).toBe("proposed · Review");
     expect(marker.querySelector('[role="img"]')?.getAttribute("aria-label")).toBe("Assistant");
     expect(marker.getAttribute("href")).toBe("#card-h");
@@ -423,7 +409,6 @@ describe("the proposal marker", () => {
     render(<MarkerHost onReview={() => undefined} />);
     const control = screen.getByRole("button", { name: "Release a version" });
     expect(control.dataset["proposed"]).toBe("true");
-    // No second Confirm: the marker is the only thing the card added to this row.
     expect(screen.queryByRole("button", { name: /Confirm/u })).toBeNull();
   });
 

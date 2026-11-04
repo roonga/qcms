@@ -6,10 +6,8 @@ import { addButtonId, ROSTER_OP_FIELD, rosterOpValue } from "./repeat-node.ts";
 import type { RepeatGroupNode } from "./repeat.schema.ts";
 
 /**
- * An expanded repeating group: its children plus the Add control and, when scripted, the `role="status"` region.
- * One input per row at any width is a ruling: a side-by-side pair splits reading and tab order from the visual
- * order when a rule hides one of them. Add is disabled at `max` (SEC-16); without scripting it carries
- * `formnovalidate`, safe because that post writes no answer (ADR-43), and needs a stable id as a focus target.
+ * Keep one input per row: hidden fields must not split reading and tab order from the visual order.
+ * Roster writes post no answer, so native buttons may bypass validation and need stable focus ids.
  */
 
 export function RepeatGroup({

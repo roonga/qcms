@@ -41,33 +41,6 @@ import type { ReadState } from "@/lib/read-state";
 import { ConditionJsonPane } from "./condition-json-pane";
 import { OperandControl, type OperandValue } from "./operand-control";
 
-/**
- * One rule's `when` - the condition half - edited structurally (task 033; ADR-19).
- *
- * ## The pickers are the surface, the JSON is the mirror
- *
- * ADR-19 asks for "structured JSON editing with live validation", and the word doing the
- * work is *structured*: schema-aware pickers with inline errors, not a textarea holding
- * DSL. So the operator, question and value controls come first and the CodeMirror pane
- * sits beside them, showing the same node in the engine's own words for an author who
- * would rather type it. Both write through the same `onChange`, and the pickers rebuild
- * the node on every operator change (`conditionForOp`) rather than patching it, which is
- * what makes exit criterion 4 structural: there is no edit path here that can leave a
- * half-built node behind.
- *
- * ## The targets are no longer here, and that is a re-housing rather than a rewrite
- *
- * The `show` list left this file for `rule-targets.tsx` when the editor became a
- * three-phase wizard (Code Owner, 2026-08-30): "When" is this component and "Then show"
- * is that one, so a condition tree gets the room a nested boolean editor beside a JSON
- * pane actually needs. Nothing about the tree changed in the move. The reasoning about
- * why an ineligible target stays listed moved with the control it is about, to
- * `lib/forms/rule-targets.ts`, because that is now where the grouping is decided.
- *
- * This component is a PHASE PANEL now, not a card: the wizard supplies the frame, the
- * rule's identity and the footer, so what is left here is the fieldset, the tree and the
- * JSON mirror.
- */
 export function ConditionEditor({
   draft,
   rule,
@@ -79,17 +52,6 @@ export function ConditionEditor({
   readonly library: ReadState<readonly PinnableQuestion[]>;
   readonly onChange: (next: DraftRule) => void;
 }) {
-  // `qcms-scroll-x` on the panel: a condition tree is a nested boolean editor beside a
-  // JSON pane, and `plan/admin-mobile-stance.md` explicitly declines to ask that it be
-  // usable on a phone - only that it not be broken there. Its controls carry real
-  // minimum widths that no amount of wrapping reduces (measured at 281px of
-  // irreducible minimum against the 238px a rule card is given in a 320px viewport),
-  // so the panel scrolls inside itself rather than handing that minimum to the page.
-  // That is the stance document's own rule: wide content scrolls in its own
-  // container, and the page body never scrolls horizontally at any width (issue 616).
-  //
-  // The wide dialog the wizard opens in is what this was always short of, and it does not
-  // retire the rule: a 320px viewport still gets a dialog narrower than the tree's floor.
   return (
     <div className="qcms-scroll-x flex flex-col gap-4">
       <fieldset className="qcms-fieldset qcms-fieldset--flat">
@@ -118,8 +80,6 @@ export function ConditionEditor({
   );
 }
 
-// --- the condition tree -----------------------------------------------------
-
 interface NodeProps {
   readonly draft: DraftForm;
   readonly library: ReadState<readonly PinnableQuestion[]>;
@@ -128,15 +88,6 @@ interface NodeProps {
   readonly onReplace: (next: DraftCondition) => void;
 }
 
-/**
- * One node of the tree, which is one of **three** shapes since task 074.
- *
- * A leaf reads one question, a combinator holds branches, and a whole-group operator reads a
- * GROUP - a third arity rather than a leaf with a different field, because it carries a
- * `groupId` instead of a `questionId` (ADR-42, ADR-03 as amended 2026-09-29). The split is
- * read from `lib/forms/condition.ts`'s own arity table rather than from a list of op names
- * here, so the admin cannot disagree with the kernel about which operator is which kind.
- */
 function ConditionNode(props: NodeProps) {
   const node = nodeAt(props.root, props.path);
   if (node === undefined) return null;
@@ -148,7 +99,6 @@ function ConditionNode(props: NodeProps) {
   );
 }
 
-/** The controls below the operator picker, one set per arity. */
 function NodeControls(props: NodeProps & { readonly node: DraftCondition }) {
   if (isGroupOp(props.node.op)) return <GroupReadControls {...props} />;
   const leaf = asLeaf(props.node);
@@ -156,22 +106,12 @@ function NodeControls(props: NodeProps & { readonly node: DraftCondition }) {
   return <LeafControls {...props} node={leaf} />;
 }
 
-/** Every leaf variant: the ten ops that read one question. */
 type LeafCondition = Extract<DraftCondition, { readonly questionId: string }>;
 
-/** The node as a leaf: not a combinator, and not one of the three whole-group reads. */
 function asLeaf(node: DraftCondition): LeafCondition | undefined {
   return isCombinator(node.op) || isGroupOp(node.op) ? undefined : (node as LeafCondition);
 }
 
-/**
- * The operator picker.
- *
- * Every op is listed, including the ones that do not apply to this question's type: those
- * are `disabledKeys` rather than absent, so an author sees that `containsAny` exists and
- * that it needs a multiChoice question, instead of hunting for an operator the list
- * silently dropped.
- */
 function OperatorSelect({
   draft,
   library,
@@ -184,11 +124,6 @@ function OperatorSelect({
   const questionId = leaf === undefined ? firstQuestionId(draft, node) : leaf.questionId;
   const context = questionContext(draft, library, questionId);
   const groups = draftGroups(draft);
-  // THE THREE GROUP OPERATORS ARE OFFERED WHEN THERE IS A GROUP TO READ, and disabled rather
-  // than hidden when there is not - the same rule this picker already applies to an operator a
-  // question's type does not accept, for the same reason. An author who cannot see that
-  // `anyInstance` exists learns nothing; one who sees it greyed, with the sentence below
-  // saying a repeating group has to exist first, learns where to go.
   const unsupported = CONDITION_OPS.filter((op) =>
     isGroupOp(op) ? groups.length === 0 : !isCombinator(op) && !isOpSupported(op, context.type),
   );
@@ -196,11 +131,6 @@ function OperatorSelect({
 
   return (
     <>
-      {/* SEARCHABLE (Code Owner, 2026-08-30). Sixteen operators whose names are phrases, in
-          a popover you scan: typing "at least" is faster than reading down a list, and the
-          list only grows - it was thirteen when that was written and task 074 is the growth
-          it predicted. `disabledKeys` still marks the ones that do not apply rather than
-          hiding them, which is what keeps "that exists but not here" readable. */}
       <SearchableSelect
         label={t("forms.rule.op")}
         value={node.op}
@@ -224,32 +154,8 @@ function OperatorSelect({
   );
 }
 
-/**
- * The controls of one whole-group read: which group, and then what about it.
- *
- * ## `anyInstance` and `everyInstance` are a group picker plus a NESTED CONDITION
- *
- * The nested tree is the editor's own recursion, addressed as child 0 exactly as `not`'s is
- * (`replaceAt` in `lib/forms/condition.ts`), so it reuses the depth accounting rather than
- * keeping a second one: the nested condition counts toward `CONDITION_MAX_DEPTH`, which stays
- * 8, because the kernel's `conditionDepth` recurses into these nodes like it recurses into
- * `not`.
- *
- * ## `everyInstance`'s reading is stated AT THE CONTROL
- *
- * Over a group with no live instance it is **false**, not vacuously true (Q7, ruled
- * 2026-09-29), and its NEGATION is therefore true over an empty group - which is the shape an
- * author is more likely to write, because a warning is usually phrased as a negation. The rule
- * sentence says both out loud, and so does this panel: the editor is where an author decides to
- * use the operator, so it is the first place the reading can be legible rather than discovered
- * from a wrong warning in production.
- *
- * ## `instanceCount` is a group picker, a comparison and a number
- *
- * The comparison reuses the NAMES of the ordering operators as a field rather than introducing
- * a second comparison vocabulary (ADR-03 as amended), which is why its five options read like
- * the five `forms.rule.compare.*` and not like a new set of words.
- */
+/* Nested group conditions count toward the kernel's depth limit; everyInstance is false for an empty
+   group. */
 function GroupReadControls({
   draft,
   library,
@@ -344,7 +250,6 @@ function GroupReadControls({
   );
 }
 
-/** The repeating groups a whole-group operator can read, named as the author named them. */
 function groupOptions(draft: DraftForm): { label: string; value: string }[] {
   return draftGroups(draft).map((group) => {
     const label = textOf(group.label, draft.defaultLocale);
@@ -352,7 +257,6 @@ function groupOptions(draft: DraftForm): { label: string; value: string }[] {
   });
 }
 
-/** The `and`/`or`/`not` branches, each one a whole node again. */
 function CombinatorBranches({
   draft,
   library,
@@ -418,7 +322,6 @@ function CombinatorBranches({
   );
 }
 
-/** A leaf's question picker and its operand control. */
 function LeafControls({
   draft,
   library,
@@ -438,9 +341,6 @@ function LeafControls({
         value={questionId}
         items={pinnedOptions(draft)}
         onChange={(next) => {
-          // The question changes what a legal operand looks like, so the node is rebuilt
-          // against the new question's type rather than having its id swapped underneath
-          // an operand the new type may not accept.
           const nextContext = questionContext(draft, library, next);
           onReplace(
             replaceAt(
@@ -465,24 +365,11 @@ function LeafControls({
   );
 }
 
-// --- pure helpers -----------------------------------------------------------
-
 interface QuestionContext {
   readonly type: QuestionType | undefined;
   readonly options: readonly string[];
 }
 
-/**
- * What the pinned version of one question says about its type and options.
- *
- * A library read that FAILED lands in the same branch as a question the library does not
- * hold: nothing is known about the type, so `type` is `undefined` and the operator picker
- * disables the ops that need one (issues 572, 544). That is the honest answer rather than
- * a coincidence of the old `ok ? data : []` collapse, and it is why the library arrives
- * here as a `ReadState` even though the two branches compute the same thing: a later edit
- * that wants to say something ABOUT the library has the bit to say it with, instead of
- * reaching for a fallback that has already thrown the bit away.
- */
 function questionContext(
   draft: DraftForm,
   library: ReadState<readonly PinnableQuestion[]>,
@@ -499,7 +386,6 @@ function questionContext(
   };
 }
 
-/** The pinned questions the question picker offers, in document order. */
 function pinnedOptions(draft: DraftForm): { label: string; value: string }[] {
   return draftDocumentOrder(draft).map((entry) => ({
     label: `${entry.questionId}@${String(entry.version)}`,
@@ -507,7 +393,6 @@ function pinnedOptions(draft: DraftForm): { label: string; value: string }[] {
   }));
 }
 
-/** A question id a new node under this one can start against. */
 function firstQuestionId(draft: DraftForm, node: DraftCondition): string {
   const referenced = conditionReferences(node)[0];
   if (referenced !== undefined) return referenced;
@@ -520,13 +405,7 @@ function childrenOf(node: DraftCondition): readonly DraftCondition[] {
   return [];
 }
 
-/**
- * The operand a leaf currently carries, in the shape the control renders.
- *
- * `OperandValue` spans a single answer and a list of them because that is what the ten
- * leaf ops carry between them; see `asScalar` for why the union stays here rather than at
- * every call site.
- */
+/* OperandValue spans scalar and list operands; narrow it only at the control matching that operator. */
 // eslint-disable-next-line sonarjs/function-return-type
 function operandOf(node: LeafCondition): OperandValue {
   if ("values" in node) return node.values;
@@ -534,18 +413,6 @@ function operandOf(node: LeafCondition): OperandValue {
   return "";
 }
 
-/**
- * One operand value, narrowed to a single answer.
- *
- * A list can arrive here when the author switches `in` to `equals`: a list of strings IS a
- * whole multiChoice answer, so it is kept as one, and a mixed or numeric list collapses to
- * its first string rather than producing a shape the kernel's union has no member for.
- *
- * `DraftAnswerValue` is a union of four runtime types and deciding between them is this
- * function's whole job, so the rule that wants one return type is asking for the union to
- * be pushed back out to every caller. Same call the kernel-facing `startingOperand` makes
- * in `lib/forms/condition.ts`.
- */
 // eslint-disable-next-line sonarjs/function-return-type
 function asScalar(value: OperandValue): DraftAnswerValue {
   if (typeof value !== "object") return value;
@@ -554,25 +421,14 @@ function asScalar(value: OperandValue): DraftAnswerValue {
   return strings.length === list.length ? strings : (strings[0] ?? "");
 }
 
-// The element type is the closed union the kernel accepts; see `asScalar`.
 function asList(value: OperandValue): readonly DraftAnswerValue[] {
-  // `readonly string[]` is `DraftAnswerValue`'s one object member, so an array-of-answers
-  // and a multiChoice answer are told apart by their first element rather than by
-  // `Array.isArray`, which widens the narrowing to `any[]` and fails the lint gate.
   if (typeof value !== "object") return [value];
   const list: readonly DraftAnswerValue[] = value;
   return list.length === 0 ? [""] : list;
 }
 
-/**
- * Put an edited operand back into its node, keeping the node parseable.
- *
- * The node is rebuilt per op rather than spread-and-patched, because each op's operand
- * field is a different name and a different type: `in` carries `values`, `contains`
- * carries a single option id as a `string`, and the ordering ops carry `number | string`.
- * A spread would happily leave both `value` and `values` on the same node, which is
- * exactly the shape the kernel's closed union rejects.
- */
+/* Rebuild per operator: operand field names and types differ, so spreading a previous node can retain
+   invalid fields. */
 function withOperand(node: LeafCondition, value: OperandValue): DraftCondition {
   switch (node.op) {
     case "equals":
@@ -594,13 +450,6 @@ function withOperand(node: LeafCondition, value: OperandValue): DraftCondition {
   }
 }
 
-/**
- * An ordering operand: a number or a canonical date string, never anything else.
- *
- * `number | string` is the DSL's own type for `gt`/`gte`/`lt`/`lte` (a date compares as its
- * canonical `YYYY-MM-DD` string), so the two-typed return is the schema's shape rather than
- * an untidiness in this function.
- */
 // eslint-disable-next-line sonarjs/function-return-type
 function asOrdered(value: OperandValue): number | string {
   const scalar = asScalar(value);

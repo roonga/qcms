@@ -11,54 +11,21 @@ import type { AgentProposalRef } from "@/lib/server/agent-proposal";
 import { eraseSession, unflagResponse } from "@/lib/server/responses";
 import { requireAdminSession } from "@/lib/server/session";
 
-/**
- * The response screens' two mutations (task 035).
- *
- * Both are imperative server actions rather than form posts, for 033's reason: they
- * are called from a mounted dialog that has to render the outcome in place, and a
- * redirect-back round trip would throw away the dialog's state (including, for
- * erasure, the fact that the operator had just typed a confirmation).
- *
- * Both take `formId` first so the page can bind it, which means the form whose paths
- * get revalidated comes from the **route** and not from the client. That matters more
- * here than on the builder: a caller cannot aim an erasure's cache invalidation at
- * another form, and the erasure itself is scoped by the session id the API resolves.
- *
- * `requireAdminSession()` is called in each one because a `"use server"` module is
- * reached directly by the browser and is not covered by the shell layout's gate
- * (issue #177, `shell-route-guards.test.ts`).
- *
- * Both act in one environment's data plane, so both also take the environment their
- * screen showed, bound by the page, and refuse when the request resolves to another
- * (local UX list A1; `forms/actions.ts` gives the reasoning). For an erasure that is the
- * difference between a refusal and an irreversible act in an environment nobody named.
- */
+/* Bind the route form and displayed environment; an erasure must refuse after another tab changes the
+   selection. */
 
-/** What the erase dialog renders. */
 export interface EraseState {
   readonly status: "erased" | "error";
   readonly data?: EraseOutcome;
   readonly message?: string;
 }
 
-/** What the unflag dialog renders. */
 export interface UnflagState {
   readonly status: "unflagged" | "error";
   readonly released?: boolean;
   readonly message?: string;
 }
 
-/**
- * Erase one session's respondent data (ADR-17).
- *
- * The reason is re-checked against the closed vocabulary here rather than trusted
- * from the client: it is written onto a tombstone that outlives the data it
- * describes, so an arbitrary string arriving from a tampered payload must not end up
- * in a compliance record.
- *
- * Every list that could still be holding the erased response is revalidated: the
- * browser, the detail, and the erasure log the tombstone now belongs to.
- */
 export async function eraseSessionAction(
   formId: string,
   shown: string | undefined,
@@ -80,7 +47,6 @@ export async function eraseSessionAction(
   return { status: "erased", data: result.data };
 }
 
-/** Release a flagged response's withheld `response.submitted` event (023). */
 export async function unflagResponseAction(
   formId: string,
   shown: string | undefined,

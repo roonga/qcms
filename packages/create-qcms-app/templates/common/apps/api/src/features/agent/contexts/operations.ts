@@ -32,10 +32,9 @@ import {
 } from "./support.js";
 
 /**
- * The operational screens' facts: release state, response metadata and delivery state.
- *
- * No builder here selects an answer column, joins an answer table, or carries a webhook
- * payload, a consumer response body or a last-error string that might quote one (SEC-17).
+ * The operational screens' facts: release state, response metadata and delivery state. No builder here
+ * selects an answer column, joins an answer table, or carries a webhook payload, a consumer response body or
+ * a last-error string that might quote one.
  */
 
 /** The response list's four filters, normalised, which is what a read row is keyed by. */
@@ -242,7 +241,7 @@ async function buildFormWebhooks(
     resource: "webhook",
     action: "read",
   });
-  // The masking the webhook screens already apply to a caller who may not configure (Q58).
+
   const visibility = holdsStatement(
     { memberRole: resolved.memberRole, grants: resolved.grants },
     "webhook",

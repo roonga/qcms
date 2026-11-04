@@ -20,7 +20,6 @@ const nodeBuiltinPatterns = [
   ),
 ];
 
-/** ADR-22: the a2-react-aria stack is the only component library, on every rendering surface. */
 const competingComponentLibraries = [
   "@mui/*",
   "@material-ui/*",

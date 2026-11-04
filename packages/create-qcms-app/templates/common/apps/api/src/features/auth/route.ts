@@ -3,11 +3,7 @@ import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import { AUTH_BASE_PATH, createAdminAuth, type AdminAuth } from "./instance.js";
 
-/**
- * An allowlist, not a bare vendor mount: serving the whole endpoint set would publish
- * `sign-up/email` and every `organization` write route, which SEC-1 and Q45 forbid in any
- * composition. Anything absent here answers 404.
- */
+/** Allowlist endpoints so sign-up and organization writes cannot become public through a vendor mount. */
 export const ALLOWED_AUTH_ENDPOINTS: readonly string[] = [
   "POST /sign-in/email",
   "GET /get-session",
@@ -24,10 +20,7 @@ const ALLOWED = new Set(ALLOWED_AUTH_ENDPOINTS);
 /** Keyed on `Deps`, not module-level: one process composes several apps over different databases. */
 const instances = new WeakMap<Deps, AdminAuth>();
 
-/**
- * Exported so the composition root reads the SEC-1 throttle state off the same object the
- * mount serves from; a second instance would answer a different question.
- */
+/** Read throttle state from the mounted instance; a second instance could report a different configuration. */
 export function adminAuthFor(deps: Deps): AdminAuth {
   const existing = instances.get(deps);
   if (existing !== undefined) return existing;
@@ -51,9 +44,9 @@ export function authSubPath(url: string): string {
 }
 
 /**
- * Mounted in the auth group with no admin-session gate, since these endpoints issue the
- * session. The 404 carries no reason, so probing cannot distinguish "not allowlisted" from
- * "not a better-auth endpoint" (SEC-1: no enumeration).
+ * Mounted in the auth group with no admin-session gate, since these endpoints issue the session. The 404
+ * carries no reason, so probing cannot distinguish "not allowlisted" from "not a better-auth endpoint" (no
+ * enumeration).
  */
 export const registerAdminAuthProxy: SliceRegistrar = (group, deps) => {
   group.on(["GET", "POST"], "/*", async (c) => {

@@ -18,38 +18,8 @@ import type {
   ValidationMessagesView,
 } from "@/lib/questions/types";
 
-/**
- * Author-supplied validation messages (task 048, ADR-32) and the boolean label overrides
- * (ADR-36), as two panels of the question editor.
- *
- * ## The whole feature is one rule, stated once
- *
- * A field is rendered for exactly the keys `authoredMessageKeys` returns, and nothing
- * else. That single line is what makes the kernel's `ORPHAN_MESSAGE_KEY` **unreachable
- * from this screen** rather than merely caught by it: unticking "an answer is required" or
- * clearing "Shortest answer" removes the field, and `forWire` drops the orphaned message
- * in the same breath, because both read the same function. There is no second list here
- * saying which fields exist.
- *
- * ## Placeholder, not default value
- *
- * ADR-32 puts the fallback at the **edit** level: the box shows what a respondent would
- * see today and an empty box means "keep showing that". Seeding the default as the field's
- * *value* was the other option and it is worse in a way that cannot be undone - every
- * author who saved a question would have silently frozen a copy of today's default into
- * the stored definition, so improving the shipped wording later would reach nobody. A
- * placeholder cannot be saved by accident.
- *
- * ## Why this is its own panel rather than a field per constraint row
- *
- * 032's `constraints-editor.tsx` anticipated one message input threaded into each
- * constraint control. Two things pushed against that once the kernel side existed.
- * `required` is not a constraint at all (it is a checkbox above the panel, and it is the
- * one key every type can carry), so a per-row layout would have split the feature across
- * two places. And the fields have to appear and disappear as constraints come and go,
- * which is one derived list here versus seven panels each re-deriving it. The constraint
- * panels are untouched by this task as a result.
- */
+/* Derive message fields and wire cleanup from the same keys so removed constraints cannot retain orphan
+   messages. */
 export function MessagesEditor({
   definition,
   issues,
@@ -64,13 +34,6 @@ export function MessagesEditor({
   const keys = authoredMessageKeys(definition);
   const messages = definition.messages ?? {};
 
-  // NO "NOTHING TO WRITE A MESSAGE FOR YET" NOTE ANY MORE (Code Owner, 2026-09-27), and the
-  // reason is the same one `constraints-editor.tsx` records at greater length: this was one
-  // section of a stacked column, so it stood there with nothing in it and had to say why. The
-  // editor is panelled now and `lib/questions/panels.ts` omits this panel entirely while
-  // `authoredMessageKeys` is empty - it reads the same function this line does, so the panel and
-  // its rail row appear together the moment a constraint or `required` gives them something to
-  // hold. The empty state is now the absence of a row rather than a row that opens an apology.
   if (keys.length === 0) return null;
 
   return (
@@ -96,19 +59,6 @@ export function MessagesEditor({
   );
 }
 
-/**
- * The two displayed labels of a boolean question (ADR-36), same placeholder-inherit
- * mechanism as the messages above.
- *
- * Rendered only for `boolean`, and `forWire` drops both fields for every other type, so a
- * draft that was briefly a boolean cannot carry a label the kernel would refuse.
- *
- * Each label is independent: overriding "Yes" leaves "No" on the compiler's
- * `BOOLEAN_AFFIRMATION` lexicon, which is why these are two fields rather than one paired
- * control. The panel says out loud that the stored answer is unchanged, because "rename
- * the choices" is exactly the edit an author might expect to change what a rule matches
- * on - it does not.
- */
 export function BooleanLabelsEditor({
   definition,
   issues,

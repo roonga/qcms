@@ -1,8 +1,6 @@
 import { cleanup } from "@testing-library/react";
 import { afterEach } from "vitest";
 
-// Shims for browser APIs jsdom lacks, each conditional so a jsdom release that grows
-// one is a silent improvement rather than a double install.
 if (typeof window.matchMedia !== "function") {
   window.matchMedia = (query: string): MediaQueryList =>
     ({

@@ -195,7 +195,6 @@ describe("the shared workspace", () => {
     expect((await setWorkspaceShared(testDb.db, second, true))?.isShared).toBe(true);
     expect((await getSharedWorkspace(testDb.db))?.id).toBe(second);
 
-    // The suites below need the flag clear.
     await setWorkspaceShared(testDb.db, second, false);
     expect(await getSharedWorkspace(testDb.db)).toBeUndefined();
   });

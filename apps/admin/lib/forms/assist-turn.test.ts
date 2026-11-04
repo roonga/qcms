@@ -25,7 +25,6 @@ function fold(
   return [...events, ...more].reduce(applyTurnEvent, from);
 }
 
-/** Every step's state, in order. */
 function states(turn: AssistantTurnView): string[] {
   return turn.segments.flatMap((segment) =>
     segment.kind === "steps" ? segment.steps.map((step) => step.state) : [],
@@ -36,7 +35,6 @@ const API_TOOLS = fileURLToPath(
   new URL("../../../api/src/features/agent/tools/registry.ts", import.meta.url),
 );
 
-/** The API's `AGENT_TOOL_NAMES`, read as text (R2: no value import across the app boundary). */
 function apiToolNames(): string[] {
   const source = readFileSync(API_TOOLS, "utf8");
   const start = source.indexOf("export const AGENT_TOOL_NAMES = [");
@@ -124,7 +122,6 @@ describe("the assistant turn timeline", () => {
   });
 
   it("marks a step interrupted when the stream simply stops, with no outcome", () => {
-    // A dropped connection or a read failure ends the fold exactly here.
     const turn = finishTurn(
       fold([{ type: "status", phase: "tool", tool: "propose_draft", step: 1 }]),
     );
@@ -246,13 +243,11 @@ describe("the thinking segment", () => {
   });
 
   it("settles an unclosed summary when the turn ends, rather than thinking for ever", () => {
-    // An open disclosure still reports a (slightly short) duration instead of running forever.
     const open = applyTurnEvent(EMPTY_TURN, { type: "reasoning", delta: "hmm" }, 1_000);
     const finished = finishTurn(open, 2_500);
     expect(thinkingOf(finished)[0]).toMatchObject({ endedAt: 2_500 });
   });
 
-  /** SEC-8, from the admin's side: reasoning never joins the replayed history. */
   it("keeps reasoning out of the text the API is sent back", () => {
     const turn = [
       { type: "reasoning", delta: "SENTINEL" } as const,

@@ -227,7 +227,6 @@ describe("decodePng", () => {
   });
 
   it("refuses a truncated image data stream instead of previewing partial rows", () => {
-    // A 4x4 greyscale image is exactly (4 + 1) * 4 = 20 bytes inflated.
     const png = mismatchedPayload(4, 4, 5);
     expect(() => decodePng(png)).toThrow(PngError);
     expect(() => decodePng(png)).toThrow(/image data is 5 bytes, expected exactly 20/);
@@ -286,7 +285,6 @@ describe("asciiPreview", () => {
       decodePng(encodePng({ width: 8, height: 8, colourType: 0, samples })),
       4,
     );
-    // Each cell covers 4x2 pixels, half of them black: a mean of 127.5, mid-ramp.
     expect(preview.lines).toEqual([RAMP[4].repeat(4), RAMP[4].repeat(4)]);
   });
 });

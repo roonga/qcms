@@ -33,7 +33,6 @@ const page = (title, body) =>
   `<!doctype html><meta charset="utf-8"><title>${escapeHtml(title)}</title>` +
   `<body style="font-family: system-ui, sans-serif; margin: 2rem;"><h1>${escapeHtml(title)}</h1>${body}`;
 
-// Refuses anything that escapes the root directory.
 const safeJoin = (rootDir, urlPath) => {
   const target = resolve(rootDir, "." + urlPath);
   if (target !== rootDir && !target.startsWith(rootDir + sep)) return null;

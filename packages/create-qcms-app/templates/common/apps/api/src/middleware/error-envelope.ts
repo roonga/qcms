@@ -35,7 +35,7 @@ export function errorEnvelope(deps: Deps) {
       return c.json(body, err.status);
     }
 
-    // The body carries only the correlation id, never internals (SEC-8).
+    // The body carries only the correlation id, never internals.
     const errorId = newErrorId();
     deps.logger.error("unhandled error", { requestId, errorId, err });
     const body: ErrorEnvelope = {

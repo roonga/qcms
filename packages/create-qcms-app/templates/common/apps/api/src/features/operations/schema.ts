@@ -2,7 +2,6 @@ import { z } from "@hono/zod-openapi";
 
 import { LIBRARY_SEARCH_MAX_LENGTH } from "../../openapi.js";
 
-/** The three intake readings a form can have in one environment. */
 export const OPERATIONS_INTAKE = ["open", "closed", "unreleased"] as const;
 
 /** The orders the table guarantees. Each is total: the tie-break is `(slug, formId)`. */

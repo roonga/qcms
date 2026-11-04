@@ -70,7 +70,6 @@ function authorMessages(
   return Object.keys(resolved).length === 0 ? undefined : resolved;
 }
 
-/** Props shared by every top-level control. */
 function baseControlProps(
   question: QuestionDefinition,
   resolve: TextResolver,

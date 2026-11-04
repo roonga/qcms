@@ -5,14 +5,9 @@ import { describe, expect, it, vi } from "vitest";
 import { t } from "../../lib/i18n/en.ts";
 import { parseResponseQuery } from "../../lib/ops/response-filters.ts";
 
-/**
- * The export dialog's version control says only what was read.
- *
- * A `responses.viewer` holds `response: read` and `response: export` and no `form: read`,
- * so the form's published version list is refused to it and the versions its own responses
- * carry are the list it is given. The reported defect: that persona was told "This form has
- * no published version" about a form that has versions, and its export was disabled.
- */
+// A `responses.viewer` is refused the form's published version list, so what it gets is
+// the versions its own responses carry. It used to be told the form had no published
+// version, about a form that has versions, and have its export disabled.
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: () => undefined }),
 }));

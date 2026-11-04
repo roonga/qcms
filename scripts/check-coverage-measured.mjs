@@ -18,7 +18,6 @@ const DEFAULT_SUMMARY = path.join(REPO_ROOT, "coverage", "coverage-summary.json"
 
 const KERNEL_SRC = path.join(REPO_ROOT, "packages", "core", "src");
 
-/** Vitest excludes test files, so demanding them would fail on a correct run. */
 const SOURCE_FILE = /^(?!.*\.test\.ts$).*\.ts$/;
 
 /**
@@ -94,7 +93,6 @@ function main() {
   );
 }
 
-// Run as a script; stay silent when imported.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main();
 }

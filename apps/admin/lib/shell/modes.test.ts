@@ -224,8 +224,7 @@ describe("which routes a capability admits", () => {
     expect(rememberableMode(OPERATIONS_PATH, capabilities({ operations: true }))).toBe(
       "operations",
     );
-    // A refused mode is not remembered, or a denied bookmark would decide where this
-    // caller's next personal route sits.
+
     expect(rememberableMode(OPERATIONS_PATH, authoring)).toBeUndefined();
     expect(rememberableMode("/webhooks", authoring)).toBeUndefined();
     expect(rememberableMode(WORKSPACES_PATH, authoring)).toBeUndefined();

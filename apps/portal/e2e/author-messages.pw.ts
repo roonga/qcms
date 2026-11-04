@@ -5,7 +5,6 @@ import { readFixtures } from "./support/fixtures.js";
 import { waitForHydration } from "./support/hydration.js";
 import { blurActive } from "./support/kitchen-sink.js";
 
-/** Accessible names the renderer emits for the `author-messages` form. */
 const AM = {
   plate: "Registration plate",
   vin: "VIN",
@@ -13,7 +12,6 @@ const AM = {
   garaged: "Is the vehicle garaged overnight?",
 } as const;
 
-/** The author's own wording, exactly as the fixtures carry it. */
 const AUTHORED = {
   required: "Check the vehicle paperwork",
   minLength: "A plate is at least 3 characters",
@@ -27,7 +25,6 @@ const CATALOG_INVALID = "That answer is not valid.";
 
 /** The kernel's own wording, verbatim from `packages/core/src/validate-answer.ts`. */
 const KERNEL = {
-  /** `q_am_plate`'s `minLength` of 3, which the author DID decorate. */
   plateMinLength: "Answer must be at least 3 characters",
 } as const;
 

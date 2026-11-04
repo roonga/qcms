@@ -5,46 +5,6 @@ import { describe, expect, it, vi } from "vitest";
 import type { DraftStep } from "../../lib/forms/types.ts";
 import type { RailCurrent } from "../../lib/forms/subtree-rail.ts";
 
-/**
- * The rail's MARKUP contract (`plan/admin-design-contracts.md` §7.0 and §7.1, issues 559
- * and #1116).
- *
- * `lib/forms/subtree-rail.test.ts` next door pins what the rail carries. This file pins
- * the things that are only true of the rendered element, and each of them is a clause
- * a future change could break without breaking anything else:
- *
- * - **The five parts, in order** (§7.0 ruling 2): an `<aside>` named for the subject, a
- *   Header carrying the way back and one status tag, the Sections inside a `<nav>`, and the
- *   Actions part at the foot. Order is asserted by index, because a part moved is exactly
- *   the kind of change that looks right in isolation.
- *
- * - **Anchors, not buttons.** §7 says so, and the reason is not styling: an anchor can be
- *   middle-clicked and opened in a new tab, and a button can do neither. It is asserted by
- *   counting `<button>`. The builder's interactive step rows are buttons by design, and
- *   live in `rail-steps.tsx`, not here.
- * - **One divider between two groups**, and none when there is only one group.
- * - **A disclosure that is a real one.** A native `<details open>` gives the collapsed
- *   state its keyboard operation and its announced state for free; something rebuilt out
- *   of a `<button>` and `aria-expanded` would look identical and be a different promise.
- * - **No headings.** The rail renders before `<main>` in document order, so a heading in
- *   it would sit above the screen's `<h1>` and be a `heading-order` violation on every
- *   screen that gets a rail.
- *
- * ## Why this layer
- *
- * `renderToStaticMarkup` is the highest layer that can see the whole rail at once without
- * a browser (ADR-23). What genuinely needs one - the 240px track appearing at
- * `--bp-sidebar` and not one pixel below it, the disclosure opening from the keyboard, the
- * ellipsis, and the rail's surface reaching the bottom of a short screen - is
- * `apps/admin/e2e/rail.pw.ts`, because every one of those is a computed style or an
- * interaction rather than markup.
- *
- * ## What is stubbed
- *
- * Nothing except `next/link`, which needs one because it reaches for a router that does
- * not exist outside a Next render.
- */
-
 vi.mock("next/link", () => ({
   default: ({ children, href, ...rest }: { children: ReactNode; href: string }) => (
     <a href={href} {...rest}>
@@ -83,10 +43,6 @@ const LINKS: RailCurrent = { kind: "section", section: "links" };
 describe("the rail's markup", () => {
   it("is an aside named for the form, holding a nav named for its sections", async () => {
     const html = await render(LINKS);
-    // The column is complementary content about the form; the tree inside it is the
-    // navigation. It was a `<nav class="qcms-rail qcms-rail--form">` all the way out until
-    // §7.0: one element for the whole column made the Actions part navigation too, and the
-    // modifier existed so that one rule could hide this rail's summary alone.
     expect(html).toContain('<aside id="qcms-rail-region" class="qcms-rail" aria-label="life"');
     expect(html).toContain('<nav aria-label="life sections">');
     expect(html).not.toContain("qcms-rail--form");
@@ -99,8 +55,6 @@ describe("the rail's markup", () => {
       expect(index, `${needle} is in the rail`).toBeGreaterThan(-1);
       return index;
     };
-    // Header (the way back, then the subject line), Sections, then Actions. There are no
-    // children outside the Sections tree and no filters on this screen yet (#1117).
     expect(at('class="qcms-rail__back"')).toBeLessThan(at("<summary"));
     expect(at("<summary")).toBeLessThan(at("<nav"));
     expect(at("<nav")).toBeLessThan(at('class="qcms-rail__actions"'));
@@ -108,9 +62,6 @@ describe("the rail's markup", () => {
 
   it("carries the way back to Forms, and the form's status as its one tag", async () => {
     const html = await render(LINKS);
-    // §7.0's table: "back to Forms, form title, status". The label is the parent SCREEN's
-    // name rather than a sentence, and the link sits outside the disclosure so that it
-    // survives the collapse below `--bp-sidebar`.
     expect(html).toContain('href="/forms" class="qcms-rail__back"');
     expect(html).toContain(">Forms</a>");
     const summary = html.slice(html.indexOf("<summary"), html.indexOf("</summary>"));
@@ -119,10 +70,6 @@ describe("the rail's markup", () => {
   });
 
   it("holds the Add step control it is handed, in the Actions part", async () => {
-    // It used to sit inside the step cluster, under the list, which is where
-    // `admin-shell-poc.html` draws it; §7.0 names Add step as a structural action and gives
-    // the rail one Actions part for those. Handed in as a node, because on the builder the
-    // control needs the draft in the browser.
     const html = await render(LINKS);
     const actions = html.slice(html.indexOf('class="qcms-rail__actions"'));
     expect(actions).toContain("stub-actions");
@@ -133,12 +80,6 @@ describe("the rail's markup", () => {
 
   it("orders the tree with each step nested inside the Form row", async () => {
     const html = await render(LINKS);
-    // The steps are inside the Form row rather than above the sections (Code Owner,
-    // 2026-08-25), so the anchor order is the tree read depth-first: Form, then its
-    // steps, then the six remaining sections. Before the nesting the two step anchors
-    // came first, which said they were peers of the routes rather than children of one of
-    // them. Rules is the first of those six since issue #669 gave it a route of its own.
-    // The Header's back link leads, because the Header is the first part (#1116).
     const anchors = [...html.matchAll(/<a href="([^"]+)"/gu)].map((match) => match[1]);
     expect(anchors).toStrictEqual([
       "/forms",
@@ -153,17 +94,12 @@ describe("the rail's markup", () => {
       "/forms/frm_life/responses",
       "/forms/frm_life/webhooks",
     ]);
-    // The nesting is real containment, not an indent: the steps list is INSIDE the
-    // Form row's `<li>`, which is what makes a screen reader announce them as belonging
-    // to it.
     const formRow = html.slice(html.indexOf('data-rail-item="section:builder"'));
     expect(formRow.slice(0, formRow.indexOf("</li>"))).toContain('data-rail-group="steps"');
   });
 
   it("draws one tree and no divider, because there are no longer two groups", async () => {
     const html = await render(LINKS);
-    // §7's "one divider between two groups" described two groups. There is one list now
-    // (contract amended 2026-08-25), so the divider it separated has nothing to separate.
     expect(html).not.toContain("qcms-rail__divider");
     expect([...html.matchAll(/data-rail-group="sections"/gu)]).toHaveLength(1);
     expect([...html.matchAll(/data-rail-group="steps"/gu)]).toHaveLength(1);
@@ -197,10 +133,6 @@ describe("the rail's markup", () => {
   });
 
   it("names the form in the Header, with the form's own issue total", async () => {
-    // Issue 693: the scope, not the active item, and §7.0's clarification of 2026-10-24
-    // says the same of the count - the collapsed Header carries "the subject plus at most
-    // one count ... the issue total". So both renders below carry the same "2 issues" while
-    // the current row changes underneath them.
     const onASection = await render(LINKS);
     expect(onASection).toMatch(/<span class="qcms-rail__summary-text">life<\/span>/u);
     expect(onASection).toMatch(/data-testid="qcms-rail-summary-count">2 issues</u);
@@ -211,11 +143,6 @@ describe("the rail's markup", () => {
   });
 
   it("leaves every step bare rather than badging a zero it was never given", async () => {
-    // Absence rather than a claim: the rail has no "0 issues" state, which is what lets
-    // the validation panel's "not checked yet" and this list sit on one screen without
-    // contradicting each other (issue 625). This assertion moved here with the steps
-    // themselves, from `unvalidated-builder.test.tsx`, when the builder's own step list
-    // was retired.
     const noVerdict = await render(LINKS, STEPS, new Map());
     expect(noVerdict, "no verdict, no badge").not.toContain("data-rail-issues");
 

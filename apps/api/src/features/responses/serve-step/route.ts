@@ -113,8 +113,8 @@ export const rosterOpRoute = createRoute({
 export const registerServeStep: SliceRegistrar = (group, deps: Deps): void => {
   group.use("/sessions/:id/answers", answersPerSessionLimiter(deps));
   group.use("/sessions/:id/answers", answersPerIpLimiter(deps));
-  // The batch spends the per-session answer allowance per entry in its own handler
-  // (SEC-16), so mounting that limiter here too would charge it an extra unit.
+  // The batch spends the per-session answer allowance per entry in its own handler, so mounting that limiter
+  // here too would charge it an extra unit.
   group.use("/sessions/:id/answers/batch", answersPerIpLimiter(deps));
   group.use("/sessions/:id/roster", rosterPerSessionLimiter(deps));
   group.use("/sessions/:id/roster", rosterPerIpLimiter(deps));

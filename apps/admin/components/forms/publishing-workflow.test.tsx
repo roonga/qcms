@@ -38,7 +38,6 @@ describe("environment-bound publishing", () => {
         setStatus={() => Promise.resolve({ status: "idle" })}
       />,
     );
-    // No dialog of its own at all: one entry, and it is a link.
     expect(screen.queryByRole("button", { name: /Publish/u })).toBeNull();
     expect(
       screen.getByRole("link", { name: t("forms.versions.publishEntry") }).getAttribute("href"),
@@ -56,7 +55,6 @@ describe("environment-bound publishing", () => {
         setStatus={() => Promise.resolve({ status: "idle" })}
       />,
     );
-    // Gated rather than disabled: a caller who may not publish is offered no way to.
     expect(screen.queryByRole("link", { name: t("forms.versions.publishEntry") })).toBeNull();
     expect(
       screen.getByText(t("forms.workflow.noPublishPermission", { environment: "test" })),
@@ -150,8 +148,6 @@ describe("release confirmations across environment changes", () => {
   });
 
   it("does not offer to publish an unchanged seed as another version", () => {
-    // A seeded draft is not stored, so there is nothing to freeze: the wizard's draft
-    // source says so rather than being silently unavailable.
     render(
       <PublishWizard
         formId="frm_intake"

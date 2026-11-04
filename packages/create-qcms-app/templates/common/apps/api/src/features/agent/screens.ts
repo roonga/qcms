@@ -7,10 +7,8 @@ import type { ScreenBuildInput } from "./contexts/support.js";
 import type { AgentToolName } from "./tools/registry.js";
 
 /**
- * The frozen registry of admin screens: one row per `(shell)` page, holding its context
- * builder, its read tools and its action kinds. A screen id is the admin route pattern,
- * so the admin's table and this registry are checked against one route tree. A turn's
- * tool set is this registry intersected with the current screen's list (SEC-17).
+ * Intersect the current screen's declared tool set with the registry so a turn cannot gain tools from
+ * another screen.
  */
 export const SCREEN_IDS = [
   "/forms",
@@ -52,14 +50,12 @@ export interface ScreenDef {
    * answer value" a property of the shape rather than of a prompt.
    */
   readonly facts: z.ZodType;
-  /** Checks its own SEC-3 cell before it reads anything. */
   build(input: ScreenBuildInput): Promise<unknown>;
   readonly readTools: readonly AgentToolName[];
   /** A screen with no action kind offers explanation and navigation. */
   readonly actionKinds: readonly string[];
 }
 
-/** The builder's own four verbs. */
 const DRAFT_TOOLS: readonly AgentToolName[] = [
   "search_question_library",
   "propose_questions",
@@ -175,6 +171,15 @@ export function isFormSubtreeScreen(screenId: ScreenId): boolean {
   return FORM_SUBTREE_SCREENS.includes(screenId);
 }
 
+const BUILDER_SCREEN: ScreenId = "/forms/[formId]";
+
+/**
+ * Publishing a question the builder's own saved draft pins unpublished. The control lives
+ * on the question's own page and the step still runs that page's action; what the builder
+ * adds is the offer, and the propose tool refuses any other question id.
+ */
+const DRAFT_QUESTION_ACTION_KINDS: readonly string[] = Object.freeze(["question.publish"]);
+
 const FORM_SUBTREE_ACTION_KINDS: readonly string[] = (() => {
   const kinds: string[] = [];
   for (const id of FORM_SUBTREE_SCREENS) {
@@ -192,5 +197,8 @@ const FORM_SUBTREE_ACTION_KINDS: readonly string[] = (() => {
  * the list to the pairs the caller holds.
  */
 export function offerableActionKinds(screenId: ScreenId): readonly string[] {
+  if (screenId === BUILDER_SCREEN) {
+    return [...FORM_SUBTREE_ACTION_KINDS, ...DRAFT_QUESTION_ACTION_KINDS];
+  }
   return isFormSubtreeScreen(screenId) ? FORM_SUBTREE_ACTION_KINDS : SCREENS[screenId].actionKinds;
 }

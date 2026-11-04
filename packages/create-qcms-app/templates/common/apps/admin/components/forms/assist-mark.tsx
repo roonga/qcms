@@ -1,9 +1,5 @@
 import { t } from "@/lib/i18n/en";
 
-/**
- * The assistant's mark. Inline SVG so the fills follow the theme tokens in every appearance mode.
- * Named by `agent.title` unless `decorative`; `working` mirrors the live region's turn state.
- */
 export function AssistMark({
   size,
   working = false,

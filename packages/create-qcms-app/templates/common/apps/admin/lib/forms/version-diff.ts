@@ -1,30 +1,11 @@
-/**
- * A readable definition diff between two published versions (task 034).
- *
- * ## Why a text diff of canonical JSON, and not a structural one
- *
- * A structural diff would have to know what a step, a pin and a rule mean, which is domain
- * knowledge the admin is not allowed to hold (R2) and would be a second model of the DSL
- * to keep in step with the kernel's. A line diff over *canonically printed* JSON needs no
- * such knowledge and still reads well, because the printing is what does the work: keys
- * are emitted in sorted order, so a difference in the order two versions happened to
- * serialize their keys never shows up as a change, and only real content moves a line.
- *
- * ## Readable without colour
- *
- * Every row carries a `marker` (`+`, `-`, or a space), and the marker is text in the
- * rendered output rather than a class name. WCAG 1.4.1: a reader who cannot distinguish
- * the two column tints still reads the diff correctly.
- */
+// Canonical JSON comparison avoids putting a second domain model in the BFF.
 
-/** One aligned row of the side-by-side diff. */
 export interface DiffRow {
-  /** The line as the older version has it, or `null` where the older version has none. */
   readonly left: string | null;
-  /** The line as the newer version has it, or `null` where the newer version has none. */
+
   readonly right: string | null;
   readonly kind: "same" | "added" | "removed";
-  /** The textual marker, so the diff never depends on colour alone. */
+
   readonly marker: "+" | "-" | " ";
 }
 
@@ -32,27 +13,15 @@ export interface VersionDiff {
   readonly rows: readonly DiffRow[];
   readonly added: number;
   readonly removed: number;
-  /** True when the two definitions print identically (a republish with no edits). */
+
   readonly identical: boolean;
-  /**
-   * True when one side was too large to align, in which case `rows` is empty.
-   *
-   * The alignment is quadratic, and a form definition that runs to thousands of lines is
-   * both unusual and exactly the input that would make a browser tab stop responding. The
-   * screen says so rather than hanging.
-   */
+  // Bound the quadratic aligner so a large definition cannot freeze the browser tab.
   readonly tooLarge: boolean;
 }
 
-/** The largest definition (in printed lines) the aligner will attempt. */
 const MAX_DIFF_LINES = 1500;
 
-/**
- * Print a value as canonical JSON: sorted keys, two-space indent, one line per token.
- *
- * Sorting is applied at every level and to objects only. Array order is content, never
- * formatting, so it is preserved: reordering two steps is a real edit and must show up.
- */
+// Sort object keys for stable comparison; preserve array order because moving steps is a real edit.
 function canonical(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonical);
   if (typeof value !== "object" || value === null) return value;
@@ -64,7 +33,6 @@ function canonical(value: unknown): unknown {
   return sorted;
 }
 
-/** The printed lines of one definition, or a single line when it cannot be printed. */
 export function definitionLines(definition: unknown): readonly string[] {
   try {
     return JSON.stringify(canonical(definition), null, 2)?.split("\n") ?? [];
@@ -73,7 +41,6 @@ export function definitionLines(definition: unknown): readonly string[] {
   }
 }
 
-/** The length of the longest common subsequence prefix table for two line arrays. */
 function lcsTable(left: readonly string[], right: readonly string[]): Int32Array[] {
   const table: Int32Array[] = [];
   for (let i = 0; i <= left.length; i += 1) table.push(new Int32Array(right.length + 1));
@@ -99,15 +66,6 @@ const REMOVED = (line: string): DiffRow => ({
 });
 const ADDED = (line: string): DiffRow => ({ left: null, right: line, kind: "added", marker: "+" });
 
-/**
- * Walk the LCS table into aligned rows.
- *
- * A removal and an addition at the same point stay separate rows rather than being merged
- * into one "changed" row. That is deliberate: merging looks tidier and hides which side a
- * line came from when the two differ in length, and the author's question here is always
- * "what is in the new version that was not in the old", which separate rows answer
- * directly.
- */
 function alignRows(left: readonly string[], right: readonly string[]): DiffRow[] {
   const table = lcsTable(left, right);
   const rows: DiffRow[] = [];
@@ -135,7 +93,6 @@ function alignRows(left: readonly string[], right: readonly string[]): DiffRow[]
   return rows;
 }
 
-/** Diff two version definitions into aligned, marker-carrying rows. */
 export function diffDefinitions(older: unknown, newer: unknown): VersionDiff {
   const left = definitionLines(older);
   const right = definitionLines(newer);

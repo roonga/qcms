@@ -266,7 +266,6 @@ export function firstMatchingGroup(
 export function groupProblems(entries: EcosystemEntry[], packages: string[]): string[] {
   const problems: string[] = [];
 
-  // A derivation that found nothing would make every assertion below vacuously true.
   if (packages.length === 0) {
     problems.push(
       `no ${FAMILY_PREFIX}* package is declared by any workspace manifest, so this guard ` +
@@ -275,7 +274,6 @@ export function groupProblems(entries: EcosystemEntry[], packages: string[]): st
     return problems;
   }
 
-  // Exactly one npm entry, and it is refused rather than modelled when there are two.
   if (entries.length === 0) {
     problems.push(
       ".github/dependabot.yml declares no `package-ecosystem: npm` entry, so nothing " +
@@ -418,7 +416,6 @@ const codemirrorPackages = familyPackages(manifestTexts, FAMILY_PREFIX);
 
 const npmGroups: Group[] = npmEntries[0]?.groups ?? [];
 
-/** A mutation applied to a copy, so the repository's own config is never edited. */
 function mutated(change: (groups: Group[]) => Group[]): EcosystemEntry[] {
   return [
     {
@@ -484,8 +481,6 @@ describe("the scaffolding templates stay out of Dependabot's npm scan (issue #10
   });
 
   it("reads the exclusion out of the config text rather than from a literal here", () => {
-    // Mutates the TEXT, because a defect in how `exclude-paths` becomes the list is
-    // invisible to a mutation of the list.
     expect(dependabotText).toContain("exclude-paths:");
     expect((npmEntries[0] as EcosystemEntry).excludePaths).toContain(`${TEMPLATE_ROOT}**`);
   });
@@ -514,8 +509,6 @@ describe("the codemirror Dependabot group", () => {
   });
 
   it("is what apps/admin actually depends on, not a list written down here", () => {
-    // Nothing pins the count, so a seventh package joining the family passes here and is
-    // caught above only if the pattern misses it.
     const admin = declaredDependencies(readRepoFile("apps/admin/package.json"));
     expect(admin.filter((name) => name.startsWith(FAMILY_PREFIX)).sort()).toStrictEqual(
       codemirrorPackages,
@@ -580,8 +573,6 @@ describe("the codemirror Dependabot group", () => {
   });
 
   it("fails when the config declares a second npm entry", () => {
-    // A TEXT mutation, because this defect lives in how the text becomes the group list
-    // rather than in the list itself.
     const withSecondEntry = `${dependabotText}
   - package-ecosystem: npm
     directory: /apps/admin
@@ -706,9 +697,6 @@ describe("the YAML subset reader", () => {
   });
 
   it("ignores comments, including one that names a group or a pattern in prose", () => {
-    // `.github/dependabot.yml` is mostly comment, and those comments quote the patterns
-    // and group names they explain, so a reader that counted them would report an
-    // arrangement the file does not have.
     const config = parseYaml(
       [
         "# groups:",

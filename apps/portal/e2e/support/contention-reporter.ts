@@ -12,7 +12,6 @@ import {
 } from "./contention.js";
 import { hostPressure } from "./host-pressure.js";
 
-/** Everything a test result can carry that names what went wrong, as one string. */
 export function failureText(result: TestResult): string {
   return [
     ...result.errors.map((error) => `${error.message ?? ""} ${error.stack ?? ""}`),
@@ -37,11 +36,10 @@ function sample(seat: number, snapshot: (seat: number) => HostSnapshot): HostSna
 }
 
 export interface ContentionReporterOptions {
-  /** Samples the machine. Defaults to the real host probe. */
   readonly snapshotHost?: (seat: number) => HostSnapshot;
-  /** Where a rendered block goes. Defaults to the runner's stdout. */
+
   readonly write?: (text: string) => void;
-  /** The seat this run holds. Defaults to the environment's seat. */
+
   readonly seat?: number;
 }
 

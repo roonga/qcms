@@ -48,7 +48,6 @@ const QCMS_SCHEMAS = [
 ] as const;
 const DML = ["SELECT", "INSERT", "UPDATE", "DELETE"] as const;
 
-/** SEC-15's audit and SEC-17's, which carry one grant set between them. */
 const AUDIT_TABLES: readonly string[] = [ACCESS_AUDIT_TABLE, AGENT_ACTIONS_TABLE];
 
 /** Not `/tmp`: the `postgres` user's own directory in a container this test alone owns. */
@@ -92,8 +91,8 @@ async function inContainer(command: string[], what: string): Promise<string> {
 }
 
 function psql(role: string, args: string[]): string[] {
-  // On the local socket the official image keeps initdb's `local all all trust`, so no
-  // password is needed and none is passed (SEC-8).
+  // On the local socket the official image keeps initdb's `local all all trust`, so no password is needed and
+  // none is passed.
   return ["psql", "--username", role, "--dbname", databaseName(), ...args];
 }
 

@@ -2,17 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { readResult } from "../server/api-result.ts";
 
-/**
- * What the operator reads when an accept is refused (issue #823).
- *
- * The accept either stores the draft and creates every proposed question or stores
- * nothing, so the sentence has one job: say that nothing was saved, and say which of
- * the questions on the proposal card caused it. Before this, all three refusals fell
- * through to the generic "The request failed (INVALID_QUESTION_DEFINITION)" - observed
- * live on the 041 repro stack, which is what put this file here. A code is not a
- * sentence, and an operator looking at a card listing three questions cannot act on it.
- */
-
 function refusal(code: string, details: Record<string, unknown>): Response {
   return new Response(JSON.stringify({ error: { code, message: "server prose", details } }), {
     status: 422,
@@ -41,7 +30,7 @@ describe("an accept refusal, as the builder renders it", () => {
     expect(message).toContain("Nothing was saved");
     expect(message).toContain("q_bad_pattern");
     expect(message).toContain("'v' flag");
-    // Never the bare code: that is the state this file exists to prevent regressing to.
+
     expect(message).not.toContain("INVALID_QUESTION_DEFINITION");
   });
 
@@ -62,8 +51,6 @@ describe("an accept refusal, as the builder renders it", () => {
   });
 
   it("leaves every other code's sentence alone", async () => {
-    // The context is ignored by a message with no placeholders for it, so adding the
-    // two parameters cannot have changed what any existing screen says.
     const message = await messageFor("FORM_NOT_FOUND", { questionId: "q_x" });
     expect(message).toBe("That form does not exist.");
   });

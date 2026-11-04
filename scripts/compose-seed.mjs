@@ -44,18 +44,7 @@ export function buildSeedRun({ compose, databaseUrl, environment, mode = "seed" 
   if (mode !== "seed" && mode !== "clear" && mode !== "reset")
     throw new Error(`unknown seed mode "${mode}"; expected seed, clear or reset`);
   return {
-    argv: [
-      ...compose,
-      "run",
-      "--rm",
-      "--build",
-      "--no-TTY",
-      // The name only. The value is four lines down, in the CLI's environment.
-      "--env",
-      "DATABASE_URL",
-      "seed",
-      mode,
-    ],
+    argv: [...compose, "run", "--rm", "--build", "--no-TTY", "--env", "DATABASE_URL", "seed", mode],
     environment: { ...environment, DATABASE_URL: databaseUrl },
   };
 }

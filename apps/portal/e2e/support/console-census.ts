@@ -3,7 +3,6 @@ import type { ConsoleMessage, Page } from "@playwright/test";
 /** Playwright's own console level union, so a caller cannot invent a level. */
 export type ConsoleLevel = ReturnType<ConsoleMessage["type"]>;
 
-/** One observed message, with its level kept as data. */
 export interface CensusedMessage {
   readonly level: ConsoleLevel;
   readonly text: string;
@@ -11,15 +10,14 @@ export interface CensusedMessage {
   readonly url: string;
 }
 
-/** A running census of one page's console, for the scope the caller opened it in. */
 export interface ConsoleCensus {
   /** Every message observed so far, in the order the browser produced them. */
   readonly messages: () => readonly CensusedMessage[];
-  /** How many messages arrived at each level, levels with none omitted. */
+
   readonly byLevel: () => ReadonlyMap<ConsoleLevel, number>;
-  /** The text of every message at one level. */
+
   readonly of: (level: ConsoleLevel) => readonly string[];
-  /** A one-line-per-level summary, most frequent first, for printing. */
+
   readonly report: () => string;
   /** Stop observing. Optional: the listener dies with the page anyway. */
   readonly stop: () => void;

@@ -146,7 +146,6 @@ describe("publishedPortHost", () => {
   });
 
   it("treats a blank override as unset", () => {
-    // An exported-but-empty shell variable arrives as "" and must not become a URL host.
     expect(
       publishedPortHost({ override: "  ", inContainer: false, gateway: () => "172.17.0.1" }),
     ).toBe("localhost");

@@ -210,7 +210,7 @@ async function turn(args: {
   readonly screen: string;
   readonly script: string;
   readonly formId?: string;
-  /** For a screen with no subject of its own, which takes no `formId`. */
+
   readonly params?: Readonly<Record<string, string>>;
   readonly conversationId?: string;
 }): Promise<AssistEvent[]> {
@@ -492,6 +492,124 @@ describe("an injected instruction reaches the card, not the engine (criterion 6)
 
       expect(await countReleases()).toBe(releases);
       expect(await countAgentRows()).toBe(rows);
+    },
+    CONTAINER_BOOT_TIMEOUT_MS,
+  );
+});
+
+describe("publishing the questions a saved draft pins (issue #1205)", () => {
+  const PINNED_FORM_ID = "frm_actions_pins";
+  const PINNED_QUESTION = "q_actions_unpublished";
+
+  async function seedDraftPinningAnUnpublishedQuestion(): Promise<void> {
+    const questionId = QuestionId.parse(PINNED_QUESTION);
+    const parsed = parseQuestionDefinition({
+      questionId: PINNED_QUESTION,
+      type: "shortText",
+      label: { en: "Given name" },
+      help: { en: "As it appears on your card." },
+      required: true,
+      constraints: { minLength: 1, maxLength: 60 },
+      messages: { required: { en: "We need your given name." } },
+    });
+    if (!parsed.ok) throw new Error("fixture question did not parse");
+    await createQuestion(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
+      questionId,
+      slug: "actions-unpublished",
+    });
+    // Created and NOT published: that is what makes it an unpublished pin rather than a
+    // dangling one, and the set the builder may offer to publish.
+    await createQuestionVersion(testDb.db, { questionId, definition: parsed.value });
+
+    const created = await app.request("/admin/forms", {
+      method: "POST",
+      headers: headersFor(owner),
+      body: JSON.stringify({
+        formId: PINNED_FORM_ID,
+        slug: "actions-pins",
+        defaultLocale: "en",
+      }),
+    });
+    expect(created.status).toBe(201);
+    const saved = await app.request(`/admin/forms/${PINNED_FORM_ID}/draft`, {
+      method: "PUT",
+      headers: headersFor(owner),
+      body: JSON.stringify({
+        definition: {
+          formId: PINNED_FORM_ID,
+          defaultLocale: "en",
+          title: { en: "Patient registration" },
+          steps: [
+            {
+              stepId: "stp_identity",
+              title: { en: "Who you are" },
+              items: [{ questionId: PINNED_QUESTION, version: 1 }],
+            },
+          ],
+          rules: [],
+        },
+      }),
+    });
+    expect(saved.status).toBe(200);
+  }
+
+  beforeAll(seedDraftPinningAnUnpublishedQuestion, CONTAINER_BOOT_TIMEOUT_MS);
+
+  it(
+    "proposes one question publish per pin, then the form, and runs none of it",
+    async () => {
+      const rows = await countAgentRows();
+      const events = await turn({
+        caller: owner,
+        screen: "/forms/[formId]",
+        formId: PINNED_FORM_ID,
+        script: "plan-publish-pins",
+      });
+      const [plan] = proposals(events);
+      expect(plan?.type).toBe("plan");
+      expect(plan === undefined ? [] : stepSummary(plan)).toEqual([
+        { kind: "question.publish", environment: "test" },
+        { kind: "form.publish", environment: "test" },
+      ]);
+      expect(plan?.proposal.steps[0]?.args).toEqual({
+        questionId: PINNED_QUESTION,
+        version: 1,
+      });
+      // One step per question, each with its own catalog-rendered title, so the card shows
+      // every act rather than a count.
+      expect(plan?.proposal.steps[0]?.card.titleKey).toBe("agent.card.question.publish.title");
+      expect(await countAgentRows()).toBe(rows);
+    },
+    CONTAINER_BOOT_TIMEOUT_MS,
+  );
+
+  it(
+    "refuses a question the saved draft does not pin, and proposes nothing at all",
+    async () => {
+      const events = await turn({
+        caller: owner,
+        screen: "/forms/[formId]",
+        formId: PINNED_FORM_ID,
+        script: "propose-question-publish-foreign",
+      });
+      expect(proposals(events)).toEqual([]);
+    },
+    CONTAINER_BOOT_TIMEOUT_MS,
+  );
+
+  it(
+    "tells the builder's turn which versions the saved draft pins",
+    async () => {
+      await turn({
+        caller: owner,
+        screen: "/forms/[formId]",
+        formId: PINNED_FORM_ID,
+        script: "no-proposal",
+      });
+      const sent = JSON.stringify(providerCalls.at(-1));
+      expect(sent).toContain("unpublishedPins");
+      expect(sent).toContain(PINNED_QUESTION);
     },
     CONTAINER_BOOT_TIMEOUT_MS,
   );

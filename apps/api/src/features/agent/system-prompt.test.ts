@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { type Condition, parseCondition, QUESTION_TYPES } from "@roonga/qcms-core";
+import {
+  type Condition,
+  parseCondition,
+  QUESTION_TYPES,
+  VALIDATION_MESSAGE_KEYS,
+} from "@roonga/qcms-core";
 
 import { buildSystemPrompt, CONDITION_OPERATORS, SYSTEM_PROMPT_VERSION } from "./system-prompt.js";
 
@@ -83,6 +88,30 @@ describe("the draft assistant system prompt", () => {
     const prompt = buildSystemPrompt();
     expect(prompt).toContain("Before your first tool call, say in one short sentence");
     expect(prompt).toContain("Do not use headings, tables,\nlinks, images or HTML.");
+  });
+
+  it("asks for complete question definitions, naming every field a type supports", () => {
+    const prompt = buildSystemPrompt();
+    expect(prompt).toContain("COMPLETE");
+    expect(prompt).toContain("rather than minimal");
+    expect(prompt).toContain("A complete question definition");
+    for (const field of ["label and help", "required", "constraints", "messages", "options"]) {
+      expect(prompt).toContain(field);
+    }
+    for (const key of VALIDATION_MESSAGE_KEYS) {
+      expect(prompt).toContain(key);
+    }
+    expect(prompt).toContain("no placeholder field");
+  });
+
+  it("describes the blank-to-published journey as two cards, publishing nothing on its own", () => {
+    const prompt = buildSystemPrompt();
+    expect(prompt).toContain("two cards and not one");
+    expect(prompt).toContain("apply-draft ALONE");
+    expect(prompt).toContain("unpublishedPins");
+    expect(prompt).toContain("read from the SAVED draft");
+    expect(prompt).toContain("The form publish comes last");
+    expect(prompt).toContain("Never propose a production release");
   });
 
   it("is deterministic, so an upstream cache of it is worth having", () => {

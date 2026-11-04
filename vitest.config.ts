@@ -3,11 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import { defineConfig } from "vitest/config";
 
-/**
- * A percentage so it scales on a small CI runner. Vitest 5.0.4 made `maxWorkers`
- * per-project, and two projects in one scheduling group with different budgets is a
- * hard refusal, so every project entry below has to carry this same value.
- */
+// Scheduling groups require the same worker budget across projects.
 const MAX_WORKERS = "25%";
 
 /**
@@ -17,8 +13,8 @@ const MAX_WORKERS = "25%";
 const PROJECT_DEFAULTS = { maxWorkers: MAX_WORKERS, fsModuleCache: false } as const;
 
 /**
- * Replaces a `"packages/*"` glob, which cannot carry {@link PROJECT_DEFAULTS}. `name` is passed in both
- * shapes because an entry that does not name itself is named by its index, and `--project <name>` depends on it.
+ * Use explicit projects to apply the shared worker defaults. Always supply a name so --project can select
+ * the project rather than its array index.
  */
 function workspaceProjects(parent: string): object[] {
   const parentDirectory = fileURLToPath(new URL(parent, import.meta.url));
@@ -91,9 +87,6 @@ export default defineConfig({
           hookTimeout: 120_000,
         },
       },
-      // Run but deliberately neither typechecked nor linted: ESLint's project service
-      // does not reach files outside packages/ and apps/, and typechecking these would
-      // need a root tsconfig.
       {
         extends: true,
         test: {
@@ -103,16 +96,12 @@ export default defineConfig({
         },
       },
     ],
-    // `include` matches relative to the PROJECT root in Vitest 5, so `src/**`: the repo-relative spelling
-    // matched nothing and still exited 0. `packages/core`'s `coverage` script chains
-    // `scripts/check-coverage-measured.mjs` because Vitest cannot fail an empty report.
+    // Coverage paths are relative to each project root, not the repository.
+    // The core coverage script checks that the report contains measured files.
     coverage: {
       provider: "v8",
       include: ["src/**"],
-      // `json-summary` is what `scripts/check-coverage-measured.mjs` reads.
       reporter: ["text", "json-summary"],
-      // Pinned to this file's directory so the guard cannot read a report another run
-      // left behind.
       reportsDirectory: COVERAGE_DIR,
       thresholds: {
         lines: 95,

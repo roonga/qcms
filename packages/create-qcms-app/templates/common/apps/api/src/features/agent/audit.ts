@@ -1,7 +1,7 @@
 /**
- * The SEC-17 audit row one confirmed step writes. It is called from the handler the step
- * runs through, inside **that step's own transaction**, so a failed step writes no row and
- * the card's report and the audit trail agree.
+ * The agent audit row one confirmed step writes. It is called from the handler the step runs through, inside
+ * **that step's own transaction**, so a failed step writes no row and the card's report and the audit trail
+ * agree.
  */
 
 import { writeAgentActionRow, type Executor } from "@roonga/qcms-db";

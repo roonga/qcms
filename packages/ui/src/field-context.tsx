@@ -3,10 +3,8 @@ import { createContext, useCallback, useContext } from "react";
 import type { NativeFormAction } from "./native-submit.ts";
 
 /**
- * The canonical answer encodings (DOMAIN_SCHEMA §2.4), expressed structurally so this package stays decoupled
- * from the kernel at runtime: an NFC string, a finite double, an ISO `YYYY-MM-DD` date, a JSON boolean, an
- * OptionId, and a deduplicated OptionId array. The round-trip suite asserts the equivalence that no type
- * dependency enforces.
+ * Mirror canonical answer encodings structurally to keep the client bundle kernel-free.
+ * The round-trip suite guards the equivalence.
  */
 export type A2UIAnswerValue = string | number | boolean | readonly string[];
 
@@ -25,10 +23,8 @@ export interface QcmsFieldContextValue {
    */
   readonly formAction?: NativeFormAction;
   /**
-   * A Server Action must be a stable module-level reference: passing
-   * `action.bind(null, id)` to `useActionState` hangs the server render, because the
-   * bound reference's signature comparison never settles. A hidden input carries the
-   * same value with no bound reference.
+   * Keep Server Actions as stable module references; bound actions can hang server rendering.
+   * Pass per-request values through hidden inputs.
    */
   readonly formHiddenFields?: Readonly<Record<string, string>>;
   readonly onChange: (name: string, value: A2UIAnswerValue | undefined) => void;
@@ -51,7 +47,6 @@ export interface QcmsField {
   readonly blur: () => void;
 }
 
-/** One field's controlled state, by its compiled `name`. */
 export function useQcmsField(name: string | undefined): QcmsField {
   const ctx = useContext(QcmsFieldContext);
   if (ctx === null) {
@@ -97,7 +92,6 @@ export function useQcmsLocale(): string {
   return ctx.locale;
 }
 
-/** Whether the renderer is in native (no-JS) submit mode. */
 export function useQcmsNativeSubmit(): boolean {
   const ctx = useContext(QcmsFieldContext);
   if (ctx === null) {

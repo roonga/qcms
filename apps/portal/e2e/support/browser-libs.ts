@@ -4,7 +4,6 @@ import { dirname, join } from "node:path";
 
 import { chromium } from "@playwright/test";
 
-/** How a dynamic linker reports a dependency it could not resolve. */
 const NOT_FOUND = "=> not found";
 
 const LDD_PATHS = ["/usr/bin/ldd", "/bin/ldd"];
@@ -68,7 +67,6 @@ export function launchableBinaries(chromePath: string): string[] {
   return found;
 }
 
-/** One binary and what it is missing, in the order the refusal prints them. */
 export interface BrowserLibraryGap {
   readonly binary: string;
   readonly missing: readonly string[];

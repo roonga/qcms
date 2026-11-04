@@ -29,7 +29,6 @@ const REPOSITORY_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 /** Mirrors `PUBLISHED_PACKAGES` in `sync-templates.mjs`; `assertPacksEveryStampedPackage` fails on drift. */
 const PACKED = ["core", "a2ui-compiler", "db", "ui", "observability", "csv"];
 
-/** Where the harness puts the tarballs inside the scaffold, relative to its root. */
 const VENDOR_DIRECTORY = "apps/.qcms-tarballs";
 
 const PORTS = {
@@ -38,7 +37,7 @@ const PORTS = {
   api: harnessPort("api"),
 };
 
-/** Throwaway per run, from the CSPRNG: `create-admin` checks it against the breach corpus (SEC-1). */
+/** Throwaway per run, from the CSPRNG: `create-admin` checks it against the breach corpus. */
 const ADMIN = {
   email: "scaffold-e2e@qcms.invalid",
   password: `Sc4ffold-e2e-${Buffer.from(globalThis.crypto.getRandomValues(new Uint8Array(24))).toString("base64url")}`,
@@ -71,7 +70,6 @@ function pnpm(args, cwd, extraEnvironment = {}) {
   run(process.execPath, [entrypoint, ...args], cwd, { ...env, ...extraEnvironment });
 }
 
-/** `pnpm pack` one workspace package into `destination`, returning the tarball path. */
 function pack(packageDirectory, destination) {
   const before = new Set(readdirSync(destination));
   pnpm(["pack", "--pack-destination", destination], join(REPOSITORY_ROOT, packageDirectory));
@@ -84,7 +82,6 @@ function pack(packageDirectory, destination) {
   return join(destination, created[0] ?? "");
 }
 
-/** Unpack a tarball into `destination`, returning the `package/` directory inside it. */
 function unpack(tarball, destination) {
   mkdirSync(destination, { recursive: true });
   const result = spawnSync("/bin/tar", ["-xzf", tarball, "-C", destination], { stdio: "inherit" });
@@ -92,22 +89,12 @@ function unpack(tarball, destination) {
   return join(destination, "package");
 }
 
-/** A pin belongs here only while an issue is open against the underlying break. */
 const PINNED_DEPENDENCIES = {
-  // apps/api does not typecheck against 1.5.2; remove once #448 closes. check-comments: allow the only pointer to the break
   "@hono/zod-openapi": "1.5.1",
 };
 
-/** The `overrides:` block that redirects the packed packages at the vendored tarballs. */
-function overridesBlock(tarballNames) {
-  const lines = [
-    "",
-    "# Added by scaffold-e2e.mjs, never by create-qcms-app. The @roonga/qcms-* packages are",
-    "# not published yet, so this run resolves them from tarballs `pnpm pack` produced.",
-    "# The paths are relative so they mean the same thing on the host and inside the",
-    "# image, where the build context has copied apps/ (and this directory with it).",
-    "overrides:",
-  ];
+function overrideEntries(tarballNames) {
+  const lines = [];
   for (const [name, file] of Object.entries(tarballNames)) {
     lines.push(`  "${name}": "file:./${VENDOR_DIRECTORY}/${file}"`);
   }
@@ -190,7 +177,6 @@ function assertPacksEveryStampedPackage() {
   }
 }
 
-/** Stamp the scaffold from the CLI's own tarball, and install it from the others. */
 function buildScaffold(workspace) {
   const tarballs = join(workspace, "tarballs");
   mkdirSync(tarballs, { recursive: true });
@@ -233,15 +219,38 @@ function buildScaffold(workspace) {
   for (const file of Object.values(names)) cpSync(join(tarballs, file), join(vendor, file));
 
   const workspaceFile = join(scaffold, "pnpm-workspace.yaml");
-  writeFileSync(workspaceFile, readFileSync(workspaceFile, "utf8") + overridesBlock(names));
+  const workspaceYaml = readFileSync(workspaceFile, "utf8");
+  const overrideHeader = "\noverrides:\n";
+  if (!workspaceYaml.includes(overrideHeader))
+    throw new Error("The scaffold has no overrides block.");
+  writeFileSync(
+    workspaceFile,
+    workspaceYaml.replace(overrideHeader, `${overrideHeader}${overrideEntries(names)}`),
+  );
   writeFileSync(join(scaffold, "docker-compose.smoke.yml"), apiPublishOverride());
 
   pnpm(["install"], scaffold);
+  pnpm(
+    [
+      "--filter",
+      "qcms-api",
+      "exec",
+      "node",
+      "--input-type=module",
+      "-e",
+      `import assert from "node:assert/strict";
+import { createRequire } from "node:module";
+import { resolve } from "node:path";
+const app = createRequire(resolve("package.json"));
+const middleware = createRequire(app.resolve("@hono/otel"));
+assert.equal(app("@opentelemetry/api").trace, middleware("@opentelemetry/api").trace, "The middleware must share the runtime tracing API.");`,
+    ],
+    scaffold,
+  );
   pnpm(["-r", "typecheck"], scaffold);
   return scaffold;
 }
 
-/** Bring the stack up and create the first administrator, per the README. */
 function startStack(scaffold, project) {
   const compose = composeArgs(scaffold, project);
   run(DOCKER, [...compose, "up", "-d", "--build", "--wait"], scaffold, composeEnvironment());

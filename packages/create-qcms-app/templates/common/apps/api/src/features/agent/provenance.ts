@@ -1,7 +1,6 @@
 /**
- * The provenance check (SEC-17, section 7.4), over the user, the ordered step list, the
- * step's arguments and its environment. It adds provenance and never rights, and a token
- * that fails never degrades to an ordinary human act.
+ * The provenance check, over the user, the ordered step list, the step's arguments and its environment. It
+ * adds provenance and never rights, and a token that fails never degrades to an ordinary human act.
  */
 
 import { actionKind, actionKindForRoute } from "./actions/registry.js";
@@ -18,7 +17,6 @@ import {
 export const PROPOSAL_HEADER = "x-qcms-agent-proposal";
 export const PROPOSAL_STEP_HEADER = "x-qcms-agent-step";
 
-/** One step this proposal has already recorded, as `control.agent_actions` holds it. */
 export interface RecordedStep {
   readonly stepIndex: number;
   readonly detail: string | null;

@@ -22,12 +22,6 @@ import {
   parsePaths,
 } from "./ci-plan-only.mjs";
 
-/**
- * The asymmetry these cases are built around: a false negative costs runner time, while
- * a false positive silences every suite on a change that could break it and still
- * reports each required context green.
- */
-
 describe("plan-only classification", () => {
   it("accepts a diff that is entirely under plan/", () => {
     expect(isPlanOnly(["plan/design-brief.md", "plan/conditional-flow-decision.md"])).toBe(true);
@@ -68,7 +62,6 @@ describe("plan-only classification", () => {
   });
 
   it("does not treat a plan/ directory nested under another root as plan/", () => {
-    // A nested `plan/` is in scope for the text gates that exempt the repo-root one.
     expect(isPlanOnly(["apps/admin/plan/notes.md"])).toBe(false);
     expect(isPlanOnly(["packages/core/plan/notes.md"])).toBe(false);
   });
@@ -235,8 +228,6 @@ describe("plan-only classification: Markdown under docs/", () => {
   });
 
   it("is the same question isFastLanePath answers, for a docs path", () => {
-    // Separate exports, and the second is what both classifications call, so a rule added
-    // to one and not the other is a real failure mode.
     expect(isDocsMarkdown("docs/PORTS.md")).toBe(true);
     expect(isFastLanePath("docs/PORTS.md")).toBe(true);
     expect(isDocsMarkdown("docs/SECURITY_DESIGN.md")).toBe(false);
@@ -340,14 +331,11 @@ describe("check:plan covers what the lane skips", () => {
   const segments = checkPlan.split("&&").map((segment) => segment.trim());
 
   it("runs the whole check:all gate set, not a hand-picked subset", () => {
-    // Naming the whole set rather than the gates that read the tree today is what makes
-    // a gate added later cover the lane for free.
     expect(segments).toContain("pnpm check:all");
   });
 
   it("prettier-checks every path the lane admits, in the PRETTIER segment", () => {
-    // Anchored to the `prettier --check` segment, not the whole script: `plan` also
-    // appears in `eslint plan`, which made a looser version of this partly vacuous.
+    // Anchor to Prettier's segment; a plan target in ESLint does not prove Prettier coverage.
     const prettier = segments.find((segment) => segment.startsWith("prettier --check"));
     expect(prettier).toBeDefined();
     for (const target of [...FAST_LANE_PREFIXES, DOCS_PREFIX, ...FAST_LANE_FILES]) {
@@ -360,7 +348,6 @@ describe("check:plan covers what the lane skips", () => {
   });
 
   it("excludes exactly the tooling files that need a build, and says which", () => {
-    // A new build dependency should fail here loudly rather than join this list quietly.
     const noBuild = manifest.scripts["test:tooling:no-build"] ?? "";
     expect(noBuild).toContain("--project tooling");
     expect(noBuild).toContain("sql-capture.test.ts");
@@ -396,6 +383,11 @@ describe("no reader of a lane path lives where the lane cannot see it", () => {
   ];
 
   const ALLOWED = [
+    {
+      file: "packages/create-qcms-app/scripts/sync-templates.mjs",
+      line: '"Scaffolded source follows the Code comments rule in `PROJECT_INSTRUCTIONS.md`:",',
+      why: "emits a documentation reference; does not read the instruction file",
+    },
     {
       file: "packages/create-qcms-app/scripts/sync-templates.mjs",
       line: '"CONTRIBUTING.md",',
@@ -472,8 +464,6 @@ describe("no reader of a lane path lives where the lane cannot see it", () => {
   });
 
   it("would notice a reader added under apps/, quoted or in a template literal", () => {
-    // Exercises the same builder the scan uses, so a copy of the pattern cannot make the
-    // scan vacuous without this failing.
     const pattern = laneLiteralPattern(["CLAUDE.md", ".claude/"]);
     expect(pattern.test('const brief = readFileSync("../../CLAUDE.md", "utf8");')).toBe(true);
     expect(pattern.test("const brief = readFileSync(`../../CLAUDE.md`, 'utf8');")).toBe(true);
@@ -507,8 +497,7 @@ describe("path parsing", () => {
 });
 
 /**
- * Against a real repository on purpose: the classification was always correct on a
- * leading-space path, and the defect was in the layer that never handed it one.
+ * Use a real repository to verify git's NUL-separated output preserves leading spaces in paths.
  */
 describe("changedFiles against a real repository", () => {
   let repo: string;
@@ -543,7 +532,6 @@ describe("changedFiles against a real repository", () => {
     git(["init", "-q", "-b", "main"]);
     write("README.md", "base\n");
     commit("base");
-    // Stands in for the remote-tracking ref the workflow's checkout provides.
     git(["update-ref", "refs/remotes/origin/main", "HEAD"]);
   });
 

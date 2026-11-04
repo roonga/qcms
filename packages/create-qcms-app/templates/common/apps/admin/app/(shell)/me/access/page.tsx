@@ -10,13 +10,7 @@ export function generateMetadata(): Metadata {
   return pageMetadata(t("access.title"));
 }
 
-/**
- * What this account holds, on a route of its own under the avatar.
- *
- * It needs no grant, because it **is** the answer to what the caller holds, which is why
- * it is also where a caller with no feature grant lands: a useful statement of their
- * access and who to ask, rather than an authoring screen they were never given.
- */
+/* My access needs no feature grant: it is the useful landing page for callers with none. */
 export default async function MyAccessPage() {
   const session = await requireAdminSession();
   const mine = await readMyAccess(session);

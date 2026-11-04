@@ -73,8 +73,6 @@ describe("the dev-only set", () => {
   });
 
   it("exempts a name any package declares as a production dependency", () => {
-    // `zod` is a devDependency of one package and a dependency of another, so it is a
-    // production dependency of the workspace.
     const root = workspace({
       "package.json": { name: "root", devDependencies: { zod: "^4", vitest: "^4" } },
       "packages/core/package.json": { name: "core", dependencies: { zod: "^4" } },
@@ -95,8 +93,6 @@ describe("the dev-only set", () => {
   });
 
   it("does NOT let a peerDependencies entry exempt a dev-only name", () => {
-    // Treating an optional peer as production would exempt the very pair this gate
-    // exists to catch.
     const root = workspace({
       "package.json": { name: "root", devDependencies: { testcontainers: "^12" } },
       "packages/db/package.json": {

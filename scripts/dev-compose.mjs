@@ -37,12 +37,12 @@ export const SUPPLIED_VARIABLES = [
   "QCMS_ADMIN_AUTH_SECRET",
 ];
 
-/** `.test` is reserved for testing and can never resolve (RFC 6761). */
+/**
+ * Use the reserved .test namespace so bootstrap mail cannot target a public recipient.
+ */
 const DEFAULT_ADMIN_EMAIL = "dev@qcms.test";
 
 /**
- * Scanned rather than listed, so a `:?` added to either file is preflighted anyway.
- *
  * @param {string} text
  * @returns {string[]}
  */
@@ -140,7 +140,6 @@ export function preflightMessage(missing, envFileExists) {
   return lines.join("\n");
 }
 
-/** Permission bits belonging to group and other: what must be off on a secret file. */
 const GROUP_AND_OTHER = 0o077;
 
 const OWNER_ONLY = 0o600;
@@ -238,7 +237,7 @@ export function pinAdminAuthSecret({
 }
 
 /**
- * Names the variable, the file and the mode, and never the value (SEC-8).
+ * Names the variable, the file and the mode, and never the value.
  *
  * @param {{ source: "environment" | "file" | "generated"; tightenedFrom?: string }} pin
  * @param {string} [file]
@@ -261,8 +260,6 @@ export function pinNoticeLines(pin, file = ADMIN_SECRET_FILE) {
 }
 
 /**
- * Derived from the seat and never written down (R8, `docs/PORTS.md`).
- *
  * @param {number} [seat]
  * @returns {{ portal: number; admin: number; observability: number; dbViewer: number }}
  */
@@ -300,7 +297,7 @@ export function devStackEnvironmentOverrides({ ports, adminAuthSecret }) {
 
 /**
  * The only credential on screen is the local administrator one this command generated:
- * never the database password, the link or session keys, or the internal token (SEC-8).
+ * never the database password, the link or session keys, or the internal token.
  *
  * @param {object} options
  * @param {{ portal: number; admin: number; observability: number; dbViewer: number }} options.ports
@@ -388,10 +385,6 @@ class UsageError extends Error {
   }
 }
 
-/**
- * Computed once so `up` and `down` cannot disagree: a `down` that derived the name again
- * and got it wrong would remove nothing and leave a stack no documented command stops.
- */
 const project = process.env.COMPOSE_PROJECT_NAME ?? localStackProjectName();
 
 /**
@@ -439,7 +432,6 @@ function envFileState() {
   return { exists: true, values: parseEnvFile(text) };
 }
 
-/** `up` only. Deliberately not run for `down`: see {@link teardownPlaceholders}. */
 function preflight({ exists, values }) {
   const missing = missingVariables(requiredVariables(), values, process.env);
   if (missing.length > 0) throw new UsageError(preflightMessage(missing, exists));
@@ -607,12 +599,10 @@ function main() {
   run();
 }
 
-// Guarded so the pure helpers above can be imported without a Compose run firing.
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     main();
   } catch (error) {
-    // Carry Docker's own exit status through rather than flattening it to 1.
     process.exitCode = error instanceof CommandFailed ? error.status : 1;
     process.stderr.write(`${describe(error)}\n`);
   }

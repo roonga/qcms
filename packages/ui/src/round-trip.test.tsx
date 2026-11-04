@@ -15,8 +15,6 @@ import { loadGoldenForms } from "./test-support/golden.ts";
 import { ControlledHost, useChanges } from "./test-support/host.tsx";
 import { SELECT_STEP } from "./test-support/select-step.ts";
 
-// The kernel's own parsers are the oracle, rather than a re-implementation.
-
 const kitchen = loadGoldenForms().find((f) => f.version === "v2" && f.form === "kitchen-sink");
 if (!kitchen) throw new Error("kitchen-sink v2 golden not found");
 const stepById = (id: string): A2UIStepDocument => {

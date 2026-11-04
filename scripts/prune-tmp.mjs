@@ -297,7 +297,6 @@ export function main(args, tmpRoot) {
 
   let inodes = 0;
   for (const entry of removable) {
-    // Counting a directory means walking it, which is why `--count` is opt-in.
     const held = options.count
       ? entry.kind === "directory"
         ? countInodes(entry.path)

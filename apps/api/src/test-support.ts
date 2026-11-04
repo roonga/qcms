@@ -48,9 +48,8 @@ export function validEnv(
     QCMS_PORTAL_BASE_URL: "https://forms.example.test",
     QCMS_ADMIN_AUTH_SECRET: synthSecret(),
     QCMS_ADMIN_BASE_URL: "https://admin.example.test",
-    // Off here only: the SEC-1 breach check is a live HTTPS call, so leaving it on would
-    // make every test that sets a password depend on a third party. `config.test.ts` pins
-    // the shipped default as on.
+    // Disable the breach check only in tests so setting passwords cannot depend on a live third party;
+    // configuration tests pin the shipped default on.
     QCMS_ADMIN_PASSWORD_BREACH_CHECK: "false",
     // Off here only: the throttle allows three attempts per ten seconds in one bucket, so
     // a suite driving sign-in more than that would read 429s as its own failure.
@@ -165,8 +164,8 @@ export async function seedAdminSession(
     readonly workspaceId?: string;
     readonly membership?: boolean;
     /**
-     * `false` writes a role that is not `admin`, which is the only thing "no claim" means:
-     * the SEC-3 check is an equality on that one value.
+     * `false` writes a role that is not `admin`, which is the only thing "no claim" means: the permission check
+     * is an equality on that one value.
      */
     readonly claim?: boolean;
   } = {},
@@ -305,6 +304,7 @@ export function builderTurnContext(
         subject: "usr_test",
         appKey: TEST_APP_KEY,
         current: "test",
+        screen: "/forms/[formId]",
         offered,
         requireSecondApprover: false,
         productionEnvironment: PROD_ENVIRONMENT,

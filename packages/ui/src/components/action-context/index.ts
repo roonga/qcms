@@ -1,7 +1,6 @@
 /**
- * qcms-owned glue at the path the vendored `Button` imports: upstream declares no file for it and ADR-22
- * forbids editing the vendored source. Re-exports rather than copies, since a React context is identified by
- * object identity. Delete when upstream ships `action-context` as a file or registry dependency.
+ * Re-export the upstream context: object identity must agree with the vendored Button.
+ * Remove this compatibility path when upstream provides its own module.
  */
 
 export type { ActionCtx } from "@a2ra/core";

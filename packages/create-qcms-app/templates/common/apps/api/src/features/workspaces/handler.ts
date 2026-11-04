@@ -90,11 +90,7 @@ function isUniqueViolation(err: unknown): boolean {
   return codeOf(err) === "23505" || codeOf((err as { cause?: unknown }).cause) === "23505";
 }
 
-/**
- * better-auth 1.7.10 refuses a taken slug with a vendor `APIError` nothing else maps, so a
- * lost create race would be a 500. Matched on status: `body.code` is undefined and
- * `BAD_REQUEST` has one cause here.
- */
+/** The vendor omits body.code for slug collisions, so this refusal must be matched by status. */
 function isVendorSlugRefusal(err: unknown): boolean {
   if (!isAPIError(err)) return false;
   return (err as { status?: unknown }).status === "BAD_REQUEST";

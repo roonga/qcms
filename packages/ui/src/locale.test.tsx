@@ -4,15 +4,11 @@ import { describe, expect, it } from "vitest";
 import { A2UIStepRenderer } from "./A2UIStepRenderer.tsx";
 import { loadGoldenSteps, type GoldenStep } from "./test-support/golden.ts";
 
-// `en` and `en-US` render the same markup, and a genuinely different locale changes it, so the first claim
-// cannot pass against a renderer that ignores the prop. Markup is normalized because React's `useId` values
-// are minted per root.
+// Normalize root-specific React ids; contrasting locale output must fail if the prop is ignored.
 
 const GENERATED_ID = /_r_[0-9a-z]+_/g;
 
-// Mounting the vendored control tree is the expensive part, and the assertions ask for
-// the same pairs repeatedly, so without this the corpus is rendered five times over and
-// the comparison tests sit close to their timeout under a loaded parallel run.
+// Cache repeated corpus renders so the comparison suite remains bounded under parallel load.
 
 const RENDERED = new Map<string, string>();
 
@@ -39,8 +35,7 @@ const LOCALE_SENSITIVE = STEPS.filter((step) => {
   return html.includes('role="spinbutton"') || html.includes("data-type=");
 });
 
-// Measured rather than guessed: the slowest test here is 1.6s idle and 4.1s under
-// heavy system load, which took it past the 5s default while passing on its own.
+// Use a file-level budget for expensive control-tree rendering under parallel load.
 describe("the locale prop over the golden corpus", { timeout: 30_000 }, () => {
   it("loads a corpus with locale-sensitive controls in it", () => {
     expect(STEPS.length).toBeGreaterThan(10);

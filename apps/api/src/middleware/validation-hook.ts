@@ -1,7 +1,7 @@
 /**
- * `@hono/zod-openapi`'s validator returns a 400 echoing submitted values, bypassing
- * `onError`; this `defaultHook` throws instead. A refusal carries locations and issue codes,
- * never values (SEC-8, SEC-13), except an unrecognized key name, which is bounded.
+ * `@hono/zod-openapi`'s validator returns a 400 echoing submitted values, bypassing `onError`; this
+ * `defaultHook` throws instead. A refusal carries locations and issue codes, never values, except an
+ * unrecognized key name, which is bounded.
  */
 
 import type { ValidationTargets } from "hono";

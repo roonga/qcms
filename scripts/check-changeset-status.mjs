@@ -78,7 +78,6 @@ function main() {
     stdio: ["ignore", "pipe", "pipe"],
     shell: invocation.shell,
   };
-  // Argv is omitted in the shell case, so DEP0190 never fires.
   const run = invocation.shell
     ? spawnSync(invocation.command, options)
     : spawnSync(invocation.command, invocation.args, options);
@@ -115,7 +114,6 @@ function main() {
   return 1;
 }
 
-// Run as a script; stay silent when imported by the self-test.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   process.exit(main());
 }

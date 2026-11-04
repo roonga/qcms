@@ -10,37 +10,16 @@ import { requireAdminSession } from "@/lib/server/session";
 
 import { createQuestionAction } from "../actions";
 
-/** The browser-tab title for this route (issue #536). */
 export function generateMetadata(): Metadata {
   return pageMetadata(t("questions.create.title"));
 }
 
-/**
- * Creating a question (task 032; screen contract "editor new" state).
- *
- * The only screen where `slug` and `type` can be chosen, and it says so in the two notes
- * beside them. That is not decoration: an id is permanent and never reused for a
- * different meaning, and a type change is a different answer shape and therefore a
- * different question (R6). An author who learns that here never has to discover it from
- * a `QUESTION_ID_REUSED` error later.
- *
- * The way back is the rail's Header (§7.0 ruling 3). That rail's Sections are this screen's
- * panels, which the card below shows all at once, so each row is a jump to one of them.
- *
- * `requireAdminSession()` is called even though the `(shell)` layout already did: this
- * page reads nothing from the session, but calling it keeps the guarantee local to the
- * file rather than inherited from a layout someone could later move the route out of.
- */
 export default async function NewQuestionPage() {
   await requireAdminSession();
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        {/* The same heading row the detail screen carries, so the action is in the same place on
-            both (Code Owner, 2026-09-28). This screen has no version and no panels, so the row
-            is the title and the button; `QuestionSave` renders nothing until the editor below
-            has published a save state, which it does on mount. */}
         <div className="qcms-question-head">
           <div className="qcms-question-head__id">
             <h1 className="text-xl font-semibold text-(--color-text)">

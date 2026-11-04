@@ -155,7 +155,6 @@ function buildSnapshot(fixture: string, local = false): FrozenSnapshot {
   return result.value.snapshot;
 }
 
-/** The on-disk golden form: two-space indent, trailing newline. */
 function serialize(compiled: CompiledForm): string {
   return `${JSON.stringify(compiled, null, 2)}\n`;
 }
@@ -173,8 +172,6 @@ function walk(node: A2UINode, into: A2UINode[] = []): A2UINode[] {
   return into;
 }
 
-// Validates against the vendored strict parser (ADR-22), which throws on any
-// non-conforming node.
 function assertValidA2uiNode(node: A2UINode): void {
   // eslint-disable-next-line @typescript-eslint/no-unsafe-call -- @a2ra/core d.ts type-resolution defect
   parseNode(node);
@@ -221,7 +218,6 @@ describe("A2UI golden corpus (v4 - current generation)", () => {
 
         const goldenText = readFileSync(goldenPath, "utf8");
         const expected = JSON.parse(goldenText) as CompiledForm;
-        // Structural first, so a shape change names the document and path.
         expect(compiled).toEqual(expected);
         expect(serialized).toBe(goldenText);
       });
@@ -256,7 +252,6 @@ describe("A2UI golden corpus (v4 - current generation)", () => {
           expect(props.weight).not.toBe(TEXT_DEFAULT_WEIGHT);
         }
 
-        // The form title must outrank the step title, not merely the body.
         const h1 = headings.find((entry) => entry.level === "h1")?.props;
         const h2 = headings.find((entry) => entry.level === "h2")?.props;
         expect(h2).toBeDefined();
@@ -337,7 +332,6 @@ describe("the honeypot is never inside a RepeatGroup template (case 34)", () => 
   const REPEAT_CORPUS = CORPUS.filter((entry) => entry.fixture.startsWith("repeat-"));
 
   it("covers every repeat corpus form", () => {
-    // So a repeat form appended without a decoy assertion fails here.
     expect(REPEAT_CORPUS).toHaveLength(3);
   });
 

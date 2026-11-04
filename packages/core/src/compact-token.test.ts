@@ -33,7 +33,6 @@ function encodePayload(payload: Record<string, unknown>): string {
   return toBase64Url(JSON.stringify(payload));
 }
 
-/** Forges a token over arbitrary payload text with a genuine signature. */
 async function forgeToken(key: CryptoKey, payloadText: string): Promise<string> {
   const segment = toBase64Url(payloadText);
   const signature = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(segment));

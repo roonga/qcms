@@ -352,7 +352,7 @@ describe("CSV golden export + JSON round-trip (exit criterion 2)", () => {
   });
 
   it("defuses a respondent answer a spreadsheet would execute on open (issue #470)", async () => {
-    // Fixture text is deliberately inert rather than a working payload (SEC-8).
+    // Fixture text is deliberately inert rather than a working payload.
     const formId = await seedForm("frm_formula_guard", [
       ["stp_a", ["q_note", "q_score", "q_balance"]],
     ]);
@@ -915,8 +915,8 @@ describe("CSV export of a repeating group, both shapes (cases 46 to 48)", () => 
       outside: { q_booking_ref: "=FIXTURE_PAYLOAD" },
       instances: [{ instanceId: "ins_pax_c", name: "@FIXTURE_PAYLOAD" }],
     });
-    // Two instances rather than three: v1 declares `max: 2`, so three is a state the
-    // API refuses (SEC-16) and the system could never produce it.
+    // Two instances rather than three: v1 declares `max: 2`, so three is a state the API refuses and the system
+    // could never produce it.
     await seedRepeatSubmitted({
       formId,
       formVersion: 1,

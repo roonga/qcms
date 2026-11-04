@@ -1,7 +1,7 @@
 /**
- * Each entry point starts its own API: the SEC-4 internal token is generated in
- * memory per run and written nowhere, so no other process can learn it, and two
- * entry points therefore cannot share a seat (`docs/PORTS.md`).
+ * Each entry point starts its own API: the internal token is generated in memory per run and written
+ * nowhere, so no other process can learn it, and two entry points therefore cannot share a seat
+ * (`docs/PORTS.md`).
  */
 
 import { spawn, spawnSync } from "node:child_process";
@@ -361,7 +361,7 @@ export function apiChildEnv({
     // enrolment and its backup codes permanently undecryptable.
     QCMS_ADMIN_AUTH_SECRET: adminAuthSecret,
     QCMS_ADMIN_BASE_URL: adminBaseUrl,
-    // Off for the local sign-in loop only. SEC-1's throttle stays on everywhere else.
+    // Disable the sign-in throttle only for the local loop; it remains enabled everywhere else.
     QCMS_ADMIN_SIGNIN_THROTTLE: "false",
   };
 }
@@ -511,7 +511,6 @@ export function descendantsOf(rootPid) {
  */
 export function reapChildTree(child) {
   if (child.pid === undefined) return [];
-  // Exited: the pid may belong to someone else by now. Signal nothing.
   if (child.exitCode !== null || child.signalCode !== null) return [];
 
   if (IS_WINDOWS) {
@@ -571,7 +570,7 @@ function shutdown(signal) {
 
 /**
  * `undefined` whenever the environment supplied `QCMS_DB_PASSWORD` or `DATABASE_URL`,
- * because printing a connection string prints the password inside it (SEC-8). The
+ * because printing a connection string prints the password inside it. The
  * `!== undefined` tests mirror the `??` that builds `DATABASE_URL`.
  *
  * @returns {string | undefined}

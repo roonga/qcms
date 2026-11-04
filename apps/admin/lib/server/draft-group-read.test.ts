@@ -2,34 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { DraftForm } from "../forms/types.ts";
 
-/**
- * A repeating group surviving the trip back from the API (task 074, ADR-42).
- *
- * ## The defect this file exists for
- *
- * `lib/server/forms.ts` reads the API's stored draft into the builder's working shape, and it
- * read a step's item list as "every entry carrying a `questionId`". That was total while a step
- * held nothing else. With the union it silently DROPPED every repeating group: a group survived
- * until the first reload, and then the builder opened on a step that had been emptied, with
- * autosave paused about a step the author had just filled - and the stored draft still holding
- * the group, so the next save would have deleted it.
- *
- * Nothing in the browser noticed until acceptance case 58's walk reloaded the page, which is the
- * argument for that case reloading rather than asserting the screen it had just typed into. This
- * is the same property at the layer that owns it, where the shapes can simply be handed back.
- *
- * ## What is asserted, and what is deliberately dropped
- *
- * The three count sources round-trip as declared, and **an absent `max` arrives back absent**:
- * the kernel makes it optional precisely so a half-filled draft can round-trip, so a zero here
- * would turn a required-field prompt into a group that can never have an instance.
- *
- * A count source this build cannot read drops the GROUP rather than inventing one. Inventing
- * would look tolerant and be the worst outcome available: the panel would show the invented
- * source, the next autosave would store it, and an author's `fixed` count would be gone with no
- * press to have reported it.
- */
-
 const adminApiFetch = vi.fn(() =>
   Promise.resolve(
     new Response(JSON.stringify(detail), {
@@ -51,10 +23,8 @@ const SESSION: Parameters<typeof import("./forms.ts").getForm>[0] = {
   token: "tok",
 };
 
-/** Set per case; `adminApiFetch` answers the detail read with it. */
 let detail: Record<string, unknown> = {};
 
-/** The API's `GET /admin/forms/{id}` body, with one step holding `items`. */
 function formDetail(items: readonly unknown[]): Record<string, unknown> {
   return {
     formId: "frm_booking",
@@ -75,7 +45,6 @@ function formDetail(items: readonly unknown[]): Record<string, unknown> {
   };
 }
 
-/** One repeating group as the API stores it, with the count under test. */
 function group(count: unknown, extra: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     groupId: "grp_passengers",
@@ -125,8 +94,7 @@ describe("reading a step's item list", () => {
         count: { source: "open", min: 1, max: 9 },
         presentation: "stacked",
       },
-      // Document order is preserved, which is what the forward-only cut is taken over: the pin
-      // after the group's span stays after it.
+
       { questionId: "q_notes", version: 3 },
     ]);
   });
@@ -151,8 +119,6 @@ describe("reading a step's item list", () => {
   it("brings an absent maximum back ABSENT, not as a zero", async () => {
     const draft = await readDraft([group({ source: "open", min: 1 })]);
 
-    // The state an author is in while the required field is still empty. A zero would be a bound
-    // nobody chose, and a group with max 0 can never have an instance.
     expect(draft?.steps[0]?.items[0]).toMatchObject({ count: { source: "open", min: 1 } });
     const read = draft?.steps[0]?.items[0] as { count: { max?: number } } | undefined;
     expect(read?.count.max).toBeUndefined();
@@ -174,8 +140,6 @@ describe("reading a step's item list", () => {
       group(undefined),
     ]);
 
-    // Loud rather than silent: the step is short, so autosave pauses and says so, instead of the
-    // panel showing an invented source the next save would store.
     expect(draft?.steps[0]?.items).toStrictEqual([{ questionId: "q_trip", version: 1 }]);
   });
 
@@ -200,8 +164,6 @@ describe("reading a step's item list", () => {
       },
     ]);
 
-    // A group may not contain a group (Q13), so a nested one is not a member and is not carried:
-    // the member list is pins, which is what makes an instance's address a pair rather than a path.
     expect(draft?.steps[0]?.items[0]).toMatchObject({
       items: [{ questionId: "q_passport", version: 1 }],
     });

@@ -12,7 +12,6 @@ export type Density = (typeof DENSITY_LEVELS)[number];
 
 export const DEFAULT_DENSITY: Density = "comfortable";
 
-// `docs/theming.md` documents this name as the manual door.
 export const MODE_COOKIE = "qcms-theme";
 export const FONT_COOKIE = "qcms-font";
 export const DENSITY_COOKIE = "qcms-density";

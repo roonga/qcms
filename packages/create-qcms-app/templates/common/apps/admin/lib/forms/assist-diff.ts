@@ -2,32 +2,8 @@ import { stepPins } from "./draft.ts";
 import { readDraftRules, readDraftSteps, readLocalizedText } from "./draft-payload.ts";
 import type { DraftForm, DraftPin, DraftRule, DraftStep, FormIssue } from "./types.ts";
 
-/**
- * The proposal diff (task 041).
- *
- * The deliverable asks for one thing: what would accepting this proposal add or change,
- * grouped as steps, questions (with type) and rules, each line marked `+`/`~` in text
- * rather than by colour alone. This module answers that question and nothing else - it
- * is pure, so its test can hand it two draft-shaped values and read `DiffEntry[]` back
- * without a server, a fetch, or a component.
- *
- * `proposedDraft` arrives over the wire as `unknown` (`assist-stream.ts` does not parse
- * it, on purpose). It is read by `lib/forms/draft-payload.ts`, which is the ONE reader of
- * the draft bytes in this app and is shared with `lib/server/forms.ts`: a step or rule
- * missing its own id is dropped rather than crashing the panel, because a proposal the
- * server already validated is *expected* to be well-formed and a malformed one should
- * degrade to "this entry did not parse" rather than take the builder down with it.
- *
- * **It was a second implementation of that read until task 074**, and the two drifted in
- * exactly the way two copies do: this one read a step's item list as "every entry carrying a
- * `questionId`", which was total while a step held nothing else and silently drops a repeating
- * group (ADR-42). The diff an author approves then omitted the group and every question inside
- * it, and `acceptedDraft` takes `steps` wholesale - so accepting a proposal that merely echoed
- * back an existing group DELETED the author's group and left the step empty. The shared reader
- * is what stops that arriving a third time.
- */
+// Use the same draft reader for stored drafts, proposal diffs and acceptance so repeating groups cannot disappear in one view.
 
-/** One question the proposal introduces, as much as the diff needs to label it. */
 export interface ProposedQuestion {
   readonly questionId: string;
   readonly type: string;
@@ -41,11 +17,6 @@ export interface DiffEntry {
   readonly detail: string;
 }
 
-/**
- * The full diff: every step, pinned question and rule the proposal adds or changes,
- * relative to `current`. Order is steps, then questions, then rules, each in the
- * proposal's own order, grouped by kind.
- */
 export function proposalDiff(
   current: DraftForm,
   proposedDraftRaw: unknown,
@@ -60,16 +31,7 @@ export function proposalDiff(
   ];
 }
 
-/**
- * Read a proposal's `proposedDraft` into the same shape the builder already edits.
- *
- * Exported so the panel's Accept action can turn the same payload into the `DraftForm`
- * it hands the builder, without a second, slightly different parser living beside this
- * one - accepting a proposal and diffing it are two views of the identical bytes.
- * `formId` and `defaultLocale` are not read from the payload: they identify *this*
- * form, are never the agent's to propose, and the route the proposal came in on
- * already pins them.
- */
+// Keep formId and defaultLocale from the current route; the agent cannot propose another identity.
 export function parseProposedDraft(raw: unknown): Pick<DraftForm, "title" | "steps" | "rules"> {
   if (!isKeyedObject(raw)) return { title: {}, steps: [], rules: [] };
   return {
@@ -79,13 +41,7 @@ export function parseProposedDraft(raw: unknown): Pick<DraftForm, "title" | "ste
   };
 }
 
-/**
- * The `DraftForm` the builder should hold after Accept: the proposal's steps, rules
- * and title, addressed at *this* form. `formId` and `defaultLocale` come from
- * `current` rather than the payload, for the same reason `parseProposedDraft` does not
- * read them: they identify the form the route already pins, not something a proposal
- * gets to choose.
- */
+// Keep route-pinned identity while replacing accepted content; payload identity is not authoritative.
 export function acceptedDraft(current: DraftForm, proposedDraftRaw: unknown): DraftForm {
   const proposed = parseProposedDraft(proposedDraftRaw);
   return {
@@ -101,16 +57,7 @@ function isKeyedObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-/**
- * Whether two draft values hold the same content, whatever order their object keys are in.
- *
- * Key order carries no meaning in a draft, and the two sides reliably disagree on it: the
- * stored draft has been through Postgres `jsonb`, which reorders keys (shortest first), while
- * the proposal arrives in whatever order the model wrote. A rule's `when` is carried through
- * unparsed (`readDraftRules`), so comparing `JSON.stringify` output marked every rule a model
- * echoed back unchanged as "changed" (issue #1065). Arrays keep their order, because step,
- * item and option order is content.
- */
+// Compare object content independently of JSONB key ordering. Array order remains content.
 function sameContent(a: unknown, b: unknown): boolean {
   return canonical(a) === canonical(b);
 }
@@ -129,20 +76,7 @@ function objects(raw: unknown): readonly Record<string, unknown>[] {
   return Array.isArray(raw) ? raw.filter(isKeyedObject) : [];
 }
 
-/**
- * The step pins Accept will make resolve: a step in the proposed draft pinning, at version 1,
- * a question the same proposal invents. Accept creates each invented question as its version 1
- * draft, so these and only these stop dangling the moment the author accepts.
- *
- * Validated before Accept, such a pin names an id nothing has stored yet, so the kernel reports
- * it as `DANGLING_QUESTION_REF`, and that code's builder sentence ("names a question the form
- * does not pin. Pin it") is wrong for it: it is pinned, and it will exist (issue #1065).
- *
- * Deliberately narrower than "every reference to an invented question". The kernel uses the same
- * code for a rule reading or showing a question no step pins, and for a group count reading an
- * unpinned question; inventing the question fixes neither, so those keep the builder's sentence.
- * So does a pin at a version Accept will not create.
- */
+// Only version-one step pins to questions created by this accept stop dangling. Unpinned rule and count references remain genuine errors.
 export function pendingNewQuestionPins(
   proposedDraftRaw: unknown,
   newQuestionsRaw: unknown,
@@ -159,10 +93,6 @@ export function pendingNewQuestionPins(
   return pending;
 }
 
-/**
- * Whether an issue is one of {@link pendingNewQuestionPins}: a dangling step pin (a step and a
- * question on the path, no rule) whose step and question are in the set.
- */
 export function isPendingNewQuestionPin(issue: FormIssue, pending: ReadonlySet<string>): boolean {
   const path = issue.path;
   if (issue.code !== "DANGLING_QUESTION_REF" || path === undefined) return false;
@@ -186,7 +116,6 @@ function parseQuestionTypes(raw: unknown): ReadonlyMap<string, string> {
   return types;
 }
 
-/** The text for one locale, falling back to the first entry the map carries. */
 function textOf(text: Readonly<Record<string, string>>, locale: string): string {
   const exact = text[locale];
   if (exact !== undefined && exact !== "") return exact;
@@ -224,7 +153,6 @@ function stepDiff(
   return entries;
 }
 
-/** Every pin across a draft's steps, first occurrence only (a form pins a question once). */
 function flattenPins(steps: readonly DraftStep[]): readonly DraftPin[] {
   const seen = new Set<string>();
   const pins: DraftPin[] = [];
@@ -252,7 +180,6 @@ function questionDiff(
   return entries;
 }
 
-/** One proposed pin's diff entry, or `undefined` when it matches the current draft. */
 function questionDiffEntry(
   pin: DraftPin,
   existing: DraftPin | undefined,

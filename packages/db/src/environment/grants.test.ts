@@ -114,7 +114,6 @@ describe("the grant registry", () => {
   });
 
   it("names every source, because a failure reports the name and never the statement", () => {
-    // SEC-8: the refusal carries this name in place of the SQL.
     for (const source of GRANT_SOURCES) expect(source.name.length).toBeGreaterThan(5);
   });
 });

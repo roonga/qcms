@@ -32,10 +32,7 @@ function adminAuthConfig(
     // Off: the breach check would put a live request to `api.pwnedpasswords.com` in the
     // fixture's account creation path, and it fails closed.
     breachedPasswordCheck: false,
-    // Costs this file nothing: every request goes through `auth.api.*` in process, and
-    // better-auth's limiter runs in the router's `onRequest` hook, which only
-    // `auth.handler` reaches (better-auth 1.7.10, `dist/api/index.mjs:165-173`).
-    // <!-- expect: const rateLimitResponse = await onRequestRateLimit(currentRequest, ctx); -->
+    // The vendor limiter runs in auth.handler, outside this fixture's auth.api calls.
     signInThrottle: true,
   };
 }

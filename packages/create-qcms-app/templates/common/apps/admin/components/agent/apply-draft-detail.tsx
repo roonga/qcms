@@ -13,21 +13,12 @@ import { t, tPlural, type MessageKey } from "@/lib/i18n/en";
 
 import { IssueEntry } from "@/components/forms/validation-panel";
 
-/**
- * What the `apply-draft` step shows beyond its arguments: the diff against the builder's
- * working draft, in full, and the server's two advisory lists.
- *
- * Two lists rather than one, and never folded together: an issue is why a publish would be
- * refused and a warning blocks nothing, so one count leaves an author unable to tell which
- * one stops them. The headings and the summary sentences are the builder's own validation
- * panel's, because this is the same verdict about the same draft.
- */
+/* Keep blocking issues separate from advisory warnings so one count cannot imply both prevent publishing. */
 export function ApplyDraftDetail({
   draft,
   id,
 }: {
   readonly draft: AgentDraftProposal;
-  /** The step's own element id, so each block below is addressable. */
   readonly id: string;
 }) {
   const builder = useBuilderAssist();
@@ -98,14 +89,6 @@ export function ApplyDraftDetail({
   );
 }
 
-/**
- * One advisory entry, as the builder renders it, except the one case the builder never
- * meets: a step pin on a question this same draft invents, which Confirm will make resolve.
- * Before that the question is not stored, so the kernel calls the pin `DANGLING_QUESTION_REF`
- * and the builder's sentence for that code tells the author to pin a question that is
- * already pinned. Say what actually happens instead (issue #1065). It still blocks a
- * publish, so it stays in the count.
- */
 function DraftIssue({
   issue,
   current,
@@ -123,8 +106,6 @@ function DraftIssue({
       </span>
     );
   }
-  // Without a mounted builder there is no draft to anchor a link into, so the sentence
-  // stands on its own.
   if (current === undefined) return <span data-issue-code={issue.code}>{issue.message}</span>;
   return <IssueEntry issue={issue} draft={current} />;
 }
@@ -135,7 +116,6 @@ const KIND_LABELS: Readonly<Record<DiffEntry["kind"], MessageKey>> = {
   rule: "forms.assist.kind.rule",
 };
 
-/** One diff line's text, marked `Added` or `Changed` rather than by colour alone. */
 function diffLineText(entry: DiffEntry): string {
   const label = `${t(KIND_LABELS[entry.kind])}: ${entry.label}`;
   return entry.change === "added"

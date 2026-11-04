@@ -918,7 +918,7 @@ describe("the response.submitted payload carries instances inside answers and no
     expect(outside).not.toContain("ins_");
     // An instance count is disclosive on its own (Q19).
     const counts = Object.values(rest).filter((value) => typeof value === "number");
-    expect(counts).toEqual([1]); // formVersion, and nothing else numeric
+    expect(counts).toEqual([1]);
   });
 });
 

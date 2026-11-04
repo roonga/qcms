@@ -36,7 +36,7 @@ test("kitchen-sink: every type via Continue/Back, Submit, and independent DB ver
   await expect(page.getByRole("heading", { name: "Driving history" })).toBeVisible();
   await expect(page.getByTestId("back-action")).toBeVisible();
 
-  await chooseRadio(page, "Yes"); // reveals q_accident_count
+  await chooseRadio(page, "Yes");
   await expect(page.getByText("How many?")).toBeVisible();
   await answerNumber(page, "10");
 
@@ -70,7 +70,7 @@ test("kitchen-sink: every type via Continue/Back, Submit, and independent DB ver
   const db = await openDb(databaseUrl);
   try {
     const latest = await db.latestAnswers(sessionId);
-    expect(latest.get("q_full_name")).toBe("Grace Hopper"); // the changed value wins
+    expect(latest.get("q_full_name")).toBe("Grace Hopper");
     expect(latest.get("q_dob")).toBe("1990-05-17");
     expect(latest.get("q_at_fault_accident")).toBe(true);
     expect(latest.get("q_accident_count")).toBe(10);

@@ -8,10 +8,8 @@ import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "../testing/
 import { createLoginRole } from "./role.js";
 
 /**
- * SEC-8: the verifier is computed here so no plaintext reaches a logged statement, and
- * only a real login proves the derivation right.
- *
- * Requires Docker, like every `*.integration.test.ts`.
+ * Compute the verifier before SQL so no plaintext reaches logged statements; only a real login proves the
+ * derivation.
  */
 
 const TIMEOUT_MS = 60_000;
@@ -20,7 +18,6 @@ let testDb: TestDb;
 /** No `CREATEROLE`: the documented migration credential's shape. */
 let unprivileged: pg.Client;
 
-/** Generated, never committed. */
 function ephemeralPassword(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(18));
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");

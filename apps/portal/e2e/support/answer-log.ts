@@ -1,13 +1,11 @@
 import { expect, type Page, type Request } from "@playwright/test";
 
-/** One recorded `POST /answers`: what it carried and how the API answered. */
 export interface AnswerPost {
   readonly questionId: string;
   readonly value: unknown;
   readonly status: number;
 }
 
-/** Record every answer post the page makes, in order, for the whole test. */
 export function watchAnswerPosts(page: Page): AnswerPost[] {
   const log: AnswerPost[] = [];
   page.on("response", (response) => {
@@ -26,7 +24,6 @@ export function watchAnswerPosts(page: Page): AnswerPost[] {
   return log;
 }
 
-/** The posts recorded for one question, in order. */
 export function postsFor(log: readonly AnswerPost[], questionId: string): AnswerPost[] {
   return log.filter((post) => post.questionId === questionId);
 }

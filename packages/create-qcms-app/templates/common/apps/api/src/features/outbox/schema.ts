@@ -57,9 +57,9 @@ export const DeliveriesQuery = z.object({
 // happened to a delivery finds the answer.
 export const DeliveryStatus = z.enum(["delivered", "cancelled", "deadLettered", "pending"]);
 
-// `requestHeaders` carries the HMAC already replaced: the deliverer masks it before
-// storage, so the signature is absent from the database, not just from this response
-// (SEC-6, SEC-13). `attempts` counts failed attempts, so a first-time success is 0.
+// `requestHeaders` carries the HMAC already replaced: the deliverer masks it before storage, so the
+// signature is absent from the database, not just from this response. `attempts` counts failed attempts, so
+// a first-time success is 0.
 export const DeliveryItem = z
   .object({
     deliveryId: z.string().openapi({ example: "d290f1ee-6c54-4b01-90e6-d701748f0851" }),

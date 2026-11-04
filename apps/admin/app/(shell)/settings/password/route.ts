@@ -14,56 +14,8 @@ import { requireAdminSessionForRequest } from "@/lib/server/session";
 
 const SETTINGS_PATH = "/settings";
 
-/**
- * Change the signed-in admin's password (task 031; SEC-1).
- *
- * `revokeOtherSessions: true` is the SEC-1 requirement, not a nicety: a password
- * change has to invalidate sessions server-side, or a stolen session outlives the
- * credential that created it. better-auth issues a fresh session for *this* browser in
- * the same call, so the cookies it returns are carried onto the redirect - without
- * that, changing your own password would sign you out of the tab you did it in.
- *
- * A rejected change (wrong current password, new password too short) redirects back
- * with the same opaque marker every auth failure uses. Distinguishing them would tell
- * whoever is at the keyboard whether they guessed the current password right.
- *
- * **A `429` is the exception that says nothing about the credential** (issue #845, the
- * ruling of 2026-09-12; issue #805 made the same change on the two-factor verify
- * handlers). SEC-1 throttles `/change-password` in the same limiter as sign-in, three
- * attempts per ten seconds, and issue #482 records that on the default Compose shape
- * better-auth cannot resolve a client address and keys the bucket on a constant shared
- * by every operator - so an admin can meet this refusal on their first, correct attempt
- * because of somebody else's retries. Reported as the generic sentence, it reads as
- * "those details did not match", whose advice is to type it again - and typing it again
- * is the one action that keeps the window shut. The marker and the sentence are
- * sign-in's, not new ones: `lib/auth-failure-message.ts` is the single mapping, and a
- * "too many attempts" string written for this screen would be a fourth distinguishable
- * message on a surface whose discipline is that it has three.
- *
- * **One refusal is exempt, by ruling rather than by drift** (issue #437, Code Owner
- * 2026-09-03): a new password found in the public breach corpus gets its own marker and
- * its own sentence, because that refusal is a statement about a password the submitter
- * just typed rather than a fact about the account. `lib/server/password-refusal.ts`
- * carries the whole argument, including the oracle the ruling knowingly accepted and the
- * two alternatives it rejected. Everything this handler does is unchanged otherwise: the
- * refusal itself, its status, its timing and its ordering are the API's, and nothing here
- * asks the API a question it was not already going to answer.
- *
- * ## Why this handler applies the shell's session policy itself (issue #177)
- *
- * The `(shell)` layout calls `requireAdminSession()`, but a layout only guards the
- * pages it renders - a route handler in the same segment is reached directly by the
- * browser's POST and never passes through it. Relying on better-auth's cookie
- * validation alone would enforce gate 1 (existence) and gate 2's idle window, but
- * neither the QCMS absolute 12h cap (SEC-1) nor the 2FA-enrollment gate, so a session
- * kept warm past 12h, or one that has not finished enrolling, could change a password
- * while "the enrollment screens and nothing else" is the stated policy.
- *
- * `requireAdminSessionForRequest()` is `requireAdminSession()`'s policy answered as a
- * **303** rather than as a thrown `redirect()`, which Next turns into a 307 that asks
- * the browser to repeat the POST at the sign-in screen. It is called rather than
- * re-derived so a gate added to the shell reaches this handler too.
- */
+/* Changing a password must revoke other sessions server-side; forward fresh cookies so this browser
+   remains signed in. */
 export async function POST(request: Request): Promise<Response> {
   if (!isSameOriginPost(request)) return redirectWithGenericFailure(SETTINGS_PATH);
 
@@ -79,14 +31,8 @@ export async function POST(request: Request): Promise<Response> {
 
   const changed = await changePassword(request.headers, { currentPassword, newPassword });
 
-  // A wrong current password or a too-short new one arrives as a 4xx Response rather than
-  // a throw (see `authRefused`); both report the same generic sentence (SEC-1). A corpus
-  // hit is the one refusal that says what it is, and the body is read only on this branch,
-  // so a successful change's `Set-Cookie` headers are never consumed to get at it.
   if (authRefused(changed)) {
-    // Status before body, which is also the order `authFailureMessage` reads its markers
-    // in: a throttled request never got as far as being judged, so there is no refusal
-    // code in it to classify and nothing to gain from reading one.
+    // Classify status before body: a throttled attempt has no password verdict to inspect.
     if (authThrottled(changed)) return redirectWithGenericFailure(SETTINGS_PATH, "throttled");
     return (await passwordRefusalFrom(changed)) === "compromised"
       ? redirectWithCompromisedPassword(SETTINGS_PATH)

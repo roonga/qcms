@@ -32,8 +32,6 @@ describe("reading the check list out of a shell command", () => {
 
 describe("reading the workflow", () => {
   it("does not count a check named only in a YAML comment", () => {
-    // `.github/workflows/ci.yml` names gates in prose comments, so counting a mention
-    // would report a step that does not exist.
     const workflow = [
       "jobs:",
       "  verify:",
@@ -46,8 +44,6 @@ describe("reading the workflow", () => {
   });
 
   it("does not count the plan-only fast lane as a member of check:all", () => {
-    // `check:plan` replaces `check:all` on a plan-only pull request, so it is a CI step
-    // that must never be required to appear in `check:all`.
     const workflow = ["      - run: pnpm check:plan", "      - run: pnpm check:ports"].join("\n");
     expect(workflowEntries(workflow)).toEqual(["check:ports"]);
   });
@@ -64,8 +60,6 @@ describe("comparing the two lists", () => {
   });
 
   it("names a gate that runs in CI and not in check:all", () => {
-    // CONTRIBUTING requires `pnpm verify` to be a superset of CI, or a local green stops
-    // predicting the merge verdict.
     const inCheckAll = checkAllEntries(manifest("pnpm check:ports"));
     const inWorkflow = workflowEntries(
       ["      - run: pnpm check:ports", "      - run: pnpm check:only-in-ci"].join("\n"),

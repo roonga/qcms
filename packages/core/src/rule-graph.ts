@@ -323,9 +323,8 @@ function checkTargetScopes(
   return findings;
 }
 
-// A nested pair costs the product of the two maxima and escapes the evaluation
-// budget (SEC-16). `instanceCount` is refused too, despite its constant cost, so
-// an author never has to redo the calculation.
+// A nested pair costs the product of the two maxima and escapes the evaluation budget. `instanceCount` is
+// refused too, despite its constant cost, so an author never has to redo the calculation.
 function checkOperatorNesting(form: FormDefinition): RuleGraphFinding[] {
   const findings: RuleGraphFinding[] = [];
   const walk = (rule: VisibilityRule, condition: Condition, outer: GroupId | undefined): void => {
@@ -419,8 +418,8 @@ function checkScopedReferences(
   return findings;
 }
 
-// Such a rule costs the product of the two maxima on every evaluation (SEC-16).
-// A cost bound, not an instance ceiling: two large groups publish unjoined.
+// Such a rule costs the product of the two maxima on every evaluation. A cost bound, not an instance
+// ceiling: two large groups publish unjoined.
 function checkCrossGroupBudget(
   form: FormDefinition,
   groupOf: ReadonlyMap<QuestionId, GroupId>,
@@ -684,7 +683,7 @@ export function checkRuleTypes(
         return;
       }
       case "answered":
-        return; // Valid against every question type.
+        return;
       case "contains":
       case "containsAny": {
         if (question.type !== "multiChoice") {

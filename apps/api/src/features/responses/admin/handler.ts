@@ -1,7 +1,7 @@
 /**
- * Every read path goes through `reporting.responses`, whose tombstone anti-join
- * excludes erased and non-submitted sessions by construction, so no handler here
- * reads `submissions`/`answers` for content. Answer values are never logged (SEC-8).
+ * Every read path goes through `reporting.responses`, whose tombstone anti-join excludes erased and
+ * non-submitted sessions by construction, so no handler here reads `submissions`/`answers` for content.
+ * Answer values are never logged.
  */
 
 import type { RouteHandler } from "@hono/zod-openapi";
@@ -141,9 +141,9 @@ function parseFilter(q: {
 }
 
 /**
- * The SEC-15 row rides the read's own transaction on the environment pool, so an act
- * and the record of it commit or fail together. It carries no foreign key into what it
- * describes (that would cascade away with it), and no answer value or question text.
+ * The audit row rides the read's own transaction on the environment pool, so an act and the record of it
+ * commit or fail together. It carries no foreign key into what it describes (that would cascade away with
+ * it), and no answer value or question text.
  */
 async function recordResponseAccess(
   exec: Executor,
@@ -187,7 +187,7 @@ export function makeListResponsesHandler(
     const { page, pageSize, limit, offset } = pageWindow(q.page, q.pageSize);
 
     const request = deps.databases.forRequest(c.get("requestEnvironment"));
-    // The audit row is written first, so a read can never be served without one (SEC-15).
+    // The audit row is written first, so a read can never be served without one.
     const { rows, total, formVersions } = await request.exec.transaction(async (tx) => {
       await recordResponseAccess(tx, {
         grant: c.get("grantContext"),
@@ -287,8 +287,8 @@ export function makeExportHandler(deps: Deps): RouteHandler<typeof exportRoute, 
     const format = q.format ?? "csv";
     const filter = parseFilter(q);
 
-    // A stream outlives any transaction, so the audit row is written first in its own,
-    // and failing to write it refuses the export: no path exports without a row (SEC-15).
+    // A stream outlives any transaction, so the audit row is written first in its own, and failing to write it
+    // refuses the export: no path exports without a row.
     const auditExec = deps.databases.forRequest(c.get("requestEnvironment"));
     await auditExec.exec.transaction(async (tx) => {
       await recordResponseAccess(tx, {
@@ -551,9 +551,9 @@ export function makeEraseHandler(deps: Deps): RouteHandler<typeof eraseRoute, Ap
 
     const request = deps.databases.forRequest(c.get("requestEnvironment"));
     try {
-      // The form is passed into the erasure so it filters the lookups, rather than being
-      // compared against the outcome once the deletes have happened. The SEC-15 row rides
-      // the same transaction: an erasure cannot be repeated to produce its record later.
+      // The form is passed into the erasure so it filters the lookups, rather than being compared against the
+      // outcome once the deletes have happened. The audit row rides the same transaction: an erasure cannot be
+      // repeated to produce its record later.
       const outcome = await request.exec.transaction(async (tx) => {
         await recordResponseAccess(tx, {
           grant: c.get("grantContext"),
@@ -588,9 +588,9 @@ export function makeEraseHandler(deps: Deps): RouteHandler<typeof eraseRoute, Ap
 }
 
 /**
- * It offers and never performs: a `GET` that writes nothing, so each repetition stays a
- * separate erase with its own confirmation. It writes no SEC-15 row because it reads no
- * response, only whether a session id exists in a form in an environment.
+ * It offers and never performs: a `GET` that writes nothing, so each repetition stays a separate erase with
+ * its own confirmation. It writes no audit row because it reads no response, only whether a session id
+ * exists in a form in an environment.
  */
 export function makeErasureScopeHandler(
   deps: Deps,

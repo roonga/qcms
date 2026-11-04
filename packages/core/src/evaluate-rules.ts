@@ -93,8 +93,6 @@ function typeMismatch(rule: VisibilityRule, op: string, questionId: QuestionId):
   };
 }
 
-// Re-validates the definition so malformed input becomes a typed error rather
-// than undefined behaviour downstream.
 function unwrapDefinition(
   snapshot: FrozenSnapshot | FormDefinition,
 ): Result<FormDefinition, EvalError> {

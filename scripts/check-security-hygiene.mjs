@@ -1,7 +1,6 @@
 /**
- * Security hygiene gate (SEC-8, SEC-12, ADR-24). **The boundary.** These are regex scans, so a
- * statement or message assembled elsewhere and passed as a plain variable, or past the one hop
- * {@link envNameConstants} follows, is invisible: a clean run means no violation in a recognised shape.
+ * These regex scans cannot see statements assembled elsewhere or values passed beyond the followed constant
+ * hop; a clean run proves only recognized shapes.
  */
 
 import { execFileSync } from "node:child_process";
@@ -15,10 +14,7 @@ const GIT_CANDIDATES = ["/usr/bin/git", "/usr/local/bin/git", "/bin/git"];
 
 export const ALLOW_MARKER = "check-security-hygiene: allow";
 
-/**
- * `value`/`values` are listed because the kernel's vocabulary for an answer is
- * `{ questionId, value }`, so logging `value` is the likeliest way to break SEC-8.
- */
+/** Answer writes use value and values keys, so include those common names in the logging guard. */
 export const CONTENT_KEYS = [
   "answer",
   "answers",
@@ -49,9 +45,8 @@ function isLoggerReceiver(chain) {
 }
 
 /**
- * Roots plus an extension test, never globs: git pathspecs are fnmatch without
- * `FNM_PATHNAME`, so `scripts/**\/*.mjs` silently matched nothing while the gate
- * reported a file count that read like full coverage.
+ * Enumerate source roots and filter extensions; wildcard pathspecs can silently omit top-level script
+ * files.
  */
 export const SOURCE_ROOTS = ["apps", "packages", "scripts", "tooling"];
 
@@ -326,8 +321,6 @@ export function envNameConstants(text) {
 
 export function scanEnvNamesInBodies(label, text) {
   if (!label.startsWith(BODY_SOURCE_ROOT)) return [];
-  // Scan the blanked code, waive against the source: the marker lives in a comment
-  // the scan cannot see, and blanking preserves every offset.
   const code = blankComments(text);
   const constants = envNameConstants(code);
   const hits = [];

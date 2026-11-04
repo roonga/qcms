@@ -20,22 +20,8 @@ import type { ApiResult } from "./api-result.ts";
 import { readNoContent, readResult } from "./api-result.ts";
 import type { AdminSession } from "./session.ts";
 
-/**
- * The membership screens' calls into the API's `/admin` group (ADR-41, task 069; R2).
- *
- * The same proxy every other admin area is: build a path, hand it to the one credentialed
- * client (`api.ts`), read the answer. **Nothing here decides who may do what.** The API's
- * grant middleware is the authority, and a refusal arrives as a 403 that the screens
- * render like any other refusal - which is the SEC-3 property that a UI that forgot to
- * hide a control still cannot perform the act (criterion 10).
- *
- * What the screens show is therefore shaped by what comes back rather than by a check this
- * app performs: a workspace the signed-in administrator does not administer is absent from
- * the list the API serves them, and a panel whose read was refused says so instead of
- * rendering an empty state that would claim knowledge it does not have.
- */
+/** The API enforces grants even when UI controls remain visible. Render a refused read as refusal, never as an empty state claiming knowledge. */
 
-/** Narrow an unknown to an array of records, the shape every list answer carries. */
 function rows(value: unknown): readonly Record<string, unknown>[] {
   if (!Array.isArray(value)) return [];
   return value.filter(
@@ -65,12 +51,7 @@ function strings(value: unknown): readonly string[] {
     : [];
 }
 
-/**
- * `GET /admin/workspaces` - the workspaces the caller administers.
- *
- * `cache()` because both membership screens need this list in two React trees of one request:
- * the page and its `@rail` slot. Every other call here is read by the page alone.
- */
+/** Share this request-only read between the page and its rail. */
 export const listWorkspaces: (
   session: AdminSession,
 ) => Promise<ApiResult<readonly WorkspaceListItem[]>> = cache(
@@ -96,7 +77,6 @@ export const listWorkspaces: (
   },
 );
 
-/** `GET /admin/workspaces/{id}/members` - the membership list (owners and the claim only). */
 export async function listMembers(
   session: AdminSession,
   workspaceId: string,
@@ -134,7 +114,6 @@ function parseGroup(row: Record<string, unknown>): AccessGroup {
   };
 }
 
-/** `GET /admin/workspaces/{id}/access-groups` - one grant per row, with its holders. */
 export async function listAccessGroups(
   session: AdminSession,
   workspaceId: string,
@@ -153,7 +132,6 @@ export async function listAccessGroups(
   };
 }
 
-/** `POST /admin/workspaces/{id}/access-groups` - create one grant's group. */
 export async function createAccessGroup(
   session: AdminSession,
   workspaceId: string,
@@ -183,7 +161,6 @@ export async function createAccessGroup(
   };
 }
 
-/** `DELETE /admin/workspaces/{id}/access-groups/{teamId}` - remove a group and its grants. */
 export async function deleteAccessGroup(
   session: AdminSession,
   workspaceId: string,
@@ -199,7 +176,6 @@ export async function deleteAccessGroup(
   );
 }
 
-/** `POST .../holders` - grant the group to somebody, by address. */
 export async function addHolder(
   session: AdminSession,
   workspaceId: string,
@@ -224,7 +200,6 @@ export async function addHolder(
   };
 }
 
-/** `DELETE .../holders/{userId}` - revoke one grant. */
 export async function removeHolder(
   session: AdminSession,
   workspaceId: string,
@@ -241,7 +216,6 @@ export async function removeHolder(
   );
 }
 
-/** `PUT /admin/workspaces/{id}/members/{userId}` - the member row's role. */
 export async function setMemberRole(
   session: AdminSession,
   workspaceId: string,
@@ -260,7 +234,6 @@ export async function setMemberRole(
   return { ok: true, data: { userId: str(result.data.userId), role: str(result.data.role) } };
 }
 
-/** `PUT /admin/workspaces/{id}/settings` - the two per-workspace switches. */
 export async function setWorkspaceSettings(
   session: AdminSession,
   workspaceId: string,
@@ -292,7 +265,6 @@ export async function setWorkspaceSettings(
   };
 }
 
-/** `GET /admin/workspaces/{id}/audit` - the SEC-15 rows, newest first. */
 export async function readAudit(
   session: AdminSession,
   workspaceId: string,
@@ -331,7 +303,6 @@ export async function readAudit(
   };
 }
 
-/** `GET /admin/workspaces/{id}/agent-actions` - the SEC-17 rows, newest first. */
 export async function readAgentAudit(
   session: AdminSession,
   workspaceId: string,
@@ -376,10 +347,7 @@ export async function readAgentAudit(
   };
 }
 
-/**
- * The area projection, read defensively: a field the API has not sent is absent rather
- * than true, so a stale deployment narrows the navigation instead of widening it.
- */
+/** Absent capability fields narrow navigation rather than granting access the API did not report. */
 function parseCapabilities(value: unknown): ShellCapabilities {
   const row = typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
   return {
@@ -390,13 +358,7 @@ function parseCapabilities(value: unknown): ShellCapabilities {
   };
 }
 
-/**
- * `GET /admin/me/access` - what the signed-in administrator holds.
- *
- * The one read on this surface that needs no grant, because it **is** the answer to what
- * the caller holds: everybody who is not an owner or the installation administrator
- * learns their own grants here, since the membership list itself is theirs alone to see.
- */
+/** This read needs no grant because it discovers the caller grants; membership lists require authority of their own. */
 export const readMyAccess: (session: AdminSession) => Promise<ApiResult<MyAccess>> = cache(
   async (session: AdminSession): Promise<ApiResult<MyAccess>> => {
     const result = await readResult<{

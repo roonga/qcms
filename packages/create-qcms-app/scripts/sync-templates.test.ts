@@ -47,7 +47,6 @@ describe("the strip rules", () => {
     "app/(shell)/AGENTS.md",
     ".env.example",
     "scripts/seed-fixtures.ts",
-    // Input to the dropped seed script: data with no reader in a scaffolded tree.
     "scripts/fixtures/sample-library-form.json",
     "scripts/fixtures/sample-library.a2ui.json",
   ])("drops %j", (path) => {
@@ -96,12 +95,11 @@ describe("transformDockerfile", () => {
   });
 
   it("takes the comment block that explains a dropped line with it", () => {
-    // Otherwise the adopter reads a paragraph about a line that is not there.
     expect(transformDockerfile(SOURCE, "qcms-api", "api")).not.toContain("in prose that explains");
   });
 
   it("throws when a declared monorepo-only COPY is no longer present", () => {
-    // A renamed or rewhitespaced line must not turn the filter into a silent no-op.
+    // A reworded fragment must fail loudly rather than silently stop filtering.
     const withoutTooling = SOURCE.split("\n")
       .filter((line) => line !== "COPY tooling ./tooling")
       .join("\n");
@@ -127,7 +125,6 @@ describe("transformDockerfile", () => {
   });
 
   it("stamps the adopter's image title and drops the source label", () => {
-    // The code inside a scaffolded image is the adopter's, not this repository's.
     const result = transformDockerfile(SOURCE, "qcms-api", "api");
     expect(result).toContain('org.opencontainers.image.title="{{projectName}}-api"');
     expect(result).not.toContain("github.com/roonga/qcms");
@@ -177,8 +174,6 @@ describe("assertComposeForwardsTwoFactor", () => {
   });
 
   it("throws on a duplicate, which a YAML reader resolves silently", () => {
-    // This is the state the generator itself produced once `main` added the
-    // passthrough that the old transform 5 was inserting.
     const duplicated = SOURCE.replace(
       `  api:\n    environment:\n      ${PASSTHROUGH}`,
       `  api:\n    environment:\n      ${PASSTHROUGH}\n      ${PASSTHROUGH}`,
@@ -343,8 +338,6 @@ describe("reading a generated tree (issue #450)", () => {
   });
 
   it("reports such a file as stale rather than staying green", () => {
-    // The whole point: the generator would never produce `dist/leak.js`, so once the
-    // walk can see it the diff has to call it out.
     const committed = new Map(walk("common", root).map((path) => [path, "// fixture"]));
     const generated = new Map([["common/apps/api/src/app.ts", "// fixture"]]);
     expect(diffTrees(generated, committed)).toContain(
@@ -362,19 +355,14 @@ describe("reading a generated tree (issue #450)", () => {
 });
 
 describe("the guards, proved red rather than merely green (issue #456)", () => {
-  // Every one of these was a blind spot: a guard whose docstring claimed more than its
-  // code did. A guard that has never been seen to fail is a guard nobody has tested,
-  // which is the shape of defect this branch has now met three times.
   const tree = buildTemplates();
 
-  /** The tree with one file replaced, so each case perturbs exactly one thing. */
   function withFile(path: string, contents: string): Map<string, string> {
     const copy = new Map(tree);
     copy.set(path, contents);
     return copy;
   }
 
-  /** The tree with one substitution inside a file it already has. */
   function edited(path: string, from: string, to: string): Map<string, string> {
     const before = tree.get(path) ?? "";
     expect(before).toContain(from);
@@ -382,9 +370,6 @@ describe("the guards, proved red rather than merely green (issue #456)", () => {
   }
 
   it("catches a Compose file whose build points at a Dockerfile nobody stamps", () => {
-    // Blind spot B: the docker assets were enumerated by name, so a Compose file could
-    // reference something the generator had never heard of and the gate stayed green
-    // because the generated tree did not have it either.
     const drifted = edited(
       "common/docker-compose.yml",
       "dockerfile: docker/api.Dockerfile",
@@ -403,7 +388,6 @@ describe("the guards, proved red rather than merely green (issue #456)", () => {
   });
 
   it("catches a README naming a service the Compose file does not define", () => {
-    // Blind spot G: `templates-static/` had nothing comparing it to anything.
     const drifted = edited(
       "solo/README.md.tmpl",
       "docker compose run --rm migrate",
@@ -421,7 +405,6 @@ describe("the guards, proved red rather than merely green (issue #456)", () => {
   });
 
   it("catches a NEW KIND of reach out of the project, not just a new instance", () => {
-    // A `paths` block pointing at `../../packages/*` must be caught, not only a new instance.
     const drifted = withFile(
       "common/tsconfig.base.json",
       '{ "compilerOptions": { "paths": { "@roonga/qcms-core": ["../../packages/core/src"] } } }',
@@ -445,11 +428,9 @@ describe("the guards, proved red rather than merely green (issue #456)", () => {
   });
 
   it("catches a workspace dependency an adopter could not install", () => {
-    // The message must name the package; the old `??` fallback stamped an unknown `workspace:*`.
     expect(() =>
       rewriteDependencies({ "@roonga/qcms-unpublished": "workspace:*" }, {}, false),
     ).toThrow(/@roonga\/qcms-unpublished/);
-    // A published one still resolves, so the guard is about the unknown case only.
     expect(
       rewriteDependencies({ hono: "^4.0.0" }, { "@roonga/qcms-core": "^1.0.0" }, false),
     ).toStrictEqual({ hono: "^4.0.0" });
@@ -470,8 +451,6 @@ describe("the release-age hold the scaffold inherits (SEC-11)", () => {
   });
 
   it("catches a scaffold that quietly loses the hold", () => {
-    // The drift this exists for: two hand-maintained files holding one security
-    // posture, and someone edits the repository's own without the scaffold's.
     const without = new Map(tree);
     without.set(
       "common/pnpm-workspace.yaml",
@@ -484,15 +463,12 @@ describe("the release-age hold the scaffold inherits (SEC-11)", () => {
 describe("the seam document the generator writes (issue #866)", () => {
   const path = join(REPOSITORY_ROOT, SEAM_DOC);
 
-  /** Prettier's own answer for this file, under this repository's own configuration. */
   async function isPrettierClean(text: string): Promise<boolean> {
     const options = await prettier.resolveConfig(path);
     return prettier.check(text, { ...options, filepath: path });
   }
 
-  // Proved red as well as green, the way the other guards are. The green case alone
-  // would still pass if someone deleted the formatting step and Prettier happened to
-  // like the compact form; this pair says the step is doing work.
+  // Test both formatting drift and the rendered result; an already formatted fixture alone cannot prove the formatting step runs.
   it("needs formatting when the block goes in as rendered", async () => {
     const compact = replaceSeamBlock(readFileSync(path, "utf8"), renderSeamBlock());
 

@@ -46,10 +46,6 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-/* ------------------------------------------------------------------ *
- * 1. The route set, derived from disk
- * ------------------------------------------------------------------ */
-
 const APP_DIR = fileURLToPath(new URL("../../app", import.meta.url));
 
 /**
@@ -162,10 +158,6 @@ describe("the belted route set is the one on disk", () => {
   });
 });
 
-/* ------------------------------------------------------------------ *
- * 2. Every field is a member of a declared vocabulary
- * ------------------------------------------------------------------ */
-
 const FETCH_SITE_VOCABULARY = ["absent", "same-origin", "same-site", "cross-site", "none", "other"];
 const ORIGIN_VOCABULARY = ["absent", "null", "match", "mismatch", "unverifiable"];
 
@@ -273,10 +265,6 @@ describe("SEC-13: nothing the request supplied reaches the line", () => {
     }
   });
 });
-
-/* ------------------------------------------------------------------ *
- * 3. The line survives the export allowlist intact
- * ------------------------------------------------------------------ */
 
 describe("SEC-13: the exported record keeps the line rather than collapsing it", () => {
   it("keeps the event name", () => {

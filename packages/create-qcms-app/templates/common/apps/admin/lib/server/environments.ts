@@ -6,29 +6,14 @@ import type { ApiResult } from "./api-result.ts";
 import { readResult } from "./api-result.ts";
 import type { AdminSession } from "./session.ts";
 
-/**
- * The live environment set, and which one this request is for (ADR-40 Q6, task 065).
- *
- * The set is the **API's** answer, read from `GET /admin/environments`, which reads
- * `control.environments`: that table is the source of the set, and an environment an
- * operator created last week has to appear in the switcher without anybody editing this
- * app (R2 - this app holds credentials, not authority). The admin does not know the
- * environment names and must not: a compiled-in pair here would be the "configurable set"
- * ADR-40 chose turning back into a literal on the one screen an operator uses.
- */
+/** Discover the live set from the API; compiled-in names would exclude environments created without rebuilding this app. */
 
-/** One environment of the live set, in canonical `position` order (Q42). */
 export interface EnvironmentOption {
   readonly name: string;
   readonly position: number;
 }
 
-/**
- * `GET /admin/environments` - the set a grant may name, with each row's position.
- *
- * Sent without the environment header: the set is not one environment's, and a stale
- * selection in the header would have the API refuse this read outright.
- */
+/** Omit the environment header: a stale selection must not block discovery of the live set. */
 export async function listEnvironments(
   session: AdminSession,
 ): Promise<ApiResult<readonly EnvironmentOption[]>> {
@@ -39,7 +24,6 @@ export async function listEnvironments(
   return { ok: true, data: parseEnvironments(result.data.environments) };
 }
 
-/** Shape-check the list, dropping anything that is not an environment row. */
 function parseEnvironments(value: unknown): readonly EnvironmentOption[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((entry) => {
@@ -49,23 +33,12 @@ function parseEnvironments(value: unknown): readonly EnvironmentOption[] {
   });
 }
 
-/**
- * The environment this request is about, resolved once and shared with the API header
- * (local UX list A12). See `requestEnvironment` in `api.ts`, which owns it because the
- * header does.
- */
+/** Share requestEnvironment with API headers so chrome and actions resolve the same selection. */
 export function resolvedEnvironment(session: AdminSession): Promise<ResolvedEnvironment> {
   return requestEnvironment(session);
 }
 
-/**
- * Confirm an environment-sensitive action against the environment this request resolves
- * to (local UX list A1).
- *
- * Every such action takes `shown` as an argument the page binds, and calls this before it
- * forwards anything: a refusal carries the catalog sentence the action returns as its
- * error, and nothing reaches the API. `confirmEnvironment` holds the rule and its reasoning.
- */
+/** Confirm the environment bound by the page before forwarding an environment-sensitive action; a changed tab selection must not retarget it. */
 export async function confirmShownEnvironment(
   session: AdminSession,
   shown: string | undefined,

@@ -50,8 +50,6 @@ describe("localStackProjectName", () => {
     expect(localStackProjectName(3)).toBe("qcms-local-stack-s3");
   });
 
-  // `down --volumes --remove-orphans` under a shared project name deletes the other
-  // seat's stack rather than reading it.
   it("collides with neither the dev database nor the full-stack e2e stack, at any seat", () => {
     for (const seat of [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]) {
       const local = localStackProjectName(seat);
@@ -82,8 +80,6 @@ describe("devStackEnvironmentOverrides", () => {
   const ports = seatPorts(2);
   const overrides = devStackEnvironmentOverrides({ ports, adminAuthSecret: "pinned-secret" });
 
-  // better-auth trusts the admin origin and no other, so a base URL disagreeing with
-  // the published port is a sign-in that redirects forever.
   it("keeps each base URL on the port that service is actually published on", () => {
     expect(overrides.QCMS_ADMIN_BASE_URL).toBe(`http://localhost:${String(ports.admin)}`);
     expect(overrides.QCMS_PORTAL_BASE_URL).toBe(`http://localhost:${String(ports.portal)}`);
@@ -96,8 +92,6 @@ describe("devStackEnvironmentOverrides", () => {
     expect(overrides.QCMS_DB_VIEWER_PORT).toBe(String(ports.dbViewer));
   });
 
-  // This stack prints a plaintext administrator credential, so a `0.0.0.0` copied from
-  // the operator template must not win here.
   it("pins the bind address to loopback whatever .env says", () => {
     expect(overrides.QCMS_BIND_ADDRESS).toBe("127.0.0.1");
   });
@@ -171,8 +165,6 @@ describe("preflightMessage", () => {
     expect(message).toContain("QCMS_DB_VIEWER_PASSWORD");
   });
 
-  // The viewer password is deliberately absent from the operator template, so "copy
-  // the example" does not produce it.
   it("says where the viewer password is documented, since the template does not carry it", () => {
     const message = preflightMessage(["QCMS_DB_VIEWER_PASSWORD"], true);
     expect(message).toContain("docs/DEVELOPER_GUIDE.md");
@@ -184,7 +176,6 @@ describe("preflightMessage", () => {
     expect(preflightMessage(["QCMS_DB_PASSWORD"], true)).not.toContain("cp .env.compose.example");
   });
 
-  // Inventing one would put a read-only database client in everybody's stack.
   it("suggests generating a value and never supplies one", () => {
     const message = preflightMessage(["QCMS_DB_VIEWER_PASSWORD"], true);
     expect(message).toContain("openssl rand");
@@ -211,7 +202,6 @@ describe("pinAdminAuthSecret", () => {
     expect(second).toEqual({ secret: first.secret, source: "file" });
   });
 
-  // A fresh value per run leaves an enrolled authenticator permanently unverifiable.
   it("returns the same value across runs, which is what keeps an enrolment alive", () => {
     const path = join(scratch, "stable");
     const runs = new Set(
@@ -267,7 +257,6 @@ describe("pinAdminAuthSecret", () => {
       expect(pinAdminAuthSecret({ environment: {}, path }).tightenedFrom).toBeUndefined();
     });
 
-    // Tightening must never be a way of handing back a write bit a developer removed.
     it("does not loosen a deliberately read-only file", () => {
       const path = join(scratch, "read-only");
       writeFileSync(path, "QCMS_ADMIN_AUTH_SECRET=already-pinned\n");
@@ -277,8 +266,6 @@ describe("pinAdminAuthSecret", () => {
     });
   });
 
-  // Regenerating on an unreadable file would overwrite a secret this process cannot
-  // read, destroying an enrolment.
   it("rethrows a failure that is not a missing file rather than regenerating", () => {
     const path = join(scratch, "a-directory");
     mkdirSync(path, { recursive: true });
@@ -352,8 +339,6 @@ describe("devStackBannerLines", () => {
 });
 
 describe("teardownPlaceholders", () => {
-  // A `.env` edited after the stack came up would make `docker compose down` fail on
-  // a `:?` variable, leaving a stack the documented command cannot stop.
   it("fills only what is genuinely absent", () => {
     expect(teardownPlaceholders(["A", "B"], { A: "real" }, {})).toEqual({
       B: "unused-during-teardown",
@@ -388,7 +373,6 @@ describe("pinNoticeLines", () => {
     expect(lines[1]).toContain("owner-only");
   });
 
-  // SEC-8: these lines name the variable, the file and the mode, never the value.
   it("never prints the secret", () => {
     const text = pinNoticeLines({ source: "file", tightenedFrom: "644" }).join("\n");
     expect(text).not.toMatch(/=[A-Za-z0-9_-]{20,}/);
@@ -397,8 +381,6 @@ describe("pinNoticeLines", () => {
 
 describe("SUBCOMMANDS (issue #994)", () => {
   it("answers to the three seeding commands as well as up and down", () => {
-    // The set, not a sample: `usageLine` and the `package.json` assertion are both
-    // derived from these keys.
     expect(Object.keys(SUBCOMMANDS)).toEqual(["up", "seed", "seed:clear", "seed:reset", "down"]);
   });
 
@@ -425,8 +407,6 @@ describe("seedNoticeLine", () => {
   it("says which of the three things is about to happen, and names the project", () => {
     expect(seedNoticeLine("seed", "qcms-local-stack-s3")).toContain("qcms-local-stack-s3");
     expect(seedNoticeLine("seed", "p")).toMatch(/seeding/u);
-    // A developer watching the output has to tell a destructive run from a loading one
-    // without reading the next line.
     expect(seedNoticeLine("clear", "p")).toMatch(/clearing/u);
     expect(seedNoticeLine("reset", "p")).toMatch(/clearing and reseeding/u);
   });

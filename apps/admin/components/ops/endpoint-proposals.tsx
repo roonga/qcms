@@ -13,57 +13,9 @@ import type { ReadState } from "@/lib/read-state";
 
 import type { WebhookActionState } from "./webhook-config";
 
-/**
- * The endpoint changes waiting for a second approver (ADR-41's release rule, Q30, Q51;
- * task 070).
- *
- * ## Why this is a panel and not a line in the endpoint table
- *
- * A pending change is **not a state of an endpoint**. It is a proposed value that is not
- * live, and the endpoint beside it is doing exactly what it was doing before - so a row
- * showing "https://new-target" under an endpoint's URL column would be the one thing this
- * mechanism exists to prevent somebody believing. The two-person rule's whole point is that
- * the operator can read the proposed value *without* it being in force, and a separate
- * panel is what makes the difference visible rather than inferable.
- *
- * ## Two accounts, named
- *
- * Each row names the account that proposed the change, because the account reading the
- * screen has to be able to tell whether it is their own: the proposer cannot confirm their
- * own proposal, and a screen that offered them a Confirm button leading to a 403 would be
- * teaching the rule by refusing. The button is still rendered for them and still refused
- * by the API - this app decides nothing (R2) - but the row says whose proposal it is and
- * the confirm control carries the warning.
- *
- * ## Withdraw is either account's
- *
- * The proposer changing their mind and a second approver refusing the change are the same
- * act on the row, and which it was is in the audit. So there is one Withdraw rather than a
- * Reject beside a Cancel: a third state would be a third thing for this panel to explain
- * and the record already says who ended it.
- *
- * ## A confirmed change whose apply has not landed
- *
- * `confirmedAt` with `appliedAt` still null is the two-pool window: the proposal is
- * control-plane state and the endpoint is the environment's, so a confirmation whose
- * endpoint write failed leaves the record saying somebody agreed and the endpoint **not**
- * live. The row says so in those words, and Confirm stays available because pressing it
- * again finishes the apply without recording a second confirmation.
- */
-/**
- * What the dialog says this act will do, per kind.
- *
- * One sentence per kind rather than one with a `{url}` hole, because the generic one was
- * wrong for two of the three (PR #1100's review, finding 4): a **deactivation** stops
- * delivery, and an **update that names no URL** - one that only rotates the secret or flips
- * `active` - has nothing to put in the hole, so the approver read "starts delivering to "
- * while pressing Confirm would do the opposite or something else entirely.
- *
- * The withdrawal has two readings for the same reason. A pending change is discarded; a
- * **confirmed** one whose apply never landed has nothing live to undo, and what withdrawing
- * it buys is the endpoint back, so a new change can be proposed for it. That is the
- * operator's way out of an apply that keeps failing.
- */
+/* Keep proposed endpoints separate from live ones; two-person approval requires seeing the proposed value
+   without implying it is active. */
+/* Name each change kind: deactivation and updates without a URL cannot promise delivery to a new target. */
 function dialogSentence(act: "confirm" | "withdraw", proposal: EndpointProposal): string {
   const environment = proposal.environment;
   if (act === "withdraw") {
@@ -75,9 +27,6 @@ function dialogSentence(act: "confirm" | "withdraw", proposal: EndpointProposal)
     return t("ops.proposals.confirmBody.deactivate", { environment });
   }
   if (proposal.url === null) {
-    // An update that names no target: the secret, the `active` flag, or both. "Keeps its
-    // current URL" is the half an approver needs, because the row above already shows what
-    // is changing.
     return t("ops.proposals.confirmBody.update", { environment });
   }
   return proposal.kind === "create"
@@ -101,7 +50,6 @@ export function EndpointProposals({
   } | null>(null);
   const [state, setState] = useState<WebhookActionState>({ status: "idle" });
   const [isPending, startTransition] = useTransition();
-  // Every control here acts in one environment's data plane (A12).
   const environmentUnknown = useEnvironmentUnknown();
 
   const run = useCallback((call: () => Promise<WebhookActionState>) => {
@@ -111,19 +59,12 @@ export function EndpointProposals({
           setState(next);
           if (next.status === "done") setDialog(null);
         })
-        // `adminApiFetch` does not throw on a non-2xx, which is the trap: a transport
-        // failure still rejects, and without this the dialog sits there looking like a
-        // slow network forever.
         .catch(() => {
           setState({ status: "error", message: unexpected() });
         });
     });
   }, []);
 
-  // Nothing waiting, and nothing to say about it. The two-person rule gates `prod` alone
-  // and is off by default (Q13), so an empty panel is the ordinary case on every screen -
-  // and an empty state here would put a permanent "no pending changes" block on a screen
-  // where that is never news. A failed read is the same: the page's own alert says so.
   if (rows === undefined || rows.length === 0) return null;
 
   return (
@@ -162,10 +103,6 @@ export function EndpointProposals({
           </thead>
           <tbody>
             {rows.map((proposal) => {
-              // Computed before the cell rather than in it. A ternary on `confirmedAt`
-              // inside a `<td>` is an instant in cell text as far as the table-cell rule
-              // is concerned, and that rule is right to be blunt about it: a timestamp
-              // belongs in `OperatorDateTime`, and what this column renders is a state.
               const waiting = proposal.confirmedAt === null;
               return (
                 <tr key={proposal.proposalId} data-proposal={proposal.proposalId}>
@@ -186,9 +123,6 @@ export function EndpointProposals({
                     )}
                   </td>
                   <td>
-                    {/* The account, as the release history already shows an actor: plain
-                      text, because an account id is not one of the entity kinds this app
-                      abbreviates and a truncated one is the half an operator needs. */}
                     <span className="block break-all">{proposal.proposedBy}</span>
                     <span className="block text-xs text-(--color-text-muted)">
                       <OperatorDateTime iso={proposal.proposedAt} />
@@ -244,9 +178,6 @@ export function EndpointProposals({
         >
           <div className="flex flex-col gap-4" data-testid="qcms-proposal-dialog">
             <p className="text-sm">{dialogSentence(dialog.act, dialog.proposal)}</p>
-            {/* Q6's restatement: an act performed against the wrong environment is not
-                undoable, and confirming one of these is what makes a production endpoint
-                live. */}
             <p className="text-sm font-semibold" data-testid="qcms-proposal-environment">
               {t("environment.inThis", { environment: dialog.proposal.environment })}
             </p>

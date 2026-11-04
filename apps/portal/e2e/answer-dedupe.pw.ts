@@ -73,7 +73,7 @@ test("the dedupe keeps absence distinct from a value, and an unchanged value pos
   await name.click();
   await blurActive(page);
 
-  await enterDate(page, "05171990"); // serialization anchor, as above
+  await enterDate(page, "05171990");
   expect(postsFor(log, "q_full_name")).toEqual([
     { questionId: "q_full_name", value: "Ada Lovelace", status: 200 },
     { questionId: "q_full_name", value: null, status: 200 },

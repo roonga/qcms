@@ -3,10 +3,8 @@
  * Secrets are generated from the CSPRNG, never suggested; a blank non-secret is reported, not invented.
  */
 
-/** The marker line the generator writes above each assignment. */
 const MARKER = /^# \(([^)]*)\)$/;
 
-/** An assignment, commented out or not, with no value. */
 const BLANK_ASSIGNMENT = /^(# )?([A-Z][A-Z0-9_]*)=$/;
 
 /** A filled `.env`, and the mandatory variables the operator still has to answer. */

@@ -48,12 +48,10 @@ import {
 } from "./support.js";
 
 /**
- * The read ports of D1 to D7, one per read tool a screen declares. Each re-makes its own
- * screen's read check, and none selects an answer column, joins an answer table or
- * carries a webhook payload (SEC-17).
+ * The read ports of D1 to D7, one per read tool a screen declares. Each re-makes its own screen's read
+ * check, and none selects an answer column, joins an answer table or carries a webhook payload.
  */
 
-/** The response list's own four filters, which is the whole of what a response read takes. */
 type ResponseFilters = Omit<ResponseFilterInput, "limit">;
 
 /** How many rows a count scans before it says it stopped. A turn is a payload, not a page. */
@@ -157,7 +155,6 @@ function label(version: number | null): string {
   return version === null ? "draft" : String(version);
 }
 
-/** D1. The bench's own forward pass, behind the cell its route declares. */
 function testRulePort(input: ScreenBuildInput, draft: FormDefinition): TestRulePort {
   return async (asked) => {
     const { formId, workspaceId } = await requireForm(input);
@@ -179,7 +176,6 @@ function testRulePort(input: ScreenBuildInput, draft: FormDefinition): TestRuleP
   };
 }
 
-/** D2 and D6's form half. */
 function diffFormVersionsPort(input: ScreenBuildInput): DiffFormVersionsPort {
   return async (asked) => {
     const { formId, workspaceId } = await requireForm(input);
@@ -202,7 +198,6 @@ function diffFormVersionsPort(input: ScreenBuildInput): DiffFormVersionsPort {
   };
 }
 
-/** D3. */
 function countLinksPort(input: ScreenBuildInput): CountLinksPort {
   return async () => {
     const { formId, workspaceId } = await requireForm(input);
@@ -220,7 +215,6 @@ function countLinksPort(input: ScreenBuildInput): CountLinksPort {
   };
 }
 
-/** The response list's own four filters, normalised the way the facts builder normalises them. */
 function filterDigest(filters: ResponseFilters): string {
   return JSON.stringify([
     filters.version ?? null,
@@ -246,7 +240,7 @@ function responseQuery(
   };
 }
 
-/** SEC-15's own row, in the read's transaction, exactly as the response screens write it. */
+/** Write the audit row in the read's transaction, as the response screens do. */
 async function readRow(
   input: ScreenBuildInput,
   tx: Executor,
@@ -267,9 +261,8 @@ async function readRow(
 }
 
 /**
- * D4. The SEC-15 `read` row is keyed by the subject the facts builder keys it by, so a
- * turn's own list and the tool's list over the same filters share one row rather than
- * writing two (Q10).
+ * D4. The audit `read` row is keyed by the subject the facts builder keys it by, so a turn's own list and
+ * the tool's list over the same filters share one row rather than writing two (Q10).
  */
 function responsePorts(input: ScreenBuildInput): {
   readonly listResponses: ListResponsesPort;
@@ -318,7 +311,6 @@ function responsePorts(input: ScreenBuildInput): {
   };
 }
 
-/** D5's per-form half. */
 function deliveryStatusPort(input: ScreenBuildInput): DeliveryStatusPort {
   return async (asked) => {
     const { formId, workspaceId } = await requireForm(input);
@@ -327,7 +319,7 @@ function deliveryStatusPort(input: ScreenBuildInput): DeliveryStatusPort {
       resource: "webhook",
       action: "read",
     });
-    // The masking the webhook screens already apply to a caller who may not configure.
+
     const visibility = holdsStatement(
       { memberRole: resolved.memberRole, grants: resolved.grants },
       "webhook",
@@ -389,7 +381,6 @@ function countDeadLettersPort(input: ScreenBuildInput): CountDeadLettersPort {
   };
 }
 
-/** D6's version half. */
 function diffQuestionVersionsPort(input: ScreenBuildInput): DiffQuestionVersionsPort {
   return async (asked) => {
     const { questionId, workspaceId } = await requireQuestion(input);

@@ -16,44 +16,18 @@ import {
   submitTotp,
 } from "./support/flow.js";
 
-/**
- * The admin auth loop, end to end in a real browser (task 031, exit criterion 2):
- * sign-in, TOTP enrollment, the one-time recovery-code display, the 2FA challenge, session
- * persistence, sign-out, and the recovery-code path including its single-use property.
- *
- * ## One account, serial tests, each self-contained about its session
- *
- * `mode: "serial"` because the account's 2FA state advances in the database: "enrollment is
- * enforced on first sign-in" is only true once, and "a recovery code works once" needs the
- * codes a specific enrollment produced. But each test still signs in for itself, because
- * Playwright gives every test a fresh browser context and sharing one would disable the
- * shared console gate (see `support/flow.ts`).
- *
- * ## Nothing is shortcut
- *
- * The TOTP secret is read off the enrollment screen's manual setup key and codes are
- * generated from it with otplib, so what is verified is the real cryptographic loop: a
- * secret better-auth provisioned, a code a standards-compliant generator derived from it,
- * and better-auth accepting it. The recovery codes are read off their one-time display.
- *
- * ## Failure paths ARE in the browser here
- *
- * A wrong code produces no 4xx for the browser to log (which would trip the shared console
- * gate): every auth failure is a 303 back to the screen with an opaque marker. That is a
- * consequence of the form-POST design rather than a special case, and it is what lets the
- * generic-message and single-use assertions run in the browser at all.
- */
+// Serial order advances the account's factor and recovery-code state; each test still gets a fresh context.
+// Keep enrollment in the selection when filtering tests because later tests need its secret and codes.
 
 test.describe.configure({ mode: "serial" });
 
 const EMAIL = uniqueAdminEmail("auth2fa");
 
-/** Set by the enrollment test. Stable afterwards: an enrolled factor is not re-provisioned. */
 let totpSecret = "";
-/** Read off the one-time display. Each is usable exactly once. */
+
 let recoveryCodes: string[] = [];
 
-/** Scoped to `main`: Next's route announcer is a second `role="alert"` outside it. */
+// Next's route-announcer alert is outside main; scope to the page's own alert.
 function authAlert(page: Page): Locator {
   return page.getByRole("main").getByRole("alert");
 }
@@ -62,26 +36,7 @@ test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
 });
 
-/**
- * The harness canary (issue #209). **Read this before reading anything below it.**
- *
- * Every enforcement assertion in this file is conditional on one server-side fact:
- * `QCMS_ADMIN_2FA` is `required`. That fact used to be assumed rather than established.
- * `admin-server.mjs` hands `process.env` to `next dev`, Next fills any undefined variable
- * from `apps/admin/.env.local`, and `QCMS_ADMIN_2FA=optional` is the documented
- * development escape hatch a developer plausibly has sitting in that file. The suite would
- * then run against a policy where enrollment can be skipped and report green, because a
- * weaker server answers most of these assertions the same way. `playwright.config.ts` now
- * pins the value in the webServer env; this test is what proves the pin took.
- *
- * It observes the **server**, not the configuration: a brand-new account that has not
- * enrolled is refused the shell. Under `optional` the same sign-in lands in `/questions`,
- * so a false green here fails loudly and names the reason instead of quietly weakening
- * everything after it.
- *
- * Its own throwaway account: EMAIL's 2FA state advances through this serial file and a
- * canary must disturb nothing it is watching over.
- */
+// Assert required 2FA before the auth journey: a development .env.local may otherwise weaken the policy under test.
 test("CANARY: the server under test enforces 2FA (QCMS_ADMIN_2FA=required)", async ({ page }) => {
   const canary = uniqueAdminEmail("canary2fa");
   await createTestAdmin(canary);
@@ -97,8 +52,7 @@ test("CANARY: the server under test enforces 2FA (QCMS_ADMIN_2FA=required)", asy
 test("the sign-in screen offers no way to register (SEC-1)", async ({ page }) => {
   await page.goto("/sign-in");
   await expect(page.getByRole("heading", { name: "Sign in to QCMS" })).toBeVisible();
-  // Not a styling detail: SEC-1 requires that no self-registration path exists, and the
-  // screen must not imply one either.
+
   await expect(page.getByText(/sign up|create an account|register/i)).toHaveCount(0);
 });
 
@@ -115,12 +69,9 @@ test("first sign-in is forced into 2FA enrollment, which a wrong code cannot byp
   await submitSignIn(page, EMAIL);
   await expect(page).toHaveURL(/\/two-factor\/enroll$/);
 
-  // The manual setup key is the accessible alternative to the QR image, so it has to be a
-  // real labelled field carrying the secret - not decoration.
   const secret = await readSetupKey(page);
   expect(secret.length).toBeGreaterThan(15);
 
-  // Enforced by default: the shell is not reachable from an unenrolled session.
   await page.goto("/questions");
   await expect(page).toHaveURL(/\/two-factor\/enroll$/);
 
@@ -128,10 +79,9 @@ test("first sign-in is forced into 2FA enrollment, which a wrong code cannot byp
   await page.getByRole("button", { name: "Verify" }).click();
   await expect(page).toHaveURL(/\/two-factor\/enroll\?error=1$/);
   await expect(authAlert(page)).toContainText("Those details did not match");
-  // A mistyped digit must not throw away the secret already added to the authenticator.
+
   await expect(page.getByLabel(/Setup key/)).toHaveValue(secret);
 
-  // A real otplib code completes enrollment and opens the one-time display.
   await submitTotp(page, secret);
   await expect(page).toHaveURL(/\/two-factor\/recovery-codes$/);
 
@@ -144,7 +94,6 @@ test("first sign-in is forced into 2FA enrollment, which a wrong code cannot byp
   await page.getByRole("button", { name: "I have saved these codes" }).click();
   await expect(page).toHaveURL(/\/questions$/);
 
-  // "Codes never shown again": the display is spent, so revisiting must not re-print them.
   await page.goto("/two-factor/recovery-codes");
   await expect(page).toHaveURL(/\/questions$/);
 });
@@ -152,17 +101,13 @@ test("first sign-in is forced into 2FA enrollment, which a wrong code cannot byp
 test("a shell route handler applies the enrollment gate, not just cookie validation", async ({
   page,
 }) => {
-  // Its own account, deliberately left un-enrolled: EMAIL's 2FA state advances through
-  // this serial file, and this test must not disturb it.
+  // Keep this account unenrolled without disturbing the shared account's advancing 2FA state.
   const unenrolled = uniqueAdminEmail("ungated");
   await createTestAdmin(unenrolled);
   await submitSignIn(page, unenrolled);
   await expect(page).toHaveURL(/\/two-factor\/enroll$/);
 
-  // The `(shell)` layout guards the pages it renders; a form POST reaches the route
-  // handler directly and never passes through it. This session carries a valid
-  // better-auth cookie, so only the handler's own gate can turn it away - which is
-  // exactly the invariant "the enrollment screens and nothing else" depends on.
+  // POST handlers bypass the shell layout; a valid session cookie must still fail the handler's enrollment gate.
   const response = await page.request.post("/settings/password", {
     headers: { origin: ADMIN_BASE_URL, referer: `${ADMIN_BASE_URL}/settings` },
     form: { currentPassword: TEST_PASSWORD, newPassword: "a different long passphrase" },
@@ -176,7 +121,6 @@ test("a later sign-in demands the second factor before any session exists", asyn
   await submitSignIn(page, EMAIL);
   await expect(page).toHaveURL(/\/two-factor\/challenge$/);
 
-  // A correct password alone must not reach the shell.
   await page.goto("/questions");
   await expect(page).toHaveURL(/\/sign-in$/);
 });
@@ -196,13 +140,11 @@ test("a real otplib code completes the challenge and the shell nav marks the act
   await expect(page).toHaveURL(/\/questions$/);
 
   const nav = page.getByRole("navigation", { name: "Primary" });
-  // Settings is not here: it belongs to the signed-in account rather than to an area, so
-  // it is under the avatar. This account holds every area, so both focused-mode entries are
-  // offered beside the authoring menus.
+
   for (const item of ["Questions", "Forms", "Workspaces", "Operations"]) {
     await expect(nav.getByRole("link", { name: item })).toBeVisible();
   }
-  // The active item is announced, not only coloured (WCAG 1.4.1).
+
   await expect(nav.getByRole("link", { name: "Questions" })).toHaveAttribute(
     "aria-current",
     "page",
@@ -217,16 +159,13 @@ test("the session persists across navigation and reload, then sign-out ends it",
 }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto("/settings");
-  // "Account", not "Settings": the Settings heading names the SELECTED SECTION rather than
-  // the screen (issue 655, and the POC's own reason - the screen's name is already in the
-  // rail summary and the topbar). What this test needs from it is unchanged: a heading only
-  // the authenticated shell can render, so a lost session shows up as a redirect instead.
+
   await expect(page.getByRole("heading", { name: "Account", exact: true })).toBeVisible();
   await page.reload();
   await expect(page.getByRole("heading", { name: "Account", exact: true })).toBeVisible();
 
   await signOut(page);
-  // Server-side invalidation, not just a cleared cookie: the shell is gone for good.
+
   await page.goto("/questions");
   await expect(page).toHaveURL(/\/sign-in$/);
 });
@@ -243,8 +182,6 @@ test("a recovery code signs in once and then never again", async ({ page }) => {
 
   await signOut(page);
 
-  // Single use is the whole security property of a recovery code, so a passing happy path
-  // proves nothing without this.
   await submitSignIn(page, EMAIL);
   await page.goto("/two-factor/recovery");
   await submitRecoveryCode(page, code!);
@@ -260,34 +197,22 @@ test("a second recovery code still works, and the TOTP factor is unaffected", as
   await page.goto("/two-factor/recovery");
   await submitRecoveryCode(page, code!);
   await expect(page).toHaveURL(/\/questions$/);
-  // `signOut` waits for sign-out to land before this test starts the next flow, and
-  // that wait is load-bearing: a click resolves once the navigation is *initiated*,
-  // so without it the sign-out POST is still in flight when `signInWithTotp` calls
-  // `goto("/sign-in")`, and the late response can replace the document between the
-  // code field being filled and Verify being clicked - which submits an empty field,
-  // and the browser's own `required` validation then blocks the submit with no
-  // navigation and no server error to show for it (the hazard flow.ts documents).
+  // Wait for sign-out navigation before sign-in: an in-flight sign-out response can replace the next document.
   await signOut(page);
 
-  // Redeeming recovery codes does not disturb the authenticator factor.
   await signInWithTotp(page, EMAIL, totpSecret);
   await expect(page).toHaveURL(/\/questions$/);
 });
 
 test("changing the password reports success and keeps this session signed in", async ({ page }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
-  // The password form is one of three PANELS on this screen and only one shows at a time
-  // (issue 655), so the panel is selected before the form is used. Arriving by the fragment
-  // rather than by pressing the rail row, because this is the link the account menu has
-  // published since task 032 and it is what a reader following it actually gets.
+
   await page.goto("/settings#change-password");
   const panel = page.locator("#settings-panel-password");
 
-  // A rejected change must be indistinguishable from any other auth failure (SEC-1).
   await fillStable(panel.getByLabel("Current password"), "not-the-current-password");
   await fillStable(panel.getByLabel("New password"), "another-long-enough-passphrase");
-  // Scoped to the panel: the rail row that opens it carries the same name as the submit
-  // button, correctly, so an unscoped query matches two controls once the panel is up.
+
   await panel.getByRole("button", { name: "Change password" }).click();
   await expect(page).toHaveURL(/\/settings\?error=1$/);
   await expect(authAlert(page)).toContainText("Those details did not match");
@@ -296,19 +221,13 @@ test("changing the password reports success and keeps this session signed in", a
 test("regenerating recovery codes needs the password, and retires the old set (issue #319)", async ({
   page,
 }) => {
-  // This is the whole replacement for the route that used to read the stored codes
-  // back, so both halves of what it buys are asserted: a session alone cannot do it,
-  // and doing it kills the previous set.
   await signInWithTotp(page, EMAIL, totpSecret);
-  // Same reason as the password test above: the recovery-codes form lives on the two-factor
-  // panel, and a panel that is not selected is `hidden` rather than merely below the fold.
+
   await page.goto("/settings#two-factor");
 
   const passwordField = page.getByLabel("Your password");
   await expect(passwordField).toBeVisible();
 
-  // A wrong password reports the same generic sentence as every other auth failure and
-  // changes nothing (SEC-1).
   await fillStable(passwordField, "not-the-current-password");
   await page.getByRole("button", { name: "Generate new recovery codes" }).click();
   await expect(page).toHaveURL(/\/settings\?codesError=1$/);
@@ -322,19 +241,17 @@ test("regenerating recovery codes needs the password, and retires the old set (i
   await expect(list).toBeVisible();
   const fresh = await list.getByRole("listitem").allInnerTexts();
   expect(fresh.length).toBeGreaterThanOrEqual(5);
-  // A fresh set, not the one enrollment produced.
+
   expect(fresh.some((code) => recoveryCodes.includes(code))).toBe(false);
 
   await page.getByRole("button", { name: "I have saved these codes" }).click();
   await expect(page).toHaveURL(/\/questions$/);
-  // Still one-time: the display is spent whichever step opened it.
+
   await page.goto("/two-factor/recovery-codes");
   await expect(page).toHaveURL(/\/questions$/);
   await signOut(page);
 
-  // The retired set is dead. `recoveryCodes[2]` was never redeemed above, so if it is
-  // refused now that is regeneration doing it and nothing else - which is the property
-  // that makes regenerating the right answer to "my codes leaked".
+  // Use an unredeemed old code so refusal proves regeneration revoked the set rather than single-use redemption.
   const retired = recoveryCodes[2];
   expect(retired, "enrollment should have produced several recovery codes").toBeDefined();
   await submitSignIn(page, EMAIL);
@@ -342,7 +259,6 @@ test("regenerating recovery codes needs the password, and retires the old set (i
   await submitRecoveryCode(page, retired!);
   await expect(page).toHaveURL(/\/two-factor\/recovery\?error=1$/);
 
-  // And one of the fresh codes works, so the account is not locked out by the swap.
   await page.goto("/two-factor/recovery");
   await submitRecoveryCode(page, fresh[0]!);
   await expect(page).toHaveURL(/\/questions$/);
@@ -350,26 +266,10 @@ test("regenerating recovery codes needs the password, and retires the old set (i
 });
 
 test("the account menu names the operator and routes to the password screen", async ({ page }) => {
-  // Task 032. The trigger paints two letters and nothing else, so everything an operator
-  // needs to know about which account is acting lives in the accessible name and in the
-  // menu's own header - and both are worth asserting, because a monogram that names
-  // the wrong session is worse than no monogram at all.
-  //
-  // The name opens with those two letters since issue #1010: the suite's account is named
-  // `E2E Admin`, so the disc paints "EA". Before that the name said only the sentence, and
-  // the criterion it failed is WCAG 2.2 SC 2.5.3 - the painted text has to be part of the
-  // name, and `aria-hidden` on the span does not exempt it, because hiding text from the
-  // accessibility tree does not unpaint it.
   await signInWithTotp(page, EMAIL, totpSecret);
   const trigger = accountTrigger(page);
   await expect(trigger).toHaveAccessibleName(`EA, account menu for ${EMAIL}`);
 
-  // The trigger's own content is the monogram. It is `aria-hidden` because the
-  // `aria-label` already replaces it in the name computation, not to dodge the criterion
-  // above. This is the vendored `Menu`'s `trigger` slot since issue #234, and the node
-  // below is the host's own - the component's default trigger would paint `triggerLabel`
-  // as plain text with nothing `aria-hidden` inside it, so this is what proves the slot
-  // rendered.
   const monogram = trigger.locator("span[aria-hidden='true']");
   await expect(monogram).toHaveCount(1);
   expect(
@@ -379,26 +279,20 @@ test("the account menu names the operator and routes to the password screen", as
 
   await openMenu(trigger);
   const menu = page.getByRole("menu");
-  // The full email lives here, which is what lets the trigger be a circle. It sits in
-  // the popover BESIDE the menu rather than inside it, on purpose: it labels the menu
-  // and is not a stop in it, so it is located from the popover and not from the menu.
+
   await expect(page.locator(".qcms-menu .qcms-menu__email")).toHaveText(EMAIL);
-  // And "beside" is asserted rather than assumed, because that placement is the whole
-  // point of the `header` slot: the same element must NOT be reachable from the menu.
+
   await expect(menu.locator(".qcms-menu__email")).toHaveCount(0);
-  // The rule the slot brings with it, between the header and the first action.
+
   await expect(page.locator(".qcms-menu .qcms-menu__sep")).toHaveCount(1);
-  // The header is a label, not a stop: only the items are reachable. Settings and My
-  // access are here rather than in the application navigation, because they belong to the
-  // signed-in account rather than to an area.
+
   await expect(menu.getByRole("menuitem")).toHaveText([
     "Settings",
     "My access",
     "Change password",
     "Sign out",
   ]);
-  // A real anchor, from the item's `href` slot, so it middle-clicks and copies like a
-  // link. A row that only ran an action would look identical until someone tried that.
+
   await expect(menu.getByRole("menuitem", { name: "Change password" })).toHaveAttribute(
     "href",
     "/settings#change-password",
@@ -408,24 +302,3 @@ test("the account menu names the operator and routes to the password screen", as
   await expect(page).toHaveURL(/\/settings#change-password$/);
   await expect(page.getByLabel("Current password")).toBeVisible();
 });
-
-/*
- * A `without JavaScript` block stood here and is DELETED (Code Owner, 2026-09-27: the
- * admin requires JavaScript and stops at a message without it,
- * `plan/admin-design-contracts.md`). It signed in with scripting off, asserted that the
- * two topbar menu triggers were hidden, and then ended the session through the plain POST
- * form the `<noscript>` rule used to reveal - the Code Owner's 2026-07-31 sign-out
- * decision, made when a scriptless operator could still reach the shell.
- *
- * Every step of it is now unreachable rather than broken: the sign-in form is hidden
- * before the first keystroke, so there is no session to end and no topbar to correct.
- * **And the control it pressed no longer exists**: the 2026-07-31 decision is superseded
- * (Code Owner, 2026-09-27) and the fallback button is deleted from
- * `components/account-menu.tsx`, which keeps only the `hidden` POST form the scripted menu
- * item submits. `e2e/requires-js.pw.ts` asserts that there is no way to sign out with
- * scripting off, in both directions.
- *
- * Nothing it covered is lost. Sign-out and its server-side invalidation are the second
- * half of "the session persists across navigation and reload, then sign-out ends it"
- * above, which runs with scripting on and always did.
- */

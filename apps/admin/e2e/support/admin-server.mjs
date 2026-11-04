@@ -1,29 +1,4 @@
-// Admin dev-server wrapper for the Playwright suite (task 031).
-//
-// Same shape as the portal's wrapper (`apps/portal/e2e/support/portal-server.mjs`) and
-// for the same reasons: Playwright captures a webServer child's stdout into its own
-// report rather than a file, and a `next dev` that dies during startup often does not
-// exit, so Playwright polls to its full timeout and reports a bare "Timed out waiting"
-// with the real cause invisible. This wrapper tees the child's output to a file, watches
-// it for process-fatal markers, and exits nonzero the moment startup fails.
-//
-// It must NOT wait for the database, and that is worth stating because waiting is the
-// obvious first design and it deadlocks: Playwright gates `globalSetup` on every
-// webServer being reachable, so a wrapper that blocks until globalSetup has written its
-// fixtures waits for something that is waiting for it. Measured once, as a 150s stall and
-// an "Exit code: 1".
-//
-// Since task 056 there is nothing to wait for in any case: the admin holds no database
-// handle at all (better-auth moved into the API), so this dev server has no dependency on
-// the throwaway container `globalSetup` boots. The harness probes `/healthz`, which
-// reaches neither the API nor a database.
-//
-// It carries the portal wrapper's subtree reaping for the same reason: the command runs
-// through `sh -c`, which does not forward signals, and Playwright skips its own
-// process-group kill entirely once a wrapper has exited by itself - which is what the
-// fail-fast path does. So the wrapper reaps its own tree from one `ps` snapshot, or a
-// zombie `next-server` survives holding the port and `reuseExistingServer` latches onto
-// it next run.
+// Do not wait for globalSetup: Playwright waits for webServers before running it.
 
 import { spawn, spawnSync } from "node:child_process";
 import {
@@ -38,10 +13,7 @@ import { get } from "node:http";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
-// Required, never defaulted, for the same reason as the portal wrapper: the port
-// belongs to the run's seat (`QCMS_PORT_SEAT`, see docs/PORTS.md) and Playwright
-// always passes it in, so a literal fallback would be a second source of truth for
-// exactly the thing issue #255 was about.
+// Require the seat-assigned port; a fallback would let separate runs contend for one listener.
 const port = process.env.ADMIN_PORT;
 if (port === undefined || port === "") {
   writeSync(2, "[admin-server] ADMIN_PORT is not set. See docs/PORTS.md.\n");
@@ -52,14 +24,7 @@ const defaultLogPath = fileURLToPath(
 );
 const repoRoot = fileURLToPath(new URL("../../../../", import.meta.url));
 
-// Two test-only seams, the same pair the portal wrapper carries: the command to run
-// and where to tee it. Both default to the real thing, so nothing about a normal
-// Playwright run changes, and `admin-server.test.ts` drives the shipped code with a
-// stub child instead of a real Next server.
-// `QCMS_HARNESS_BUILD=1` serves a production build instead of `next dev`. A dev server
-// compiles each route on its first visit and swaps the document under the page, which
-// Playwright reports as "Execution context was destroyed"; a built server has nothing
-// left to compile. It costs a build per run, so it is opt-in and CI does not set it.
+// A production build avoids dev-server recompilation replacing the document during browser interaction.
 const production = process.env.QCMS_HARNESS_BUILD === "1";
 const defaultCommand = production
   ? `pnpm --filter qcms-admin build && pnpm --filter qcms-admin start --port ${port}`
@@ -67,32 +32,20 @@ const defaultCommand = production
 const devCommand = process.env.QCMS_ADMIN_SERVER_COMMAND ?? defaultCommand;
 const logPath = process.env.QCMS_ADMIN_SERVER_LOG ?? defaultLogPath;
 
-/** How many lines of the captured log to surface when startup fails. */
 const LOG_TAIL_LINES = 30;
-/** How often to probe the dev server's URL while waiting for it to come up. */
 const READINESS_POLL_MS = 250;
-/** Grace period before reading the log tail, so a full stack trace has landed. */
+// Allow the final stack-trace bytes to reach the log before reading its tail.
 const FLUSH_GRACE_MS = 300;
-/** Cap on the retained startup output that `FATAL_STARTUP` is matched against. */
 const STARTUP_SCAN_WINDOW = 64 * 1024;
 
-/**
- * Process-fatal Node markers, deliberately narrow: Node prints these only when a handler
- * was installed (Next installs them) and the process therefore did NOT die, which is
- * exactly the case Playwright cannot see. A child that dies on its own is covered by the
- * exit path instead. Next's compile-error glyph is intentionally absent: a route that
- * fails to compile still leaves a reachable server.
- */
+// These markers catch fatal errors whose installed handlers keep the process alive.
+// A compile error can leave the server reachable, so it is not a process-fatal marker.
 const FATAL_STARTUP = /^(?:Unhandled Rejection|Uncaught Exception):/m;
 
 mkdirSync(dirname(logPath), { recursive: true });
 writeFileSync(logPath, "", "utf8");
 
-/**
- * Absolute path to `ps`, never resolved through `PATH`: a writable directory earlier in
- * `PATH` could otherwise shadow it (`sonarjs/no-os-command-from-path`). Both locations
- * are covered because distributions differ on which is the file and which the symlink.
- */
+// Resolve ps absolutely so a writable PATH entry cannot shadow the process-tree command.
 const PS_BINARY = ["/bin/ps", "/usr/bin/ps"].find((candidate) => existsSync(candidate));
 
 let child;
@@ -112,7 +65,6 @@ function logTail() {
   return lines.slice(-LOG_TAIL_LINES).join("\n");
 }
 
-/** Every live descendant pid of `rootPid`, from a single `ps` snapshot. */
 function descendantsOf(rootPid) {
   if (PS_BINARY === undefined) return [];
   const listed = spawnSync(PS_BINARY, ["-e", "-o", "pid=,ppid="], { encoding: "utf8" });
@@ -137,13 +89,7 @@ function descendantsOf(rootPid) {
   return found;
 }
 
-/**
- * Kill the spawned command and everything under it. `child.kill()` is not enough: the
- * command runs through `sh -c`, which does not forward signals, so signalling the direct
- * child reaches at most `pnpm` and leaves `next dev` running. Playwright SIGKILLs the
- * whole process group on a normal teardown, but skips that entirely once this wrapper has
- * already exited by itself, which is what the fail-fast path does.
- */
+// The shell does not forward signals, and Playwright skips group cleanup after this wrapper exits itself.
 function reapChildTree() {
   const rootPid = child?.pid;
   if (rootPid === undefined) return;
@@ -151,16 +97,12 @@ function reapChildTree() {
     try {
       process.kill(pid, "SIGKILL");
     } catch {
-      // Already gone, which is the normal case for most of the tree.
+      // A descendant may have exited between the process snapshot and the kill.
     }
   }
 }
 
-/**
- * Report why startup failed and exit nonzero, so Playwright abandons its webServer wait
- * immediately. `writeSync(2, ...)` rather than `process.stderr.write`: stderr to a pipe
- * can be asynchronous and `process.exit` would truncate the very tail this prints.
- */
+// Use synchronous stderr: process.exit can truncate buffered pipe output.
 function failFast(reason, exitCode) {
   finished = true;
   writeSync(
@@ -184,7 +126,7 @@ function tee(chunk) {
   try {
     appendFileSync(logPath, text);
   } catch {
-    // A transient append failure must not crash the dev server.
+    // A transient log append failure must not crash the dev server.
   }
   if (ready || finished) return;
   startupOutput = (startupOutput + text).slice(-STARTUP_SCAN_WINDOW);
@@ -206,34 +148,15 @@ function handleChildEnd(code, signal) {
   const reason = signal
     ? `the dev-server process was killed by ${signal} before the server was reachable`
     : `the dev-server process exited with code ${code} before the server was reachable`;
-  // A clean `0` must still become a nonzero wrapper exit: a dev server that stops during
-  // startup never served anything.
+  // Exiting before readiness is a startup failure even if the child reports success.
   failFast(reason, code === null || code === 0 ? 1 : code);
 }
 
-/**
- * Highest status code that counts as "this server is serving", and the path the
- * probe asks for. Both changed with issue #381.
- *
- * The status gate is the portal wrapper's, for the reason recorded there: any HTTP
- * response used to settle the probe true, so a dev server answering nothing but
- * 500s disarmed the startup watch and reduced the failure to Playwright's bare
- * 180-second "Timed out waiting".
- *
- * The path is `/healthz` rather than `/` because on this app they are not the same
- * question. `/` runs `currentAdminSession()`, which calls the API, and Playwright
- * starts every webServer alongside `globalSetup` rather than after it, so the API
- * this probe would need does not exist yet. Under the old "any response is ready"
- * rule that did not matter; under a status gate it would mean the wrapper never
- * reached readiness at all and stayed armed for the whole run. `/healthz` is
- * credential-free and database-free by design and is already what
- * `playwright.config.ts` gives this entry as its `webServer.url`, so the wrapper
- * now asks the same question Playwright does.
- */
+// Probe /healthz: the root route needs an API that globalSetup has not started yet.
+// A server returning only errors must not disarm startup failure detection.
 const READY_STATUS_CEILING = 400;
 const READY_PATH = "/healthz";
 
-/** Resolves true when the dev server answers on its port, false otherwise. */
 function probeReady() {
   return new Promise((resolve) => {
     let settled = false;
@@ -246,8 +169,6 @@ function probeReady() {
     try {
       request = get({ host: "localhost", port: Number(port), path: READY_PATH }, (response) => {
         response.resume();
-        // An absent status is treated as not ready: the probe's job is to be sure,
-        // and the poll simply asks again a quarter of a second later.
         const status = response.statusCode;
         settle(status !== undefined && status < READY_STATUS_CEILING);
       });
@@ -261,11 +182,9 @@ function probeReady() {
   });
 }
 
-/** Unref'd, so polling alone never keeps this process alive once the run is over. */
 const pollSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms).unref());
 
-// A single command string (not argv + shell:true) avoids Node's DEP0190 warning, which
-// would otherwise land in the captured log.
+// Passing one shell-command string avoids command/argv warnings in the captured server log.
 child = spawn(devCommand, {
   shell: true,
   cwd: repoRoot,
@@ -275,9 +194,8 @@ child = spawn(devCommand, {
 child.stdout.on("data", tee);
 child.stderr.on("data", tee);
 
-// Prefer `close` (both stdio streams ended, so crash output has been teed) over `exit`
-// (which can fire with final chunks unflushed). A grandchild holding the inherited pipes
-// open would stall `close` indefinitely, so `exit` arms a short fallback.
+// Wait for close so crash output is captured; a grandchild can hold the pipes open,
+// so exit also arms a fallback.
 child.on("close", handleChildEnd);
 child.on("exit", (code, signal) => {
   setTimeout(() => handleChildEnd(code, signal), FLUSH_GRACE_MS);
@@ -291,7 +209,6 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
   });
 }
 
-// Poll until the server is up, then stop: `ready` disarms the startup watch.
 void (async () => {
   while (!ready && !finished) {
     if (await probeReady()) {

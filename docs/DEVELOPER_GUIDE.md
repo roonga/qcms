@@ -110,7 +110,7 @@ process.
 **Pin `QCMS_ADMIN_AUTH_SECRET` in your environment before you enrol, though.** It is the
 key better-auth encrypts the stored TOTP secret under, so changing it does not just
 invalidate cookies - it makes an existing enrolment permanently unverifiable. Checked
-against the source of better-auth 1.7.10, the pinned version, rather than inferred:
+against the source of better-auth 1.7.14, the pinned version, rather than inferred:
 `two-factor/enable` stores
 the secret with `symmetricEncrypt({ key: ctx.context.secretConfig, ... })`
 (`dist/plugins/two-factor/index.mjs:135-138`) and every verification decrypts with the
@@ -124,7 +124,7 @@ the ten recovery codes survive an unpinned restart because better-auth stores th
 plain JSON - that was wrong (issue #319). The plugin defaults `storeBackupCodes` to
 `"encrypted"` (`dist/plugins/two-factor/index.mjs:25-27`; the decoder
 `getBackupCodes` at `.../backup-codes/index.mjs:44` takes its encrypted branch on `:45`
-and falls through to the plain-JSON `return safeJSONParse(backupCodes)` on `:50` only
+and falls through to the plain-JSON `return safeJSONParse(backupCodes)` on `:56` <!-- expect: return safeJSONParse(backupCodes) --> only
 when a caller _overrides_ the default), so
 the codes are ciphertext under the same key as the TOTP secret and die with it. There is
 no re-enrolment screen, and until issue #432 there was no way out at all short of a fresh

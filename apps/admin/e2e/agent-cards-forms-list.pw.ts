@@ -16,29 +16,17 @@ import {
 import { TEST_ENVIRONMENT_STORAGE } from "./support/environment.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 
-/**
- * Criterion 11 on the forms list: `form.create` confirmed alone and inside a plan, a
- * cancel that creates nothing, and the link a create step's card offers to what it made.
- *
- * The library is opened filtered to this run's own slugs, so "the screen now lists it" is
- * a claim about one row rather than about a shared library every other spec writes to.
- */
-
-/** A form is created in an authoring environment, which is the switcher's. */
 test.use({ storageState: TEST_ENVIRONMENT_STORAGE });
 
 test.describe.configure({ mode: "serial" });
 
 const EMAIL = uniqueAdminEmail("agentcards083formslist");
 
-/** Ids are never reused (R6) and the harness database survives a local rerun. */
 const RUN = Date.now().toString(36);
 
-/** The slug the create scripts propose, and the term the library is filtered by. */
 const SCOPE = `fake-new-${RUN}`;
 const LIBRARY = `/forms?q=${SCOPE}`;
 
-/** Set by the first test; the rest sign in again, since serial shares no context. */
 let totpSecret = "";
 
 test.beforeAll(async () => {
@@ -59,8 +47,7 @@ test("confirms a create alone, listing the new form and linking to it", async ({
 
   await confirm(page, /^Done\./u);
   await expectStepChips(page, ["Done"]);
-  // The card links the new form rather than redirecting to it, as the screen's own
-  // control does: the user follows it when they choose.
+
   await expect(createdLink(page)).toHaveAttribute("href", /^\/forms\/frm_/u);
   await expectAxeClean(page, "done");
 

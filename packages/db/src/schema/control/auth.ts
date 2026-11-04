@@ -20,11 +20,11 @@ export const authUser = controlSchema.table("user", {
   createdAt: timestamp("createdAt").notNull().defaultNow(),
   updatedAt: timestamp("updatedAt").notNull().defaultNow(),
   twoFactorEnabled: boolean("twoFactorEnabled"),
-  /** SEC-3 claim, declared to better-auth with `input: false` so no request body sets it. */
+  /** Declare this authorization claim with input: false so no request body can set it. */
   role: text("role").notNull().default("admin"),
   /**
-   * Whether this account still holds the provisional credential `qcms:create-admin` set
-   * (SEC-1). Cleared only by a successful password change.
+   * Whether this account still holds the provisional credential `qcms:create-admin` set. Cleared only by a
+   * successful password change.
    */
   mustChangePassword: boolean("mustChangePassword").notNull().default(false),
 });
@@ -41,12 +41,7 @@ export const authSession = controlSchema.table("session", {
   userId: text("userId")
     .notNull()
     .references(() => authUser.id, { onDelete: "cascade" }),
-  /**
-   * `required: false` and `input: false` in better-auth 1.7.10
-   * (`dist/plugins/organization/organization.mjs:858-871`), <!-- expect: activeOrganizationId: { -->
-   * so no request body can set them. `activeTeamId` is created even when `teams.enabled`
-   * is off.
-   */
+  /** The vendor refuses request input for these session scope fields. */
   activeOrganizationId: text("activeOrganizationId"),
   activeTeamId: text("activeTeamId"),
 });
@@ -88,23 +83,13 @@ export const authTwoFactor = controlSchema.table("twoFactor", {
   userId: text("userId")
     .notNull()
     .references(() => authUser.id, { onDelete: "cascade" }),
-  /** `verified` marks a confirmed factor; the other two are the plugin's brute-force lockout state (SEC-1). */
+  /** `verified` marks a confirmed factor; the other two are the plugin's brute-force lockout state. */
   verified: boolean("verified").default(true),
   failedVerificationCount: integer("failedVerificationCount").default(0),
   lockedUntil: timestamp("lockedUntil"),
 });
 
-/**
- * The fields are read off better-auth 1.7.10, which declares `organization`, `member` and `invitation`:
- * `dist/plugins/organization/organization.mjs:704-840` <!-- expect: const schema = { -->
- * and `team`, `teamMember` only when `teams.enabled` is on:
- * `dist/plugins/organization/organization.mjs:585-660` <!-- expect: const teamSchema = teamSupport -->
- * `dist/plugins/organization/organization.mjs:419`. <!-- expect: const teamSupport = opts.teams?.enabled -->
- * The adapter reads only `notNull` and `hasDefault`
- * (`@better-auth/drizzle-adapter/dist/schema-check-Dqk6A4Es.mjs:121-136`), <!-- expect: if (!is(table, Table)) continue -->
- * and `diffSchema` asks two questions (`@better-auth/core/dist/db/schema-diff.mjs:41-54`). <!-- expect: kind: "unexpected-required-column" -->
- * So the Postgres schema a `pgSchema` table belongs to is invisible to the check.
- */
+/** The vendor checks column nullability and defaults, not the Postgres schema owning a table. */
 
 /** A workspace. */
 export const authOrganization = controlSchema.table(
@@ -178,11 +163,7 @@ export const authTeam = controlSchema.table("team", {
   createdAt: timestamp("createdAt").notNull().defaultNow(),
   updatedAt: timestamp("updatedAt"),
   role: text("role").notNull(),
-  /**
-   * A set of `control.environments` names, or the single element `all`. `text[]` is what
-   * `@better-auth/drizzle-adapter` maps a `string[]` additional field to on `pg`
-   * (`@better-auth/drizzle-adapter/dist/generate-drizzle-schema-iWvrXnu0.mjs:112-114`). <!-- expect: text('${name}').array() -->
-   */
+
   environments: text("environments").array().notNull(),
   /** A list of form ids, or the single element `all`. */
   forms: text("forms").array().notNull(),

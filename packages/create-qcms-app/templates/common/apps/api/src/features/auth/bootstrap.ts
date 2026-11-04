@@ -24,7 +24,7 @@ export type BootstrapRefusal =
   | { readonly kind: "weak-password"; readonly minLength: number }
   | { readonly kind: "compromised-password" }
   | { readonly kind: "breach-corpus-unreachable" }
-  /** The vendor status and message are safe to surface: neither carries the credential (SEC-8). */
+  /** The vendor status and message are safe to surface: neither carries the credential. */
   | { readonly kind: "sign-up-rejected"; readonly status: number; readonly detail: string }
   | { readonly kind: "workspace-seed-failed"; readonly email: string; readonly detail: string };
 
@@ -133,7 +133,7 @@ async function seedFirstWorkspace(
   return { id: created.id, slug: created.slug };
 }
 
-/** Every grant write is a SEC-15 audit row, seeded ones included (Q56). */
+/** Every grant write shares a transaction with its audit row, seeded grants included. */
 async function seedFirstAdminGrants(
   exec: Executor,
   workspaceId: string,
@@ -163,7 +163,7 @@ export const SEED_AUDIT_DETAIL_PREFIX = "seeded by qcms:create-admin";
 /** No `responses.*` grant: reading response data stays a deliberate, audited act (Q29). */
 export const SEEDED_FIRST_ADMIN_ROLES: readonly string[] = ["forms.editor", "forms.approver"];
 
-/** Must stay value-free: the printed line carries no credential (SEC-8). */
+/** Must stay value-free: the printed line carries no credential. */
 export function describeRefusal(refusal: BootstrapRefusal): string {
   switch (refusal.kind) {
     case "already-bootstrapped":

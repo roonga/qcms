@@ -11,14 +11,6 @@ import { useBuilderRail } from "@/lib/forms/builder-bridge";
 
 import { FormBuilder } from "./form-builder";
 
-/**
- * A stand-in for the app rail, which lives outside this component's tree.
- *
- * The builder publishes its selection and its handlers through
- * `lib/forms/builder-bridge.ts`, and the real rail is rendered by the shell. A test
- * that needs the builder to be showing a STEP has to press what the rail presses, so
- * this renders one button per step doing exactly that and nothing else.
- */
 function RailStandIn() {
   const rail = useBuilderRail();
   if (rail === undefined) return null;
@@ -38,16 +30,6 @@ function RailStandIn() {
     </div>
   );
 }
-
-/**
- * The builder's own end of the `apply-draft` card: the Confirm path.
- *
- * What the card shows belongs to `components/agent/action-card.test.tsx`; what only the
- * builder can prove is that it publishes nothing to the assistant when the page hands down
- * no `assist` prop, and that applying a draft goes through the builder's own autosave
- * rather than any shortcut - the same `saveDraft` call every other edit makes, with
- * `agentAssisted: true` on the one save that follows a Confirm.
- */
 
 const DETAIL: FormDetail = {
   formId: "frm_quote",
@@ -77,7 +59,6 @@ const DETAIL: FormDetail = {
   canWriteDraft: true,
 };
 
-/** The builder's non-assist props, none of which this file is about. */
 const CHROME = {
   library: { ok: true, data: [] } as ReadState<readonly PinnableQuestion[]>,
   formActions: null,
@@ -95,7 +76,6 @@ function builderActions() {
   };
 }
 
-/** One `apply-draft` step, as the card hands it to the runner. */
 function applyDraftStep(draft: {
   readonly definition: unknown;
   readonly newQuestions?: readonly unknown[];
@@ -118,7 +98,6 @@ function applyDraftStep(draft: {
   };
 }
 
-/** Confirm, through the same runner the card presses. */
 function confirmApplyDraft(step: AgentPlanStep) {
   return runStepAction({
     step,
@@ -133,10 +112,6 @@ function confirmApplyDraft(step: AgentPlanStep) {
 function renamedDraft(title: string) {
   return {
     ...DETAIL.draft,
-    // Renames the existing step rather than adding a new (necessarily empty, since the
-    // draft introduces no pin for it) one: an empty step pauses autosave outright
-    // (`unsaveableReason`), which would make these tests exercise that pause instead of
-    // the confirm-then-save path they are for.
     steps: [
       {
         ...(DETAIL.draft?.steps[0] ?? { stepId: "", title: {}, items: [] }),
@@ -174,8 +149,6 @@ describe("FormBuilder and the apply-draft card", () => {
     );
     expect(result.outcome).toBe("done");
 
-    // The accepted draft is stored by the builder's ordinary debounced autosave
-    // (`AUTOSAVE_DEBOUNCE_MS`), not by an immediate call Confirm makes itself.
     await waitFor(() => expect(actions.saveDraft).toHaveBeenCalled(), { timeout: 2000 });
 
     const call = actions.saveDraft.mock.calls[0] as [
@@ -187,14 +160,6 @@ describe("FormBuilder and the apply-draft card", () => {
     expect(savedDraft.steps[0]?.title["en"]).toBe("Basics (renamed)");
   });
 
-  /**
-   * Issue #823: the draft's NEW question definitions have to reach the save.
-   *
-   * Before this they stopped at the diff, so confirming stored a draft pinning question
-   * ids nothing had ever created. The builder is not the thing that creates them - the
-   * accept endpoint is - but it is the thing that has them, and dropping them here is
-   * where the defect started.
-   */
   it("carries the draft's new question definitions into the accepting save", async () => {
     const actions = builderActions();
     const newQuestion = { questionId: "q_first_name", type: "shortText", label: { en: "First" } };
@@ -222,20 +187,9 @@ describe("FormBuilder and the apply-draft card", () => {
       readonly unknown[],
     ];
     expect(agentAssisted).toBe(true);
-    // Verbatim: the builder relays the definitions, it does not reinterpret them.
     expect(newQuestions).toEqual([newQuestion]);
   });
 
-  /**
-   * An applied draft replaces the whole draft, so it can delete the step the screen is on.
-   *
-   * This is the one edit in the builder that can invalidate the selection wholesale -
-   * every other mutation changes a part of the draft - and the browser suite is where it
-   * was found: applying left the builder on a step that no longer existed, whose branch
-   * renders `null`, so the column went blank with nothing saying why. The rule applied is
-   * the rail's own for a removed step: the form is the one destination that is always
-   * there.
-   */
   it("returns to the form when the applied draft deletes the step on screen", async () => {
     render(
       <>
@@ -249,8 +203,6 @@ describe("FormBuilder and the apply-draft card", () => {
       </>,
     );
 
-    // Stand on the step the draft is about to delete. The form title field is the form
-    // screen's own control, so its absence is what "showing a step" looks like.
     await waitFor(() => expect(screen.getByText("rail: stp_basics")).toBeTruthy());
     fireEvent.click(screen.getByText("rail: stp_basics"));
     await waitFor(() => expect(screen.queryByLabelText(t("forms.builder.formTitle"))).toBeNull());
@@ -270,7 +222,6 @@ describe("FormBuilder and the apply-draft card", () => {
       }),
     );
 
-    // Back on the form, not on a blank column.
     await waitFor(() => expect(screen.getByLabelText(t("forms.builder.formTitle"))).toBeTruthy());
   });
 });

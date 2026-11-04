@@ -4,10 +4,9 @@ import { check, text, timestamp, uuid } from "drizzle-orm/pg-core";
 import { controlSchema } from "../schemas.js";
 
 /**
- * The access audit (SEC-15), append-only: `UPDATE` and `DELETE` are revoked from every
- * `qcms_app%` role, and no column may carry an answer value, a respondent identifier or
- * `LocalizedText` content, `detail` included. No foreign key anywhere, so a row cannot
- * cascade away with the thing it describes.
+ * The access audit, append-only: `UPDATE` and `DELETE` are revoked from every `qcms_app%` role, and no
+ * column may carry an answer value, a respondent identifier or `LocalizedText` content, `detail` included.
+ * No foreign key anywhere, so a row cannot cascade away with the thing it describes.
  */
 
 /** The audited kinds of act. */

@@ -140,7 +140,6 @@ describe("a compromised password is refused (NIST SP 800-63B 3.1.1.2, ASVS 5.0 6
 });
 
 describe("an unreachable corpus fails closed, and says so", () => {
-  /** The exact error undici throws when the host does not resolve. */
   function unreachable(): Response {
     throw new TypeError("fetch failed");
   }
@@ -244,7 +243,7 @@ describe("QCMS_ADMIN_PASSWORD_BREACH_CHECK=false is honoured", () => {
   it("makes no outbound request at all, and accepts a corpus password", async () => {
     adminPassword = newPassword();
     const hash = await sha1Hex(adminPassword);
-    // The stub reports this password as breached if it is ever consulted.
+
     wire = stubWire(() => rangeBody([hash.slice(5)]));
 
     const result = await createInitialAdmin(authWith(false), testDb.db, {

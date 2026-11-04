@@ -1,10 +1,5 @@
 # syntax=docker/dockerfile:1
-# Base image pinned by digest as well as tag (issue #372): the tag is what a human
-# reads, the digest is what is actually pulled, so a rebuild months from now produces
-# the same base rather than whatever `24-bookworm-slim` points at then. The `docker`
-# ecosystem in `.github/dependabot.yml` moves the tag and the digest together, and
-# records why pinning and that coverage had to land in one change.
-FROM node:24-bookworm-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205 AS build
+FROM node:24-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS build
 
 WORKDIR /workspace
 RUN corepack enable
@@ -13,18 +8,13 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc tsconfig.base.json .
 COPY apps ./apps
 COPY packages ./packages
 COPY scripts ./scripts
-# `tooling/*` is a workspace glob too, so every manifest under it has to be here or
-# `pnpm install --frozen-lockfile` refuses the workspace outright: a package that
-# declares a `workspace:*` dependency on something the image never copied is not a
-# missing file, it is an unresolvable graph. Nothing from here reaches the runtime
-# stage - Next's file tracing copies only what the server actually loads - so this is
-# the build stage paying for a complete workspace, exactly as `scripts` above does.
+# Frozen installs need every workspace manifest even when tracing excludes it from the runtime image.
 COPY tooling ./tooling
 
 RUN pnpm install --frozen-lockfile
 RUN pnpm --filter qcms-admin... build
 
-FROM node:24-bookworm-slim@sha256:55fb5f5a527ea2c5c4a95f963e48ef90aa38c7b346054fdc8ee9957a2b55d205 AS runtime
+FROM node:24-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS runtime
 
 ARG VERSION=dev
 LABEL org.opencontainers.image.title="qcms-admin" \
@@ -33,38 +23,12 @@ LABEL org.opencontainers.image.title="qcms-admin" \
 
 WORKDIR /app
 ENV NODE_ENV=production
-# Next's standalone `server.js` reads its bind address and port from the environment
-# and defaults to `0.0.0.0:3000`; both are written here rather than left implicit so
-# `docker inspect` answers what the process binds without anyone reading Next's source.
-# This is the same contract the previous `next start --hostname 0.0.0.0 --port 3000`
-# command line expressed, moved from argv to the environment because the minimal
-# server takes no flags.
+# The standalone server reads its bind configuration from the environment, not command-line flags.
 ENV HOSTNAME=0.0.0.0 \
     PORT=3000
-# Next's own deployment output (`output: "standalone"`, apps/admin/next.config.ts).
-# `next build` traces the modules the server actually loads and writes them, with a
-# minimal `server.js`, under `<distDir>/standalone`. With `outputFileTracingRoot` at
-# the workspace root that tree mirrors the monorepo layout, so the app lands at
-# `apps/admin/` with one shared `node_modules` beside it, and nothing that only the
-# build needed - the toolchain, the other workspace packages' sources, the whole
-# `.next/cache` - comes with it. That is what replaced `pnpm deploy --prod` plus a
-# copy of the entire `.next` directory here.
-#
-# This is also where the last of the `pg` alias fixup went (issue #291). Turbopack
-# used to assign a content-hashed external name to pg in the admin's server trace (for
-# example `pg-4c0d...`), which is not a package pnpm can deploy, so each alias had to
-# be grepped out of the build output and symlinked to the real dependency. Task 056
-# removed the admin's database client entirely (ADR-35 as amended) and left nothing to
-# alias; standalone output removes the shape of the problem, because Next resolves and
-# copies the server's own dependency closure rather than a pruned workspace install
-# having to satisfy names Next invented.
+# The workspace tracing root preserves monorepo paths while copying only the server dependency closure.
 COPY --from=build --chown=node:node /workspace/apps/admin/.next/standalone ./
-# The one thing tracing deliberately leaves behind. Next's documentation is explicit
-# that the minimal server does not copy `.next/static` (or `public/`) into the
-# standalone tree, because a CDN is expected to serve them, and that copying them in
-# is how you serve them from the server itself - which is this deployment, since QCMS
-# ships no CDN assumption. There is no `public/` directory in either front end, so
-# this is the whole of it.
+# Standalone tracing omits static assets for CDN deployments; this server must carry them itself.
 COPY --from=build --chown=node:node /workspace/apps/admin/.next/static ./apps/admin/.next/static
 USER node
 EXPOSE 3000

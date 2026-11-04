@@ -131,7 +131,7 @@ async function runDrop(exec: Exec, name: string): Promise<number> {
 async function run(exec: Exec, parsed: ParsedArgs): Promise<number> {
   const connected = await ownsControlSchema(exec);
   if (!connected.owns) {
-    // Never the connection string: it carries the password (SEC-8).
+    // Never the connection string: it carries the password.
     process.stderr.write(
       `qcms-db environment failed: ${connected.role} does not own the control schema. ` +
         "This command runs DDL and must use the migration credential, never an " +

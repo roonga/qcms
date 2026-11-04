@@ -10,26 +10,10 @@ import { pageMetadata } from "@/lib/page-title";
 import { listErasures } from "@/lib/server/responses";
 import { requireAdminSession } from "@/lib/server/session";
 
-/** The browser-tab title for this route (issue #536). */
 export function generateMetadata(): Metadata {
   return pageMetadata(t("ops.erasures.title"));
 }
 
-/**
- * The erasure log (task 035; screen contract "erasure log screen - compliance evidence").
- *
- * A tombstone is what an ADR-17 erasure leaves: the session id, the form, the version,
- * when and why. It holds no answers, which is exactly what makes it publishable as
- * evidence - the log can be shown to whoever asks whether a subject request was
- * honoured, without showing them what was erased.
- *
- * The way back is the rail's Header (§7.0 ruling 3) rather than this column.
- *
- * A server component with no client half: this screen has no action on it. That is
- * deliberate rather than unfinished. Erasure is performed on the response it erases,
- * where the operator can see what they are about to destroy; a "delete" button on a
- * list of ids would be the single-click path exit criterion 2 rules out.
- */
 export default async function ErasureLogPage() {
   const session = await requireAdminSession();
   const erasures = await listErasures(session);
@@ -41,13 +25,6 @@ export default async function ErasureLogPage() {
         <p className="text-sm text-(--color-text-muted)">{t("ops.erasures.intro")}</p>
       </div>
 
-      {/* A FAILED READ RENDERS THE ALERT AND NOTHING ELSE
-          (`plan/admin-design-contracts.md` §3, issue #513's rule). This screen used to
-          fall back to an empty row list on failure and then render "Nothing has been
-          erased." underneath the error - a claim about compliance evidence the app had
-          just failed to load, which on this screen of all screens is the wrong thing to
-          say. The empty state now lives inside the ok branch, where it can only be
-          reached by having actually read the log and found it empty. */}
       {!erasures.ok && (
         <Alert variant="error">{t("ops.erasures.loadFailed", { message: erasures.message })}</Alert>
       )}
@@ -65,10 +42,6 @@ export default async function ErasureLogPage() {
           <p className="text-sm text-(--color-text-muted)" data-testid="qcms-erasures-total">
             {tPlural("ops.erasures.total.one", "ops.erasures.total.other", erasures.data.length)}
           </p>
-          {/* One table family (§2). WHICH COLUMNS DROP AT COMPACT WIDTH: Reason.
-                Session, Form and Erased-at are how a tombstone is identified and dated
-                as evidence; the reason describes it. Version never drops
-                (`plan/admin-mobile-stance.md`, item 5). */}
           <div className="qcms-table">
             <table data-testid="qcms-erasures-table">
               <caption className="qcms-visually-hidden">{t("ops.erasures.table")}</caption>
@@ -90,15 +63,6 @@ export default async function ErasureLogPage() {
               <tbody>
                 {erasures.data.map((row) => (
                   <tr key={row.sessionId} data-session-id={row.sessionId}>
-                    {/* Two identifying columns, two rules (issue #582). The session id is
-                        OPAQUE - random bytes, uniformly long - so it renders prefix plus
-                        eight with a copy control; the form id is minted from the author's
-                        slug, so it is DERIVED and renders whole. `lib/entity-id.ts` carries
-                        the property that decides which, and why `frm_` sits where it does.
-
-                        A tombstone is evidence, and this screen has no detail route, so
-                        neither value may become unreachable: the session id's remainder is
-                        in the cell's own server-rendered markup. */}
                     <th scope="row">
                       <EntityId kind="session" value={row.sessionId} />
                     </th>

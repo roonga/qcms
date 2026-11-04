@@ -1,7 +1,6 @@
 /**
- * Challenge provider config (ADR-24, SEC-9). The default loads no challenge code and
- * adds no challenge origin to the CSP, and the flag is the single source of truth: there
- * is no client-side flag evaluation.
+ * Challenge provider config (ADR-24). The default loads no challenge code and adds no challenge origin to
+ * the CSP, and the flag is the single source of truth: there is no client-side flag evaluation.
  */
 
 export type ChallengeProvider = "none" | "turnstile";

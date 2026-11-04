@@ -36,7 +36,6 @@ export interface TextSegment {
 }
 
 export interface RunOutcome {
-  /** Split where the provider's text-segment id changes. */
   readonly textSegments: TextSegment[];
   steps: number;
   inputTokens: number;
@@ -51,13 +50,12 @@ export interface RunOutcome {
   toolErrors: number;
   /** The SDK's call id stays here; only the ordinal reaches the client. */
   readonly toolSteps: Map<string, number>;
-  /** Counted, never quoted (SEC-8). */
+  /** Counted, never quoted. */
   reasoningTokens: number;
   /** The current screen's tool list: the only names a step may announce or run. */
   readonly offered: ReadonlySet<string>;
 }
 
-/** Append a delta, starting a new segment when the id changes. */
 export function appendTextSegment(segments: TextSegment[], id: string, delta: string): string {
   const last = segments.at(-1);
   if (last !== undefined && last.id === id) last.text += delta;
@@ -95,7 +93,6 @@ function factsPreamble(screen: string, facts: unknown): string {
   ].join("\n");
 }
 
-/** The propose verbs, which are what makes "Propose changes to it" true on a screen. */
 const PROPOSE_TOOLS = ["propose_draft", "propose_questions"] as const;
 
 export function toModelMessages(
@@ -137,13 +134,13 @@ function modelTurn(turn: AssistTurn): { role: "user" | "assistant"; content: str
 }
 
 function errorMessage(error: unknown): string {
-  // The SDK's own message, relayed to an authenticated admin; it never carries our key (SEC-8).
+  // The SDK's own message, relayed to an authenticated admin; it never carries our key.
   return error instanceof Error ? error.message : "The model provider call failed";
 }
 
 /**
- * Reads the SDK's own `isRetryable` so nothing here parses vendor text (SEC-8), and
- * defaults to `true` so only positive evidence produces permanent-failure advice.
+ * Reads the SDK's own `isRetryable` so nothing here parses vendor text, and defaults to `true` so only
+ * positive evidence produces permanent-failure advice.
  */
 function providerRetryAdvice(error: unknown): boolean {
   if (APICallError.isInstance(error)) return error.isRetryable;
@@ -250,14 +247,13 @@ export function newRunOutcome(offered: readonly string[] = AGENT_TOOL_NAMES): Ru
   };
 }
 
-/** Map one SDK stream part to an event, recording what the terminal events need. */
 export function handlePart(
   part: TextStreamPart<ToolSet>,
   outcome: RunOutcome,
   thinking: AgentThinking = "off",
 ): AssistEvent | undefined {
   switch (part.type) {
-    // Dropped under `off` even when a provider emits it unasked (SEC-8); never buffered.
+    // Dropped under `off` even when a provider emits it unasked; never buffered.
     case "reasoning-delta":
       return thinking === "summary" ? { type: "reasoning", delta: part.text } : undefined;
     case "reasoning-end":
@@ -353,7 +349,6 @@ async function* runTurn(args: {
   yield* finishTurn({ ctx, state, outcome, providerId, logger });
 }
 
-/** Every proposal recorded since the last flush, as its own `action` or `plan` event. */
 function* flushProposals(state: ProposalState): Generator<AssistEvent> {
   while (state.unsentProposals.length > 0) {
     const recorded = state.unsentProposals.shift();
@@ -414,9 +409,9 @@ function* finishTurn(args: {
     outputTokens: outcome.outputTokens,
     finishReason: outcome.finishReason,
     toolRejected: outcome.rejectedTool !== undefined,
-    // A count, never the text: a tool error's message is assembled from model input (SEC-8).
+    // A count, never the text: a tool error's message is assembled from model input.
     toolErrors: outcome.toolErrors,
-    // Reasoning text is never logged (SEC-8); only the count.
+    // Reasoning text is never logged; only the count.
     reasoningTokens: outcome.reasoningTokens,
   });
 
@@ -443,8 +438,8 @@ function* finishTurn(args: {
   }
 
   if (outcome.providerError !== undefined) {
-    // Logged because the panel shows the operator no vendor detail, so a permanent
-    // refusal would otherwise leave no trace. No vendor message, code or URL (SEC-8).
+    // Logged because the panel shows the operator no vendor detail, so a permanent refusal would otherwise leave
+    // no trace. No vendor message, code or URL.
     logger.warn("draft assistant provider failure", {
       provider: providerId,
       retryable: outcome.providerRetryable,

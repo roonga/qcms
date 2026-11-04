@@ -1,5 +1,3 @@
-/** Every probe is injected, so no Docker and no kernel are read. */
-
 import { execPath } from "node:process";
 
 import { afterEach, describe, expect, it } from "vitest";

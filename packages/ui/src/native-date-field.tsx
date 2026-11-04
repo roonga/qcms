@@ -10,10 +10,8 @@ import {
 } from "./native-submit.ts";
 
 /**
- * The date question's control in native (no-JS) submit mode. The vendored DatePicker cannot serve it: its
- * segments need key handlers and its validation mirror is unfocusable, so a required date was unsubmittable.
- * Three boxes rather than `<input type="date">`, which draws in the browser's locale and disagreed with the
- * server render. `minValue`/`maxValue` are not carried; the API refuses an out-of-range day.
+ * Native dates need focusable named controls without JavaScript; vendored segments cannot provide them.
+ * Use locale-ordered boxes rather than a browser-locale date input; the API enforces bounds.
  */
 export interface NativeDateFieldProps {
   /** The questionId; each box posts under it with its part prefix. */
@@ -32,8 +30,7 @@ export interface NativeDateFieldProps {
   readonly defaultValue?: string;
 }
 
-// Matches the vendored `group` classes, minus `data-*` state variants that have no
-// meaning on a native input.
+// Omit interaction-state variants that cannot apply to native inputs.
 
 const INPUT_CLASS = [
   "flex items-center min-h-11 border border-(--color-border) rounded px-2 py-1",
@@ -56,7 +53,7 @@ function partLabel(locale: string, part: DatePart): string {
   try {
     name = new Intl.DisplayNames([locale], { type: "dateTimeField" }).of(part) ?? part;
   } catch {
-    // A runtime without dateTimeField display names keeps the English part name.
+    // Keep English field names when the runtime lacks date-time display names.
   }
   return name.charAt(0).toLocaleUpperCase(locale) + name.slice(1);
 }
@@ -78,8 +75,7 @@ export function NativeDateField({
   const descriptionId = `${fieldId}-description`;
   const errorId = `${fieldId}-error`;
   const seeded = splitNativeDate(defaultValue);
-  // Both ids when both are drawn, or a screen reader hears the hint or the refusal
-  // rather than both (WCAG 3.3.2, 3.3.1).
+  // Keep both hint and refusal ids so assistive technology announces both.
   const describedBy =
     [
       description === undefined ? undefined : descriptionId,
