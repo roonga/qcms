@@ -9,7 +9,7 @@ import { waitForHydration } from "./support/hydration.js";
 /**
  * The Operations forms table in a browser, for the facts no other layer has: that a filter
  * leaves the header, the environment and the heading where they were, that browser back
- * restores the view, and that the moved addresses land where they say.
+ * restores the view, and that each redirected address lands where it says.
  */
 
 test.describe.configure({ mode: "serial" });
@@ -73,7 +73,7 @@ test("leaving the environment an address names resets the page and keeps the ter
   // from the test that created the forms: Playwright gives each test a fresh context.
   await chooseEnvironment(page, "test");
 
-  // The address now names an environment the operator is not in.
+  // The address names an environment the operator is not in.
   await page.goto(`/operations?env=prod&q=${ALPHA}&cursor=stale`);
   await waitForHydration(page);
 

@@ -30,7 +30,7 @@ function formIntake(setStatus = () => Promise.resolve({ status: "error", message
   );
 }
 
-// Two components since the intake acts moved: one waits on the switcher, one does not.
+// One control waits on the switcher, one does not.
 function environmentBoundControls() {
   return (
     <>

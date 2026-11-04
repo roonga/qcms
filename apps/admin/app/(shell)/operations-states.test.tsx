@@ -231,7 +231,7 @@ describe("the Operations forms table's states", () => {
     expect(html).toContain('href="/operations/forms/frm_intake/links"');
     expect(html).toContain('href="/operations/forms/frm_intake/webhooks"');
     expect(html).toContain('href="/operations/forms/frm_intake/intake"');
-    // No authoring screen from a row, and none of the addresses the move left behind.
+    // No authoring screen from a row, and no address outside the Operations subtree.
     expect(html).not.toContain('href="/operations/forms/frm_intake/versions"');
     expect(html).not.toContain('href="/forms/frm_intake');
     // The response-only row reaches its responses and nothing else about the form.
