@@ -123,9 +123,9 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(`Response ${revised}`);
 
     await expect(page.locator('[aria-label="Breadcrumb"]')).toHaveCount(0);
-    const rail = page.getByTestId("qcms-rail");
+    const rail = page.getByTestId("qcms-operations-form-rail");
     await expect(rail.locator("summary.qcms-rail__summary")).not.toBeEmpty();
-    await expect(rail.getByRole("link", { name: "Forms", exact: true })).toBeVisible();
+    await expect(rail.getByRole("link", { name: "Operations", exact: true })).toBeVisible();
 
     await expect(page.getByRole("heading", { name: `Response ${revised}` })).toHaveCount(1);
 
