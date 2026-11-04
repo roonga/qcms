@@ -440,9 +440,9 @@ Operations keeps a visible "Exit Operations" control returning to where the user
 from, and incidental links out of Operations show the Stay/Leave warning. Slice three
 builds the queue form names, the eraser screen, the Exit control and the leave warning.
 
-The Erase control on a response's detail, under More actions, shows only to a caller who
-holds the erase role for that form and environment; the API's refusal stays as it is
-(Code Owner, 2026-11-05).
+The Erase control on a response's detail shows only to a caller who holds the erase role
+for that form and environment; the API's refusal stays as it is (Code Owner,
+2026-11-05).
 
 Phase 2 delivered the authorized read model and nothing beyond it: the `anyOf`
 route-policy row shape and `environmentFrom: "query"`, `GET /admin/operations/forms` with

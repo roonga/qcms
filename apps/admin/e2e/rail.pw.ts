@@ -26,8 +26,7 @@ let formId = "";
 
 let railSlug = "";
 
-// An editor section, because this spec measures the editor's rail frame. Secure links was
-// the reference screen and is Operations' now, whose rail is a different component.
+// An editor section, because this spec measures the editor's rail frame.
 function sectionPath(): string {
   return `/forms/${formId}/versions`;
 }

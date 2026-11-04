@@ -162,7 +162,6 @@ test("a destructive confirmation names the environment it is about", async ({ pa
   await expect(dialog.getByRole("button", { name: "Close it in test" })).toBeVisible();
   await dialog.getByRole("button", { name: "Cancel" }).click();
 
-  // The publish entry is the builder's, and intake is not offered there any more.
   await page.goto(`/forms/${formId}`);
   await expect(page.getByRole("button", { name: /^Publish/u })).toHaveCount(0);
   await expect(page.getByTestId("qcms-publish-entry")).toBeVisible();

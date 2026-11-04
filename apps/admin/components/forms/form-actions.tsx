@@ -6,7 +6,6 @@ import { HeadingMarker } from "@/components/agent/heading-marker";
 import type { FormPublishingWorkflow } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
 
-/* Close and reopen are the Intake screen's: they act in one environment and a draft has none. */
 export function FormActions({
   formId,
   environment,

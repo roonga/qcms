@@ -86,8 +86,6 @@ function screen(
 export const SCREENS: Readonly<Record<ScreenId, ScreenDef>> = Object.freeze({
   "/forms": screen(authoringContexts.formsList, ["search_forms"], ["form.create"]),
   "/forms/new": screen(authoringContexts.newForm, [], ["form.create"]),
-  // `form.close` and `form.reopen` are the Intake screen's below: they act on one
-  // environment's intake and this screen edits a draft that belongs to none.
   "/forms/[formId]": screen(authoringContexts.builder, DRAFT_TOOLS, [
     "apply-draft",
     "form.publish",

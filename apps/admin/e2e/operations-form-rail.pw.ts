@@ -129,8 +129,8 @@ test("intake closes and reopens one environment from the screen that owns it", a
   await chooseEnvironment(page, "prod");
   await page.goto(`/operations/forms/${FORM_ID}/intake`);
 
-  // The acts moved here from the builder, and they name the environment they land in: the
-  // closed state is per (form, environment) and closing the wrong one is not undoable (Q6).
+  // The acts name the environment they land in: the closed state is per (form,
+  // environment) and closing the wrong one is not undoable (Q6).
   await page.getByRole("button", { name: "Close in prod" }).click();
   const closing = page.getByRole("alertdialog");
   await expect(closing).toContainText("In prod.");

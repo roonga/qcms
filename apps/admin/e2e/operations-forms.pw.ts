@@ -38,7 +38,6 @@ test("lists the forms this caller operates, separating unreleased from closed in
   await expect(table).toBeVisible();
   await expect(table.getByRole("row").filter({ hasText: ALPHA })).toHaveCount(1);
   await expect(table.getByRole("row").filter({ hasText: BETA })).toHaveCount(1);
-  // Neither has been released, which is its own reading rather than closed intake.
   await expect(
     table.getByRole("row").filter({ hasText: ALPHA }).getByText("No release"),
   ).toHaveCount(2);
@@ -61,7 +60,6 @@ test("a filter narrows the rows below it and changes nothing above them", async 
   await expect(page).toHaveURL(new RegExp(`q=${ALPHA}`, "u"));
   const table = page.getByTestId("qcms-operations-table");
   await expect(table.getByRole("row").filter({ hasText: BETA })).toHaveCount(0);
-  // The header, the mode, the environment and the heading are all where they were.
   await expect(page.getByTestId("qcms-mode-header")).toHaveAttribute("data-mode", "operations");
   await expect(heading).toBeVisible();
   await expect(chip).toHaveAttribute("data-environment", environment ?? "");
@@ -163,7 +161,6 @@ test("the global queues are Operations destinations, reached from its rail", asy
   await expect(page).toHaveURL(/\/webhooks$/u);
   await expect(page.getByTestId("qcms-mode-header")).toHaveAttribute("data-mode", "operations");
   await expect(page.getByRole("navigation", { name: "Primary" })).toHaveCount(0);
-  // The queue's own rail offers the way back to the table.
   await page.getByTestId("qcms-webhooks-rail").getByRole("link", { name: "Operations" }).click();
   await expect(page).toHaveURL(/\/operations$/u);
 
