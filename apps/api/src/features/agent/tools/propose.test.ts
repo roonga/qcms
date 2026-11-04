@@ -691,6 +691,55 @@ describe("buildProposal: publishing the questions a saved draft pins (issue #120
     expect(outcome.ok).toBe(true);
   });
 
+  it("refuses a token step after apply-draft, whose save moves the bound revision", async () => {
+    const outcome = await propose({
+      steps: [applyDraft, publishQuestion("q_given_name", 1)],
+      proposedDraft: { definition: draftFixture("frm_a"), newQuestions: [] },
+      savedDraft: saved,
+    });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toContain("Step 1 (apply-draft) saves the form's draft");
+    expect(outcome.reason).toContain("step 2 could not run");
+    expect(outcome.reason).toContain("Propose apply-draft on its own");
+  });
+
+  it("refuses apply-draft before the publishes even with the form publish last", async () => {
+    const outcome = await propose({
+      steps: [applyDraft, publishQuestion("q_given_name", 1), publish],
+      proposedDraft: { definition: draftFixture("frm_a"), newQuestions: [] },
+      savedDraft: saved,
+    });
+    expect(outcome.ok).toBe(false);
+  });
+
+  it("accepts apply-draft after the bound publishes, where nothing runs on the moved revision", async () => {
+    const outcome = await propose({
+      steps: [publishQuestion("q_given_name", 1), applyDraft],
+      proposedDraft: { definition: draftFixture("frm_a"), newQuestions: [] },
+      savedDraft: saved,
+    });
+    expect(outcome.ok).toBe(true);
+  });
+
+  it("leaves a plan bound to no revision free to publish after apply-draft", async () => {
+    const outcome = await propose({
+      steps: [applyDraft, publish],
+      proposedDraft: { definition: draftFixture("frm_a"), newQuestions: [] },
+      savedDraft: saved,
+    });
+    expect(outcome.ok).toBe(true);
+  });
+
+  it("accepts apply-draft alone", async () => {
+    const outcome = await propose({
+      steps: [applyDraft],
+      proposedDraft: { definition: draftFixture("frm_a"), newQuestions: [] },
+      savedDraft: saved,
+    });
+    expect(outcome.ok).toBe(true);
+  });
+
   it("refuses the kind when the form has no saved draft to read a revision from", async () => {
     const outcome = await propose({
       steps: [publishQuestion("q_given_name", 1)],

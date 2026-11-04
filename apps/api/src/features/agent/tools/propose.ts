@@ -271,6 +271,25 @@ function boundPublishLastRefusal(steps: readonly PlanStep[]): string | undefined
   );
 }
 
+/**
+ * A local step saves the draft through the screen, which moves its revision, so in a plan
+ * bound to that revision no token step may follow one: it would be refused as a draft
+ * change the user never made.
+ */
+function boundAfterDraftWriteRefusal(steps: readonly PlanStep[]): string | undefined {
+  const writeAt = steps.findIndex((step) => step.local);
+  if (writeAt < 0) return undefined;
+  const after = steps.findIndex((step, index) => index > writeAt && carriesToken(step));
+  if (after < 0) return undefined;
+  const kind = steps[writeAt]?.kind ?? "";
+  return (
+    `Step ${String(writeAt + 1)} (${kind}) saves the form's draft, which changes the draft ` +
+    `this plan's question publishes were checked against, so step ${String(after + 1)} ` +
+    `could not run. Propose ${kind} on its own, and once the user has applied it, ` +
+    "propose the publish in the next turn."
+  );
+}
+
 function stepReferenceRefusal(
   input: ProposeInput,
   step: ProposedStep,
@@ -504,6 +523,8 @@ function planShapeRefusal(
   if (boundRevision !== undefined) {
     const bound = boundPublishLastRefusal(steps);
     if (bound !== undefined) return bound;
+    const rewritten = boundAfterDraftWriteRefusal(steps);
+    if (rewritten !== undefined) return rewritten;
   }
   const handOffAt = steps.findIndex((step) => step.handOff);
   if (handOffAt >= 0 && handOffAt !== steps.length - 1) {

@@ -331,7 +331,9 @@ ordinary plan is not refused by a draft save.
 `form.publish` deletes the draft it publishes, so in a bound plan it is the last
 step that carries the token: `buildProposal` refuses a later token step rather
 than letting it run into `AGENT_PROPOSAL_DRAFT` and tell the user their draft
-changed when nothing touched it.
+changed when nothing touched it. For the same reason no token step may follow
+`apply-draft` in a bound plan: its save moves the revision, so the publish has to
+be proposed in the next turn.
 
 ## Publishing goes through the batch route
 
