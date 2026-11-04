@@ -218,8 +218,7 @@ test("a response viewer reaches Operations, a form's responses and one response"
   // The read this persona came for, on a screen whose form read its grants refuse.
   await expect(page.getByTestId("qcms-response-detail")).toBeVisible();
   // Neither erasure door reaches a caller holding no erase cell on this form and
-  // environment: not the cross-environment offer, and not the control beside it
-  // (Code Owner, 2026-11-05).
+  // environment: not the cross-environment offer, and not the control beside it.
   await expect(page.getByTestId("qcms-erasure-elsewhere")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Erase respondent data…" })).toHaveCount(0);
 });

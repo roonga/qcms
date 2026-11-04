@@ -59,7 +59,7 @@ export default async function ResponseDetailPage({
   const scope = mayErase ? await erasureScope(session, formId, sessionId) : undefined;
   const elsewhere = scope?.ok === true ? scope.data.otherEnvironments : [];
   // The erase cell on this form in this environment, which an owner holds through their member role and a
-  // response viewer holds nowhere (Code Owner, 2026-11-05).
+  // response viewer holds nowhere.
   const erasable =
     shown !== undefined && mayEraseResponses(await formCellsHeld(session, formId, shown));
 

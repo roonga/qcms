@@ -57,6 +57,7 @@ vi.mock("next/navigation", () => ({
   notFound: () => {
     throw new Error("NEXT_NOT_FOUND");
   },
+  useRouter: () => ({ push: () => undefined, refresh: () => undefined }),
 }));
 vi.mock("@/lib/i18n/en", () => ({
   t: (key: string) => key,

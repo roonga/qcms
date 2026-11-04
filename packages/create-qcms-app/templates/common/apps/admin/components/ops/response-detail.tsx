@@ -49,7 +49,7 @@ export function ResponseDetail({
      be undone. */
   readonly environment: string;
   /* Absent rather than disabled: a caller without the erase cell is not offered a door that can only
-     refuse (Code Owner, 2026-11-05). */
+     refuse. */
   readonly erasable: boolean;
   readonly erase: (
     sessionId: string,
