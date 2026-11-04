@@ -154,6 +154,24 @@ async function draftUnmoved(
   return (await input.savedDraftRevision(token.formId)) === token.draftRevision;
 }
 
+/**
+ * Steps `0` to `i-1` all recorded, so a step runs only in order and only after its
+ * predecessors succeeded: a failed step wrote no row, which is what stops the next one. The
+ * window is read after that, so an unrecorded predecessor is out of order rather than late.
+ */
+function sequenceRefusal(
+  input: ProvenanceInput,
+  stepIndex: number,
+): ProposalRefusalCode | undefined {
+  const recordedIndexes = new Set(input.recorded.map((row) => row.stepIndex));
+  for (let earlier = 0; earlier < stepIndex; earlier += 1) {
+    if (!recordedIndexes.has(earlier)) return "AGENT_PROPOSAL_ORDER";
+  }
+  if (recordedIndexes.has(stepIndex)) return "AGENT_PROPOSAL_ORDER";
+  if (stepIndex > 0 && !withinRunWindow(input)) return "AGENT_PROPOSAL_WINDOW";
+  return undefined;
+}
+
 export async function checkProvenance(input: ProvenanceInput): Promise<ProvenanceResult> {
   const stepIndex = stepIndexOf(input.rawStep);
   if (stepIndex === undefined) return refused("AGENT_PROPOSAL_MALFORMED");
@@ -171,17 +189,8 @@ export async function checkProvenance(input: ProvenanceInput): Promise<Provenanc
     return refused("AGENT_PROPOSAL_EXPIRED");
   }
 
-  // Steps `0` to `i-1` all recorded, so a step runs only in order and only after its
-  // predecessors succeeded. A failed step wrote no row, which is what stops the next one.
-  const recordedIndexes = new Set(input.recorded.map((row) => row.stepIndex));
-  for (let earlier = 0; earlier < stepIndex; earlier += 1) {
-    if (!recordedIndexes.has(earlier)) return refused("AGENT_PROPOSAL_ORDER");
-  }
-  if (recordedIndexes.has(stepIndex)) return refused("AGENT_PROPOSAL_ORDER");
-
-  // After the order check, so an unrecorded predecessor reads as out of order rather than
-  // as a window that never opened.
-  if (stepIndex > 0 && !withinRunWindow(input)) return refused("AGENT_PROPOSAL_WINDOW");
+  const sequence = sequenceRefusal(input, stepIndex);
+  if (sequence !== undefined) return refused(sequence);
 
   if (!(await draftUnmoved(input, token))) return refused("AGENT_PROPOSAL_DRAFT");
 

@@ -309,6 +309,19 @@ exact member set its request carries, and a configure body matching none of them
 resolves to no kind and is refused. The digest already binds the body, so the
 member set is a second lock rather than the only one.
 
+## A plan built from the saved draft is bound to that draft
+
+`question.publish` proposed anywhere but the question's own page is checked
+against the versions the form's saved draft pins unpublished, so the whole plan
+depends on a draft that the editor can still change. The proposal therefore
+records that draft's `form_drafts.revision` in the token, and the provenance
+check refuses every step of such a plan unless the saved draft still carries it
+(Code Owner, 2026-11-04). The code is `AGENT_PROPOSAL_DRAFT`, and the refusal is
+closed in all four directions: a moved revision, a draft that is gone, a token
+binding a revision but naming no form, and no reader for the draft at all. A
+plan no step of which was checked against the pin set records no revision, so an
+ordinary plan is not refused by a draft save.
+
 ## Publishing goes through the batch route
 
 `form.publish` runs `POST /admin/forms/{id}/publish-batch`, the route the Publish
