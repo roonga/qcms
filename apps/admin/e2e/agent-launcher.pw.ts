@@ -383,13 +383,18 @@ test("names the screen in the context chip, and keeps the conversation across a 
   await page.goto(`/forms/${FORM_ID}/publish`);
   await expect(chip).toContainText("publish");
 
+  // The conversation lives in this tab's session storage so a reload keeps it, and in no
+  // other store: `localStorage` would outlive the tab and reach every other one.
   const stored = await page.evaluate(() => ({
     local: Object.keys(window.localStorage),
     session: Object.keys(window.sessionStorage),
   }));
-  for (const key of [...stored.local, ...stored.session]) {
-    expect(key, "no assistant key in tab storage").not.toMatch(/assist|agent|conversation/iu);
+  for (const key of stored.local) {
+    expect(key, "no assistant key in localStorage").not.toMatch(/assist|agent|conversation/iu);
   }
+  expect(stored.session, "the conversation is in this tab's session storage").toContain(
+    "qcms-assistant-conversation",
+  );
 });
 
 test("carries one conversation across the form's subtree and out of it, and a reload keeps it", async ({

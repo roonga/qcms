@@ -1,6 +1,14 @@
 "use client";
 
-import { createContext, useContext, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 
 import {
   CONVERSATION_STORAGE_KEY,
@@ -104,21 +112,28 @@ export function ConversationProvider({
     undefined,
   );
   const [revision, setRevision] = useState(0);
+  /** The user whose stored conversation has been read back, so it is read once. */
+  const loadedFor = useRef<string | undefined>(undefined);
+
+  // The stored conversation is read after hydration rather than during the first render:
+  // the server has no tab storage, and a client that rendered the restored turns straight
+  // away would not match the HTML it is hydrating.
+  useEffect(() => {
+    if (loadedFor.current === userId) return;
+    loadedFor.current = userId;
+    const stored = readStored(userId);
+    if (stored === undefined) return;
+    held.current = { user: userId, state: stored };
+    setRevision((count) => count + 1);
+  }, [userId]);
 
   const handle = useMemo<ConversationHandle>(() => {
-    const browser = typeof window !== "undefined";
     const mine = held.current?.user === userId ? held.current.state : undefined;
-    // The server render has no tab storage, so a stored conversation is read on the first
-    // render that has a window.
-    const restored =
-      mine ?? (browser ? readStored(userId) : undefined) ?? startConversation(subject, mint);
-    const state = atSubject(restored, subject, mint);
+    const state = atSubject(mine ?? startConversation(subject, mint), subject, mint);
     held.current = { user: userId, state };
-    if (browser && state !== restored) writeStored(state, userId);
 
     const replace = (next: ConversationState): void => {
       held.current = { user: userId, state: next };
-      if (browser) writeStored(next, userId);
       setRevision((count) => count + 1);
     };
 
@@ -138,6 +153,14 @@ export function ConversationProvider({
       },
     };
   }, [subject, userId, revision]);
+
+  // Persisted after the read above, never during a render, so a fresh first render cannot
+  // overwrite the entry it is about to restore.
+  useEffect(() => {
+    if (loadedFor.current !== userId) return;
+    const current = held.current;
+    if (current?.user === userId) writeStored(current.state, userId);
+  }, [handle, userId]);
 
   return <ConversationContext.Provider value={handle}>{children}</ConversationContext.Provider>;
 }
