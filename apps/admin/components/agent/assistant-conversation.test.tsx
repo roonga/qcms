@@ -16,8 +16,10 @@ const SCREEN: ResolvedScreen = {
 
 const CONVERSATION: ConversationHandle = {
   id: "cnv_1",
+  visitId: "vis_1",
   subject: "Quote",
   turns: [],
+  dropped: 0,
   current: () => [],
   append: () => undefined,
   restart: () => undefined,
@@ -44,6 +46,7 @@ function mount(canPropose: boolean): void {
   render(
     <AssistantConversation
       screen={SCREEN}
+      environment="test"
       conversation={CONVERSATION}
       builder={snapshot(canPropose)}
       composerRef={{ current: null }}
@@ -78,6 +81,22 @@ describe("the assistant conversation's route", () => {
   it("draws one conversation whether or not this caller may write the draft", () => {
     mount(false);
     expect(screen.getByTestId("qcms-assistant-composer")).toBeTruthy();
+    expect(screen.queryByTestId("qcms-assistant-trimmed")).toBeNull();
+  });
+
+  it("says so once the cap has dropped the oldest turns", () => {
+    render(
+      <AssistantConversation
+        screen={SCREEN}
+        environment="test"
+        conversation={{ ...CONVERSATION, dropped: 3 }}
+        builder={snapshot(false)}
+        composerRef={{ current: null }}
+        onWorkingChange={() => undefined}
+        onAnnounce={() => undefined}
+      />,
+    );
+    expect(screen.getByTestId("qcms-assistant-trimmed").textContent).toBe(t("agent.trimmed"));
   });
 
   it("posts a reader's turn to the screen route", async () => {
@@ -92,6 +111,7 @@ describe("the assistant conversation's route", () => {
     render(
       <AssistantConversation
         screen={SCREEN}
+        environment="test"
         conversation={CONVERSATION}
         builder={{ ...snapshot(true), draftUpdatedAt: "2026-11-01T09:00:00.000Z" }}
         composerRef={{ current: null }}
@@ -182,5 +202,100 @@ describe("a card's waiting window", () => {
     expect(
       screen.getByRole("button", { name: t("agent.card.confirm") }).hasAttribute("disabled"),
     ).toBe(true);
+  });
+});
+
+describe("a waiting card's screen and environment", () => {
+  const PROPOSAL = {
+    proposalId: "prp_bound",
+    token: "tok",
+    steps: [
+      {
+        kind: "form.publish",
+        screen: "/forms/[formId]",
+        args: { formId: "frm_quote" },
+        environment: "test",
+        card: {
+          titleKey: "agent.card.form.publish.title",
+          consequenceKeys: ["agent.card.form.publish.consequence"],
+        },
+        resultAllowlist: ["version"],
+      },
+    ],
+    proposedAt: "2026-07-20T00:00:00.000Z",
+    expiresAt: "2026-07-20T00:10:00.000Z",
+    formId: "frm_quote",
+    currentEnvironment: "test",
+  };
+
+  function view(on: ResolvedScreen, environment: string) {
+    return (
+      <AssistantConversation
+        screen={on}
+        environment={environment}
+        conversation={CONVERSATION}
+        builder={snapshot(true)}
+        composerRef={{ current: null }}
+        onWorkingChange={() => undefined}
+        onAnnounce={() => undefined}
+      />
+    );
+  }
+
+  async function waiting(): Promise<ReturnType<typeof render>> {
+    const event = { type: "action", proposal: PROPOSAL };
+    const body = `event: action\ndata: ${JSON.stringify(event)}\n\n`;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<(input: unknown, init?: unknown) => Promise<Response>>(() =>
+        Promise.resolve(
+          new Response(body, { status: 200, headers: { "content-type": "text/event-stream" } }),
+        ),
+      ),
+    );
+    const mounted = render(view(SCREEN, "test"));
+    const composer = screen.getByTestId("qcms-assistant-composer");
+    fireEvent.change(composer, { target: { value: "publish the draft" } });
+    fireEvent.keyDown(composer, { key: "Enter" });
+    await vi.waitFor(() => {
+      expect(screen.getByRole("button", { name: t("agent.card.confirm") })).toBeTruthy();
+    });
+    return mounted;
+  }
+
+  async function expectExpired(): Promise<void> {
+    await vi.waitFor(() => {
+      expect(screen.getByText(t("agent.card.expiredAsk"))).toBeTruthy();
+    });
+    expect(
+      screen.getByRole("button", { name: t("agent.card.confirm") }).hasAttribute("disabled"),
+    ).toBe(true);
+  }
+
+  it("expires when the operator leaves the screen it was proposed on", async () => {
+    const mounted = await waiting();
+    mounted.rerender(view({ screen: "/forms", params: {} }, "test"));
+    await expectExpired();
+  });
+
+  it("expires when the same screen is now about another form", async () => {
+    const mounted = await waiting();
+    mounted.rerender(view({ screen: "/forms/[formId]", params: { formId: "frm_other" } }, "test"));
+    await expectExpired();
+  });
+
+  it("expires when the environment switches under it", async () => {
+    const mounted = await waiting();
+    mounted.rerender(view(SCREEN, "prod"));
+    await expectExpired();
+  });
+
+  it("stays Confirmable while the screen and the environment hold", async () => {
+    const mounted = await waiting();
+    mounted.rerender(view(SCREEN, "test"));
+    expect(screen.queryByText(t("agent.card.expiredAsk"))).toBeNull();
+    expect(
+      screen.getByRole("button", { name: t("agent.card.confirm") }).hasAttribute("disabled"),
+    ).toBe(false);
   });
 });
