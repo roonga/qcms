@@ -9,7 +9,7 @@ import {
 } from "./answers.ts";
 import type { AppliedFilters } from "./browse.ts";
 import { responsePageLink } from "./browse.ts";
-import { isErasureConfirmed, isErasureReason } from "./erasure.ts";
+import { isErasureConfirmed, isErasureReason, mayEraseResponses } from "./erasure.ts";
 import type { ExportChoice } from "./export.ts";
 import {
   exportableVersions,
@@ -54,6 +54,13 @@ describe("erasure confirmation", () => {
   it("recognises only the recorded reasons", () => {
     expect(isErasureReason("subject_request")).toBe(true);
     expect(isErasureReason("because")).toBe(false);
+  });
+
+  it("shows the door to the erase cell alone, not to a read or a disposition", () => {
+    expect(mayEraseResponses(["response:read", "response:erase"])).toBe(true);
+    expect(mayEraseResponses(["response:read", "response:export"])).toBe(false);
+    expect(mayEraseResponses(["response:dispose"])).toBe(false);
+    expect(mayEraseResponses([])).toBe(false);
   });
 });
 

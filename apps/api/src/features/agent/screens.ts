@@ -206,11 +206,10 @@ const FORM_OPERATIONS_ACTION_KINDS = kindsAcross(FORM_OPERATIONS_SCREENS);
 
 /**
  * The kinds a turn on this screen may propose: its own subtree's on a form-scoped screen,
- * so one plan can span it, and the screen's own elsewhere.
+ * so one plan can span it, and the screen's own elsewhere. The two form subtrees are
+ * separate lists because an authoring plan edits a shared draft while an operational plan
+ * acts in one environment, and a plan mixing them would be one confirmation spanning both.
  */
-// The two form subtrees are separate lists because they are separate contexts: an
-// authoring plan edits a shared draft, an operational plan acts in one environment, and a
-// plan mixing them would be one confirmation spanning both.
 export function offerableActionKinds(screenId: ScreenId): readonly string[] {
   if (screenId === BUILDER_SCREEN) {
     return [...FORM_AUTHORING_ACTION_KINDS, ...DRAFT_QUESTION_ACTION_KINDS];

@@ -78,6 +78,7 @@ describe("one submission on the list and on its detail", () => {
         labelsFailed={false}
         linksHref="/operations/forms/form-1/links"
         environment="test"
+        erasable
         erase={() => Promise.resolve({ status: "error" as const })}
         unflag={() => Promise.resolve({ status: "error" as const })}
       />,

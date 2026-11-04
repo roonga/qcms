@@ -32,16 +32,19 @@ export function formContextHref(formId: string, context: FormContext): string {
   return `/operations/forms/${encodeURIComponent(formId)}/${context}`;
 }
 
+/** The contexts these cells admit, in {@link FORM_OPERATIONAL_CONTEXTS} order. */
+export function heldFormContexts(capabilities: readonly string[]): readonly FormContext[] {
+  const held = new Set(capabilities);
+  return FORM_OPERATIONAL_CONTEXTS.filter((context) => held.has(ADMITTING_CELL[context]));
+}
+
 /** The contexts this row admits, in {@link FORM_OPERATIONAL_CONTEXTS} order. */
 export function formContextLinks(row: OperationsFormRow): readonly FormContextLink[] {
-  const held = new Set(row.capabilities);
-  return FORM_OPERATIONAL_CONTEXTS.filter((context) => held.has(ADMITTING_CELL[context])).map(
-    (context) => ({
-      context,
-      href: formContextHref(row.formId, context),
-      label: t(`forms.tab.${context}`),
-    }),
-  );
+  return heldFormContexts(row.capabilities).map((context) => ({
+    context,
+    href: formContextHref(row.formId, context),
+    label: t(`forms.tab.${context}`),
+  }));
 }
 
 /**

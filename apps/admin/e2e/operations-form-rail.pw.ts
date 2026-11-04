@@ -116,6 +116,11 @@ test("every operational screen of one form marks its own rail row and names its 
       .soft(rail.getByRole("link", { name: "Operations" }), `${screen.path} offers the way back`)
       .toBeVisible();
   }
+
+  // An owner holds the erase cell on this form in prod through their member role, which no
+  // named grant carries, so the door is there to find.
+  await page.goto(`/operations/forms/${FORM_ID}/responses/${sessionId}`);
+  await expect(page.getByRole("button", { name: "Erase respondent data…" })).toBeVisible();
 });
 
 test("intake closes and reopens one environment from the screen that owns it", async ({ page }) => {
@@ -186,7 +191,16 @@ test("a response viewer reaches Operations, a form's responses and one response"
   // the respondent harness submits into `prod`.
   await expect(page).toHaveURL(new RegExp(`/operations/forms/${FORM_ID}/responses$`, "u"));
   await expect(page.getByTestId("qcms-response-browser")).toBeVisible();
-  await expect(page.getByTestId("qcms-operations-form-rail")).toBeVisible();
+  // The rail offers the one context this persona holds, the same rule the row applied.
+  const rail = page.getByTestId("qcms-operations-form-rail");
+  await expect(rail).toBeVisible();
+  await expect(rail.locator('[data-rail-item="section:responses"]')).toBeVisible();
+  for (const absent of ["links", "webhooks", "intake"]) {
+    await expect(
+      rail.locator(`[data-rail-item="section:${absent}"]`),
+      `the viewer's rail offers no ${absent} row`,
+    ).toHaveCount(0);
+  }
 
   // One response, read in the environment that has one. Same route, different pool, which
   // is what makes "one environment and no other" something an operator can see.
@@ -203,8 +217,9 @@ test("a response viewer reaches Operations, a form's responses and one response"
   await expect(page.getByRole("heading", { level: 1 })).toContainText(sessionId);
   // The read this persona came for, on a screen whose form read its grants refuse.
   await expect(page.getByTestId("qcms-response-detail")).toBeVisible();
-  // No cross-environment erasure is offered to a caller holding no eraser grant. The erase
-  // control beside it is not grant-gated: it is offered and refused at the API, which is a
-  // standing question rather than this move's doing.
+  // Neither erasure door reaches a caller holding no erase cell on this form and
+  // environment: not the cross-environment offer, and not the control beside it
+  // (Code Owner, 2026-11-05).
   await expect(page.getByTestId("qcms-erasure-elsewhere")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Erase respondent data…" })).toHaveCount(0);
 });

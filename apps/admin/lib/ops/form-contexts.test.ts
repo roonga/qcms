@@ -4,6 +4,7 @@ import {
   FORM_OPERATIONAL_CONTEXTS,
   formContextHref,
   formContextLinks,
+  heldFormContexts,
   primaryFormContext,
 } from "./form-contexts.ts";
 import type { OperationsFormRow } from "./operations-forms.ts";
@@ -62,6 +63,13 @@ describe("a row's operational contexts", () => {
       "webhooks",
       "intake",
     ]);
+  });
+
+  it("gives a form's rail the contexts it gives that form's row", () => {
+    const held = [...VIEWER, "response:read"];
+    expect(heldFormContexts(held)).toEqual(contexts(held));
+    expect(heldFormContexts(["response:read", "response:export"])).toEqual(["responses"]);
+    expect(heldFormContexts(["response:erase"])).toEqual([]);
   });
 
   it("addresses every context under Operations", () => {

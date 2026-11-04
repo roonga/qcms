@@ -7,6 +7,7 @@ import { FormPageHeader } from "@/components/forms/form-page-header";
 import { ErasureElsewhereOffer } from "@/components/ops/erasure-elsewhere";
 import { ResponseDetail } from "@/components/ops/response-detail";
 import { TombstoneCard } from "@/components/ops/tombstone-card";
+import { mayEraseResponses } from "@/lib/ops/erasure";
 import { labelsForPins, pinsOf, type QuestionPin } from "@/lib/ops/labels";
 import { pageMetadata } from "@/lib/page-title";
 import type { QuestionDetail } from "@/lib/questions/types";
@@ -17,6 +18,7 @@ import { getQuestion } from "@/lib/server/questions";
 import { holdsEraserGrantAnywhere } from "@/lib/membership/types";
 import { secureCookies } from "@/lib/server/config";
 import { readMyAccess } from "@/lib/server/membership";
+import { formCellsHeld } from "@/lib/server/operations";
 import { erasureScope, getResponse, listErasures } from "@/lib/server/responses";
 import { shownEnvironment } from "@/lib/environment";
 import { resolvedEnvironment } from "@/lib/server/environments";
@@ -56,6 +58,10 @@ export default async function ResponseDetailPage({
   const mayErase = mine.ok && holdsEraserGrantAnywhere(mine.data);
   const scope = mayErase ? await erasureScope(session, formId, sessionId) : undefined;
   const elsewhere = scope?.ok === true ? scope.data.otherEnvironments : [];
+  // The erase cell on this form in this environment, which an owner holds through their member role and a
+  // response viewer holds nowhere (Code Owner, 2026-11-05).
+  const erasable =
+    shown !== undefined && mayEraseResponses(await formCellsHeld(session, formId, shown));
 
   if (!form.ok && (form.code === "FORM_NOT_FOUND" || form.code === "INVALID_FORM_ID")) notFound();
   // The subject here is the response, and a `responses.viewer` holds no `form: read`, so a
@@ -103,6 +109,7 @@ export default async function ResponseDetailPage({
         labels={labels}
         labelsFailed={failed}
         linksHref={`/operations/forms/${encodeURIComponent(formId)}/links`}
+        erasable={erasable}
         erase={eraseSessionAction.bind(null, formId, shown)}
         unflag={unflagResponseAction.bind(null, formId, shown)}
       />

@@ -1,6 +1,9 @@
 import { OperationsFormRail } from "@/components/ops/operations-form-rail";
-import type { FormContext } from "@/lib/ops/form-contexts";
+import { shownEnvironment } from "@/lib/environment";
+import { heldFormContexts, type FormContext } from "@/lib/ops/form-contexts";
+import { resolvedEnvironment } from "@/lib/server/environments";
 import { getForm } from "@/lib/server/forms";
+import { formCellsHeld } from "@/lib/server/operations";
 import { requireAdminSession } from "@/lib/server/session";
 
 /**
@@ -17,12 +20,18 @@ export async function OperationsFormRailSlot({
 }) {
   const session = await requireAdminSession();
   const { formId } = await params;
-  const detail = await getForm(session, formId);
+  const [detail, resolved] = await Promise.all([
+    getForm(session, formId),
+    resolvedEnvironment(session),
+  ]);
+  const environment = shownEnvironment(resolved);
+  const cells = environment === undefined ? [] : await formCellsHeld(session, formId, environment);
   return (
     <OperationsFormRail
       formId={formId}
       name={detail.ok ? detail.data.slug : formId}
       current={current}
+      held={heldFormContexts(cells)}
     />
   );
 }

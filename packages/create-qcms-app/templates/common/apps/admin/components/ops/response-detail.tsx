@@ -36,6 +36,7 @@ export function ResponseDetail({
   labelsFailed,
   linksHref,
   environment,
+  erasable,
   erase,
   unflag,
 }: {
@@ -47,6 +48,9 @@ export function ResponseDetail({
   /* An erasure acts in one selected environment only; the confirmation must name it because the act cannot
      be undone. */
   readonly environment: string;
+  /* Absent rather than disabled: a caller without the erase cell is not offered a door that can only
+     refuse (Code Owner, 2026-11-05). */
+  readonly erasable: boolean;
   readonly erase: (
     sessionId: string,
     reason: ErasureReason,
@@ -191,19 +195,21 @@ export function ResponseDetail({
           {labelsFailed && <Alert variant="warning">{t("ops.detail.labelsFailed")}</Alert>}
           <Answers detail={detail} pins={pins} labels={labels} />
           <LedgerTimeline detail={detail} labels={labels} />
-          <HeadingMarker control="responses.erase">
-            <Button
-              variant="danger"
-              size="md"
-              isDisabled={isPending || environmentUnknown}
-              onPress={() => {
-                setErasureNote("");
-                setDialog("erase");
-              }}
-            >
-              {t("ops.erase.button")}
-            </Button>
-          </HeadingMarker>
+          {erasable && (
+            <HeadingMarker control="responses.erase">
+              <Button
+                variant="danger"
+                size="md"
+                isDisabled={isPending || environmentUnknown}
+                onPress={() => {
+                  setErasureNote("");
+                  setDialog("erase");
+                }}
+              >
+                {t("ops.erase.button")}
+              </Button>
+            </HeadingMarker>
+          )}
         </>
       ) : (
         <TombstoneCard tombstone={tombstone} />

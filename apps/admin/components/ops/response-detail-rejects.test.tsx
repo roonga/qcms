@@ -42,6 +42,7 @@ function renderDetail(props: {
       labelsFailed={false}
       linksHref="/operations/forms/form-1/links"
       environment="test"
+      erasable
       erase={props.erase ?? (() => Promise.resolve({ status: "error" as const }))}
       unflag={props.unflag ?? (() => Promise.resolve({ status: "error" as const }))}
     />,

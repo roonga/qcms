@@ -358,7 +358,10 @@ evidence that a response existed **there** and was erased.
 ## Where an operator performs it (task 035)
 
 Erasure has one door in the app, and it is on the **response detail** - the screen
-showing the answers that are about to go, so nobody erases from a list of ids. Pressing
+showing the answers that are about to go, so nobody erases from a list of ids. The door
+is shown only to a caller holding the erase cell on that form in the selected
+environment, so a reader who may not erase is not offered a control that can only be
+refused; the API refuses the act either way. Pressing
 "Erase respondent data" opens a type-to-confirm dialog that states three separate facts
 rather than asking for certainty: what is deleted (every answer and the submission, with
 no undo, no soft delete, and nothing this screen can restore from), what remains (the

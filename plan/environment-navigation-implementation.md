@@ -428,16 +428,21 @@ Addresses the move takes:
 | `/forms/{formId}/webhooks`              | `/operations/forms/{formId}/webhooks`              |
 | (none; the acts were the builder's)     | `/operations/forms/{formId}/intake`                |
 
-Open questions phase 6 does not settle, each outside every ruling above:
+Rulings on the two questions phase 6 left open (Code Owner, 2026-11-04, on #1204):
 
-- **Where a claim-only caller's global queue reads its form identities from.** `/webhooks`
-  reads `GET /admin/forms` for its form filter and its links, which an installation claim
-  cannot call (G03, G06), and a dead-letter row carries a form id and no slug. Options: add
-  the slug to the queue row; drop the filter and the per-form links; or leave the warning.
-  Recommendation: add the slug and drop the page's whole-installation form picker, since
-  the Operations table is the forms picker this plan asks for.
-- **The G05 eraser known-target screen and its `docs/erasure.md` text.** Q87 specifies the
-  journey and not where it lives; it belongs beside the Overview screen of slice 2.
+- Global webhook and dead-letter queues show each row's form name, and the page's
+  whole-installation form picker is dropped, since the Operations table is the forms picker
+  this plan asks for.
+- The response eraser's known-target screen lives in the form's Operations rail beside
+  Intake, shown only to erase-role holders.
+
+Operations keeps a visible "Exit Operations" control returning to where the user came
+from, and incidental links out of Operations show the Stay/Leave warning. Slice three
+builds the queue form names, the eraser screen, the Exit control and the leave warning.
+
+The Erase control on a response's detail, under More actions, shows only to a caller who
+holds the erase role for that form and environment; the API's refusal stays as it is
+(Code Owner, 2026-11-05).
 
 Phase 2 delivered the authorized read model and nothing beyond it: the `anyOf`
 route-policy row shape and `environmentFrom: "query"`, `GET /admin/operations/forms` with

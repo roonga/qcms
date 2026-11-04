@@ -158,6 +158,7 @@ describe("a refusal because another tab switched", { timeout: 30_000 }, () => {
         labelsFailed={false}
         linksHref="/forms/form-1/links"
         environment="prod"
+        erasable
         erase={() => Promise.resolve({ status: "error", message: SWITCHED })}
         unflag={() => Promise.resolve({ status: "error" })}
       />,

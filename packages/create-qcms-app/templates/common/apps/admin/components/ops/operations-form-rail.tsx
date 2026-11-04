@@ -10,21 +10,27 @@ import {
 import { OPERATIONS_PATH } from "@/lib/shell/modes";
 
 /**
- * The rail beside one form's operational screens: the operational contexts alone, because
- * this mode reads one environment and authoring edits a shared draft. It is navigation
- * rather than authority, so a row the caller holds no cell for meets that screen's own
- * refusal.
+ * The rail beside one form's operational screens: the operational contexts this caller
+ * holds, because this mode reads one environment and authoring edits a shared draft. The
+ * rule is the Operations row's own, so a response viewer arriving from a row meets the
+ * same one context there and here.
  */
 export function OperationsFormRail({
   formId,
   name,
   current,
+  held,
 }: {
   readonly formId: string;
   /** The form's name when this caller may read it, else its id. */
   readonly name: string;
   readonly current: FormContext;
+  /** The contexts this caller's cells admit. The screen being served is drawn whatever it says. */
+  readonly held: readonly FormContext[];
 }) {
+  const rows = FORM_OPERATIONAL_CONTEXTS.filter(
+    (context) => context === current || held.includes(context),
+  );
   return (
     <RailFrame
       subject={name}
@@ -33,7 +39,7 @@ export function OperationsFormRail({
       testId="qcms-operations-form-rail"
       sections={
         <ul className="qcms-rail__group" data-rail-group="sections">
-          {FORM_OPERATIONAL_CONTEXTS.map((context) => (
+          {rows.map((context) => (
             <li key={context}>
               <Link
                 href={formContextHref(formId, context)}

@@ -37,6 +37,24 @@ export const listOperationsForms: (
   },
 );
 
+/**
+ * The cells this caller holds on one form in one environment, empty when the read is
+ * refused or the form is not one they operate.
+ *
+ * The discovery read is the only place those cells are decided, so a screen inside the
+ * form asks it rather than inferring authority from a role name or from its own refusals.
+ */
+export async function formCellsHeld(
+  session: AdminSession,
+  formId: string,
+  environment: string,
+): Promise<readonly string[]> {
+  const query = new URLSearchParams({ environment, formId }).toString();
+  const discovery = await listOperationsForms(session, query);
+  if (discovery.status !== "ok") return [];
+  return discovery.page.forms.find((row) => row.formId === formId)?.capabilities ?? [];
+}
+
 function str(value: unknown): string {
   return typeof value === "string" ? value : "";
 }

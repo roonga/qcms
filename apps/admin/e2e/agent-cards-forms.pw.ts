@@ -28,7 +28,6 @@ const EMAIL = uniqueAdminEmail("agentcards083forms");
 
 const FORM_ID = "frm_auto_quote";
 
-/** The screen that carries intake, which is Operations'. */
 const INTAKE = `/operations/forms/${FORM_ID}/intake`;
 
 const WORKSPACE_ID = "org_default_workspace";

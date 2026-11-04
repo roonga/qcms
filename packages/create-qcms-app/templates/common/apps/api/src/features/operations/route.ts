@@ -15,7 +15,8 @@ export const operationsFormsRoute = createRoute({
   path: "/operations/forms",
   summary: "The forms a caller may operate in one environment (admin)",
   description:
-    "Bounded search, workspace and intake filters, stable sorting and cursor pagination. " +
+    "Bounded search, workspace, form and intake filters, stable sorting and cursor " +
+    "pagination. " +
     "A caller reaches it holding any one of `form: read`, `response: read`, " +
     "`response: erase` or `response: dispose`, and each row carries only the fields the " +
     "cells they hold for that form and environment would authorise elsewhere: release " +

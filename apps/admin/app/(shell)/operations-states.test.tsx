@@ -41,7 +41,28 @@ const RELEASED: OperationsFormRow = {
   release: { version: 4, releasedAt: "2026-10-01T00:00:00.000Z", closed: false },
   lastReleaseAt: "2026-10-01T00:00:00.000Z",
   counts: { submitted: 7, inProgress: 2 },
-  capabilities: ["response:read"],
+  capabilities: ["form:read", "release:read", "link:read", "webhook:read", "response:read"],
+};
+
+/** `response: read` on one form and nothing else: the Responses context alone (Q87). */
+const RESPONSES_ONLY: OperationsFormRow = {
+  ...RELEASED,
+  formId: "frm_survey",
+  slug: "survey",
+  displayName: "Survey",
+  release: null,
+  lastReleaseAt: null,
+  capabilities: ["response:read", "response:export"],
+};
+
+/** An eraser without a viewer grant: a row with no screen to open (G05). */
+const ERASE_ONLY: OperationsFormRow = {
+  ...RESPONSES_ONLY,
+  formId: "frm_leavers",
+  slug: "leavers",
+  displayName: "Leavers",
+  counts: null,
+  capabilities: ["response:erase", "response:dispose"],
 };
 
 const UNRELEASED: OperationsFormRow = {
@@ -199,6 +220,29 @@ describe("the Operations forms table's states", () => {
     expect(html).toContain("q=in");
   });
 
+  it("offers each row the contexts its own cells admit, and no others", async () => {
+    capabilities = EVERYTHING;
+    listResult = { status: "ok", page: page([RELEASED, RESPONSES_ONLY, ERASE_ONLY]) };
+
+    const html = await render();
+
+    // The combined row: its responses under the name, the other three beside it.
+    expect(html).toContain('href="/operations/forms/frm_intake/responses"');
+    expect(html).toContain('href="/operations/forms/frm_intake/links"');
+    expect(html).toContain('href="/operations/forms/frm_intake/webhooks"');
+    expect(html).toContain('href="/operations/forms/frm_intake/intake"');
+    // No authoring screen from a row, and none of the addresses the move left behind.
+    expect(html).not.toContain('href="/operations/forms/frm_intake/versions"');
+    expect(html).not.toContain('href="/forms/frm_intake');
+    // The response-only row reaches its responses and nothing else about the form.
+    expect(html).toContain('href="/operations/forms/frm_survey/responses"');
+    expect(html).not.toContain('href="/operations/forms/frm_survey/links"');
+    expect(html).not.toContain('href="/operations/forms/frm_survey/intake"');
+    // The eraser's row names the form and links nowhere.
+    expect(html).toContain("Leavers");
+    expect(html).not.toContain("frm_leavers/");
+  });
+
   it("asks for the chip's environment, so Last release is read where the chip says", async () => {
     capabilities = EVERYTHING;
     listResult = { status: "ok", page: page([RELEASED]) };
@@ -236,10 +280,10 @@ describe("the state while the read is in flight", () => {
   });
 
   it("holds that boundary in the page, so a screen below it can still answer 404", () => {
-    // A `loading.tsx` at either level wraps every `/operations/**` screen: the shell flushes
-    // first, and a nested `notFound()` then reaches the browser as 200.
-    const wrapping = ["./loading.tsx", "./operations/loading.tsx"].filter((relative) =>
-      existsSync(fileURLToPath(new URL(relative, import.meta.url))),
+    // A `loading.tsx` at any of these levels wraps every `/operations/**` screen: the shell
+    // flushes first, and a nested `notFound()` then reaches the browser as 200.
+    const wrapping = ["../loading.tsx", "./loading.tsx", "./operations/loading.tsx"].filter(
+      (relative) => existsSync(fileURLToPath(new URL(relative, import.meta.url))),
     );
 
     expect(wrapping).toEqual([]);

@@ -597,6 +597,19 @@ describe("operations discovery: bounds, filters and pagination", () => {
     expect(other.body.total).toBe(1);
   });
 
+  it("narrows to one form, so a screen inside it reads its own cells in one request", async () => {
+    const one = await operations(viewer.token, `environment=prod&formId=${FORM_CLAIMS}`);
+    expect(one.body.forms.map((row) => row.slug)).toEqual(["ops-claims"]);
+    expect(one.body.total).toBe(1);
+    expect(one.body.forms[0]?.capabilities).toEqual(expect.arrayContaining(VIEWER_READS));
+
+    // A form this caller holds nothing on is absent rather than refused: the filter runs
+    // after authorisation, so it cannot report whether that form exists.
+    const other = await operations(viewer.token, `environment=prod&formId=${FORM_OTHER}`);
+    expect(other.body.forms).toEqual([]);
+    expect(other.body.total).toBe(0);
+  });
+
   it("pages on a stable cursor and refuses one issued for another order", async () => {
     const first = await operations(viewer.token, "environment=prod&limit=1&sort=slug-asc");
     expect(first.body.forms.map((row) => row.slug)).toEqual(["ops-claims"]);

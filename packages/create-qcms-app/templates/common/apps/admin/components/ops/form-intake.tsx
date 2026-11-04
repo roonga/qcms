@@ -86,7 +86,6 @@ export function FormIntake({
         </p>
       )}
 
-      {/* Testid on the region, so the `aria-live` can be asserted directly. */}
       <div aria-live="polite" className="flex flex-col gap-2" data-testid="qcms-form-intake-status">
         {lifecycle.status === "error" && (
           <Alert variant="error">
