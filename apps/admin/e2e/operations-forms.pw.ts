@@ -6,6 +6,12 @@ import { createForm } from "./support/forms.js";
 import { enrollNewAdmin, fillStable, signInWithTotp } from "./support/flow.js";
 import { waitForHydration } from "./support/hydration.js";
 
+/**
+ * The Operations forms table in a browser, for the facts no other layer has: that a filter
+ * leaves the header, the environment and the heading where they were, that browser back
+ * restores the view, and that the moved addresses land where they say.
+ */
+
 test.describe.configure({ mode: "serial" });
 
 const EMAIL = uniqueAdminEmail("opsforms");
@@ -32,7 +38,7 @@ test("lists the forms this caller operates, separating unreleased from closed in
   await expect(table).toBeVisible();
   await expect(table.getByRole("row").filter({ hasText: ALPHA })).toHaveCount(1);
   await expect(table.getByRole("row").filter({ hasText: BETA })).toHaveCount(1);
-
+  // Neither has been released, which is its own reading rather than closed intake.
   await expect(
     table.getByRole("row").filter({ hasText: ALPHA }).getByText("No release"),
   ).toHaveCount(2);
@@ -55,7 +61,7 @@ test("a filter narrows the rows below it and changes nothing above them", async 
   await expect(page).toHaveURL(new RegExp(`q=${ALPHA}`, "u"));
   const table = page.getByTestId("qcms-operations-table");
   await expect(table.getByRole("row").filter({ hasText: BETA })).toHaveCount(0);
-
+  // The header, the mode, the environment and the heading are all where they were.
   await expect(page.getByTestId("qcms-mode-header")).toHaveAttribute("data-mode", "operations");
   await expect(heading).toBeVisible();
   await expect(chip).toHaveAttribute("data-environment", environment ?? "");
@@ -65,20 +71,77 @@ test("leaving the environment an address names resets the page and keeps the ter
   page,
 }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
-
+  // The selection is this browser context's own, so it is made here rather than inherited
+  // from the test that created the forms: Playwright gives each test a fresh context.
   await chooseEnvironment(page, "test");
 
+  // The address now names an environment the operator is not in.
   await page.goto(`/operations?env=prod&q=${ALPHA}&cursor=stale`);
   await waitForHydration(page);
 
   const chip = page.getByTestId("qcms-mode-header").getByTestId("qcms-environment-switcher");
   await expect(chip).toHaveAttribute("data-environment", "test");
 
+  // The term survives; the page position does not, and every link names the environment
+  // in force rather than the one the address asked for.
   const clear = page.getByTestId("qcms-rail-filters").getByRole("link", { name: "Clear filters" });
   await expect(clear).toHaveAttribute("href", "/operations?env=test");
   await expect(
     page.getByTestId("qcms-rail-filters").getByRole("textbox", { name: "Search" }),
   ).toHaveValue(ALPHA);
+});
+
+test("a row opens the form's operational contexts in the environment the chip names", async ({
+  page,
+}) => {
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await chooseEnvironment(page, "test");
+  await page.goto("/operations");
+  await waitForHydration(page);
+
+  const row = page.getByTestId("qcms-operations-table").getByRole("row").filter({ hasText: ALPHA });
+  await expect(row).toHaveCount(1);
+  // Every context link names its own row. The first the caller may open is the form's
+  // NAME, so the list beside it is the rest; an account here holds every cell.
+  const contexts = row.getByTestId("qcms-operations-contexts");
+  for (const context of ["Links", "Webhooks", "Intake"]) {
+    await expect(contexts.getByRole("link", { name: `${context} for ${ALPHA}` })).toBeVisible();
+  }
+  // No authoring screen is offered from here.
+  await expect(contexts.getByRole("link", { name: `Versions for ${ALPHA}` })).toHaveCount(0);
+
+  await row.getByTestId("qcms-operations-name").click();
+
+  // The name opens the row's first operational context, read where the chip said.
+  await expect(page).toHaveURL(/\/operations\/forms\/frm_[^/]+\/responses$/u);
+  await expect(page.getByRole("heading", { level: 1, name: "Responses" })).toBeVisible();
+  await expect(page.getByTestId("qcms-response-browser")).toBeVisible();
+});
+
+test("the addresses the operational screens had still arrive, with their query", async ({
+  page,
+}) => {
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.goto("/operations");
+  await waitForHydration(page);
+  const formId = await page
+    .getByTestId("qcms-operations-table")
+    .getByRole("row")
+    .filter({ hasText: ALPHA })
+    .getAttribute("data-form-id");
+
+  // What only a browser reports: each config redirect lands, and the response list's
+  // filters survive the hop.
+  await page.goto(`/forms/${formId}/responses?flagged=true`);
+  await expect(page).toHaveURL(
+    new RegExp(`/operations/forms/${formId}/responses\\?flagged=true$`, "u"),
+  );
+
+  await page.goto(`/forms/${formId}/links`);
+  await expect(page).toHaveURL(new RegExp(`/operations/forms/${formId}/links$`, "u"));
+
+  await page.goto(`/forms/${formId}/webhooks`);
+  await expect(page).toHaveURL(new RegExp(`/operations/forms/${formId}/webhooks$`, "u"));
 });
 
 test("the legacy responses picker redirects to the Operations table", async ({ page }) => {
@@ -100,7 +163,7 @@ test("the global queues are Operations destinations, reached from its rail", asy
   await expect(page).toHaveURL(/\/webhooks$/u);
   await expect(page.getByTestId("qcms-mode-header")).toHaveAttribute("data-mode", "operations");
   await expect(page.getByRole("navigation", { name: "Primary" })).toHaveCount(0);
-
+  // The queue's own rail offers the way back to the table.
   await page.getByTestId("qcms-webhooks-rail").getByRole("link", { name: "Operations" }).click();
   await expect(page).toHaveURL(/\/operations$/u);
 

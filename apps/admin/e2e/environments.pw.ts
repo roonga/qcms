@@ -152,7 +152,7 @@ test("a destructive confirmation names the environment it is about", async ({ pa
   await chooseEnvironment(page, "test");
 
   formId = await createForm(page, FORM_SLUG, "Environment restatement");
-  await page.goto(`/forms/${formId}`);
+  await page.goto(`/operations/forms/${formId}/intake`);
 
   await page.getByRole("button", { name: "Close in test" }).click();
   const dialog = page.getByRole("alertdialog");
@@ -162,8 +162,11 @@ test("a destructive confirmation names the environment it is about", async ({ pa
   await expect(dialog.getByRole("button", { name: "Close it in test" })).toBeVisible();
   await dialog.getByRole("button", { name: "Cancel" }).click();
 
+  // The publish entry is the builder's, and intake is not offered there any more.
+  await page.goto(`/forms/${formId}`);
   await expect(page.getByRole("button", { name: /^Publish/u })).toHaveCount(0);
   await expect(page.getByTestId("qcms-publish-entry")).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Close in/u })).toHaveCount(0);
 });
 
 test("a dialog never acts in an environment another tab switched to", async ({ page }) => {
@@ -172,7 +175,7 @@ test("a dialog never acts in an environment another tab switched to", async ({ p
 
   await page.goto("/forms");
   await chooseEnvironment(page, "prod");
-  await page.goto(`/forms/${formId}`);
+  await page.goto(`/operations/forms/${formId}/intake`);
   await page.getByRole("button", { name: "Close in prod" }).click();
   const dialog = page.getByRole("alertdialog");
   await expect(dialog.getByRole("button", { name: "Close it in prod" })).toBeVisible();
@@ -188,7 +191,7 @@ test("a dialog never acts in an environment another tab switched to", async ({ p
   await page.reload();
   await expect(page.getByRole("button", { name: "Close in test" })).toBeVisible();
   await chooseEnvironment(tabB, "prod");
-  await tabB.goto(`/forms/${formId}`);
+  await tabB.goto(`/operations/forms/${formId}/intake`);
   await expect(tabB.getByRole("button", { name: "Close in prod" })).toBeVisible();
   await tabB.close();
 });

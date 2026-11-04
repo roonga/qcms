@@ -28,6 +28,9 @@ const EMAIL = uniqueAdminEmail("agentcards083forms");
 
 const FORM_ID = "frm_auto_quote";
 
+/** The screen that carries intake, which is Operations'. */
+const INTAKE = `/operations/forms/${FORM_ID}/intake`;
+
 const WORKSPACE_ID = "org_default_workspace";
 
 let totpSecret = "";
@@ -36,12 +39,12 @@ test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
 });
 
-test("confirms a close and a reopen on the form screen, changing the screen and recording each act", async ({
+test("confirms a close and a reopen on the Intake screen, changing the screen and recording each act", async ({
   page,
 }) => {
   test.setTimeout(300_000);
   totpSecret = await enrollNewAdmin(page, EMAIL);
-  await page.goto(`/forms/${FORM_ID}`);
+  await page.goto(INTAKE);
   await openPanel(page);
 
   const before = await auditTally();
@@ -65,7 +68,7 @@ test("confirms a close and a reopen on the form screen, changing the screen and 
 test("sends nothing when the card is cancelled", async ({ page }) => {
   test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);
-  await page.goto(`/forms/${FORM_ID}`);
+  await page.goto(INTAKE);
   await openPanel(page);
 
   const before = await auditTally();
@@ -101,12 +104,12 @@ const READ_LABELS: readonly { readonly path: string; readonly labels: readonly s
       "Checking the draft",
     ],
   },
-  { path: `/forms/${FORM_ID}/links`, labels: ["Counting the links"] },
+  { path: `/operations/forms/${FORM_ID}/links`, labels: ["Counting the links"] },
   {
-    path: `/forms/${FORM_ID}/responses`,
+    path: `/operations/forms/${FORM_ID}/responses`,
     labels: ["Listing the responses", "Counting the responses"],
   },
-  { path: `/forms/${FORM_ID}/webhooks`, labels: ["Checking the deliveries"] },
+  { path: `/operations/forms/${FORM_ID}/webhooks`, labels: ["Checking the deliveries"] },
   { path: `/forms/${FORM_ID}/versions`, labels: ["Comparing two versions"] },
   { path: "/forms", labels: ["Searching the forms"] },
   { path: "/webhooks", labels: ["Counting the dead letters"] },
@@ -140,7 +143,7 @@ test("ticks a waiting card into Expired once its window runs out", async ({ page
   test.setTimeout(300_000);
   await pinProposalClock(page);
   await signInWithTotp(page, EMAIL, totpSecret);
-  await page.goto(`/forms/${FORM_ID}`);
+  await page.goto(INTAKE);
   await openPanel(page);
 
   const before = await auditTally();
