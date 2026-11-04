@@ -787,14 +787,15 @@ describe("every screen's context, with a sentinel in the database", () => {
     expect(res.status).toBe(400);
   });
 
+  const readRowCount = async (): Promise<number> => {
+    const res = await testDb.client.query<{ n: number }>(
+      `select count(*)::int as n from control.access_audit where kind = 'read' and form_id = $1`,
+      [FORM_ID],
+    );
+    return (res.rows[0] as { n: number }).n;
+  };
+
   it("writes one SEC-15 read row per conversation for each distinct filter set", async () => {
-    const countRows = async (): Promise<number> => {
-      const res = await testDb.client.query<{ n: number }>(
-        `select count(*)::int as n from control.access_audit where kind = 'read' and form_id = $1`,
-        [FORM_ID],
-      );
-      return (res.rows[0] as { n: number }).n;
-    };
     const turn = async (conversationId: string, flagged?: boolean): Promise<void> => {
       await resetLimiter();
       const res = await post("/assist", {
@@ -807,18 +808,18 @@ describe("every screen's context, with a sentinel in the database", () => {
       await readEvents(res);
     };
 
-    const start = await countRows();
+    const start = await readRowCount();
     await turn("cnv_rows");
     await turn("cnv_rows");
     await turn("cnv_rows");
 
-    expect((await countRows()) - start).toBe(1);
+    expect((await readRowCount()) - start).toBe(1);
 
     await turn("cnv_rows", true);
-    expect((await countRows()) - start).toBe(2);
+    expect((await readRowCount()) - start).toBe(2);
 
     await turn("cnv_rows_2");
-    expect((await countRows()) - start).toBe(3);
+    expect((await readRowCount()) - start).toBe(3);
 
     // The D4 read tools key their row by the subject the facts builder keys it by, so a
     // turn whose facts, list and count all run over no filter writes one row, not three.
@@ -831,17 +832,10 @@ describe("every screen's context, with a sentinel in the database", () => {
     });
     expect(walk.status).toBe(200);
     await readEvents(walk);
-    expect((await countRows()) - start).toBe(4);
+    expect((await readRowCount()) - start).toBe(4);
   });
 
   it("writes a further read row when one conversation returns to a subject", async () => {
-    const countRows = async (): Promise<number> => {
-      const res = await testDb.client.query<{ n: number }>(
-        `select count(*)::int as n from control.access_audit where kind = 'read' and form_id = $1`,
-        [FORM_ID],
-      );
-      return (res.rows[0] as { n: number }).n;
-    };
     const turn = async (visitId: string, screen: string): Promise<void> => {
       await resetLimiter();
       const res = await post("/assist", {
@@ -855,16 +849,16 @@ describe("every screen's context, with a sentinel in the database", () => {
       await readEvents(res);
     };
 
-    const start = await countRows();
+    const start = await readRowCount();
     await turn("vis_1", "/forms/[formId]/responses");
     await turn("vis_1", "/forms/[formId]/responses");
     // Two turns of one stay on the subject: one row.
-    expect((await countRows()) - start).toBe(1);
+    expect((await readRowCount()) - start).toBe(1);
 
     // The same conversation elsewhere, then back: the return owes its own row.
     await turn("vis_2", "/forms/[formId]/publish");
     await turn("vis_3", "/forms/[formId]/responses");
-    expect((await countRows()) - start).toBe(2);
+    expect((await readRowCount()) - start).toBe(2);
   });
 });
 

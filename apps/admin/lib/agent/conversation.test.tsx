@@ -181,6 +181,17 @@ describe("the conversation between page loads", () => {
     expect(other.id).not.toBe(before.id);
   });
 
+  it("is not handed on by a shell that re-renders under a different user", () => {
+    const view = render(at("/forms", [{ role: "user", content: "mine" }]));
+    fireEvent.click(screen.getByTestId("append"));
+    const before = read();
+
+    view.rerender(at("/forms", undefined, "usr_2"));
+    const other = read();
+    expect(other.turns).toBe("");
+    expect(other.id).not.toBe(before.id);
+  });
+
   it("is gone once sign-out has cleared it", () => {
     const first = render(at("/forms", [{ role: "user", content: "ending" }]));
     fireEvent.click(screen.getByTestId("append"));

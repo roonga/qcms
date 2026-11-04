@@ -98,21 +98,26 @@ export function ConversationProvider({
   readonly children: ReactNode;
 }) {
   const subject = conversationSubject(screenForPath(pathname));
-  const held = useRef<ConversationState | undefined>(undefined);
+  // Held with its owner, so a shell that re-renders under a different user drops it rather
+  // than handing it on.
+  const held = useRef<{ readonly user: string; readonly state: ConversationState } | undefined>(
+    undefined,
+  );
   const [revision, setRevision] = useState(0);
 
   const handle = useMemo<ConversationHandle>(() => {
     const browser = typeof window !== "undefined";
+    const mine = held.current?.user === userId ? held.current.state : undefined;
     // The server render has no tab storage, so a stored conversation is read on the first
     // render that has a window.
     const restored =
-      held.current ?? (browser ? readStored(userId) : undefined) ?? startConversation(subject, mint);
+      mine ?? (browser ? readStored(userId) : undefined) ?? startConversation(subject, mint);
     const state = atSubject(restored, subject, mint);
-    held.current = state;
+    held.current = { user: userId, state };
     if (browser && state !== restored) writeStored(state, userId);
 
     const replace = (next: ConversationState): void => {
-      held.current = next;
+      held.current = { user: userId, state: next };
       if (browser) writeStored(next, userId);
       setRevision((count) => count + 1);
     };
@@ -123,10 +128,10 @@ export function ConversationProvider({
       subject: state.subject,
       turns: state.turns,
       dropped: state.dropped,
-      current: () => held.current?.turns ?? state.turns,
+      current: () => held.current?.state.turns ?? state.turns,
       /** Append against the held state so two appends from one render cannot overwrite each other. */
       append: (turns) => {
-        replace(appendCapped(held.current ?? state, turns));
+        replace(appendCapped(held.current?.state ?? state, turns));
       },
       restart: () => {
         replace(startConversation(subject, mint));
