@@ -384,6 +384,9 @@ async function operations(
   return { status: res.status, body: (await res.json()) as OperationsBody };
 }
 
+// Environment-agnostic, so a row reports them wherever the caller's writes stop.
+const VIEWER_READS = ["form:read", "release:read", "link:read", "webhook:read"];
+
 async function slugsFor(token: string, query = "environment=prod"): Promise<string[]> {
   const { body } = await operations(token, query);
   return body.forms.map((row) => row.slug).sort();
@@ -402,8 +405,9 @@ describe("operations discovery: which rows each persona is served", () => {
     expect(claims?.hasRelease).toBe(true);
     expect(claims?.lastReleaseAt).not.toBeNull();
     expect(claims?.counts).toBeNull();
-    // Empty rather than absent: the field is derived from the policy, not a role name.
-    expect(claims?.capabilities).toEqual([]);
+    // The four reads a viewer holds and no write at all: derived from the policy, not from
+    // a role name.
+    expect(claims?.capabilities).toEqual(VIEWER_READS);
     // From the published version's title, never a draft.
     expect(claims?.displayName).toBe("ops-claims form");
   });
@@ -460,7 +464,7 @@ describe("operations discovery: which rows each persona is served", () => {
     // The row is still served, since `form: read` is workspace-wide, and every production
     // write is absent: the matrix's split rather than the scope.
     expect(claimsInProd?.release).not.toBeNull();
-    expect(claimsInProd?.capabilities).toEqual([]);
+    expect(claimsInProd?.capabilities).toEqual(VIEWER_READS);
   });
 
   it("gives a prod-only approver its writes in prod and none in test", async () => {
@@ -472,7 +476,9 @@ describe("operations discovery: which rows each persona is served", () => {
     expect(claims?.capabilities).not.toContain("response:read");
     expect(claims?.counts).toBeNull();
     const inTest = await operations(prodApprover.token, "environment=test");
-    expect(inTest.body.forms.find((row) => row.slug === "ops-claims")?.capabilities).toEqual([]);
+    expect(inTest.body.forms.find((row) => row.slug === "ops-claims")?.capabilities).toEqual(
+      VIEWER_READS,
+    );
   });
 
   it("restricts a one-form response viewer to that form, that environment, and no versions", async () => {
@@ -484,7 +490,8 @@ describe("operations discovery: which rows each persona is served", () => {
     expect(claims?.release).toBeNull();
     expect(claims?.lastReleaseAt).toBeNull();
     expect(claims?.hasRelease).toBe(true);
-    expect(claims?.capabilities).toEqual(["response:export"]);
+    // The response reads it holds on this form, and no control-plane read of any kind.
+    expect(claims?.capabilities).toEqual(["response:read", "response:export"]);
     expect(JSON.stringify(inProd.body)).not.toContain("hasDraft");
     expect(JSON.stringify(inProd.body)).not.toContain("latestVersion");
 

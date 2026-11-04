@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { OperatorDateTime } from "@/components/operator-time";
 import { t } from "@/lib/i18n/en";
+import { formContextLinks, primaryFormContext } from "@/lib/ops/form-contexts";
 import { intakeOf, type OperationsFormRow } from "@/lib/ops/operations-forms";
 
 export function OperationsFormsTable({ rows }: { readonly rows: readonly OperationsFormRow[] }) {
@@ -34,12 +35,11 @@ export function OperationsFormsTable({ rows }: { readonly rows: readonly Operati
           {rows.map((row) => (
             <tr key={row.formId} data-form-id={row.formId}>
               <th scope="row">
-                <Link className="qcms-text-link" href={`/forms/${encodeURIComponent(row.formId)}`}>
-                  {row.displayName}
-                </Link>
+                <FormName row={row} />
                 {row.displayName !== row.slug && (
                   <span className="block text-xs text-(--color-text-muted)">{row.slug}</span>
                 )}
+                <FormContexts row={row} />
               </th>
               <td className="qcms-cell--drop">{row.workspace.name}</td>
               <td className="qcms-cell--num">{releasedText(row)}</td>
@@ -58,6 +58,53 @@ export function OperationsFormsTable({ rows }: { readonly rows: readonly Operati
         </tbody>
       </table>
     </div>
+  );
+}
+
+// Plain text when the caller may open no context: the row is here because an operational
+// cell admitted it, which is not the same as a screen it may open.
+function FormName({ row }: { readonly row: OperationsFormRow }) {
+  const primary = primaryFormContext(row);
+  if (primary === undefined) {
+    return <span data-testid="qcms-operations-name">{row.displayName}</span>;
+  }
+  return (
+    <Link
+      className="qcms-text-link"
+      href={primary.href}
+      data-testid="qcms-operations-name"
+      data-context={primary.context}
+    >
+      {row.displayName}
+    </Link>
+  );
+}
+
+// The first context is the name above these, so it is dropped here. Every link names its
+// own row, because one row's Responses link is otherwise read out like every other row's.
+function FormContexts({ row }: { readonly row: OperationsFormRow }) {
+  const rest = formContextLinks(row).slice(1);
+  if (rest.length === 0) return null;
+  return (
+    <ul className="mt-1 flex flex-wrap gap-x-3 text-xs" data-testid="qcms-operations-contexts">
+      {rest.map((link) => (
+        <li key={link.context}>
+          {/* 24px of target, so four links on one line satisfy SC 2.5.8 on their own size
+              rather than on the space between them. */}
+          <Link
+            className="qcms-text-link inline-flex min-h-6 items-center"
+            href={link.href}
+            data-context={link.context}
+            aria-label={t("operations.context.named", {
+              context: link.label,
+              form: row.displayName,
+            })}
+          >
+            {link.label}
+          </Link>
+        </li>
+      ))}
+    </ul>
   );
 }
 

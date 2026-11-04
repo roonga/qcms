@@ -97,6 +97,7 @@ describe("query helper import surface", () => {
     "fetchResponsePage",
     "listTombstones",
     "responseCountsByForm",
+    "responseFormVersions",
     "clearSubmissionFlag",
     "sweepExpiredSessions",
     "purgeExpired",

@@ -130,6 +130,7 @@ export const messages = {
   "operations.column.lastRelease": "Last release",
   "operations.column.submitted": "Submitted",
   "operations.column.inProgress": "In progress",
+  "operations.context.named": "{context} for {form}",
 
   "operations.intake.open": "Open",
   "operations.intake.closed": "Closed",
@@ -1911,7 +1912,10 @@ export const messages = {
   "ops.export.to": "Submitted to",
   "ops.export.dayHint": "Whole days, in {zone}.",
   "ops.export.download": "Download",
-  "ops.export.noVersions": "This form has no published version, so there is nothing to export.",
+  "ops.export.noVersions": "This form has no version to export from.",
+  "ops.export.versionsUnknown":
+    "This form's versions could not be read, so no version can be chosen. A JSON export " +
+    "carries each response's own version.",
   /** Empty CSV contains a header; empty JSON is an empty array. State the selected format rather than promising one shape for both. */
   "ops.export.emptyNote.csv":
     "A CSV export that matches nothing downloads as a file with only its header row.",

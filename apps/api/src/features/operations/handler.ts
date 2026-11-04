@@ -57,12 +57,19 @@ const fail = {
   noContext: (): Error => new Error("operations: no resolved membership on the request context"),
 } as const;
 
+// The reads are reported because inferring one from a null field cannot tell a refusal
+// from a form with no release and no response.
 const CAPABILITY_CELLS: readonly { readonly resource: Resource; readonly action: string }[] = [
+  { resource: "form", action: "read" },
   { resource: "form", action: "close" },
+  { resource: "release", action: "read" },
   { resource: "release", action: "create" },
+  { resource: "link", action: "read" },
   { resource: "link", action: "mint" },
   { resource: "link", action: "revoke" },
+  { resource: "webhook", action: "read" },
   { resource: "webhook", action: "configure" },
+  { resource: "response", action: "read" },
   { resource: "response", action: "export" },
   { resource: "response", action: "erase" },
   { resource: "response", action: "dispose" },

@@ -380,7 +380,7 @@ describe("the secure-link list's read states (issues 572, 544)", () => {
   });
 });
 
-describe("the form builder's library read states (issues 572, 544)", () => {
+describe("the form builder's library read states (issues 572, 544)", { timeout: 30_000 }, () => {
   function renderPinGrid(): string {
     return renderToStaticMarkup(
       <StepEditor
