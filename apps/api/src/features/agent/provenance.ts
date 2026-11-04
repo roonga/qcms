@@ -32,6 +32,11 @@ export interface ProvenanceInput {
   readonly facts: ActionRequestFacts;
   readonly recorded: readonly RecordedStep[];
   readonly now: Date;
+  /**
+   * The form's saved draft revision now, read only when the token binds one. Absent, a
+   * bound plan is refused rather than run against a draft nothing can check.
+   */
+  readonly savedDraftRevision?: ((formId: string) => Promise<number | undefined>) | undefined;
 }
 
 /** What a verified step hands the handler, which is what its audit row is written from. */
@@ -135,6 +140,20 @@ function withinRunWindow(input: ProvenanceInput): boolean {
   return input.now.getTime() - first.confirmedAt.getTime() <= PROPOSAL_TTL_MS;
 }
 
+/**
+ * A plan built from the saved draft runs only while that draft is the one it was built
+ * from. Fails closed: no form, no reader, no draft row and a moved revision are one answer,
+ * because each of them means the set the plan was checked against cannot be shown to hold.
+ */
+async function draftUnmoved(
+  input: ProvenanceInput,
+  token: ProposalTokenPayload,
+): Promise<boolean> {
+  if (token.draftRevision === undefined) return true;
+  if (token.formId === undefined || input.savedDraftRevision === undefined) return false;
+  return (await input.savedDraftRevision(token.formId)) === token.draftRevision;
+}
+
 export async function checkProvenance(input: ProvenanceInput): Promise<ProvenanceResult> {
   const stepIndex = stepIndexOf(input.rawStep);
   if (stepIndex === undefined) return refused("AGENT_PROPOSAL_MALFORMED");
@@ -163,6 +182,8 @@ export async function checkProvenance(input: ProvenanceInput): Promise<Provenanc
   // After the order check, so an unrecorded predecessor reads as out of order rather than
   // as a window that never opened.
   if (stepIndex > 0 && !withinRunWindow(input)) return refused("AGENT_PROPOSAL_WINDOW");
+
+  if (!(await draftUnmoved(input, token))) return refused("AGENT_PROPOSAL_DRAFT");
 
   const routed = actionKindForRoute(input.facts.method, input.facts.path, input.facts.body);
   if (routed === undefined || routed.kind !== step.kind) return refused("AGENT_PROPOSAL_ROUTE");
@@ -202,6 +223,8 @@ export function provenanceMessage(code: ProposalRefusalCode): string {
       return "That proposal is more than ten minutes old. Ask the assistant again.";
     case "AGENT_PROPOSAL_WINDOW":
       return "That plan's run has taken too long. Ask the assistant again.";
+    case "AGENT_PROPOSAL_DRAFT":
+      return "This form's saved draft has changed since that plan was proposed. Ask the assistant again.";
     default:
       return "That proposal does not authorise this request.";
   }

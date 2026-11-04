@@ -51,13 +51,19 @@ async function binding(
 
 async function tokenFor(
   steps: readonly ProposalStepBinding[],
-  options: { readonly sub?: string; readonly pid?: string } = {},
+  options: {
+    readonly sub?: string;
+    readonly pid?: string;
+    readonly formId?: string | undefined;
+    readonly draftRevision?: number;
+  } = {},
 ): Promise<string> {
   return signProposalToken(APP_KEY, {
     sub: options.sub ?? "user_1",
     pid: options.pid ?? "prp_1",
     steps,
-    formId: "frm_a",
+    formId: "formId" in options ? options.formId : "frm_a",
+    ...(options.draftRevision === undefined ? {} : { draftRevision: options.draftRevision }),
     issuedAt,
   });
 }
@@ -77,6 +83,7 @@ async function check(args: {
   readonly facts: ActionRequestFacts;
   readonly recorded?: readonly RecordedStep[];
   readonly now?: Date;
+  readonly savedDraftRevision?: ((formId: string) => Promise<number | undefined>) | undefined;
 }) {
   return checkProvenance({
     token: args.token,
@@ -86,6 +93,7 @@ async function check(args: {
     facts: args.facts,
     recorded: args.recorded ?? [],
     now: args.now ?? atOnce,
+    ...("savedDraftRevision" in args ? { savedDraftRevision: args.savedDraftRevision } : {}),
   });
 }
 
@@ -233,6 +241,85 @@ describe("checkProvenance: a plan runs in order (criterion 4)", () => {
       now: new Date(confirmedAt.getTime() + 11 * 60 * 1000),
     });
     expect(result).toEqual({ ok: false, code: "AGENT_PROPOSAL_WINDOW" });
+  });
+});
+
+describe("checkProvenance: a plan built from the saved draft is bound to it", () => {
+  const PUBLISH_ARGS = { questionId: "q_given_name", version: 1 };
+
+  function publishFacts(): ActionRequestFacts {
+    return {
+      path: "/admin/questions/{id}/versions/{v}/publish",
+      method: "POST",
+      params: { id: "q_given_name", v: "1" },
+      body: undefined,
+      environment: "test",
+    };
+  }
+
+  async function boundPlan(): Promise<string> {
+    return tokenFor([await binding("question.publish", PUBLISH_ARGS, "test")], {
+      draftRevision: 7,
+    });
+  }
+
+  it("accepts the step while the saved draft is the revision it was built from", async () => {
+    const result = await check({
+      token: await boundPlan(),
+      facts: publishFacts(),
+      savedDraftRevision: () => Promise.resolve(7),
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it("refuses the step once the saved draft has moved", async () => {
+    const result = await check({
+      token: await boundPlan(),
+      facts: publishFacts(),
+      savedDraftRevision: () => Promise.resolve(8),
+    });
+    expect(result).toEqual({ ok: false, code: "AGENT_PROPOSAL_DRAFT" });
+  });
+
+  it("refuses the step once the saved draft is gone", async () => {
+    const result = await check({
+      token: await boundPlan(),
+      facts: publishFacts(),
+      savedDraftRevision: () => Promise.resolve(undefined),
+    });
+    expect(result).toEqual({ ok: false, code: "AGENT_PROPOSAL_DRAFT" });
+  });
+
+  it("refuses a bound plan where nothing can read the draft, rather than running it", async () => {
+    const result = await check({ token: await boundPlan(), facts: publishFacts() });
+    expect(result).toEqual({ ok: false, code: "AGENT_PROPOSAL_DRAFT" });
+  });
+
+  it("refuses a bound plan that names no form, because there is no draft to compare", async () => {
+    const token = await tokenFor([await binding("question.publish", PUBLISH_ARGS, "test")], {
+      formId: undefined,
+      draftRevision: 7,
+    });
+    const result = await check({
+      token,
+      facts: publishFacts(),
+      savedDraftRevision: () => Promise.resolve(7),
+    });
+    expect(result).toEqual({ ok: false, code: "AGENT_PROPOSAL_DRAFT" });
+  });
+
+  it("leaves an unbound plan alone, and reads no draft for it", async () => {
+    let reads = 0;
+    const result = await check({
+      token: await tokenFor([await binding("link.mint", MINT_ARGS, "test")]),
+      facts: mintFacts(),
+      savedDraftRevision: () => {
+        reads += 1;
+        return Promise.resolve(99);
+      },
+    });
+    expect(result.ok).toBe(true);
+    expect(reads).toBe(0);
   });
 });
 

@@ -27,6 +27,12 @@ export interface ProposalTokenPayload {
   readonly pid: string;
   readonly steps: readonly ProposalStepBinding[];
   readonly formId?: string;
+  /**
+   * The `form_drafts.revision` the plan's steps were built from, when they were built from
+   * the saved draft at all. Every step of such a plan is refused once the draft moves, so a
+   * pin removed after the card was proposed cannot still be published.
+   */
+  readonly draftRevision?: number;
   readonly iat: number;
   readonly exp: number;
 }
@@ -116,13 +122,16 @@ async function signingKey(appKey: string): Promise<CryptoKey> {
   ]);
 }
 
-function payloadOf(args: {
+interface ProposalTokenArgs {
   readonly sub: string;
   readonly pid: string;
   readonly steps: readonly ProposalStepBinding[];
   readonly formId?: string | undefined;
+  readonly draftRevision?: number | undefined;
   readonly issuedAt: Date;
-}): ProposalTokenPayload {
+}
+
+function payloadOf(args: ProposalTokenArgs): ProposalTokenPayload {
   const iat = args.issuedAt.getTime();
   return {
     v: PROPOSAL_TOKEN_VERSION,
@@ -131,6 +140,7 @@ function payloadOf(args: {
     pid: args.pid,
     steps: args.steps,
     ...(args.formId === undefined ? {} : { formId: args.formId }),
+    ...(args.draftRevision === undefined ? {} : { draftRevision: args.draftRevision }),
     iat,
     exp: iat + PROPOSAL_TTL_MS,
   };
@@ -138,13 +148,7 @@ function payloadOf(args: {
 
 export async function signProposalToken(
   appKey: string,
-  args: {
-    readonly sub: string;
-    readonly pid: string;
-    readonly steps: readonly ProposalStepBinding[];
-    readonly formId?: string | undefined;
-    readonly issuedAt: Date;
-  },
+  args: ProposalTokenArgs,
 ): Promise<string> {
   if (args.steps.length === 0) throw new Error("A proposal token carries at least one step");
   if (args.steps.length > PROPOSAL_MAX_STEPS) {
@@ -169,6 +173,7 @@ export const PROPOSAL_REFUSAL_CODES = [
   "AGENT_PROPOSAL_REFERENCE",
   "AGENT_PROPOSAL_ORDER",
   "AGENT_PROPOSAL_ENVIRONMENT",
+  "AGENT_PROPOSAL_DRAFT",
 ] as const;
 
 export type ProposalRefusalCode = (typeof PROPOSAL_REFUSAL_CODES)[number];
@@ -202,6 +207,10 @@ function parsedSteps(raw: unknown): ProposalStepBinding[] | undefined {
   return steps;
 }
 
+function isDraftRevision(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 1;
+}
+
 function parsedPayload(raw: unknown): ProposalTokenPayload | undefined {
   if (typeof raw !== "object" || raw === null) return undefined;
   const candidate = raw as Record<string, unknown>;
@@ -211,6 +220,9 @@ function parsedPayload(raw: unknown): ProposalTokenPayload | undefined {
   if (typeof candidate.pid !== "string" || candidate.pid === "") return undefined;
   if (typeof candidate.iat !== "number" || typeof candidate.exp !== "number") return undefined;
   if (candidate.formId !== undefined && typeof candidate.formId !== "string") return undefined;
+  if (candidate.draftRevision !== undefined && !isDraftRevision(candidate.draftRevision)) {
+    return undefined;
+  }
   const steps = parsedSteps(candidate.steps);
   if (steps === undefined) return undefined;
   return {
@@ -220,6 +232,7 @@ function parsedPayload(raw: unknown): ProposalTokenPayload | undefined {
     pid: candidate.pid,
     steps,
     ...(candidate.formId === undefined ? {} : { formId: candidate.formId }),
+    ...(isDraftRevision(candidate.draftRevision) ? { draftRevision: candidate.draftRevision } : {}),
     iat: candidate.iat,
     exp: candidate.exp,
   };

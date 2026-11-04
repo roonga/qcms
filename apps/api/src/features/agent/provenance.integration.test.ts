@@ -178,6 +178,7 @@ async function mintToken(args: {
   readonly subject: string;
   readonly steps: readonly { kind: string; argsDigest: string; environment: string }[];
   readonly formId?: string;
+  readonly draftRevision?: number;
 }): Promise<{ readonly token: string; readonly proposalId: string }> {
   proposalCounter += 1;
   const proposalId = `prp_it_${String(proposalCounter).padStart(4, "0")}`;
@@ -186,6 +187,7 @@ async function mintToken(args: {
     pid: proposalId,
     steps: args.steps,
     formId: args.formId,
+    ...(args.draftRevision === undefined ? {} : { draftRevision: args.draftRevision }),
     issuedAt: deps.clock.now(),
   });
   return { token, proposalId };
@@ -1063,6 +1065,108 @@ describe("the question library through a proposal (D6)", () => {
     expect(newVersion.status).toBe(201);
     expect(await rowsFor(opened.proposalId)).toEqual([
       { step_index: 0, kind: "question.newVersion", environment: "prod", detail: "2" },
+    ]);
+  });
+});
+
+describe("a plan built from the saved draft is bound to that draft", () => {
+  const FORM_ID = "frm_prov_bound";
+  const PINNED = "q_prov_bound_pin";
+
+  async function saveDraft(items: readonly { questionId: string; version: number }[]) {
+    const saved = await app.request(`/admin/forms/${FORM_ID}/draft`, {
+      method: "PUT",
+      headers: headersFor(owner, "prod"),
+      body: JSON.stringify({
+        definition: {
+          formId: FORM_ID,
+          defaultLocale: "en",
+          title: { en: "Bound" },
+          steps: [{ stepId: "stp_one", title: { en: "One" }, items }],
+          rules: [],
+        },
+      }),
+    });
+    expect(saved.status).toBe(200);
+  }
+
+  async function questionStatus(version: number): Promise<string | undefined> {
+    const res = await app.request(`/admin/questions/${PINNED}`, {
+      headers: headersFor(owner, "prod"),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      versions?: { version: number; status: string }[];
+    };
+    return body.versions?.find((row) => row.version === version)?.status;
+  }
+
+  async function publishStep(draftRevision: number) {
+    return mintToken({
+      subject: owner.userId,
+      formId: FORM_ID,
+      draftRevision,
+      steps: [await binding("question.publish", { questionId: PINNED, version: 1 }, "prod")],
+    });
+  }
+
+  beforeAll(async () => {
+    const questionId = QuestionId.parse(PINNED);
+    const parsed = parseQuestionDefinition({
+      questionId: PINNED,
+      type: "shortText",
+      label: { en: "Given name" },
+    });
+    if (!parsed.ok) throw new Error("fixture question did not parse");
+    await createQuestion(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
+      questionId,
+      slug: PINNED.replaceAll("_", "-"),
+    });
+    await createQuestionVersion(testDb.db, { questionId, definition: parsed.value });
+    await createForm(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
+      formId: FormId.parse(FORM_ID),
+      slug: "prov-bound",
+      defaultLocale: "en",
+    });
+    await saveDraft([{ questionId: PINNED, version: 1 }]);
+  }, CONTAINER_BOOT_TIMEOUT_MS);
+
+  it("refuses every step once the draft moves, and publishes nothing", async () => {
+    const proposed = await reviewDraft(FORM_ID);
+    const { token, proposalId } = await publishStep(proposed.draftRevision);
+
+    // The editor drops the pin between the card being proposed and Confirm.
+    await saveDraft([{ questionId: "q_prov_it", version: 1 }]);
+    expect((await reviewDraft(FORM_ID)).draftRevision).not.toBe(proposed.draftRevision);
+
+    const refused = await send({
+      caller: owner,
+      path: `/questions/${PINNED}/versions/1/publish`,
+      environment: "prod",
+      proposal: { token, step: 0 },
+    });
+    expect(refused.status).toBe(403);
+    expect(await errorCode(refused)).toBe("AGENT_PROPOSAL_DRAFT");
+    expect(await countRows(proposalId)).toBe(0);
+    expect(await questionStatus(1)).toBe("draft");
+  });
+
+  it("runs the same step under a plan bound to the draft as it now stands", async () => {
+    await saveDraft([{ questionId: PINNED, version: 1 }]);
+    const current = await reviewDraft(FORM_ID);
+    const { token, proposalId } = await publishStep(current.draftRevision);
+
+    const published = await send({
+      caller: owner,
+      path: `/questions/${PINNED}/versions/1/publish`,
+      environment: "prod",
+      proposal: { token, step: 0 },
+    });
+    expect(published.status).toBe(200);
+    expect(await rowsFor(proposalId)).toEqual([
+      { step_index: 0, kind: "question.publish", environment: "prod", detail: "1" },
     ]);
   });
 });

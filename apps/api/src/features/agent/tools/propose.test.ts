@@ -23,13 +23,13 @@ function propose(args: {
   readonly proposedDraft?: ProposeInput["proposedDraft"];
   readonly validate?: ProposeInput["validate"];
   readonly screen?: ProposeInput["screen"];
-  readonly pinnedUnpublished?: ProposeInput["pinnedUnpublished"];
+  readonly savedDraft?: ProposeInput["savedDraft"];
 }) {
   const grants = args.grants ?? [EDITOR, APPROVER];
   return buildProposal({
     steps: args.steps,
     screen: args.screen ?? "/forms/[formId]",
-    ...(args.pinnedUnpublished === undefined ? {} : { pinnedUnpublished: args.pinnedUnpublished }),
+    ...(args.savedDraft === undefined ? {} : { savedDraft: args.savedDraft }),
     ...(args.proposedDraft === undefined ? {} : { proposedDraft: args.proposedDraft }),
     validate: args.validate ?? (() => Promise.resolve({ issues: [], warnings: [] })),
     subject: "user_1",
@@ -535,12 +535,14 @@ describe("buildProposal: publishing the questions a saved draft pins (issue #120
     return { kind: "question.publish", args: { questionId, version } };
   }
 
-  const pinned = () => Promise.resolve(PINS);
+  const DRAFT_REVISION = 7;
+
+  const saved = () => Promise.resolve({ revision: DRAFT_REVISION, pins: PINS });
 
   it("accepts one step per pinned version, then the form's own publish", async () => {
     const outcome = await propose({
       steps: [publishQuestion("q_given_name", 1), publishQuestion("q_family_name", 1), publish],
-      pinnedUnpublished: pinned,
+      savedDraft: saved,
     });
     expect(outcome.ok).toBe(true);
     if (!outcome.ok) return;
@@ -566,7 +568,7 @@ describe("buildProposal: publishing the questions a saved draft pins (issue #120
     }));
     const outcome = await propose({
       steps: [...many.map((pin) => publishQuestion(pin.questionId, 1)), publish],
-      pinnedUnpublished: () => Promise.resolve(many),
+      savedDraft: () => Promise.resolve({ revision: 4, pins: many }),
     });
     expect(outcome.ok).toBe(true);
   });
@@ -574,7 +576,7 @@ describe("buildProposal: publishing the questions a saved draft pins (issue #120
   it("refuses a question the saved draft does not pin, and names what it does", async () => {
     const outcome = await propose({
       steps: [publishQuestion("q_somebody_elses", 1)],
-      pinnedUnpublished: pinned,
+      savedDraft: saved,
     });
     expect(outcome.ok).toBe(false);
     if (outcome.ok) return;
@@ -586,7 +588,7 @@ describe("buildProposal: publishing the questions a saved draft pins (issue #120
   it("refuses a version the saved draft does not pin, for a question it does", async () => {
     const outcome = await propose({
       steps: [publishQuestion("q_given_name", 2)],
-      pinnedUnpublished: pinned,
+      savedDraft: saved,
     });
     expect(outcome.ok).toBe(false);
   });
@@ -600,7 +602,7 @@ describe("buildProposal: publishing the questions a saved draft pins (issue #120
           args: { questionId: "q_given_name", version: { fromStep: 0, field: "version" } },
         },
       ],
-      pinnedUnpublished: pinned,
+      savedDraft: saved,
     });
     expect(outcome.ok).toBe(false);
   });
@@ -623,10 +625,44 @@ describe("buildProposal: publishing the questions a saved draft pins (issue #120
   it("refuses a plan that publishes the form before a question it pins", async () => {
     const outcome = await propose({
       steps: [publish, publishQuestion("q_given_name", 1)],
-      pinnedUnpublished: pinned,
+      savedDraft: saved,
     });
     expect(outcome.ok).toBe(false);
     if (outcome.ok) return;
     expect(outcome.reason).toContain("before step 2");
+  });
+
+  it("binds the whole plan to the revision the pins were read at", async () => {
+    const outcome = await propose({
+      steps: [publishQuestion("q_given_name", 1), publish],
+      savedDraft: saved,
+    });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    const verified = await verifyProposalToken(APP_KEY, outcome.proposal.token ?? "");
+    expect(verified.ok).toBe(true);
+    if (!verified.ok) return;
+    expect(verified.payload.draftRevision).toBe(DRAFT_REVISION);
+    expect(verified.payload.formId).toBe("frm_a");
+  });
+
+  it("binds no revision when no step is checked against the draft's pins", async () => {
+    const outcome = await propose({ steps: [publish], savedDraft: saved });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    const verified = await verifyProposalToken(APP_KEY, outcome.proposal.token ?? "");
+    expect(verified.ok).toBe(true);
+    if (!verified.ok) return;
+    expect(verified.payload.draftRevision).toBeUndefined();
+  });
+
+  it("refuses the kind when the form has no saved draft to read a revision from", async () => {
+    const outcome = await propose({
+      steps: [publishQuestion("q_given_name", 1)],
+      savedDraft: () => Promise.resolve(undefined),
+    });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toContain("no saved draft");
   });
 });

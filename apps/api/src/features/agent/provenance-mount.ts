@@ -5,6 +5,7 @@
  */
 
 import { listProposalSteps } from "@roonga/qcms-db";
+import { isFormId } from "@roonga/qcms-core";
 import type { MiddlewareHandler } from "hono";
 
 import type { SliceRegistrar } from "../../app.js";
@@ -14,6 +15,7 @@ import type { ApiEnv } from "../../openapi.js";
 import { policyForRequest } from "../membership/route-policy.js";
 import { actionKindForRoute } from "./actions/registry.js";
 import type { ActionRequestFacts } from "./actions/types.js";
+import { savedDraftRevision } from "./draft-pins.js";
 import { unverifiedProposalId, type ProposalRefusalCode } from "./proposal-token.js";
 import {
   checkProvenance,
@@ -147,6 +149,8 @@ export function agentProvenance(deps: Deps): MiddlewareHandler<ApiEnv> {
       // `confirmed-at` with: two clocks would put the run window and the rows it is
       // measured from on different time.
       now: deps.clock.now(),
+      savedDraftRevision: async (formId) =>
+        isFormId(formId) ? savedDraftRevision(deps, formId) : undefined,
     });
     if (!result.ok) {
       deps.logger.warn("agent proposal refused", { reason: result.code, kind: facts.path });
