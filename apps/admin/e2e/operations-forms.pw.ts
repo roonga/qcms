@@ -22,6 +22,9 @@ test.beforeAll(async () => {
 test("lists the forms this caller operates, separating unreleased from closed intake", async ({
   page,
 }) => {
+  // Enrollment and two form creations, each route compiled for the first time when this
+  // file runs on its own, which spends the default budget before the last navigation.
+  test.setTimeout(120_000);
   totpSecret = await enrollNewAdmin(page, EMAIL);
   await createForm(page, ALPHA, "Operations alpha");
   await createForm(page, BETA, "Operations beta");
