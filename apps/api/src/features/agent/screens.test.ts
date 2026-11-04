@@ -171,13 +171,12 @@ describe("the screen registry", () => {
       "form.close",
       "form.reopen",
     ];
+    const expectedFor = (id: string): readonly string[] => {
+      if (id.startsWith("/operations/")) return operational;
+      return id === "/forms/[formId]" ? [...authoring, "question.publish"] : authoring;
+    };
     for (const id of SCREEN_IDS.filter(isFormSubtreeScreen)) {
-      const expected = id.startsWith("/operations/")
-        ? operational
-        : id === "/forms/[formId]"
-          ? [...authoring, "question.publish"]
-          : authoring;
-      expect(offerableActionKinds(id), id).toEqual(expected);
+      expect(offerableActionKinds(id), id).toEqual(expectedFor(id));
     }
   });
 

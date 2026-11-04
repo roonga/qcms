@@ -22,7 +22,7 @@ import { shownEnvironment } from "@/lib/environment";
 import { resolvedEnvironment } from "@/lib/server/environments";
 import { requireAdminSession } from "@/lib/server/session";
 
-import { eraseSessionAction, unflagResponseAction } from "../../../../responses/actions";
+import { eraseSessionAction, unflagResponseAction } from "../../../../../responses/actions";
 
 export async function generateMetadata({
   params,
