@@ -201,7 +201,10 @@ test("a response viewer reaches Operations, a form's responses and one response"
     new RegExp(`/operations/forms/${FORM_ID}/responses/${sessionId}$`, "u"),
   );
   await expect(page.getByRole("heading", { level: 1 })).toContainText(sessionId);
-  // A viewer erases nothing: the separation of read from disposition is the point of the
-  // two response roles.
-  await expect(page.getByRole("button", { name: "Erase respondent data…" })).toHaveCount(0);
+  // The read this persona came for, on a screen whose form read its grants refuse.
+  await expect(page.getByTestId("qcms-response-detail")).toBeVisible();
+  // No cross-environment erasure is offered to a caller holding no eraser grant. The erase
+  // control beside it is not grant-gated: it is offered and refused at the API, which is a
+  // standing question rather than this move's doing.
+  await expect(page.getByTestId("qcms-erasure-elsewhere")).toHaveCount(0);
 });
