@@ -171,18 +171,7 @@ export function AssistantProvider({
       setWorking,
       announce: setAnnouncement,
     }),
-    [
-      announcement,
-      environment,
-      expanded,
-      open,
-      pathname,
-      remember,
-      search,
-      sheet,
-      width,
-      working,
-    ],
+    [announcement, environment, expanded, open, pathname, remember, search, sheet, width, working],
   );
 
   useEffect(() => {

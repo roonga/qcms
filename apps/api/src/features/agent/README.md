@@ -13,10 +13,10 @@ the PII boundary statement) is `docs/agent-authoring.md`.
 
 ## Routes
 
-| Method & path                               | Scope (SEC-5)                    | Notes                                                                                                                         |
-| ------------------------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Method & path                               | Scope (SEC-5)                    | Notes                                                                                                                                   |
+| ------------------------------------------- | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | `POST /admin/forms/:id/draft/assist`        | `forms:write`                    | One agent turn. Body `{ conversation, clientState?, screen?, params?, conversationId?, visitId? }`. Answers `text/event-stream`.        |
-| `POST /admin/forms/:id/draft/assist/accept` | `forms:write`, `questions:write` | The human's Accept. Body `{ definition, newQuestions }`. Answers a saved-draft JSON body.                                     |
+| `POST /admin/forms/:id/draft/assist/accept` | `forms:write`, `questions:write` | The human's Accept. Body `{ definition, newQuestions }`. Answers a saved-draft JSON body.                                               |
 | `POST /admin/assist`                        | `forms:read`                     | One turn on the screen the body names. Body `{ conversation, screen, params?, conversationId, visitId? }`. Answers `text/event-stream`. |
 
 Both turn routes share **one per-principal limiter key** (Q19), so ten turns a

@@ -79,12 +79,20 @@ describe("the history a turn replays", () => {
         { role: "user", content: "add a step" },
         { role: "assistant", content: "done" },
         { role: "result", content: "accepted" },
-        { role: "action-result", proposalId: "prp_1", steps: [{ kind: "form.publish", outcome: "done" }] },
+        {
+          role: "action-result",
+          proposalId: "prp_1",
+          steps: [{ kind: "form.publish", outcome: "done" }],
+        },
       ]),
     ).toEqual([
       { role: "user", content: "add a step" },
       { role: "assistant", content: "done" },
-      { role: "action-result", proposalId: "prp_1", steps: [{ kind: "form.publish", outcome: "done" }] },
+      {
+        role: "action-result",
+        proposalId: "prp_1",
+        steps: [{ kind: "form.publish", outcome: "done" }],
+      },
     ]);
   });
 });

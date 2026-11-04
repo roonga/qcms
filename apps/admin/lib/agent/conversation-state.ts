@@ -16,8 +16,7 @@ export function isProseTurn(turn: AgentTurnRecord): turn is AgentProseTurn {
 }
 
 export type PromptTurn =
-  | { readonly role: "user" | "assistant"; readonly content: string }
-  | ActionResultTurn;
+  { readonly role: "user" | "assistant"; readonly content: string } | ActionResultTurn;
 
 /** The history a turn replays: the prose without the panel's own outcome lines. */
 export function promptTurns(turns: readonly AgentTurnRecord[]): readonly PromptTurn[] {
