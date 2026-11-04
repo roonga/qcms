@@ -850,14 +850,14 @@ describe("every screen's context, with a sentinel in the database", () => {
     };
 
     const start = await readRowCount();
-    await turn("vis_1", "/forms/[formId]/responses");
-    await turn("vis_1", "/forms/[formId]/responses");
+    await turn("vis_1", "/operations/forms/[formId]/responses");
+    await turn("vis_1", "/operations/forms/[formId]/responses");
     // Two turns of one stay on the subject: one row.
     expect((await readRowCount()) - start).toBe(1);
 
     // The same conversation elsewhere, then back: the return owes its own row.
     await turn("vis_2", "/forms/[formId]/publish");
-    await turn("vis_3", "/forms/[formId]/responses");
+    await turn("vis_3", "/operations/forms/[formId]/responses");
     expect((await readRowCount()) - start).toBe(2);
   });
 });

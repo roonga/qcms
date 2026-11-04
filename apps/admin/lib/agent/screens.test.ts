@@ -80,17 +80,17 @@ describe("the agent screen table", () => {
   });
 
   it("binds a card to one screen and its own ids, and not to its filters", () => {
-    const list = screenForPath("/forms/frm_x/responses");
+    const list = screenForPath("/operations/forms/frm_x/responses");
     expect(screenIdentity(list)).toBe(screenIdentity(list));
-    expect(screenIdentity(screenForPath("/forms/frm_x/responses"))).not.toBe(
-      screenIdentity(screenForPath("/forms/frm_y/responses")),
+    expect(screenIdentity(screenForPath("/operations/forms/frm_x/responses"))).not.toBe(
+      screenIdentity(screenForPath("/operations/forms/frm_y/responses")),
     );
     expect(screenIdentity(screenForPath("/forms/frm_x"))).not.toBe(
       screenIdentity(screenForPath("/forms/frm_x/publish")),
     );
     expect(
       screenIdentity({
-        screen: "/forms/[formId]/responses",
+        screen: "/operations/forms/[formId]/responses",
         params: { formId: "frm_x", filters: { flagged: true } },
       }),
     ).toBe(screenIdentity(list));
