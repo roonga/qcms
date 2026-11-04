@@ -68,6 +68,11 @@ was missing from the rail sweep for two cycles while every gate stayed green.
   when a screen arrives. `grep -rn "twenty-three screens" apps/admin packages/create-qcms-app`
   finds them, whatever the current number is. Issue #882 proposes deriving or deleting
   those counts; until that is decided they are hand-maintained.
+- **No `loading.tsx` above a screen that answers 404.** That file is a Suspense boundary
+  around its segment and everything under it, so the shell flushes before a nested page
+  runs and a `notFound()` below it reaches the browser as 200 with the 404 document. A
+  landing screen that wants a skeleton holds the boundary itself, as
+  `operations/page.tsx` does; `operations-states.test.tsx` refuses the file coming back.
 - **This app has a twin.** Non-test source under `apps/admin` is generated into
   `packages/create-qcms-app/templates/common/apps/admin`, so a new page means
   `pnpm qcms:sync-templates`; `pnpm check:templates` refuses the drift otherwise.
