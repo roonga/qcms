@@ -6,37 +6,6 @@ import { ruleSentence } from "./rule-sentence.ts";
 import { ruleScope, scopeChipLabel, targetGroups } from "./rule-targets.ts";
 import type { DraftCondition, DraftForm, DraftRule, PinnableQuestion } from "./types.ts";
 
-/**
- * The sentences the three whole-group operators read as, and the scope the editor states for a
- * per-instance rule (task 074, ADR-42; Q7 ruled 2026-09-29).
- *
- * ## Why these two are asserted together
- *
- * They are the two halves of one problem. Scope is implicit by POSITION, so a per-instance rule
- * is written as an ordinary condition and the editor has to say so (the chip); and the
- * outside-in direction has three operators whose sentences have to say what they mean, including
- * one whose reading is a ruling rather than a convention. Both are language decisions about one
- * rule, both are pure functions of the draft, and both are what an author actually reads.
- *
- * ## The two sentences that cost something if they go
- *
- * Exit criterion 2 names them, and the work order's note says which is likelier to be skipped:
- *
- * - **`everyInstance` states its own reading.** Over a group with no live instance it is FALSE,
- *   not vacuously true. An author reading a bare "every passenger holds a passport" supplies the
- *   classical reading, under which it is TRUE of a booking with no passengers - the opposite of
- *   what they meant.
- * - **Its NEGATION states its own reading too, and that is the one to watch.** Closing the
- *   vacuous reading for `everyInstance` makes `not(everyInstance(...))` true over an empty group,
- *   so "show the warning unless every passenger has a passport" fires for a booking with no
- *   passengers. A warning is usually phrased as a negation, so the negation is the sentence an
- *   author will actually write - and the plain one reads like the interesting case, which is how
- *   this gets skipped.
- *
- * Both are asserted on the RENDERED sentence rather than on the builder, which is the exit
- * criterion's own wording: what matters is the words an author reads, not that a frame exists.
- */
-
 const PASSPORT = {
   questionId: "q_passport",
   type: "shortText" as const,
@@ -89,7 +58,6 @@ const LIBRARY: readonly PinnableQuestion[] = [
 
 const READ: ReadState<readonly PinnableQuestion[]> = { ok: true, data: LIBRARY };
 
-/** The airline case: a passenger group, then a question after its span. */
 const DRAFT: DraftForm = {
   formId: "frm_booking",
   defaultLocale: "en",
@@ -147,8 +115,6 @@ describe("whole-group operators in the sentence", () => {
       condition: HOLDS_PASSPORT,
     });
 
-    // The clause is the ruling, not a flourish (Q7): the empty group is FALSE, and an author
-    // reading a bare "every passenger ..." would supply the classical reading instead.
     expect(sentence).toContain("every Passenger where Passport number is answered");
     expect(sentence).toContain("and there is at least one Passenger");
   });
@@ -163,9 +129,6 @@ describe("whole-group operators in the sentence", () => {
       },
     });
 
-    // `not(everyInstance(G, c))` is TRUE over an empty group, so a warning phrased this way
-    // fires for a booking with no passengers at all. That has to be in the sentence, because a
-    // warning is usually phrased as a negation and this is the form an author writes.
     expect(sentence).toContain("not every Passenger");
     expect(sentence).toContain("which includes there being no Passenger at all");
   });
@@ -187,8 +150,6 @@ describe("whole-group operators in the sentence", () => {
       .replace("When ", "")
       .replace(", show Infant travel declaration", "")})`;
 
-    // The generic `not (...)` frame would wrap the plain clause - "and there is at least one
-    // passenger" - inside a negation, which reads as the opposite of what the rule does.
     expect(negated).not.toContain(plainInsideNot);
   });
 
@@ -211,8 +172,6 @@ describe("whole-group operators in the sentence", () => {
       },
     });
 
-    // "at least one passenger where A and B" and "at least one passenger where A, and B" are
-    // different rules; these frames carry no brackets of their own, unlike `not (...)`.
     expect(sentence).toContain("at least one Passenger where (");
   });
 
@@ -225,8 +184,7 @@ describe("whole-group operators in the sentence", () => {
     expect(segments.filter((s) => s.kind === "group").map((s) => s.text)).toStrictEqual([
       "Passengers",
     ]);
-    // The quantifier frames emphasise the SINGULAR noun instead, which is the name one instance
-    // carries: "at least one Passenger", never "at least one Passengers".
+
     expect(
       ruleSentence(
         rule({ op: "anyInstance", groupId: "grp_passengers", condition: HOLDS_PASSPORT }),
@@ -237,8 +195,6 @@ describe("whole-group operators in the sentence", () => {
         .map((segment) => segment.text),
     ).toStrictEqual(["Passenger"]);
 
-    // A group the draft does not declare is `DANGLING_GROUP_REF` at publish. Rendering the id is
-    // honest about being an id rather than dressing one up as a name.
     const dangling = ruleSentence(
       rule({ op: "instanceCount", groupId: "grp_nowhere", compare: "gt", value: 0 }),
       READ,
@@ -249,8 +205,6 @@ describe("whole-group operators in the sentence", () => {
   });
 
   it("names a group even when the question library did not load", () => {
-    // A group is FORM-owned, so unlike a question's label it never depended on that read
-    // (contract §3: a failed read suppresses only what it actually made unknowable).
     const sentence = ruleSentence(
       rule({ op: "instanceCount", groupId: "grp_passengers", compare: "gt", value: 0 }),
       { ok: false },
@@ -285,16 +239,13 @@ describe("ruleScope", () => {
 
   it("reports a STEP target as form scope, because a step can never be inside a group", () => {
     expect(ruleScope(DRAFT, ["stp_declaration"])).toStrictEqual({ kind: "form" });
-    // Even the step that HOLDS the group: a step target expands to every question in it, which
-    // includes the group's members and anything beside them.
+
     expect(ruleScope(DRAFT, ["stp_travellers"])).toStrictEqual({ kind: "form" });
   });
 
   it("reports a list straddling two scopes, which publish refuses", () => {
     const scope = ruleScope(DRAFT, ["q_fare_basis", "q_declaration"]);
 
-    // `RULE_TARGETS_SPAN_SCOPES`: one rule is evaluated in one scope, so this has no reading at
-    // all. The editor says so before the round trip and names the mechanical remedy.
     expect(scope.kind).toBe("spanning");
     expect(scope.kind === "spanning" ? [...scope.scopes].sort() : []).toStrictEqual([
       "form",
@@ -305,8 +256,7 @@ describe("ruleScope", () => {
 
   it("reports no scope for a rule with no target, and for one naming nothing pinned", () => {
     expect(ruleScope(DRAFT, [])).toStrictEqual({ kind: "none" });
-    // A target the draft does not pin is `DANGLING_QUESTION_REF`, a different refusal with its
-    // own sentence; guessing a scope for it would stack a second complaint on the first.
+
     expect(ruleScope(DRAFT, ["q_nowhere"])).toStrictEqual({ kind: "none" });
   });
 });

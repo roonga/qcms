@@ -9,11 +9,6 @@ import {
   type AgentTurnRecord,
 } from "./conversation";
 
-/**
- * One conversation per form subtree, held in memory (exit criterion 9). The subject is what
- * decides continuity, so the claims here are about moving between pathnames.
- */
-
 let sent: AgentTurnRecord[] = [];
 
 function Probe({ append }: { readonly append?: readonly AgentTurnRecord[] }) {
@@ -41,8 +36,6 @@ function Probe({ append }: { readonly append?: readonly AgentTurnRecord[] }) {
         type="button"
         data-testid="append-twice"
         onClick={() => {
-          // One handle, two appends: a panel records the user's turn and then the reply it
-          // streamed, both from the handle its send started with.
           conversation.append([{ role: "user", content: "ask" }]);
           conversation.append([{ role: "assistant", content: "answer" }]);
         }}
@@ -95,7 +88,6 @@ describe("the conversation context", () => {
     expect(outside.id).not.toBe(builder.id);
     expect(outside.turns).toBe("");
 
-    // Returning within the tab restores the form's own conversation.
     view.rerender(at("/forms/frm_a/responses"));
     expect(read()).toMatchObject({ id: builder.id, turns: "add a step" });
   });

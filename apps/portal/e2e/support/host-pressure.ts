@@ -2,7 +2,6 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { availableParallelism } from "node:os";
 
-/** The host's run-queue pressure, as the kernel reports it. */
 export interface HostLoad {
   readonly oneMinute: number;
   readonly fiveMinute: number;
@@ -11,14 +10,13 @@ export interface HostLoad {
   readonly cpus: number;
 }
 
-/** What the shared Docker daemon was carrying. */
 export interface ContainerCensus {
   /** Every running container the daemon reports, this run's own included. */
   readonly running: number;
   /** Of those, how many carry a Testcontainers session label. */
   readonly testcontainers: number;
   readonly sessions: number;
-  /** Of those, how many belong to a QCMS Compose stack (`qcms-` prefixed). */
+
   readonly qcmsStacks: number;
 }
 
@@ -38,7 +36,6 @@ export function hostLoad(): HostLoad | undefined {
   }
 }
 
-/** How long the container census waits for the Docker CLI before giving up. */
 const DOCKER_CENSUS_TIMEOUT_MS = 5_000;
 
 const DOCKER_BINARY_CANDIDATES = [
@@ -93,7 +90,6 @@ export function containerCensus(): ContainerCensus | undefined {
   }
 }
 
-/** How the load figure reads in a report. */
 export function describeLoad(load: HostLoad | undefined): string {
   if (load === undefined) return "unknown (no /proc/loadavg)";
   const ratio = (load.oneMinute / load.cpus).toFixed(2);
@@ -103,7 +99,6 @@ export function describeLoad(load: HostLoad | undefined): string {
   );
 }
 
-/** How the container census reads in a report. */
 export function describeContainers(census: ContainerCensus | undefined): string {
   if (census === undefined) return "unknown (docker could not be asked)";
   return (

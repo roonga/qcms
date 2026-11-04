@@ -135,7 +135,6 @@ describe("AssistMarkdown, the safe subset", () => {
       `${"*".repeat(200)}x${"**".repeat(200)}`,
     ].join("\n\n");
     const root = renderMd(hostile);
-    // Asserted over the DOM: the literal `<img src="x">` renders as text without creating an attribute.
     expect(root.querySelector("script, img, b, iframe, object, embed")).toBeNull();
     expect(root.querySelectorAll("a")).toHaveLength(0);
     expect(root.querySelectorAll("[href], [src]")).toHaveLength(0);

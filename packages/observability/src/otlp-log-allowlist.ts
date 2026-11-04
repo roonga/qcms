@@ -1,9 +1,9 @@
 import type { LogRecordProcessor, ReadWriteLogRecord } from "@opentelemetry/sdk-logs";
 
 /**
- * The exported event vocabulary. An unlisted `msg` becomes `application.event` (ADR-34); the
- * coverage test requires every literal listed or recorded as opaque. An entry needs a
- * constant body and attributes carrying no request- or model-chosen value (SEC-8).
+ * The exported event vocabulary. An unlisted `msg` becomes `application.event` (ADR-34); the coverage test
+ * requires every literal listed or recorded as opaque. An entry needs a constant body and attributes
+ * carrying no request- or model-chosen value.
  */
 const SAFE_EVENTS = new Set([
   "admin two-factor reset",
@@ -45,8 +45,8 @@ const SAFE_ATTRIBUTES = new Set([
   "durationMs",
   "code",
   "errorId",
-  // An operator's own name for an environment or a schema, chosen by the
-  // deployment rather than by a request (ADR-40, SEC-13).
+  // An operator's own name for an environment or a schema, chosen by the deployment rather than by a request
+  // (ADR-40).
   "environment",
   "scheduler",
   "expiredCount",
@@ -69,8 +69,8 @@ function allowlist(record: ReadWriteLogRecord): void {
 }
 
 /**
- * Runs synchronously, before the batch processor can retain a record (SEC-13).
- * Exports nothing itself: the next processor owns buffering and delivery.
+ * Runs synchronously, before the batch processor can retain a record. Exports nothing itself: the next
+ * processor owns buffering and delivery.
  */
 export function allowlistingLogRecordProcessor(): LogRecordProcessor {
   return {

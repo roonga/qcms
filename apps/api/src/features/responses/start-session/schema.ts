@@ -36,7 +36,7 @@ export const StartLinkSessionBody = z
   .openapi("StartLinkSessionBody");
 export type StartLinkSessionBody = z.infer<typeof StartLinkSessionBody>;
 
-/** `sessionToken` is the credential every later respondent call must present (SEC-2). */
+/** `sessionToken` is the credential every later respondent call must present. */
 export const StartSessionResponse = z
   .object({
     sessionId: z.string().openapi({ example: "ses_9f3a2b1c" }),

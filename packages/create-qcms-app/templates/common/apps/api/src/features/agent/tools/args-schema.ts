@@ -2,7 +2,6 @@ import { z } from "zod";
 
 import type { ActionKindDef } from "../actions/types.js";
 
-/** The shape a symbolic reference to an earlier step's result takes in a proposed step. */
 export const StepReferenceSchema = z
   .strictObject({
     fromStep: z.number().int().min(0).describe("The zero-based index of an earlier step."),

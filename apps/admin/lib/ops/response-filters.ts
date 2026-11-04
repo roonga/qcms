@@ -1,78 +1,13 @@
 import { endOfDayIn, isTimeZone, startOfDayIn } from "../time-zone.ts";
 import type { AppliedFilters } from "./browse.ts";
 
-/**
- * Reading the response browser's filters out of the querystring, once (issue 521).
- *
- * ## One parse, two consumers
- *
- * The page has to answer two questions about the same querystring: *what do I ask the
- * API for*, and *which empty message is true*. It used to answer them from two
- * different expressions, and they disagreed. `?flagged=maybe` was dropped from the
- * request (the API takes `true`/`false` and nothing else) but still counted as a
- * filter, so a form with no submissions rendered "No response matches these filters"
- * about a filter that was never applied - the screen making a false statement about
- * its own behaviour. In the other direction `?from=nonsense` was concatenated into
- * `nonsenseT00:00:00.000Z` and sent, and the same unvalidated string was handed to the
- * toolbar's day picker, whose vendored body is `value ? parseDate(value) : undefined`.
- * `parseDate` throws on it, so a typo in the address bar did not cost one filter or even
- * the list: the whole screen was a 500. Validating here fixes both, because the picker
- * can now only receive a day or nothing.
- *
- * This module is the single answer both consumers read: a value that does not parse is
- * not a filter, so it reaches neither the request nor `hasFilters`, and it is named in
- * `ignored` so the page can say it was dropped instead of pretending it was applied.
- *
- * ## Why the rejected values are reported rather than swallowed
- *
- * The sibling library list (032) validates the same way and says nothing, and for its
- * filters that is fine: they are a status, a type and a search box, and an unparseable
- * one is only reachable by hand-editing the address. This screen is different in one
- * concrete way. Its dates are a *range*, and the number beside the table is a count an
- * operator acts on. Silently dropping `?from=03/01/2026` would show the whole form's
- * total to someone who believes they are reading March, which is the same class of
- * false statement this issue is fixing, just quieter. Naming what was dropped keeps
- * the screen's account of itself complete, and it costs one sentence.
- *
- * ## Dates are widened here, not at the call site
- *
- * `from` and `to` are whole days in the toolbar and instants in the API, so the widening
- * lives next to the validation that earns it. Building the instant anywhere else is what let
- * an unvalidated value become a malformed one.
- *
- * Whole days in WHICH zone is the `tz` parameter (Code Owner ruling 2026-10-19): the rows
- * are shown on the operator's own clock, so the toolbar writes the operator's zone beside the
- * days and the filter reads the days on that clock too, and the hint under each picker names
- * it. The zone travels in the address rather than being inferred, so a shared link filters
- * the same rows for whoever opens it. An absent or unknown `tz` reads as UTC, which is what
- * every link written before the ruling meant.
- *
- * ## The validators are exported; the policy around them is not shared (issue 551)
- *
- * The export download asks the same three questions of the same querystring
- * (`version`, `from`, `to`) and used to answer them by forwarding whatever arrived,
- * which is exactly the shape this module replaced. {@link versionFilter} and
- * {@link dayFilter} are therefore public: `lib/ops/export.ts` reads them, so "what
- * counts as a valid filter on responses" has one answer for both surfaces.
- *
- * What the two surfaces do with a value that is *not* one differs, and deliberately.
- * This module drops it and reports it in `ignored`, because the page has somewhere to
- * say so. An export has no such surface and its product is a file that outlives the
- * URL, so it refuses instead - the reasoning is recorded at `parseExportFilters`.
- */
+/** Use one validated result for API filters, controls and empty states. Name ignored malformed values so the table cannot silently claim a requested range. Shared links carry their zone; absent or unknown means UTC. */
 
-/** The four filter parameters, in the order the toolbar shows them. */
 export const RESPONSE_FILTER_FIELDS = ["version", "from", "to", "flagged"] as const;
 
-/** One filter parameter's name, which is also its i18n label suffix. */
 export type ResponseFilterField = (typeof RESPONSE_FILTER_FIELDS)[number];
 
-/**
- * The filters as `listResponses` takes them: absent, or a value the API accepts.
- *
- * Optional rather than empty-string-bearing, because "absent" is what the query
- * builder tests for and an empty string here would be a second way to say it.
- */
+/** Use absence, not an empty string, because the query builder treats absent filters differently from invalid instant text. */
 export interface ResponseFilterRequest {
   readonly version?: string;
   readonly from?: string;
@@ -80,30 +15,21 @@ export interface ResponseFilterRequest {
   readonly flagged?: "true" | "false";
 }
 
-/** Everything the page derives from the querystring, from one parse. */
 export interface ResponseQuery {
-  /** What was applied: the toolbar's values and what a page link carries. */
   readonly applied: AppliedFilters;
-  /** The same set, shaped for the API call. */
+
   readonly request: ResponseFilterRequest;
-  /** Whether any filter was applied, which decides which empty message is true. */
+
   readonly hasFilters: boolean;
-  /** Parameters that carried a value no filter accepts, in toolbar order. */
+
   readonly ignored: readonly ResponseFilterField[];
-  /** The requested page, at least 1. */
+
   readonly page: number;
 }
 
-/** Search params as Next hands them over. */
 type SearchParams = Readonly<Record<string, string | string[] | undefined>>;
 
-/**
- * Parse the browser's querystring into the one filter set the page uses everywhere.
- *
- * The rule for every parameter is the same: an absent or empty value is no filter and
- * no complaint, a value the API would accept is a filter, and anything else is neither
- * a filter nor silence.
- */
+/** Malformed nonempty values are reported as ignored, never applied or silently discarded. */
 export function parseResponseQuery(query: SearchParams): ResponseQuery {
   const raw = {
     version: one(query["version"]),
@@ -137,8 +63,7 @@ export function parseResponseQuery(query: SearchParams): ResponseQuery {
       ...(parsed.to === undefined ? {} : { to: dayEnd(parsed.to, tz || "UTC") }),
       ...(parsed.flagged === undefined ? {} : { flagged: parsed.flagged }),
     },
-    // Read off `applied`, which holds only values that parsed. This is the whole fix:
-    // the empty-state discriminator and the request now come from the same result.
+
     hasFilters: RESPONSE_FILTER_FIELDS.some((field) => applied[field] !== ""),
     ignored: RESPONSE_FILTER_FIELDS.filter(
       (field) => raw[field] !== "" && parsed[field] === undefined,
@@ -147,71 +72,25 @@ export function parseResponseQuery(query: SearchParams): ResponseQuery {
   };
 }
 
-/**
- * A version filter: a positive integer, normalized to its canonical decimal string.
- *
- * Membership in the form's published versions is deliberately NOT checked. A version
- * that exists but collected nothing, and a version number that was never published,
- * are both filters that legitimately match nothing, and answering them with the
- * filtered empty state is the true answer. Only a value that is not a version number
- * at all is dropped.
- *
- * The canonicalization is not cosmetic. `?version=0001` is a version number, so it is
- * a filter and the table is filtered to v1 - but the toolbar's Version select builds
- * its options as `String(entry)`, so `"0001"` matches no option and the control reads
- * "Any version" beside a filtered table. That is the same class of untruth this module
- * exists to remove, moved from the empty sentence to the toolbar, and `response-browser`
- * re-seeds its controls from the applied set precisely so the two cannot disagree.
- * Returning the number's own decimal form keeps the applied value, the request, the
- * page links and the select on one spelling.
- */
+/** Normalize numeric spelling so the toolbar agrees with the applied filter. An unpublished positive version can legitimately match nothing and must remain a filter. */
 export function versionFilter(value: string): string | undefined {
   if (!/^\d{1,9}$/.test(value)) return undefined;
   const version = Number(value);
   return version >= 1 ? String(version) : undefined;
 }
 
-/**
- * A whole-day filter, in the `YYYY-MM-DD` shape the day pickers emit. Which zone the day is
- * whole in is the caller's `tz`; this only decides whether the day exists.
- *
- * The round trip is not redundant with the pattern: `2026-02-31` matches the pattern
- * and `Date` rolls it forward to March 3rd rather than rejecting it, so a day that
- * does not exist would otherwise become a filter for a different day.
- */
+/** Round-trip dates because Date normalizes nonexistent calendar days rather than rejecting them. */
 export function dayFilter(value: string): string | undefined {
-  // Years 0001 to 9999: the four-digit shape, and no year 0, which `lib/time-zone.ts` will
-  // not widen. A year below 100 stays that year; nothing here maps it onto 19xx.
+  /** Preserve years below 100 without the Date.UTC 1900 offset; year zero is unsupported. */
   if (!DAY_ONLY.test(value) || value.startsWith("0000")) return undefined;
   const parsed = new Date(`${value}T00:00:00.000Z`);
   if (Number.isNaN(parsed.getTime())) return undefined;
   return parsed.toISOString().startsWith(value) ? value : undefined;
 }
 
-/** The shape a day picker emits, and the only shape the widening below applies to. */
 const DAY_ONLY = /^\d{4}-\d{2}-\d{2}$/;
 
-/**
- * Widen a chosen calendar day to the instant it begins / ends, in a named zone (issue #312;
- * the zone by the Code Owner ruling of 2026-10-19).
- *
- * ONE definition of the day boundary, in the module that already owns what counts as a
- * day. It was two: `parseResponseQuery` above concatenated the suffixes inline while
- * `lib/ops/export.ts` had a `dayStart`/`dayEnd` pair, so the browser and the export could
- * have drifted about where a day ends - and the export module's own docstring argued
- * against exactly that duplication while carrying half of it.
- *
- * The reasoning the export module recorded is the reasoning here, and none of it is
- * specific to exporting. The controls ask for a day because that is the question an
- * operator has, and the API wants an instant. The day is read in the zone the rows are
- * shown in, the operator's (`components/operator-time.tsx`), so the filter and the column
- * agree; that zone is NAMED by the caller (the `tz` parameter), never read from the
- * runtime, so the filtered set depends on the address and not on the machine that asked.
- * It defaults to UTC, which is what a day meant before the ruling.
- *
- * A value that already carries a time passes through untouched, which is what lets the
- * export route hand a raw querystring parameter straight in.
- */
+/** Widen days using the address zone, never the runtime zone, so shared links select identical rows. Time-bearing values pass through for export boundary validation. */
 export function dayStart(value: string, timeZone = "UTC"): string {
   return DAY_ONLY.test(value) ? startOfDayIn(value, timeZone) : value;
 }
@@ -220,29 +99,16 @@ export function dayEnd(value: string, timeZone = "UTC"): string {
   return DAY_ONLY.test(value) ? endOfDayIn(value, timeZone) : value;
 }
 
-/** The flag filter: the API's enum, and nothing that merely looks like it. */
 function flaggedFilter(value: string): "true" | "false" | undefined {
   return value === "true" || value === "false" ? value : undefined;
 }
 
-/**
- * The requested page.
- *
- * Not a filter: it never reaches `hasFilters` and is not reported as ignored, because
- * a page number is a position in a result set rather than a claim about which rows are
- * in it. An unreadable one falls back to the first page.
- */
+/** Page is a result position, not a filter; unreadable values fall back to one. */
 function pageNumber(value: string): number {
   return Math.max(1, Number.parseInt(value === "" ? "1" : value, 10) || 1);
 }
 
-/**
- * Read one value out of a search param.
- *
- * Next hands a repeated parameter back as an array. Taking the first rather than
- * joining is what a duplicated `?version=1&version=2` should mean here: one of them
- * is the filter, and concatenating them would build a value the API can only reject.
- */
+/** For repeated parameters use the first value; joining would invent an invalid filter. */
 function one(value: string | string[] | undefined): string {
   if (Array.isArray(value)) return value[0] ?? "";
   return value ?? "";

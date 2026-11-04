@@ -2,16 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { stripTags } from "./markup.ts";
 
-/**
- * The scanner behind `textOfTestId`, tested for the property rather than the cases.
- *
- * This exists because "the lint finding went away" is not evidence that a sanitizer is
- * correct: the regex it replaced was quiet under ESLint too, and CodeQL only caught it
- * because a different tool happened to model delimiter reassembly. So the assertions here
- * are about the invariant the implementation is built on - the output cannot contain `<` -
- * and they include CodeQL's own counterexample by name, so a future edit that reintroduces
- * a single-pass strip fails here before it reaches a security scan.
- */
 describe("stripTags", () => {
   it("returns text with no tags unchanged", () => {
     expect(stripTags("Challenge required, minimum time 800 ms")).toBe(
@@ -28,8 +18,8 @@ describe("stripTags", () => {
   });
 
   it("does not reassemble a delimiter out of its own removal", () => {
-    // The exact shape CodeQL named. A single pass of `/<[^<>]+>/g` matches the inner
-    // `<b>`, removes it, and the halves close up into `<script>`; this must not.
+    // Removing only an inner tag can reassemble surrounding delimiters into script markup; this scanner must
+    // not do that.
     const reassembling = "<<b>script>alert(1)";
     expect(stripTags(reassembling)).not.toContain("<script");
     expect(stripTags(reassembling)).toBe("script>alert(1)");
@@ -41,8 +31,6 @@ describe("stripTags", () => {
   });
 
   it("never returns a string containing an opening angle bracket", () => {
-    // The invariant, over every adversarial shape worth naming: reassembly, nesting,
-    // unterminated tags, stray brackets, and an empty input.
     const inputs = [
       "",
       "<",

@@ -115,21 +115,16 @@ describe("version derivation", () => {
   });
 
   it("falls back to the workspace version plus the commit", () => {
-    // An unset variable and one set to "" reach a shell script identically, so "" must
-    // not stamp an image with the empty string.
     const derived = imageVersion({ QCMS_IMAGE_VERSION: "" });
     expect(derived).toMatch(/^\d+\.\d+\.\d+[^+]*\+[0-9a-f]{7,}(\.dirty)?$/);
   });
 
   it("makes the version legal as a Docker tag without losing the commit", () => {
-    // `+` is valid SemVer build metadata and illegal in an image reference.
     expect(imageTag("0.0.1-alpha.0+83fa947")).toBe("0.0.1-alpha.0_83fa947");
     expect(imageTag("0.0.1-alpha.0+83fa947")).toMatch(/^\w[\w.-]{0,127}$/);
   });
 
   it("gives two different versions two different tags", () => {
-    // `_` and not `-`: `-` is legal in a SemVer version, so `1.0.0+build.5` and
-    // `1.0.0-build.5` would collide on one tag.
     expect(imageTag("1.0.0+build.5")).not.toBe(imageTag("1.0.0-build.5"));
     expect(imageTag("1.0.0-build.5")).toBe("1.0.0-build.5");
     for (const version of ["1.0.0+build.5", "1.0.0-build.5", "0.0.1-alpha.0+83fa947.dirty"]) {
@@ -179,7 +174,6 @@ describe("the dev-dependency boundary (issue #877)", () => {
   });
 
   it("fails the build on the tooling the API image was found carrying", () => {
-    // These three were in the qcms-api SBOM before the `--no-optional` deploy boundary.
     const artifact = ociArtifact(BOTH, { [VERSION_LABEL]: "1.2.3" }, [
       "hono@4.13.7",
       "vitest@4.1.11",
@@ -215,8 +209,6 @@ describe("registry references", () => {
   });
 
   it("rejects an uppercase namespace rather than letting the registry do it", () => {
-    // `github.repository_owner` preserves the case a person typed, and a registry
-    // repository path is lowercase-only.
     expect(() => imageReferences("Roonga", "qcms-api", ["latest"])).toThrow(/lowercase/);
   });
 
@@ -254,7 +246,6 @@ describe("the buildx argument vector", () => {
   });
 });
 
-/** Captured from buildx output. */
 const REAL_MANIFEST_LIST = {
   manifests: [
     {
@@ -287,7 +278,6 @@ describe("the pushed manifest check", () => {
     expect(attestationManifestCount(list)).toBe(0);
   });
 
-  /** Each of these passes the earlier disjunction, which is the direction that matters. */
   it("does not count an unknown/unknown platform without the reference annotation", () => {
     const list = JSON.stringify({
       manifests: [{ platform: { architecture: "unknown", os: "unknown" } }],
@@ -342,7 +332,6 @@ describe("argument parsing", () => {
     expect(() => parseArgv(["--push", "--tag", "latest"])).toThrow(/--push needs a value/);
   });
 
-  /** Without the guard, `String(undefined)` becomes a literal directory or tag name. */
   it("refuses a valueless --output rather than building into a directory named undefined", () => {
     expect(() => parseArgv(["--output"])).toThrow(/--output needs a value/);
     expect(() => parseArgv(["--output", "--push", "roonga"])).toThrow(/--output needs a value/);
@@ -379,8 +368,6 @@ describe("keeping the attestations (issue #342)", () => {
   });
 
   it("can be run twice into the same directory", () => {
-    // Two `--attestations` runs in a row is an ordinary local loop, and an OCI blob is
-    // read-only, so the second copy fails with EACCES unless the destination is removed.
     const artifact = ociArtifact(BOTH, { [VERSION_LABEL]: "1.2.3" });
     const destination = mkdtempSync(join(tmpdir(), "qcms-attestations-"));
     workspaces.push(destination);

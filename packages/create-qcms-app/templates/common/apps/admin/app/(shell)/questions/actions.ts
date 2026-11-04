@@ -16,45 +16,12 @@ import {
 } from "@/lib/server/questions";
 import { requireAdminSession } from "@/lib/server/session";
 
-/**
- * The question library's mutations (task 032).
- *
- * ## Why server actions rather than the route handlers task 031 used
- *
- * 031's screens are credential transitions, and every one of them is a full-page POST that
- * keeps the flow out of client JavaScript for that flow's own reason (ADR-35 / SEC-1, not a
- * general admin rule). The editor is the opposite kind of screen: it holds a live document
- * (an option list being reordered, a constraint being typed) and
- * its failure mode is a validation error that has to land on a field **without throwing
- * the author's unsaved work away**. A redirect-back-with-an-error-code round trip cannot
- * do that: the page re-renders from the stored draft, and the edit that caused the error
- * is exactly what is lost. An action returns state to the same mounted form, so the
- * document survives its own rejection.
- *
- * They are still POSTs to this origin, so `form-action 'self'` and the SameSite session
- * cookie apply unchanged, and Next verifies the request origin for every action call.
- *
- * ## Every action authenticates itself
- *
- * A server action is a POST endpoint, exactly like a route handler, and the `(shell)`
- * layout does not run for either (a layout wraps the page tree, not a request handler).
- * So every action below starts with `requireAdminSession()` rather than assuming the
- * screen that rendered the form was itself guarded. That is the gap issue #177
- * recorded; `lib/server/shell-route-guards.test.ts` now fails if an action added here
- * omits the call, so it is structural rather than remembered.
- *
- * ## Still a proxy (R2)
- *
- * None of these decides anything. The definition arrives already assembled by the
- * editor, is parsed as JSON, and is forwarded. Whether it is a legal question is the
- * kernel's answer, returned as `INVALID_QUESTION_DEFINITION` with path-addressed issues
- * that the editor renders inline.
- */
+/* Every action authenticates independently; returning state preserves unsaved edits when the API rejects a
+   definition. */
 
-/** Cap on the serialized definition, so a malformed post cannot make the BFF chew. */
+/* Bound the serialized definition to limit BFF work on malformed submissions. */
 const MAX_DEFINITION_BYTES = 64 * 1024;
 
-/** Read the editor's serialized document, or `undefined` when it is missing or absurd. */
 function readDefinition(formData: FormData): QuestionDefinitionView | undefined {
   const raw = formData.get("definition");
   if (typeof raw !== "string" || raw.length === 0 || raw.length > MAX_DEFINITION_BYTES) {
@@ -67,7 +34,6 @@ function readDefinition(formData: FormData): QuestionDefinitionView | undefined 
   }
 }
 
-/** Read a positive integer form field. */
 function readVersion(formData: FormData): number | undefined {
   const raw = formData.get("version");
   if (typeof raw !== "string") return undefined;
@@ -75,22 +41,11 @@ function readVersion(formData: FormData): number | undefined {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
 
-/** Read a required string form field. */
 function readText(formData: FormData, name: string): string {
   const raw = formData.get(name);
   return typeof raw === "string" ? raw : "";
 }
 
-/**
- * The state for a post this BFF could not even forward.
- *
- * It reuses the kernel's own code so the editor has one error path rather than two: as
- * far as the screen is concerned, a definition it could not serialize and a definition
- * the engine rejected are the same event. The sentence comes from the same place too -
- * `messageForCode` over the catalog, never a literal here (ADR-27): an operator-visible
- * string written inline is one the catalog cannot translate and one a wording change
- * would miss.
- */
 const MALFORMED: MutationState = {
   status: "error",
   code: "INVALID_QUESTION_DEFINITION",
@@ -98,7 +53,6 @@ const MALFORMED: MutationState = {
   issues: [],
 };
 
-/** Create a question and its draft v1, then open it. */
 export async function createQuestionAction(
   _previous: MutationState,
   formData: FormData,
@@ -119,17 +73,10 @@ export async function createQuestionAction(
     };
   }
   revalidatePath("/questions");
-  // Outside the guard above on purpose: `redirect` signals by throwing, so it must not
-  // sit anywhere a `catch` could swallow it.
+  // redirect throws; keep it outside catches that would swallow navigation.
   redirect(`/questions/${encodeURIComponent(result.data.questionId)}?v=1`);
 }
 
-/**
- * The same create, answered rather than navigated away from, for the card a proposal
- * confirms (SEC-17's create-variant ruling): the same validation, the same route and so
- * the same grant check, the same audit path, and the new id as the one result a later step
- * may reference.
- */
 export async function createQuestionForCardAction(
   input: { readonly slug: string; readonly definition: unknown; readonly workspaceId?: string },
   proposal?: AgentProposalRef,
@@ -156,11 +103,7 @@ export async function createQuestionForCardAction(
   };
 }
 
-/**
- * Opening a new draft version, answered rather than navigated away from, for the reason
- * the create variant exists: the screen's own control redirects onto the new version, and
- * a step that navigated would lose the steps after it without reporting one.
- */
+/* Return the new version instead of navigating so a proposal can finish its remaining steps. */
 export async function createQuestionVersionForCardAction(
   questionId: string,
   proposal?: AgentProposalRef,
@@ -178,7 +121,6 @@ export async function createQuestionVersionForCardAction(
   };
 }
 
-/** Save an edit to a draft version. Published versions are refused by the API. */
 export async function saveDraftAction(
   _previous: MutationState,
   formData: FormData,
@@ -205,14 +147,6 @@ export async function saveDraftAction(
   return { status: "saved" };
 }
 
-/**
- * Publish, deprecate, or open a new draft version.
- *
- * One action for the three because they are one shape (a version, an intent, no body)
- * and because the alternative is three near-identical modules whose only difference is
- * the verb. The intent is read from the form rather than bound per button so the
- * confirmation dialogs stay plain forms.
- */
 export async function lifecycleAction(
   _previous: MutationState,
   formData: FormData,

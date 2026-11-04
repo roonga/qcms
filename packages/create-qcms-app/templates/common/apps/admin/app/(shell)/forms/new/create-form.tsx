@@ -8,57 +8,18 @@ import { formIdFromSlug } from "@/lib/forms/draft";
 import { useIsHydrated } from "@/lib/hydrated";
 import { t } from "@/lib/i18n/en";
 
-/**
- * The creating form, on the route that exists to hold it (issue 685; task 033 built it as
- * a card on the library screen).
- *
- * ## Why it is a screen rather than a card on the list
- *
- * `plan/admin-shell-poc/library-lists-poc.html` picks one creation pattern for both
- * library screens - a separate route, reached from a header link - and names this card as
- * the one that should change to match. The reason is the same one the id callout below
- * states to the author: **minting an id is a one-way door (R6)**. `formId` is derived from
- * the slug once and never changes again, and an id is never reused for a different
- * meaning, so a form created with a mistyped slug is a permanent artefact of the
- * deployment rather than something a later edit can tidy away. That decision competing for
- * attention with a table of everything already made is exactly the half-attention a
- * one-way door should not be opened in.
- *
- * ## Why it lives beside the page rather than in `components/`
- *
- * Unchanged from 033, and now more literally true: it is this route's own form and nothing
- * else renders it, so it sits in the route folder next to the page that owns it. The
- * builder's components, which several screens and the e2e suite address, live under
- * `components/forms/`.
- *
- * ## Why the id is shown while the author types
- *
- * A one-way door should show what is on the other side of it *before* it is opened.
- * `formIdFromSlug` is the same pure function `createFormAction` uses to mint the real id,
- * so the preview cannot drift from the result. The callout is the shape `/questions/new`
- * uses for the same statement (`components/questions/question-editor.tsx`) and the shape
- * `plan/admin-shell-poc/settings-newquestion-poc.html` draws it in: an eyebrow, the value,
- * and the sentence about permanence.
- *
- * The live preview is the one reason this is a client component. The form itself is a
- * plain `<form action={formAction}>`: the kit's `Form` takes a string `action` (a URL) and
- * cannot carry a server action, which is why 032's editor posts through a raw element too.
- */
 export function CreateForm({
   action,
 }: {
   readonly action: (state: CreateFormState, formData: FormData) => Promise<CreateFormState>;
 }) {
   const [state, formAction, isPending] = useActionState(action, IDLE_CREATE_FORM);
-  // Issue #1032: this screen's submit is a REAL `type="submit"` inside a Server Action
-  // form, and the whole form is in the served bytes, so a press before React attaches
-  // leaves as a full navigation POST with `Origin: null` and Next refuses it. The control
-  // below is disabled until the attach; `lib/hydrated.ts` carries the mechanism.
+  // Disable submit until hydration: an earlier native Server Action POST carries Origin: null and Next
+  // refuses it.
   const isHydrated = useIsHydrated();
   const [slug, setSlug] = useState(state.submitted?.slug ?? "");
-  // Restore a rejected submission that arrived through a pre-hydration full POST, where
-  // the initialiser above has already run with an empty value. Adjusting state during
-  // render is React's documented answer for "derive from a prop that just changed".
+  // A pre-hydration rejected POST can change the initial prop after state initialization; restore that
+  // submission during render.
   const [seenState, setSeenState] = useState(state);
   if (seenState !== state) {
     setSeenState(state);
@@ -107,10 +68,6 @@ export function CreateForm({
       />
 
       <div>
-        {/* The label is the same string across the hydration boundary, so the accessible
-          name does not move; only `forms.create.submitting` changes it, and that state is
-          only reachable after the attach. `isDisabled` renders the native `disabled`, which
-          removes the control from the tab order rather than leaving a focusable dead end. */}
         <Button type="submit" variant="primary" size="md" isDisabled={isPending || !isHydrated}>
           {isPending ? t("forms.create.submitting") : t("forms.create.submit")}
         </Button>

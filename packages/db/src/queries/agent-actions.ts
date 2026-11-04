@@ -6,7 +6,7 @@ import type { Executor } from "./executor.js";
 // The write must carry no `RETURNING`: it runs on the environment pools too, where
 // `qcms_app_<env>` holds `INSERT` and no `SELECT`.
 
-/** One SEC-17 agent step row to append, written in the step's own transaction. */
+/** Append the confirmed agent step inside that step's own transaction. */
 export interface AgentActionEntry {
   readonly proposalId: string;
   readonly stepIndex: number;

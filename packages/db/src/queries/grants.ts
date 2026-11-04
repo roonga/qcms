@@ -10,9 +10,9 @@ import {
 import { environments } from "../schema/control/environments.js";
 import type { Executor } from "./executor.js";
 
-// Grants are written only through QCMS endpoints, never the plugin's own: those endpoints
-// are where the validation and the SEC-15 rows live, and the plugin's removal cascades
-// run below any endpoint QCMS could gate.
+// Grants are written only through QCMS endpoints, never the plugin's own: those endpoints are where the
+// validation and the audit rows live, and the plugin's removal cascades run below any endpoint QCMS could
+// gate.
 
 /** A role whose statements are empty: a row carrying it grants nothing. */
 export const EMPTY_MEMBER_ROLE = "member";
@@ -249,8 +249,8 @@ export interface NewAccessGroup {
 }
 
 /**
- * Create one access group; validation and the SEC-15 row are the caller's.
- * `externalGroupId` is deliberately not a parameter: only the sync path may write it.
+ * Create one access group; validation and the audit row are the caller's. `externalGroupId` is deliberately
+ * not a parameter: only the sync path may write it.
  */
 export async function createAccessGroup(
   exec: Executor,
@@ -300,9 +300,8 @@ export async function updateAccessGroupScope(
 }
 
 /**
- * Remove one access group, and with it every grant it carried. The caller must read the
- * holders and write one SEC-15 `revoke` row each in the same transaction, or the cascade
- * goes unaudited.
+ * Remove one access group, and with it every grant it carried. The caller must read the holders and write
+ * one audit `revoke` row each in the same transaction, or the cascade goes unaudited.
  */
 export async function deleteAccessGroup(exec: Executor, teamId: string): Promise<boolean> {
   const rows = await exec.delete(authTeam).where(eq(authTeam.id, teamId)).returning({
@@ -389,7 +388,7 @@ export async function addAccessGroupHolder(
   return true;
 }
 
-/** Take one holder out of an access group. The caller writes the SEC-15 revoke row. */
+/** Take one holder out of an access group. The caller writes the audit revoke row. */
 export async function removeAccessGroupHolder(
   exec: Executor,
   teamId: string,
@@ -456,8 +455,8 @@ export async function listEnvironmentNames(exec: Executor): Promise<readonly str
 }
 
 /**
- * Turn the per-workspace seed setting on or off, the setting's one write path. The caller
- * must write the SEC-15 `setting` row in the same transaction.
+ * Turn the per-workspace seed setting on or off, the setting's one write path. The caller must write the
+ * audit `setting` row in the same transaction.
  */
 export async function setSeedNewEditorsWithTestData(
   exec: Executor,
@@ -473,9 +472,8 @@ export async function setSeedNewEditorsWithTestData(
 }
 
 /**
- * Turn the per-workspace two-person switch on or off; it covers `prod` releases, `prod`
- * endpoint changes and the self-grant rule alike. The caller must write the SEC-15
- * `setting` row in the same transaction.
+ * Turn the per-workspace two-person switch on or off; it covers `prod` releases, `prod` endpoint changes and
+ * the self-grant rule alike. The caller must write the audit `setting` row in the same transaction.
  */
 export async function setRequireSecondApprover(
   exec: Executor,

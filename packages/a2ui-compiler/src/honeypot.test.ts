@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import { HONEYPOT_FIELD_NAME, HONEYPOT_NODE_TYPE, honeypotNode } from "./honeypot.js";
 import type { A2UINode } from "./types.js";
 
-/** An executable spec of the rendering contract in `docs/a2ui-mapping.md`. */
 function renderHoneypotReference(node: A2UINode): string {
   const props = node.props ?? {};
   const name = String(props.name);

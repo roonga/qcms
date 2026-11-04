@@ -1,7 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-/** Browser fixtures use HTTP, so secure cookie prefixes need direct coverage. */
-
 const mocks = vi.hoisted(() => ({ jar: new Map<string, string>() }));
 
 vi.mock("next/headers", () => ({
@@ -43,16 +41,12 @@ describe("readAuthCookie", () => {
   });
 
   it("never crosses between two auth cookies (the suffix is anchored)", async () => {
-    // The hazard a bare `endsWith` would create: these two names share a prefix, and a
-    // challenge lookup must not be satisfied by a session token or vice versa.
     mocks.jar.set(`__Secure-${SESSION_COOKIE}`, "session-token");
     expect(await readAuthCookie(TWO_FACTOR_COOKIE)).toBeUndefined();
     expect(await readAuthCookie(SESSION_COOKIE)).toBe("session-token");
   });
 
   it("prefers an exact match over a prefixed one when both somehow exist", async () => {
-    // A stale prefixed cookie surviving a switch to http would otherwise shadow the live
-    // one. Deterministic rather than dependent on jar ordering.
     mocks.jar.set(`__Secure-${TWO_FACTOR_COOKIE}`, "stale");
     mocks.jar.set(TWO_FACTOR_COOKIE, "live");
     expect(await readAuthCookie(TWO_FACTOR_COOKIE)).toBe("live");

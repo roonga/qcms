@@ -1,6 +1,6 @@
 /**
- * The two entry modes are separate registrars because a single route cannot be
- * half-mounted: anonymous entry is mounted on `prod`'s surface alone (SEC-14).
+ * The two entry modes are separate registrars because a single route cannot be half-mounted: anonymous entry
+ * is mounted on `prod`'s surface alone.
  */
 
 import { createRoute } from "@hono/zod-openapi";

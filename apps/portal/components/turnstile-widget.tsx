@@ -6,9 +6,9 @@ import { useEffect, useRef, useState } from "react";
 import { TURNSTILE_ORIGIN } from "@/lib/turnstile";
 
 /**
- * Cloudflare Turnstile widget shell (ADR-24). `ChallengeSlot` gates it, so with the
- * default provider this module is never loaded and its script origin never appears
- * (SEC-9). The API verifies the token; the portal never does.
+ * Cloudflare Turnstile widget shell (ADR-24). `ChallengeSlot` gates it, so with the default provider this
+ * module is never loaded and its script origin never appears. The API verifies the token; the portal never
+ * does.
  */
 export function TurnstileWidget({ siteKey }: { readonly siteKey: string }) {
   const [token, setToken] = useState("");

@@ -1,15 +1,4 @@
-/**
- * The screen table: every `(shell)` page route pattern, which is also its screen id.
- *
- * A turn sends a screen id and the route's own ids and never context content, so this
- * table is the whole of what the browser says about what the agent may see. The ids are
- * the API's (`apps/api/src/features/agent/screens.ts`), and `lib/agent/screens.test.ts`
- * reads the route tree off the filesystem and fails when a page has no row here.
- *
- * It is also the Markdown renderer's link allowlist: a link survives only for a path that
- * matches a row, so a route handler such as `/forms/[formId]/export` can never become a
- * link the browser would fetch.
- */
+/** The browser sends IDs, never context content. This closed page allowlist also excludes route handlers and download paths from model links. */
 
 export const AGENT_SCREENS = [
   "/forms",
@@ -39,7 +28,6 @@ export const AGENT_SCREENS = [
 
 export type AgentScreen = (typeof AGENT_SCREENS)[number];
 
-/** The response list's four filters, as the API's body names them. */
 export interface AgentResponseFilters {
   version?: number;
   from?: string;
@@ -47,7 +35,6 @@ export interface AgentResponseFilters {
   flagged?: boolean;
 }
 
-/** The route ids a screen's context builder reads, named as the API's body names them. */
 export interface AgentScreenParams {
   [key: string]: string | number | AgentResponseFilters | undefined;
   formId?: string;
@@ -55,7 +42,7 @@ export interface AgentScreenParams {
   workspaceId?: string;
   sessionId?: string;
   version?: number;
-  /** The response list screen only: the filter set the operator is looking at. */
+
   filters?: AgentResponseFilters;
 }
 
@@ -64,7 +51,6 @@ export interface ResolvedScreen {
   readonly params: AgentScreenParams;
 }
 
-/** Which `[segment]` of a pattern fills which param. */
 const PLACEHOLDERS: Readonly<Record<string, keyof AgentScreenParams>> = {
   "[formId]": "formId",
   "[questionId]": "questionId",
@@ -97,14 +83,10 @@ function match(pattern: AgentScreen, segments: readonly string[]): ResolvedScree
   return { screen: pattern, params };
 }
 
-/**
- * The screen a pathname is, with its route ids, or `undefined` for a path no `(shell)`
- * page serves. A path with no row gets no assistant context rather than a guessed one.
- */
 export function screenForPath(pathname: string): ResolvedScreen | undefined {
   if (!pathname.startsWith("/")) return undefined;
   const segments = segmentsOf(pathname);
-  // Longest literal prefix first, so a literal beats a placeholder where both match.
+  /** Prefer literal routes over placeholders when both match. */
   const ordered = [...AGENT_SCREENS].sort(
     (a, b) =>
       b.split("/").filter((part) => !part.startsWith("[")).length -
@@ -117,17 +99,14 @@ export function screenForPath(pathname: string): ResolvedScreen | undefined {
   return undefined;
 }
 
-/** The subject one conversation belongs to: a form's whole subtree, else the screen. */
 export function conversationSubject(resolved: ResolvedScreen | undefined): string {
   if (resolved === undefined) return "none";
   if (resolved.params.formId !== undefined) return `form:${resolved.params.formId}`;
   return `screen:${resolved.screen}`;
 }
 
-/** A path segment safe to put in an `href`: no traversal, no encoding tricks. */
 const SEGMENT = /^[A-Za-z0-9._~-]+$/u;
 
-/** The `href` a link target may keep, or `undefined` when it must render as text. */
 export function adminPageHref(target: string): string | undefined {
   const path = target.trim();
   if (!path.startsWith("/") || path.startsWith("//")) return undefined;

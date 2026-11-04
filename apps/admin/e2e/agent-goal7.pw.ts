@@ -28,53 +28,22 @@ import {
 import { waitForHydration } from "./support/hydration.js";
 import { submitResponse } from "./support/ops.js";
 
-/**
- * Criterion 13: task 038's goal 7, rehearsed against the fake provider.
- *
- * The launch gate asks a human tester for one assisted run: a change on at least three
- * screens, one single-step card and one multi-step plan each confirmed through the screen's
- * own control, one cancelled proposal that changed nothing, a read-only user offered no
- * write, and no answer value anywhere in the conversation. This file walks that run, so the
- * rehearsal is a suite the gate can be read against rather than a script nobody has run.
- *
- * It is not a second copy of the card matrix. Each screen group's own spec owns its kinds,
- * its states and its axe sweeps; what is here is the **shape of the run**, end to end,
- * across three screens in one sitting.
- *
- * ## The answer value is a planted sentinel
- *
- * The one claim the gate calls launch-blocking cannot be made with a value that might also
- * be an id or a timestamp, so the response this run reads carries a name no other string in
- * the product could be: letters only, because the question's own pattern allows nothing
- * else. Every conversation this file opens is then read in full and must not hold it.
- */
+// Plant an answer distinguishable from ids and timestamps so a conversation leak is observable.
 
 test.describe.configure({ mode: "serial" });
 
-/** The account that performs the run, holding every grant a tester's own would. */
 const EMAIL = uniqueAdminEmail("agentgoal7");
 
-/** The read-only account: one viewer grant and no workspace membership. */
 const VIEWER = uniqueAdminEmail("agentgoal7viewer");
 
 const RUN = Date.now().toString(36);
 
-/** A published library question with a text answer, so the sentinel has somewhere to live. */
 const SEEDED_QUESTION = "q_full_name";
 
-/**
- * The needle the builder's draft proposal searches the library with.
- *
- * It matches exactly one library question by slug and id, so the draft the assistant
- * proposes pins that one and gates nothing behind a rule. That is what lets the run go on
- * to publish the applied draft and answer it with one value.
- */
+// The search needle must select exactly one question so the applied draft can publish and accept one answer.
 const NEEDLE = "full";
 
-/**
- * The planted answer. Letters and spaces only: `q_full_name` constrains its answer to
- * `^[A-Za-z][A-Za-z .,'-]{0,99}$`, so a digit would be refused at submission.
- */
+// The sentinel must contain only letters and spaces to satisfy q_full_name's answer pattern.
 const ANSWER = "Zzyxwvu Sentinelanswer";
 
 let totpSecret = "";
@@ -85,11 +54,10 @@ let kept = "";
 
 test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
-  // One viewer grant and no workspace membership, which is the read-only user goal 7 names.
+
   await createTestAdmin(VIEWER, { grants: ["forms.viewer"], owner: false });
 });
 
-/** The conversation itself, which is what must never hold an answer. */
 function turns(page: Page): Locator {
   return page.getByTestId("qcms-assistant-turns");
 }
@@ -101,7 +69,6 @@ async function expectNoAnswerValue(page: Page, where: string): Promise<void> {
   ).not.toContain(ANSWER);
 }
 
-/** Send one scripted turn that proposes nothing, for the read tools' own sweep. */
 async function send(page: Page, script: string, message: string): Promise<void> {
   await fillStable(page.getByTestId("qcms-assistant-composer"), `#qcms-fake:${script} ${message}`);
   await page.getByTestId("qcms-assistant-send").locator("button").click();
@@ -120,8 +87,6 @@ test("changes the builder, the releases screen and a response screen in one run"
 
   const before = await auditTally();
 
-  // SCREEN ONE, THE BUILDER, and the single-step card: the assistant proposes a draft and
-  // the step that applies it runs the builder's own save.
   await page.goto(`/forms/${formId}`);
   await openPanel(page);
   const previousSave = await savedStamp(page);
@@ -131,14 +96,10 @@ test("changes the builder, the releases screen and a response screen in one run"
   await expectStepChips(page, ["Done"]);
   await expect(page.getByTestId("qcms-builder-provenance")).toBeVisible();
   expect(await savedStamp(page)).not.toBe(previousSave);
-  // The draft the run goes on to publish is the proposal's own, named rather than assumed:
-  // its step replaced the one this test authored. Which question it pins is what the
-  // submission below asserts, by answering it.
+
   await openRail(page);
   await expect(page.getByRole("button", { name: "Open step Driving history" })).toBeVisible();
 
-  // SCREEN TWO, THE RELEASES SCREEN, and the multi-step plan: freeze the draft and promote
-  // the version step 1 records, each step through that screen's own server action.
   await page.goto(`/forms/${formId}/publish`);
   await openPanel(page);
   await propose(page, "plan-releases", "freeze this and promote it to production");
@@ -151,18 +112,11 @@ test("changes the builder, the releases screen and a response screen in one run"
     page.getByTestId("qcms-released-now").locator('tr[data-environment="prod"]'),
   ).toContainText("v1", { timeout: 30_000 });
 
-  // Two responses, one for the confirmed erasure and one for the cancelled proposal. The
-  // respondent mount is production's own, which the promotion above is what makes reachable.
   erased = await submitResponse(formSlug, [[SEEDED_QUESTION, ANSWER]]);
   kept = await submitResponse(formSlug, [[SEEDED_QUESTION, ANSWER]]);
 
-  // SCREEN THREE, A RESPONSE SCREEN. A response is one environment's own row and the
-  // respondent mount is production's, so the screen that reads it is production's too;
-  // authoring this form moved the selection to `test`.
   await chooseEnvironment(page, "prod");
 
-  // Every read tool the screen offers runs first, so the conversation holds everything the
-  // assistant can say about a response before anything is proposed about it.
   await page.goto(`/forms/${formId}/responses/${erased}`);
   await waitForHydration(page);
   await openPanel(page);
@@ -200,7 +154,7 @@ test("changes nothing when the tester cancels a proposal", async ({ page }) => {
 
   expect(auditDelta(before, await auditTally())).toEqual({});
   await expect(page.getByTestId("qcms-tombstone")).toHaveCount(0);
-  // The answers the erasure would have destroyed are still on screen.
+
   await expect(page.getByTestId("qcms-locked-answers")).toContainText(ANSWER);
   await expectNoAnswerValue(page, "the cancelled erasure");
 });
@@ -216,8 +170,6 @@ test("offers a read-only user no write at all", async ({ page }) => {
   const before = await auditTally();
   await send(page, "read-only-user", "close this form for me");
 
-  // The turn ends in words rather than in a card, because the propose tools were offered no
-  // kind this account holds: the grant filter is upstream of the proposal.
   await expect(turns(page)).toContainText("You cannot change anything on this screen", {
     timeout: 120_000,
   });

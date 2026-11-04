@@ -1,9 +1,4 @@
-# The adopter experience, proved from packed tarballs (task 037).
-#
-# Its own workflow rather than a job in e2e.yml, for the same reason `full-stack-e2e`
-# is not a job in ci.yml: it builds three application images, so it is minutes long
-# and it should say what broke by name in the checks list. It is also the one job
-# whose subject is what an adopter receives rather than what this repository runs.
+# Exercise packed tarballs so the test covers what adopters receive.
 name: create-app-e2e
 
 on:
@@ -17,8 +12,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # The job id IS the check context, left to name itself, exactly as `full-stack-e2e`
-  # and the two e2e jobs in ci.yml are.
   create-app-e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -35,37 +28,19 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # The harness makes the first commit in the scaffolded project, and git refuses
-      # to commit without an identity. A runner has none by default.
+      # The scaffold harness commits its initial tree; fresh runners lack a git identity.
       - name: Configure a git identity for the scaffolded project
         run: |
           git config --global user.email "create-app-e2e@qcms.invalid"
           git config --global user.name "create-qcms-app end-to-end"
 
-      # Resolves the mirrored Postgres reference into QCMS_TEST_POSTGRES_IMAGE, as
-      # every other Docker-backed job does (issues #74 and #150). The scaffolded
-      # Compose file reads it as QCMS_POSTGRES_IMAGE.
+      # The scaffold reads the resolved test image through QCMS_POSTGRES_IMAGE.
       - uses: ./.github/actions/test-postgres-image
 
-      # The scaffolded tree's Dockerfiles carry the same Docker Hub base and the same
-      # `docker/dockerfile:1` frontend the monorepo's do, so this job has the same
-      # build-time Hub exposure and takes the same answer: pre-pull with retries, mirror
-      # nothing (Code Owner, 2026-10-11, issue #1050).
-      #
-      # The adopter's templates are the reason a mirror was never an option here. They
-      # must keep a public default that resolves for someone who has never heard of this
-      # repository, so a `FROM ghcr.io/<our owner>/...` in a generated Dockerfile would
-      # hand every scaffolded project a dependency on our GHCR package staying public.
-      # Pre-pulling is invisible to the template: it changes what is on the runner, not
-      # what the generated file says, so the scaffolded Dockerfiles stay byte-identical
-      # to the ones an adopter would write.
+      # Templates need public base references that work for adopters without access to this repository.
+      # Pre-pulling changes the runner cache without introducing a private mirror dependency.
       - uses: ./.github/actions/prepull-base-images
 
-      # Packs the five tarballs, runs the CLI from its own tarball into a temporary
-      # directory, installs, builds the three images from the scaffolded tree, starts
-      # the stack, bootstraps an administrator, drives the 027 scenario-1 loop over
-      # HTTP, and tears everything down. Self-contained: there is no separate
-      # teardown step because the harness runs its own in a `finally`.
       - name: Scaffold, build, and drive the scenario-1 loop
         env:
           QCMS_PORT_SEAT: "0"

@@ -24,8 +24,7 @@ export const DEFAULT_MIN_AGE_HOURS = 24;
  */
 
 /**
- * A lane runs from a linked tree whose own root directory is empty, so this resolves back
- * to the primary checkout and the sweep always looks at the one place that accumulates.
+ * Resolve the primary checkout so every linked worktree sweeps the same registry and leftover directory.
  *
  * @param {string} from
  * @returns {string}

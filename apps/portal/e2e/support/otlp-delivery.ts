@@ -3,7 +3,6 @@ import { dirname } from "node:path";
 
 import { OTLP_DELIVERY_BUDGET_MS, OTLP_DELIVERY_PATH } from "./harness-config.js";
 
-/** Start a fresh delivery record for this run window. Called once, from globalSetup. */
 export function startOtlpDeliveryRecord(): void {
   mkdirSync(dirname(OTLP_DELIVERY_PATH), { recursive: true });
   writeFileSync(OTLP_DELIVERY_PATH, "", "utf8");

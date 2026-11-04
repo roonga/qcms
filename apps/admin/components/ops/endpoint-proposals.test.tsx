@@ -7,20 +7,6 @@ import type { EndpointProposal } from "../../lib/ops/types.ts";
 import { t } from "../../lib/i18n/en.ts";
 import { unexpected } from "../../lib/ops/unexpected.ts";
 
-/**
- * The pending-change panel (ADR-41's release rule, Q30, Q51; task 070).
- *
- * The property worth a test here is the one the mechanism exists for: a proposed production
- * URL is **visible and not in force**, which means it must be rendered somewhere that is
- * not the endpoint table and labelled as waiting. An operator who read the proposed value
- * as the live one would have exactly the belief the two-person rule was built to prevent.
- *
- * The other half is the rejection path (issue #352's rule): the server action is a prop, so
- * a fake prop is the whole fake and the `.then` chain, the transition and the markup are
- * the real component. A rejected promise with no `.catch` sets no state, and the dialog
- * then sits there while the operator wonders whether a production endpoint just moved.
- */
-
 const WAITING: EndpointProposal = {
   proposalId: "wep_waiting",
   webhookId: "whk_ab12cd34",
@@ -36,7 +22,6 @@ const WAITING: EndpointProposal = {
   appliedAt: null,
 };
 
-/** The two-pool window: somebody confirmed and the endpoint write did not land. */
 const UNAPPLIED: EndpointProposal = {
   ...WAITING,
   proposalId: "wep_unapplied",
@@ -53,16 +38,11 @@ function idle(): Promise<{ status: "idle" }> {
 
 describe("the pending endpoint changes panel", () => {
   it("renders nothing at all when nothing is waiting", () => {
-    // The ordinary case on every screen: the rule gates `prod` alone and is off by default
-    // (Q13), so an empty state here would be a permanent block of text saying nothing has
-    // happened.
     render(<EndpointProposals proposals={{ ok: true, data: [] }} confirm={idle} withdraw={idle} />);
     expect(screen.queryByTestId("qcms-endpoint-proposals")).toBeNull();
   });
 
   it("renders nothing when the read failed, rather than claiming nothing is waiting", () => {
-    // Issue 572's rule one screen along: "the read failed" and "nothing is pending" are
-    // different answers, and the page's own alert is what says which.
     render(<EndpointProposals proposals={{ ok: false }} confirm={idle} withdraw={idle} />);
     expect(screen.queryByTestId("qcms-endpoint-proposals")).toBeNull();
   });
@@ -78,11 +58,7 @@ describe("the pending endpoint changes panel", () => {
 
     const row = screen.getByTestId("qcms-proposal-table").querySelector("tbody tr");
     expect(row?.textContent).toContain("https://new-consumer.example/hook");
-    // Two accounts, not two kinds of person: the row names the proposer so the operator
-    // reading it can tell whether it is their own.
     expect(row?.textContent).toContain("au_alice");
-    // And it says it is waiting. Without this the proposed URL beside an endpoint id reads
-    // as the endpoint's URL, which is the one misreading this mechanism cannot afford.
     expect(row?.textContent).toContain(t("ops.proposals.state.waiting"));
   });
 
@@ -99,8 +75,6 @@ describe("the pending endpoint changes panel", () => {
   });
 
   it("warns in the confirm dialog that a proposer cannot confirm their own change", () => {
-    // The rule, said before the press. The API refuses it either way; what this stops is
-    // the refusal being the first the operator hears of the rule.
     render(
       <EndpointProposals
         proposals={{ ok: true, data: [WAITING] }}
@@ -126,8 +100,6 @@ describe("the pending endpoint changes panel", () => {
 
     await user.click(screen.getByRole("button", { name: t("ops.proposals.confirm") }));
     const dialog = await screen.findByRole("alertdialog");
-    // Q6's restatement: confirming one of these is what makes a production endpoint live,
-    // and an act against the wrong environment is not undoable.
     expect(within(dialog).getByTestId("qcms-proposal-environment").textContent).toContain("prod");
     expect(dialog.textContent).toContain(t("ops.proposals.confirmWarning"));
 
@@ -168,8 +140,6 @@ describe("the pending endpoint changes panel", () => {
     expect(dialog.textContent).toContain(
       t("ops.proposals.withdrawBody", { environment: "prod", url: WAITING.url ?? "" }),
     );
-    // No confirm warning on this one: either account may withdraw, which is why there is
-    // one Withdraw rather than a Reject beside a Cancel.
     expect(dialog.textContent).not.toContain(t("ops.proposals.confirmWarning"));
 
     await user.click(within(dialog).getByRole("button", { name: t("ops.proposals.withdraw") }));
@@ -177,9 +147,6 @@ describe("the pending endpoint changes panel", () => {
   });
 
   it("says per kind what confirming will do (review finding 4)", async () => {
-    // The generic sentence was wrong for two of the three kinds: a deactivation stops
-    // delivery, and an update naming no URL has nothing to put in the hole, so an approver
-    // read "starts delivering to " while Confirm would do the opposite.
     const cases = [
       [
         WAITING,
@@ -193,7 +160,6 @@ describe("the pending endpoint changes panel", () => {
         { ...WAITING, kind: "deactivate" as const, url: null },
         t("ops.proposals.confirmBody.deactivate", { environment: "prod" }),
       ],
-      // An update that only rotates the secret: no URL, so no target to name.
       [
         { ...WAITING, url: null, rotatesSecret: true },
         t("ops.proposals.confirmBody.update", { environment: "prod" }),
@@ -214,7 +180,6 @@ describe("the pending endpoint changes panel", () => {
       expect(dialog.textContent, `${proposal.kind}, url ${String(proposal.url)}`).toContain(
         sentence,
       );
-      // No stray "starts delivering to" on a kind that stops delivery.
       if (proposal.kind === "deactivate") {
         expect(dialog.textContent).toContain("stops receiving deliveries");
       }
@@ -223,9 +188,6 @@ describe("the pending endpoint changes panel", () => {
   });
 
   it("offers a confirmed-but-unapplied row a withdrawal, and says what it buys (review finding 3)", async () => {
-    // The operator's way out of an apply that keeps failing: nothing is live to undo, and
-    // withdrawing releases the endpoint so a new change can be proposed for it. The button
-    // used to be rendered for this state and could only ever answer 409.
     const user = userEvent.setup();
     const withdraw = vi.fn(() => Promise.resolve({ status: "done" as const }));
     render(

@@ -41,7 +41,7 @@ export const RepeatTableSchema = z.object({
   props: z
     .object({
       groupId: z.string(),
-      /** The group's own authored label. */
+
       caption: z.string(),
       /** Derived from the instance label. */
       rowHeader: z.string(),

@@ -11,17 +11,6 @@ import {
 } from "./draft.ts";
 import type { DraftForm } from "./types.ts";
 
-/**
- * Step-id minting is permanence, not uniqueness (PR #245 review).
- *
- * `removeStep` leaves a rule's `show: ["stp_gone"]` dangling on purpose so the author is
- * told (`DANGLING_STEP_REF`) rather than having their rule rewritten under them. The whole
- * value of that choice depends on the retired id never being handed out again: if it is,
- * the orphaned rule silently re-attaches to an unrelated step and the issue the author was
- * meant to answer vanishes with no signal. These tests pin that.
- */
-
-/** A draft with one step and one rule pointing at it, built the way the builder builds. */
 function draftWithRuleTargetingCover(): { draft: DraftForm; coverStepId: string } {
   let draft = addStep(blankDraft("frm_claims"), "Cover");
   const coverStepId = draft.steps[0]?.stepId ?? "";
@@ -47,12 +36,10 @@ describe("addStep id minting", () => {
     const { draft: built, coverStepId } = draftWithRuleTargetingCover();
     expect(coverStepId).toBe("stp_cover");
 
-    // Delete the step. The rule keeps pointing at the dead id, by design.
     const afterRemoval = removeStep(built, coverStepId);
     expect(afterRemoval.steps).toHaveLength(0);
     expect(afterRemoval.rules[0]?.show).toStrictEqual([coverStepId]);
 
-    // Re-add a step with the same title. It must NOT inherit the orphaned rule.
     const reAdded = addStep(afterRemoval, "Cover");
     expect(reAdded.steps[0]?.stepId).not.toBe(coverStepId);
     expect(reAdded.steps[0]?.stepId).toBe("stp_cover_2");
@@ -70,8 +57,7 @@ describe("addStep id minting", () => {
       minted.push(added);
       draft = removeStep(draft, added);
     }
-    // Live steps free up again, so the second and third reuse `stp_cover_2`; what never
-    // comes back is the id the dangling rule is holding.
+
     expect(minted).not.toContain(coverStepId);
     expect(new Set(minted)).toStrictEqual(new Set(["stp_cover_2"]));
     expect(draft.rules[0]?.show).toStrictEqual([coverStepId]);
@@ -79,20 +65,12 @@ describe("addStep id minting", () => {
 
   it("reserves an id a rule targets even while the step is still live", () => {
     const { draft, coverStepId } = draftWithRuleTargetingCover();
-    // Belt and braces: the live-steps list already covers this, but the reservation must
-    // not depend on which of the two lists happens to hold the name.
+
     const next = addStep(draft, "Cover");
     expect(next.steps.map((step) => step.stepId)).toStrictEqual([coverStepId, "stp_cover_2"]);
   });
 });
 
-/**
- * Minting a rule and adding it are two acts now (Code Owner, 2026-08-30).
- *
- * The rule editor buffers - `plan/admin-design-contracts.md` §6 - so a rule an author is
- * building has to be able to exist without being in the draft, and Save is what puts it
- * there. These pin the two halves and the property that makes the split safe.
- */
 describe("newRule and upsertRule", () => {
   it("mints a rule without adding it, so a cancelled add leaves nothing behind", () => {
     const draft = addStep(blankDraft("frm_claims"), "Cover");
@@ -104,8 +82,6 @@ describe("newRule and upsertRule", () => {
   });
 
   it("hands out the same id again when the previous one was never added", () => {
-    // The difference from a STEP id, which stays reserved once a rule names it: nothing can
-    // be left pointing at a rule that was never added, so there is nothing to protect.
     const draft = addStep(blankDraft("frm_claims"), "Cover");
 
     expect(newRule(draft, "q_cover_level").ruleId).toBe(newRule(draft, "q_cover_level").ruleId);

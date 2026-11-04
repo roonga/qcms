@@ -32,8 +32,8 @@ export type _SecureLinkRowMatchesTable = AssignableTo<
   AssignableTo<typeof secureLinks.$inferSelect, SecureLinkRow>;
 
 /**
- * Insert server-side state for a secure link (SEC-2). `environment` has no default on
- * purpose: defaulting would hand a script that omitted the field a production link.
+ * Insert server-side state for a secure link. `environment` has no default on purpose: defaulting would hand
+ * a script that omitted the field a production link.
  */
 export async function insertSecureLink(
   exec: Executor,
@@ -89,9 +89,9 @@ export async function listSecureLinks(
 }
 
 /**
- * Atomically consume a one-time secure link: where replay is stopped, since a valid
- * signature is never sufficient on its own (SEC-2). The compare-and-set lets exactly one
- * of two concurrent consumers win, and every loser gets `undefined`.
+ * Atomically consume a one-time secure link: where replay is stopped, since a valid signature is never
+ * sufficient on its own. The compare-and-set lets exactly one of two concurrent consumers win, and every
+ * loser gets `undefined`.
  */
 export async function consumeSecureLink(
   exec: Executor,
@@ -113,9 +113,9 @@ export async function consumeSecureLink(
 }
 
 /**
- * Revoke a secure link so it stops working immediately (SEC-2). Form- and
- * environment-scoped in the `where`, so a cross-form link, a cross-environment link, a
- * never-issued link and an already-revoked link all come back `undefined` alike.
+ * Revoke a secure link so it stops working immediately. Form- and environment-scoped in the `where`, so a
+ * cross-form link, a cross-environment link, a never-issued link and an already-revoked link all come back
+ * `undefined` alike.
  */
 export async function revokeSecureLink(
   exec: Executor,

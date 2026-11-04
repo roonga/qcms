@@ -25,7 +25,7 @@ import type { Logger } from "../../logger.js";
 import { accessControl, roles } from "../membership/policy.js";
 import { pluginWriteBackstop } from "./plugin-write-backstop.js";
 
-/** SEC-1 adds an absolute session cap because the vendor idle window can be renewed indefinitely. */
+/** Add an absolute session cap because the vendor's idle window can be renewed indefinitely. */
 
 const COOKIE_PREFIX = "qcms_admin";
 
@@ -45,8 +45,8 @@ export const AUTH_BASE_PATH = "/api/auth";
 const CREDENTIAL_PROVIDER_ID = "credential";
 
 /**
- * The only composition-shaped rule here: NIST SP 800-63B Rev 4 section 3.1.1.2 forbids the
- * rest and mandates the breach-corpus check instead (SEC-1).
+ * The only composition-shaped rule here: NIST SP 800-63B Rev 4 section 3.1.1.2 forbids the rest and mandates
+ * the breach-corpus check instead.
  */
 export const MIN_PASSWORD_LENGTH = 12;
 
@@ -77,7 +77,7 @@ export function warnIfBreachCheckDisabled(
  */
 export interface SignInThrottleState {
   readonly enabled: boolean;
-  /** Header names, never a value: an address identifies a person (SEC-8, SEC-13). */
+  /** Header names, never a value: an address identifies a person. */
   readonly addressHeaders: readonly string[];
 }
 
@@ -250,7 +250,7 @@ export function createAdminAuth(input: AdminAuthInput) {
   return betterAuth({
     database: drizzleAdapter(input.db, {
       provider: "pg",
-      // SEC-1 requires real adapter transactions so password changes roll back atomically.
+      // Use real adapter transactions so password changes roll back atomically.
       transaction: true,
       // `@roonga/qcms-db` exports prefixed names and better-auth addresses its models
       // unprefixed, so without this map the adapter finds no tables at all.
@@ -282,8 +282,7 @@ export function createAdminAuth(input: AdminAuthInput) {
     trustedOrigins: [adminAuth.baseUrl],
     // Stated so an upstream default flip cannot turn telemetry on.
     telemetry: { enabled: false },
-    // Passing a value takes away the `?? isProduction` branch, so `NODE_ENV` no longer
-    // decides whether SEC-1's throttle runs.
+    // Pass the throttle explicitly so the vendor's production-mode default cannot decide a security control.
     rateLimit: { enabled: adminAuth.signInThrottle },
     emailAndPassword: {
       enabled: true,
@@ -311,7 +310,7 @@ export function createAdminAuth(input: AdminAuthInput) {
       account: {
         update: {
           /**
-           * Clearing the flag is ours (SEC-1): the hash write follows the password verify:
+           * Clearing the flag is ours : the hash write follows the password verify:
            * `dist/api/routes/update-user.mjs:175` <!-- expect: internalAdapter.updateAccount(account.id, { password: passwordHash }) -->
            * `dist/api/routes/update-user.mjs:169` <!-- expect: password.verify -->
            * `dist/db/internal-adapter.mjs:711` <!-- expect: updateWithHooks -->
@@ -341,7 +340,6 @@ export function createAdminAuth(input: AdminAuthInput) {
       useSecureCookies: adminAuth.secureCookies,
       defaultCookieAttributes: {
         httpOnly: true,
-        // The primary CSRF control (SEC-9).
         sameSite: "lax",
         path: "/",
       },
@@ -349,18 +347,17 @@ export function createAdminAuth(input: AdminAuthInput) {
     plugins: [
       twoFactor({
         issuer: "QCMS",
-        // Restated because flipping it would silently weaken SEC-1.
+        // Require factor verification before enabling it; provisioning a secret alone does not prove the operator
+        // can use it.
         skipVerificationOnEnable: false,
         backupCodeOptions: {
-          // Restates the vendor's own default rather than changing it:
-          // `dist/plugins/two-factor/index.mjs:25-27` <!-- expect: storeBackupCodes: "encrypted" --> builds `backupCodeOptions` as
-          // `{ storeBackupCodes: "encrypted", ...options?.backupCodeOptions }`. Stated so
-          // an upstream default flip cannot weaken SEC-7 silently.
+          // Pin encrypted recovery-code storage so a vendor default change cannot weaken key protection.
+          // `dist/plugins/two-factor/index.mjs:25-27` <!-- expect: storeBackupCodes: "encrypted" -->
           storeBackupCodes: "encrypted",
         },
       }),
-      // SEC-1's breach-corpus check, a k-anonymity lookup sending only five SHA-1 hex characters
-      // (SEC-8). Fail-closed is the vendor's: an offline deployment disables it in configuration.
+      // The breach lookup sends only five SHA-1 hex characters and fails closed; offline deployments must disable
+      // it explicitly.
       haveIBeenPwned({ enabled: adminAuth.breachedPasswordCheck }),
       // Must stay immediately after `haveIBeenPwned`: it wraps whatever `password.hash` is
       // at its turn.

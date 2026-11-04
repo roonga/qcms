@@ -1,5 +1,4 @@
-// Anything not wrapped in `ApiError` renders as an opaque 500: internals never reach
-// the response body (SEC-8).
+// Anything not wrapped in `ApiError` renders as an opaque 500: internals never reach the response body.
 
 export type ApiErrorStatus = 400 | 401 | 403 | 404 | 409 | 413 | 422 | 429 | 500 | 503;
 

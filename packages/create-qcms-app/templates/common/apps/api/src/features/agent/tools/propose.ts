@@ -23,7 +23,6 @@ import {
 } from "../proposal-token.js";
 import { argsSchemaWithReferences } from "./args-schema.js";
 
-/** P1: a turn ends with at most one card or one plan. */
 export const PROPOSALS_PER_TURN = 1;
 
 /** P2: a payload bound in the spirit of the conversation cap, not a permission rule. */
@@ -110,7 +109,7 @@ export interface ProposeInput {
   readonly productionEnvironment: string;
   readonly formId?: string | undefined;
   readonly issuedAt: Date;
-  /** Already proposed in this turn, which P1 bounds at one. */
+
   readonly proposalsThisTurn: number;
   /**
    * The draft this turn proposed, if it proposed one, with the questions it invents. The
@@ -142,7 +141,6 @@ function refuse(reason: string): ProposeOutcome {
   return { ok: false, reason };
 }
 
-/** A reference points at an earlier step and names the one field that step records. */
 function referenceRefusal(
   value: unknown,
   index: number,
@@ -256,7 +254,6 @@ function publishOrderRefusal(steps: readonly ProposedStep[]): string | undefined
   );
 }
 
-/** Every refusal a step's symbolic references can earn, before its schema is read. */
 function stepReferenceRefusal(
   input: ProposeInput,
   step: ProposedStep,
@@ -274,7 +271,6 @@ function stepReferenceRefusal(
   return undefined;
 }
 
-/** The refusals a kind's own descriptor adds once its arguments and environment hold. */
 function kindRefusal(
   input: ProposeInput,
   def: ActionKindDef,
@@ -413,7 +409,6 @@ function argsInTokenTerms(
   return mapped;
 }
 
-/** The server's verdict on the draft, attached to the one step that applies it. */
 async function withProposedDraft(
   input: ProposeInput,
   steps: readonly PlanStep[],
@@ -438,7 +433,6 @@ async function withProposedDraft(
   );
 }
 
-/** P1 and P2, which bound a turn's proposals and a plan's payload. */
 function capRefusal(input: ProposeInput): string | undefined {
   if (input.proposalsThisTurn >= PROPOSALS_PER_TURN) {
     return "One proposal per turn; put the steps in one plan.";

@@ -204,7 +204,6 @@ function soon(): Date {
   return new Date(Date.now() + 60_000);
 }
 
-/** The documented consumer verification recipe. */
 function verify(secret: string, timestamp: string, body: string, signature: string): boolean {
   const digest = createHmac("sha256", secret).update(`${timestamp}.${body}`).digest("hex");
   const expected = `v1=${digest}`;
@@ -589,7 +588,6 @@ describe("059: an erased session reaches no consumer, while its neighbour is del
     const erased = await seedSessionWithEvent(formId, version, "erased");
     const kept = await seedSessionWithEvent(formId, version, "kept");
 
-    // Erase between submit and delivery - the window the whole amendment is about.
     await eraseSession(testDb.db, formId, erased.sessionId, "subject_request");
 
     const metrics = await runDeliveryPass(deps, { now: soon() });

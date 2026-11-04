@@ -1,4 +1,3 @@
-/** No Docker is needed: every case reads the manifest or mocks the optional peer. */
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -20,7 +19,6 @@ describe("the published @roonga/qcms-db/testing subpath", () => {
     for (const name of ["@testcontainers/postgresql", "testcontainers"]) {
       expect(manifest.peerDependencies?.[name]).toBeDefined();
       expect(manifest.peerDependenciesMeta?.[name]?.optional).toBe(true);
-      // Still a devDependency, so this workspace's own suites keep them installed.
       expect(manifest.devDependencies?.[name]).toBeDefined();
     }
   });

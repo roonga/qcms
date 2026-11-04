@@ -1,36 +1,23 @@
-# Environment for the QCMS stack, generated from the API configuration schema.
-#
-# Every variable below is read by the Compose stack in this project. The prose,
-# the requirement and the default all come from the schema, so this file cannot
-# drift from what the services actually parse.
-#
-# create-qcms-app wrote a sibling `.env` with freshly generated random secrets and
-# the answers you gave it. This file is the committed reference; `.env` is the one
-# the stack reads, and it is git-ignored. Never commit a filled-in copy.
+# QCMS stack environment reference, generated from parsed configuration and operator metadata.
+# create-qcms-app wrote sibling `.env` with your answers and fresh random secrets.
+# Edit `.env` for runtime configuration; keep it git-ignored and never commit secrets.
 #
 # Requirement legend:
 #   required     the stack refuses to start without it
-#   conditional  required once the feature that reads it is switched on
+#   conditional  required when its feature is enabled
 #   optional     safe to leave unset; the documented default applies
 
-# Next's Server Action salt for the portal image, passed to
-# docker/portal.Dockerfile as a build arg, so it applies only when you build
-# that image yourself (issue #1035). next build hashes every Server Action id
-# with a key it generates per build, so each image renames every id, and a
-# respondent with scripting off who holds a repeating step across a deploy
-# then gets a 409 on Add or Remove and loses what they had typed into that
-# step since their last Continue. Pin this to one value, 32 bytes base64, and
-# the ids survive the deploy. It is a secret, and it is readable from any
-# portal image either way, because Next writes whichever key it used into that
-# image's own server manifest; what pinning changes is that one image's key is
-# also every other image's. The published ghcr.io/roonga/qcms-portal images
-# are deliberately not built with a shared one (SEC-7). The operator's reading
-# is in docs/deploy-ingress.md.
+# Portal-image build secret passed to docker/portal.Dockerfile: 32 bytes
+# base64. Pinning preserves action ids across deploys, avoiding 409 and loss
+# of unsaved values on held scriptless Add/Remove requests. Keys are readable
+# in image manifests; pinning shares that exposure across builds. Published
+# ghcr.io/roonga/qcms-portal images have no shared key. See
+# docs/deploy-ingress.md.
 # (optional, secret, default unset - Next generates a fresh key for every build)
 # NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=
 
-# OTLP collector endpoint (ADR-34). Unset means no SDK; set exports traces and
-# SEC-13-allowlisted logs.
+# OTLP collector endpoint. Unset disables the SDK; set exports traces and
+# allowlisted logs.
 # (optional)
 # OTEL_EXPORTER_OTLP_ENDPOINT=
 
@@ -43,27 +30,23 @@
 # (optional, default required)
 # QCMS_ADMIN_2FA=
 
-# better-auth signing secret, at least 32 characters. Required when QCMS_MOUNT
-# includes admin. It also protects stored two-factor material (TOTP secrets
-# and recovery codes are encrypted under it), so back it up with the database.
-# Rotate it through QCMS_ADMIN_AUTH_SECRETS rather than by editing this value,
-# which would leave every enrolled authenticator unreadable (SEC-7).
+# better-auth signing and encryption secret, at least 32 characters; required
+# when admin is mounted. Back up with the database: replacing it makes stored
+# TOTP secrets and recovery codes unreadable. Rotate through
+# QCMS_ADMIN_AUTH_SECRETS; see Admin auth secret rotation in
+# docs/operations.md.
 # (conditional, secret)
 QCMS_ADMIN_AUTH_SECRET=
 
-# Versioned admin auth keys for non-destructive rotation, as comma-separated
-# <version>:<secret> entries, newest first (for example 2:<new>,1:<old>). The
-# first entry encrypts new material; the rest stay readable. Each value has
-# the same 32-character floor, and the API refuses to start on a list that is
-# not in descending version order, since a list written the other way round
-# would keep encrypting under the old key. Leave it unset unless you are
-# rotating; the rotation runbook is in the key-rotation section below (SEC-7,
-# issue #319).
+# Comma-separated <version>:<secret> keys, strictly descending, newest first,
+# for example 2:<new>,1:<old>. Each needs at least 32 characters. The first
+# encrypts new material; retain older keys to read existing factors. Leave
+# unset unless rotating. See Admin auth secret rotation in docs/operations.md.
 # (optional, secret, default unset - version 1 holds QCMS_ADMIN_AUTH_SECRET)
 # QCMS_ADMIN_AUTH_SECRETS=
 
-# This app's own public origin. Used for the SEC-9 origin check on
-# state-changing routes, and it must equal the value the API is given.
+# Browser-facing admin origin for state-changing origin checks. Match the API
+# configuration exactly.
 # (required)
 QCMS_ADMIN_BASE_URL=
 
@@ -72,18 +55,11 @@ QCMS_ADMIN_BASE_URL=
 # (conditional)
 # QCMS_ADMIN_DOMAIN=
 
-# Whether an admin password is checked against the public breach corpus before
-# it is accepted (SEC-1; NIST SP 800-63B Rev 4 3.1.1.2, OWASP ASVS 5.0
-# 6.2.12). When on, setting a password makes one HTTPS request to
-# api.pwnedpasswords.com/range/{prefix} carrying the first five hex characters
-# of the password's SHA-1 and nothing else; the password never leaves the
-# process. The check fails closed: if that host is unreachable the password is
-# refused, so on an air-gapped deployment qcms:create-admin cannot create the
-# first admin at all until you set this to false. Doing so is a documented
-# downgrade against both standards, supported for a structurally offline
-# deployment and as the break-glass for rotating a leaked password while the
-# corpus is unreachable; the API and the CLI each log a loud warning at
-# startup for as long as it is off.
+# Checks passwords through api.pwnedpasswords.com/range/{prefix}, sending only
+# five SHA-1 hex characters. Unreachable service refuses passwords, including
+# first-admin creation. Disable only for offline operation or emergency
+# rotation during an outage; API and CLI startup warn of the security
+# downgrade.
 # (optional, default true)
 # QCMS_ADMIN_PASSWORD_BREACH_CHECK=
 
@@ -92,50 +68,33 @@ QCMS_ADMIN_BASE_URL=
 # (optional, default 7040)
 # QCMS_ADMIN_PORT=
 
-# Whether the cookies this app sets carry Secure. Must equal the API's value:
-# the two set different cookies on one origin, and a disagreement makes
-# sign-in loop. Setting it false is a downgrade, supported only when
-# QCMS_ADMIN_BASE_URL is a loopback origin such as http://localhost:7040: at
-# any other origin this app refuses to start, naming this variable (issue
-# #292).
+# Match the API Secure-cookie policy or different cookie families can cause
+# sign-in loops. False is allowed only on loopback such as
+# http://localhost:7040; other origins refuse boot.
 # (optional, default true when NODE_ENV=production)
 # QCMS_ADMIN_SECURE_COOKIES=
 
-# How many proxies you run between the internet and this app. The address
-# better-auth's per-IP sign-in throttle (SEC-1) keys on is the entry that many
-# places from the right of the inbound X-Forwarded-For, so entries a client
-# wrote itself are never reached. 1 is correct for both recipes in
-# docs/deploy-ingress.md, which front this app exactly as they front the
-# portal. Setting it higher than the number of proxies that actually exist
-# makes sign-in throttling bypassable (the resolver reads into client-supplied
-# text, and an attacker rotating the header gets a fresh backoff allowance
-# every attempt); setting it lower is safe but coarse (admins get bucketed by
-# a proxy's egress address); 0 trusts no forwarded header and puts every
-# sign-in attempt in one shared bucket. Separate from
-# QCMS_PORTAL_TRUSTED_PROXY_HOPS because the two apps are two hostnames and
-# may sit behind different ingresses - set both, and set them to the same
-# value unless one of them has an extra proxy in front of it. A non-numeric or
-# out-of-range value is refused rather than defaulted.
+# Actual trusted hops counted from the right of X-Forwarded-For for sign-in
+# throttling; 1 fits the ingress recipes. Too many trusts client text and
+# bypasses throttling; too few merges proxy buckets. 0 shares one bucket.
+# Invalid counts refuse boot. Match the portal count unless ingress differs;
+# see docs/deploy-ingress.md.
 # (optional, default 1)
 # QCMS_ADMIN_TRUSTED_PROXY_HOPS=
 
-# Model provider key (SEC-7 inventory). Required when
-# QCMS_FLAG_AGENT_AUTHORING names a real provider, except when
-# QCMS_AGENT_BASE_URL points at a local endpoint (loopback, a private-range
-# address, host.docker.internal, or a .local/.localhost/.internal hostname),
-# because a locally hosted model has no key to give. Never logged and never
-# echoed in a boot error.
+# Required for real model providers except local endpoints: loopback, private
+# IP ranges, host.docker.internal, or .local, .localhost and .internal hosts.
+# Never logged or echoed in boot errors.
 # (conditional, secret)
 # QCMS_AGENT_API_KEY=
 
-# Model endpoint override. Required for
-# QCMS_FLAG_AGENT_AUTHORING=openai-compatible, which is how a locally hosted
-# model is configured (Ollama, vLLM, LM Studio, llama.cpp-server); optional
-# for the hosted providers, where it names a gateway or proxy.
+# Model endpoint override; required for openai-compatible, including Ollama,
+# vLLM, LM Studio and llama.cpp-server. Hosted providers may use it for a
+# gateway or proxy.
 # (conditional)
 # QCMS_AGENT_BASE_URL=
 
-# Hard ceiling on tool-loop steps in one agent turn (task 041).
+# Maximum tool-loop steps per agent turn.
 # (optional, default 8)
 # QCMS_AGENT_MAX_STEPS=
 
@@ -144,27 +103,20 @@ QCMS_ADMIN_BASE_URL=
 # (conditional)
 # QCMS_AGENT_MODEL=
 
-# Whether the model provider's own reasoning summary is shown in the assistant
-# panel (task 081): off (default) or summary. Under summary the API asks the
-# provider for a summarized view of its thinking and forwards it to the panel
-# as a collapsed Thinking disclosure; under off reasoning is dropped even when
-# a provider emits it unasked. Reasoning text is never logged, stored,
-# exported in telemetry or replayed into the next turn (SEC-8); only a token
-# count is logged. Reasoning tokens are billed output, bounded per turn by
-# QCMS_AGENT_MAX_STEPS. Read by the API alone: the admin never learns the
-# value.
+# off drops reasoning, including unsolicited parts; summary requests the
+# provider summary for a collapsed Thinking disclosure. Text is never logged,
+# stored, exported or replayed; only token counts are logged. Reasoning is
+# billed output within the turn-step cap. API-only configuration; admin
+# receives events, never this value.
 # (optional, default off)
 # QCMS_AGENT_THINKING=
 
-# AES-256-GCM key (at least 32 characters) encrypting secrets at rest (SEC-6).
-# It covers exactly one column, the per-webhook HMAC signing secret; stored
-# two-factor material belongs to QCMS_ADMIN_AUTH_SECRET, not to this key
-# (issue #319). Set it once: there is no in-place rotation, so changing it
-# makes every stored webhook secret undecryptable at once and those deliveries
-# dead-letter. That is recoverable without the old key by re-issuing each
-# webhook's secret from the admin, which costs re-coordination with every
-# consumer rather than data. See the app-encryption-key runbook below (issue
-# #323).
+# AES-256-GCM key, at least 32 characters, for stored webhook HMAC secrets.
+# Set once and back up: no in-place rotation exists, and replacement makes
+# deliveries dead-letter. Recover by reissuing each webhook secret,
+# coordinating consumers and redelivering. Two-factor keys use
+# QCMS_ADMIN_AUTH_SECRET. See the App encryption key runbook in
+# docs/operations.md.
 # (required, secret)
 QCMS_APP_KEY=
 
@@ -178,28 +130,27 @@ QCMS_APP_KEY=
 # (optional, default caddy:2-alpine)
 # QCMS_CADDY_IMAGE=
 
-# Password for qcms_app_control, the role the API's control pool runs as: DML
-# on control with the break-glass audit carved out, and INSERT on each
-# environment's outbox and nothing else in any data schema. See
-# [Least-privilege database roles](#least-privilege-database-roles).
+# Control-pool password for qcms_app_control: control DML excluding
+# break-glass audit, and INSERT-only environment outboxes. Use distinct
+# application-role passwords. See Least-privilege database roles in
+# docs/operations.md.
 # (required, secret)
 QCMS_DB_APP_CONTROL_PASSWORD=
 
-# Password for qcms_app_prod, the role the API's prod pool runs as: DML on
-# data_prod only, and a named read list on control. See [Least-privilege
-# database roles](#least-privilege-database-roles).
+# Prod-pool password for qcms_app_prod: DML only on data_prod and named
+# control reads. Use distinct application-role passwords. See Least-privilege
+# database roles in docs/operations.md.
 # (required, secret)
 QCMS_DB_APP_PROD_PASSWORD=
 
-# Password for qcms_app_test, the role the API's test pool runs as: DML on
-# data_test only, and a named read list on control. See [Least-privilege
-# database roles](#least-privilege-database-roles).
+# Test-pool password for qcms_app_test: DML only on data_test and named
+# control reads. Use distinct application-role passwords. See Least-privilege
+# database roles in docs/operations.md.
 # (required, secret)
 QCMS_DB_APP_TEST_PASSWORD=
 
-# Password for qcms_migrate, the role that owns the schema and runs the
-# one-shot migration. Held by the migrate service and by nothing else. See
-# [Least-privilege database roles](#least-privilege-database-roles).
+# Schema-owner password for the one-shot qcms_migrate role, held only by the
+# migration service. See Least-privilege database roles in docs/operations.md.
 # (required, secret)
 QCMS_DB_MIGRATE_PASSWORD=
 
@@ -207,37 +158,26 @@ QCMS_DB_MIGRATE_PASSWORD=
 # (optional, default qcms)
 # QCMS_DB_NAME=
 
-# Postgres bootstrap superuser password. Compose refuses to start without it.
-# The db-roles one-shot uses it to create the least-privilege roles below -
-# the migration role, the control role and one per environment - and nothing
-# that serves traffic holds it (SEC-10).
+# Bootstrap superuser password, required by Compose. Only db-roles uses it to
+# create migration, control and environment roles; traffic-serving processes
+# must not hold it.
 # (required, secret)
 QCMS_DB_PASSWORD=
 
-# Bootstrap superuser created on first boot of the Postgres volume. It creates
-# the least-privilege roles and is used for nothing else (SEC-10).
+# Bootstrap superuser created with the Postgres volume; used only to create
+# least-privilege roles.
 # (optional, default qcms)
 # QCMS_DB_USER=
 
-# The live environment set, comma-separated. Each name needs its own
-# QCMS_DATABASE_URL_<ENV>. The API reads control.environments at boot and
-# refuses to start when the two disagree in either direction, so a credential
-# without a row and a row without a credential are both a boot failure rather
-# than an environment served from nowhere. It must include prod: a request
-# that names no environment resolves there, which is every respondent request
-# until the /<env>/ route prefix exists (task 066) and every newly minted link
-# until then too (ADR-40, Q53). An admin request carries the environment the
-# administrator's switcher has selected, as x-qcms-environment, validated
-# against this set and refused with a 400 when it names something not in it
-# (task 065).
+# Comma-separated live environments, including prod. Each needs
+# QCMS_DATABASE_URL_<ENV>; the API refuses boot unless the set exactly matches
+# control.environments. Requests without an environment use prod. Admin
+# x-qcms-environment selections must belong to this set or return 400.
 # (optional, default test,prod)
 # QCMS_ENVIRONMENTS=
 
-# Whether the agent-authoring chat panel renders in the form builder (ADR-25,
-# task 041). The admin reads only the _effect_ of this flag, never its value
-# in the browser, and holds no provider key: the key lives on the api service.
-# Keep it in step with the API's value, or the panel appears against a surface
-# that is not mounted.
+# Match the API provider setting to mount the panel and streaming proxy.
+# Browser code receives enabled behavior; provider keys stay in the API.
 # (optional, default none)
 # QCMS_FLAG_AGENT_AUTHORING=
 
@@ -247,9 +187,8 @@ QCMS_DB_PASSWORD=
 # (optional, default dev)
 # QCMS_IMAGE_VERSION=
 
-# Service tokens the BFFs present on every internal call (SEC-4), at least 32
-# characters each. Any listed token is accepted, which is what makes rotation
-# a two-deploy operation.
+# BFF service tokens, at least 32 characters each. Any listed token is
+# accepted; retain both during a two-deploy rotation.
 # (required, secret)
 QCMS_INTERNAL_TOKEN=
 
@@ -258,17 +197,10 @@ QCMS_INTERNAL_TOKEN=
 # (required, secret)
 QCMS_LINK_KEYS=
 
-# The deployment's formatting locale (Code Owner ruling 2026-10-19, ADR-27): a
-# BCP 47 tag such as en-GB, en-US or de-DE. It decides how dates, times,
-# numbers and lists are formatted and the order a date field draws its day,
-# month and year in, including the kit's date pickers and the A2UI previews.
-# It is formatting, not translation: the copy stays English whatever this
-# says. Set the same value on the portal and admin services, so an author's
-# preview matches what respondents see. Unset or blank is en-GB. A malformed
-# tag, or one this runtime's Intl has no data for, refuses to boot naming the
-# variable and never printing the value. Admin times are shown on each
-# operator's own clock with the zone named; the zone comes from the browser,
-# not from this variable.
+# BCP 47 formatting tag, for example en-GB, en-US or de-DE; copy stays
+# English. Match portal for preview dates, field order, numbers and lists.
+# Blank defaults to en-GB; invalid tags or unavailable Intl data refuse boot
+# without echoing the value. Operator timestamps use the browser zone.
 # (optional, default en-GB)
 # QCMS_LOCALE=
 
@@ -298,74 +230,54 @@ QCMS_PORTAL_BASE_URL=
 # (conditional)
 # QCMS_PORTAL_DOMAIN=
 
-# The non-prod environments this portal serves, comma-separated (ADR-40, Q21).
-# Each gets its addresses under /<env>/, so a test secure link reads
-# https://forms.example.com/test/l/<token> and is legible as non-production
-# before anybody clicks it (Q16). prod carries no prefix and is always served,
-# so listing it is ignored. Absent means none: an environment not listed here
-# has no addresses at all and every /<env>/ path is a 404, which is the
-# fail-closed direction. A name must match ^[a-z][a-z0-9]*$ (Q42) or it is
-# ignored rather than becoming a path segment. Keep it in step with the API's
-# QCMS_MOUNT: an address this portal serves and the API does not mount answers
-# a 404 from the API instead.
+# Comma-separated non-prod environments served under /<env>/, for example
+# https://forms.example.com/test/l/<token>. Prod is always unprefixed; listing
+# it is ignored. Absent lists none, so other environment paths return 404.
+# Names must match ^[a-z][a-z0-9]*$; invalid names are ignored. Match the API
+# QCMS_MOUNT.
 # (optional)
 # QCMS_PORTAL_ENVIRONMENTS=
 
-# The hostname each non-prod environment's traffic arrives on, as <env>=<host>
-# pairs: test=test-forms.example.com. SEC-14's first handle, and what it buys
-# is narrow and precise: on a host named here the portal does not serve
-# /f/{slug} at all, so the public anonymous door does not exist on the
-# restricted hostname even where one ingress forwards everything to one
-# portal. It deliberately does not confine the /<env>/ paths to that host -
-# the two handles fail independently (Q21), so a path rule keeps working on a
-# hostname somebody consolidated onto and a host rule keeps working through a
-# proxy that rewrites paths. The network restriction itself (source network,
-# VPN or identity-aware proxy) is ingress configuration; see the "Restricting
-# the test environment" section of docs/deploy-ingress.md.
+# <env>=<host> pairs, for example test=test-forms.example.com. Listed hosts
+# disable anonymous /f/{slug} access; they do not confine /<env>/ paths to
+# that hostname. Host and path restrictions work independently. Enforce
+# network, VPN or identity access at ingress; see Restricting the test
+# environment in docs/deploy-ingress.md.
 # (optional)
 # QCMS_PORTAL_ENVIRONMENT_HOSTS=
 
-# Single font family override.
+# Default font registry key. Unknown or excluded keys use the system stack.
 # (optional, default the system font stack)
 # QCMS_PORTAL_FONT=
 
-# Font stack selection from the allowlist in apps/portal/lib/server/theme.ts.
+# Offered font registry keys from apps/portal/lib/server/theme.ts, separated
+# by commas or spaces. Blank offers all; unknown keys are ignored and system
+# is always offered.
 # (optional)
 # QCMS_PORTAL_FONTS=
 
-# Default light/dark mode: light, dark or auto.
+# Default mode: light, dark, auto or hc (high contrast).
 # (optional, default auto)
 # QCMS_PORTAL_MODE=
 
-# Host port the portal is published on. Comes from the stable block in
-# docs/PORTS.md (R8); move it to run beside a dev server on the same seat.
+# Published portal host port from docs/PORTS.md; choose another allocated slot
+# when running beside a dev server.
 # (optional, default 7000)
 # QCMS_PORTAL_PORT=
 
-# The portal's variable, read here too (task 058): it is the theme the preview
-# island opens in, so an author sees a question in the appearance this
-# deployment serves respondents rather than in this app's own Cobalt. Set the
-# same value in both services. It changes nothing about this app's own chrome,
-# which is never adopter-themeable (ADR-26), and an unrecognised value falls
-# back silently exactly as it does on the portal.
+# Match the portal theme so previews show respondent appearance. Unknown
+# values use the same fallback as portal; admin chrome keeps its own theme.
 # (optional, default slate)
 # QCMS_PORTAL_THEME=
 
-# How many proxies you run between the internet and this app. The client
-# address the API's rate limiters key on is the entry that many places from
-# the right of the inbound X-Forwarded-For, so entries a client wrote itself
-# are never reached. 1 is correct for both recipes in docs/deploy-ingress.md.
-# Setting it higher than the number of proxies that actually exist makes
-# per-address rate limiting bypassable (the resolver reads into
-# client-supplied text); setting it lower is safe but coarse (respondents get
-# bucketed by a proxy's egress address); 0 trusts no forwarded header and puts
-# every respondent in one bucket. A non-numeric or out-of-range value is
-# refused rather than defaulted.
+# Actual trusted hops counted from the right of X-Forwarded-For; 1 fits both
+# ingress recipes in docs/deploy-ingress.md. Too many trusts client text and
+# bypasses limits; too few merges buckets at a proxy. 0 trusts no forwarded
+# address and shares one bucket. Invalid counts refuse boot.
 # (optional, default 1)
 # QCMS_PORTAL_TRUSTED_PROXY_HOPS=
 
-# Postgres image. Override it to pull from a mirror rather than Docker Hub; CI
-# does exactly this.
+# Postgres image; override to use an image mirror instead of Docker Hub.
 # (optional, default postgres:16-alpine)
 # QCMS_POSTGRES_IMAGE=
 
@@ -378,14 +290,10 @@ QCMS_PORTAL_BASE_URL=
 # (optional, default 60000)
 # QCMS_RL_AGENT_ASSIST_WINDOW_MS=
 
-# Whether respondent session cookies carry Secure. Setting it false is a
-# downgrade, supported only when QCMS_PORTAL_BASE_URL is a loopback origin
-# such as http://localhost:7000: at any other origin the portal refuses to
-# start, naming this variable (issue #292). Leave it unset behind TLS. Accepts
-# true/1/yes/on and false/0/no/off, case-insensitive and trimmed, the same
-# spellings QCMS_ADMIN_SECURE_COOKIES accepts; anything else refuses to boot
-# rather than being silently ignored (issue #401). Unset or blank still
-# defaults from NODE_ENV.
+# Secure respondent cookies; leave unset behind TLS. False is allowed only on
+# loopback such as http://localhost:7000; other origins refuse boot. Accepts
+# trimmed, case-insensitive true/1/yes/on or false/0/no/off; invalid values
+# refuse boot. Unset or blank uses NODE_ENV.
 # (optional, default true when NODE_ENV=production)
 # QCMS_SECURE_COOKIES=
 

@@ -17,7 +17,6 @@ export interface SafePatternIssue {
 }
 
 interface GroupFrame {
-  // True when the body contains an alternation or any quantifier.
   composite: boolean;
 }
 
@@ -141,7 +140,7 @@ export function checkSafePattern(pattern: string): SafePatternIssue | undefined 
         if (i >= pattern.length) {
           return invalid("Unterminated character class");
         }
-        i += 1; // past "]"
+        i += 1;
         closedGroupComposite = undefined;
         break;
       }
@@ -169,7 +168,6 @@ export function checkSafePattern(pattern: string): SafePatternIssue | undefined 
         if (closed === undefined || frames.length === 0) {
           return invalid("Unbalanced group");
         }
-        // A composite inner group makes the enclosing body composite too.
         if (closed.composite) {
           current().composite = true;
         }
@@ -188,7 +186,7 @@ export function checkSafePattern(pattern: string): SafePatternIssue | undefined 
         if (issue !== undefined) {
           return issue;
         }
-        i += pattern[i + 1] === "?" ? 2 : 1; // consume lazy marker
+        i += pattern[i + 1] === "?" ? 2 : 1;
         break;
       }
       case "?": {
@@ -196,7 +194,7 @@ export function checkSafePattern(pattern: string): SafePatternIssue | undefined 
         if (issue !== undefined) {
           return issue;
         }
-        i += pattern[i + 1] === "?" ? 2 : 1; // consume lazy marker
+        i += pattern[i + 1] === "?" ? 2 : 1;
         break;
       }
       case "{": {
@@ -209,7 +207,7 @@ export function checkSafePattern(pattern: string): SafePatternIssue | undefined 
         if (issue !== undefined) {
           return issue;
         }
-        i = parsed.end + (pattern[parsed.end] === "?" ? 1 : 0); // lazy marker
+        i = parsed.end + (pattern[parsed.end] === "?" ? 1 : 0);
         break;
       }
       default: {

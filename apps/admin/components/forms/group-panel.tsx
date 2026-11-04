@@ -28,49 +28,6 @@ import { LibraryPicker } from "./library-picker";
 import { OwnershipGrid } from "./ownership-grid";
 import { TableColumnView } from "./table-column-view";
 
-/**
- * One repeating group's settings (task 074; ADR-42; `plan/repeating-groups-and-table-input.md`
- * §6.2).
- *
- * ## The order of the panel is the order of the decisions
- *
- * §6.2 fixes it, and it is the order an author actually works in rather than the order the
- * schema declares: name and id; the member questions; where the instance count comes from;
- * the bounds; the instance heading with a live preview; and the presentation last, because it
- * is the only field that changes nothing about what is asked.
- *
- * ## A panel, not a route (`plan/admin-design-contracts.md` §7)
- *
- * The rail may carry actions and same-page panel switches since 2026-08-25, and this is one:
- * the builder's rail nests a group under the step that holds it, and choosing it switches the
- * column beside the rail. A route would make a fourth place a draft is edited, with a fourth
- * save model, for six fields - the "step per route" shape `plan/admin-ux-audit.md` §3.5
- * records as the POC's scope bug. The admin requires JavaScript (PR #1000), so there is no
- * no-JS path to keep for either choice.
- *
- * ## `max` is a REQUIRED field and the panel says so here
- *
- * Q4 as amended by Q14 (ruled 2026-09-29): the Code Owner removed every installation-wide
- * instance ceiling, so a group's own `max` is the only bound that exists on how many instances
- * a respondent may create - which makes it a security-relevant declaration (SEC-16) rather
- * than a nicety. The field is marked required where the author sets it and the grid's boundary
- * row flags a group that has none, rather than leaving `REPEAT_MAX_MISSING` to arrive at
- * publish. **A `fixed` count shows no `max` at all**, because the count is the bound.
- *
- * ## The presentation switch is three radios, and the third one has a section
- *
- * All three presentations ship (073, 076, 077) and the field is the kernel's, so the author
- * chooses a LAYOUT here and no answer, key or id moves either way. The switch is a
- * `RadioGroup` over {@link REPEAT_PRESENTATIONS} with one hint per option, and it was built so
- * that a presentation gaining its own controls gains a section under it rather than a rewrite
- * of it. The table presentation then did exactly that: task 077's `TableColumnView` is
- * rendered below the switch when the value is `table`, and its Add-column control opens this
- * panel's own picker with 077's `columnTypesOnly` filter in force. **The two tasks share no
- * file for it**: 077 wrote a component taking members, a library and a handler, this panel
- * passes those three, and the only edit here is the branch that renders it. The per-instance
- * step presentation needs no section of its own - 076 is a renderer change with no authoring
- * surface - which is why there are two sections and not three.
- */
 export function GroupPanel({
   draft,
   step,
@@ -88,7 +45,6 @@ export function GroupPanel({
   onReorderPin,
 }: {
   readonly draft: DraftForm;
-  /** The step this group sits in, which is what bounds the `fromAnswer` picker. */
   readonly step: DraftStep;
   readonly group: DraftGroup;
   readonly library: ReadState<readonly PinnableQuestion[]>;
@@ -108,10 +64,6 @@ export function GroupPanel({
 
   const label = textOf(group.label, draft.defaultLocale);
   const name = label === "" ? t("forms.group.untitled") : label;
-  // The grid over this group's members alone. Built from a one-item synthetic step rather than
-  // by mapping the pins by hand, so the member rows come out of exactly the function the step
-  // editor's rows come out of - including their container-scoped positions and their per-pin
-  // issues - and the two cannot drift.
   const rows = stepGridRows(
     { stepId: step.stepId, title: step.title, items: [group] },
     library,
@@ -140,10 +92,6 @@ export function GroupPanel({
       data-group-id={group.groupId}
       className="flex flex-col gap-4 rounded-md border border-(--color-border) bg-(--color-surface) p-4"
     >
-      {/* AN `h1` for the same reason the step editor's heading is one: on this screen the
-          group IS the subject, the form's name lives on the form's own screen, and a column
-          whose highest heading were an `h2` is a `heading-order` violation plus a page with no
-          level-one heading - both of which `e2e/a11y-axe.pw.ts` sweeps for. */}
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h1 id="qcms-group-heading" className="text-base font-semibold text-(--color-text)">
           {t("forms.group.heading", { label: name })}
@@ -166,9 +114,7 @@ export function GroupPanel({
         </ul>
       )}
 
-      {/* 1. NAME AND ID. The id is shown and never edited: a `groupId` is a permanent name a
-             condition can read, exactly as a `stepId` is a permanent name a rule can target,
-             so renaming carries it through untouched (`addGroup` is the only minter). */}
+      {/* Group ids are minted once and remain stable across renames because conditions reference them. */}
       <TextField
         label={t("forms.group.name")}
         description={t("forms.group.nameHint")}
@@ -180,7 +126,6 @@ export function GroupPanel({
         <EntityId kind="group" value={group.groupId} copy />
       </p>
 
-      {/* 2. THE MEMBER QUESTIONS, in the step editor's own ownership grid. */}
       <section aria-labelledby="qcms-group-members" className="flex flex-col gap-3">
         <h2 id="qcms-group-members" className="text-sm font-semibold text-(--color-text)">
           {t("forms.group.members")}
@@ -216,14 +161,10 @@ export function GroupPanel({
         </div>
       </section>
 
-      {/* 3, 4. THE COUNT SOURCE AND THE BOUNDS, which are one decision with two halves: what
-               decides the number, and what bounds it. */}
       <CountFields draft={draft} step={step} group={group} library={library} onCount={onCount} />
 
-      {/* 5. THE INSTANCE HEADING, with the live preview. */}
       <InstanceLabelField group={group} draft={draft} onChange={onInstanceLabel} />
 
-      {/* 6. THE PRESENTATION. */}
       <ChoiceGroup
         name={`presentation-${group.groupId}`}
         legend={t("forms.group.presentationLegend")}
@@ -236,19 +177,10 @@ export function GroupPanel({
         onChange={onPresentation}
       />
 
-      {/* 7. THE TABLE PRESENTATION'S OWN SECTION, which is task 077's component rendered by
-             this panel and nothing more (`table-column-view.tsx`, acceptance case 62). It is
-             the shape the docblock above promised: the third option gained a section under
-             the switch rather than a rewrite of it, and the two tasks still share no file. */}
       {group.presentation === "table" && (
         <TableColumnView
           members={group.items}
           library={library.ok ? library.data : []}
-          // PASSED EVEN WHEN THE LIBRARY READ FAILED, which the prop's own doc leaves open to
-          // the panel. The members' Add two sections up is operable in that state too, and the
-          // dialog both of them open is what reports the failure (`forms.picker.loadFailed`);
-          // two Add controls in one panel that disagree about whether they exist would be a
-          // worse answer than either, and a disabled control explains nothing.
           onAddColumn={() => {
             setPickerAt(group.items.length);
           }}
@@ -261,12 +193,6 @@ export function GroupPanel({
           stepTitle={name}
           draft={draft}
           library={library}
-          // FILTERED BY THE PRESENTATION, not by which button opened the dialog. Under 077
-          // adding a column IS adding a question to the group, so both Add controls reach the
-          // same mutation and a type Q12 refuses as a column is refused from either. Keying
-          // the filter to the button instead would let the members' Add offer a `longText`
-          // the column view would then list as refused - a publish error (Q12,
-          // `TABLE_COLUMN_TYPE_NOT_ALLOWED`) that the author was walked into by this panel.
           columnTypesOnly={group.presentation === "table"}
           onAddPins={(pins) => {
             onAddPins(pins, pickerAt);
@@ -280,35 +206,7 @@ export function GroupPanel({
   );
 }
 
-/**
- * Where the instance count comes from, and what bounds it.
- *
- * ## Three radios and then the fields that source needs
- *
- * A three-way radio rather than a `Select`, because the three options are not three values of
- * one setting: each one changes which other fields exist. A radio group shows all three with
- * their consequences written beside them, which is what an author choosing between "the
- * respondent adds instances" and "an earlier answer decides" actually needs to read.
- *
- * ## Why switching source replaces the whole count rather than patching it
- *
- * The three sources carry different fields - a `fixed` count has a `count` and no bounds, both
- * bounded sources have a `min` and an optional `max` - so a patch would leave `count` beside
- * `min` on one object, which is a shape the kernel's discriminated union has no member for.
- * `setGroupCount` therefore takes a whole value and this is where it is built, carrying across
- * what still applies: the bounds survive a move between the two bounded sources, which is the
- * one carry-over an author would be annoyed to lose.
- *
- * ## All three numbers are TEXT FIELDS, and the reason is the maximum
- *
- * The kit's `NumberField` has no expression for "no value": it would send a number for a field an
- * author has not filled in, and `max` must be able to stay EMPTY, because the kernel's schema makes
- * it optional precisely so a half-filled draft can round-trip through save and reload. Writing a 0
- * there would store a bound nobody chose and turn a required-field prompt into a group that can
- * never have an instance. `min` and the fixed count follow it rather than being a second kind of
- * control in the same three fields, and all three carry `inputMode="numeric"` so a phone keyboard
- * still offers digits.
- */
+/* Use text fields for optional numeric bounds: the kit NumberField cannot express an unset value. */
 function CountFields({
   draft,
   step,
@@ -345,8 +243,6 @@ function CountFields({
       />
 
       {count.source === "fixed" ? (
-        // NO MAXIMUM FIELD AT ALL for a fixed count, rather than a disabled one: the number is
-        // the bound, so a second field would be a control with nothing it could mean.
         <TextField
           label={t("forms.group.fixedCount")}
           value={String(count.count)}
@@ -385,10 +281,7 @@ function CountFields({
             value={count.max === undefined ? "" : String(count.max)}
             inputMode="numeric"
             onChange={(next) => {
-              // AN EMPTY FIELD IS AN ABSENT MAXIMUM, not a zero. The kernel's schema makes
-              // `max` optional precisely so a draft can round-trip through save and reload
-              // with the field empty; writing a 0 here would store a bound no author chose and
-              // turn a required-field prompt into a group that can never have an instance.
+              // Omit an unset maximum; storing zero would invent a bound and make every instance count invalid.
               const trimmed = next.trim();
               if (trimmed === "") {
                 onCount(
@@ -412,17 +305,6 @@ function CountFields({
   );
 }
 
-/**
- * The instance heading template, with the live preview the work order asks for.
- *
- * The preview substitutes `1` for `{n}` and nothing else, which is exactly what the renderer
- * does with a template: `{n}` is the live one-based ordinal and is the only placeholder the
- * kernel fills (`INSTANCE_LABEL_PLACEHOLDER`). A template carrying any other token therefore
- * previews with the braces still in it, which is the honest rendering - a respondent would
- * read them too - and is the state publish refuses with
- * `INSTANCE_LABEL_PLACEHOLDER_UNKNOWN`. Nothing here corrects the author's text: a preview
- * that silently dropped an unknown token would hide the refusal it exists to make visible.
- */
 function InstanceLabelField({
   group,
   draft,
@@ -454,18 +336,8 @@ function InstanceLabelField({
   );
 }
 
-/**
- * The questions a `fromAnswer` count could point at: the ones pinned **strictly before this
- * group's span** and outside every group.
- *
- * Both halves are publish refusals pre-empted at the control rather than explained afterwards.
- * A count question after the group is `REPEAT_COUNT_BACKWARD_REF` (forward-only rule 3), and a
- * count question inside a group is `REPEAT_COUNT_INSIDE_GROUP` (Q27) - it is answered once per
- * instance and so has no single value. The type check is the third, and it is the one this
- * list can only make when the library answered: `REPEAT_COUNT_NOT_A_NUMBER` needs the pinned
- * version's type, so a failed library read offers every earlier pin rather than filtering the
- * list down to nothing and implying the form has no number question (issues 572, 544).
- */
+/* Count sources must be outside groups and strictly before this group's span to avoid per-instance
+   ambiguity and backward references. */
 function countQuestions(
   draft: DraftForm,
   step: DraftStep,
@@ -493,14 +365,6 @@ function countQuestions(
     .map((pin) => pin.questionId);
 }
 
-/**
- * A whole count value for a newly chosen source, carrying over what still applies.
- *
- * `fixed` takes the current minimum as its number when there is one, because an author moving
- * a "respondent adds, at least 2" group to a fixed count almost always means two. Both bounded
- * sources keep each other's bounds, and **neither invents a `max`**: the field starts empty and
- * stays empty until the author answers, which is the whole point of its being required.
- */
 function countForSource(
   source: RepeatCountSource,
   previous: DraftRepeatCount,
@@ -518,48 +382,16 @@ function countForSource(
   if (source === "open") return { source: "open", ...bounds };
   return {
     source: "fromAnswer",
-    // An empty string when the form pins no eligible question yet: that is `DANGLING_QUESTION_REF`
-    // at publish and the panel's own "nothing to point at" notice before it, which together say
-    // more than silently refusing the author's choice of source would.
     questionId: previous.source === "fromAnswer" ? previous.questionId : (firstCandidate ?? ""),
     ...bounds,
   };
 }
 
-/** A typed number field's value as a whole number, or the value it had when it is not one. */
 function wholeNumber(text: string, fallback: number): number {
   const parsed = Number.parseInt(text.trim(), 10);
   return Number.isInteger(parsed) ? parsed : fallback;
 }
 
-/**
- * A mutually exclusive choice, as a native radio group with a sentence per option.
- *
- * ## Why a native control and not a kit one
- *
- * `@roonga/qcms-ui/kit` has no radio. The two choices on this panel are each a three-way
- * decision where **every option changes which other fields exist**, so a `Select` would hide
- * two of the three consequences behind a popover an author has to open to compare them - and
- * what they are comparing is prose ("the respondent presses Add" against "a number question
- * earlier in the form decides"), not three values of one setting.
- *
- * `library-picker.tsx` records the same call for the same reason and is the precedent:
- * ADR-22's single-stack rule is about a second design language accumulating outside
- * `packages/ui`, and a platform radio wearing `accent-color: var(--color-primary)` is not a
- * design language. `apps/portal/components/appearance-controls.tsx` builds its segmented
- * control out of the same markup. A kit radio is the right long-term answer and it is an
- * upstream `a2-react-aria` change rather than this task's.
- *
- * `name` groups the inputs so the browser gives the group one tab stop with arrow-key
- * traversal inside it, which is the behaviour a hand-built group most often loses.
- *
- * **The description sits OUTSIDE the `<label>`**, and that is the detail a hand-built group gets
- * wrong: a `<label>` wrapping an input contributes its whole text content to the input's
- * accessible name, so a sentence inside it makes every option announce as its label followed by
- * its own explanation - and makes an exact-name lookup for the option impossible, for a test and
- * for speech input alike. It is wired with `aria-describedby` instead, which is what announces a
- * description as a description.
- */
 function ChoiceGroup<T extends string>({
   name,
   legend,

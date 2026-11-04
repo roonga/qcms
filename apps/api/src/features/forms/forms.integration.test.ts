@@ -635,7 +635,6 @@ describe("preview-condition: the rule test bench (033)", () => {
     const body = JSON.parse(raw) as BenchBody;
     expect(body.outcome).toBe("unavailable");
     expect(body.reason).toBe("unresolvedAnswers");
-    // SEC-13: the hypothetical answer never comes back out.
     expect(raw).not.toContain("an answer");
   });
 
@@ -973,7 +972,6 @@ describe("draft preview: the dry-run compile the admin renders (034)", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as PreviewBody;
     expect(body.flow.visibleQuestions).toEqual(["q_preview_choice"]);
-    // SEC-13: the rejected value is never echoed back.
     expect(JSON.stringify(body)).not.toContain("answer-value-that-must-not-come-back");
   });
 
@@ -1226,8 +1224,8 @@ describe("the admin preview routes with a repeating group (074)", () => {
   });
 
   it("truncates a group whose author has not declared a maximum at the preview cap", async () => {
-    // With no declared `max`, nothing but this cap bounds the caller's instance list, so one
-    // authenticated request could be evaluated against any number of instances (SEC-16).
+    // With no declared `max`, nothing but this cap bounds the caller's instance list, so one authenticated
+    // request could be evaluated against any number of instances.
     const res = await bench(formId, {
       definition: repeatDefinition(formId, [everyRule], null),
       ruleId: "rul_rp_every",
@@ -1361,7 +1359,7 @@ describe("the admin preview routes with a repeating group (074)", () => {
       instances: { grp_rp_passengers: ["ins_p1"] },
     });
 
-    // The same "is this instance live" precondition SEC-16 puts on every real answer write.
+    // Real answer writes apply the same live-instance precondition.
     expect(((await res.json()) as RepeatPreviewBody).flow.visibleQuestions).not.toContain(
       "ins_p1/q_rp_fare",
     );

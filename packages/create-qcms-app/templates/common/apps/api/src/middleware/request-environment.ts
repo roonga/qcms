@@ -7,8 +7,8 @@ import type { ApiEnv } from "../openapi.js";
 import type { SliceRegistrar } from "../app.js";
 
 /**
- * On the SEC-13 span allowlist: the value is an operator's own schema name, never
- * derived from a respondent, and carries no answer, token or identity.
+ * On the span allowlist: the value is an operator's own schema name, never derived from a respondent, and
+ * carries no answer, token or identity.
  */
 export const ENVIRONMENT_ATTRIBUTE = "qcms.environment";
 
@@ -20,10 +20,9 @@ function selectEnvironment(c: Parameters<MiddlewareHandler<ApiEnv>>[0], environm
 export const REQUEST_ENVIRONMENT_HEADER = "x-qcms-environment";
 
 /**
- * Mounted on the admin group only, so a respondent request has no header to set: there
- * is no anonymous entry to a non-prod environment (SEC-14, ADR-09). An unknown name is
- * refused rather than defaulted, because serving an unknown environment from `prod` is
- * the failure that rule exists to prevent.
+ * Mounted on the admin group only, so a respondent request has no header to set: there is no anonymous entry
+ * to a non-prod environment (ADR-09). An unknown name is refused rather than defaulted, because serving an
+ * unknown environment from `prod` is the failure that rule exists to prevent.
  */
 export function requestEnvironment(deps: Deps): MiddlewareHandler<ApiEnv> {
   return async (c, next) => {
@@ -45,11 +44,9 @@ export function requestEnvironment(deps: Deps): MiddlewareHandler<ApiEnv> {
 }
 
 /**
- * Reads nothing from the request: a respondent's environment is the group's own,
- * decided at mount time, so they have no way to name one (SEC-14).
- *
- * Not a registrar, because a slice must not be able to choose which environment its
- * routes read.
+ * Reads nothing from the request: a respondent's environment is the group's own, decided at mount time, so
+ * they have no way to name one. Not a registrar, because a slice must not be able to choose which
+ * environment its routes read.
  */
 export function fixedEnvironment(environment: string): MiddlewareHandler<ApiEnv> {
   return async (c, next) => {

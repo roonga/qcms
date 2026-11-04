@@ -115,7 +115,6 @@ async function postStep(fields: readonly (readonly [string, string])[]): Promise
   return await stepRoute.POST(request, { params: Promise.resolve({ sessionId: SESSION_ID }) });
 }
 
-/** The re-render context the route left for the next page render. */
 function writtenContext(): {
   missingRequired?: unknown;
   errors?: unknown;

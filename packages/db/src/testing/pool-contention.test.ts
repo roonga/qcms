@@ -1,5 +1,3 @@
-/** Fake pools and fake errors: no Docker and no database. */
-
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -10,7 +8,6 @@ import {
   MID_SUITE_CONTENTION_MARKERS,
 } from "./pool-contention.js";
 
-/** The snapshot stand-in, so no host is read and the assertion is a fixed string. */
 const SNAPSHOT = "  host: load 18.42/12.10/9.03 over 8 cpus (2.30 per cpu)";
 const line = () => SNAPSHOT;
 

@@ -14,12 +14,10 @@ import {
 
 import type { Page } from "@playwright/test";
 
-/** The session id in the URL the Start button landed on. */
 function sessionIdOf(url: string): string {
   return new URL(url).pathname.split("/")[2] ?? "";
 }
 
-/** Let the page paint whatever the last event scheduled (two animation frames). */
 async function settleFrames(page: Page): Promise<void> {
   await page.evaluate(
     () =>
@@ -33,7 +31,6 @@ async function settleFrames(page: Page): Promise<void> {
   );
 }
 
-/** Count the step reads (`GET .../step`) the page makes from now on. */
 function countStepReads(page: Page): { readonly count: () => number } {
   let reads = 0;
   page.on("request", (request) => {

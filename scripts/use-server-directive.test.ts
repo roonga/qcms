@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import { declaresUseServer } from "./use-server-directive.mjs";
 
 /**
- * Do not reproduce the regular expression this scan replaced, even as an oracle: it is
- * the backtracking pattern the replacement removed, and CodeQL alerts on a test too.
+ * Keep the pathological backtracking regex out of fixtures and comparison oracles too: static analysis
+ * treats test code as source.
  */
 
 const WHITESPACE_PREFIXES: readonly { readonly name: string; readonly prefix: string }[] = [

@@ -4,7 +4,6 @@ import type { FormId } from "@roonga/qcms-core";
 import type { Deps } from "../../deps.js";
 import { validateDraft } from "../forms/handler.js";
 
-/** One question version a form's draft pins. */
 export interface PinnedQuestion {
   readonly questionId: string;
   readonly version: number;

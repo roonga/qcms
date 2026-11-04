@@ -161,7 +161,6 @@ function draftDefinition(formId: string): Record<string, unknown> {
 
 let forms = 0;
 
-/** A form with `versions` published snapshots, published by nobody in particular. */
 async function seedForm(
   versions: number,
   options: { readonly workspaceId?: string; readonly publishedBy?: string } = {},
@@ -470,7 +469,7 @@ describe("the release-workflow configuration", () => {
     expect(statuses).toEqual([200, 409]);
     const loser = first.status === 409 ? first : second;
     expect(codeOf(loser.body)).toBe("WORKFLOW_REVISION_STALE");
-    // One revision, not two: the loser wrote nothing.
+
     const read = await call(editorTest.token, "GET", "/release-workflow");
     expect(read.body.revision).toBe(1);
     await clearWorkflow();
@@ -797,7 +796,7 @@ describe("one confirmation is one transaction", () => {
         ],
       });
       expect(done.status).toBe(200);
-      // One snapshot, not one per destination.
+
       expect(await listFormVersions(control, formId)).toHaveLength(1);
       expect(done.body.version).toBe(1);
       expect((done.body.releases as unknown[]).length).toBe(2);
@@ -1027,8 +1026,6 @@ describe("one confirmation is one transaction", () => {
       expect(await getDraft(control, formId)).toBeDefined();
       expect(await releasedEvents("test", formId)).toBe(0);
 
-      // The batch route refuses the same destination for the same reason, which is the
-      // point of the two paths sharing one rule.
       const batch = await call(editorTest.token, "POST", `/forms/${formId}/publish-batch`, {
         idempotencyKey: KEYS(),
         expectedWorkflowRevision: 1,
@@ -1240,7 +1237,7 @@ describe("idempotency and result lookup", () => {
         })
       ).status,
     ).toBe(200);
-    // The same key, the same form, another account: no result of its own to read.
+
     expect(
       (await call(publisher.token, "GET", `/forms/${formId}/release-batches/${key}`)).status,
     ).toBe(404);

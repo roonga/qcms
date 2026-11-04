@@ -114,11 +114,9 @@ function seedEnvironmentsStatement(): string {
 }
 
 /**
- * The order is load-bearing: trigger functions before any trigger executes them, an
- * environment's tables before its grants name them, the migrate-only revoke last.
- *
- * No role is created here: a migration may carry no credential, and `qcms_migrate` holds
- * no `CREATEROLE` (SEC-10). Roles are the operator's, per `docs/operations.md`.
+ * The order is load-bearing: trigger functions before any trigger executes them, an environment's tables before its
+ * grants name them, the migrate-only revoke last. No role is created here: a migration may carry no credential, and
+ * `qcms_migrate` holds no `CREATEROLE`. Roles are the operator's, per `docs/operations.md`.
  */
 export function baselineHandAuthoredStatements(
   environments: readonly string[] = SHIPPED_ENVIRONMENTS,

@@ -113,7 +113,7 @@ function fieldKey(questionId: string, instanceId?: string): string {
     : `${instanceId}${INSTANCE_NAME_SEPARATOR}${questionId}`;
 }
 
-// The rate limit is per entry, not per request (SEC-16), so a 429 means nothing was applied.
+// The rate limit is per entry, not per request, so a 429 means nothing was applied.
 async function forwardAnswers(
   sessionId: string,
   token: string,
@@ -178,8 +178,7 @@ export async function POST(
   ctx: { params: Promise<{ sessionId: string }> },
 ): Promise<NextResponse> {
   const { sessionId } = await ctx.params;
-  // SEC-9's CSRF belt. The refusal is a 303 back to the flow page, as every other
-  // unusable request on this route gets: the respondent sees their step, not a code.
+  // Redirect refusals back to the flow page so the respondent sees their step instead of a bare status code.
   if (!isSameOriginPost(request)) return await backToStep(request, sessionId);
 
   const token = await readSessionToken();

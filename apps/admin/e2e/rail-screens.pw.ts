@@ -8,85 +8,32 @@ import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 import { openRail } from "./support/forms.js";
 import { submitResponse } from "./support/ops.js";
 
-/**
- * The §7 rail across the form subtree (issue 561; issue 559 built it and wired one screen).
- *
- * `rail.pw.ts` measures the rail itself - the 240px track at `--bp-sidebar`, the
- * disclosure, the wrap, the badge, N2's viewport fill. None of that is repeated here. What
- * this spec is for is the thing that only exists once the rail is on more than one screen:
- * that every form-scoped screen has one, that each marks the row it actually is, that no
- * screen ends up with two navigations to the same seven places, and that the children group
- * is the form's STEPS on every one of them rather than whatever list the screen happens to
- * be showing in its own column.
- *
- * ## Why the children assertion is the important one
- *
- * `plan/admin-ux-audit.md` §3.2 is where the word "children" gets dangerous: on the
- * question detail screen a rail's children would be that question's VERSIONS, and the
- * audit says two meanings for the same furniture is the drift a design language exists to
- * stop. The two screens where a wrong answer would look most plausible are the ones
- * checked below by their hrefs: a rail on the history screen listing versions, or a rail
- * on the responses screen listing responses, would also be the rail §5.4 rejects outright
- * for repeating the page's own body "and now there are two of them and they can disagree".
- *
- * ## The builder's rail carries one group, and that is §7 rather than an exception to it
- *
- * A rail step item is `/forms/{formId}#step-{stepId}`, which is a cross-route link on
- * eight screens and a bare same-page fragment on the builder, and §7 says the rail "never
- * carries same-page section switches". So the builder gets the sibling group and no
- * children, and with one group there is no divider. Asserted here because it looks like an
- * inconsistency and is not one, and because the builder's own step editor has to be left
- * exactly where it is: it is content rather than navigation, which is why §7 never reached
- * it.
- */
-
 test.describe.configure({ mode: "serial" });
 
 const EMAIL = uniqueAdminEmail("rail561");
 
-/** The seeded insurance fixture: one step, a published v1, four secure links. */
 const FORM_ID = "frm_auto_quote";
 const SLUG = "auto";
 const STEP_ID = "stp_history";
 const STEP_TITLE = "Driving history";
 const ACCIDENT = "q_at_fault_accident";
 
-/** The rail turns into its column at `--bp-sidebar`, which is 64rem at the default root size. */
 const SIDEBAR = 1024;
 
-/** Set in `beforeAll`; each test signs in again with it (serial shares no context). */
 let totpSecret = "";
-/** A submitted response, purely so the response-detail route has a subject. */
+
 let sessionId = "";
 
-/** One screen: the path, the sibling row its rail marks, and which groups it carries. */
 interface Screen {
   readonly path: string;
-  /** The `data-rail-item` key that should carry `aria-current`. */
+
   readonly current: string;
-  /** Whether §7's children group is present. False only on the builder. */
+
   readonly children: boolean;
-  /**
-   * The browser-tab title (issue #536).
-   *
-   * These nine screens are the sharp end of that issue: seven sections and two detail
-   * routes of ONE form, which all produced the tab text "QCMS" until every route gained a
-   * `generateMetadata`. `lib/page-title.test.ts` pins that each route has one and builds
-   * it through the one helper, which is a fact about the source; that the browser then
-   * puts it in the document is the fact only a browser can report, and nine identical
-   * titles here is exactly the defect.
-   */
+
   readonly title: string;
 }
 
-/**
- * All ten form-scoped screens, in the order the rail draws their rows.
- *
- * The two detail routes expect their SECTION rather than themselves, and that is the same
- * answer the app has given on those URLs since task 034: neither a stored version nor one
- * collected response is a row of §7's sibling group, and `components/forms/form-tabs.tsx`
- * resolves `/versions/3` to the version-history section and `/responses/{id}` to Responses.
- */
 function screens(): readonly Screen[] {
   return [
     {
@@ -96,10 +43,6 @@ function screens(): readonly Screen[] {
       title: `Form details: ${FORM_ID} - QCMS`,
     },
     {
-      // The rules screen (issue #669), which this list did not have until issue #700 read
-      // it against `lib/rail-routes.test.ts` and found the two disagreeing. Placed after
-      // the builder because this list is in RAIL_SECTIONS order, which is where the rail
-      // draws the row. Its rail is the SERVER-rendered one, like Preview's.
       path: `/forms/${FORM_ID}/rules`,
       current: "section:rules",
       children: true,
@@ -118,9 +61,6 @@ function screens(): readonly Screen[] {
       title: `Versions: ${FORM_ID} - QCMS`,
     },
     {
-      // The publish wizard. Its rail carries the form's STEPS like every
-      // other one: a rail listing environments beside a wizard whose own body lists
-      // environments is the rail §5.4 rejects for repeating the page.
       path: `/forms/${FORM_ID}/publish`,
       current: "section:publish",
       children: true,
@@ -148,8 +88,7 @@ function screens(): readonly Screen[] {
       path: `/forms/${FORM_ID}/responses/${sessionId}`,
       current: "section:responses",
       children: true,
-      // The session id alone: it identifies one response across the deployment, which is
-      // the literal complaint issue #510 was filed for and #536 finished.
+
       title: `Response ${sessionId} - QCMS`,
     },
     {
@@ -161,27 +100,24 @@ function screens(): readonly Screen[] {
   ];
 }
 
-/** The hrefs of one screen's children group, in order. */
 async function childHrefs(page: Page): Promise<string[]> {
   return page
     .locator('[data-rail-group="steps"] a')
     .evaluateAll((links) => links.map((link) => link.getAttribute("href") ?? ""));
 }
 
-/** The titles the children group's select buttons carry, in order. */
 async function childSelects(page: Page): Promise<string[]> {
   return page
     .locator('[data-rail-group="steps"] [data-rail-step-select]')
     .evaluateAll((rows) => rows.map((row) => row.getAttribute("data-rail-step-select") ?? ""));
 }
 
-/** The builder renders steps as anchors until it publishes, then as buttons with no href; either shape is the form's steps. */
 async function childSteps(page: Page): Promise<string[]> {
   const hrefs = await childHrefs(page);
   return hrefs.length > 0 ? hrefs : childSelects(page);
 }
 
-// The file is serial and any test may be parked, so shared setup lives in `beforeAll`.
+// Keep shared setup in beforeAll so filtering any test does not remove its fixture.
 test.beforeAll(async ({ browser }) => {
   await createTestAdmin(EMAIL);
   const page = await browser.newPage();
@@ -205,14 +141,10 @@ test("561 puts the rail on all ten form-scoped screens, marking the row the scre
     await page.goto(screen.path);
     await expect(page.locator("main#main-content"), `${screen.path} is the shell`).toHaveCount(1);
 
-    // Soft throughout, so one sweep reports all nine verdicts rather than stopping at the
-    // first screen that disagrees.
     await expect
       .soft(page.getByTestId("qcms-rail"), `${screen.path} carries the rail`)
       .toBeVisible();
-    // Nine sibling screens of one form, nine different tabs (issue #536). Asserted as
-    // the whole string rather than "not QCMS": the pattern is the decision, and a title
-    // that lost its page name or its app name would still pass a difference test.
+
     await expect.soft(page, `${screen.path} names its own browser tab`).toHaveTitle(screen.title);
     await expect
       .soft(
@@ -226,9 +158,7 @@ test("561 puts the rail on all ten form-scoped screens, marking the row the scre
         `${screen.path} marks exactly one row`,
       )
       .toHaveCount(1);
-    // The seven sections are one navigation on every screen, never two: the strip that used
-    // to render under the heading retired with `form-tabs.tsx` (issue 561), so a second
-    // nav to the same seven places cannot come back unnoticed.
+
     await expect
       .soft(page.locator('[data-rail-group="sections"]'), `${screen.path} has the sibling group`)
       .toHaveCount(1);
@@ -239,15 +169,10 @@ test("561 puts the rail on all ten form-scoped screens, marking the row the scre
       )
       .toHaveCount(0);
 
-    // EVERY form screen carries the steps now, the builder included (Code Owner,
-    // 2026-08-25), and they are nested inside the Form row rather than stacked above the
-    // sections. The builder used to be the exception here, on a §7 clause that is retired.
     await expect
       .soft(page.locator('[data-rail-group="steps"]'), `${screen.path} carries the form's steps`)
       .toHaveCount(screen.children ? 1 : 0);
-    // Anchored at the sections list and matched through the Form row's own `<li>`, so it
-    // holds whether that row is the server's anchor or the builder's wrapped button, and
-    // still fails if the steps stack above the sections instead of nesting under the row.
+
     await expect
       .soft(
         page.locator(
@@ -256,8 +181,7 @@ test("561 puts the rail on all ten form-scoped screens, marking the row the scre
         `${screen.path} nests them inside the Form row`,
       )
       .toHaveCount(1);
-    // One tree means no divider: §7's "one divider between two groups" described two
-    // groups, and the amendment of 2026-08-25 leaves one.
+
     await expect
       .soft(page.locator("hr.qcms-rail__divider"), `${screen.path} draws no divider`)
       .toHaveCount(0);
@@ -271,7 +195,6 @@ test("561 gives every screen the form's steps as its children, never the list it
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.setViewportSize({ width: SIDEBAR, height: 900 });
 
-  // The seeded form has one step, so each screen's children group is that one known row.
   const linked = [`/forms/${FORM_ID}#step-${STEP_ID}`];
   const selected = [STEP_TITLE];
 
@@ -280,9 +203,7 @@ test("561 gives every screen the form's steps as its children, never the list it
     await page.goto(screen.path);
     await expect(page.getByTestId("qcms-rail")).toBeVisible();
     const children = await childSteps(page);
-    // A linked row starts at the route and a selection carries a title, so an empty group
-    // is measured against the selection: a rail with no steps, or one listing versions or
-    // responses, fails whichever shape it came back in.
+
     const shape = children[0]?.startsWith("/") === true ? linked : selected;
     expect
       .soft(
@@ -294,10 +215,6 @@ test("561 gives every screen the form's steps as its children, never the list it
       .toEqual(screen.children ? shape : []);
   }
 
-  // THE BUILDER HAS ONE STEP LIST NOW, and it is in the rail (Code Owner, 2026-08-25).
-  // It used to have two: an editor of buttons inside the page, beside a rail that carried
-  // no steps at all. This asserts the merge from both directions - the rail's rows are the
-  // interactive ones, and nothing outside the rail is offering a second copy of them.
   await setScreenEnvironment(page, `/forms/${FORM_ID}`);
   await page.goto(`/forms/${FORM_ID}`);
   const railStep = page
@@ -309,11 +226,6 @@ test("561 gives every screen the form's steps as its children, never the list it
     "and the page carries no second step list",
   ).toHaveCount(0);
 
-  // AND THE LIST IS STILL THE PLACE THOSE HREFS LAND. Every step row above points at
-  // `#step-{stepId}`, and so does the validation panel's link to an offending step; the
-  // element answering to that id lived in the in-page list, so deleting that list took the
-  // destination with it and left both sets of links pointing at nothing. No assertion in
-  // this suite noticed, because a fragment that matches nothing fails silently.
   await expect(
     page.locator(`#step-${STEP_ID}`),
     "the step every screen's rail links to is present to be linked to",
@@ -327,19 +239,6 @@ test("561 keeps the two respondent-facing renders on the narrow measure the rail
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.setViewportSize({ width: 1280, height: 900 });
 
-  // The preview and the version detail render what a respondent sees, and a wider container
-  // makes the preview lie (`plan/admin-ux-audit.md` §3.4). Issue 558 spelled that as a 720px
-  // cap on `<main>`, derived from the portal's own measure; issue 657 re-read it off the
-  // drawing and kept 720 as the closest one-layer answer to a drawn 640.
-  //
-  // ISSUE 668 MOVED WHICH ELEMENT CARRIES IT, not whether it holds.
-  // `plan/admin-shell-poc/preview-versions-poc.html` draws the 640 on a `.respondent-frame`
-  // INSIDE a 1600px `.main`, and a cap on `<main>` sits outside a padding the frame sits
-  // inside, so the shipped render was a 672px column against a drawn 640. `<main>` now takes the POC's
-  // outer 1600 and the frame takes the 640, which is why this measures the frame and checks
-  // `<main>` only for the thing this spec is actually about: the rail is a sibling of
-  // `<main>` rather than a child of it, so it takes nothing off the measure and is no
-  // excuse to widen it either.
   for (const path of [`/forms/${FORM_ID}/preview`, `/forms/${FORM_ID}/versions/1`]) {
     await setScreenEnvironment(page, path);
     await page.goto(path);
@@ -353,9 +252,7 @@ test("561 keeps the two respondent-facing renders on the narrow measure the rail
       return {
         cap: Number.parseFloat(getComputedStyle(element).maxWidth),
         width: element.getBoundingClientRect().width,
-        // The room the column has: the viewport less the rail's track. Measured off the
-        // rail's own box rather than off the 15rem in the stylesheet, and read here rather
-        // than hard-coded so a scrollbar does not turn this into an arithmetic puzzle.
+
         available: document.documentElement.clientWidth - (rail?.width ?? 0),
       };
     });
@@ -369,28 +266,11 @@ test("561 keeps the two respondent-facing renders on the narrow measure the rail
 test("561 puts every shared rail row in the same box on all three builder-family screens", async ({
   page,
 }) => {
-  // THE SHIFT THIS EXISTS FOR (Code Owner, 2026-08-30). The rail is rendered twice - a
-  // server-rendered version for the six routes and a client-rendered one for the builder's
-  // two screens - and the two disagreed in ways that only showed as movement when you
-  // walked between them:
-  //
-  //   - a row with a `⋮` trigger gave up 30px to it, so the form row and every step row
-  //     was a 193px box on the builder and a 223px box everywhere else;
-  //   - the 8px under Rules came from a wrapper that only the builder renders, so all six
-  //     route rows below it sat 8px lower there than on the other screens. (That row is
-  //     drawn by one component on every screen since issue #669 made Rules a route, so the
-  //     second defect can no longer be built the way it was built.)
-  //
-  // Neither was visible from inside one screen, which is why nothing caught them. What
-  // catches them is comparing the SAME row across a navigation, so that is what this does:
-  // every row's box, keyed by row, on each of the three screens, compared as a whole.
   test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.setViewportSize({ width: 1280, height: 900 });
 
-  // Each shared row's shape, plus the gap from the row above it in the same list. Rounded,
-  // because a fractional layout difference is not what this is about and sub-pixel noise
-  // would make it flake.
+  // Round measured gaps to avoid subpixel layout noise.
   const boxes = async (): Promise<Record<string, string>> =>
     page.locator("[data-rail-item]").evaluateAll((nodes) =>
       Object.fromEntries(
@@ -407,60 +287,33 @@ test("561 puts every shared rail row in the same box on all three builder-family
       ),
     );
 
-  // PREVIEW FIRST, because its rail is server-rendered and therefore already settled: it
-  // is the reference the other two are compared against, and it is the one that can be
-  // measured the moment it is visible.
+  // Use the server-rendered Preview rail as the settled reference for client-rendered rails.
   await setScreenEnvironment(page, `/forms/${FORM_ID}/preview`);
   await page.goto(`/forms/${FORM_ID}/preview`);
   await expect(page.getByTestId("qcms-rail")).toBeVisible();
   await openRail(page);
   const onPreview = await boxes();
-  // WHY THE COMPARISON IS BY GAP AND NOT BY ABSOLUTE POSITION. The six route screens badge
-  // a step from the API's stored verdict; the builder's two claim nothing until the client
-  // has run its own validate, which `validation-idle.pw.ts` pins as deliberate - a draft
-  // does not read as judged before anything has judged it. So a step row can legitimately
-  // carry a badge on one screen and not on the other, a badge is what makes a title wrap,
-  // and a wrapped row above pushes every row below it down. That is a difference in what
-  // the two screens KNOW, not in how they lay out.
-  //
-  // Comparing the gaps between the shared rows takes the steps out of it: the first gap is
-  // skipped because it spans the step cluster, and every gap after it is between two rows
-  // both screens render. The two defects this test exists for both survive that - a 193px
-  // box against a 223px one is a width, and the 8px under Rules is the gap from Rules to
-  // the row below it.
+  // Compare row gaps rather than absolute positions: stored server verdicts can add badges absent from an unvalidated builder.
 
   await setScreenEnvironment(page, `/forms/${FORM_ID}`);
 
   await page.goto(`/forms/${FORM_ID}`);
   await expect(page.getByTestId("qcms-rail")).toBeVisible();
   await openRail(page);
-  // WAIT FOR THE STEPS. On the builder's two screens the rail's step rows are rendered by
-  // the client from the loaded draft, so they arrive after the six route rows do. Measuring
-  // before they land compares a rail that has steps against one that does not.
+
   await expect(page.locator("[data-rail-step-select]").first()).toBeVisible();
   const onBuilder = await boxes();
 
-  // THE RULES SCREEN IS A ROUTE since issue #669, so its rail is the SERVER-rendered one,
-  // like Preview's. That is what this comparison is for: the row that leads to it is drawn
-  // by one component on all nine screens now, and the two-branch row it replaced is exactly
-  // the shape that produced the 8px defect recorded above.
   await page.locator('[data-rail-item="section:rules"]').click();
   await expect(page).toHaveURL(/\/rules$/u);
   await expect(page.locator("#qcms-rules-heading")).toBeAttached();
   await expect(page.locator('[data-rail-item^="step:"]').first()).toBeVisible();
   const onRules = await boxes();
 
-  // Only the rows all three screens have. The builder's step rows are chosen rather than
-  // navigated to, so they carry `data-rail-step-select` instead and are not in this set;
-  // `rail.pw.ts` is where the step rows themselves are measured.
   const shared = Object.keys(onBuilder).filter((key) => key in onRules && key in onPreview);
   expect(shared.length, "the three screens share rows to compare").toBeGreaterThan(4);
 
   for (const key of shared) {
-    // Preview and the rules screen both render the SERVER rail, so their step rows are
-    // `data-rail-item="step:*"` while the builder's are `data-rail-step-select`. The rows
-    // whose gap spans the step cluster are therefore compared without that gap against the
-    // builder; every other row's gap is between two rows all three screens have.
     const spansTheSteps = key === "section:rules";
     const strip = (value: string): string =>
       spansTheSteps ? value.replace(/ gapAbove=\S+$/u, "") : value;
@@ -472,13 +325,6 @@ test("561 puts every shared rail row in the same box on all three builder-family
       .toBe(strip(onBuilder[key] ?? ""));
   }
 
-  // ONE RHYTHM (Code Owner, 2026-08-30). Every gap in the column is either the 2px between
-  // rows of one group or the 8px between groups, and nothing in between: the rail carried
-  // 0px, 2px, 8px and 10px gaps at once, which reads as a column that cannot decide.
-  //
-  // Measured on the rendered boxes rather than read off the sheet, because the values that
-  // produced the irregularity were each individually reasonable - a padding here, a margin
-  // there - and only the sum on screen showed it.
   for (const [screen, path] of [
     ["builder", `/forms/${FORM_ID}`],
     ["preview", `/forms/${FORM_ID}/preview`],
@@ -491,8 +337,7 @@ test("561 puts every shared rail row in the same box on all three builder-family
       page.locator("[data-rail-item^='step:'], [data-rail-step-select]").first(),
     ).toBeVisible();
     const measured = await page
-      // `.qcms-rail__actions` is where Add step sits since §7.0 (issue #1116): it was
-      // `.qcms-rail-steps__add`, inside the step cluster under the list.
+
       .locator("[data-rail-item], [data-rail-step-select], .qcms-rail__actions")
       .evaluateAll((nodes) =>
         nodes.map((node, index) => {
@@ -512,11 +357,7 @@ test("561 puts every shared rail row in the same box on all three builder-family
           .soft([2, 8], `${screen} row ${String(index)} sits on the rail's rhythm`)
           .toContain(row.gap);
       }
-      // ONLY THE ACTIONS PART'S HEIGHT IS PINNED. A step row is a title that WRAPS when it
-      // is long, which `rail.pw.ts` requires outright, so a row taller than one line is
-      // correct here and asserting 40 would forbid the behaviour the rail is meant to have.
-      // The add control carries no title, so a 52px box could only ever be padding it gave
-      // itself - which is exactly what it used to do.
+
       if (row.isAdd) {
         expect.soft(row.height, `${screen}'s actions part is one row tall`).toBe(40);
       }
@@ -530,12 +371,6 @@ test("1116 heads every form screen's rail the same way, and leaves no breadcrumb
   test.setTimeout(600_000);
   await signInWithTotp(page, EMAIL, totpSecret);
 
-  // AT BOTH WIDTHS. §7.0 ruling 2.1 makes the Header a visible plain header above
-  // `--bp-sidebar` on EVERY rail - the form rail used to hide its summary there, because
-  // its first row carried the form's name too - and the 2026-10-24 clarification keeps the
-  // back link visible below the boundary, where the body is shut.
-  // Every Header this sweep reads, so the last assertion can be the one §7.0 is about:
-  // they are all the same line.
   const headers: string[] = [];
 
   for (const width of [1440, 390]) {
@@ -546,8 +381,6 @@ test("1116 heads every form screen's rail the same way, and leaves no breadcrumb
       const rail = page.getByTestId("qcms-rail");
       await expect.soft(rail, `${screen.path} at ${String(width)} carries the rail`).toBeVisible();
 
-      // THE WAY BACK (§7.0 ruling 3), labelled with the parent SCREEN's name. Visible with
-      // the disclosure shut, because it sits above it rather than inside the body.
       await expect
         .soft(
           rail.getByRole("link", { name: "Forms", exact: true }),
@@ -555,15 +388,6 @@ test("1116 heads every form screen's rail the same way, and leaves no breadcrumb
         )
         .toBeVisible();
 
-      // THE SUBJECT AND ITS ONE STATUS TAG. The form's name is in the Header at both widths
-      // now - the form rail used to hide its summary above `--bp-sidebar` - and the tag
-      // beside it is the form's open/closed status, the one thing §7.0 allows there and
-      // something no row of this rail carries.
-      //
-      // Compared against the FIRST screen's Header rather than against the slug, which is
-      // the stronger claim and the one §7.0 makes: ten screens of one form, one Header. The
-      // name itself is the form's title where it has one and its slug where it does not
-      // (`formDisplayName`), so pinning the string here would pin the fixture instead.
       const summary = rail.locator("summary.qcms-rail__summary");
       await expect
         .soft(summary, `${screen.path} at ${String(width)} names the form in its Header`)
@@ -580,12 +404,6 @@ test("1116 heads every form screen's rail the same way, and leaves no breadcrumb
         )
         .toHaveCount(1);
 
-      // AND NO TRAIL IN THE CONTENT COLUMN. The breadcrumb was the first line of every one
-      // of these screens; the back link replaces it, and a trail restored beside it would
-      // be the form's name and the section's said twice on one screen.
-      //
-      // Located by the breadcrumb's own name rather than by counting navigations in the
-      // column: the responses screen has a legitimate one, its pager.
       await expect
         .soft(
           page.locator('main#main-content [aria-label="Breadcrumb"]'),
@@ -596,10 +414,6 @@ test("1116 heads every form screen's rail the same way, and leaves no breadcrumb
   }
   await page.setViewportSize({ width: SIDEBAR, height: 900 });
 
-  // ONE HEADER, TWENTY READINGS. The chevron is `aria-hidden` and outside the text, so what
-  // is compared is the name and its status tag: the same line on all ten screens at both
-  // widths, which is what "the rail looks the same everywhere" means for the part a reader
-  // sees first.
   const names = new Set(headers.map((entry) => entry.split(": ").slice(1).join(": ")));
   expect([...names], `every screen's Header reads the same: ${headers.join(" | ")}`).toHaveLength(
     1,

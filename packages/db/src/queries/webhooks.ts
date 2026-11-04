@@ -8,8 +8,8 @@ import type { Executor } from "./executor.js";
 export type WebhookRow = typeof webhooks.$inferSelect;
 
 /**
- * Insert a configured webhook. `secretEncrypted` is opaque ciphertext (SEC-6): this layer
- * never sees the plaintext secret and must never log the row.
+ * Insert a configured webhook. `secretEncrypted` is opaque ciphertext: this layer never sees the plaintext
+ * secret and must never log the row.
  */
 export async function insertWebhook(
   exec: Executor,

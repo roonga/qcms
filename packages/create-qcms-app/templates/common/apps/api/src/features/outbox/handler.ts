@@ -1,5 +1,5 @@
-// Responses carry ids, urls, event types, attempt counts and value-free error codes only
-// (SEC-8). Stored headers already have the HMAC masked at write time (SEC-6, SEC-13).
+// Responses carry ids, urls, event types, attempt counts and value-free error codes only. Stored headers
+// already have the HMAC masked at write time.
 
 import type { RouteHandler } from "@hono/zod-openapi";
 import { parseFormId } from "@roonga/qcms-core";

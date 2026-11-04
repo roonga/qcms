@@ -18,7 +18,6 @@ test.use({ javaScriptEnabled: false });
 const COVER_QUESTION = "q_optional_cover";
 const NAME_FIELD = 'input[name="q_full_name"]';
 
-/** The group's three checkboxes, whatever their labels. */
 function coverBoxes(page: Page) {
   return page.locator(`input[type="checkbox"][name="${COVER_QUESTION}"]`);
 }

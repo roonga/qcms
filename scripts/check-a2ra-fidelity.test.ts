@@ -33,8 +33,6 @@ describe("upstreamPin", () => {
   });
 
   it("refuses a registry URL that is not pinned to a full commit sha", () => {
-    // ADR-22 requires an immutable pin: a branch or tag name leaves the gate unable to
-    // say which upstream it checked.
     const branch = JSON.stringify({
       componentsDir: "src/components/a2ui",
       registry: "https://raw.githubusercontent.com/roonga/a2-react-aria/main/registry",

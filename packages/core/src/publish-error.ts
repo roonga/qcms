@@ -246,7 +246,6 @@ function assertNeverPublishError(error: never): never {
   throw new Error(`Unhandled publish error code: ${String((error as { code?: unknown }).code)}`);
 }
 
-// Shared by the two codes that report on a text, which name the same sites.
 function textSite(path: {
   readonly step?: StepId | undefined;
   readonly group?: GroupId | undefined;

@@ -9,75 +9,10 @@ import { MIN_PASSWORD_LENGTH } from "@/lib/server/config";
 import { requireAdminSession } from "@/lib/server/session";
 import { SETTINGS_HEADING_ID, settingsSectionFromParams } from "@/lib/settings-sections";
 
-/** The browser-tab title for this route (issue #536). */
 export function generateMetadata(): Metadata {
   return pageMetadata(t("nav.settings"));
 }
 
-/**
- * Settings (task 031; screen contract "Settings area at launch: account (change password →
- * sessions invalidated), 2FA re-enrollment, nothing else").
- *
- * Exactly those two things, and the "nothing else" is the binding half: no profile,
- * no preferences, no user list, no roles. RBAC is Phase 4 (R7).
- *
- * Regenerating recovery codes joined the 2FA panel in issue #319, and it belongs to
- * the screen contract's "2FA re-enrollment" line rather than widening the area: it is the
- * only remedy an enrolled admin has for lost codes, now that no route reads the stored
- * set back. Password-gated, because better-auth requires the password and that is
- * exactly the re-authentication the operation wants.
- *
- * Changing the password revokes every **other** session, which is the SEC-1
- * requirement ("server-side session invalidation on sign-out and password change")
- * and also the useful behaviour: the admin who just changed it stays signed in here
- * while any session elsewhere dies. The copy says so before the form rather than
- * after the effect.
- *
- * 2FA re-enrollment is a sign-out, and the honesty of that is the point: provisioning
- * a new TOTP secret needs the password (better-auth requires it, correctly), and this
- * page has no password to offer. Rather than add a second password prompt that
- * duplicates the sign-in screen, re-enrollment routes through the flow that already
- * asks - sign out, sign in, and enrollment is provisioned on the way through when the
- * account has no live factor. An account that already has one must first disable it,
- * which is a deliberate action this launch surface does not expose.
- *
- * ## Three panels, one on screen (issue 655)
- *
- * `plan/admin-shell-poc/settings-newquestion-poc.html` is the approved design for this
- * screen and it draws three panels with two of them `hidden`, switched by the rail, under a
- * heading that names the showing section rather than the screen. Its reason is that account,
- * change password and two-factor authentication are "three genuinely separate surfaces, and
- * stacking all three in one scroll was hiding that". Before this change all three were
- * stacked in one scroll, which is what issue 655 exists to correct.
- *
- * The switch needs JavaScript and **no fallback is provided**. `docs/admin-constraints.md`
- * settles it: the POCs are the design, and JavaScript is available here. This screen was
- * previously built as though a no-script floor bound the admin, and none does.
- *
- * This page stays a server component: it reads the session and renders the three panel
- * bodies, and `components/settings-panels.tsx` is the only client piece, deciding which one
- * is on screen. Which one that IS on arrival is decided here, from the query, because the two
- * POST routes below land their reader back on this screen with a marker
- * (`?changed=1`, `?error=1`, `?codesError=1`) whose message lives inside one particular
- * panel: a screen that always opened on Account would hide the confirmation that a password
- * change happened.
- *
- * ## Each form owns a marker pair, and both pairs render the shared sentences (issue #845)
- *
- * A refused POST arrives as `error`/`throttled` from the password form and as
- * `codesError`/`codesThrottled` from the recovery-codes form, because both forms land back
- * on this one screen and a single pair would print one form's refusal under the other. The
- * marker-to-sentence mapping is `lib/auth-failure-message.ts`, the same one every auth
- * screen reads, so the throttled state says "too many attempts" here exactly as it does at
- * sign-in. No sentence on this screen is new: the two pairs name two states between them,
- * which is what keeps SEC-1's three-message discipline true while the `429` stops being
- * reported as a wrong password.
- *
- * Every panel is named by the one `<h1>` through `aria-labelledby`, so the region a screen
- * reader lands in carries the section's name. That is also why no panel repeats its own name
- * as an `<h2>` any more: the heading above it already says it, which is the POC's own
- * reasoning for promoting Recovery codes from `<h3>` to `<h2>`.
- */
 export default async function SettingsPage({
   searchParams,
 }: {
@@ -85,9 +20,6 @@ export default async function SettingsPage({
 }) {
   const session = await requireAdminSession();
   const params = await searchParams;
-  // The markers are read per panel rather than by handing `params` to the mapping whole,
-  // so that each form's refusal can only be rendered beside that form. The mapping is the
-  // shared one; only the addresses differ (issue #845).
   const passwordFailure = authFailureMessage({ throttled: params.throttled, error: params.error });
   const codesFailure = authFailureMessage({
     throttled: params.codesThrottled,
@@ -114,23 +46,12 @@ export default async function SettingsPage({
             <Card padding="md" radius="md" border>
               <div className="flex flex-col gap-4">
                 <p className="text-sm text-(--color-text-muted)">{t("settings.passwordIntro")}</p>
-                {/* No wrapper `role` on either: the vendored `Alert` already renders
-                  `role="alert"`, and nesting a second live region for one message means it
-                  is announced twice. */}
                 {params.changed !== undefined && (
                   <Alert variant="success">{t("settings.passwordChanged")}</Alert>
                 )}
-                {/* The same sentences as every other auth failure: a wrong current password
-                  must not be distinguishable from a rejected new one (SEC-1), and a refusal
-                  the API declined to judge at all says so rather than blaming the password
-                  (issue #845). */}
+                {/* Credential refusals share copy to avoid account or password oracles; throttling asks the operator to
+   wait. */}
                 {passwordFailure !== undefined && <Alert variant="error">{passwordFailure}</Alert>}
-                {/* The one refusal that says what it is (issue #437, Code Owner ruling
-                  2026-09-03): the new password is in the public breach corpus, which is a
-                  fact about a password the reader just typed rather than about the account.
-                  Display only - `lib/server/password-refusal.ts` maps the code and records
-                  the oracle the ruling accepted, and nothing about what the API refuses,
-                  when, or in what order changed. */}
                 {params.compromised !== undefined && (
                   <Alert variant="error">{t("settings.passwordCompromised")}</Alert>
                 )}
@@ -166,10 +87,6 @@ export default async function SettingsPage({
           <section className="qcms-card" aria-labelledby={SETTINGS_HEADING_ID}>
             <Card padding="md" radius="md" border>
               <div className="flex flex-col gap-3">
-                {/* Prose, not an `Alert`: the vendored Alert is a live region (`role="alert"`),
-                  and this is standing state rather than something that just happened. As an
-                  Alert it announced itself on every visit to Settings and competed with the
-                  real password-change message for the screen reader's attention. */}
                 <p
                   className={
                     session.twoFactorEnabled
@@ -181,20 +98,11 @@ export default async function SettingsPage({
                     ? t("settings.twoFactorOn")
                     : t("settings.twoFactorOff")}
                 </p>
-                {/* Only for an enrolled account: better-auth refuses to generate codes
-                  without a factor to back them, so offering the form otherwise would be
-                  a control that can only fail. */}
                 {session.twoFactorEnabled && (
                   <>
-                    {/* One level under the page heading, which now names this panel, so this
-                      is the panel's first subheading rather than its second (the POC makes
-                      the same promotion for the same reason). */}
                     <h2 className="text-sm font-semibold text-(--color-text)">
                       {t("settings.recoveryCodesTitle")}
                     </h2>
-                    {/* The same sentences the password form uses: a wrong password here must
-                      not be distinguishable from any other refusal (SEC-1), and a throttled
-                      attempt is told to wait rather than to retype (issue #845). */}
                     {codesFailure !== undefined && <Alert variant="error">{codesFailure}</Alert>}
                     <p className="text-sm text-(--color-text-muted)">
                       {t("settings.recoveryCodesIntro")}
@@ -204,10 +112,6 @@ export default async function SettingsPage({
                       action="/settings/recovery-codes"
                       className="flex max-w-sm flex-col gap-4"
                     >
-                      {/* The password is what re-authenticates the operation (issue #319):
-                        better-auth requires it, so a borrowed session cannot retire an
-                        admin's codes. `current-password` rather than a new-password hint,
-                        because that is exactly what it is. */}
                       <TextField
                         name="password"
                         type="password"

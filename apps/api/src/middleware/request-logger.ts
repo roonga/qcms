@@ -6,7 +6,7 @@ import type { MiddlewareHandler } from "hono";
 import type { Deps } from "../deps.js";
 import type { ApiEnv } from "../openapi.js";
 
-/** Allowlisted under SEC-13: a correlation id names no respondent. */
+/** Correlation ids name no respondent and may enter span attributes. */
 export const REQUEST_ID_ATTRIBUTE = "qcms.request_id";
 
 /** WebCrypto rather than `node:crypto`, to stay fetch-pure (R4). */

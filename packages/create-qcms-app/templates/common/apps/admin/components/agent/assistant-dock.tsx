@@ -41,36 +41,6 @@ import { screenForPath } from "@/lib/agent/screens";
 import { ProposalSeamProvider } from "@/lib/agent/waiting";
 import { t, type MessageKey } from "@/lib/i18n/en";
 
-/**
- * The assistant's top-bar button and its panel, mounted once by the shell layout on every
- * `(shell)` screen.
- *
- * The button sits in the top bar's trailing group and the panel is a track of the shell
- * body grid, which are two places in the tree, so the state they share lives in a provider
- * wrapping both and each is a slot. With the flag off the provider is not rendered at all,
- * which is the stance the builder prop took: absent rather than hidden.
- *
- * ## Three modes and no float
- *
- * At and above `--bp-sidebar` the panel is a grid track, so it cannot obscure page content
- * (WCAG 2.2 SC 2.4.11). Expand fills the area below the top bar as a modal dialog, and
- * below `--bp-sidebar` the sheet is one too. One element changes role with its state,
- * which is why it is a `div`: an `aside` cannot take the dialog role.
- *
- * ## One header on every screen, the builder included
- *
- * The header is this component's everywhere. On the builder the body is the builder's own
- * panel in its hosted mode, so the draft proposal, its diff and its Accept keep working
- * while the title, the context chip and the four controls are the ones every other screen
- * shows.
- *
- * ## The rail between 1024 and 1279 CSS px
- *
- * There a rail, a panel and 640px of content do not fit together, so opening the panel
- * takes the Hide sidebar hold on the rail. A hold writes no cookie, so closing the panel
- * returns the operator's own Hide sidebar setting rather than overwriting it.
- */
-
 function modeFor(sheet: boolean, expanded: boolean): AssistantMode {
   if (sheet) return "sheet";
   return expanded ? "expanded" : "dock";
@@ -85,7 +55,6 @@ const TAB_STOPS = [
   '[tabindex]:not([tabindex="-1"])',
 ].join(",");
 
-/** Keep Tab and Shift+Tab inside the panel while it is modal. */
 function wrapTab(event: ReactKeyboardEvent<HTMLDivElement>): void {
   const panel = document.getElementById(PANEL_ID);
   if (panel === null) return;
@@ -111,8 +80,6 @@ export function AssistantProvider({
   readonly children: ReactNode;
 }) {
   const pathname = usePathname();
-  // The address, not only the path: the response list's facts are about the filtered rows
-  // the operator is looking at.
   const search = useSearchParams();
   const [open, setOpen] = useState(initial.open);
   const [width, setWidth] = useState(initial.width);
@@ -124,8 +91,6 @@ export function AssistantProvider({
   const sidebar = useSidebar();
   const hold = sidebar.hold;
 
-  // The viewport decides the sheet and the rail hold, so both are watched rather than read
-  // once: a window widened past 1280px must return the rail without a reload.
   useEffect(() => {
     const read = (): void => {
       setSheet(window.matchMedia("(max-width: 1023.9px)").matches);
@@ -149,10 +114,7 @@ export function AssistantProvider({
     };
   }, [open, hold]);
 
-  // Opening focuses the composer, in the commit that opens the panel rather than in a
-  // later task: a focus that lands a task late undoes whatever the reader did in between,
-  // which is how Escape in the dock lost the page again. A panel the cookie opened starts
-  // focused, so a reload steals nothing, and neither does navigation between screens.
+  // Focus in the opening commit; a later task could overwrite the operator's intervening focus move.
   const grabbed = useRef(initial.open);
   useEffect(() => {
     if (!open) {
@@ -188,9 +150,7 @@ export function AssistantProvider({
         setOpen(false);
         setExpanded(false);
         remember({ open: false, width });
-        // After the paint that drops the panel, because closing the sheet or the expanded
-        // state releases the `inert` the top bar is under: focusing into an inert subtree
-        // does nothing at all.
+        // Wait for the paint that removes inert before restoring focus; focusing an inert subtree does nothing.
         window.setTimeout(() => document.getElementById(ASSISTANT_BUTTON_ID)?.focus(), 0);
       },
       toggleExpanded: () => {
@@ -207,8 +167,6 @@ export function AssistantProvider({
     [announcement, expanded, open, pathname, remember, search, sheet, width, working],
   );
 
-  // `Alt+Shift+A` opens or focuses the panel. A modifier chord, so SC 2.1.4 does not bind
-  // it, and it is ignored while a text input outside the panel has focus.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
       if (!event.altKey || !event.shiftKey || event.key.toLowerCase() !== "a") return;
@@ -238,7 +196,6 @@ export function AssistantProvider({
   );
 }
 
-/** The top bar's trailing group. */
 export function AssistantButtonSlot() {
   const control = useAssistant();
   if (control === undefined) return null;
@@ -251,7 +208,6 @@ export function AssistantButtonSlot() {
   );
 }
 
-/** The shell body's third track. */
 export function AssistantPanelSlot() {
   const control = useAssistant();
   const conversation = useConversation();
@@ -259,14 +215,8 @@ export function AssistantPanelSlot() {
   const [helpOpen, setHelpOpen] = useState(false);
   const modal = control?.open === true && control.mode !== "dock";
 
-  // The expanded state and the sheet are modal, so everything behind them leaves the tab
-  // order and the accessibility tree, which is also what traps focus inside the panel.
-  // `inert` is a DOM property rather than a style, so it is set here and not in
-  // `globals.css`; the dock is a grid track and takes none of this.
-  //
-  // Every sibling on the panel's own path to the body, rather than a list of the shell's
-  // landmarks: the skip link and the live region are siblings further up, and a trap that
-  // named only the landmarks leaked to the first Tab out of the sheet.
+  // Apply inert to every sibling along the panel's path to body so modal behavior covers all underlying
+  // content.
   useEffect(() => {
     const panel = document.getElementById(PANEL_ID);
     if (panel === null) return undefined;
@@ -286,17 +236,13 @@ export function AssistantPanelSlot() {
 
   if (control === undefined) return null;
   const { mode, width } = control;
-  // Closed, the panel stays in the document `hidden` rather than unmounting, because a
-  // turn survives the panel closing: that is what puts the "Working" text beside the
-  // top-bar button with nothing on screen. `hidden` is `display: none`, so the
-  // grid rule in `globals.css` excludes it and the dock takes no track.
+  // Keep the closed panel mounted and hidden so in-progress turns survive closing it.
   const closed = !control.open;
   const subject =
     builder === undefined ? undefined : builder.draft.title[builder.draft.defaultLocale];
 
   const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>): void => {
-    // `inert` behind the panel takes every other control out of the order but adds no
-    // wrap, so Tab off the last one leaves the document for the browser's own chrome.
+    // inert removes background stops but does not wrap focus; keep explicit Tab wrapping inside the modal.
     if (event.key === "Tab" && mode !== "dock") {
       wrapTab(event);
       return;
@@ -308,9 +254,8 @@ export function AssistantPanelSlot() {
     }
     const tip = document.querySelector('[data-testid="qcms-assist-tip"]') !== null;
     event.stopPropagation();
-    // Returning to the dock leaves focus on the Expand control, so it can share the key
-    // with a tooltip dismissal; the other two modes move focus, which SC 1.4.13 forbids
-    // while a tooltip is open, so there the dismissal has the key to itself.
+    // Let an open tooltip consume Escape before an action that moves focus, preserving hover-content dismissal
+    // behavior.
     if (mode === "expanded") {
       control.toggleExpanded();
       document.querySelector<HTMLElement>('[data-testid="qcms-assistant-expand"]')?.focus();
@@ -321,9 +266,7 @@ export function AssistantPanelSlot() {
       control.close();
       return;
     }
-    // In the dock, Escape moves focus back to the page and the dock stays open. The
-    // content column is a container rather than a control, so it needs a tab index before
-    // it will take programmatic focus at all.
+    // The content container needs a temporary tab index before Escape can return focus to it.
     const main = document.querySelector<HTMLElement>("main");
     if (main === null) return;
     main.tabIndex = -1;
@@ -448,8 +391,6 @@ export function AssistantPanelSlot() {
         </div>
       )}
       <div className="qcms-assistant__body">
-        {/* Keyed by the conversation, so New conversation empties the hosted builder panel
-            as well as the screen conversation this component owns. */}
         <AssistantConversation
           key={conversation.id}
           screen={control.screen}

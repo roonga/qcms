@@ -32,44 +32,11 @@ import type { ApiResult } from "./api-result.ts";
 import { readResult as read } from "./api-result.ts";
 import type { AdminSession } from "./session.ts";
 
-/**
- * The form builder's calls into the API's `/admin` group (task 033, R2).
- *
- * The same proxy this app's questions client is: build a path, hand it to the one
- * credentialed client (`api.ts`), read the answer. Nothing here decides whether a draft is
- * legal, whether a target is reachable, or whether a pin may point where it points. Those
- * are the kernel's answers and they arrive as `issues`; the admin takes no `@roonga/qcms-core`
- * value import at all and `r2-import-surface.test.ts` is what keeps that true.
- *
- * Two normalisations happen here, and both are presentation rather than authority:
- *
- * - **`ApiResult`**, the shape `questions.ts` settled on and `api-result.ts` now owns, so
- *   every screen has one error shape to render instead of re-deriving the API's two
- *   envelopes.
- * - **Reading the `unknown`s.** The route schemas type `draft` and `issues[]` as
- *   `unknown`, because the kernel owns those shapes and the API declines to restate them.
- *   A screen still has to render them, so they are read into the view types here, in one
- *   place, tolerantly: an issue with an unfamiliar `code` is carried through untouched
- *   rather than dropped.
- */
+/** Read API payloads for presentation without validating domain legality. Preserve unfamiliar issue codes so newer API verdicts remain visible. */
 
 export type { ApiResult };
 
-// --- the form library -------------------------------------------------------
-
-/**
- * `GET /admin/forms` - every form, with its draft and published state.
- *
- * The search term, the status filter and the sort key are the **API's**, passed straight
- * through (issue 686). None of the three is applied here, and that is the point: a second
- * ordering or a client-side narrowing in this app would be the BFF deciding something it
- * has no authority over (R2), and it would also be wrong the moment the list is longer
- * than one response. The screen puts them in the URL, this function puts them on the
- * wire, and the API answers.
- *
- * One request, whatever the filters say: the query string grows, the round-trip count
- * does not (`lib/server/request-reads.test.ts`).
- */
+/** Pass filters and ordering to the API; local filtering would be wrong once the list spans responses. */
 export async function listForms(
   session: AdminSession,
   filters: {
@@ -91,19 +58,12 @@ export async function listForms(
   return result.ok ? { ok: true, data: result.data.forms } : result;
 }
 
-/**
- * The whole, unfiltered form library, memoized per request so a page and its `@rail` slot
- * share one round trip.
- *
- * Separate from {@link listForms} because `cache()` keys on argument identity: a filter
- * object literal would miss on every call. A screen that filters still calls `listForms`.
- */
+/** Use a separate unfiltered reader because React cache keys filter objects by identity. Page and rail share this request-only read. */
 export const listAllForms: (session: AdminSession) => Promise<ApiResult<readonly FormListItem[]>> =
   cache(async (session: AdminSession): Promise<ApiResult<readonly FormListItem[]>> =>
     listForms(session),
   );
 
-/** `POST /admin/forms` - the identity and its empty first draft, in one call. */
 export async function createForm(
   session: AdminSession,
   body: {
@@ -123,34 +83,7 @@ export async function createForm(
   );
 }
 
-// --- the working draft ------------------------------------------------------
-
-/**
- * `GET /admin/forms/{id}` - identity, draft, versions, settings, challenge enforceability.
- *
- * `challengeEnforceable` is defaulted to `false` when the payload does not carry it, and
- * the direction of that default is deliberate: `false` is the state in which the settings
- * panel *warns* that `challengeRequired` is unenforceable, so a build talking to an API
- * that has not started sending the field errs towards telling the author more rather than
- * towards a switch that silently promises protection it may not have (ADR-24).
- *
- * ## Once per request, not once per tree (issue #626)
- *
- * `cache()` for the reason `currentAdminSession` carries it: a form-scoped screen is a
- * page and a `@rail` slot rendered from one request, neither can hand the other a
- * value, and both need the form, so the same `GET /admin/forms/{id}` went out twice per
- * render. `lib/server/form-rail.ts` and `lib/server/question-rail.ts` both stated that
- * cost in prose and named this as the place to change if it ever needed a cache.
- *
- * **The memo key is the argument list, by identity.** `session` is an object, so the
- * dedupe holds only because `currentAdminSession` is memoized too and every caller in
- * a request therefore holds the *same* session object. The two changes are one change,
- * and the test that counts a render's reads is what keeps them together.
- *
- * Per request and no longer, so nothing here can serve a form a mutation has already
- * changed: a server action runs before the re-render it triggers, and no action reads a
- * form. Across requests this memo does not exist.
- */
+/** False challengeEnforceable warns instead of promising protection the API did not report. React cache is request-only and depends on callers sharing the memoized session object. */
 export const getForm: (session: AdminSession, formId: string) => Promise<ApiResult<FormDetail>> =
   cache(async (session: AdminSession, formId: string): Promise<ApiResult<FormDetail>> => {
     const result = await read<Record<string, unknown>>(
@@ -172,40 +105,19 @@ export const getForm: (session: AdminSession, formId: string) => Promise<ApiResu
         versions: parseVersions(raw["versions"]),
         settings: parseSettings(raw["settings"]),
         challengeEnforceable: raw["challengeEnforceable"] === true,
-        // Task 041's provenance marker. Absent on a build talking to a pre-041 API,
-        // which is why both default towards "nothing to disclose" rather than towards
-        // showing a tag the API never actually promised.
+        /** Absent provenance must not claim an API disclosure the response never made. */
         draftAgentAssisted: raw["draftAgentAssisted"] === true,
         draftUpdatedAt: typeof raw["draftUpdatedAt"] === "string" ? raw["draftUpdatedAt"] : null,
-        // Task 070's switch, as a statement about this form. Defaults towards **off**, so
-        // a build talking to a pre-070 API shows no rule rather than claiming one the API
-        // will not enforce.
+        /** Absent two-person enforcement must not promise protection the API did not report. */
         requiresSecondApprover: raw["requiresSecondApprover"] === true,
-        // Defaults towards **off** for the same reason: no write offered that the API would
-        // refuse.
+
         canWriteDraft: raw["canWriteDraft"] === true,
         ...readWorkflow(raw["workflow"]),
       },
     };
   });
 
-/**
- * `PUT /admin/forms/{id}/draft` - advisory save: an inconsistent draft still stores.
- *
- * `agentAssisted` is omitted rather than sent `false` on every ordinary keystroke
- * autosave - task 041's marker is something the accept path asserts, not something
- * every ordinary edit disclaims. The response's own `agentAssisted` and `updatedAt`
- * are read back rather than assumed: whether this draft still carries the marker (and
- * what its fresh `clientState` token is, for the next assist call) is the server's
- * answer, not this app's guess.
- *
- * **One accept carrying proposed questions goes to a different endpoint** (issue
- * #823): `POST .../draft/assist/accept` stores the draft and creates those question
- * drafts in one transaction, because a draft that pins a question nothing created is
- * the defect that route exists to close. Choosing between the two here is proxy
- * routing, not business logic (R2) - which endpoint answers "save this accept" is a
- * fact about the API, and both answer with the same body.
- */
+/** Ordinary autosave omits agentAssisted so it cannot clear provenance. Accepts with new questions use the atomic accept endpoint to avoid storing pins to questions never created. */
 export async function saveDraft(
   session: AdminSession,
   formId: string,
@@ -254,16 +166,7 @@ export async function saveDraft(
   };
 }
 
-/**
- * `POST /admin/forms/{id}/draft/assist` - task 041's SSE turn.
- *
- * Returns the raw upstream `Response`, exactly as {@link exportResponses} does in
- * `lib/server/responses.ts`: the product of this call is an event stream for the
- * route handler to relay unbuffered, not a value for this module to parse. Parsing an
- * SSE body is `lib/forms/assist-stream.ts`'s job, and it runs in the browser, not
- * here - buffering the whole turn in this process just to re-serialize it would turn
- * a stream into a wait.
- */
+/** Relay the raw SSE response without buffering; parsing and diffing happen in the browser. */
 export function assist(
   session: AdminSession,
   formId: string,
@@ -281,12 +184,7 @@ export function assist(
   });
 }
 
-/**
- * `POST /admin/assist` - one turn about a screen with no form in its route.
- *
- * The body carries a screen id, the route's own ids and the conversation id, and never
- * context content: the API builds the screen's facts itself under the caller's grants.
- */
+/** Send route IDs and conversation ID, never context content; the API builds facts under the caller grants. */
 export function screenAssist(
   session: AdminSession,
   body: {
@@ -299,7 +197,6 @@ export function screenAssist(
   return adminApiFetch(session, "/assist", { method: "POST", body });
 }
 
-/** `POST /admin/forms/{id}/draft/validate` - dry run, no save. */
 export async function validateDraft(
   session: AdminSession,
   formId: string,
@@ -323,22 +220,13 @@ export async function validateDraft(
     data: {
       valid: result.data.valid === true,
       issues: parseIssues(result.data.issues),
-      // Same wire shape as an issue (code, message, structured path), so the same
-      // reader parses it and the panel renders it through the same entry (#123).
+
       warnings: parseIssues(result.data.warnings),
     },
   };
 }
 
-/**
- * `PATCH /admin/forms/{id}/settings` - a **partial** patch of the abuse-control settings.
- *
- * Partial matters here twice over. `minSubmitMs: null` means "use the deployment's
- * configured floor" and is a value, while omitting the key means "leave it alone"; and the
- * route's schema refuses a patch carrying neither key, so the caller assembles only what
- * changed rather than sending both controls every time (`actions.ts` is where that guard
- * sits, because it is the last place that knows what the author actually touched).
- */
+/** Null resets minSubmitMs to the deployment floor; omission leaves it unchanged. Send only touched settings because the API rejects an empty patch. */
 export async function updateSettings(
   session: AdminSession,
   formId: string,
@@ -362,14 +250,7 @@ export async function updateSettings(
   };
 }
 
-/**
- * `POST /admin/forms/{id}/draft/preview-condition` - the rule test bench.
- *
- * The unsaved draft travels with the request, so the bench answers the definition on the
- * author's screen rather than the last one persisted. The hypothetical answers are
- * answer-shaped and are handled under the answer rules (SEC-13, ADR-34): they go up, a
- * verdict comes back, and nothing here logs, stores or echoes them.
- */
+/** Send the unsaved draft so the bench answers the visible edit. Hypothetical answers must never be logged, stored or echoed here. */
 export async function previewCondition(
   session: AdminSession,
   formId: string,
@@ -377,12 +258,7 @@ export async function previewCondition(
     readonly definition: DraftForm;
     readonly ruleId: string;
     readonly answers: Readonly<Record<string, unknown>>;
-    /**
-     * The hypothetical instance ids per group, minted by the bench (074, ADR-42 §6.4). There
-     * is no session behind this route, so there is no live roster: the bench mints one from
-     * the count the author typed, and the same request's answer keys are qualified with those
-     * ids.
-     */
+    /** Preview has no session roster; mint hypothetical instance IDs and qualify this request answer keys with them. */
     readonly instances?: Readonly<Record<string, readonly string[]>>;
   },
 ): Promise<
@@ -411,16 +287,12 @@ export async function previewCondition(
       references: asStringList(result.data["references"]),
       rosters: parseRosters(result.data["rosters"]),
       targetGroupId: typeof targetGroupId === "string" ? targetGroupId : undefined,
-      // `undefined` and `[]` are DIFFERENT answers here and the distinction is the whole of
-      // the zero-instance case: absent means the rule is not per-instance at all, and empty
-      // means it is and the group has no instance. Collapsing them would make a rule the
-      // bench could not answer indistinguishable from one it answered about nothing.
+      /** Undefined means not per-instance; an empty list means a per-instance rule over zero instances. Keep those outcomes distinct. */
       instanceOutcomes: parseInstanceOutcomes(result.data["instanceOutcomes"]),
     },
   };
 }
 
-/** The roster projection both preview routes echo, read off the bytes. */
 function parseRosters(raw: unknown): readonly PreviewRoster[] {
   if (!Array.isArray(raw)) return [];
   const parsed: PreviewRoster[] = [];
@@ -433,7 +305,6 @@ function parseRosters(raw: unknown): readonly PreviewRoster[] {
   return parsed;
 }
 
-/** One verdict per instance, or `undefined` when the rule is not evaluated per instance. */
 function parseInstanceOutcomes(raw: unknown): readonly InstanceOutcome[] | undefined {
   if (!Array.isArray(raw)) return undefined;
   const parsed: InstanceOutcome[] = [];
@@ -449,27 +320,14 @@ function parseInstanceOutcomes(raw: unknown): readonly InstanceOutcome[] | undef
   return parsed;
 }
 
-// --- publish, preview, versions and lifecycle (task 034) --------------------
-
-/**
- * `POST /admin/forms/{id}/draft/preview` - the dry-run compile the preview pane renders.
- *
- * The draft on the author's screen travels with the request (like validate and like the
- * rule bench) so the pane previews the unsaved edit rather than the last one persisted.
- * `answers` is the author's walk-through state and is handled under the answer rules
- * (SEC-13 / ADR-34): forwarded, never logged here, never stored, never echoed back.
- */
+/** Preview the unsaved edit; walk-through answers are forwarded only, never logged, stored or echoed here. */
 export async function previewDraft(
   session: AdminSession,
   formId: string,
   request: {
     readonly definition: DraftForm;
     readonly answers: Readonly<Record<string, unknown>>;
-    /**
-     * The hypothetical instance ids per group (074, ADR-42 §6.5). The preview has no session
-     * and therefore no live roster, so the pane mints one from each group's own `min` or from
-     * a count the author types, and the answers it sends are keyed with those ids.
-     */
+    /** Preview has no session roster; mint hypothetical instance IDs from each group count and qualify answers with them. */
     readonly instances?: Readonly<Record<string, readonly string[]>>;
   },
 ): Promise<ApiResult<DraftPreview>> {
@@ -500,16 +358,7 @@ export async function previewDraft(
   };
 }
 
-/**
- * The ADR-28 view list the preview endpoint forwards from the kernel (task 076), or
- * `undefined` when the API omitted it.
- *
- * Absent and empty are different answers, exactly as for `instanceOutcomes`: the API omits
- * the field for a draft with no repeating group, and `previewViews` reads that absence as
- * "walk the visible steps". Collapsing absent into `[]` would make such a draft preview no
- * page at all, and dropping the field (which this read did until local UX list A2) made
- * every per-instance group preview as one page drawing every instance.
- */
+/** Absent views means walk visible steps; empty views means no pages. Preserve the distinction for non-repeating drafts. */
 function parseStepViews(
   raw: unknown,
 ): readonly { readonly stepId: string; readonly instanceId: string | null }[] | undefined {
@@ -525,14 +374,7 @@ function parseStepViews(
   return parsed;
 }
 
-/**
- * `GET /admin/forms/{id}/versions/{v}` - one frozen snapshot, whole.
- *
- * The compiled documents come back out of the version's JSONB, which is the entire point
- * of the history screen: it renders the **stored** audit copy, so what it shows is what
- * respondents on that version actually saw (ADR-18). There is deliberately no call to the
- * draft-preview endpoint anywhere on this path.
- */
+/** Render stored compiled snapshots, never a fresh draft compilation: history must show what respondents saw. */
 export async function getFormVersion(
   session: AdminSession,
   formId: string,
@@ -562,21 +404,7 @@ export async function getFormVersion(
   };
 }
 
-/**
- * `POST /admin/forms/{id}/close` and `/reopen` - the door for *new* sessions only, **in
- * one environment** (Q18, task 066).
- *
- * R1 is the thing the UI copy has to teach here: closing stops new sessions and leaves
- * every in-flight one to finish on the version it pinned. Q18 adds the second half, which
- * the copy also has to carry: it stops them **in this environment**, so closing `prod`
- * leaves a `test` run serving and the reverse holds.
- *
- * The environment is sent in the **body** rather than left to the switcher's header, which
- * the one door attaches to every call. That is deliberate and is the same choice the
- * release and mint bodies make: stopping intake is an operational act with a consequence,
- * so the environment is a value this call states and the confirmation restates (Q6),
- * never one it inherits from a header the operator may not have been looking at.
- */
+/** Closing affects new sessions only in the explicit body environment. Existing sessions remain pinned; never inherit this consequential target only from a switcher header. */
 export async function setFormStatus(
   session: AdminSession,
   formId: string,
@@ -602,42 +430,7 @@ export async function setFormStatus(
   };
 }
 
-// --- the pinnable library ---------------------------------------------------
-
-/**
- * Every question the builder can pin, with every version it could pin to: **one read**
- * (issue #684).
- *
- * The list route's default summary reports only the **latest** version and its status
- * (`types.ts` explains why that is not enough): a question whose latest version is a
- * draft on top of a published v1 would otherwise look unpinnable while v1 sits there,
- * pinnable. `?versions=all` is the route answering that question directly, and the whole
- * library arrives in one round trip.
- *
- * ## What this replaced, and why the shape was the defect rather than the code
- *
- * This used to be the list read plus a **detail read per question**, run together with
- * `Promise.all` and carefully degraded. `1 + N` API calls on every builder page load,
- * with N the size of the entire library and no filter, no limit and no pagination in
- * sight - so a three-hundred-question library meant three hundred and one round trips
- * before the author had opened the picker at all. The API-side fan-out was the same shape
- * one layer down: `listVersionsForQuestions` now reads every version in one query.
- *
- * The reasoning for the old shape was correct and its failure handling was careful; what
- * was missing was a route that could answer the question. `add-question-poc.html` names
- * the same defect from the design side ("ships the whole library to the browser and
- * filters it client-side, which does not hold up against a library of several hundred
- * questions") and assumes a server-driven picker. This is the half of that which removes
- * the round trips; the picker's own search is still client-side over what it is given,
- * and that is issue #660's ground rather than this one's.
- *
- * ## Tolerance is kept, and it moves with the read
- *
- * A question the response carries **without** a version list is dropped rather than
- * failing the whole screen, exactly as a failed detail read was: a library the author can
- * mostly use beats a builder that will not open. Only a failure of the read itself fails
- * the call, because that one leaves nothing to show.
- */
+/** Ask for versions=all in one read: a newer draft must not hide an older published, pinnable version. Drop unreadable entries rather than failing a usable library. */
 export async function loadPinnableQuestions(
   session: AdminSession,
 ): Promise<ApiResult<readonly PinnableQuestion[]>> {
@@ -664,8 +457,6 @@ export async function loadPinnableQuestions(
   }
   return { ok: true, data: pinnable };
 }
-
-// --- reading the API's `unknown`s -------------------------------------------
 
 function asString(raw: unknown, fallback: string): string {
   return typeof raw === "string" && raw !== "" ? raw : fallback;
@@ -704,7 +495,6 @@ function parseReason(raw: unknown): PreviewReason | undefined {
   return PREVIEW_REASONS.find((reason) => reason === raw);
 }
 
-/** Only entries that are objects carrying the field this parser keys on survive. */
 function objectsWith(raw: unknown, key: string): readonly Record<string, unknown>[] {
   if (!Array.isArray(raw)) return [];
   return raw
@@ -714,13 +504,7 @@ function objectsWith(raw: unknown, key: string): readonly Record<string, unknown
     .filter((entry) => entry[key] !== undefined);
 }
 
-/**
- * Read the compiled documents out of a preview payload or a stored snapshot.
- *
- * `root` is carried through untouched: this app cannot validate an A2UI node tree and
- * must not try, because the only thing that knows what a node means is the renderer's
- * registry. A document with no `stepId` is dropped rather than rendered nameless.
- */
+/** Carry A2UI roots untouched: only the renderer registry knows their meaning. Drop documents with no stepId. */
 function parseCompiledSteps(raw: unknown): readonly CompiledStep[] {
   return objectsWith(raw, "stepId")
     .filter((entry) => typeof entry["stepId"] === "string")
@@ -736,29 +520,12 @@ function parseVersions(raw: unknown): readonly FormVersionSummary[] {
       compilerVersion: asString(entry["compilerVersion"], ""),
       a2uiSpecVersion: asString(entry["a2uiSpecVersion"], ""),
       semanticsVersion: asString(entry["semanticsVersion"], ""),
-      // The author the two-person rule compares against (Q51, task 070). Null rather than
-      // an empty string when the API sent none: "unknown" and "nobody" are different
-      // answers, and the release screen says so.
+      /** Null preserves unknown author identity; empty text would claim nobody authored it. */
       publishedBy: typeof entry["publishedBy"] === "string" ? entry["publishedBy"] : null,
     }));
 }
 
-/**
- * Read the stored draft into the builder's working shape.
- *
- * The steps and the rules are read by `lib/forms/draft-payload.ts`, which is the ONE reader of
- * the draft bytes in this app and is shared with the assist path's `parseProposedDraft` (task
- * 074): the two were separate implementations of the same read and drifted in the same way,
- * both dropping a repeating group. Its docblock carries the whole account. What stays here is
- * the identity this route pins - `formId` and `defaultLocale` default to the route's own values
- * rather than being taken from the payload.
- *
- * Tolerant on purpose. The draft may be an open working document, a seed copied from the
- * newest published version, or the empty one `POST /forms` writes, and the builder has to
- * open on all three. Anything structurally unreadable becomes an empty draft rather than a
- * crash: an author who can see an empty builder can rebuild, and one looking at a stack
- * trace cannot.
- */
+/** Share the draft reader with assist parsing so repeating groups cannot drift between views. Route identity stays authoritative; unreadable working content degrades to an empty draft. */
 function parseDraft(raw: unknown, formId: string, defaultLocale: string): DraftForm | null {
   if (typeof raw !== "object" || raw === null) return null;
   const source = raw as Record<string, unknown>;
@@ -771,7 +538,6 @@ function parseDraft(raw: unknown, formId: string, defaultLocale: string): DraftF
   };
 }
 
-/** API-owned capabilities; absent responses keep the legacy single-environment UI. */
 function readWorkflow(raw: unknown): { workflow?: FormPublishingWorkflow } {
   if (raw === null || typeof raw !== "object") return {};
   const row = raw as Record<string, unknown>;

@@ -58,9 +58,8 @@ function row(value: {
 }
 
 /**
- * Store a proposed change pending. Call inside the caller's transaction, beside its
- * SEC-15 row: a proposal without the audit row recording who proposed it is the one
- * failure this control may not have.
+ * Store a proposed change pending. Call inside the caller's transaction, beside its audit row: a proposal
+ * without the audit row recording who proposed it is the one failure this control may not have.
  */
 export async function insertEndpointProposal(
   exec: Executor,
@@ -159,7 +158,7 @@ export async function hasPendingEndpointProposal(
 
 /**
  * Claim a pending proposal for one confirming account, or `undefined` when it was not pending; never the
- * proposing account. Claim before the apply, in the same transaction as the SEC-15 row, or production data
+ * proposing account. Claim before the apply, in the same transaction as the audit row, or production data
  * could flow to a new URL with no record of who agreed.
  */
 export async function confirmEndpointProposal(

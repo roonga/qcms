@@ -2,7 +2,6 @@ import { isoDateLocale } from "@roonga/qcms-ui/native-submit";
 
 export const DEFAULT_LOCALE = "en-GB";
 
-/** Where and how to format: the deployment's locale and the zone to read a time in. */
 export interface FormatContext {
   readonly locale: string;
   readonly timeZone: string;
@@ -40,7 +39,6 @@ function instant(iso: string | null | undefined): Date | undefined {
   return Number.isNaN(parsed.getTime()) ? undefined : parsed;
 }
 
-/** Whether a value is an instant this module can render, for a `<time dateTime>`. */
 export function isInstant(iso: string | null | undefined): iso is string {
   return instant(iso) !== undefined;
 }

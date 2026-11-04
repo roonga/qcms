@@ -14,7 +14,7 @@ interface Reflow {
   readonly scrollWidth: number;
   readonly clientWidth: number;
   readonly overflow: number;
-  /** The widest element in the main column, which is what overflows first when one does. */
+
   readonly widestMainElementPx: number;
 }
 

@@ -300,8 +300,10 @@ QCMS_PORT_SEAT=0 pnpm verify:browser   # the Playwright suite (portal e2e + a11y
 | `codeql.yml`, `mirror-test-images.yml`                                          | Not local gates (GitHub-hosted analysis, `plan/` excluded / image mirroring)                         |
 | `scan` job in `images.yml` (grype over the three image SBOMs)                   | **`pnpm qcms:scan-images`** - deliberately not in `verify`, see `docs/operations.md`                 |
 
-`pnpm check:comments` includes `apps/admin/e2e/support/`. Other admin paths remain
-excluded until their comment sweep is complete.
+`pnpm check:comments` covers authored JS/TS/CSS/JSON files across every application,
+package and tooling directory, root configuration and `.devcontainer/`.
+Vendored sources, generated scaffold mirrors and snapshots retain their source of truth.
+Infrastructure formats are reviewed manually; shell help extracted from comments remains executable content.
 
 `check:changeset` is new with this gate: it enforces the "Changeset for any change to a publishable package" merge requirement (issue #55, folded into #19), locally and in CI.
 

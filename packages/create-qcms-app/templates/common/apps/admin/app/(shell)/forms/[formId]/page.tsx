@@ -24,50 +24,11 @@ import {
   validateDraftAction,
 } from "../actions";
 
-/**
- * One form's builder (task 033; screen contract `admin-form-builder.md`).
- *
- * A server component that does three things and hands over: load the form, load the
- * library it can pin from, and bind the four mutations to this route's form id. Everything
- * after that is `FormBuilder`, which owns the working draft (the component contract's
- * single state owner) and receives the actions as props.
- *
- * ## Why the actions arrive as props rather than as imports
- *
- * `FormBuilder` is a `"use client"` module, and the import-surface test forbids a client
- * module from value-importing anything under `lib/server/`. Binding here keeps that line
- * intact and does something better besides: `formId` comes from the **route**, so a
- * client cannot aim an autosave at a form other than the one on screen, whatever it puts
- * in the payload.
- *
- * ## Two reads, one round trip
- *
- * The detail read and the library read are independent, so they run together. The library
- * is the expensive one (a list read plus a detail read per question, `lib/server/forms.ts`
- * explains why the list alone is not enough), and a builder that will not open because the
- * *question* library is unavailable would be the wrong failure: the form's own steps and
- * rules are all still editable. So a library failure renders as a notice above a working
- * builder, while a failure to load the form itself is a 404 or an error.
- *
- * The library reaches the builder as a `ReadState` (`lib/read-state.ts`, issue 543) rather
- * than as `ok ? data : []` (issues 572, 544). An empty library is not a neutral stand-in
- * on this screen: every pin lookup misses against one, so the collapsed form used to tag
- * every question in the form "Version not found" and offer a picker saying no published
- * version matched a search the author had not typed. Both are claims about the library,
- * and the read that would have supported them is the one that failed. The builder keeps
- * everything that edits the DRAFT, which was read successfully.
- */
+/* Bind formId from the route, not the payload. A library failure leaves the successfully loaded draft
+   editable. */
 
-/**
- * Seed the working draft's title from the create screen's `?title=`.
- *
- * `POST /admin/forms` takes an identity (`formId`, `slug`, `defaultLocale`) and no title,
- * because a title belongs to the *definition* and a definition with no steps is not one
- * the kernel would accept yet. The create form still asks for a title, because that is
- * the moment an author has one in mind, so it travels in the query string and lands in
- * the draft here. Only an entirely empty title is seeded: anything already stored is the
- * author's and is never overwritten by a stale link.
- */
+/* The create endpoint accepts identity only; seed the title through the URL without overwriting a stored
+   title. */
 function seedTitle(detail: FormDetail, title: string): FormDetail {
   if (title === "" || detail.draft === null) return detail;
   if (Object.values(detail.draft.title).some((text) => text !== "")) return detail;
@@ -82,7 +43,6 @@ function firstValue(raw: string | string[] | undefined): string {
   return value ?? "";
 }
 
-/** The browser-tab title for this route (issue #536): the section, and the form it belongs to. */
 export async function generateMetadata({
   params,
 }: {
@@ -106,9 +66,6 @@ export default async function FormBuilderPage({
   const [detail, library, resolved] = await Promise.all([
     getForm(session, formId),
     loadPinnableQuestions(session),
-    // Every confirmation on this screen names the operator's selected environment, so the
-    // screen has to know which one that is. The request's one resolution, the same answer
-    // the API header carries, so the status read above and the copy below agree.
     resolvedEnvironment(session),
   ]);
   const shown = shownEnvironment(resolved);
@@ -130,42 +87,20 @@ export default async function FormBuilderPage({
 
   return (
     <div className="flex flex-col gap-6">
-      {/* THE BREADCRUMB IS GONE FROM THIS SCREEN TOO (§7.0 ruling 3, issue #1116). It
-          stood here because it was about the ROUTE, which does not change when the rail
-          switches what the column is showing, and its last crumb named the screen through
-          `currentScreenName`. The way back is the rail Header's back link now, and that
-          function is `lib/forms/screen-name.ts` - still the one answer the builder's own
-          `<h1>` and the rail's marked row both read.
-
-          What followed it - the form's name, its identity line and where its draft came
-          from - is about the form, so it is handed to the builder and rendered on the
-          form's own screen (Code Owner, 2026-08-26). */}
       {!library.ok && (
         <Alert variant="warning">
           {t("forms.error.libraryFailed", { message: library.message })}
         </Alert>
       )}
 
-      {/* CLOSE/REOPEN AND THE WAY TO THE WIZARD RIDE INSIDE THE BUILDER on the screen that carries the form's own details, because that is
-          what they act on: they close the FORM, and standing them above a column that is
-          usually showing one step said they were about the step.
-
-          Passed as a node rather than imported by the builder, which keeps `FormActions`
-          a server component holding its own bound action - a client component cannot bind
-          a server action. */}
+      {/* Pass FormActions as a node so its bound server action stays outside the client builder. */}
       <FormBuilder
         detail={form}
         library={readState(library)}
-        // Read on the request rather than after mount, so a screen that will not show the
-        // notice never renders it and then takes it away.
         concurrentNoticeRead={isConcurrentNoticeDismissed(
           (await cookies()).get(CONCURRENT_NOTICE_COOKIE)?.value,
         )}
         formMeta={
-          // One muted line of bare values. They were three labelled lines - "Form ID:",
-          // "Default locale:", "Status:" and then the draft's origin on its own - which is
-          // a lot of chrome for facts an author reads once and then never looks at again.
-          // The values say what they are: an id looks like an id, and a status is a word.
           <p className="text-sm text-(--color-text-muted)">
             {form.formId} · {form.defaultLocale} · {t(`forms.status.${form.status}`)} ·{" "}
             {t(`forms.builder.draftSource.${form.draftSource}`)}
@@ -177,8 +112,7 @@ export default async function FormBuilderPage({
             formId={form.formId}
             slug={form.slug}
             status={form.status}
-            // The environment this render showed travels with the action, so a tab another
-            // tab has since switched is refused rather than obeyed (A1).
+            // Bind the displayed environment so another tab's switch causes refusal rather than a mutation elsewhere.
             setStatus={setFormStatusAction.bind(null, form.formId, shown)}
             environment={shown ?? t("environment.unknown")}
           />

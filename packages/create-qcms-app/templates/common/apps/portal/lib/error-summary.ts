@@ -5,9 +5,8 @@ import { authorMessageFor } from "./validation-message";
 import { instanceLabels, messagesOf, questionLabels, questionPositions } from "./visible";
 
 export interface ErrorSummaryEntry {
-  /** The anchor target is `#<questionId>`. */
   readonly questionId: string;
-  /** The link text, and therefore its accessible name. */
+
   readonly message: string;
 }
 

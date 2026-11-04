@@ -19,18 +19,7 @@ import { TEST_ENVIRONMENT_STORAGE } from "./support/environment.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 import { waitForHydration } from "./support/hydration.js";
 
-/**
- * Criterion 11 on the question library and one question's detail screen: all five
- * library kinds confirmed alone and inside a plan, a cancel that creates nothing, and the
- * link `question.create` and `question.newVersion` offer to what they made.
- *
- * ## Why the lifecycle runs on questions this spec created
- *
- * Save, publish, deprecate and the next draft are facts about one question's own version
- * history, and each is refused in the wrong state: a published version cannot be
- * published again and a deprecated one cannot be deprecated. So each block below starts
- * from a question created in that block, at draft v1, and walks it forward once.
- */
+// Lifecycle actions require fresh draft-v1 fixtures: publish and deprecate refuse incompatible states.
 
 test.use({ storageState: TEST_ENVIRONMENT_STORAGE });
 
@@ -40,7 +29,6 @@ const EMAIL = uniqueAdminEmail("agentcards083questions");
 
 const RUN = Date.now().toString(36);
 
-/** One directive word per block, so no two blocks propose the same id (R6). */
 const CREATED = `${RUN}c`;
 const LIFECYCLE = `${RUN}l`;
 const PLANNED = `${RUN}p`;
@@ -59,10 +47,6 @@ function versionLink(page: Page, version: number): Locator {
   return page.getByRole("link", { name: new RegExp(`Version ${String(version)}`, "u") });
 }
 
-/**
- * Create one question through the assistant and open it. The created link is the card's
- * own way on, so following it is both the fixture step and an assertion about the card.
- */
 async function createAndOpen(page: Page, word: string): Promise<void> {
   await page.goto(library(word));
   await openPanel(page);

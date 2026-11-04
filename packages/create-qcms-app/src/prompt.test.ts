@@ -5,7 +5,6 @@ import { promptMissing, type Asker } from "./prompt.js";
 
 const CWD = "/workspace";
 
-/** An asker that replays a script of answers and records what it was asked. */
 function scriptedAsker(answers: readonly string[]): Asker & { asked: string[] } {
   const asked: string[] = [];
   let index = 0;
@@ -23,7 +22,6 @@ function scriptedAsker(answers: readonly string[]): Asker & { asked: string[] } 
   };
 }
 
-/** Enter pressed through every prompt. */
 const ALL_EMPTY = ["", "", "", "", ""];
 
 describe("promptMissing", () => {

@@ -1,43 +1,6 @@
 import type { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-/**
- * The export download's filter parsing (issue 551).
- *
- * ## What this pins
- *
- * The route used to hand `version`, `from` and `to` to the API exactly as they arrived,
- * which is what the response browser did before issue 521 replaced it with a validated
- * parse. Two paths asking the same question of the same three parameters and answering
- * it differently is what produces divergence later, so both now read the validators in
- * `lib/ops/response-filters.ts` and agree on what a filter is.
- *
- * They deliberately disagree on what happens to a value that is *not* one, and the
- * three refusal tests below are that decision written down: the browser drops it and
- * says so in a notice, the export refuses outright. An export has no notice to render,
- * and its product is a file that outlives the URL that made it - a CSV silently wider
- * than the range its requester asked for is a false claim someone keeps, which is worse
- * than the error they would have read immediately.
- *
- * ## Why this layer
- *
- * A route handler has no rendered surface, so no browser assertion can see which query
- * string reached the API. Calling the exported `GET` with the upstream call stubbed and
- * asserting over both the request it built and the `Response` it returned is the
- * highest layer that can see either (ADR-23's "highest layer that exists for it"). The
- * pure parser underneath is pinned separately in `lib/ops/ops.test.ts`.
- *
- * ## Red-first
- *
- * Against the pre-change route: the four refusal tests fail (`GET` answered 200 and
- * called the API, because an unparseable value was forwarded verbatim), the
- * canonicalization test fails (`?version=0001` travelled as `0001` and named the file
- * `frm_intake-v0001-responses.csv`), and the bare-day test fails (`from=2026-07-01`
- * travelled unwidened). The two control tests - a valid dialog-shaped range, and no
- * filters at all - passed before and must still pass, because a fix that refused
- * everything would satisfy the refusals and destroy the route.
- */
-
 const SESSION = {
   userId: "u_1",
   email: "admin@example.test",
@@ -47,14 +10,8 @@ const SESSION = {
   token: "tok_test",
 };
 
-/** Every upstream call this file's `GET` makes, in order, with its filter argument. */
 const exportCalls: Array<Record<string, unknown>> = [];
 
-/**
- * What the API is pretending to answer with. Mutable because the long shape of a form
- * with a repeating group comes back as `application/zip` (task 075), and the download's
- * name has to follow what arrived rather than what was asked for.
- */
 let upstreamContentType = "text/csv; charset=utf-8";
 
 vi.mock("@/lib/server/session", () => ({
@@ -74,7 +31,6 @@ vi.mock("@/lib/server/responses", () => ({
 
 const { GET } = await import("./route.ts");
 
-/** A GET at the export route, carrying `search` verbatim. */
 function get(search: string): Promise<Response> {
   const request = {
     nextUrl: new URL(`https://admin.example.test/forms/frm_intake/export${search}`),
@@ -82,7 +38,6 @@ function get(search: string): Promise<Response> {
   return GET(request, { params: Promise.resolve({ formId: "frm_intake" }) });
 }
 
-/** The refusal's envelope, which is the API's own shape (`{ error: { code, message } }`). */
 async function envelope(response: Response): Promise<{
   error: { code: string; message: string; details?: { invalid?: string[] } };
 }> {
@@ -128,9 +83,6 @@ describe("export route: what it forwards", () => {
 
     expect(exportCalls[0]).toMatchObject({ version: "1" });
     expect(response.headers.get("content-disposition")).toBe(
-      // The environment is in the name and in no column (Q8, task 067). `prod` here is
-      // the cookie's default, which is also what `adminApiFetch` sent as the
-      // `x-qcms-environment` header, so the name and the rows agree by construction.
       'attachment; filename="frm_intake-prod-v1-responses.csv"',
     );
   });
@@ -178,13 +130,6 @@ describe("export route: what it refuses", () => {
     expect((await envelope(response)).error.details?.invalid).toEqual(["version", "from"]);
   });
 
-  /**
-   * The narrowing to whole days rejects input the API would have served, so the refusal
-   * has to be actionable without reading this app's source. The instant spelling is
-   * named on purpose: a caller who sent one needs to learn that instants are accepted at
-   * a day's edges, not that they are rejected outright, which is what a bare
-   * "must be YYYY-MM-DD" would tell them.
-   */
   it("says what each rejected parameter should have looked like", async () => {
     const response = await get("?format=csv&version=x&to=2026-07-31T12:00:00.000Z");
 
@@ -221,18 +166,12 @@ describe("export route: the CSV shape (task 075)", () => {
   });
 
   it("reads an unknown shape as the default rather than refusing the export", async () => {
-    // Coerced the way `format` is. A projection cannot make the file narrower than
-    // its requester asked for, so it is not the class of untruth `parseExportFilters`
-    // refuses over, and the long shape is what an absent parameter already means.
     const response = await get("?format=csv&version=2&shape=tall");
     expect(response.status).toBe(200);
     expect(exportCalls[0]).toMatchObject({ shape: "long" });
   });
 
   it("names a .zip when the API answered with one", async () => {
-    // The long shape of a form with a repeating group is responses.csv plus one file
-    // per group. Offering it as `.csv` would hand an operator an archive their
-    // spreadsheet opens as nothing.
     upstreamContentType = "application/zip";
     const response = await get("?format=csv&version=2");
     expect(response.headers.get("content-type")).toBe("application/zip");

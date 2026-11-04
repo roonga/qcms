@@ -434,7 +434,6 @@ function reviewTarget(input: {
   };
 }
 
-/** Every reason one target refuses one candidate, from conditions already decided. */
 function blockersFor(input: {
   readonly prerequisite: readonly string[];
   readonly prerequisiteCode: string;
@@ -519,7 +518,6 @@ async function heldEnvironments(
   return held;
 }
 
-/** The rule set as the configuration reads and writes it. */
 type RuleInput = {
   readonly environment: string;
   readonly requiresPriorReleaseIn: readonly string[];
@@ -701,7 +699,6 @@ function validateWorkflowRules(rules: readonly RuleInput[], served: readonly str
   }
 }
 
-/** The first environment found on a cycle of prerequisite edges. */
 function findCycle(rules: readonly RuleInput[]): string | undefined {
   const edges = new Map(rules.map((rule) => [rule.environment, rule.requiresPriorReleaseIn]));
   const state = new Map<string, "open" | "done">();

@@ -10,28 +10,7 @@ import { diffDefinitions, type DiffRow } from "@/lib/forms/version-diff";
 import type { FormVersionSummary } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
 
-/**
- * The published-version list and the definition diff (task 034; screen contract "version
- * history").
- *
- * ## Immutability, made visible
- *
- * The table is the audit record: every version, when it was frozen, and the three stamps
- * that say which engine froze it (`compilerVersion`, `a2uiSpecVersion`,
- * `semanticsVersion`). Those columns are not trivia - they are what makes ADR-18's promise
- * checkable, because they name the exact renderer generation a stored document was
- * compiled for.
- *
- * ## Why the diff is here and the render is a route
- *
- * Comparing two definitions is a pure client-side read of data the page already has, so it
- * happens in place. Viewing a version renders its **stored compiled documents**, which is
- * a separate read of a separate resource, so it is its own address. That split also keeps
- * the promise exit criterion 4 checks: nothing on this screen or the version screen ever
- * calls the draft-preview endpoint, because history shows the audit copy and a
- * recompilation would be a different document.
- */
-/** Which versions the table shows. `all` is the default, so nothing is hidden by surprise. */
+/* History renders stored compiled documents; recompilation would produce different audit evidence. */
 type Filter = "all" | "released";
 
 export function VersionHistory({
@@ -42,30 +21,9 @@ export function VersionHistory({
   availableIn = {},
 }: {
   readonly formId: string;
-  /** Newest first, as the detail read returns them. */
   readonly versions: readonly FormVersionSummary[];
-  /** The frozen definition of each version, for the diff. Keyed by version number. */
   readonly definitionsByVersion: Readonly<Record<string, unknown>>;
-  /**
-   * Which environments each version has reached, keyed by version number (ADR-40, task
-   * 065). A version absent from this map was released nowhere.
-   *
-   * It defaults to empty rather than being required, because a form with no release at all
-   * is the ordinary state of a form an author has just published to: the column then says
-   * "nowhere" for every row, which is the honest answer and the thing the author needs to
-   * know before they go looking for their form in front of a respondent.
-   */
   readonly releasedBy?: Readonly<Record<string, readonly string[]>>;
-  /**
-   * Which environments each version is releasing **now**, keyed by version number. A version absent from this map is available nowhere.
-   *
-   * Separate from `releasedBy` because the two answer different questions and only one of
-   * them belongs in a column. `releasedBy` is "has reached", which is the right basis for
-   * the filter: a version released and later replaced still reached that environment, and
-   * a filter that hid it would be a worse answer than the unfiltered list. Available in is
-   * "is serving now", which is what an operator reads to decide whether a respondent is
-   * being shown this version.
-   */
   readonly availableIn?: Readonly<Record<string, readonly string[]>>;
 }) {
   const [older, setOlder] = useState<string>("");
@@ -77,11 +35,6 @@ export function VersionHistory({
     label: t("forms.version.value", { version: version.version }),
   }));
 
-  // The second churn mitigation finding 2 accepted, and it is presentation only: every
-  // iteration an author tries in a non-prod environment is an immutable published version
-  // and R1 keeps it, so a week of iterating leaves a long list. **The default shows every
-  // version**, so nothing is hidden by surprise, and the filter is a view of the same rows
-  // rather than a different read.
   const shown =
     filter === "released"
       ? versions.filter((version) => (releasedBy[String(version.version)] ?? []).length > 0)
@@ -105,35 +58,6 @@ export function VersionHistory({
 
   return (
     <div className="flex flex-col gap-6">
-      {/* The scroll box, not the page: five stamp columns of monospace do not fit a
-          390px viewport, and a table that made the page body scroll sideways would fail
-          WCAG 2.2 AA SC 1.4.10 Reflow. `qcms-table` is the app's one table family
-          (issue 514).
-
-          Issue 558 gave this screen the wide cap and re-examined the box, because the
-          audit had it down as a device this component added to survive `max-w-5xl`
-          (`plan/admin-ux-audit.md` §3.5) and therefore as something width would retire.
-          It stays, for two reasons that are both older than the cap. The `overflow-x`
-          has not belonged to this component since issue 514 moved it onto `.qcms-table`,
-          the family class every admin table in the app wears, so there is nothing here
-          to remove that would not be a change to all of them. And the reason it was
-          written was the 390px viewport rather than the cap, which is the sentence
-          above: more room at 1280 does nothing for a phone. At the wide cap the box is
-          simply inert on a desktop, since `overflow-x: auto` scrolls only what
-          overflows.
-
-          Issue 570 gives the box a second line of defence at phone width, which the
-          sentence above had no way to ask for while the markup came from the kit: the
-          three engine stamps DROP at `--bp-compact` (§2). They describe the row rather
-          than identifying it, and they are the widest thing in it by a distance. Version
-          and Published stay, and the Version column never drops anywhere
-          (`plan/admin-mobile-stance.md`, item 5). No `min-inline-size` is declared here,
-          so there is none to reset at the boundary, and with the stamps gone the scroll
-          container is the fallback rather than the default experience. */}
-      {/* The filter, above the table it narrows. A radio pair rather than a checkbox,
-          because "every version" is a real choice and not the absence of one: an author
-          who has turned the filter on and wants the whole list back is choosing, and a
-          checkbox would make the default state unnameable. */}
       <fieldset className="flex flex-wrap items-center gap-3" data-testid="qcms-history-filter">
         <legend className="text-sm text-(--color-text-muted)">
           {t("forms.history.filter.legend")}
@@ -178,37 +102,17 @@ export function VersionHistory({
               <th scope="col" className="qcms-cell--drop">
                 {t("forms.history.column.semanticsVersion")}
               </th>
-              {/* Where this version has reached. Not a `qcms-cell--drop`: under ADR-40 it
-                  is the column that answers "is this what a respondent sees", which is the
-                  question the Published column used to answer on its own and no longer
-                  does. */}
               <th scope="col">{t("forms.history.column.released")}</th>
-              {/* Where this version is serving right now, which is a different column from
-                  the one beside it and the one an operator acts on. */}
               <th scope="col">{t("forms.versions.availableIn")}</th>
               <th scope="col" className="qcms-cell--drop">
                 {t("forms.versions.publishedBy")}
               </th>
-              {/* A stable action on every row, deliberately not a variable Next action: a
-                  column whose control changed per row would make an operator read it before
-                  every press, and what to do next is the publish wizard's question. */}
               <th scope="col">{t("forms.versions.review")}</th>
             </tr>
           </thead>
           <tbody>
             {shown.map((version) => (
               <tr key={version.version} data-form-version={version.version}>
-                {/* The view link, folded back into the row it belongs to (issue 570).
-                    It used to be a separate list under the table, because a kit table
-                    cell is a string and a row holding an anchor was not something the
-                    vendored component rendered. The list was a defensible workaround
-                    and it is still a worse answer than the row: it repeated every
-                    version number a second time, it put the control an arbitrary
-                    distance from the data it acted on, and a screen reader walking the
-                    table found no way out of it at all. `forms.history.view` carries
-                    the accessible name so the link announces "View v3" rather than the
-                    bare "v3" the cell shows, which is the same treatment the response
-                    browser gives its session ids. */}
                 <th scope="row" className="qcms-cell--num">
                   <Link
                     className="qcms-text-link"
@@ -218,8 +122,6 @@ export function VersionHistory({
                     {t("forms.version.value", { version: version.version })}
                   </Link>
                 </th>
-                {/* The operator's own calendar day (issue #582); see the note on the
-                    question library's Created column. */}
                 <td className="qcms-cell--num">
                   <OperatorDay iso={version.publishedAt} />
                 </td>
@@ -256,20 +158,6 @@ export function VersionHistory({
         </table>
       </div>
 
-      {/* An `h2`, not an `h3` (issue #540). This panel sits directly under the page's
-          `<h1>` with nothing between them, so the level was skipped and the heading
-          outline - the structure a screen-reader user navigates an admin screen by -
-          had a hole in it. axe's `heading-order` rule reported it in every mode from
-          the day issue #511 switched the rule on, and it was muted in that file's debt
-          register while the fix waited for this issue; both entries are deleted with
-          this change, which is what puts the compare panel back under the sweep.
-
-          Promoted rather than given a new `h2` above it: the two content regions on
-          this screen are the version table and this panel, the table is named by its
-          own `<caption>`, and inventing a heading for it to make this one a legal `h3`
-          would add a landmark to the outline rather than correct it. The panel's own
-          `aria-labelledby` still points here, and the visual size is set by the class
-          rather than by the tag, so nothing on screen moves. */}
       <section aria-labelledby="qcms-diff-heading" className="flex flex-col gap-3">
         <h2 id="qcms-diff-heading" className="text-base font-semibold text-(--color-text)">
           {t("forms.history.compare")}
@@ -309,20 +197,12 @@ export function VersionHistory({
   );
 }
 
-/** The one-line description of what the diff found. */
 function diffSummary(diff: ReturnType<typeof diffDefinitions>): string {
   if (diff.tooLarge) return t("forms.history.compareTooLarge");
   if (diff.identical) return t("forms.history.compareIdentical");
   return t("forms.history.compareCounts", { added: diff.added, removed: diff.removed });
 }
 
-/**
- * The side-by-side diff.
- *
- * Each row carries its `+`/`-` marker as text and its kind as a visually-hidden word, so
- * the diff is readable with colour off, in high contrast, and by a screen reader. The
- * tints are the secondary signal only (WCAG 1.4.1).
- */
 function DiffView({
   older,
   newer,
@@ -342,20 +222,6 @@ function DiffView({
       <p className="text-sm text-(--color-text-muted)" data-testid="qcms-diff-summary">
         {summary}
       </p>
-      {/* THE SCROLL BOX BELOW IS FOCUSABLE, and that is WCAG 2.1.1 rather than taste
-          (issue #354). `.qcms-diff` is `overflow-x: auto` and JSON lines are long, so a
-          wide diff scrolls sideways - and a scroll container nothing can focus is one a
-          keyboard user cannot scroll at all. It is the same defect issue #309 fixed on
-          `.qcms-snippet`, one component over.
-
-          The `role` is load-bearing rather than decoration, and it predates this:
-          `aria-label` on a bare `div` is a prohibited attribute, so without a role the
-          accessible name is simply dropped and axe reports `aria-prohibited-attr`.
-
-          The axe sweep could not see any of it until the same issue gave it a fixture
-          diff that actually overflows (`e2e/a11y-axe.pw.ts`). `scrollable-region-focusable`
-          fires only on an element that really scrolls, so a fixture whose diff fits
-          reports a green that means nothing. */}
       {rows.length > 0 && (
         <div className="qcms-diff" role="group" aria-label={summary} tabIndex={0}>
           <ol className="qcms-diff-rows">
@@ -378,7 +244,6 @@ function DiffView({
   );
 }
 
-/** The catalog suffix naming a row's kind, so the key stays a literal the type checks. */
 function kindKey(row: DiffRow): "Added" | "Removed" | "Same" {
   if (row.kind === "added") return "Added";
   if (row.kind === "removed") return "Removed";

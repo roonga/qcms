@@ -28,13 +28,10 @@ describe("exemption matching", () => {
   });
 
   it("does not exempt a different port in an allowlisted file", () => {
-    // An exemption is for one port in one file, never a blanket pass for the file.
     expect(exemption(ANCHOR!.file, ANCHOR!.value + 1)).toBeUndefined();
   });
 
   it("keeps every allowlist entry a plain repo-relative path", () => {
-    // A leading `./` or `/` never matches, so the entry would look present while doing
-    // nothing.
     for (const rule of ALLOWED) {
       expect(rule.file.startsWith("/")).toBe(false);
       expect(rule.file.startsWith("./")).toBe(false);
@@ -43,8 +40,6 @@ describe("exemption matching", () => {
   });
 
   it("keeps every allowlist entry one the scan can actually reach", () => {
-    // A dead exemption reads as evidence the gate inspects that file. Replaying main()'s
-    // own decision per entry is what stops the list drifting back.
     const sanctioned = sanctionedPorts();
     const dead = ALLOWED.filter((rule) => {
       if (!existsSync(rule.file)) return true;

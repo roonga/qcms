@@ -31,7 +31,6 @@ import {
 } from "./support/publish.js";
 import { confirmLifecycle, createDraft, fillDate, optionIds } from "./support/questions.js";
 
-/** One UI journey, independent of forms-publish's serial fixtures: draft -> test -> prod. */
 const EMAIL = uniqueAdminEmail("promotion");
 const RUN = Date.now().toString(36);
 const CHOICE_SLUG = `e2e-promotion-choice-${RUN}`;
@@ -46,13 +45,6 @@ test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
 });
 
-/**
- * Promote the tested v1 into one destination through the publish wizard.
- *
- * It asserts the two things the wizard owes: the destination is chosen here and not taken
- * from the switcher, and a destination this caller cannot release into is absent from the
- * list rather than disabled.
- */
 async function releaseVersion(
   page: Page,
   formId: string,
@@ -74,7 +66,6 @@ async function releaseVersion(
   await expect(result.locator(`li[data-environment="${environment}"]`)).toBeVisible();
 }
 
-/** Check both rule outcomes, submit, and retain the session id for independent DB checks. */
 async function completeForm(page: Page, environment: "test" | "prod"): Promise<string> {
   const prefix = environment === "test" ? "/test" : "";
   await page.waitForURL(new RegExp(`${prefix}/s/ses_[^/]+$`, "u"));
@@ -136,14 +127,10 @@ test("publishes a draft, verifies it in test, then promotes the same version to 
 
   await page.goto(`/forms/${formId}`);
   await waitForHydration(page);
-  // The builder offers no publish of its own: one entry, and it is the way to the wizard.
+
   await expect(page.getByRole("button", { name: /^Publish/u })).toHaveCount(0);
   await expect(page.getByTestId("qcms-publish-entry")).toBeVisible();
 
-  // A draft is frozen and released to test in one confirmation, and PROD IS REFUSED in the
-  // same list: the default workflow forbids publishing a draft straight into production, so
-  // the wizard lists prod disabled with that as the reason rather than omitting it or
-  // letting the confirmation refuse it.
   await openPublishWizard(page, formId);
   await chooseSource(page, "The shared draft");
   await page.getByRole("button", { name: "Continue", exact: true }).click();
@@ -158,8 +145,7 @@ test("publishes a draft, verifies it in test, then promotes the same version to 
     ),
   ).toBeVisible();
   await expect(destinations.getByRole("checkbox", { name: "prod", exact: true })).toBeDisabled();
-  // Cancelling writes nothing, which is the property the whole wizard is built around.
-  // Back first, because leaving is offered on the step that has nothing behind it.
+
   await page.getByRole("button", { name: "Back", exact: true }).click();
   await page.getByRole("link", { name: "Cancel", exact: true }).click();
   await page.waitForURL(`**/forms/${formId}/versions`);
@@ -171,7 +157,6 @@ test("publishes a draft, verifies it in test, then promotes the same version to 
   await expect(released.locator('tr[data-environment="test"]')).toContainText("v1");
   await expect(released.locator('tr[data-environment="prod"]')).toContainText("Nothing released");
 
-  // Non-prod has no anonymous entry: mint a real environment-scoped link through admin.
   await page.goto(`/forms/${formId}/links`);
   await waitForHydration(page);
   await page.getByRole("button", { name: "Mint links", exact: true }).click();
@@ -184,11 +169,10 @@ test("publishes a draft, verifies it in test, then promotes the same version to 
   await expect(minted).toBeVisible();
   const testLink = new URL(await minted.locator("code").innerText());
   expect(testLink.pathname).toMatch(/^\/test\/l\//u);
-  // The API fixture uses an example public host; exercise its minted path on the harness portal.
+  // The API fixture mints an example public host; use its path against the harness portal.
   await page.goto(`${PORTAL_ORIGIN}${testLink.pathname}`);
   const testSession = await completeForm(page, "test");
 
-  // Return to admin on the same gated page. Promotion selects the tested v1 explicitly.
   await page.goto(`/forms/${formId}/versions`);
   await expect(released.locator('tr[data-environment="prod"]')).toContainText("Nothing released");
   await chooseEnvironment(page, "prod");
@@ -198,7 +182,7 @@ test("publishes a draft, verifies it in test, then promotes the same version to 
   await expect(page.getByRole("textbox", { name: "Title", exact: true })).toHaveCount(0);
   await page.goto(`/forms/${formId}/versions`);
   await releaseVersion(page, formId, "prod");
-  // The wizard ends on its own recorded outcome, so the summary is read back on Versions.
+
   await page.goto(`/forms/${formId}/versions`);
   for (const environment of ["test", "prod"]) {
     await expect(released.locator(`tr[data-environment="${environment}"]`)).toContainText("v1");

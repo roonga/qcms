@@ -1,7 +1,7 @@
 /**
  * The plaintext password must never reach statement text, which drizzle's error, stderr and the server log
- * all record (SEC-8): this module sends the SCRAM-SHA-256 verifier and runs every statement inside
- * {@link refuseWithoutStatement}.
+ * all record: this module sends the SCRAM-SHA-256 verifier and runs every statement inside {@link
+ * refuseWithoutStatement}.
  */
 
 import { sql } from "drizzle-orm";
@@ -87,10 +87,9 @@ async function scramVerifier(password: string): Promise<string> {
 }
 
 /**
- * Rethrows naming the act, its subject and the driver's complaint, with no statement
- * text, no bind parameters and no `cause`: `describeError` appends a cause's message to
- * the line it prints, so attaching drizzle's wrapper would put the statement back on an
- * operator's terminal (SEC-8).
+ * Rethrows naming the act, its subject and the driver's complaint, with no statement text, no bind
+ * parameters and no `cause`: `describeError` appends a cause's message to the line it prints, so attaching
+ * drizzle's wrapper would put the statement back on an operator's terminal.
  */
 export async function refuseWithoutStatement<T>(
   act: string,

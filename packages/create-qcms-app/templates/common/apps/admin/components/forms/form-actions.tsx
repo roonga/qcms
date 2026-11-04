@@ -12,19 +12,7 @@ import type { FormPublishingWorkflow } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
 import { unexpected } from "@/lib/ops/unexpected";
 
-/**
- * The form-level actions: the way to the publish wizard, and close/reopen (task 034; screen
- * contract "close/reopen").
- *
- * Publishing is the wizard's, so what is here is a link, gated by the same capability the
- * act is: a caller who may not publish sees no way to. The anchored work list a refusal
- * leaves is the builder's own validation panel, whose entries move focus to the rule, step
- * or pin at fault; only that screen renders those, so the wizard names the count and sends
- * the author back here.
- *
- * Close and reopen carry their environment, because the closed state is per (form,
- * environment) and an act performed against the wrong one is not undoable (Q6).
- */
+/* Close and reopen act in one environment; carry the environment the confirmation names. */
 export function FormActions({
   slug,
   formId,
@@ -39,18 +27,12 @@ export function FormActions({
   readonly slug: string;
   readonly formId: string;
   readonly status: "open" | "closed";
-  /** Bound by the page to the environment this screen shows; refused if that has changed. */
   readonly setStatus: (action: "close" | "reopen") => Promise<FormStatusState>;
-  /**
-   * The environment the operator's Q6 switcher had selected when this screen rendered, and
-   * the one the lifecycle confirmations name.
-   */
   readonly environment: string;
 }) {
   const [dialog, setDialog] = useState<"close" | "reopen" | null>(null);
   const [lifecycle, setLifecycle] = useState<FormStatusState>(IDLE_FORM_STATUS);
   const [isPending, startTransition] = useTransition();
-  // Close and reopen act in one environment, so they wait until one is known (A12).
   const environmentUnknown = useEnvironmentUnknown();
 
   const canPublish = !lifecycleOnly && workflow?.canPublish !== false;
@@ -63,8 +45,6 @@ export function FormActions({
             setLifecycle(state);
             if (state.status === "changed") setDialog(null);
           })
-          // The same trap as `runPublish`. The dialog stays open here, exactly as it does
-          // for a returned failure, because this dialog renders the lifecycle error itself.
           .catch(() => {
             setLifecycle({ status: "error", message: unexpected() });
           });
@@ -84,9 +64,6 @@ export function FormActions({
       </h2>
 
       <div className="flex flex-wrap items-center gap-2">
-        {/* The one publish entry. A link rather than a dialog: one
-            confirmation can name several destinations, each with its own transition and
-            eligibility to read first, and the act writes nothing until its last press. */}
         {canPublish && (
           <HeadingMarker control="builder.publish">
             <Link
@@ -126,8 +103,6 @@ export function FormActions({
         </p>
       )}
 
-      {/* Testid on the region rather than only on its contents, so the `aria-live` can be
-          asserted directly (#368; the ops surface got the same treatment in #359). */}
       <div
         aria-live="polite"
         className="flex flex-col gap-2"
@@ -160,10 +135,6 @@ export function FormActions({
           }}
         >
           <div className="flex flex-col gap-4">
-            {/* Q6 again, and since task 066 this is the environment the act is **about**
-                rather than only the one the operator is reading in: the closed state is per
-                (form, environment), so a confirmation that said nothing about where it
-                lands would be ambiguous rather than merely unhelpful. */}
             <p className="text-sm font-semibold" data-testid="qcms-lifecycle-environment">
               {t("environment.inThis", { environment })}
             </p>
@@ -201,7 +172,6 @@ export function FormActions({
   );
 }
 
-/** The verb on a lifecycle dialog's confirm button, naming the environment it acts in. */
 function confirmLabel(intent: "close" | "reopen", environment: string): string {
   return intent === "close"
     ? t("forms.lifecycle.confirmClose", { environment })

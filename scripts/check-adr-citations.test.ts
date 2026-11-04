@@ -22,8 +22,6 @@ describe("definedAdrs", () => {
       "| ADR-13 | Fetch-pure slices, see also ADR-33 | core |",
     ].join("\n");
 
-    // One number sits in prose and one in a title cell: a parser that scanned lines
-    // rather than leading cells would call both defined.
     expect([...definedAdrs(index)].sort()).toEqual(["1", "13"]);
   });
 
@@ -34,7 +32,6 @@ describe("definedAdrs", () => {
   it("reads the real index and finds a record for every number it lists", () => {
     const defined = definedAdrs(read("docs/adr/README.md"));
 
-    // The gate must never report a clean run because it parsed nothing.
     expect(defined.size).toBeGreaterThan(30);
     expect(defined.has("22")).toBe(true);
   });

@@ -2,20 +2,8 @@ import { messageForFormCode } from "../forms/errors.ts";
 import { parseIssues } from "../forms/issues.ts";
 import type { FormIssue } from "../forms/types.ts";
 
-/**
- * The one shape every admin screen renders an API answer in (tasks 032-034).
- *
- * It was `forms.ts`'s private helper until the secure-links proxy needed exactly the same
- * normalisation (034). Two callers is the moment to share rather than copy: a second
- * envelope reader would be a second place for the API's two error shapes to be handled
- * slightly differently, and the whole point of this type is that a screen has one error
- * path instead of two.
- *
- * It is presentation, not authority. Nothing here decides whether a request should have
- * succeeded; it reads what came back (R2).
- */
+/** Normalise presentation envelopes only; the API remains the authority on success and refusal. */
 
-/** Success carries the parsed payload; failure carries the API's code and its issues. */
 export type ApiResult<T> =
   | { readonly ok: true; readonly data: T }
   | {
@@ -25,16 +13,7 @@ export type ApiResult<T> =
       readonly issues: readonly FormIssue[];
     };
 
-/**
- * Read a non-2xx into the failure shape.
- *
- * Two envelopes exist and both have to be survivable: the API's own errors are
- * `{ error: { code, message, details } }`, while a request that fails a route's Zod schema
- * before any handler runs is answered by the validator middleware with a body carrying no
- * `code` at all. `details.issues` is where a 422 puts the kernel's `PublishError[]`, so a
- * rejected save arrives with the same issue list a successful one would have carried and
- * the panel renders it the same way.
- */
+/** Schema middleware can refuse without an error code. Kernel publish issues arrive in details.issues on 422 as well as in successful validation. */
 async function readFailure(response: Response): Promise<ApiResult<never>> {
   const body: unknown = await response.json().catch(() => undefined);
   const envelope = (body as { error?: { code?: unknown; details?: unknown } } | undefined)?.error;
@@ -44,15 +23,7 @@ async function readFailure(response: Response): Promise<ApiResult<never>> {
   return {
     ok: false,
     code,
-    // `details.questionId` and the first issue's sentence are what let a refused
-    // accept say which question and why (issue #823). `details.reason` is the webhook
-    // SSRF guard's enum, which picks one of four sentences instead of one covering all
-    // four (issue #756). Every other code ignores all three.
-    //
-    // Only these named fields are read, and none of them is rendered as-is: each one
-    // either selects a catalog key or is substituted into one. The envelope's own
-    // `message` is deliberately never read here (SEC-8) - an API response body is not
-    // this app's copy, and a 500's opaque text least of all.
+    /** Read only named detail fields to select or interpolate catalog copy. Never render the envelope message: upstream error text is not trusted UI copy. */
     message: messageForFormCode(code, {
       question: typeof details?.questionId === "string" ? details.questionId : undefined,
       reason: firstIssueMessage(details?.issues),
@@ -62,33 +33,19 @@ async function readFailure(response: Response): Promise<ApiResult<never>> {
   };
 }
 
-/**
- * The sentence off the first refusal in `details.issues`, if there is one.
- *
- * Read positionally rather than through `parseIssues`, because a *definition* refusal
- * is shaped like a kernel definition issue (a `code`, a sentence, an array `path` into
- * the definition) and not like a publish issue (whose `path` is `{ step, question }`).
- * The two lists share a channel and not a shape, so the publish-issue parser is the
- * wrong reader for this one.
- */
+/** Definition issues have array paths; publish issues have structured paths. This channel needs the definition reader. */
 function firstIssueMessage(issues: unknown): string | undefined {
   if (!Array.isArray(issues)) return undefined;
   const message = (issues[0] as { message?: unknown } | undefined)?.message;
   return typeof message === "string" && message !== "" ? message : undefined;
 }
 
-/** Parse a 2xx body, or normalise the failure. */
 export async function readResult<T>(response: Response): Promise<ApiResult<T>> {
   if (!response.ok) return readFailure(response);
   return { ok: true, data: (await response.json()) as T };
 }
 
-/**
- * A success with no body at all, which is what a 204 route answers with.
- *
- * Distinct from `readResult<null>`, which still parses the body: an empty one makes
- * `response.json()` throw, so the operator is told an act failed that the API performed.
- */
+/** A 204 has no JSON body; parsing it would report failure after the API performed the action. */
 export async function readNoContent(response: Response): Promise<ApiResult<null>> {
   if (!response.ok) return readFailure(response);
   return { ok: true, data: null };

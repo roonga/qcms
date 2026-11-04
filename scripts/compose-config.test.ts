@@ -438,8 +438,6 @@ describe("portal appearance-group plumbing (ADR-30, issue #752)", () => {
   })();
 
   it("reads the group off the portal's own config module, so the list cannot go stale", () => {
-    // A floor on the derivation: were the regex to stop matching, every assertion below
-    // would pass over an empty list and certify nothing.
     expect(appearanceVars.length).toBeGreaterThanOrEqual(7);
     expect(appearanceVars).toContain("QCMS_PORTAL_BRAND_NAME");
   });
@@ -484,8 +482,8 @@ describe("admin TOTP policy plumbing (SEC-1)", () => {
   });
 
   it("defaults to required, so a stack started with nothing set enforces 2FA", () => {
-    // Reachability, not a relaxed default: SEC-1 is enforced by default in every
-    // environment, and no general-purpose signal may decide a security control.
+    // Keep authentication enforced by default in every environment; a general-purpose mode must not decide a
+    // security control.
     const unset = composeConfig({
       files: ["docker-compose.yml"],
       env: { QCMS_ADMIN_2FA: "" },

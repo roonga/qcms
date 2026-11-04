@@ -9,7 +9,6 @@ import { t } from "@/lib/i18n/en";
 import type { PreviewTheme } from "@/lib/preview-theme";
 import type { ReadState } from "@/lib/read-state";
 
-/** Load the selected immutable snapshot; a slower prior read cannot replace a newer one. */
 export function ReleaseVersionReview({
   version,
   read,

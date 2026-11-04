@@ -2,7 +2,6 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join, posix, win32 } from "node:path";
 
-/** Prefix for the per-launch profile directory. Recognisable in a stray `ls`. */
 export const PROFILE_PREFIX = "qcms-lighthouse-";
 
 export function safeTmpRoot(

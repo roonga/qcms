@@ -65,9 +65,8 @@ let otherSessionToken: string;
 let linkToken: string;
 let otherFormId: string;
 let otherFormSessionId: string;
-/** The same database and forms, composed with every key list rotated (SEC-7). */
 let rotated: ReturnType<typeof composeApi>;
-/** The head (signing) entry of each rotated list. */
+
 let freshInternalToken: string;
 let probeTeamId: string;
 let probeHolderId: string;
@@ -117,8 +116,7 @@ beforeAll(async () => {
     expiresAt: LINK_EXPIRY,
   });
 
-  // A fresh key at the head of every list with the original retained behind it: SEC-7's
-  // "first entry signs, all entries verify" as a running process.
+  // Prepend new keys while retaining the old keys so signing rotates without interrupting verification.
   freshInternalToken = synthSecret();
   rotated = composeApi(
     testDb.db,
@@ -1048,10 +1046,7 @@ describe("the environment a request is authorised for is the environment it acts
   });
 });
 
-/**
- * Asserted on the API's own response bytes: Q58 masks there, never in the admin's rendering.
- * Masking the query string mitigates a credential put in a URL; SEC-6 protects the secret.
- */
+/** Assert masking on API response bytes; rendering-only masking would still transmit the credential. */
 describe("the production split and the masked endpoint URL (criterion 8)", () => {
   let allEditor = "";
   let prodApprover = "";
@@ -1237,7 +1232,7 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
   let owner = "";
   let viewer = "";
   let claimOnly = "";
-  /** The endpoint the pending changes are about, created before the switch went on. */
+
   let webhookId = "";
 
   async function approverAccount(

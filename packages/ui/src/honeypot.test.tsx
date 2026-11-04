@@ -5,8 +5,7 @@ import { describe, expect, it } from "vitest";
 import { A2UIStepRenderer } from "./A2UIStepRenderer.tsx";
 import { loadGoldenForms } from "./test-support/golden.ts";
 
-// The axe pass rides on the conformance suite; this is the DOM shape and the absence
-// from the accessibility tree.
+// Real layout and axe coverage live in the browser suite; jsdom checks the accessibility-tree contract.
 const minimal = loadGoldenForms().find((f) => f.version === "v2" && f.form === "minimal");
 if (!minimal) throw new Error("minimal v2 golden not found");
 const step = minimal.compiled.documents[0];

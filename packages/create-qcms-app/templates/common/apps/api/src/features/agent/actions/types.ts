@@ -25,12 +25,11 @@ export interface ActionRoute {
   readonly bodyMembers?: readonly string[];
 }
 
-/** What the provenance middleware hands a descriptor to recompute a step's arguments. */
 export interface ActionRequestFacts {
   /** The matched route path, with its placeholders. */
   readonly path: string;
   readonly method: string;
-  /** The path parameters, by placeholder name. */
+
   readonly params: Readonly<Record<string, string>>;
   /** The parsed JSON body, or `undefined` for a route that takes none. */
   readonly body: unknown;
@@ -39,11 +38,10 @@ export interface ActionRequestFacts {
 }
 
 export interface ActionCardTemplate {
-  /** The catalog key of the step title the admin renders. */
   readonly titleKey: string;
   /** The catalog keys of the consequence sentences the screen's own dialog uses. */
   readonly consequenceKeys: readonly string[];
-  /** The heading-row control the proposal marker sits on, or none. */
+
   readonly headingControl?: string;
   /**
    * For a kind that creates something: the page route the card links the new item at, and
@@ -63,7 +61,7 @@ export interface ActionCardTemplate {
 
 export interface ActionKindDef {
   readonly kind: string;
-  /** The screen whose control this kind mirrors, which is where its marker shows. */
+
   readonly screen: ScreenId;
   /**
    * Absent for a hand-off and for a local step: both carry no token, so no request is ever

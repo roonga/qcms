@@ -5,74 +5,22 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 
-/**
- * The Settings rail and its panels in a browser (issue 655).
- *
- * The markup and the section list are pinned without a browser
- * (`components/settings-section-rail.test.tsx`, `components/settings-panels.test.tsx`,
- * `lib/settings-sections.test.ts`). What is left is everything that is a computed style, a
- * measured box or an interaction, and that is what this file is: the 240px track turning on
- * at `--bp-sidebar` and not one pixel below it, the 40rem column left-anchored rather than
- * centred, and the switch itself - a rail row changing what the body shows, what the heading
- * says and which row is marked, all three together.
- *
- * ## The switch crosses two React trees, so a browser is the only place it can be asserted
- *
- * The rail is a parallel-route slot so that it renders BESIDE the capped content column, and
- * the panels are in the page. Nothing renders both, so no static render can see the two
- * agree. Here they are one document and the assertion is the obvious one.
- *
- * ## JavaScript is required, deliberately, and there is no scriptless case below
- *
- * The no-script floor belongs to the respondent portal, which is a different app with a
- * different audience; the admin requires JavaScript (standing correction 2026-08-22, ruling
- * 2026-09-27). So the switch below is a script's, and nothing here pretends otherwise.
- *
- * ## The rows are anchors again, and this time by ruling (§7.0, issue #1116)
- *
- * `plan/admin-shell-poc/settings-newquestion-poc.html` draws each row as
- * `<button onclick="showSettingsPanel(...)">` and issue 655 existed because an earlier build
- * had made them fragment anchors. §7.0 ruling 2.2 settles it the other way for every rail in
- * the app - "anchors to the subject's routes or same-page panels ... Never buttons" - so a
- * row is an `<a href="#account">` and the fragment is what the screen switches on. The
- * difference from the build 655 corrected is that the fragment is now the ONE channel: the
- * account menu's published `/settings#change-password` link and a rail row travel it alike,
- * and `components/settings-panels.tsx` listens for it.
- *
- * ## The 1023 / 1024 pair
- *
- * Same shape issues 557 and 559 take, for the same reason: a boundary is only pinned by
- * measuring both sides of it. The app has two breakpoints, and a rail that collapsed at 1000
- * or at 1100 would be a third boundary nobody wrote down.
- */
-
 test.describe.configure({ mode: "serial" });
 
 const EMAIL = uniqueAdminEmail("settingsrail655");
 
-/** `--bp-sidebar` is 64rem, and the browser's default root size makes that 1024px. */
 const SIDEBAR = 1024;
 
-/** The POC's own cap for this screen: `max-width: 40rem`, which is 640 CSS pixels. */
 const PROSE_CAP = 640;
 
-/** Set by the first test; every later one signs in and reuses the account it enrolled. */
 let totpSecret = "";
 
-/** The panel ids in reading order, which is also the order their rail rows are in. */
 const PANELS = [
   "settings-panel-account",
   "settings-panel-password",
   "settings-panel-twofactor",
 ] as const;
 
-/**
- * Which panels are on screen, and which row is marked, read in one pass.
- *
- * Read together rather than asserted separately because the claim is that the three move as
- * one: a run where the panel switched and the mark did not would pass two of three separate
- * assertions and describe a screen nobody would ship.
- */
 async function stateOf(page: Page): Promise<{
   readonly shown: string[];
   readonly marked: string[];
@@ -93,19 +41,6 @@ async function stateOf(page: Page): Promise<{
   }, PANELS);
 }
 
-/**
- * A rail row by its name, scoped to the rail.
- *
- * Scoped rather than located from the page, because the password panel's submit button is
- * also called "Change password" - correctly, it is the same action named the same way - and
- * an unscoped role query would match the rail row only while that panel happened to be
- * hidden. A test that passes because of what is hidden is a test that stops meaning what it
- * says the moment the screen it is testing changes.
- *
- * A `link` since §7.0 (issue #1116), which also makes the scoping cheaper to trust: the
- * panel's submit control is a button and this is not, so the two can no longer collide on
- * role as well as name.
- */
 function railRow(page: Page, name: string): Locator {
   return page.getByTestId("qcms-settings-rail").getByRole("link", { name, exact: true });
 }
@@ -135,8 +70,7 @@ test("655 turns the Settings rail into a 240px column at --bp-sidebar, and not o
     };
   });
   expect(at.railWidth, "the 240px track this rail shares with the route rail").toBe(240);
-  // The consequence issue 623 settled: a rail nested inside `<main>` would take 240px off the
-  // measure the route table assigns this screen. Beside it, the cap keeps measuring content.
+
   expect(at.railRight, "the rail is beside the content column, not inside it").toBeLessThanOrEqual(
     at.mainLeft,
   );
@@ -169,7 +103,6 @@ test("655 opens on Account with one panel showing and one row marked", async ({ 
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/settings");
 
-  // The POC's resting state: Account, and the two others `hidden` rather than scrolled past.
   await expect
     .poll(async () => (await stateOf(page)).shown)
     .toStrictEqual(["settings-panel-account"]);
@@ -178,7 +111,7 @@ test("655 opens on Account with one panel showing and one row marked", async ({ 
     "settings-panel-account",
   ]);
   expect(state.heading, "the heading names the section, not the screen").toBe("Account");
-  // The screen's name is in the rail summary instead, which is where the POC puts it.
+
   await expect(page.locator(".qcms-rail__summary-text")).toHaveText("Settings");
 });
 
@@ -199,7 +132,7 @@ test("655 switches the panel, the heading and the mark together when a row is fo
   const password = await stateOf(page);
   expect(password.marked).toStrictEqual(["settings-panel-password"]);
   expect(password.heading).toBe("Change password");
-  // What the reader came for is actually on screen, not merely un-hidden in the DOM.
+
   await expect(page.getByLabel("Current password")).toBeVisible();
 
   await railRow(page, "Two-factor authentication").click();
@@ -211,7 +144,7 @@ test("655 switches the panel, the heading and the mark together when a row is fo
     "settings-panel-twofactor",
   ]);
   expect(twoFactor.heading).toBe("Two-factor authentication");
-  // And the panel that was showing is genuinely gone, not merely behind the new one.
+
   await expect(page.getByLabel("Current password")).toBeHidden();
 });
 
@@ -223,10 +156,6 @@ test("655 works from the keyboard alone, which is what makes a rail of rows legi
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/settings");
 
-  // Focused rather than clicked, then activated with the key the element answers to. A rail
-  // of `<div onclick>` would pass every other assertion in this file and fail this one, and
-  // the rows being anchors since §7.0 (issue #1116) is exactly why this stays: Enter on an
-  // anchor has to reach the panel switch, by way of the fragment.
   const row = railRow(page, "Two-factor authentication");
   await row.focus();
   await expect(row).toBeFocused();
@@ -235,8 +164,7 @@ test("655 works from the keyboard alone, which is what makes a rail of rows legi
   await expect
     .poll(async () => (await stateOf(page)).shown)
     .toStrictEqual(["settings-panel-twofactor"]);
-  // The state change lands on the element that still has focus, which is what a screen reader
-  // announces when the reader presses it, and the address now says which section is showing.
+
   await expect(row).toHaveAttribute("aria-current", "page");
   await expect(row).toBeFocused();
   await expect(page).toHaveURL(/#two-factor$/u);
@@ -249,15 +177,11 @@ test("655 opens on the panel the URL names, by fragment and by redirect marker",
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.setViewportSize({ width: 1280, height: 900 });
 
-  // The account menu has linked to this fragment since task 032. Under the stacked screen it
-  // scrolled; under the panel screen it selects. Either way the link keeps working.
   await page.goto("/settings#change-password");
   await expect
     .poll(async () => (await stateOf(page)).shown)
     .toStrictEqual(["settings-panel-password"]);
 
-  // And the marker a POST lands its reader back with, which is decided on the server so the
-  // confirmation is in the first HTML rather than appearing after hydration.
   await page.goto("/settings?changed=1");
   await expect
     .poll(async () => (await stateOf(page)).shown)
@@ -290,8 +214,7 @@ test("655 caps the column at 40rem and leaves it against the rail, not centred",
   });
   expect(measured.cap, "the POC's own `max-width: 40rem`").toBe(PROSE_CAP);
   expect(measured.width).toBe(PROSE_CAP);
-  // `margin: 0`, not `margin: 0 auto`. The column starts where the rail ends; centred, it
-  // would start roughly a third of the way across a 1280 viewport instead.
+
   expect(measured.left, "left-anchored against the rail's track").toBe(measured.railRight);
   expect(
     measured.left,
@@ -306,26 +229,14 @@ test("655 leaves every other screen without a Settings rail, on a hard load and 
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.setViewportSize({ width: 1280, height: 900 });
 
-  // Settings is the single named exception, not the first of a series.
   await page.goto("/settings");
   await expect(page.getByTestId("qcms-settings-rail")).toBeVisible();
   await page.goto("/questions");
   await expect(page.getByTestId("qcms-settings-rail")).toHaveCount(0);
   await expect(page.getByTestId("qcms-rail")).toHaveCount(0);
 
-  // THE SOFT NAVIGATION, which is the half that did not hold until now (issue 701, and
-  // issue 633 before it). Next keeps the previously active state of a slot the new URL does
-  // not match and consults `default.tsx` only after a full-page load, so clicking through
-  // left this rail standing beside a screen it says nothing about. It is fixed by every
-  // route having a page in the slot rather than by a fallback, and it has to be asserted by
-  // CLICKING: `page.goto` is a hard load and passes against the bug, which is why the four
-  // assertions above never caught it.
-  //
-  // All four destinations, because issue 701 predicted that only the two with a directory
-  // under `@rail` would go stale. Measured against the shipped build before this change,
-  // all four did: the mechanism is the documented soft-navigation rule and has nothing to
-  // do with which directories exist, so the per-directory `default.tsx` that issue
-  // suggested would not have fixed any of them.
+  // Use soft navigation: Next preserves unmatched parallel-slot state and reads default.tsx only on hard loads.
+  // A goto-only check cannot detect a rail left behind after clicking to another screen.
   for (const [name, path] of [
     ["Questions", "/questions"],
     ["Forms", "/forms"],

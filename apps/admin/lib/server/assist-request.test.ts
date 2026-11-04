@@ -50,12 +50,7 @@ describe("what an assist route forwards", () => {
       { role: "assistant", content: "hello" },
     ]);
   });
-  /**
-   * The settled card's own record has to reach the API, or the assistant is told nothing
-   * about what it proposed and the person confirmed, and the turn after a confirm starts
-   * over. The API validates the shape again and narrows every field to the reporting
-   * kind's own allowlist, so this parser forwards a shape rather than a trusted claim.
-   */
+
   it("forwards a settled card's record, with its scalar result fields", () => {
     expect(
       parseAssistConversation([

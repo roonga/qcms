@@ -12,80 +12,15 @@ import type {
   PinnableQuestion,
 } from "./types.ts";
 
-/**
- * The structured condition editor's schema knowledge (task 033, ADR-19).
- *
- * ADR-19 fixes structured JSON editing with live validation as the default, and the task
- * spells out what "structured" means: schema-aware editing with pickers and inline
- * errors, not a bare textarea. This module is the schema-awareness. It answers three
- * questions for every node of the tree, and the editor renders whatever it says:
- *
- * 1. which `op`s are offered at all, given the referenced question's type;
- * 2. what operand control the chosen `op` needs, given that type;
- * 3. what a well-formed node of that `op` looks like, so a picker change never lands the
- *    tree in a half-built state.
- *
- * Answering (3) here rather than in the components is what makes exit criterion 4 -
- * "the editor never emits DSL the schema rejects" - a property of the code rather than a
- * hope. There is no edit path that produces a node this module did not construct, and
- * `condition.test.ts` fuzzes every op against every question type and parses the result
- * with the kernel's own `Condition` schema.
- *
- * ## The one place the pickers are narrower than the DSL
- *
- * `in` is offered for single-valued question types only. On a multiChoice question an
- * `in` value is a whole answer (an `OptionId[]`, compared by set equality - ADR-21), so
- * authoring one means building a list of lists, and the thing an author almost always
- * means by "one of these" is `containsAny`, which ADR-21 exists to steer them to. The DSL
- * still accepts multiChoice `in`; the picker simply does not offer a control that would
- * be easier to get wrong than right.
- */
+// Build complete schema-shaped nodes on every edit so the UI never emits malformed DSL.
 
-/**
- * The kernel's `CONDITION_MAX_DEPTH` (`visibility-rule.ts`), restated rather than
- * imported: it is a **value**, and this app takes no value from `@roonga/qcms-core` (R2).
- * `condition.test.ts` pins the two together, and it may import the kernel outright
- * because a `.test.ts` is outside the import-surface scan.
- */
+// Mirror kernel limits without a value import; condition tests pin the declarations together.
 export const MAX_CONDITION_DEPTH = 8;
 
-/**
- * The kernel's `REPEAT_EVALUATION_BUDGET` (`step.ts`), restated for the same reason
- * {@link MAX_CONDITION_DEPTH} is: it is a **value**, and this app takes no value from
- * `@roonga/qcms-core` (R2). `condition.test.ts` pins the two together.
- *
- * It is quoted here so the admin can SAY the number in the sentence that explains
- * `REPEAT_EVALUATION_BUDGET_EXCEEDED` (`issues.ts`). Nothing in this app checks it: the
- * refusal is the kernel's, and it is a bound on one rule shape's cost rather than a ceiling
- * on any group's size (ADR-16 as amended 2026-09-29, Q14).
- */
+// Mirror the evaluation budget only to explain the limit; the kernel enforces it.
 export const REPEAT_EVALUATION_BUDGET = 10_000;
 
-/**
- * **The ADR-03 gate: a new operator in `@roonga/qcms-core` cannot land unnoticed here.**
- *
- * ADR-03 makes the rules DSL a closed, typed set whose operators are versioned core
- * changes. The ADR's own note flagged what was missing: a new operator lands in two
- * places, because this app keeps a parallel operator set (`./types.ts`) and R2 stops it
- * importing the original. Nothing tied the copy to what it copies, so the second place
- * was a thing to remember.
- *
- * This table is that tie. `satisfies Record<Condition["op"], ...>` is exhaustive in both
- * directions against the kernel's union: a **new** kernel operator is a missing key here
- * and fails typecheck, and a key the kernel does not have is an excess property and fails
- * too. {@link isCombinator} then indexes it with this app's own {@link ConditionOp}, so
- * the app's set is pinned to the same union rather than merely resembling it. Three
- * separate edits are needed to move any of it, and none of them is silent.
- *
- * The import is `import type`, which is the whole reason this is allowed to exist:
- * TypeScript erases it, so no kernel code reaches the bundle, `@roonga/qcms-core` stays a
- * devDependency, and the shipped image still cannot resolve the package. R2 is about the
- * admin having no authority to evaluate rules, and a type evaluates nothing.
- * `lib/server/r2-import-surface.test.ts` states the value/type distinction and asserts
- * it. The kernel-side half of the same gate is `visibility-rule.test.ts`, which pins the
- * operator list itself so a core change is a deliberate edit rather than a diff nobody
- * reads.
- */
+// The type-level gate makes new kernel operators fail here until the closed editor vocabulary is updated.
 const OP_ARITY = {
   answered: "leaf",
   equals: "leaf",
@@ -100,51 +35,21 @@ const OP_ARITY = {
   and: "combinator",
   or: "combinator",
   not: "combinator",
-  // The three whole-group operators the kernel gained in task 071 (ADR-42,
-  // ADR-03 as amended 2026-09-29). They are a **third arity**, not a leaf and
-  // not a combinator: they read a `groupId` rather than a `questionId`, and
-  // `anyInstance` and `everyInstance` carry one nested condition each while
-  // `instanceCount` carries none.
-  //
-  // They are listed here and nowhere else in this app on purpose. The gate this
-  // table is works only if it is total over the kernel's union, so 071 carries
-  // the three keys in the same change that adds the operators - otherwise this
-  // app does not typecheck at all. **Task 074 built the rest of the admin's
-  // half**: `CONDITION_OPS` in `./types.ts` now carries all three, the operator
-  // picker offers them, {@link conditionForOp} constructs them, the rule
-  // sentence states `everyInstance`'s empty-group reading and its negation's
-  // mirror, and the test bench evaluates at zero instances.
+  // Whole-group operators form a third arity: they name groups, not question leaves or combinator lists.
   anyInstance: "group",
   everyInstance: "group",
   instanceCount: "group",
 } satisfies Record<Condition["op"], "leaf" | "combinator" | "group">;
 
-/** The three combinators, which read no question of their own. */
 export function isCombinator(op: ConditionOp): op is "and" | "or" | "not" {
   return OP_ARITY[op] === "combinator";
 }
 
-/**
- * The three operators that read a whole repeating group rather than one question.
- *
- * A **third arity**, not a leaf and not a combinator (ADR-42, ADR-03 as amended
- * 2026-09-29): they carry a `groupId` instead of a `questionId`, `anyInstance` and
- * `everyInstance` carry one nested condition each, and `instanceCount` carries none. Every
- * walker in this module branches on this rather than on `op === "anyInstance" || ...`, so a
- * fourth group operator would be one edit to {@link OP_ARITY} rather than a hunt.
- */
+// Whole-group reads cannot nest another whole-group read; quantifiers carry a child and instanceCount carries a comparison.
 export function isGroupOp(op: ConditionOp): op is GroupConditionOp {
   return OP_ARITY[op] === "group";
 }
 
-/**
- * What operand control a leaf op needs against a question of this type.
- *
- * `none` means the op is complete on its own (`answered`); `unsupported` means the pair
- * is not offered, which the editor renders as an unselectable option rather than silently
- * dropping it from the list, so an author sees that the operator exists and why it does
- * not apply here.
- */
 export type OperandKind =
   | "none"
   | "text"
@@ -158,7 +63,6 @@ export type OperandKind =
   | "dateList"
   | "unsupported";
 
-/** The value control an `equals`/`notEquals` comparison needs for each question type. */
 function equalityOperand(type: QuestionType): OperandKind {
   switch (type) {
     case "shortText":
@@ -173,12 +77,10 @@ function equalityOperand(type: QuestionType): OperandKind {
     case "singleChoice":
       return "option";
     case "multiChoice":
-      // Whole-answer set equality, never containment (ADR-21).
       return "optionList";
   }
 }
 
-/** The `in` list control for a single-valued type, or `unsupported`. */
 function membershipOperand(type: QuestionType): OperandKind {
   switch (type) {
     case "shortText":
@@ -192,18 +94,10 @@ function membershipOperand(type: QuestionType): OperandKind {
       return "optionList";
     case "boolean":
     case "multiChoice":
-      // boolean: `in [true,false]` is a tautology. multiChoice: see the module note.
       return "unsupported";
   }
 }
 
-/**
- * The operand control for one `(op, questionType)` pair.
- *
- * A `undefined` type means the referenced question could not be resolved (an unpinned or
- * missing id): the editor then shows the operator picker and nothing else, because it
- * genuinely cannot know what a legal value would look like.
- */
 export function operandKind(op: LeafConditionOp, type: QuestionType | undefined): OperandKind {
   if (type === undefined) return "unsupported";
   switch (op) {
@@ -218,7 +112,6 @@ export function operandKind(op: LeafConditionOp, type: QuestionType | undefined)
     case "gte":
     case "lt":
     case "lte":
-      // Ordering is number/date only, and cross-type comparison is unreachable (§2.4).
       if (type === "number") return "number";
       if (type === "date") return "date";
       return "unsupported";
@@ -229,12 +122,10 @@ export function operandKind(op: LeafConditionOp, type: QuestionType | undefined)
   }
 }
 
-/** Whether the operator picker offers this op against a question of this type. */
 export function isOpSupported(op: LeafConditionOp, type: QuestionType | undefined): boolean {
   return operandKind(op, type) !== "unsupported";
 }
 
-/** The option ids a question's pinned version declares, in declaration order. */
 export function optionIdsOfVersion(
   question: PinnableQuestion | undefined,
   version: number,
@@ -243,7 +134,6 @@ export function optionIdsOfVersion(
   return (found?.definition.options ?? []).map((option) => option.optionId);
 }
 
-/** The type of the version a pin points at, which is what every operand decision reads. */
 export function typeOfPinnedVersion(
   question: PinnableQuestion | undefined,
   version: number,
@@ -252,30 +142,11 @@ export function typeOfPinnedVersion(
   return found?.definition.type;
 }
 
-/**
- * The placeholder a fresh date operand carries.
- *
- * A date operand cannot start empty: the kernel's `DateAnswerValue` is a canonical
- * `YYYY-MM-DD` pattern, so `""` is not an unfinished date, it is a malformed one. A fixed
- * placeholder keeps the node parseable from the instant it is created (exit criterion 4)
- * and is obviously a value to replace. Fixed rather than "today" so the same picker
- * sequence produces the same draft on any day, which the fuzz test depends on.
- */
+// Use a fixed canonical date placeholder so a new node parses and SSR never depends on the current clock.
 export const DATE_OPERAND_PLACEHOLDER = "2000-01-01";
 
-/**
- * A well-formed starting operand for a control kind.
- *
- * "Starting" is not "absent" and not "empty". The kernel's schema has no optional
- * operands and several of them are pattern-constrained, so a node under construction
- * still has to carry a value of the right *shape*: an empty option list would fail
- * `.min(1)` on `in`/`containsAny`, `""` would fail the date pattern, and `""` is not an
- * `opt_`-prefixed option id. Every value produced here parses.
- */
-// The heterogeneous return is the point of this function, not an accident of it: an
-// operand's runtime type IS the thing being decided, and `DraftAnswerValue` is the closed
-// union the kernel's schema accepts. Splitting it per type would push the same switch up
-// into every caller, which is strictly worse.
+// Initial operands must satisfy required schema shapes; empty lists and dates are malformed, not merely unfinished.
+// The operand runtime type is being selected; callers need the heterogeneous closed answer union.
 // eslint-disable-next-line sonarjs/function-return-type
 function startingOperand(kind: OperandKind, options: readonly string[]): DraftAnswerValue {
   switch (kind) {
@@ -286,17 +157,10 @@ function startingOperand(kind: OperandKind, options: readonly string[]): DraftAn
     case "date":
       return DATE_OPERAND_PLACEHOLDER;
     case "option":
-      // Guarded by the caller: a choice question always declares at least one option.
       return options[0] ?? "";
     case "optionList":
       return options[0] === undefined ? [] : [options[0]];
-    // The three scalar list kinds return their ELEMENT, not a one-element array.
-    // `DraftAnswerValue` is a single answer, and its only array member is the
-    // `readonly string[]` a multiChoice answer is - so `[0]` is not one, and typing it as
-    // one was the defect here. `asList` wraps these for `in`/`containsAny`, which take
-    // `readonly DraftAnswerValue[]`: a list OF answers, which is a different type.
-    // `optionList` stays an array because there it genuinely IS a whole answer (ADR-21
-    // set equality), and `asList` passes an array through untouched.
+    // Keep optionList as a whole-answer array for multiChoice set equality.
     case "textList":
       return "";
     case "numberList":
@@ -311,34 +175,14 @@ function startingOperand(kind: OperandKind, options: readonly string[]): DraftAn
   }
 }
 
-/**
- * Build a complete condition node for `op`, carrying over what still applies.
- *
- * Called on every operator and question change, which is what stops a picker from ever
- * leaving a partially-built node behind: switching `equals` to `containsAny` cannot leave
- * a stray `value` alongside the new `values`, because the node is rebuilt rather than
- * patched.
- *
- * **The invariant this function exists to hold:** what it returns always parses as a
- * kernel `Condition`. When it cannot build a legal node for the requested op - the op
- * does not apply to this question's type, or a choice operand is needed and the pinned
- * version declares no options - it falls back to `answered`, which is legal against every
- * type and needs no operand. That is why exit criterion 4 is structural: there is no edit
- * path in the editor that constructs a node any other way.
- */
+// Rebuild nodes on operator changes so incompatible operand keys cannot survive a spread.
 export function conditionForOp(
   op: ConditionOp,
   questionId: string,
   type: QuestionType | undefined,
   options: readonly string[],
   previous?: DraftCondition,
-  /**
-   * The group a whole-group operator should read. Trailing and optional rather than woven
-   * into the positional list, because the twelve question operators and the three
-   * combinators have no use for it: a caller that is not building a group read passes
-   * nothing, and a group op asked for with no group falls back to `answered` exactly as an
-   * unsupported operand does.
-   */
+
   groupId?: string,
 ): DraftCondition {
   if (op === "not") {
@@ -348,10 +192,7 @@ export function conditionForOp(
     return { op, conditions: childrenOf(previous, questionId) };
   }
   if (isGroupOp(op)) {
-    // No group to read means no legal node, so the same `answered` fallback the unsupported
-    // operand case takes. A form with no repeating group therefore cannot be given one of
-    // these by any sequence of picker presses, which is `DANGLING_GROUP_REF` (Q24) refused
-    // at the control rather than explained at publish.
+    // Without a group there is no legal whole-group node; fall back rather than creating a dangling reference.
     if (groupId === undefined || groupId === "") return { op: "answered", questionId };
     if (op === "instanceCount") return { op, groupId, compare: "gte", value: 1 };
     return {
@@ -363,7 +204,7 @@ export function conditionForOp(
   const kind = operandKind(op, type);
   const answered = { op: "answered", questionId } as const;
   if (kind === "unsupported") return answered;
-  // Every choice operand needs a real `opt_` id; without one there is no legal node.
+
   const needsOption = kind === "option" || (kind === "optionList" && op !== "equals");
   if (needsOption && options.length === 0) return answered;
   const starting = startingOperand(kind, options);
@@ -388,26 +229,11 @@ export function conditionForOp(
   }
 }
 
-/**
- * A starting operand as the non-empty list `in`/`containsAny` require (`.min(1)`).
- *
- * Narrowed with `typeof === "object"` rather than `Array.isArray`, which is not merely a
- * style choice: `Array.isArray` is typed to narrow to the mutable `any[]`, so against a
- * union whose only array member is `readonly string[]` it widens the result to `any` and
- * the lint gate rejects the unsafe return. A `readonly string[]` is the one object member
- * of {@link DraftAnswerValue}, so the `typeof` test is exact.
- */
+// Array.isArray widens a readonly array union to mutable any[]; object narrowing preserves the safe return type.
 function asList(starting: DraftAnswerValue): readonly DraftAnswerValue[] {
   return typeof starting === "object" ? starting : [starting];
 }
 
-/**
- * The children a nesting node keeps when the author switches between `and`, `or`, `not` and
- * the two group operators that carry a nested condition.
- *
- * A group op's nested condition counts as a child here, which is what makes "wrap what I
- * already wrote in `anyInstance`" and "unwrap it again" both lossless gestures.
- */
 function childrenOf(previous: DraftCondition | undefined, questionId: string): DraftCondition[] {
   if (previous === undefined) return [{ op: "answered", questionId }];
   if (previous.op === "and" || previous.op === "or") return [...previous.conditions];
@@ -415,18 +241,7 @@ function childrenOf(previous: DraftCondition | undefined, questionId: string): D
   return only === undefined ? [previous] : [only];
 }
 
-/**
- * The child `not` keeps when the author wraps what they already wrote.
- *
- * It WRAPS a whole-group read rather than unwrapping it, and that is the one case worth stating:
- * `not(everyInstance(G, c))` is the shape an author writing a warning actually wants - "show this
- * unless every passenger has a passport" - and it is the shape whose reading the rule sentence
- * spells out, because it is TRUE over an empty group. Unwrapping to `not(c)` would silently throw
- * the group read away at the moment the author reached for the negation.
- *
- * `not` over a `not` still unwraps, which is the natural toggle, and a combinator still yields its
- * first branch.
- */
+// Wrapping a whole-group read in not preserves its meaning; unwrapping it would silently discard the group operation.
 function notChildOf(previous: DraftCondition | undefined): DraftCondition | undefined {
   if (previous === undefined) return undefined;
   if (previous.op === "and" || previous.op === "or") return previous.conditions[0];
@@ -434,19 +249,7 @@ function notChildOf(previous: DraftCondition | undefined): DraftCondition | unde
   return previous;
 }
 
-/**
- * The nested condition a whole-group operator keeps, which may never itself read a group.
- *
- * **A whole-group operator may not sit inside another's condition** (`REPEAT_OPERATOR_NESTING_NOT_ALLOWED`,
- * Q25 ruled 2026-09-29), directly or through `and`, `or` and `not`, because the nested pair costs
- * the product of the two groups' maxima whatever the rule targets. So a candidate carrying a group
- * read anywhere inside it is dropped for a plain `answered` rather than carried over - which is the
- * refusal taken at the control, in the one picker sequence that would otherwise produce it:
- * switching `instanceCount` to `anyInstance` would have nested the count inside the new node.
- *
- * Switching between `anyInstance` and `everyInstance` keeps the condition, which is the carry-over
- * an author would be annoyed to lose: those two are the same question asked two ways.
- */
+// Drop nested whole-group reads when building a group operator because the kernel forbids that nesting.
 function groupNestedOf(previous: DraftCondition | undefined): DraftCondition | undefined {
   if (previous === undefined) return undefined;
   const candidate =
@@ -457,7 +260,6 @@ function groupNestedOf(previous: DraftCondition | undefined): DraftCondition | u
   return conditionGroupReferences(candidate).length > 0 ? undefined : candidate;
 }
 
-/** The one nested condition `not`, `anyInstance` and `everyInstance` each carry. */
 function nestedOf(condition: DraftCondition): DraftCondition | undefined {
   if (
     condition.op === "not" ||
@@ -469,13 +271,7 @@ function nestedOf(condition: DraftCondition): DraftCondition | undefined {
   return undefined;
 }
 
-/**
- * Nesting depth: a leaf is 1, each nesting node adds one. Mirrors the kernel's own.
- *
- * `anyInstance` and `everyInstance` recurse exactly as `not` does, because their nested
- * condition counts toward `CONDITION_MAX_DEPTH` (ADR-03 as amended 2026-09-29; the cap
- * stays 8). `instanceCount` carries no condition and is a leaf.
- */
+// Group quantifier children count toward the same condition depth limit as not.
 export function conditionDepth(condition: DraftCondition): number {
   if (condition.op === "and" || condition.op === "or") {
     return 1 + Math.max(...condition.conditions.map(conditionDepth));
@@ -484,16 +280,7 @@ export function conditionDepth(condition: DraftCondition): number {
   return nested === undefined ? 1 : 1 + conditionDepth(nested);
 }
 
-/**
- * Every questionId the condition reads, deduplicated, in first-encounter order.
- *
- * It walks INTO a group operator's nested condition, which is right for every consumer: the
- * bench prompts for what a condition reads whether or not the read is per instance, and the
- * forward-only geometry needs the question's own position for a bare read. What the span
- * rule needs on top of this is {@link conditionGroupReferences}, kept separate because a
- * whole-group read and a bare question read cut document order at different places
- * (`eligibleTargets`).
- */
+// Whole-group references cut document order after the entire group span, unlike bare question references.
 export function conditionReferences(condition: DraftCondition): readonly string[] {
   const found: string[] = [];
   collect(condition, found);
@@ -514,22 +301,12 @@ function collect(condition: DraftCondition, out: string[]): void {
       collect(condition.condition, out);
       return;
     case "instanceCount":
-      // A groupId and no question: a `default:` branch here would push `undefined` as
-      // though it were a question id, which is the exact trap the kernel's own schema note
-      // warns every condition walker about.
       return;
     default:
       out.push(condition.questionId);
   }
 }
 
-/**
- * Every groupId the condition reads with a whole-group operator, in first-encounter order.
- *
- * The other half of what a rule references, and a different KIND of read: a whole-group
- * operator over G reads all of G, so it cuts document order at the end of G's span rather
- * than at any one question's position (ADR-42 section 3.4, forward-only rule 2).
- */
 export function conditionGroupReferences(condition: DraftCondition): readonly string[] {
   const found: string[] = [];
   collectGroups(condition, found);
@@ -550,10 +327,7 @@ function collectGroups(condition: DraftCondition, out: string[]): void {
     case "anyInstance":
     case "everyInstance":
       out.push(condition.groupId);
-      // Recursed into even though a nested whole-group read is refused at publish
-      // (`REPEAT_OPERATOR_NESTING_NOT_ALLOWED`, Q25): a draft carrying one is a state an
-      // author can reach through the JSON pane, and the target geometry has to describe the
-      // draft as it is rather than as the kernel will insist it becomes.
+      // Traverse even invalid nested group reads: JSON-edited drafts need geometry that describes their actual references.
       collectGroups(condition.condition, out);
       return;
     case "instanceCount":
@@ -563,16 +337,9 @@ function collectGroups(condition: DraftCondition, out: string[]): void {
   }
 }
 
-/**
- * Address one node inside a tree.
- *
- * A path of child indices, root being `[]`. Positional rather than by id because a
- * condition node has no id in the DSL - only the rule does - and the editor needs to say
- * "the second branch of the first `and`" when a value changes.
- */
+// Use positional paths because condition nodes have no IDs; only their enclosing rule does.
 export type ConditionPath = readonly number[];
 
-/** Read the node at `path`, or `undefined` when the path does not resolve. */
 export function nodeAt(condition: DraftCondition, path: ConditionPath): DraftCondition | undefined {
   let current: DraftCondition | undefined = condition;
   for (const index of path) {
@@ -588,7 +355,6 @@ function childAt(condition: DraftCondition, index: number): DraftCondition | und
   return index === 0 ? nested : undefined;
 }
 
-/** Replace the node at `path`, returning a new tree. An unresolvable path is a no-op. */
 export function replaceAt(
   condition: DraftCondition,
   path: ConditionPath,
@@ -610,10 +376,7 @@ export function replaceAt(
   if (condition.op === "not") {
     return { op: "not", condition: replaceAt(condition.condition, rest, next) };
   }
-  // The two group operators that carry a nested condition address it as child 0, exactly as
-  // `not` does, so the editor can render the nested tree through the same recursion. The
-  // `groupId` is preserved rather than rebuilt: replacing a node inside the condition is not
-  // a change of which group the rule reads.
+  // Changing a nested child must preserve the groupId; it is not a change of the group being read.
   if (condition.op === "anyInstance" || condition.op === "everyInstance") {
     return {
       op: condition.op,
@@ -624,7 +387,6 @@ export function replaceAt(
   return condition;
 }
 
-/** Point a whole-group operator at another group, keeping its nested condition. */
 export function withGroupId(condition: DraftCondition, groupId: string): DraftCondition {
   if (condition.op === "instanceCount") return { ...condition, groupId };
   if (condition.op === "anyInstance" || condition.op === "everyInstance") {
@@ -633,7 +395,6 @@ export function withGroupId(condition: DraftCondition, groupId: string): DraftCo
   return condition;
 }
 
-/** Change what an `instanceCount` compares against, keeping the group it counts. */
 export function withInstanceCount(
   condition: DraftCondition,
   change: { readonly compare?: InstanceCountComparison; readonly value?: number },
@@ -643,19 +404,11 @@ export function withInstanceCount(
     op: "instanceCount",
     groupId: condition.groupId,
     compare: change.compare ?? condition.compare,
-    // `min(0)` in the kernel's schema, so a negative is a node that does not parse rather
-    // than a comparison that never matches; clamped here so no keystroke can produce one.
+    // Clamp instance counts at zero because negative operands do not parse.
     value: Math.max(0, Math.trunc(change.value ?? condition.value)),
   };
 }
 
-/**
- * Append a branch to the combinator at `path`.
- *
- * Refused past the depth cap: the kernel rejects a tree deeper than
- * {@link MAX_CONDITION_DEPTH} with `RULE_DEPTH_EXCEEDED`, so the control that would
- * create one is disabled rather than the error being explained afterwards.
- */
 export function addBranch(
   condition: DraftCondition,
   path: ConditionPath,
@@ -670,14 +423,7 @@ export function addBranch(
   });
 }
 
-/**
- * Remove one branch of the combinator at `path`.
- *
- * A combinator's last branch cannot be removed: `and`/`or` are `.min(1)` in the kernel,
- * so an empty one is malformed rather than merely empty. Collapsing to the surviving
- * child instead would silently rewrite the author's logic, so the control is simply
- * unavailable and the author changes the operator if they want the branch gone.
- */
+// Do not remove a combinator last branch or collapse its parent: one is malformed and the other silently rewrites authored logic.
 export function removeBranch(
   condition: DraftCondition,
   path: ConditionPath,

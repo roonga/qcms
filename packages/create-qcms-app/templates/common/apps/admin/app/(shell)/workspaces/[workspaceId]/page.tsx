@@ -33,18 +33,6 @@ import {
   setMemberRoleAction,
 } from "./actions";
 
-/**
- * The five roles an access group may carry (Q32, Q38).
- *
- * `forms.owner` is **absent**, and that is the model rather than an omission: it is the
- * one role that lives on the `member` row, so a team carrying it would be a grant in a
- * place nothing reads it from. The members panel is where it is set.
- *
- * Written here rather than fetched because the role set is static by decision -
- * `dynamicAccessControl` is off, deliberately - and a route that served it would be a
- * route serving a constant. The API refuses a role outside the six whatever this list
- * says, which is what keeps the list from being a second authority.
- */
 const TEAM_ROLES = [
   "forms.viewer",
   "forms.editor",
@@ -67,31 +55,6 @@ export async function generateMetadata({
   return pageMetadata(workspace?.name ?? t("membership.area.title"));
 }
 
-/**
- * One workspace's membership, access groups, settings and access audit (ADR-41, SEC-15;
- * task 069).
- *
- * # Four panels, and each one is a different authority
- *
- * The **membership list** and the **access audit** are the workspace's owners' and the
- * installation administrator's to read (Q35, SEC-15), the **access groups** are where
- * every grant is written (Q45: the QCMS endpoints are the only write path), and the
- * **settings** are the two per-workspace switches. Every one of the four is gated by the
- * API, so a panel whose read was refused renders its own message rather than an empty
- * state: an empty table would say "nothing is granted here" to somebody who was told
- * nothing at all.
- *
- * The rail's Sections are the four panels and its Header is the way back (§7.0 ruling 3), so
- * this column carries no "All workspaces" link. `listWorkspaces` is memoized per request, so
- * the rail reading the name costs no second round trip.
- *
- * # Why the reads are parallel and the writes are not
- *
- * The four reads are independent and are issued together. The writes are Server Actions
- * that revalidate this path, so a grant and the audit row it wrote appear in the same
- * refresh - which matters here more than elsewhere, because "the grant is on the record"
- * is the claim the audit panel exists to make good.
- */
 export default async function WorkspacePage({
   params,
 }: {
@@ -122,10 +85,6 @@ export default async function WorkspacePage({
         <h1 className="text-xl font-semibold text-(--color-text)">
           {t("membership.workspace.title", { name: workspace?.name ?? workspaceId })}
         </h1>
-        {/* A rejected bookmark still has All workspaces, and the mode keeps it: the
-            identifier is the one already in the address bar, and no name is resolved for
-            it. Remembering it as this mode's context would make a revoked grant the thing
-            that decides where re-entering lands. */}
         {workspace === undefined && (
           <Alert variant="warning">
             {t("membership.workspace.notFound")}{" "}

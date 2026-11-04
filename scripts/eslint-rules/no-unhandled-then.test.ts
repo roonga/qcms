@@ -50,7 +50,6 @@ describe("qcms/no-unhandled-then", () => {
           code: `publish().then((state) => { setPublished(state); });`,
           errors: [{ messageId: "unhandledThen" }],
         },
-        // A `.finally` is not a rejection handler, so the `.then` under it still is one.
         {
           code: `void publish().then(onOk).finally(() => { setBusy(false); });`,
           errors: [{ messageId: "unhandledThen" }],
@@ -82,12 +81,9 @@ describe("qcms/no-unhandled-then", () => {
         `async function f() { try { await publish().then(onOk); } catch { report(); } }`,
         `function f() { return publish().then(onOk); }`,
         `const settled = publish().then(onOk);`,
-        // Fire-and-forget with no `.then` is deliberately not this rule's concern.
         `void send();`,
         `void page.route("**/*", handler);`,
-        // A spread cannot be counted, so it is read as handled rather than guessed at.
         `void publish().then(...handlers);`,
-        // A computed key this rule cannot resolve is a chain it does not report.
         `void publish()[method](onOk);`,
       ],
       invalid: [],

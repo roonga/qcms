@@ -155,8 +155,8 @@ function reserveFreePort(): Promise<number> {
 }
 
 /**
- * Far above the measured 53-400 ms: under host contention a `node` spawn can take
- * seconds, and the inner `until` has to be what fails first.
+ * Allow host contention in the spawn budget so the inner wait, rather than the test timeout, reports a
+ * startup failure.
  */
 const SPAWN_BUDGET_MS = 30_000;
 
@@ -281,7 +281,6 @@ describe("stopRun", () => {
       out: (line) => lines.push(line),
     });
     expect(code).toBe(EXIT_STOP_INCOMPLETE);
-    // The group, negated, and never the dead runner pid.
     expect(signalled).toEqual([-4243, -4243]);
     expect(lines.join("\n")).toContain("SIGKILLed");
   });
@@ -414,7 +413,6 @@ describe("playwrightCommand", () => {
   });
 
   it("spells --project with an equals sign, because Playwright's --project is variadic", () => {
-    // The space form swallows the next argument as a second project name.
     expect(playwrightCommand({ projects: ["admin-chromium"], shard: "1/2" })).toEqual([
       "pnpm",
       "exec",
@@ -460,7 +458,6 @@ describe("the rc file protocol", () => {
   });
 
   it("separates a signalled SUITE from a signalled runner, because the causes differ", () => {
-    // 77: something signalled this script. 78: Playwright died under an unsignalled runner.
     const directory = temporaryDirectory();
     const path = join(directory, RUN_FILES.rc);
     writeAtomic(path, "EXIT=137\nkilled=SIGKILL\nsignal_target=suite\nelapsed_seconds=900\n");
@@ -975,7 +972,6 @@ describe("signalProvenance", () => {
   });
 
   it("keeps a parent command line to one line and a bounded length", () => {
-    // A newline in somebody else's argv would split an rc file field in half.
     const nul = String.fromCodePoint(0);
     const newline = String.fromCodePoint(10);
     expect(commandLineOf(9, () => `node${nul}--flag${newline}value${nul}`)).toBe(
@@ -1239,7 +1235,6 @@ describe("startDetached", () => {
 
       killPid(started.pid, "SIGTERM");
       await until(() => readRc(join(started.directory, RUN_FILES.rc)) !== undefined);
-      // 128 ms measured; the budget allows for a host already carrying three browser suites.
     },
     SPAWN_BUDGET_MS,
   );

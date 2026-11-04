@@ -208,7 +208,7 @@ describe("every row names an action the policy declares", () => {
       "response:erase",
       "response:dispose",
     ]);
-    // No audit kind: an aggregate response count is not a SEC-15 read.
+    // Aggregate response counts do not read answer content and therefore write no response-read audit row.
     expect(row?.audit).toBeUndefined();
     // The same list the capability projection reads, so the two cannot disagree.
     expect(row?.anyOf).toBe(OPERATIONAL_CELLS);
@@ -252,7 +252,7 @@ describe("every row names an action the policy declares", () => {
     const write = policyForRequest("PUT", "/admin/release-workflow");
     expect(write?.installationOnly).toBe(true);
     expect(write?.workspace).toBe("installation");
-    // No tenth resource: the write reuses the workspace cell the claim already holds.
+
     expect(write?.resource).toBe("workspace");
     expect(write?.action).toBe("update");
     expect(write?.audit).toBe("setting");
@@ -308,7 +308,7 @@ describe("the audit column and the response routes agree (criterion 8)", () => {
     };
     for (const row of ROUTE_POLICIES) {
       if (row.resource !== "response") continue;
-      // These three paths read or write no answer content, so SEC-15 gives them no kind.
+      // These paths read or write no answer content, so they carry no response audit kind.
       if (
         row.path.endsWith("/unflag") ||
         row.path.endsWith("/erasure-scope") ||

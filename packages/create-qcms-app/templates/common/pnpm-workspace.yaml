@@ -2,7 +2,6 @@
 packages:
   - "apps/*"
 
-# Dependencies with build scripts require explicit approval for installation.
 allowBuilds:
   esbuild: true
   protobufjs: true

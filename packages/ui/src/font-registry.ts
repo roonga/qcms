@@ -1,10 +1,9 @@
 /**
- * Contract: docs/theming.md. `src/fonts.css` is generated from this manifest.
- * Every font is self-hosted (SEC-9) and open-licensed, with its upstream copyright notice verbatim on the
- * entry. An entry may never touch a `--type-*` value: those carry the WCAG 1.4.12 floors.
+ * Contract: docs/theming.md. `src/fonts.css` is generated from this manifest. Every font is self-hosted and
+ * open-licensed, with its upstream copyright notice verbatim on the entry. An entry may never touch a
+ * `--type-*` value: those carry the WCAG 1.4.12 floors.
  */
 
-/** Display order, and the order the generated CSS is emitted in. */
 export const FONT_GROUPS = [
   "System",
   "Accessibility",
@@ -41,11 +40,7 @@ export interface FontEntry {
   readonly note: string;
 }
 
-/**
- * Token references rather than literal lists, which live only in `theme.css` (`scripts/check-font-tokens.mjs`
- * fails the build on a second copy); as `var()` references they also fail visibly if a host imports
- * `fonts.css` without `theme.css`.
- */
+/** Reference the fallback tokens in theme.css so a tail change reaches every font. */
 const SANS_TAIL = "var(--font-fallback-sans)";
 const SERIF_TAIL = "var(--font-fallback-serif)";
 const MONO_TAIL = "var(--font-fallback-mono)";
@@ -95,11 +90,7 @@ function webfont(spec: WebfontSpec): FontEntry {
   };
 }
 
-/**
- * The Accessibility faces ship 400 and 700 because weight itself carries legibility for
- * low-vision and dyslexic readers. Every other family ships 400 only, to keep the
- * payload small, and the browser synthesises bold.
- */
+/** Accessibility faces ship distinct weights for legibility; other families synthesize bold to limit payload. */
 export const FONT_REGISTRY: readonly FontEntry[] = [
   SYSTEM_ENTRY,
 
@@ -144,9 +135,7 @@ export const FONT_REGISTRY: readonly FontEntry[] = [
     group: "Popular",
     tail: SANS_TAIL,
     weights: [400],
-    // The variable file, because the QCMS app sets its titles, labels and buttons in
-    // Inter 600 and a static 400 would have the browser synthesize them. One file
-    // still serves the portal's 400.
+    // Use a variable file so app weights and portal body text share real glyphs rather than synthesized weights.
     file: "inter-variable.woff2",
     license: "OFL-1.1",
     copyright: "Copyright 2020 The Inter Project Authors (https://github.com/rsms/inter)",
@@ -158,8 +147,7 @@ export const FONT_REGISTRY: readonly FontEntry[] = [
     group: "Popular",
     tail: SANS_TAIL,
     weights: [400],
-    // Dual-stated because upstream relicensed from Apache-2.0 to OFL-1.1: both texts
-    // ship beside the binaries, so the redistribution is covered either way.
+    // Ship both license texts to honor the upstream license notices.
     license: "OFL-1.1 OR Apache-2.0",
     copyright:
       "Copyright 2011 The Roboto Project Authors (https://github.com/googlefonts/roboto-classic)",
@@ -335,8 +323,7 @@ export const FONT_REGISTRY: readonly FontEntry[] = [
     group: "Monospace",
     tail: MONO_TAIL,
     weights: [400],
-    // The variable file: the QCMS app's data face sets an id heading above 400 as
-    // well as the 400 of its inline ids.
+    // Use the variable file for app headings as well as inline identifiers.
     file: "jetbrainsmono-variable.woff2",
     license: "OFL-1.1",
     copyright:
@@ -356,7 +343,6 @@ export const FONT_REGISTRY: readonly FontEntry[] = [
   }),
 ];
 
-/** `undefined` when the key is not shipped. */
 export function fontByKey(key: string): FontEntry | undefined {
   return FONT_REGISTRY.find((entry) => entry.key === key);
 }
@@ -378,7 +364,7 @@ export function fontClass(key: string): string {
   return `font-${key}`;
 }
 
-/** ADR-38. Never `:where()`, whose specificity is 0; `:is()` keeps this at `:root`'s. */
+/** Never use :where(): its zero specificity would let host root rules override the font. */
 const SCOPE_ANCHOR = ":is(:root, [data-qcms-theme-scope])";
 
 const CSS_HEADER = `/*

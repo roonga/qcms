@@ -13,22 +13,6 @@ import type {
   PinnableQuestion,
 } from "./types.ts";
 
-/**
- * The rules table's sentence.
- *
- * Three properties here are the reason this file exists rather than a rendering test over
- * the table, and each of them is invisible in a screenshot:
- *
- * 1. **A failed library read is not an empty one** (`lib/read-state.ts`, issues 543/544/572,
- *    contract §3). Every question name in a sentence is a library lookup, so the collapse
- *    those issues describe would make every rule in the form claim its question had no
- *    label, on a screen already showing the alert that says the library did not load.
- * 2. **Nesting cannot be misread.** "A or B, and C" and "A, or B and C" are different
- *    rules; the sentence has to bracket so that no reader has to guess which one it is.
- * 3. **Every operator is worded.** An operator with no wording must say so rather than
- *    print its own token in the middle of a sentence as though it were English.
- */
-
 const SMOKING = {
   questionId: "q_smoking",
   type: "singleChoice" as const,
@@ -72,8 +56,7 @@ const LIBRARY: readonly PinnableQuestion[] = [
     slug: "smoking",
     label: { en: "How often do you smoke?" },
     type: "singleChoice",
-    // Two published versions with different option labels, so the test can prove the
-    // sentence reads the version this form PINS (R6/R7) rather than the newest.
+
     versions: [
       {
         version: 1,
@@ -158,7 +141,6 @@ function rule(when: DraftCondition, show: readonly string[] = ["stp_extra"]): Dr
   return { ruleId: "rul_one", when, show };
 }
 
-/** The sentence as a reader sees it: every segment's text, in order. */
 function read(
   when: DraftCondition,
   show?: readonly string[],
@@ -169,7 +151,6 @@ function read(
     .join("");
 }
 
-/** Only the runs the table emphasises. */
 function names(segments: readonly RuleSentenceSegment[]): readonly string[] {
   return segments.filter((segment) => segment.kind !== undefined).map((segment) => segment.text);
 }
@@ -214,7 +195,7 @@ describe("ruleSentence", () => {
       if (segment.kind === undefined) continue;
       expect(segment.text).not.toMatch(/[(),]|\band\b|\bor\b/);
     }
-    // "Untitled step" stands where a name could not be read, so it is not emphasised.
+
     expect(names(segments)).toStrictEqual([
       "Were you at fault?",
       "Age",
@@ -241,9 +222,6 @@ describe("ruleSentence", () => {
 
 describe("targets", () => {
   it("reads two targets as a pair and three as a list", () => {
-    // "the step" on each of them, because `show` mixes step ids and question ids and a
-    // reader cannot otherwise tell which is which. The third target here is a QUESTION,
-    // and reads as a bare name - which is the distinction this wording exists to make.
     expect(read(ANSWERED, ["stp_history", "stp_extra"])).toContain(
       "show the step Driving history and the step Extra cover",
     );
@@ -388,13 +366,6 @@ describe("combinators", () => {
   });
 });
 
-/**
- * One condition per leaf operator, against a question whose type the operator applies to.
- *
- * Total over `LeafConditionOp`, which is what makes "every operator is worded" a property
- * of the type system as well as of the loop below: an operator added to the DSL fails to
- * compile here until it has a case, and fails in `rule-sentence.ts` until it has wording.
- */
 const LEAF_CASES: Readonly<Record<LeafConditionOp, DraftCondition>> = {
   answered: ANSWERED,
   equals: { op: "equals", questionId: "q_smoking", value: "opt_daily" },
@@ -414,11 +385,6 @@ const LEAF_CASES: Readonly<Record<LeafConditionOp, DraftCondition>> = {
 
 describe("leaf operators", () => {
   it("words every operator the DSL carries", () => {
-    // NOT EVERY NON-COMBINATOR IS A LEAF since task 074 (ADR-42): the three whole-group
-    // operators are a third arity, reading a `groupId` rather than a `questionId`, so they are
-    // excluded here by the same arity table `rule-sentence.ts` branches on rather than by a
-    // list of names. Their own sentences - including `everyInstance`'s empty-group clause and
-    // its negation's mirror - are asserted in the "whole-group operators" block below.
     const leaves = CONDITION_OPS.filter((op) => !isCombinator(op) && !isGroupOp(op));
 
     expect(Object.keys(LEAF_CASES).sort()).toStrictEqual([...leaves].sort());
@@ -471,7 +437,6 @@ describe("operands", () => {
       DRAFT,
     );
 
-    // The form pins v2, so the label is v2's - not the v1 wording of the same option id.
     expect(names(segments)).toStrictEqual(["How often do you smoke?", "Daily", "Extra cover"]);
   });
 
@@ -513,8 +478,6 @@ describe("operands", () => {
   });
 
   it("says an operand is empty rather than stopping mid-sentence", () => {
-    // The state a freshly created `equals` against a text question is in
-    // (`condition.ts`, `startingOperand`), so an author meets it by ordinary editing.
     expect(read({ op: "equals", questionId: "q_city", value: "" })).toBe(
       "When Which city? is exactly an empty value, show the step Extra cover",
     );

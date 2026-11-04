@@ -2,11 +2,8 @@ import type { A2Node } from "@a2ra/core";
 
 import { qualifiedFieldName } from "./repeat-node.ts";
 
-// Shared by both presentations, so one layout cannot drift from the other's idea of
-// what a cloned control is.
-
-// Split in two so each function has one declared result type: a single conditional
-// chain over this union is where a mapped text body would silently become a node.
+// Share child traversal between presentations so their node/text treatment cannot drift.
+// Separate return types prevent mapped text from silently becoming a node.
 function mapNodeChildren(
   children: A2Node | A2Node[],
   map: (child: A2Node) => A2Node,
@@ -53,7 +50,6 @@ export function qualifyNames(node: A2Node, instanceId: string): A2Node {
   };
 }
 
-/** Whether a cloned control survives this instance's visible set. */
 export function keepControl(
   node: A2Node,
   instanceId: string,

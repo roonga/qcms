@@ -8,47 +8,6 @@ import { t } from "@/lib/i18n/en";
 import type { ReadState } from "@/lib/read-state";
 import type { DraftForm, DraftRule, FormIssue, PinnableQuestion } from "@/lib/forms/types";
 
-/**
- * The form's rules, as a list you can read (Code Owner, 2026-08-26).
- *
- * ## Why a table where there was an editor per rule
- *
- * Every rule rendered its whole `ConditionEditor` inline - a nested boolean tree beside a
- * JSON pane - so a form with four rules was four expanded editors stacked, and answering
- * "what does this form actually do" meant reading four editors instead of four sentences.
- * A rule is small to STATE and large to CHANGE, and this screen now does the first.
- *
- * ## Why it reads as English
- *
- * "When X is answered, show Y" is the Code Owner's own phrasing, and it is the whole point:
- * a rule is a sentence about the form's behaviour, and it was being shown as a data
- * structure. `lib/forms/rule-sentence.ts` owns the wording, because what a rule SAYS is a
- * decision about language and belongs where it can be tested as one, rather than mixed into
- * markup.
- *
- * ## Why it borrows the step's question list
- *
- * The look is `components/forms/step-editor.tsx`'s pin grid, down to `.qcms-table`, the
- * visually hidden caption and the `.qcms-cell--drop` columns that fall away at compact
- * width: two lists of the form's parts on two screens of one builder should not be two
- * different kinds of object. Contract §2's test for what may drop is applied the same way -
- * a column that DESCRIBES a row may go, one that identifies it may not.
- *
- * ## What the row carries, and why the row rather than the editor
- *
- * `ruleAnchorId` is on the `<tr>`. A validation entry and a refused publish's work list
- * both link to it, and they have to land on something that exists whether or not anyone is
- * editing: focusing a rule is "show me the one at fault", not "open it". That is also what
- * lets the rules live on their own screen at all - `lib/forms/issues.ts` explains the
- * switching that made `plan/admin-ux-audit.md` §5.5's objection answerable.
- *
- * ## No reorder, deliberately
- *
- * Rules have no order that means anything: `packages/core/src/evaluate-rules.ts` groups them
- * by target and asks `anyRuleTrue`, and the walk that uses them goes over steps in document
- * order rather than over rules. Move up and move down would offer a significance the engine
- * does not have, which is a worse thing to ship than the absence of a control.
- */
 export function RulesTable({
   draft,
   library,
@@ -58,7 +17,6 @@ export function RulesTable({
 }: {
   readonly draft: DraftForm;
   readonly library: ReadState<readonly PinnableQuestion[]>;
-  /** The engine's verdict, or an empty list when nothing has checked this draft yet. */
   readonly issues: readonly FormIssue[];
   readonly onEdit: (ruleId: string) => void;
   readonly onRemove: (ruleId: string) => void;
@@ -70,8 +28,6 @@ export function RulesTable({
         <thead>
           <tr>
             <th scope="col">{t("forms.rules.column.rule")}</th>
-            {/* Issues DESCRIBES a rule rather than identifying it, so it is the column that
-                may go at compact width - the same call the pin grid makes about Type. */}
             <th scope="col" className="qcms-cell--drop qcms-rulecell--issues">
               {t("forms.rules.column.issues")}
             </th>
@@ -118,33 +74,15 @@ function RuleRow({
     (issue) => issue.path?.rule === rule.ruleId || (issue.path?.rules ?? []).includes(rule.ruleId),
   );
   const sentence = ruleSentence(rule, library, draft);
-  // SCOPE IS SHOWN, NEVER AUTHORED (ADR-42 §3.4). A rule whose target sits inside a repeating
-  // group is evaluated once per live instance, and the condition the author wrote says nothing
-  // about that - so the chip is where the design pays for keeping the DSL small. It belongs on
-  // the row as well as in the editor, because this table is where a reader answers "what does
-  // this form do" and a per-passenger rule reads very differently from a whole-form one.
+  // Scope is inferred from the rule and shown here; it is never an independently authored setting.
   const scope = scopeChipLabel(ruleScope(draft, rule.show));
 
   return (
-    // `tabIndex={-1}` for the reason the step anchor carries it: a destination rather than a
-    // stop, reachable when something sends focus here and never by tabbing past it.
     <tr id={ruleAnchorId(rule.ruleId)} tabIndex={-1} data-rule-id={rule.ruleId}>
       <td>
-        {/* THE CONTROLS SIT UNDER THE SENTENCE (Code Owner, 2026-08-30), inside the cell
-            the sentence is in rather than in a column of their own at the end of the row.
-
-            A trailing column put them a variable distance from the rule they act on: the
-            sentence column absorbs the surplus width, so on a wide screen the buttons for
-            a short rule ended up half a table away from it, and the pairing was carried by
-            the row's own edges rather than by anything visible. Under the text they are
-            the same distance from every rule at every width, which is also what the
-            questions list does with its own row controls. */}
         <p className="qcms-rule-sentence">
           {sentence.map((segment, index) => (
             <span
-              // The index is the key because a sentence is a fixed sequence rendered whole:
-              // segments are not reordered, inserted or removed, they are replaced together
-              // when the rule changes.
               key={index}
               className={
                 segment.kind === undefined ? undefined : `qcms-rule-sentence__${segment.kind}`
@@ -162,15 +100,6 @@ function RuleRow({
           </p>
         )}
         <div className="qcms-rule-actions">
-          {/* VISIBLE, not in a menu. A step's row hides its commands because pressing the
-              row already does something; a rule's row does nothing, so its primary action
-              has to be on the surface rather than one press further away.
-
-              Bare buttons rather than the kit's: the kit's carry the app's 40px control
-              height, which is right for a control a screen is about and far too heavy for
-              two of them on every row of a list. `.qcms-rule-action` gives them the row's
-              own scale and keeps them past the 24px `target-size` floor the axe sweep
-              enforces. */}
           <button type="button" className="qcms-rule-action" onClick={onEdit}>
             {t("forms.rules.edit")}
           </button>
@@ -180,9 +109,6 @@ function RuleRow({
         </div>
       </td>
       <td className="qcms-cell--drop qcms-rulecell--issues">
-        {/* Silence rather than a zero. An empty verdict and an absent one both arrive here
-            as no issues, and this app does not let either claim a rule is clean - the same
-            rule the rail's step badges follow. */}
         {mine.length > 0 && (
           <span className="qcms-tag qcms-tag--draft" data-rule-issues={mine.length}>
             {issueCountLabel(mine.length)}

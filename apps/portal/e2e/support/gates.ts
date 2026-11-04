@@ -177,7 +177,6 @@ interface Offsets {
 
 const REQUEST_SETTLE_BUDGET_MS = 3000;
 
-/** How often the settle re-checks the pending set. */
 const REQUEST_SETTLE_POLL_MS = 25;
 
 /** A pending-set re-check tick, as a promise (no page round trip involved). */

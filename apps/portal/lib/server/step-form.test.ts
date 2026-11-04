@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { decodeStepForm } from "./step-form";
 
-/** Build a FormData from `[name, value]` pairs (a value may repeat for multi). */
 function form(...pairs: [string, string][]): FormData {
   const fd = new FormData();
   for (const [name, value] of pairs) fd.append(name, value);

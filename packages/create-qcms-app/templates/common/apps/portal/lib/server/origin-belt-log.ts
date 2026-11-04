@@ -1,15 +1,11 @@
 import { portalBaseUrl } from "./config";
 import { serverLogger } from "./logger";
 
-/** The observability half of SEC-9's CSRF belt. */
-
-/** Grep this in the portal's stdout to count belt refusals. */
 export const ORIGIN_BELT_REFUSED = "origin.belt.refused";
 
 /**
- * Templates, never paths: a concrete path carries a session id, which SEC-13 does not
- * allow into a log line, or an author-chosen slug an operator does not need in order to
- * count refusals.
+ * Templates, never paths: a concrete path carries a session id, which telemetry redaction does not allow
+ * into a log line, or an author-chosen slug an operator does not need in order to count refusals.
  */
 export type BeltRoute =
   | "/appearance"
@@ -145,7 +141,6 @@ export function classifyOrigin(request: Request): BeltOrigin {
   return origin === expected ? "match" : "mismatch";
 }
 
-/** The refusal line's fields for this request. Pure: builds nothing, emits nothing. */
 export function originBeltRefusal(request: Request): OriginBeltRefusal {
   return {
     beltRoute: classifyRoute(request.url),

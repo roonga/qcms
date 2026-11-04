@@ -9,7 +9,6 @@ import { starveScripts } from "./support/script-starve.js";
 
 test.use({ locale: "en-US", timezoneId: "Asia/Kolkata" });
 
-/** The no-JS boxes' parts, in document order. */
 function nativeOrder(scope: Locator): Promise<string[]> {
   return scope
     .locator("input[data-qcms-date-part]")

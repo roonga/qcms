@@ -1,21 +1,3 @@
-/**
- * The admin BFF's client-address trust model (issue #374).
- *
- * The same cases the portal's `client-address.test.ts` asserts, deliberately: the two
- * apps carry the same resolution rule in two files (no shared package exists for a Next
- * BFF's server code, and the module explains why), so the pair of suites is what keeps
- * them from drifting. Change the rule in one place and this suite or its twin goes red.
- *
- * The property that matters is the second one in every case: it is easy to make the
- * throttle tell admins apart, and easy in a way that hands each of them a bucket of
- * their own choosing. So beside "different clients resolve to different addresses" each
- * case also asserts that a forged inbound prefix cannot move the answer.
- *
- * Against the pre-fix code all of this is vacuous in the other direction: the admin sent
- * the browser's `x-forwarded-for` on untouched, so there was nothing to resolve and
- * everything to forge.
- */
-
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -39,8 +21,6 @@ describe("wire contract", () => {
   });
 
   it("uses the admin's own hop count, not the portal's", () => {
-    // Two hostnames can sit behind different ingresses; one knob would force a wrong
-    // answer on whichever app it was not tuned for.
     expect(TRUSTED_PROXY_HOPS_VAR).toBe("QCMS_ADMIN_TRUSTED_PROXY_HOPS");
   });
 });
@@ -79,8 +59,6 @@ describe("trustedProxyHops", () => {
 
 describe("resolveClientAddress: one trusted proxy (Recipes A and B)", () => {
   it("Recipe A - Caddy SETS the header, so the single entry is the client", () => {
-    // The admin site block in `docker/Caddyfile` carries the same
-    // `header_up X-Forwarded-For {remote_host}` line the portal's does.
     expect(resolveClientAddress("203.0.113.7", 1)).toBe("203.0.113.7");
   });
 
@@ -98,7 +76,7 @@ describe("resolveClientAddress: one trusted proxy (Recipes A and B)", () => {
 
   it("ignores a forged prefix: the forged value never becomes the bucket", () => {
     const honest = resolveClientAddress("203.0.113.7", 1);
-    // The attacker sends `X-Forwarded-For: 10.0.0.1` and the proxy appends its peer.
+
     const forged = resolveClientAddress("10.0.0.1, 203.0.113.7", 1);
     expect(forged).toBe(honest);
     expect(forged).not.toBe("10.0.0.1");
@@ -123,8 +101,6 @@ describe("resolveClientAddress: other hop counts", () => {
   });
 
   it("yields nothing when the chain is shorter than the declared trusted path", () => {
-    // Declared two proxies, one entry arrived: the deployment is not the shape the
-    // operator described, so nothing in the chain is known to be proxy-written.
     expect(resolveClientAddress("203.0.113.7", 2)).toBeUndefined();
   });
 

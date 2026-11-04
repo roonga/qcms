@@ -184,7 +184,6 @@ describe("startTestDb teardown ordering (issue #888)", () => {
       );
       expect(refusal).not.toBe("no error");
 
-      // Drains the pool and the client so no socket or idle timer outlives the file.
       await pinned.teardown().catch(() => undefined);
     },
     CONTAINER_BOOT_TIMEOUT_MS,

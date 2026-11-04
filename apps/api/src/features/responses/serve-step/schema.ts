@@ -38,7 +38,7 @@ export const StepDocument = z
   })
   .openapi("StepDocument");
 
-/** Neither hidden questions nor the rule graph ever cross this boundary (SEC). */
+/** Neither hidden questions nor the rule graph ever cross this boundary. */
 export const FlowStateProjection = z
   .object({
     currentStep: z.string().nullable().openapi({ example: "stp_history" }),
@@ -60,11 +60,9 @@ export const FlowStateProjection = z
   .openapi("FlowStateProjection");
 
 /**
- * Already derived and truncated above the evaluator, so what crosses this boundary is
- * the list the renderer expands rather than anything it interprets.
- *
- * An instance id is opaque, random and session-scoped, carrying no respondent content
- * (SEC-16), and it is never a visible label.
+ * Already derived and truncated above the evaluator, so what crosses this boundary is the list the renderer
+ * expands rather than anything it interprets. An instance id is opaque, random and session-scoped, carrying
+ * no respondent content, and it is never a visible label.
  */
 export const RosterProjection = z
   .array(
@@ -97,9 +95,9 @@ export const StepViewProjection = z
   .openapi("StepViewProjection");
 
 /**
- * Scoped to the rendered step's visible questions (SEC); values are never logged (SEC-8).
- * `null` is outside the union because a retraction is an ABSENT key (ADR-33).
- * Keep `AnswerValue` inline: schemas created before the OpenAPI extension loads lack its metadata.
+ * Scoped to the rendered step's visible questions; values are never logged. `null` is outside the union
+ * because a retraction is an ABSENT key (ADR-33). Keep `AnswerValue` inline: schemas created before the
+ * OpenAPI extension loads lack its metadata.
  */
 export const HeldValues = z.record(z.string(), AnswerValue).openapi({
   description:
@@ -145,10 +143,8 @@ export const SubmitAnswerBody = z
 export type SubmitAnswerBody = z.infer<typeof SubmitAnswerBody>;
 
 /**
- * A Continue's answers only: the roster operation is its own post and commits none.
- *
- * Rate limited per entry rather than per request (SEC-16), so a batch of N answers
- * spends N units of the per-session answer allowance.
+ * A Continue's answers only: the roster operation is its own post and commits none. Rate limited per entry
+ * rather than per request, so a batch of N answers spends N units of the per-session answer allowance.
  */
 export const BatchAnswerBody = z
   .strictObject({

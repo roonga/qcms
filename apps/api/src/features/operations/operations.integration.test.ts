@@ -53,12 +53,10 @@ const { Pool } = pg;
 const LIVE_SET = ["test", "prod"] as const;
 const MOUNTED = { public: false, internal: false, admin: true } as const;
 
-/** The second workspace, for the cross-workspace personas. */
 const OTHER_WORKSPACE = "org_ops_other";
 /** A third workspace, so the non-ASCII forms disturb no other case's row list. */
 const UNICODE_WORKSPACE = "org_ops_unicode";
 
-/** Three forms: two in the seeded workspace and one in the second. */
 const FORM_CLAIMS = FormId.parse("frm_ops_claims");
 const FORM_PERMITS = FormId.parse("frm_ops_permits");
 const FORM_OTHER = FormId.parse("frm_ops_other");
@@ -81,7 +79,6 @@ interface Persona {
   readonly userId: string;
 }
 
-/** The persona list, seeded in `beforeAll`. */
 let viewer: Persona;
 let testEditor: Persona;
 let prodApprover: Persona;
@@ -93,7 +90,7 @@ let combined: Persona;
 let nobody: Persona;
 let revoked: Persona;
 let unicodeViewer: Persona;
-/** The same ten by name, for the cases that walk all of them. */
+
 let everyPersona: readonly (readonly [string, Persona])[];
 
 function databases(): Databases {
@@ -193,7 +190,6 @@ async function seedSubmitted(environment: string, formId: FormId, suffix: string
   });
 }
 
-/** A session still open in one environment, which is the `inProgress` half of a count. */
 async function seedInProgress(environment: string, formId: FormId, suffix: string): Promise<void> {
   const exec = executors.get(environment)!;
   await createSession(exec, {
@@ -388,7 +384,6 @@ async function operations(
   return { status: res.status, body: (await res.json()) as OperationsBody };
 }
 
-/** The slugs one persona is served, sorted, which is the subset half of every case. */
 async function slugsFor(token: string, query = "environment=prod"): Promise<string[]> {
   const { body } = await operations(token, query);
   return body.forms.map((row) => row.slug).sort();
@@ -398,7 +393,7 @@ describe("operations discovery: which rows each persona is served", () => {
   it("serves a forms viewer every form in its workspace, with release state and no counts", async () => {
     const { status, body } = await operations(viewer.token, "environment=prod");
     expect(status).toBe(200);
-    // Its own workspace's two forms, and not the second workspace's.
+
     expect(body.forms.map((row) => row.slug)).toEqual(["ops-claims", "ops-permits"]);
     const claims = body.forms.find((row) => row.slug === "ops-claims");
     expect(claims?.release?.version).toBe(1);
@@ -485,7 +480,7 @@ describe("operations discovery: which rows each persona is served", () => {
     expect(inProd.body.forms.map((row) => row.slug)).toEqual(["ops-claims"]);
     const claims = inProd.body.forms[0];
     expect(claims?.counts).toEqual({ submitted: 2, inProgress: 1 });
-    // No version, intake, draft or last release: `hasRelease` is all it is told.
+
     expect(claims?.release).toBeNull();
     expect(claims?.lastReleaseAt).toBeNull();
     expect(claims?.hasRelease).toBe(true);
@@ -585,7 +580,7 @@ describe("operations discovery: bounds, filters and pagination", () => {
     const searched = await operations(viewer.token, "environment=prod&q=claims");
     expect(searched.body.forms.map((row) => row.slug)).toEqual(["ops-claims"]);
     expect(searched.body.total).toBe(1);
-    // The options do not shrink with the filter.
+
     expect(searched.body.workspaces.length).toBeGreaterThan(0);
     const other = await operations(
       combined.token,

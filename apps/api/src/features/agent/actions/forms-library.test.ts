@@ -5,11 +5,6 @@ import { SCREEN_IDS } from "../screens.js";
 import { createForm } from "./forms-library.js";
 import type { ActionRequestFacts } from "./types.js";
 
-/**
- * D7's one kind: the two properties every kind has, plus the create variant's own, which
- * are that the new id is the referenceable result and that the card's link is a page route.
- */
-
 const ROUTE = { method: "POST", path: "/admin/forms" } as const;
 
 function facts(body: unknown): ActionRequestFacts {

@@ -11,19 +11,6 @@ import { t, tPlural } from "../../lib/i18n/en.ts";
 const push = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 
-/**
- * What a DRAFT source owes the author.
- *
- * What freezes is read back before the one press that freezes it, computed from the stored
- * draft rather than from a document in a browser tab, and an agent-assisted draft says so
- * (ADR-25). The anchored work list a refusal leaves stays on the builder, because its
- * entries move focus to the rule, step or pin at fault and only the builder renders those;
- * this file asserts that the refusal names the count and points there.
- *
- * The version-source cases belong beside them because they ask the same question of the
- * confirmation: what the wizard sends is what the audit record will say happened.
- */
-
 const DRAFT: DraftForm = {
   formId: "frm_intake",
   defaultLocale: "en",
@@ -53,7 +40,6 @@ const TEST_ONLY: ReleaseReview = {
   ],
 };
 
-/** Walk a draft source to the review step with `test` chosen. */
 async function toReview(props: {
   readonly confirm?: Parameters<typeof PublishWizard>[0]["confirm"];
   readonly agentAssisted?: boolean;
@@ -92,7 +78,6 @@ describe("the review step of a draft publish", () => {
       }),
     );
     expect(screen.getByText(t("forms.publish.immutable"))).toBeTruthy();
-    // Nothing claims agent assistance for a draft that carries none.
     expect(screen.queryByTestId("qcms-publish-provenance")).toBeNull();
   });
 
@@ -152,7 +137,6 @@ describe("the review step of a draft publish", () => {
     expect(rejected.textContent).toContain(
       t("forms.publish.wizardBlockedCount.other", { count: 2 }),
     );
-    // The way to the anchored list, which only the builder can render.
     expect(
       screen.getByRole("link", { name: t("forms.publish.wizardBlockedLink") }).getAttribute("href"),
     ).toBe("/forms/frm_intake");
@@ -181,9 +165,6 @@ describe("the recorded outcome's way into Operations", () => {
       }),
     );
 
-    // Operations reads the selector's cookie rather than its address, so the way into an
-    // environment is that selection: the header's own last choice does not decide where
-    // this lands, and no URL parameter overrides the selector either.
     expect(document.cookie).toContain(`${ENVIRONMENT_COOKIE}=test`);
     expect(push).toHaveBeenCalledWith("/operations");
   });
@@ -215,8 +196,6 @@ describe("a promotion's recorded source", () => {
                   currentVersion: null,
                   currentSequence: null,
                   closed: false,
-                  // A rollback row in prod itself, and the promotion's real source. Only
-                  // the second is a source: the API refuses one equal to its target.
                   evidence: [
                     {
                       environment: "prod",

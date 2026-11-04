@@ -119,7 +119,6 @@ describe("author-supplied validation messages (ADR-32)", () => {
 
   it("carries only the constraints the author decorated (per-constraint fallback)", () => {
     const node = controlFor([{ ...PLATE, messages: { maxLength: en("At most 8") } }], "q_plate");
-    // Absent, so the portal falls back to its own catalog for them.
     expect(Object.keys(node.props?.messages as Record<string, string>)).toEqual(["maxLength"]);
   });
 

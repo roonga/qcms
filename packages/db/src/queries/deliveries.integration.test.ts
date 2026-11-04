@@ -1,5 +1,3 @@
-/** Driven against the Testcontainers harness DB. Requires Docker. */
-
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { and, eq, notInArray } from "drizzle-orm";
 import pg from "pg";
@@ -462,7 +460,6 @@ describe("delivery claim concurrency (live, pooled connections)", () => {
   let db: NodePgDatabase<typeof schema>;
 
   beforeAll(() => {
-    // Registered with the harness so teardown drains it before the container stops.
     pool = testDb.register(
       new Pool({
         connectionString: testDb.connectionUri,

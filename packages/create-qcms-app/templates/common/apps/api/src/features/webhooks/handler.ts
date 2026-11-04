@@ -1,5 +1,5 @@
-// The plaintext secret lives in memory only long enough to be returned once and encrypted
-// for storage; it is never logged and never returned on a read (SEC-6/SEC-8).
+// The plaintext secret lives in memory only long enough to be returned once and encrypted for storage; it is
+// never logged and never returned on a read.
 
 import type { RouteHandler } from "@hono/zod-openapi";
 import type { Context, MiddlewareHandler } from "hono";
@@ -248,7 +248,7 @@ export function makeCreateWebhookHandler(
         {
           pending: true as const,
           proposal: proposalBody(proposal, "whole"),
-          secret, // one-time reveal (SEC-6)
+          secret,
         },
         202,
       );
@@ -269,7 +269,7 @@ export function makeCreateWebhookHandler(
         formId,
         url: row.url,
         active: row.active,
-        secret, // one-time reveal (SEC-6)
+        secret,
         createdAt: row.createdAt.toISOString(),
       },
       201,
@@ -372,7 +372,7 @@ export function makeUpdateWebhookHandler(
         active: updated.active,
         deactivatedAt: updated.deactivatedAt === null ? null : updated.deactivatedAt.toISOString(),
         updatedAt: updated.updatedAt.toISOString(),
-        ...(newSecret === undefined ? {} : { secret: newSecret }), // one-time reveal (SEC-6)
+        ...(newSecret === undefined ? {} : { secret: newSecret }),
       },
       200,
     );

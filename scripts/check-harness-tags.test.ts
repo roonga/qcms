@@ -12,8 +12,6 @@ const CLOSE = `${LT}/`;
 
 describe("harnessTagsIn", () => {
   it("catches every banned shape, one per pattern", () => {
-    // Built from the patterns' own source, so a shape added to the gate with no case here
-    // cannot pass silently.
     const samples = [
       `${LT}function_calls>`,
       `${CLOSE}function_calls>`,
@@ -57,8 +55,6 @@ describe("harnessTagsIn", () => {
       `${CLOSE}p>`,
       "The function invokes a parameter of the content model.",
       "invoke, parameter, content: all fine as words.",
-      // A longer element name that starts with a banned one: without the delimiter
-      // lookahead this line would fail the gate.
       `${LT}parameterised>`,
       `${LT}invoker>`,
     ].join("\n");

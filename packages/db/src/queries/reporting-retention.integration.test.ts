@@ -127,7 +127,6 @@ describe("reporting_<env>.responses view", () => {
       { questionId: "q_multi", value: ["opt_a", "opt_b"] as unknown as AnswerValue },
     ]);
 
-    // in_progress: future expiry so the sweep below never touches it.
     const inProgress = SessionId.parse("ses_report_inprogress");
     await createSession(testDb.db, {
       environment: DEFAULT_TEST_ENVIRONMENT,
@@ -410,7 +409,6 @@ describe("the reporting views carry repeated answers", () => {
 });
 
 describe("reporting contract - no column drift", () => {
-  // From the same module the migration body is generated from.
   const EXPECTED: Record<string, string[]> = Object.fromEntries(
     reportingViewColumns.map((view) => [view.name, [...view.columns]]),
   );

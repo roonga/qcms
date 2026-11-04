@@ -1,16 +1,5 @@
-/**
- * The review and the confirmation, as the publish wizard reads them.
- *
- * Client-safe and pure, like `lib/forms/releases.ts`, because the wizard is a client
- * component and a client module cannot reach into `lib/server/` at all (the R2
- * import-surface test). The calls live in `lib/server/releases.ts`.
- *
- * **Nothing here decides whether a destination is eligible.** `blockers` arrive on each
- * target, computed by the API from committed state, so the wizard disables a destination
- * the server has already refused rather than running a second rule set of its own.
- */
+// Keep client-safe view types outside server modules; the API owns eligibility decisions.
 
-/** A committed release row that satisfied a destination's prerequisite. */
 export interface ReleaseEvidenceRecord {
   readonly environment: string;
   readonly version: number;
@@ -18,22 +7,16 @@ export interface ReleaseEvidenceRecord {
   readonly releasedAt: string;
 }
 
-/** One reason a destination is accessible but not releasable right now. */
 export interface ReleaseBlockerRecord {
   readonly code: string;
-  /** Environments any one of which would satisfy a prerequisite; empty otherwise. */
+
   readonly requiresAnyOf: readonly string[];
 }
 
-/** One destination the caller holds `release: create` in. There are no others. */
 export interface ReviewTarget {
   readonly environment: string;
   readonly currentVersion: number | null;
-  /**
-   * The newest release-state sequence, `null` for never released there. The confirmation
-   * carries it back, so a close, a reopen or a release landing in between is refused
-   * rather than committed over.
-   */
+  // Echo the observed release sequence so intervening close, reopen or release operations make confirmation stale.
   readonly currentSequence: number | null;
   readonly closed: boolean;
   readonly evidence: readonly ReleaseEvidenceRecord[];
@@ -42,7 +25,6 @@ export interface ReviewTarget {
   readonly protected: boolean;
 }
 
-/** The source a review considered: the shared draft, or one exact immutable version. */
 export type ReviewSource =
   | { readonly kind: "draft"; readonly draftRevision: number }
   | { readonly kind: "version"; readonly version: number; readonly publishedBy: string | null };
@@ -54,12 +36,10 @@ export interface ReleaseReview {
   readonly targets: readonly ReviewTarget[];
 }
 
-/** What the wizard asks for, as plain data: the shape task 083 will later drive. */
 export type PublishIntent =
   | { readonly kind: "draft"; readonly draftRevision: number }
   | { readonly kind: "version"; readonly version: number };
 
-/** One chosen destination, carrying the sequence the review reported for it. */
 export interface PublishDestination {
   readonly environment: string;
   readonly expectedSequence: number | null;
@@ -148,7 +128,7 @@ function readTargets(value: unknown): readonly ReviewTarget[] {
   });
 }
 
-/** Shape-check a review. `undefined` is "this answer was not a review", not "no targets". */
+// An unreadable review is not an empty destination list.
 export function parseReleaseReview(value: unknown): ReleaseReview | undefined {
   const body = value as {
     source?: unknown;
@@ -166,19 +146,10 @@ export function parseReleaseReview(value: unknown): ReleaseReview | undefined {
   };
 }
 
-/**
- * Whether this destination can be confirmed as it stands.
- *
- * A blocker is the server's refusal reported early, and the two-person rule is the one
- * refusal the review states separately rather than as a blocker when the source is a
- * version this account did not publish. Both read the same way here: anything that would
- * make the confirmation fail disables the destination with a reason beside it.
- */
 export function isTargetEligible(target: ReviewTarget): boolean {
   return target.blockers.length === 0 && !target.twoPerson.refusedAsAuthor;
 }
 
-/** The destinations a confirmation may carry, in the order the review reported them. */
 export function eligibleTargets(review: ReleaseReview): readonly ReviewTarget[] {
   return review.targets.filter((target) => isTargetEligible(target));
 }

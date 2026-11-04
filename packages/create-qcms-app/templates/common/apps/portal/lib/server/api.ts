@@ -57,7 +57,6 @@ export interface ApiStepView {
   readonly instanceId: string | null;
 }
 
-/** GET /sessions/:id/step and POST /sessions/:id/answers both return this shape. */
 export interface StepResponse {
   readonly step: ApiStepDocument | null;
   readonly values: ApiHeldValues;
@@ -103,7 +102,6 @@ export interface SubmitResponse {
   readonly contentHash: string;
 }
 
-/** The API's uniform error envelope. */
 export class ApiError extends Error {
   constructor(
     readonly code: string,
@@ -123,7 +121,8 @@ interface ErrorEnvelope {
   };
 }
 
-// The raw `x-forwarded-for` is not forwarded: `client-address.ts` resolves it here, where the number of trusted proxies is known, and vouches for the result on a header the SEC-4 channel protects.
+// Resolve forwarding headers only at the BFF, where proxy trust is known, and attest the result over the
+// authenticated internal channel.
 async function baseHeaders(token?: string): Promise<Record<string, string>> {
   const headers: Record<string, string> = {
     "content-type": "application/json",
@@ -183,10 +182,9 @@ async function loggedFetch(
 }
 
 /**
- * The API mounts this endpoint on `prod`'s respondent surface only (SEC-14), and the
- * portal serves `/f/{slug}` under no prefix and on no reserved host, so it is never
- * called for a non-prod environment. If it were, the answer would be a 404 rather than a
- * refusal, which is the point of the split.
+ * The API mounts this endpoint on `prod`'s respondent surface only, and the portal serves `/f/{slug}` under
+ * no prefix and on no reserved host, so it is never called for a non-prod environment. If it were, the
+ * answer would be a 404 rather than a refusal, which is the point of the split.
  */
 export async function startAnonymousSession(body: {
   readonly formSlug: string;

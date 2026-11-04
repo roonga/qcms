@@ -9,7 +9,6 @@ import { existsSync, readFileSync } from "node:fs";
 
 export const DOCKER_PUBLISH_HOST_ENV_VAR = "QCMS_DOCKER_PUBLISH_HOST";
 
-/** Docker's marker file, present in every container it starts. */
 export const DOCKER_ENV_MARKER = "/.dockerenv";
 
 /**

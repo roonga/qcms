@@ -55,8 +55,8 @@ export async function redactAgedResponseSnippets(
 }
 
 /**
- * One claimed, due delivery joined to what the deliverer needs to POST it. The secret
- * stays opaque ciphertext here; the API decrypts it at signing time (SEC-6).
+ * One claimed, due delivery joined to what the deliverer needs to POST it. The secret stays opaque
+ * ciphertext here; the API decrypts it at signing time.
  */
 export interface DueDelivery {
   readonly deliveryId: string;

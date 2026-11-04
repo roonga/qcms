@@ -4,7 +4,6 @@ import { waitForHydration } from "./support/hydration.js";
 
 const { repeatTourSlug } = readFixtures();
 
-/** The one instance card this view draws. */
 function card(page: import("@playwright/test").Page) {
   return page.locator("fieldset[data-qcms-instance]");
 }
@@ -21,7 +20,6 @@ async function startTour(page: import("@playwright/test").Page): Promise<void> {
   await waitForHydration(page);
 }
 
-/** Press Continue or Back and wait for the step read the cursor move makes. */
 async function navigate(page: import("@playwright/test").Page, name: string): Promise<void> {
   const read = page.waitForResponse(
     (response) =>

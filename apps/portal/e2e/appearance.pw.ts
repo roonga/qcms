@@ -81,10 +81,6 @@ async function expectNoAxeViolations(page: Page, label: string): Promise<void> {
   expect(results.passes.length, `axe ran no rules at "${label}"`).toBeGreaterThan(0);
 }
 
-/* ==========================================================================
-   EXIT CRITERION 3 - the brand mark is config, and the literal is gone.
-   ========================================================================== */
-
 test("the brand mark and the document title come from config, with no QCMS literal left", async ({
   page,
 }) => {
@@ -107,10 +103,6 @@ test("the brand mark and the document title come from config, with no QCMS liter
   );
   expect(await page.title()).not.toContain("QCMS");
 });
-
-/* ==========================================================================
-   EXIT CRITERION 1 - the controls work, persist, and default from the OS.
-   ========================================================================== */
 
 test("each control switches its axis and the choice survives a reload", async ({ page }) => {
   const { kitchenSinkSlug } = readFixtures();
@@ -176,10 +168,6 @@ test("a first visit defaults from prefers-color-scheme and prefers-contrast", as
   await page.goto(`/f/${slug}`);
   expect(await liveMode(page)).toBe("light");
 });
-
-/* ==========================================================================
-   EXIT CRITERION 1 - no flash. Proven on the first frame that could have painted.
-   ========================================================================== */
 
 interface Frame {
   readonly cls: string;
@@ -252,10 +240,6 @@ test("a persisted choice paints with no flash, and so does an OS-derived default
   await expectNoFlash(page, "hc", "OS prefers-contrast: more, no cookie");
 });
 
-/* ==========================================================================
-   EXIT CRITERION 1 - keyboard operation, and a selected state that is not colour.
-   ========================================================================== */
-
 test("the controls are operable from the keyboard alone", async ({ page }) => {
   const { slug } = readFixtures();
   await page.goto(`/f/${slug}`);
@@ -324,10 +308,6 @@ test("the selected chip is distinguishable without colour, including in High-con
     }
   }
 });
-
-/* ==========================================================================
-   EXIT CRITERION 2 - target size at Compact, and the 1.4.12 floors per density.
-   ========================================================================== */
 
 async function measureTargets(page: Page): Promise<{ name: string; w: number; h: number }[]> {
   const targets: { name: string; locator: Locator }[] = [
@@ -477,10 +457,6 @@ test("the WCAG 1.4.12 floors hold at every font AND every density", async ({ pag
   writeFileSync(APPEARANCE_FLOORS_PATH, measured, "utf8");
   expect(table).toHaveLength(DENSITY_LEVELS.length * fontKeys.length);
 });
-
-/* ==========================================================================
-   EXIT CRITERION 4 - axe across the whole matrix, with the panel open.
-   ========================================================================== */
 
 test("the appearance panel is axe-clean in every mode x density", async ({ page }) => {
   const { slug } = readFixtures();

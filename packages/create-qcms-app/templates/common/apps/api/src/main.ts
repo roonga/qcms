@@ -31,16 +31,16 @@ export function main(telemetry: Telemetry): void {
     sendToOpenTelemetry: true,
   });
 
-  // At boot, not on the lazy auth build: a disabled SEC-1 breach check must show in the
-  // startup log rather than at the first sign-in attempt.
+  // Warn about a disabled breach check at boot rather than waiting for the first sign-in's lazy auth
+  // initialization.
   if (config.mount.admin) {
     warnIfBreachCheckDisabled(config.adminAuth, (message) => {
       logger.warn(message);
     });
   }
 
-  // Unconditional on mount and on the challenge flag: the deprecation notice has to reach
-  // an operator who still has the old variable set. The value is never echoed (SEC-8).
+  // Unconditional on mount and on the challenge flag: the deprecation notice has to reach an operator who
+  // still has the old variable set. The value is never echoed.
   const turnstileWarning = turnstileSiteKeyDeprecationWarning(process.env);
   if (turnstileWarning !== undefined) logger.warn(turnstileWarning);
 
@@ -74,9 +74,8 @@ export function main(telemetry: Telemetry): void {
 
   const app = createApp(deps, config.mount, { groups: appGroups });
 
-  // Read off the limiter's own resolved context, so a disabled SEC-1 sign-in throttle is
-  // visible without exhausting the limit. Off to the side of the bind and its failure only
-  // logged: a safety diagnostic must not become a new way to fail to start.
+  // Read the resolved sign-in limiter without spending an attempt. A failed safety diagnostic must be logged
+  // without preventing startup.
   if (config.mount.admin) {
     void logSignInThrottleState(adminAuthFor(deps), logger).catch((error: unknown) => {
       logger.error("could not read the sign-in throttle state", { err: error });

@@ -19,13 +19,10 @@ import {
 } from "./repeat-walk.ts";
 
 /**
- * The compiler is answer-blind (ADR-14) and an instance count is answer-dependent, so it emits a template and
- * this clones it per live instance with qualified names; the roster comes from the API (R2). Visibility is
- * pruned per instance here, since the API's visible set holds qualified names. The honeypot is never cloned:
- * a decoy in the template would post one `website` field per instance.
+ * The answer-blind compiler emits templates; expand from API rosters and qualified visibility at render time.
+ * Never clone the honeypot or one decoy becomes several posted fields.
  */
 
-/** What the renderer knows at render time that the stored document cannot. */
 export interface RepeatExpansion {
   /**
    * Already derived and truncated by the API (ADR-42: evaluator and renderer both see
@@ -48,16 +45,12 @@ export interface RepeatExpansion {
   };
 }
 
-// The levels for the document as the page: the compiled outline puts the form title at
-// `h1` and the step title at `h2`. An embedded document is renumbered afterwards by
-// `withDemotedHeadings`, so the offset is applied in exactly one place.
+// Expand at document heading levels, then demote once for an embedded host.
 const GROUP_HEADING_LEVEL = "h3" as const;
 const INSTANCE_HEADING_LEVEL = "h4" as const;
 
 type HeadingLevel = typeof GROUP_HEADING_LEVEL | typeof INSTANCE_HEADING_LEVEL;
 
-// Takes the same input shape the table presentation does, so the two layouts are two
-// readings of one set of facts rather than two sets that happen to agree.
 function stackedChildren(input: RepeatTableInput, drawnOnly?: string): A2Node[] {
   const children: A2Node[] = [];
   if (input.label !== "") children.push(groupHeading(input.label, GROUP_HEADING_LEVEL));
@@ -123,8 +116,7 @@ function expandGroup(node: A2Node, expansion: RepeatExpansion): A2Node {
   const removable = addable;
   const presentation = stringProp(node, "presentation") ?? "stacked";
 
-  // The conditional spreads are what `exactOptionalPropertyTypes` asks for: an absent
-  // key and a key holding `undefined` differ to a node prop a `.strict()` schema parses.
+  // Omit optional keys: strict schemas distinguish absence from undefined.
   const input: RepeatTableInput = {
     groupId: groupId ?? "",
     label,
@@ -217,7 +209,6 @@ export function expandRepeatGroups(root: A2Node, expansion: RepeatExpansion = {}
   return touched ? next : root;
 }
 
-/** The cheap guard a caller uses before asking for an expansion. */
 export function hasRepeatGroup(root: A2Node): boolean {
   if (root.type === REPEAT_GROUP_NODE_TYPE) return true;
   return childArray(root.children).some((child) => hasRepeatGroup(child));

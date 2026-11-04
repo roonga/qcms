@@ -13,7 +13,6 @@ import { pathToFileURL } from "node:url";
 
 export const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
-/** Fits an 80-column terminal with margin. */
 export const DEFAULT_WIDTH = 72;
 
 export const MIN_WIDTH = 8;
@@ -50,7 +49,6 @@ const COLOUR_TYPE_NAMES = new Map([
  * `samples` is `width * height * channels` bytes, row-major, filters already reversed.
  */
 
-/** A refusal a caller is meant to print rather than a bug. */
 export class PngError extends Error {
   /** @param {string} message */
   constructor(message) {

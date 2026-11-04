@@ -40,7 +40,6 @@ export const EXEMPT = [
   ".changeset/",
   // A retrospective is a dated account of what was believed at the time.
   "docs/RETRO.md",
-  // Scratch and planning history, excluded by every other gate here.
   "plan/",
   // The lockfile is the source of truth this gate reads, not a claim about it.
   "pnpm-lock.yaml",
@@ -192,8 +191,6 @@ function main() {
   return 1;
 }
 
-// Only when run as a command, so the test can import the pure helpers without the scan
-// firing and without `process.exit` killing the run.
 if (argv[1] !== undefined && import.meta.url === pathToFileURL(argv[1]).href) {
   process.exit(main());
 }

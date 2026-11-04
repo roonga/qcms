@@ -3,22 +3,6 @@ import { describe, expect, it } from "vitest";
 import type { DraftStep } from "./types.ts";
 import { formDisplayName, formSubtreeRail, railIssueTotal, RAIL_SECTIONS } from "./subtree-rail.ts";
 
-/**
- * What the rail carries, as a decision rather than as pixels (`plan/admin-design-
- * contracts.md` §7, issue 559).
- *
- * §7 is four sentences and three of them are answerable without a DOM: which two groups,
- * in which order, with which row marked current, and which count on which step. Testing
- * those through rendered markup would test them through a second thing at the same time,
- * so they are tested here and the markup is tested next door for being markup.
- *
- * The section list is restated below rather than imported from the module, for the same
- * reason `measure.pw.ts` restates its own table: a list checked against itself passes on
- * any list. In particular VALIDATION IS ABSENT, and that is the clause most likely to be
- * "fixed" by someone reading `rules-screen-poc.html`, which draws it as a rail route
- * (`plan/admin-ux-audit.md` §5.5 is why it is not one).
- */
-
 const STEPS: readonly DraftStep[] = [
   { stepId: "stp_about", title: { en: "About you" }, items: [] },
   { stepId: "stp_health", title: { en: "Health" }, items: [] },
@@ -27,8 +11,7 @@ const STEPS: readonly DraftStep[] = [
 
 const FORM_ID = "frm_life";
 const SLUG = "life-insurance";
-// A form that HAS a title: the rail shows what an author called it, and falls back to the
-// slug only when there is nothing to show. Both branches are asserted below.
+
 const TITLE = "Life insurance";
 
 function rail(current: Parameters<typeof formSubtreeRail>[0]["current"], counts = new Map()) {
@@ -44,14 +27,6 @@ function rail(current: Parameters<typeof formSubtreeRail>[0]["current"], counts 
 
 describe("the form-subtree rail's contents", () => {
   it("carries the eight sibling routes in §7's order, and Validation is not one of them", () => {
-    // RULES IS ONE OF THEM SINCE 2026-09-05 and Validation still is not, which is the pair
-    // reading as a decision rather than as an inconsistency. Rule editing moved to a route
-    // (issue #669) with its anchors rebuilt as route-plus-fragment links; Validation could
-    // not move, because its entries point at controls the BUILDER renders and the publish
-    // rejection reuses the same list verbatim (`plan/admin-ux-audit.md` §5.5).
-    // RELEASES JOINED THEM WITH TASK 065, directly after the version history: what is
-    // released to each environment is a different question from what versions exist, and
-    // under ADR-40 it is the question that decides what a respondent is served.
     expect([...RAIL_SECTIONS]).toStrictEqual([
       "builder",
       "rules",
@@ -69,24 +44,17 @@ describe("the form-subtree rail's contents", () => {
     expect(groups.children.map((item) => item.label)).toStrictEqual([
       "About you",
       "Health",
-      // A step an author has added but not named yet still has to be clickable and
-      // readable, so it takes the same stand-in the builder's own step list gives it.
+
       "Untitled step",
     ]);
     expect(groups.siblings.map((item) => item.label)).toStrictEqual([
-      // The form's own name, not "Builder" and not "Form details": that row opens the
-      // form's own screen, and the rail's summary line above it stopped saying the same
-      // thing on 2026-08-26. The TITLE where there is one - what an author called the
-      // form is what a reader recognises - with the slug as the fallback, which
-      // `formDisplayName` is tested for below.
       TITLE,
-      // The rules screen (issue #669), directly after the form's own row and the steps
-      // nested under it, which is where `rules-screen-poc.html` draws it.
+
       "Rules",
       "Preview",
-      // §7's rule: the rail carries the screen's own name.
+
       "Versions",
-      // The publish wizard, named the same way: the rail carries the screen's own name.
+
       "Publish",
       "Links",
       "Responses",
@@ -118,11 +86,6 @@ describe("the form-subtree rail's contents", () => {
   });
 
   it("makes a step row the destination for the id it points at, and a sibling row no destination", () => {
-    // The other half of the href above, and the half that went missing when the step list
-    // moved into the rail: something has to CARRY `step-{stepId}` or every link naming it
-    // lands nowhere - the rail's own rows from seven screens, and the validation panel's
-    // "jump to the offending step" links, which is what `lib/forms/issues.ts` mints the id
-    // for. A sibling is a route rather than a fragment, so it is a destination for nothing.
     const groups = rail({ kind: "section", section: "links" });
     expect(groups.children.map((item) => item.anchorId)).toStrictEqual([
       "step-stp_about",
@@ -175,18 +138,11 @@ describe("the form-subtree rail's contents", () => {
 });
 
 describe("what the collapsed Header carries", () => {
-  // Issue 693, and §7.0's clarification of 2026-10-24: "the subject plus at most one count".
-  // The line named the active ITEM until 693 - a step label, a section label, or the slug
-  // only when neither was current - so one line meant three things across eight screens. It
-  // names the FORM at every position now, which is also what `admin-shell-poc.html` draws.
-  //
-  // Two reads rather than one since #1116: the pair `railSummary` returned was shaped for a
-  // frame that took a text and a count and nothing else, and §7.0's Header is five parts.
   it("names the form whatever is current, and counts the form's own issues", () => {
     for (const current of [
       { kind: "section", section: "links" },
       { kind: "step", stepId: "stp_health" },
-      // A step the draft no longer has: the one branch that always did name the form.
+
       { kind: "step", stepId: "stp_gone" },
     ] as const) {
       const groups = rail(current, new Map([["stp_health", 2]]));
@@ -196,8 +152,6 @@ describe("what the collapsed Header carries", () => {
   });
 
   it("prefers what the author called the form over how it is addressed", () => {
-    // The slug is in the URL; the title is the thing a person recognises, and until 2026-08
-    // the rail never showed it at all.
     expect(formDisplayName("Life insurance", "life")).toBe("Life insurance");
   });
 
@@ -207,8 +161,6 @@ describe("what the collapsed Header carries", () => {
   });
 
   it("counts every step's issues, not the current row's", () => {
-    // The number a shut rail can usefully carry about a form is how much is wrong with it,
-    // and that is a different number from whichever row happens to be marked.
     const groups = rail(
       { kind: "section", section: "links" },
       new Map([

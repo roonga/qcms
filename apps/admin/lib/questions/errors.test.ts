@@ -3,21 +3,6 @@ import { describe, expect, it } from "vitest";
 import { fieldError, issuesByField, messageForCode, unplacedIssues } from "./errors.ts";
 import type { DefinitionIssue } from "./types.ts";
 
-/**
- * Exit criterion 1's second half: "every 021 error surfaced somewhere readable".
- *
- * The Playwright walk proves the main codes reach a screen. This proves the two
- * properties that make that true for codes nobody wrote a test for: every code the
- * questions slice can raise has a sentence, and any issue the editor cannot place on a
- * field is still reported rather than dropped.
- */
-
-/**
- * Every error code `apps/api/src/features/questions/handler.ts` can raise on a question
- * route, plus the cross-cutting ones reachable through the admin gates. Pinned here on
- * purpose: a new API code that arrives without a sentence should fail a test in the app
- * that has to render it, not surface as machine text in front of an author.
- */
 const API_CODES = [
   "INVALID_QUESTION_ID",
   "INVALID_QUESTION_DEFINITION",
@@ -48,8 +33,7 @@ describe("messageForCode", () => {
 
   it("falls back without putting a bare code in front of a human", () => {
     const message = messageForCode("SOME_FUTURE_CODE");
-    // The code is still present so a bug report can name it, but it is inside a
-    // sentence rather than being the whole message.
+
     expect(message).toContain("SOME_FUTURE_CODE");
     expect(message).toMatch(/failed/i);
   });
@@ -75,9 +59,6 @@ describe("issue placement", () => {
   });
 
   it("reports an issue whose field this form does not render", () => {
-    // The exact case that makes the criterion hold for a future constraint: the kernel
-    // knows a field the editor has never heard of, and the author still sees why the
-    // save failed.
     const leftover = unplacedIssues(issues, new Set(["options.1.label"]));
     expect(leftover.map((issue) => issue.code)).toEqual([
       "MIN_ABOVE_MAX",

@@ -1,6 +1,4 @@
-// Measured rather than asserted, so the browser suite only has to prove the shipped
-// CSS reaches a rendered page. The faces are checked by woff2 magic number, so a
-// placeholder fails here rather than rendering as a silent fallback.
+// Check woff2 bytes so placeholder files cannot silently pass as fallback fonts.
 
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
@@ -43,20 +41,15 @@ const REQUIRED_MEMBERS: Readonly<Record<string, readonly string[]>> = {
   Monospace: ["jetbrainsmono", "geistmono"],
 };
 
-// Formatting is Prettier's business and content is the manifest's, so the drift guard
-// compares whitespace-normalized text.
+// Ignore formatter whitespace when comparing generated CSS with its manifest.
 
 function normalize(css: string): string {
   return css.replaceAll(/\s+/gu, " ").trim();
 }
 
-/** Comments removed, so a rule-level assertion cannot match prose. */
 function stripComments(css: string): string {
   return css.replaceAll(/\/\*[\s\S]*?\*\//gu, "");
 }
-
-// Lets the add and remove assertions diff an entry's own blocks and nothing else, with
-// no dependence on where a comment happened to sit.
 
 function rules(css: string): readonly string[] {
   // Scanned rather than matched: a `selector { body }` pattern backtracks
@@ -82,8 +75,7 @@ function firstDeclaration(css: string, name: string): string | undefined {
   return css.slice(start + name.length + 1, end).trim();
 }
 
-// Spelled out rather than imported, so a generator change that drops the ADR-38 carrier
-// or softens it to `:where()` fails loudly.
+// Keep this expected carrier independent of the generator so weakening specificity fails.
 
 const SCOPE_ANCHOR = ":is(:root, [data-qcms-theme-scope])";
 
@@ -166,7 +158,7 @@ describe("the manifest is well formed", () => {
       const families = (value ?? "").split(",").map((part) => normalize(part));
       const genericAt = families.findIndex((family) => generics.has(family));
       expect(genericAt, `${name} names no CSS generic: ${value ?? ""}`).toBeGreaterThanOrEqual(0);
-      // Nothing but symbol fallbacks may follow the generic.
+
       for (const trailing of families.slice(genericAt + 1)) {
         expect(symbolFaces, `${name} has "${trailing}" after its generic`).toContain(trailing);
       }
@@ -206,7 +198,7 @@ describe("System is always present and never removable", () => {
         `curation ${JSON.stringify(keys)} dropped System`,
       ).toBe(true);
     }
-    // An empty or all-unknown curation means "offer everything", never "nothing".
+
     expect(fontChoices([])).toEqual(FONT_REGISTRY);
     expect(fontChoices(["papyrus"])).toEqual(FONT_REGISTRY);
     expect(fontChoices(["inter"]).map((entry) => entry.key)).toEqual([SYSTEM_FONT_KEY, "inter"]);
@@ -225,8 +217,7 @@ describe("every declared face is a real, committed woff2", () => {
     }
   });
 
-  // A variable font serves every weight from one file, so saving it per weight would
-  // commit the same bytes twice.
+  // Variable faces share one file; per-weight copies would duplicate identical bytes.
   it("commits no two byte-identical font files", () => {
     const byDigest = new Map<string, string[]>();
     for (const name of readdirSync(FONT_DIR).filter((entry) => entry.endsWith(".woff2"))) {

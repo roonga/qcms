@@ -435,7 +435,6 @@ describe("a no-JS whole-step round, at the ledger (issue #127)", () => {
     const { sessionId, sessionToken } = await ledgerSession("ses_nojs_round");
     const sid = SessionId.parse(sessionId);
 
-    // Round one: the respondent answers both questions and the flow is submittable.
     await postAnswer(sessionId, sessionToken, "q_at_fault_accident", true);
     await postAnswer(sessionId, sessionToken, "q_accident_count", 10);
 
@@ -573,7 +572,6 @@ describe("an empty value is refused, never stored and never a retraction (ADR-33
       errors: [EMPTY_ERROR],
     });
 
-    // Nothing appended, and no tombstone either: a refusal is not a retraction.
     expect((await answerLedger(testDb.db, sid)) as unknown[]).toEqual([]);
     const afterEmpty = (await (await getStep(sessionId, sessionToken)).json()) as StepBody;
     expect(afterEmpty.flowState.missingRequired).toContain("q_full_name");
@@ -775,12 +773,10 @@ describe("explicit navigation cursor renders the requested step (ADR-28)", () =>
   });
 });
 
-// --- exit criterion 3: typed rejects ----------------------------------------
-
 describe("typed rejects (exit criterion 3)", () => {
   it("invalid value → 422 with the kernel's error codes", async () => {
     const { sessionId, sessionToken } = await startSession("auto");
-    await postAnswer(sessionId, sessionToken, "q_at_fault_accident", true); // reveal q_accident_count
+    await postAnswer(sessionId, sessionToken, "q_at_fault_accident", true);
     const res = await postAnswer(sessionId, sessionToken, "q_accident_count", -1); // below min 0
     expect(res.status).toBe(422);
     const body = (await res.json()) as ErrBody;
@@ -943,8 +939,6 @@ describe("the stored semanticsVersion gates serving and answering (ADR-16)", () 
     expect(body.flowState.visibleQuestions).toEqual(["q_at_fault_accident"]);
   });
 });
-
-// --- exit criterion 4: concurrent answers serialized ------------------------
 
 describe("concurrent answers are serialized by the advisory lock (exit criterion 4)", () => {
   it("two simultaneous answers to one session both land; ledger order is well-formed", async () => {

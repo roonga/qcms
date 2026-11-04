@@ -4,157 +4,65 @@ import { textOf } from "../questions/definition.ts";
 import { groupAnchorId, stepAnchorId } from "./issues.ts";
 import { isDraftGroup, type DraftGroup, type DraftStep } from "./types.ts";
 
-/**
- * What the form-subtree rail carries, as data (`plan/admin-design-contracts.md` §7,
- * issue 559).
- *
- * The contract is one tree: the form's **siblings** (Builder, Rules, Preview, Versions,
- * Links, Responses, Webhooks), with the form's **children** - its steps, carrying per-step
- * issue badges - nested under the Builder row rather than standing beside it as a second
- * group. Rules is the seventh and newest (Code Owner 2026-09-05, issue #669): it was a row
- * that switched a SELECTION on the builder, and it is a route now.
- *
- * AMENDED 2026-08-25 (Code Owner) on both counts. §7 used to describe two sibling groups in
- * one order with one divider, and used to say the rail "never carries a same-page section
- * switch"; the steps are now nested, and that clause is retired - it was what kept the
- * builder's own steps out of its rail, which is the screen where they are most wanted.
- * What survives unchanged is that the rail never carries a route the audit rejected - Validation
- * stays on the builder page (`plan/admin-ux-audit.md` §5.5), so it is absent from
- * {@link RAIL_SECTIONS} and adding it here would break the anchored issue links the
- * validation panel and the publish rejection list are both built out of. RULES IS NOT THAT
- * CASE and the difference is the whole of issue #669's ruling: its anchors were rebuilt as
- * `/forms/{formId}/rules#rule-{ruleId}` links that switch route and then focus, so nothing
- * resolves to nothing. Validation's could not be, because its entries point at controls the
- * builder itself renders.
- *
- * WHY THE ANSWER IS A PURE FUNCTION AND NOT MARKUP. Three of the four things the
- * acceptance asks about - both groups in the right order, the badge on the right step,
- * the right item marked current - are decisions rather than pixels, and a decision tested
- * through a DOM is tested through two things at once. The component below it renders what
- * this returns and takes no view of its own about what belongs in a rail.
- *
- * ## Where a step link goes, and why that is an application rather than an invention
- *
- * §7 says the children are the form's steps and that rail items are anchors. In this app a
- * step is not a route: it is a selection inside the builder, and the audit records
- * step-per-route as the thing that produced the POC's scope bug (§3.5), so minting one
- * here would be deciding a question the contract did not delegate. What a step already
- * HAS is a stable DOM id on the builder - {@link stepAnchorId}, minted so an issue can be
- * a link that moves focus to the step it names - and the validation panel already ships
- * links of exactly that shape. So a step's rail item is the builder's URL with that
- * fragment: a real anchor, middle-clickable, openable in a new tab, and landing on the step
- * it names. No new route, no new scope, no new pattern.
- */
-
-/**
- * The seven sibling routes, in the order §7 lists them. Validation is deliberately absent.
- *
- * RULES JOINED THEM ON 2026-09-05 (Code Owner, issue #669) and Validation still has not,
- * which is the pair reading as one decision rather than as a contradiction. §7's struck
- * clause rejected a Validation route because that panel's entries are focus-moving anchors
- * into the builder's OWN controls and the publish rejection reuses the same list verbatim;
- * rule editing is the other half of `rules-screen-poc.html` and was decided the other way,
- * with the anchors rebuilt as route-plus-fragment links rather than left to resolve to
- * nothing (`plan/admin-ux-audit.md` §5.5 priced that as a two-hop path and it is accepted).
- *
- * Second in the list, directly after the form's own row and the steps nested under it,
- * which is where `plan/admin-shell-poc/rules-screen-poc.html` draws it: the rules are
- * form-level work, so they sit beside the work rather than among the six screens that
- * report on a published form.
- */
+// Validation stays with builder controls because its entries move focus there; rule destinations include their own route.
 export const RAIL_SECTIONS = [
   "builder",
   "rules",
   "preview",
   "versions",
-  // Directly after Versions, because that screen is what an operator reads to decide what
-  // to publish and this is the one entry that does it.
+
   "publish",
   "links",
   "responses",
   "webhooks",
 ] as const;
 
-/** One of the form's sibling screens. */
 export type RailSection = (typeof RAIL_SECTIONS)[number];
 
-/** Which item of the rail the screen showing it is. */
 export type RailCurrent =
   | { readonly kind: "section"; readonly section: RailSection }
   | { readonly kind: "step"; readonly stepId: string }
   | { readonly kind: "group"; readonly groupId: string };
 
-/** One rendered row of the rail. Every row is a link, because §7 has no other kind. */
 export interface RailItem {
-  /** React key and test hook. Unique across both groups. */
   readonly key: string;
-  /**
-   * What this row IS, which the rail needs now that a step's children are not all steps
-   * (ADR-42, task 074). A repeating group is nested under the step that holds it, at one more
-   * level of indent, so the row has to say which of the two it is rather than being inferred
-   * from whether `position` is set.
-   *
-   * Absent on a sibling screen's row, which was every row's shape before groups existed.
-   */
+
   readonly kind?: "step" | "group";
-  /** The step a group row belongs to, so a press can select the pair. */
+
   readonly stepId?: string;
-  /** A group row's own id. */
+
   readonly groupId?: string;
   readonly href: string;
   readonly label: string;
-  /** A step's ordinal, or `undefined` for a sibling screen, which has no order to show. */
+
   readonly position?: number;
-  /**
-   * The DOM id this row is the DESTINATION for, on the one screen that renders the step
-   * itself. Set for a step row and never for a sibling.
-   *
-   * The same id {@link href} points at, which is not redundant: on the other seven screens
-   * the row is a cross-route link and the destination is elsewhere, so only the builder's
-   * own list carries it. Without it the builder's pre-hydration rail links at a fragment
-   * that matches nothing, and so do the validation panel's "jump to this step" links.
-   */
+
   readonly anchorId?: string;
-  /** Rendered as a count tag when it is above zero, and only then. */
+
   readonly issueCount: number;
   readonly isCurrent: boolean;
 }
 
-/** The two groups, in the order the divider separates them. */
 export interface RailGroups {
   readonly children: readonly RailItem[];
   readonly siblings: readonly RailItem[];
 }
 
-/** The path each sibling screen lives at, relative to the form. The builder IS the form. */
 function sectionHref(base: string, section: RailSection): string {
   return section === "builder" ? base : `${base}/${section}`;
 }
 
-/**
- * A step's display name, matching what the builder's own step list shows for an unnamed
- * step: a form under construction passes through titles that do not exist yet, and a row
- * with no text at all could not be clicked with confidence or read aloud.
- */
 function stepLabel(step: DraftStep): string {
   const text = textOf(step.title);
   return text === "" ? t("forms.steps.untitled") : text;
 }
 
-/** A repeating group's display name, with the same stand-in a step with no title gets. */
 function groupLabel(group: DraftGroup): string {
   const text = textOf(group.label);
   return text === "" ? t("forms.group.untitled") : text;
 }
 
-/**
- * Both groups of the rail for one form.
- *
- * `issueCounts` is passed in rather than derived, and that is the same division of labour
- * `stepIssueCounts` already has: whether a draft is legal is the API's answer and never
- * this app's (R2). A caller that has no verdict passes an empty map and the rail renders
- * without badges rather than claiming a form is clean.
- */
+// Issue counts are API verdicts, never local domain validation.
 export function formSubtreeRail({
   formId,
   slug,
@@ -164,18 +72,9 @@ export function formSubtreeRail({
   current,
 }: {
   readonly formId: string;
-  /**
-   * The form's name, which is what its own row in the rail is called.
-   *
-   * MERGED WITH THE SUMMARY LINE (Code Owner, 2026-08-26). The rail used to say the form's
-   * name twice above its rows - once in the disclosure summary and once as a row labelled
-   * "Form details" - which is two lines for one thing and no way to tell them apart. The
-   * row is the one that does something, so the row keeps the name and the summary is
-   * hidden where the rail is a permanent sidebar. It stays below `--bp-sidebar`, where the
-   * rail collapses and that line is the whole of it (issue 693).
-   */
+
   readonly slug: string;
-  /** The form's own title, or `""` when it has none. See {@link formDisplayName}. */
+
   readonly title: string;
   readonly steps: readonly DraftStep[];
   readonly issueCounts: ReadonlyMap<string, number>;
@@ -183,12 +82,7 @@ export function formSubtreeRail({
 }): RailGroups {
   const base = `/forms/${encodeURIComponent(formId)}`;
   return {
-    // A STEP, THEN THE GROUPS INSIDE IT, which is the tree §7's "the form's children" means
-    // now that a step's item list is a union. A group is listed under its step rather than
-    // beside it because that is where it sits in document order, and its position decides where
-    // its whole span sits - so a rail that listed groups separately would be a second ordering
-    // of one list. Nothing is listed TWICE: a group's member questions are not rail rows, for
-    // the same reason a step's pins never were.
+    // List groups under their owning step so navigation preserves document order.
     children: steps.flatMap((step, index) => [
       {
         key: `step:${step.stepId}`,
@@ -209,9 +103,7 @@ export function formSubtreeRail({
         href: `${base}#${groupAnchorId(group.groupId)}`,
         label: groupLabel(group),
         anchorId: groupAnchorId(group.groupId),
-        // NO BADGE OF ITS OWN, and that is `stepIssueCounts`'s rule rather than an omission:
-        // a group's issues are counted against its step, so a second count on the nested row
-        // would make the rail's numbers add up to more than the panel's (§5.6's named mistake).
+        // Group issues already count against their step; a second group badge would double-count the form total.
         issueCount: 0,
         isCurrent: current.kind === "group" && current.groupId === group.groupId,
       })),
@@ -219,8 +111,7 @@ export function formSubtreeRail({
     siblings: RAIL_SECTIONS.map((section) => ({
       key: `section:${section}`,
       href: sectionHref(base, section),
-      // The builder's row is the form's own screen, so it is named for the form rather
-      // than for the tool. Every other row is named for the screen it opens.
+
       label: section === "builder" ? formDisplayName(title, slug) : t(`forms.tab.${section}`),
       issueCount: 0,
       isCurrent: current.kind === "section" && current.section === section,
@@ -228,58 +119,21 @@ export function formSubtreeRail({
   };
 }
 
-/**
- * THE COLLAPSED HEADER'S TEXT AND COUNT ARE TWO READS NOW (issue #1116).
- *
- * `railSummary` stood here and returned both at once - `{ text, issueCount }` - because the
- * frame took a `summaryText` and a `summaryCount` and nothing else. §7.0's Header is five
- * things rather than two (a back link, the subject, a status tag, the secondary lines and at
- * most one count), so the caller composes it from {@link formDisplayName} and
- * {@link railIssueTotal} directly and there is nothing left for a pair to hold.
- *
- * What the pair decided is unchanged and is worth keeping written down, because it is the
- * sort of thing a later pass undoes. The line names the FORM (issue 693): below
- * `--bp-sidebar`, shut, it is the whole rail, so what it owes a reader is the scope the rail
- * belongs to. It used to name the active ITEM - a step label, a section label, the slug only
- * as a fallback - which made one line mean three different things across eight screens. And
- * the count is the FORM's total rather than the active item's, because an item's count beside
- * the form's name would be two unrelated facts on one line; what a shut rail can usefully say
- * about a form is how much is wrong with it. The 2026-10-24 clarification to §7.0 writes both
- * of those into the contract: "the subject plus at most one count".
- */
+// The collapsed count belongs to the whole form, not the active item beside its name.
 
-/**
- * What to CALL a form on screen: its title, or its slug when it has no title yet.
- *
- * The title is what an author named the thing and the slug is how it is addressed, so the
- * title is what a person recognises. It is not guaranteed to exist - a form can be created
- * before it is named, and until 2026-08-26 nothing in this app showed the title at all -
- * so the slug is the fallback rather than an empty row.
- *
- * One function because the rail says this name in two places, the row and the collapsed
- * summary, and two of them would eventually disagree about which name a form has.
- */
 export function formDisplayName(title: string, slug: string): string {
   const named = title.trim();
   return named === "" ? slug : named;
 }
 
-/**
- * The form's issue total: every step's count added up.
- *
- * Read off the groups rather than off the raw map, so a step the rail does not carry cannot
- * contribute to a badge that sits above the rows.
- */
 export function railIssueTotal(groups: RailGroups): number {
   return groups.children.reduce((total, item) => total + item.issueCount, 0);
 }
 
-/** The step rows alone, for a caller that counts steps rather than rail rows. */
 export function railStepItems(groups: RailGroups): readonly RailItem[] {
   return groups.children.filter((item) => item.kind !== "group");
 }
 
-/** One item's issue count, written the way the builder's step list writes the same number. */
 export function issueCountLabel(count: number): string {
   return tPlural("forms.steps.issuesOne", "forms.steps.issues", count);
 }

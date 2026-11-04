@@ -3,11 +3,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { TURNSTILE_ORIGIN } from "../turnstile";
 import { buildCsp } from "./csp";
 
-/**
- * SEC-9: the CSP's Turnstile-origin allowance is conditional on the challenge
- * flag. With the default provider `none` the CSP names no challenge origin at
- * all; only `turnstile` admits `challenges.cloudflare.com`.
- */
 describe("content security policy", () => {
   it("names no challenge origin when the provider is none", () => {
     const csp = buildCsp("none", "abc123");

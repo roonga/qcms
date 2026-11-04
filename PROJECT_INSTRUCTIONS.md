@@ -56,7 +56,9 @@ Code Owner, 2026-10-24. Applies to every comment an agent writes or touches.
 - Never restate what the code does.
 - Keep dependency versions in manifests, lockfiles and live documentation, not explanatory code comments. Preserve machine-read annotations, including the same-line version on SHA-pinned third-party GitHub Actions required by `CONTRIBUTING.md`.
 - No history: no ticket narratives, no "was X, now Y", no dates, no record of who ruled what, and no issue or PR numbers unless one is the only pointer to a non-obvious constraint.
-- `pnpm check:comments` enforces the limits: a comment over 3 lines, export JSDoc over 4 lines (tag lines excluded), and history markers fail. `apps/admin/e2e/support/` is checked; remaining admin files are excluded until their sweep; `check-comments: allow <reason>` marks a justified exception.
+- `pnpm check:comments` enforces the limits: a comment over 3 lines, export JSDoc over 4 lines (tag lines excluded), and history markers fail.
+  Authored JS/TS/CSS/JSON source and configuration, including the whole admin tree, is checked.
+  Vendored and generated sources retain their source of truth; `check-comments: allow <reason>` marks a justified exception.
 
 ## Written text
 

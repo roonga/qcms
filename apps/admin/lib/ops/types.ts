@@ -1,34 +1,17 @@
-/**
- * The shapes the operations screens read (task 035): responses, erasure, webhook
- * config, and webhook delivery.
- *
- * Every one of them is what the **API** returns, re-declared here rather than
- * imported, for the reason `lib/forms/types.ts` gives: the admin is a strict BFF
- * (R2) and does not share a package with the API, so these are the contract as this
- * app reads it. The proxies in `lib/server/` parse an `unknown` payload into
- * exactly these and nothing wider.
- *
- * Answer values stay `unknown` all the way to the renderer. They are canonical
- * encodings the reporting view froze (015) - a string, a number, a boolean, or an
- * array of option ids - and this app has no business narrowing them: it has no
- * `@roonga/qcms-core` value import at all (`r2-import-surface.test.ts`).
- */
+/** Keep canonical answer values unknown until rendering; the BFF must not coerce or reinterpret frozen encodings. */
 
-/** How the respondent reached the form. */
 export type AccessMode = "anonymous" | "secure_link";
 
-/** One row of `GET /admin/forms/{id}/responses`. */
 export interface ResponseListItem {
   readonly sessionId: string;
   readonly formVersion: number;
   readonly submittedAt: string;
   readonly accessMode: AccessMode;
-  /** `null` = clean; a reason string = flagged, and its webhook event is withheld. */
+
   readonly flaggedReason: string | null;
   readonly answers: Readonly<Record<string, unknown>>;
 }
 
-/** A page of responses, with the paging the list route reports. */
 export interface ResponsePage {
   readonly responses: readonly ResponseListItem[];
   readonly page: number;
@@ -36,14 +19,7 @@ export interface ResponsePage {
   readonly total: number;
 }
 
-/**
- * One revision in the append-only answer ledger.
- *
- * `retracted` is the discriminator and is always present: a retraction (ADR-33)
- * carries `value: null` and `retracted: true` and means the respondent CLEARED the
- * question at that point in the history. The timeline must say so rather than
- * rendering an empty value, which would read as "answered with nothing".
- */
+/** Retraction means the respondent cleared an answer; value null must not read as an empty submitted answer. */
 export interface LedgerEntry {
   readonly questionId: string;
   readonly value: unknown;
@@ -51,7 +27,6 @@ export interface LedgerEntry {
   readonly answeredAt: string;
 }
 
-/** `GET /admin/forms/{id}/responses/{sessionId}` - the locked set plus its audit history. */
 export interface ResponseDetail {
   readonly sessionId: string;
   readonly formId: string;
@@ -59,20 +34,14 @@ export interface ResponseDetail {
   readonly submittedAt: string;
   readonly accessMode: AccessMode;
   readonly flaggedReason: string | null;
-  /** The audit anchor (009): any holder can re-derive and verify the locked set. */
+
   readonly contentHash: string;
   readonly answers: Readonly<Record<string, unknown>>;
-  /** Oldest first: the order the respondent actually answered in. */
+
   readonly ledger: readonly LedgerEntry[];
 }
 
-/**
- * An erasure tombstone (ADR-17): the record that a session existed and was erased.
- *
- * It is what remains after erasure and it is deliberately content-free - session id,
- * form, version, when, and why. The response is gone; the fact of it is not, which
- * is what makes the erasure log usable as compliance evidence.
- */
+/** Tombstones retain compliance metadata only, never respondent content. */
 export interface Tombstone {
   readonly sessionId: string;
   readonly formId: string;
@@ -81,34 +50,18 @@ export interface Tombstone {
   readonly reason: string;
 }
 
-/** `POST /admin/forms/{formId}/responses/{sessionId}/erase` - the tombstone, and whether this call made it. */
 export interface EraseOutcome extends Tombstone {
-  /** `true` when the session was already erased, so this call changed nothing. */
   readonly alreadyErased: boolean;
 }
 
-/**
- * One other environment holding something for the same subject identifier (Q7, task 067).
- *
- * An **offer**, never a pending act: an erasure acts in the selected environment only
- * (ADR-17's Note), so each of these is somewhere an operator may go and perform another
- * erasure, with its own confirmation naming its own environment.
- */
+/** This is a navigation offer to another deliberate erasure, never an automatic pending action. */
 export interface ErasureElsewhere {
   readonly environment: string;
-  /** `true` when the erasure there has already been performed. */
+
   readonly alreadyErased: boolean;
 }
 
-/**
- * `GET /admin/forms/{id}/responses/{sessionId}/erasure-scope` - which environment an
- * erasure from this screen acts in, and where else the same subject identifier has
- * something (Q7).
- *
- * The API narrows `otherEnvironments` to the environments this operator may erase in, so
- * this app never has an offer to suppress: an empty list means "nothing more that you can
- * do from here", which is what the screen says by saying nothing.
- */
+/** The API already narrows offers to erasable environments; the BFF must not infer hidden results from an empty list. */
 export interface ErasureScope {
   readonly sessionId: string;
   readonly environment: string;
@@ -116,7 +69,7 @@ export interface ErasureScope {
   readonly otherEnvironments: readonly ErasureElsewhere[];
 }
 
-/** One configured webhook. The secret is never in a read. */
+/** Webhook reads never contain the signing secret. */
 export interface WebhookSummary {
   readonly webhookId: string;
   readonly url: string;
@@ -126,14 +79,7 @@ export interface WebhookSummary {
   readonly updatedAt: string;
 }
 
-/**
- * A webhook whose secret is on screen for the only time it ever will be.
- *
- * Returned by create and by an explicit rotate, and by nothing else: the API stores
- * ciphertext under `QCMS_APP_KEY` and has no path that decrypts it back to a
- * response (SEC-6). This app therefore never logs it, never caches it, never
- * revalidates it into a payload, and never sends it back up (SEC-13).
- */
+/** Only create and rotate reveal plaintext secrets; never log, cache, revalidate or echo them. */
 export interface RevealedWebhook {
   readonly webhookId: string;
   readonly url: string;
@@ -141,70 +87,30 @@ export interface RevealedWebhook {
   readonly secret: string;
 }
 
-/**
- * One endpoint change waiting for a second approver (ADR-41's release rule, Q30, Q51;
- * task 070).
- *
- * The workspace's two-person switch gates **`prod` alone**, so this list is empty in every
- * other environment and empty in `prod` too for a workspace that has not turned the rule
- * on. When it is on, a configure act is stored rather than applied and this is what the
- * screen renders from: **two accounts and no third thing**, because that is the whole shape
- * of the rule.
- *
- * `url` arrives **already masked for a `forms.viewer`** (Q58). The API does the masking in
- * the response, never this app's rendering, so a second client of the same route cannot see
- * round it - and the role that can see a pending production change is not necessarily the
- * role that may set its target.
- */
+/** The API masks viewer URLs before transport. Production changes under the two-person rule are proposals, never applied configuration. */
 export interface EndpointProposal {
   readonly proposalId: string;
   readonly webhookId: string;
   readonly environment: string;
-  /** Which configure act is waiting: a new endpoint, a change to one, or its removal. */
+
   readonly kind: "create" | "update" | "deactivate";
-  /** The proposed target, or null where the act names none (a deactivation). */
+
   readonly url: string | null;
   readonly active: boolean | null;
-  /** True when confirming this will also rotate the signing secret. */
+
   readonly rotatesSecret: boolean;
   readonly proposedBy: string;
   readonly proposedAt: string;
-  /**
-   * The confirming account, where one has confirmed.
-   *
-   * Non-null with `appliedAt` still null is a confirmation whose endpoint write did not
-   * land: the proposal and the endpoint commit on two different pools, so the window
-   * exists, and the endpoint is **not** live. The panel says so rather than implying it,
-   * because the alternative reading - "confirmed, therefore live" - is the one that would
-   * send an operator looking for deliveries that are not happening.
-   */
+  /** Confirmation and endpoint application use separate pools; confirmed without appliedAt is not live. */
   readonly confirmedBy: string | null;
   readonly confirmedAt: string | null;
   readonly appliedAt: string | null;
 }
 
-/**
- * The delivery lifecycle, as the API derives it from the row's timestamps.
- *
- * `cancelled` (059) is a delivery erasure terminally stopped: it will never be
- * attempted, the redeliver action is refused for it, and it is absent from the
- * dead-letter queue. It is still listed on the dashboard, with its reason, so an
- * operator asking "what happened to that delivery" finds an answer rather than a
- * missing row.
- */
+/** Cancelled deliveries remain visible for audit but must never be attempted or redelivered. */
 export type DeliveryStatus = "delivered" | "cancelled" | "deadLettered" | "pending";
 
-/**
- * One row of `GET /admin/forms/{id}/deliveries`.
- *
- * `attempts` counts **failed** attempts, which is what the retry schedule reads it
- * as, so a first-time success is `0`. The column is labelled accordingly; see
- * `markDeliveryDelivered` in `@roonga/qcms-db` for why the counter was not redefined.
- *
- * `requestHeaders` arrives with `x-qcms-signature` already masked - the deliverer
- * masks it before storage, so the HMAC is absent from the database rather than
- * hidden by this screen.
- */
+/** attempts counts failures, so first-attempt success is zero. Signature headers are masked before storage, not merely hidden in this screen. */
 export interface DeliveryItem {
   readonly deliveryId: string;
   readonly eventId: string;
@@ -217,37 +123,27 @@ export interface DeliveryItem {
   readonly createdAt: string;
   readonly deliveredAt: string | null;
   readonly deadLetteredAt: string | null;
-  /** When erasure cancelled this delivery (059); null on every live row. */
+
   readonly cancelledAt: string | null;
-  /** The value-free code naming why, e.g. `session_erased`. */
+
   readonly cancelledReason: string | null;
   readonly nextAttemptAt: string;
   readonly lastAttemptAt: string | null;
-  /** Null when the attempt never got a response at all (timeout, network error). */
+
   readonly lastStatus: number | null;
   readonly latencyMs: number | null;
   readonly requestHeaders: Readonly<Record<string, string>> | null;
   readonly responseSnippet: string | null;
-  /**
-   * When the stored response snippet was removed, by erasure or by the retention
-   * sweep (issue #304); null while it is intact. `responseSnippet` is null either
-   * way, so this is the only thing that distinguishes a removed body from an empty
-   * or absent one.
-   */
+  /** Removed snippets and genuinely absent bodies are distinct; this timestamp records removal by erasure or retention. */
   readonly responseSnippetRedactedAt: string | null;
 }
 
-/** One row of `GET /admin/outbox/dead-letters` - the queue, across every form. */
 export interface DeadLetterItem {
   readonly deliveryId: string;
   readonly eventId: string;
   readonly eventType: string;
   readonly webhookId: string;
-  /**
-   * The form this delivery belongs to (issue #305). The worklist is cross-form, and
-   * redelivery is form-scoped, so the row has to name its form for the redeliver
-   * call to be constructible from the list alone.
-   */
+  /** Keep formId on cross-form queue rows because redelivery is scoped to a form. */
   readonly formId: string;
   readonly url: string;
   readonly attempts: number;

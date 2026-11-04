@@ -262,8 +262,6 @@ describe("main", () => {
     const result = spawnSync(process.execPath, [SCRIPT], { encoding: "utf8" });
     expect(result.stdout).toContain("in-process timer:");
     expect(result.stdout).toContain("sleep binary:");
-    // Asserted rather than skipped: broken waiting on this machine is the finding, so it
-    // must be loud.
     expect(result.status, result.stdout + result.stderr).toBe(0);
   });
 

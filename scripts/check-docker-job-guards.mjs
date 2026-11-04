@@ -19,8 +19,7 @@ export const MIRROR_ACTION = "test-postgres-image";
 export const ASSERT_ACTION = "assert-no-docker-hub-pulls";
 
 /**
- * The GHCR mirror was declined for the base image and the BuildKit frontend, so this
- * retried pre-pull is the whole of their availability story.
+ * Pre-pull the base image and BuildKit frontend with retries; neither has a configured mirror.
  */
 export const PREPULL_ACTION = "prepull-base-images";
 
@@ -157,7 +156,6 @@ export function jobsIn(workflowText) {
 export function compareGuards(declared, guards) {
   const problems = [];
   const seen = new Set();
-  // An action absent from this set is neither required nor refused.
   const modelled = [MIRROR_ACTION, ASSERT_ACTION, PREPULL_ACTION];
 
   for (const { job, actions } of declared) {
@@ -246,7 +244,6 @@ export function main() {
   return 1;
 }
 
-// Guarded so an importing test triggers neither the scan nor the `process.exit`.
 if (argv[1] !== undefined && import.meta.url === pathToFileURL(argv[1]).href) {
   process.exit(main());
 }

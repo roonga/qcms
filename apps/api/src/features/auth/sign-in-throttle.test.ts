@@ -98,7 +98,6 @@ describe("sign-in throttling keys on the address the BFF vouched for", () => {
     const unvouched = await attempts(ALLOWANCE + 1, () => ({}));
     expect(unvouched.at(-1)).toBe(429);
 
-    // Forging both headers better-auth used to read lands in that same bucket.
     const forging = await signIn({ "x-forwarded-for": "192.0.2.99", "x-real-ip": "192.0.2.98" });
     expect(forging).toBe(429);
   });

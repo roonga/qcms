@@ -23,11 +23,6 @@ import {
   type AgentCardView,
 } from "./plan-state.ts";
 
-/**
- * The card's rules as a fold. Nothing here renders, so
- * each rule is asserted as the decision it is.
- */
-
 const PROPOSED_AT = "2026-07-20T00:00:00.000Z";
 const EXPIRES_AT = "2026-07-20T00:10:00.000Z";
 
@@ -224,8 +219,6 @@ describe("progress is announced in words", () => {
 describe("the `action-result` turn (criterion 8)", () => {
   it("reports only the fields the kind allowlists", () => {
     const card = run(initialCard(THREE), [
-      // A step's action may answer with more than the next turn may learn; the card keeps
-      // the kind's own list and drops the rest.
       { outcome: "done", result: { version: 3, url: "https://forms.example.test/l/abc" } },
       { outcome: "done", result: { version: 3, environment: "prod" } },
       { outcome: "done", result: { count: 2, links: ["https://forms.example.test/l/d"] } },

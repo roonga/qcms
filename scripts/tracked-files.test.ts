@@ -26,8 +26,6 @@ describe("trackedFilesUnder", () => {
   });
 
   it("omits a git-ignored path, which is the whole point of asking git", () => {
-    // A walk of `apps/admin` reads whatever a previous build left in the ignored
-    // `.next` directories, whether or not this checkout has run one.
     const files = trackedFilesUnder(join(REPO_ROOT, "apps", "admin"));
     expect(files.filter((path) => path.startsWith(".next"))).toEqual([]);
     expect(files).toContain("lib/rail-routes.test.ts");
@@ -41,8 +39,6 @@ describe("trackedFilesUnder", () => {
   });
 
   it("refuses a global match, which would silently drop about half the paths", () => {
-    // `test` on a `g` pattern advances `lastIndex` and resumes there, so filtering with one
-    // returns a shorter corpus and no error. Refused rather than repaired.
     expect(() => trackedFilesUnder(join(REPO_ROOT, "scripts"), { match: /\.mjs$/g })).toThrow(
       /must not be global or sticky/,
     );

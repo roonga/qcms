@@ -1,4 +1,4 @@
-// SEC-13: the address is a rate-limit bucket key and nothing else.
+// Use the address solely for a rate-limit bucket, never logs or telemetry.
 
 import { headers } from "next/headers";
 
@@ -29,9 +29,9 @@ const IPV4_WITH_PORT = /^(?:\d{1,3}\.){3}\d{1,3}:\d{1,5}$/;
 const IPV6_CHARS = /^[0-9a-f:.%]+$/;
 
 /**
- * An unparseable value throws rather than falling back to the default: a security
- * control whose tuning is a typo should refuse to run rather than quietly enforce
- * something else. The value is not echoed in the message (SEC-8).
+ * An unparseable value throws rather than falling back to the default: a security control whose tuning is a
+ * typo should refuse to run rather than quietly enforce something else. The value is not echoed in the
+ * message.
  */
 export function trustedProxyHops(): number {
   const raw = process.env.QCMS_PORTAL_TRUSTED_PROXY_HOPS;

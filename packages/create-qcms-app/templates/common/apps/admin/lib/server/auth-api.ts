@@ -2,72 +2,15 @@ import { cookies } from "next/headers";
 
 import { authApiFetch } from "./api.ts";
 
-/**
- * The admin's auth operations, each one call to the API's better-auth mount (task 056;
- * ADR-35 as amended 2026-07-31).
- *
- * ## What moved, and what deliberately did not
- *
- * Before this task the admin app owned the better-auth instance and its route handlers
- * called `auth.api.*` in process. The instance now lives in `apps/api` and the handlers
- * call the functions below instead. **The handlers themselves did not move**, and that
- * is a design decision rather than an omission:
- *
- * The auth screens are plain `<form method="post">` posting to named admin routes, so
- * the whole sign-in and 2FA loop works before (or entirely without) hydration and the
- * credential never passes through client JavaScript (`route-helpers.ts` records why).
- * A blind browser-facing `/api/auth/*` proxy would move that orchestration into the
- * browser - three fetches, a client-side better-auth client, and a flow that needs
- * JavaScript - and it would also republish the endpoint set the admin's SEC-1
- * structural test exists to keep absent. So the admin still forwards **one named
- * operation per handler**, and "the admin proxies `/api/auth/*`" means exactly that:
- * these eight calls, over the internal channel, with cookies carried back out.
- *
- * ## Why every function returns a `Response`
- *
- * The in-process calls these replace were made with `asResponse: true`, so the callers
- * already branch on a status and lift `Set-Cookie` headers off a `Response`
- * (`authRefused`, `cookiesFrom`). Keeping that shape means the handlers' logic is
- * unchanged by the move, which is what makes "byte-for-byte the same behaviour" a
- * reviewable claim rather than a hope. It also drops the `catch (APIError)` blocks the
- * in-process calls needed: over HTTP a refusal is always a status, never a throw, and
- * every call site already checked the status because `asResponse: true` made refusals
- * arrive that way too.
- *
- * A genuine transport failure (the API is down) still throws, and still surfaces as a
- * 500 from the route handler. That is the same outcome an unexpected library throw had
- * before, and it is the right one: an admin told "wrong password" because the API was
- * unreachable would be a worse answer than an error page.
- *
- * ## Cookies
- *
- * better-auth sets cookies on the API's response; each handler moves them onto its own
- * 303 with `getSetCookie()`. Because the browser only ever sees the admin origin, the
- * cookies land first-party to the admin with their `HttpOnly`, `SameSite=Lax` and
- * (outside development) `Secure` attributes exactly as better-auth wrote them - the hop
- * copies the header, it does not re-serialize it.
- */
+/** Forward named auth operations over the internal channel; credentials never pass through client JavaScript. Copy Set-Cookie headers verbatim onto the admin redirect. */
 
-/**
- * better-auth's cookie names, as this app reads them.
- *
- * Duplicated from the API's `COOKIE_PREFIX` rather than imported, for the same reason
- * `ADMIN_SESSION_HEADER` is: the two apps are separate deployables with no shared
- * package, and a wire contract between them is written down on both sides and kept in
- * lockstep. The admin never *writes* these - better-auth does, and the handlers copy its
- * `Set-Cookie` headers verbatim - it only reads the two-factor cookie to answer "is a
- * challenge pending" on the challenge and recovery screens. A drift would break the
- * admin Playwright suite's 2FA specs immediately, which is where it would be caught.
- */
+/** Cookie names mirror the API wire contract across separate deployables; the admin reads them and never rewrites vendor attributes. */
 const COOKIE_PREFIX = "qcms_admin";
 
-/** The session cookie better-auth issues, without its security prefix. */
 export const SESSION_COOKIE = `${COOKIE_PREFIX}.session_token`;
 
-/** The short-lived cookie carrying a pending 2FA challenge, without its security prefix. */
 export const TWO_FACTOR_COOKIE = `${COOKIE_PREFIX}.two_factor`;
 
-/** Vendor cookies may carry either security prefix. */
 export async function readAuthCookie(unprefixedName: string): Promise<string | undefined> {
   const jar = await cookies();
   const exact = jar.get(unprefixedName)?.value;
@@ -75,43 +18,25 @@ export async function readAuthCookie(unprefixedName: string): Promise<string | u
   return jar.getAll().find((cookie) => cookie.name.endsWith(`-${unprefixedName}`))?.value;
 }
 
-/** The session shape better-auth's `get-session` returns, as the admin reads it. */
 export interface ProxiedSession {
   readonly session: {
     readonly token: string;
-    /** ISO instant; the 12h absolute cap (SEC-1) is measured from it. */
+
     readonly createdAt: string;
   };
   readonly user: {
     readonly id: string;
     readonly email: string;
     readonly name: string;
-    /** The SEC-3 role claim; a single `admin` value at launch. */
+
     readonly role?: string;
     readonly twoFactorEnabled?: boolean;
-    /**
-     * Whether this account still holds the provisional credential
-     * `qcms:create-admin` set (task 061, SEC-1).
-     *
-     * Optional for the same reason `role` and `twoFactorEnabled` are: this interface
-     * describes a body arriving over the wire from a separate deployable, so every
-     * field is one the sender might not have written. `session.ts` reads absent as
-     * `false`, which keeps an unmarked account out of a redirect loop; the
-     * fail-closed half of the control is the API's own gate on every admin route,
-     * which reads the column rather than this body.
-     */
+    /** Absent flags read as false to avoid redirect loops with unmarked accounts. The API enforces the provisional-password gate against its own column on every admin route. */
     readonly mustChangePassword?: boolean;
   };
 }
 
-/**
- * Read the current session, or `undefined` when the cookies name none.
- *
- * This is the one auth call whose body the admin parses rather than forwarding, because
- * the three gates in `session.ts` are decisions about its contents. better-auth answers
- * `null` (a 200 with a `null` body) for "no session", which is not an error and must not
- * be treated as one.
- */
+/** better-auth returns 200 with null for no session; that is absence, not an API failure. */
 export async function proxiedSession(requestHeaders: Headers): Promise<ProxiedSession | undefined> {
   const response = await authApiFetch("/get-session", { from: requestHeaders });
   if (!response.ok) return undefined;
@@ -120,7 +45,6 @@ export async function proxiedSession(requestHeaders: Headers): Promise<ProxiedSe
   return body;
 }
 
-/** Sign in with email and password. A 4xx is a refusal the caller reports generically. */
 export function signInEmail(
   requestHeaders: Headers,
   credentials: { readonly email: string; readonly password: string },
@@ -132,15 +56,10 @@ export function signInEmail(
   });
 }
 
-/** Sign out: better-auth deletes the session row, not merely the cookie (SEC-1). */
 export function signOut(requestHeaders: Headers): Promise<Response> {
   return authApiFetch("/sign-out", { method: "POST", body: {}, from: requestHeaders });
 }
 
-/**
- * Provision a TOTP factor. Returns the response so the caller can distinguish a
- * refusal; the body carries the `otpauth://` URI and the recovery codes.
- */
 export function enableTwoFactor(
   requestHeaders: Headers,
   password: string,
@@ -151,7 +70,6 @@ export function enableTwoFactor(
   return authApiFetch("/two-factor/enable", { method: "POST", body: { password }, from: headers });
 }
 
-/** Verify a TOTP code: completes enrollment, or answers a pending challenge. */
 export function verifyTotp(requestHeaders: Headers, code: string): Promise<Response> {
   return authApiFetch("/two-factor/verify-totp", {
     method: "POST",
@@ -160,7 +78,6 @@ export function verifyTotp(requestHeaders: Headers, code: string): Promise<Respo
   });
 }
 
-/** Redeem a single-use recovery code as the second factor. */
 export function verifyBackupCode(requestHeaders: Headers, code: string): Promise<Response> {
   return authApiFetch("/two-factor/verify-backup-code", {
     method: "POST",
@@ -169,7 +86,6 @@ export function verifyBackupCode(requestHeaders: Headers, code: string): Promise
   });
 }
 
-/** Recovery-code rotation reauthenticates with the account password. */
 export function generateBackupCodes(requestHeaders: Headers, password: string): Promise<Response> {
   return authApiFetch("/two-factor/generate-backup-codes", {
     method: "POST",
@@ -178,7 +94,6 @@ export function generateBackupCodes(requestHeaders: Headers, password: string): 
   });
 }
 
-/** Change the signed-in admin's password, revoking every other session (SEC-1). */
 export function changePassword(
   requestHeaders: Headers,
   passwords: { readonly currentPassword: string; readonly newPassword: string },

@@ -4,9 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import { A2UIStepRenderer, type A2UIStepDocument } from "./A2UIStepRenderer.tsx";
 import { loadGoldenForms } from "./test-support/golden.ts";
 
-// `parseDate` throws on anything that is not a valid ISO day, so a caller binding an
-// unvalidated value got a whole-screen crash where it expected a validation problem.
-// The adapter makes it reachable, passing the parent's stored answer straight through.
+// Invalid stored dates must remain validation problems instead of crashing the whole render.
 
 const kitchen = loadGoldenForms().find((f) => f.version === "v3" && f.form === "kitchen-sink");
 if (!kitchen) throw new Error("kitchen-sink v3 golden not found");
@@ -19,7 +17,6 @@ const UNPARSEABLE = ["nope", "17/05/1990", "1990-05-17T00:00:00Z", "1990-13-45",
 
 describe("an unparseable stored date renders unselected instead of throwing", () => {
   it.each(UNPARSEABLE)("survives %j as the stored answer", (stored) => {
-    // A render-time throw here surfaces as a 500 on the whole screen.
     expect(() =>
       render(
         <A2UIStepRenderer

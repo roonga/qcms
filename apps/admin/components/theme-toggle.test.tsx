@@ -5,8 +5,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ThemeToggle } from "./theme-toggle.tsx";
 import { APPEARANCE_CLASSES, MODE_COOKIE } from "../lib/appearance.ts";
 
-// The palette and the keyboard model need a real compositor: `e2e/appearance.pw.ts`.
-
 function toggle() {
   return render(
     <ThemeToggle appearance={{ polarity: "light", contrast: "normal" }} secureCookies={false} />,

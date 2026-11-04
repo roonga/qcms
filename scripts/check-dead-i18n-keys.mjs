@@ -126,9 +126,6 @@ export function isTestFile(path) {
 }
 
 /**
- * Syntax only: no `ts.Program` and no type checker, so this costs a parse per file rather
- * than a whole-program typecheck.
- *
  * @param {string} path
  * @param {string} text
  * @returns {ts.SourceFile}
@@ -139,9 +136,6 @@ function parse(path, text) {
 }
 
 /**
- * Recognised structurally, by the shape both apps share, rather than by path, so a third
- * app's catalog is in scope on the day it lands wherever it is put.
- *
  * @param {ts.SourceFile} source
  * @returns {{ keys: string[]; node: ts.ObjectLiteralExpression } | undefined}
  */
@@ -288,8 +282,6 @@ export function deadKeys(surveyed = survey(scanned())) {
 
 /** @returns {number} */
 export function main() {
-  // One survey, read twice: it parses every tracked source file, so surveying again for
-  // the totals printed on the success line would double the gate's whole cost.
   const surveyed = survey(scanned());
   const { catalogs } = surveyed;
   const dead = deadKeys(surveyed);
@@ -329,8 +321,6 @@ export function main() {
   return 1;
 }
 
-// Only when run as a command, so the test can import the helpers without the scan firing
-// and without `process.exit` killing the run.
 if (argv[1] !== undefined && import.meta.url === pathToFileURL(argv[1]).href) {
   process.exit(main());
 }

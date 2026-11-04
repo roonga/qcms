@@ -6,14 +6,6 @@ import { EnvironmentSwitcher } from "./environment-switcher.tsx";
 import { ENVIRONMENT_COOKIE, environmentKind } from "../lib/environment.ts";
 import { t } from "../lib/i18n/en.ts";
 
-/**
- * The chip the switcher is (ADR-40 Q6, `plan/admin-design-contracts.md` §10).
- *
- * The three drawing states and the announcement are what a unit test can see; that the
- * Operations header mounts it, and that switching shifts no screen, are the browser
- * suite's.
- */
-
 const refresh = vi.hoisted(() => vi.fn());
 
 vi.mock("next/navigation", () => ({
@@ -34,7 +26,6 @@ describe("the environment chip", () => {
     for (const [environment, kind] of [
       ["prod", "prod"],
       ["test", "nonprod"],
-      // An environment an operator created is non-prod without anybody listing it.
       ["staging", "nonprod"],
     ] as const) {
       const { control, unmount } = chip(environment);

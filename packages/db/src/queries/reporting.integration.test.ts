@@ -27,8 +27,6 @@ import {
   responseCountsByForm,
 } from "./index.js";
 
-/** Requires Docker. */
-
 let testDb: TestDb;
 
 beforeAll(async () => {
@@ -243,7 +241,6 @@ describe("responseCountsByForm", () => {
       submittedAt: new Date("2026-04-03T00:00:00.000Z"),
     });
     await eraseSession(testDb.db, counted, erased, "subject_request");
-    // One session started and never submitted, which is the `inProgress` half.
     await createSession(testDb.db, {
       environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId: SessionId.parse("ses_count_open"),

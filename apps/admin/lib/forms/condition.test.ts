@@ -32,25 +32,11 @@ import {
   type LeafConditionOp,
 } from "./types.ts";
 
-/**
- * Exit criterion 4: **the editor never emits DSL the schema rejects.**
- *
- * The fuzz below is the criterion stated as a property. Every operator the picker offers,
- * against every question type the library can hold, with and without declared options,
- * built through the one function every edit path goes through - then serialized and
- * parsed with 005's own `parseVisibilityRule`. If any picker sequence could produce a
- * shape the kernel refuses, this is where it shows up, rather than as a 422 on an
- * author's autosave.
- *
- * The kernel schema is imported here on purpose: a hand-rolled restatement of it in the
- * test would drift from the thing it is supposed to be checking against. `.test.ts` files
- * are outside the R2 import-surface scan for exactly this reason.
- */
+// Tests may import the kernel to verify editor output; the production BFF may not import its value validators.
 
 const QUESTION_ID = "q_at_fault_accident";
 const OPTIONS = ["opt_yes", "opt_no"] as const;
 
-/** Parse a condition by wrapping it in the smallest legal rule the kernel accepts. */
 function parses(condition: DraftCondition): boolean {
   return parseVisibilityRule({
     ruleId: "rul_fuzz",
@@ -59,18 +45,10 @@ function parses(condition: DraftCondition): boolean {
   }).ok;
 }
 
-/**
- * The twelve ops that read ONE QUESTION.
- *
- * `!isCombinator` alone stopped being the test in task 074: the three whole-group operators are a
- * third arity, reading a `groupId` rather than a `questionId` (ADR-42), so a list built that way
- * would hand `operandKind` an op it has no case for. Their own coverage is the group block below.
- */
 const LEAF_OPS = CONDITION_OPS.filter(
   (op): op is LeafConditionOp => !isCombinator(op) && !isGroupOp(op),
 );
 
-/** The group a whole-group operator is built against in this file. */
 const GROUP_ID = "grp_passengers";
 
 describe("conditionForOp emits only DSL the kernel accepts (exit criterion 4)", () => {
@@ -82,8 +60,6 @@ describe("conditionForOp emits only DSL the kernel accepts (exit criterion 4)", 
       });
 
       it(`${op} against a ${type} question with no declared options`, () => {
-        // The state a non-choice question is always in, and the state a choice question
-        // is in for the instant before its first option exists.
         const condition = conditionForOp(op, QUESTION_ID, type, []);
         expect(parses(condition), JSON.stringify(condition)).toBe(true);
       });
@@ -105,8 +81,6 @@ describe("conditionForOp emits only DSL the kernel accepts (exit criterion 4)", 
   }
 
   it("switching between every pair of operators leaves a legal node each time", () => {
-    // The real hazard is not one operator, it is the sequence: a node rebuilt from a
-    // previous one of a different shape. This walks every ordered pair.
     for (const type of QUESTION_TYPES) {
       let condition: DraftCondition = { op: "answered", questionId: QUESTION_ID };
       for (const first of CONDITION_OPS) {
@@ -140,7 +114,6 @@ describe("operator support is decided by the referenced question's type", () => 
   });
 
   it("compares a multiChoice equals as a whole answer, not a membership test", () => {
-    // ADR-21: multiChoice equality is set equality over the whole answer.
     expect(operandKind("equals", "multiChoice")).toBe("optionList");
     const condition = conditionForOp("equals", QUESTION_ID, "multiChoice", OPTIONS);
     expect(condition).toMatchObject({ op: "equals", value: ["opt_yes"] });
@@ -153,7 +126,6 @@ describe("operator support is decided by the referenced question's type", () => 
   });
 
   it("does not offer `in` where a whole-answer list would be the operand", () => {
-    // See the module note: multiChoice `in` is legal DSL and a list-of-lists control.
     expect(isOpSupported("in", "multiChoice")).toBe(false);
     expect(isOpSupported("in", "boolean")).toBe(false);
     expect(isOpSupported("in", "singleChoice")).toBe(true);
@@ -200,7 +172,7 @@ describe("tree editing", () => {
     }
     expect(conditionDepth(deep)).toBe(MAX_CONDITION_DEPTH);
     expect(parses(deep)).toBe(true);
-    // At the cap, adding a branch is a no-op rather than an error to explain later.
+
     expect(addBranch(deep, [], "q_two")).toBe(deep);
   });
 
@@ -223,14 +195,6 @@ describe("tree editing", () => {
   });
 });
 
-/**
- * The three whole-group operators (task 074; ADR-42; ADR-03 as amended 2026-09-29).
- *
- * Exit criterion 4 applies to them exactly as it does to the twelve question operators: no picker
- * sequence may leave a node the kernel refuses. What is different is that they carry a `groupId`
- * instead of a `questionId`, so the construction has a second input and a second failure mode -
- * a form with no group to read - and both are covered here.
- */
 describe("whole-group operators", () => {
   const GROUP_OPS = CONDITION_OPS.filter((op) => isGroupOp(op));
 
@@ -246,8 +210,6 @@ describe("whole-group operators", () => {
     });
 
     it(`${op} falls back to a legal node when the form declares no group`, () => {
-      // `DANGLING_GROUP_REF` (Q24) refused at the CONTROL rather than explained at publish: a
-      // form with no repeating group cannot be given one of these by any picker sequence.
       const condition = conditionForOp(op, QUESTION_ID, "boolean", OPTIONS);
       expect(condition.op).toBe("answered");
       expect(parses(condition)).toBe(true);
@@ -291,15 +253,12 @@ describe("whole-group operators", () => {
       expect(next).toMatchObject({ groupId: GROUP_ID, compare });
       expect(parses(next)).toBe(true);
     }
-    // `min(0)` in the kernel's schema, so a negative is a node that does not parse rather than a
-    // comparison that never matches. Clamped, so no keystroke can produce one.
+
     expect(withInstanceCount(counted, { value: -4 })).toMatchObject({ value: 0 });
     expect(parses(withInstanceCount(counted, { value: -4 }))).toBe(true);
   });
 
   it("counts a nested condition toward the depth cap, as the kernel does", () => {
-    // ADR-03 as amended: `anyInstance` and `everyInstance` recurse exactly as `not` does, and
-    // `CONDITION_MAX_DEPTH` stays 8. `instanceCount` carries no condition and is a leaf.
     expect(
       conditionDepth({
         op: "anyInstance",
@@ -319,8 +278,6 @@ describe("whole-group operators", () => {
       condition: { op: "answered", questionId: "q_passport" },
     };
 
-    // Addressed as child 0, exactly as `not`'s nested condition is, which is what lets the editor
-    // render the nested tree through the same recursion rather than a second one.
     expect(nodeAt(tree, [0])).toStrictEqual({ op: "answered", questionId: "q_passport" });
     const replaced = replaceAt(tree, [0], { op: "answered", questionId: "q_dob" });
     expect(replaced).toStrictEqual({
@@ -345,47 +302,25 @@ describe("whole-group operators", () => {
       ],
     };
 
-    // The two cut document order in different places - a question at its own position, a whole
-    // group at its span's end - which is the distinction `eligibleTargets` is built on.
     expect(conditionReferences(tree)).toStrictEqual(["q_trip", "q_passport"]);
     expect(conditionGroupReferences(tree)).toStrictEqual([GROUP_ID, "grp_bags"]);
-    // `instanceCount` reads no question at all, and a walker with a `default:` branch reading
-    // `condition.questionId` would push `undefined` as though it were one.
+
     expect(
       conditionReferences({ op: "instanceCount", groupId: GROUP_ID, compare: "gt", value: 0 }),
     ).toStrictEqual([]);
   });
 });
 
-/**
- * The two kernel VALUES this module restates rather than imports (R2).
- *
- * The admin takes no value import from `@roonga/qcms-core`, so both numbers are written out in
- * `condition.ts` - and a restated constant is a constant that can drift. A `.test.ts` is outside
- * the import-surface scan, which is what makes pinning them here possible at all.
- */
 describe("the kernel constants this app restates", () => {
   it("pins the condition depth cap", () => {
     expect(MAX_CONDITION_DEPTH).toBe(CONDITION_MAX_DEPTH);
   });
 
   it("pins the evaluator's cross-group cost budget", () => {
-    // Quoted so the admin can SAY the number in the sentence that explains
-    // `REPEAT_EVALUATION_BUDGET_EXCEEDED`. Nothing in the admin checks it: the refusal is the
-    // kernel's, and it bounds one rule shape's cost rather than any group's size (Q14).
     expect(REPEAT_EVALUATION_BUDGET).toBe(KERNEL_REPEAT_EVALUATION_BUDGET);
   });
 });
 
-/**
- * The picker sequences that would otherwise produce a shape publish refuses (task 074).
- *
- * `conditionForOp`'s invariant has always been that what it returns PARSES. Task 074 adds a second
- * obligation to it, because the repeating group brought a refusal that parse cannot see:
- * `REPEAT_OPERATOR_NESTING_NOT_ALLOWED` (Q25) is a publish verdict on a perfectly parseable tree,
- * so an operator switch that nested two group reads would hand the author an unpublishable rule
- * with nothing on screen saying why until the next validate.
- */
 describe("operator switches around a whole-group read", () => {
   it("never nests one group read inside another, however the author got there", () => {
     const counted: DraftCondition = {
@@ -395,8 +330,6 @@ describe("operator switches around a whole-group read", () => {
       value: 2,
     };
 
-    // The sequence that used to do it: `instanceCount` carries no nested condition, so the
-    // carry-over fell through to the previous NODE and put the count inside the new operator.
     for (const op of ["anyInstance", "everyInstance"] as const) {
       const next = conditionForOp(op, QUESTION_ID, "boolean", OPTIONS, counted, GROUP_ID);
       expect(next).toStrictEqual({
@@ -406,7 +339,6 @@ describe("operator switches around a whole-group read", () => {
       });
     }
 
-    // And through a combinator, which the kernel refuses just the same.
     const wrapped: DraftCondition = { op: "and", conditions: [counted] };
     expect(
       conditionForOp("anyInstance", QUESTION_ID, "boolean", OPTIONS, wrapped, GROUP_ID),
@@ -421,8 +353,6 @@ describe("operator switches around a whole-group read", () => {
     const inner: DraftCondition = { op: "answered", questionId: "q_passport" };
     const any: DraftCondition = { op: "anyInstance", groupId: GROUP_ID, condition: inner };
 
-    // The same question asked two ways, so losing the condition between them would be the
-    // carry-over an author is most annoyed to lose.
     expect(
       conditionForOp("everyInstance", QUESTION_ID, "boolean", OPTIONS, any, GROUP_ID),
     ).toStrictEqual({ op: "everyInstance", groupId: GROUP_ID, condition: inner });
@@ -435,16 +365,11 @@ describe("operator switches around a whole-group read", () => {
       condition: { op: "answered", questionId: "q_passport" },
     };
 
-    // `not(everyInstance(G, c))` is the shape an author writing a warning actually wants, and the
-    // one whose reading the rule sentence spells out because it is TRUE over an empty group.
-    // Unwrapping to `not(c)` would throw the group read away at the moment they reached for the
-    // negation.
     expect(conditionForOp("not", QUESTION_ID, "boolean", OPTIONS, every)).toStrictEqual({
       op: "not",
       condition: every,
     });
-    // Choosing `not` on a node that is already one keeps the single negation rather than doubling
-    // it, which is the behaviour it always had: the child is the existing `not`'s own child.
+
     expect(
       conditionForOp("not", QUESTION_ID, "boolean", OPTIONS, { op: "not", condition: every }),
     ).toStrictEqual({ op: "not", condition: every });
