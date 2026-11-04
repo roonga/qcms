@@ -217,11 +217,6 @@ export const ALLOWED = [
     value: 3000,
     why: "the generated copy of docker/portal.Dockerfile: the Next.js server's own in-container port, dialled by the HEALTHCHECK and written as the image's `PORT`.",
   },
-  {
-    file: ".github/actions/assert-no-docker-hub-pulls/action.yml",
-    value: 5000,
-    why: "the conventional local-registry port, named in a comment explaining how a registry host is recognised.",
-  },
 ];
 
 export function sanctionedPorts() {
