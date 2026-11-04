@@ -7,6 +7,7 @@ function inputWith(
   store: InMemoryRateLimitStore,
   conversationId = "cnv_1",
   environment = "prod",
+  visitId = "vis_1",
 ): ScreenBuildInput {
   return {
     deps: { rateLimitStore: store } as unknown as ScreenBuildInput["deps"],
@@ -14,6 +15,7 @@ function inputWith(
     environment,
     params: {},
     conversationId,
+    visitId,
   };
 }
 
@@ -119,5 +121,31 @@ describe("auditedRead", () => {
     await auditedRead(inputWith(shared, "cnv_1", "prod"), "list:frm_a:[]", record);
     await auditedRead(inputWith(shared, "cnv_1", "prod"), "list:frm_a:[]", record);
     expect(asked).toEqual([true, true, false]);
+  });
+
+  it("asks again when one conversation returns to a subject after being elsewhere", async () => {
+    const shared = store();
+    const asked: boolean[] = [];
+    const record = (audit: boolean): Promise<undefined> => {
+      asked.push(audit);
+      return Promise.resolve(undefined);
+    };
+    await auditedRead(inputWith(shared, "cnv_1", "prod", "vis_1"), "list:frm_a:[]", record);
+    await auditedRead(inputWith(shared, "cnv_1", "prod", "vis_1"), "list:frm_a:[]", record);
+    await auditedRead(inputWith(shared, "cnv_1", "prod", "vis_2"), "list:frm_b:[]", record);
+    await auditedRead(inputWith(shared, "cnv_1", "prod", "vis_3"), "list:frm_a:[]", record);
+    expect(asked).toEqual([true, false, true, true]);
+  });
+
+  it("keeps the conversation-wide key when a turn names no stay", async () => {
+    const shared = store();
+    const asked: boolean[] = [];
+    const record = (audit: boolean): Promise<undefined> => {
+      asked.push(audit);
+      return Promise.resolve(undefined);
+    };
+    await auditedRead(inputWith(shared, "cnv_1", "prod", ""), "list:frm_a:[]", record);
+    await auditedRead(inputWith(shared, "cnv_1", "prod", ""), "list:frm_a:[]", record);
+    expect(asked).toEqual([true, false]);
   });
 });

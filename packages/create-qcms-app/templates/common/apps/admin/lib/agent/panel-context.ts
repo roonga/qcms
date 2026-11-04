@@ -15,6 +15,8 @@ export interface AssistantControl {
   readonly working: boolean;
   readonly announcement: string;
   readonly screen: ResolvedScreen | undefined;
+  /** The environment this render was served for; a switch expires a waiting card. */
+  readonly environment: string;
   readonly show: () => void;
   readonly close: () => void;
   readonly toggleExpanded: () => void;

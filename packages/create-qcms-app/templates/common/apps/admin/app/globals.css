@@ -3107,6 +3107,11 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   border: 0;
   padding: 0;
 }
+.qcms-assistant__note {
+  margin: 0 0 0.75rem;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
 .qcms-assistant__turns {
   display: flex;
   flex: 1 1 auto;
