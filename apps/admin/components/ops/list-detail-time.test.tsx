@@ -76,7 +76,7 @@ describe("one submission on the list and on its detail", () => {
         pins={[]}
         labels={new Map()}
         labelsFailed={false}
-        linksHref="/forms/form-1/links"
+        linksHref="/operations/forms/form-1/links"
         environment="test"
         erase={() => Promise.resolve({ status: "error" as const })}
         unflag={() => Promise.resolve({ status: "error" as const })}

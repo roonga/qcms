@@ -57,10 +57,13 @@ export default async function ResponseDetailPage({
   const scope = mayErase ? await erasureScope(session, formId, sessionId) : undefined;
   const elsewhere = scope?.ok === true ? scope.data.otherEnvironments : [];
 
-  if (!form.ok) {
-    if (form.code === "FORM_NOT_FOUND" || form.code === "INVALID_FORM_ID") notFound();
-    return <Alert variant="error">{form.message}</Alert>;
-  }
+  if (!form.ok && (form.code === "FORM_NOT_FOUND" || form.code === "INVALID_FORM_ID")) notFound();
+  // The subject here is the response, and a `responses.viewer` holds no `form: read`, so a
+  // refused form read costs the status line rather than the screen. The same stance the
+  // pinned-version read below already takes for its labels.
+  const formHeader = { formId, section: "responses", heading: responseHeading(sessionId) } as const;
+  const withStatus = form.ok ? { ...formHeader, status: form.data.status } : formHeader;
+
   if (!response.ok) {
     // Consult tombstones before returning 404: an erased response remains evidence at its original URL.
     const tombstone =
@@ -70,13 +73,8 @@ export default async function ResponseDetailPage({
     if (response.code === "RESPONSE_NOT_FOUND" && tombstone === undefined) notFound();
     return (
       <div className="flex flex-col gap-6">
-        <FormPageHeader
-          formId={form.data.formId}
-          section="responses"
-          status={form.data.status}
-          heading={responseHeading(sessionId)}
-        />
-        <Link className="qcms-text-link" href={`/forms/${encodeURIComponent(formId)}/responses`}>
+        <FormPageHeader {...withStatus} />
+        <Link className="qcms-text-link" href={responsesHref(formId)}>
           {t("ops.detail.back")}
         </Link>
         {tombstone === undefined ? (
@@ -93,13 +91,8 @@ export default async function ResponseDetailPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <FormPageHeader
-        formId={form.data.formId}
-        section="responses"
-        status={form.data.status}
-        heading={responseHeading(sessionId)}
-      />
-      <Link className="qcms-text-link" href={`/forms/${encodeURIComponent(formId)}/responses`}>
+      <FormPageHeader {...withStatus} />
+      <Link className="qcms-text-link" href={responsesHref(formId)}>
         {t("ops.detail.back")}
       </Link>
       <ErasureElsewhereOffer others={elsewhere} secureCookies={secureCookies()} />
@@ -119,6 +112,10 @@ export default async function ResponseDetailPage({
 
 function responseHeading(sessionId: string): { readonly id: string; readonly text: string } {
   return { id: RESPONSE_HEADING_ID, text: t("ops.detail.heading", { sessionId }) };
+}
+
+function responsesHref(formId: string): string {
+  return `/operations/forms/${encodeURIComponent(formId)}/responses`;
 }
 
 /* Fetch only pinned question versions; a failed label lookup falls back to its id without hiding the audit
