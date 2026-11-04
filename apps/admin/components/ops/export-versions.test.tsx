@@ -5,10 +5,9 @@ import { describe, expect, it, vi } from "vitest";
 import { t } from "../../lib/i18n/en.ts";
 import { parseResponseQuery } from "../../lib/ops/response-filters.ts";
 
-/**
- * The export dialog's version control says only what was read: a `responses.viewer` is
- * refused the form's published list and gets the versions its own responses carry.
- */
+// A `responses.viewer` is refused the form's published version list, so what it gets is
+// the versions its own responses carry. It used to be told the form had no published
+// version, about a form that has versions, and have its export disabled.
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: () => undefined }),
 }));

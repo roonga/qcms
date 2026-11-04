@@ -8,10 +8,8 @@ import {
 } from "./form-contexts.ts";
 import type { OperationsFormRow } from "./operations-forms.ts";
 
-/**
- * Which contexts each persona of Q87's discovery table is offered on a row. The personas
- * themselves are proved against the policy in the API's own integration test.
- */
+// The personas are proved against the policy in the API's `operations.integration.test.ts`;
+// decided here is only what the client does with the cells that read returned.
 
 function row(capabilities: readonly string[]): OperationsFormRow {
   return {
