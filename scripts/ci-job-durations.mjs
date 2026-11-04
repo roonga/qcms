@@ -115,7 +115,6 @@ export function render(summary) {
   if (summary.count === 0) {
     const head = `ci-job-durations: no '${summary.job}' job in the last ${String(summary.scanned)} successful runs`;
     if (summary.namesSeen.length === 0) return head;
-    // The likeliest cause is a nearly-right name, so answer with the list rather than a guess.
     return [`${head}. Job names seen:`, ...summary.namesSeen.map((name) => `  ${name}`)].join("\n");
   }
   const lines = [

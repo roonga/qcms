@@ -11,7 +11,8 @@ import { readSessionToken } from "@/lib/server/session-cookie";
 import { decodeStepForm, type DecodedAnswer } from "@/lib/server/step-form";
 import type { NativeFieldKind } from "@roonga/qcms-ui/native-submit";
 
-// It runs SEC-9's belt itself, because Next's own action check admits a request with no `Origin`, ignores the scheme and never reads `Sec-Fetch-Site`.
+// Check CSRF explicitly: Next's action check admits an absent Origin, ignores the scheme, and does not read
+// Sec-Fetch-Site.
 
 function typedValues(
   answers: readonly DecodedAnswer[],
@@ -44,9 +45,8 @@ export async function rosterOperation(
 ): Promise<RosterActionState> {
   const { answers, cleared, rosterOp: operation, sessionId } = decodeStepForm(formData);
   const values = typedValues(answers, cleared);
-  // SEC-9's belt, above the credential read. The route template rather than the concrete
-  // path: the belt never reads the path, and the only session id available here came out
-  // of the posted form, so passing it would log a respondent-supplied string for nothing.
+  // Check origin before credentials. Log the route template, never the concrete path containing the posted
+  // session id.
   if (!isSameOriginAction(await headers(), "/s/{sessionId}")) {
     // Nothing is applied, and the typed values still ride the re-render.
     return { values, message: t("repeat.failed") };

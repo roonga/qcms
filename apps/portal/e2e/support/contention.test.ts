@@ -14,7 +14,6 @@ import {
 } from "./contention.js";
 import { hostPressure, type ContainerCensus } from "./host-pressure.js";
 
-/** A neighbour on a given seat, with the fields the report actually prints. */
 function stack(seat: number, port: number, pid?: number): NeighbourStack {
   return { seat, service: "admin", port, pid, cwd: pid === undefined ? undefined : "/w/other" };
 }

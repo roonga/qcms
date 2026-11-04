@@ -7,18 +7,6 @@ import { t } from "../../lib/i18n/en.ts";
 import type { DeadLetterItem } from "../../lib/ops/types.ts";
 import { unexpected } from "../../lib/ops/unexpected.ts";
 
-/**
- * What an operator sees when a redelivery request REJECTS (issue #352, handler 6 of nine).
- *
- * The action is a prop, so the fake is the prop; the `useTransition`, the `.then` chain,
- * the state and the live region that renders it are the real component. The second
- * assertion is the one that names the defect: an unhandled rejection sets no state, so
- * `isPending` is the only thing that ever changes and the row's button comes back enabled
- * with nothing said. Asserting the button is usable again is therefore not enough on its
- * own, and asserting only the sentence would miss a screen that recovered but stayed stuck
- * pending.
- */
-
 const ROW: DeadLetterItem = {
   deliveryId: "dlv_1",
   eventId: "evt_1",

@@ -6,9 +6,6 @@
  */
 
 /**
- * `await` is deliberately absent: an awaited chain is not this defect, and its
- * expression is an `AwaitExpression`, so it never reaches here anyway.
- *
  * @param {any} node
  * @returns {any}
  */

@@ -1,7 +1,6 @@
 /**
- * The name a response export downloads under (ADR-40). The environment is in the name and
- * no column. Every part is machine text, so no respondent string reaches a
- * `Content-Disposition` header (SEC-8).
+ * The name a response export downloads under (ADR-40). The environment is in the name and no column. Every
+ * part is machine text, so no respondent string reaches a `Content-Disposition` header.
  */
 
 export interface ResponseExportName {

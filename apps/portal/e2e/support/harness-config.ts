@@ -2,13 +2,11 @@ import { fileURLToPath } from "node:url";
 
 import { PORT_SEAT, harnessPort } from "./port-seat.js";
 
-/** The port the composed API listens on (in the globalSetup process). */
 export const API_PORT = harnessPort("api", PORT_SEAT);
 
 /** The base URL the portal BFF calls (server-only `QCMS_API_BASE_URL`). */
 export const API_BASE_URL = `http://127.0.0.1:${API_PORT}`;
 
-/** The port the portal dev server listens on. */
 export const PORTAL_PORT = harnessPort("portal", PORT_SEAT);
 
 export const OTLP_PORT = harnessPort("otlp", PORT_SEAT);
@@ -29,7 +27,6 @@ export const OTLP_EXPORT_TIMEOUT_MS = "10000";
 
 const OTLP_INGEST_MARGIN_MS = 1_500;
 
-/** How often a spec re-reads the capture file while waiting for exported telemetry. */
 export const OTLP_POLL_MS = 250;
 
 export const OTLP_DELIVERY_BUDGET_MS =
@@ -43,7 +40,7 @@ export function otlpDeliveryNote(elapsedMs: number): string {
   );
 }
 
-/** Synthetic shared SEC-4 internal token (test-only, not a real secret). */
+/** Synthetic test token, never a production credential. */
 export const FIXED_INTERNAL_TOKEN = "qcms-e2e-portal-shared-internal-token-000000";
 
 export const FIXED_APP_KEY = "qcms-e2e-synthetic-app-key-0000000000000000";
@@ -60,7 +57,6 @@ export const HARNESS_BRAND_LOGO =
   "aGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0Ij48cmVjdCB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHJ4PSI0IiBmaW" +
   "xsPSIjM2Y2ZjhmIi8+PC9zdmc+";
 
-/** Absolute path of the fixtures the specs read (written by globalSetup). */
 export const FIXTURES_PATH = fileURLToPath(
   new URL("../../.playwright/fixtures.json", import.meta.url),
 );
@@ -69,7 +65,6 @@ export const SERVER_LOG_DIR = fileURLToPath(
   new URL("../../.playwright/server-logs/", import.meta.url),
 );
 
-/** The three captured server-log files (API, Postgres, portal server). */
 export const SERVER_LOG_FILES = {
   api: `${SERVER_LOG_DIR}api.log`,
   postgres: `${SERVER_LOG_DIR}postgres.log`,

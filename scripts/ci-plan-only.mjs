@@ -14,7 +14,6 @@ import { pathToFileURL } from "node:url";
 // On Windows, Node's execFile does not add the `.exe` suffix the way a shell does.
 const GIT = process.platform === "win32" ? "git.exe" : "git";
 
-/** The scratch tree the fast lane started as. Trailing slash: `planning.md` is not it. */
 export const PLAN_PREFIX = "plan/";
 
 /**
@@ -35,7 +34,6 @@ export const FAST_LANE_FILES = ["CLAUDE.md", "PROJECT_INSTRUCTIONS.md", "CONTRIB
  */
 export const DOCS_PREFIX = "docs/";
 
-/** The one extension the docs rule admits, matched exactly: not `.mdx`, not `.MD`. */
 export const MARKDOWN_SUFFIX = ".md";
 
 /**
@@ -87,8 +85,6 @@ export function isPlanOnly(files) {
 export const ADMIN_ONLY_PREFIXES = ["apps/admin/", "docs/", ...FAST_LANE_PREFIXES];
 
 /**
- * An empty list is NOT admin-only, on the same rule as {@link isPlanOnly}.
- *
  * @param {readonly string[]} files
  * @returns {boolean}
  */
@@ -190,7 +186,6 @@ function main() {
     return;
   }
 
-  // Quoted, so a leading space in a path stays visible in the run log.
   stdout.write(`Changed vs origin/${baseRef} (${files.length} path(s)):\n`);
   for (const path of files.slice(0, LOG_LIMIT)) stdout.write(`  ${JSON.stringify(path)}\n`);
   if (files.length > LOG_LIMIT) stdout.write(`  ... and ${files.length - LOG_LIMIT} more\n`);

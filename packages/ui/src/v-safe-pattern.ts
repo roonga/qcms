@@ -29,7 +29,7 @@ export function compilesUnderV(pattern: string): boolean {
 
 interface Rewrite {
   readonly text: string;
-  /** How many input characters this span consumed. */
+
   readonly consumed: number;
 }
 

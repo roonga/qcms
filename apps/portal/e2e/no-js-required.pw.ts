@@ -16,7 +16,6 @@ test.use({ javaScriptEnabled: false });
 
 const NAME_FIELD = 'input[name="q_full_name"]';
 
-/** Start the kitchen sink with no scripting and land on step one ("About you"). */
 async function startWithoutJs(page: Page, slug: string): Promise<string> {
   await page.goto(`/f/${slug}`);
   await page.getByRole("button", { name: "Start" }).click();

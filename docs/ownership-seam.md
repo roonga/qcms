@@ -256,15 +256,17 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 ### QCMS-internal references in the scaffolded source
 
-`1779` lines across `379` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
+Scaffolded source follows the Code comments rule in `PROJECT_INSTRUCTIONS.md`:
+the default is no comment. Keep a concise explanation only for a non-obvious why,
+a safety or security constraint, or an external-bug workaround. A citation alone
+does not justify retaining a comment; remove historical narration and text the
+code already explains. Preserve license headers, lint/type justifications and
+required machine-read annotations.
 
-These are comments, and they stay (issue #457, tier 3). They are the engineering
-rationale for code you now own, which is worth more to you than a tidy file, and
-stripping them mechanically would delete the reasoning along with the citation.
-What they are NOT is a tracker you can open: they resolve against the upstream
-QCMS repository, not against yours. Read `ADR-nn` as a design decision recorded at
-`docs/adr/` upstream, `SEC-n` as a security control in `docs/SECURITY_DESIGN.md`,
-and a bare `#nnn` as an upstream issue number.
+Retained `ADR-nn` and `SEC-n` references point to `docs/adr/` and
+`docs/SECURITY_DESIGN.md` in the upstream QCMS repository. Keep an upstream issue
+number only when it is the sole pointer to a non-obvious constraint. Change the
+authored source and regenerate its scaffold mirror with `pnpm qcms:sync-templates`.
 
 The two places QCMS's identity would have been more than a citation are fixed
 rather than documented: the images no longer claim to be built from this

@@ -10,7 +10,7 @@ export type PostedRecord = Readonly<Record<string, string | undefined>>;
 
 export interface RejectedAnswer {
   readonly message: string;
-  /** The `answerKey` of the value the server rejected. */
+
   readonly key: string;
 }
 

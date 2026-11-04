@@ -57,14 +57,6 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-/**
- * One conversation for every screen, and the route a turn takes.
- *
- * The builder's own route requires `form: write`, so a caller holding only `form: read`
- * has to take the screen route to get a turn at all, and a writer takes the per-form route
- * so the turn carries the stored draft's `updatedAt`. The capability arrives with the
- * published snapshot; nothing here reads the network to find it out.
- */
 describe("the assistant conversation's route", () => {
   function sent(): ReturnType<typeof vi.fn> {
     const fetchMock = vi.fn<(input: unknown, init?: unknown) => Promise<Response>>(() =>
@@ -128,11 +120,6 @@ describe("the assistant conversation's route", () => {
   });
 });
 
-/**
- * The card's waiting window. The browser's clock here is years away from the instant the
- * proposal says it was issued at, which is the skew a card has to survive: it arrives
- * Confirmable and the window is counted from its arrival instead.
- */
 describe("a card's waiting window", () => {
   const ISSUED_AT = "2026-07-20T00:00:00.000Z";
 

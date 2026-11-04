@@ -5,14 +5,6 @@ import { isRevocable, linkStateKey, mintedLinksCsv, mintedLinksFilename } from "
 import { freezeSummary, nextVersion } from "./publish.ts";
 import type { MintedLink } from "./types.ts";
 
-/**
- * The secure-link and publish helpers (task 034).
- *
- * All pure: what the screen may say about a link's state, what a batch export looks like
- * when it reaches a spreadsheet, and what a publish confirmation claims it will freeze.
- * None of them decides anything the API decides.
- */
-
 function minted(overrides: Partial<MintedLink> = {}): MintedLink {
   return {
     linkId: "lnk_one",
@@ -51,7 +43,7 @@ describe("the batch CSV export", () => {
   it("quotes a field that contains the separator, so no column can shift", () => {
     const csv = mintedLinksCsv([minted({ linkId: "lnk,with,commas" })]);
     expect(csv).toContain('"lnk,with,commas"');
-    // Three fields, still: the commas are inside one quoted field.
+
     expect(csv.split("\r\n")[1]?.split('","')).toHaveLength(3);
   });
 
@@ -61,11 +53,7 @@ describe("the batch CSV export", () => {
   });
 
   it("defuses a field a spreadsheet would execute on open", () => {
-    // Formula injection: several spreadsheet programs evaluate a cell starting with one
-    // of these. A minted URL never starts with `=`, and an export that would hand a
-    // formula to an operator if one ever did is not one worth shipping. Since issue #470
-    // the guard is `@roonga/qcms-csv`, shared with the API's response export, where the cells
-    // really are respondent-controlled; this asserts it still reaches this export.
+    // Keep formula-injection coverage even though normal minted URLs cannot start with spreadsheet formula prefixes.
     for (const lead of ["=", "+", "-", "@", "\t", "\r"]) {
       const csv = mintedLinksCsv([minted({ url: `${lead}FIXTURE_PAYLOAD` })]);
       expect(csv).toContain(`"'${lead}FIXTURE_PAYLOAD"`);
@@ -73,7 +61,6 @@ describe("the batch CSV export", () => {
   });
 
   it("leaves an ordinary field's text untouched inside its quotes", () => {
-    // The positive control: a guard that prefixed everything would pass the case above.
     const csv = mintedLinksCsv([minted({ url: "https://forms.example.test/l/abc.def" })]);
     expect(csv).toContain('"https://forms.example.test/l/abc.def"');
     expect(csv).not.toContain("'https");

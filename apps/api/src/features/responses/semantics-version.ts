@@ -2,7 +2,7 @@ import { ApiError } from "../../errors.js";
 
 const STORED_STAMP = /^\d+$/;
 
-/** Refusal messages name no snapshot content (SEC-8). */
+/** Refusal messages name no snapshot content. */
 export function unsupportedSemanticsVersion(): ApiError {
   return new ApiError(
     "UNSUPPORTED_SEMANTICS_VERSION",

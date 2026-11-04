@@ -21,13 +21,11 @@ vi.mock("next/headers", () => ({
 
 const { readReceiptCookie, readStepContext } = await import("./route-helpers");
 
-/** Point the mocked store at `raw` (or nothing) and read the context back. */
 async function readCookie(raw: string | undefined) {
   cookieValue = raw;
   return readStepContext();
 }
 
-/** Point the mocked store at `raw` (or nothing) and read the receipt back. */
 async function readReceipt(raw: string | undefined) {
   receiptCookieValue = raw;
   return readReceiptCookie();
@@ -152,7 +150,6 @@ describe("readStepContext", () => {
 });
 
 describe("readReceiptCookie", () => {
-  /** Exactly what the API's `receiptFrom` builds: an ISO instant and a hex hash. */
   const written = {
     submittedAt: new Date(Date.UTC(2026, 6, 20)).toISOString(),
     contentHash: "3b0c".repeat(16),

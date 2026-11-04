@@ -84,7 +84,6 @@ export function offersNoAction(offered: readonly OfferedActionKind[]): boolean {
   return offered.length === 0;
 }
 
-/** The environments one offered kind may be proposed in, or none if it is not offered. */
 export function offeredEnvironments(
   offered: readonly OfferedActionKind[],
   kind: string,

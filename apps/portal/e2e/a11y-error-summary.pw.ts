@@ -7,7 +7,6 @@ import { browserConsoleFault } from "./support/gates.js";
 import { waitForHydration } from "./support/hydration.js";
 import { KS, startKitchenSink } from "./support/kitchen-sink.js";
 
-/** The questionId of the field wrapper the focused control sits in, if any. */
 function focusedQuestion(page: Page): Promise<string | null> {
   return page.evaluate(
     () =>

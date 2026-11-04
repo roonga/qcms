@@ -7,9 +7,7 @@ import { loadGoldenForms } from "./test-support/golden.ts";
 import { ControlledHost } from "./test-support/host.tsx";
 import { SELECT_STEP } from "./test-support/select-step.ts";
 
-// react-stately decides controlled against uncontrolled by `value !== undefined` and warns when that changes.
-// The direction that matters is back to uncontrolled, which serves its own last internal value; jsdom sees it
-// because the warning is a dev-mode `console.warn`.
+// react-stately treats undefined as uncontrolled and can redisplay its last internal value.
 
 const kitchen = loadGoldenForms().find((f) => f.version === "v2" && f.form === "kitchen-sink");
 if (!kitchen) throw new Error("kitchen-sink v2 golden not found");
@@ -25,8 +23,7 @@ const stepAbout = stepById("stp_about");
 const stepHistory = stepById("stp_history");
 const stepCover = stepById("stp_cover");
 
-// Derived from the golden rather than hand-shaped, so the control sits at exactly the
-// same tree index and the reconciliation under test is the real one.
+// Keep the golden tree index so reconciliation exercises a real question swap.
 function withRenamedQuestion(step: A2UIStepDocument, from: string, to: string): A2UIStepDocument {
   const rewritten = JSON.stringify(step).replaceAll(from, to);
   return JSON.parse(rewritten) as A2UIStepDocument;
@@ -130,9 +127,7 @@ describe("a projection never re-targets a mounted control at another question", 
 
   it("RadioGroup: the next question's group is still keyboard-reachable", async () => {
     const user = userEvent.setup();
-    // These sit at the same tree index, so Continue re-targeted one mounted group at
-    // the other question and carried `lastFocusedValue` across. No option of the new
-    // question has that value, so every radio dropped to tabIndex=-1.
+    // Reusing a mounted radio group can retain a focus key absent from the next question.
     const { rerender } = render(<ControlledHost document={stepHistory} />);
 
     await user.click(screen.getByRole("radio", { name: "Yes" }));

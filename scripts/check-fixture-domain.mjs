@@ -1,7 +1,6 @@
 /**
- * Example forms are rendered to real respondents, so their content must stay in the
- * neutral vehicle domain (043). Scope is only the fixture JSON the seed consumes:
- * docs and the frozen golden corpus discuss health in prose legitimately.
+ * Seeded example forms reach real respondents, so fixture content must stay in the neutral vehicle domain.
+ * Exclude documentation and frozen corpus data from this check.
  */
 
 import { readdirSync, readFileSync } from "node:fs";
@@ -54,7 +53,6 @@ function main() {
   console.log(`check-fixture-domain: OK - no denylisted terms in ${FIXTURE_DIR}`);
 }
 
-// Run as a script; stay silent when imported by the self-test.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main();
 }

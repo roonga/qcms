@@ -3,14 +3,8 @@ import type { A2Node } from "@a2ra/core";
 import { REPEAT_GROUP_NODE_TYPE } from "./repeat/repeat-node.ts";
 import { REPEAT_TABLE_NODE_TYPE } from "./repeat/repeat-table-node.ts";
 
-/**
- * The controlled renderer keeps its primary action outside the renderer and drives
- * every control from parent state, so a respondent with scripting disabled can view a
- * step and has nothing to submit. Submittability is a render-time capability only, so
- * the persisted A2UI bytes stay untouched (ADR-18).
- */
+/** Native submission is a render-time capability; persisted A2UI bytes must remain unchanged. */
 
-/** The registry type of the appended, render-time-only submit control. */
 export const SUBMIT_NODE_TYPE = "SubmitButton";
 
 /**
@@ -20,10 +14,8 @@ export const SUBMIT_NODE_TYPE = "SubmitButton";
 export const NATIVE_FIELD_KIND_PREFIX = "__qk__";
 
 /**
- * A native form posts a blank text box and a never-touched one identically, and an unchecked checkbox group as
- * nothing, so the BFF (which holds no answer state, R2) decoded both to absence. An empty field beside this
- * marker is an ADR-33 retraction instead; for `q_x` it is `__qa__q_x`. Forging one only retracts your own
- * answer in your own session, which the answer endpoint already permits.
+ * Native forms cannot distinguish untouched from cleared values without this answered marker.
+ * Forging one can only retract the caller's own answer, which the answer API already permits.
  */
 export const NATIVE_FIELD_ANSWERED_PREFIX = "__qa__";
 
@@ -36,7 +28,6 @@ export const NATIVE_FIELD_ANSWERED_VALUE = "1";
  */
 export type NativeFieldKind = "string" | "number" | "radio" | "multi" | "date";
 
-/** The three parts of a calendar day. */
 export type DatePart = "day" | "month" | "year";
 
 /**
@@ -50,9 +41,8 @@ export const NATIVE_DATE_PART_PREFIX: Readonly<Record<DatePart, string>> = {
 };
 
 /**
- * The operator's tag with the Gregorian calendar and Latin digits forced (ADR-27): a date answer is an ISO-8601
- * day, so a locale with another default calendar would draw the same value as a different date. An unreadable
- * tag is returned as given, so the caller's validation reports it.
+ * Force Gregorian calendar and Latin digits so ISO dates survive locale changes.
+ * Return invalid tags unchanged for caller validation.
  */
 export function isoDateLocale(locale: string): string {
   try {
@@ -118,9 +108,9 @@ export interface NativeSubmitOptions {
   /** A same-origin BFF route. */
   readonly action: string;
   readonly method?: "post";
-  /** The visible label of the real submit control. */
+
   readonly submitLabel: string;
-  /** Host-app theming (ADR-26). */
+
   readonly submitClassName?: string;
   /**
    * A Server Action that applies Add or Remove and re-renders the step in the same 200 (ADR-43). It sits on the
@@ -129,11 +119,8 @@ export interface NativeSubmitOptions {
    */
   readonly formAction?: NativeFormAction;
   /**
-   * How a Server Action gets its per-request context without being bound: a bound
-   * action cannot go to `useActionState`, because the signature comparison never
-   * settles inside a server render and the process dies accumulating promises.
-   *
-   * These names are the host's, and its decoder has to reserve them.
+   * Bound Server Actions can hang useActionState during server rendering.
+   * Pass request context through host-reserved hidden field names instead.
    */
   readonly hiddenFields?: Readonly<Record<string, string>>;
 }
@@ -168,9 +155,7 @@ export function withNativeSubmit(root: A2Node, opts: NativeSubmitOptions): A2Nod
   // Omitted when a Server Action is supplied: a node prop carries stored, serialisable
   // data only, so the adapter reads the function from the field context instead.
   if (opts.formAction === undefined) props.action = opts.action;
-  // Enter submits through the form's first submit button in tree order, and the real
-  // control is appended last, so on a step with a repeating group Enter would press a
-  // Remove or Add. A hidden copy built from the same props goes first instead.
+  // The first submit button handles Enter; prepend Continue so roster buttons cannot become the default.
   const leading: A2Node[] = carriesRosterButtons(root)
     ? [{ type: SUBMIT_NODE_TYPE, props: { ...submitProps, implicitDefault: true } }]
     : [];

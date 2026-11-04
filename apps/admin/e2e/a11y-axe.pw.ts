@@ -54,75 +54,24 @@ import {
   pendingRow,
 } from "./support/questions.js";
 
-/**
- * The admin's axe gate (task 031, exit criterion 5; policies inherited from task 030).
- *
- * Zero violations is the gate, and it runs on **every state the shell and the auth loop
- * have**, not just the first page: the signed-out screen, each failure state, the enrollment
- * screen with its QR and setup key, the one-time recovery-code display, the challenge and
- * its recovery variant, and all five shell areas. Two of those are the ones a
- * first-render-only gate would miss, and they are exactly where this app's accessibility
- * risk concentrates: an alert that has to receive focus, and a list of codes that has to be
- * announced as a list. (The gate has already earned its place once: it caught a duplicate
- * `role="alert"` created by wrapping the vendored `Alert` in a second live region.)
- *
- * It runs inside the one root Playwright config, which CI's browser job executes in full
- * (`pnpm exec playwright test`), so the gate is CI-enforced by construction rather than by a
- * separate job someone has to remember to add - the failure mode 029 shipped and 030 had to
- * fix (docs/RETRO.md).
- *
- * `color-contrast` is enabled here, unlike in the jsdom component tests where no canvas
- * exists to measure it: this is a real browser, and the app's Cobalt palette against the
- * shared neutrals is precisely the pair worth checking.
- *
- * ## Every state, in every mode (task 055, exit criterion 5)
- *
- * `color-contrast` is the one axe rule whose answer depends on the mode, and it is
- * exactly the rule an operator relies on, so running the gate only in the mode the test
- * machine happens to prefer would leave two thirds of the palette unchecked. Each state is
- * therefore analysed three times.
- *
- * The mode is applied by setting the root class directly rather than by re-navigating with
- * a cookie, and the saving is the point: the class is the only input the palette has, and a
- * re-navigation per mode would triple the sign-ins and page loads in this file to measure
- * the same pixels. That the class arrives correctly from a cookie, from
- * `prefers-color-scheme`, and from the control itself is proved in `appearance.pw.ts`,
- * which is where that mechanism belongs.
- *
- * Each test signs in for itself: Playwright gives every test a fresh browser context, and
- * sharing one would disable the shared console gate (see `support/flow.ts`).
- */
+// Each test needs its own browser context to retain the shared console gate.
+// Root classes isolate palette measurement; appearance.pw.ts covers the controls and cookies.
 
 test.describe.configure({ mode: "serial" });
 
 const EMAIL = uniqueAdminEmail("a11y");
 
-/** Set by the enrollment test; stable once the factor is confirmed. */
 let totpSecret = "";
 
 test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
 });
 
-/** The seeded insurance form the operations sweep uses (see `responses-ops.pw.ts`). */
 const OPS_SLUG = "auto";
 const OPS_FORM_ID = "frm_auto_quote";
 
-/**
- * The form the publish sweep authors and publishes, handed to the operations sweep.
- *
- * The webhook half of the operations sweep runs against **this** form rather than the
- * seeded one, and that is a hard requirement rather than a preference (issue #306). It
- * has to make real deliveries succeed, fail, dead-letter and be redelivered in order
- * to render the three `DeliveryStatusTag` tints, and `responses-ops.pw.ts` asserts
- * exact per-status row counts on the seeded form's dashboard. Two specs writing
- * delivery rows for one form would make each other's counts unreadable; a form of this
- * sweep's own keeps both honest.
- *
- * Serial mode is what makes the handover legal, exactly as it is for `totpSecret`
- * above: the publishing test is declared before the operations test and therefore runs
- * before it. Filtering with `-g` breaks that, which is already true of this file.
- */
+// Use this sweep's own form: responses-ops.pw.ts asserts exact delivery counts on the seed.
+// Serial declaration order hands the published form to the operations sweep; filtering tests breaks it.
 let pubForm: {
   readonly formId: string;
   readonly slug: string;
@@ -131,52 +80,21 @@ let pubForm: {
   readonly countId: string;
 } | null = null;
 
-/**
- * A consumer response body tall enough to overflow `.qcms-snippet`'s 12rem cap.
- *
- * The overflow is the point, not decoration: a scroll container that no keyboard can
- * reach is a WCAG 2.1.1 failure (issue #309), and axe only reports
- * `scrollable-region-focusable` on an element that actually scrolls. A short body
- * would render the same markup and prove nothing. Kept under the deliverer's
- * `RESPONSE_SNIPPET_MAX` (500) so what is stored is what is shown, and made of many
- * short lines rather than one long one because `white-space: pre-wrap` is what turns
- * them into height.
- */
+// Axe checks scrollable-region-focusable only when content actually overflows.
+// Keep the multiline body below RESPONSE_SNIPPET_MAX so storage preserves its height.
 const TALL_RESPONSE_BODY = `{\n${Array.from(
   { length: 22 },
   (_, index) => `  "line_${String(index)}": "x"`,
 ).join(",\n")}\n}`;
 
-/**
- * A form title long enough that the version diff overflows `.qcms-diff` sideways.
- *
- * The overflow is the point, not decoration, and it is the same argument
- * `TALL_RESPONSE_BODY` makes one axis over: `scrollable-region-focusable` reports a
- * scroll container no keyboard can reach (WCAG 2.1.1, issue #354), and axe only
- * reports it on an element that really scrolls. Two short definitions render the same
- * markup and prove nothing.
- *
- * The title is what carries it because it is the cheapest field in the definition to
- * edit - one autosaved control on the builder - and because the diff is a text diff of
- * canonical JSON, so one long value is one long line, printed on both sides. Ordinary
- * words rather than a run of `x`, since `.qcms-diff-side` is `overflow-wrap: anywhere`
- * and the title is also on screen elsewhere on this form's screens; a realistic long
- * title is a case the app should survive anyway.
- */
+// The diff must overflow for axe to check scrollable-region-focusable.
+// Use a long title to produce a long canonical-JSON line without changing the rest of the fixture.
 const OVERFLOWING_FORM_TITLE =
   "Publish sweep form with a deliberately long title, so the canonical JSON " +
   "definition prints a line no version column can contain without scrolling";
 
-/**
- * Pick a published version in one of the version screen's two compare selects.
- *
- * Not `chooseOption` from `support/forms.js`: its trigger fallback anchors the label at
- * the END of the accessible name, and a react-aria `Select` names its trigger from the
- * label AND the value it is currently showing, so the label sits at the front with the
- * placeholder or the chosen version after it. Matching the label anywhere in the name is
- * what survives both orderings, and it is unambiguous here - "Older version" and "Newer
- * version" name one control each on this screen.
- */
+// Select trigger names combine label and value, with the label first.
+// The shared chooseOption fallback anchors the label at the end and cannot match these controls.
 async function chooseVersion(page: Page, label: string, version: string): Promise<void> {
   const trigger = page.getByRole("button", { name: new RegExp(label) });
   await trigger.click();
@@ -184,106 +102,23 @@ async function chooseVersion(page: Page, label: string, version: string): Promis
   await expect(trigger).toContainText(version);
 }
 
-/** WCAG 2.2 AA, the same rule set the portal gate uses. */
-/**
- * Outbox events the delivery sweep plants ahead of its own, to make the backlog it
- * has to drain larger than one claim batch whatever else the run left behind
- * (`QCMS_WEBHOOK_BATCH_SIZE`, default 20; issue #988). Not read from the config on
- * purpose: a number the test states is what makes it a pin rather than a restatement
- * of whatever the deployment is set to.
- */
+// The backlog must exceed one deliverer pass so the round helper has to drain multiple batches.
 const BACKLOG_EVENTS = 25;
 
 const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 
-/**
- * Rules run **in addition** to the tag set above (issues #511, #943). Two rules are in
- * this run only because they are named here, and they are kept out of a tag-selected run
- * for two different reasons - one has no wcag tag, the other has an excluded one.
- *
- * `heading-order` carries no wcag tag at all: axe classifies it as best-practice,
- * because a skipped level is a defect no success criterion states in those words. That
- * classification is why an erased response could render `<h1>` then `<h3>` through every
- * mode of this gate without a word of complaint. The heading outline is the structure a
- * screen-reader user navigates an admin screen by, so a hole in it is a real defect here
- * whatever tag axe files it under.
- *
- * `label-content-name-mismatch` is the WCAG 2.5.3 label-in-name check, and it is
- * excluded from this run **by tag, not by a disabled rule** (issue #943). Its descriptor
- * in axe-core 4.13.0 carries `wcag21a` and `wcag253` and no `enabled` key at all; what
- * keeps it out is the `experimental` tag, which `axe._audit.tagExclude` subtracts from
- * every tag-selected run. (`axe.getRules()` reports `enabled: false` for it, but that
- * field is DERIVED from the same tag exclusion, so reading it is what makes the rule look
- * like a rule someone turned off.) The gap it exists for is not hypothetical here: the
- * step editor's pin control painted `v3` and was named "Move pin for q_at_fault_accident"
- * until issue #879, and this sweep watched it in all four modes without a word. Verified
- * falsifiable before it was switched on: on that exact pre-#879 markup the rule reports a
- * violation with this hook and reports nothing without it, and the markup #879 shipped
- * passes.
- *
- * `runOnly` and `rules` are set in one `options()` call rather than by chaining
- * `withTags`: `AxeBuilder#options` **replaces** its accumulated option object, so
- * `.withTags(...).options(...)` would silently drop the tags, and `withRules` is
- * documented as mutually exclusive with `withTags`. Inside axe-core `ruleShouldRun`
- * consults an explicit `rules[id].enabled` BEFORE the `runOnly` tag filter, which is what
- * lets both a tagless rule and a tag-excluded one join a tag-selected run.
- */
+// heading-order has no WCAG tag; label-content-name-mismatch is excluded by its experimental tag.
+// Explicit rule enables bypass those filters. Keep runOnly and rules in one options call:
+// AxeBuilder.options replaces accumulated options, including tags set by withTags.
 const EXTRA_RULES = {
   "heading-order": { enabled: true },
   "label-content-name-mismatch": { enabled: true },
 };
 
-/**
- * The heading-order gaps that already existed on the day the rule was switched on
- * (issue #511), keyed by the state they appear in and by the node axe names.
- *
- * Switching a best-practice rule on over a codebase that has never been measured by it
- * surfaces history as well as regressions, and there were exactly two. Neither was in
- * #511's territory, and how far to go in fixing them was a scope call for the Code Owner
- * rather than something to decide inside a heading fix, so they were recorded rather than
- * silently dropped and rather than left failing:
- *
- * - ~~`version history` and `version diff, overflowing` (**issue #540**)~~: **fixed and
- *   deleted by issue 540.** `components/forms/version-history.tsx` headed its compare
- *   panel with an `<h3>` directly under the page `<h1>`, with no `<h2>` between, on both
- *   of the states that render that screen. The heading is an `<h2>` now, and the sweep
- *   covers the node instead of excusing it. Both entries went in one change because the
- *   register is keyed per state and one defect appeared in two of them.
- * - ~~`the delivery-detail disclosure` (**issue #541**)~~: **fixed and deleted by issue
- *   519.** The expanded row's request headers were an `<h4>` under the dashboard's `<h2>`;
- *   the digest work put an `h3` (`This delivery`, holding the trigger's three facts) above
- *   them, so the level is no longer skipped and the entry went stale. Deleting it is what
- *   the staleness assertion below exists to force.
- *
- * **The register is empty, and that is its resting state rather than a reason to remove
- * it.** Every gap it was opened for has been fixed, so `heading-order` is now an
- * unqualified gate on every swept state in all four modes. The structure stays because
- * the argument for it has not changed: a gap surfaced by a rule someone else switched on
- * is not always the same person's to fix, and a narrowly keyed, self-expiring entry is
- * the honest way to record that rather than widening the rule set or leaving the gate
- * red. Adding one is a deliberate act with an issue number attached, and the staleness
- * assertion below takes it away again the moment it is fixed.
- *
- * This list is a debt register, not a policy: each entry is a defect that should be
- * fixed and the entry deleted, and it is deliberately keyed narrowly (state **and**
- * node) so it cannot grow into a blanket mute. A NEW gap in a registered state, on any
- * other node, still fails. Fixing one is a two-step change: correct the heading in the
- * component named, then delete that entry here. The issue numbers live in this comment
- * on purpose, because this file is what a future fixer reads.
- *
- * `expectNoViolations` also asserts the converse, that every entry here is still
- * violating. An entry left behind after its heading is fixed does not fail on its own,
- * it silently re-arms a mute at that exact selector, so a *later* heading-order
- * regression on the same node in the same state would be swallowed by an exclusion
- * nobody remembers granting. That is strictly worse than the gap it was registered for,
- * which was at least visible in the source, so a dead entry fails the gate.
- */
+// Exceptions are scoped to state and node so unrelated heading gaps still fail.
+// The converse assertion rejects stale entries that could otherwise hide a later regression.
 const KNOWN_HEADING_ORDER_GAPS: Readonly<Record<string, readonly string[]>> = {};
 
-/**
- * The four states polarity x contrast can paint. Light is the bare root, so it has no
- * class, and the dark field at high contrast is the two classes together.
- */
 const MODES = [
   { name: "light", rootClasses: [] as readonly string[] },
   { name: "dark", rootClasses: ["dark"] },
@@ -292,9 +127,7 @@ const MODES = [
 ] as const;
 
 async function expectNoViolations(page: Page, state: string): Promise<void> {
-  // Axe reads the HYDRATED tree, so wait for it rather than racing the dev server's
-  // warm-up reload: a second navigation to the same URL destroys the execution context
-  // under `page.evaluate` and reports as a navigation error rather than a violation.
+  // Wait for hydration before evaluate: a dev-server reload destroys its execution context.
   await waitForHydration(page);
   const original = await page.evaluate(() => document.documentElement.className);
   const originalScroll = await page.evaluate(() => window.scrollY);
@@ -310,26 +143,8 @@ async function expectNoViolations(page: Page, state: string): Promise<void> {
         mode.rootClasses as readonly string[],
       );
       await settleTransitions(page);
-      // ANALYSED FROM THE TOP OF THE PAGE, because a scroll offset is not part of the
-      // state being swept and axe measures at whichever one it finds.
-      //
-      // `.qcms-topbar` is `position: sticky`, so anything a spec has scrolled past sits
-      // underneath it, and `target-size` hit-tests the current offset: a control halfway
-      // above the fold is reported as partially obscured by whichever nav link is painted
-      // over it, sized by the strip that is left. Measured on the form's own screen, where
-      // toggling the settings checkbox leaves the page at `scrollY` 127 of a possible 183:
-      // the Publish and Close form buttons are 90x40 and 118x40 at rest and came back as
-      // 90x10 and 118x10, with the two nav links above them named as the obscurers.
-      //
-      // That is a reading position rather than a defect in the screen. Both buttons are a
-      // full control tall and clear of the bar at the top of the page, and scrolling back
-      // to them is what a sticky bar is for. Left unnormalised the gate is also unstable
-      // in a way that says nothing about accessibility: any edit that makes a screen tall
-      // enough to scroll can turn an unrelated state red, which is how this arrived.
-      //
-      // What survives the normalisation is the case worth catching. A control that a
-      // sticky or fixed element covers at EVERY offset is still covered at the top, so a
-      // genuinely unreachable target still fails here; only the transient overlap goes.
+      // Sticky navigation can transiently overlap scrolled controls during axe target-size hit-testing.
+      // Measure at the top to exclude reading-position overlap while retaining permanently covered targets.
       await page.evaluate(() => {
         window.scrollTo(0, 0);
       });
@@ -337,34 +152,19 @@ async function expectNoViolations(page: Page, state: string): Promise<void> {
       const results = await new AxeBuilder({ page })
         .options({ runOnly: { type: "tag", values: TAGS }, rules: EXTRA_RULES })
         .analyze();
-      // Every rule named above has to be shown to have RUN here, not just asked for
-      // (issue #943). A misspelt id is not the hole this closes - axe itself throws
-      // "unknown rule `x` in options.rules", verified by misspelling one. The hole is the
-      // option map going missing while every id in it stays correct: `AxeBuilder#options`
-      // REPLACES the accumulated option object, so an edit that reaches back for
-      // `.withTags(TAGS)` takes `rules` with it, both extra rules silently leave the run,
-      // and the sweep stays green while measuring less than this file says it does. That
-      // failure was reproduced against this assertion before it was committed. Checked per
-      // state and mode, before any verdict is read out of the results.
+
       expect(
         rulesNotRun(results, Object.keys(EXTRA_RULES)),
         `axe did not load these rules on the ${state} state in ${mode.name}: the tag selection alone drops them, so EXTRA_RULES is what puts them in the run and it is not reaching axe`,
       ).toEqual([]);
-      // Pre-existing gaps this state is known to carry drop out here, and only for
-      // `heading-order` and only on the exact nodes named (issue #511). A violation that
-      // names any other node survives the filter with its whole node list intact, so the
-      // report still shows the company the new offender was keeping.
+
       const allowed = KNOWN_HEADING_ORDER_GAPS[state] ?? [];
       const violations = results.violations.filter(
         (v) =>
           v.id !== "heading-order" ||
           v.nodes.some((node) => !allowed.includes(node.target.join(" "))),
       );
-      // Name the state, the mode, the rule AND the element in the failure message. An
-      // axe failure reported as a bare count costs a second run to diagnose; one
-      // reported without the mode costs a third; and a `color-contrast` failure
-      // reported without the node and the measured ratio costs a fourth, because the
-      // whole point of running per mode is that the offender differs between them.
+
       expect(
         violations.map(
           (v) =>
@@ -375,10 +175,7 @@ async function expectNoViolations(page: Page, state: string): Promise<void> {
         `axe violations on the ${state} state in ${mode.name}`,
       ).toEqual([]);
 
-      // The register's other direction: an entry that no longer violates is dead, and a
-      // dead entry is a mute nobody granted (see KNOWN_HEADING_ORDER_GAPS). Checked from
-      // the results already in hand, after the gate above, so a genuine new violation is
-      // still what gets reported first.
+      // A stale exception would silently excuse a future regression on the same node.
       const violatingNodes = new Set(
         results.violations
           .filter((v) => v.id === "heading-order")
@@ -390,9 +187,6 @@ async function expectNoViolations(page: Page, state: string): Promise<void> {
       ).toEqual([]);
     }
   } finally {
-    // Leave the page as it was found, so a caller that keeps interacting with it is not
-    // silently driving a screen in a mode it never selected, or reading it from a
-    // different place on the page than the one it scrolled to.
     await page.evaluate(
       ({ className, scrollY }) => {
         document.documentElement.className = className;
@@ -407,15 +201,7 @@ test("the signed-out and failure states have zero violations", async ({ page }) 
   await page.goto("/sign-in");
   await expectNoViolations(page, "signed-out");
 
-  // The failure state carries a focused alert, which is where an accessible-name, duplicate
-  // live region, or focus-order regression would land.
-  //
-  // SCOPED TO `main`, because Next mounts `__next-route-announcer__` - a second
-  // `role="alert"` - as the app hydrates, OUTSIDE `main`. An unscoped `getByRole("alert")`
-  // is therefore a race against hydration rather than an assertion: it resolved to one
-  // element often enough to pass for months and to two on 2026-08-30, on the first test of
-  // a cold suite. The alert this test is about is the page's own, and saying so is both
-  // the fix and the more accurate claim.
+  // Next adds a route-announcer alert outside main during hydration; scope to the page's own alert.
   await page.goto("/sign-in?error=1");
   await expect(page.getByRole("main").getByRole("alert")).toBeVisible();
   await expectNoViolations(page, "sign-in error");
@@ -428,13 +214,7 @@ test("the signed-out and failure states have zero violations", async ({ page }) 
 });
 
 test("the forced password-change screen has zero violations", async ({ page }) => {
-  // Task 061. Its own throwaway account, because the provisional flag is cleared by the
-  // first successful change and EMAIL's state is walked by every test below this one.
-  //
-  // Swept in the same four modes as every other state here, and in both its plain and
-  // its refused shapes: the refusal renders an alert the operator has to be able to
-  // read, and the screen carries three password fields rather than the one the sign-in
-  // screen does, which is where a label or an autocomplete regression would land.
+  // Changing the provisional password clears its flag, so use an account separate from the shared auth fixture.
   const provisional = uniqueAdminEmail("a11ypw");
   await createTestAdmin(provisional, { mustChangePassword: true });
   await submitSignIn(page, provisional);
@@ -461,7 +241,6 @@ test("the enrollment and recovery-code states have zero violations", async ({ pa
 });
 
 test("the authenticated shell states have zero violations", async ({ page }) => {
-  // Eleven screens, four axe modes each, which outlasts the file's default 60s budget.
   test.setTimeout(500_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   for (const path of [
@@ -469,8 +248,7 @@ test("the authenticated shell states have zero violations", async ({ page }) => 
     "/questions/new",
     "/forms",
     "/forms/new",
-    // The two areas the shell's modes added: My access under the avatar, and the
-    // Operations landing with its focused header in place of the navigation.
+
     "/me/access",
     "/operations",
     "/responses",
@@ -485,28 +263,12 @@ test("the authenticated shell states have zero violations", async ({ page }) => 
 });
 
 test("both topbar menus have zero violations while OPEN, in every mode", async ({ page }) => {
-  // Task 032. A closed menu is a button; the accessibility risk is entirely in the
-  // open state, and a gate that only ever sampled first render would miss all of it:
-  // a portalled popover outside the landmark structure, two triggers whose only name is
-  // an `aria-label`, and a checked row whose state must not be colour
-  // alone. `expectNoViolations` runs each state in light, dark and high contrast, and
-  // high contrast is the case that matters most here - it is where a two-colour
-  // palette would expose a state carried by colour and nothing else.
-  //
-  // The mode is chosen through the real control before the sweep, so the CHECKED row
-  // is a different row in each pass rather than always the first one.
   await signInWithTotp(page, EMAIL, totpSecret);
 
   await openAppearance(page);
   await expectNoViolations(page, "appearance panel open");
 
-  // Move the selection and sweep again: the chosen segment's own treatment (weight,
-  // drawn edge) and the switch's word are what the "never colour alone" requirement
-  // lands on, so they have to be measured where they actually are. The preview strip is
-  // `aria-hidden` and unfocusable, which is the `aria-hidden-focus` rule this sweep
-  // would report if either stopped being true.
-  // The label rather than the role: react-aria's switch and radio are visually hidden
-  // inputs inside their labels, and a click aimed at the input is intercepted by one.
+  // React Aria switches and radios use visually hidden inputs; the label is the pointer target.
   await page
     .getByRole("switch", { name: /High contrast/u })
     .locator("xpath=ancestor::label[1]")
@@ -523,26 +285,8 @@ test("both topbar menus have zero violations while OPEN, in every mode", async (
   await page.keyboard.press("Escape");
 });
 
-/**
- * An account whose monogram cannot appear in its address (issue #1010).
- *
- * The sweep above runs `label-content-name-mismatch` over the topbar on every
- * authenticated screen in four modes, and it was green for months while the account
- * trigger painted "AD" and answered to "Account menu for dev@qcms.test". It was green
- * because of this file's own fixture: `E2E Admin` gives the initials "EA", and
- * `e2e.<label>.<ts>@admin.test` contains those two letters once axe looks past the dots
- * and digits, so the rule passed on the ADDRESS whatever the button painted. A gate that
- * cannot fail measures nothing, so one state is swept on an account chosen the other way.
- *
- * ## Why the address is written out here rather than taken from `uniqueAdminEmail`
- *
- * Because "cannot contain" has to be true of every run, and that helper's unique part is
- * a base-36 timestamp, which can spell any pair of letters. The chance is small and the
- * consequence is exactly the silent hole this test exists to close - the run would pass
- * while measuring nothing - so the unique part is base 10 here, leaving an address built
- * from `e2e`, `labelinname` and `admin.test` and digits. Neither Z nor W occurs in any of
- * them, and the test asserts that rather than trusting the reading.
- */
+// Keep the unique suffix decimal: base-36 timestamps could contain the account's initials.
+// The address must lack both initials so axe cannot pass label-in-name on the address alone.
 const MISMATCH_NAME = "Zoe Wren";
 const MISMATCH_INITIALS = "ZW";
 const MISMATCH_EMAIL = `e2e.labelinname.${Date.now().toString(10)}@admin.test`;
@@ -550,9 +294,6 @@ const MISMATCH_EMAIL = `e2e.labelinname.${Date.now().toString(10)}@admin.test`;
 test("the account trigger passes label-in-name for an account whose address cannot supply its initials", async ({
   page,
 }) => {
-  // The premise, asserted rather than assumed: if either letter were in the address, the
-  // rule below could pass on the address alone and this test would prove nothing. Checked
-  // per letter, which is stronger than checking the pair and just as cheap.
   for (const letter of MISMATCH_INITIALS.toLowerCase()) {
     expect(
       MISMATCH_EMAIL.toLowerCase(),
@@ -563,21 +304,13 @@ test("the account trigger passes label-in-name for an account whose address cann
   await createTestAdmin(MISMATCH_EMAIL, { name: MISMATCH_NAME });
   await enrollNewAdmin(page, MISMATCH_EMAIL);
 
-  // What the disc paints and what the button is called, stated separately: the criterion
-  // is about the two agreeing, so reading one off the other would assert nothing.
   const trigger = accountTrigger(page);
   await expect(trigger).toHaveText(MISMATCH_INITIALS);
   await expect(trigger).toHaveAccessibleName(
     `${MISMATCH_INITIALS}, account menu for ${MISMATCH_EMAIL}`,
   );
 
-  // Scoped to the topbar and to the one rule, so this state cannot go red for a reason
-  // that has nothing to do with it - every other rule and every mode is already covered
-  // by the full-page sweeps above, on the shell this account sees too.
-  //
-  // `rules` as well as `runOnly`, for the reason EXTRA_RULES gives: the rule carries the
-  // `experimental` tag, which `axe._audit.tagExclude` subtracts, and an explicit
-  // `rules[id].enabled` is what `ruleShouldRun` consults first.
+  // Explicitly enable the experimental rule; runOnly alone still excludes its tag.
   const results = await new AxeBuilder({ page })
     .include(".qcms-topbar")
     .options({
@@ -601,12 +334,6 @@ test("the account trigger passes label-in-name for an account whose address cann
 test("the question library, its editor and a question's detail have zero violations", async ({
   page,
 }) => {
-  // Task 032, exit criterion 4. These are the app's first screens with real data density -
-  // an interactive table, a form with grouped constraint panels, and a modal confirmation -
-  // so they are where a label, a group name or a contrast pair is most likely to be missed.
-  //
-  // `expectNoViolations` runs each state in light, dark and high contrast, so this covers
-  // all four modes by construction.
   test.setTimeout(180_000);
   await signInWithTotp(page, EMAIL, totpSecret);
 
@@ -616,8 +343,6 @@ test("the question library, its editor and a question's detail have zero violati
   await page.goto("/questions/new");
   await expectNoViolations(page, "question editor, empty");
 
-  // A choice type, because that is the shape with the most to get wrong: an option list
-  // whose reorder controls have to be distinguishable from one another by name alone.
   await chooseType(page, "Single choice");
   const slug = `a11y-question-${Date.now().toString(36)}`;
   await fillStable(field(page, "Slug"), slug);
@@ -626,24 +351,16 @@ test("the question library, its editor and a question's detail have zero violati
   await addOption(page, "Third party");
   await expectNoViolations(page, "question editor, option list");
 
-  // Task 057, exit criterion 3: the grid analysed with a cell in its EDITING state, which
-  // is the state a first-render-only sweep misses. Focusing a label reveals the row's grip
-  // and its insert point, so this frame also carries the two controls that are invisible at
-  // rest - a contrast failure on either would be invisible to every other run here.
+  // Focusing a label reveals the grip and insert controls; their contrast cannot be measured at rest.
   await field(page, "Option 1 label").focus();
   await expectNoViolations(page, "question editor, option grid with a cell editing");
 
-  // And with the row menu open, which is a popup the grid manages itself rather than one
-  // react-aria manages for it.
   await grip(page, 0).focus();
   await grip(page, 0).press("Enter");
   await expect(page.getByRole("menu")).toBeVisible();
   await expectNoViolations(page, "question editor, option row menu open");
   await page.getByRole("menu").press("Escape");
 
-  // The pending row: a row that exists on screen and carries no option id yet. Its ID cell
-  // renders a placeholder rather than an id, and that placeholder is text nobody else
-  // checks the contrast of.
   await page.getByRole("button", { name: "Add option" }).click();
   await expect(pendingRow(page)).toBeFocused();
   await expectNoViolations(page, "question editor, ghost row opened and unnamed");
@@ -655,16 +372,10 @@ test("the question library, its editor and a question's detail have zero violati
   ]);
   await expectNoViolations(page, "question detail, editor panel");
 
-  // THE PREVIEW IS ITS OWN PANEL NOW (Code Owner, 2026-09-27), reached from the last row of
-  // the rail rather than standing above the editor. It carries a compiled respondent view in
-  // a theme of its own, so it is a different contrast question in every mode from the panel
-  // above, and a first-render-only sweep would never reach it.
   await openPanel(page, "preview");
   await expectNoViolations(page, "question detail, preview panel");
   await openPanel(page, "content");
 
-  // The confirmation dialog is analysed open: a focus-trapped alertdialog is exactly the
-  // state a first-render-only gate would miss.
   await page.getByRole("button", { name: /^Publish version 1$/ }).click();
   await expect(page.getByRole("alertdialog")).toBeVisible();
   await expectNoViolations(page, "publish confirmation");
@@ -673,24 +384,11 @@ test("the question library, its editor and a question's detail have zero violati
   await page.getByRole("button", { name: /^Publish version 1$/ }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Publish", exact: true }).click();
   await expect(page.getByRole("alertdialog")).toBeHidden();
-  // A frozen version renders the same form disabled, which is a different contrast
-  // question in every mode than the live one above.
+
   await expectNoViolations(page, "frozen published version");
 });
 
 test("the message and boolean-label fields have zero violations (048)", async ({ page }) => {
-  // Task 048, exit criteria 4 and 5. This is a NEW case rather than an extension of the
-  // sweep above, and deliberately so: every state that sweep visits carries no constraint
-  // and is not required, so it has no message field at all - and since 2026-09-27 no message
-  // panel either, because a panel is absent rather than empty while it has nothing to hold
-  // (`lib/questions/panels.ts`). The panel's own two risks are only reachable here - a
-  // placeholder's contrast against its field in each of the four modes (the thing high
-  // contrast is likeliest to get wrong), and nine same-shaped inputs whose accessible names
-  // have to distinguish them from one another and from the constraint controls beside them.
-  //
-  // It runs on `/questions/new` throughout, which is the one screen with no rail and therefore
-  // every panel on screen at once. The detail screen's panel rows are analysed by the sweep
-  // above, which reaches that screen and renders the rail with them in it.
   test.setTimeout(180_000);
   await signInWithTotp(page, EMAIL, totpSecret);
 
@@ -698,24 +396,17 @@ test("the message and boolean-label fields have zero violations (048)", async ({
   await chooseType(page, "Short text");
   await fillStable(field(page, "Slug"), `a11y-messages-${Date.now().toString(36)}`);
   await fillStable(field(page, "Label"), "What is your policy number?");
-  // Every key a short-text question can carry, plus `required`: four message fields, which
-  // is the densest the panel gets.
+
   await page.getByText("An answer is required", { exact: true }).click();
   await fillStable(field(page, "Shortest answer"), "8");
   await fillStable(field(page, "Longest answer"), "12");
   await fillStable(field(page, "Pattern"), "^[A-Z]{2}[0-9]{6}$");
-  // The pattern verdict is announced only because its paragraph is a live region, and
-  // nothing else in the suite says so (issue #368, the same defect #359 fixed on the ops
-  // surface). Deleting the attribute leaves the element attached, leaves the verdict
-  // rendered, and passes axe - which has no rule requiring a live region to exist and can
-  // only judge the ones it finds.
+
   const patternVerdict = page.getByTestId("qcms-pattern-verdict");
   await expect(patternVerdict).toBeAttached();
   await expect(patternVerdict).toHaveAttribute("aria-live", "polite");
   await expectNoViolations(page, "question editor, message fields on their placeholders");
 
-  // And with content in them, because a placeholder and a value are different renderings
-  // with different contrast pairs.
   await fillStable(
     field(page, "Message when the answer is too short"),
     "A policy number is 8 characters long.",
@@ -731,14 +422,6 @@ test("the message and boolean-label fields have zero violations (048)", async ({
 });
 
 test("the form builder and the condition editor have zero violations", async ({ page }) => {
-  // Task 033, exit criterion 5. The builder is the densest screen the admin has: a
-  // navigation rail whose rows carry menus, a modal picker over an interactive table, a
-  // recursive tree of grouped controls, a live region that re-announces on every debounce,
-  // and a CodeMirror surface whose only accessible name is an attribute. Every one of those
-  // is a different way to lose a name or a role, and none of them exists on first render -
-  // which is exactly why the sweep walks the states rather than the URL.
-  //
-  // `expectNoViolations` analyses each state in light, dark and high contrast.
   test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);
 
@@ -757,19 +440,15 @@ test("the form builder and the condition editor have zero violations", async ({ 
   await page.goto("/forms");
   await expectNoViolations(page, "form library");
 
-  // The creating screen issue 685 split off the library. Swept in its own right rather
-  // than left to the drive-by `createForm` makes on the way to the builder: a screen the
-  // suite only ever passes through is a screen whose own markup nothing looks at.
   await page.goto("/forms/new");
   await expectNoViolations(page, "new form");
 
   await createForm(page, `a11y-form-${run}`, "Accessibility sweep form");
-  // A brand-new form has no steps, which is the autosave-paused state and its own layout.
+
   await expectNoViolations(page, "form builder, empty");
 
   await addStep(page, "Cover");
-  // The library picker is a focus-trapped dialog over an interactive table: the state a
-  // first-render-only gate would miss entirely.
+
   await page.getByRole("button", { name: "Add question from library" }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await expectNoViolations(page, "library picker dialog");
@@ -779,27 +458,16 @@ test("the form builder and the condition editor have zero violations", async ({ 
   await addStep(page, "Details");
   await pinQuestion(page, textId, 1);
   await waitForSaved(page);
-  // Scanned on the STEP screen, which is where pinning left us and where the pin grid is.
-  // The builder is two screens behind one route since 2026-08-26, so each gets its own
-  // scan rather than one scan that silently covers whichever happened to be showing.
+
   await expectNoViolations(page, "form builder with steps and pins");
 
   await openFormDetails(page);
-  // The issue count and the save state are announced only because the paragraph holding
-  // them is a live region, and nothing else in the suite says so (issue #368). The two
-  // spans inside it are attached and carry their text either way, so no content assertion
-  // can notice the attribute going missing, and axe cannot either.
+
   const validationStatus = page.getByTestId("qcms-validation-status");
   await expect(validationStatus).toBeAttached();
   await expect(validationStatus).toHaveAttribute("aria-live", "polite");
   await expectNoViolations(page, "form builder showing the form's own details");
 
-  // THE RULE WIZARD, one sweep per phase (Code Owner, 2026-08-30). The editor is three
-  // tab panels in one wide modal now, and react-aria mounts one panel at a time, so a
-  // single sweep of "the editor" would leave two thirds of it unmeasured. Each phase is a
-  // state this gate has to see, and the phase control itself - a `tablist` whose selected
-  // tab is marked by a painted edge as well as by `aria-selected` - is only in the tree
-  // while the dialog is open.
   const ruleId = await addRule(page);
   const scope = rule(page, ruleId);
   await chooseOption(scope, "Operator", "equals (the whole answer)");
@@ -809,81 +477,39 @@ test("the form builder and the condition editor have zero violations", async ({ 
   await toggleTarget(page, ruleId, textId, true);
   await expectNoViolations(page, "rule wizard, the Then show phase");
 
-  // The `?` beside the ineligible heading, open: a disclosure rendered in flow, whose
-  // button carries `aria-expanded` and `aria-controls`. Shut it is a 20px control with an
-  // `aria-label` and no text, which is the shape most easily left unnamed.
   await page.getByRole("button", { name: "Why these cannot be shown" }).click();
   await expectNoViolations(page, "rule wizard, the target ordering help open");
 
-  // The flagged state: an inline warning alert beside the picker that raised it. The
-  // engine's own issue is NOT here, and that is the buffering rather than an omission -
-  // nothing typed in this dialog reaches the draft until Save, so nothing revalidates.
-  //
-  // Reached by MOVING A STEP rather than by ticking a backward target, because since
-  // 2026-08-30 (Code Owner) the ineligible group cannot be chosen from. The rule shows the
-  // text question, which sits in the second step; putting that step in front of the one
-  // holding the question the condition reads makes the target backward without the rule
-  // changing. The rail is behind the modal, so the dialog closes for the move and reopens -
-  // and since issue #669 the move is on the BUILDER, because the rules route's rail is the
-  // navigation rail every non-builder form screen carries. `openRuleEditor` walks back.
   await closeRuleEditor(page);
 
-  // THE RULES SCREEN ITSELF, with no dialog over it (issue #669). Every sweep above is of
-  // the WIZARD; this is the route it opens from - the page heading, the table of sentences,
-  // and the screen's own bench under it. It is the newest screen in the app and the only
-  // one whose `<h1>` comes from `FormPageHeader` while its body is a client component, so
-  // it is exactly where a heading order arrives unchecked.
   await expectNoViolations(page, "the rules screen");
 
   await openFormDetails(page);
   const beforeMoveUp = await savedStamp(page);
   await moveStep(page, "Details", "up");
-  // WAIT BEFORE CROSSING THE ROUTE BOUNDARY (issue #669). The move is a builder edit on a
-  // 600ms debounce and the rules screen reads the draft the SERVER holds, so navigating
-  // inside that window would open the editor on the draft as it was before the move - and
-  // the backward flag this is here to see would not be there. Nothing waited before,
-  // because it was one mount holding one draft.
+  // Wait for the debounced edit before crossing routes: the editor reads the server's stored draft.
   await waitForSaveAfter(page, beforeMoveUp);
   await openRuleEditor(page, ruleId);
   await openRulePhase(page, "then");
   await expect(page.getByTestId("qcms-backward-flag")).toBeVisible();
   await expectNoViolations(page, "rule wizard with a backward target flagged");
 
-  // The third phase: the bench, for this rule, with its own live region.
   await openRulePhase(page, "test");
-  // The wizard's bench, not the screen's: both are in the DOM, and they share testids
-  // because they are the same panel about two different rules.
+  // Both benches share child testids; scope to the wizard's bench rather than the screen's bench.
   const benchStatus = page.getByTestId("qcms-bench").getByTestId("qcms-bench-status");
   await expect(benchStatus).toBeAttached();
   await expect(benchStatus).toHaveAttribute("aria-live", "polite");
   await expectNoViolations(page, "rule wizard, the Test phase");
 
-  // The editor is modal, so leaving it comes before going anywhere: the rail is behind the
-  // overlay until it closes. Save, because the backward target is what the next assertion
-  // is about and Cancel would discard it.
   await closeRuleEditor(page);
 
-  // The engine's finding, now that the rule is in the draft, rendered at the rule. It sits
-  // outside the phase panels, so it is on screen whichever phase is selected. The 30s
-  // budget on the assertion carries the debounce, the round trip and the validate call,
-  // and nothing here navigates in between - the editor reopens on the screen it closed on.
-  // Since issue #669 the rules route also opens with the SERVER's verdict, so a walk back
-  // from the builder arrives already showing it rather than waiting for an edit.
-  // Taken with no dialog on screen, because the strip sits behind the modal overlay once
-  // one is open. Nothing saves between here and the Save below, so it is still the right
-  // baseline for it.
   const beforeLeaving = await savedStamp(page);
   await openRuleEditor(page, ruleId);
   await expect(scope.locator('[data-issue-code="RULE_BACKWARD_TARGET"]')).toBeVisible({
     timeout: 30_000,
   });
   await expectNoViolations(page, "rule wizard showing the engine's verdict on the rule");
-  // Put the step back rather than unticking a target: the rule has one, and a rule that
-  // shows nothing is an unsaveable draft rather than a repaired one.
-  //
-  // SAVE, THEN LEAVE, in this direction too: the builder reads the server's draft, so
-  // walking off this route inside the debounce would take the reader to a screen that has
-  // never seen the rule.
+  // Restore step order: removing the rule's only target would leave a different publish refusal.
   await closeRuleEditor(page);
   await waitForSaveAfter(page, beforeLeaving);
   await openFormDetails(page);
@@ -891,13 +517,8 @@ test("the form builder and the condition editor have zero violations", async ({ 
   await moveStep(page, "Details", "down");
   await waitForSaveAfter(page, beforeMoveDown);
 
-  // Back to the form's own screen: the settings stayed there when the rules moved out, so
-  // the panel below is not even on the ROUTE the rule work happened on since issue #669.
-  // The rail's own row is the way back, and each axe sweep says which screen it swept.
   await openFormDetails(page);
 
-  // The settings, on the form's screen: no longer a disclosure, and no longer pressed to
-  // save - they autosave with the draft now.
   await toggleCheckbox(page, "Require a challenge before answering", true);
   const settingsStatus = page.getByTestId("qcms-form-settings-status");
   await expect(settingsStatus).toBeAttached();
@@ -909,17 +530,6 @@ test("publish, preview, history and secure links have zero violations", async ({
   page,
   context,
 }) => {
-  // Task 034, exit criterion 5. Six of these states do not exist on first render and four
-  // of them are dialogs, which is where an accessible name is most easily lost: a
-  // confirmation whose body is its `description`, a mint form inside a non-alert dialog, a
-  // panel of one-time URLs, and a destructive confirm. The preview and the version view are
-  // the shared renderer inside an admin page, so this is also the only place the two
-  // stylesheets meet - exactly the pair a contrast rule should be run against.
-  //
-  // `expectNoViolations` analyses each state in light, dark and high contrast, so thirteen
-  // states is thirty-nine axe runs on top of authoring two questions, building a form and
-  // publishing it TWICE (issue #354 needs a second version to have a diff to draw).
-  // Measured at ~50s before that; the budget is the usual generous multiple of it.
   test.setTimeout(300_000);
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await signInWithTotp(page, EMAIL, totpSecret);
@@ -941,43 +551,26 @@ test("publish, preview, history and secure links have zero violations", async ({
   await addStep(page, "Cover");
   await pinQuestion(page, choiceId, 1);
   await pinQuestion(page, countId, 1);
-  // A STAMP BEFORE THE EDITOR OPENS. The wizard buffers since 2026-08-30, so the whole rule
-  // reaches the draft in ONE mutation on Save: "Saved" is already on screen from the pins,
-  // so `waitForSaved` would return instantly and the reload below would race the only round
-  // trip the rule ever gets. Publish then freezes a draft without the rule in it.
+  // Capture the save baseline before opening the buffered editor; its Save makes one mutation.
   const beforeRule = await savedStamp(page);
   const ruleId = await addRule(page);
   const scope = rule(page, ruleId);
   await chooseOption(scope, "Operator", "equals (the whole answer)");
   await chooseOption(scope, "Value", choiceOption);
   await toggleTarget(page, ruleId, countId, true);
-  // The editor is modal, and the save strip is read through the rail, which is behind the
-  // overlay until it closes. The sibling sweep above got this when the rules moved into a
-  // dialog; this one is on the same route and needs the same gesture.
+  // Close the modal before reading the save strip behind its overlay.
   await closeRuleEditor(page);
   await waitForSaveAfter(page, beforeRule);
-  // BACK TO THE BUILDER, because the rule work happened on `/forms/{formId}/rules` since
-  // issue #669 and Publish belongs to the FORM. This used to be a reload, which was enough
-  // while the rules were a selection on this same route; it is a navigation now, and the
-  // reload it replaces did the same job of proving the draft reached the server.
+
   await page.goto(`/forms/${formId}`);
 
-  // Publishing has a screen of its own, so the sweep follows it there.
   await publishDraftThroughWizard(page, { formId, version: 1, environment: "test" });
-  // That success alert is announced only because the container it arrives in is a live
-  // region, and nothing else in the suite says so (issue #368). The visibility assertion
-  // inside the helper passes with the attribute deleted, which is the whole point: the
-  // message still appears on screen, it just stops being spoken.
+
   const publishStatus = page.getByTestId("qcms-publish-result-status");
   await expect(publishStatus).toBeAttached();
   await expect(publishStatus).toHaveAttribute("aria-live", "polite");
   await expectNoViolations(page, "publish success");
 
-  // A SECOND VERSION, so the version screen has a diff to draw at all (issue #354).
-  // Comparing needs two published definitions, and one edit is enough: the form title
-  // is the cheapest thing in the definition to move, and moving it to something long
-  // is what makes the diff WIDE, which is the half that matters here. See
-  // OVERFLOWING_FORM_TITLE.
   await page.goto(`/forms/${formId}`);
   await openFormDetails(page);
   const beforeTitle = await savedStamp(page);
@@ -986,14 +579,9 @@ test("publish, preview, history and secure links have zero violations", async ({
   await page.reload();
   await publishDraftThroughWizard(page, { formId, version: 2, environment: "test" });
 
-  // Published, and released below, because a published version is served nowhere until a
-  // release record says where (ADR-40, task 065): the operations sweep further down starts
-  // respondent sessions on this form, and without the release the respondent route answers
-  // 409.
+  // Release the published form before the operations sweep starts respondent sessions.
   pubForm = { formId, slug, choiceId, choiceOption, countId };
 
-  // The close confirmation, whose whole body is the R1 explanation. Back on the builder,
-  // because the wizard is a screen of its own and the lifecycle actions are the form's.
   await page.goto(`/forms/${formId}`);
   await waitForHydration(page);
   await page.getByRole("button", { name: /^Close in / }).click();
@@ -1001,10 +589,6 @@ test("publish, preview, history and secure links have zero violations", async ({
   await expectNoViolations(page, "close-form confirmation");
   await page.keyboard.press("Escape");
 
-  // The Versions view and every step of the publish wizard. Swept here, with the other
-  // acts, because the wizard is a form filled in over three steps, each with its own
-  // controls and its own live region - and the release itself is what lets the operations
-  // sweep below start a respondent session on this form.
   await page.goto(`/forms/${formId}/versions`);
   await chooseEnvironment(page, "prod");
   await expect(page.getByTestId("qcms-released-now")).toBeVisible();
@@ -1017,8 +601,7 @@ test("publish, preview, history and secure links have zero violations", async ({
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   const destinations = page.getByTestId("qcms-publish-destinations");
   await expect(destinations).toBeVisible();
-  // A step change takes focus to the heading of the step that replaced the one the pressed
-  // control went with. The axe sweep cannot see a dropped focus, so it is asserted.
+
   await expect(destinations.locator("legend")).toBeFocused();
   await expectNoViolations(page, "the publish wizard, choosing destinations");
   await chooseDestination(destinations, "prod");
@@ -1046,8 +629,7 @@ test("publish, preview, history and secure links have zero violations", async ({
   ).toBeVisible({
     timeout: 60_000,
   });
-  // The preview's loading and error states are announced only because their container is
-  // a live region, and nothing else in the suite says so (issue #368).
+
   const previewStatus = page.getByTestId("qcms-preview-status");
   await expect(previewStatus).toBeAttached();
   await expect(previewStatus).toHaveAttribute("aria-live", "polite");
@@ -1063,22 +645,7 @@ test("publish, preview, history and secure links have zero violations", async ({
   await expect(page.getByRole("table", { name: "Published versions" })).toBeVisible();
   await expectNoViolations(page, "version history");
 
-  // THE DIFF, AND THE CONDITION IT NEEDS TO BE JUDGED ON (issue #354).
-  //
-  // `.qcms-diff` is `overflow-x: auto`, and a scroll container nothing can focus is a
-  // keyboard trap: WCAG 2.1.1, the same defect issue #309 fixed on `.qcms-snippet`.
-  // Axe's `scrollable-region-focusable` reports it, but only on an element that
-  // ACTUALLY SCROLLS, so until this the sweep was silent for a reason that had nothing
-  // to do with the markup being right: it never rendered a diff at all, and a diff of
-  // two short definitions would not have overflowed if it had. That is the same shape
-  // as issue #306 one turn further in - the sweep visits the state and the fixture
-  // never triggers the condition - and it is the harder one to notice, because the
-  // state IS being swept.
-  //
-  // So the overflow is asserted directly, before axe is asked anything. Without that
-  // assertion a later change that narrows the fixture (a shorter title, a wider
-  // column) would take the condition away again and this sweep would go back to
-  // certifying nothing, silently and in green.
+  // Assert real overflow before axe: a shorter fixture or wider column would otherwise disable the check silently.
   await chooseVersion(page, "Older version", "v1");
   await chooseVersion(page, "Newer version", "v2");
   const diffRegion = page.locator(".qcms-diff");
@@ -1097,10 +664,7 @@ test("publish, preview, history and secure links have zero violations", async ({
   await page.goto(`/forms/${formId}/links`);
   await chooseEnvironment(page, "prod");
   await expect(page.getByTestId("qcms-links-empty")).toBeVisible();
-  // The mint and revoke outcomes are announced only because their container is a live
-  // region, and nothing else in the suite says so (issue #368). Asserted here, empty and
-  // before any outcome exists, for the reason #307 gives: a region has to be present and
-  // observed before its content arrives, so present-and-live is the state worth pinning.
+  // A live region must exist before its content changes for reliable announcements.
   const linksStatus = page.getByTestId("qcms-links-status");
   await expect(linksStatus).toBeAttached();
   await expect(linksStatus).toBeEmpty();
@@ -1131,9 +695,6 @@ test("publish, preview, history and secure links have zero violations", async ({
   await expect(page.getByRole("alertdialog")).toBeVisible();
   await expectNoViolations(page, "revoke confirmation");
 
-  // The revoked chip carries a different token pair from the active one, so it is a
-  // different contrast question in all four modes - and until this state was swept,
-  // Active was the only one of the four chip states the gate had ever measured.
   await page.getByRole("alertdialog").getByRole("button", { name: "Revoke it" }).click();
   await expect(page.getByTestId("qcms-links-table").getByText("Revoked")).toBeVisible({
     timeout: 30_000,
@@ -1142,37 +703,6 @@ test("publish, preview, history and secure links have zero violations", async ({
 });
 
 test("the operations screens have zero violations", async ({ page }) => {
-  // Task 035, exit criterion 5, extended for issue #306. Nineteen states across seven
-  // screens, and the reason each is here rather than covered by "the responses page"
-  // as one:
-  //
-  //  - Six are **tables whose cells hold badges and buttons**, which is where a name
-  //    is most easily lost, and whose badge tints are a different contrast question in
-  //    each of the four modes (the same lesson 034's revoked chip taught). Three of
-  //    the six are the delivery dashboard, once per `DeliveryStatusTag` tint, because
-  //    a dashboard is only ever measured in the statuses it happens to be holding.
-  //  - Four are **dialogs**: an export form, a type-to-confirm erasure with an error
-  //    state, and two destructive confirmations.
-  //  - One is the **one-time secret reveal**, which is an assertive live region.
-  //  - One is a **disclosure inside a table row**, whose panel is a second `<tr>` and
-  //    carries the consumer's response body in a scroll box.
-  //  - One is the **tombstone**, the post-erasure state of a screen that showed answers
-  //    a moment earlier.
-  //
-  // ## Why the delivery half runs real deliveries
-  //
-  // The three delivery tints and the flagged badge are not render-time variants a
-  // fixture can choose: a row is dead-lettered because ten attempts failed, and it is
-  // delivered because one succeeded. Before #306 this sweep configured an endpoint and
-  // stopped, so `--color-success-subtle`, `--color-info-subtle` and
-  // `--color-danger-subtle` were never measured in any mode and the disclosure panel
-  // was never opened - which is precisely where the `.qcms-snippet` keyboard trap
-  // (#309) had been sitting unseen, since `scrollable-region-focusable` can only fire
-  // on a scroll box that is actually on screen.
-  //
-  // Eighty axe runs (issue #511 added the cold tombstone route, one state in four modes)
-  // plus two forms' worth of submissions and a full retry budget, so the budget is
-  // generous.
   test.setTimeout(1_200_000);
   await signInWithTotp(page, EMAIL, totpSecret);
 
@@ -1181,9 +711,7 @@ test("the operations screens have zero violations", async ({ page }) => {
   if (pub === null) return;
 
   const consumer = new TestConsumer();
-  // Rejecting, and verbosely: an HTML-error-page-shaped answer is exactly the case
-  // `.qcms-snippet` exists to contain, and a 5xx keeps a status and a body on the row
-  // where a refused connection would leave neither.
+
   consumer.status = 500;
   consumer.body = TALL_RESPONSE_BODY;
   await consumer.start();
@@ -1196,22 +724,17 @@ test("the operations screens have zero violations", async ({ page }) => {
   }
 });
 
-/** The body of the operations sweep, so its fixtures can be closed in one `finally`. */
 async function sweepOperations(
   page: Page,
   pub: NonNullable<typeof pubForm>,
   consumer: TestConsumer,
   deliverer: ReturnType<typeof openDeliverer>,
 ): Promise<void> {
-  // A response to look at, made through the real respondent routes (see support/ops.ts).
   const sessionId = await submitResponse(OPS_SLUG, [
     ["q_at_fault_accident", true],
     ["q_accident_count", 4],
   ]);
-  // And one the anti-abuse check flags, so the response browser below carries BOTH
-  // `FlagTag` variants. The flagged tint is `--color-warning-subtle` and was
-  // unreachable from this sweep until #306; a flagged submission also enqueues no
-  // outbox event, so it adds nothing to the delivery half.
+
   await submitResponse(OPS_SLUG, [["q_at_fault_accident", false]], {
     honeypotField: deliverer.honeypotField,
   });
@@ -1227,9 +750,7 @@ async function sweepOperations(
   await page.goto(`/forms/${OPS_FORM_ID}/responses`);
   const responses = page.getByTestId("qcms-responses-table");
   await expect(responses).toBeVisible();
-  // Asserted, not assumed: the sweep's claim is that it measures BOTH flag tints, and
-  // an ordering change that pushed the flagged submission onto page two would quietly
-  // reduce this back to the coverage #306 was filed about.
+
   await expect(responses.locator('[data-flagged="true"]').first()).toBeVisible();
   await expect(responses.locator('[data-flagged="false"]').first()).toBeVisible();
   await expectNoViolations(page, "the response browser");
@@ -1247,8 +768,6 @@ async function sweepOperations(
   await expect(page.getByTestId("qcms-erase-dialog")).toBeVisible();
   await expectNoViolations(page, "the erasure confirmation");
 
-  // The invalid state of the confirmation field: an error message wired to an input
-  // inside an alertdialog is a name/description pair axe can actually check.
   await page
     .getByTestId("qcms-erase-dialog")
     .getByRole("textbox", { name: /Type the session id/ })
@@ -1263,30 +782,17 @@ async function sweepOperations(
   await expect(page.getByTestId("qcms-tombstone")).toBeVisible({ timeout: 30_000 });
   await expectNoViolations(page, "the tombstone");
 
-  // And the same URL opened cold, which is a **different render** of the same card and
-  // was not swept until issue #511. In place, the tombstone arrives inside
-  // `ResponseDetail`; from a link in a ticket, the route renders the card directly under
-  // `FormPageHeader` with no component around it. The defect #511 was filed for lived
-  // only in that second render, so a sweep that reached the first one and stopped was
-  // blind to it by construction.
   await page.goto(`/forms/${OPS_FORM_ID}/responses/${sessionId}`);
   await expect(page.getByTestId("qcms-tombstone")).toBeVisible({ timeout: 30_000 });
   await expectNoViolations(page, "the tombstone route, opened cold");
 
   await page.goto(`/forms/${pub.formId}/webhooks`);
   await expect(page.getByTestId("qcms-webhook-config")).toBeVisible();
-  // Issue #307: the secret's live region is mounted from the first render and is
-  // empty, rather than arriving already full. A region that appears already populated
-  // is announced unreliably, and this is the state where the difference is visible.
+  // The secret region must be mounted empty before the one-time reveal to announce it reliably.
   const secretRegion = page.getByTestId("qcms-webhook-secret-region");
   await expect(secretRegion, "the assertive region exists before any secret does").toBeAttached();
   await expect(secretRegion).toBeEmpty();
-  // And it is still a live region (issue #359). Nothing above asserts that: an empty
-  // div with the attribute deleted is attached, is empty, still nests the secret when
-  // it arrives, and passes axe - which has no rule requiring a live region to exist and
-  // can only judge the ones it finds. Any a11y property whose value comes from an
-  // element merely being present needs saying out loud, or a tidy-up that removes an
-  // "empty div" undoes #307 with a green run.
+
   await expect(secretRegion).toHaveAttribute("aria-live", "assertive");
   await expect(page.getByTestId("qcms-webhook-status")).toHaveAttribute("aria-live", "polite");
   await expectNoViolations(page, "webhook config with no endpoint");
@@ -1298,8 +804,7 @@ async function sweepOperations(
   await create.getByRole("textbox", { name: "Endpoint URL" }).fill(consumer.url());
   await create.getByRole("button", { name: "Create endpoint" }).click();
   await expect(page.getByTestId("qcms-webhook-secret")).toBeVisible({ timeout: 30_000 });
-  // The same region, now filled: the announcement is a content change inside a region
-  // that was already there, which is the shape every other live region in this app has.
+
   await expect(secretRegion.getByTestId("qcms-webhook-secret")).toBeVisible();
   await expectNoViolations(page, "the one-time secret reveal");
 
@@ -1310,21 +815,7 @@ async function sweepOperations(
   await sweepDeliveries(page, pub, consumer, deliverer);
 }
 
-/**
- * The delivery states, swept in every mode (issue #306).
- *
- * Two submissions rather than one, so the queue can be worked both ways an operator
- * works it: one row redelivered on its own, and the rest taken in bulk. Both of those
- * are also the paths where focus used to be dropped on `<body>` when the button that
- * opened the confirmation went away with the row it belonged to (issue #308), so the
- * focus target is asserted here where the queue actually exists rather than in a
- * second setup of its own.
- *
- * It leaves the queue **empty**, and that is load-bearing rather than tidy:
- * `responses-ops.pw.ts` counts every row of the global dead-letter queue later in the
- * run, and a sweep that walked away from two stuck deliveries would be handing that
- * spec a number it has no way to explain.
- */
+// Drain the global dead-letter queue before leaving: responses-ops.pw.ts counts its rows.
 async function sweepDeliveries(
   page: Page,
   pub: NonNullable<typeof pubForm>,
@@ -1338,26 +829,9 @@ async function sweepDeliveries(
     ]);
   }
 
-  // A backlog larger than one claim batch, planted deliberately (issue #988).
-  //
-  // This step used to be implicit and the assertion below used to depend on it being
-  // small. A pass claims at most `QCMS_WEBHOOK_BATCH_SIZE` outbox events oldest-first
-  // (20), the whole browser suite shares one database, and nothing drains the outbox
-  // before this spec - so by here it holds every submission the portal specs made. At
-  // the time this was written that came to seventeen, the two events above sat at
-  // positions eighteen and nineteen of a twenty-row batch, and one pass happened to
-  // reach them. One more completed session anywhere in the portal suite pushed them
-  // out of the batch and this assertion read zero.
-  //
-  // So the backlog is now bigger than a batch on purpose and the sweep below is what
-  // has to cope. These plant no delivery row and no dead letter (see `plantBacklog`),
-  // and the pass count proves the drain was exercised rather than skipped.
   await deliverer.plantBacklog(BACKLOG_EVENTS);
 
-  // One delivery ROUND: the events fan out to the endpoint and each attempt is refused
-  // with a 500, which leaves the rows retryable. That is `pending`,
-  // `--color-info-subtle`. A round rather than a pass, because the two events this test
-  // cares about are the newest in the queue and a single pass never reaches them.
+  // A round must reach the newest events behind the backlog; one pass cannot guarantee that.
   const passes = await deliverer.sweep();
   expect(
     passes,
@@ -1368,16 +842,7 @@ async function sweepDeliveries(
   await expect(deliveries.locator('[data-status="pending"]')).toHaveCount(2);
   await expectNoViolations(page, "the delivery dashboard with a rejected delivery");
 
-  // The disclosure panel, open. Its `<pre>` holds the consumer's answer, which is tall
-  // enough to scroll - so this is the state `scrollable-region-focusable` measures.
-  //
-  // ADDRESSED THROUGH THE ROW THAT OPENED IT (issue 547). A document-level
-  // `getByTestId("qcms-delivery-detail")` reads as "the one panel that exists", which is
-  // true only while the dashboard renders panels conditionally. That is an implementation
-  // choice rather than a property of the screen, and it already blocked the better-shaped
-  // fix for issue 520: rendering every row's panel and hiding it would have made this
-  // locator a strict-mode multi-match. The opened row's `aria-controls` names its own
-  // panel, so this says what it means and survives that change.
+  // Resolve the opened row's aria-controls rather than assuming only one detail panel exists.
   const openedRow = deliveries.locator("tbody tr[data-delivery-id]").first();
   await openedRow.getByRole("button", { name: /^Show request and response/ }).click();
   const panelId =
@@ -1395,7 +860,6 @@ async function sweepDeliveries(
   ).toBe(true);
   await expectNoViolations(page, "the delivery-detail disclosure");
 
-  // Exhaust the retry budget: `deadLettered`, `--color-danger-subtle`.
   await deliverer.drive(11);
   await page.reload();
   await expect(deliveries.locator('[data-status="deadLettered"]')).toHaveCount(2);
@@ -1405,15 +869,10 @@ async function sweepDeliveries(
   const queue = page.getByTestId("qcms-dead-letters-table");
   await expect(queue.locator("tr[data-delivery-id]")).toHaveCount(2);
   await expectNoViolations(page, "the dead-letter queue with a stuck delivery");
-  // The redelivery summary below is announced only because this container is a live
-  // region, and nothing else in the suite says so (issue #359). The shell's own region
-  // is asserted here too: it is what carries an outcome whose screen is about to be
-  // replaced (issue #355), and it is on every authenticated page including this one.
+
   await expect(page.getByTestId("qcms-dead-letters-status")).toHaveAttribute("aria-live", "polite");
   await expect(page.getByTestId("qcms-announcer")).toHaveAttribute("aria-live", "polite");
 
-  // Fix the consumer, then work the queue. Both actions remove the control that
-  // started them, which is why the focus assertions belong here.
   consumer.status = 200;
   await queue
     .locator("tr[data-delivery-id]")
@@ -1423,10 +882,7 @@ async function sweepDeliveries(
   await expect(page.getByTestId("qcms-redeliver-summary")).toHaveText(
     "1 delivery is queued for the next pass.",
   );
-  // Issue #308: the row carried the button that was pressed, so restoring focus to it
-  // is restoring focus to nothing. The queue's own heading is the successor - the
-  // operator stays on the worklist they are working, with the summary they just earned
-  // directly beneath it.
+
   await expect
     .poll(() => activeElementId(page), {
       message: "focus after redelivering one stuck delivery",
@@ -1452,7 +908,6 @@ async function sweepDeliveries(
     })
     .toBe("qcms-dead-letters-heading");
 
-  // The pass that succeeds: `delivered`, `--color-success-subtle`.
   await deliverer.pass();
   await page.goto(`/forms/${pub.formId}/webhooks`);
   await expect(deliveries.locator('[data-status="delivered"]')).toHaveCount(2);
@@ -1477,25 +932,13 @@ test("the 2FA challenge and its recovery variant have zero violations", async ({
 });
 
 test("the whole auth loop is reachable by keyboard alone", async ({ page }) => {
-  // Not an axe check: axe cannot tell whether a control is *reachable*, which is the defect
-  // class issue #144 shipped (a control rendered, labelled, and unfocusable).
-  //
-  // Each half waits for the page's hydration marker before it types (issue #210). These
-  // screens are served as complete, interactive HTML and React attaches afterwards;
-  // react-aria's `TextField` is a CONTROLLED input seeded empty, so the attaching commit
-  // wipes anything typed before it. Enter then submits an empty `required` field, the
-  // browser's own constraint validation blocks it, and NOTHING happens: no submit event,
-  // no request, no error alert - which is exactly how this test used to park on the screen
-  // it had just filled in. The `toPass` around each half stays as a backstop for the other
-  // way the document can vanish (a `next dev` route compiled on demand, which no marker can
-  // predict). Every focus assertion, the typing, and Enter are exactly as they were,
-  // because keyboard-only operation is the property under test and `fill()` would not
-  // prove it.
+  // Keep keyboard typing and Enter: fill would not prove keyboard reachability.
+  // Hydration waits protect controlled inputs; toPass also covers dev-server document replacement.
   await expect(async () => {
     await page.goto("/sign-in");
     await waitForHydration(page);
-    await page.keyboard.press("Tab"); // skip link
-    await page.keyboard.press("Tab"); // email
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Tab");
     await expect(page.getByLabel("Email")).toBeFocused();
     await page.keyboard.type(EMAIL);
     await page.keyboard.press("Tab");
@@ -1513,8 +956,8 @@ test("the whole auth loop is reachable by keyboard alone", async ({ page }) => {
     const code = await generate({ secret: totpSecret });
     await page.goto("/two-factor/challenge");
     await waitForHydration(page);
-    await page.keyboard.press("Tab"); // skip link
-    await page.keyboard.press("Tab"); // code field
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Tab");
     await expect(page.getByLabel(/Six-digit code/)).toBeFocused();
     await page.keyboard.type(code);
     await expect(page.getByLabel(/Six-digit code/)).toHaveValue(code, { timeout: 1000 });

@@ -34,7 +34,6 @@ describe("classifyBootstrap", () => {
     ).toBe("already-bootstrapped");
   });
 
-  // All three refusals share exit status 1, so the status alone cannot classify them.
   it("does not read a rejected password as a skip", () => {
     expect(classifyBootstrap({ status: 1, stderr: REFUSALS.weakPassword })).toBe("failed");
   });
@@ -56,7 +55,6 @@ describe("generatePassword", () => {
   });
 
   it("never starts with a character a shell reads as a flag", () => {
-    // base64url may begin with "-", which is why every caller supplies a prefix.
     for (let attempt = 0; attempt < 200; attempt += 1)
       expect(generatePassword("dev-").startsWith("dev-")).toBe(true);
   });
@@ -67,10 +65,6 @@ describe("generatePassword", () => {
   });
 });
 
-/**
- * The password must stay out of the docker CLI's argv (SEC-8). Each absence case is paired with one
- * that finds the value where the mechanism delivers it.
- */
 describe("buildAdminExec", () => {
   const CREDENTIALS = {
     email: "first.admin@example.test",

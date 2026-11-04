@@ -55,7 +55,6 @@ function AppearanceHarness() {
   );
 }
 
-/** U+2713. */
 const MARK = "\u2713";
 
 function AccountHarness({ onAction }: { readonly onAction: (key: string) => void }) {
@@ -104,7 +103,7 @@ describe("menu keyboard contract", { timeout: 30_000 }, () => {
       "true",
       "false",
     ]);
-    // Choosing a row must not rename it.
+
     expect(items.map((item) => item.textContent)).toEqual([
       "Light",
       `${MARK}Dark`,

@@ -98,8 +98,8 @@ describe("rejections carry typed error codes", () => {
   it("rejects impossible calendar dates (2026-02-30) with INVALID_DATE_ANSWER", () => {
     for (const bad of [
       "2026-02-30",
-      "2025-02-29", // not a leap year
-      "1900-02-29", // century, not a leap year
+      "2025-02-29",
+      "1900-02-29",
       "2026-13-01",
       "2026-00-10",
       "2026-01-32",
@@ -117,9 +117,9 @@ describe("rejections carry typed error codes", () => {
   });
 
   it("normalizes non-NFC text instead of rejecting it", () => {
-    const nfc = `Caf${String.fromCharCode(0xe9)}`; // precomposed e-acute (NFC)
-    const nfd = nfc.normalize("NFD"); // e + combining acute (U+0301)
-    expect(nfd).not.toBe(nfc); // the two byte forms really differ
+    const nfc = `Caf${String.fromCharCode(0xe9)}`;
+    const nfd = nfc.normalize("NFD");
+    expect(nfd).not.toBe(nfc);
     expect(unwrap(parseTextAnswerValue(nfd))).toBe(nfc);
     expect(unwrap(parseAnswerValue(nfd))).toBe(nfc);
   });

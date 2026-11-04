@@ -1,15 +1,11 @@
 // @ts-check
 /**
- * The one definition of "vendored", so no gate can draw the line itself. Only the
- * `a2ui/` subtree is the byte-for-byte upstream copy (ADR-22); its siblings are
- * ordinary QCMS source, and excluding the parent directory hid them from four gates.
+ * Only a2ui/ is the byte-for-byte upstream copy; its siblings are QCMS-owned source and must remain covered
+ * by every gate.
  */
 
 /**
- * The vendored subtree, repo-relative, with its trailing slash.
- *
- * The slash is load-bearing: without it a sibling named `a2ui-legacy/` would inherit the
- * exemption by prefix, which is the leak this module exists to remove.
+ * Keep the trailing slash so a sibling such as a2ui-legacy/ cannot inherit the vendored exemption.
  */
 export const VENDORED_SOURCE_PREFIX = "packages/ui/src/components/a2ui/";
 

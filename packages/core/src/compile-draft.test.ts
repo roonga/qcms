@@ -92,7 +92,6 @@ function record(definition: QuestionDefinition, version = 1): QuestionVersionRec
   return { questionId: definition.questionId, version, definition };
 }
 
-// A version listed in `unpublished` resolves but is not published.
 function makeStore(
   records: readonly QuestionVersionRecord[],
   unpublished: readonly string[] = [],
@@ -248,9 +247,7 @@ describe("compileDraft - success path", () => {
 describe("compileDraft - each invariant violated alone yields only its error", () => {
   it("DANGLING_QUESTION_REF: a pin that does not resolve", () => {
     const draft = twoStepDraft([showBWhenA]);
-    const errors = errorsOf(
-      compileDraft({ ...draft, ...makeStore([record(boolQ("q_a"))]) }), // q_b missing
-    );
+    const errors = errorsOf(compileDraft({ ...draft, ...makeStore([record(boolQ("q_a"))]) }));
     expect(errors).toEqual([
       expect.objectContaining({
         code: "DANGLING_QUESTION_REF",
@@ -699,9 +696,7 @@ describe("compileDraft - error accumulation", () => {
       [{ ruleId: "rul_one", when: { op: "answered", questionId: "q_a" }, show: ["stp_missing"] }],
       { title: { fr: "Essai" } },
     );
-    const errors = errorsOf(
-      compileDraft({ ...draft, ...makeStore([record(boolQ("q_a"))]) }), // q_b missing
-    );
+    const errors = errorsOf(compileDraft({ ...draft, ...makeStore([record(boolQ("q_a"))]) }));
     expect(errors).toHaveLength(3);
     expect(errors.map((entry) => entry.code).sort()).toEqual([
       "DANGLING_QUESTION_REF",

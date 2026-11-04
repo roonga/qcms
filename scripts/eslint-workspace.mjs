@@ -15,7 +15,6 @@ import { pathToFileURL } from "node:url";
 
 export const WORKSPACE_ROOT = path.resolve(import.meta.dirname, "..");
 
-/** Basename of this module, so other gates can recognise a lint script that uses it. */
 export const WORKSPACE_RUNNER = "eslint-workspace.mjs";
 
 /**
@@ -106,7 +105,6 @@ export function run(args, fromDir = process.cwd()) {
   return result.status ?? 1;
 }
 
-// Guarded so an importing module or test does not spawn ESLint.
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
   process.exit(run(process.argv.slice(2)));
 }

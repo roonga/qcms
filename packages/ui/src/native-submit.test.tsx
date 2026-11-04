@@ -5,9 +5,6 @@ import { A2UIStepRenderer, type A2UIStepDocument } from "./A2UIStepRenderer.tsx"
 import { NATIVE_DATE_PART_PREFIX, withNativeSubmit } from "./native-submit.ts";
 import { loadGoldenForms } from "./test-support/golden.ts";
 
-// The controlled render must stay unchanged, which this file and the conformance
-// snapshots both carry.
-
 const insurance = loadGoldenForms().find((f) => f.version === "v1" && f.form === "insurance");
 if (!insurance) throw new Error("v1 insurance golden not found");
 const insuranceStep = insurance.compiled.documents[0];
@@ -141,9 +138,7 @@ describe("native submit mode (task 044)", () => {
   });
 });
 
-// The decoding rule rests on two invariants, and breaking either makes every no-JS
-// submit retract: an unanswered question is never marked, and an answered one always
-// serializes a value.
+// Unanswered questions must never be marked; answered questions must serialize even when cleared.
 
 describe("the answered marker (issue #127)", () => {
   const answered = (container: HTMLElement) =>
@@ -157,7 +152,7 @@ describe("the answered marker (issue #127)", () => {
         values={{ q_at_fault_accident: true }}
       />,
     );
-    // The asymmetry is the signal.
+
     expect(container.querySelectorAll('input[name^="__qk__"]')).toHaveLength(2);
     expect(answered(container)).toEqual(["__qa__q_at_fault_accident"]);
   });
@@ -195,8 +190,7 @@ describe("the answered marker (issue #127)", () => {
       'input[name="__qa__q_at_fault_accident"]',
     );
     expect(marker).not.toBeNull();
-    // Asserted as the absence of anything that would name it, rather than only the
-    // type, because a later hand could keep the type and add a label.
+    // A hidden marker must carry no accessible name or description.
     expect(marker!.type).toBe("hidden");
     expect(marker!.getAttribute("aria-label")).toBeNull();
     expect(marker!.getAttribute("aria-labelledby")).toBeNull();

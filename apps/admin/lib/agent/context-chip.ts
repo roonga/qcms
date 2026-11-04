@@ -2,18 +2,7 @@ import { t, type MessageKey } from "../i18n/en";
 
 import type { AgentScreen, ResolvedScreen } from "./screens";
 
-/**
- * The context chip's words, per screen (section 4.8).
- *
- * The chip is the operator's answer to "what can it see from here", so it is one line per
- * screen rather than one line for the whole app: a chip that says the same thing on the
- * response list and on Settings tells nobody which facts the turn will carry. Several of
- * the lines also name what the screen's facts leave out, because "no answers" is the
- * property this phase makes hold everywhere (principle point 4).
- *
- * The record is keyed by the screen type, so a screen added to `AGENT_SCREENS` without a
- * line here fails to typecheck rather than falling back to a generic string.
- */
+/** Name screen-specific context and omitted respondent answers so the operator can see what each turn shares. */
 const CHIPS: Readonly<Record<AgentScreen, MessageKey>> = {
   "/forms": "agent.context.forms",
   "/forms/new": "agent.context.forms.new",
@@ -44,13 +33,7 @@ export function contextChipKey(screen: AgentScreen): MessageKey {
   return CHIPS[screen];
 }
 
-/**
- * The chip for the screen the operator is on.
- *
- * `subject` is the name the screen itself already knows, which on the builder is the
- * draft's own title; everywhere else the route id is the only truthful name the browser
- * holds, because a turn sends ids and the API never sends facts back (section 5.1).
- */
+/** Only the builder knows a subject title locally; other screens use route IDs because the API does not send context facts back. */
 export function contextChipLabel(resolved: ResolvedScreen | undefined, subject?: string): string {
   if (resolved === undefined) return t("agent.context.none");
   const { params } = resolved;

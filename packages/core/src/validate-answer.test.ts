@@ -88,13 +88,13 @@ describe("validateAnswer - shortText", () => {
   });
 
   it("returns the NFC-normalized canonical value", () => {
-    const decomposed = "état"; // état in NFD
+    const decomposed = "état";
     expect(valueOf(question("shortText"), decomposed)).toBe("état");
   });
 
   it("counts length in UTF-16 code units of the NFC form", () => {
     // NFD é is 2 code units, NFC é is 1 - the canonical form is measured.
-    const decomposed = "ééé"; // three NFD e-acutes: 6 units raw, 3 canonical
+    const decomposed = "ééé";
     expectErrors(errorsOf(question("shortText", { minLength: 4, pattern: "^.+$" }), decomposed), [
       ["LENGTH_BELOW_MIN", "minLength"],
     ]);

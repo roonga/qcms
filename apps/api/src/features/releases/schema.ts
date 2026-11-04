@@ -91,7 +91,6 @@ const ReleaseBlocker = z
   })
   .openapi("ReleaseBlocker");
 
-/** A committed release row that satisfied a target's prerequisite. */
 const ReleaseEvidence = z
   .object({
     environment: z.string(),
@@ -128,7 +127,7 @@ export const ReleaseReviewResponse = z
         blockers: z.array(ReleaseBlocker),
         twoPerson: z.object({
           applies: z.boolean(),
-          // True when this caller published the candidate.
+
           refusedAsAuthor: z.boolean(),
         }),
         protected: z.boolean(),
@@ -202,7 +201,6 @@ export const IdempotencyKeyParam = z.object({
   key: z.string().openapi({ param: { name: "key", in: "path" } }),
 });
 
-/** One destination's rule, as the configuration reads and writes it. */
 const ReleaseWorkflowRule = z
   .strictObject({
     environment: EnvironmentName,

@@ -78,8 +78,8 @@ describe("classify", () => {
   });
 
   it("keeps a directory that is not a worktree leftover at all", () => {
-    // A real directory under `.claude/worktrees` that never was a checkout, so sweeping
-    // it would delete data rather than reclaim space.
+    // A plain directory is not a worktree; removing it would delete unrelated data rather than reclaim a
+    // checkout.
     const { root } = fixture();
     const path = join(root, "seat-mail");
     mkdirSync(join(path, "dev"), { recursive: true });
@@ -138,7 +138,6 @@ describe("classify", () => {
   });
 
   it("keeps anything modified inside the age window, whatever else is true of it", () => {
-    // A lane working right now has a new directory and nothing registered yet.
     const { root } = fixture();
     const path = detachedLeftover(root, "just-created");
     const entry = classify({

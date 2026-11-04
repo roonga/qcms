@@ -8,7 +8,6 @@ const PORTAL_BASE = "https://forms.qcms.test";
 /** The fonts a deployment offers. Narrower than the registry, which is the point. */
 const OFFERED = ["system", "atkinson", "lexend"];
 
-/** A form the portal's own markup would produce. */
 function submission(fields: Record<string, string>): FormData {
   const form = new FormData();
   for (const [name, value] of Object.entries(fields)) form.set(name, value);

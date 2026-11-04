@@ -32,28 +32,6 @@ import {
 } from "./draft.ts";
 import type { DraftForm } from "./types.ts";
 
-/**
- * The repeating group's pure draft mutations (task 074, ADR-42).
- *
- * `lib/forms/draft.ts` sets the pattern these follow and the reason for it: the component holds
- * the draft and every edit is a pure function, so what a gesture MEANS is testable without a
- * browser and without a component tree. Exit criterion 1 of the work order asks for exactly
- * that - a test per group mutation - and the three properties below are the ones that cost
- * something if they go:
- *
- * 1. **A `groupId` is permanent, and a retired one stays retired.** It is a name a CONDITION
- *    can read, exactly as a `stepId` is a name a rule can target, so the same reservation
- *    `reservedStepIds` makes has to hold for groups or `DANGLING_GROUP_REF` silently resolves
- *    itself against an unrelated group.
- * 2. **Nothing reorders a pin into or out of a group.** A pin's container decides whether its
- *    question is repeated, so a reorder that crossed a boundary would change the form's meaning
- *    through a gesture that looks like tidying.
- * 3. **The forward-only cut is a SPAN for a whole-group read and a POSITION for a bare one**,
- *    which is the one place the admin's geometry has to tell the inside-out case from the
- *    outside-in one.
- */
-
-/** A draft with one step, one group in it, and two member questions. */
 function withGroup(): { draft: DraftForm; stepId: string; groupId: string } {
   let draft = addStep(blankDraft("frm_booking"), "Travellers");
   const stepId = draft.steps[0]?.stepId ?? "";
@@ -77,9 +55,6 @@ describe("addGroup", () => {
   it("seeds the instance heading from the author's own words, with the one placeholder", () => {
     const { draft, groupId } = withGroup();
 
-    // Seeded from THEIR text rather than from English of ours: an instance heading is form
-    // content a respondent reads (ADR-27). `{n}` is the live one-based ordinal and the only
-    // placeholder the kernel substitutes.
     expect(findGroup(draft, groupId)?.group.instanceLabel).toStrictEqual({
       en: "Passengers {n}",
     });
@@ -89,9 +64,6 @@ describe("addGroup", () => {
     const { draft, groupId } = withGroup();
     const count = findGroup(draft, groupId)?.group.count;
 
-    // Deliberate: `max` is required on `open` and on `fromAnswer` (Q4 as amended by Q14) and
-    // there is no safe number to invent. Seeding one would put a bound nobody chose into a
-    // published form, where it is the only limit on how many instances a respondent creates.
     expect(count).toStrictEqual({ source: "open", min: 1 });
     expect(countBounds(count ?? { source: "open", min: 1 }).max).toBeUndefined();
   });
@@ -117,13 +89,10 @@ describe("addGroup", () => {
       show: ["q_declaration"],
     });
 
-    // Removing the group leaves the condition reading a group the form no longer declares, by
-    // design: that is `DANGLING_GROUP_REF` and the author decides what the rule should say now.
     const removed = removeGroup(built, groupId);
     expect(draftGroups(removed)).toHaveLength(0);
     expect(removed.rules[0]?.when).toMatchObject({ groupId });
 
-    // Re-adding a group under the same name must NOT adopt the orphaned condition.
     const reAdded = addGroup(removed, stepId, "Passengers");
     expect(draftGroups(reAdded)[0]?.groupId).toBe("grp_passengers_2");
   });
@@ -162,8 +131,6 @@ describe("addPinToGroup", () => {
     const { draft, stepId, groupId } = withGroup();
     const beside = addPinAt(draft, stepId, "q_trip_purpose", 1, 0);
 
-    // `DUPLICATE_QUESTION_IN_FORM` reaches inside groups, so a question is either repeated or
-    // not in a given form and never both.
     expect(addPinToGroup(beside, groupId, "q_trip_purpose", 1)).toBe(beside);
     expect(addPinToGroup(beside, groupId, "q_passport", 3)).toBe(beside);
   });
@@ -185,9 +152,6 @@ describe("movePinWithinGroup", () => {
     const { draft, stepId, groupId } = withGroup();
     const withSibling = addPinAt(draft, stepId, "q_trip_purpose", 1, 0);
 
-    // The step's own pin sits BEFORE the group, so "up" from the group's first member looks
-    // like a move into the step. It is a no-op instead: whether a question is repeated is not a
-    // thing a reorder may change.
     const attempted = movePinWithinGroup(withSibling, groupId, "q_full_name", -1);
     expect(questionGroupIds(attempted).get("q_full_name")).toBe(groupId);
     expect(questionGroupIds(attempted).get("q_trip_purpose")).toBeUndefined();
@@ -199,8 +163,6 @@ describe("movePinWithinStep and moveGroupWithinStep", () => {
     const { draft, stepId, groupId } = withGroup();
     const withSibling = addPinAt(draft, stepId, "q_trip_purpose", 1, 1);
 
-    // The step holds [group, q_trip_purpose]. Moving the pin up puts it before the whole span
-    // rather than inside it.
     const moved = movePinWithinStep(withSibling, stepId, "q_trip_purpose", -1);
     expect(
       moved.steps[0]?.items.map((item) => ("groupId" in item ? item.groupId : item.questionId)),
@@ -226,7 +188,7 @@ describe("setGroupCount", () => {
     const fixed = setGroupCount(draft, groupId, { source: "fixed", count: 3 });
 
     expect(findGroup(fixed, groupId)?.group.count).toStrictEqual({ source: "fixed", count: 3 });
-    // A `fixed` count is its own bound, so it carries neither `min` nor `max`.
+
     expect(countBounds({ source: "fixed", count: 3 })).toStrictEqual({ min: 3, max: 3 });
 
     const bounded = setGroupCount(fixed, groupId, { source: "open", min: 1, max: 9 });
@@ -260,7 +222,7 @@ describe("setGroupPresentation", () => {
 
     expect(findGroup(table, groupId)?.group.presentation).toBe("table");
     expect(findGroup(stepView, groupId)?.group.presentation).toBe("perInstanceStep");
-    // No answer, key or id moves with it: the members and the count are untouched.
+
     expect(findGroup(stepView, groupId)?.group.items).toStrictEqual(
       findGroup(draft, groupId)?.group.items,
     );
@@ -283,9 +245,6 @@ describe("renameGroup and setGroupInstanceLabel", () => {
     const { draft, groupId } = withGroup();
     const next = setGroupInstanceLabel(draft, groupId, "Passenger {index}");
 
-    // Stored as typed: `INSTANCE_LABEL_PLACEHOLDER_UNKNOWN` is the kernel's verdict and the
-    // panel's live preview shows what a respondent would read. A mutation that silently dropped
-    // the token would hide the refusal it exists to make visible.
     expect(findGroup(next, groupId)?.group.instanceLabel).toStrictEqual({
       en: "Passenger {index}",
     });
@@ -373,7 +332,6 @@ describe("draftDocumentOrder with a group in it", () => {
 });
 
 describe("eligibleTargets over a span", () => {
-  /** A step holding a pin, a two-member group, and a pin after it. */
   function spanned(): { draft: DraftForm; groupId: string } {
     const { draft, stepId, groupId } = withGroup();
     const built = addPinAt(
@@ -389,9 +347,6 @@ describe("eligibleTargets over a span", () => {
   it("cuts at the question's own position for a BARE in-group reference", () => {
     const { draft } = spanned();
 
-    // The inside-out case: the rule is evaluated inside the group, once per live instance, and
-    // what it may read is what comes earlier within the same instance - so a later member of
-    // the same group is a legal target.
     expect(eligibleTargets(draft, ["q_full_name"]).questions).toStrictEqual([
       "q_passport",
       "q_notes",
@@ -401,16 +356,12 @@ describe("eligibleTargets over a span", () => {
   it("cuts at the SPAN's end for a whole-group read", () => {
     const { draft, groupId } = spanned();
 
-    // Forward-only rule 2: a whole-group operator reads all of the group, so its targets must
-    // follow the whole span rather than any one member's position.
     expect(eligibleTargets(draft, [], [groupId]).questions).toStrictEqual(["q_notes"]);
   });
 
   it("ignores a group the draft does not declare rather than cutting on it", () => {
     const { draft } = spanned();
 
-    // `DANGLING_GROUP_REF` is the kernel's verdict on that; a cut invented here would narrow the
-    // picker over a group that does not exist and hide the real complaint behind a second one.
     expect(eligibleTargets(draft, [], ["grp_nowhere"]).questions).toHaveLength(4);
   });
 
@@ -432,9 +383,6 @@ describe("unsaveableReason", () => {
     draft = addPinAt(draft, stepId, "q_trip_purpose", 1, 0);
     expect(unsaveableReason(draft)).toBeUndefined();
 
-    // `RepeatGroup.items` is at-least-one in the kernel, so a group an author has just added is
-    // an unparseable draft rather than an inconsistent one - the state issue 569 named for a
-    // step, one level down.
     const withEmptyGroup = addGroup(draft, stepId, "Passengers");
     expect(unsaveableReason(withEmptyGroup)).toBe("emptyGroup");
 

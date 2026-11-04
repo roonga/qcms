@@ -18,8 +18,8 @@ describe("reading the @source list", () => {
   });
 
   it("REFUSES a directive form it does not model rather than skipping it", () => {
-    // Tailwind v4 also accepts `@source not "..."`, which NARROWS the scan, so ignoring
-    // an unreadable directive would report a directory as covered once it stopped being.
+    // Tailwind accepts @source not directives that narrow scanning; ignoring one can falsely report an excluded
+    // directory as covered.
     expect(() =>
       sourceRootsIn('@source not "../lib/generated";', "apps/admin/app/globals.css"),
     ).toThrow(/cannot read this @source directive/);
@@ -37,7 +37,6 @@ describe("the repository itself", () => {
   it.each(["apps/admin", "apps/portal"])("%s has every bundled source file scanned", (app) => {
     const { roots, missingRoots, unscanned } = auditApp(app);
 
-    // A positive control: an empty root list would make the assertion below vacuously true.
     expect(roots.length).toBeGreaterThan(0);
     expect(missingRoots).toEqual([]);
     expect(unscanned).toEqual([]);

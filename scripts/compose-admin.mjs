@@ -1,8 +1,8 @@
 // @ts-check
 /**
  * The account is created through the `api` service, the only container holding a database credential
- * (ADR-35). Credentials travel in the environment, never in argv. A refusal once an account exists
- * (SEC-1) is read rather than failed, which makes the bootstrap idempotent.
+ * (ADR-35). Credentials travel in the environment, never in argv. A refusal once an account exists is read
+ * rather than failed, which makes the bootstrap idempotent.
  */
 
 import { randomBytes } from "node:crypto";
@@ -56,7 +56,6 @@ export function buildAdminExec({ compose, credentials, environment }) {
       ...compose,
       "exec",
       "--no-TTY",
-      // Names only. The values are two lines down, in the CLI's environment.
       "--env",
       "QCMS_ADMIN_EMAIL",
       "--env",

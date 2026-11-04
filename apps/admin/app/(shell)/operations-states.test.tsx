@@ -5,18 +5,6 @@ import { describe, expect, it, vi } from "vitest";
 import type { OperationsFormRow } from "../../lib/ops/operations-forms.ts";
 import type { ShellCapabilities } from "../../lib/shell/modes.ts";
 
-/**
- * The six states the Operations forms table has to keep apart (the environment plan,
- * "Lists and filter boundaries"): no release, closed intake, no matching results, denied
- * access, a read in flight and a read that failed.
- *
- * At this layer rather than in Playwright for the reason `forms-list-states.test.tsx`
- * gives: the discovery read happens in the Next server process, so no `page.route()`
- * reaches it and nothing a browser controls can make it fail.
- *
- * `t` answers with its own key, so every assertion is about which string a branch chose.
- */
-
 const SESSION = {
   userId: "u_1",
   email: "operator@example.test",
@@ -72,10 +60,8 @@ const CLOSED: OperationsFormRow = {
   release: { version: 2, releasedAt: "2026-09-01T00:00:00.000Z", closed: true },
 };
 
-/** Set per case before the page renders; one set of module mocks serves every state. */
 let capabilities: ShellCapabilities = EVERYTHING;
 let listResult: unknown = { status: "ok", page: page([]) };
-/** The query the page asked the API for, which is where the environment has to appear. */
 let apiQuery = "";
 
 function page(rows: readonly OperationsFormRow[], nextCursor: string | null = null) {
@@ -144,7 +130,6 @@ describe("the Operations forms table's states", () => {
     const html = await render();
 
     expect(html).toContain("operations.loadFailed");
-    // An API failure is never an empty installation.
     expect(html).not.toContain('data-testid="qcms-operations-empty"');
     expect(html).not.toContain('data-testid="qcms-operations-table"');
   });
@@ -157,7 +142,6 @@ describe("the Operations forms table's states", () => {
 
     expect(html).toContain("operations.empty.title");
     expect(html).not.toContain("operations.loadFailed");
-    // A refusal is not a filtered result either: the clear link would change nothing.
     expect(html).not.toContain("operations.empty.filtered");
   });
 
@@ -194,7 +178,6 @@ describe("the Operations forms table's states", () => {
     expect(html).toContain("operations.intake.closed");
     expect(html).toContain("operations.intake.unreleased");
     expect(html).toContain("operations.release.none");
-    // The unreleased row holds no counts, so both of its count cells read as nothing.
     expect(html).toContain("ops.common.none");
   });
 
@@ -210,7 +193,6 @@ describe("the Operations forms table's states", () => {
     expect(html).toContain('href="/forms/frm_intake"');
     expect(html).toContain('data-testid="qcms-operations-pager"');
     expect(html).toContain("cursor=cur2");
-    // The page position rides with the filters rather than replacing them.
     expect(html).toContain("q=in");
   });
 
@@ -218,7 +200,6 @@ describe("the Operations forms table's states", () => {
     capabilities = EVERYTHING;
     listResult = { status: "ok", page: page([RELEASED]) };
 
-    // The header's control says `test`; the address was built in `prod`.
     await render({ env: "prod" });
 
     expect(apiQuery).toContain("environment=test");
@@ -229,11 +210,8 @@ describe("the Operations forms table's states", () => {
     capabilities = EVERYTHING;
     listResult = { status: "ok", page: page([RELEASED], "cur2") };
 
-    // The header's control says `test`; this address was built in `prod`.
     const html = await render({ env: "prod", q: "in", workspace: "ws_1", cursor: "stale" });
 
-    // Every link the screen emits names the environment in force, carries the term, and
-    // has dropped both the page position and the workspace filter.
     expect(html).toContain("env=test");
     expect(html).not.toContain("env=prod");
     expect(html).not.toContain("cursor=stale");

@@ -1,15 +1,6 @@
 import type { ActionResultTurn, AgentStepState, ScalarField } from "./plan-state";
 
-/**
- * One conversation's state, with no React and no browser in it.
- *
- * The conversation is the app's, not a screen's: it follows the operator from screen to
- * screen and a reload restores it. What a turn carries about the screen is rebuilt by the
- * API for the screen the turn was sent from, so the history here is the dialogue alone -
- * the prose each side wrote and each settled card's own report. No screen's facts are in
- * it, which is why carrying it to another screen tells the model nothing about the screen
- * it left.
- */
+/** One conversation's state, with no React and no browser in it. */
 
 export interface AgentProseTurn {
   /** `result` is the builder panel's own record of a card's outcome, never a model turn. */
@@ -17,25 +8,18 @@ export interface AgentProseTurn {
   readonly content: string;
 }
 
-/**
- * One confirmed card's report (section 5.3). The admin writes it from the card's
- * own fold and each kind's result allowlist, so it carries no model text, no content and
- * no secret, and the API renders it to the model from these fields rather than from prose.
- */
+/** Action-result turns are built from the card fold and registered result allowlists, never model prose, content or secrets. */
 export type AgentTurnRecord = AgentProseTurn | ActionResultTurn;
 
 export function isProseTurn(turn: AgentTurnRecord): turn is AgentProseTurn {
   return turn.role !== "action-result";
 }
 
-/**
- * The history a turn replays: the prose without the panel's own outcome lines, and every
- * `action-result` turn as the structured record it is.
- */
 export type PromptTurn =
   | { readonly role: "user" | "assistant"; readonly content: string }
   | ActionResultTurn;
 
+/** The history a turn replays: the prose without the panel's own outcome lines. */
 export function promptTurns(turns: readonly AgentTurnRecord[]): readonly PromptTurn[] {
   return turns.flatMap((turn): readonly PromptTurn[] => {
     if (!isProseTurn(turn)) return [turn];
@@ -43,22 +27,17 @@ export function promptTurns(turns: readonly AgentTurnRecord[]): readonly PromptT
   });
 }
 
-/** The longest history the API will accept, so the oldest turns drop here rather than there. */
+/** The longest history the API accepts, so the oldest turns drop here rather than there. */
 export const CONVERSATION_TURN_CAP = 40;
 
 export interface ConversationState {
   /** Random, minted when the conversation starts; the key audited reads are grouped by. */
   readonly id: string;
-  /**
-   * The conversation's current stay on one subject. A new one is minted each time the
-   * conversation arrives at a subject, so an audited read is recorded once per stay and
-   * again when the conversation comes back.
-   */
+  /** The current stay on {@link subject}: a new one each time the conversation returns. */
   readonly visitId: string;
-  /** The subject {@link visitId} was minted for. */
   readonly subject: string;
   readonly turns: readonly AgentTurnRecord[];
-  /** How many of the oldest turns the cap has dropped, which the panel says once. */
+  /** How many of the oldest turns the cap has dropped. */
   readonly dropped: number;
 }
 
@@ -87,16 +66,7 @@ export function atSubject(
   return { ...state, subject, visitId: mint() };
 }
 
-/**
- * Where the conversation is kept between page loads.
- *
- * `sessionStorage` rather than `localStorage`: the conversation belongs to one tab's
- * stay, and nothing about it should outlive the tab or reach a second one. The entry
- * carries the user it belongs to and is discarded when that does not match the signed-in
- * user, because signing out does not clear tab storage on its own and a shared
- * workstation would otherwise hand the next person the last person's conversation. The
- * sign-out control clears it outright.
- */
+/** Tab-scoped, so no conversation outlives the tab or reaches a second one. */
 export const CONVERSATION_STORAGE_KEY = "qcms-assistant-conversation";
 
 interface StoredConversation extends ConversationState {
@@ -111,20 +81,18 @@ export function serializeConversation(state: ConversationState, user: string): s
 /**
  * The conversation an entry holds, or `undefined` when there is none this user may have.
  *
- * Every field is checked rather than trusted: tab storage is writable by whoever holds the
- * tab, and a turn that reaches a request is validated again by the BFF route and by the
- * API. An entry with anything unreadable in it is dropped whole rather than repaired.
+ * Tab storage is writable by whoever holds the tab, so nothing in an entry is trusted and
+ * an entry with one unreadable field is dropped whole.
  */
 export function parseConversation(raw: string | null, user: string): ConversationState | undefined {
-  if (raw === null) return undefined;
+  if (raw === null || user === "") return undefined;
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
   } catch {
     return undefined;
   }
-  if (!isRecord(parsed)) return undefined;
-  if (parsed["user"] !== user || user === "") return undefined;
+  if (!isRecord(parsed) || parsed["user"] !== user) return undefined;
   const id = asNonEmpty(parsed["id"]);
   const visitId = asNonEmpty(parsed["visitId"]);
   const subject = asNonEmpty(parsed["subject"]);
@@ -166,9 +134,8 @@ function parseTurn(raw: unknown): AgentTurnRecord | undefined {
   if (!isRecord(raw)) return undefined;
   const role = raw["role"];
   const content = raw["content"];
-  if ((role === "user" || role === "assistant" || role === "result") && typeof content === "string") {
-    return { role, content };
-  }
+  const prose = role === "user" || role === "assistant" || role === "result";
+  if (prose && typeof content === "string") return { role, content };
   if (role !== "action-result") return undefined;
   const proposalId = asNonEmpty(raw["proposalId"]);
   const steps = raw["steps"];

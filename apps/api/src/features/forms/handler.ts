@@ -801,8 +801,8 @@ function rosterFor(group: RepeatGroup, asked: readonly string[]): readonly Insta
 }
 
 /**
- * A qualified key must name a pinned question inside the instance's group, with that
- * instance in the roster (SEC-16). SEC-13 / ADR-34: values are never logged or echoed.
+ * A qualified answer key must identify a pinned question in the named live instance's group. Never log or
+ * echo answer values.
  */
 function collectKeyedAnswers(
   supplied: Readonly<Record<string, unknown>> | undefined,
@@ -866,7 +866,6 @@ export interface PreviewVerdict {
   readonly rosters: { groupId: string; instances: string[] }[];
 }
 
-/** A verdict plus the per-instance answer a rule targeting a repeating group carries. */
 export interface PreviewConditionOutcome extends PreviewVerdict {
   readonly targetGroupId?: string;
   readonly instanceOutcomes?: { instanceId: string; outcome: "match" | "noMatch" }[];

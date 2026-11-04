@@ -4,39 +4,12 @@ import { textOf } from "../questions/definition.ts";
 import { isPinned } from "./draft.ts";
 import type { DraftForm, DraftPin, PinnableQuestion } from "./types.ts";
 
-/**
- * What the add-question dialog lists, and what its selection state makes of each row.
- *
- * ## Why this is a module and not a block inside the component
- *
- * `components/forms/library-picker.tsx` is a react-aria `Dialog`, and a Dialog renders
- * through a portal that server rendering has nowhere to put, so `renderToStaticMarkup`
- * hands back the empty string for the whole subtree (issue 628). When this was written
- * that static render was the admin's whole unit layer, so a `useState` transition was not
- * observable below the browser at all. There is a jsdom layer now
- * (`vitest.dom.config.ts`, issue #352), and this module still belongs here: a rule
- * expressed as a function over its inputs is one a test can state in the rule's own words,
- * where a render test can only assert what it looks like from outside
- * (`docs/COMPONENT_GUIDELINES.md`, issue #697).
- *
- * Multi-select's actual rules - which row keeps a checkbox once a sibling version is
- * chosen, what the chosen pane shows when a search hides a chosen row, what order the
- * pins land in - are therefore written here as pure functions over their inputs, where
- * `picker-selection.test.ts` can state each one directly. What is left in the component
- * is markup and the `useState` call, and the browser walk that proves the two are wired
- * together is `e2e/picker-multi-select.pw.ts` (ADR-23: e2e at the highest layer that
- * exists for it).
- *
- * Nothing here reaches for the network or the draft store. `chosen` is the dialog's own
- * client state, handed in.
- */
+// Keep the picker decisions pure so portalled dialog rendering cannot hide selection rules from tests.
 
-/** `questionId@version`: the pin a row would create, and so its identity in the list. */
 export function rowId(questionId: string, version: number): string {
   return `${questionId}@${String(version)}`;
 }
 
-/** One listed version, with whether this form may pin it. */
 export interface PickerRow {
   readonly questionId: string;
   readonly label: string;
@@ -46,24 +19,16 @@ export interface PickerRow {
   readonly pinnable: boolean;
 }
 
-/** A listed row plus what the dialog's own selection state makes of it. */
 export interface ChoiceRow extends PickerRow {
-  /** Whether this exact version is in the chosen set. */
   readonly checked: boolean;
-  /**
-   * Whether to render a checkbox at all. Narrower than `pinnable`: a version the form
-   * could pin still loses its control while a SIBLING version of the same question is
-   * chosen, because the form may only hold one pin per question.
-   */
+  // Only one version per question may be selected; hide sibling-version controls while a version is chosen.
   readonly choosable: boolean;
 }
 
-/** A chosen pin resolved against the library, so the pane can name what it will add. */
 export interface ChosenRow extends DraftPin {
   readonly label: string;
 }
 
-/** Whether a question matches the free-text box, over the id, slug and label. */
 function matches(question: PinnableQuestion, search: string): boolean {
   const needle = search.trim().toLowerCase();
   if (needle === "") return true;
@@ -77,26 +42,7 @@ function stateLabel(already: boolean, status: string): string {
   return t("forms.picker.statePinnable");
 }
 
-/**
- * The version rows, with the ones this form cannot pin marked as such.
- *
- * `allowedTypes`, when given, **filters the library** to those question types and says so
- * nowhere here: it is a list, and the sentence explaining the absence is the caller's
- * (`forms.columns.typeNote`). It exists for the table presentation's column picker (task
- * 077, Q12), where a `longText` or a `multiChoice` column is refused at publish, so
- * offering one would be an invitation to a refusal the author cannot see yet.
- *
- * Filtered OUT rather than listed-and-disabled, which is the opposite of what this module
- * does for a deprecated or already-pinned version, and the difference is real: those two
- * are states of a row the author might otherwise expect to be choosable, so the row has to
- * be there to carry the reason. A type that cannot be a column is not a state of a row at
- * all - it is a different kind of question - and a list two-sevenths of which can never be
- * chosen is a list the author has to read past. The plan asks for exactly this: the picker
- * "filters the library to the allowed cell types and says why the others are absent".
- *
- * A library row carrying no type at all is also filtered out when a filter is in force: a
- * question whose type nobody could read cannot be shown to satisfy the constraint.
- */
+// Filter unsupported column types, but keep deprecated and pinned rows visible with their refusal reasons.
 export function pinnableRows(
   library: readonly PinnableQuestion[],
   draft: DraftForm,
@@ -115,8 +61,7 @@ export function pinnableRows(
     }
     const already = isPinned(draft, question.questionId);
     for (const version of question.versions) {
-      // A draft version is not pinnable and never will be as it stands, so it is not
-      // listed at all: showing it would only invite the question of why it is refused.
+      // Draft versions are not pinnable and must not appear as choices.
       if (version.status === "draft") continue;
       rows.push({
         questionId: question.questionId,
@@ -134,16 +79,7 @@ export function pinnableRows(
   return rows;
 }
 
-/**
- * Fold the chosen set into the listed rows.
- *
- * ONE PIN PER QUESTION, enforced while choosing rather than at the commit. The kernel
- * refuses a second pin of the same question (`DUPLICATE_QUESTION_IN_FORM`), and one row
- * per version means an author could otherwise tick `q_x@2` and `q_x@3` together and learn
- * at the commit that only one of them landed. So a chosen version withdraws the checkbox
- * from its siblings, and their State cell names the version holding the place - the same
- * shape as every other refusal in this table: no control, and the reason in words.
- */
+// Enforce one pin per question while choosing, before the kernel would reject the save.
 export function withChoices(
   rows: readonly PickerRow[],
   chosen: readonly DraftPin[],
@@ -165,40 +101,18 @@ export function withChoices(
   });
 }
 
-/**
- * Add a version to the chosen set, in the order it was chosen.
- *
- * Insertion order is the order the pins are inserted into the step, so it is the author's
- * order rather than the library's. Nothing else here has a claim to it: list order belongs
- * to the library, and the library's order is not a statement about this form.
- */
+// Chosen insertion order is the form's authored order, independent of library sorting.
 export function choose(chosen: readonly DraftPin[], pin: DraftPin): readonly DraftPin[] {
   return [...chosen.filter((entry) => entry.questionId !== pin.questionId), pin];
 }
 
-/**
- * Drop this question's chosen version, whichever it is.
- *
- * By question rather than by `questionId@version` because only one version of a question
- * can be in the set at a time, so the pair would be a precision the state cannot use, and
- * matching on it would leave the set unchanged in the one case where the two disagreed.
- */
+// Key selection by question ID, not version, because only one version can be chosen at a time.
 export function unchoose(chosen: readonly DraftPin[], questionId: string): readonly DraftPin[] {
   return chosen.filter((pin) => pin.questionId !== questionId);
 }
 
-/**
- * The chosen pins with the label each one will carry, in the order they were chosen.
- *
- * Resolved against the whole library rather than the filtered rows on purpose: a chosen
- * version stays chosen when a later search hides its row, and the pane is precisely where
- * the author sees that it did. Driving it off the listed rows would empty the pane
- * whenever the search stopped matching, which reads as "the choice was dropped".
- *
- * A pin whose question has left the library between the read and the render falls out
- * rather than rendering a nameless entry, and the commit is driven off this list, so a pin
- * the author was never shown by name cannot be added either.
- */
+// Resolve choices against the full library so filtering cannot hide selections.
+// Omit entries whose names cannot be resolved, including from commit, so no unseen pin is added.
 export function chosenDetail(
   library: readonly PinnableQuestion[],
   chosen: readonly DraftPin[],

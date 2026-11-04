@@ -95,9 +95,9 @@ test("a resumed session displays every other control type the server holds, and 
   await fillText(page, KS.fullName, "Ada Lovelace");
   await enterDate(page, "05171990");
   await continueStep(page);
-  await chooseRadio(page, "Yes"); // boolean -> reveals the number follow-up
+  await chooseRadio(page, "Yes");
   await answerNumber(page, "2");
-  await checkOption(page, "Breakdown"); // multiChoice -> reveals the long text
+  await checkOption(page, "Breakdown");
   await fillText(page, KS.extraDetail, "Kerb damage");
   await continueStep(page);
   await chooseSingleChoice(page, "Standard");
@@ -121,10 +121,10 @@ test("a resumed session displays every other control type the server holds, and 
 
   await fillText(page, KS.fullName, "Ada Lovelace");
   await continueStep(page);
-  await expect(page.getByRole("radio", { name: "Yes", exact: true })).toBeChecked(); // boolean
-  await expect(page.getByRole("textbox", { name: KS.count })).toHaveValue("2"); // number
-  await expect(page.getByRole("checkbox", { name: "Breakdown", exact: true })).toBeChecked(); // multiChoice
-  await expect(page.getByRole("textbox", { name: KS.extraDetail })).toHaveValue("Kerb damage"); // longText
+  await expect(page.getByRole("radio", { name: "Yes", exact: true })).toBeChecked();
+  await expect(page.getByRole("textbox", { name: KS.count })).toHaveValue("2");
+  await expect(page.getByRole("checkbox", { name: "Breakdown", exact: true })).toBeChecked();
+  await expect(page.getByRole("textbox", { name: KS.extraDetail })).toHaveValue("Kerb damage");
 
   await continueStep(page);
   await expect(page.getByRole("radio", { name: "Standard", exact: true })).toBeChecked();
@@ -181,7 +181,7 @@ test("reloading a step that contains a NumberField hydrates without a mismatch",
   await enterDate(page, "05171990");
   await continueStep(page);
 
-  await chooseRadio(page, "Yes"); // boolean -> reveals the number follow-up
+  await chooseRadio(page, "Yes");
   await answerNumber(page, "2");
 
   const log = watchAnswerPosts(page);

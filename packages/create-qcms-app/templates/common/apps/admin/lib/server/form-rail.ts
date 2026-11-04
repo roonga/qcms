@@ -6,75 +6,22 @@ import { getForm } from "./forms.ts";
 import { formVerdict } from "./form-verdict.ts";
 import type { AdminSession } from "./session.ts";
 
-/**
- * The two reads behind the §7 rail (issue 559).
- *
- * The rail carries a form's steps WITH their issue counts, and those are two different
- * answers from the API: the steps come from the form detail, and how many issues each
- * carries is a verdict only `POST .../draft/validate` can give (R2 - this app never
- * decides whether a draft is legal, and `lib/forms/issues.ts` only attributes a verdict it
- * is handed). So a rail costs one extra dry-run validation per render of a form-scoped
- * screen. That cost is stated here rather than hidden: it is the price of the badge the
- * contract asks for, and the call writes nothing.
- *
- * SINCE ISSUE #669 THE COST IS SHARED. The rules screen wants the same verdict, and it
- * renders in a different tree from this slot, so the call moved behind a per-request
- * memo (`lib/server/form-verdict.ts`) rather than being made twice. Still one dry run per
- * render of a form-scoped screen; now one whoever asks for it.
- *
- * **That one call is now the whole of the rail's cost** (issue #626). It used to be
- * three: the slot also re-read the session and re-read the form, both of which the page
- * beside it had already read in the same request. Those two are memoized per request at
- * their own definitions (`session.ts`, `forms.ts`) rather than worked around here, which
- * is what issue 561 concluded when it was pointed at this seam - the duplication was in
- * the app's server-read strategy, not in the rail's loader. The validation deliberately
- * did NOT join them: a verdict is per render by definition, and caching it across
- * requests would be this app deciding what the API decides (R2).
- *
- * NOTHING HERE IS FATAL. A rail is navigation beside a page, never the page, so every
- * failure degrades instead of raising: a form that cannot be read gets no rail at all and
- * leaves its screen's own 404 or error alert to speak, and a validation that fails gets a
- * rail with no badges rather than one quietly claiming every step is clean. The screen has
- * already read the same form for itself, so a rail is never the only thing on a page.
- */
+/** Navigation failures must degrade without failing the page. Failed validation omits badges; it must not claim a clean draft. The API verdict is memoized only within the request. */
 
-/** What a rail needs about one form, once its reads have landed. */
 export interface FormRailData {
   readonly formId: string;
   readonly slug: string;
-  /**
-   * The form's own title, or `""` when it has none yet.
-   *
-   * Separate from {@link slug} because they answer different questions: the slug is how
-   * the form is ADDRESSED and appears in every URL, the title is what an author called it.
-   * The rail shows the title where there is one, and the empty string is a real state -
-   * a form created and not yet named - which is why this is not optional-and-absent.
-   */
+  /** An empty title is an unnamed form, not a missing field; the slug remains its address. */
   readonly title: string;
-  /**
-   * Whether the form is open or closed, which the rail's Header states as its one status
-   * tag (`plan/admin-design-contracts.md` §7.0, issue #1116).
-   *
-   * Read from the form rather than from the draft, because closing a form is a decision
-   * about the FORM: a closed form still has a draft, and the rail says so above the rows
-   * that lead into it rather than leaving the reader to find out on the builder.
-   */
+  /** Read open/closed from the form, not the draft: intake can close while the draft still exists. */
   readonly status: "open" | "closed";
-  /** The form's steps, or empty when the form has no draft to read them from. */
+
   readonly steps: readonly DraftStep[];
   /** Issues per step id. Empty when there is no verdict, never a stand-in for zero. */
   readonly issueCounts: ReadonlyMap<string, number>;
 }
 
-/**
- * The rail's data for one form, or `null` when the form itself could not be read.
- *
- * There is no "siblings only" mode, and its removal on 2026-08-25 is the point rather than
- * a tidy-up. The builder was the one screen that asked for one, on §7's retired reading
- * that a step row there would be a same-page fragment; now that every form screen carries
- * the same tree, a parameter for suppressing the steps could only ever reintroduce the
- * split it closed - one screen showing a different rail from its seven siblings.
- */
+/** Every form screen receives the same steps; suppressing them per screen would split the navigation tree. */
 export async function loadFormRail(
   session: AdminSession,
   formId: string,
@@ -94,8 +41,7 @@ export async function loadFormRail(
       issueCounts: new Map(),
     };
   }
-  // Memoized per request (`lib/server/form-verdict.ts`), so the rules screen beside this
-  // rail shares the one dry run rather than paying for a second of the same call.
+
   const verdict = immutable ? undefined : await formVerdict(session, form.formId, draft);
   return {
     formId: form.formId,

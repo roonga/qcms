@@ -1,24 +1,11 @@
-/**
- * What the two assist routes trust out of a turn's body.
- *
- * One parser for both, so the per-form route and the screen route forward the same shapes:
- * a turn's role and prose, route ids, and the response list's four filters. Anything else
- * is dropped rather than relayed, because what the API accepts is what it will build a
- * context from.
- */
+/** Action results are untrusted relay shapes. Permit only scalars; the API revalidates kind-specific allowlists before using them as model context. */
+/** Allow only IDs, turn text and typed filters; extra fields could smuggle context content into the API request. */
 
 export interface AssistTurnRelay {
   readonly role: "user" | "assistant";
   readonly content: string;
 }
 
-/**
- * One settled card's own record, which the next turn is told about. The panel writes it
- * from the card's fold and each kind's result allowlist; the API validates the shape again
- * and narrows every reported field to the reporting kind's own list, so what travels here
- * is a shape rather than a trusted claim.
- */
-/** Scalars only: an object or an array is how content smuggles itself into this channel. */
 export type AssistResultFields = Readonly<Record<string, string | number | boolean>>;
 
 export interface AssistActionResultRelay {
@@ -86,7 +73,6 @@ export interface AssistParamsRelay {
   readonly filters?: AssistFiltersRelay;
 }
 
-/** Every turn whose shape these routes trust enough to forward; anything else is dropped. */
 export function parseAssistConversation(raw: unknown): readonly AssistConversationRelay[] {
   if (!Array.isArray(raw)) return [];
   const turns: AssistConversationRelay[] = [];
@@ -106,7 +92,6 @@ export function parseAssistConversation(raw: unknown): readonly AssistConversati
 
 const ID_KEYS = ["formId", "questionId", "workspaceId", "sessionId"] as const;
 
-/** Route ids, and the filters as their own strictly-typed object. */
 export function parseAssistParams(raw: unknown): AssistParamsRelay | undefined {
   if (!isRecord(raw)) return undefined;
   const params: Record<string, unknown> = {};

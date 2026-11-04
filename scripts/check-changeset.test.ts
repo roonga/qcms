@@ -51,7 +51,6 @@ function commit(root: string, message: string): void {
   ]);
 }
 
-/** Run with this repo's own gate file and the fixture as cwd, so the shipped code is under test. */
 function makeRepo(options: { seedChangeset?: string } = {}): string {
   const root = mkdtempSync(join(tmpdir(), "check-changeset-"));
   repos.push(root);

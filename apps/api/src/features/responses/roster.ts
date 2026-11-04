@@ -64,8 +64,8 @@ function clamp(value: number, min: number, max: number | undefined): number {
 }
 
 /**
- * `open` sets no limit: its `max` bounds what may be added (SEC-16, checked on the
- * add), and truncating here would hide an instance the respondent can see.
+ * `open` sets no limit: its `max` bounds what may be added (checked on the add), and truncating here would
+ * hide an instance the respondent can see.
  */
 export function liveInstanceLimit(count: RepeatCount, answers: AnswerMap): number | undefined {
   if (count.source === "open") return undefined;
@@ -164,8 +164,8 @@ export async function mintForServedGroup(
 }
 
 /**
- * The per-form `max` (SEC-16) is checked against the live count. The caller holds the
- * advisory lock, or two simultaneous Adds both pass. One mint per group per transaction.
+ * The per-form `max` is checked against the live count. The caller holds the advisory lock, or two
+ * simultaneous Adds both pass. One mint per group per transaction.
  */
 export async function addRosterInstance(
   exec: Executor,

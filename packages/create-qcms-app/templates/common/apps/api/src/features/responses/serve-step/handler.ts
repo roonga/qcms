@@ -1,7 +1,7 @@
 /**
- * The GET serves the audit copy stored at publish (ADR-18), never recompiling. Only
- * visible questions and their answers cross the projection (SEC); values are never logged
- * (SEC-8). Answer writes take a per-session advisory lock (I5).
+ * The GET serves the audit copy stored at publish (ADR-18), never recompiling. Only visible questions and
+ * their answers cross the projection; values are never logged. Answer writes take a per-session advisory
+ * lock (I5).
  */
 
 import type { RouteHandler } from "@hono/zod-openapi";
@@ -186,9 +186,9 @@ interface RenderedQuestions {
 }
 
 /**
- * Walking the visible set, never the ledger, is what keeps a stored answer from ever
- * disclosing a hidden question (SEC). An answer is absent when `latestAnswers` reports
- * none, so a retracted answer resumes as unanswered rather than as a stale value.
+ * Walking the visible set, never the ledger, is what keeps a stored answer from ever disclosing a hidden
+ * question. An answer is absent when `latestAnswers` reports none, so a retracted answer resumes as
+ * unanswered rather than as a stale value.
  */
 function renderedQuestions(
   flow: FlowState,
@@ -338,8 +338,8 @@ function currentStepView(
 }
 
 /**
- * Nothing about hidden questions or the rule graph crosses this boundary (SEC). The cursor
- * changes only the drawn document; `values` are display data beside it (ADR-18).
+ * Nothing about hidden questions or the rule graph crosses this boundary. The cursor changes only the drawn
+ * document; `values` are display data beside it (ADR-18).
  */
 function project(
   snapshot: LoadedSnapshot,
@@ -466,7 +466,7 @@ function groupById(snapshot: LoadedSnapshot, groupId: string): RepeatGroup | und
   );
 }
 
-/** The token must bind the `id` in the path: a session id alone grants nothing (SEC-2). */
+/** The token must bind the `id` in the path: a session id alone grants nothing. */
 async function authorizedSessionId(c: Context<ApiEnv>, deps: Deps, id: string): Promise<SessionId> {
   const authedSessionId = await authenticateSession(c, deps);
   if (authedSessionId !== id) throw fail.crossSession();
@@ -637,8 +637,8 @@ async function applyOneAnswer(
     return undefined;
   }
 
-  // The error names constraints and never echoes the value (SEC-8). `""` and `[]` are
-  // refused here rather than converted into a retraction (ADR-33).
+  // The error names constraints and never echoes the value. `""` and `[]` are refused here rather than
+  // converted into a retraction (ADR-33).
   const validated = validateAnswer(target.definition, target.value);
   if (!validated.ok) {
     return new ApiError("INVALID_ANSWER", 422, "The answer failed validation", {
@@ -697,8 +697,8 @@ export function makeBatchAnswersHandler(
     // request as the single-answer route does.
     const targets = body.answers.map((entry) => answerTarget(snapshot, entry));
 
-    // Per ENTRY, not per request, and before the lock, so a refused batch never takes it
-    // and is never partially applied (SEC-16).
+    // Per ENTRY, not per request, and before the lock, so a refused batch never takes it and is never partially
+    // applied.
     await spendAnswerAllowance(deps, sessionId, targets.length, stepAnswerBound(snapshot));
 
     const result = await request.exec.transaction(async (tx) => {

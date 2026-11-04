@@ -265,8 +265,6 @@ export function playwrightCommand({ projects = [], shard, passthrough = [] } = {
 }
 
 /**
- * Signal 0 checks for existence without delivering anything.
- *
  * @param {number} pid
  * @returns {boolean}
  */
@@ -348,8 +346,6 @@ export function readPid(path) {
 }
 
 /**
- * Through a temporary file and a rename, so no reader ever sees a partial verdict.
- *
  * @param {string} path
  * @param {string} text
  */
@@ -431,8 +427,6 @@ export async function startDetached({
     return { code: EXIT_USAGE, directory: laneDirectory };
   }
 
-  // Removed now, so a file read back later either holds this run's output or does not
-  // exist: the scratch directory is shared across sessions.
   const paths = {
     heartbeat: scratchPath({ directory, environment, name: RUN_FILES.heartbeat }),
     log: scratchPath({ directory, environment, name: RUN_FILES.log }),
@@ -585,8 +579,6 @@ export async function supervise({
     pidPath,
     [
       String(process.pid),
-      // What is left to kill when the runner is gone: SIGKILL leaves no chance to trap,
-      // so the suite and its dev servers survive their supervisor.
       `suite_group=${String(child.pid ?? 0)}`,
       "# The first line is the runner pid, in a session of its own.",
       `# Stop the run with: pnpm verify:browser:stop ${dirname(pidPath)}`,
@@ -770,8 +762,6 @@ export function commandLineOf(pid, read = readProcCmdline) {
 }
 
 /**
- * One rc-file field value: a single line, bounded in length, no control characters.
- *
  * @param {string} raw
  * @returns {string} the empty string when nothing survives
  */
@@ -965,7 +955,6 @@ function isInside(path, root) {
  */
 export function checkoutRootOf(directory, hasGit = gitEntryExists) {
   let candidate = withoutTrailingSlash(directory);
-  // Bounded so an unexpected path shape ends the walk rather than spinning.
   for (let hop = 0; hop < 64 && candidate !== ""; hop += 1) {
     if (hasGit(`${candidate}/.git`)) return candidate;
     const parent = candidate.slice(0, candidate.lastIndexOf("/"));

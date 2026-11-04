@@ -14,11 +14,6 @@ import {
 } from "./check-font-tokens.mjs";
 import { VENDORED_SOURCE_PREFIX } from "./vendored-source.mjs";
 
-/**
- * The fixtures are copied byte for byte out of the declarations this gate was written to
- * reject, so they cannot drift into paraphrases of what was there.
- */
-
 const REAL_DECLARATIONS = [
   {
     where: "apps/portal/app/globals.css:89",
@@ -224,10 +219,8 @@ describe("the shipped tree", () => {
 
   it("leaves the vendor drop, the test files and the template copies out", () => {
     const files = scannedFiles();
-    // ADR-22: a gate cannot ask a byte-for-byte upstream copy to change.
     expect(files.filter((file) => file.startsWith(VENDORED_SOURCE_PREFIX))).toEqual([]);
     expect(files.filter((file) => /\.(?:test|spec|pw)\.tsx?$/u.test(file))).toEqual([]);
-    // The twins are byte-identical to the apps above and `check:templates` keeps them so.
     expect(files.filter((file) => file.includes("/templates/"))).toEqual([]);
   });
 

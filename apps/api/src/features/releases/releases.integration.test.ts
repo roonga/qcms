@@ -155,7 +155,7 @@ async function get(path: string, extra: Record<string, string> = {}): Promise<Re
   return app.request(`/admin${path}`, { headers: adminHeaders(extra) });
 }
 
-/** Anonymous entry exists on `prod`'s surface alone (SEC-14). */
+/** Anonymous entry exists on `prod`'s surface alone. */
 async function startAnonymous(slug: string): Promise<Response> {
   return app.request("/sessions", {
     method: "POST",

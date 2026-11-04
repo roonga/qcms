@@ -1,6 +1,5 @@
 import type { Page } from "@playwright/test";
 
-/** A live starvation, and the two things a spec does with one. */
 export interface ScriptStarvation {
   /** How many script requests have been answered with an empty body so far. */
   readonly starvedCount: () => number;

@@ -26,19 +26,11 @@ export {
 /**
  * One conversation for the whole app, kept in this tab's session storage.
  *
- * It follows the operator between screens: walking from the question library to a form's
- * builder to Workspaces keeps the dialogue, and each turn gets the facts of the screen it
- * was sent from, rebuilt by the API for that turn. It survives a reload for the same
- * reason it survives navigation - the operator did not end it - and it ends on sign-out or
- * on New conversation in the panel header.
- *
- * The stored entry names the user it belongs to, so a tab whose session storage outlived a
- * sign-out hands nothing to the next person: a mismatch is discarded, and the sign-out
- * control clears the entry as well.
+ * The stored entry names the user it belongs to and a mismatch is discarded: sign-out does
+ * not clear tab storage on its own, and the next operator must not inherit a conversation.
  */
 
 export interface ConversationHandle {
-  /** Random, minted when the conversation starts; the key audited reads are grouped by. */
   readonly id: string;
   /** The current stay on {@link subject}: a new one each time the conversation returns. */
   readonly visitId: string;
@@ -46,13 +38,9 @@ export interface ConversationHandle {
   readonly turns: readonly AgentTurnRecord[];
   /** How many of the oldest turns the cap has dropped. */
   readonly dropped: number;
-  /**
-   * The turns as they are NOW, for a caller that appends and posts in one go: {@link turns}
-   * is the snapshot this handle was built from, and a render has not happened in between.
-   */
+  /** Read live turns when appending and posting before React renders again; the handle snapshot may already be stale. */
   readonly current: () => readonly AgentTurnRecord[];
   readonly append: (turns: readonly AgentTurnRecord[]) => void;
-  /** New conversation: a fresh id and an empty history. */
   readonly restart: () => void;
 }
 
@@ -73,7 +61,7 @@ function mint(): string {
   return `cnv_${crypto.randomUUID().replaceAll("-", "")}`;
 }
 
-/** Tab storage can be unavailable or full; a conversation is not worth failing a render for. */
+/** Tab storage can be unavailable or full, and a conversation is not worth a failed render. */
 function readStored(user: string): ConversationState | undefined {
   try {
     return parseConversation(window.sessionStorage.getItem(CONVERSATION_STORAGE_KEY), user);
@@ -86,7 +74,7 @@ function writeStored(state: ConversationState, user: string): void {
   try {
     window.sessionStorage.setItem(CONVERSATION_STORAGE_KEY, serializeConversation(state, user));
   } catch {
-    // Nothing to do: the conversation stays in memory for this page's life.
+    return;
   }
 }
 
@@ -95,7 +83,7 @@ export function clearStoredConversation(): void {
   try {
     window.sessionStorage.removeItem(CONVERSATION_STORAGE_KEY);
   } catch {
-    // Nothing to do.
+    return;
   }
 }
 
@@ -114,19 +102,18 @@ export function ConversationProvider({
   const [revision, setRevision] = useState(0);
 
   const handle = useMemo<ConversationHandle>(() => {
-    // The first render on the server has no tab storage, so the conversation starts in
-    // memory and the stored one is read on the first render that has a window.
+    const browser = typeof window !== "undefined";
+    // The server render has no tab storage, so a stored conversation is read on the first
+    // render that has a window.
     const restored =
-      held.current ??
-      (typeof window === "undefined" ? undefined : readStored(userId)) ??
-      startConversation(subject, mint);
+      held.current ?? (browser ? readStored(userId) : undefined) ?? startConversation(subject, mint);
     const state = atSubject(restored, subject, mint);
     held.current = state;
-    if (typeof window !== "undefined" && state !== restored) writeStored(state, userId);
+    if (browser && state !== restored) writeStored(state, userId);
 
     const replace = (next: ConversationState): void => {
       held.current = next;
-      if (typeof window !== "undefined") writeStored(next, userId);
+      if (browser) writeStored(next, userId);
       setRevision((count) => count + 1);
     };
 
@@ -137,9 +124,7 @@ export function ConversationProvider({
       turns: state.turns,
       dropped: state.dropped,
       current: () => held.current?.turns ?? state.turns,
-      // Read back from the holder rather than from this handle: a panel that appends twice
-      // in one turn holds the handle it started with, and appending onto that handle's own
-      // snapshot would drop whichever turn was recorded first.
+      /** Append against the held state so two appends from one render cannot overwrite each other. */
       append: (turns) => {
         replace(appendCapped(held.current ?? state, turns));
       },
@@ -147,7 +132,6 @@ export function ConversationProvider({
         replace(startConversation(subject, mint));
       },
     };
-    // `revision` is what republishes the handle after an append.
   }, [subject, userId, revision]);
 
   return <ConversationContext.Provider value={handle}>{children}</ConversationContext.Provider>;

@@ -2,11 +2,7 @@ import type { MessageKey } from "../i18n/en.ts";
 
 import type { AgentPlanStep, AgentProposal } from "../forms/assist-stream.ts";
 
-/**
- * The action card's state, as a fold (SEC-17 section 4.10). It lives apart from the
- * component because what a card shows, when Confirm is enabled and what the next turn is
- * told are controls rather than styling, and none of them may depend on model text.
- */
+/** Confirmation, execution and replay decisions must not depend on model prose. */
 
 export type AgentStepState =
   | "proposed"
@@ -18,29 +14,23 @@ export type AgentStepState =
   | "cancelled"
   | "expired";
 
-/** The card's own state, which its heading chip says once. */
 export type AgentCardState =
   "proposed" | "running" | "done" | "stopped" | "pending-approval" | "cancelled" | "expired";
 
-/** A step reports scalars only: an object or an array is content in a metadata channel. */
+/** Allow scalar results only; arrays and objects can smuggle content through a metadata channel. */
 export type ScalarField = string | number | boolean;
 
 export type StepResultFields = Readonly<Record<string, ScalarField>>;
 
-/** What each step reported, keyed by its index, which is what resolves a reference. */
 export type ReportedResults = Readonly<Record<number, StepResultFields>>;
 
 export interface AgentStepView {
   readonly state: AgentStepState;
-  /** The screen action's own message, quoted under a failed or held step. */
+
   readonly message?: string;
-  /** The allowlisted fields this step reported, which the next turn learns. */
+
   readonly result?: StepResultFields;
-  /**
-   * A value the screen itself shows once and cannot show again: a created or rotated
-   * webhook secret, a set of recovery codes. It stays on the card. Nothing writes it into
-   * the `action-result` turn, which carries the kind's allowlist and nothing else.
-   */
+  /** One-time secrets stay on the card and never enter action-result history. */
   readonly revealed?: string;
 }
 
@@ -48,36 +38,30 @@ export interface AgentCardView {
   readonly proposalId: string;
   readonly steps: readonly AgentStepView[];
   readonly state: AgentCardState;
-  /** The step the runner is waiting on, while one is running. */
+
   readonly runningIndex: number | undefined;
-  /** Set once Stop is pressed: the running step finishes and no further step is sent. */
+
   readonly stopping: boolean;
-  /** When the user settled the card, for the result line. */
+
   readonly settledAt: string | undefined;
 }
 
-/** What one step's own server action answered. */
 export interface AgentStepResult {
   readonly outcome: "done" | "failed" | "pending-approval";
   readonly message?: string;
-  /** Whatever the action returned; filtered to the kind's allowlist before it travels. */
+
   readonly result?: Readonly<Record<string, unknown>>;
   /** A one-time reveal for the card alone, never for the next turn. */
   readonly revealed?: string;
 }
 
-/** The states every step of a card shares, where the heading chip says it once. */
 const SHARED_CARD_STATES: readonly AgentCardState[] = ["proposed", "cancelled", "expired"];
 
 export function showsStepChips(card: AgentCardView): boolean {
   return !SHARED_CARD_STATES.includes(card.state);
 }
 
-/**
- * The window's length as the server set it, which is what a card counts from its own
- * arrival. The length rather than the instant: a browser clock out by more than the
- * window would otherwise expire every card before the user saw it.
- */
+/** Count the server duration from browser arrival; absolute timestamps would let clock skew expire a new card. */
 export function proposalWindowMs(proposal: AgentProposal): number {
   const issued = Date.parse(proposal.proposedAt);
   const expires = Date.parse(proposal.expiresAt);
@@ -85,7 +69,6 @@ export function proposalWindowMs(proposal: AgentProposal): number {
   return Math.max(0, expires - issued);
 }
 
-/** A card arrives waiting whenever the server gave it a window to wait in. */
 export function initialCard(proposal: AgentProposal): AgentCardView {
   const expired = proposalWindowMs(proposal) <= 0;
   return {
@@ -98,17 +81,14 @@ export function initialCard(proposal: AgentProposal): AgentCardView {
   };
 }
 
-/** Confirm is offered only while the card is waiting and has not expired. */
 export function canConfirm(card: AgentCardView): boolean {
   return card.state === "proposed";
 }
 
-/** The marker sits on the mirrored control only while the card waits. */
 export function showsMarker(card: AgentCardView): boolean {
   return card.state === "proposed";
 }
 
-/** The first step that has not run, which is the step the marker's control mirrors. */
 export function firstPendingStep(card: AgentCardView): number | undefined {
   const index = card.steps.findIndex((step) => step.state === "proposed");
   return index < 0 ? undefined : index;
@@ -130,7 +110,6 @@ function replace(
   return steps.map((step, at) => (at === index ? view : step));
 }
 
-/** Every step after `index` that has not run becomes Not run, and is never sent. */
 function strandAfter(steps: readonly AgentStepView[], index: number): AgentStepView[] {
   return steps.map((step, at) =>
     at > index && step.state === "proposed" ? { state: "not-run" } : step,
@@ -167,10 +146,7 @@ function scalarsOnly(
   return Object.keys(kept).length === 0 ? undefined : kept;
 }
 
-/**
- * Settle the step the runner was waiting on. A failure and a hold are both terminal for
- * the plan: every later step shows Not run, is never sent and is never retried.
- */
+/** Failure and approval hold are terminal: do not send or retry later steps. */
 export function settleStep(
   card: AgentCardView,
   index: number,
@@ -208,12 +184,10 @@ export function settleStep(
   return withSteps(card, steps, { runningIndex: undefined });
 }
 
-/** Stop lets the running step finish and sends no further step. */
 export function requestStop(card: AgentCardView): AgentCardView {
   return card.state === "running" ? { ...card, stopping: true } : card;
 }
 
-/** Cancel is local: nothing was sent, and the next turn is told so. */
 export function cancelCard(card: AgentCardView, now: string): AgentCardView {
   if (card.state !== "proposed") return card;
   return withSteps(
@@ -223,7 +197,6 @@ export function cancelCard(card: AgentCardView, now: string): AgentCardView {
   );
 }
 
-/** The window ran out without a Confirm. The API refuses the stale token independently. */
 export function expireCard(card: AgentCardView): AgentCardView {
   if (card.state !== "proposed") return card;
   return withSteps(
@@ -233,7 +206,6 @@ export function expireCard(card: AgentCardView): AgentCardView {
   );
 }
 
-/** The index of the last step that ran, which the stopped and held lines name. */
 export function ranCount(card: AgentCardView): number {
   return card.steps.filter((step) => step.state === "done").length;
 }
@@ -250,7 +222,6 @@ export interface CatalogLine {
   readonly params?: Readonly<Record<string, string | number>>;
 }
 
-/** The heading chip, which says the card's state once. */
 export function headingChip(card: AgentCardView): CatalogLine {
   switch (card.state) {
     case "running": {
@@ -279,7 +250,6 @@ export function headingChip(card: AgentCardView): CatalogLine {
   }
 }
 
-/** One step's own state word, which is both its chip and its visually hidden text. */
 export const STEP_STATE_WORDS: Readonly<Record<AgentStepState, MessageKey>> = {
   proposed: "agent.card.state.proposed",
   running: "agent.card.state.running",
@@ -291,7 +261,6 @@ export const STEP_STATE_WORDS: Readonly<Record<AgentStepState, MessageKey>> = {
   expired: "agent.card.state.expired",
 };
 
-/** The one line that stays in the conversation as the record, and takes focus. */
 export function resultLine(card: AgentCardView): CatalogLine | undefined {
   const ran = ranCount(card);
   const count = card.steps.length;
@@ -320,7 +289,6 @@ export function resultLine(card: AgentCardView): CatalogLine | undefined {
   }
 }
 
-/** What the panel's polite live region says, which is progress in words. */
 export function liveLine(card: AgentCardView): CatalogLine | undefined {
   if (card.state === "running" && card.runningIndex !== undefined) {
     return {
@@ -331,11 +299,7 @@ export function liveLine(card: AgentCardView): CatalogLine | undefined {
   return resultLine(card);
 }
 
-/**
- * The `action-result` turn the next turn reads (section 5.3). It is written from the
- * card's own fold and the kind's allowlist, so no model text and no content re-enters the
- * conversation.
- */
+/** Build replay only from registered result allowlists and the card fold, never model text or content. */
 export interface ActionResultTurn {
   readonly role: "action-result";
   readonly proposalId: string;
@@ -356,7 +320,7 @@ export function actionResultTurn(
     proposalId: proposal.proposalId,
     steps: card.steps.map((step, index) => ({
       kind: proposal.steps[index]?.kind ?? "",
-      // A step still marked `proposed` when the card settled never ran.
+
       outcome: step.state === "proposed" ? "not-run" : step.state,
       ...(step.result === undefined ? {} : { result: step.result }),
     })),

@@ -6,7 +6,7 @@ import type { Executor } from "./executor.js";
 // The write must carry no `RETURNING`: it runs on the environment pool too, where
 // `qcms_app_<env>` holds `INSERT` and no `SELECT`.
 
-/** One SEC-15 audit row to append. `occurredAt` defaults to the column's `now()`. */
+/** One audit row to append. `occurredAt` defaults to the column's `now()`. */
 export interface AccessAuditEntry {
   /** The administrator's account, or the IdP subject under single sign-on. */
   readonly actor: string;
@@ -56,10 +56,7 @@ const auditColumns = {
   detail: accessAudit.detail,
 } as const;
 
-/**
- * One workspace's audit, newest first. Workspace-scoped by SEC-15, and runs on the
- * control pool, the only one with `SELECT` here.
- */
+/** Read one workspace's audit on the control pool, the only pool with SELECT here; return newest rows first. */
 export async function listAccessAudit(
   exec: Executor,
   workspaceId: string,

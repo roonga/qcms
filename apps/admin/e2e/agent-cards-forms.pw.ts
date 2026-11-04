@@ -19,38 +19,17 @@ import { pinProposalClock, runOutProposalWindow } from "./support/agent.js";
 import { enrollNewAdmin, fillStable, signInWithTotp } from "./support/flow.js";
 import { waitForHydration } from "./support/hydration.js";
 
-/**
- * Criterion 11 on the form screen: an act proposed there is confirmed, changes the screen
- * and leaves its audit row; a cancel sends nothing; and the card's waiting states are axe
- * clean. It also covers the two reads that belong with them: the timeline's own label for
- * each read tool the turn called, and the workspace audit that lists what was confirmed.
- *
- * ## Why these claims are browser claims
- *
- * The API's suite asserts the token, the route and the audit row over HTTP, and the card's
- * fold and rendering are asserted from invented props in Vitest. Neither can see the one
- * thing this file is for: that a card proposed on a real screen, confirmed by a real press,
- * reaches that screen's own server action and that the screen then shows what changed. A
- * kind can be whole on both sides of that seam and wired to nothing.
- *
- * ## The fixture is left as it was found
- *
- * Closing the seeded form's intake is workspace state every later spec reads, so the close
- * and the reopen are one test: the pair restores what it changed, and the suite runs
- * `workers: 1` with `fullyParallel: false` so no other file is mid-run between them.
- */
+// Close and reopen the shared seed in one test so later specs retain an open intake.
+// This relies on workers: 1 and fullyParallel: false.
 
 test.describe.configure({ mode: "serial" });
 
 const EMAIL = uniqueAdminEmail("agentcards083forms");
 
-/** The seeded insurance fixture, released to the default test environment by the seed. */
 const FORM_ID = "frm_auto_quote";
 
-/** The workspace a bootstrapped installation is seeded with, whose audit reads the rows. */
 const WORKSPACE_ID = "org_default_workspace";
 
-/** Set by the first test; the rest sign in again, since serial shares no browser context. */
 let totpSecret = "";
 
 test.beforeAll(async () => {
@@ -67,8 +46,7 @@ test("confirms a close and a reopen on the form screen, changing the screen and 
 
   const before = await auditTally();
   await propose(page, "propose-form-close", "close intake in this environment");
-  // While the card waits every step shares the card's state, so the heading chip says it
-  // once and each step keeps its state word for assistive technology alone (issue #1131).
+
   await expectWaitingStepStates(page, "Proposed");
   await expectAxeClean(page, "proposed");
 
@@ -96,7 +74,7 @@ test("sends nothing when the card is cancelled", async ({ page }) => {
   await expectAxeClean(page, "cancelled");
 
   expect(auditDelta(before, await auditTally())).toEqual({});
-  // The screen still offers the close it was never asked to perform.
+
   await expect(page.getByRole("button", { name: /^Close in/u })).toBeVisible();
 });
 
@@ -109,15 +87,10 @@ test("lists each confirmed act in the workspace's assistant audit", async ({ pag
   const table = page.getByRole("table", { name: /assistant/iu });
   await expect(table).toContainText("form.close");
   await expect(table).toContainText("form.reopen");
-  // The act is recorded as the account's own, which is what the row is for (Q12).
+
   await expect(table).toContainText(EMAIL);
 });
 
-/**
- * Each screen's read tools, by the label the timeline owes them. A read tool with no copy
- * of its own falls back to one sentence for all of them, which is what this asserts
- * against rather than a row count.
- */
 const READ_LABELS: readonly { readonly path: string; readonly labels: readonly string[] }[] = [
   {
     path: `/forms/${FORM_ID}`,

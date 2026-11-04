@@ -11,31 +11,10 @@ import {
   secureCookies,
 } from "./config.ts";
 
-/**
- * The admin's cookie-security configuration (task 056, guarded for issue #292).
- *
- * `vi.stubEnv` rather than assignment: `NODE_ENV` is typed read-only by Next's ambient
- * types, and stubbing restores every variable in one call whichever way a case ends.
- */
-
 afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-/**
- * The trailing-slash normalization admin authentication depends on (issue #328).
- *
- * **Paired with `apps/api/src/config.test.ts`.** The API parses the same variable into
- * better-auth's `baseURL` and `trustedOrigins`, and better-auth compares a trusted origin
- * by exact string equality against `new URL(url).origin`, which never carries a trailing
- * slash. This app compares the same value against the `Origin` header on every
- * state-changing POST (SEC-9). So a `QCMS_ADMIN_BASE_URL` with one extra character does
- * not degrade admin authentication, it ends it: sign-in, TOTP verification,
- * recovery-code use and sign-out are all refused, with a CSRF rejection as the only clue.
- *
- * Nothing asserted this on either side until now, which is what the issue is about: the
- * normalizer is one line in each app and a regression in either is invisible.
- */
 describe("adminBaseUrl", () => {
   it.each([
     ["https://admin.example.test/", "https://admin.example.test"],
@@ -47,8 +26,6 @@ describe("adminBaseUrl", () => {
   });
 
   it("returns a value equal to its own origin, which is what better-auth compares", () => {
-    // The property the consumer depends on, not "a slash was removed": an origin is what
-    // `new URL(...).origin` yields, and equality with it is the comparison being relied on.
     for (const raw of ["https://admin.example.test", "https://admin.example.test/"]) {
       vi.stubEnv("QCMS_ADMIN_BASE_URL", raw);
       const base = adminBaseUrl();
@@ -57,9 +34,6 @@ describe("adminBaseUrl", () => {
   });
 
   it("agrees with the API's normalizer on the shipped Compose value", () => {
-    // `.env.compose.example` documents `http://localhost:7040`. Both services read this
-    // one variable, and a disagreement between the two normalizers is unobservable until
-    // an operator's sign-in POST is rejected.
     vi.stubEnv("QCMS_ADMIN_BASE_URL", "http://localhost:7040/");
     expect(adminBaseUrl()).toBe("http://localhost:7040");
   });
@@ -112,18 +86,6 @@ describe("secureCookies", () => {
   });
 });
 
-/**
- * The boot-time refusal (issue #292 point 1).
- *
- * **The portal's `config.test.ts` covers the same decision**, because the two apps
- * disagreeing about exactly this is what the issue was filed about. Nothing computes
- * that the two case lists match, though, and they had already drifted when someone
- * looked (issue #412): a case added here and not there goes unnoticed, so adding one
- * means opening the other file, not trusting a gate.
- *
- * The positive controls come first on purpose: a red then distinguishes "the refusal
- * broke" from "the fixture was never a configuration that boots".
- */
 describe("assertSecureCookiesConfigured", () => {
   describe("permits the configurations it exists to allow", () => {
     it("passes the shape .env.compose.example ships: override unset, browsed at http://localhost", () => {
@@ -175,8 +137,7 @@ describe("assertSecureCookiesConfigured", () => {
       "http://admin.example.test",
       "http://192.168.1.10:7040",
       "http://0.0.0.0:7040",
-      // A name that merely CONTAINS localhost is not loopback, and an attacker-chosen
-      // hostname is exactly where a sloppy substring check would let the downgrade out.
+
       "http://localhost.admin.example.test",
     ])("refuses %s when the override is false", (base) => {
       vi.stubEnv("QCMS_ADMIN_SECURE_COOKIES", "false");
@@ -213,43 +174,24 @@ describe("assertSecureCookiesConfigured", () => {
         message = error instanceof Error ? error.message : String(error);
       }
 
-      // The variable that has to change, and the one that was read to decide.
       expect(message).toContain("QCMS_ADMIN_SECURE_COOKIES");
       expect(message).toContain("QCMS_ADMIN_BASE_URL");
-      // What was observed, in both halves.
+
       expect(message).toContain('QCMS_ADMIN_SECURE_COOKIES is set to "false"');
       expect(message).toContain('"https://admin.example.test"');
       expect(message).toContain('host "admin.example.test" is not loopback');
-      // The remedy, actionable without reading the source, including the part an
-      // operator gets wrong on this origin: the API service reads the same variable.
+
       expect(message).toContain("QCMS_ADMIN_SECURE_COOKIES=true");
       expect(message).toContain("HTTPS");
       expect(message).toContain("http://localhost");
       expect(message).toContain("api");
-      // SEC-8: no credential is echoed. The only values quoted are this flag and the
-      // public origin, so nothing secret can reach a log through this path.
+
       expect(message).not.toMatch(/token|secret|password|key/i);
     });
   });
 });
 
-/**
- * The placeholder boot refusal (issue #491, SEC-8).
- *
- * The fixture is the **literal** value from the committed example files rather than an
- * invented string, so this goes red the moment the guard stops covering what an operator
- * would actually copy. The API's equivalent (`apps/api/src/config-placeholders.test.ts`)
- * makes the same choice for the same reason.
- *
- * Agreement between this app's vocabulary, the admin's and the API's is not asserted
- * here: it cannot be, because a cross-app assertion inside one app's Vitest project is
- * cached against that project's own inputs and would report green having never read the
- * file that broke it (`scripts/check-origin-guards.test.ts` records that lesson at
- * length). It is asserted from the repo root, in
- * `scripts/check-bff-config-guards.test.ts`.
- */
 describe("assertNoPlaceholderSecrets", () => {
-  /** Verbatim from the committed example files. */
   const SHIPPED = "replace-with-a-random-32-character-internal-token";
 
   it("passes a real-looking token", () => {
@@ -318,10 +260,6 @@ describe("assertNoPlaceholderSecrets", () => {
   });
 });
 
-/**
- * `QCMS_LOCALE` (Code Owner ruling 2026-10-19, ADR-27 amendment): unset is en-GB, a
- * supported tag is canonicalised, and anything else refuses boot without the value.
- */
 describe("QCMS_LOCALE", () => {
   it("defaults to en-GB when unset or blank", () => {
     vi.stubEnv("QCMS_LOCALE", "");

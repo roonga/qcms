@@ -1,6 +1,6 @@
 /**
- * Unflag carries `responses:erase` rather than a read scope, so response-mutating
- * authority stays out of `responses:read` and `responses:export` (SEC-5).
+ * Unflag carries `responses:erase` rather than a read scope, so response-mutating authority stays out of
+ * `responses:read` and `responses:export`.
  */
 
 import { createRoute } from "@hono/zod-openapi";

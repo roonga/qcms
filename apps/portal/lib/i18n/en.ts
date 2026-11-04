@@ -83,7 +83,7 @@ export const messages = {
   "announce.branchAdded.other": "{count} questions were added below.",
   "announce.branchRemoved.one": "1 question was removed.",
   "announce.branchRemoved.other": "{count} questions were removed.",
-  // Clearer than reporting the now-hidden questions as a bulk removal.
+
   "announce.ready": "You have answered everything. You can now submit.",
 
   "link.expired.title": "This link has expired",

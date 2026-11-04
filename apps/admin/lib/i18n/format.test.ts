@@ -3,19 +3,8 @@ import { describe, expect, it } from "vitest";
 import { t, tPlural } from "./en.ts";
 import { DEFAULT_LOCALE, formatDateTime, formatDay, formatList, isInstant } from "./format.ts";
 
-/**
- * The locale-aware formatters and the plural helper (ADR-27; operator locale and zones by
- * the Code Owner ruling of 2026-10-19).
- *
- * Every formatter takes the locale and the zone as arguments, so the properties asserted
- * are: the default is en-GB, a configured locale changes the convention, the zone decides
- * the day and is named in a time, the output is not the wire representation, and nothing
- * depends on the runtime the code happens to execute in.
- */
-
 const UTC_DEFAULT = { locale: DEFAULT_LOCALE, timeZone: "UTC" } as const;
 
-/** ICU spaces some separators with U+202F; normalise so literals read naturally. */
 const plain = (value: string) => value.replace(/[\u202f\u00a0]/gu, " ");
 
 describe("the default locale (QCMS_LOCALE unset)", () => {
@@ -50,10 +39,6 @@ describe("a configured locale (QCMS_LOCALE set)", () => {
 });
 
 describe("the zone", () => {
-  /**
-   * 23:30 UTC on 2 August: already the 3rd in Sydney (UTC+10/+11) and still the 2nd in
-   * Los Angeles (UTC-7/-8) in either half of the year, so the day assertions bite.
-   */
   const NEAR_MIDNIGHT_UTC = "2026-08-02T23:30:00.000Z";
 
   it("decides which calendar day is named, east and west of UTC", () => {
@@ -81,7 +66,6 @@ describe("the zone", () => {
       const west = formatDateTime("2026-08-02T04:36:17.098Z", UTC_DEFAULT);
       expect(east).toBe(west);
     } finally {
-      // Deleted rather than assigned back as the string "undefined" (issue #903).
       if (original === undefined) delete process.env.TZ;
       else process.env.TZ = original;
     }
@@ -129,9 +113,6 @@ describe("grammatical number", () => {
   });
 
   it("composes the freeze summary without a mismatched noun anywhere in it", () => {
-    // The regression this pins: the summary used to be one sentence with three numbers
-    // substituted into fixed plural nouns, so a one-step form read "Freezes 1 steps, 1
-    // pinned questions, 1 rules." - on the first form an author ever publishes.
     const summary = t("forms.publish.freezes", {
       steps: tPlural("forms.publish.freezes.steps.one", "forms.publish.freezes.steps.other", 1),
       pins: tPlural("forms.publish.freezes.pins.one", "forms.publish.freezes.pins.other", 1),
@@ -145,7 +126,7 @@ describe("list formatting", () => {
   it("joins names the way the configured locale does, including the last conjunction", () => {
     expect(formatList(["Version"], DEFAULT_LOCALE)).toBe("Version");
     expect(formatList(["Version", "Flagged"], DEFAULT_LOCALE)).toBe("Version and Flagged");
-    // en-GB writes no serial comma; en-US does.
+
     expect(formatList(["Version", "Submitted from", "Flagged"], DEFAULT_LOCALE)).toBe(
       "Version, Submitted from and Flagged",
     );

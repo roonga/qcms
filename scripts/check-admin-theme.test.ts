@@ -36,7 +36,6 @@ describe("literal colour detection", () => {
     expect(findLiteralColours("a {\n  color: #fff;\n}")).toEqual([{ line: 2, hit: "#fff" }]);
   });
 
-  /** A three-digit issue number is a three-hex-digit lookalike, so the check must tell them apart. */
   it("does not read an issue reference in a string literal as a colour (#545)", () => {
     for (const line of [
       'it("covers #513", () => {});',

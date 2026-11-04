@@ -33,10 +33,9 @@ export const ActionStepResultBody = z.strictObject({
 export type ActionStepResult = z.infer<typeof ActionStepResultBody>;
 
 /**
- * The per-kind narrowing of one step's reported result, run by the route so the schema
- * itself stays a plain closed object. Checked server side as well as filtered by the card:
- * a client reporting a field outside the kind's list would be the one path a minted URL or
- * a rotated secret could take back into the conversation (section 7.6, SEC-8).
+ * The per-kind narrowing of one step's reported result, run by the route so the schema itself stays a plain closed
+ * object. Checked server side as well as filtered by the card: a client reporting a field outside the kind's list
+ * would be the one path a minted URL or a rotated secret could take back into the conversation.
  */
 export function stepResultRefusal(step: ActionStepResult): string | undefined {
   const allowed = actionKind(step.kind)?.resultAllowlist;
@@ -70,9 +69,8 @@ const FilterDate = z
   .refine((value) => !Number.isNaN(Date.parse(value)), { message: "Not a date" });
 
 /**
- * A screen id and the route's own ids, and nothing else. The browser never sends context
- * content, so a tampered client cannot hand the model something its screen would not show
- * (SEC-17).
+ * Accept screen and route ids only; the server computes accessible context so a client cannot inject content
+ * outside its screen.
  */
 const ScreenParamsBody = z.strictObject({
   formId: z.string().max(200).optional(),
@@ -94,7 +92,6 @@ const ScreenParamsBody = z.strictObject({
 export type ConversationTurnBody =
   z.infer<typeof AssistTurnBody> | z.infer<typeof ActionResultTurnBody>;
 
-/** The first step in the conversation whose reported result is refused, if there is one. */
 export function actionResultRefusal(
   conversation: readonly ConversationTurnBody[],
 ): string | undefined {

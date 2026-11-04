@@ -4,24 +4,7 @@ import { OperatorDateTime } from "@/components/operator-time";
 import { t } from "@/lib/i18n/en";
 import type { AuditPage } from "@/lib/membership/types";
 
-/**
- * The access audit for one workspace (SEC-15, task 069).
- *
- * Readable by the workspace's **owners** and by the installation administrator, and by
- * nobody else - that readership is the point, because an audit only the operator can see
- * does not answer a department's own question about its own data. The API's grant check is
- * what enforces it; a refused read arrives here as a message rather than as an empty
- * table, because an empty table would say "nothing happened".
- *
- * **It carries no answer value, no respondent identifier and no question text**, and the
- * screen could not render one if it wanted to: the row records the act and not its subject
- * matter, which is the reasoning ADR-17's tombstone uses one table over.
- *
- * The actor is an account id with **no foreign key** to the account, deliberately: an
- * audit row that cascades away with what it describes is not an audit row. So a row whose
- * account has since been removed shows the id, and the catalog has a sentence for exactly
- * that rather than rendering a blank cell.
- */
+/* Audit rows must contain acts only, with no answer values, respondent identifiers, or question text. */
 export function AuditPanel({
   audit,
   message,
@@ -52,9 +35,6 @@ export function AuditPanel({
             <p className="text-xs text-(--color-text-muted)">
               {t("membership.audit.total", { total: audit.total })}
             </p>
-            {/* Wider than the content column's measure as soon as the workspace has acts
-                in it, so it scrolls rather than stretching the screen past the cap issue
-                657 sets, as the assistant's own table beside it does. */}
             <div className="qcms-table qcms-table--wide min-w-0">
               <table>
                 <caption className="qcms-visually-hidden">{t("membership.audit.table")}</caption>
@@ -83,10 +63,6 @@ export function AuditPanel({
                         {row.formId === null ? (
                           t("membership.audit.empty")
                         ) : (
-                          // §2's one id rendering, through the shared component: a form id
-                          // is derived from a slug, so it renders whole, and a cell that
-                          // printed it as text would be the tenth table deciding for
-                          // itself.
                           <EntityId kind="form" value={row.formId} />
                         )}
                       </td>

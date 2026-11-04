@@ -84,7 +84,7 @@ export type ProjectDraftPort = (
  */
 export type ProposePort = (input: {
   readonly steps: readonly ProposedStep[];
-  /** Already proposed in this turn, which P1 bounds at one. */
+
   readonly proposalsThisTurn: number;
   /**
    * The draft this turn proposed, if it proposed one. The kind that applies it is refused
@@ -98,7 +98,6 @@ export type ProposePort = (input: {
     | undefined;
 }) => Promise<ProposeOutcome>;
 
-/** One rule's verdict over hypothetical answers, as the rules screen's own bench gives it. */
 export interface RuleVerdict {
   readonly ruleId: string;
   readonly outcome: "match" | "noMatch" | "unavailable";
@@ -253,16 +252,16 @@ export type SearchFormsPort = (input: {
   readonly limit: number;
 }) => Promise<FormSearchResult>;
 
-/** The SEC-3 cell a read tool declares, checked for the calling principal by the door. */
+/** The permission cell a read tool declares, checked for the calling principal by the door. */
 export interface ToolCell {
   readonly resource: string;
   readonly action: string;
 }
 
 /**
- * One turn's context: the screen's facts, the tools it declares and the ports those tools
- * close over. A port absent is a tool the screen does not offer, which is why no tool can
- * reach past its own screen (SEC-17). {@link AssistContext} is the builder's own shape.
+ * One turn's context: the screen's facts, the tools it declares and the ports those tools close over. A port
+ * absent is a tool the screen does not offer, which is why no tool can reach past its own screen. {@link
+ * AssistContext} is the builder's own shape.
  */
 export interface AgentContext {
   readonly screen: string;
@@ -322,23 +321,23 @@ export type AssistEvent =
       readonly tool?: string;
       readonly step?: number;
     }
-  /** No error text travels: it would be assembled from model-supplied input (SEC-8). */
+  /** No error text travels: it would be assembled from model-supplied input. */
   | { readonly type: "tool-outcome"; readonly step: number; readonly outcome: "done" | "failed" }
   /** `segment` is the provider's text-segment id, so prose interleaves with timeline rows. */
   | { readonly type: "text"; readonly delta: string; readonly segment?: string }
-  /** Provider reasoning summary, forwarded only under `summary`; never logged, stored or replayed (SEC-8). */
+  /** Provider reasoning summary, forwarded only under `summary`; never logged, stored or replayed. */
   | { readonly type: "reasoning"; readonly delta: string }
   | { readonly type: "reasoning-end" }
   /** A tool call outside the allowlist was refused server-side. */
   | { readonly type: "tool-rejected"; readonly tool: string }
   /**
-   * One proposed action, or one ordered plan. The steps and their arguments are the
-   * admin's to display; the token is what Confirm carries. Nothing has run (SEC-17).
+   * One proposed action, or one ordered plan. The steps and their arguments are the admin's to display; the
+   * token is what Confirm carries. Nothing has run.
    */
   | { readonly type: "action"; readonly proposal: Proposal }
   | { readonly type: "plan"; readonly proposal: Proposal }
   | { readonly type: "error"; readonly code: AssistErrorCode; readonly message: string }
-  /** Counts only, never content (SEC-8). */
+  /** Counts only, never content. */
   | {
       readonly type: "usage";
       readonly inputTokens: number;

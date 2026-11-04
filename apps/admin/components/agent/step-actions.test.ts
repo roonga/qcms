@@ -5,17 +5,6 @@ import { runPlan } from "@/lib/agent/runner";
 import type { AgentPlanStep, AgentProposal } from "@/lib/forms/assist-stream";
 import type { DraftForm } from "@/lib/forms/types";
 
-/**
- * The step a plan runs locally and the step index the API is told.
- *
- * `apply-draft` reaches no route, so the token binds only the steps that do and a card
- * index is no longer the token's step index. A publish that followed a local step and sent
- * its own card index would be checked against the wrong step's digest and refused, which
- * is a failure the runner cannot report as anything but the screen's own refusal. This
- * file runs the two-step plan the ruling describes through the real runner and the real
- * step dispatch, with the screen's own actions as the only doubles.
- */
-
 type ActionDouble = (...args: readonly unknown[]) => Promise<unknown>;
 
 const reviewReleaseAction = vi.fn<ActionDouble>();

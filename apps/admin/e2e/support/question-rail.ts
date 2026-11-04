@@ -2,42 +2,16 @@ import type { Page } from "@playwright/test";
 
 import { confirmLifecycle, createDraft } from "./questions.js";
 
-/**
- * The fixture the question rail's evidence needs, built through the app (issue 650).
- *
- * The rail's whole content is one question's version list, so what it needs is a question
- * with more than one version and with more than one status among them. The seeded library
- * has neither: its questions are published at v1 and left there, which would show a rail of
- * a single row and prove nothing about the marked row, the digest or the status tags.
- *
- * ## Why the states are reached the long way round
- *
- * Every step below is the sequence an operator actually walks, because that is the only
- * sequence the API allows. A version cannot be deprecated until a successor exists (a
- * library with nothing current is not a state the kernel will enter), and a new draft is
- * always minted from the latest, so "v1 deprecated, v2 published, v3 draft" can only be
- * built forwards. Manufacturing it behind the app's back would also be manufacturing a
- * state the screen may never meet.
- */
+// Create versions through the real lifecycle: deprecation needs a successor and each new draft starts from the latest.
 
-/** What the fixture built, for a spec that has to address it. */
 export interface QuestionRailFixture {
   readonly questionId: string;
-  /** The draft at the top of the list, and the version the screen opens on. */
   readonly draftVersion: number;
-  /** The version the digest names as published. */
   readonly publishedVersion: number;
-  /** The version whose row carries the deprecated tag. */
   readonly deprecatedVersion: number;
 }
 
-/**
- * Build a question with three versions in three different states, and leave the page on its
- * detail screen with the newest selected.
- *
- * `run` makes the id unique per run, because the suite shares one database and a question id
- * is minted from its slug.
- */
+// Use a unique run identifier because the suite shares a database and derives question IDs from slugs.
 export async function createQuestionRailFixture(
   page: Page,
   run: string,
@@ -53,8 +27,6 @@ export async function createQuestionRailFixture(
   await confirmLifecycle(page, /^New version$/, "Create draft");
   await page.waitForURL(/\?v=3$/);
 
-  // Deprecation is a property of one published version, so it is done from that version's
-  // own address rather than from the draft the page is sitting on.
   await page.goto(`/questions/${questionId}?v=1`);
   await confirmLifecycle(page, /^Deprecate version 1$/, "Deprecate");
   await page.goto(`/questions/${questionId}`);

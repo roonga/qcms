@@ -157,7 +157,6 @@ function main() {
   return 0;
 }
 
-// Guarded so an importing test triggers neither the scan nor the `process.exit`.
 if (argv[1] !== undefined && import.meta.url === pathToFileURL(argv[1]).href) {
   process.exit(main());
 }

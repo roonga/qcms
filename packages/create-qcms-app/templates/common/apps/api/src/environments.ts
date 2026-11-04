@@ -41,9 +41,8 @@ export interface Databases {
    */
   for(environment: string): Executor;
   /**
-   * A respondent request cannot name its own environment; it comes from which group
-   * served it, which is what keeps SEC-14 a routing fact. Only an admin client that
-   * named nothing reaches the default.
+   * A respondent request cannot name its own environment; it comes from which group served it, which is what
+   * keeps environment isolation a routing fact. Only an admin client that named nothing reaches the default.
    */
   forRequest(environment?: string): RequestDatabase;
 }

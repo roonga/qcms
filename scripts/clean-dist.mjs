@@ -10,7 +10,6 @@ import { argv, cwd, exit } from "node:process";
 import { isAbsolute, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-/** Only ever a build-output directory, never an arbitrary path. */
 const DEFAULT_TARGET = "dist";
 
 /**
@@ -42,7 +41,6 @@ function main() {
     console.error(`clean-dist: ${resolved.reason}`);
     return 1;
   }
-  // `force` so a first build, where nothing exists yet, is not an error.
   rmSync(resolved.path, { recursive: true, force: true });
   return 0;
 }

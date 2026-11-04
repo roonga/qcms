@@ -89,8 +89,6 @@ describe("capture, against real query helpers", () => {
     // Unqualified: the connection's `search_path` chooses the data schema, and no query
     // helper names one (ADR-40).
     expect(statement.sql).toContain('insert into "sessions"');
-    // Column defaults render as `default` rather than as parameters, which is invisible
-    // in the builder.
     expect(statement.sql).toContain("values ($1, $2, $3, $4, $5, $6, default, $7, default)");
     expect(statement.sql).toContain('returning "session_id"');
     expect(statement.params).toEqual(["ses_01", "frm_01", 3, "secure_link", "lnk_01", "prod", ISO]);
@@ -123,7 +121,6 @@ describe("capture, against real query helpers", () => {
       'greatest("outbox"."delivered_at", "outbox"."dead_lettered_at") < $1',
     );
 
-    // The list binds as one array parameter, not one placeholder per id.
     expect(update.sql).toContain('"outbox"."id" = any($1::uuid[])');
     expect(update.params[0]).toEqual([OUTBOX_ID]);
     expect(update.sql).toContain('not exists (select 1 from "webhook_deliveries" "d"');
@@ -292,7 +289,6 @@ describe("the exported surface", () => {
     const names = exportedFunctions(await loadQueries());
     expect(names).toContain("claimDue");
     expect(names).toContain("redactAgedOutboxPayloads");
-    // `pgEnum` returns a callable, so its exports would otherwise look like helpers.
     expect(names).not.toContain("accessMode");
     expect(names).not.toContain("sessionStatus");
     expect(names).toEqual([...names].sort((left, right) => left.localeCompare(right)));

@@ -1,6 +1,6 @@
-// The timestamp is inside the signed material, so a consumer checking its freshness gets
-// replay protection (SEC-6). Consumers verify `v1=hex(HMAC(secret, timestamp.body))`, so
-// the signed material cannot change without breaking every existing verifier.
+// The timestamp is inside the signed material, so a consumer checking its freshness gets replay protection.
+// Consumers verify `v1=hex(HMAC(secret, timestamp.body))`, so the signed material cannot change without
+// breaking every existing verifier.
 
 const encoder = new TextEncoder();
 

@@ -6,15 +6,6 @@ import { useProposalMarker } from "@/lib/agent/waiting";
 
 import { ProposalMarker } from "./proposal-marker";
 
-/**
- * One heading-row control, with the proposal marker before it while a card waits on this
- * screen and its first not-yet-run step mirrors this control.
- *
- * The control keeps its own behaviour: pressing it opens the screen's own dialog exactly
- * as it does with no card anywhere. The marker is a link to the card, never a second
- * Confirm.
- */
-
 const FOCUSABLE = [
   "button:not([disabled])",
   "a[href]",
@@ -28,9 +19,7 @@ export function HeadingMarker({
   block,
   children,
 }: {
-  /** The control names the action kinds' card templates use. */
   readonly control: string | readonly string[];
-  /** For a control that is a block of its own rather than one item of a heading row. */
   readonly block?: boolean;
   readonly children: ReactNode;
 }) {

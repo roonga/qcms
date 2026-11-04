@@ -1,20 +1,15 @@
-/**
- * The proposal token (SEC-17, section 7.4): one HMAC-SHA-256 token over an ordered step
- * list, each step bound to its action kind, a digest of its arguments as the card displays
- * them, and the environment that step acts in. A card is a plan of one step.
- */
+/** Bind each ordered step's action kind, displayed argument digest, and environment in the HMAC token. */
 
 export const PROPOSAL_TOKEN_VERSION = 1;
 
 export const PROPOSAL_TOKEN_PURPOSE = "agent-proposal";
 
-/** SEC-7's distinct-key-per-purpose property, derived rather than configured (Q13). */
+/** Derive distinct keys per purpose rather than sharing configured key material. */
 export const PROPOSAL_KEY_INFO = "qcms/agent-proposal/v1";
 
 /** Checked on step 0 only; later steps are bounded by step 0's recorded confirmation. */
 export const PROPOSAL_TTL_MS = 10 * 60 * 1000;
 
-/** The payload bound per plan (P2). */
 export const PROPOSAL_MAX_STEPS = 25;
 
 /** One step's binding. `environment` is the environment that step acts in, not the plan's. */
@@ -161,7 +156,6 @@ export async function signProposalToken(
   return `${body}.${base64url(new Uint8Array(mac))}`;
 }
 
-/** Every refusal code the token layer and the provenance middleware can return. */
 export const PROPOSAL_REFUSAL_CODES = [
   "AGENT_PROPOSAL_DISABLED",
   "AGENT_PROPOSAL_MALFORMED",

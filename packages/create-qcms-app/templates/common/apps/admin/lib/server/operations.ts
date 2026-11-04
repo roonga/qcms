@@ -1,9 +1,4 @@
-/**
- * `GET /admin/operations/forms` - the forms a caller operates in one environment (R2).
- *
- * The environment is a query parameter rather than the switcher header, because that is
- * what the route's grant row authorises against: the Operations context is explicit.
- */
+/** The API authorizes against an explicit environment query, not the switcher header. */
 
 import { cache } from "react";
 
@@ -19,20 +14,13 @@ import { adminApiFetch } from "./api.ts";
 import { readResult } from "./api-result.ts";
 import type { AdminSession } from "./session.ts";
 
-/**
- * A refusal is an answer and not a failure, so it is its own state: the grant middleware
- * refuses a caller holding no operational cell anywhere, which is "no forms to operate"
- * rather than "the forms could not be read".
- */
+/** No operational grants is a refused state, distinct from a failed read. */
 export type OperationsDiscovery =
   | { readonly status: "ok"; readonly page: OperationsFormsPage }
   | { readonly status: "denied" }
   | { readonly status: "failed"; readonly message: string };
 
-/**
- * The query string is one argument so `cache()` can memoize it: the page and its `@rail`
- * slot are two trees of one request and ask the same question.
- */
+/** Use one primitive query key so React cache shares the request read across page and rail. */
 export const listOperationsForms: (
   session: AdminSession,
   query: string,

@@ -210,7 +210,7 @@ async function turn(args: {
   readonly screen: string;
   readonly script: string;
   readonly formId?: string;
-  /** For a screen with no subject of its own, which takes no `formId`. */
+
   readonly params?: Readonly<Record<string, string>>;
   readonly conversationId?: string;
 }): Promise<AssistEvent[]> {

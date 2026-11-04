@@ -13,74 +13,9 @@ import { requireAdminSession } from "@/lib/server/session";
 
 import { FormsTable } from "./forms-table";
 
-/** The browser-tab title for this route (issue #536). */
 export function generateMetadata(): Metadata {
   return pageMetadata(t("forms.title"));
 }
-
-/**
- * The form library (task 033; screen contract `admin-form-builder.md`, the screen its
- * breadcrumb roots at).
- *
- * A server component that proxies one call and renders the answer, exactly as 032's
- * question library does.
- *
- * ## Searching, filtering and sorting, and where they happen (issue 686)
- *
- * This screen used to say it had none, and gave a reason that was half right: a second
- * ordering in this app would be a decision the BFF has no authority to make (R2). True,
- * and it stopped one step short of the answer the sibling screen already ships. The
- * question library is filtered too and breaks no rule doing it, because every filter it
- * offers is the **API's**: they live in the URL, they travel on the query string, and
- * `GET /admin/questions` applies them. `GET /admin/forms` simply had no such parameters,
- * so the blocker was an absent route capability rather than R2. It has them now
- * (`status`, `search` over the slug and the form title, and `sort`), and this screen
- * sends them the same way.
- *
- * Three consequences worth stating, because each is a property a reader can check:
- *
- * - **The state is the URL.** A filtered library is a link an author can send and a page
- *   that survives a reload, and nothing about the current view lives in component state.
- * - **A native GET form.** The filter form is `<form method="get">` over the vendored
- *   controls, which serialize into hidden native inputs, so Apply is a submission the
- *   browser performs rather than a handler this app writes. Nothing here is an event
- *   handler, which is what keeps the two properties either side of this one true.
- * - **One request either way.** Filters change the query string, never the number of
- *   round trips; `lib/server/request-reads.test.ts` counts them.
- *
- * The three controls are `components/forms/forms-list-rail.tsx`, in the `@rail` slot beside
- * this column; this page keeps only the reading of the address, through the same
- * `readFormListFilters` the slot reads. The filtered-empty panel keeps its own
- * "Clear filters" beside the rail's (contract §3).
- *
- * `plan/admin-shell-poc/library-lists-poc.html` draws all three controls on this screen
- * and says in its own words that they are new because the shipped screen has none. It
- * also draws a pager, which is not built: `GET /admin/forms` takes no page parameter, the
- * POC records that as an upstream gap on both library screens, and inventing pagination
- * on the way past would be a second decision riding on this one.
- *
- * ## Creating is not on this screen (issue 685)
- *
- * It was, as a card between the heading and the table, and
- * `plan/admin-shell-poc/library-lists-poc.html` names that card as the thing to change:
- * it picks a separate creation route for BOTH library screens, on the grounds that
- * minting an id is a one-way door (R6) that deserves a screen rather than a slot beside a
- * table of everything already made, and that a card an author pays for on every visit
- * pushes the list they came to read below the fold. So this screen links to `/forms/new`
- * and lists, which is now the same shape `/questions` has.
- *
- * ## What each row says, and why the two state columns are separate
- *
- * A form has two independent states and collapsing them loses the distinction that matters
- * most to an author: **draft** is "there is unpublished work in the builder" and
- * **published** is "respondents are seeing version N". A form can have both (the usual
- * mid-edit case), either, or neither, so they get a column each rather than one
- * merged status word that would have to invent a precedence between them.
- *
- * `status` is the third and separate thing: whether the form accepts responses at all
- * (open/closed), which 034's publish flow and the link screens act on, and it is what the
- * rail's Status filter narrows on.
- */
 
 export default async function FormsPage({
   searchParams,
@@ -105,15 +40,6 @@ export default async function FormsPage({
           <h1 className="text-xl font-semibold text-(--color-text)">{t("forms.title")}</h1>
           <p className="text-sm text-(--color-text-muted)">{t("forms.intro")}</p>
         </div>
-        {/* The header's creating action, rendered except in the one state where the
-            empty panel below carries it instead: an unfiltered library with nothing in
-            it. Same rule and same reason as `/questions`, whose header this is copied
-            from rather than re-derived: two controls with the same accessible name on
-            one screen are ambiguous to anyone navigating by name, and
-            `plan/admin-design-contracts.md` §3 asks the empty state to OFFER the
-            creating action rather than to sit beside a copy of it. A filtered-empty
-            library is not that state: the library is not empty, the way out is the
-            clear link, and this link stays. */}
         {!(isEmpty && !isFiltered) && (
           <HeadingMarker control="forms.create">
             <Link href="/forms/new" className="qcms-button-link">
@@ -127,8 +53,6 @@ export default async function FormsPage({
         <Alert variant="error">{t("forms.error.listFailed", { message: result.message })}</Alert>
       )}
 
-      {/* §3's panel, in both variants: the filtered one drops the explanatory sentence and
-          offers the clear link, the unfiltered one offers the creating action. */}
       {isEmpty &&
         (isFiltered ? (
           <EmptyState
@@ -155,11 +79,6 @@ export default async function FormsPage({
 
       {result.ok && result.data.length > 0 && (
         <div className="flex flex-col gap-2">
-          {/* The POC's result count, above the table where it draws it. A plain
-              paragraph rather than a live region, deliberately: Apply is a native form
-              submission, so every change of this number arrives as a new document, which
-              a screen reader announces as a page load. A live region here would be a
-              promise to announce a change that never happens in place. */}
           <p className="text-sm text-(--color-text-muted)" data-testid="qcms-forms-count">
             {tPlural("forms.count.one", "forms.count.other", result.data.length)}
           </p>

@@ -17,7 +17,6 @@ import {
   setFormStatusAction,
 } from "@/app/(shell)/forms/actions";
 
-/** Production reads immutable content; it never renders the shared draft builder. */
 export async function FormProductionReview({
   form,
   environments,

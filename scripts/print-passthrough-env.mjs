@@ -31,5 +31,4 @@ function main() {
   }
 }
 
-// Only when run as the task, so the test can import the two constants above.
 if (process.argv[1] === fileURLToPath(import.meta.url)) main();

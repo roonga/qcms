@@ -5,9 +5,7 @@ import { A2UIStepRenderer, type A2UIStepDocument } from "./A2UIStepRenderer.tsx"
 import { NATIVE_FIELD_ANSWERED_PREFIX, NATIVE_FIELD_KIND_PREFIX } from "./native-submit.ts";
 import { loadGoldenForms } from "./test-support/golden.ts";
 
-// jsdom pins the markup contract: which element carries the name, whether the
-// respondent can type into it, and what the browser will validate. Whether the browser
-// then refuses a value is browser behaviour (ADR-23), asserted in the portal's suite.
+// jsdom checks the markup contract; the browser suite owns actual validation behavior.
 
 const kitchenSink = loadGoldenForms().find((f) => f.version === "v1" && f.form === "kitchen-sink");
 if (!kitchenSink) throw new Error("v1 kitchen-sink golden not found");
@@ -49,8 +47,6 @@ describe("the no-JS number control (issue #18)", () => {
   });
 
   it("puts the name on the control the respondent types into", () => {
-    // The only element carrying the question's name used to be hidden, and the box
-    // that took the keystrokes carried no name at all.
     const { container } = renderNative();
     const input = postedFields(container)[0];
     expect(input.type).not.toBe("hidden");
@@ -76,9 +72,7 @@ describe("the no-JS number control (issue #18)", () => {
   });
 
   it("says step=any for a question that admits fractions, because HTML's default is 1", () => {
-    // An omitted `step` on a native number input means 1, so passing the compiler's
-    // absence through would have the browser refuse the very fractions the question
-    // allows. No golden question admits them, hence the hand-written document.
+    // Missing HTML step means one; fractional questions need any. No golden question admits fractions.
     const { container } = render(
       <A2UIStepRenderer
         document={numberDocument({
@@ -138,8 +132,6 @@ describe("the no-JS number control (issue #18)", () => {
   });
 
   it("posts an emptied answered field empty, so the marker reads as a clear", () => {
-    // An answered number could not be emptied at all without scripting, because the
-    // hidden input kept the seeded value whatever the visible box showed.
     const { container } = renderNative({ [NUMBER_QUESTION]: 3 });
     const input = postedFields(container)[0];
     input.value = "";

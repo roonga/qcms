@@ -44,8 +44,7 @@ export const FAKE_SCRIPTS = [
   "narrate-then-tools",
   "reasoning",
   "read-all",
-  // D0's action scripts (083, SEC-17). Each proposes and runs nothing: Confirm is the
-  // user's, on the card.
+  // These scripts propose actions only; the user's card confirmation is the sole execution trigger.
   "plan-three",
   "plan-fails-at-2",
   "plan-two-envs",
@@ -71,7 +70,7 @@ export const FAKE_SCRIPTS = [
   "plan-webhooks",
   "plan-workspace",
   "plan-workspace-settings",
-  // One card per kind, for each screen group's own confirm and cancel paths.
+
   "propose-form-create",
   "propose-link-mint",
   "propose-link-revoke",
@@ -277,7 +276,6 @@ function textParts(text: string, id = "t0"): StreamPart[] {
   ];
 }
 
-/** The input phase that precedes a parsed call; the timeline row appears on its first part. */
 function toolInputParts(toolName: string, input: unknown, nonce = ""): StreamPart[] {
   // The input phase keys on `id`, which the matching `tool-call` spells `toolCallId`.
   const id = `call_${toolName}${nonce}`;
@@ -291,7 +289,7 @@ function toolInputParts(toolName: string, input: unknown, nonce = ""): StreamPar
 function finishPart(finishReason: string): StreamPart {
   return {
     type: "finish",
-    // The provider spec carries a unified reason plus the vendor's raw one.
+
     finishReason: { unified: finishReason, raw: finishReason },
     usage: {
       inputTokens: { total: 100 },
@@ -368,7 +366,6 @@ function directiveWord(prompt: readonly PromptMessage[]): string {
   return word === "" ? "question" : word;
 }
 
-/** A slug the create scripts propose, in the grammar a form id is derived from. */
 function newSlug(prompt: readonly PromptMessage[]): string {
   return `fake-new-${directiveWord(prompt).replaceAll("_", "-")}`;
 }
@@ -604,7 +601,6 @@ function planReadAllStep(
  * has rather than a canned id.
  */
 
-/** Every fenced JSON block in the user messages: the draft preamble and the facts. */
 function jsonBlocks(prompt: readonly PromptMessage[]): Record<string, unknown>[] {
   const text = userText(prompt);
   const blocks: Record<string, unknown>[] = [];
@@ -751,7 +747,6 @@ function factMember(prompt: readonly PromptMessage[]): { userId: string; email: 
   return named ?? members[0] ?? { userId: "usr_absent", email: wanted ?? "absent@qcms.invalid" };
 }
 
-/** The question detail screen's own facts, which name no form. */
 function questionFacts(prompt: readonly PromptMessage[]): Record<string, unknown> {
   return jsonBlocks(prompt).find((block) => typeof block["questionId"] === "string") ?? {};
 }
@@ -761,7 +756,6 @@ function factQuestionId(prompt: readonly PromptMessage[]): string {
   return typeof questionId === "string" ? questionId : "q_absent";
 }
 
-/** The first version of the named status the detail screen listed, or 1. */
 function factQuestionVersion(prompt: readonly PromptMessage[], status: string): number {
   const rows = questionFacts(prompt)["versions"];
   if (!Array.isArray(rows)) return 1;
@@ -773,12 +767,10 @@ function factQuestionVersion(prompt: readonly PromptMessage[], status: string): 
   return 1;
 }
 
-/** A question definition a create or a save proposes, in the kernel's own shape. */
 function fakeQuestionDefinition(questionId: string): Record<string, unknown> {
   return { questionId, type: "shortText", label: { en: "What the assistant proposed" } };
 }
 
-/** The first endpoint and the first delivery the webhooks screen listed. */
 function factWebhookId(prompt: readonly PromptMessage[]): string {
   return firstId(screenFacts(prompt)["endpoints"], "webhookId", "wh_absent");
 }
@@ -891,7 +883,6 @@ function workspaceSettingsStep(prompt: readonly PromptMessage[]): Record<string,
   };
 }
 
-/** How many times this turn has already called one tool, which P1's script needs. */
 function toolCallCount(prompt: readonly PromptMessage[], name: string): number {
   let count = 0;
   for (const message of prompt) {
@@ -905,7 +896,6 @@ function toolCallCount(prompt: readonly PromptMessage[], name: string): number {
   return count;
 }
 
-/** A name outside the registry, which the one door refuses before anything is dispatched. */
 const UNREGISTERED_TOOL = "run_action";
 
 function actionPlanSteps(
@@ -954,7 +944,7 @@ function actionPlanSteps(
         { kind: "question.deprecate", args: { questionId, version } },
       ];
     }
-    // One group's whole life, each step naming the group the first step records.
+
     case "plan-workspace": {
       const workspaceId = factWorkspaceId(prompt);
       const teamId = { fromStep: 0, field: "teamId" };
@@ -1024,10 +1014,6 @@ function actionPlanSteps(
   }
 }
 
-/**
- * One card per kind: `propose-<kind>` puts that kind alone up for review, which is what a
- * screen group's confirm and cancel paths drive.
- */
 const SINGLE_ACTIONS: Readonly<
   Record<string, (prompt: readonly PromptMessage[]) => Record<string, unknown>>
 > = {
@@ -1251,7 +1237,6 @@ const ACTION_SCRIPTS: readonly FakeScript[] = [
   ...(Object.keys(SINGLE_ACTIONS) as FakeScript[]),
 ];
 
-/** The tool names this turn offered, which is the screen's own list. */
 function offeredTools(tools: unknown): readonly string[] {
   if (!Array.isArray(tools)) return [];
   const names: string[] = [];
@@ -1268,7 +1253,6 @@ const CHUNK_DELAY_MS: Readonly<Partial<Record<FakeScript, number>>> = {
   "narrate-then-tools": 150,
 };
 
-/** Scripts whose next step depends on what has already run, keyed by name. */
 const STATEFUL_PLANNERS: Readonly<
   Partial<
     Record<
@@ -1610,7 +1594,6 @@ function patientDraft(prompt: readonly PromptMessage[]): Record<string, unknown>
   };
 }
 
-/** The question versions the screen says the saved draft pins unpublished, in facts order. */
 function factUnpublishedPins(
   prompt: readonly PromptMessage[],
 ): { questionId: string; version: number }[] {
@@ -1631,7 +1614,6 @@ function factUnpublishedPins(
   return pins;
 }
 
-/** Whether the person has already confirmed this conversation's apply-draft card. */
 function draftApplied(prompt: readonly PromptMessage[]): boolean {
   return userText(prompt).includes("apply-draft: done");
 }
@@ -1651,11 +1633,6 @@ function publishPinsSteps(prompt: readonly PromptMessage[]): Record<string, unkn
   ];
 }
 
-/**
- * `blank-to-published`: the two-card journey. The first turn proposes a complete form and
- * the apply-draft card alone; the turn after that card settles asks for approval and
- * proposes publishing the SAVED draft's unpublished pins, then the form itself.
- */
 function planBlankToPublishedStep(
   prompt: readonly PromptMessage[],
   results: Map<string, unknown>,
@@ -1712,7 +1689,6 @@ function planBlankToPublishedStep(
   ];
 }
 
-/** The `default` script: search, propose the draft, then put it up as a card. */
 function planDefaultStep(
   prompt: readonly PromptMessage[],
   results: Map<string, unknown>,

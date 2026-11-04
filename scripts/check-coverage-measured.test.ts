@@ -8,12 +8,6 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import { trackedFilesUnder } from "./tracked-files.mjs";
 
-/**
- * Vitest has no option that fails an empty coverage report: a `coverage.include` that
- * matches no file prints `0/0` and exits 0 against a 95 percent threshold, so the
- * failure has to be asserted here.
- */
-
 const SCRIPT = fileURLToPath(new URL("check-coverage-measured.mjs", import.meta.url));
 const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));
 

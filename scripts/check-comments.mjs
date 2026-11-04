@@ -21,12 +21,10 @@ const GIT = process.platform === "win32" ? "git.exe" : "git";
 export const MAX_COMMENT_LINES = 3;
 export const MAX_EXPORT_JSDOC_LINES = 4;
 
-export const SOURCE_ROOTS = ["apps", "packages", "scripts", "tooling"];
-export const SOURCE_EXTENSION = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|css)$/;
+export const SOURCE_ROOTS = ["apps", "packages", "scripts", "tooling", ".devcontainer"];
+export const SOURCE_EXTENSION = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|css|json|jsonc)$/;
 
-/** Each entry needs its reason; remove the admin one when its sweep lands. */
 export const EXCLUDED_PATHS = [
-  { prefix: "apps/admin/", why: "deferred until the admin sweep lands" },
   { prefix: VENDORED_SOURCE_PREFIX, why: "vendored byte-for-byte (ADR-22)" },
   { prefix: "packages/create-qcms-app/templates/", why: "generated mirrors of app files" },
   { prefix: "plan/", why: "scratch tree" },
@@ -87,7 +85,6 @@ function isAllowedLine(line) {
   return ALLOWED_LINE.some((pattern) => pattern.test(line.trim()));
 }
 
-/** Strips the comment syntax, keeping one entry per source line. */
 export function contentLines(text) {
   if (text.startsWith("//")) return [text.replace(/^\/\/\/?/, "").trim()];
   return text
@@ -109,6 +106,7 @@ function ownLine(text, pos) {
 }
 
 function scriptKind(path) {
+  if (/\.jsonc?$/.test(path)) return ts.ScriptKind.JSON;
   if (/\.tsx$/.test(path)) return ts.ScriptKind.TSX;
   if (/\.jsx$/.test(path)) return ts.ScriptKind.JSX;
   if (/\.[cm]?js$/.test(path)) return ts.ScriptKind.JS;
@@ -145,7 +143,6 @@ function hasExportModifier(node) {
   );
 }
 
-/** A member counts as exported when the declaration it belongs to is. */
 export function isExportedApi(node) {
   let current = node;
   while (current !== undefined) {
@@ -250,7 +247,6 @@ function cssComments(text) {
   return comments;
 }
 
-/** Adjacent own-line `//` comments read as one block. */
 function groupBlocks(text, comments) {
   const blocks = [];
   for (const comment of comments) {

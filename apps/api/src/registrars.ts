@@ -24,9 +24,9 @@ import { registerAdminAuth } from "./middleware/admin-auth.js";
 import { registerRequestEnvironment } from "./middleware/request-environment.js";
 
 /**
- * `anonymous` is mounted only on `prod`, so other surfaces answer `404` (SEC-14). In
- * `admin`, `registerAdminAuth` goes first so the session gate refuses before the
- * environment name matters, then `registerRequestEnvironment`. `auth` sits outside the group.
+ * `anonymous` is mounted only on `prod`, so other surfaces answer `404`. In `admin`, `registerAdminAuth`
+ * goes first so the session gate refuses before the environment name matters, then
+ * `registerRequestEnvironment`. `auth` sits outside the group.
  */
 export const appGroups: RouteGroups = {
   respondent: [registerLinkEntry, registerSessionStatus, registerServeStep, registerSubmit],
@@ -35,12 +35,11 @@ export const appGroups: RouteGroups = {
   admin: [
     registerAdminAuth,
     registerRequestEnvironment,
-    // Third: an act's environment has to be resolved before it can be authorised for one.
-    // An admin route with no row in `features/membership/route-policy.ts` is refused
-    // rather than served (SEC-3).
+    // Third: an act's environment has to be resolved before it can be authorised for one. An admin route with no
+    // row in `features/membership/route-policy.ts` is refused rather than served.
     registerGrantCheck,
-    // Fourth: provenance is read from a request the policy has already authorised, so a
-    // token can only add an audit row and never a right (SEC-17).
+    // Fourth: provenance is read from a request the policy has already authorised, so a token can only add an
+    // audit row and never a right.
     registerAgentProvenance,
     registerQuestions,
     registerForms,

@@ -1,22 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-/**
- * What opening the form builder costs the API (issue #684).
- *
- * The builder's question picker needs every version an author could pin, and the list
- * route's default summary reports only the latest. So `loadPinnableQuestions` read the
- * whole library and then issued `GET /questions/{id}` once per row to assemble the
- * version lists: `1 + N` requests on every builder page load, N being the entire library,
- * with no filter, no limit and no pagination anywhere on the path. A three-hundred
- * question library meant three hundred and one round trips before the author had opened
- * the picker at all.
- *
- * `?versions=all` is the route answering the question directly, so the count is the
- * subject of this file rather than a footnote to it: what is asserted is the number of
- * requests and the path of the one that is made.
- */
-
-/** Every path the BFF asked the API for, in order. */
 const requested: string[] = [];
 
 const adminApiFetch = vi.fn((_session: unknown, path: string) => {
@@ -42,7 +25,6 @@ const SESSION = {
   token: "tok",
 };
 
-/** One list row, in the shape `?versions=all` returns. */
 function row(questionId: string, versions: unknown): Record<string, unknown> {
   return {
     questionId,
@@ -57,13 +39,11 @@ function row(questionId: string, versions: unknown): Record<string, unknown> {
   };
 }
 
-/** A published v1 under a draft v2: the shape the summary alone cannot report. */
 const TWO_VERSIONS = [
   { version: 1, status: "published", definition: { type: "shortText" } },
   { version: 2, status: "draft", definition: { type: "shortText" } },
 ];
 
-/** Set per case; `adminApiFetch` answers the list read with it. */
 let library: { questions: unknown[] } = { questions: [] };
 
 async function loadLibrary(): Promise<unknown> {
@@ -108,8 +88,6 @@ describe("loadPinnableQuestions", () => {
   });
 
   it("drops a row carrying no versions rather than failing the screen", async () => {
-    // The tolerance the detail-read fan-out had, kept and moved: a library the author can
-    // mostly use beats a builder that will not open.
     library = { questions: [row("q_one", undefined), row("q_two", TWO_VERSIONS)] };
 
     const result = (await loadLibrary()) as {

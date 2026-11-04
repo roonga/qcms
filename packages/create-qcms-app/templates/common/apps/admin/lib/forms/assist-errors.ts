@@ -2,12 +2,6 @@ import { t, type MessageKey } from "../i18n/en.ts";
 
 import type { AssistErrorCode } from "./assist-stream.ts";
 
-/**
- * What a failed turn says. The API's own error codes, plus the states this app derives for
- * itself: a tool call it refused, and the HTTP answers the route gives before any event
- * streams. One resolver, so a code the conversation cannot render is a type error rather
- * than a blank alert.
- */
 export type AssistErrorKind =
   AssistErrorCode | "TOOL_REJECTED" | "RATE_LIMITED" | "STALE_DRAFT" | "HTTP";
 
@@ -18,7 +12,6 @@ export interface AssistError {
   readonly retryAfter?: string;
 }
 
-/** The kinds whose sentence needs no interpolation, keyed to the catalog. */
 const SIMPLE_ERROR_MESSAGES: Readonly<
   Record<
     Exclude<AssistErrorKind, "REFUSED" | "TOOL_REJECTED" | "RATE_LIMITED" | "HTTP">,
@@ -51,7 +44,6 @@ export function messageForError(error: AssistError): string {
   return t(SIMPLE_ERROR_MESSAGES[error.kind]);
 }
 
-/** The HTTP-level failures the route relays as-is: 429, 409, and everything else. */
 export async function errorForResponse(response: Response): Promise<AssistError> {
   if (response.status === 429) {
     const retryAfter = response.headers.get("retry-after");

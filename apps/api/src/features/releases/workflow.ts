@@ -26,7 +26,6 @@ export function productionVersions(
   ];
 }
 
-/** What one destination permits. */
 export interface WorkflowRule {
   readonly environment: string;
   /** A committed release of the same version in any one of these satisfies the rule. */
@@ -35,7 +34,6 @@ export interface WorkflowRule {
   readonly allowsInBatch: boolean;
 }
 
-/** The revision in force and its rule per served environment. */
 export interface EffectiveWorkflow {
   readonly revision: number | null;
   readonly source: "default" | "configured";
@@ -147,7 +145,6 @@ export function testReleaseRequired(): ApiError {
   );
 }
 
-/** The configured-revision refusal, naming the destination and what would satisfy it. */
 export function priorReleaseRequired(
   environment: string,
   requiresAnyOf: readonly string[],
@@ -161,7 +158,6 @@ export function priorReleaseRequired(
   );
 }
 
-/** The refusal for freezing a draft and releasing it into a destination that forbids it. */
 export function draftPublishNotAllowed(environment: string): ApiError {
   return new ApiError(
     "DRAFT_PUBLISH_NOT_ALLOWED",
@@ -172,7 +168,6 @@ export function draftPublishNotAllowed(environment: string): ApiError {
   );
 }
 
-/** The refusal for naming a destination the workflow keeps out of a multi-target act. */
 export function batchNotAllowed(environment: string): ApiError {
   return new ApiError(
     "BATCH_NOT_ALLOWED",

@@ -28,8 +28,6 @@ import {
 } from "./command.js";
 import { environmentObjectNames } from "./sql.js";
 
-/** Requires Docker, like every `*.integration.test.ts`. */
-
 const COMMAND_TIMEOUT_MS = 30_000;
 
 let testDb: TestDb;
@@ -177,7 +175,6 @@ describe("creating an environment", { timeout: COMMAND_TIMEOUT_MS }, () => {
       outbox_payload_ttl_ms: null,
     });
 
-    // One container for the file, and later assertions read the live set by name.
     expect(await dropEnvironment(testDb.db, "settings")).toBeUndefined();
     expect(await dropEnvironment(testDb.db, "nosettings")).toBeUndefined();
   });
@@ -204,7 +201,6 @@ describe("creating an environment", { timeout: COMMAND_TIMEOUT_MS }, () => {
     );
     expect(role.rows[0]?.rolcanlogin, "the role exists and can log in").toBe(true);
 
-    // One container for the file, and later assertions read the live set by name.
     expect(await dropEnvironment(testDb.db, "withrole")).toBeUndefined();
   });
 });

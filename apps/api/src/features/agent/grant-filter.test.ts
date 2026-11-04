@@ -52,8 +52,6 @@ describe("the grant filter (section 6.1, criterion 3)", () => {
   });
 
   it("offers an editor scoped to every environment no production release at all", () => {
-    // ADR-41's production split, unchanged: the environment enum carries no `prod` even
-    // though the grant's own scope does (criterion 3).
     const offered = filterFor({ grants: [editorIn(["all"])], current: "test" });
     expect(offeredEnvironments(offered, "form.release")).toEqual(["test"]);
   });
@@ -114,8 +112,7 @@ describe("the kinds a screen offers", () => {
     ];
     expect(kindsOn("/forms/[formId]/links", approver)).toEqual(subtree);
     expect(kindsOn("/forms/[formId]/responses", approver)).toEqual(subtree);
-    // The builder adds publishing a question its own draft pins unpublished, which the
-    // editor's cell covers and which no other screen of the subtree offers.
+
     expect(kindsOn("/forms/[formId]", approver)).toEqual([...subtree, "question.publish"]);
   });
 

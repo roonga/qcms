@@ -3,25 +3,14 @@ import { describe, expect, it } from "vitest";
 import { buildAdminCsp } from "./lib/server/csp";
 import { config, proxy } from "./proxy";
 
-/**
- * Security-header tests for the admin's proxy (task 031, SEC-9).
- *
- * The assertions are about *absences* as much as presences, because that is where this
- * class of header fails: a policy that quietly gains `unsafe-eval`, a third-party origin
- * that appears with a library, or a CORS header that a framework default adds.
- */
-
 const NONCE = "dGVzdC1ub25jZS0xMjM0NTY3OA==";
 
 function responseFor(url = "http://localhost:7040/questions"): NextLikeResponse {
-  // `proxy` reads only the request's headers, so a plain Request is enough; NextRequest's
-  // extra surface is unused here.
   return proxy(new Request(url) as never);
 }
 
 type NextLikeResponse = ReturnType<typeof proxy>;
 
-/** The CSP the proxy actually emitted, with its real per-request nonce. */
 function cspOf(response: NextLikeResponse): string {
   return response.headers.get("content-security-policy") ?? "";
 }
@@ -41,9 +30,6 @@ describe("admin CSP (SEC-9)", () => {
   });
 
   it("authorizes inline script by nonce only, never by unsafe-inline or eval", () => {
-    // The nonce exists for Next's own streamed RSC payload scripts, not for anything the
-    // admin authors. Replacing it with 'unsafe-inline' would authorize an injected script
-    // too, which is the whole point of using a nonce.
     expect(csp).toContain(`script-src 'self' 'nonce-${NONCE}'`);
     expect(csp).not.toContain("script-src 'self' 'unsafe-inline'");
     expect(csp).not.toContain("unsafe-eval");
@@ -74,8 +60,6 @@ describe("admin security headers", () => {
   });
 
   it("issues a fresh nonce per request", () => {
-    // A reused nonce is barely better than 'unsafe-inline': an attacker who can read one
-    // response can authorize their own script in the next.
     expect(cspOf(responseFor())).not.toBe(cspOf(responseFor()));
   });
 
@@ -92,8 +76,6 @@ describe("admin security headers", () => {
   });
 
   it("covers the auth screens too, not just the authenticated shell", () => {
-    // A matcher that skipped `/sign-in` would ship the one page that handles a credential
-    // without a CSP.
     expect(cspOf(responseFor("http://localhost:7040/sign-in"))).toContain("default-src 'self'");
   });
 

@@ -1,7 +1,6 @@
 /**
- * A vendored `a2-react-aria` component is registered in eight places and this is the one red that
- * names all eight, anchored on `packages/ui/a2ra-manifest.json`. The lists are parsed, not imported,
- * and parsing fails open, so each parser has an anti-vacuity assertion in "the derivations" below.
+ * Use a2ra-manifest.json as the registration inventory. These text parsers can miss unsupported shapes, so
+ * each derivation needs a non-vacuity assertion.
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -405,7 +404,6 @@ function adrCommitMoments(): ReadonlyMap<string, string> {
   const wanted = new Map<string, string>();
   for (const line of table.split("\n")) {
     const cells = line.split("|").map((cell) => cell.trim());
-    // A table row is `| controls | moment |`, so four cells with two empty edges.
     if (cells.length !== 4) continue;
     const moment = MOMENT_FOR_ADR_PHRASE.get(cells[2] ?? "");
     if (moment === undefined) continue;
@@ -442,10 +440,6 @@ function controlForQuestionType(): ReadonlyMap<string, ReadonlySet<string>> {
   return controls;
 }
 
-/**
- * Only the properties of the classification itself; date retraction, same-step visibility ordering
- * and retraction posting are behaviour, asserted elsewhere.
- */
 describe("the ADR-31 commit-moment classification (issue #91)", () => {
   it("condition: every moment is one of the four ADR-31 admits", () => {
     const admitted = commitMomentValues();
@@ -479,7 +473,7 @@ describe("the ADR-31 commit-moment classification (issue #91)", () => {
     for (const [type, moment] of wanted) {
       for (const control of controls.get(type) ?? []) {
         const actual = rows.get(control);
-        if (actual === undefined) continue; // place 7 of the checklist reports the absence
+        if (actual === undefined) continue;
         compared.add(control);
         if (actual !== moment) {
           disagreements.push(
@@ -542,8 +536,6 @@ describe("the ADR-31 commit-moment classification (issue #91)", () => {
 
 describe("the derivations", () => {
   it("finds the same component set in the manifest and in the tree", () => {
-    // Deliberately not a restated list of components: a list here would be a ninth place
-    // to register one.
     expect(manifestComponents()).toEqual([...vendoredDirectories()]);
     expect(vendoredDirectories().length).toBeGreaterThan(1);
   });

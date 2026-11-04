@@ -1,7 +1,7 @@
 /**
- * At-least-once: the row lock is held across the POST (`SKIP LOCKED`), so a crash rolls back
- * to redeliverable and `eventId` plus `contentHash` are the idempotency keys. Only ids and
- * counts are logged (SEC-8). The URL re-check cannot close DNS rebinding (docs/webhooks.md).
+ * At-least-once: the row lock is held across the POST (`SKIP LOCKED`), so a crash rolls back to
+ * redeliverable and `eventId` plus `contentHash` are the idempotency keys. Only ids and counts are logged.
+ * The URL re-check cannot close DNS rebinding (docs/webhooks.md).
  */
 
 import { type FormId, parseFormId } from "@roonga/qcms-core";
@@ -37,9 +37,9 @@ export type FetchLike = (
 ) => Promise<{ status: number; text(): Promise<string> }>;
 
 /**
- * Masked at the point of writing, so the HMAC is absent from the database entirely and
- * no later reader can leak it by forgetting to redact (SEC-6, SEC-13). The header name
- * is kept: an operator debugging a rejecting consumer needs to see that it was signed.
+ * Masked at the point of writing, so the HMAC is absent from the database entirely and no later reader can
+ * leak it by forgetting to redact. The header name is kept: an operator debugging a rejecting consumer needs
+ * to see that it was signed.
  */
 export const SIGNATURE_MASK = "v1=<masked>";
 

@@ -10,13 +10,6 @@ import {
 } from "./environment.ts";
 import { t } from "./i18n/en.ts";
 
-/**
- * The environment's one resolution and the rule environment-sensitive actions refuse by
- * (local UX list A1, A12). Pure functions, so they are pinned here at their own layer;
- * `lib/server/environment-actions.test.ts` drives every action through the rule, and
- * `lib/server/request-environment.test.ts` shows the API header carrying the resolution.
- */
-
 const SET = ["prod", "test"] as const;
 
 describe("resolveEnvironment", () => {
@@ -41,7 +34,7 @@ describe("resolveEnvironment", () => {
     const resolved = resolveEnvironment("staging", SET);
 
     expect(resolved).toMatchObject({ status: "known", environment: "prod", selection: "staging" });
-    // The header names the resolution, not the stale cookie: the screen and the API agree.
+
     expect(headerEnvironment(resolved)).toBe("prod");
   });
 

@@ -5,11 +5,9 @@ import { waitForHydration } from "./support/hydration.js";
 
 const { repeatFleetSlug, databaseUrl } = readFixtures();
 
-/** The group's own controls, by their compiled labels (the compiler's lexicon). */
 const ADD = "Add Vehicle";
 const removeName = (ordinal: number): string => `Remove Vehicle ${String(ordinal)}`;
 
-/** One instance card, by the ordinal its heading reads. */
 function card(page: import("@playwright/test").Page, ordinal: number) {
   return page.locator("fieldset[data-qcms-instance]").nth(ordinal - 1);
 }
@@ -33,7 +31,6 @@ function answerPosted(page: import("@playwright/test").Page, questionId: string)
   });
 }
 
-/** Type into one instance's plate field and wait for the answer to be recorded. */
 async function fillPlate(
   page: import("@playwright/test").Page,
   ordinal: number,
@@ -45,7 +42,6 @@ async function fillPlate(
   await posted;
 }
 
-/** Press Add or Remove and wait for the roster write the API answers. */
 async function rosterPress(page: import("@playwright/test").Page, name: string): Promise<void> {
   const written = page.waitForResponse(
     (response) =>

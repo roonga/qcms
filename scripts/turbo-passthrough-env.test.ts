@@ -94,7 +94,8 @@ describe("turbo globalPassThroughEnv arrival", () => {
   });
 
   it("keeps the global declaration the only one, so this list is the whole story", () => {
-    // A task-level `passThroughEnv` would carry knobs this test never sees. Nothing
+    // Require global passThroughEnv only; task-level entries would carry variables outside this test's observed
+    // set.
     const config = readFileSync(TURBO_JSON, "utf8");
     expect(config).not.toContain('"passThroughEnv"');
   });

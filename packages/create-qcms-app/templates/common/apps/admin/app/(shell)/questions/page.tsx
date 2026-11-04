@@ -12,38 +12,9 @@ import { readQuestionListFilters } from "@/lib/questions/list-filters";
 import { listQuestions } from "@/lib/server/questions";
 import { requireAdminSession } from "@/lib/server/session";
 
-/**
- * The question library list (task 032; screen contract "list toolbar" + "list `table`").
- *
- * A server component that proxies one call and renders the answer. Every filter is the
- * API's own (`status`, `type`, and `search` which matches the slug or any locale of the
- * label), which is why they live in the URL rather than in component state: a filtered
- * library is a place an author can link to and come back to, and the filtering stays
- * where the data is instead of being re-implemented over a page of rows.
- *
- * The filter controls are `components/questions/questions-list-rail.tsx`, in the `@rail` slot
- * beside this column; this page keeps only the reading of them, through the same
- * `readQuestionListFilters` the slot reads. The filtered-empty panel keeps its own
- * "Clear filters" beside the rail's (contract §3).
- *
- * ## The one column the screen contract asks for that is not here
- *
- * **Updated** is drawn in the screen contract and there is nothing to draw it from: nothing in
- * the schema records when a version was last edited. `question_versions` carries
- * `published_at` and nothing else, and `questions.created_at` is the identity's birthday
- * rather than the latest version's. So the honest options are a `question_versions`
- * schema change (a new column plus a touch-on-write trigger, on the table whose whole
- * point is that published rows are frozen - I1) or a column labelled "Updated" showing a
- * publish date and blank for every draft, which is precisely the row that changes most.
- * Neither is this screen's call to make, so the created date is what is shown, under its
- * own name, and the choice is recorded on issue #218 for the Code Owner.
- *
- * Pagination is absent by the screen contract's own note (`[upstream gap]`): the list route
- * takes no page or cursor parameter, and client-side paging over a full result set would
- * be a worse answer than none at launch scale.
- */
+/* The API exposes no updated timestamp or pagination; show the actual created date rather than inventing
+   either. */
 
-/** The browser-tab title for this route (issue #536). */
 export function generateMetadata(): Metadata {
   return pageMetadata(t("questions.title"));
 }
@@ -69,13 +40,8 @@ export default async function QuestionsPage({
           <h1 className="text-xl font-semibold text-(--color-text)">{t("questions.title")}</h1>
           <p className="text-sm text-(--color-text-muted)">{t("questions.intro")}</p>
         </div>
-        {/* The header's creating action, rendered except in the one state where the
-            empty panel below carries it instead: an unfiltered library with nothing in
-            it. Two controls with the same accessible name on one screen are ambiguous to
-            anyone navigating by name, and `plan/admin-design-contracts.md` §3 asks the
-            empty state to OFFER the creating action rather than to sit beside a copy of
-            it. A filtered-empty library is not that state: the library is not empty, the
-            way out is the clear link, and this link stays. */}
+        {/* Offer creation once: the unfiltered empty panel owns it, while a filtered-empty list keeps the header
+   action. */}
         {!(result.ok && result.data.length === 0 && !isFiltered) && (
           <HeadingMarker control="questions.create">
             <Link href="/questions/new" className="qcms-button-link">
@@ -91,8 +57,6 @@ export default async function QuestionsPage({
         </Alert>
       )}
 
-      {/* §3's panel, in both variants: the filtered one drops the explanatory sentence and
-          offers the clear link, the unfiltered one offers the creating action. */}
       {result.ok &&
         result.data.length === 0 &&
         (isFiltered ? (

@@ -17,7 +17,6 @@ import {
   toggleOption,
 } from "./support/kitchen-sink.js";
 
-/** The session id in the URL the Start button landed on. */
 function sessionIdOf(url: string): string {
   return new URL(url).pathname.split("/")[2] ?? "";
 }

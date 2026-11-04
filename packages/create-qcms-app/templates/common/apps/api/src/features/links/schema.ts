@@ -1,5 +1,5 @@
-// The returned link URL is the one deliberate case of a token in a URL (SEC-8),
-// mitigated by expiry and the `secure_links` row; the token is never persisted.
+// The returned link URL is the one deliberate case of a token in a URL, mitigated by expiry and the
+// `secure_links` row; the token is never persisted.
 
 import { z } from "@hono/zod-openapi";
 

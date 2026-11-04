@@ -42,7 +42,6 @@ function watchForOffOriginRequests(page: Page, origin: string): () => readonly s
   return () => offOrigin;
 }
 
-/** Read one computed property off a locator. */
 function computed(target: Locator, property: string): Promise<string> {
   return target.evaluate(
     (element, name) => getComputedStyle(element).getPropertyValue(name),
@@ -54,7 +53,6 @@ function firstFamily(computedValue: string): string {
   return (computedValue.split(",")[0] ?? "").trim().replace(/^["']|["']$/gu, "");
 }
 
-/** Every `--font-*` token the live page resolved, by name. */
 async function fontTokens(page: Page): Promise<Readonly<Record<string, string>>> {
   return page.evaluate((names) => {
     const style = getComputedStyle(document.documentElement);
@@ -72,12 +70,10 @@ const TOKEN_NAMES = [
   "--font-mono",
 ];
 
-/** Numeric pixel value of a computed property. */
 async function px(target: Locator, property: string): Promise<number> {
   return Number.parseFloat(await computed(target, property));
 }
 
-/** Select a registry entry by swapping the single root font class. */
 async function applyFont(page: Page, key: string, keys: readonly string[]): Promise<void> {
   await page.evaluate(
     ({ next, all }) => {

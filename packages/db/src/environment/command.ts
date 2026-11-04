@@ -110,9 +110,9 @@ export function refuseEnvironmentName(name: string): string | undefined {
 }
 
 /**
- * The SEC-10 guard. Ownership rather than a role name, because a deployment that renamed
- * its roles would pass a name test; `pg_has_role` rather than an equality on the owner
- * oid, so membership in the owning role counts and a superuser passes.
+ * The database-ownership guard. Ownership rather than a role name, because a deployment that renamed its
+ * roles would pass a name test; `pg_has_role` rather than an equality on the owner oid, so membership in the
+ * owning role counts and a superuser passes.
  */
 export async function ownsControlSchema(exec: Executor): Promise<{
   readonly role: string;

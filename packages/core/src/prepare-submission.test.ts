@@ -107,7 +107,7 @@ describe("prepareSubmission - the I9 sweep on the insurance fixture", () => {
     const locked = await lockedOf(
       insurance(),
       answersOf([
-        ["q_accident_count", 20], // reversed input order: output is document order
+        ["q_accident_count", 20],
         ["q_at_fault_accident", true],
       ]),
     );
@@ -143,7 +143,7 @@ describe("prepareSubmission - the I9 sweep on the insurance fixture", () => {
       ["q_at_fault_accident", false],
       ["q_accident_count", 20],
     ]);
-    expect(input.has(asQuestionId("q_accident_count"))).toBe(true); // assertable in input
+    expect(input.has(asQuestionId("q_accident_count"))).toBe(true);
     const locked = await lockedOf(insurance(), input);
     expect(locked.answers.map((entry) => entry.questionId)).toEqual(["q_at_fault_accident"]);
     const withoutOrphan = await lockedOf(insurance(), answersOf([["q_at_fault_accident", false]]));
@@ -155,7 +155,7 @@ describe("prepareSubmission - the I9 sweep on the insurance fixture", () => {
       insurance(),
       answersOf([
         ["q_at_fault_accident", true],
-        ["q_accident_count", -1.5], // violates min 0 AND integer
+        ["q_accident_count", -1.5],
       ]),
     );
     expect(errors).toHaveLength(1);
@@ -205,13 +205,13 @@ describe("prepareSubmission - the I9 sweep on the insurance fixture", () => {
     const alien: FrozenSnapshot = {
       definition: good.definition,
       questions: good.questions,
-      semanticsVersion: 999, // this evaluator does not implement 999
+      semanticsVersion: 999,
       schemaVersion: good.schemaVersion,
     };
     const errors = await errorsOf(alien, answersOf([["q_drifted", 1]]));
     expect(errors.map((error) => error.code)).toEqual([
       "FLOW_EVALUATION_FAILED",
-      "UNKNOWN_QUESTION", // drift defense still reported alongside
+      "UNKNOWN_QUESTION",
     ]);
     const [failure] = errors;
     if (failure?.code !== "FLOW_EVALUATION_FAILED") {
@@ -240,7 +240,7 @@ describe("prepareSubmission - kitchen-sink (all seven types lock canonically)", 
       { questionId: "q_dob", value: "1990-05-04" },
       { questionId: "q_at_fault_accident", value: true },
       { questionId: "q_accident_count", value: 5 },
-      { questionId: "q_preexisting_conditions", value: ["opt_asthma"] }, // deduplicated
+      { questionId: "q_preexisting_conditions", value: ["opt_asthma"] },
       { questionId: "q_medical_history", value: "Asthma since childhood" },
       { questionId: "q_coverage_level", value: "opt_standard" },
     ]);

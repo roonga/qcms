@@ -85,8 +85,6 @@ describe("assertion matching", () => {
 });
 
 describe("lockfile resolution", () => {
-  // The three spellings pnpm writes: unquoted bare, quoted scoped, and a `snapshots:`
-  // key carrying a peer-dependency suffix.
   const lock = [
     "packages:",
     "",
@@ -160,7 +158,6 @@ describe("record exemptions", () => {
   });
 
   it("does not let a file entry exempt a directory of the same name", () => {
-    // This path cannot exist today; the file entry must still never become a directory rule.
     expect(isExempt("docs/RETRO.md/inner.md")).toBe(false);
   });
 
@@ -286,8 +283,6 @@ describe("the file set, driven end to end over a throwaway repository", () => {
   });
 
   it("FAILS on a Dockerfile written in any of the spellings, not only `*.Dockerfile`", () => {
-    // A bare `Dockerfile` is a literal pathspec reaching only the repository root, so
-    // GLOBS lists the nested spelling beside it.
     const root = makeRepo({
       Dockerfile: dockerComment(STALE),
       "apps/api/Dockerfile": dockerComment(STALE),
@@ -321,8 +316,6 @@ describe("the file set, driven end to end over a throwaway repository", () => {
   });
 
   it("does NOT scan a `.sql` migration naming an older version", () => {
-    // Deliberate: a released migration records the release it describes, so forcing its
-    // version forward would make a true sentence false.
     const root = makeRepo({
       "packages/db/migrations/0020_account_drops_issuer.sql": [
         `-- better-auth ${STALE} reverses the account identity change its predecessors required.`,

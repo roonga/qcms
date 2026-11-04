@@ -15,26 +15,11 @@ import { requireAdminSession } from "@/lib/server/session";
 
 import { redeliverAction, redeliverAllAction } from "./actions";
 
-/** The browser-tab title for this route (issue #536). */
 export function generateMetadata(): Metadata {
   return pageMetadata(t("ops.area.webhooks.title"));
 }
 
-/**
- * Webhook operations: the dead-letter queue, and a way into each form's endpoints
- * (task 035; screen contract "dead-letter list").
- *
- * The queue is **not** form-scoped, and that is the API's shape rather than a
- * simplification: `GET /admin/outbox/dead-letters` is global, because a stuck
- * delivery is an operational fact about the deployment and the operator's question is
- * "is anything stuck", not "is anything stuck on this one form". Configuration is
- * per-form and stays on the form, which is where an author works.
- *
- * The rail's form filter narrows the rows rather than the read, because the route is global
- * and takes no form parameter. That is an equality test on a field the row carries, over rows
- * the API already selected and ordered, so it does not decide anything R2 reserves. It is
- * applied inside the ok branch, so a queue that could not be read does not become empty.
- */
+/* The dead-letter endpoint is global and accepts no form filter; the rail narrows returned rows. */
 export default async function WebhooksPage({
   searchParams,
 }: {
@@ -44,8 +29,6 @@ export default async function WebhooksPage({
   const { formId } = readWebhookOpsFilters(await searchParams);
   const [deadLetters, forms, resolved] = await Promise.all([
     listDeadLetters(session),
-    // Memoized per request, so the rail beside this column shares the answer rather than
-    // asking for it again (`lib/server/forms.ts`).
     listAllForms(session),
     resolvedEnvironment(session),
   ]);
@@ -56,8 +39,6 @@ export default async function WebhooksPage({
           ok: true as const,
           data: deadLetters.data.filter((row) => row.formId === formId),
         };
-  // The queue is one environment's, so redelivery carries the environment this render read
-  // it from and is refused once another tab has switched away from it (A1).
   const shown = shownEnvironment(resolved);
 
   return (
@@ -74,12 +55,6 @@ export default async function WebhooksPage({
           {t("ops.deadLetters.loadFailed", { message: deadLetters.message })}
         </Alert>
       )}
-      {/*
-       * `readState`, not `ok ? data : []` (issue 543). The collapsed form told the queue
-       * nothing about the failure, so a read that failed rendered the empty state and the
-       * screen answered "nothing is stuck" underneath the alert saying it could not tell.
-       * The queue decides what a failure looks like; the page only stops lying to it.
-       */}
       <DeadLetters
         deadLetters={readState(shownQueue)}
         redeliver={redeliverAction.bind(null, shown)}
@@ -95,12 +70,6 @@ export default async function WebhooksPage({
             {t("ops.area.responses.formsFailed", { message: forms.message })}
           </Alert>
         )}
-        {/*
-         * Three states, not two (issue #513), exactly as on `/responses`: a failed read
-         * renders nothing here, because the alert directly above already carries the
-         * message and the "no forms exist yet" sentence would claim knowledge the failed
-         * read does not have. The list appears only when there is a list.
-         */}
         {forms.ok &&
           (forms.data.length === 0 ? (
             <p className="text-sm text-(--color-text-muted)">{t("ops.area.webhooks.noForms")}</p>

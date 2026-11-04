@@ -2,8 +2,6 @@ import { within } from "@testing-library/react";
 import axe from "axe-core";
 import { computeAccessibleName } from "dom-accessibility-api";
 
-// Role queries rather than a DOM snapshot, so the conformance snapshot regresses on a
-// lost label, a changed heading level or a missing role, and on nothing else.
 const ROLE_ORDER = [
   "heading",
   "radiogroup",

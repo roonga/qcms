@@ -8,22 +8,6 @@ import type { SecureLink } from "../../lib/forms/types.ts";
 import { t } from "../../lib/i18n/en.ts";
 import { unexpected } from "../../lib/ops/unexpected.ts";
 
-/**
- * What an operator sees when a secure-link action REJECTS (issue #352, handlers 2 and 3
- * of nine, plus the clipboard chain that shares their failure mode).
- *
- * The server action is a prop, so the fake is the prop: everything from the `.then` chain
- * to the markup is the real component. See `form-actions-rejects.test.tsx` for why a
- * `TypeError` is the rejection worth forcing and why "nothing appeared" rather than "the
- * wrong thing appeared" is the regression being guarded.
- *
- * The revoke and mint dialogs both STAY OPEN on a rejection and render the sentence
- * themselves, which is the opposite of the publish dialog's choice and is deliberate in
- * both places: a modal covers the page's alert region, so a failure written only there
- * would leave the operator staring at an unchanged dialog. `within(dialog)` is what
- * asserts that rather than accepting the copy on the page behind it.
- */
-
 const LINKS: readonly SecureLink[] = [
   {
     linkId: "lnk_1",
@@ -37,14 +21,10 @@ const LINKS: readonly SecureLink[] = [
   },
 ];
 
-/** The rejection an unreachable API produces, which is the whole subject here. */
 function transportFailure(): Promise<never> {
   return Promise.reject(new TypeError("fetch failed"));
 }
 
-// react-aria interaction under jsdom is CPU-bound: every simulated key dispatches a full
-// event sequence and re-renders. The budget is per-file rather than per-test, matching
-// `packages/ui/src/date-retraction.test.tsx`, which types into the same segmented control.
 describe("a rejected secure-link action", { timeout: 30_000 }, () => {
   it("says no links were minted, and keeps the mint dialog open to say it", async () => {
     const user = userEvent.setup();
@@ -63,8 +43,6 @@ describe("a rejected secure-link action", { timeout: 30_000 }, () => {
     await user.click(screen.getByRole("button", { name: t("forms.links.mint") }));
     const dialog = await screen.findByRole("dialog");
 
-    // Confirm is disabled until an expiry exists, so the date has to be answered for
-    // real. The en-US segmented DateField exposes each segment as a spinbutton.
     await user.click(within(dialog).getByRole("spinbutton", { name: /month/i }));
     await user.keyboard("01012027");
 
@@ -113,13 +91,7 @@ describe("a refused clipboard write on a minted link", { timeout: 30_000 }, () =
     restoreClipboard = undefined;
   });
 
-  /**
-   * Replace the clipboard with one that refuses.
-   *
-   * AFTER `userEvent.setup()`, never before: user-event installs its own working
-   * clipboard stub on `navigator` during setup, so an override written first is simply
-   * overwritten and the test silently exercises a successful copy.
-   */
+  /* Override clipboard after userEvent.setup, which installs its own successful clipboard stub. */
   function refuseClipboardWrites(): void {
     const previous = Object.getOwnPropertyDescriptor(globalThis.navigator, "clipboard");
     Object.defineProperty(globalThis.navigator, "clipboard", {
@@ -175,8 +147,6 @@ describe("a refused clipboard write on a minted link", { timeout: 30_000 }, () =
     const panel = await screen.findByTestId("qcms-minted-links");
     await user.click(within(panel).getByRole("button", { name: t("forms.links.copy") }));
 
-    // The failing copy is the only outcome the operator can act on: the URL is on screen
-    // exactly once, so a silent refusal leaves them believing they have it.
     expect(await screen.findByText(t("forms.links.copyFailed"))).toBeTruthy();
   });
 });

@@ -1,14 +1,13 @@
 /**
- * Server-only BFF configuration. None of it may reach the client bundle: the internal
- * API base URL and the SEC-4 internal service token are server secrets, and the R2
- * import-surface test enforces that no client component imports this.
+ * Server-only BFF configuration. None of it may reach the client bundle: the internal API base URL and the
+ * internal service token are server secrets, and the R2 import-surface test enforces that no client
+ * component imports this.
  */
 
 import { DEFAULT_LOCALE } from "../i18n/format";
 
 export const SESSION_COOKIE = "qcms_session";
 
-/** The SEC-4 internal-token header the API requires on every call. */
 export const INTERNAL_TOKEN_HEADER = "x-qcms-internal-token";
 
 function required(name: string): string {
@@ -40,7 +39,10 @@ export function internalToken(): string {
   return required("QCMS_INTERNAL_TOKEN");
 }
 
-/** Prefixes that mark a secret as one of the shipped examples rather than real material (SEC-8: a deployment with placeholder secrets must refuse to boot). */
+/**
+ * Prefixes that mark a secret as one of the shipped examples rather than real material (a deployment with
+ * placeholder secrets must refuse to boot).
+ */
 export const PLACEHOLDER_PREFIXES: readonly string[] = [
   "replace-",
   "change-me",

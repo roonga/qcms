@@ -1,23 +1,9 @@
 import { adminBaseUrl } from "./config.ts";
 import { logOriginBeltRefusal } from "./origin-belt-log.ts";
 
-/**
- * Shared plumbing for the admin's auth route handlers (task 031).
- *
- * The auth screens are plain `<form method="post">` posting to these handlers
- * rather than client-side fetches or server actions, and that is a deliberate
- * choice with three payoffs: the whole sign-in / 2FA loop works before (or without)
- * hydration, the credential never passes through client JavaScript, and each step
- * is an ordinary HTTP request a test or a curl can drive. It also keeps R2 honest -
- * a route handler that does sessions and credentials is exactly what a BFF is for.
- */
+/** Plain form POSTs keep credentials out of client JavaScript and make authentication work before hydration. */
 
-/**
- * A form POST's redirect. **303 See Other**, not 302: it tells the browser to
- * follow with GET, so the address bar lands on a real page and a reload does not
- * re-submit the credential. The `Location` is always an app-relative path, never
- * anything derived from the request, so no open redirect is possible.
- */
+/** 303 makes the follow-up a GET so reload cannot resubmit credentials. Location must remain app-relative and independent of request input. */
 export function redirectAfterPost(
   path: `/${string}`,
   setCookies: readonly string[] = [],
@@ -27,109 +13,28 @@ export function redirectAfterPost(
   return new Response(null, { status: 303, headers });
 }
 
-/**
- * Whether a better-auth call refused the request.
- *
- * This exists because of a trap that cost a debugging cycle: `asResponse: true` changes
- * better-auth's **error channel**, not just its return shape. Without it a rejected call
- * throws an `APIError`; with it, the same rejection comes back as an ordinary `Response`
- * carrying a 4xx status, and nothing throws. A handler that only caught `APIError`
- * therefore treated "wrong TOTP code" as success and fell through to its
- * cookie-inspection branch, which redirected to "your session expired" - a wrong message
- * for a wrong code, arrived at via three redirects.
- *
- * So every call site checks the status explicitly. The `catch (APIError)` blocks stay as
- * well, because the calls made *without* `asResponse` (`enableTwoFactor`) still throw.
- */
+/** better-auth asResponse changes failures into 4xx Responses; checking only thrown APIError would treat refusals as success. */
 export function authRefused(response: Response): boolean {
   return !response.ok;
 }
 
-/** True when the refusal was rate limiting, the one failure worth its own message. */
 export function authThrottled(response: Response): boolean {
   return response.status === 429;
 }
 
-/**
- * Carry better-auth's `Set-Cookie` headers onto our own response.
- *
- * The library's `auth.api.*` calls are asked for `asResponse: true` so that they
- * emit real cookie headers (session issued, two-factor challenge opened, session
- * cleared). Those responses are not what we send to the browser - we send a
- * redirect - so the cookies have to be moved across. `getSetCookie()` is the only
- * correct reader here: `Headers.get("set-cookie")` folds multiple cookies into one
- * comma-joined string that no browser parses back into separate cookies, and
- * sign-out emits three at once.
- */
+/** Use getSetCookie: get("set-cookie") comma-folds independent cookies and breaks multi-cookie auth redirects. */
 export function cookiesFrom(response: Response): string[] {
   return response.headers.getSetCookie();
 }
 
-/**
- * Reject a cross-site state-changing request (SEC-9's CSRF belt).
- *
- * `SameSite=Lax` on the session cookie is the primary control and it already
- * blocks a cross-site POST from carrying the cookie. This is the second layer for
- * clients that do not enforce it: a state-changing request must either declare a
- * same-origin `Sec-Fetch-Site` or carry an `Origin` matching this app's own base
- * URL. A request with neither header is refused rather than assumed friendly.
- *
- * Returns `true` when the request may proceed.
- *
- * ## Refusing writes exactly one log line
- *
- * A refusal returns before the handler calls anything, so for a long time it produced
- * no `auth.api.call` line and no error line either: the only server-side evidence was
- * the *absence* of a line, which cannot be counted (issue #620). `logOriginBeltRefusal`
- * closes that. The call is here rather than at the eight route handlers on purpose -
- * this function is the single choke point every state-changing handler must pass
- * through (`scripts/check-origin-guards.test.ts` derives them from disk and fails if
- * one does not), so one line per refusal, and no line on an admitted request, are
- * properties of this seam rather than of whoever edits a route next. It costs the
- * function its purity, which is the trade this docblock is making explicit. It records
- * classifications only, never a header value: see `./origin-belt-log.ts` for why every
- * field it emits is a constant, which matters here because these are the routes that
- * carry credentials.
- *
- * **The header order is not a preference, and the `Origin` branch is not merely a
- * fallback for old clients.** `proxy.ts` sets `Referrer-Policy: no-referrer`, and per
- * Fetch a navigation POST (which is what every auth screen's `<form method="post">`
- * is) serializes its `Origin` as the literal string `null` under that policy. So on
- * this app's own form path a current browser sends `Origin: null` and the comparison
- * below can never match: `Sec-Fetch-Site` is the header actually doing the work.
- * Reading them the other way round answers 403 to 100% of legitimate sign-ins, which
- * is what happened in 031 (`docs/RETRO.md`) and cost a browser run plus a debug run
- * to diagnose, because this comment did not say so. The `Origin` branch stays live
- * for `fetch()` calls, which are mode `cors` and so keep their real origin.
- *
- * ## Twin
- *
- * `apps/portal/lib/server/route-helpers.ts` carries the same function over
- * `portalBaseUrl()` (issue #487). It is a copy for the reason `config.ts` gives:
- * there is no shared package for a Next BFF's server code. What keeps the two from
- * drifting is `scripts/check-origin-guards.test.ts`, which derives both apps'
- * state-changing route handlers from disk and asserts each one calls this function
- * by name.
- *
- * Both sides now log their refusals, and the two log modules are twins in shape rather
- * than in purpose: the portal's counts an accepted lockout rate among respondents,
- * this one is the only trace a probe against the auth routes leaves. `BeltOutcome` is
- * the field where that shows - the portal has three outcomes because a respondent can
- * meet a 403, and this app has two because every refusal here is a 303 to a screen.
- */
+/** Require same-origin Fetch Metadata or matching Origin; missing evidence fails closed. Check metadata first because no-referrer navigation POSTs can carry Origin: null. Log only refusal classifications, never header values. */
 export function isSameOriginPost(request: Request): boolean {
   const allowed = admitsAsSameOrigin(request);
   if (!allowed) logOriginBeltRefusal(request);
   return allowed;
 }
 
-/**
- * The belt's decision, unchanged and still pure.
- *
- * Split out so {@link isSameOriginPost} can log a refusal exactly once without the
- * decision itself growing a side effect: every `return false` in here is one refusal,
- * whichever branch reached it.
- */
+/** Keep the decision pure so the wrapper emits exactly one refusal log regardless of branch. */
 function admitsAsSameOrigin(request: Request): boolean {
   const fetchSite = request.headers.get("sec-fetch-site");
   if (fetchSite !== null) return fetchSite === "same-origin" || fetchSite === "none";
@@ -138,7 +43,6 @@ function admitsAsSameOrigin(request: Request): boolean {
   return origin === adminBaseUrl();
 }
 
-/** A single trimmed form field, or `undefined` when absent or blank. */
 export function formField(form: FormData, name: string): string | undefined {
   const raw = form.get(name);
   if (typeof raw !== "string") return undefined;
@@ -146,35 +50,10 @@ export function formField(form: FormData, name: string): string | undefined {
   return trimmed === "" ? undefined : trimmed;
 }
 
-/**
- * The names a refusal may travel under: two states, and one pair of names per screen
- * that has to tell two of its own forms apart.
- *
- * `error` and `throttled` are the auth screens' pair, and they are the default because
- * those screens carry one form each. The `codes*` pair belongs to Settings (issue #845):
- * both of that screen's forms land their reader back on `/settings`, so a single pair
- * would print the recovery-codes refusal under the password form, and the marker also
- * decides which panel opens (`lib/settings-sections.ts`).
- *
- * Four names, still two states and still two sentences: `lib/auth-failure-message.ts`
- * maps both pairs onto the same two strings, so this union is a second address rather
- * than a second vocabulary. A name added here that renders new copy would be the fourth
- * distinguishable message SEC-1 does not allow.
- */
+/** Settings needs separate markers for its two forms, but every pair maps to the same opaque failure vocabulary. */
 export type FailureMarker = "error" | "throttled" | "codesError" | "codesThrottled";
 
-/**
- * The generic failure redirect. Auth failures are reported by an opaque marker in
- * the query string (`?error=1`), never by a message from the library: SEC-1
- * requires the same response for an unknown email and a wrong password, and an
- * error string travelling through a URL is exactly how a distinguishable message
- * leaks. The page turns the marker into one fixed sentence.
- *
- * `throttled` (and its `codesThrottled` twin) is the one refusal that gets a different
- * sentence, and it is not a relaxation of that rule: a `429` is the API declining to
- * judge the credential at all, so the sentence says nothing about the account. See
- * {@link authThrottled} and `lib/auth-failure-message.ts`.
- */
+/** Use opaque markers, never library messages: unknown email and wrong password must remain indistinguishable. A throttle says the credential was not judged. */
 export function redirectWithGenericFailure(
   path: `/${string}`,
   marker: FailureMarker = "error",
@@ -182,35 +61,12 @@ export function redirectWithGenericFailure(
   return redirectAfterPost(`${path}?${marker}=1`);
 }
 
-/**
- * The first of two refusals that are allowed to be specific: the new password is in
- * the public breach corpus (issue #437, Code Owner ruling 2026-09-03).
- *
- * Its own function rather than a third member of {@link redirectWithGenericFailure}'s
- * marker union, because it is the opposite kind of thing. Those markers are opaque on
- * purpose - the docblock above is the argument for why - and folding a deliberately
- * informative one in beside them would make that docblock false for one of its own
- * values. `lib/server/password-refusal.ts` decides when this applies and records what
- * the ruling accepted; this only carries the decision to the screen.
- */
+/** Breach-corpus feedback is deliberately specific and stays outside the generic authentication marker vocabulary. */
 export function redirectWithCompromisedPassword(path: `/${string}`): Response {
   return redirectAfterPost(`${path}?compromised=1`);
 }
 
-/**
- * The second: the two new-password fields on the forced change screen did not match
- * (task 061).
- *
- * Beside {@link redirectWithCompromisedPassword} rather than inside
- * {@link redirectWithGenericFailure}'s marker union, on that function's own argument
- * and for the same reason. Those markers are opaque because SEC-1 requires a wrong
- * current password to be indistinguishable from a rejected new one; this is a
- * statement about two values the submitter typed into one form seconds ago and holds
- * both of, so it discloses nothing about the account. Reporting it generically would
- * send someone back to re-examine a temporary password that was perfectly correct.
- *
- * Only the forced screen has a confirmation field, so this has exactly one call site.
- */
+/** A mismatch discloses only the two submitted new-password values, never account state; keep it outside opaque authentication failures. */
 export function redirectWithPasswordMismatch(path: `/${string}`): Response {
   return redirectAfterPost(`${path}?mismatch=1`);
 }

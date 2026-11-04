@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# devcontainer.sh - drive the qcms dev container without VS Code (task 046,
-# ADR-29). The container is the canonical dev environment; this is the CLI seat.
+# Drive the canonical dev container without VS Code.
+#
 #
 # Usage:  bash scripts/devcontainer.sh <command>
 #   up        build/start the container (reuses a running one)
@@ -31,8 +31,6 @@ devcontainer_cli() {
   fi
 }
 
-# On the supported Windows path a missing CLI is nearly always Docker Desktop's WSL
-# integration being off for this distro, so the message says that.
 require_docker() {
   command -v docker >/dev/null 2>&1 || die "the docker CLI was not found on PATH.
                  On WSL2 this usually means Docker Desktop is not running, or its
@@ -40,9 +38,7 @@ require_docker() {
                  WSL integration). Elsewhere, install Docker or start the daemon."
 }
 
-# The exit status must be tested as well as the output: WSL's command_not_found handler
-# writes to STDOUT, so `2>/dev/null` does not suppress it and output alone reads as a
-# result. These have to tell no output from output that happens to be an error.
+# WSL command-not-found messages go to stdout; check status as well as output.
 is_running() {
   local out
   out="$(docker ps -q --filter "name=^${CONTAINER}$" 2>/dev/null)" || return 1
@@ -54,13 +50,8 @@ exists() {
   [ -n "$out" ]
 }
 
-# The mounted host Docker socket (ADR-29) lets anything inside the container stop that
-# same container, killing every session in it with nothing left able to report why, and
-# the 137 the killed processes report reads like an out-of-memory kill. So the
-# destructive verbs refuse from inside, at this one chokepoint.
-#
-# Detection is two-sided because the marker is authoritative but `containerEnv` only
-# reaches a container on its next rebuild, so the hostname match covers older ones.
+# The host socket lets a container destroy itself; refuse destructive verbs from inside it.
+# Check hostname as well as the marker because containerEnv changes need a rebuild.
 MARKER_ENV="QCMS_DEVCONTAINER"
 
 inside_target_container() {
@@ -75,8 +66,7 @@ inside_target_container() {
   id="$(docker inspect -f '{{.Id}}' "$CONTAINER" 2>/dev/null)" || return 1
   [ -n "$id" ] || return 1
 
-  # Docker sets the hostname to the container's short id unless the config overrides
-  # it, which this config does not.
+  # Docker defaults the hostname to the short container id; this config does not override it.
   [ "${id#"$host"}" != "$id" ]
 }
 
@@ -89,18 +79,14 @@ refuse_from_inside() {
                  matching this hostname against the container id when that is not set."
 }
 
-# Asked of the container, because deriving it from the local directory name is wrong
-# the moment the two differ (a worktree, a second clone). The sibling mount this config
-# also creates under /workspaces is skipped.
+# Read the workspace mount from the container; checkout directory names can differ.
 workspace_dir() {
-  # grep rather than a `hasPrefix` template: that function is missing from some Docker
-  # template engines and fails by returning nothing, which reads as "no workspace mount".
+  # Some Docker template engines lack hasPrefix and silently report no workspace mount.
   docker inspect -f '{{range .Mounts}}{{println .Destination}}{{end}}' "$CONTAINER" 2>/dev/null |
     grep '^/workspaces/' | grep -v '^/workspaces/a2-react-aria$' | head -n 1
 }
 
-# `devcontainer up` silently reuses a running container and ignores changed
-# runArgs/appPort/containerEnv, so an edited config appears to apply and does not.
+# A running container is reused without applying changed run arguments, ports or environment.
 config_is_newer() {
   is_running || return 1
   local created config_mtime
@@ -127,10 +113,7 @@ cmd_rebuild() {
   # Refuse first, so it never depends on Docker answering.
   inside_target_container && refuse_from_inside rebuild
   require_docker
-  # By name, not `--remove-existing-container`: that flag matches on a
-  # `devcontainer.local_folder` label, and the editor records a UNC path
-  # (\\wsl.localhost\...) where the CLI under WSL2 records a POSIX one, so neither
-  # sees the other's container.
+  # Match by name: editor UNC labels and WSL POSIX labels do not identify each other's containers.
   if exists; then
     docker rm -f "$CONTAINER" >/dev/null 2>&1 && echo "removed existing $CONTAINER"
   fi
@@ -141,13 +124,10 @@ cmd_shell() {
   require_docker
   is_running || die "$CONTAINER is not running. Start it with: $0 up"
   warn_if_stale
-  # -u vscode is required: exec defaults to root, which writes root-owned files into
-  # the bind mount and breaks the next run.
+  # Exec as vscode so bind-mounted files do not become root-owned.
   local ws
   ws="$(workspace_dir)"
   [ -n "$ws" ] || die "could not determine the workspace path inside $CONTAINER"
-  # The gh config is bind-mounted from the host, so an unauthenticated container almost
-  # always means the host is not logged in.
   if ! docker exec -u vscode "$CONTAINER" sh -c 'command -v gh' >/dev/null 2>&1; then
     echo "WARNING: gh is not installed in $CONTAINER - the loops need it. Rebuild the container (the github-cli Feature provides it)." >&2
   elif ! docker exec -u vscode "$CONTAINER" gh auth status >/dev/null 2>&1; then

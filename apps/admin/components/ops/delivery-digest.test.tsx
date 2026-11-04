@@ -4,45 +4,9 @@ import { describe, expect, it } from "vitest";
 import type { DeliveryItem } from "../../lib/ops/types.ts";
 import { stripTags } from "../test-support/markup.ts";
 
-/**
- * Issue 519: the delivery dashboard's row trigger states what is behind it.
- *
- * `plan/admin-ux-audit.md` §3.8 approves the digest here because the disclosure mechanism
- * was already right; what it lacked was a statement of the record. §3.7 then binds the
- * digest: a fact stated on the trigger must also exist inside the panel, because a
- * disclosure that is shut has removed its content from the accessibility tree.
- *
- * ## Why this layer, and why `DeliveryRows` is exported for it
- *
- * The property is a relationship between the two halves of one disclosure, and the open
- * half is client state, so a static render of the dashboard can only ever produce the
- * closed one. `DeliveryRows` already takes `isOpen` as a prop, so rendering it at both
- * values is the whole comparison - no jsdom, no browser, and no reliance on a fixture
- * that has to be driven to a particular status first.
- *
- * The browser half of the coverage is in `a11y-axe.pw.ts`, which opens a real row and
- * runs `heading-order` over it with no register entry to excuse the panel.
- *
- * ## The latency clause is the one that made the panel list necessary
- *
- * Status and attempts are also in row cells that are always present. Latency's cell
- * carries `qcms-cell--drop`, which is `display: none` below 40rem, so below that width the
- * trigger would have been the only surviving copy - a §3.7 breach that only exists at one
- * viewport and that nothing on a desktop run would have shown. The `This delivery` list
- * inside the panel is what closes it, and the last test here is what keeps it closed.
- *
- * ## Red-first
- *
- * Against the pre-change component (`red-vitest.log`): `DeliveryRows` is not exported at
- * all, so the file fails to import; with the export alone added, every digest and
- * `qcms-delivery-facts` assertion fails on a missing element, and the heading test finds
- * `<h4>` where it expects `<h3>` (that `<h4>`-under-`<h2>` skip is issue #541).
- */
-
 const { t, tPlural } = await import("../../lib/i18n/en.ts");
 const { DeliveryRows } = await import("./delivery-dashboard.tsx");
 
-/** A dead-lettered delivery: the row an operator actually opens, with all three facts real. */
 const FAILED: DeliveryItem = {
   deliveryId: "dlv_one",
   eventId: "evt_one",
@@ -66,7 +30,6 @@ const FAILED: DeliveryItem = {
   responseSnippetRedactedAt: null,
 };
 
-/** A delivery nothing has been tried on yet: no response, no latency to report. */
 const UNATTEMPTED: DeliveryItem = {
   ...FAILED,
   deliveryId: "dlv_two",
@@ -96,14 +59,12 @@ function render(row: DeliveryItem, isOpen: boolean): string {
   );
 }
 
-/** The text of one marked element, with tags inside it stripped. */
 function textOfTestId(html: string, testId: string): string {
   const match = new RegExp(`data-testid="${testId}"[^>]*>(.*?)</`, "s").exec(html);
   expect(match, `the render carries a ${testId} element`).not.toBeNull();
   return stripTags(match?.[1] ?? "");
 }
 
-/** Just the disclosure panel: everything from the second `<tr>` onwards. */
 function panelOf(html: string): string {
   const at = html.indexOf('data-testid="qcms-delivery-detail"');
   expect(at, "the open render carries the disclosure panel").toBeGreaterThan(-1);
@@ -128,7 +89,6 @@ describe("the delivery row trigger's digest (issue 519)", () => {
     expect(digest).toContain(
       tPlural("ops.deliveries.digest.attemptOne", "ops.deliveries.digest.attemptOther", 0),
     );
-    // "none" here would read as a measurement rather than as the absence of one.
     expect(digest).not.toContain(t("ops.common.none"));
   });
 
@@ -145,7 +105,6 @@ describe("the delivery row trigger's digest (issue 519)", () => {
     const panel = panelOf(render(FAILED, true));
     const facts = textOfTestId(panel, "qcms-delivery-facts");
 
-    // Each of the three, read back out of the panel's own list rather than argued for.
     expect(textOfTestId(panel, "qcms-delivery-fact-status")).toBe(
       t("ops.deliveries.status.deadLettered"),
     );
@@ -153,7 +112,6 @@ describe("the delivery row trigger's digest (issue 519)", () => {
     expect(textOfTestId(panel, "qcms-delivery-fact-latency")).toBe(
       t("ops.deliveries.latency", { ms: 1240 }),
     );
-    // And the digest states nothing the panel does not: 1240 and 4 both survive opening it.
     expect(digest).toContain("1240");
     expect(digest).toContain("4");
     expect(facts + panel).toContain("1240");
@@ -164,9 +122,7 @@ describe("the delivery row trigger's digest (issue 519)", () => {
     const panel = panelOf(html);
     const summaryRow = html.slice(0, html.indexOf('data-testid="qcms-delivery-detail"'));
 
-    // The row cell is the one that goes: `qcms-cell--drop` is `display: none` below 40rem.
     expect(summaryRow).toContain("qcms-cell--drop");
-    // The panel's copy carries no drop class, so it is the copy that holds at 390px.
     expect(panel).not.toContain("qcms-cell--drop");
     expect(textOfTestId(panel, "qcms-delivery-fact-latency")).toContain("1240");
   });
@@ -174,9 +130,6 @@ describe("the delivery row trigger's digest (issue 519)", () => {
   it("heads the panel at h3, so the request headers below stop skipping a level (issue 541)", () => {
     const panel = panelOf(render(FAILED, true));
 
-    // The dashboard's own heading is an `h2`. Before this change the panel's first heading
-    // was the `<h4>` request-headers one, which is the gap that was registered in
-    // `KNOWN_HEADING_ORDER_GAPS` and is deleted by this change.
     expect(panel).toMatch(/<h3[^>]*>/);
     expect(panel.indexOf("<h3")).toBeLessThan(panel.indexOf("<h4"));
     expect(panel).toContain(t("ops.deliveries.attemptSummary"));

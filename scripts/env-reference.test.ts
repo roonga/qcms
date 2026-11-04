@@ -62,8 +62,6 @@ describe("env reference matches the code that reads the variables", () => {
         entry.requirement,
       ]),
     );
-    // Without this floor, a helper regex that stops matching makes every check below
-    // vacuously pass and the gate silently stops working.
     expect(fromParsers.size).toBeGreaterThan(10);
     for (const [name, requirement] of fromParsers) {
       expect(fromTable.get(name), `${name} requirement`).toBe(requirement);
@@ -71,8 +69,6 @@ describe("env reference matches the code that reads the variables", () => {
   });
 
   it("keeps a rate-class prefix's two real variables in the table", () => {
-    // `parseRateClass(env, "PREFIX", ...)` reads `PREFIX_WINDOW_MS` and `PREFIX_MAX`;
-    // the prefix itself is not a variable an operator can set.
     const suffixes = rateClassSuffixes();
     expect(suffixes).toEqual(["_WINDOW_MS", "_MAX"]);
     const names = new Set(ENV_REFERENCE.map((entry) => entry.name));
@@ -118,7 +114,6 @@ describe("the generated block in the operations guide", () => {
   });
 
   it("renders a secret's name without ever rendering a value", () => {
-    // SEC-8: secrets are named, never echoed.
     const block = currentBlock();
     for (const entry of ENV_REFERENCE) {
       if (entry.secret !== true) continue;
@@ -148,8 +143,8 @@ describe("the comment stripper reads its own input correctly (issue #773)", () =
   ].join("\n");
 
   it("keeps the reads that follow a URL glob written in a line comment", () => {
-    // The distance between the glob and the JSDoc terminator is the defect: a fixture
-    // whose comment sits immediately before the JSDoc proves nothing.
+    // Keep the glob and following JSDoc far apart so the fixture exercises accidental cross-comment
+    // consumption.
     expect([...scanSourceText(URL_GLOB_IN_LINE_COMMENT).names].sort()).toEqual([
       "QCMS_AFTER_THE_JSDOC",
       "QCMS_GLOB_FOUR",

@@ -115,8 +115,6 @@ describe("deciding whether a key is referenced", () => {
   });
 
   it("does not let a longer literal stand in for a shorter key", () => {
-    // A prefix must be shorter than the key: `a.one.deep` is a different key, not a
-    // reference to `a.one`.
     expect(isReferenced("a.one", new Set(["a.one.deep"]))).toBe(false);
   });
 });

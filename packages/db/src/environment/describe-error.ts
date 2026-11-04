@@ -1,6 +1,6 @@
 /**
  * Nothing in this package may attach drizzle's `DrizzleQueryError` as a `cause`: its message carries the
- * failed statement, which would reach an operator's terminal (SEC-8); see `refuseWithoutStatement` in `./role.ts`.
+ * failed statement, which would reach an operator's terminal; see `refuseWithoutStatement` in `./role.ts`.
  */
 
 function collapse(text: string): string {

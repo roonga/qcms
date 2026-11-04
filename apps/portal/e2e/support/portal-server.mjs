@@ -31,15 +31,12 @@ const defaultCommand = production
 const devCommand = process.env.QCMS_PORTAL_SERVER_COMMAND ?? defaultCommand;
 const logPath = process.env.QCMS_PORTAL_SERVER_LOG ?? defaultLogPath;
 
-/** How many lines of the captured log to surface when startup fails. */
 const LOG_TAIL_LINES = 30;
 
-/** How often to probe the dev server's URL while waiting for it to come up. */
 const READINESS_POLL_MS = 250;
 
 const FLUSH_GRACE_MS = 300;
 
-/** Cap on the retained startup output that `FATAL_STARTUP` is matched against. */
 const STARTUP_SCAN_WINDOW = 64 * 1024;
 
 const FATAL_STARTUP = /^(?:Unhandled Rejection|Uncaught Exception):/m;
@@ -60,7 +57,6 @@ let finished = false;
 /** Pre-readiness output, retained only so a marker split across chunks matches. */
 let startupOutput = "";
 
-/** The last `LOG_TAIL_LINES` non-blank lines of the captured server log. */
 function logTail() {
   let text;
   try {
@@ -85,7 +81,7 @@ function descendantsOf(rootPid) {
   if (PS_BINARY === undefined) return [];
   const listed = spawnSync(PS_BINARY, ["-e", "-o", "pid=,ppid="], { encoding: "utf8" });
   if (listed.status !== 0 || typeof listed.stdout !== "string") return [];
-  /** parent pid -> its immediate children. */
+
   const childrenOf = new Map();
   for (const line of listed.stdout.split("\n")) {
     const [pid, parentPid] = line.trim().split(/\s+/).map(Number);

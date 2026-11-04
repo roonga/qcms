@@ -38,7 +38,6 @@ const PUBLISHED_PACKAGES = [
   "@roonga/qcms-csv",
 ];
 
-/** Declared by hand and proven by `assertImports`; `apps/portal` and `apps/admin` under-declare here. */
 const APP_QCMS_DEPENDENCIES = {
   api: [
     "@roonga/qcms-a2ui-compiler",
@@ -48,14 +47,7 @@ const APP_QCMS_DEPENDENCIES = {
     "@roonga/qcms-observability",
   ],
   portal: ["@roonga/qcms-core", "@roonga/qcms-observability", "@roonga/qcms-ui"],
-  admin: [
-    "@roonga/qcms-a2ui-compiler",
-    "@roonga/qcms-core",
-    "@roonga/qcms-csv",
-    "@roonga/qcms-db",
-    "@roonga/qcms-observability",
-    "@roonga/qcms-ui",
-  ],
+  admin: ["@roonga/qcms-core", "@roonga/qcms-csv", "@roonga/qcms-observability", "@roonga/qcms-ui"],
 };
 
 /** Scripts an app keeps in the scaffold; everything else is this repository's. */
@@ -112,7 +104,6 @@ function assertAppScriptFragmentsApplied() {
 /** The workspace root provides these here; an app that ships `typecheck` must ship its compiler. */
 const ROOT_PROVIDED_DEV_DEPENDENCIES = ["typescript"];
 
-/** devDependencies that exist only for this repository's test harness. */
 const HARNESS_DEV_DEPENDENCIES = new Set([
   "@testcontainers/postgresql",
   "@seriousme/openapi-schema-validator",
@@ -121,7 +112,6 @@ const HARNESS_DEV_DEPENDENCIES = new Set([
   "@roonga/qcms-e2e-support",
 ]);
 
-/** App-relative paths dropped wholesale: repository tooling, not shell source. */
 const APP_EXCLUDED_PATHS = new Set([
   "README.md",
   "CONTRIBUTING.md",
@@ -131,7 +121,6 @@ const APP_EXCLUDED_PATHS = new Set([
   "scripts/seed-fixtures.ts",
 ]);
 
-/** Directory names that are this repository's harness wherever they appear in an app. */
 const EXCLUDED_APP_DIRECTORIES = new Set(["e2e", "__snapshots__"]);
 
 /** Dropped wholesale: the fixtures feed `scripts/seed-fixtures.ts`, which is itself dropped. */
@@ -159,8 +148,6 @@ export function isExcludedAppPath(path) {
   if (EXCLUDED_APP_PREFIXES.some((prefix) => path.startsWith(prefix))) return true;
   return path.endsWith("/README.md");
 }
-
-// --- the source file list ---------------------------------------------------
 
 /** Probed rather than resolved through `PATH` (`sonarjs/no-os-command-from-path`). */
 const GIT_CANDIDATES = ["/usr/bin/git", "/bin/git", "/usr/local/bin/git", "/opt/homebrew/bin/git"];
@@ -239,8 +226,6 @@ export function repositoryFiles(prefix) {
   return paths.filter((path) => existsSync(join(REPOSITORY_ROOT, path))).sort();
 }
 
-// --- filesystem -------------------------------------------------------------
-
 /**
  * Every file under `root`, sorted and unfiltered: a skip list would hide files the CLI's stamping walk ships.
  *
@@ -259,7 +244,6 @@ export function walk(root, base = REPOSITORY_ROOT) {
   return found.sort();
 }
 
-/** Read a repo-relative file as UTF-8. */
 function read(path) {
   return readFileSync(join(REPOSITORY_ROOT, path), "utf8");
 }
@@ -359,12 +343,9 @@ function assertAdopterTextApplied() {
   }
 }
 
-/** Read and parse a repo-relative JSON file. */
 function readJson(path) {
   return JSON.parse(read(path));
 }
-
-// --- package.json transforms ------------------------------------------------
 
 /** The version range the scaffold pins each published package at. */
 export function publishedVersions() {
@@ -414,7 +395,6 @@ export function rewriteDependencies(block, versions, dropHarness) {
   return rewritten;
 }
 
-/** Sort an object's keys, the way a package manager writes a manifest. */
 function sortKeys(record) {
   return Object.fromEntries(Object.entries(record).sort(([a], [b]) => (a < b ? -1 : 1)));
 }
@@ -462,8 +442,6 @@ export function appManifest(app, versions) {
   };
 }
 
-// --- monorepo-relative asset paths ------------------------------------------
-
 /** Reaches `packages/ui/src` from `@import`, Tailwind `@source` and a font `url()`, which the dependency scan never sees. */
 const UI_SOURCE_REFERENCE = /(?:\.\.\/)+packages\/ui\/src/g;
 
@@ -480,7 +458,6 @@ export function rewriteUiAssetPaths(text, appRelative) {
   return text.replaceAll(UI_SOURCE_REFERENCE, `${prefix}node_modules/@roonga/qcms-ui/src`);
 }
 
-/** A relative reference that climbs out of its own directory, up to a path-ending character. */
 const CLIMBING_REFERENCE = /(?:\.\.\/)+[^\s"'`)\],;:]*/g;
 
 /**
@@ -543,8 +520,6 @@ function scaffoldRootEntries(tree) {
   return roots;
 }
 
-// --- import surface ---------------------------------------------------------
-
 /** `@roonga/qcms-<name>` specifiers, from imports and from CSS `@source`/`url()` references. */
 const QCMS_SPECIFIER = /@roonga\/qcms-(core|a2ui-compiler|csv|db|observability|ui)\b/g;
 
@@ -566,7 +541,6 @@ export function assertImports(tree) {
   }
 }
 
-/** This file, repo-relative, for the error message above. */
 const GENERATOR_PATH = "packages/create-qcms-app/scripts/sync-templates.mjs";
 
 /**
@@ -616,15 +590,12 @@ function compareImports(app, declared, used) {
   return problems;
 }
 
-// --- docker -----------------------------------------------------------------
-
 /** Each must be present in every Dockerfile, so a reworded `COPY` fails the generator instead of no-opping. */
 const MONOREPO_ONLY_COPY_DIRECTORIES = ["packages", "scripts", "tooling"];
 
 /** Root directories a scaffolded project HAS, so a `COPY` of one is legitimate. */
 const SCAFFOLD_COPY_DIRECTORIES = new Set(["apps"]);
 
-/** `COPY <dir> ./<dir>` and nothing else: the whole-directory form. */
 const DIRECTORY_COPY = /^COPY (\S+) \.\/(\S+)$/;
 
 /** The provenance label a scaffolded image must not inherit: it would point at a repository without the code. */
@@ -712,10 +683,9 @@ function stampImageIdentity(text, role) {
     );
 }
 
-/** The two services that read the admin 2FA policy (SEC-1, ADR-24's flag registry). */
+/** The two services that read the admin 2FA policy (ADR-24's flag registry). */
 const TWO_FACTOR_SERVICES = ["api", "admin"];
 
-/** The passthrough line those two services must carry. */
 const TWO_FACTOR_PASSTHROUGH = "QCMS_ADMIN_2FA: ${QCMS_ADMIN_2FA:-required}";
 
 /**
@@ -778,9 +748,6 @@ export function serviceBlocks(text) {
   return blocks;
 }
 
-// --- .env.example -----------------------------------------------------------
-
-/** `${NAME}`, `${NAME:-default}`, `${NAME:?message}` in a Compose file. */
 const COMPOSE_INTERPOLATION = /\$\{([A-Z][A-Z0-9_]*)(:[-?])?/g;
 
 /**
@@ -791,7 +758,6 @@ const COMPOSE_INTERPOLATION = /\$\{([A-Z][A-Z0-9_]*)(:[-?])?/g;
  */
 const COMMENT_LINE = /^[ \t]*#[^\n]*$/gm;
 
-/** Values Compose supplies itself, so an operator never sets them in `.env`. */
 const COMPOSE_INTERNAL = new Set(["POSTGRES_USER", "POSTGRES_DB"]);
 
 /**
@@ -835,21 +801,8 @@ export function renderEnvExample(composeFiles) {
   return renderEnvLines(names, documented);
 }
 
-const ENV_HEADER = `# Environment for the QCMS stack, generated from the API configuration schema.
-#
-# Every variable below is read by the Compose stack in this project. The prose,
-# the requirement and the default all come from the schema, so this file cannot
-# drift from what the services actually parse.
-#
-# create-qcms-app wrote a sibling \`.env\` with freshly generated random secrets and
-# the answers you gave it. This file is the committed reference; \`.env\` is the one
-# the stack reads, and it is git-ignored. Never commit a filled-in copy.
-#
-# Requirement legend:
-#   required     the stack refuses to start without it
-#   conditional  required once the feature that reads it is switched on
-#   optional     safe to leave unset; the documented default applies
-`;
+const ENV_HEADER =
+  "# QCMS stack environment reference, generated from parsed configuration and operator metadata.\n# create-qcms-app wrote sibling `.env` with your answers and fresh random secrets.\n# Edit `.env` for runtime configuration; keep it git-ignored and never commit secrets.\n#\n# Requirement legend:\n#   required     the stack refuses to start without it\n#   conditional  required when its feature is enabled\n#   optional     safe to leave unset; the documented default applies\n";
 
 /**
  * One block per variable, uncommented only when the stack refuses to start without it.
@@ -873,12 +826,10 @@ function renderEnvLines(names, documented) {
   return `${lines.join("\n").trimEnd()}\n`;
 }
 
-/** Markdown emphasis and code spans, removed: this is a shell file, not a document. */
 function plainText(text) {
   return text.replaceAll("**", "").replaceAll("`", "");
 }
 
-/** Greedy word wrap at 76 columns, leaving room for the `# ` prefix. */
 function wrap(text) {
   /** @type {string[]} */
   const lines = [];
@@ -894,8 +845,6 @@ function wrap(text) {
   if (current !== "") lines.push(current);
   return lines;
 }
-
-// --- the tree ---------------------------------------------------------------
 
 /**
  * Dot-file basenames become `_name`: npm strips `.gitignore` and `.npmrc` from a published tarball.
@@ -989,8 +938,6 @@ export function buildTemplates() {
   return sorted;
 }
 
-// --- what the compose files point at ----------------------------------------
-
 /** `dockerfile: <path>` in a Compose build block; `[ \t]` not `\s`, as `COMMENT_LINE` records. */
 const COMPOSE_DOCKERFILE = /^[ \t]*dockerfile:[ \t]*(\S+)[ \t]*$/gm;
 
@@ -1042,7 +989,6 @@ export function assertComposeReferences(tree) {
   }
 }
 
-/** The deployment shapes the CLI knows, mirrored from `src/options.ts`. */
 const DEPLOYMENT_SHAPES = ["solo", "enterprise"];
 
 /**
@@ -1063,9 +1009,7 @@ function stamps(tree, shape, scaffoldRelative) {
   return false;
 }
 
-// --- the release-age hold ---------------------------------------------------
-
-/** Both keys: pnpm defaults `minimumReleaseAgeStrict` on only when the age is explicitly configured (SEC-11). */
+/** Both keys: pnpm defaults `minimumReleaseAgeStrict` on only when the age is explicitly configured. */
 const RELEASE_AGE_KEYS = ["minimumReleaseAge", "minimumReleaseAgeStrict"];
 
 /**
@@ -1099,9 +1043,6 @@ export function assertReleaseAgeHoldIsStamped(tree) {
   }
 }
 
-// --- what the hand-written READMEs claim ------------------------------------
-
-/** Compose CLI flags that eat the word after them; anything else stands alone. */
 const COMPOSE_VALUE_FLAGS = new Set([
   "-f",
   "--file",
@@ -1176,7 +1117,6 @@ function readComposeFlag(word, next, files) {
   return inline === undefined ? 1 : 0;
 }
 
-/** Every `QCMS_*` name a document mentions. */
 const QCMS_ENV_NAME = /\bQCMS_[A-Z0-9_]+\b/g;
 
 /**
@@ -1272,7 +1212,8 @@ function composeServices(tree, shape) {
 function environmentNames(tree, shape) {
   /** @type {Set<string>} */
   const names = new Set();
-  // Wider than the Compose files: `QCMS_ADMIN_EMAIL` and `QCMS_ADMIN_PASSWORD` arrive only via `docker compose exec -e` (SEC-8).
+  // Wider than the Compose files: `QCMS_ADMIN_EMAIL` and `QCMS_ADMIN_PASSWORD` arrive only via `docker compose
+  // exec -e`.
   for (const entry of ENV_REFERENCE) names.add(entry.name);
   for (const [path, contents] of tree) {
     const layer = path.slice(0, path.indexOf("/"));
@@ -1294,15 +1235,12 @@ function staticTemplates() {
   return files;
 }
 
-// --- the ownership-seam document --------------------------------------------
-
 /** The document whose generated block this script owns. */
 export const SEAM_DOC = "docs/ownership-seam.md";
 
 export const SEAM_BEGIN = "<!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->";
 export const SEAM_END = "<!-- END GENERATED: ownership-seam -->";
 
-/** What each `@roonga/qcms-*` package is, and what upgrading it means. Prose, so it is written. */
 const PACKAGE_STORY = {
   "@roonga/qcms-core": [
     "Domain model, the rules DSL and its forward-pass evaluator, the publish compiler, answer validation, secure-link tokens.",
@@ -1330,7 +1268,6 @@ const PACKAGE_STORY = {
   ],
 };
 
-/** Every scaffold-relative output path, by the shape that stamps it. */
 function scaffoldPaths(tree) {
   /** @type {Map<string, string[]>} */
   const byLayer = new Map();
@@ -1343,7 +1280,6 @@ function scaffoldPaths(tree) {
   return byLayer;
 }
 
-/** Directory to file count, for every directory at every depth, sorted. */
 function directoryCounts(paths) {
   /** @type {Map<string, number>} */
   const counts = new Map();
@@ -1389,18 +1325,18 @@ export function renderSeamBlock(tree = buildTemplates()) {
   lines.push("");
 
   lines.push("### QCMS-internal references in the scaffolded source", "");
-  const references = countInternalReferences(tree);
   lines.push(
-    `\`${String(references.lines)}\` lines across \`${String(references.files)}\` scaffolded files ` +
-      "cite a QCMS issue, ADR, SEC control, plan task or repository path.",
+    "Scaffolded source follows the Code comments rule in `PROJECT_INSTRUCTIONS.md`:",
+    "the default is no comment. Keep a concise explanation only for a non-obvious why,",
+    "a safety or security constraint, or an external-bug workaround. A citation alone",
+    "does not justify retaining a comment; remove historical narration and text the",
+    "code already explains. Preserve license headers, lint/type justifications and",
+    "required machine-read annotations.",
     "",
-    "These are comments, and they stay (issue #457, tier 3). They are the engineering",
-    "rationale for code you now own, which is worth more to you than a tidy file, and",
-    "stripping them mechanically would delete the reasoning along with the citation.",
-    "What they are NOT is a tracker you can open: they resolve against the upstream",
-    "QCMS repository, not against yours. Read `ADR-nn` as a design decision recorded at",
-    "`docs/adr/` upstream, `SEC-n` as a security control in `docs/SECURITY_DESIGN.md`,",
-    "and a bare `#nnn` as an upstream issue number.",
+    "Retained `ADR-nn` and `SEC-n` references point to `docs/adr/` and",
+    "`docs/SECURITY_DESIGN.md` in the upstream QCMS repository. Keep an upstream issue",
+    "number only when it is the sole pointer to a non-obvious constraint. Change the",
+    "authored source and regenerate its scaffold mirror with `pnpm qcms:sync-templates`.",
     "",
     "The two places QCMS's identity would have been more than a citation are fixed",
     "rather than documented: the images no longer claim to be built from this",
@@ -1481,8 +1417,6 @@ export function currentSeamBlock() {
   }
   return text.slice(begin, end + SEAM_END.length);
 }
-
-// --- write / check ----------------------------------------------------------
 
 /** Everything committed under the template directory; `scripts/dependabot-changeset.mjs` reads the tree the same way. */
 export function currentTemplates() {

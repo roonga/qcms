@@ -78,7 +78,7 @@ describe("liveInstances, per count source", () => {
   it("fromAnswer: the first N, N the count answer clamped to min and max", () => {
     const five = [...three, ins("d"), ins("e")];
     expect(liveInstances(FROM_ANSWER, roster(five), countAnswer(2))).toEqual([ins("a"), ins("b")]);
-    // A count outside the declared range never sets the size of the loop (SEC-16).
+    // A count outside the declared range never sets the size of the loop.
     expect(liveInstances(FROM_ANSWER, roster(five), countAnswer(0))).toEqual([ins("a")]);
     expect(liveInstances(FROM_ANSWER, roster(five), countAnswer(99))).toEqual(five);
   });

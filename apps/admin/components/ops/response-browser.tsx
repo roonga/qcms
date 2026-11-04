@@ -26,45 +26,8 @@ import { t, tPlural } from "@/lib/i18n/en";
 import type { ReadState } from "@/lib/read-state";
 import { useHandOff } from "@/lib/agent/waiting";
 
-/**
- * The response browser: filter, page, open, export (task 035; screen contract "browser
- * toolbar", "browser `table`").
- *
- * ## Filtering is a navigation, not client state
- *
- * The toolbar pushes a query string and the **server** re-reads the page. That is not
- * a stylistic choice: the filters are the API's (`?version=&from=&to=&flagged=`) and
- * the paging is the API's too, so a client-side filter would have to either fetch the
- * whole set (unbounded - this is the one screen that grows with respondent volume) or
- * silently filter one page and mislabel the count. Pushing the query means the URL is
- * the filter state: it is shareable, it survives a reload, and the back button undoes
- * a filter the way an operator expects.
- *
- * ## The export is an anchor, not a fetch
- *
- * `<a href download>` hands the transfer to the browser, so a large export streams to
- * disk instead of being buffered into this tab's memory as a blob first. It also keeps
- * answer values out of the client bundle's hands entirely: nothing in this component ever
- * holds the exported bytes.
- *
- * ## A failed read is not an empty page
- *
- * `page` is a `ReadState` rather than a `ResponsePage` (issues 543 and 572), so this
- * component can tell "the list did not load" from "the list is empty". It used to be
- * handed `ok ? data : { responses: [], total: 0, ... }`, which meant a failed read
- * printed the §3 empty panel and "0 responses" underneath the page's own alert saying
- * the responses could not be loaded: an all-clear about data that never arrived, which
- * is the same untruth issue 521 fixed one derivation over.
- *
- * What survives a failure is the split `plan/admin-design-contracts.md` §3 asks for, and
- * `lib/read-state.ts` leaves to each component. Suppressed: the count, the table, the
- * empty panel and the pager, because every one of them is a claim about rows that were
- * not read, and the pager's own page count is computed from a total nobody supplied.
- * Kept: the heading (the alert above needs a subject, and a heading claims nothing) and
- * the whole toolbar, because filtering is a navigation that triggers a FRESH read - it
- * is the retry an operator reaches for - and Export is a separate request that can
- * succeed while the list read did not.
- */
+/* A failed read cannot justify a count, empty state, table, or pager; retain only navigation and
+   retry-capable filters. */
 export function ResponseBrowser({
   formId,
   page,
@@ -74,30 +37,20 @@ export function ResponseBrowser({
 }: {
   readonly formId: string;
   readonly page: ReadState<ResponsePage>;
-  /** The form's published versions, newest first, for the two version controls. */
   readonly versions: readonly number[];
-  /** What the server actually applied, which is also what a page link carries. */
   readonly filters: AppliedFilters;
-  /** Whether any filter is applied, which decides which empty message is true. */
   readonly hasFilters: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  // The clock the rows are shown on (Code Owner, 2026-10-19). A NEW or changed day range is
-  // read on it; an applied range nobody has touched keeps the zone it was applied in
-  // (`draftDayZone`), and Apply writes whichever applies into the address as `tz`.
   const operatorZone = useOperatorZone();
 
-  // The controls are a DRAFT of the next filter set. `filters` is what the server
-  // actually applied, and the two are not the same thing the moment an operator types
-  // without pressing Apply.
+  // Control edits are unapplied until Apply; filters describes only the query the server actually used.
   const [version, setVersion] = useState(filters.version);
   const [from, setFrom] = useState(filters.from);
   const [to, setTo] = useState(filters.to);
   const [flagged, setFlagged] = useState(filters.flagged);
   const [exporting, setExporting] = useState(false);
-  // The export is a hand-off step: Confirm opens this dialog with the card's own filters,
-  // the user presses Export, and the bytes stream to their browser and nowhere else.
   const [handedOff, setHandedOff] = useState<Readonly<Record<string, string>> | undefined>(
     undefined,
   );
@@ -108,16 +61,11 @@ export function ResponseBrowser({
     setExporting(true);
     handOff.done();
   }, [handOff]);
-  // The zone the draft days are read in, named in the hint and written on Apply.
   const draftZone = draftDayZone(filters, { from, to }, operatorZone);
   const dayZone = draftZone ?? t("ops.common.yourZone");
 
-  // Re-seed the draft whenever the APPLIED set changes under it. `useState` reads its
-  // initializer once, so back/forward navigation (and the push below) re-rendered this
-  // component with new props and left the controls showing the previous filter set -
-  // controls that disagree with the table beside them. Keying off a serialization of
-  // the applied set rather than an effect keeps it a render-time derivation, which is
-  // what it is: no effect, no flash of the stale value.
+  // Reseed local filter edits when the applied query changes so Back and Forward cannot leave controls
+  // describing stale results.
   const applied = `${filters.version}|${filters.from}|${filters.to}|${filters.flagged}|${filters.tz ?? ""}`;
   const [seeded, setSeeded] = useState(applied);
   if (seeded !== applied) {
@@ -145,8 +93,6 @@ export function ResponseBrowser({
   );
 
   const apply = useCallback(() => {
-    // Page is deliberately dropped: a new filter set has a new page 1, and keeping
-    // page 4 would land the operator on an empty page and read as "no matches".
     go({
       version,
       from,
@@ -164,24 +110,13 @@ export function ResponseBrowser({
     go({});
   }, [go]);
 
-  // The rows, or nothing at all if the read failed. Every use below is guarded on it,
-  // which is the point of the union: there is no empty page to mistake for an answer.
   const data = page.ok ? page.data : undefined;
 
   const pages =
     data === undefined ? 1 : Math.max(1, Math.ceil(data.total / Math.max(1, data.pageSize)));
 
-  /**
-   * A link to another page of the CURRENT result set.
-   *
-   * Delegated to `lib/ops/browse.ts` so it is built from `filters` - what the server
-   * applied - and cannot reach the draft state above: the module takes the applied set
-   * as an argument and has no other filters in scope. Building it from the controls
-   * meant a date typed into "From" and never applied rode along with a "Next page"
-   * click, so the operator asked to page through the results they were looking at and
-   * silently got a different query, with the count and the page number they had just
-   * read no longer describing anything.
-   */
+  /* Page with applied filters, not current control text, so an unsubmitted edit cannot silently change the
+     result set. */
   const pageQuery = (target: number): string => responsePageLink(formId, filters, target);
 
   return (
@@ -246,32 +181,6 @@ export function ResponseBrowser({
         <Button variant="ghost" size="md" isDisabled={isPending} onPress={clear}>
           {t("ops.responses.filter.clear")}
         </Button>
-        {/* Offered only once the operator's clock is known, which is also the first moment
-            this press can be received at all (review of PR #1077, finding A).
-
-            Two things come together on this one control. The dialog it opens is React's
-            alone - the server renders this trigger and none of its behaviour - so a press
-            before the attach is received by nothing and the dialog never mounts. Measured
-            on an idle machine: the server-rendered section is on screen about 65ms after
-            the navigation and the attach lands 200 to 340ms later, a window a loaded host
-            widens; `e2e/hydration-wait.pw.ts` schedules it rather than waiting for it to
-            happen. And the dialog's range is read in whichever zone applies to it
-            (`initialZone`, `operatorZone`), so opening it in that window would mean a
-            range control that cannot say which clock reads it.
-
-            `operatorZone` is null exactly for the server render and hydration's first pass
-            (`components/operator-time.tsx`), so this is "not attached yet" said in the
-            terms this screen already has, and a dialog mounted by client navigation reads
-            the zone immediately and is never disabled. The toolbar's other two actions
-            already disable themselves while they cannot act (`isPending`); this is the
-            same sentence about a different reason, and it makes the refusal visible rather
-            than letting a press disappear.
-
-            It is NOT the general case. Every React-only trigger in this shell is inert
-            until the attach (issue #815 fixed the suite's half of that; the portal's
-            product half is open as #965), and a shell-wide stance on it is the Code
-            Owner's to take. This control is in scope here because this change is what
-            gave it a dependency on the operator's clock. */}
         <HeadingMarker control="responses.export">
           <Button
             variant="primary"
@@ -286,21 +195,6 @@ export function ResponseBrowser({
         </HeadingMarker>
       </div>
 
-      {/* `plan/admin-design-contracts.md` §3's panel, both variants. Filtered keeps
-          the panel and swaps the heading to this screen's own "no matches" line with
-          no sentence under it; unfiltered keeps the sentence. Neither carries a CTA:
-          responses are created by respondents, so there is no creating action on this
-          screen for §3's CTA clause to offer, and the filters are the form directly
-          above with its own reset control.
-
-          TWO VARIANTS AND NOT THREE, which is a property of the page rather than of
-          this component (issue #550). A page past the end of a non-empty result set
-          used to arrive here and render the unfiltered sentence on a form with
-          submissions; the page clamps to the last page instead, so an empty
-          `data.responses` now means the result set itself is empty and both of these
-          messages are true statements about it. A third "nothing on this page" state
-          is deliberately not introduced: issue #514 owns harmonising the two shapes
-          the app has, and a third bolted on beforehand is what it would inherit. */}
       {data !== undefined &&
         (data.responses.length === 0 ? (
           <EmptyState
@@ -309,17 +203,6 @@ export function ResponseBrowser({
             testId="qcms-responses-empty"
           />
         ) : (
-          /* One table family (`plan/admin-design-contracts.md` §2). The wrapper is the
-           scroll box, the positioning region for the row chrome, and the styling hook;
-           the `<table>` is a plain table again.
-
-           WHICH COLUMN DROPS AT COMPACT WIDTH (§2): the answer preview, and only it.
-           Session, Version, Submitted, Access and Flag are how an operator FINDS a
-           response; the preview only helps them recognise it once found, and it is the
-           widest column by a distance. Version never drops anywhere
-           (`plan/admin-mobile-stance.md`, item 5). Below the boundary this is exactly
-           the five-column table that shipped before issue 515, so the sixth column
-           costs no sideways scrolling at a phone width at all. */
           <div className="qcms-table">
             <table data-testid="qcms-responses-table">
               <caption className="qcms-visually-hidden">{t("ops.responses.table")}</caption>
@@ -343,14 +226,6 @@ export function ResponseBrowser({
                 {data.responses.map((row) => (
                   <tr key={row.sessionId} data-session-id={row.sessionId}>
                     <th scope="row">
-                      {/* Prefix plus eight, with a copy control (issue #582). A session id
-                          is OPAQUE - 16 random hex bytes minted by the API - so §2's
-                          2026-08-20 rule applies unchanged: nobody reads 32 hex characters,
-                          and the column's two jobs are recognising a row against a ticket
-                          and getting the exact value into a search box. The whole value is
-                          still in this cell's markup and still in the detail route's
-                          heading, so neither the announcement nor a copy taken by hand
-                          loses it (`components/entity-id.tsx`). */}
                       <EntityId
                         kind="session"
                         value={row.sessionId}
@@ -368,20 +243,6 @@ export function ResponseBrowser({
                     <td>
                       <FlagTag flagged={row.flaggedReason !== null} />
                     </td>
-                    {/*
-                    The answer preview (issue 515; the screen contract's sixth column). Real
-                    respondent data by definition, so the cell shows exactly what
-                    `answerPreviewText` allows and nothing more: two answered questions,
-                    each value clipped to a character budget before it becomes text.
-
-                    There is deliberately NO `title` tooltip carrying the full answer.
-                    That would put the untruncated value straight back into the markup
-                    and make the budget decorative, and reading a response in full is the
-                    detail screen's job - reached through this row's own identifying
-                    cell, which is the authorised, audited act. Nothing on this path logs
-                    an answer value either (SEC-13): the only place one goes is the text
-                    node below.
-                  */}
                     <td className="qcms-cell--drop">
                       <span className="qcms-answer-preview" data-testid="qcms-answer-preview">
                         {answerPreviewText(row.answers)}
@@ -436,7 +297,6 @@ export function ResponseBrowser({
   );
 }
 
-/** A hand-off field, kept only when it is one of the dialog's own choices. */
 function asExportFormat(value: string | undefined): ExportFormat | undefined {
   return value === "csv" || value === "json" ? value : undefined;
 }
@@ -445,28 +305,11 @@ function asExportShape(value: string | undefined): ExportShape | undefined {
   return value === "long" || value === "wide" ? value : undefined;
 }
 
-/**
- * The sentence under the CSV shape control: the chosen shape's own consequence.
- *
- * A function rather than a nested ternary inline, and the branch order is the point:
- * the **wide** hint is the one that carries the cost an operator has to know before
- * they automate an export, that its header is the version's declared maximum number
- * of instances and therefore moves when that maximum moves (Q17).
- */
 function shapeHint(format: ExportFormat, shape: ExportShape): string {
   if (!shapeApplies(format)) return t("ops.export.shapeIgnored");
   return shape === "wide" ? t("ops.export.shapeWideHint") : t("ops.export.shapeLongHint");
 }
 
-/**
- * The export dialog (screen contract "export UI").
- *
- * The version control is **disabled with a hint** for JSON rather than hidden, so the
- * two formats' controls stay in the same place and the reason the control is inert is
- * on screen instead of being inferred from its disappearance. The download button is
- * disabled until the choice is one the API will accept (`isExportable`), which is the
- * same predicate the unit tests hold the rule to.
- */
 function ExportDialog({
   formId,
   versions,
@@ -484,12 +327,9 @@ function ExportDialog({
   readonly initialVersion: string;
   readonly initialFrom: string;
   readonly initialTo: string;
-  /** Filled by a hand-off step, so the dialog opens on what the card displayed. */
   readonly initialFormat?: ExportFormat | undefined;
   readonly initialShape?: ExportShape | undefined;
-  /** The zone the toolbar's range is read in when the dialog opens (`draftDayZone`). */
   readonly initialZone: string | null;
-  /** The operator's own zone, for a range changed in the dialog; null until known. */
   readonly operatorZone: string | null;
   readonly onClose: () => void;
 }) {
@@ -499,8 +339,6 @@ function ExportDialog({
   const [from, setFrom] = useState(initialFrom);
   const [to, setTo] = useState(initialTo);
 
-  // The range the dialog opened with keeps the toolbar's zone; a changed one is read on
-  // the operator's clock, by the same rule the toolbar follows.
   const timeZone = from === initialFrom && to === initialTo ? initialZone : operatorZone;
   const choice: ExportChoice = {
     format,
@@ -540,11 +378,6 @@ function ExportDialog({
           label={t("ops.export.shape")}
           value={shape}
           isDisabled={!needsShape}
-          // The chosen shape's own consequence, not a general note: the wide shape's
-          // header is the version's declared maximum, so it moves when that moves,
-          // and an operator automating one has to pin the version. Shown here
-          // rather than only in `docs/` because this control is where the choice is
-          // made (Q17).
           description={shapeHint(format, shape)}
           items={[
             { label: t("ops.export.shapeLong"), value: "long" },

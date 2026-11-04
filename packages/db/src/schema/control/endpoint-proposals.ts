@@ -17,10 +17,9 @@ import { forms } from "./forms.js";
 import { controlSchema } from "../schemas.js";
 
 /**
- * A proposed change to a `prod` webhook endpoint, held until a second account confirms it (ADR-41). The apply
- * runs on the environment's own pool, so {@link webhookEndpointProposals.appliedAt} says the endpoint is live:
- * a row with `confirmed_at` and a null `applied_at` is not. Rows update in place; the audit answer lives in
- * the append-only SEC-15 rows.
+ * A proposed change to a `prod` webhook endpoint, held until a second account confirms it (ADR-41). The apply runs on the
+ * environment's own pool, so {@link webhookEndpointProposals.appliedAt} says the endpoint is live: a row with `confirmed_at`
+ * and a null `applied_at` is not. Rows update in place; the audit answer lives in the append-only audit rows.
  */
 export const webhookEndpointProposals = controlSchema.table(
   "webhook_endpoint_proposals",
@@ -40,14 +39,13 @@ export const webhookEndpointProposals = controlSchema.table(
     webhookId: text("webhook_id").notNull(),
     kind: text("kind").notNull(),
     /**
-     * Already checked against the SSRF policy at propose time, or null where the act names
-     * no URL. SEC-14's egress allowlist stays the network backstop underneath.
+     * URLs have passed the proposal-time SSRF check; null means the act names no target. Network egress
+     * restrictions remain the delivery-time backstop.
      */
     url: text("url"),
     /**
-     * AES-256-GCM ciphertext under `QCMS_APP_KEY`. Encrypted rather than hashed because
-     * the deliverer must recover the plaintext to sign (SEC-6, SEC-8); the database never
-     * sees the plaintext.
+     * AES-256-GCM ciphertext under `QCMS_APP_KEY`. Encrypted rather than hashed because the deliverer must
+     * recover the plaintext to sign; the database never sees the plaintext.
      */
     secretEncrypted: text("secret_encrypted"),
     active: boolean("active"),

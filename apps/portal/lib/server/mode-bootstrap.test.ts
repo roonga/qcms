@@ -9,7 +9,7 @@ import { PORTAL_MODES } from "./theme.js";
 interface Browser {
   /** The query string, including the leading `?`, exactly as `location.search`. */
   readonly search?: string;
-  /** The whole `document.cookie` string, as the browser would serialise it. */
+
   readonly cookie?: string;
   /** The mode class the SERVER stamped on `<html>`, which the script may swap. */
   readonly stamped?: string;
@@ -49,7 +49,6 @@ function runBootstrap(script: string, browser: Browser = {}): readonly string[] 
   return [...classes];
 }
 
-/** The mode the script resolved to. Exactly one class, always. */
 function resolved(script: string, browser: Browser = {}): string {
   const classes = runBootstrap(script, browser);
   expect(classes, "the bootstrap should leave exactly one mode class").toHaveLength(1);

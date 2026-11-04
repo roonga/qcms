@@ -3,7 +3,6 @@ import type { Response } from "@playwright/test";
 import { readFixtures } from "./support/fixtures.js";
 import { expect, test } from "./support/gates.js";
 
-/** The nonce token the response's own CSP names in `script-src`. */
 function nonceFromCsp(csp: string | undefined): string {
   expect(csp, "the response must carry a Content-Security-Policy").toBeTruthy();
   const match = /script-src [^;]*'nonce-([^']+)'/.exec(csp ?? "");
@@ -11,14 +10,12 @@ function nonceFromCsp(csp: string | undefined): string {
   return match?.[1] ?? "";
 }
 
-/** The nonce stamped on the inline theme-bootstrap script in the served HTML. */
 function nonceFromThemeScript(html: string): string {
   const match = /<script nonce="([^"]*)"[^>]*>[^<]*qcms-theme/.exec(html);
   expect(match, "the served HTML must stamp a nonce on the inline theme script").not.toBeNull();
   return match?.[1] ?? "";
 }
 
-/** Read the CSP nonce, the SSR nonce, and the CSP off one navigation response. */
 async function readNonces(response: Response | null) {
   expect(response, "the navigation must produce a response").not.toBeNull();
   const csp = response?.headers()["content-security-policy"];

@@ -37,8 +37,7 @@ try {
   await migrate(db, { migrationsFolder });
   process.stdout.write("qcms-db migrations applied\n");
 } catch (error) {
-  // Never the connection string: it carries the database password, and this line goes to
-  // a container log (SEC-8).
+  // Never the connection string: it carries the database password, and this line goes to a container log.
   process.stderr.write(`qcms-db migrate failed: ${describeError(error)}\n`);
   process.exitCode = 1;
 } finally {

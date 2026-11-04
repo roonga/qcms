@@ -13,23 +13,13 @@ import {
   type OperationsWorkspace,
 } from "@/lib/ops/operations-forms";
 
-/**
- * Operations' rail: the forms table's filters, and the two installation-wide queues.
- *
- * The Filters part is a native GET form, so the environment travels as a hidden field and
- * the cursor is simply absent from the submission: applying a filter keeps the Operations
- * context and starts at the first page. The queues are independent of every filter and of
- * any selected form, so they sit in Sections rather than beside the controls.
- */
 export function OperationsFormsRail({
   state,
   workspaces,
   showQueues,
 }: {
   readonly state: OperationsListState;
-  /** The workspaces that contributed a row, which is what the filter may offer. */
   readonly workspaces: readonly OperationsWorkspace[];
-  /** Whether this caller holds the installation claim the two queues require. */
   readonly showQueues: boolean;
 }) {
   const { search, workspaceId, intake, sort, activeCount } = state;
@@ -71,8 +61,6 @@ export function OperationsFormsRail({
         : {})}
       filters={
         <RailFilters activeCount={activeCount} clearHref={operationsClearHref(state)}>
-          {/* The environment is Operations-wide context rather than a filter, so it rides
-              the submission unchanged instead of appearing as a control here. */}
           {state.environment !== undefined && (
             <input type="hidden" name="env" value={state.environment} />
           )}
@@ -109,8 +97,6 @@ export function OperationsFormsRail({
               })),
             ]}
           />
-          {/* No "any" option: the table always comes back in some order, so the control
-              shows the one in force. */}
           <Select
             name="sort"
             label={t("operations.filter.sort")}

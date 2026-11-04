@@ -57,9 +57,9 @@ export function proxy(request: NextRequest): NextResponse {
   // Next reads the nonce from the request CSP header to stamp its own scripts.
   requestHeaders.set("Content-Security-Policy", csp);
 
-  // No anonymous entry to a non-prod environment, on any address or on a hostname
-  // reserved for one (SEC-14). Rewritten to a path no route matches, so the answer is
-  // Next's own 404 rather than a refusal this file composed (ADR-09).
+  // No anonymous entry to a non-prod environment, on any address or on a hostname reserved for one. Rewritten
+  // to a path no route matches, so the answer is Next's own 404 rather than a refusal this file composed
+  // (ADR-09).
   const anonymousRefused =
     isAnonymousEntry(path) && (environment !== PROD_ENVIRONMENT || hostEnvironment !== undefined);
 

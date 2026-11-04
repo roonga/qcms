@@ -2,7 +2,6 @@ import { expect, type Page } from "@playwright/test";
 
 import { waitForHydration } from "./hydration.js";
 
-/** The vehicle-insurance fixture's two branch questions (043 rename). */
 export const ACCIDENT_LABEL = "Any at-fault accident in the last 3 years?";
 export const COUNT_LABEL = "How many?";
 export const FORM_HEADING = "Vehicle insurance quote";

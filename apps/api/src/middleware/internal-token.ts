@@ -1,7 +1,7 @@
 /**
- * The token authenticates the channel, never the user: end-user authorization always
- * comes from the forwarded user credential (SEC-4). The accepted list exists so a
- * token can be rotated without downtime: accept old and new, then drop old.
+ * The token authenticates the channel, never the user: end-user authorization always comes from the
+ * forwarded user credential. The accepted list exists so a token can be rotated without downtime: accept old
+ * and new, then drop old.
  */
 
 import type { MiddlewareHandler } from "hono";

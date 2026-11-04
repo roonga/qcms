@@ -18,7 +18,6 @@ export const IMAGES = [
   { name: "qcms-admin", dockerfile: "docker/admin.Dockerfile" },
 ];
 
-/** The buildx builder this script creates on demand; the default driver cannot attest. */
 const BUILDER = "qcms-sbom";
 
 /**
@@ -91,9 +90,6 @@ function readOciBlob(directory, digest) {
 }
 
 /**
- * One walk, two readers, so the label reader and the blob reader cannot come to
- * disagree about which entry is the attestation.
- *
  * @param {string} directory
  * @returns {{ entry: any, manifest: any }[]}
  */
@@ -194,8 +190,6 @@ export function saveAttestations(directory, name, outputRoot) {
 export function assertNoDevPackages(directory, name) {
   const sbom = attestationBlobs(directory).find(({ predicate }) => predicate === SPDX_PREDICATE);
   if (sbom === undefined) {
-    // Unreachable through buildImage; a direct caller gets this message rather than a
-    // TypeError.
     throw new Error(`build-images: ${name} has no SBOM (${SPDX_PREDICATE}) to read`);
   }
   return assertNoDevDependencies(JSON.parse(readFileSync(sbom.path, "utf8")), name);
@@ -232,10 +226,6 @@ export function assertArtifact(directory, version, name) {
 }
 
 /**
- * One function for both the local build and the push, so the two cannot drift on the
- * flags that decide what the artifact contains. Only `--tag` and `--output` differ,
- * and neither is part of the build graph, so the push re-exports from cache.
- *
  * @param {{ name: string, dockerfile: string }} image
  * @param {string} version
  * @param {{ tags: string[], output: string }} exporter

@@ -37,7 +37,7 @@ for (const file of tracked()) {
     if ((code <= 0x1f && !ALLOWED.has(code)) || code === 0x7f) {
       const line = text.slice(0, i).split("\n").length;
       violations.push(`${file}:${line}  control char 0x${code.toString(16).padStart(2, "0")}`);
-      break; // one report per file is enough to fail and locate it
+      break;
     }
   }
 }

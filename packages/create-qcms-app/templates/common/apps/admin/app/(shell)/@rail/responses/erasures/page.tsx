@@ -3,10 +3,7 @@ import { t } from "@/lib/i18n/en";
 import { requireAdminSession } from "@/lib/server/session";
 import { OPERATIONS_PATH } from "@/lib/shell/modes";
 
-/**
- * The erasure log's rail: a Header and nothing else. No Filters part, because
- * `GET /admin/erasures` takes no parameters.
- */
+/* The erasure-log API accepts no filters. */
 export default async function ErasureLogRail() {
   await requireAdminSession();
   return (

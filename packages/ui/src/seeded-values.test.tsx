@@ -46,7 +46,7 @@ describe("a value present on the first render is displayed by its control", () =
 
   it("date: the stored ISO date fills every segment", () => {
     renderSeeded(stepById("stp_about"), { q_dob: "1990-05-17" });
-    // Drawn in the en-US segment order, so no segment is left on its placeholder.
+
     expect(segment(/month/i).textContent).toMatch(/^0?5$/);
     expect(segment(/day/i).textContent).toBe("17");
     expect(segment(/year/i).textContent).toBe("1990");
@@ -95,8 +95,7 @@ describe("a value present on the first render is displayed by its control", () =
 
   it("singleChoice as a Select: the stored OptionId shows its option label", () => {
     render(<A2UIStepRenderer document={SELECT_STEP} values={{ q_country: "opt_de" }} />);
-    // The value is looked up as an option key, which is why the adapter never passes
-    // "" for no selection.
+
     expect(screen.getByRole("button", { name: /Country/ }).textContent).toContain("Germany");
   });
 

@@ -5,24 +5,9 @@ import { t } from "../i18n/en.ts";
 import { blankDraft } from "./draft.ts";
 import type { DraftForm } from "./types.ts";
 
-/**
- * The form builder's server actions, at their two refusal seams (task 033, PR #245 review).
- *
- * ## Why the module is reachable from here at all
- *
- * `app/(shell)/forms/actions.ts` is a `"use server"` module and cannot export the helpers
- * it guards with (Next allows only async exports there), so the guards are exercised
- * through the actions themselves. Its imports are written with the app's `@/` alias, which
- * `apps/admin/vitest.config.ts` resolves the same way Next does (issue 652). Only the
- * genuinely external edges are faked: Next's cache/navigation and the two `lib/server`
- * modules that reach a session store and the API over the network. Everything that is pure
- * app logic (`draft`, `errors`, `builder-state`) runs as shipped.
- *
- * The test file lives under `lib/` rather than beside its subject because `app/` is
- * route-scanned by Next; no test file in either app sits inside it.
- */
+// Use the real actions to reach guards: use-server modules may export only async actions.
+// Stub I/O dependencies while keeping the action and guard decisions intact.
 
-/** Mirrors the cap in `actions.ts`, which a `"use server"` module cannot export. */
 const MAX_DEFINITION_BYTES = 64 * 1024;
 
 const calls = vi.hoisted(() => ({
@@ -33,12 +18,10 @@ const calls = vi.hoisted(() => ({
   mintLinks: 0,
 }));
 
-/** What the mocked API layer answers with next. Set per test, reset between them. */
 const answers = vi.hoisted(
   (): { publish?: unknown; preview?: unknown; mint?: unknown; lookup?: unknown } => ({}),
 );
 
-/** What the mocked API layer was asked for, where a test asserts on the request itself. */
 const sent = vi.hoisted((): { mintExpiresAt: string | undefined } => ({
   mintExpiresAt: undefined,
 }));
@@ -88,8 +71,7 @@ vi.mock("@/lib/server/forms", () => ({
   },
   setFormStatus: () => Promise.resolve({ ok: true, data: { status: "closed" } }),
 }));
-// The publish wizard's confirmation is the one act that can be refused with the kernel's
-// issue list.
+
 vi.mock("@/lib/server/releases", () => ({
   publishBatch: () => {
     calls.publishBatch += 1;
@@ -104,8 +86,7 @@ vi.mock("@/lib/server/releases", () => ({
     Promise.resolve({ ok: true, data: { version: 1, environment: "prod", rollback: false } }),
   reviewRelease: () => Promise.resolve({ ok: true, data: { targets: [] } }),
 }));
-// The environment check has its own file (`lib/server/environment-actions.test.ts`); here
-// every screen showed the environment the request resolves to, so the check passes.
+
 vi.mock("@/lib/server/environments", () => ({
   confirmShownEnvironment: (_session: unknown, shown: string | undefined) =>
     Promise.resolve({ ok: true, environment: shown ?? "prod" }),
@@ -131,14 +112,6 @@ const {
   saveDraftAction,
 } = await import("../../app/(shell)/forms/actions.ts");
 
-/**
- * A draft whose serialization is exactly `bytes` bytes of UTF-8.
- *
- * The filler is CJK, which is the whole point: each glyph is one UTF-16 code unit and
- * three UTF-8 bytes, so a document built this way is roughly a third of its true size when
- * measured with `String.prototype.length`. ASCII padding closes the last one or two bytes
- * so the target lands on the nose rather than near it.
- */
 function draftOfByteSize(bytes: number): DraftForm {
   const base = blankDraft("frm_cap", "en");
   const overhead = Buffer.byteLength(JSON.stringify({ ...base, title: { en: "" } }), "utf8");
@@ -147,7 +120,6 @@ function draftOfByteSize(bytes: number): DraftForm {
   return { ...base, title: { en: "字".repeat(glyphs) + "a".repeat(room - glyphs * 3) } };
 }
 
-/** The serialized size of a document in the unit the cap names. */
 function byteSize(document: unknown): number {
   return Buffer.byteLength(JSON.stringify(document), "utf8");
 }
@@ -167,8 +139,7 @@ describe("the definition cap counts UTF-8 bytes, not UTF-16 code units", () => {
   it("refuses a multi-byte draft one byte over the cap, and does not forward it", async () => {
     const draft = draftOfByteSize(MAX_DEFINITION_BYTES + 1);
     expect(byteSize(draft)).toBe(MAX_DEFINITION_BYTES + 1);
-    // The regression this pins: counted in code units the same document scores about a
-    // third of its size, so the pre-fix cap waved it through.
+
     expect(JSON.stringify(draft).length).toBeLessThan(MAX_DEFINITION_BYTES / 2);
 
     const before = calls.saveDraft;
@@ -197,7 +168,6 @@ describe("the definition cap counts UTF-8 bytes, not UTF-16 code units", () => {
 });
 
 describe("createFormAction names the field that is actually wrong", () => {
-  /** The create form's post, as `useActionState` assembles it. */
   function submission(slug: string, defaultLocale: string): FormData {
     const data = new FormData();
     data.set("slug", slug);
@@ -220,7 +190,7 @@ describe("createFormAction names the field that is actually wrong", () => {
     expect(state).toMatchObject({ status: "error", code: "INVALID_DEFAULT_LOCALE" });
     expect(state.message).toBe(t("forms.error.invalidLocale"));
     expect(state.message).not.toBe(t("forms.error.invalidId"));
-    // The slug was fine, so it comes back for redisplay rather than being blamed.
+
     expect(state.submitted?.slug).toBe("demo-form");
   });
 });
@@ -234,7 +204,6 @@ describe("034's actions keep a refusal distinct from an error", () => {
     sent.mintExpiresAt = undefined;
   });
 
-  /** A 422 as the proxy normalises it: a code, a sentence, and the kernel's issues. */
   function rejection(code: string) {
     return {
       ok: false,
@@ -244,7 +213,6 @@ describe("034's actions keep a refusal distinct from an error", () => {
     };
   }
 
-  /** One confirmed draft publish, as the wizard sends it. */
   const CONFIRM = {
     idempotencyKey: "00000000-0000-4000-8000-000000000000",
     expectedWorkflowRevision: null,
@@ -256,8 +224,6 @@ describe("034's actions keep a refusal distinct from an error", () => {
     answers.publish = rejection("PUBLISH_REJECTED");
     const state = await confirmPublishAction("frm_demo_form", CONFIRM);
 
-    // `rejected` rather than `error`, because the author owes a work list here and a
-    // sentence there.
     expect(state.status).toBe("rejected");
     expect(state.issues).toHaveLength(1);
     expect(state.version).toBeUndefined();
@@ -289,8 +255,6 @@ describe("034's actions keep a refusal distinct from an error", () => {
   });
 
   it("recovers the recorded shape, so a publish-only result does not read as released", async () => {
-    // The recorded answer carries whether the confirmation froze its version. Inferring
-    // `false` here is what read as "version 1 is released" beside "released nowhere".
     answers.lookup = { ok: true, data: { version: 1, releases: [], froze: true } };
     const state = await lookupPublishResultAction(
       "frm_demo_form",

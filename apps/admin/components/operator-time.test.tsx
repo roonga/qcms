@@ -7,29 +7,10 @@ import { LocaleProvider } from "./locale-context.tsx";
 import { OperatorDateTime, OperatorDay, useOperatorDateTimeFormat } from "./operator-time.tsx";
 import { DEFAULT_LOCALE, formatDateTime, formatDay } from "../lib/i18n/format.ts";
 
-/**
- * Operator-local times (issue #279; rebuilt by the Code Owner ruling of 2026-10-19).
- *
- * Two properties carry the design and each is asserted here:
- *
- * 1. **The server render paints no time at all**, so it cannot depend on the host's zone
- *    and cannot disagree with the hydrated render. `renderToStaticMarkup` renders the way
- *    the server does and the way hydration's first pass does (`useSyncExternalStore`'s
- *    server snapshot), so varying the runtime zone across it answers the question
- *    without a browser.
- * 2. **The client render is the operator's zone, named, in the deployment locale.** A
- *    client `render` reads the browser snapshot, which in Node is the process zone.
- */
-
-/**
- * 23:30 UTC on 2 August: already 3 August in Sydney, still 2 August in Los Angeles, in
- * either half of the year, so a day assertion cannot pass vacuously (issue #903).
- */
 const INSTANT = "2026-08-02T23:30:00.000Z";
 
 const originalZone = process.env.TZ;
 
-/** Put the process zone back; deleted rather than assigned when it was unset (#903). */
 afterEach(() => {
   if (originalZone === undefined) delete process.env.TZ;
   else process.env.TZ = originalZone;
@@ -57,8 +38,6 @@ describe("the server render, and hydration's first pass with it", () => {
   });
 
   it("never paints a UTC string for an admin time", () => {
-    // The defect behind the ruling: the old first render was pinned UTC, so a screen
-    // that had not swapped yet named a different day from one that had.
     const markup = serverMarkupIn("UTC", <OperatorDay iso={INSTANT} />);
     expect(markup).not.toMatch(/UTC|Aug/u);
   });
@@ -78,8 +57,6 @@ describe("the client render", () => {
     expect(sydney).toBe(
       formatDateTime(INSTANT, { locale: DEFAULT_LOCALE, timeZone: "Australia/Sydney" }),
     );
-    // Hand-written so the expectation is not computed by the code under test: en-GB is
-    // day-first on a 24-hour clock, and 23:30 UTC is 09:30 the next morning in Sydney.
     expect(sydney.replace(/\u202f/gu, " ")).toMatch(/^3 Aug 2026, 09:30 (AEST|GMT\+10)$/u);
   });
 

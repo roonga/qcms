@@ -1,79 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-/**
- * How many server reads one render of a form-scoped screen costs (issue #626).
- *
- * ## What the number was, and why it was three questions asked six times
- *
- * A Next layout, the page it wraps and a `@rail` parallel slot are three separate React
- * trees rendered for one request, and none of them can hand a value to another. So each
- * asked for itself: `app/(shell)/layout.tsx` reads the session, the page reads the
- * session and the form, and `@rail/forms/[formId]/rail-slot.tsx` reads the session, the
- * form again, and the draft verdict. Six API round trips for four distinct answers, and
- * `POST .../draft/validate` - the one that is genuinely per render - runs the API's
- * `compileDraft` over every pinned question version.
- *
- * Two of the six were duplicates of an answer the same request already had. The session
- * duplicate predates the rail entirely: the shell layout and every page have both called
- * `requireAdminSession()` since task 031. The third is not a duplicate and is left
- * alone - a verdict is per render by definition, and caching it across requests would be
- * this app deciding what the API decides (R2).
- *
- * ## Why this test stands in for React's request scope
- *
- * `cache()` memoizes per REQUEST, and a request scope only exists inside a real RSC
- * render: called from plain Node, React's own `cache` runs the function every time
- * (measured, not assumed - three calls, three invocations). So a test that imported the
- * real thing would report today's numbers whatever the code did, which is the one
- * failure mode a regression test must not have.
- *
- * What is substituted is therefore the SCOPE and nothing else: `memoized` below is an
- * ordinary argument-keyed memo standing in for the per-request one, and the module graph
- * is re-imported per case so each "render" starts with an empty memo. That makes the
- * subject of this test our own code - whether both reads actually route through the memo
- * boundary - rather than React's semantics, which are React's contract. Delete the
- * `cache()` from either `currentAdminSession` or `getForm` and the counts below go back
- * to six, because the substitute can only dedupe a call that passes through it.
- *
- * The `memo` switch is what makes this a measurement rather than an assertion: the same
- * render is counted with the memo inert (which is exactly the shipped behaviour before
- * this change) and with it live.
- *
- * ## The same arithmetic one screen over (issue #808)
- *
- * The question detail screen is the same three trees around a different resource: the
- * layout reads the session, `questions/[questionId]/page.tsx` reads the session, the
- * question and the selected version's preview, and `@rail/questions/[questionId]/page.tsx`
- * reads the session and, through `loadQuestionRail`, the question again. Six round trips
- * for three distinct answers. #626 fixed the form side and stopped there because its issue
- * covered form-scoped screens; `getQuestion` now memoizes at its own definition the way
- * `getForm` does, and the second describe below counts it the same way.
- *
- * The preview is this screen's `validateDraft`: a different resource rather than a
- * duplicate, asked for once per render, and left alone.
- *
- * ## The list screen, and the number a filter must not change (issue 686)
- *
- * The third describe counts the form LIBRARY list rather than a form-scoped screen, and
- * it is here rather than in a file of its own because it is the same measurement at the
- * same seam. Its subject is different, though: not a duplicate to remove, but a count to
- * hold still while the screen gains search, a status filter and a sort. Those are the
- * API's parameters, so applying them grows the query string and nothing else. A screen
- * that reached for a second read - an unfiltered list to count against, a total, a
- * per-row lookup - would show up here immediately, which is what the issue asked for
- * when it said the pin must not regress.
- */
-
-/** Whether the stand-in memo is live for the next module import. */
 const memo = { enabled: true };
 
-/**
- * An argument-keyed memo, in the shape `cache()` has: same arguments in a scope, one
- * invocation. Nested maps rather than a serialized key, so an object argument is matched
- * by identity the way React matches it - which is the property `getForm(session, formId)`
- * depends on, and the reason memoizing the session and memoizing the form are one change
- * rather than two.
- */
 function memoized<A extends readonly unknown[], R>(fn: (...args: A) => R): (...args: A) => R {
   const root = new Map<unknown, unknown>();
   return (...args: A): R => {
@@ -91,7 +19,6 @@ function memoized<A extends readonly unknown[], R>(fn: (...args: A) => R): (...a
   };
 }
 
-/** The sentinel key a memo node stores its own result under, distinct from any argument. */
 const RESULT = Symbol("result");
 
 vi.mock("react", async (importOriginal) => ({
@@ -142,32 +69,23 @@ const QUESTION_BODY = {
   ],
 };
 
-/**
- * The preview body is never read here, only counted: `getPreview` casts what it receives
- * and this file's subject is which paths left the app, not what came back on them.
- */
 const PREVIEW_BODY = {};
 
-/** Which fixture a path gets back, so one mock serves both screens. */
 function bodyFor(path: string): unknown {
   if (path.endsWith("/draft/validate")) return { valid: true, issues: [] };
   if (path.endsWith("/preview")) return PREVIEW_BODY;
   if (path.startsWith("/questions/")) return QUESTION_BODY;
-  // The library list, with or without a query string: the same route either way, which
-  // is the property the forms-list count below is about.
+
   if (isFormsList(path)) return { forms: [] };
   return FORM_BODY;
 }
 
-/** Whether a path is the form library list rather than one form's detail read. */
 function isFormsList(path: string): boolean {
   return path === "/forms" || path.startsWith("/forms?");
 }
 
-/** The session read, counted where it leaves this app: one call, one round trip. */
 const proxiedSession = vi.fn(() => Promise.resolve(SESSION_BODY));
 
-/** Every credentialed API call, so a path can be attributed to the screen that made it. */
 const adminApiFetch = vi.fn((_session: unknown, path: string) =>
   Promise.resolve(
     new Response(JSON.stringify(bodyFor(path)), {
@@ -186,22 +104,12 @@ vi.mock("next/navigation", () => ({
 vi.mock("./auth-api.ts", () => ({ proxiedSession }));
 vi.mock("./api.ts", () => ({ adminApiFetch }));
 
-/** What one render of a form-scoped screen asked the server for. */
 interface RenderReads {
   readonly sessionReads: number;
   readonly formReads: number;
   readonly validations: number;
 }
 
-/**
- * Render one form-scoped screen's three server trees, in the order Next renders them,
- * and count what left the app.
- *
- * The trees are the real call sequences rather than the components: the layout's guard,
- * the page's guard plus its form read, and the rail slot's guard plus `loadFormRail`.
- * Calling the components themselves would add JSX and a dozen unrelated stubs without
- * changing a single read, and the reads are the subject.
- */
 async function renderFormScreen(): Promise<RenderReads> {
   vi.resetModules();
   proxiedSession.mockClear();
@@ -211,14 +119,11 @@ async function renderFormScreen(): Promise<RenderReads> {
   const { getForm } = await import("./forms.ts");
   const { loadFormRail } = await import("./form-rail.ts");
 
-  // app/(shell)/layout.tsx
   await requireAdminSession();
 
-  // app/(shell)/forms/[formId]/versions/page.tsx, and its seven siblings
   const pageSession = await requireAdminSession();
   await getForm(pageSession, FORM_ID);
 
-  // app/(shell)/@rail/forms/[formId]/rail-slot.tsx
   const railSession = await requireAdminSession();
   await loadFormRail(railSession, FORM_ID);
 
@@ -230,21 +135,12 @@ async function renderFormScreen(): Promise<RenderReads> {
   };
 }
 
-/** What one render of the question detail screen asked the server for. */
 interface QuestionRenderReads {
   readonly sessionReads: number;
   readonly questionReads: number;
   readonly previews: number;
 }
 
-/**
- * Render the question detail screen's three server trees and count what left the app.
- *
- * The page's preview read is deliberately driven by the question it just read, the way
- * `selectVersion` drives it on the real screen: the second read of the question is the
- * thing under measurement, so the sequence has to be the one the screen actually runs
- * rather than two independent calls that happen to use the same id.
- */
 async function renderQuestionScreen(): Promise<QuestionRenderReads> {
   vi.resetModules();
   proxiedSession.mockClear();
@@ -254,16 +150,13 @@ async function renderQuestionScreen(): Promise<QuestionRenderReads> {
   const { getPreview, getQuestion } = await import("./questions.ts");
   const { loadQuestionRail } = await import("./question-rail.ts");
 
-  // app/(shell)/layout.tsx
   await requireAdminSession();
 
-  // app/(shell)/questions/[questionId]/page.tsx
   const pageSession = await requireAdminSession();
   const detail = await getQuestion(pageSession, QUESTION_ID);
   const selected = detail.ok ? (detail.data.versions.at(-1)?.version ?? 1) : 1;
   await getPreview(pageSession, QUESTION_ID, selected);
 
-  // app/(shell)/@rail/questions/[questionId]/page.tsx
   const railSession = await requireAdminSession();
   await loadQuestionRail(railSession, QUESTION_ID);
 
@@ -331,26 +224,13 @@ describe("the server reads one render of the question detail screen makes", () =
   });
 });
 
-/** What one render of the form library list asked the server for. */
 interface ListRenderReads {
   readonly sessionReads: number;
   readonly listReads: number;
-  /** The paths the list route was called on, so a query string can be asserted. */
+
   readonly listPaths: readonly string[];
 }
 
-/**
- * Render the form library list's server trees and count what left the app (issue 686).
- *
- * Two trees, not three: `@rail/forms/page.tsx` re-exports `NoRailSection`, so the list
- * screen's rail reads nothing at all. The layout guard and the page's own guard plus its
- * one list read are the whole render.
- *
- * The subject is the arithmetic the filters must not change. Search, status and sort are
- * the API's parameters, so applying them grows the query string and nothing else; a
- * screen that had reached for a second read (a count, an unfiltered list to compare
- * against, a per-row lookup) would show up here as a number above one.
- */
 async function renderFormsListScreen(
   search: Record<string, string> = {},
 ): Promise<ListRenderReads> {
@@ -361,10 +241,8 @@ async function renderFormsListScreen(
   const { requireAdminSession } = await import("./session.ts");
   const { listForms } = await import("./forms.ts");
 
-  // app/(shell)/layout.tsx
   await requireAdminSession();
 
-  // app/(shell)/forms/page.tsx
   const pageSession = await requireAdminSession();
   await listForms(pageSession, search);
 
@@ -415,10 +293,6 @@ describe("the server reads one render of the form library list makes (issue 686)
   });
 
   it("sends no query string at all when it is asked for no filters", async () => {
-    // Not `?search=&status=&sort=`: an empty parameter is a value the API would have to
-    // decide about. The library screen always names a sort, so this is the shape the
-    // OTHER two callers get - `/responses` and `/webhooks` each read the form list with
-    // no filters for their form pickers, and they must keep asking the plain route.
     expect((await renderFormsListScreen()).listPaths).toEqual(["/forms"]);
   });
 

@@ -61,9 +61,9 @@ import type {
   workspaceSettingsRoute,
 } from "./route.js";
 
-// The only membership write path: the auth plugin's team and member endpoints stay off the
-// HTTP allowlist, as their removal cascades change grants with no audit row. Each write
-// puts its grants and SEC-15 audit row in one control-pool transaction.
+// The only membership write path: the auth plugin's team and member endpoints stay off the HTTP allowlist,
+// as their removal cascades change grants with no audit row. Each write puts its grants and audit row in one
+// control-pool transaction.
 
 const fail = {
   notFound: (): ApiError => new ApiError("WORKSPACE_NOT_FOUND", 404, "No such workspace"),
@@ -815,9 +815,9 @@ export function makeAuditHandler(deps: Deps): RouteHandler<typeof auditRoute, Ap
 }
 
 /**
- * The agent audit for one workspace, scoped and authorised exactly as the access audit
- * above: the same `audit: read` cell, the same workspace from the path, the same actor
- * resolution, and a `detail` that carries a non-content fact and nothing else (SEC-17).
+ * The agent audit for one workspace, scoped and authorised exactly as the access audit above: the same
+ * `audit: read` cell, the same workspace from the path, the same actor resolution, and a `detail` that
+ * carries a non-content fact and nothing else.
  */
 export function makeAgentAuditHandler(deps: Deps): RouteHandler<typeof agentAuditRoute, ApiEnv> {
   return async (c) => {

@@ -16,9 +16,8 @@ import { assertPortSeatChosen, harnessPort } from "./ports.mjs";
 const CONTAINER_DUMP = "/tmp/qcms-drill.dump.sql";
 
 /**
- * The restore runs as this role because `pg_dump --no-owner` lands ownership on whoever
- * runs it, and SEC-10 expects it here. No password: `psql` in the container connects over
- * the Unix socket, which the official image leaves on initdb's `local all all trust`.
+ * Restore as the owning role because --no-owner assigns ownership to the restorer. The container's local
+ * Unix socket uses trust authentication and needs no password.
  */
 const MIGRATE_ROLE = "qcms_migrate";
 
@@ -215,7 +214,8 @@ function restoreFrom(hostPath) {
     "postgres",
     "sh",
     "-c",
-    // ON_ERROR_STOP is the difference between a restore that failed and a restore
+    // ON_ERROR_STOP must abort on the first failed statement; otherwise psql can report a failed restore as
+    // successful.
     `psql --username ${MIGRATE_ROLE} --dbname "$POSTGRES_DB" --set ON_ERROR_STOP=on --file ${CONTAINER_DUMP}`,
   ]);
 }
@@ -297,7 +297,7 @@ function assertRestoredGrants() {
       where n.nspname = 'public'`,
   ]).trim();
   if (publicCreate !== "f") problems.push("PUBLIC still holds CREATE on schema public");
-  // The same property per role, because `public` is out of the snapshot above (Q76) and
+  // Check effective CREATE permission per application role too; public is excluded from the schema snapshot.
   const appCreate = psql([
     "--tuples-only",
     "--no-align",
@@ -440,9 +440,8 @@ function decodeEntities(html) {
  */
 export async function assertPortalServesRestoredForm(slug, labels) {
   const base = `http://localhost:${String(harnessPort("portal"))}`;
-  // The portal's SEC-9 belt refuses a state-changing POST that declares no origin, and
-  // node's `fetch` declares none, so without these headers the drill reports
-  // `state=error` and reads as a failed restore. `Sec-Fetch-Site` is read first.
+  // Node fetch supplies no origin automatically; send the portal's expected CSRF headers so a refused start
+  // cannot masquerade as a failed restore.
   const start = await fetch(`${base}/f/${slug}/start`, {
     method: "POST",
     redirect: "manual",
@@ -456,9 +455,8 @@ export async function assertPortalServesRestoredForm(slug, labels) {
   const target = new URL(start.headers.get("location") ?? "", base);
   const refused = target.searchParams.get("state");
   if (refused !== null) {
-    // `state=error` is every refusal the entry route has no word for, and reading it as
-    // missing data is the worst false alarm to raise during a recovery, so the portal's
-    // own log goes in the message (SEC-8: ids and classifications only, no values).
+    // If startup returns state=error, include the portal's value-free classification log; a refusal is not
+    // evidence of missing restored data.
     const portalLog = composeCapture(["logs", "--tail", "30", "portal"]);
     throw new Error(
       `drill-restore: the portal refused to start a session on the restored form ${slug} ` +
@@ -522,8 +520,6 @@ async function drill() {
     test();
 
     step("fingerprinting the seeded database, one schema per environment in the live set");
-    // Read BEFORE the drop, which is the only moment it can be read at all: the table
-    // goes with the database.
     const schemas = dataSchemas();
     process.stdout.write(`drill-restore: covering ${schemas.join(", ")}\n`);
     const before = fingerprint(schemas);
@@ -603,12 +599,9 @@ async function drill() {
       );
     }
     process.stdout.write(`${after}\n`);
-    // A restore that landed the tables in `public` would pass every count above.
     assertPublicEmpty();
 
     step("checking the pre-dump administrator survived the restore");
-    // Row counts match whether or not the auth tables came back usable, so the pre-dump
-    // account is checked by identity.
     assertAdminSurvived(seededAdmin.email);
 
     step("answering a pre-dump form from the restored database, through the portal");

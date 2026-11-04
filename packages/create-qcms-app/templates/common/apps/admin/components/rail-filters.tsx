@@ -4,23 +4,14 @@ import type { ReactNode } from "react";
 import { Button } from "@/components/kit";
 import { t, tPlural } from "@/lib/i18n/en";
 
-/**
- * The rail's Filters part: a native GET form, so the URL carries the filter state
- * (`plan/admin-design-contracts.md` §7.0 ruling 2.4).
- *
- * "Filters" is a paragraph rather than a heading because the rail renders before `<main>`,
- * where a heading breaks `heading-order`.
- */
+/* Use prose labels in the rail: it precedes main, so headings here would break the page outline. */
 export function RailFilters({
   activeCount,
   clearHref,
   children,
 }: {
-  /** How many of this screen's filters are set. Zero hides the count and the clear link. */
   readonly activeCount: number;
-  /** The screen's unfiltered address. */
   readonly clearHref: string;
-  /** The screen's controls, in the ruled order: search, status, type or other, then sort. */
   readonly children: ReactNode;
 }) {
   return (
@@ -54,7 +45,6 @@ export function RailFilters({
   );
 }
 
-/** The active-filter count, shared by the Filters part and the Header's collapsed summary. */
 export function activeFilterCount(count: number): string {
   return tPlural("rail.filters.activeOne", "rail.filters.active", count);
 }

@@ -31,7 +31,6 @@ import { registerFormsAssist } from "./route.js";
 import type { ProposedDraftStep } from "./tools/propose.js";
 import type { AssistEvent } from "./types.js";
 
-/** The draft a turn's apply-draft card carries, with the server's own two lists. */
 function appliedDraft(events: readonly AssistEvent[]): ProposedDraftStep {
   const card = events.find((event) => event.type === "action");
   if (card?.type !== "action") throw new Error(JSON.stringify(events));
@@ -547,7 +546,6 @@ describe("accepting a proposal with new questions", () => {
         questionId: "q_taken_id",
         reason: "QUESTION_ID_REUSED",
       });
-      // SEC-8: never the definition itself, on any refusal path.
       expect(JSON.stringify(refusal)).not.toContain("Reused");
     },
     BOOT_TIMEOUT,
@@ -646,10 +644,6 @@ describe("the assist slice when the flag is none", () => {
   );
 });
 
-/**
- * SEC-17's two halves, against a real database: no answer value, answer-ledger row or
- * webhook payload reaches the provider from any screen, and response metadata does.
- */
 describe("every screen's context, with a sentinel in the database", () => {
   const SESSION_ID = "ses_sentinel";
   const FORM_ID = "frm_sentinel";
@@ -817,12 +811,12 @@ describe("every screen's context, with a sentinel in the database", () => {
     await turn("cnv_rows");
     await turn("cnv_rows");
     await turn("cnv_rows");
-    // Three turns, one filter set, one row.
+
     expect((await countRows()) - start).toBe(1);
-    // A different filter set in the same conversation is a second row.
+
     await turn("cnv_rows", true);
     expect((await countRows()) - start).toBe(2);
-    // A new conversation on the first filter set is a third.
+
     await turn("cnv_rows_2");
     expect((await countRows()) - start).toBe(3);
 
@@ -899,7 +893,6 @@ describe("a reduced-grant caller over HTTP", () => {
     });
   }
 
-  /** Which tool each step ran, and how that step ended. */
   function outcomes(events: readonly AssistEvent[]): Map<string, string> {
     const tools = new Map<number, string>();
     const ended = new Map<string, string>();

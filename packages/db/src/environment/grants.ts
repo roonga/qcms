@@ -1,6 +1,6 @@
 /**
- * The grant model as one ordered list of sources (ADR-40, SEC-10). `grants.test.ts` fails
- * if a `GRANT` or `REVOKE` appears in the migration tree that this list does not produce.
+ * The grant model as one ordered list of sources (ADR-40). `grants.test.ts` fails if a `GRANT` or `REVOKE`
+ * appears in the migration tree that this list does not produce.
  */
 
 import type { Executor } from "../queries/executor.js";
@@ -68,7 +68,7 @@ REVOKE CREATE ON SCHEMA "public" FROM PUBLIC;`,
 }
 
 interface GrantSourceCommon {
-  /** Reported in place of the statement that failed (SEC-8). */
+  /** Reported in place of the statement that failed. */
   readonly name: string;
   /**
    * Whether every statement this source emits appears in the migration tree verbatim,
@@ -208,7 +208,7 @@ export const UNREAPPLIABLE_SOURCES: readonly {
   },
 ];
 
-/** One source's pass, so a failure can name its source rather than the statement (SEC-8). */
+/** One source's pass, so a failure can name its source rather than the statement. */
 export interface GrantPass {
   readonly source: string;
   /** Absent for an installation-wide source. */

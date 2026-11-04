@@ -33,7 +33,7 @@ async function main(): Promise<number> {
   try {
     config = loadResetTwoFactorConfig(process.env);
   } catch (error) {
-    // ConfigError messages name env vars and reasons only, never values (SEC-8).
+    // ConfigError messages name env vars and reasons only, never values.
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
     return EXIT_MISCONFIGURED;
   }
@@ -52,8 +52,8 @@ async function main(): Promise<number> {
     }
 
     if (outcome.applied) {
-      // No attributes: the email and user id are direct identifiers, which never belong
-      // in an exported signal (SEC-13). The audit row holds the identity.
+      // No attributes: the email and user id are direct identifiers, which never belong in an exported signal. The
+      // audit row holds the identity.
       const logger = createJsonLogger({
         write: (line) => process.stdout.write(`${line}\n`),
         base: { service: "qcms-api" },

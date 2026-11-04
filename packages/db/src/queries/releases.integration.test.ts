@@ -277,8 +277,6 @@ describe("what is released where (criteria 1 and 5)", () => {
 
     expect((await lastReleaseAtByForm(testDb.db, "test", [formId])).get(formId)).toEqual(inTest);
     expect((await lastReleaseAtByForm(testDb.db, "prod", [formId])).get(formId)).toEqual(inProd);
-    // An environment this form never reached answers nothing for it, rather than falling
-    // back to the one that is newest somewhere else.
     expect((await lastReleaseAtByForm(testDb.db, "dev", [formId])).has(formId)).toBe(false);
   });
 });
@@ -457,7 +455,6 @@ describe("the closed state is per (form, environment) (Q18, task 066)", () => {
     expect(closed?.version).toBe(2);
     expect(closed?.closed).toBe(true);
     expect(closed?.fromEnvironment).toBeNull();
-    // `releasedAt` is the newest row's own timestamp, whichever of the three acts wrote it.
     const closedProd = await getFormEnvironmentState(testDb.db, formId, "prod");
     expect(closedProd?.version).toBe(2);
     expect(closedProd?.closed).toBe(true);

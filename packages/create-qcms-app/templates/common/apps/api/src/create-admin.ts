@@ -1,6 +1,6 @@
 /**
- * Credentials arrive in the environment, never as arguments, which show in `ps` (SEC-8).
- * A compiled entry under `src/` because the image carries only `dist`.
+ * Credentials arrive in the environment, never as arguments, which show in `ps`. A compiled entry under
+ * `src/` because the image carries only `dist`.
  */
 
 import { schema } from "@roonga/qcms-db";
@@ -39,8 +39,7 @@ async function main(): Promise<number> {
     return EXIT_MISCONFIGURED;
   }
 
-  // Before anything is created: otherwise this account is the one made without the
-  // SEC-1 breach check and with nothing saying so.
+  // Warn before creating an account if the breach check is disabled so the downgrade cannot pass silently.
   warnIfBreachCheckDisabled(config.adminAuth, (message) => {
     process.stderr.write(`${message}\n`);
   });

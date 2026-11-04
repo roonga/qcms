@@ -7,15 +7,6 @@ import { t } from "../../lib/i18n/en.ts";
 import type { WebhookSummary } from "../../lib/ops/types.ts";
 import { unexpected } from "../../lib/ops/unexpected.ts";
 
-/**
- * What an operator sees when a webhook mutation REJECTS, and when copying a revealed
- * secret cannot work (issue #352, handler 7 of nine plus the clipboard chain beside it).
- *
- * The five mutations share one `run` helper, so one rejected mutation exercises the whole
- * handler; create is the one chosen because its dialog is the one an operator is most
- * likely to be standing in front of when the API goes away.
- */
-
 const HOOK: WebhookSummary = {
   webhookId: "whk_1",
   url: "https://example.test/hook",
@@ -51,8 +42,6 @@ describe("a rejected webhook mutation", { timeout: 30_000 }, () => {
     );
     await user.click(within(dialog).getByRole("button", { name: t("ops.webhooks.create") }));
 
-    // The dialog renders the failure itself, which is the only place an operator inside a
-    // modal can read it.
     expect(await within(dialog).findByText(unexpected())).toBeTruthy();
     expect(dialog.isConnected).toBe(true);
   });
@@ -69,16 +58,8 @@ describe(
       restoreClipboard = undefined;
     });
 
-    /**
-     * Remove `navigator.clipboard`, which is what an insecure context looks like.
-     *
-     * AFTER `userEvent.setup()`, which installs a working clipboard stub of its own, and
-     * removed rather than made to reject: reading `.writeText` off an absent clipboard
-     * throws SYNCHRONOUSLY, and a `.catch` on the returned promise never sees a throw that
-     * happens before the promise exists. That distinction is the whole reason
-     * `public-form-link.tsx` and `secure-links.tsx` open their chains with
-     * `Promise.resolve().then(...)`, so it is the case worth forcing here too.
-     */
+    /* Override clipboard after userEvent.setup; absent clipboard access throws synchronously before a promise
+       catch can run. */
     function removeClipboard(): void {
       const previous = Object.getOwnPropertyDescriptor(globalThis.navigator, "clipboard");
       delete (globalThis.navigator as { clipboard?: unknown }).clipboard;
@@ -125,8 +106,6 @@ describe(
       const panel = await screen.findByTestId("qcms-webhook-secret");
       await user.click(within(panel).getByRole("button", { name: t("ops.common.copy") }));
 
-      // The secret is on screen exactly once and can never be produced again (SEC-6), so a
-      // refusal an operator cannot see is the worst version of this failure in the app.
       expect(await screen.findByText(t("ops.common.copyFailed"))).toBeTruthy();
     });
   },

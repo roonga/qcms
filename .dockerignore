@@ -15,25 +15,12 @@ dist
 !.env.example
 *.log
 
-# Build output at any depth, not just the root `dist` above. Every image builds what
-# it needs inside itself, so a host-built `packages/*/dist` in the context is never
-# used on purpose - only by accident, and that accident is exactly what made the
-# admin image build pass in `full-stack-e2e` (which runs `pnpm -r build` on the
-# runner before `pnpm docker:up`, leaking the declarations in) while failing in the
-# Images job, which builds from a clean checkout the way an adopter's first
-# `docker compose build` does. Excluding it makes the two paths build the same tree.
+# Exclude host-built output so images build identically from a clean checkout.
 **/dist
 
-# Tests and browser specs, which have no business in a production image. Excluding
-# them is load-bearing rather than tidiness: Next type-checks every file its tsconfig
-# includes, and `apps/admin/e2e` reaches into `apps/api/e2e/support`, which imports
-# `@roonga/qcms-db`, `drizzle-orm` and `pg`. The admin declares none of the three on purpose
-# (task 056, ADR-35 as amended) and `apps/admin/lib/server/r2-import-surface.test.ts`
-# forbids all three, so the fix is to keep the files out of the image, never to add
-# the dependency that would satisfy their imports.
+# Browser specs import database packages the frontends must not depend on.
 **/e2e
-# pnpm's frozen install requires every workspace manifest recorded in the lockfile.
-# Keep the e2e workspace manifest, but exclude its browser sources from image builds.
+# Frozen installs require the browser workspace manifest even though its sources are excluded.
 !apps/e2e
 apps/e2e/**
 !apps/e2e/package.json

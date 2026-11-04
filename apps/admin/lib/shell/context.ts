@@ -1,29 +1,13 @@
-/**
- * What each shell mode remembers between visits, and how a remembered value is restored.
- *
- * Client-safe and pure: the cookie names and their parsers are one definition, because the
- * shell resolves them on the server and the mode links write them in the browser.
- *
- * A remembered value is never an authorization input. Restoring one checks it against the
- * set the API served for this caller and falls back when it is not there, so a cookie kept
- * from a grant since revoked reaches nothing.
- */
+/** Remembered cookies are navigation preferences, never authorization. Restore only values still present in the API-permitted set. */
 
 import { landingPathForMode, WORKSPACES_PATH, type ShellMode } from "./modes.ts";
 
-/** Which focused mode the shell was last in, so a personal route can stay inside it. */
 export const SHELL_MODE_COOKIE = "qcms-shell-mode";
 
-/** The workspace the Workspaces mode was last on. */
 export const SHELL_WORKSPACE_COOKIE = "qcms-shell-workspace";
 
-/** A year. A remembered context is a convenience, and nothing it holds expiry protects. */
 export const SHELL_CONTEXT_MAX_AGE_SECONDS = 60 * 60 * 24 * 365;
 
-/**
- * Long enough for any identifier the API mints and short enough that a hand-written cookie
- * cannot carry a payload.
- */
 const WORKSPACE_CONTEXT_MAX_LENGTH = 64;
 
 function cookie(name: string, value: string, secure: boolean): string {
@@ -45,10 +29,7 @@ export function shellWorkspaceCookie(workspaceId: string, secure: boolean): stri
   return cookie(SHELL_WORKSPACE_COOKIE, workspaceId, secure);
 }
 
-/**
- * A remembered workspace identifier, or `undefined` when there is none to trust. Anything
- * unbounded or carrying a path separator is discarded rather than repaired.
- */
+/** Discard oversized or path-bearing values rather than repairing untrusted cookie input. */
 export function parseWorkspaceContext(raw: string | undefined): string | undefined {
   if (raw === undefined || raw === "") return undefined;
   if (raw.length > WORKSPACE_CONTEXT_MAX_LENGTH) return undefined;
@@ -56,10 +37,6 @@ export function parseWorkspaceContext(raw: string | undefined): string | undefin
   return raw;
 }
 
-/**
- * Where entering Workspaces goes: the remembered workspace while the caller still
- * administers it, and All workspaces otherwise.
- */
 export function restoredWorkspacePath(
   remembered: string | undefined,
   permittedIds: readonly string[],
@@ -69,10 +46,6 @@ export function restoredWorkspacePath(
   return `${WORKSPACES_PATH}/${encodeURIComponent(remembered)}`;
 }
 
-/**
- * What the modes remembered, carrying the permitted set a remembered value is checked
- * against so nothing here can widen what the caller reaches.
- */
 export interface RememberedContext {
   readonly workspace: string | undefined;
   readonly permittedWorkspaceIds: readonly string[];
@@ -80,10 +53,6 @@ export interface RememberedContext {
 
 export const NO_CONTEXT: RememberedContext = { workspace: undefined, permittedWorkspaceIds: [] };
 
-/**
- * Where entering a mode goes. Operations returns to its forms list rather than to a form,
- * which is what re-entering it is for.
- */
 export function restoredModePath(mode: ShellMode, context: RememberedContext): string {
   if (mode !== "workspaces") return landingPathForMode(mode);
   return restoredWorkspacePath(context.workspace, context.permittedWorkspaceIds);

@@ -108,7 +108,6 @@ export function conditionDepth(condition: Condition): number {
     case "and":
     case "or":
       return 1 + Math.max(...condition.conditions.map(conditionDepth));
-    // A nested condition counts toward the cap; `instanceCount` is a leaf.
     case "not":
       return 1 + conditionDepth(condition.condition);
     case "anyInstance":

@@ -11,41 +11,8 @@ import {
   measureFor,
 } from "./measure.js";
 
-/**
- * The route-to-cap table is the mechanism, so these are its tests (issues 558, 648, 657).
- *
- * Each of the twenty-three screens takes the cap its own POC draws, or - for the six with no POC - the cap of the screen it is shaped like, and the acceptance asks
- * that adding one more make its cap an obvious one-line decision. Issue 685 is the first
- * time that promise was called in: `/forms/new` arrived and its cap was one row. A table
- * only earns
- * that if it cannot fall out of step with the route tree, so the first test here is not
- * about widths at all: it reads the route patterns off the filesystem and requires the
- * table's keys to be exactly that set. A new screen fails this test until someone writes
- * its row, which is the one-line decision.
- *
- * The values below are restated from the POCs rather than imported from `measure.ts`.
- * Importing them would make this file agree with the table by construction; written out,
- * a row that says the wrong thing fails here.
- */
-
-/** The authenticated route group. Everything outside it is unauthenticated chrome. */
 const SHELL = fileURLToPath(new URL("../app/(shell)", import.meta.url));
 
-/**
- * Every Next route pattern under the shell group, read from the directory tree.
- *
- * A directory contributes a pattern when it holds a `page.tsx`; route GROUPS (the
- * `(shell)` wrapper itself and any future sibling) contribute no segment, which is what
- * makes `app/(shell)/forms/page.tsx` the pattern `/forms`. Dynamic directories keep their
- * brackets, so the pattern read here is spelled the same way the table keys are.
- *
- * PARALLEL SLOTS (`@rail`, issue 559) are skipped whole, and that is a statement about
- * what this table is for rather than a convenience. The table answers one question - how
- * wide is this screen's content column - and a slot has no content column: it renders
- * beside `<main>`, not inside it, and its pages are matched against a URL some other page
- * already owns. Counting them would ask the width question twice about one screen and
- * would make the table's own screen count wrong.
- */
 function routePatternsUnder(directory: string, prefix: string): string[] {
   const entries = readdirSync(directory, { withFileTypes: true });
   const patterns = entries.some((entry) => entry.isFile() && entry.name === "page.tsx")
@@ -66,40 +33,25 @@ describe("the route-to-cap table", () => {
   });
 
   it("assigns every route a cap some POC draws, and no route the untraced default", () => {
-    // The clause issue 657 landed on. `default` is Tailwind's `max-w-5xl` and no POC puts
-    // 1024 on anything; it survives only as `measureFor`'s fallback for a path no route
-    // claims. A row that drifts back onto it is a row that has stopped tracing to a
-    // drawing, which is the exact failure this issue existed to fix.
     expect(Object.values(MEASURE_BY_ROUTE)).not.toContain("default");
   });
 
   it("counts the drawings: twelve at 1600, four at 40rem, two at 1080", () => {
-    // Restated from the POCs rather than derived from the table, so a wrong row is a
-    // failure here instead of a table that agrees with itself.
     const measures = Object.values(MEASURE_BY_ROUTE);
     const count = (measure: string) => measures.filter((value) => value === measure).length;
-    // Twelve since task 065's release screen, which takes the width of the version
-    // history it sits beside rather than a number of its own.
+
     expect(count("wide")).toBe(12);
-    // Four since My access, which is one panel of the reader's own grants and so takes the
-    // account screen's prose width. No POC draws it.
+
     expect(count("prose")).toBe(4);
-    // `list` is the nearest vocabulary value below the 1120 the Operations table is drawn
-    // at, and `/responses` redirects there.
+
     expect(count("list")).toBe(4);
-    // No POC draws `/workspaces`, so it borrows the deployment POC's 900.
+
     expect(count("ops")).toBe(1);
     expect(count("log")).toBe(2);
     expect(measures).toHaveLength(23);
   });
 
   it("offers no cap that no route can take, which is what issue 668 left behind", () => {
-    // `narrow` (45rem) was the one-layer compromise for the three screens whose POC draws
-    // an inner element: it was neither drawn number, and the closest single value to both.
-    // Issue 668 built the second layer, so those three take their POC's outer 1600 and
-    // nothing is left on 45rem. The member went with the assignments rather than staying as
-    // a vocabulary entry no route can reach; `default` is the one deliberate exception,
-    // because it is `measureFor`'s fallback rather than a cap anyone assigns.
     expect(Object.keys(MEASURE_CLASS)).not.toContain("narrow");
     const assigned = new Set<string>(Object.values(MEASURE_BY_ROUTE));
     for (const name of Object.keys(MEASURE_CLASS)) {
@@ -109,15 +61,8 @@ describe("the route-to-cap table", () => {
   });
 
   it("puts every screen whose POC `.main` is 1600 on that cap", () => {
-    // `admin-shell-poc.html`, `rules-screen-poc.html`, `links-webhooks-poc.html` (both
-    // screens), `responses-poc.html` (both screens) and the version-history screen of
-    // `preview-versions-poc.html`. The last of those is the case that shows a shared
-    // `.main` is NOT ignored in a multi-screen file: two of that file's three screens draw
-    // an inner cap as well and this one does not, so this one takes the shared number
-    // alone.
     expect(MEASURE_BY_ROUTE["/forms/[formId]"]).toBe("wide");
-    // The rules screen (issue #669). Its own file caps `.main` at 1600 and draws nothing
-    // narrower inside, which is the honest reading for the widest surface the app builds.
+
     expect(MEASURE_BY_ROUTE["/forms/[formId]/rules"]).toBe("wide");
     expect(MEASURE_BY_ROUTE["/forms/[formId]/links"]).toBe("wide");
     expect(MEASURE_BY_ROUTE["/forms/[formId]/webhooks"]).toBe("wide");
@@ -127,51 +72,27 @@ describe("the route-to-cap table", () => {
   });
 
   it("takes a POC's OUTER cap on the three screens that draw an inner element", () => {
-    // Issue 668's half of the two-layer reading. Each of these three POCs caps `.main` at
-    // 1600 and then draws one element narrower inside it - a 720px `.editor-column`, a
-    // 640px `.respondent-frame` on two screens - and until 668 this table carried the inner
-    // number instead, which rendered it minus the column's own padding on both sides. The
-    // inner layer is now the element's own (`.qcms-editor-column`,
-    // `.qcms-respondent-frame` in `app/globals.css`), so what belongs here is the outer
-    // number. A row that drifts back to a narrow cap is a screen whose drawn inset has
-    // silently become "the page just got narrower here" again.
-    expect(MEASURE_BY_ROUTE["/questions/[questionId]"]).toBe("wide"); // .editor-column 720 inside
-    expect(MEASURE_BY_ROUTE["/forms/[formId]/preview"]).toBe("wide"); // .respondent-frame 640
-    expect(MEASURE_BY_ROUTE["/forms/[formId]/versions/[version]"]).toBe("wide"); // same frame
+    expect(MEASURE_BY_ROUTE["/questions/[questionId]"]).toBe("wide");
+    expect(MEASURE_BY_ROUTE["/forms/[formId]/preview"]).toBe("wide");
+    expect(MEASURE_BY_ROUTE["/forms/[formId]/versions/[version]"]).toBe("wide");
   });
 
   it("keeps the inner cap where the POC's outer layer is `none`", () => {
-    // `deployment-ops-poc.html` caps `.main` at nothing at all (`:229`) and states each of
-    // its screens separately, so there is no outer number for `<main>` to take and the
-    // per-screen cap is the only layer that exists.
-    expect(MEASURE_BY_ROUTE["/responses/erasures"]).toBe("log"); // .ops-inner--erasures 1180
-    expect(MEASURE_BY_ROUTE["/workspaces"]).toBe("ops"); // the same file's 900, borrowed
+    expect(MEASURE_BY_ROUTE["/responses/erasures"]).toBe("log");
+    expect(MEASURE_BY_ROUTE["/workspaces"]).toBe("ops");
   });
 
   it("leaves the one route whose drawing has no token where it was, rather than guessing", () => {
-    // `deployment-ops-poc.html` `.ops-inner--webhooks` is 1820, wider than `wide`. It
-    // cannot be reached by reassignment, only by adding a value to the vocabulary, which
-    // is a change to the scheme rather than a row in this table. Pinned here so the open
-    // question is visible in the suite rather than only in a comment.
     expect(MEASURE_BY_ROUTE["/webhooks"]).toBe("wide");
     expect(Object.values(MEASURE_CLASS)).not.toContain("max-w-measure-queue");
   });
 
   it("gives both screens of `settings-newquestion-poc.html` its 40rem `.page-main`", () => {
-    // One POC file, two screens, one cap. `/settings` arrived in issue 655; `/questions/new`
-    // is the screen that file draws beside it and issue 657's own table did not list.
     expect(MEASURE_BY_ROUTE["/settings"]).toBe("prose");
     expect(MEASURE_BY_ROUTE["/questions/new"]).toBe("prose");
   });
 
   it("gives the new-form screen the same 40rem, because a POC ruled it the same screen", () => {
-    // The seventeenth row (issue 685), and the only one reached by a step. No POC draws
-    // `/forms/new`; `library-lists-poc.html` rules that BOTH library screens create on a
-    // separate route and names `/questions/new` as the model, so the model's drawing is
-    // this screen's drawing too. Pinned as its own case rather than folded into the one
-    // above, because "the same as its model" is the claim, and a later pass that widened
-    // the creating screens apart should have to argue with a sentence rather than change
-    // a number in a list.
     expect(MEASURE_BY_ROUTE["/forms/new"]).toBe(MEASURE_BY_ROUTE["/questions/new"]);
     expect(MEASURE_BY_ROUTE["/forms/new"]).toBe("prose");
   });
@@ -191,11 +112,6 @@ describe("resolving a live pathname to a cap", () => {
   });
 
   it("prefers a literal segment over a dynamic one, the way Next resolves them", () => {
-    // `/questions/new` matches `/questions/[questionId]` as well and the static route wins.
-    // Since issue 657 the two take DIFFERENT caps, and issue 668 widened the gap rather than
-    // closing it: the creation form is a 40rem column and the editor is a 1600px `<main>`
-    // holding a 720px one, so the resolution decides both what `<main>` measures and which
-    // of two layers the reading width comes from.
     expect(measureFor("/questions/new")).toBe("prose");
     expect(measureFor("/questions/q_full_name")).toBe("wide");
     expect(measureFor("/responses/erasures")).toBe("log");
@@ -219,10 +135,6 @@ describe("resolving a live pathname to a cap", () => {
   });
 
   it("left-anchors every screen, because no POC centres one", () => {
-    // `margin: 0`, not `margin: 0 auto`: `settings-newquestion-poc.html`'s own statement,
-    // and all eleven POCs were read for a centring rule on the main column with no hits.
-    // The difference is visible only as the ABSENCE of `mx-auto`, which is easy to
-    // reintroduce by accident, so it is asserted on every route rather than sampled.
     for (const route of Object.keys(MEASURE_BY_ROUTE)) {
       const live = route
         .split("/")

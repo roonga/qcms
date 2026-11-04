@@ -15,7 +15,6 @@ import {
 } from "./dev-stack.mjs";
 import { stablePort } from "./ports.mjs";
 
-/** Shapes, not credentials: none of these authenticates anything that exists. */
 const inputs = {
   databaseUrl: "postgres://qcms:qcms@10.0.0.1:7620/qcms",
   apiPort: "7610",
@@ -57,8 +56,6 @@ describe("the admin child gets no database handle", () => {
     const admin = frontendChildEnv("admin", frontendInputs);
     expect(admin.DATABASE_URL).toBeUndefined();
     expect(admin.QCMS_ADMIN_AUTH_SECRET).toBeUndefined();
-    // The exhaustive list, so a fifth key is a question to answer rather than a line to
-    // update here.
     expect(Object.keys(admin).toSorted()).toEqual([
       "NODE_ENV",
       "QCMS_ADMIN_BASE_URL",
@@ -124,7 +121,6 @@ describe("the dev seed's questions come from the form it publishes (issue #817 c
     const expected = pinnedByTheForm();
     const seeded = new Map(kitchenSinkQuestions().map((q) => [q.id, q.versions]));
     expect(seeded).toEqual(expected);
-    // Non-vacuity: the fixture carries more than one question, and one pinned above 1.
     expect(expected.size).toBeGreaterThan(1);
     expect([...expected.values()]).toContain(2);
   });
@@ -165,7 +161,6 @@ describe("the admin's port is derived, never written down (R8)", () => {
 });
 
 describe("the admin banner never echoes a database credential (SEC-8)", () => {
-  /** Deliberately fake: neither authenticates anything that exists. */
   const FAKE_URL_PASSWORD = "hunter2-NOT-A-REAL-PASSWORD";
   const FAKE_DB_PASSWORD = "swordfish-NOT-A-REAL-PASSWORD";
   const PLACEHOLDER = "DATABASE_URL=<your dev database URL>";
@@ -198,7 +193,6 @@ describe("the admin banner never echoes a database credential (SEC-8)", () => {
   });
 
   it("still prints the ready-to-paste line for the synthetic compose default", async () => {
-    // Non-vacuity: suppressing unconditionally would pass both cases above.
     vi.stubEnv("DATABASE_URL", undefined);
     vi.stubEnv("QCMS_DB_PASSWORD", undefined);
     const text = await banner();
@@ -308,7 +302,6 @@ describe("Ctrl+C reaps the whole front-end tree (issue #318)", () => {
       expect(code).toBe(1);
 
       const tree = JSON.parse(reported) as number[];
-      // Two sleeps plus the shell, or the fixture never got far enough to prove anything.
       expect(tree.length).toBeGreaterThanOrEqual(3);
       for (const pid of tree) {
         expect(await waitUntilGone(pid), `pid ${pid} outlived the launcher that started it`).toBe(

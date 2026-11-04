@@ -8,10 +8,11 @@ import { REPOSITORY_ROOT } from "./docker.mjs";
 import { isGeneratedCopy } from "./generated-copy.mjs";
 import { trackedFilesUnder } from "./tracked-files.mjs";
 
-/** turbo tasks that build a tsc program and therefore read built declarations. */
+/**
+ * These tasks resolve emitted declarations, so they need prerequisite builds.
+ */
 const PROGRAM_SHAPED_TASKS = ["build", "typecheck", "lint"] as const;
 
-/** A module specifier, as opposed to a fragment of prose a loose regex matched. */
 const PLAUSIBLE_SPECIFIER = /^[^\s'"`;(){}]+$/;
 
 /**
@@ -179,7 +180,6 @@ describe("the two names-as-data rules, each proved to fire and each proved narro
   });
 
   it("still sees the packages a real program reaches, so the walk is not blind", () => {
-    // Vacuity floor: with the walk reaching nothing, every assertion below passes.
     const admin = workspaceImportsReachedFrom(join(REPOSITORY_ROOT, "apps/admin"));
     expect(admin.packages.size).toBeGreaterThan(2);
     expect(admin.packages).toContain("@roonga/qcms-db");
@@ -191,7 +191,6 @@ describe("turbo orders every dist a program-shaped task reads", () => {
   const cleaned = packagesThatCleanTheirDist(packages);
 
   it("finds the packages whose build removes its own dist", () => {
-    // Vacuity floor: an empty set passes every assertion below.
     expect(cleaned.size).toBeGreaterThan(3);
     expect([...cleaned]).toContain("@roonga/qcms-db");
   });
@@ -208,7 +207,6 @@ describe("turbo orders every dist a program-shaped task reads", () => {
       if (!graph.has(taskId)) continue;
       checked += 1;
       const reached = workspaceImportsReachedFrom(pkg.directory);
-      // A walk that reaches nothing is a broken walk, not a clean package.
       expect(
         reached.files,
         `${relative(REPOSITORY_ROOT, pkg.directory)} reached no files`,

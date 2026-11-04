@@ -24,7 +24,6 @@ import {
   type EffectiveWorkflow,
 } from "./workflow.js";
 
-/** One destination of a confirmation, carrying what the review showed. */
 export interface BatchTarget {
   readonly environment: string;
   /**
@@ -310,7 +309,6 @@ async function recheckTargets(
   return approvals;
 }
 
-/** One release row and one `form.released` event per destination, in the order listed. */
 async function writeReleases(
   tx: Executor,
   input: {
@@ -353,7 +351,6 @@ async function writeReleases(
   return written;
 }
 
-/** The number the next freeze assigns. */
 async function nextVersion(tx: Executor, formId: FormId): Promise<number> {
   return ((await getLatestPublishedVersion(tx, formId))?.version ?? 0) + 1;
 }

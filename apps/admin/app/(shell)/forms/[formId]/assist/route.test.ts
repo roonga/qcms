@@ -1,16 +1,6 @@
 import type { NextRequest } from "next/server";
 import { describe, expect, it, vi } from "vitest";
 
-/**
- * The assist proxy's response headers.
- *
- * A turn is only visibly streamed if every hop passes its frames on as they arrive. The
- * API sets `x-accel-buffering: no` on its own hop; this route is the hop an operator's
- * ingress sits in front of, so it says the same thing, and `no-transform` keeps a
- * compressing proxy from batching the frames. A non-200 is a JSON envelope rather than
- * a stream and keeps only what it carried.
- */
-
 const SESSION = {
   userId: "u_1",
   email: "admin@example.test",

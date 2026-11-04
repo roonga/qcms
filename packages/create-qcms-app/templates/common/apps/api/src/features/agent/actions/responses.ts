@@ -81,9 +81,9 @@ export const unflagResponse: ActionKindDef = {
 };
 
 /**
- * The export is a hand-off in the other direction: the bytes stream into the user's own
- * browser, so none reaches the agent code or the provider. It writes no agent audit row,
- * because the export's own SEC-15 row records the act.
+ * The export is a hand-off in the other direction: the bytes stream into the user's own browser, so none
+ * reaches the agent code or the provider. It writes no agent audit row, because the export's own audit row
+ * records the act.
  */
 const ExportArgs = z.strictObject({
   formId: z.string().min(1).max(200),

@@ -1,18 +1,5 @@
-/**
- * The release record as the admin reads it, and the two readings its screens take of a
- * history (ADR-40, task 065).
- *
- * Client-safe and pure, like `lib/forms/publish.ts`: the version list and the release panel
- * are both client components, and a client module cannot reach into `lib/server/` at all
- * (the R2 import-surface test). So the type and the two derivations live here and
- * `lib/server/releases.ts` holds the calls.
- *
- * **Nothing here decides anything about a release.** `rollback` arrives on the row,
- * computed by the API from the release's own predecessor in that environment, so every
- * screen that shows the marking shows the same answer (criterion 4).
- */
+// Render rollback from the API field, never infer it independently in client screens.
 
-/** One release, as the history and the release result both carry it. */
 export interface ReleaseRecord {
   readonly formId: string;
   readonly environment: string;
@@ -24,17 +11,10 @@ export interface ReleaseRecord {
   readonly approvedBy: string | null;
   readonly replacedVersion: number | null;
   readonly rollback: boolean;
-  /**
-   * Whether intake was closed in that environment as of this row (Q18).
-   *
-   * The same release state carries it, so the newest row for a (form, environment) pair
-   * answers both "which version is released here" and "is intake open here". A release
-   * carries the current value forward: releasing a version does not reopen closed intake.
-   */
+
   readonly closed: boolean;
 }
 
-/** Shape-check the list, dropping any entry that is not a release row. */
 export function parseReleases(value: unknown): readonly ReleaseRecord[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((entry) => {
@@ -68,15 +48,7 @@ export function parseReleases(value: unknown): readonly ReleaseRecord[] {
   });
 }
 
-/**
- * The version released to each environment, newest release per environment.
- *
- * Derived from the history rather than read separately, because the history already carries
- * it: the newest row for a (form, environment) pair **is** what is released there (ADR-40),
- * and a second read would be a second answer that could disagree with the table beside it.
- * The history arrives newest first, so the first row seen for an environment is its current
- * release.
- */
+// Derive current release from the same history shown in the table so a second read cannot disagree.
 export function currentReleaseByEnvironment(
   releases: readonly ReleaseRecord[],
 ): ReadonlyMap<string, ReleaseRecord> {
@@ -87,16 +59,6 @@ export function currentReleaseByEnvironment(
   return current;
 }
 
-/**
- * Which environments each version has reached, keyed by version number.
- *
- * The version list's "released anywhere" filter and its Released column both read this.
- * "Has reached", not "is released to": a version released and then rolled away from still
- * reached that environment, and a filter that hid it would be a worse answer than the
- * unfiltered list.
- *
- * Each environment appears once per version, in the order the history gives them.
- */
 export function environmentsByVersion(
   releases: readonly ReleaseRecord[],
 ): Readonly<Record<string, readonly string[]>> {
@@ -110,15 +72,6 @@ export function environmentsByVersion(
   return Object.fromEntries(byVersion);
 }
 
-/**
- * Which environments each version is releasing **now**, keyed by version number.
- *
- * The Versions view's Available in column. Deliberately not
- * `environmentsByVersion`: that one answers "has reached", which is the right answer for a
- * filter and the wrong one for a column an operator reads to decide what is serving. A
- * version replaced or rolled away from is available in nowhere, and a column that still
- * named the environment would present history as what is live.
- */
 export function currentEnvironmentsByVersion(
   releases: readonly ReleaseRecord[],
 ): Readonly<Record<string, readonly string[]>> {
@@ -132,7 +85,6 @@ export function currentEnvironmentsByVersion(
   return Object.fromEntries([...byVersion].map(([key, names]) => [key, [...names].sort()]));
 }
 
-/** Every version that has reached any environment, for the version list's filter. */
 export function releasedVersions(releases: readonly ReleaseRecord[]): ReadonlySet<number> {
   return new Set(releases.map((release) => release.version));
 }

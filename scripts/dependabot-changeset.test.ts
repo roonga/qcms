@@ -133,11 +133,8 @@ describe("templateManifestApp", () => {
   });
 
   it.each([
-    // Generated, but not a manifest: a source file regenerating is not a dependency bump.
     `${TEMPLATES}/common/apps/portal/app/page.tsx`,
-    // A manifest, but the canonical app the templates are derived from.
     "apps/portal/package.json",
-    // Hand-written rather than generated from an app.
     "packages/create-qcms-app/templates-static/README.md",
   ])("does not claim %s", (path) => {
     expect(templateManifestApp(path)).toBeUndefined();
@@ -269,7 +266,6 @@ function makeBumpedRepo(): string {
   commit(root, "base");
 
   run(root, ["git", "checkout", "-q", "-b", "dependabot/npm_and_yarn/minor-and-patch-abc123"]);
-  // What Dependabot's npm updater does, and all it does: it edits workspace members.
   write(root, "apps/portal/package.json", TEMPLATE_AFTER);
   write(
     root,

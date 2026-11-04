@@ -8,8 +8,8 @@ import type { AdminPrincipal, ApiEnv } from "../openapi.js";
 import { SCOPES } from "../openapi.js";
 
 /**
- * Private contract with the admin BFF: no browser ever sends it, and the channel
- * it travels on is already gated by the SEC-4 internal token.
+ * Private contract with the admin BFF: no browser ever sends it, and the channel it travels on is already
+ * gated by the internal token.
  */
 export const ADMIN_SESSION_HEADER = "x-qcms-admin-session";
 
@@ -17,8 +17,8 @@ export const ADMIN_SESSION_HEADER = "x-qcms-admin-session";
 export type AdminSessionVerifier = (c: Context<ApiEnv>) => Promise<AdminPrincipal | undefined>;
 
 /**
- * Every rejection returns the same `undefined`, so a caller cannot tell an unknown
- * token from an expired one from a not-yet-enrolled account (SEC-1: no enumeration).
+ * Every rejection returns the same `undefined`, so a caller cannot tell an unknown token from an expired one
+ * from a not-yet-enrolled account (no enumeration).
  */
 export function betterAuthSessionVerifier(deps: Deps): AdminSessionVerifier {
   return async (c) => {
@@ -30,11 +30,11 @@ export function betterAuthSessionVerifier(deps: Deps): AdminSessionVerifier {
 
     const now = deps.clock.now().getTime();
     if (session.expiresAt.getTime() <= now) return undefined;
-    // Absolute lifetime, measured from issue: activity cannot extend it (SEC-1).
+    // Absolute lifetime, measured from issue: activity cannot extend it.
     if (now - session.createdAt.getTime() >= deps.config.adminSession.maxAgeMs) return undefined;
-    // `optional` is a development escape hatch only (SEC-1).
+    // `optional` is a development escape hatch only.
     if (deps.flags.adminTwoFactor === "required" && !session.twoFactorEnabled) return undefined;
-    // The bootstrap credential is provisional and has no escape hatch (SEC-1).
+    // The bootstrap credential is provisional and has no escape hatch.
     if (session.mustChangePassword) return undefined;
 
     return { userId: session.userId, role: session.role, scopes: [...SCOPES] };

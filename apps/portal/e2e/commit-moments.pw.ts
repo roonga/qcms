@@ -20,14 +20,11 @@ import {
   toggleOption,
 } from "./support/kitchen-sink.js";
 
-/** The single-choice question's option on the final step. */
 const COVERAGE_OPTION_LABEL = "Standard";
 const COVERAGE_OPTION_ID = "opt_standard";
 
-/** The live-region text for "every question is answered" (lib/i18n/en.ts). */
 const READY_ANNOUNCEMENT = "You have answered everything. You can now submit.";
 
-/** The questionId of the control that currently holds focus, via `FieldBlur`'s handle. */
 function focusedQuestion(page: Page): Promise<string | null> {
   return page.evaluate(() => {
     const el = document.activeElement;
@@ -58,7 +55,6 @@ async function watchFocusOut(page: Page, selector: string): Promise<void> {
   }, selector);
 }
 
-/** How many matching focusouts have happened since the watch started. */
 function focusOuts(page: Page): Promise<number> {
   return page.evaluate(
     () => (window as unknown as { qcmsFocusOutCount?: number }).qcmsFocusOutCount ?? 0,

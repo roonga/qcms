@@ -53,14 +53,13 @@ function expandUnionIssue(issue: z.core.$ZodIssue): readonly z.core.$ZodIssue[] 
     return [issue]; // A tie is not a winner, and a tie is the ordinary case.
   }
   if (best.every((nested) => nested.path.length === 0)) {
-    return [issue]; // It failed at the node, so it says nothing the node did not.
+    return [issue];
   }
   return best.flatMap((nested) =>
     expandUnionIssue({ ...nested, path: [...issue.path, ...nested.path] }),
   );
 }
 
-// An issue with no attached code carries the module's fallback code.
 export function toCodedErrors<Code extends string>(
   codeSchema: z.ZodType<Code>,
   error: z.ZodError,

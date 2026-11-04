@@ -1,8 +1,6 @@
 /**
- * ADR-22 puts one component stack across both frontends, so the admin's controls are re-exported here.
- * No wrappers: every export is the vendored component itself. No schemas: `*Schema` or `*Node` would invite an
- * A2UI document into an admin screen; `registryForSpecVersion` stays the only door to the renderer.
- * A host must load `@roonga/qcms-ui/theme.css` and import this from a "use client" module.
+ * Re-export primitives without schemas so admin chrome cannot become an A2UI document surface.
+ * Consumers must load theme.css and import from a client module.
  */
 
 export { Alert } from "./components/a2ui/alert/index.ts";
@@ -29,12 +27,7 @@ export type { TableColumn, TableRow } from "./components/a2ui/table/index.ts";
 export { Text } from "./components/a2ui/text/index.ts";
 export { TextField } from "./components/a2ui/text-field/index.ts";
 
-/**
- * The pinned registry has no `Tabs` to vendor and ADR-22's lint fence allows
- * react-aria-components as the alternative, so the APG keyboard contract comes from
- * the stack's own foundation rather than being hand-rolled per screen. Unstyled, so no
- * variant layer accumulates here for a component the registry may later opine on.
- */
+/** The pinned registry provides no Tabs; use the stack primitives rather than hand-rolling keyboard behavior. */
 export { Tab, TabList, TabPanel, Tabs } from "react-aria-components";
 /**
  * Lets a consuming app name its locale instead of inheriting the browser's, which
@@ -42,10 +35,7 @@ export { Tab, TabList, TabPanel, Tabs } from "react-aria-components";
  */
 export { I18nProvider } from "react-aria-components";
 
-/**
- * The switch and radio-group primitives an app's own chrome needs. The pinned registry ships neither outside the
- * A2UI schema, so ADR-22's react-aria-components alternative applies rather than a hand-rolled roving tabindex.
- */
+/** The pinned registry lacks standalone switch and radio primitives; use its React Aria foundation. */
 export {
   RadioButton,
   RadioField,
@@ -54,11 +44,7 @@ export {
   SwitchField,
 } from "react-aria-components";
 
-/**
- * Aliased because the bare names collide with the vendored components. The pinned registry ships no combobox,
- * and a hand-rolled filter over a `Select` would get the APG combobox pattern's `aria-activedescendant` and
- * input-to-listbox relationship wrong.
- */
+/** Aliases avoid collisions with vendored names; the stack owns combobox focus and listbox relationships. */
 export {
   Button as ComboBoxButton,
   ComboBox,
