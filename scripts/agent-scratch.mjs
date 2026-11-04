@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Key scratch paths by branch and refresh named paths so stale output cannot satisfy a new run. Concurrent
- * sessions on one branch need distinct lane overrides; --path resolves without removal.
+ * Key scratch paths by branch so neither a stale file nor another lane can satisfy a run. Concurrent
+ * sessions on one branch need distinct lane overrides; a name already taken is refused rather than removed.
  */
 
 import { execFileSync } from "node:child_process";
-import { mkdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { argv, cwd, env } from "node:process";
@@ -88,12 +88,11 @@ export function resolveRoot(environment) {
 }
 
 /**
- * A named path is removed before it is returned, so what a gate writes there cannot be
- * confused with an older run's output. `keep` is for the second and later mentions of a
- * path already created this run: resolving the same name twice would otherwise delete the
- * output the first call produced.
+ * A name already in use is refused, because both ways of resolving it silently are wrong: a
+ * stale file read back as this run's output, or a live log destroyed by the second call that
+ * asked for its path. `keep` resolves it as it stands, `fresh` replaces it.
  *
- * @param {{ directory: string; environment: NodeJS.ProcessEnv; lane?: string; name?: string; printLane?: boolean; keep?: boolean }} options
+ * @param {{ directory: string; environment: NodeJS.ProcessEnv; lane?: string; name?: string; printLane?: boolean; keep?: boolean; fresh?: boolean }} options
  * @returns {string}
  */
 export function scratchPath({
@@ -103,6 +102,7 @@ export function scratchPath({
   name,
   printLane = false,
   keep = false,
+  fresh = false,
 }) {
   const key = lane === undefined ? resolveLane(directory, environment) : laneSlug(lane);
   if (printLane) return key;
@@ -116,17 +116,23 @@ export function scratchPath({
     throw new Error(`file name must be a single path segment, got '${name}'`);
   }
   const file = join(laneDirectory, name);
-  if (!keep) rmSync(file, { force: true, recursive: true });
+  if (fresh) rmSync(file, { force: true, recursive: true });
+  else if (!keep && existsSync(file)) {
+    throw new Error(
+      `'${name}' already exists in this lane: ${file}. ` +
+        `Pass --path to read it, or --fresh to replace it.`,
+    );
+  }
   return file;
 }
 
 /**
  * @param {string[]} args
- * @returns {{ lane?: string; name?: string; printLane: boolean; keep: boolean }}
+ * @returns {{ lane?: string; name?: string; printLane: boolean; keep: boolean; fresh: boolean }}
  */
 export function parseArgs(args) {
-  /** @type {{ lane?: string; name?: string; printLane: boolean; keep: boolean }} */
-  const parsed = { printLane: false, keep: false };
+  /** @type {{ lane?: string; name?: string; printLane: boolean; keep: boolean; fresh: boolean }} */
+  const parsed = { printLane: false, keep: false, fresh: false };
   const remaining = [...args];
   while (remaining.length > 0) {
     const arg = /** @type {string} */ (remaining.shift());
@@ -138,6 +144,8 @@ export function parseArgs(args) {
       parsed.printLane = true;
     } else if (arg === "--path") {
       parsed.keep = true;
+    } else if (arg === "--fresh") {
+      parsed.fresh = true;
     } else if (arg.startsWith("-")) {
       throw new Error(`unknown option: ${arg}`);
     } else if (parsed.name === undefined) {
@@ -146,6 +154,7 @@ export function parseArgs(args) {
       throw new Error(`unexpected argument: ${arg}`);
     }
   }
+  if (parsed.keep && parsed.fresh) throw new Error("--path and --fresh ask for opposite things");
   return parsed;
 }
 
@@ -157,8 +166,8 @@ export function parseArgs(args) {
  */
 export function main(args, directory, environment) {
   try {
-    const { lane, name, printLane, keep } = parseArgs(args);
-    console.log(scratchPath({ directory, environment, lane, name, printLane, keep }));
+    const { lane, name, printLane, keep, fresh } = parseArgs(args);
+    console.log(scratchPath({ directory, environment, lane, name, printLane, keep, fresh }));
     return 0;
   } catch (error) {
     console.error(`agent-scratch: ${error instanceof Error ? error.message : String(error)}`);

@@ -11,7 +11,7 @@ import type { FormDefinition, QuestionDefinition } from "@roonga/qcms-core";
 import type { PublishIssue, PublishWarning } from "../../forms/handler.js";
 import { actionKind } from "../actions/registry.js";
 import type { ActionKindDef } from "../actions/types.js";
-import type { PinnedQuestion } from "../draft-pins.js";
+import type { PinnedQuestion, SavedDraftPins } from "../draft-pins.js";
 import { offeredEnvironments, type OfferedActionKind } from "../grant-filter.js";
 import type { ScreenId } from "../screens.js";
 import {
@@ -123,11 +123,11 @@ export interface ProposeInput {
       }
     | undefined;
   /**
-   * The question versions the form's saved draft pins unpublished, read when a step asks to
-   * publish one. Absent, a question publish away from the question's own page is refused
-   * rather than allowed unverified.
+   * The form's saved draft, read when a step asks to publish one of the versions it pins
+   * unpublished. Absent, a question publish away from the question's own page is refused
+   * rather than allowed unverified; a plan built from it is bound to its revision.
    */
-  readonly pinnedUnpublished?: (() => Promise<readonly PinnedQuestion[]>) | undefined;
+  readonly savedDraft?: (() => Promise<SavedDraftPins | undefined>) | undefined;
   /** The builder's own validation, so the card's two lists and a publish cannot disagree. */
   readonly validate?:
     | ((definition: FormDefinition) => Promise<{
@@ -444,22 +444,36 @@ function capRefusal(input: ProposeInput): string | undefined {
   return undefined;
 }
 
-/** The draft's unpublished pins, read only when a step asks to publish one of them. */
+/**
+ * The draft's unpublished pins, read only when a step asks to publish one of them, with
+ * the revision the token binds so Confirm can refuse a draft that has moved since.
+ */
 async function resolvedPins(
   input: ProposeInput,
-): Promise<{ readonly pinned: readonly PinnedQuestion[] } | { readonly reason: string }> {
+): Promise<
+  | { readonly pinned: readonly PinnedQuestion[]; readonly revision: number | undefined }
+  | { readonly reason: string }
+> {
   const needed =
     input.screen !== QUESTION_DETAIL_SCREEN &&
     input.steps.some((step) => step.kind === PUBLISH_QUESTION_KIND);
-  if (!needed) return { pinned: [] };
-  if (input.pinnedUnpublished === undefined) {
+  if (!needed) return { pinned: [], revision: undefined };
+  if (input.savedDraft === undefined) {
     return {
       reason:
         `This screen cannot say which question versions the form's draft pins, so ${PUBLISH_QUESTION_KIND} ` +
         "cannot be proposed here. Publish the question from its own page in the library.",
     };
   }
-  return { pinned: await input.pinnedUnpublished() };
+  const saved = await input.savedDraft();
+  if (saved === undefined) {
+    return {
+      reason:
+        `This form has no saved draft, so it pins no unpublished question version and ` +
+        `${PUBLISH_QUESTION_KIND} cannot be proposed here. Publish the question from its own page in the library.`,
+    };
+  }
+  return { pinned: saved.pins, revision: saved.revision };
 }
 
 /** The refusals that are about the plan as a whole rather than about one step. */
@@ -514,6 +528,7 @@ export async function buildProposal(input: ProposeInput): Promise<ProposeOutcome
           pid: proposalId,
           steps: tokenSteps,
           formId: input.formId,
+          draftRevision: resolved.revision,
           issuedAt: input.issuedAt,
         });
 

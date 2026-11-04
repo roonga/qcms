@@ -29,7 +29,7 @@ import type { Resource } from "../membership/policy.js";
 import { PRODUCTION_ENVIRONMENT } from "../membership/policy.js";
 import { holdsInstallationClaim, resolveGrants } from "../membership/resolver.js";
 import { actionKind } from "./actions/registry.js";
-import { unpublishedDraftPins } from "./draft-pins.js";
+import { savedDraftPins } from "./draft-pins.js";
 import { offeredActionKinds, offersNoAction } from "./grant-filter.js";
 import { buildProposal } from "./tools/propose.js";
 import { AGENT_PROPOSE_TOOL_NAMES, type AgentToolName } from "./tools/registry.js";
@@ -284,9 +284,7 @@ async function actionPorts(args: {
           current: args.build.environment,
           screen: args.screen,
           offered,
-          ...(formId === undefined
-            ? {}
-            : { pinnedUnpublished: () => unpublishedDraftPins(args.deps, formId) }),
+          ...(formId === undefined ? {} : { savedDraft: () => savedDraftPins(args.deps, formId) }),
           requireSecondApprover: workspace?.requireSecondApprover ?? false,
           productionEnvironment: PRODUCTION_ENVIRONMENT,
           formId: args.build.params.formId,

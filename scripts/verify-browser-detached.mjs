@@ -427,11 +427,13 @@ export async function startDetached({
     return { code: EXIT_USAGE, directory: laneDirectory };
   }
 
+  // `fresh`: the four files belong to this run, and the check above has just shown that no
+  // live run owns the ones a finished run left behind.
   const paths = {
-    heartbeat: scratchPath({ directory, environment, name: RUN_FILES.heartbeat }),
-    log: scratchPath({ directory, environment, name: RUN_FILES.log }),
-    pid: scratchPath({ directory, environment, name: RUN_FILES.pid }),
-    rc: scratchPath({ directory, environment, name: RUN_FILES.rc }),
+    heartbeat: scratchPath({ directory, environment, name: RUN_FILES.heartbeat, fresh: true }),
+    log: scratchPath({ directory, environment, name: RUN_FILES.log, fresh: true }),
+    pid: scratchPath({ directory, environment, name: RUN_FILES.pid, fresh: true }),
+    rc: scratchPath({ directory, environment, name: RUN_FILES.rc, fresh: true }),
   };
 
   const suite = command ?? playwrightCommand();

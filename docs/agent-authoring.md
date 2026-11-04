@@ -158,6 +158,11 @@ The header's context chip names what the assistant can see from where you are, s
 
 Publishing a question from the builder reaches only the versions that draft pins unpublished. Any other question id is refused when the assistant proposes it, and its own page in the library is where it is published from.
 
+**Edit the draft while that card is on screen and the card is refused, not run (Code Owner, 2026-11-04).**
+The card was built from your saved draft, so the server records which revision of it the plan was checked against and refuses every step of the plan once the draft has moved: the card says the saved draft has changed, nothing is published, and no audit row is written.
+Ask again and you get a card built from the draft as it now stands.
+This reaches only a card that publishes what your draft pins; an ordinary plan is unaffected by a draft save.
+
 Each proposal arrives as a **card**: the act, every argument in full, the consequence sentence the screen's own dialog uses, and Confirm and Cancel. A plan's card lists every step. Nothing happens until you press Confirm.
 
 ### Cannot
