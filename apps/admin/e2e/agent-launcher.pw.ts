@@ -397,6 +397,32 @@ test("names the screen in the context chip, and keeps the conversation across a 
   );
 });
 
+test("drops the stored conversation when a session ends without the account menu", async ({
+  page,
+}) => {
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.setViewportSize({ width: WIDE, height: 900 });
+  await page.goto(`/forms/${FORM_ID}`);
+  await open(page);
+  await fillStable(composer(page), "#qcms-fake:no-proposal what is on this screen");
+  await page.getByTestId("qcms-assistant-send").locator("button").click();
+  await expect(page.getByTestId("qcms-assistant-turns")).toContainText("what is on this screen");
+  expect(
+    await page.evaluate(() => Object.keys(window.sessionStorage)),
+    "the turn is stored before the session ends",
+  ).toContain("qcms-assistant-conversation");
+
+  // An expiry, not a sign-out: the account menu clears the tab on its way out, and it is
+  // not the only way a session ends.
+  await page.context().clearCookies();
+  await page.goto("/sign-in");
+  await waitForHydration(page);
+
+  await expect
+    .poll(async () => page.evaluate(() => Object.keys(window.sessionStorage)))
+    .not.toContain("qcms-assistant-conversation");
+});
+
 test("carries one conversation across the form's subtree and out of it, and a reload keeps it", async ({
   page,
 }) => {

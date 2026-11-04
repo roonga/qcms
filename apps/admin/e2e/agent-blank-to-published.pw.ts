@@ -11,6 +11,7 @@ import {
   cardChip,
   cardSteps,
   confirm,
+  confirmButton,
   expectAxeClean,
   openPanel,
   propose,
@@ -145,6 +146,37 @@ test("cancels the publish card, then publishes what the editor left in the draft
     "question.publish": QUESTION_COUNT - 1,
     "form.publish": 1,
   });
+});
+
+test("refuses the publish card after the editor changes the saved draft", async ({ page }) => {
+  test.setTimeout(900_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  const formId = await createForm(page, `zzz-bp-moved-${RUN}`, "Patient registration");
+  const word = `bp${RUN}m`;
+  await page.goto(`/forms/${formId}`);
+  await openPanel(page);
+
+  const previousSave = await savedStamp(page);
+  await describeTheForm(page, word);
+  await confirm(page, /^Done\./u);
+  await waitForSaveAfter(page, previousSave);
+  await waitForPublishCard(page, QUESTION_COUNT + 1);
+
+  const beforeEdit = await savedStamp(page);
+  await openStep(page, "Your GP and consent");
+  await usePinRowMenu(page, `q_fake_new_${word}_gp_name`, "remove");
+  await waitForSaveAfter(page, beforeEdit);
+
+  const before = await auditTally();
+  await confirmButton(page).click();
+  await expect(card(page).locator(".qcms-acard__result")).toHaveText(/^Stopped at step 1\./u, {
+    timeout: 60_000,
+  });
+  await expect(card(page)).toContainText("saved draft has changed");
+  await expectAxeClean(page, "refused publish plan");
+
+  expect(auditDelta(before, await auditTally())).toEqual({});
+  await expectServing(page, formId, "Nothing released");
 });
 
 test("refuses to publish a question this form's draft does not pin", async ({ page }) => {

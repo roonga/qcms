@@ -14,6 +14,7 @@ const CODE_MESSAGES: Readonly<Record<string, MessageKey>> = {
   VERSION_NOT_FOUND: "questions.error.versionNotFound",
   VERSION_IMMUTABLE: "questions.error.versionImmutable",
   INVALID_VERSION_STATE: "questions.error.invalidVersionState",
+  AGENT_PROPOSAL_DRAFT: "agent.card.note.draftMoved",
   unauthorized: "questions.error.unauthorized",
   rate_limited: "questions.error.rateLimited",
   internal: "questions.error.internal",

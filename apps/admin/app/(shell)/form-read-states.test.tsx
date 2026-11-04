@@ -2,6 +2,13 @@ import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { StepEditor } from "../../components/forms/step-editor";
+import { readState } from "../../lib/read-state";
+
+import BuilderPage from "./forms/[formId]/page.tsx";
+import FormLinksPage from "./operations/forms/[formId]/links/page.tsx";
+import FormWebhooksPage from "./operations/forms/[formId]/webhooks/page.tsx";
+
 const SESSION = {
   userId: "u_1",
   email: "admin@example.test",
@@ -145,7 +152,11 @@ vi.mock("@/lib/server/links", () => ({
   MAX_LINK_BATCH: 100,
 }));
 
-const NOOP_ACTION = () => Promise.resolve({ status: "idle" });
+// Hoisted with the factories that use it: the pages are imported statically, so a plain
+// module-level const would still be uninitialised when they first ask for their actions.
+const { NOOP_ACTION } = vi.hoisted(() => ({
+  NOOP_ACTION: () => Promise.resolve({ status: "idle" }),
+}));
 
 vi.mock("./webhooks/actions", () => ({
   confirmEndpointChangeAction: NOOP_ACTION,
@@ -223,19 +234,20 @@ const EMPTY_PANEL = /<div class="qcms-empty"[^>]*>/;
 const EMPTY_HEADING = /<h2 class="qcms-empty__heading">/;
 
 async function renderFormWebhooks(): Promise<string> {
-  const { default: Page } = await import("./operations/forms/[formId]/webhooks/page.tsx");
-  return renderToStaticMarkup(await Page({ params: Promise.resolve({ formId: "frm_one" }) }));
+  return renderToStaticMarkup(
+    await FormWebhooksPage({ params: Promise.resolve({ formId: "frm_one" }) }),
+  );
 }
 
 async function renderLinks(): Promise<string> {
-  const { default: Page } = await import("./operations/forms/[formId]/links/page.tsx");
-  return renderToStaticMarkup(await Page({ params: Promise.resolve({ formId: "frm_one" }) }));
+  return renderToStaticMarkup(
+    await FormLinksPage({ params: Promise.resolve({ formId: "frm_one" }) }),
+  );
 }
 
 async function renderBuilder(): Promise<string> {
-  const { default: Page } = await import("./forms/[formId]/page.tsx");
   return renderToStaticMarkup(
-    await Page({
+    await BuilderPage({
       params: Promise.resolve({ formId: "frm_one" }),
       searchParams: Promise.resolve({}),
     }),
@@ -369,9 +381,7 @@ describe("the secure-link list's read states (issues 572, 544)", () => {
 });
 
 describe("the form builder's library read states (issues 572, 544)", { timeout: 30_000 }, () => {
-  async function renderPinGrid(): Promise<string> {
-    const { StepEditor } = await import("../../components/forms/step-editor");
-    const { readState } = await import("../../lib/read-state");
+  function renderPinGrid(): string {
     return renderToStaticMarkup(
       <StepEditor
         draft={FORM_DETAIL.draft}
@@ -394,7 +404,7 @@ describe("the form builder's library read states (issues 572, 544)", { timeout: 
     libraryResult = { ok: false, message: "upstream said 503" };
 
     const page = await renderBuilder();
-    const grid = await renderPinGrid();
+    const grid = renderPinGrid();
 
     expect(page).toContain('data-testid="qcms-alert"');
     expect(page).toContain("forms.error.libraryFailed");
@@ -406,10 +416,10 @@ describe("the form builder's library read states (issues 572, 544)", { timeout: 
     expect(page).not.toContain('data-pin-state="missing"');
   });
 
-  it("keeps the builder and its draft edits when the library read fails", async () => {
+  it("keeps the builder and its draft edits when the library read fails", () => {
     libraryResult = { ok: false, message: "upstream said 503" };
 
-    const html = await renderPinGrid();
+    const html = renderPinGrid();
 
     expect(html).toContain('data-pin-question="q_one"');
     expect(html).toContain('data-pin-version="1"');
@@ -419,7 +429,7 @@ describe("the form builder's library read states (issues 572, 544)", { timeout: 
   });
 
   it("still tags a pin the library really has lost when the read succeeds", async () => {
-    const grid = await renderPinGrid();
+    const grid = renderPinGrid();
 
     expect(grid).toContain("forms.step.pinMissing");
     expect(grid).toContain('data-pin-state="missing"');
@@ -431,8 +441,7 @@ describe("the form builder's library read states (issues 572, 544)", { timeout: 
 describe("the move-pin menu's account of the library (issues 572, 544)", () => {
   const STEP = FORM_DETAIL.draft.steps[0];
 
-  async function renderStepEditor(library: unknown): Promise<string> {
-    const { StepEditor } = await import("../../components/forms/step-editor");
+  function renderStepEditor(library: unknown): string {
     return renderToStaticMarkup(
       <StepEditor
         draft={FORM_DETAIL.draft}
@@ -451,15 +460,15 @@ describe("the move-pin menu's account of the library (issues 572, 544)", () => {
     );
   }
 
-  it("says the versions are unknown when the library read failed", async () => {
-    const html = await renderStepEditor({ ok: false });
+  it("says the versions are unknown when the library read failed", () => {
+    const html = renderStepEditor({ ok: false });
 
     expect(html).toContain("forms.step.movePinUnknown");
     expect(html).not.toContain("forms.step.movePinNone");
   });
 
-  it("still says there is no other version when the library was read and has none", async () => {
-    const html = await renderStepEditor({
+  it("still says there is no other version when the library was read and has none", () => {
+    const html = renderStepEditor({
       ok: true,
       data: [
         {

@@ -4,9 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
+  DEFAULT_ROOT_NAME,
   laneSlug,
   main,
   parseArgs,
@@ -19,7 +20,23 @@ const SCRIPT = fileURLToPath(new URL("agent-scratch.mjs", import.meta.url));
 
 const temporaryDirectories: string[] = [];
 
+/**
+ * The suite's own root, exported into the ambient environment as well as passed: a call
+ * here that fell back to the default root would clear a live lane's gate logs, and `pnpm
+ * verify` runs this file while lanes are using them.
+ */
+let isolatedRoot = "";
+let inheritedRoot: string | undefined;
+
+beforeAll(() => {
+  isolatedRoot = temporaryDirectory("qcms-scratch-suite-");
+  inheritedRoot = process.env["QCMS_AGENT_SCRATCH_ROOT"];
+  process.env["QCMS_AGENT_SCRATCH_ROOT"] = isolatedRoot;
+});
+
 afterAll(() => {
+  if (inheritedRoot === undefined) delete process.env["QCMS_AGENT_SCRATCH_ROOT"];
+  else process.env["QCMS_AGENT_SCRATCH_ROOT"] = inheritedRoot;
   for (const directory of temporaryDirectories) rmSync(directory, { recursive: true, force: true });
 });
 
@@ -29,8 +46,12 @@ function temporaryDirectory(prefix: string): string {
   return directory;
 }
 
+function scratchRoot(): string {
+  return temporaryDirectory("qcms-scratch-root-");
+}
+
 function gitWorktree(branch: string): string {
-  const directory = temporaryDirectory("qcms-agent-scratch-repo-");
+  const directory = temporaryDirectory("qcms-scratch-repo-");
   const git = (...args: string[]) =>
     execFileSync("git", ["-C", directory, ...args], { encoding: "utf8" });
   git("init", "--initial-branch", branch, "--quiet");
@@ -79,7 +100,7 @@ describe("resolveLane", () => {
   });
 
   it("refuses a directory that is not a working tree instead of guessing a lane", () => {
-    const directory = temporaryDirectory("qcms-agent-scratch-plain-");
+    const directory = temporaryDirectory("qcms-scratch-plain-");
     expect(() => resolveLane(directory, {})).toThrow(/git could not name the branch/);
     expect(() => resolveLane(directory, {})).toThrow(/not a git repository/i);
   });
@@ -88,13 +109,21 @@ describe("resolveLane", () => {
 describe("resolveRoot", () => {
   it("honours QCMS_AGENT_SCRATCH_ROOT and otherwise uses the platform temp directory", () => {
     expect(resolveRoot({ QCMS_AGENT_SCRATCH_ROOT: "/var/tmp/scratch" })).toBe("/var/tmp/scratch");
-    expect(resolveRoot({})).toBe(join(tmpdir(), "qcms-agent-scratch"));
+    expect(resolveRoot({})).toBe(join(tmpdir(), DEFAULT_ROOT_NAME));
+  });
+
+  it("keeps this suite's own writes out of the root the lanes are using", () => {
+    expect(process.env["QCMS_AGENT_SCRATCH_ROOT"]).toBe(isolatedRoot);
+    expect(resolveRoot(process.env)).not.toBe(join(tmpdir(), DEFAULT_ROOT_NAME));
+    expect(
+      scratchPath({ directory: process.cwd(), environment: process.env, lane: "fix/1202" }),
+    ).toBe(join(isolatedRoot, "fix-1202"));
   });
 });
 
 describe("scratchPath", () => {
   it("gives two lanes two directories, which is the whole fix", () => {
-    const root = temporaryDirectory("qcms-agent-scratch-root-");
+    const root = scratchRoot();
     const environment = { QCMS_AGENT_SCRATCH_ROOT: root };
     const first = scratchPath({
       directory: process.cwd(),
@@ -114,7 +143,7 @@ describe("scratchPath", () => {
   });
 
   it("creates the lane directory so a redirect into it cannot fail", () => {
-    const root = temporaryDirectory("qcms-agent-scratch-root-");
+    const root = scratchRoot();
     const directory = scratchPath({
       directory: process.cwd(),
       environment: { QCMS_AGENT_SCRATCH_ROOT: root },
@@ -123,24 +152,45 @@ describe("scratchPath", () => {
     expect(existsSync(directory)).toBe(true);
   });
 
-  it("removes a leftover file at the path, so a stale log cannot be read as this run's", () => {
-    const root = temporaryDirectory("qcms-agent-scratch-root-");
+  it("refuses a name a file already holds, rather than removing either lane's evidence", () => {
+    const root = scratchRoot();
     const environment = { QCMS_AGENT_SCRATCH_ROOT: root };
     const lane = "fix/602-stale";
     mkdirSync(join(root, "fix-602-stale"), { recursive: true });
-    writeFileSync(join(root, "fix-602-stale", "verify.log"), "a green from 2026-08-20\n", "utf8");
+    writeFileSync(
+      join(root, "fix-602-stale", "verify.log"),
+      "a green from an earlier run\n",
+      "utf8",
+    );
+
+    expect(() =>
+      scratchPath({ directory: process.cwd(), environment, lane, name: "verify.log" }),
+    ).toThrow(/already exists in this lane/);
+    expect(readFileSync(join(root, "fix-602-stale", "verify.log"), "utf8")).toContain(
+      "an earlier run",
+    );
+  });
+
+  it("replaces the file under --fresh, so a new run writes to a path of its own", () => {
+    const root = scratchRoot();
+    const environment = { QCMS_AGENT_SCRATCH_ROOT: root };
+    const lane = "fix/602-rerun";
+    mkdirSync(join(root, "fix-602-rerun"), { recursive: true });
+    writeFileSync(join(root, "fix-602-rerun", "verify.log"), "EXIT=1\n", "utf8");
 
     const path = scratchPath({
       directory: process.cwd(),
       environment,
       lane,
       name: "verify.log",
+      fresh: true,
     });
+    expect(path).toBe(join(root, "fix-602-rerun", "verify.log"));
     expect(existsSync(path)).toBe(false);
   });
 
   it("keeps the file under --path, so resolving a name twice does not destroy it", () => {
-    const root = temporaryDirectory("qcms-agent-scratch-root-");
+    const root = scratchRoot();
     const environment = { QCMS_AGENT_SCRATCH_ROOT: root };
     const lane = "chore/scratch-path";
     const first = scratchPath({ directory: process.cwd(), environment, lane, name: "verify.log" });
@@ -161,7 +211,7 @@ describe("scratchPath", () => {
   });
 
   it("refuses a name that would reach outside the lane directory", () => {
-    const root = temporaryDirectory("qcms-agent-scratch-root-");
+    const root = scratchRoot();
     for (const name of ["../verify.log", "nested/verify.log", "..", ""]) {
       expect(() =>
         scratchPath({
@@ -175,7 +225,7 @@ describe("scratchPath", () => {
   });
 
   it("prints the lane key on request without touching the filesystem", () => {
-    const root = join(temporaryDirectory("qcms-agent-scratch-root-"), "unused");
+    const root = join(scratchRoot(), "unused");
     expect(
       scratchPath({
         directory: process.cwd(),
@@ -190,22 +240,31 @@ describe("scratchPath", () => {
 
 describe("parseArgs", () => {
   it("reads the file name, the lane override and the two flags", () => {
-    expect(parseArgs([])).toEqual({ printLane: false, keep: false });
+    expect(parseArgs([])).toEqual({ printLane: false, keep: false, fresh: false });
     expect(parseArgs(["verify.log"])).toEqual({
       printLane: false,
       keep: false,
+      fresh: false,
       name: "verify.log",
     });
     expect(parseArgs(["--lane", "x", "browser.log"])).toEqual({
       printLane: false,
       keep: false,
+      fresh: false,
       lane: "x",
       name: "browser.log",
     });
-    expect(parseArgs(["--print-lane"])).toEqual({ printLane: true, keep: false });
+    expect(parseArgs(["--print-lane"])).toEqual({ printLane: true, keep: false, fresh: false });
     expect(parseArgs(["--path", "verify.log"])).toEqual({
       printLane: false,
       keep: true,
+      fresh: false,
+      name: "verify.log",
+    });
+    expect(parseArgs(["--fresh", "verify.log"])).toEqual({
+      printLane: false,
+      keep: false,
+      fresh: true,
       name: "verify.log",
     });
   });
@@ -213,12 +272,13 @@ describe("parseArgs", () => {
   it("rejects an unknown option rather than treating it as a file name", () => {
     expect(() => parseArgs(["--seat", "0"])).toThrow(/unknown option/);
     expect(() => parseArgs(["--lane"])).toThrow(/requires a value/);
+    expect(() => parseArgs(["--path", "--fresh", "verify.log"])).toThrow(/opposite things/);
   });
 });
 
 describe("as a command", () => {
   it("prints one absolute path on stdout, so a shell can capture it", () => {
-    const root = temporaryDirectory("qcms-agent-scratch-root-");
+    const root = scratchRoot();
     const worktree = gitWorktree("fix/396-command");
     const output = execFileSync("node", [SCRIPT, "verify.log"], {
       cwd: worktree,
@@ -269,7 +329,7 @@ describe("the convention is written where an agent meets it", () => {
 
 describe("the lane override works the way the briefings spell it", () => {
   it("takes --lane as an argument", () => {
-    const root = temporaryDirectory("qcms-agent-scratch-root-");
+    const root = scratchRoot();
     const worktree = gitWorktree("fix/396-reviewer");
     const output = execFileSync(
       "node",
@@ -280,7 +340,7 @@ describe("the lane override works the way the briefings spell it", () => {
   });
 
   it("honours QCMS_AGENT_LANE only when it is genuinely exported", () => {
-    const root = temporaryDirectory("qcms-agent-scratch-root-");
+    const root = scratchRoot();
     const worktree = gitWorktree("fix/396-reviewer");
     const exported = execFileSync("node", [SCRIPT, "verify.log"], {
       cwd: worktree,

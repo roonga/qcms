@@ -600,8 +600,11 @@ QCMS_PORT_SEAT=<0-9> pnpm verify:browser:detached
 # Wait one bounded slice (default 540 s). Re-invoke while it exits 75. Capture the
 # wait's OWN code and do not pipe it: in a pipeline `$?` is the last element's code,
 # so `pnpm verify:browser:wait <dir> | tail` prints 0 for a slice that exited 75.
+# One slice per log, because the helper refuses a name it already holds: --fresh for
+# the next slice, or a name of its own.
 log=$(node scripts/agent-scratch.mjs browser-wait.log)
 pnpm verify:browser:wait <dir> > "$log" 2>&1; rc=$?; echo "EXIT=$rc"
+log=$(node scripts/agent-scratch.mjs --fresh browser-wait.log)
 pnpm verify:browser:wait <dir> --slice 300 --tail 80 > "$log" 2>&1; rc=$?; echo "EXIT=$rc"
 
 # Stop a run you started, before it finishes. Signals the recorded runner, which

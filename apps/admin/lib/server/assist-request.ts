@@ -1,4 +1,3 @@
-/** Action results are untrusted relay shapes. Permit only scalars; the API revalidates kind-specific allowlists before using them as model context. */
 /** Allow only IDs, turn text and typed filters; extra fields could smuggle context content into the API request. */
 
 export interface AssistTurnRelay {
@@ -6,6 +5,7 @@ export interface AssistTurnRelay {
   readonly content: string;
 }
 
+/** Scalars only: an object or an array is how content smuggles itself into this channel. */
 export type AssistResultFields = Readonly<Record<string, string | number | boolean>>;
 
 export interface AssistActionResultRelay {
