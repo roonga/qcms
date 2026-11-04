@@ -15,12 +15,13 @@ import { AssistMarkdown } from "@/components/forms/assist-markdown";
 import { Button } from "@/components/kit";
 import { nextDraftSaved, type BuilderAssistSnapshot } from "@/lib/agent/builder-assist-bridge";
 import {
+  CONVERSATION_TURN_CAP,
   isProseTurn,
   promptTurns,
   type AgentTurnRecord,
   type ConversationHandle,
 } from "@/lib/agent/conversation";
-import type { ResolvedScreen } from "@/lib/agent/screens";
+import { screenIdentity, type ResolvedScreen } from "@/lib/agent/screens";
 import {
   actionResultTurn,
   cancelCard,
@@ -85,6 +86,7 @@ import { t, type MessageKey } from "@/lib/i18n/en";
    caller's grants. */
 export function AssistantConversation({
   screen,
+  environment,
   conversation,
   builder,
   composerRef,
@@ -92,6 +94,7 @@ export function AssistantConversation({
   onAnnounce,
 }: {
   readonly screen: ResolvedScreen | undefined;
+  readonly environment: string;
   readonly conversation: ConversationHandle;
   readonly builder: BuilderAssistSnapshot | undefined;
   readonly composerRef: RefObject<HTMLTextAreaElement | null>;
@@ -103,6 +106,7 @@ export function AssistantConversation({
     <ScreenConversation
       key={writable === undefined ? "screen" : "builder"}
       screen={screen}
+      environment={environment}
       conversation={conversation}
       builder={writable}
       composerRef={composerRef}
@@ -114,6 +118,7 @@ export function AssistantConversation({
 
 function ScreenConversation({
   screen,
+  environment,
   conversation,
   builder,
   composerRef,
@@ -121,6 +126,7 @@ function ScreenConversation({
   onAnnounce,
 }: {
   readonly screen: ResolvedScreen | undefined;
+  readonly environment: string;
   readonly conversation: ConversationHandle;
   readonly builder: BuilderAssistSnapshot | undefined;
   readonly composerRef: RefObject<HTMLTextAreaElement | null>;
@@ -164,7 +170,24 @@ function ScreenConversation({
   const onExpire = useCallback(() => {
     setCard((current) => (current === undefined ? current : expireCard(current)));
   }, []);
-  useExpiryTick(windowRef.current, card?.state === "proposed", onExpire);
+  const waiting = card?.state === "proposed";
+  useExpiryTick(windowRef.current, waiting, onExpire);
+
+  const where = screenIdentity(screen);
+  const boundTo = useRef<{ readonly where: string; readonly environment: string } | undefined>(
+    undefined,
+  );
+
+  // A card is an act on one screen in one environment, and the server binds its token to
+  // both, so leaving either is a Confirm the user can no longer mean.
+  useEffect(() => {
+    const origin = boundTo.current;
+    if (!waiting || origin === undefined) return;
+    if (origin.where === where && origin.environment === environment) return;
+    boundTo.current = undefined;
+    onExpire();
+    onAnnounce(t("agent.announce.cardExpired"));
+  }, [environment, onAnnounce, onExpire, waiting, where]);
 
   useEffect(
     () => () => {
@@ -218,6 +241,7 @@ function ScreenConversation({
         screen: on.screen,
         params: on.params,
         conversationId: conversation.id,
+        visitId: conversation.visitId,
         ...(draftUpdatedAt === undefined ? {} : { clientState: draftUpdatedAt }),
       }),
     });
@@ -227,6 +251,7 @@ function ScreenConversation({
     if (event.type === "action" || event.type === "plan") {
       setProposal(event.proposal);
       windowRef.current = startedWindow(event.proposal);
+      boundTo.current = { where, environment };
       setCard(initialCard(event.proposal));
       onAnnounce(t("agent.launcher.toReview"));
       return;
@@ -239,7 +264,7 @@ function ScreenConversation({
     if (screen === undefined || live !== undefined) return;
     setFailure(undefined);
     if (message !== undefined) {
-      setShown((current) => [...current, { role: "user", content: message }]);
+      setShown((current) => capped([...current, { role: "user", content: message }]));
       conversation.append([{ role: "user", content: message }]);
     }
     let turn = EMPTY_TURN;
@@ -267,7 +292,7 @@ function ScreenConversation({
       }
       const ended = finishTurn(turn);
       if (ended.segments.length > 0) {
-        setShown((current) => [...current, { role: "assistant", view: ended }]);
+        setShown((current) => capped([...current, { role: "assistant", view: ended }]));
       }
       const text = turnText(ended).trim();
       if (text !== "") conversation.append([{ role: "assistant", content: text }]);
@@ -294,6 +319,11 @@ function ScreenConversation({
 
   return (
     <div className="qcms-assistant__conversation">
+      {conversation.dropped > 0 && (
+        <p className="qcms-assistant__note" data-testid="qcms-assistant-trimmed">
+          {t("agent.trimmed")}
+        </p>
+      )}
       {/* Make the scrolling conversation focusable; prose-only turns otherwise offer no keyboard entry to its
    scroll region. */}
       <ol
@@ -508,6 +538,11 @@ function StepTimeline({ steps }: { readonly steps: readonly TurnStep[] }) {
 type ShownTurn =
   | { readonly role: "user"; readonly content: string }
   | { readonly role: "assistant"; readonly view: AssistantTurnView };
+
+/** What is on screen follows the history's own cap, so the panel's note is true of both. */
+function capped(turns: readonly ShownTurn[]): readonly ShownTurn[] {
+  return turns.length > CONVERSATION_TURN_CAP ? turns.slice(-CONVERSATION_TURN_CAP) : turns;
+}
 
 function restored(turns: readonly AgentTurnRecord[]): readonly ShownTurn[] {
   return turns.flatMap((turn): readonly ShownTurn[] => {

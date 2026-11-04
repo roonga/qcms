@@ -144,7 +144,7 @@ LM Studio is the same `openai-compatible` provider as everything above, and its 
 
 Whether the panel is open and how wide are remembered in a cookie, so it is already in place on the first paint of the next screen. The panel's edge is focusable: arrow keys change its width by 40 px and Home and End go to the narrowest and the widest, and its Help menu offers Narrow, Default and Wide for the same thing with single clicks.
 
-The header's context chip names what the assistant can see from where you are, screen by screen: the form and its draft on the builder, "Response metadata across forms, no answers" on the response list, "Workspace settings" on Settings. What that line says is what the turn carries.
+The header's context chip names what the assistant can see from where you are, screen by screen: the form and its draft on the builder, "Response metadata across forms, no answers" on the response list, "Workspace settings" on Settings. What that line says is what the turn carries. **One conversation follows you across all of them** (Code Owner, 2026-11-02), so the chip is also the answer to "which screen will the next turn use"; section 8 has the rest.
 
 ### Can
 
@@ -199,7 +199,7 @@ It is assembled from the kernel's own exports where the kernel exposes a list (q
 
 ## 6. How a turn actually runs
 
-1. You type a description. The admin posts it to its own BFF route, which forwards it with your admin session: to `POST /admin/forms/{id}/draft/assist` on a form screen, and to `POST /admin/assist` on a screen with no form in its route. Your browser sends the screen's id, the route's own ids and the conversation id, and never any context content: the API builds that screen's facts itself, under your own permissions.
+1. You type a description. The admin posts it to its own BFF route, which forwards it with your admin session: to `POST /admin/forms/{id}/draft/assist` on a form screen, and to `POST /admin/assist` on a screen with no form in its route. Your browser sends the screen's id, the route's own ids, the conversation id and the conversation's current stay on that subject, and never any context content: the API builds that screen's facts itself, under your own permissions. The conversation is the app's rather than the screen's (Code Owner, 2026-11-02), so the turn replays the dialogue so far and the facts are built fresh for this screen.
 2. The API builds the bounded context described above and starts one bounded tool loop against the configured provider.
 3. Progress streams back as server-sent events, and the turn is visibly alive from its first second.
    - **The reply arrives in chat bubbles as it is written**, rendered as a small, safe subset of Markdown: bold, italic, inline code and lists, never raw HTML and never an image. A link survives as a link only when it points at an admin page and carries no query string and no fragment; anything else, including an external URL, is shown as its text. A route handler is never a link target, so the assistant's prose cannot start the response export download.
@@ -256,8 +256,12 @@ Before this behaviour existed, accepting such a proposal stored a draft pinning 
 
 ## 8. Conversation memory
 
-The conversation is the memory, and it lasts as long as the tab's session does. Nothing is stored server-side between turns, and there is no cross-session memory (deliberately out of scope for 041).
+The conversation is the memory. Nothing is stored server-side between turns, and there is no cross-session memory (deliberately out of scope for 041).
 
-**One conversation per subject.** A form's whole subtree is one subject, so walking from the builder to Rules, Versions or Responses of the same form keeps the conversation, and the next turn is prefaced with the screen you moved to. Leaving that form starts a new conversation, and coming back to it within the tab restores the one you left. New conversation in the header starts a fresh one for the subject you are on.
+**One conversation for the whole app** (Code Owner, 2026-11-02). It follows you between screens: walking from the question library to a form's builder to Workspaces keeps the same dialogue, and the panel's context chip says which screen the next turn will use. **The history is the dialogue alone** - what you typed, what the assistant replied, and each confirmed card's own report. Each turn's screen facts are rebuilt by the API for the screen you are on when you send it, and an earlier screen's raw facts are dropped rather than carried, so moving on tells the model nothing about the screen you left.
 
-Nothing about the conversation or the panel is written to `localStorage` or `sessionStorage`, deliberately: signing out does not clear tab storage, so on a shared workstation anything kept there would still be readable by the next person. A reload therefore starts fresh.
+**It ends on sign-out, or on New conversation in the panel header**, which starts a fresh one on the screen you are on. Past the conversation's length cap the oldest turns drop, and the panel says so.
+
+**A waiting card does not follow you.** Leaving the screen a card was proposed on, or switching environment under it, expires that card: ask again from the screen you want the act done on. The server stays the authority either way, because a proposal's token is bound to the screen and the environment it was built for.
+
+**It survives a reload of the same tab.** The conversation is kept in that tab's `sessionStorage` and nothing goes to `localStorage`, so it never outlives the tab and never reaches a second one. The entry names the user it belongs to and is discarded when that is not the signed-in user, and signing out clears it outright: signing out does not clear tab storage on its own, and on a shared workstation anything left there would otherwise be readable by the next person.

@@ -50,7 +50,13 @@ export default async function ShellLayout({
 
   return (
     <SidebarProvider setting={sidebar} secureCookies={secureCookies()}>
-      <AssistantShell enabled={assistant} initial={panel} secureCookies={secureCookies()}>
+      <AssistantShell
+        enabled={assistant}
+        initial={panel}
+        secureCookies={secureCookies()}
+        userId={session.userId}
+        environment={resolved.status === "known" ? resolved.environment : ""}
+      >
         <div className="flex min-h-dvh flex-col">
           {/* Keep the live region outside revalidated pages so unmounting cannot interrupt announcements. */}
           <Announcer />
@@ -111,16 +117,25 @@ function AssistantShell({
   enabled,
   initial,
   secureCookies,
+  userId,
+  environment,
   children,
 }: {
   readonly enabled: boolean;
   readonly initial: PanelState;
   readonly secureCookies: boolean;
+  readonly userId: string;
+  readonly environment: string;
   readonly children: ReactNode;
 }) {
   if (!enabled) return <>{children}</>;
   return (
-    <AssistantProvider initial={initial} secureCookies={secureCookies}>
+    <AssistantProvider
+      initial={initial}
+      secureCookies={secureCookies}
+      userId={userId}
+      environment={environment}
+    >
       {children}
     </AssistantProvider>
   );
