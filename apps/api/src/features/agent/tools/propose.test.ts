@@ -24,6 +24,8 @@ function propose(args: {
   readonly validate?: ProposeInput["validate"];
   readonly savedDraft?: ProposeInput["savedDraft"];
   readonly workspaceNames?: ProposeInput["workspaceNames"];
+  readonly canWriteDraft?: ProposeInput["canWriteDraft"];
+  readonly questionIdTaken?: ProposeInput["questionIdTaken"];
   /** The builder by default, which is the one screen that may run a local kind. */
   readonly screen?: string;
 }) {
@@ -32,6 +34,8 @@ function propose(args: {
     steps: args.steps,
     ...(args.savedDraft === undefined ? {} : { savedDraft: args.savedDraft }),
     ...(args.workspaceNames === undefined ? {} : { workspaceNames: args.workspaceNames }),
+    ...(args.canWriteDraft === undefined ? {} : { canWriteDraft: args.canWriteDraft }),
+    ...(args.questionIdTaken === undefined ? {} : { questionIdTaken: args.questionIdTaken }),
     ...(args.proposedDraft === undefined ? {} : { proposedDraft: args.proposedDraft }),
     validate: args.validate ?? (() => Promise.resolve({ issues: [], warnings: [] })),
     subject: "user_1",
@@ -1124,5 +1128,107 @@ describe("buildProposal: a draft is validated against the steps that run before 
     });
     expect(outcome.ok).toBe(true);
     expect(seen).toEqual([]);
+  });
+});
+
+describe("buildProposal: the subject a step names is checked before its draft is read", () => {
+  const draftStep = (formId: unknown): ProposedStep => ({
+    kind: "form.saveDraft",
+    args: { formId, definition: draftBody() },
+  });
+
+  it("refuses a draft save to a form this caller may not write", async () => {
+    let validated = false;
+    const outcome = await propose({
+      steps: [draftStep("frm_someone_elses")],
+      canWriteDraft: () => Promise.resolve(false),
+      validate: () => {
+        validated = true;
+        return Promise.resolve({ issues: [], warnings: [] });
+      },
+    });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toContain("frm_someone_elses");
+    expect(outcome.reason).toContain("form: write");
+    // Refused before the draft is read, so no unauthorised form is touched to decide it.
+    expect(validated).toBe(false);
+  });
+
+  it("accepts one to a form this caller may write", async () => {
+    const outcome = await propose({
+      steps: [draftStep("frm_a")],
+      canWriteDraft: () => Promise.resolve(true),
+    });
+    expect(outcome.ok).toBe(true);
+  });
+
+  it("asks about the creating step's own workspace for a form the plan creates", async () => {
+    const asked: unknown[] = [];
+    const outcome = await propose({
+      steps: [
+        {
+          kind: "form.create",
+          args: { slug: "new-one", defaultLocale: "en", workspaceId: "wsp_b" },
+        },
+        draftStep({ fromStep: 0, field: "formId" }),
+      ],
+      screen: "/forms",
+      canWriteDraft: (subject) => {
+        asked.push(subject);
+        return Promise.resolve(false);
+      },
+    });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(asked).toEqual([{ createdInWorkspace: "wsp_b" }]);
+    expect(outcome.reason).toContain("step 1");
+  });
+
+  it("refuses a create whose questionId has been used before (R6)", async () => {
+    const outcome = await propose({
+      steps: [
+        {
+          kind: "question.create",
+          args: {
+            slug: "taken",
+            definition: {
+              questionId: "q_taken",
+              type: "shortText",
+              label: { en: "Taken" },
+              required: false,
+              constraints: {},
+            },
+          },
+        },
+      ],
+      questionIdTaken: (questionId) => Promise.resolve(questionId === "q_taken"),
+    });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toContain("q_taken");
+    expect(outcome.reason).toContain("never reused");
+  });
+
+  it("accepts a create whose questionId is free", async () => {
+    const outcome = await propose({
+      steps: [
+        {
+          kind: "question.create",
+          args: {
+            slug: "fresh",
+            definition: {
+              questionId: "q_fresh",
+              type: "shortText",
+              label: { en: "Fresh" },
+              required: false,
+              constraints: {},
+            },
+          },
+        },
+      ],
+      questionIdTaken: () => Promise.resolve(false),
+    });
+    expect(outcome.ok).toBe(true);
   });
 });

@@ -1,7 +1,7 @@
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
-import { openPanel, propose } from "./support/agent-card.js";
+import { expectAxeClean, openPanel, propose } from "./support/agent-card.js";
 import { TEST_ENVIRONMENT_STORAGE } from "./support/environment.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 
@@ -73,4 +73,54 @@ test("titles a single-step dialog with the step and repeats it nowhere", async (
   // The dialog's own title is the step's, so the step row carries no second copy of it.
   await expect(dialog(page).locator(".qcms-acard__what")).toHaveCount(0);
   await expect(dialog(page).getByRole("button", { name: "Confirm" })).toBeVisible();
+});
+
+test("keeps the keyboard inside the dialog and hands focus back on close", async ({ page }) => {
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.setViewportSize({ width: 420, height: 900 });
+  await page.goto("/forms");
+  await openPanel(page);
+
+  await propose(page, "plan-blank-to-draft", `one more here #qcms-fake-new:${RUN}c`);
+  const opener = page.getByTestId("qcms-acard-open");
+  await opener.click();
+  await expect(dialog(page)).toBeVisible();
+  await expectAxeClean(page, "proposed plan dialog", ".qcms-acard-dialog");
+
+  // Tab never leaves the dialog: react-aria traps it, so every stop is inside.
+  const inside = async (): Promise<boolean> =>
+    page.evaluate(() => {
+      const held = document.activeElement;
+      const scope = document.querySelector('[data-testid="qcms-acard-dialog"]');
+      return held !== null && scope !== null && scope.contains(held);
+    });
+  for (let stop = 0; stop < 12; stop += 1) {
+    await page.keyboard.press("Tab");
+    expect(await inside(), `tab stop ${String(stop + 1)} left the dialog`).toBe(true);
+  }
+
+  // Back and Next are reachable by keyboard, and Confirm appears on the review page.
+  await dialog(page).getByRole("button", { name: "Next" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(dialog(page).locator('[data-page="2"]')).toBeVisible();
+  await dialog(page).getByRole("button", { name: "Back" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(dialog(page).locator('[data-page="1"]')).toBeVisible();
+
+  for (let page_ = 0; page_ < 3; page_ += 1) {
+    await dialog(page).getByRole("button", { name: "Next" }).focus();
+    await page.keyboard.press("Enter");
+  }
+  await expect(dialog(page).locator('[data-page="review"]')).toBeVisible();
+  const confirm = dialog(page).getByRole("button", { name: /^Confirm all 3 steps/u });
+  await confirm.focus();
+  await expect(confirm).toBeFocused();
+  await expectAxeClean(page, "review page dialog", ".qcms-acard-dialog");
+
+  // Closing returns focus to the control that opened it, so the keyboard does not land at
+  // the top of the document.
+  await page.keyboard.press("Escape");
+  await expect(dialog(page)).toHaveCount(0);
+  await expect(opener).toBeFocused();
 });

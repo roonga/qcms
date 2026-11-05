@@ -77,14 +77,19 @@ function pinnedCount(definition: object): number {
 
 /* The API's own definition issues, kept as the authoring-boundary text they are. */
 function stepIssues(
-  issues:
-    readonly { code: string; message: string; path?: readonly (string | number)[] }[] | undefined,
+  // `path` is read positionally because the two slices spell it differently: a question's is
+  // a member list, a draft's a named shape of step, question and version.
+  issues: readonly { code: string; message: string; path?: unknown }[] | undefined,
 ): readonly AgentStepIssue[] {
-  return (issues ?? []).map((issue) => ({
-    code: issue.code,
-    message: issue.message,
-    ...(issue.path === undefined || issue.path.length === 0 ? {} : { path: issue.path.join(".") }),
-  }));
+  return (issues ?? []).map((issue) => {
+    const parts = Array.isArray(issue.path)
+      ? (issue.path as readonly unknown[])
+      : Object.values((issue.path ?? {}) as Readonly<Record<string, unknown>>);
+    const path = parts
+      .filter((part) => typeof part === "string" || typeof part === "number")
+      .join(".");
+    return { code: issue.code, message: issue.message, ...(path === "" ? {} : { path }) };
+  });
 }
 
 function strings(value: unknown): readonly string[] {
@@ -413,7 +418,9 @@ const RUNNERS: Readonly<Record<string, StepRunner>> = {
       undefined,
       proposalRef(agentProposal, tokenStep),
     );
-    if (state.status !== "saved") return { outcome: "failed", message: text(state.message) };
+    if (state.status !== "saved") {
+      return { outcome: "failed", message: text(state.message), issues: stepIssues(state.issues) };
+    }
     return {
       outcome: "done",
       result: {

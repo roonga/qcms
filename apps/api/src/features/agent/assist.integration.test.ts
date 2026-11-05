@@ -1,6 +1,7 @@
 import { parseQuestionDefinition, QuestionId, stepQuestionRefs } from "@roonga/qcms-core";
 import {
   SEED_WORKSPACE_ID,
+  authOrganization,
   createQuestion,
   createQuestionVersion,
   getDraft,
@@ -126,7 +127,23 @@ async function put(path: string, body: unknown): Promise<Response> {
   });
 }
 
-async function seedPublishedQuestion(id: string, label: string): Promise<void> {
+async function createWorkspaceRow(
+  exec: typeof testDb.db,
+  id: string,
+  name: string,
+  slug: string,
+): Promise<void> {
+  await exec
+    .insert(authOrganization)
+    .values({ id, name, slug })
+    .onConflictDoNothing({ target: authOrganization.id });
+}
+
+async function seedPublishedQuestion(
+  id: string,
+  label: string,
+  workspaceId: string = SEED_WORKSPACE_ID,
+): Promise<void> {
   const questionId = QuestionId.parse(id);
   const parsed = parseQuestionDefinition({
     questionId: id,
@@ -135,7 +152,7 @@ async function seedPublishedQuestion(id: string, label: string): Promise<void> {
   });
   if (!parsed.ok) throw new Error(`fixture question ${id} did not parse`);
   await createQuestion(testDb.db, {
-    workspaceId: SEED_WORKSPACE_ID,
+    workspaceId,
     questionId,
     slug: id.replace(/_/g, "-"),
   });
@@ -1028,6 +1045,27 @@ describe("a reduced-grant caller over HTTP", () => {
       conversation: [{ role: "user", content: "rewrite this form" }],
     });
     expect(res.status).toBe(403);
+  });
+
+  // The tool is offered to anyone holding `question: read` anywhere, so the read itself has
+  // to be the one their grants allow: another workspace's library is not theirs to see.
+  it("returns no question from a workspace this caller holds no question read in", async () => {
+    const OTHER = "wsp_other_library";
+    await createWorkspaceRow(testDb.db, OTHER, "Other library", "other-library");
+    await seedPublishedQuestion("q_other_workspace", "Other workspace question", OTHER);
+    await seedPublishedQuestion("q_own_workspace", "Own workspace question");
+
+    const res = await turnAs(viewer, "/assist", {
+      conversation: [{ role: "user", content: "find me a question #qcms-fake:read-all" }],
+      screen: "/questions",
+      conversationId: "cnv_viewer_library",
+    });
+    expect(res.status).toBe(200);
+    await readEvents(res);
+
+    const sent = JSON.stringify(providerCalls.slice(-1));
+    expect(sent).toContain("q_own_workspace");
+    expect(sent).not.toContain("q_other_workspace");
   });
 
   it("refuses a caller holding no grant in any workspace", async () => {

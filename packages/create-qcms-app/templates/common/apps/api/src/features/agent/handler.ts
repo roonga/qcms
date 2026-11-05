@@ -9,7 +9,13 @@ import {
 } from "@roonga/qcms-db";
 import { getForm, getWorkspace } from "@roonga/qcms-db";
 import type { QuestionRow, QuestionVersionRow } from "@roonga/qcms-db";
-import { parseFormId, type FormDefinition, type FormId, type QuestionId } from "@roonga/qcms-core";
+import {
+  parseFormId,
+  parseQuestionId,
+  type FormDefinition,
+  type FormId,
+  type QuestionId,
+} from "@roonga/qcms-core";
 
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
@@ -22,7 +28,7 @@ import {
 } from "../questions/create.js";
 import { requireFormDefinition, storeDraftDefinition, validateDraft } from "../forms/handler.js";
 import type { Resource } from "../membership/policy.js";
-import { PRODUCTION_ENVIRONMENT } from "../membership/policy.js";
+import { decideAccess, PRODUCTION_ENVIRONMENT } from "../membership/policy.js";
 import { holdsInstallationClaim, type ResolvedMembership } from "../membership/resolver.js";
 import { savedDraftPins } from "./draft-pins.js";
 import { offeredActionKinds, offersNoAction, type OfferedActionKind } from "./grant-filter.js";
@@ -40,7 +46,10 @@ import {
   callerWorkspaces,
   forbidden,
   holdsCellIn,
+  membershipIn,
   requireForm,
+  workspacesHolding,
+  workspacesHoldingOrNone,
   type ScreenBuildInput,
   type ScreenParams,
 } from "./contexts/support.js";
@@ -83,12 +92,21 @@ const fail = {
     ),
 };
 
-/** Published only: a question still in draft is not pinnable. */
-function questionLibrary(deps: Deps) {
+/**
+ * Published only: a question still in draft is not pinnable. Narrowed to the workspaces the
+ * caller holds `question: read` in, as the library's own listing is: the tool is offered to
+ * anyone holding that cell anywhere, so the read has to be the one their grants allow.
+ */
+function questionLibrary(input: ScreenBuildInput) {
+  const deps = input.deps;
   return {
     async search(query: string | undefined, limit: number): Promise<readonly LibraryEntry[]> {
       const needle = query?.trim().toLowerCase();
-      const summaries = await listQuestions(deps.databases.control);
+      const workspaceIds = await workspacesHolding(input, {
+        resource: "question",
+        action: "read",
+      });
+      const summaries = await listQuestions(deps.databases.control, { workspaceIds });
       const candidates = summaries.filter(
         (q) =>
           needle === undefined ||
@@ -181,7 +199,7 @@ async function buildScreenContext(args: {
             "Your own grants are at GET /admin/me/access.",
         );
     },
-    questionLibrary: questionLibrary(args.deps),
+    questionLibrary: questionLibrary(args.build),
     ...(draft === undefined ? {} : { draft }),
     ...reads,
     ...actions.ports,
@@ -275,6 +293,8 @@ function actionPorts(args: {
           screen: args.screen,
           offered,
           savedDraft: (formId) => savedDraftsFor(args.deps, formId),
+          canWriteDraft: (subject) => canWriteDraft(args.build, subject),
+          questionIdTaken: (questionId) => questionIdTaken(args.deps, questionId),
           requireSecondApprover: await secondApproverFor(args.deps, {
             formId: screenForm,
             workspaceId,
@@ -298,6 +318,46 @@ async function workspaceNamesFor(
   return rows
     .filter((workspace) => workspaceIds.includes(workspace.id))
     .map((workspace) => ({ workspaceId: workspace.id, name: workspace.name }));
+}
+
+/**
+ * The draft-write cell on the subject a step names, asked before that step's draft is read.
+ * A form an earlier step creates has no workspace of its own yet, so the question becomes
+ * whether the caller may create a form in the workspace that step targets.
+ */
+async function canWriteDraft(
+  build: ScreenBuildInput,
+  subject: { readonly formId: string } | { readonly createdInWorkspace: string | undefined },
+): Promise<boolean> {
+  const cell = { resource: "form" as Resource, action: "write" };
+  if (!("formId" in subject)) {
+    const held = await workspacesHoldingOrNone(build, cell);
+    return subject.createdInWorkspace === undefined
+      ? held.length > 0
+      : held.includes(subject.createdInWorkspace);
+  }
+  const parsed = parseFormId(subject.formId);
+  if (!parsed.ok) return false;
+  const form = await getForm(build.deps.databases.control, parsed.value);
+  if (form === undefined) return false;
+  const resolved = await membershipIn(build, form.workspaceId);
+  return decideAccess({
+    memberRole: resolved.memberRole,
+    grants: resolved.grants,
+    request: { resource: cell.resource, action: cell.action },
+  }).allowed;
+}
+
+/** R6's own question: an id used before is never reused, whatever its question's state. */
+async function questionIdTaken(deps: Deps, questionId: string): Promise<boolean> {
+  const parsed = parseQuestionId(questionId);
+  if (!parsed.ok) return false;
+  try {
+    await requireUnusedQuestionId(deps.databases, parsed.value);
+    return false;
+  } catch {
+    return true;
+  }
 }
 
 /** The saved draft of whichever form the plan publishes, parsed rather than trusted. */

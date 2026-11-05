@@ -137,6 +137,18 @@ export interface ProposeInput {
   /** Resolves the names of the workspaces a plan's own arguments name. */
   readonly workspaceNames?:
     ((workspaceIds: readonly string[]) => Promise<readonly WorkspaceName[]>) | undefined;
+  /**
+   * Whether this caller may write the draft of the form a step names, asked before that
+   * draft is read or validated. A step whose form an earlier step creates asks about that
+   * step's own target workspace, since the form does not exist yet.
+   */
+  readonly canWriteDraft?:
+    | ((
+        subject: { readonly formId: string } | { readonly createdInWorkspace: string | undefined },
+      ) => Promise<boolean>)
+    | undefined;
+  /** Whether a questionId is already taken, which the create route refuses (R6). */
+  readonly questionIdTaken?: ((questionId: string) => Promise<boolean>) | undefined;
   readonly issuedAt: Date;
 
   readonly proposalsThisTurn: number;
@@ -250,6 +262,57 @@ function proposedDraftRefusal(
  * spelling it suggests. So the model corrects the definition rather than the person watching
  * step 2 of a confirmed plan fail on it.
  */
+/** R6: an id is stable forever and never reused, so a create naming a taken one cannot run. */
+async function takenQuestionIdRefusal(
+  input: ProposeInput,
+  step: ProposedStep,
+  index: number,
+): Promise<string | undefined> {
+  const taken = input.questionIdTaken;
+  if (taken === undefined || step.kind !== CREATE_QUESTION_KIND) return undefined;
+  const definition = step.args["definition"] as { readonly questionId?: unknown } | undefined;
+  const questionId = definition?.questionId;
+  if (typeof questionId !== "string" || questionId === "") return undefined;
+  if (!(await taken(questionId))) return undefined;
+  return (
+    `Step ${String(index + 1)} creates "${questionId}", but that questionId has been used ` +
+    "before and ids are never reused. Choose a new id, or pin the existing question's " +
+    "published version instead of creating one."
+  );
+}
+
+/**
+ * Whether this caller may write the draft a step saves, asked before the draft is read or
+ * validated. A step whose form an earlier step creates asks about that step's own target
+ * workspace, since the form does not exist yet.
+ */
+async function draftWriteRefusal(
+  input: ProposeInput,
+  steps: readonly ProposedStep[],
+  step: ProposedStep,
+  index: number,
+): Promise<string | undefined> {
+  const allowed = input.canWriteDraft;
+  if (allowed === undefined) return undefined;
+  const named = step.args["formId"];
+  if (typeof named === "string" && named !== "") {
+    if (await allowed({ formId: named })) return undefined;
+    return (
+      `Step ${String(index + 1)} saves a draft to ${named}, which this user may not write. ` +
+      'This needs a grant carrying "form: write" in the workspace that owns it.'
+    );
+  }
+  if (!isStepReference(named)) return undefined;
+  const creator = steps[named.fromStep]?.args["workspaceId"];
+  const createdInWorkspace = typeof creator === "string" ? creator : undefined;
+  if (await allowed({ createdInWorkspace })) return undefined;
+  return (
+    `Step ${String(index + 1)} saves a draft to the form step ${String(named.fromStep + 1)} ` +
+    'creates, and this user may not write a draft there. This needs a grant carrying "form: ' +
+    'write" in that workspace.'
+  );
+}
+
 function questionDefinitionRefusal(step: ProposedStep, index: number): string | undefined {
   const checked = checkQuestionDefinition(step.args["definition"]);
   if (checked.ok) return undefined;
@@ -397,13 +460,15 @@ function kindRefusal(
   return undefined;
 }
 
-function stepRefusal(
+async function stepRefusal(
   input: ProposeInput,
   step: ProposedStep,
   index: number,
   pinned: readonly PinnedQuestion[],
   pinChecked: boolean,
-): { readonly reason: string } | { readonly step: PlanStep; readonly def: ActionKindDef } {
+): Promise<
+  { readonly reason: string } | { readonly step: PlanStep; readonly def: ActionKindDef }
+> {
   const def = actionKind(step.kind);
   if (def === undefined) {
     return { reason: `There is no action kind named "${step.kind}".` };
@@ -449,6 +514,15 @@ function stepRefusal(
 
   const descriptorIssue = kindRefusal(input, def, step, index, pinned, pinChecked);
   if (descriptorIssue !== undefined) return { reason: descriptorIssue };
+
+  // Both ask a question the route will ask anyway, before this step's draft is read or
+  // validated, so no card offers a step the route would refuse on its subject alone.
+  const taken = await takenQuestionIdRefusal(input, step, index);
+  if (taken !== undefined) return { reason: taken };
+  if (def.carriesDraftArgument === true) {
+    const unwritable = await draftWriteRefusal(input, input.steps, step, index);
+    if (unwritable !== undefined) return { reason: unwritable };
+  }
 
   return {
     step: {
@@ -789,7 +863,7 @@ export async function buildProposal(input: ProposeInput): Promise<ProposeOutcome
 
   const steps: PlanStep[] = [];
   for (const [index, step] of input.steps.entries()) {
-    const checked = stepRefusal(input, step, index, resolved.pinned, pinChecked);
+    const checked = await stepRefusal(input, step, index, resolved.pinned, pinChecked);
     if ("reason" in checked) return refuse(checked.reason);
     steps.push(checked.step);
   }

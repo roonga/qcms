@@ -12,6 +12,7 @@ import {
 
 import { AssistMark } from "@/components/forms/assist-mark";
 import { AssistMarkdown } from "@/components/forms/assist-markdown";
+import { REASON_CHARS } from "@/lib/agent/reason";
 import { Button } from "@/components/kit";
 import { nextDraftSaved, type BuilderAssistSnapshot } from "@/lib/agent/builder-assist-bridge";
 import {
@@ -51,7 +52,7 @@ import { runStepAction } from "./step-actions";
 
 /* Room for the card's own flattener to cut on a word boundary: a hard cut here would strand a
    half word no later pass could repair. The card quotes REASON_CHARS of what this keeps. */
-const REASON_SOURCE_CHARS = 4 * 280;
+const REASON_SOURCE_CHARS = 4 * REASON_CHARS;
 
 function handOffFields(args: Readonly<Record<string, unknown>>): Readonly<Record<string, string>> {
   const fields: Record<string, string> = {};

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { ActionRequestFacts } from "./actions/types.js";
 import { checkProvenance, type RecordedStep } from "./provenance.js";
 import { argumentsDigest, signProposalToken, type ProposalStepBinding } from "./proposal-token.js";
+import { buildProposal } from "./tools/propose.js";
 
 const APP_KEY = "test-app-key-0123456789abcdefghijklmn";
 const issuedAt = new Date("2026-10-31T09:00:00.000Z");
@@ -389,5 +390,82 @@ describe("checkProvenance: a reference is checked against the recorded value", (
       recorded: [recorded(0, "7")],
     });
     expect(result).toEqual({ ok: false, code: "AGENT_PROPOSAL_ARGUMENTS" });
+  });
+});
+
+describe("the audit row's own subject form", () => {
+  it("records the form the step's arguments name, not the plan's", async () => {
+    const proposal = await buildProposal({
+      // Proposed from form A's builder, saving form B's draft: the row has to say B.
+      steps: [{ kind: "form.settings", args: { formId: "frm_b", challengeRequired: true } }],
+      subject: "usr_1",
+      appKey: APP_KEY,
+      current: "test",
+      screen: "/forms/[formId]",
+      offered: [{ kind: "form.settings", environments: ["test"] }],
+      requireSecondApprover: false,
+      productionEnvironment: "prod",
+      formId: "frm_a",
+      issuedAt: new Date(),
+      proposalsThisTurn: 0,
+    });
+    expect(proposal.ok).toBe(true);
+    if (!proposal.ok) return;
+
+    const verified = await checkProvenance({
+      token: proposal.proposal.token ?? "",
+      rawStep: "0",
+      appKey: APP_KEY,
+      subject: "usr_1",
+      facts: {
+        path: "/admin/forms/{id}/settings",
+        method: "PATCH",
+        params: { id: "frm_b" },
+        body: { challengeRequired: true },
+        environment: "test",
+      },
+      recorded: [],
+      now: new Date(),
+    });
+    expect(verified.ok).toBe(true);
+    if (!verified.ok) return;
+    expect(verified.proposal.formId).toBe("frm_b");
+  });
+
+  it("falls back to the plan's form where a step's arguments name none", async () => {
+    const proposal = await buildProposal({
+      steps: [{ kind: "question.newVersion", args: { questionId: "q_a" } }],
+      subject: "usr_1",
+      appKey: APP_KEY,
+      current: "test",
+      screen: "/questions/[questionId]",
+      offered: [{ kind: "question.newVersion", environments: ["test"] }],
+      requireSecondApprover: false,
+      productionEnvironment: "prod",
+      formId: "frm_a",
+      issuedAt: new Date(),
+      proposalsThisTurn: 0,
+    });
+    expect(proposal.ok).toBe(true);
+    if (!proposal.ok) return;
+
+    const verified = await checkProvenance({
+      token: proposal.proposal.token ?? "",
+      rawStep: "0",
+      appKey: APP_KEY,
+      subject: "usr_1",
+      facts: {
+        path: "/admin/questions/{id}/versions",
+        method: "POST",
+        params: { id: "q_a" },
+        body: undefined,
+        environment: "test",
+      },
+      recorded: [],
+      now: new Date(),
+    });
+    expect(verified.ok).toBe(true);
+    if (!verified.ok) return;
+    expect(verified.proposal.formId).toBe("frm_a");
   });
 });

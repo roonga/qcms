@@ -32,24 +32,24 @@ flag-gated, and streams rather than returning a modelled JSON body.
 
 ## Files
 
-| File                                    | What it is                                                                                                                                                                            |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `types.ts`                              | The `DraftAssistant` port, `AgentContext`, `AssistContext`, `AssistEvent`, `AssistProposal`. The PII boundary is the context's shape.                                                 |
-| `screens.ts`                            | The frozen `SCREENS` registry: one row per `(shell)` page, each with its facts schema and context builder. A screen is context, never a permission list.                              |
-| `contexts/`                             | The per-screen context builders, grouped by area, each checking its own SEC-3 cell before it reads anything.                                                                          |
-| `contexts/reads.ts`                     | One read port per admin GET route, each taking the subject ids the call names and re-making that screen's own read check against the subject it resolved.                             |
-| `tools/registry.ts`                     | The frozen tool registry, the single dispatch door, and the provider tool set built from the list this caller's grants reach.                                                         |
-| `system-prompt.ts`                      | The versioned system prompt, assembled from the kernel's own contracts. Reviewed like code.                                                                                           |
-| `assistant.ts`                          | The `streamText` tool loop, the stop-reason mapping, and the provider selector.                                                                                                       |
-| `actions/`                              | One module per action-kind group, each kind's descriptor: its route, cell, argument schema, how the middleware recomputes its arguments, its result allowlist and its card templates. |
-| `proposal-token.ts`                     | The signed proposal token: the ordered step list, each step's argument digest and the environment it acts in.                                                                         |
-| `draft-pins.ts`                         | The form's saved draft as a plan sees it: the versions it pins unpublished, and the revision a plan built from them is bound to.                                                      |
-| `provenance.ts` / `provenance-mount.ts` | The provenance check and the middleware the admin group mounts it as. It adds provenance and never rights.                                                                            |
-| `audit.ts`                              | The one `control.agent_actions` row a confirmed step writes.                                                                                                                          |
-| `grant-filter.ts`                       | The (kind, environment) pairs a turn is offered, through the evaluator the route middleware uses.                                                                                     |
-| `fake-model.ts`                         | The deterministic scripted model CI drives, including the hostile scripts.                                                                                                            |
-| `route.ts` / `handler.ts` / `schema.ts` | The flag-gated registrar, the SSE relay and its 15 second keep-alive, the request schema.                                                                                             |
-| `thinking.ts`                           | One function from `QCMS_AGENT_THINKING` to the provider's own options, and nothing vendor-shaped anywhere else (081).                                                                 |
+| File                                    | What it is                                                                                                                                                                                                                               |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `types.ts`                              | The `DraftAssistant` port, `AgentContext`, `AssistContext`, `AssistEvent`, `AssistProposal`. The PII boundary is the context's shape.                                                                                                    |
+| `screens.ts`                            | The frozen `SCREENS` registry: one row per `(shell)` page, each with its facts schema and context builder. A screen is context, never a permission list.                                                                                 |
+| `contexts/`                             | The per-screen context builders, grouped by area, each checking its own SEC-3 cell before it reads anything.                                                                                                                             |
+| `contexts/reads.ts`                     | One read port per admin GET route, each taking the subject ids the call names and re-making that screen's own read check against the subject it resolved. A port that spans workspaces narrows to the ones the caller holds its cell in. |
+| `tools/registry.ts`                     | The frozen tool registry, the single dispatch door, and the provider tool set built from the list this caller's grants reach.                                                                                                            |
+| `system-prompt.ts`                      | The versioned system prompt, assembled from the kernel's own contracts. Reviewed like code.                                                                                                                                              |
+| `assistant.ts`                          | The `streamText` tool loop, the stop-reason mapping, and the provider selector.                                                                                                                                                          |
+| `actions/`                              | One module per action-kind group, each kind's descriptor: its route, cell, argument schema, how the middleware recomputes its arguments, its result allowlist and its card templates.                                                    |
+| `proposal-token.ts`                     | The signed proposal token: the ordered step list, each step's argument digest and the environment it acts in.                                                                                                                            |
+| `draft-pins.ts`                         | The form's saved draft as a plan sees it: the versions it pins unpublished, and the revision a plan built from them is bound to.                                                                                                         |
+| `provenance.ts` / `provenance-mount.ts` | The provenance check and the middleware the admin group mounts it as. It adds provenance and never rights.                                                                                                                               |
+| `audit.ts`                              | The one `control.agent_actions` row a confirmed step writes.                                                                                                                                                                             |
+| `grant-filter.ts`                       | The (kind, environment) pairs a turn is offered, through the evaluator the route middleware uses.                                                                                                                                        |
+| `fake-model.ts`                         | The deterministic scripted model CI drives, including the hostile scripts.                                                                                                                                                               |
+| `route.ts` / `handler.ts` / `schema.ts` | The flag-gated registrar, the SSE relay and its 15 second keep-alive, the request schema.                                                                                                                                                |
+| `thinking.ts`                           | One function from `QCMS_AGENT_THINKING` to the provider's own options, and nothing vendor-shaped anywhere else (081).                                                                                                                    |
 
 ## The registry and the door are security controls
 
@@ -112,6 +112,14 @@ at propose time, the same function `POST /admin/questions` runs. A pattern a
 browser cannot compile under the `v` flag is refused with the spelling the
 authoring boundary derived, so the model corrects itself rather than the person
 watching step 2 of a confirmed plan fail.
+
+The subject of a step is authorised before that subject is read. A
+`form.saveDraft` naming a form this caller holds no `form: write` on is refused
+in the turn, not left to fail at Confirm, and the check runs before the form's
+draft and workspace row are read to validate it; a `formId` naming an earlier
+step's result is checked in the workspace that create targets. A
+`question.create` whose id has been used before is refused the same way, with
+the route's own reason, because ids are never reused (R6).
 
 A draft a plan saves is validated by the same `validateDraft` a publish runs,
 against the question versions the plan's **own earlier steps** write: a
