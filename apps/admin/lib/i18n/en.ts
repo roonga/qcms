@@ -108,6 +108,15 @@ export const messages = {
   "shell.mode.workspaces.name": "Workspaces",
   "shell.mode.workspaces.exit": "Exit Workspaces",
   "shell.mode.workspaces.announce": "Workspaces. The authoring menus are not shown here.",
+  "shell.leave.title": "Leave Operations?",
+  "shell.leave.goes": "This link opens {area}, outside Operations.",
+  "shell.leave.environment":
+    "The {environment} environment you selected in Operations does not apply there.",
+  "shell.leave.environmentUnknown":
+    "The environment you selected in Operations does not apply there.",
+  "shell.leave.area.elsewhere": "another part of QCMS",
+  "shell.leave.stay": "Stay in Operations",
+  "shell.leave.leave": "Leave",
 
   /** Do not resolve refused IDs to titles: that would disclose their existence. */
   "shell.denied.title": "You do not have access to this area",
@@ -1109,6 +1118,7 @@ export const messages = {
   // The per-form Operations screen, named for what it carries rather than for the acts on
   // it: what the selected environment serves, and whether it is taking responses.
   "forms.tab.intake": "Intake",
+  "forms.tab.erase": "Erase",
 
   "forms.publish.action": "Publish",
   /** Pluralize each count separately; a single sentence cannot choose the correct form for three independent numbers. */
@@ -1991,6 +2001,17 @@ export const messages = {
   "ops.erase.elsewhere.go": "Go to {environment}",
   "ops.erase.elsewhere.done": "{environment}: already erased there",
   "ops.erase.elsewhere.pending": "{environment}: not erased there yet",
+
+  "ops.erase.known.intro":
+    "Erase one respondent's data in {environment} by its session id. Nothing here lists responses, so the id comes from the data subject's request.",
+  "ops.erase.known.denied":
+    "You do not hold the erase role for this form in {environment}, so there is nothing to do here.",
+  "ops.erase.known.sessionLabel": "Session id",
+  "ops.erase.known.find": "Find this session",
+  "ops.erase.known.required": "Enter a session id.",
+  "ops.erase.known.missing": "No session {sessionId} exists for this form in {environment}.",
+  "ops.erase.known.found": "Session {sessionId} exists in {environment}.",
+  "ops.erase.known.lookupFailed": "The session could not be looked up. {message}",
 
   "ops.tombstone.title": "Erased",
   "ops.tombstone.body":
