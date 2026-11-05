@@ -88,11 +88,14 @@ test("keeps the keyboard inside the dialog and hands focus back on close", async
   await expect(dialog(page)).toBeVisible();
   await expectAxeClean(page, "proposed plan dialog", ".qcms-acard-dialog");
 
-  // Tab never leaves the dialog: react-aria traps it, so every stop is inside.
+  // Tab never leaves the dialog: react-aria traps it, so every stop is inside. The scope is
+  // the card's own dialog ancestor, since the trap is the dialog's and the shell holds more
+  // than one; the card div alone would exclude the dialog's own close control.
   const inside = async (): Promise<boolean> =>
     page.evaluate(() => {
       const held = document.activeElement;
-      const scope = document.querySelector('[data-testid="qcms-acard-dialog"]');
+      const card = document.querySelector('[data-testid="qcms-acard-dialog"]');
+      const scope = card?.closest('dialog, [role="dialog"]') ?? card;
       return held !== null && scope !== null && scope.contains(held);
     });
   for (let stop = 0; stop < 12; stop += 1) {
