@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
 import { AssistMark } from "@/components/forms/assist-mark";
 import type { AgentPlanStep, AgentProposal } from "@/lib/forms/assist-stream";
@@ -269,7 +269,9 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
     // Focus on arrival only; later renders must not interrupt the operator.
   }, [props.focusOnArrival]);
 
-  const settled = resultLine(card);
+  // Hold the line's identity to the card it was read from; a fresh object each render would
+  // move focus off whatever the operator is typing in.
+  const settled = useMemo(() => resultLine(card), [card]);
   useEffect(() => {
     if (settled !== undefined) resultRef.current?.focus();
   }, [settled]);
