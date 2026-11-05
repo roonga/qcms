@@ -5,7 +5,7 @@ import { Alert } from "@/components/kit";
 import { DeniedRecovery } from "@/components/shell/denied-recovery";
 import { RememberWorkspace } from "@/components/shell/shell-chrome";
 import { t } from "@/lib/i18n/en";
-import { WORKSPACE_SECTION_DEFS, type WorkspaceSection } from "@/lib/membership/sections";
+import { WORKSPACE_SECTION_LABELS, type WorkspaceSection } from "@/lib/membership/sections";
 import type { WorkspaceListItem } from "@/lib/membership/types";
 import { secureCookies } from "@/lib/server/config";
 import { listWorkspaces } from "@/lib/server/membership";
@@ -36,7 +36,6 @@ export async function loadWorkspaceScreen(workspaceId: string): Promise<Workspac
   return { kind: "ready", session, workspaceId, workspace };
 }
 
-/** The section's name, and the workspace it belongs to. */
 export async function workspaceSectionTitle(
   section: WorkspaceSection,
   workspaceId: string,
@@ -47,7 +46,7 @@ export async function workspaceSectionTitle(
     ? workspaces.data.find((entry) => entry.workspaceId === workspaceId)
     : undefined;
   return t("title.workspaceSection", {
-    section: t(WORKSPACE_SECTION_DEFS[section].labelKey),
+    section: t(WORKSPACE_SECTION_LABELS[section]),
     workspace: workspace?.name ?? workspaceId,
   });
 }

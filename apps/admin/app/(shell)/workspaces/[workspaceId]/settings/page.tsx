@@ -5,6 +5,7 @@ import {
   workspaceSectionTitle,
   WorkspaceScreenFrame,
 } from "@/components/membership/workspace-screen";
+import { t } from "@/lib/i18n/en";
 import { pageMetadata } from "@/lib/page-title";
 import { WorkspaceSettingsPanel } from "@/components/membership/workspace-settings-panel";
 
@@ -30,7 +31,11 @@ export default async function WorkspaceSettingsPage({
   const { workspace } = screen;
   return (
     <WorkspaceScreenFrame workspaceId={workspaceId} workspace={workspace}>
-      {workspace !== undefined && (
+      {workspace === undefined ? (
+        <h1 className="text-xl font-semibold text-(--color-text)">
+          {t("membership.settings.heading")}
+        </h1>
+      ) : (
         <WorkspaceSettingsPanel
           settings={{
             workspaceId,

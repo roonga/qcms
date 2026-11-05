@@ -437,7 +437,7 @@ Phase 6 ships in slices, as the workspace ruling allows. Each slice is one branc
    screen is five screens sharing one facts builder, each offering only its own kinds, so
    no plan spans two sections. The access-group form picks a role by plain name with a
    one-line description, environments from the installation's list, and All forms or forms
-   by name from the caller's own form read (`GET /admin/forms` now names each form's
+   by name from the caller's own form read (`GET /admin/forms` names each form's
    `workspaceId`); the group's name is derived from those picks and a label under Advanced,
    and a grant picks from the workspace's members.
 5. One persistent rail per area and one top bar in every area, both the shell's chrome. It

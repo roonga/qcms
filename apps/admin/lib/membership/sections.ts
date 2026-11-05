@@ -15,40 +15,12 @@ export type WorkspaceSection = (typeof WORKSPACE_SECTIONS)[number];
 
 export const FIRST_WORKSPACE_SECTION: WorkspaceSection = "members";
 
-export interface WorkspaceSectionDef {
-  readonly labelKey: MessageKey;
-  /** The heading id the section's screen renders, so the region it labels is named. */
-  readonly headingId: string;
-  /** The panel that renders that heading. */
-  readonly source: string;
-}
-
-export const WORKSPACE_SECTION_DEFS: Readonly<Record<WorkspaceSection, WorkspaceSectionDef>> = {
-  members: {
-    labelKey: "membership.members.heading",
-    headingId: "qcms-members-heading",
-    source: "components/membership/members-panel.tsx",
-  },
-  "access-groups": {
-    labelKey: "membership.groups.heading",
-    headingId: "qcms-access-groups-heading",
-    source: "components/membership/access-groups-panel.tsx",
-  },
-  settings: {
-    labelKey: "membership.settings.heading",
-    headingId: "qcms-workspace-settings-heading",
-    source: "components/membership/workspace-settings-panel.tsx",
-  },
-  audit: {
-    labelKey: "membership.audit.heading",
-    headingId: "qcms-audit-heading",
-    source: "components/membership/audit-panel.tsx",
-  },
-  "assistant-actions": {
-    labelKey: "membership.agentAudit.heading",
-    headingId: "qcms-agent-audit-heading",
-    source: "components/membership/agent-audit-panel.tsx",
-  },
+export const WORKSPACE_SECTION_LABELS: Readonly<Record<WorkspaceSection, MessageKey>> = {
+  members: "membership.members.heading",
+  "access-groups": "membership.groups.heading",
+  settings: "membership.settings.heading",
+  audit: "membership.audit.heading",
+  "assistant-actions": "membership.agentAudit.heading",
 };
 
 export function workspaceSectionHref(workspaceId: string, section: WorkspaceSection): string {

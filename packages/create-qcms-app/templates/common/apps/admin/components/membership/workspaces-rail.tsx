@@ -3,7 +3,7 @@ import Link from "next/link";
 import { RailFrame } from "@/components/rail-frame";
 import { t } from "@/lib/i18n/en";
 import {
-  WORKSPACE_SECTION_DEFS,
+  WORKSPACE_SECTION_LABELS,
   WORKSPACE_SECTIONS,
   WORKSPACES_ROOT,
   workspaceHref,
@@ -71,7 +71,7 @@ export function WorkspacesRail({
                           data-rail-item={`section:${section}`}
                           {...current(selected.section === section)}
                         >
-                          {t(WORKSPACE_SECTION_DEFS[section].labelKey)}
+                          {t(WORKSPACE_SECTION_LABELS[section])}
                         </Link>
                       </li>
                     ))}

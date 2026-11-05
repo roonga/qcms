@@ -15,6 +15,9 @@ const WORKSPACE_ID = "org_default_workspace";
 
 const LABEL = `pick${Date.now().toString(36)}`;
 
+/** A seeded form of the default workspace, picked by name rather than as All forms. */
+const FORM_SLUG = "kitchen-sink";
+
 let totpSecret = "";
 
 test.beforeAll(async () => {
@@ -158,7 +161,9 @@ test("an access group is created with the pickers, granted to a member and taken
   await expect(create.getByRole("textbox", { name: "Search forms by name" })).toBeVisible();
   await tick(allForms, false);
   await expect(create.getByRole("button", { name: "Create group" })).toBeDisabled();
-  await tick(allForms, true);
+  await create.getByRole("textbox", { name: "Search forms by name" }).fill("KITCHEN");
+  await expect(create.getByRole("checkbox", { name: "repeat-tour", exact: true })).toHaveCount(0);
+  await tick(FORM_SLUG, true);
 
   await create.getByText("Advanced", { exact: true }).click();
   await create.getByRole("textbox", { name: "Label (optional)" }).fill(LABEL);
@@ -174,6 +179,7 @@ test("an access group is created with the pickers, granted to a member and taken
     .filter({ hasText: name })
     .first();
   await expect(row).toContainText("Response viewer");
+  await expect(row).toContainText(FORM_SLUG);
   await expect(row).toContainText("Nobody");
   await expect(row.getByRole("textbox", { name: "Account address" })).toHaveCount(0);
 

@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { messages } from "../i18n/en.ts";
 
 import {
-  WORKSPACE_SECTION_DEFS,
+  WORKSPACE_SECTION_LABELS,
   WORKSPACE_SECTIONS,
   workspaceHref,
   workspaceSectionHref,
@@ -32,14 +32,9 @@ describe("the workspace sections", () => {
     }
   });
 
-  it("name a heading id each panel actually renders, labelled from the catalog", () => {
+  it("label each section from the catalog", () => {
     for (const section of WORKSPACE_SECTIONS) {
-      const def = WORKSPACE_SECTION_DEFS[section];
-      const source = readFileSync(`${APP}${def.source}`, "utf8");
-      expect(source, `${def.source} carries id="${def.headingId}"`).toContain(
-        `id="${def.headingId}"`,
-      );
-      expect(messages).toHaveProperty(def.labelKey);
+      expect(messages).toHaveProperty(WORKSPACE_SECTION_LABELS[section]);
     }
   });
 

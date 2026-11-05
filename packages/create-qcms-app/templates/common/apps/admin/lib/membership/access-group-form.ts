@@ -50,7 +50,6 @@ export function roleDescription(role: string): string | undefined {
   return keys === undefined ? undefined : t(keys.description);
 }
 
-/** `all`, or the chosen names. */
 export type ScopeChoice =
   { readonly kind: "all" } | { readonly kind: "some"; readonly chosen: readonly string[] };
 

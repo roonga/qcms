@@ -846,10 +846,33 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
 
   it("narrows the library lists to the caller's own workspaces (ADR-41's premise)", async () => {
     const other = await createWorkspaceWithViewer("probe-elsewhere");
+    const elsewhereFormId = "frm_probe_elsewhere";
+    await createForm(testDb.db, {
+      workspaceId: other.workspaceId,
+      formId: FormId.parse(elsewhereFormId),
+      slug: "probe-elsewhere",
+      defaultLocale: "en",
+    });
     const res = await get(other.token, "/admin/forms");
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { forms: { formId: string }[] };
+    const body = (await res.json()) as { forms: { formId: string; workspaceId: string }[] };
     expect(body.forms.map((form) => form.formId)).not.toContain(ctx.formId);
+    expect(body.forms).toEqual([
+      expect.objectContaining({ formId: elsewhereFormId, workspaceId: other.workspaceId }),
+    ]);
+
+    const home = await get(
+      await accountHolding("probe-home-list", ["forms.viewer"]),
+      "/admin/forms",
+    );
+    expect(home.status).toBe(200);
+    const homeForms = ((await home.json()) as { forms: { formId: string; workspaceId: string }[] })
+      .forms;
+    expect(homeForms.map((form) => form.formId)).toContain(ctx.formId);
+    expect(homeForms.map((form) => form.formId)).not.toContain(elsewhereFormId);
+    for (const form of homeForms) {
+      expect(form.workspaceId, `${form.formId} names its owning workspace`).toBe(SEED_WORKSPACE_ID);
+    }
   });
 });
 
