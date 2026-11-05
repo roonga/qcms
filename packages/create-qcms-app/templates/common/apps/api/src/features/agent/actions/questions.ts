@@ -83,6 +83,7 @@ export const createQuestion: ActionKindDef = {
   }),
   references: ["questionId"],
   resultAllowlist: ["questionId", "slug", "version"],
+  carriesQuestionDefinition: true,
   card: {
     titleKey: "agent.card.question.create.title",
     consequenceKeys: ["agent.card.question.create.consequence"],
@@ -109,6 +110,7 @@ export const saveQuestionDraft: ActionKindDef = {
   }),
   references: [],
   resultAllowlist: ["questionId", "version", "status"],
+  carriesQuestionDefinition: true,
   card: {
     titleKey: "agent.card.question.saveDraft.title",
     consequenceKeys: ["agent.card.question.saveDraft.consequence"],

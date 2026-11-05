@@ -93,9 +93,13 @@ export function pendingNewQuestionPins(
   return pending;
 }
 
+/* A question nothing has created yet reads as dangling; one an earlier plan step creates reads as an
+   unpublished pin, because the draft was validated as it will stand once that step has run. */
+const PENDING_PIN_CODES: readonly string[] = ["DANGLING_QUESTION_REF", "UNPUBLISHED_QUESTION_PIN"];
+
 export function isPendingNewQuestionPin(issue: FormIssue, pending: ReadonlySet<string>): boolean {
   const path = issue.path;
-  if (issue.code !== "DANGLING_QUESTION_REF" || path === undefined) return false;
+  if (!PENDING_PIN_CODES.includes(issue.code) || path === undefined) return false;
   if (path.rule !== undefined || path.step === undefined || path.question === undefined) {
     return false;
   }

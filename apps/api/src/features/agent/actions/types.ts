@@ -44,9 +44,9 @@ export interface ActionCardTemplate {
 
   readonly headingControl?: string;
   /**
-   * A kind that acts on a draft, which belongs to no environment and changes nothing a
-   * respondent can reach. The step still binds the environment it was proposed under; what
-   * this drops is the card's environment line, which would otherwise read as a live change.
+   * Set by the propose tool from the kind's own cells: an act in no environment shows no
+   * environment line, which would otherwise read as a live change. The step still binds the
+   * environment it was proposed under, whatever the card shows.
    */
   readonly hideEnvironment?: true;
   /**
@@ -122,6 +122,12 @@ export interface ActionKindDef {
    * does for the kind that applies a proposed draft.
    */
   readonly carriesDraftArgument?: true;
+  /**
+   * A kind whose `definition` argument is a question definition the route parses. The
+   * propose tool runs the route's own check over it, so no card offers a step the route
+   * would refuse on its arguments alone.
+   */
+  readonly carriesQuestionDefinition?: true;
   readonly card: ActionCardTemplate;
   readonly description: string;
 }

@@ -22,7 +22,7 @@ import {
   writeAccessAuditRow,
   type Executor,
 } from "@roonga/qcms-db";
-import type { FormDefinition, FormId } from "@roonga/qcms-core";
+import type { FormId } from "@roonga/qcms-core";
 
 import { previewConditionFlow, projectDraftFlow, validateDraft } from "../../forms/handler.js";
 import { holdsStatement } from "../../membership/policy.js";
@@ -231,8 +231,8 @@ function formDefinitionPort(input: ScreenBuildInput): FormDefinitionPort {
 }
 
 function validatePort(input: ScreenBuildInput): ValidateDraftPort {
-  return async (definition: FormDefinition) => {
-    const { issues, warnings } = await validateDraft(input.deps, definition);
+  return async (definition, pending) => {
+    const { issues, warnings } = await validateDraft(input.deps, definition, pending);
     return { issues, warnings };
   };
 }

@@ -261,9 +261,21 @@ function pinnedQuestionIds(definition: FormDefinition): Set<QuestionId> {
   return ids;
 }
 
+/**
+ * A question version the caller knows will exist by the time this draft is saved, which is
+ * what lets a plan validate a draft pinning questions its own earlier steps create. Treated
+ * as a stored draft version, so such a pin reports as unpublished rather than dangling.
+ */
+export interface PendingQuestionVersion {
+  readonly questionId: QuestionId;
+  readonly version: number;
+  readonly definition: unknown;
+}
+
 async function loadQuestionLookups(
   deps: Deps,
   definition: FormDefinition,
+  pending: readonly PendingQuestionVersion[],
 ): Promise<{
   resolveQuestion: ResolveQuestionVersion;
   publishedQuestionVersions: Map<QuestionId, Set<number>>;
@@ -272,6 +284,18 @@ async function loadQuestionLookups(
   const recordByPin = new Map<string, QuestionVersionRecord>();
   const statusByPin = new Map<string, QuestionStatus>();
   const publishedQuestionVersions = new Map<QuestionId, Set<number>>();
+
+  // Seeded first, so a stored row always wins over a hypothetical one.
+  for (const entry of pending) {
+    const key = pinKey(entry.questionId, entry.version);
+    recordByPin.set(key, {
+      questionId: entry.questionId,
+      version: entry.version,
+      definition: entry.definition as QuestionVersionRecord["definition"],
+    });
+    statusByPin.set(key, "draft");
+    publishedQuestionVersions.set(entry.questionId, new Set<number>());
+  }
 
   for (const questionId of pinnedQuestionIds(definition)) {
     const rows = await listQuestionVersions(deps.databases.control, questionId);
@@ -377,6 +401,7 @@ function workspacePinGate(
 export async function validateDraft(
   deps: Deps,
   definition: FormDefinition,
+  pending: readonly PendingQuestionVersion[] = [],
 ): Promise<{
   issues: PublishIssue[];
   warnings: readonly PublishWarning[];
@@ -385,6 +410,7 @@ export async function validateDraft(
   const { resolveQuestion, publishedQuestionVersions, statusByPin } = await loadQuestionLookups(
     deps,
     definition,
+    pending,
   );
   const previous = await getLatestPublishedVersion(deps.databases.control, definition.formId);
   const previousDefinition: FormDefinition | undefined = previous?.definition;
@@ -1135,7 +1161,7 @@ export async function previewConditionFlow(
 
     // The bench form's own pin map bridges `ResolveQuestionVersion` to the evaluator's
     // `ResolveQuestion`, keeping the lookup version-exact rather than newest-version.
-    const { resolveQuestion } = await loadQuestionLookups(deps, bench.definition);
+    const { resolveQuestion } = await loadQuestionLookups(deps, bench.definition, []);
     const benchPins = pinsByQuestion(bench.definition);
     const resolve: ResolveQuestion = (questionId) => {
       const version = benchPins.get(questionId);

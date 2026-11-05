@@ -26,9 +26,15 @@ import {
 import { t, tPlural } from "@/lib/i18n/en";
 
 import { ApplyDraftDetail } from "./apply-draft-detail";
+import { DefinitionDetail } from "./definition-detail";
 
 /* Proposal consequences must come from trusted step data; model prose cannot weaken the screen's own
    confirmation requirements. */
+
+const DEFINITION_ARGUMENT = "definition";
+
+/* The kinds whose `definition` argument is a question definition rather than a form draft. */
+const QUESTION_DEFINITION_KINDS: readonly string[] = ["question.create", "question.saveDraft"];
 
 export function stepIcon(state: AgentStepState): React.ReactElement {
   const common = {
@@ -168,6 +174,9 @@ export function StepItem({
   const state = view?.state ?? "proposed";
   const word = t(STEP_STATE_WORDS[state]);
   const href = createdHref(step, view?.result);
+  // A form draft is already shown as a diff and two advisory lists; a question definition
+  // gets its own field-by-field rendering rather than one line of JSON.
+  const readable = QUESTION_DEFINITION_KINDS.includes(step.kind);
   return (
     <li className="qcms-acard__step" data-s={state}>
       {stepIcon(state)}
@@ -186,20 +195,34 @@ export function StepItem({
       )}
       <p className="qcms-acard__args">
         {step.card.hideEnvironment === true ? null : <EnvironmentLine step={step} />}
-        {stepArguments(step, reported).map((line) => (
-          <span key={line.name}>
-            {line.label} {line.mono ? <code>{line.value}</code> : <span>{line.value}</span>}
-          </span>
-        ))}
+        {stepArguments(step, reported)
+          .filter((line) => line.name !== DEFINITION_ARGUMENT || !readable)
+          .map((line) => (
+            <span key={line.name}>
+              {line.label} {line.mono ? <code>{line.value}</code> : <span>{line.value}</span>}
+            </span>
+          ))}
         {stepConsequences(step).map((sentence) => (
           <span key={sentence}>{sentence}</span>
         ))}
         {step.handOff ? <span>{t("agent.card.handOffHint")}</span> : null}
       </p>
+      {readable ? <DefinitionDetail definition={step.args[DEFINITION_ARGUMENT]} /> : null}
       {step.draft === undefined ? null : (
         <ApplyDraftDetail draft={step.draft} id={`${idBase}-${String(index)}`} />
       )}
       {view?.message === undefined ? null : <p className="qcms-acard__note">{view.message}</p>}
+      {view?.issues === undefined || view.issues.length === 0 ? null : (
+        <ul className="qcms-acard__advisory" data-testid="qcms-acard-step-issues">
+          {view.issues.map((issue, at) => (
+            <li key={`${issue.code}:${String(at)}`} data-issue-code={issue.code}>
+              {issue.path === undefined || issue.path === ""
+                ? issue.message
+                : `${issue.path}: ${issue.message}`}
+            </li>
+          ))}
+        </ul>
+      )}
       {href === undefined ? null : (
         <p className="qcms-acard__note">
           <a className="qcms-acard__link" href={href}>

@@ -3465,6 +3465,42 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   font-size: 12px;
   color: var(--color-text-muted);
 }
+.qcms-acard__definition {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-block-start: var(--space-2);
+  font-size: 13px;
+}
+.qcms-acard__deflist {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2px;
+  margin: 0;
+}
+.qcms-acard__deflist dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.qcms-acard__deflist dt:not(:first-child) {
+  margin-block-start: var(--space-2);
+}
+.qcms-acard__definition pre {
+  margin: var(--space-1) 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+.qcms-acard__definition summary {
+  min-block-size: 24px;
+  cursor: pointer;
+}
+.qcms-acard__definition summary:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
 .qcms-envchip {
   display: inline-block;
   padding: 0 4px;

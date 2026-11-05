@@ -12,8 +12,9 @@ import {
   type QuestionDefinition,
 } from "@roonga/qcms-core";
 
-import type { PublishIssue, PublishWarning } from "../../forms/handler.js";
-import { actionKind } from "../actions/registry.js";
+import type { PendingQuestionVersion, PublishIssue, PublishWarning } from "../../forms/handler.js";
+import { checkQuestionDefinition } from "../../questions/create.js";
+import { actionKind, actsInOneEnvironment } from "../actions/registry.js";
 import type { ActionKindDef } from "../actions/types.js";
 import type { PinnedQuestion, SavedDraftPins } from "../draft-pins.js";
 import { offeredEnvironments, type OfferedActionKind } from "../grant-filter.js";
@@ -62,6 +63,8 @@ export interface ProposedDraftStep {
   readonly newQuestions: readonly QuestionDefinition[];
   readonly issues: readonly PublishIssue[];
   readonly warnings: readonly PublishWarning[];
+  /** Which step of this plan creates each new question, so the card can name it. */
+  readonly createdBy?: readonly { readonly questionId: string; readonly step: number }[];
 }
 
 /** One step as the card will display it, with its arguments resolved only symbolically. */
@@ -138,7 +141,10 @@ export interface ProposeInput {
   readonly savedDraft?: ((formId: string) => Promise<SavedDraftPins | undefined>) | undefined;
   /** The builder's own validation, so the card's two lists and a publish cannot disagree. */
   readonly validate?:
-    | ((definition: FormDefinition) => Promise<{
+    | ((
+        definition: FormDefinition,
+        pending?: readonly PendingQuestionVersion[],
+      ) => Promise<{
         readonly issues: readonly PublishIssue[];
         readonly warnings: readonly PublishWarning[];
       }>)
@@ -219,6 +225,29 @@ function proposedDraftRefusal(
     return `A plan applies the proposed draft once. Keep one ${def.kind} step.`;
   }
   return undefined;
+}
+
+/**
+ * The route's own check, run before any card exists, with the server's own words and the
+ * spelling it suggests. So the model corrects the definition rather than the person watching
+ * step 2 of a confirmed plan fail on it.
+ */
+function questionDefinitionRefusal(step: ProposedStep, index: number): string | undefined {
+  const checked = checkQuestionDefinition(step.args["definition"]);
+  if (checked.ok) return undefined;
+  const named = step.args["questionId"] ?? step.args["slug"];
+  const subject = typeof named === "string" && named !== "" ? ` (${named})` : "";
+  const issues = checked.issues
+    .map((issue) => {
+      const at =
+        issue.path === undefined || issue.path.length === 0 ? "" : `${issue.path.join(".")}: `;
+      return `${at}${issue.message}`;
+    })
+    .join(" ");
+  return (
+    `Step ${String(index + 1)}'s question definition${subject} is invalid, so it cannot be ` +
+    `proposed: ${issues} Correct the definition and propose the plan again.`
+  );
 }
 
 /**
@@ -336,6 +365,10 @@ function kindRefusal(
   pinned: readonly PinnedQuestion[],
   pinChecked: boolean,
 ): string | undefined {
+  if (def.carriesQuestionDefinition === true) {
+    const invalid = questionDefinitionRefusal(step, index);
+    if (invalid !== undefined) return invalid;
+  }
   if (def.carriesProposedDraft === true) {
     return proposedDraftRefusal(input, def, step, index);
   }
@@ -408,7 +441,7 @@ function stepRefusal(
       environment,
       handOff: def.handOff === true,
       local: def.local === true,
-      card: def.card,
+      card: actsInOneEnvironment(def) ? def.card : { ...def.card, hideEnvironment: true },
       resultAllowlist: def.resultAllowlist,
     },
     def,
@@ -504,14 +537,15 @@ async function withProposedDraft(
   );
 }
 
-/** The definitions this plan's own `question.create` steps carry, which the card lists beside the diff. */
-function plannedQuestions(steps: readonly PlanStep[]): readonly QuestionDefinition[] {
-  return steps.flatMap((step) => {
+/** The questions this plan's own `question.create` steps create, and which step creates each. */
+function plannedQuestions(
+  steps: readonly PlanStep[],
+): readonly { readonly step: number; readonly definition: QuestionDefinition }[] {
+  return steps.flatMap((step, index) => {
     if (step.kind !== CREATE_QUESTION_KIND) return [];
     const definition = step.args["definition"];
-    return typeof definition === "object" && definition === null
-      ? []
-      : [definition as QuestionDefinition];
+    if (typeof definition !== "object" || definition === null) return [];
+    return [{ step: index, definition: definition as QuestionDefinition }];
   });
 }
 
@@ -527,6 +561,18 @@ async function withDraftArguments(
   const validate = input.validate;
   if (validate === undefined) return steps;
   const created = plannedQuestions(steps);
+  // Validated as the draft will stand once the plan has run: a question an earlier step
+  // creates exists as draft v1 by then, so its pin is an unpublished pin and not a
+  // dangling reference.
+  const pending: PendingQuestionVersion[] = created.map((entry) => ({
+    questionId: entry.definition.questionId,
+    version: 1,
+    definition: entry.definition,
+  }));
+  const createdBy = created.map((entry) => ({
+    questionId: entry.definition.questionId,
+    step: entry.step,
+  }));
   const out: PlanStep[] = [];
   for (const step of steps) {
     const parsed =
@@ -540,10 +586,16 @@ async function withDraftArguments(
       out.push(step);
       continue;
     }
-    const { issues, warnings } = await validate(parsed.data);
+    const { issues, warnings } = await validate(parsed.data, pending);
     out.push({
       ...step,
-      draft: { definition: parsed.data, newQuestions: created, issues, warnings },
+      draft: {
+        definition: parsed.data,
+        newQuestions: created.map((entry) => entry.definition),
+        issues,
+        warnings,
+        createdBy,
+      },
     });
   }
   return out;

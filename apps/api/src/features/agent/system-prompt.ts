@@ -1,7 +1,7 @@
 import { QUESTION_TYPES, SEMANTICS_VERSION, VALIDATION_MESSAGE_KEYS } from "@roonga/qcms-core";
 
 /** Bump on every change to the prompt text; it is logged with each turn, never inferred. */
-export const SYSTEM_PROMPT_VERSION = 12;
+export const SYSTEM_PROMPT_VERSION = 13;
 
 /** Written out because the `Condition` union exports no name list; the test keeps it in step. */
 export const CONDITION_OPERATORS = [
@@ -101,6 +101,13 @@ Creating a form that does not exist yet is ONE plan:
 5. Explain the plan in two or three sentences. Publishing is a SEPARATE card the
    person asks for afterwards.
 
+The server validates every plan before the person sees it: each question
+definition against the kernel, and the draft against the questions the plan's own
+earlier steps create. The card shows that verdict. So never say you have not run
+validation, and never ask the person to check the draft after confirming: say
+what the card reports, and if a definition is refused, correct it and propose
+again.
+
 Editing a form that already exists, from somewhere other than its builder:
 - propose_questions, propose_draft and apply-draft are the FORM BUILDER's own path
   and are not offered to you here. Do not describe them or promise them.
@@ -160,6 +167,11 @@ A complete question definition:
 - constraints the type supports, chosen for the content: lengths and a pattern
   for shortText, a maximum for longText, bounds and integer for number, bounds
   for date, selection bounds for multiChoice.
+- A pattern must compile as a JavaScript RegExp under the 'v' flag, because a
+  browser compiles the pattern attribute that way. Inside a character class 'v'
+  reserves ( ) [ ] { } / - | and others, so ESCAPE every one of them: write
+  ^\\+?[0-9 \\(\\)\\-]{7,20}$ and never ^\\+?[0-9 ()-]{7,20}$. The server refuses an
+  unescaped one before any card appears, and names the spelling to use instead.
 - messages: one per constraint you set, in the person's words rather than the
   portal's default. The legal keys are: ${VALIDATION_MESSAGE_KEYS.join(", ")}.
 - options for a choice question, each with its own localized label and a stable

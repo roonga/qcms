@@ -1603,6 +1603,19 @@ export const messages = {
   "forms.assist.kind.rule": "Rule",
   "forms.assist.newQuestionPending":
     "New question {questionId}. Accepting creates it as an unpublished draft in the question library. Publish it there before you publish this form.",
+  "forms.assist.definition.question": "Question",
+  "forms.assist.definition.questionId": "Id",
+  "forms.assist.definition.type": "Type",
+  "forms.assist.definition.label": "Label",
+  "forms.assist.definition.help": "Help",
+  "forms.assist.definition.required": "Required",
+  "forms.assist.definition.constraints": "Constraints",
+  "forms.assist.definition.messages": "Validation messages",
+  "forms.assist.definition.options": "Options",
+  "forms.assist.definition.other": "Other fields",
+  "forms.assist.definition.raw": "Show the whole definition",
+  "forms.assist.newQuestionFromStep":
+    "New question {questionId}, created by step {step} of this plan as an unpublished draft version. Publish it from the question library before you publish this form.",
 
   /** Action-card consequences must mirror ordinary dialog consequences and come only from registered catalog templates, never model prose. */
   "agent.card.planTitle.one": "1 step",

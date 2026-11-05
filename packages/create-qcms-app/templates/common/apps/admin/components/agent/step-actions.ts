@@ -40,7 +40,7 @@ import { isErasureReason } from "@/lib/ops/erasure";
 import { IDLE_MUTATION } from "@/lib/questions/editor-state";
 import type { MembershipActionState } from "@/lib/membership/types";
 import type { WebhookActionState } from "@/components/ops/webhook-config";
-import type { AgentStepResult } from "@/lib/agent/plan-state";
+import type { AgentStepIssue, AgentStepResult } from "@/lib/agent/plan-state";
 import type { AgentPlanStep } from "@/lib/forms/assist-stream";
 import type { DraftForm } from "@/lib/forms/types";
 import type { RunStepRequest } from "@/lib/agent/runner";
@@ -73,6 +73,18 @@ function pinnedCount(definition: object): number {
     }
   }
   return total;
+}
+
+/* The API's own definition issues, kept as the authoring-boundary text they are. */
+function stepIssues(
+  issues:
+    readonly { code: string; message: string; path?: readonly (string | number)[] }[] | undefined,
+): readonly AgentStepIssue[] {
+  return (issues ?? []).map((issue) => ({
+    code: issue.code,
+    message: issue.message,
+    ...(issue.path === undefined || issue.path.length === 0 ? {} : { path: issue.path.join(".") }),
+  }));
 }
 
 function strings(value: unknown): readonly string[] {
@@ -309,7 +321,11 @@ const QUESTION_RUNNERS: Readonly<Record<string, StepRunner>> = {
       proposalRef(agentProposal, tokenStep),
     );
     if (state.status !== "done" || state.questionId === undefined) {
-      return { outcome: "failed", message: text(state.message) };
+      return {
+        outcome: "failed",
+        message: text(state.message),
+        issues: stepIssues(state.issues),
+      };
     }
     return {
       outcome: "done",
@@ -335,7 +351,9 @@ const QUESTION_RUNNERS: Readonly<Record<string, StepRunner>> = {
       body,
       proposalRef(agentProposal, tokenStep),
     );
-    if (state.status !== "saved") return { outcome: "failed", message: text(state.message) };
+    if (state.status !== "saved") {
+      return { outcome: "failed", message: text(state.message), issues: stepIssues(state.issues) };
+    }
     return {
       outcome: "done",
       result: { questionId: text(args["questionId"]), version, status: "draft" },

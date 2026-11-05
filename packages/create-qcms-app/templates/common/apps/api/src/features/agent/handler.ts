@@ -281,7 +281,7 @@ function actionPorts(args: {
           productionEnvironment: PRODUCTION_ENVIRONMENT,
           formId: named,
           issuedAt: args.deps.clock.now(),
-          validate: (definition) => validateDraft(args.deps, definition),
+          validate: (definition, pending) => validateDraft(args.deps, definition, pending),
         }),
     },
   };

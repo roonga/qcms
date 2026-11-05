@@ -1,6 +1,6 @@
 import type { FormDefinition, QuestionDefinition, QuestionId } from "@roonga/qcms-core";
 
-import type { PublishIssue, PublishWarning } from "../forms/handler.js";
+import type { PendingQuestionVersion, PublishIssue, PublishWarning } from "../forms/handler.js";
 import type { OfferedActionKind } from "./grant-filter.js";
 import type { Proposal, ProposedStep, ProposeOutcome } from "./tools/propose.js";
 
@@ -48,7 +48,15 @@ export interface DraftVerdict {
   readonly warnings: readonly PublishWarning[];
 }
 
-export type ValidateDraftPort = (definition: FormDefinition) => Promise<DraftVerdict>;
+/**
+ * `pending` names question versions the caller knows will exist by the time the draft is
+ * saved, which is what lets a plan's draft be validated against the questions its own
+ * earlier steps create.
+ */
+export type ValidateDraftPort = (
+  definition: FormDefinition,
+  pending?: readonly PendingQuestionVersion[],
+) => Promise<DraftVerdict>;
 
 /**
  * The PII boundary is this object's shape: `validate` and `questionLibrary` are the

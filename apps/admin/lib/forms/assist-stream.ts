@@ -17,6 +17,9 @@ export interface AgentDraftProposal {
   readonly issues: readonly FormIssue[];
 
   readonly warnings: readonly FormIssue[];
+
+  /* Which step of this plan creates each new question, so a pin can name it. */
+  readonly createdBy?: readonly { readonly questionId: string; readonly step: number }[];
 }
 
 // Keep args opaque: a value may reference an earlier step result rather than carrying a literal.
