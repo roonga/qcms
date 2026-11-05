@@ -16,9 +16,9 @@ export function AgentAuditPanel({
   return (
     <section aria-labelledby="qcms-agent-audit-heading" className="flex min-w-0 flex-col gap-3">
       <div className="flex flex-col gap-1">
-        <h2 id="qcms-agent-audit-heading" className="text-lg font-semibold text-(--color-text)">
+        <h1 id="qcms-agent-audit-heading" className="text-xl font-semibold text-(--color-text)">
           {t("membership.agentAudit.heading")}
-        </h2>
+        </h1>
         <p className="text-sm text-(--color-text-muted)">{t("membership.agentAudit.intro")}</p>
       </div>
 

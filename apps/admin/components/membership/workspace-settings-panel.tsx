@@ -32,12 +32,12 @@ export function WorkspaceSettingsPanel({
       aria-labelledby="qcms-workspace-settings-heading"
       className="flex min-w-0 flex-col gap-3"
     >
-      <h2
+      <h1
         id="qcms-workspace-settings-heading"
-        className="text-lg font-semibold text-(--color-text)"
+        className="text-xl font-semibold text-(--color-text)"
       >
         {t("membership.settings.heading")}
-      </h2>
+      </h1>
 
       {state.status === "error" && <Alert variant="error">{state.message}</Alert>}
       {state.status === "done" && <Alert variant="success">{state.message}</Alert>}

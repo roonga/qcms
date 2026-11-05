@@ -2,17 +2,24 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
+import { chooseOption } from "./support/forms.js";
+import { waitForHydration } from "./support/hydration.js";
 
 test.describe.configure({ mode: "serial" });
 
 const EMAIL = uniqueAdminEmail("membership069");
 
+const MEMBER = uniqueAdminEmail("membership069member");
+
 const WORKSPACE_ID = "org_default_workspace";
+
+const LABEL = `pick${Date.now().toString(36)}`;
 
 let totpSecret = "";
 
 test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
+  await createTestAdmin(MEMBER, { grants: ["forms.viewer"], owner: false });
 });
 
 test("the membership area is reachable from the shell's navigation", async ({ page }) => {
@@ -35,13 +42,44 @@ test("the membership area is reachable from the shell's navigation", async ({ pa
   ).toBeVisible();
 });
 
-test("a workspace page carries its four panels, each named", async ({ page }) => {
+test("a workspace's old address lands on its first section, and each section is its own screen", async ({
+  page,
+}) => {
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto(`/workspaces/${WORKSPACE_ID}`);
+  await expect(page).toHaveURL(new RegExp(`/workspaces/${WORKSPACE_ID}/members$`));
 
-  for (const heading of ["Members", "Access groups", "Workspace settings", "Access audit"]) {
-    await expect(page.getByRole("heading", { level: 2, name: heading })).toBeVisible();
+  const rail = page.getByTestId("qcms-workspaces-rail");
+  await expect(rail.locator(".qcms-rail__back")).toHaveCount(0);
+  await expect(rail.locator(`[data-rail-item="workspace:${WORKSPACE_ID}"]`)).toHaveAttribute(
+    "aria-expanded",
+    "true",
+  );
+
+  const sections = [
+    ["members", "Members"],
+    ["access-groups", "Access groups"],
+    ["settings", "Workspace settings"],
+    ["audit", "Access audit"],
+    ["assistant-actions", "Assistant actions"],
+  ] as const;
+  for (const [section, heading] of sections) {
+    await rail.locator(`[data-rail-item="section:${section}"]`).click();
+    await expect(page).toHaveURL(new RegExp(`/workspaces/${WORKSPACE_ID}/${section}$`));
+    await expect(page.locator("main#main-content h1")).toHaveText(heading);
+    await expect(rail.locator(`[data-rail-item="section:${section}"]`)).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    await expect(rail.locator('[aria-current="page"]')).toHaveCount(1);
+    await expect(page.getByRole("heading", { level: 2, name: heading })).toHaveCount(0);
+    await expect(page.getByTestId("qcms-mode-exit")).toHaveCount(0);
   }
+});
+
+test("the access-groups screen states that a name is only a label", async ({ page }) => {
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.goto(`/workspaces/${WORKSPACE_ID}/access-groups`);
 
   await expect(
     page.getByText("is a label rather than a mechanism", { exact: false }),
@@ -55,7 +93,7 @@ test("the seed setting's help text says a grant on test responses is a grant on 
   page,
 }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
-  await page.goto(`/workspaces/${WORKSPACE_ID}`);
+  await page.goto(`/workspaces/${WORKSPACE_ID}/settings`);
 
   const seed = page.getByLabel("Seed a new editor with dev and test response access");
   await expect(seed).toBeVisible();
@@ -74,7 +112,7 @@ test("the seed setting's help text says a grant on test responses is a grant on 
 
 test("the two-person switch states all three of its effects", async ({ page }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
-  await page.goto(`/workspaces/${WORKSPACE_ID}`);
+  await page.goto(`/workspaces/${WORKSPACE_ID}/settings`);
 
   const twoPerson = page.getByLabel("Require a second approver for production");
   await expect(twoPerson).toBeVisible();
@@ -87,4 +125,55 @@ test("the two-person switch states all three of its effects", async ({ page }) =
   ]) {
     await expect(page.getByText(effect, { exact: false })).toBeVisible();
   }
+});
+
+test("an access group is created with the pickers, granted to a member and taken down again", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.goto(`/workspaces/${WORKSPACE_ID}/access-groups`);
+  await waitForHydration(page);
+
+  const create = page.getByTestId("qcms-access-group-create");
+  await chooseOption(create, "Role", "Response viewer");
+  await expect(create.getByText("Reads and exports responses", { exact: false })).toBeVisible();
+  await expect(create.getByText("responses.viewer", { exact: true })).toHaveCount(0);
+
+  await create.getByRole("checkbox", { name: "All environments", exact: false }).uncheck();
+  await expect(create.getByRole("button", { name: "Create group" })).toBeDisabled();
+  await create.getByRole("checkbox", { name: "test", exact: true }).check();
+
+  await expect(create.getByRole("checkbox", { name: "All forms", exact: false })).toBeChecked();
+  await expect(create.getByRole("textbox", { name: "Search forms by name" })).toBeVisible();
+  await create.getByRole("checkbox", { name: "All forms", exact: false }).uncheck();
+  await expect(create.getByRole("button", { name: "Create group" })).toBeDisabled();
+  await create.getByRole("checkbox", { name: "All forms", exact: false }).check();
+
+  await create.getByText("Advanced", { exact: true }).click();
+  await create.getByRole("textbox", { name: "Label (optional)" }).fill(LABEL);
+  const name = `test.responses.viewer.${LABEL}`;
+  await expect(page.getByTestId("qcms-group-name")).toContainText(name);
+
+  await create.getByRole("button", { name: "Create group" }).click();
+  await expect(page.getByText(`The access group ${name} was created`)).toBeVisible();
+
+  const row = page
+    .getByRole("region", { name: "Access groups" })
+    .getByRole("listitem")
+    .filter({ hasText: name })
+    .first();
+  await expect(row).toContainText("Response viewer");
+  await expect(row).toContainText("Nobody");
+  await expect(row.getByRole("textbox", { name: "Account address" })).toHaveCount(0);
+
+  await chooseOption(row, "Member", MEMBER);
+  await row.getByRole("button", { name: "Grant", exact: true }).click();
+  await expect(page.getByText(`${MEMBER} now holds ${name}.`)).toBeVisible();
+  await expect(row).toContainText(MEMBER);
+
+  await row.getByRole("button", { name: `Revoke this access group from ${MEMBER}` }).click();
+  await expect(row).toContainText("Nobody");
+  await row.getByRole("button", { name: "Remove group" }).click();
+  await expect(page.getByRole("region", { name: "Access groups" })).not.toContainText(name);
 });

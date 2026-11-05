@@ -114,9 +114,10 @@ describe("a personal route stays inside the focused mode it was opened from", ()
 });
 
 describe("which modes hide the normal menus", () => {
-  it("focuses both dedicated modes and neither of normal's routes", () => {
+  it("focuses Operations alone; Workspaces is a section of the application, not a mode", () => {
     expect(focusedMode("operations")).toBe("operations");
-    expect(focusedMode("workspaces")).toBe("workspaces");
+    expect(focusedMode("workspaces")).toBeUndefined();
+    expect(focusedMode(modeForPath("/workspaces/ws_1/members", undefined))).toBeUndefined();
     expect(focusedMode("normal")).toBeUndefined();
   });
 });
@@ -155,23 +156,17 @@ describe("landing rules", () => {
 });
 
 describe("Exit exists only when there is somewhere else", () => {
-  it("offers an authoring caller the way out of both focused modes", () => {
+  it("offers an authoring caller the way out of Operations", () => {
     expect(exitMode("operations", EVERYTHING)).toBe("normal");
-    expect(exitMode("workspaces", EVERYTHING)).toBe("normal");
   });
 
   it("offers no Exit to an Operations-only caller", () => {
     expect(exitMode("operations", capabilities({ operations: true }))).toBeUndefined();
   });
 
-  it("offers no Exit to a workspace-only manager", () => {
-    expect(exitMode("workspaces", capabilities({ workspaces: true }))).toBeUndefined();
-  });
-
-  it("offers the other focused mode when that is the only other area", () => {
+  it("offers Workspaces when that is the only other area", () => {
     const both = capabilities({ operations: true, workspaces: true });
     expect(exitMode("operations", both)).toBe("workspaces");
-    expect(exitMode("workspaces", both)).toBe("operations");
   });
 
   it("offers nothing to a caller holding no area at all", () => {
@@ -185,7 +180,7 @@ describe("Exit exists only when there is somewhere else", () => {
     expect(leavingFor).toBe("workspaces");
     expect(
       restoredModePath("workspaces", { workspace: "ws_1", permittedWorkspaceIds: ["ws_1"] }),
-    ).toBe("/workspaces/ws_1");
+    ).toBe("/workspaces/ws_1/members");
   });
 });
 
@@ -246,7 +241,7 @@ describe("which routes a capability admits", () => {
 
 describe("what a mode remembers", () => {
   it("restores a remembered workspace only while the caller still administers it", () => {
-    expect(restoredWorkspacePath("ws_1", ["ws_1", "ws_2"])).toBe("/workspaces/ws_1");
+    expect(restoredWorkspacePath("ws_1", ["ws_1", "ws_2"])).toBe("/workspaces/ws_1/members");
     expect(restoredWorkspacePath("ws_1", ["ws_2"])).toBe(WORKSPACES_PATH);
     expect(restoredWorkspacePath("ws_1", [])).toBe(WORKSPACES_PATH);
     expect(restoredWorkspacePath(undefined, ["ws_1"])).toBe(WORKSPACES_PATH);
@@ -259,10 +254,10 @@ describe("what a mode remembers", () => {
     ).toBe(OPERATIONS_PATH);
   });
 
-  it("restores the Workspaces mode through the permitted set", () => {
+  it("restores the Workspaces area through the permitted set, on the workspace's first section", () => {
     expect(
       restoredModePath("workspaces", { workspace: "ws_1", permittedWorkspaceIds: ["ws_1"] }),
-    ).toBe("/workspaces/ws_1");
+    ).toBe("/workspaces/ws_1/members");
     expect(restoredModePath("workspaces", { workspace: "ws_1", permittedWorkspaceIds: [] })).toBe(
       WORKSPACES_PATH,
     );
@@ -270,7 +265,7 @@ describe("what a mode remembers", () => {
   });
 
   it("escapes a remembered identifier into the path", () => {
-    expect(restoredWorkspacePath("ws.a-1", ["ws.a-1"])).toBe("/workspaces/ws.a-1");
+    expect(restoredWorkspacePath("ws.a-1", ["ws.a-1"])).toBe("/workspaces/ws.a-1/members");
   });
 
   it("discards a remembered value that is not an identifier", () => {

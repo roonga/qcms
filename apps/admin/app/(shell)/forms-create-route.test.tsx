@@ -19,6 +19,7 @@ const FORM_ROW = {
   slug: "vehicle-insurance",
   defaultLocale: "en",
   status: "open",
+  workspaceId: "org_default_workspace",
   hasDraft: true,
   publishedVersion: null,
   publishedAt: null,

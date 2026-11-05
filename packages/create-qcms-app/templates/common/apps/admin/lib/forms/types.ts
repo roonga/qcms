@@ -140,6 +140,7 @@ export const DEFAULT_FORM_SORT: FormSort = "slug-asc";
 export interface FormListItem {
   readonly formId: string;
   readonly slug: string;
+  readonly workspaceId: string;
   readonly defaultLocale: string;
   readonly status: FormStatus;
   readonly hasDraft: boolean;

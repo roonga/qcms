@@ -69,7 +69,6 @@ export const FAKE_SCRIPTS = [
   "plan-export-last",
   "plan-webhooks",
   "plan-workspace",
-  "plan-workspace-settings",
 
   "propose-form-create",
   "propose-link-mint",
@@ -969,8 +968,6 @@ function actionPlanSteps(
         { kind: "webhook.redeliver", args: { formId, deliveryId: factDeliveryId(prompt) } },
       ];
     }
-    case "plan-workspace-settings":
-      return [memberRoleStep(prompt), workspaceSettingsStep(prompt)];
     case "plan-responses": {
       const sessionId = factSessionId(prompt);
       return [
@@ -1231,7 +1228,6 @@ const ACTION_SCRIPTS: readonly FakeScript[] = [
   "plan-export-last",
   "plan-webhooks",
   "plan-workspace",
-  "plan-workspace-settings",
   "plan-publish-pins",
   ...(Object.keys(SINGLE_ACTIONS) as FakeScript[]),
 ];

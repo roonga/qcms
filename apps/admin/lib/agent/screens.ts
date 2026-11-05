@@ -25,7 +25,11 @@ export const AGENT_SCREENS = [
   "/settings",
   "/webhooks",
   "/workspaces",
-  "/workspaces/[workspaceId]",
+  "/workspaces/[workspaceId]/members",
+  "/workspaces/[workspaceId]/access-groups",
+  "/workspaces/[workspaceId]/settings",
+  "/workspaces/[workspaceId]/audit",
+  "/workspaces/[workspaceId]/assistant-actions",
 ] as const;
 
 export type AgentScreen = (typeof AGENT_SCREENS)[number];

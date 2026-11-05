@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { policyForRequest } from "../../membership/route-policy.js";
+import { SCREENS } from "../screens.js";
 import {
   createAccessGroup,
   grantAccessGroup,
@@ -63,9 +64,18 @@ describe("D8's action kinds", () => {
     }
   });
 
-  it("sits on the workspace screen and names a heading-row control", () => {
+  it("sits on its own workspace section's screen and names a heading-row control", () => {
+    const sections: Readonly<Record<string, string>> = {
+      "access.groupCreate": "access-groups",
+      "access.groupRemove": "access-groups",
+      "access.grant": "access-groups",
+      "access.revoke": "access-groups",
+      "member.role": "members",
+      "workspace.settings": "settings",
+    };
     for (const def of DEFS) {
-      expect(def.screen, def.kind).toBe("/workspaces/[workspaceId]");
+      expect(def.screen, def.kind).toBe(`/workspaces/[workspaceId]/${sections[def.kind] ?? ""}`);
+      expect(SCREENS[def.screen].actionKinds, def.kind).toContain(def.kind);
       expect(def.card.headingControl, def.kind).not.toBeUndefined();
     }
   });

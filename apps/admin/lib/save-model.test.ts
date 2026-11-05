@@ -287,25 +287,47 @@ const SCREENS: readonly ScreenRow[] = [
     model: "action",
     why: "Redeliver and redeliver-all over dead letters.",
   },
-  {
-    route: "app/(shell)/@rail/workspaces/page.tsx",
-    model: "readonly",
-    why: "Returns null. The route has a rail, contributes no section of its own, and so has nothing on it to save.",
-  },
-  {
-    route: "app/(shell)/@rail/workspaces/[workspaceId]/page.tsx",
-    model: "readonly",
-    why: "Returns null. The route has a rail, contributes no section of its own, and so has nothing on it to save.",
-  },
+  ...[
+    "app/(shell)/@rail/workspaces/page.tsx",
+    "app/(shell)/@rail/workspaces/[workspaceId]/members/page.tsx",
+    "app/(shell)/@rail/workspaces/[workspaceId]/access-groups/page.tsx",
+    "app/(shell)/@rail/workspaces/[workspaceId]/settings/page.tsx",
+    "app/(shell)/@rail/workspaces/[workspaceId]/audit/page.tsx",
+    "app/(shell)/@rail/workspaces/[workspaceId]/assistant-actions/page.tsx",
+  ].map((route) => ({
+    route,
+    model: "readonly" as const,
+    why: "The Workspaces rail: links to the area's screens and nothing on it to save.",
+  })),
   {
     route: "app/(shell)/workspaces/page.tsx",
     model: "readonly",
     why: "The workspaces this administrator administers, and their own grants. Nothing on it is authored: a grant is not something its holder changes, and the one act a reader can take from here is following a link to a workspace.",
   },
   {
-    route: "app/(shell)/workspaces/[workspaceId]/page.tsx",
+    route: "app/(shell)/workspaces/[workspaceId]/members/page.tsx",
     model: "action",
-    why: "Grants, revokes, a member row's role and the two workspace settings. Every one is a deliberate act reported as an outcome and written to the access audit, which is exactly why none of them autosaves: a switch that saved on every keystroke would put a row in the audit for a change nobody finished making.",
+    why: "A member row's role. The change is a deliberate act reported as an outcome and written to the access audit, so it never autosaves.",
+  },
+  {
+    route: "app/(shell)/workspaces/[workspaceId]/access-groups/page.tsx",
+    model: "action",
+    why: "Creating and removing a group, and granting and revoking it. Each is a deliberate act reported as an outcome and written to the access audit; the pickers only shape the one create.",
+  },
+  {
+    route: "app/(shell)/workspaces/[workspaceId]/settings/page.tsx",
+    model: "action",
+    why: "The two workspace settings, saved together by one press: a switch that saved on every toggle would put a row in the audit for a change nobody finished making.",
+  },
+  {
+    route: "app/(shell)/workspaces/[workspaceId]/audit/page.tsx",
+    model: "readonly",
+    why: "The access audit, read only.",
+  },
+  {
+    route: "app/(shell)/workspaces/[workspaceId]/assistant-actions/page.tsx",
+    model: "readonly",
+    why: "The assistant's confirmed actions in this workspace, read only.",
   },
 ];
 

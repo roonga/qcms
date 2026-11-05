@@ -35,7 +35,11 @@ export const SCREEN_IDS = [
   "/settings",
   "/webhooks",
   "/workspaces",
-  "/workspaces/[workspaceId]",
+  "/workspaces/[workspaceId]/members",
+  "/workspaces/[workspaceId]/access-groups",
+  "/workspaces/[workspaceId]/settings",
+  "/workspaces/[workspaceId]/audit",
+  "/workspaces/[workspaceId]/assistant-actions",
 ] as const;
 
 export type ScreenId = (typeof SCREEN_IDS)[number];
@@ -154,18 +158,21 @@ export const SCREENS: Readonly<Record<ScreenId, ScreenDef>> = Object.freeze({
   "/settings": screen(administrationContexts.settings),
   "/webhooks": screen(operationsContexts.deadLetters, ["count_dead_letters"]),
   "/workspaces": screen(administrationContexts.workspaces),
-  "/workspaces/[workspaceId]": screen(
-    administrationContexts.workspaceDetail,
-    [],
-    [
-      "access.groupCreate",
-      "access.groupRemove",
-      "access.grant",
-      "access.revoke",
-      "member.role",
-      "workspace.settings",
-    ],
-  ),
+  // One workspace's sections share one set of facts, and each offers only its own kinds.
+  "/workspaces/[workspaceId]/members": screen(administrationContexts.workspaceDetail, [], [
+    "member.role",
+  ]),
+  "/workspaces/[workspaceId]/access-groups": screen(administrationContexts.workspaceDetail, [], [
+    "access.groupCreate",
+    "access.groupRemove",
+    "access.grant",
+    "access.revoke",
+  ]),
+  "/workspaces/[workspaceId]/settings": screen(administrationContexts.workspaceDetail, [], [
+    "workspace.settings",
+  ]),
+  "/workspaces/[workspaceId]/audit": screen(administrationContexts.workspaceDetail),
+  "/workspaces/[workspaceId]/assistant-actions": screen(administrationContexts.workspaceDetail),
 });
 
 /** One form's authoring screens: the editor's own subtree. */

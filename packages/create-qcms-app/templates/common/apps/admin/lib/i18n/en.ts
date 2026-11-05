@@ -24,6 +24,7 @@ export const messages = {
   "app.pageTitle": "{page} - QCMS",
   /** Use route identity for tab titles to avoid a second upstream read solely for metadata. */
   "title.formSection": "{section}: {formId}",
+  "title.workspaceSection": "{section}: {workspace}",
 
   /** The admin requires JavaScript; name enabling it and reloading as the actionable remedy. */
   "requiresJs.title": "JavaScript is required",
@@ -105,9 +106,6 @@ export const messages = {
   "shell.mode.operations.name": "Operations",
   "shell.mode.operations.exit": "Exit Operations",
   "shell.mode.operations.announce": "Operations. The authoring menus are not shown here.",
-  "shell.mode.workspaces.name": "Workspaces",
-  "shell.mode.workspaces.exit": "Exit Workspaces",
-  "shell.mode.workspaces.announce": "Workspaces. The authoring menus are not shown here.",
   "shell.leave.title": "Leave Operations?",
   "shell.leave.goes": "This link opens {area}, outside Operations.",
   "shell.leave.environment":
@@ -1550,7 +1548,11 @@ export const messages = {
   "agent.context.settings": "Workspace settings",
   "agent.context.webhooks": "Endpoints and delivery state, no payloads",
   "agent.context.workspaces": "Workspaces you can read",
-  "agent.context.workspace": "Workspace {subject}",
+  "agent.context.workspace.members": "Workspace {subject}: members",
+  "agent.context.workspace.accessGroups": "Workspace {subject}: access groups",
+  "agent.context.workspace.settings": "Workspace {subject}: settings",
+  "agent.context.workspace.audit": "Workspace {subject}: access audit",
+  "agent.context.workspace.assistantActions": "Workspace {subject}: assistant actions",
   "agent.empty": "Ask about this screen. The assistant explains what is here and takes you to it.",
   "agent.composer": "Ask the assistant",
   "agent.conversationLabel": "Conversation with the assistant",
@@ -2259,9 +2261,29 @@ export const messages = {
   "membership.area.archived": "Archived",
   "membership.area.twoPerson": "Second approver required",
   "membership.area.counts": "{forms} form(s), {questions} question(s)",
-  "membership.workspace.title": "{name}",
   "membership.workspace.notFound": "No such workspace, or you do not manage it.",
   "membership.workspace.allWorkspaces": "All workspaces",
+  "membership.workspace.context": "Workspace: {name}",
+
+  /** Plain role names, each with one line on what it allows; the wire id never reaches the screen. */
+  "membership.role.formsViewer.name": "Form viewer",
+  "membership.role.formsViewer.description":
+    "Reads the workspace's questions, forms, releases, links and webhook settings. Changes nothing.",
+  "membership.role.formsEditor.name": "Form editor",
+  "membership.role.formsEditor.description":
+    "Authors, previews and publishes forms, and releases, links and webhooks outside production.",
+  "membership.role.formsApprover.name": "Release approver",
+  "membership.role.formsApprover.description":
+    "Releases versions and changes intake, links and webhooks, production included. Edits no draft.",
+  "membership.role.formsOwner.name": "Workspace owner",
+  "membership.role.formsOwner.description":
+    "Manages this workspace's members, access groups, settings and access audit.",
+  "membership.role.responsesViewer.name": "Response viewer",
+  "membership.role.responsesViewer.description":
+    "Reads and exports responses in the chosen environments and forms.",
+  "membership.role.responsesEraser.name": "Response eraser",
+  "membership.role.responsesEraser.description":
+    "Erases responses and clears their flags in the chosen environments and forms. Reads none.",
 
   "membership.members.heading": "Members",
   "membership.members.intro":
@@ -2296,10 +2318,21 @@ export const messages = {
   "membership.groups.columnForms": "Forms",
   "membership.groups.columnHolders": "Holders",
   "membership.groups.create": "Create an access group",
-  "membership.groups.createName": "Name",
+  "membership.groups.createName": "The group will be named {name}.",
+  "membership.groups.createNameMissing": "Choose an environment and the group's name follows.",
   "membership.groups.createRole": "Role",
   "membership.groups.createEnvironments": "Environments",
-  "membership.groups.createForms": "Forms (one id per line, or `all`)",
+  "membership.groups.allEnvironments": "All environments, including any added later",
+  "membership.groups.createForms": "Forms",
+  "membership.groups.allForms": "All forms in this workspace, including any added later",
+  "membership.groups.formSearch": "Search forms by name",
+  "membership.groups.noForms": "No form you can read matches.",
+  "membership.groups.formsReadable":
+    "Only forms you can read are offered. A group over forms you cannot read is scoped to all forms, or made by someone who can read them.",
+  "membership.groups.scopeAll": "All",
+  "membership.groups.advanced": "Advanced",
+  "membership.groups.directoryHelp":
+    "A directory group links to an access group by the directory name shown on each group under Advanced. The directory sync writes that link; nothing on this screen does.",
   "membership.groups.createLabel": "Label (optional)",
   "membership.groups.createSubmit": "Create group",
   "membership.groups.created":
@@ -2309,7 +2342,10 @@ export const messages = {
   "membership.groups.removed":
     "The group and every grant it carried were removed, and each removal is on the access audit.",
   "membership.groups.removeFailed": "The group was not removed: {message}",
-  "membership.groups.addHolderEmail": "Account address",
+  "membership.groups.addHolderMember": "Member",
+  "membership.groups.addHolderChoose": "Choose a member",
+  "membership.groups.addHolderHelp": "Only members of this workspace are offered.",
+  "membership.groups.addHolderNone": "Every member of this workspace already holds this group.",
   "membership.groups.addHolderSubmit": "Grant",
   "membership.groups.holderAdded": "{email} now holds {name}.",
   "membership.groups.holderFailed": "The grant was not written: {message}",

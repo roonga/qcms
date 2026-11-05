@@ -532,6 +532,7 @@ export function makeListFormsHandler(deps: Deps): RouteHandler<typeof listFormsR
         row: {
           formId: row.formId,
           slug: row.slug,
+          workspaceId: row.workspaceId,
           defaultLocale: row.defaultLocale,
           status: statusOf(row.formId),
           hasDraft: draft !== undefined,

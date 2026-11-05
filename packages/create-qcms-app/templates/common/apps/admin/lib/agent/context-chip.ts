@@ -28,7 +28,11 @@ const CHIPS: Readonly<Record<AgentScreen, MessageKey>> = {
   "/settings": "agent.context.settings",
   "/webhooks": "agent.context.webhooks",
   "/workspaces": "agent.context.workspaces",
-  "/workspaces/[workspaceId]": "agent.context.workspace",
+  "/workspaces/[workspaceId]/members": "agent.context.workspace.members",
+  "/workspaces/[workspaceId]/access-groups": "agent.context.workspace.accessGroups",
+  "/workspaces/[workspaceId]/settings": "agent.context.workspace.settings",
+  "/workspaces/[workspaceId]/audit": "agent.context.workspace.audit",
+  "/workspaces/[workspaceId]/assistant-actions": "agent.context.workspace.assistantActions",
 };
 
 export function contextChipKey(screen: AgentScreen): MessageKey {

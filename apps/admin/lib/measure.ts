@@ -58,7 +58,11 @@ export const MEASURE_BY_ROUTE = {
   "/webhooks": "wide",
   /** No dedicated membership drawings exist; choose caps by the analogous list and detail surfaces until those designs are supplied. */
   "/workspaces": "ops",
-  "/workspaces/[workspaceId]": "log",
+  "/workspaces/[workspaceId]/members": "log",
+  "/workspaces/[workspaceId]/access-groups": "log",
+  "/workspaces/[workspaceId]/settings": "log",
+  "/workspaces/[workspaceId]/audit": "log",
+  "/workspaces/[workspaceId]/assistant-actions": "log",
 } as const satisfies Record<string, Measure>;
 
 function segmentsOf(value: string): string[] {

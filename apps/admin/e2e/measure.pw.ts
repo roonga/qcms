@@ -65,7 +65,11 @@ function screens(sessionId: string): readonly Screen[] {
     { path: "/webhooks", cap: "wide" },
 
     { path: "/workspaces", cap: "ops" },
-    { path: `/workspaces/${WORKSPACE_ID}`, cap: "log" },
+    { path: `/workspaces/${WORKSPACE_ID}/members`, cap: "log" },
+    { path: `/workspaces/${WORKSPACE_ID}/access-groups`, cap: "log" },
+    { path: `/workspaces/${WORKSPACE_ID}/settings`, cap: "log" },
+    { path: `/workspaces/${WORKSPACE_ID}/audit`, cap: "log" },
+    { path: `/workspaces/${WORKSPACE_ID}/assistant-actions`, cap: "log" },
   ];
 }
 
@@ -332,5 +336,5 @@ test("657 leaves every screen the same width at 390, because a cap is fluid belo
     expect.soft(measured.width, `${screen.path} is fluid at 390`).toBe(measured.available);
     widths.set(screen.path, measured.width);
   }
-  expect(new Set(widths.values()).size, "all twenty-five screens measure one width at 390").toBe(1);
+  expect(new Set(widths.values()).size, "all twenty-nine screens measure one width at 390").toBe(1);
 });

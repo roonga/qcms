@@ -238,6 +238,7 @@ export const FormListItem = z
   .object({
     formId: z.string().openapi({ example: "frm_signup" }),
     slug: z.string().openapi({ example: "signup" }),
+    workspaceId: z.string().openapi({ example: "org_default_workspace" }),
     defaultLocale: z.string().openapi({ example: "en" }),
     status: FormStatus.openapi({ example: "open" }),
     hasDraft: z.boolean().openapi({ example: true }),
