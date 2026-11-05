@@ -466,9 +466,7 @@ async function stepRefusal(
   index: number,
   pinned: readonly PinnedQuestion[],
   pinChecked: boolean,
-): Promise<
-  { readonly reason: string } | { readonly step: PlanStep; readonly def: ActionKindDef }
-> {
+): Promise<{ readonly reason: string } | { readonly step: PlanStep; readonly def: ActionKindDef }> {
   const def = actionKind(step.kind);
   if (def === undefined) {
     return { reason: `There is no action kind named "${step.kind}".` };
