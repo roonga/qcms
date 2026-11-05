@@ -39,6 +39,8 @@ const PUBLISH_FORM_KIND = "form.publish";
 
 const CREATE_QUESTION_KIND = "question.create";
 
+const SAVE_QUESTION_KIND = "question.saveDraft";
+
 /**
  * The id a draft is validated under when its form is an earlier step's result. Nothing
  * depends on the value: the validation resolves pinned question versions, and the real id
@@ -548,15 +550,28 @@ async function withProposedDraft(
   );
 }
 
-/** The questions this plan's own `question.create` steps create, and which step creates each. */
-function plannedQuestions(
-  steps: readonly PlanStep[],
-): readonly { readonly step: number; readonly definition: QuestionDefinition }[] {
+interface PlannedQuestion {
+  readonly step: number;
+  readonly version: number;
+  readonly created: boolean;
+  readonly definition: QuestionDefinition;
+}
+
+/**
+ * The question versions this plan writes before a later step saves a draft: the ones it
+ * creates, and the ones it rewrites. A pinned question with a pre-existing defect is
+ * therefore fixed inside the same plan rather than by a card of its own.
+ */
+function plannedQuestions(steps: readonly PlanStep[]): readonly PlannedQuestion[] {
   return steps.flatMap((step, index) => {
-    if (step.kind !== CREATE_QUESTION_KIND) return [];
+    const created = step.kind === CREATE_QUESTION_KIND;
+    if (!created && step.kind !== SAVE_QUESTION_KIND) return [];
     const definition = step.args["definition"];
     if (typeof definition !== "object" || definition === null) return [];
-    return [{ step: index, definition: definition as QuestionDefinition }];
+    const named = step.args["version"];
+    // A create always writes v1; a save names the draft version it replaces.
+    const version = created || typeof named !== "number" ? 1 : named;
+    return [{ step: index, version, created, definition: definition as QuestionDefinition }];
   });
 }
 
@@ -590,14 +605,17 @@ async function withDraftArguments(
   // dangling reference.
   const pending: PendingQuestionVersion[] = created.map((entry) => ({
     questionId: entry.definition.questionId,
-    version: 1,
+    version: entry.version,
     definition: entry.definition,
   }));
-  const createdBy = created.map((entry) => ({
-    questionId: entry.definition.questionId,
-    step: entry.step,
-  }));
-  const plannedIds = new Set(created.map((entry) => entry.definition.questionId));
+  // Only a created question's pin is an expected unpublished pin; a rewritten one keeps
+  // whatever status it already had.
+  const createdBy = created
+    .filter((entry) => entry.created)
+    .map((entry) => ({ questionId: entry.definition.questionId, step: entry.step }));
+  const plannedIds = new Set(
+    created.filter((entry) => entry.created).map((entry) => entry.definition.questionId),
+  );
   const out: PlanStep[] = [];
   for (const [index, step] of steps.entries()) {
     const parsed =

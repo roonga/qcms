@@ -1654,7 +1654,7 @@ export const messages = {
     "The working draft is replaced by the one below. It publishes nothing and releases nothing: respondents see no change until this form is published.",
   "agent.card.apply-draft.provenance":
     "The draft is marked as carrying agent-assisted changes, and keeps that mark until it is published.",
-  "agent.card.form.saveDraft.title": "Save this draft to {formId}",
+  "agent.card.form.saveDraft.title": "Save the draft of {formId}",
   "agent.card.form.saveDraft.consequence":
     "The form's working draft is replaced by the one below, through the same save the builder uses. It publishes nothing and releases nothing: respondents see no change until this form is published.",
   "agent.card.form.settings.title": "Change the form settings of {formId}",

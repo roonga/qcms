@@ -93,7 +93,7 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
                   "agent.card.planTitle.other",
                   proposal.steps.length,
                 )
-              : stepTitle(proposal.steps[0] as AgentPlanStep, reported)}
+              : stepTitle(proposal.steps[0] as AgentPlanStep, reported, proposal.steps)}
           </h2>
           <span className="qcms-acard__state" data-s={card.state}>
             {t(chip.key, chip.params)}
@@ -114,6 +114,7 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
               numbered={multi}
               titled={multi}
               names={names}
+              steps={proposal.steps}
               idBase={base}
             />
           ))}

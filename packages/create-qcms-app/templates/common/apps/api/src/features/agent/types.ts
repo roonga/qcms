@@ -73,6 +73,9 @@ export interface AssistContext {
 
 /** What a draft projection tells the model: the visible set, never an answer value. */
 export interface DraftProjection {
+  /** `false` with a reason for a draft that does not compile, which cannot be projected. */
+  readonly projected: boolean;
+  readonly reason?: string;
   readonly visibleSteps: readonly string[];
   readonly visibleQuestions: readonly string[];
   readonly complete: boolean;

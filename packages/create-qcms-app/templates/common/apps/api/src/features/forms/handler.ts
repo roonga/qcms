@@ -285,18 +285,6 @@ async function loadQuestionLookups(
   const statusByPin = new Map<string, QuestionStatus>();
   const publishedQuestionVersions = new Map<QuestionId, Set<number>>();
 
-  // Seeded first, so a stored row always wins over a hypothetical one.
-  for (const entry of pending) {
-    const key = pinKey(entry.questionId, entry.version);
-    recordByPin.set(key, {
-      questionId: entry.questionId,
-      version: entry.version,
-      definition: entry.definition as QuestionVersionRecord["definition"],
-    });
-    statusByPin.set(key, "draft");
-    publishedQuestionVersions.set(entry.questionId, new Set<number>());
-  }
-
   for (const questionId of pinnedQuestionIds(definition)) {
     const rows = await listQuestionVersions(deps.databases.control, questionId);
     const published = new Set<number>();
@@ -311,6 +299,19 @@ async function loadQuestionLookups(
       if (row.status === "published") published.add(row.version);
     }
     publishedQuestionVersions.set(questionId, published);
+  }
+
+  // Over the stored rows, not under them: `pending` says what each version will hold once
+  // the caller's own earlier steps have run, so it wins over a row one of them rewrites. The
+  // published sets are left alone, since a pending version is always a draft one.
+  for (const entry of pending) {
+    const key = pinKey(entry.questionId, entry.version);
+    recordByPin.set(key, {
+      questionId: entry.questionId,
+      version: entry.version,
+      definition: entry.definition as QuestionVersionRecord["definition"],
+    });
+    statusByPin.set(key, "draft");
   }
 
   const resolveQuestion: ResolveQuestionVersion = (questionId, version) =>

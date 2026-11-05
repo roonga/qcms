@@ -24,6 +24,7 @@ import {
 } from "@roonga/qcms-db";
 import type { FormId } from "@roonga/qcms-core";
 
+import { ApiError } from "../../../errors.js";
 import { previewConditionFlow, projectDraftFlow, validateDraft } from "../../forms/handler.js";
 import { holdsStatement } from "../../membership/policy.js";
 import { resolveCallerWorkspaces, workspacesAllowing } from "../../membership/resolver.js";
@@ -237,11 +238,43 @@ function validatePort(input: ScreenBuildInput): ValidateDraftPort {
   };
 }
 
+/**
+ * A draft that does not compile cannot be projected, which is an answer rather than a
+ * failure: the kernel's own reasons go back to the model so it can fix the draft, instead of
+ * it reading an opaque refusal and guessing.
+ */
 function projectDraftPort(input: ScreenBuildInput, resolve: FormDefinitionPort): ProjectDraftPort {
   return async (asked) => {
     const { definition } = await resolve({ formId: asked.formId, action: "preview" });
-    return projectDraftFlow(input.deps, definition, asked.answers);
+    try {
+      return {
+        projected: true,
+        ...(await projectDraftFlow(input.deps, definition, asked.answers)),
+      };
+    } catch (error) {
+      return {
+        projected: false,
+        reason: previewRefusal(error),
+        visibleSteps: [],
+        visibleQuestions: [],
+        complete: false,
+      };
+    }
   };
+}
+
+/** The refusal's own issue messages, which are authoring-boundary text and never an answer. */
+function previewRefusal(error: unknown): string {
+  if (!(error instanceof ApiError)) throw error;
+  const issues = (
+    error.details as { readonly issues?: readonly { message?: unknown }[] } | undefined
+  )?.issues;
+  const reasons = (issues ?? [])
+    .map((issue) => (typeof issue.message === "string" ? issue.message : ""))
+    .filter((message) => message !== "");
+  return reasons.length === 0
+    ? `${error.message}.`
+    : `${error.message}: ${reasons.join(" ")} Fix these and try again.`;
 }
 
 function testRulePort(input: ScreenBuildInput, resolve: FormDefinitionPort): TestRulePort {
@@ -289,7 +322,13 @@ function readFormPort(input: ScreenBuildInput): ReadFormPort {
     return {
       formId,
       slug: row.slug,
-      title: titleText(titles.get(formId), row.defaultLocale),
+      // The working definition's own title first: a form with no published version has no
+      // published title, and the draft is what the person is looking at.
+      title:
+        titleText(
+          (definition as { readonly title?: unknown } | undefined)?.title,
+          row.defaultLocale,
+        ) ?? titleText(titles.get(formId), row.defaultLocale),
       environment: input.environment,
       defaultLocale: row.defaultLocale,
       hasDraft: draft !== undefined,

@@ -155,7 +155,24 @@ export function stepArguments(
   });
 }
 
-function titleParams(step: AgentPlanStep, reported: ReportedResults): Record<string, string> {
+/**
+ * The name the referenced step will mint, which is the slug that step was asked for. A title
+ * reads better as the thing being made than as "step 1's formId", and the slug is the
+ * referencing step's own plan rather than anything resolved at run time.
+ */
+function plannedName(
+  reference: StepReference,
+  steps: readonly AgentPlanStep[],
+): string | undefined {
+  const slug = steps[reference.fromStep]?.args["slug"];
+  return typeof slug === "string" && slug !== "" ? slug : undefined;
+}
+
+function titleParams(
+  step: AgentPlanStep,
+  reported: ReportedResults,
+  steps: readonly AgentPlanStep[],
+): Record<string, string> {
   const params: Record<string, string> = { environment: step.environment };
   for (const line of stepArguments(step, reported)) {
     const reference = asReference(step.args[line.name]);
@@ -165,7 +182,8 @@ function titleParams(step: AgentPlanStep, reported: ReportedResults): Record<str
     params[line.name] =
       reference === undefined || resolved !== undefined
         ? line.value
-        : t("agent.card.fromStepShort", { field: reference.field, step: reference.fromStep + 1 });
+        : (plannedName(reference, steps) ??
+          t("agent.card.fromStepShort", { field: reference.field, step: reference.fromStep + 1 }));
   }
   return params;
 }
@@ -177,8 +195,12 @@ export function workspaceNames(proposal: {
   return new Map((proposal.workspaces ?? []).map((entry) => [entry.workspaceId, entry.name]));
 }
 
-export function stepTitle(step: AgentPlanStep, reported: ReportedResults = {}): string {
-  return t(step.card.titleKey as MessageKey, titleParams(step, reported));
+export function stepTitle(
+  step: AgentPlanStep,
+  reported: ReportedResults = {},
+  steps: readonly AgentPlanStep[] = [],
+): string {
+  return t(step.card.titleKey as MessageKey, titleParams(step, reported, steps));
 }
 
 export function stepConsequences(step: AgentPlanStep): readonly string[] {

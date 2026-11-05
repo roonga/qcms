@@ -397,6 +397,8 @@ const Outputs = {
     warnings: z.array(z.unknown()),
   }),
   project_draft: z.strictObject({
+    projected: z.boolean(),
+    reason: z.string().optional(),
     visibleSteps: z.array(z.string()),
     visibleQuestions: z.array(z.string()),
     complete: z.boolean(),
@@ -779,6 +781,8 @@ async function projectDraft(input: unknown, ctx: AgentContext): Promise<Record<s
     "project_draft",
   )({ formId: asked.formId, answers: asked.answers });
   return {
+    projected: projection.projected,
+    ...(projection.reason === undefined ? {} : { reason: projection.reason }),
     visibleSteps: [...projection.visibleSteps],
     visibleQuestions: [...projection.visibleQuestions],
     complete: projection.complete,
@@ -910,7 +914,9 @@ export const TOOLS: Readonly<Record<AgentToolName, AgentToolDef>> = Object.freez
   },
   project_draft: {
     description:
-      "Project a form's draft for hypothetical answers and return which steps and questions a respondent would see. Reads no submitted answer.",
+      "Project a form's draft for hypothetical answers and return which steps and questions " +
+      "a respondent would see. Reads no submitted answer. A draft with blocking issues " +
+      "cannot be projected: the result says so and names them.",
     inputSchema: ProjectDraftInput,
     outputSchema: Outputs.project_draft,
     cell: FORM_PREVIEW,

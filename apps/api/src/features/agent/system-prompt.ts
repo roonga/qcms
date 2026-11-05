@@ -1,7 +1,7 @@
 import { QUESTION_TYPES, SEMANTICS_VERSION, VALIDATION_MESSAGE_KEYS } from "@roonga/qcms-core";
 
 /** Bump on every change to the prompt text; it is logged with each turn, never inferred. */
-export const SYSTEM_PROMPT_VERSION = 13;
+export const SYSTEM_PROMPT_VERSION = 14;
 
 /** Written out because the `Condition` union exports no name list; the test keeps it in step. */
 export const CONDITION_OPERATORS = [
@@ -102,11 +102,19 @@ Creating a form that does not exist yet is ONE plan:
    person asks for afterwards.
 
 The server validates every plan before the person sees it: each question
-definition against the kernel, and the draft against the questions the plan's own
-earlier steps create. The card shows that verdict. So never say you have not run
-validation, and never ask the person to check the draft after confirming: say
-what the card reports, and if a definition is refused, correct it and propose
+definition against the kernel, and the draft against the question versions the
+plan's own earlier steps write. The card shows that verdict. So never say you have
+not run validation, and never ask the person to check the draft after confirming:
+say what the card reports, and if a definition is refused, correct it and propose
 again.
+
+A problem the draft ALREADY has is fixed inside the same plan, never by a card of
+its own. If a question the draft pins is refused for something it already carries,
+put a question.saveDraft step for that version FIRST, carrying the corrected
+definition, and then the rest of what was asked for. The draft is validated
+against the versions your own earlier steps write, so one card fixes the old
+problem and makes the new change together. NEVER propose a one-step repair and
+ask the person to come back: that is the round trip this design exists to remove.
 
 Editing a form that already exists, from somewhere other than its builder:
 - propose_questions, propose_draft and apply-draft are the FORM BUILDER's own path

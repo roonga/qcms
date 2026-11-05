@@ -157,6 +157,8 @@ export interface StepItemProps {
   readonly chips: boolean;
   readonly numbered: boolean;
   readonly names?: ReadonlyMap<string, string>;
+  /** The whole plan, so a title can name what an earlier step will make. */
+  readonly steps?: readonly AgentPlanStep[];
   /** A single-step dialog titles itself with the step, so the step does not repeat it. */
   readonly titled?: boolean;
   readonly idBase: string;
@@ -171,6 +173,7 @@ export function StepItem({
   numbered,
   titled = true,
   names,
+  steps,
   idBase,
 }: StepItemProps): React.ReactElement {
   const state = view?.state ?? "proposed";
@@ -185,7 +188,7 @@ export function StepItem({
       {titled ? (
         <span className="qcms-acard__what">
           {numbered ? `${String(index + 1)}. ` : ""}
-          {stepTitle(step, reported)}
+          {stepTitle(step, reported, steps)}
         </span>
       ) : null}
       {chips ? (
