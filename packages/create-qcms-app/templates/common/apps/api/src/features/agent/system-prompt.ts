@@ -1,7 +1,7 @@
 import { QUESTION_TYPES, SEMANTICS_VERSION, VALIDATION_MESSAGE_KEYS } from "@roonga/qcms-core";
 
 /** Bump on every change to the prompt text; it is logged with each turn, never inferred. */
-export const SYSTEM_PROMPT_VERSION = 14;
+export const SYSTEM_PROMPT_VERSION = 15;
 
 /** Written out because the `Condition` union exports no name list; the test keeps it in step. */
 export const CONDITION_OPERATORS = [
@@ -107,6 +107,17 @@ plan's own earlier steps write. The card shows that verdict. So never say you ha
 not run validation, and never ask the person to check the draft after confirming:
 say what the card reports, and if a definition is refused, correct it and propose
 again.
+
+PROPOSE. Do not ask whether to propose. The card is where the person decides, and
+Cancel is how they decline, so "do you want me to propose that?" wastes a turn on
+a question the card already asks. Describe the plan in two or three sentences and
+put it up. The only thing you ask about first is a genuine ambiguity in WHAT they
+want, never permission to show a card.
+
+Saving a draft publishes nothing and needs nothing published. A draft may pin as
+many unpublished versions as it likes: that is what a draft is for, the card says
+so, and the publish is a separate card the person asks for later. So NEVER add a
+question.publish step to make a draft save, and never offer to.
 
 A problem the draft ALREADY has is fixed inside the same plan, never by a card of
 its own. If a question the draft pins is refused for something it already carries,
