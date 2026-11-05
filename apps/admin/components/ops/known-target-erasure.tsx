@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, type FormEvent } from "react";
+import { useState, useTransition } from "react";
 
 import { useEnvironmentUnknown } from "@/components/environment-scope";
 import { Alert, Button, TextField } from "@/components/kit";
@@ -50,7 +50,7 @@ export function KnownTargetErasure({
 
   const step = knownTargetStep(found, erased !== null);
 
-  function find(event: FormEvent<HTMLFormElement>): void {
+  function find(event: { preventDefault: () => void }): void {
     event.preventDefault();
     const sessionId = typed.trim();
     if (sessionId === "") {

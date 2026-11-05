@@ -44,6 +44,7 @@ export function ShellChrome({
     (fallback: string) => operationsExitHref(cameFrom, capabilities, fallback),
     [cameFrom, capabilities],
   );
+  const exitOverride = focused === "operations" ? { exitHref } : {};
 
   const remember = rememberableMode(pathname, capabilities);
   useEffect(() => {
@@ -61,7 +62,7 @@ export function ShellChrome({
             mode={focused}
             capabilities={capabilities}
             environment={environment}
-            {...(focused === "operations" ? { exitHref } : {})}
+            {...exitOverride}
           />
         )}
         {focused === "operations" && <LeaveOperationsGuard environment={environmentName} />}
