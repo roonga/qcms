@@ -272,9 +272,9 @@ function previewRefusal(error: unknown): string {
   const reasons = (issues ?? [])
     .map((issue) => (typeof issue.message === "string" ? issue.message : ""))
     .filter((message) => message !== "");
-  return reasons.length === 0
-    ? `${error.message}.`
-    : `${error.message}: ${reasons.join(" ")} Fix these and try again.`;
+  // Stated, not prescribed: an unpublished pin is a reason a draft cannot be projected and
+  // is not a defect, so this never tells the model to go and fix one.
+  return reasons.length === 0 ? `${error.message}.` : `${error.message}: ${reasons.join(" ")}`;
 }
 
 function testRulePort(input: ScreenBuildInput, resolve: FormDefinitionPort): TestRulePort {
