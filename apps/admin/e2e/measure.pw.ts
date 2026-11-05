@@ -256,17 +256,11 @@ test("648 starts the bar and the content column one pad in, with the nav after t
         document.querySelector(".qcms-wordmark")?.getBoundingClientRect().right ?? Number.NaN,
       navLeft: nav?.left ?? Number.NaN,
       navRight: nav?.right ?? Number.NaN,
-      trailingLeft:
-        trailing === null || trailing === undefined
-          ? Number.NaN
-          : trailing.getBoundingClientRect().left,
+      trailingLeft: trailing === null ? Number.NaN : trailing.getBoundingClientRect().left,
 
       barWidth: header === null ? Number.NaN : header.getBoundingClientRect().width,
       railRight: document.querySelector(".qcms-rail")?.getBoundingClientRect().right ?? Number.NaN,
-      trailingRight:
-        trailing === null || trailing === undefined
-          ? Number.NaN
-          : trailing.getBoundingClientRect().right,
+      trailingRight: trailing === null ? Number.NaN : trailing.getBoundingClientRect().right,
       viewport: document.documentElement.clientWidth,
     };
   });
