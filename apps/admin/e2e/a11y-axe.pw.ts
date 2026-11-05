@@ -745,6 +745,10 @@ async function sweepOperations(
   await expectNoViolations(page, "close-form confirmation");
   await page.keyboard.press("Escape");
 
+  await page.goto(`/operations/forms/${pub.formId}/erase`);
+  await expect(page.getByRole("heading", { level: 1, name: "Erase" })).toBeVisible();
+  await expectNoViolations(page, "one form's known-target erasure");
+
   await page.goto("/responses/erasures");
   await expect(page.getByRole("heading", { name: "Erasure log" })).toBeVisible();
   await expectNoViolations(page, "the erasure log");

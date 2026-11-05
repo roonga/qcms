@@ -41,7 +41,13 @@ describe("a row's operational contexts", () => {
     expect(primaryFormContext(row(VIEWER))?.context).toBe("links");
     // The builder, Rules, Preview, Versions and Publish are the editor's and are not
     // offered here.
-    expect(FORM_OPERATIONAL_CONTEXTS).toEqual(["responses", "links", "webhooks", "intake"]);
+    expect(FORM_OPERATIONAL_CONTEXTS).toEqual([
+      "responses",
+      "links",
+      "webhooks",
+      "intake",
+      "erase",
+    ]);
   });
 
   it("offers a response viewer its responses and nothing else about the form", () => {
@@ -49,9 +55,11 @@ describe("a row's operational contexts", () => {
     expect(primaryFormContext(row(["response:read"]))?.context).toBe("responses");
   });
 
-  it("offers an eraser without a viewer grant no context at all", () => {
-    expect(contexts(["response:erase", "response:dispose"])).toEqual([]);
-    expect(primaryFormContext(row(["response:erase"]))).toBeUndefined();
+  it("offers an eraser without a viewer grant the known-target Erase screen only", () => {
+    expect(contexts(["response:erase", "response:dispose"])).toEqual(["erase"]);
+    expect(primaryFormContext(row(["response:erase"]))?.context).toBe("erase");
+    expect(contexts(["response:dispose"])).toEqual([]);
+    expect(primaryFormContext(row(["response:dispose"]))).toBeUndefined();
   });
 
   it("reads each context off its own cell rather than off a write in the same family", () => {
@@ -69,12 +77,14 @@ describe("a row's operational contexts", () => {
     const held = [...VIEWER, "response:read"];
     expect(heldFormContexts(held)).toEqual(contexts(held));
     expect(heldFormContexts(["response:read", "response:export"])).toEqual(["responses"]);
-    expect(heldFormContexts(["response:erase"])).toEqual([]);
+    expect(heldFormContexts(["response:erase"])).toEqual(["erase"]);
+    expect(heldFormContexts(["response:read", "response:erase"])).toEqual(["responses", "erase"]);
   });
 
   it("addresses every context under Operations", () => {
     expect(formContextHref("frm a", "responses")).toBe("/operations/forms/frm%20a/responses");
     expect(formContextHref("frm_a", "webhooks")).toBe("/operations/forms/frm_a/webhooks");
     expect(formContextHref("frm_a", "intake")).toBe("/operations/forms/frm_a/intake");
+    expect(formContextHref("frm_a", "erase")).toBe("/operations/forms/frm_a/erase");
   });
 });

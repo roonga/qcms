@@ -13,7 +13,8 @@ export type FormSection =
   | "links"
   | "responses"
   | "webhooks"
-  | "intake";
+  | "intake"
+  | "erase";
 
 export function pageMetadata(page: string): Metadata {
   return { title: t("app.pageTitle", { page }) };

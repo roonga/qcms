@@ -6,19 +6,27 @@ import { t } from "../i18n/en.ts";
 import type { OperationsFormRow } from "./operations-forms.ts";
 
 /** The contexts a form has under Operations, in the order a rail offers them. */
-export const FORM_OPERATIONAL_CONTEXTS = ["responses", "links", "webhooks", "intake"] as const;
+export const FORM_OPERATIONAL_CONTEXTS = [
+  "responses",
+  "links",
+  "webhooks",
+  "intake",
+  "erase",
+] as const;
 export type FormContext = (typeof FORM_OPERATIONAL_CONTEXTS)[number];
 
 /**
  * The cell that admits each context, matching the route that serves it. Intake takes
  * `form: read`, not the `form: close` its acts carry: admitting on the write would hide
- * the reading from everyone who may not change it.
+ * the reading from everyone who may not change it. Erase is the known-target act itself, so
+ * it is the one context a write admits.
  */
 const ADMITTING_CELL: Readonly<Record<FormContext, string>> = {
   responses: "response:read",
   links: "link:read",
   webhooks: "webhook:read",
   intake: "form:read",
+  erase: "response:erase",
 };
 
 export interface FormContextLink {
@@ -50,9 +58,8 @@ export function formContextLinks(row: OperationsFormRow): readonly FormContextLi
 /**
  * The context a row's name opens, or `undefined` when the caller may open none of them.
  *
- * An eraser without a viewer grant is the row with no primary: its journey is a known
- * target rather than a screen that lists anything, so a name that led to a refusal would
- * be worse than a name that is not a link.
+ * An eraser without a viewer grant lands on the known-target Erase screen, which lists
+ * nothing and asks for a session id.
  */
 export function primaryFormContext(row: OperationsFormRow): FormContextLink | undefined {
   return formContextLinks(row)[0];

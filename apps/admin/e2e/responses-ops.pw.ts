@@ -256,6 +256,7 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     await expect(logged, "the log reads as evidence, not as a database dump").toContainText(
       "Data subject request",
     );
+    await expect(logged.getByTestId("qcms-queue-form"), "the row names its form").toHaveText(SLUG);
 
     await page.goto(`/operations/forms/${FORM_ID}/responses/${erasable}`);
     await expect(page.getByTestId("qcms-tombstone")).toContainText(erasable);
@@ -376,6 +377,15 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
         deadCount,
       );
       await expect(page.getByTestId("qcms-dead-letter-error").first()).toHaveText("network_error");
+      // Each row names its form, and the page is no longer a picker of every form.
+      await expect(
+        page
+          .getByTestId("qcms-dead-letters-table")
+          .locator("tbody tr")
+          .first()
+          .getByTestId("qcms-queue-form"),
+      ).toHaveText(SLUG);
+      await expect(page.locator(`a[href="/operations/forms/${FORM_ID}/webhooks"]`)).toHaveCount(0);
 
       // Cover both erasure orders: before fan-out no delivery materialises; after dead-lettering the row is cancelled in place.
       const redactedEarly = await deliverer.outboxPayloadsForSession(erasable);

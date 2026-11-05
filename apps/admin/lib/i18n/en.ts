@@ -1539,6 +1539,7 @@ export const messages = {
   "agent.context.form.responses": "Form {subject}: response metadata, no answers",
   "agent.context.form.response": "Form {subject}: session {session}, metadata only",
   "agent.context.form.intake": "Form {subject}: intake in this environment",
+  "agent.context.form.erase": "Form {subject}: erasure by session id, no answers",
   "agent.context.questions": "The question library",
   "agent.context.questions.new": "A new question, nothing saved yet",
   "agent.context.question": "Question {subject}",
