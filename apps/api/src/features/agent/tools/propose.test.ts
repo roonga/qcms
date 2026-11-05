@@ -1078,3 +1078,51 @@ describe("buildProposal: the workspace names a card shows", () => {
     expect(outcome.proposal.workspaces).toBeUndefined();
   });
 });
+
+describe("buildProposal: a draft is validated against the steps that run before it", () => {
+  const question = {
+    questionId: "q_later",
+    type: "shortText",
+    label: { en: "Later" },
+    required: false,
+    constraints: {},
+  };
+
+  const draftStep: ProposedStep = {
+    kind: "form.saveDraft",
+    args: { formId: "frm_a", definition: draftBody() },
+  };
+
+  const createStep: ProposedStep = {
+    kind: "question.create",
+    args: { slug: "later", definition: question },
+  };
+
+  it("counts a question an earlier step creates", async () => {
+    let seen: unknown;
+    const outcome = await propose({
+      steps: [createStep, draftStep],
+      validate: (_definition, pending) => {
+        seen = pending;
+        return Promise.resolve({ issues: [], warnings: [] });
+      },
+    });
+    expect(outcome.ok).toBe(true);
+    expect(seen).toHaveLength(1);
+  });
+
+  // A save placed before the create stores a draft that pins a question nothing has made
+  // yet, so the verdict the card shows must not pretend otherwise.
+  it("counts none from a step that runs after the save", async () => {
+    let seen: unknown;
+    const outcome = await propose({
+      steps: [draftStep, createStep],
+      validate: (_definition, pending) => {
+        seen = pending;
+        return Promise.resolve({ issues: [], warnings: [] });
+      },
+    });
+    expect(outcome.ok).toBe(true);
+    expect(seen).toEqual([]);
+  });
+});

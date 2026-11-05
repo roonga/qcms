@@ -600,14 +600,6 @@ async function withDraftArguments(
   const validate = input.validate;
   if (validate === undefined) return { steps };
   const created = plannedQuestions(steps);
-  // Validated as the draft will stand once the plan has run: a question an earlier step
-  // creates exists as draft v1 by then, so its pin is an unpublished pin and not a
-  // dangling reference.
-  const pending: PendingQuestionVersion[] = created.map((entry) => ({
-    questionId: entry.definition.questionId,
-    version: entry.version,
-    definition: entry.definition,
-  }));
   // Only a created question's pin is an expected unpublished pin; a rewritten one keeps
   // whatever status it already had.
   const createdBy = created
@@ -629,6 +621,15 @@ async function withDraftArguments(
       out.push(step);
       continue;
     }
+    // The versions written BEFORE this step, because that is the draft this save stores. A
+    // create the model put after the save has not run when the draft is written.
+    const pending: PendingQuestionVersion[] = created
+      .filter((entry) => entry.step < index)
+      .map((entry) => ({
+        questionId: entry.definition.questionId,
+        version: entry.version,
+        definition: entry.definition,
+      }));
     const { issues, warnings } = await validate(parsed.data, pending);
     const blocking = issues.filter((issue) => !isExpectedPinIssue(issue, plannedIds));
     if (blocking.length > 0) {
