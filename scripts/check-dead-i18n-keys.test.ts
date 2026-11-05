@@ -200,6 +200,8 @@ describe("the repository", () => {
       "agent.card.form.release.title",
       "agent.card.form.reopen.consequence",
       "agent.card.form.reopen.title",
+      "agent.card.form.saveDraft.consequence",
+      "agent.card.form.saveDraft.title",
       "agent.card.form.settings.consequence",
       "agent.card.form.settings.title",
       "agent.card.link.mint.consequence",
