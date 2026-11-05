@@ -83,7 +83,7 @@ test("sends nothing when the card is cancelled", async ({ page }) => {
 test("lists each confirmed act in the workspace's assistant audit", async ({ page }) => {
   test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);
-  await page.goto(`/workspaces/${WORKSPACE_ID}`);
+  await page.goto(`/workspaces/${WORKSPACE_ID}/assistant-actions`);
   await waitForHydration(page);
 
   const table = page.getByRole("table", { name: /assistant/iu });

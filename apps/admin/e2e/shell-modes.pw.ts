@@ -178,7 +178,7 @@ test("a rejected workspace bookmark still has All workspaces", async ({ page }) 
 
   await expect(page).toHaveURL(/\/workspaces\/ws_not_a_workspace\/members$/);
   await expect(page.getByText("No such workspace, or you do not manage it")).toBeVisible();
-  await page.getByRole("link", { name: "All workspaces" }).click();
+  await page.locator("main#main-content").getByRole("link", { name: "All workspaces" }).click();
   await expect(page).toHaveURL(/\/workspaces$/);
 });
 

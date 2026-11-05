@@ -140,15 +140,25 @@ test("an access group is created with the pickers, granted to a member and taken
   await expect(create.getByText("Reads and exports responses", { exact: false })).toBeVisible();
   await expect(create.getByText("responses.viewer", { exact: true })).toHaveCount(0);
 
-  await create.getByRole("checkbox", { name: "All environments", exact: false }).uncheck();
-  await expect(create.getByRole("button", { name: "Create group" })).toBeDisabled();
-  await create.getByRole("checkbox", { name: "test", exact: true }).check();
+  // React Aria hides the checkbox input, so each tick is a click on its label.
+  const tick = async (label: string, on: boolean): Promise<void> => {
+    await create.getByText(label, { exact: true }).click();
+    await expect(create.getByRole("checkbox", { name: label, exact: true })).toBeChecked({
+      checked: on,
+    });
+  };
+  const allEnvironments = "All environments, including any added later";
+  const allForms = "All forms in this workspace, including any added later";
 
-  await expect(create.getByRole("checkbox", { name: "All forms", exact: false })).toBeChecked();
-  await expect(create.getByRole("textbox", { name: "Search forms by name" })).toBeVisible();
-  await create.getByRole("checkbox", { name: "All forms", exact: false }).uncheck();
+  await tick(allEnvironments, false);
   await expect(create.getByRole("button", { name: "Create group" })).toBeDisabled();
-  await create.getByRole("checkbox", { name: "All forms", exact: false }).check();
+  await tick("test", true);
+
+  await expect(create.getByRole("checkbox", { name: allForms, exact: true })).toBeChecked();
+  await expect(create.getByRole("textbox", { name: "Search forms by name" })).toBeVisible();
+  await tick(allForms, false);
+  await expect(create.getByRole("button", { name: "Create group" })).toBeDisabled();
+  await tick(allForms, true);
 
   await create.getByText("Advanced", { exact: true }).click();
   await create.getByRole("textbox", { name: "Label (optional)" }).fill(LABEL);
