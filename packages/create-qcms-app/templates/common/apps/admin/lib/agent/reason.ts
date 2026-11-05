@@ -7,14 +7,20 @@ const ELLIPSIS = "…";
 
 const MARKER = /^ {0,3}([-*+]|\d{1,3}[.)]) */;
 
-/* Inline constructs the assistant's own markdown subset allows, reduced to their text. */
+/**
+ * Inline constructs the assistant's own markdown subset allows, reduced to their text. An
+ * underscore pair counts only between non-word characters, as CommonMark has it: a branded
+ * id is the common case here, and `q_insurance_provider` is not emphasis.
+ */
 function inline(text: string): string {
   return text
     .replaceAll(/`+/g, "")
     .replaceAll(/!\[/g, "[")
     .replaceAll(/\[([^\][]*)\]\(([^()]*)\)/g, "$1")
-    .replaceAll(/(\*\*|__)([^*_]*)\1/g, "$2")
-    .replaceAll(/([*_])([^*_]*)\1/g, "$2")
+    .replaceAll(/\*\*([^*]*)\*\*/g, "$1")
+    .replaceAll(/\*([^*]*)\*/g, "$1")
+    .replaceAll(/(^|\W)__([^_]*)__(?=\W|$)/g, "$1$2")
+    .replaceAll(/(^|\W)_([^_]*)_(?=\W|$)/g, "$1$2")
     .replaceAll(/^ {0,3}#{1,6} +/g, "")
     .replaceAll(/^ {0,3}> ?/g, "")
     .trim();
