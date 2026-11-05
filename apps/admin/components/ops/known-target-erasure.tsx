@@ -116,7 +116,11 @@ export function KnownTargetErasure({
         </Button>
       </form>
 
-      <div aria-live="polite" className="flex flex-col gap-3" data-testid="qcms-known-target-status">
+      <div
+        aria-live="polite"
+        className="flex flex-col gap-3"
+        data-testid="qcms-known-target-status"
+      >
         {step === "missing" && (
           <Alert variant="info">
             {t("ops.erase.known.missing", { sessionId: target, environment })}

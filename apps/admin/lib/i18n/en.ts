@@ -1838,7 +1838,6 @@ export const messages = {
   "ops.common.copied": "Copied to the clipboard.",
   "ops.common.copyFailed": "That could not be copied. Select the text and copy it manually.",
 
-
   "ops.area.webhooks.title": "Webhook operations",
 
   "ops.area.webhooks.intro":

@@ -7,12 +7,7 @@ export type KnownTargetLookup =
   | { readonly status: "error"; readonly message: string };
 
 export type KnownTargetStep =
-  | "ask"
-  | "missing"
-  | "failed"
-  | "erasable"
-  | "alreadyErased"
-  | "erased";
+  "ask" | "missing" | "failed" | "erasable" | "alreadyErased" | "erased";
 
 /**
  * Where the known-target journey stands: asking for an id, refused, or with a session

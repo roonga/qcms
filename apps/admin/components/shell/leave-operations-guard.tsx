@@ -19,9 +19,7 @@ interface PendingLeave {
 }
 
 function areaName(destination: LeaveDestination): string {
-  return destination === "elsewhere"
-    ? t("shell.leave.area.elsewhere")
-    : t(`nav.${destination}`);
+  return destination === "elsewhere" ? t("shell.leave.area.elsewhere") : t(`nav.${destination}`);
 }
 
 /**

@@ -62,7 +62,6 @@ export default async function WebhooksPage({
         redeliver={redeliverAction.bind(null, shown)}
         redeliverAll={redeliverAllAction.bind(null, shown)}
       />
-
     </div>
   );
 }

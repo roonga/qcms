@@ -16,10 +16,8 @@ export const FORM_OPERATIONAL_CONTEXTS = [
 export type FormContext = (typeof FORM_OPERATIONAL_CONTEXTS)[number];
 
 /**
- * The cell that admits each context, matching the route that serves it. Intake takes
- * `form: read`, not the `form: close` its acts carry: admitting on the write would hide
- * the reading from everyone who may not change it. Erase is the known-target act itself, so
- * it is the one context a write admits.
+ * The cell that admits each context. Intake takes `form: read`, not the `form: close` its
+ * acts carry, so a reader who may not change it still sees it. Erase is the act itself.
  */
 const ADMITTING_CELL: Readonly<Record<FormContext, string>> = {
   responses: "response:read",

@@ -38,7 +38,10 @@ export default async function FormErasePage({
   const session = await requireAdminSession();
   const { formId } = await params;
 
-  const [form, resolved] = await Promise.all([getForm(session, formId), resolvedEnvironment(session)]);
+  const [form, resolved] = await Promise.all([
+    getForm(session, formId),
+    resolvedEnvironment(session),
+  ]);
   // An eraser holds no `form: read`, so only a form that does not exist ends the screen.
   if (!form.ok && (form.code === "FORM_NOT_FOUND" || form.code === "INVALID_FORM_ID")) notFound();
   const shown = shownEnvironment(resolved);

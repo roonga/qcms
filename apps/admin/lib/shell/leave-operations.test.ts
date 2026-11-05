@@ -43,9 +43,7 @@ describe("leaving Operations", () => {
   });
 
   it("is not a move inside Operations, including its global queues", () => {
-    expect(leavesOperations("/operations", "/operations/forms/frm_a/links", undefined)).toBe(
-      false,
-    );
+    expect(leavesOperations("/operations", "/operations/forms/frm_a/links", undefined)).toBe(false);
     expect(leavesOperations("/operations", "/webhooks", undefined)).toBe(false);
     expect(leavesOperations("/operations", "/responses/erasures", undefined)).toBe(false);
   });
@@ -111,9 +109,7 @@ describe("where Exit Operations goes", () => {
     expect(operationsExitHref(null, EVERYTHING, "/questions")).toBe("/questions");
     expect(operationsExitHref("//evil.example/x", EVERYTHING, "/questions")).toBe("/questions");
     expect(operationsExitHref("/\\evil.example", EVERYTHING, "/questions")).toBe("/questions");
-    expect(operationsExitHref("https://evil.example", EVERYTHING, "/questions")).toBe(
-      "/questions",
-    );
+    expect(operationsExitHref("https://evil.example", EVERYTHING, "/questions")).toBe("/questions");
     expect(operationsExitHref("/operations/forms/frm_a", EVERYTHING, "/questions")).toBe(
       "/questions",
     );
@@ -122,9 +118,7 @@ describe("where Exit Operations goes", () => {
 
   it("falls back when the caller no longer holds the area", () => {
     const authoringOnly = { ...NO_CAPABILITIES, authoring: true, operations: true };
-    expect(operationsExitHref("/workspaces/ws_a", authoringOnly, "/questions")).toBe(
-      "/questions",
-    );
+    expect(operationsExitHref("/workspaces/ws_a", authoringOnly, "/questions")).toBe("/questions");
   });
 
   it("remembers only addresses outside Operations and the personal routes", () => {

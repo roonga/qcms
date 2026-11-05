@@ -26,8 +26,7 @@ export function ModeHeader({
 }) {
   const leavingFor = exitMode(mode, capabilities);
   const landing = leavingFor === undefined ? undefined : landingPathForMode(leavingFor);
-  const exit =
-    landing === undefined || exitHref === undefined ? landing : exitHref(landing);
+  const exit = landing === undefined || exitHref === undefined ? landing : exitHref(landing);
 
   return (
     <div className="qcms-modeheader" data-testid="qcms-mode-header" data-mode={mode}>

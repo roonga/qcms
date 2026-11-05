@@ -102,9 +102,15 @@ test("moving inside Operations, its global queues and the avatar menu asks nothi
   await expect(page).toHaveURL(new RegExp(`/operations/forms/${FORM_ID}/`, "u"));
   await expect(leaveDialog(page)).toHaveCount(0);
 
-  await page.getByTestId("qcms-operations-form-rail").getByRole("link", { name: "Operations" }).click();
+  await page
+    .getByTestId("qcms-operations-form-rail")
+    .getByRole("link", { name: "Operations" })
+    .click();
   await expect(page).toHaveURL(/\/operations$/u);
-  await page.getByTestId("qcms-operations-rail").getByRole("link", { name: "Delivery failures" }).click();
+  await page
+    .getByTestId("qcms-operations-rail")
+    .getByRole("link", { name: "Delivery failures" })
+    .click();
   await expect(page).toHaveURL(/\/webhooks$/u);
   await expect(leaveDialog(page)).toHaveCount(0);
 
