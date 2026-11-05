@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { Button, Dialog } from "@/components/kit";
-import { stepTitle } from "@/lib/agent/card-copy";
+import { stepTitle, workspaceNames } from "@/lib/agent/card-copy";
 import {
   headingChip,
   runningLine,
@@ -43,6 +43,7 @@ export function AgentCardDialog(props: AgentCardDialogProps): React.ReactElement
   const paged = useRef(false);
 
   const reported = reportedResults(card);
+  const names = workspaceNames(proposal);
   const chips = showsStepChips(card);
   const chip = headingChip(card);
   const live = runningLine(card);
@@ -104,6 +105,7 @@ export function AgentCardDialog(props: AgentCardDialogProps): React.ReactElement
                   chips={chips}
                   numbered={wizard}
                   titled={wizard}
+                  names={names}
                   idBase={props.idBase}
                 />
               ))}
@@ -134,6 +136,7 @@ export function AgentCardDialog(props: AgentCardDialogProps): React.ReactElement
                 reported={reported}
                 chips={chips}
                 numbered
+                names={names}
                 idBase={props.idBase}
               />
             </ol>

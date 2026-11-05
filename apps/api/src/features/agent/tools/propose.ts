@@ -87,6 +87,12 @@ export interface PlanStep {
   readonly resultAllowlist: readonly string[];
 }
 
+/** Display context, never an argument: the card names a workspace, and the digest binds its id. */
+export interface WorkspaceName {
+  readonly workspaceId: string;
+  readonly name: string;
+}
+
 export interface Proposal {
   readonly proposalId: string;
   readonly token: string | undefined;
@@ -100,6 +106,8 @@ export interface Proposal {
    * against the selection, so the card needs the selection as well as the destination.
    */
   readonly currentEnvironment: string;
+  /** The names of the workspaces this plan's arguments name, for the card to show. */
+  readonly workspaces?: readonly WorkspaceName[];
 }
 
 export type ProposeOutcome =
@@ -119,6 +127,9 @@ export interface ProposeInput {
   /** The environment name a production act runs in, from the deployment's own mount. */
   readonly productionEnvironment: string;
   readonly formId?: string | undefined;
+  /** Resolves the names of the workspaces a plan's own arguments name. */
+  readonly workspaceNames?:
+    ((workspaceIds: readonly string[]) => Promise<readonly WorkspaceName[]>) | undefined;
   readonly issuedAt: Date;
 
   readonly proposalsThisTurn: number;
@@ -554,12 +565,25 @@ function plannedQuestions(
  * server's own validation over the definition the card shows. A plan that creates the form
  * validates under a placeholder id, since the verdict is about the pins and the rules.
  */
+/**
+ * A pin on a question this plan creates: expected, explained on the card, and resolved by
+ * the plan's own earlier step. Every other blocking issue is a defect in what the model
+ * sent, which it can fix now.
+ */
+function isPlannedPin(issue: PublishIssue, created: ReadonlySet<string>): boolean {
+  if (issue.code !== "UNPUBLISHED_QUESTION_PIN" && issue.code !== "DANGLING_QUESTION_REF") {
+    return false;
+  }
+  const named = (issue as { readonly path?: { readonly question?: unknown } }).path?.question;
+  return typeof named === "string" && created.has(named);
+}
+
 async function withDraftArguments(
   input: ProposeInput,
   steps: readonly PlanStep[],
-): Promise<readonly PlanStep[]> {
+): Promise<{ readonly reason: string } | { readonly steps: readonly PlanStep[] }> {
   const validate = input.validate;
-  if (validate === undefined) return steps;
+  if (validate === undefined) return { steps };
   const created = plannedQuestions(steps);
   // Validated as the draft will stand once the plan has run: a question an earlier step
   // creates exists as draft v1 by then, so its pin is an unpublished pin and not a
@@ -573,8 +597,9 @@ async function withDraftArguments(
     questionId: entry.definition.questionId,
     step: entry.step,
   }));
+  const plannedIds = new Set(created.map((entry) => entry.definition.questionId));
   const out: PlanStep[] = [];
-  for (const step of steps) {
+  for (const [index, step] of steps.entries()) {
     const parsed =
       actionKind(step.kind)?.carriesDraftArgument === true
         ? FormDefinitionSchema.safeParse({
@@ -587,6 +612,16 @@ async function withDraftArguments(
       continue;
     }
     const { issues, warnings } = await validate(parsed.data, pending);
+    const blocking = issues.filter((issue) => !isPlannedPin(issue, plannedIds));
+    if (blocking.length > 0) {
+      return {
+        reason:
+          `Step ${String(index + 1)}'s draft would not publish: ` +
+          `${blocking.map((issue) => issue.message).join(" ")} ` +
+          "Fix it and propose the plan again. The unpublished pins on questions this plan " +
+          "creates are expected and are not what this is about.",
+      };
+    }
     out.push({
       ...step,
       draft: {
@@ -598,7 +633,7 @@ async function withDraftArguments(
       },
     });
   }
-  return out;
+  return { steps: out };
 }
 
 /**
@@ -741,6 +776,10 @@ export async function buildProposal(input: ProposeInput): Promise<ProposeOutcome
   const shape = planShapeRefusal(input, steps, resolved.revision);
   if (shape !== undefined) return refuse(shape);
 
+  // Validated before anything is signed, so a refused plan mints no token at all.
+  const enriched = await withDraftArguments(input, await withProposedDraft(input, steps));
+  if ("reason" in enriched) return refuse(enriched.reason);
+
   const proposalId = `prp_${crypto.randomUUID().replaceAll("-", "")}`;
   const tokenIndex = tokenIndexes(steps);
   const tokenSteps: ProposalStepBinding[] = [];
@@ -773,11 +812,29 @@ export async function buildProposal(input: ProposeInput): Promise<ProposeOutcome
     proposal: {
       proposalId,
       token,
-      steps: await withDraftArguments(input, await withProposedDraft(input, steps)),
+      steps: enriched.steps,
       proposedAt: input.issuedAt.toISOString(),
       expiresAt: new Date(input.issuedAt.getTime() + 10 * 60 * 1000).toISOString(),
       formId: boundFormId,
       currentEnvironment: input.current,
+      ...(await namedWorkspaces(input, steps)),
     },
   };
+}
+
+/** Spread-shaped, because `exactOptionalPropertyTypes` refuses an explicit `undefined`. */
+async function namedWorkspaces(
+  input: ProposeInput,
+  steps: readonly PlanStep[],
+): Promise<{ workspaces?: readonly WorkspaceName[] }> {
+  const resolve = input.workspaceNames;
+  if (resolve === undefined) return {};
+  const ids = new Set<string>();
+  for (const step of steps) {
+    const named = step.args["workspaceId"];
+    if (typeof named === "string" && named !== "") ids.add(named);
+  }
+  if (ids.size === 0) return {};
+  const named = await resolve([...ids]);
+  return named.length === 0 ? {} : { workspaces: named };
 }

@@ -156,6 +156,7 @@ export interface StepItemProps {
   readonly reported: ReportedResults;
   readonly chips: boolean;
   readonly numbered: boolean;
+  readonly names?: ReadonlyMap<string, string>;
   /** A single-step dialog titles itself with the step, so the step does not repeat it. */
   readonly titled?: boolean;
   readonly idBase: string;
@@ -169,6 +170,7 @@ export function StepItem({
   chips,
   numbered,
   titled = true,
+  names,
   idBase,
 }: StepItemProps): React.ReactElement {
   const state = view?.state ?? "proposed";
@@ -195,8 +197,12 @@ export function StepItem({
       )}
       <p className="qcms-acard__args">
         {step.card.hideEnvironment === true ? null : <EnvironmentLine step={step} />}
-        {stepArguments(step, reported)
-          .filter((line) => line.name !== DEFINITION_ARGUMENT || !readable)
+        {stepArguments(step, reported, names)
+          // A definition shown field by field, or as a diff and two advisory lists, is not
+          // also shown as a line of JSON.
+          .filter(
+            (line) => line.name !== DEFINITION_ARGUMENT || !(readable || step.draft !== undefined),
+          )
           .map((line) => (
             <span key={line.name}>
               {line.label} {line.mono ? <code>{line.value}</code> : <span>{line.value}</span>}

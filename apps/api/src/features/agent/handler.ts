@@ -280,11 +280,23 @@ function actionPorts(args: {
           }),
           productionEnvironment: PRODUCTION_ENVIRONMENT,
           formId: named,
+          workspaceNames: (ids) => workspaceNamesFor(args.deps, ids),
           issuedAt: args.deps.clock.now(),
           validate: (definition, pending) => validateDraft(args.deps, definition, pending),
         }),
     },
   };
+}
+
+/** The names of the workspaces a plan's own arguments name, so a card shows a name and not an id. */
+async function workspaceNamesFor(
+  deps: Deps,
+  workspaceIds: readonly string[],
+): Promise<readonly { readonly workspaceId: string; readonly name: string }[]> {
+  const rows = await listWorkspaces(deps.databases.control);
+  return rows
+    .filter((workspace) => workspaceIds.includes(workspace.id))
+    .map((workspace) => ({ workspaceId: workspace.id, name: workspace.name }));
 }
 
 /** The saved draft of whichever form the plan publishes, parsed rather than trusted. */

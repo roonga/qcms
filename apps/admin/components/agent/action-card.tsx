@@ -3,7 +3,13 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 
 import type { AgentPlanStep, AgentProposal } from "@/lib/forms/assist-stream";
-import { isTypedConfirmed, minutesLeft, stepTitle, typedConfirmation } from "@/lib/agent/card-copy";
+import {
+  isTypedConfirmed,
+  minutesLeft,
+  stepTitle,
+  typedConfirmation,
+  workspaceNames,
+} from "@/lib/agent/card-copy";
 import {
   canConfirm,
   headingChip,
@@ -67,6 +73,7 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
   const confirmable = canConfirm(card) && isTypedConfirmed(typed, required);
   const live = runningLine(card);
   const minutes = minutesLeft(remainingMs);
+  const names = workspaceNames(proposal);
 
   function onKeyDown(event: KeyboardEvent<HTMLElement>): void {
     if (event.key !== "Escape") return;
@@ -106,6 +113,7 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
               chips={chips}
               numbered={multi}
               titled={multi}
+              names={names}
               idBase={base}
             />
           ))}
