@@ -52,8 +52,7 @@ export function roleDescription(role: string): string | undefined {
 
 /** `all`, or the chosen names. */
 export type ScopeChoice =
-  | { readonly kind: "all" }
-  | { readonly kind: "some"; readonly chosen: readonly string[] };
+  { readonly kind: "all" } | { readonly kind: "some"; readonly chosen: readonly string[] };
 
 export const ALL: ScopeChoice = { kind: "all" };
 
