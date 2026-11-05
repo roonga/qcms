@@ -1280,7 +1280,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
 }
 
 /* A dense plan has no room to spare on a phone: the dialog becomes the whole screen. */
-@media (width < 48rem) {
+@media (width < 40rem) {
   div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
     inline-size: 100vw;
     max-inline-size: 100vw;
