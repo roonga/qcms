@@ -628,6 +628,12 @@ interface AgentToolDef {
   readonly cell?: ToolCell;
   /** Installation-wide operator state: the administrator claim, never a workspace grant. */
   readonly claim?: true;
+  /**
+   * A tool that only stages for the apply-draft card, which the form builder runs through
+   * its own client-side save. Off that screen the card cannot exist, so neither can a tool
+   * whose only consumer it is.
+   */
+  readonly stagesForApplyDraft?: true;
   execute(input: unknown, ctx: AgentContext, state: ProposalState): Promise<unknown>;
 }
 
@@ -876,14 +882,20 @@ export const TOOLS: Readonly<Record<AgentToolName, AgentToolDef>> = Object.freez
     inputSchema: ProposeQuestionsInput,
     outputSchema: Outputs.propose_questions,
     cell: DRAFT_WRITE,
+    stagesForApplyDraft: true,
     execute: (input, _ctx, state) => Promise.resolve(proposeQuestions(input, state)),
   },
   propose_draft: {
     description:
-      "Propose the complete draft FormDefinition for this form. Returns the advisory validation issues that would block a publish, and the warnings that would not. Never publishes and never saves: follow it with the apply-draft action so the user can review the diff and confirm it.",
+      "Propose the complete draft FormDefinition for the form this builder screen is about. " +
+      "Returns the advisory validation issues that would block a publish, and the warnings " +
+      "that would not. It saves nothing: follow it with the apply-draft action, which is " +
+      "the only thing that keeps it. It exists on the form builder alone; elsewhere, save a " +
+      "draft with a form.saveDraft step instead.",
     inputSchema: ProposeDraftInput,
     outputSchema: Outputs.propose_draft,
     cell: DRAFT_WRITE,
+    stagesForApplyDraft: true,
     execute: (input, ctx, state) => proposeDraft(input, ctx, state),
   },
   validate_draft: {
@@ -1085,6 +1097,11 @@ function providerSchema(zodType: z.ZodType): Schema<unknown> {
 /** The tools whose offer is decided by the installation-wide administrator claim. */
 export function isClaimTool(name: AgentToolName): boolean {
   return TOOLS[name].claim === true;
+}
+
+/** The tools whose only consumer is the apply-draft card, which one screen runs. */
+export function stagesForApplyDraft(name: AgentToolName): boolean {
+  return TOOLS[name].stagesForApplyDraft === true;
 }
 
 /** A read tool's own cell, which is what decides whether this caller is offered it. */

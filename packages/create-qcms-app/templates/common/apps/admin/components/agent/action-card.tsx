@@ -7,7 +7,7 @@ import { isTypedConfirmed, minutesLeft, stepTitle, typedConfirmation } from "@/l
 import {
   canConfirm,
   headingChip,
-  liveLine,
+  runningLine,
   proposalWindowMs,
   showsStepChips,
   type AgentCardView,
@@ -65,7 +65,7 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
   const multi = proposal.steps.length > 1;
   const required = typedConfirmation(proposal.steps);
   const confirmable = canConfirm(card) && isTypedConfirmed(typed, required);
-  const live = liveLine(card);
+  const live = runningLine(card);
   const minutes = minutesLeft(remainingMs);
 
   function onKeyDown(event: KeyboardEvent<HTMLElement>): void {
@@ -105,6 +105,7 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
               reported={reported}
               chips={chips}
               numbered={multi}
+              titled={multi}
               idBase={base}
             />
           ))}
@@ -121,18 +122,20 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
           onTyped={setTyped}
           required={required}
           idBase={base}
-          focusResult={!open}
+          reportsResult={!open}
           onConfirm={props.onConfirm}
           onCancel={props.onCancel}
           onStop={props.onStop}
           onOpenScreen={props.onOpenScreen}
           trailing={
             <button
-              className="qcms-button qcms-button--secondary"
+              className="qcms-acard__link"
               type="button"
               data-testid="qcms-acard-open"
               ref={openRef}
-              onClick={() => setOpen(true)}
+              onClick={() => {
+                setOpen(true);
+              }}
             >
               {t("agent.card.open")}
             </button>

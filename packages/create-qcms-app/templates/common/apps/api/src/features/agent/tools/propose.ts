@@ -207,6 +207,14 @@ function proposedDraftRefusal(
   if (named !== proposed.definition.formId) {
     return `Step ${String(index + 1)} names a different form from the draft this turn proposed.`;
   }
+  // The builder runs this step against the form it has open, so the screen's own form is
+  // the only one it can apply a draft to.
+  if (input.formId !== undefined && named !== input.formId) {
+    return (
+      `Step ${String(index + 1)} applies a draft to a form other than the one this screen has ` +
+      "open, and only that form's own builder can run it. Propose form.saveDraft instead."
+    );
+  }
   if (input.steps.filter((entry) => entry.kind === def.kind).length > 1) {
     return `A plan applies the proposed draft once. Keep one ${def.kind} step.`;
   }
@@ -351,6 +359,16 @@ function stepRefusal(
 
   const allowed = offeredEnvironments(input.offered, step.kind);
   if (allowed.length === 0) {
+    // A local kind is absent because of where the turn is, not because of a grant, so it
+    // says so and names the kinds that do work from anywhere.
+    if (def.local === true) {
+      return {
+        reason:
+          `${step.kind} is run by the ${def.screen} screen itself, so it can only be proposed ` +
+          "from there. From anywhere else, propose a question.create step per new question " +
+          "and one form.saveDraft step carrying the whole draft.",
+      };
+    }
     return {
       reason: `This user does not hold the permission "${def.cell.resource}: ${def.cell.action}", so ${step.kind} cannot be proposed. Explain and navigate instead.`,
     };

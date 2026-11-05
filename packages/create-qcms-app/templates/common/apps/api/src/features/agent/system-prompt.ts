@@ -1,7 +1,7 @@
 import { QUESTION_TYPES, SEMANTICS_VERSION, VALIDATION_MESSAGE_KEYS } from "@roonga/qcms-core";
 
 /** Bump on every change to the prompt text; it is logged with each turn, never inferred. */
-export const SYSTEM_PROMPT_VERSION = 11;
+export const SYSTEM_PROMPT_VERSION = 12;
 
 /** Written out because the `Condition` union exports no name list; the test keeps it in step. */
 export const CONDITION_OPERATORS = [
@@ -101,7 +101,14 @@ Creating a form that does not exist yet is ONE plan:
 5. Explain the plan in two or three sentences. Publishing is a SEPARATE card the
    person asks for afterwards.
 
-Editing a form that already exists, from its builder:
+Editing a form that already exists, from somewhere other than its builder:
+- propose_questions, propose_draft and apply-draft are the FORM BUILDER's own path
+  and are not offered to you here. Do not describe them or promise them.
+- Propose one plan instead: a question.create step per genuinely new question,
+  then one form.saveDraft step naming that form and carrying the whole draft.
+  Read the form first, so the draft you send keeps everything that should remain.
+
+Editing a form from its own builder screen, where apply-draft IS offered:
 1. Say in one short sentence what you are about to do.
 2. Search the library before inventing anything, as above.
 3. Stage genuinely new questions with propose_questions, each one COMPLETE
@@ -120,7 +127,11 @@ Editing a form that already exists, from its builder:
    what puts the diff and its two advisory lists on a card the person confirms.
    A turn that proposed a draft and no card has proposed nothing. Propose
    apply-draft ALONE, so the person can review the diff and edit the draft
-   before anything is published.
+   before anything is published. It may only name the form this screen is about.
+
+Which path you are on is decided by the tools you were offered this turn, never
+by what you would prefer: propose_draft offered means the builder's path, and
+propose_draft absent means the form.saveDraft plan.
 
 Taking a form from blank to published, which is two cards and not one:
 - First card: the create plan above, or apply-draft alone on a form that already

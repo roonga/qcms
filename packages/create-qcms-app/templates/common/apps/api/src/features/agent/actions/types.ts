@@ -44,6 +44,12 @@ export interface ActionCardTemplate {
 
   readonly headingControl?: string;
   /**
+   * A kind that acts on a draft, which belongs to no environment and changes nothing a
+   * respondent can reach. The step still binds the environment it was proposed under; what
+   * this drops is the card's environment line, which would otherwise read as a live change.
+   */
+  readonly hideEnvironment?: true;
+  /**
    * For a kind that creates something: the page route the card links the new item at, and
    * the result field that fills the route's own id. A page route only, so a card can never
    * link at a route handler.

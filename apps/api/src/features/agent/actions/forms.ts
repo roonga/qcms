@@ -85,6 +85,7 @@ export const applyDraft: ActionKindDef = {
   card: {
     titleKey: "agent.card.apply-draft.title",
     consequenceKeys: ["agent.card.apply-draft.consequence", "agent.card.apply-draft.provenance"],
+    hideEnvironment: true,
   },
   description:
     "Apply the draft you proposed with propose_draft to this form's working draft, for the " +
@@ -115,6 +116,7 @@ export const saveFormDraft: ActionKindDef = {
   card: {
     titleKey: "agent.card.form.saveDraft.title",
     consequenceKeys: ["agent.card.form.saveDraft.consequence", "agent.card.apply-draft.provenance"],
+    hideEnvironment: true,
   },
   description:
     "Save a complete draft to a form, through the same save path every edit in the builder " +

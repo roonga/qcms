@@ -31,6 +31,12 @@ export interface GrantFilterInput {
   readonly current: string;
   /** The form the screen names, which narrows a form-scoped cell to that subject. */
   readonly formId?: string | undefined;
+  /**
+   * The screen the turn is on. The one thing it decides is a `local` kind: that step is run
+   * by the screen's own client-side write path, so it exists only where that screen is.
+   * Every other kind is decided by the caller's grants alone.
+   */
+  readonly screen?: string | undefined;
 }
 
 /**
@@ -77,6 +83,9 @@ export function offeredActionKinds(input: GrantFilterInput): readonly OfferedAct
   for (const name of ACTION_KIND_NAMES) {
     const def = actionKind(name);
     if (def === undefined) continue;
+    // A local kind reaches no route: only its own screen can run it, so only its own
+    // screen may offer it.
+    if (def.local === true && def.screen !== input.screen) continue;
     if (def.environmentFrom === "switcher") {
       if (holds(input, def, input.current)) {
         offered.push({ kind: name, environments: [input.current] });

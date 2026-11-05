@@ -289,14 +289,18 @@ export function resultLine(card: AgentCardView): CatalogLine | undefined {
   }
 }
 
+/* The announcement for a card still running. A settled card is announced by its own result line, which
+   takes focus, so a live region repeating it would read the outcome twice. */
+export function runningLine(card: AgentCardView): CatalogLine | undefined {
+  if (card.state !== "running" || card.runningIndex === undefined) return undefined;
+  return {
+    key: "agent.card.live.running",
+    params: { step: card.runningIndex + 1, count: card.steps.length },
+  };
+}
+
 export function liveLine(card: AgentCardView): CatalogLine | undefined {
-  if (card.state === "running" && card.runningIndex !== undefined) {
-    return {
-      key: "agent.card.live.running",
-      params: { step: card.runningIndex + 1, count: card.steps.length },
-    };
-  }
-  return resultLine(card);
+  return runningLine(card) ?? resultLine(card);
 }
 
 /** Build replay only from registered result allowlists and the card fold, never model text or content. */

@@ -31,6 +31,7 @@ import {
   AGENT_PROPOSE_TOOL_NAMES,
   AGENT_READ_TOOL_NAMES,
   isClaimTool,
+  stagesForApplyDraft,
   toolCell,
   type AgentToolName,
 } from "./tools/registry.js";
@@ -127,6 +128,9 @@ function draftToken(updatedAt: Date): string {
   return updatedAt.toISOString();
 }
 
+/** The one screen that runs a staged draft, through the builder's own save. */
+const BUILDER_SCREEN: ScreenId = "/forms/[formId]";
+
 function maxStepsFor(deps: Deps): number {
   return deps.config.agent.provider === "none" ? 1 : deps.config.agent.maxSteps;
 }
@@ -149,7 +153,7 @@ async function buildScreenContext(args: {
   const draft = await args.draft?.();
   const reads = readPorts(args.build);
   const held = await callerWorkspaces(args.build);
-  const actions = actionPorts({ deps: args.deps, build: args.build, held });
+  const actions = actionPorts({ deps: args.deps, build: args.build, screen: args.screen, held });
   return {
     screen: args.screen,
     facts,
@@ -163,7 +167,7 @@ async function buildScreenContext(args: {
     maxSteps: maxStepsFor(args.deps),
     // The caller's own permissions, not the screen's: the whole point of the principle's
     // point 1 and point 5.
-    tools: [...grantedReadTools(args.build, held), ...actions.tools],
+    tools: [...grantedReadTools(args.build, args.screen, held), ...actions.tools],
     // The same evaluator the route middleware uses. It asks whether this caller holds the
     // cell on any subject at all; the port re-asks it on the subject the call names, and
     // that is the limit.
@@ -184,12 +188,18 @@ async function buildScreenContext(args: {
   };
 }
 
-/** The read tools this caller holds a cell for, whatever screen the turn is on. */
+/**
+ * The read tools this caller holds a cell for. The screen decides one thing only: a tool
+ * that stages for the apply-draft card exists where that card does, since the builder is
+ * what runs it.
+ */
 function grantedReadTools(
   build: ScreenBuildInput,
+  screen: ScreenId,
   held: readonly ResolvedMembership[],
 ): readonly AgentToolName[] {
   return AGENT_READ_TOOL_NAMES.filter((name) => {
+    if (stagesForApplyDraft(name) && screen !== BUILDER_SCREEN) return false;
     if (isClaimTool(name)) return build.principal.claim;
     const cell = toolCell(name);
     if (cell === undefined) return true;
@@ -226,6 +236,7 @@ function mergeOffers(
 function actionPorts(args: {
   readonly deps: Deps;
   readonly build: ScreenBuildInput;
+  readonly screen: ScreenId;
   readonly held: readonly ResolvedMembership[];
 }): {
   readonly tools: readonly AgentToolName[];
@@ -239,6 +250,7 @@ function actionPorts(args: {
         environments: args.deps.databases.names,
         current: args.build.environment,
         formId: args.build.params.formId,
+        screen: args.screen,
       }),
     ),
   );

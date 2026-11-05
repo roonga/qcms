@@ -26,6 +26,9 @@ export interface AgentCardTemplate {
 
   readonly headingControl?: string;
 
+  /* A draft belongs to no environment, so its card shows no environment line. */
+  readonly hideEnvironment?: boolean;
+
   readonly typedConfirmation?: string;
 
   readonly createdLink?: AgentCreatedLink;

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
 
 import { AssistMark } from "@/components/forms/assist-mark";
+import { Button } from "@/components/kit";
 import type { AgentPlanStep } from "@/lib/forms/assist-stream";
 import {
   createdHref,
@@ -13,6 +14,7 @@ import {
   stepConsequences,
   stepTitle,
 } from "@/lib/agent/card-copy";
+import { plainQuote, REASON_CHARS } from "@/lib/agent/reason";
 import {
   resultLine,
   STEP_STATE_WORDS,
@@ -148,6 +150,8 @@ export interface StepItemProps {
   readonly reported: ReportedResults;
   readonly chips: boolean;
   readonly numbered: boolean;
+  /** A single-step dialog titles itself with the step, so the step does not repeat it. */
+  readonly titled?: boolean;
   readonly idBase: string;
 }
 
@@ -158,6 +162,7 @@ export function StepItem({
   reported,
   chips,
   numbered,
+  titled = true,
   idBase,
 }: StepItemProps): React.ReactElement {
   const state = view?.state ?? "proposed";
@@ -166,10 +171,12 @@ export function StepItem({
   return (
     <li className="qcms-acard__step" data-s={state}>
       {stepIcon(state)}
-      <span className="qcms-acard__what">
-        {numbered ? `${String(index + 1)}. ` : ""}
-        {stepTitle(step, reported)}
-      </span>
+      {titled ? (
+        <span className="qcms-acard__what">
+          {numbered ? `${String(index + 1)}. ` : ""}
+          {stepTitle(step, reported)}
+        </span>
+      ) : null}
       {chips ? (
         <span className="qcms-acard__state" data-s={state}>
           {word}
@@ -178,7 +185,7 @@ export function StepItem({
         <span className="qcms-visually-hidden">{word}</span>
       )}
       <p className="qcms-acard__args">
-        <EnvironmentLine step={step} />
+        {step.card.hideEnvironment === true ? null : <EnvironmentLine step={step} />}
         {stepArguments(step, reported).map((line) => (
           <span key={line.name}>
             {line.label} {line.mono ? <code>{line.value}</code> : <span>{line.value}</span>}
@@ -228,14 +235,15 @@ export function ReasonBlock({
 }: {
   readonly reason: string | undefined;
 }): React.ReactElement | null {
-  if (reason === undefined || reason === "") return null;
+  const quoted = plainQuote(reason, REASON_CHARS);
+  if (quoted === undefined) return null;
   return (
     <div className="qcms-acard__reason">
       <span>
         <AssistMark size={16} />
         {t("agent.card.reasonLabel")}
       </span>
-      <q>{reason}</q>
+      <q>{quoted}</q>
     </div>
   );
 }
@@ -249,8 +257,8 @@ export interface CardFooterProps {
   readonly onTyped: (value: string) => void;
   readonly required: string | undefined;
   readonly idBase: string;
-  /** Only the view the operator is looking at may pull focus to the outcome. */
-  readonly focusResult: boolean;
+  /** Only the view the operator is looking at reports the outcome and pulls focus to it. */
+  readonly reportsResult: boolean;
   readonly onConfirm: () => void;
   readonly onCancel: () => void;
   readonly onStop: () => void;
@@ -269,8 +277,8 @@ export function CardFooter(props: CardFooterProps): React.ReactElement {
   const resultRef = useRef<HTMLParagraphElement>(null);
 
   useEffect(() => {
-    if (settled !== undefined && props.focusResult) resultRef.current?.focus();
-  }, [props.focusResult, settled]);
+    if (settled !== undefined && props.reportsResult) resultRef.current?.focus();
+  }, [props.reportsResult, settled]);
 
   return (
     <footer className="qcms-acard__foot">
@@ -295,31 +303,26 @@ export function CardFooter(props: CardFooterProps): React.ReactElement {
       {props.leading}
 
       {card.state === "running" ? (
-        <button
-          className="qcms-button qcms-button--secondary"
-          type="button"
-          onClick={props.onStop}
-          disabled={card.stopping}
-        >
+        <Button variant="secondary" size="md" isDisabled={card.stopping} onPress={props.onStop}>
           {t(card.stopping ? "agent.card.stopping" : "agent.card.stop")}
-        </button>
+        </Button>
       ) : null}
 
       {waiting || card.state === "expired" ? (
-        <button
-          className="qcms-button qcms-button--primary"
-          type="button"
-          onClick={props.onConfirm}
-          disabled={!props.confirmable}
+        <Button
+          variant="primary"
+          size="md"
+          isDisabled={!props.confirmable}
+          onPress={props.onConfirm}
         >
           {multi ? t("agent.card.confirmAll", { count: steps }) : t("agent.card.confirm")}
-        </button>
+        </Button>
       ) : null}
 
       {waiting ? (
-        <button className="qcms-button qcms-button--ghost" type="button" onClick={props.onCancel}>
+        <Button variant="ghost" size="md" onPress={props.onCancel}>
           {t("agent.card.cancel")}
-        </button>
+        </Button>
       ) : null}
 
       {props.trailing}
@@ -340,7 +343,7 @@ export function CardFooter(props: CardFooterProps): React.ReactElement {
         <span className="qcms-acard__expiry">{t("agent.card.expiredAsk")}</span>
       ) : null}
 
-      {settled === undefined ? null : (
+      {settled === undefined || !props.reportsResult ? null : (
         <p className="qcms-acard__result" id={`${idBase}-result`} tabIndex={-1} ref={resultRef}>
           {t(settled.key, settled.params)}
         </p>

@@ -2,9 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { Dialog } from "@/components/kit";
+import { Button, Dialog } from "@/components/kit";
 import { stepTitle } from "@/lib/agent/card-copy";
-import { headingChip, liveLine, showsStepChips, type AgentCardView } from "@/lib/agent/plan-state";
+import {
+  headingChip,
+  runningLine,
+  showsStepChips,
+  type AgentCardView,
+} from "@/lib/agent/plan-state";
 import type { AgentProposal } from "@/lib/forms/assist-stream";
 import { t, tPlural } from "@/lib/i18n/en";
 
@@ -40,7 +45,7 @@ export function AgentCardDialog(props: AgentCardDialogProps): React.ReactElement
   const reported = reportedResults(card);
   const chips = showsStepChips(card);
   const chip = headingChip(card);
-  const live = liveLine(card);
+  const live = runningLine(card);
   const settling = card.state !== "proposed";
 
   // A run, a cancel or an expiry leaves nothing to page through: the review page is where it reports.
@@ -98,6 +103,7 @@ export function AgentCardDialog(props: AgentCardDialogProps): React.ReactElement
                   reported={reported}
                   chips={chips}
                   numbered={wizard}
+                  titled={wizard}
                   idBase={props.idBase}
                 />
               ))}
@@ -144,40 +150,46 @@ export function AgentCardDialog(props: AgentCardDialogProps): React.ReactElement
             onTyped={props.onTyped}
             required={props.required}
             idBase={props.idBase}
-            focusResult
+            reportsResult
             onConfirm={props.onConfirm}
             onCancel={props.onCancel}
             onStop={props.onStop}
             onOpenScreen={props.onOpenScreen}
             leading={
               wizard && !settling ? (
-                <button
-                  className="qcms-button qcms-button--secondary"
-                  type="button"
-                  onClick={() => setPage(reviewPage - 1)}
+                <Button
+                  variant="secondary"
+                  size="md"
+                  onPress={() => {
+                    setPage(reviewPage - 1);
+                  }}
                 >
                   {t("agent.card.wizard.back")}
-                </button>
+                </Button>
               ) : undefined
             }
           />
         ) : (
           <footer className="qcms-acard__foot">
-            <button
-              className="qcms-button qcms-button--secondary"
-              type="button"
-              disabled={page === 0}
-              onClick={() => setPage(page - 1)}
+            <Button
+              variant="secondary"
+              size="md"
+              isDisabled={page === 0}
+              onPress={() => {
+                setPage(page - 1);
+              }}
             >
               {t("agent.card.wizard.back")}
-            </button>
-            <button
-              className="qcms-button qcms-button--primary"
-              type="button"
-              onClick={() => setPage(page + 1)}
+            </Button>
+            <Button
+              variant="primary"
+              size="md"
+              onPress={() => {
+                setPage(page + 1);
+              }}
             >
               {t("agent.card.wizard.next")}
-            </button>
+            </Button>
             {card.state === "proposed" ? (
               <span className="qcms-acard__expiry">
                 {tPlural("agent.card.expiresIn.one", "agent.card.expiresIn.other", props.minutes)}
