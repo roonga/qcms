@@ -12,7 +12,7 @@ import { EnvironmentScope } from "@/components/environment-scope";
 import { EnvironmentSwitcher } from "@/components/environment-switcher";
 import { MeasuredMain } from "@/components/measured-main";
 import { ShellChrome } from "@/components/shell/shell-chrome";
-import { SidebarProvider } from "@/components/sidebar-toggle";
+import { RailToggle, SidebarProvider } from "@/components/sidebar-toggle";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { TopbarHeight } from "@/components/topbar-height";
 import { MODE_COOKIE, parseAppearance } from "@/lib/appearance";
@@ -60,11 +60,14 @@ export default async function ShellLayout({
         <div className="flex min-h-dvh flex-col">
           {/* Keep the live region outside revalidated pages so unmounting cannot interrupt announcements. */}
           <Announcer />
-          {/* Measure the wrapping topbar so scroll padding keeps focused controls below its full sticky height. */}
+          {/* Measure the topbar so scroll padding keeps focused controls below its full sticky height. */}
           <TopbarHeight />
           <header className="qcms-topbar">
-            <div className="flex w-full flex-wrap items-center gap-x-5 gap-y-2 px-(--admin-section-pad) py-2">
-              <span className="qcms-wordmark flex-shrink-0">{t("app.title")}</span>
+            <div className="qcms-topbar__inner">
+              <div className="qcms-topbar__toggle">
+                <RailToggle />
+              </div>
+              <span className="qcms-wordmark">{t("app.title")}</span>
               <ShellChrome
                 capabilities={capabilities}
                 rememberedMode={rememberedMode(cookieStore)}

@@ -47,7 +47,7 @@ test("the avatar menu carries Settings and My access", async ({ page }) => {
   await expect(page.getByRole("heading", { level: 1, name: "My access" })).toBeVisible();
 });
 
-test("entering Operations replaces the application navigation with its own header", async ({
+test("entering Operations keeps the application navigation and fills its own slots", async ({
   page,
 }) => {
   await signInWithTotp(page, EVERYTHING, everythingSecret);
@@ -60,7 +60,10 @@ test("entering Operations replaces the application navigation with its own heade
   const header = page.getByTestId("qcms-mode-header");
   await expect(header).toBeVisible();
   await expect(header).toHaveAttribute("data-mode", "operations");
-  await expect(page.getByRole("navigation", { name: "Primary" })).toHaveCount(0);
+  await expect(page.getByTestId("qcms-mode-exit")).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: "Primary" }).getByRole("link", { name: "Operations" }),
+  ).toHaveAttribute("aria-current", "page");
 });
 
 test("Exit leaves Operations for an area the caller holds", async ({ page }) => {
@@ -83,7 +86,7 @@ test("account settings opened inside Operations keep the mode", async ({ page })
 
   await expect(page).toHaveURL(/\/settings$/);
   await expect(page.getByTestId("qcms-mode-header")).toHaveAttribute("data-mode", "operations");
-  await expect(page.getByRole("navigation", { name: "Primary" })).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
 });
 
 test("Settings opened from normal mode after a focused visit shows no focused header", async ({
@@ -135,8 +138,9 @@ test("an Operations-only caller lands in Operations and is offered no authoring 
 
   await expect(page).toHaveURL(/\/operations$/);
   await expect(page.getByTestId("qcms-mode-header")).toHaveAttribute("data-mode", "operations");
-  await expect(page.getByRole("link", { name: "Questions" })).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "Forms" })).toHaveCount(0);
+  const nav = page.getByRole("navigation", { name: "Primary" });
+  await expect(nav.getByRole("link", { name: "Questions" })).toHaveCount(0);
+  await expect(nav.getByRole("link", { name: "Forms" })).toHaveCount(0);
 });
 
 test("a workspace-only caller lands in Workspaces with no Exit at all", async ({ page }) => {
@@ -150,7 +154,9 @@ test("a workspace-only caller lands in Workspaces with no Exit at all", async ({
   await expect(
     page.getByRole("navigation", { name: "Primary" }).getByRole("link", { name: "Workspaces" }),
   ).toBeVisible();
-  await expect(page.getByRole("link", { name: "Questions" })).toHaveCount(0);
+  await expect(
+    page.getByRole("navigation", { name: "Primary" }).getByRole("link", { name: "Questions" }),
+  ).toHaveCount(0);
 });
 
 test("a caller holding only the claim gets the queues, no form rows and no names", async ({

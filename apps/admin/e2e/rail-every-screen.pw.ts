@@ -145,7 +145,7 @@ test("1117 applies a filter from the rail into the URL, and reloads the URL back
   await expect(page.getByTestId("qcms-rail-summary-count")).toHaveCount(0);
 });
 
-test("1117 shuts the rail below --bp-sidebar into a summary naming the subject and the count", async ({
+test("1117 shuts the rail below --bp-sidebar into a summary carrying the count and no title", async ({
   page,
 }) => {
   test.setTimeout(300_000);
@@ -163,7 +163,7 @@ test("1117 shuts the rail below --bp-sidebar into a summary naming the subject a
   ).toBe(false);
 
   const summary = page.locator("summary.qcms-rail__summary");
-  await expect(summary).toContainText("Questions");
+  await expect(summary).toContainText("Menu");
   await expect(summary.getByTestId("qcms-rail-summary-count")).toHaveText("2 active");
 
   await summary.click();

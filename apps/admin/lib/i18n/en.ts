@@ -174,7 +174,6 @@ export const messages = {
   "operations.page.next": "Next page",
   "operations.page.first": "First page",
 
-  "operations.rail.forms": "Forms",
   "operations.queue.deliveryFailures": "Delivery failures",
   "operations.queue.erasureLog": "Erasure log",
 

@@ -104,7 +104,7 @@ test("moving inside Operations, its global queues and the avatar menu asks nothi
 
   await page
     .getByTestId("qcms-operations-form-rail")
-    .getByRole("link", { name: "Operations" })
+    .getByRole("link", { name: "All forms" })
     .click();
   await expect(page).toHaveURL(/\/operations$/u);
   await page

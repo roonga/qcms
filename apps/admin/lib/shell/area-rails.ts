@@ -63,7 +63,7 @@ export function operationsRailItems(
     {
       key: "section:forms",
       href: OPERATIONS_PATH,
-      label: t("operations.rail.forms"),
+      label: t("rail.allForms"),
       current: current === "forms",
     },
   ];

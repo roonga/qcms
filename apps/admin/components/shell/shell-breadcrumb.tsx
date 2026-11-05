@@ -17,13 +17,11 @@ export function ShellBreadcrumb({ names }: { readonly names?: CrumbNames }) {
       <ol className="qcms-crumbs__list">
         {trail.map((crumb, index) => {
           const face = crumb.code === true ? " qcms-crumbs__code" : "";
+          const current = index === last ? { "aria-current": "page" as const } : {};
           return (
             <li key={`${String(index)}:${crumb.label}`} className="qcms-crumbs__item">
               {crumb.href === undefined ? (
-                <span
-                  className={`qcms-crumbs__text${face}`}
-                  {...(index === last ? { "aria-current": "page" as const } : {})}
-                >
+                <span className={`qcms-crumbs__text${face}`} {...current}>
                   {crumb.label}
                 </span>
               ) : (

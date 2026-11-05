@@ -265,7 +265,7 @@ test("holds the rail hidden between 1024 and 1279 px without touching the operat
   expect(restored.rail, "closing the panel returns the rail").toBeGreaterThan(200);
 });
 
-test("1133 Show sidebar shows the rail, closes the panel and says so (ruling O2)", async ({
+test("1133 the rail toggle expands the held rail, closes the panel and says so (ruling O2)", async ({
   page,
 }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
@@ -274,10 +274,11 @@ test("1133 Show sidebar shows the rail, closes the panel and says so (ruling O2)
   await open(page);
   await expect(page.locator("html")).toHaveAttribute("data-sidebar-hold", "hidden");
 
-  await page.getByTestId("qcms-show-sidebar").click();
-  await expect(panel(page), "Show sidebar closes the panel").toBeHidden();
-  const after = await tracks(page);
-  expect(after.rail, "Show sidebar shows the rail").toBeGreaterThan(200);
+  await page.getByTestId("qcms-rail-toggle").click();
+  await expect(panel(page), "expanding closes the panel").toBeHidden();
+  await expect
+    .poll(async () => (await tracks(page)).rail, "expanding shows the rail")
+    .toBeGreaterThan(200);
   await expect(page.getByTestId("qcms-announcer")).toContainText(
     "Showed the sidebar and closed the assistant.",
   );

@@ -2060,13 +2060,18 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
     grid-row: 2;
   }
   /* Collapsed, the rail is a strip whose contents leave the tab order and the accessibility tree. */
-  :root[data-sidebar="hidden"] .qcms-shell-body:has(> .qcms-rail),
-  :root[data-sidebar-hold="hidden"] .qcms-shell-body:has(> .qcms-rail) {
+  :root[data-sidebar="hidden"] .qcms-shell-body:has(> .qcms-rail) {
     grid-template-columns: var(--admin-rail-collapsed-w) 1fr;
   }
-  :root[data-sidebar="hidden"] .qcms-rail > *,
-  :root[data-sidebar-hold="hidden"] .qcms-rail > * {
+  :root[data-sidebar="hidden"] .qcms-rail > * {
     visibility: hidden;
+  }
+  /* The assistant's temporary hold gives the whole track to the panel rather than keeping the strip. */
+  :root[data-sidebar-hold="hidden"] .qcms-shell-body:has(> .qcms-rail) {
+    grid-template-columns: 0 1fr;
+  }
+  :root[data-sidebar-hold="hidden"] .qcms-shell-body > .qcms-rail {
+    display: none;
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -3159,10 +3164,12 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
     grid-template-columns: var(--admin-rail-w) minmax(var(--bp-compact), 1fr) auto;
   }
   :root[data-sidebar="hidden"]
-    .qcms-shell-body:has(> .qcms-rail):has(> .qcms-assistant[data-mode="dock"]:not([hidden])),
-  :root[data-sidebar-hold="hidden"]
     .qcms-shell-body:has(> .qcms-rail):has(> .qcms-assistant[data-mode="dock"]:not([hidden])) {
     grid-template-columns: var(--admin-rail-collapsed-w) minmax(var(--bp-compact), 1fr) auto;
+  }
+  :root[data-sidebar-hold="hidden"]
+    .qcms-shell-body:has(> .qcms-rail):has(> .qcms-assistant[data-mode="dock"]:not([hidden])) {
+    grid-template-columns: 0 minmax(var(--bp-compact), 1fr) auto;
   }
   .qcms-shell-body:has(> .qcms-rail) > .qcms-assistant[data-mode="dock"] {
     grid-column: 3;

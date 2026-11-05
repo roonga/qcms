@@ -1,12 +1,11 @@
-import Link from "next/link";
-
 import { Select, TextField } from "@/components/kit";
 import { activeFilterCount, RailFilters } from "@/components/rail-filters";
-import { RailCount, RailFrame } from "@/components/rail-frame";
+import { RailCount, RailFrame, RailTree } from "@/components/rail-frame";
 import type { FormListFilters } from "@/lib/forms/list-filters";
 import { FORM_SORTS } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
 import { LIBRARY_SEARCH_MAX_LENGTH } from "@/lib/library-search";
+import { formsRailItems } from "@/lib/shell/area-rails";
 
 export function FormsListRail({ filters }: { readonly filters: FormListFilters }) {
   const { status, sort, search, activeCount } = filters;
@@ -14,9 +13,8 @@ export function FormsListRail({ filters }: { readonly filters: FormListFilters }
   return (
     <RailFrame
       subject={t("forms.title")}
-      title={t("forms.title")}
       testId="qcms-forms-rail"
-      filterCount={activeCount}
+      sections={<RailTree items={formsRailItems("all")} />}
       {...(activeCount > 0
         ? { count: <RailCount>{activeFilterCount(activeCount)}</RailCount> }
         : {})}
@@ -50,11 +48,6 @@ export function FormsListRail({ filters }: { readonly filters: FormListFilters }
             }))}
           />
         </RailFilters>
-      }
-      actions={
-        <Link href="/forms/new" className="qcms-rail__action-link">
-          {t("forms.new")}
-        </Link>
       }
     />
   );

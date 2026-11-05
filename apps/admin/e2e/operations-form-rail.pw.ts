@@ -117,9 +117,8 @@ test("every operational screen of one form marks its own rail row and names its 
         )
         .toHaveCount(0);
     }
-    // The way back is the rail Header's back link, which is Operations itself (§7.0).
     await expect
-      .soft(rail.getByRole("link", { name: "Operations" }), `${screen.path} offers the way back`)
+      .soft(rail.getByRole("link", { name: "All forms" }), `${screen.path} offers all forms`)
       .toBeVisible();
   }
 

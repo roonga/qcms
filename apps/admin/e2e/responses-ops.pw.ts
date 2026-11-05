@@ -122,10 +122,12 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     await expect(page.getByTestId("qcms-response-detail")).toBeVisible();
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(`Response ${revised}`);
 
-    await expect(page.locator('[aria-label="Breadcrumb"]')).toHaveCount(0);
+    const crumbs = page.getByRole("navigation", { name: "Breadcrumb" });
+    await expect(crumbs.getByRole("link", { name: "Responses", exact: true })).toBeVisible();
+    await expect(crumbs.locator('[aria-current="page"]')).toHaveText(revised);
     const rail = page.getByTestId("qcms-operations-form-rail");
     await expect(rail.locator("summary.qcms-rail__summary")).not.toBeEmpty();
-    await expect(rail.getByRole("link", { name: "Operations", exact: true })).toBeVisible();
+    await expect(rail.getByRole("link", { name: "All forms", exact: true })).toBeVisible();
 
     await expect(page.getByRole("heading", { name: `Response ${revised}` })).toHaveCount(1);
 

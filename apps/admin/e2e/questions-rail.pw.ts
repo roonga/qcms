@@ -282,7 +282,7 @@ test("2026-09-27 switches a panel while the rail is a shut disclosure at 390px",
   await page.setViewportSize({ width: 1280, height: 900 });
 });
 
-test("2026-09-27 states the question's details in the rail and the way back above them", async ({
+test("2026-09-27 states the question's details in the rail and the way to all questions above them", async ({
   page,
 }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
@@ -300,7 +300,7 @@ test("2026-09-27 states the question's details in the rail and the way back abov
 
   await expect(page.getByRole("main")).not.toContainText("Slug:");
 
-  const back = rail.getByRole("link", { name: "Questions", exact: true });
+  const back = rail.getByRole("link", { name: "All questions", exact: true });
   await expect(back).toBeVisible();
   const backBottom = await back.evaluate((element) => element.getBoundingClientRect().bottom);
   const disclosureTop = await page

@@ -45,6 +45,8 @@
   --bp-compact: var(--breakpoint-compact);
   --bp-sidebar: var(--breakpoint-sidebar);
   --admin-topbar-h: calc(var(--admin-control-h) + 1rem + 1px);
+  --admin-rail-w: 15rem;
+  --admin-rail-collapsed-w: 3.5rem;
 }
 
 @theme static {
@@ -187,6 +189,62 @@ button {
   color: var(--color-text);
 }
 
+/* Every slot keeps its size in every area, so entering Operations moves nothing: the Exit and environment
+   slots stand empty elsewhere and the navigation scrolls rather than wraps. */
+.qcms-topbar__inner {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-areas:
+    "brand . env tools"
+    "nav nav nav exit";
+  grid-auto-rows: minmax(var(--admin-control-h), auto);
+  align-items: center;
+  column-gap: var(--space-3);
+  row-gap: var(--space-2);
+  padding-inline: var(--admin-section-pad);
+  padding-block: 0.5rem;
+}
+.qcms-topbar__toggle {
+  grid-area: toggle;
+  display: none;
+}
+.qcms-topbar__inner > .qcms-wordmark {
+  grid-area: brand;
+}
+.qcms-topbar__nav {
+  grid-area: nav;
+  min-inline-size: 0;
+  overflow-x: auto;
+}
+.qcms-topbar__exit {
+  grid-area: exit;
+  display: flex;
+  justify-content: flex-end;
+  inline-size: 9rem;
+}
+.qcms-topbar__env {
+  grid-area: env;
+  display: flex;
+  justify-content: flex-end;
+  inline-size: 8rem;
+}
+.qcms-topbar__tools {
+  grid-area: tools;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+@variant sidebar {
+  .qcms-topbar__inner {
+    grid-template-columns: auto auto minmax(0, 1fr) auto auto auto;
+    grid-template-areas: "toggle brand nav exit env tools";
+  }
+  .qcms-topbar__toggle {
+    display: flex;
+  }
+}
+
 .qcms-nav__link {
   position: relative;
   display: inline-flex;
@@ -235,8 +293,12 @@ button {
   color: var(--color-text);
 }
 .qcms-modeheader__exit {
-  display: inline-flex;
-  align-items: center;
+  display: inline-block;
+  max-inline-size: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: calc(var(--admin-control-h) - 2px);
   min-block-size: var(--admin-control-h);
   padding-inline: var(--space-3);
   border: 1px solid var(--color-border-strong);
@@ -1979,52 +2041,110 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 @variant sidebar {
   .qcms-shell-body:has(> .qcms-rail) {
     display: grid;
-    grid-template-columns: 15rem 1fr;
+    grid-template-columns: var(--admin-rail-w) 1fr;
+    grid-template-rows: auto 1fr;
+    transition: grid-template-columns 200ms ease-out;
+  }
+  .qcms-shell-body > .qcms-rail {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+  .qcms-shell-body:has(> .qcms-rail) > .qcms-crumbs,
+  .qcms-shell-body:has(> .qcms-rail) > #main-content {
+    grid-column: 2;
+  }
+  .qcms-shell-body:has(> .qcms-rail) > .qcms-crumbs {
+    grid-row: 1;
+  }
+  .qcms-shell-body:has(> .qcms-rail) > #main-content {
+    grid-row: 2;
+  }
+  /* Collapsed, the rail is a strip whose contents leave the tab order and the accessibility tree. */
+  :root[data-sidebar="hidden"] .qcms-shell-body:has(> .qcms-rail) {
+    grid-template-columns: var(--admin-rail-collapsed-w) 1fr;
+  }
+  :root[data-sidebar="hidden"] .qcms-rail > * {
+    visibility: hidden;
+  }
+  /* The assistant's temporary hold gives the whole track to the panel rather than keeping the strip. */
+  :root[data-sidebar-hold="hidden"] .qcms-shell-body:has(> .qcms-rail) {
+    grid-template-columns: 0 1fr;
+  }
+  :root[data-sidebar-hold="hidden"] .qcms-shell-body > .qcms-rail {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .qcms-shell-body:has(> .qcms-rail) {
+    transition: none;
   }
 }
 
-.qcms-rail__hide,
-.qcms-rail__show {
-  display: none;
+.qcms-crumbs {
+  min-inline-size: 0;
+  padding-inline: var(--admin-section-pad);
+  padding-block-start: var(--admin-section-pad);
 }
-@variant sidebar {
-  .qcms-rail__hide {
-    display: flex;
-    justify-content: flex-end;
-    padding-inline-end: 0.5rem;
-  }
-  :root[data-sidebar="hidden"] .qcms-rail,
-  :root[data-sidebar-hold="hidden"] .qcms-rail {
-    display: none;
-  }
-  :root[data-sidebar="hidden"] .qcms-rail__show,
-  :root[data-sidebar-hold="hidden"] .qcms-rail__show {
-    display: flex;
-    padding-block-start: var(--admin-section-pad);
-    padding-inline: var(--admin-section-pad);
-  }
-  :root[data-sidebar="hidden"] .qcms-shell-body:has(> .qcms-rail),
-  :root[data-sidebar-hold="hidden"] .qcms-shell-body:has(> .qcms-rail) {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr;
-  }
+/* One line at every width, so the heading below starts at the same height on every screen. The inset
+   keeps focus rings inside the clip. */
+.qcms-crumbs__list {
+  display: flex;
+  align-items: center;
+  min-block-size: 1.25rem;
+  margin: -4px;
+  padding: 4px;
+  overflow: hidden;
+  list-style: none;
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+  white-space: nowrap;
+}
+.qcms-crumbs__item {
+  display: inline-flex;
+  align-items: center;
+  min-inline-size: 0;
+}
+.qcms-crumbs__item:last-child > .qcms-crumbs__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.qcms-crumbs__link {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+.qcms-crumbs__link:hover {
+  text-decoration: underline;
+}
+.qcms-crumbs__text {
+  color: var(--color-text-muted);
+}
+.qcms-crumbs__text[aria-current="page"] {
+  color: var(--color-text);
+  font-weight: 600;
+}
+.qcms-crumbs__code {
+  font-family: var(--font-mono);
+}
+.qcms-crumbs__separator {
+  margin-inline: var(--space-2);
+  color: var(--color-text-muted);
 }
 
 .qcms-railtoggle {
   display: inline-flex;
   align-items: center;
-  min-block-size: 32px;
-  padding-inline: 0.5rem;
+  justify-content: center;
+  inline-size: var(--admin-control-h);
+  block-size: var(--admin-control-h);
   border: 1px solid transparent;
   border-radius: var(--radius-control);
   background-color: transparent;
-  color: var(--color-primary);
-  font-size: 13px;
-  font-weight: 600;
+  color: var(--color-text-muted);
   cursor: pointer;
 }
 .qcms-railtoggle:hover {
   background-color: var(--color-ghost-hover);
+  color: var(--color-text);
 }
 :root.hc .qcms-railtoggle {
   border-color: var(--color-border-strong);
@@ -2032,6 +2152,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 
 .qcms-rail {
   min-width: 0;
+  overflow-x: hidden;
   background-color: var(--color-surface);
   border-block-end: 1px solid var(--color-border);
 }
@@ -2087,6 +2208,9 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 @variant sidebar {
   .qcms-rail__summary {
     cursor: default;
+  }
+  .qcms-rail__summary--area {
+    display: none;
   }
   .qcms-rail__chevron {
     display: none;
@@ -2965,13 +3089,13 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 }
 
 .qcms-topbar:has(.qcms-envswitch[data-kind="prod"]) {
-  border-block-start: 3px solid var(--color-env-prod);
+  box-shadow: inset 0 3px 0 var(--color-env-prod);
 }
 .qcms-topbar:has(.qcms-envswitch[data-kind="nonprod"]) {
-  border-block-start: 3px solid var(--color-env-test);
+  box-shadow: inset 0 3px 0 var(--color-env-test);
 }
 .qcms-topbar:has(.qcms-envswitch[data-kind="unknown"]) {
-  border-block-start: 3px solid var(--color-border-strong);
+  box-shadow: inset 0 3px 0 var(--color-border-strong);
 }
 
 .qcms-rollback {
@@ -3037,21 +3161,19 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 }
 @variant sidebar {
   .qcms-shell-body:has(> .qcms-rail):has(> .qcms-assistant[data-mode="dock"]:not([hidden])) {
-    grid-template-columns: 15rem minmax(var(--bp-compact), 1fr) auto;
+    grid-template-columns: var(--admin-rail-w) minmax(var(--bp-compact), 1fr) auto;
   }
   :root[data-sidebar="hidden"]
-    .qcms-shell-body:has(> .qcms-rail):has(> .qcms-assistant[data-mode="dock"]:not([hidden])),
+    .qcms-shell-body:has(> .qcms-rail):has(> .qcms-assistant[data-mode="dock"]:not([hidden])) {
+    grid-template-columns: var(--admin-rail-collapsed-w) minmax(var(--bp-compact), 1fr) auto;
+  }
   :root[data-sidebar-hold="hidden"]
     .qcms-shell-body:has(> .qcms-rail):has(> .qcms-assistant[data-mode="dock"]:not([hidden])) {
-    grid-template-columns: minmax(var(--bp-compact), 1fr) auto;
+    grid-template-columns: 0 minmax(var(--bp-compact), 1fr) auto;
   }
-  :root[data-sidebar="hidden"]
-    .qcms-shell-body:has(> .qcms-assistant[data-mode="dock"]:not([hidden]))
-    > .qcms-rail__show,
-  :root[data-sidebar-hold="hidden"]
-    .qcms-shell-body:has(> .qcms-assistant[data-mode="dock"]:not([hidden]))
-    > .qcms-rail__show {
-    grid-column: 1 / -1;
+  .qcms-shell-body:has(> .qcms-rail) > .qcms-assistant[data-mode="dock"] {
+    grid-column: 3;
+    grid-row: 1 / span 2;
   }
 }
 /* Remove the grid item's automatic content minimum so wide tables scroll inside their box rather than

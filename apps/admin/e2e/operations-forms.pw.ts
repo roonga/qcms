@@ -160,8 +160,8 @@ test("the global queues are Operations destinations, reached from its rail", asy
 
   await expect(page).toHaveURL(/\/webhooks$/u);
   await expect(page.getByTestId("qcms-mode-header")).toHaveAttribute("data-mode", "operations");
-  await expect(page.getByRole("navigation", { name: "Primary" })).toHaveCount(0);
-  await page.getByTestId("qcms-webhooks-rail").getByRole("link", { name: "Operations" }).click();
+  await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
+  await page.getByTestId("qcms-webhooks-rail").getByRole("link", { name: "All forms" }).click();
   await expect(page).toHaveURL(/\/operations$/u);
 
   await page.getByTestId("qcms-operations-rail").getByRole("link", { name: "Erasure log" }).click();

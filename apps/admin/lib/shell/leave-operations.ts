@@ -82,6 +82,14 @@ export function rememberedReturn(pathname: string, search: string): string | und
   return `${pathname}${search}`;
 }
 
+function hasUnsafeCharacter(address: string): boolean {
+  for (let index = 0; index < address.length; index += 1) {
+    const code = address.charCodeAt(index);
+    if (code < 0x20 || code === 0x7f || code === 0x5c) return true;
+  }
+  return false;
+}
+
 /**
  * Where Exit Operations goes: the remembered address when it resolves to a same-origin path
  * outside Operations that this caller may open, otherwise the fallback.
@@ -94,7 +102,7 @@ export function operationsExitHref(
 ): string {
   if (remembered === null || remembered === undefined) return fallback;
   // URL parsing drops tab and newline and reads a backslash as a slash, so "/\t//host" leaves the origin.
-  if (!remembered.startsWith("/") || /[\u0000-\u001f\u007f\\]/u.test(remembered)) return fallback;
+  if (!remembered.startsWith("/") || hasUnsafeCharacter(remembered)) return fallback;
   let url: URL;
   try {
     url = new URL(remembered, origin);
