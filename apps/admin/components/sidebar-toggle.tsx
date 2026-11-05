@@ -19,6 +19,7 @@ import {
   RAIL_TOGGLE_ID,
   SIDEBAR_ATTRIBUTE,
   SIDEBAR_HOLD_ATTRIBUTE,
+  SIDEBAR_QUERY,
   sidebarCookie,
   sidebarHidden,
   type SidebarSetting,
@@ -124,6 +125,8 @@ export function RailToggle() {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
       if (!isRailShortcut(event) || typingOutsideRail()) return;
+      // The toggle is hidden below the breakpoint, so the chord must not persist a choice nobody can see.
+      if (!window.matchMedia(SIDEBAR_QUERY).matches) return;
       event.preventDefault();
       toggle();
     };

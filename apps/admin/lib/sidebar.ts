@@ -14,6 +14,9 @@ export const SIDEBAR_HOLD_ATTRIBUTE = "data-sidebar-hold";
 
 export const RAIL_TOGGLE_ID = "qcms-rail-toggle";
 
+/** Where the rail is a column the toggle can collapse; below it the rail is a disclosure. */
+export const SIDEBAR_QUERY = "(min-width: 64rem)";
+
 export const RAIL_REGION_ID = "qcms-rail-region";
 
 export function parseSidebarSetting(raw: string | undefined): SidebarSetting {
@@ -33,10 +36,6 @@ export function sidebarCookie(setting: SidebarSetting, secure: boolean): string 
 
 export function sidebarHidden(setting: SidebarSetting, held: boolean): boolean {
   return held || setting === "hidden";
-}
-
-export function nextSidebarSetting(setting: SidebarSetting): SidebarSetting {
-  return setting === "hidden" ? "shown" : "hidden";
 }
 
 export interface ShortcutFacts {

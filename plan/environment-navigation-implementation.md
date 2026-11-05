@@ -456,8 +456,8 @@ Phase 6 ships in slices, as the workspace ruling allows. Each slice is one branc
      and Erasure log for Operations, and the Workspaces tree from slice 4. An area rail has
      no back link and no title, so it never repeats the page heading; below the sidebar
      breakpoint its disclosure reads "Menu". The New question screen's panels expand beneath
-     its row. Dead letters is no longer a rail row, since it is a section of the Delivery
-     failures screen rather than a screen.
+     its row. Dead letters is a section of the Delivery failures screen, so it has no rail
+     row of its own.
    - **Item rails.** Inside one item the rail is that item's context: "‹ All forms" or
      "‹ All questions", the item's name as a label rather than a heading, and its screens.
      One form in Operations takes this shape by ruling; the editor's form rail and the

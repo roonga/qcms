@@ -957,7 +957,7 @@ These win over §7.0 where they disagree; the as-built record is phase 6 slice 5
   in one position and one line high.
 - **Ruling 8 is replaced.** An icon button at the top bar's start, also `Alt+Shift+S`,
   collapses the rail to a 56px strip over 200ms (none under reduced motion), remembered per
-  viewer. The "Show sidebar" row and its filter count are gone.
+  viewer. The content column carries no rail control of its own.
 - **One top bar in every area**, with the environment dropdown in a reserved slot, so nothing
   moves between Questions, Forms, Workspaces and Operations.
 

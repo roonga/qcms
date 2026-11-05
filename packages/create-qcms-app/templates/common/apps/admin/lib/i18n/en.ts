@@ -1843,7 +1843,7 @@ export const messages = {
   "ops.common.copied": "Copied to the clipboard.",
   "ops.common.copyFailed": "That could not be copied. Select the text and copy it manually.",
 
-  "ops.area.webhooks.title": "Webhook operations",
+  "ops.area.webhooks.title": "Delivery failures",
 
   "ops.area.webhooks.intro":
     "The dead-letter queue below covers every form. Endpoints are configured per form, on that form's Webhooks screen - open one from the Operations forms table.",

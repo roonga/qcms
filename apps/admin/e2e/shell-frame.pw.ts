@@ -7,11 +7,10 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { presetEnvironment } from "./support/environment.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
+import { ADMIN_BASE_URL } from "./support/harness-config.js";
 import { waitForHydration } from "./support/hydration.js";
 
-test.describe.configure({ mode: "serial" });
-
-const EMAIL = uniqueAdminEmail("shellframe");
+let EMAIL = "";
 
 const FORM_ID = "frm_auto_quote";
 const QUESTION_ID = "q_at_fault_accident";
@@ -22,8 +21,13 @@ const NARROW = 390;
 
 let secret = "";
 
-test.beforeAll(async () => {
+// Each test signs in on its own, so one failure cannot skip the rest of the file.
+test.beforeAll(async ({ browser }) => {
+  EMAIL = uniqueAdminEmail("shellframe");
   await createTestAdmin(EMAIL);
+  const page = await browser.newPage({ baseURL: ADMIN_BASE_URL });
+  secret = await enrollNewAdmin(page, EMAIL);
+  await page.close();
 });
 
 interface Frame {
@@ -48,7 +52,9 @@ async function frame(page: Page): Promise<Frame> {
   });
 }
 
+// Only after hydration: a class the server did not render is a hydration mismatch.
 async function highContrast(page: Page, on: boolean): Promise<void> {
+  await waitForHydration(page);
   await page.evaluate((enable) => {
     document.documentElement.classList.toggle("hc", enable);
   }, on);
@@ -64,7 +70,7 @@ test("the rail toggle collapses the rail to a strip from the keyboard, and the c
   page,
 }) => {
   test.setTimeout(300_000);
-  secret = await enrollNewAdmin(page, EMAIL);
+  await signInWithTotp(page, EMAIL, secret);
   await page.setViewportSize({ width: WIDE, height: 900 });
   await page.goto("/questions");
   await waitForHydration(page);

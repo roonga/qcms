@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RailToggle, SidebarProvider } from "./sidebar-toggle.tsx";
 import { t } from "../lib/i18n/en.ts";
@@ -31,7 +31,28 @@ const toggle = () => screen.getByTestId("qcms-rail-toggle");
 
 const SHORTCUT = { altKey: true, shiftKey: true, code: "KeyS", key: "S" };
 
+function viewport(wide: boolean): void {
+  vi.spyOn(window, "matchMedia").mockImplementation(
+    (query: string) =>
+      ({
+        matches: wide,
+        media: query,
+        onchange: null,
+        addListener: () => undefined,
+        removeListener: () => undefined,
+        addEventListener: () => undefined,
+        removeEventListener: () => undefined,
+        dispatchEvent: () => false,
+      }) as MediaQueryList,
+  );
+}
+
+beforeEach(() => {
+  viewport(true);
+});
+
 afterEach(() => {
+  vi.restoreAllMocks();
   document.documentElement.removeAttribute(SIDEBAR_ATTRIBUTE);
   document.documentElement.removeAttribute(SIDEBAR_HOLD_ATTRIBUTE);
   document.cookie = `${SIDEBAR_COOKIE}=; Path=/; Max-Age=0`;
@@ -83,6 +104,14 @@ describe("the rail toggle", () => {
     screen.getByRole("textbox", { name: "Search" }).focus();
     fireEvent.keyDown(document, SHORTCUT);
     expect(document.documentElement.getAttribute(SIDEBAR_ATTRIBUTE)).toBe("hidden");
+  });
+
+  it("ignores the chord below the breakpoint, where the toggle is not shown", () => {
+    viewport(false);
+    shell();
+    fireEvent.keyDown(document, SHORTCUT);
+    expect(document.documentElement.hasAttribute(SIDEBAR_ATTRIBUTE)).toBe(false);
+    expect(document.cookie).not.toContain(`${SIDEBAR_COOKIE}=hidden`);
   });
 
   it("reads the chord from the physical key", () => {
