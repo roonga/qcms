@@ -60,6 +60,8 @@ export const FAKE_SCRIPTS = [
   "plan-intake",
   "blank-to-published",
   "plan-publish-pins",
+  "plan-publish-pins-foreign",
+  "plan-blank-to-draft",
   "plan-releases",
   "plan-links",
   "plan-forms-create",
@@ -556,6 +558,18 @@ const READ_ALL_INPUTS: Readonly<
   count_dead_letters: () => ({}),
   diff_question_versions: () => ({ from: 1, to: 1 }),
   search_forms: () => ({ limit: 5 }),
+  // The reads that take a subject default to the screen's, so the walk exercises the
+  // defaulting as well as the port.
+  read_form: () => ({}),
+  list_form_versions: () => ({ limit: 5 }),
+  list_releases: () => ({ limit: 5 }),
+  list_links: () => ({ limit: 5 }),
+  list_webhooks: () => ({ limit: 5 }),
+  list_questions: () => ({ limit: 5 }),
+  read_question: () => ({}),
+  list_workspaces: () => ({}),
+  read_workspace: () => ({}),
+  list_erasures: () => ({ limit: 5 }),
 };
 
 /** A rule the draft actually declares, or a probe id so the bench answers `ruleNotFound`. */
@@ -925,6 +939,36 @@ function actionPlanSteps(
       return [mintStep(formId, 2), revokeStep(formId, factActiveLinkId(prompt))];
     case "plan-forms-create":
       return [createFormStep(prompt, "a"), createFormStep(prompt, "b")];
+    // One card from nothing: create the form, create a question, save the draft that pins
+    // it. The draft names the form by the create step's own result, as a real turn does.
+    case "plan-blank-to-draft": {
+      const questionId = newQuestionId(prompt);
+      return [
+        createFormStep(prompt),
+        {
+          kind: "question.create",
+          args: { slug: newSlug(prompt), definition: fakeQuestionDefinition(questionId) },
+        },
+        {
+          kind: "form.saveDraft",
+          args: {
+            formId: { fromStep: 0, field: "formId" },
+            definition: {
+              defaultLocale: "en",
+              title: { en: "What the assistant proposed" },
+              steps: [
+                {
+                  stepId: "stp_proposed",
+                  title: { en: "Proposed" },
+                  items: [{ questionId, version: 1 }],
+                },
+              ],
+              rules: [],
+            },
+          },
+        },
+      ];
+    }
     case "plan-questions-create":
       return [createQuestionStep(prompt, "a"), createQuestionStep(prompt, "b")];
     // The library's four lifecycle verbs over one draft version, in the order the screen
@@ -1003,6 +1047,11 @@ function actionPlanSteps(
       ];
     case "plan-publish-pins":
       return publishPinsSteps(prompt);
+    case "plan-publish-pins-foreign":
+      return [
+        { kind: "question.publish", args: { questionId: "q_not_pinned_here", version: 1 } },
+        { kind: "form.publish", args: { formId, environment: "test" } },
+      ];
     case "plan-26-steps":
       return Array.from({ length: 26 }, (_, index) => mintStep(formId, index + 1));
     default:
@@ -1229,6 +1278,8 @@ const ACTION_SCRIPTS: readonly FakeScript[] = [
   "plan-webhooks",
   "plan-workspace",
   "plan-publish-pins",
+  "plan-publish-pins-foreign",
+  "plan-blank-to-draft",
   ...(Object.keys(SINGLE_ACTIONS) as FakeScript[]),
 ];
 

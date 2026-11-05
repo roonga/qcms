@@ -346,6 +346,8 @@ function readFormPort(input: ScreenBuildInput): ReadFormPort {
       })),
       rules,
       pinnedQuestions: pinsOf(definition).slice(0, FACT_ROW_LIMIT),
+      definition: definition ?? null,
+      publishedDefinition: published?.definition ?? null,
       unpublishedPins: [...(await unpublishedDraftPins(input.deps, formId))].slice(
         0,
         FACT_ROW_LIMIT,

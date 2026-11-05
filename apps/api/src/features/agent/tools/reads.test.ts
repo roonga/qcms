@@ -217,11 +217,13 @@ describe("the read tools of D1 to D7", () => {
     },
   );
 
-  it("takes no answer-shaped filter: the response reads carry the screen's own four", () => {
+  // The subject id joined the four filters when a tool stopped taking its form from the
+  // screen; no filter takes an answer value, which is what this guards.
+  it("takes no answer-shaped filter: the response reads carry the subject and the four", () => {
     const members = Object.keys(
       (TOOLS.list_responses.inputSchema as unknown as { shape: Record<string, unknown> }).shape,
     ).sort();
-    expect(members).toEqual(["flagged", "from", "limit", "to", "version"]);
+    expect(members).toEqual(["flagged", "formId", "from", "limit", "to", "version"]);
   });
 
   it("refuses an input member no screen filter names", () => {

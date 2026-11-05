@@ -339,6 +339,9 @@ const Outputs = {
     rules: z.array(z.strictObject({ ruleId: z.string(), targets: z.array(z.string()) })),
     pinnedQuestions: z.array(PinOutput),
     unpublishedPins: z.array(PinOutput),
+    // Opaque on purpose, as a question definition is: author content the kernel validates.
+    definition: z.unknown(),
+    publishedDefinition: z.unknown(),
   }),
   list_form_versions: z.strictObject({
     formId: z.string(),
@@ -851,7 +854,10 @@ export const TOOLS: Readonly<Record<AgentToolName, AgentToolDef>> = Object.freez
     description:
       "Read one form: its slug and title, whether it has a draft, its latest published " +
       "version, what is released in the current environment, its steps with their question " +
-      "counts, its rule ids and the question versions its draft pins unpublished.",
+      "counts, its rule ids, the question versions its draft pins unpublished, and the " +
+      "COMPLETE working draft under `definition`. Start any form.saveDraft from that " +
+      "definition: a draft save replaces the draft wholesale, so anything you leave out is " +
+      "dropped.",
     inputSchema: FormSubjectInput,
     outputSchema: Outputs.read_form,
     cell: FORM_READ,

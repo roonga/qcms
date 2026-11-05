@@ -330,6 +330,13 @@ export interface FormReport {
   readonly rules: readonly { readonly ruleId: string; readonly targets: readonly string[] }[];
   readonly pinnedQuestions: readonly { readonly questionId: string; readonly version: number }[];
   readonly unpublishedPins: readonly { readonly questionId: string; readonly version: number }[];
+  /**
+   * The whole working draft, and the latest published version. Authoring content, opaque
+   * like a question definition: a summary cannot be edited without dropping whatever it
+   * leaves out, and a draft save replaces the draft wholesale.
+   */
+  readonly definition: unknown;
+  readonly publishedDefinition: unknown;
 }
 
 export type ReadFormPort = (input: { readonly formId?: string | undefined }) => Promise<FormReport>;

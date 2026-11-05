@@ -23,11 +23,15 @@ function propose(args: {
   readonly proposedDraft?: ProposeInput["proposedDraft"];
   readonly validate?: ProposeInput["validate"];
   readonly savedDraft?: ProposeInput["savedDraft"];
+  readonly workspaceNames?: ProposeInput["workspaceNames"];
+  /** The builder by default, which is the one screen that may run a local kind. */
+  readonly screen?: string;
 }) {
   const grants = args.grants ?? [EDITOR, APPROVER];
   return buildProposal({
     steps: args.steps,
     ...(args.savedDraft === undefined ? {} : { savedDraft: args.savedDraft }),
+    ...(args.workspaceNames === undefined ? {} : { workspaceNames: args.workspaceNames }),
     ...(args.proposedDraft === undefined ? {} : { proposedDraft: args.proposedDraft }),
     validate: args.validate ?? (() => Promise.resolve({ issues: [], warnings: [] })),
     subject: "user_1",
@@ -39,7 +43,9 @@ function propose(args: {
       environments: ["test", "prod"],
       current: args.current ?? "test",
       formId: "frm_a",
+      screen: args.screen ?? "/forms/[formId]",
     }),
+    screen: args.screen ?? "/forms/[formId]",
     requireSecondApprover: args.requireSecondApprover ?? false,
     productionEnvironment: "prod",
     formId: "frm_a",
@@ -364,6 +370,13 @@ describe("buildProposal: `link.mint`'s expiry is the instant the request carries
 
 const applyDraft: ProposedStep = { kind: "apply-draft", args: { formId: "frm_a" } };
 
+/** A draft as `form.saveDraft` carries it: everything but the form id, which the step names. */
+function draftBody(): Record<string, unknown> {
+  const rest = { ...(draftFixture("frm_a") as unknown as Record<string, unknown>) };
+  delete rest["formId"];
+  return rest;
+}
+
 function draftFixture(formId: string): FormDefinition {
   const parsed = parseFormDefinition({
     formId,
@@ -573,7 +586,7 @@ describe("buildProposal: publishing the questions a saved draft pins (issue #120
 
   it("refuses a question the saved draft does not pin, and names what it does", async () => {
     const outcome = await propose({
-      steps: [publishQuestion("q_somebody_elses", 1)],
+      steps: [publishQuestion("q_somebody_elses", 1), publish],
       savedDraft: saved,
     });
     expect(outcome.ok).toBe(false);
@@ -585,7 +598,7 @@ describe("buildProposal: publishing the questions a saved draft pins (issue #120
 
   it("refuses a version the saved draft does not pin, for a question it does", async () => {
     const outcome = await propose({
-      steps: [publishQuestion("q_given_name", 2)],
+      steps: [publishQuestion("q_given_name", 2), publish],
       savedDraft: saved,
     });
     expect(outcome.ok).toBe(false);
@@ -599,6 +612,7 @@ describe("buildProposal: publishing the questions a saved draft pins (issue #120
           kind: "question.publish",
           args: { questionId: "q_given_name", version: { fromStep: 0, field: "version" } },
         },
+        publish,
       ],
       savedDraft: saved,
     });
@@ -606,7 +620,7 @@ describe("buildProposal: publishing the questions a saved draft pins (issue #120
   });
 
   it("refuses the kind outright where the screen cannot report the draft's pins", async () => {
-    const outcome = await propose({ steps: [publishQuestion("q_given_name", 1)] });
+    const outcome = await propose({ steps: [publishQuestion("q_given_name", 1), publish] });
     expect(outcome.ok).toBe(false);
     if (outcome.ok) return;
     expect(outcome.reason).toContain("cannot say which question versions");
@@ -658,7 +672,7 @@ describe("buildProposal: publishing the questions a saved draft pins (issue #120
       steps: [
         publishQuestion("q_given_name", 1),
         publish,
-        { kind: "form.close", args: { formId: "frm_a" } },
+        { kind: "form.settings", args: { formId: "frm_a", challengeRequired: true } },
       ],
       savedDraft: saved,
     });
@@ -671,7 +685,7 @@ describe("buildProposal: publishing the questions a saved draft pins (issue #120
   it("accepts the same plan with the form publish last", async () => {
     const outcome = await propose({
       steps: [
-        { kind: "form.close", args: { formId: "frm_a" } },
+        { kind: "form.settings", args: { formId: "frm_a", challengeRequired: true } },
         publishQuestion("q_given_name", 1),
         publish,
       ],
@@ -682,23 +696,39 @@ describe("buildProposal: publishing the questions a saved draft pins (issue #120
 
   it("leaves a plan bound to no revision free to act after the form publish", async () => {
     const outcome = await propose({
-      steps: [publish, { kind: "form.close", args: { formId: "frm_a" } }],
+      steps: [
+        publish,
+        { kind: "form.settings", args: { formId: "frm_a", challengeRequired: true } },
+      ],
       savedDraft: saved,
     });
     expect(outcome.ok).toBe(true);
   });
 
-  it("refuses a token step after apply-draft, whose save moves the bound revision", async () => {
+  // A plan with no form publish reads no pin set and binds no revision, so a draft write
+  // inside it strands nothing.
+  it("leaves a draft write free where the plan binds no revision", async () => {
     const outcome = await propose({
       steps: [applyDraft, publishQuestion("q_given_name", 1)],
       proposedDraft: { definition: draftFixture("frm_a"), newQuestions: [] },
       savedDraft: saved,
     });
+    expect(outcome.ok).toBe(true);
+  });
+
+  it("refuses a token step after a draft write in a plan that is bound", async () => {
+    const outcome = await propose({
+      steps: [
+        { kind: "form.saveDraft", args: { formId: "frm_a", definition: draftBody() } },
+        publishQuestion("q_given_name", 1),
+        publish,
+      ],
+      savedDraft: saved,
+    });
     expect(outcome.ok).toBe(false);
     if (outcome.ok) return;
-    expect(outcome.reason).toContain("Step 1 (apply-draft) saves the form's draft");
-    expect(outcome.reason).toContain("step 2 could not run");
-    expect(outcome.reason).toContain("Propose apply-draft on its own");
+    expect(outcome.reason).toContain("saves the form's draft");
+    expect(outcome.reason).toContain("step 2");
   });
 
   it("refuses apply-draft before the publishes even with the form publish last", async () => {
@@ -739,11 +769,312 @@ describe("buildProposal: publishing the questions a saved draft pins (issue #120
 
   it("refuses the kind when the form has no saved draft to read a revision from", async () => {
     const outcome = await propose({
-      steps: [publishQuestion("q_given_name", 1)],
+      steps: [publishQuestion("q_given_name", 1), publish],
       savedDraft: () => Promise.resolve(undefined),
     });
     expect(outcome.ok).toBe(false);
     if (outcome.ok) return;
     expect(outcome.reason).toContain("no saved draft");
+  });
+});
+
+describe("buildProposal: the route's own definition check, before any card", () => {
+  const phone = (pattern: string) => ({
+    questionId: "q_phone",
+    type: "shortText",
+    label: { en: "Phone" },
+    required: true,
+    constraints: { pattern },
+  });
+
+  it("refuses a pattern a browser cannot compile and names the spelling to use", async () => {
+    const outcome = await propose({
+      steps: [
+        { kind: "question.create", args: { slug: "phone", definition: phone("^[0-9 ()-]+$") } },
+      ],
+    });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toContain("constraints.pattern");
+    expect(outcome.reason).toContain("'v' flag");
+    // The suggestion the authoring boundary derived, so the model corrects itself in one go.
+    expect(outcome.reason).toContain("\\(");
+    expect(outcome.reason).toContain("propose the plan again");
+  });
+
+  it("accepts the escaped spelling of the same pattern", async () => {
+    const outcome = await propose({
+      steps: [
+        {
+          kind: "question.create",
+          args: { slug: "phone", definition: phone("^\\+?[0-9 \\(\\)\\-]{7,20}$") },
+        },
+      ],
+    });
+    expect(outcome.ok).toBe(true);
+  });
+
+  it("refuses a definition the kernel will not parse, naming the question", async () => {
+    const outcome = await propose({
+      steps: [
+        { kind: "question.create", args: { slug: "broken", definition: { questionId: "q_x" } } },
+      ],
+    });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toContain("q_x");
+  });
+});
+
+describe("buildProposal: a plan that creates a form and its questions", () => {
+  const question = {
+    questionId: "q_new_one",
+    type: "shortText",
+    label: { en: "New one" },
+    required: false,
+    constraints: {},
+  };
+
+  function createPlan(): readonly ProposedStep[] {
+    return [
+      { kind: "form.create", args: { slug: "new-form", defaultLocale: "en" } },
+      { kind: "question.create", args: { slug: "new-one", definition: question } },
+      {
+        kind: "form.saveDraft",
+        args: {
+          formId: { fromStep: 0, field: "formId" },
+          definition: {
+            defaultLocale: "en",
+            title: { en: "New form" },
+            steps: [
+              {
+                stepId: "stp_one",
+                title: { en: "One" },
+                items: [{ questionId: "q_new_one", version: 1 }],
+              },
+            ],
+            rules: [],
+          },
+        },
+      },
+    ];
+  }
+
+  it("accepts the three steps and signs one token for them", async () => {
+    const outcome = await propose({ steps: createPlan(), screen: "/forms" });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.proposal.steps.map((step) => step.kind)).toEqual([
+      "form.create",
+      "question.create",
+      "form.saveDraft",
+    ]);
+    const verified = await verifyProposalToken(APP_KEY, outcome.proposal.token ?? "");
+    expect(verified.ok).toBe(true);
+  });
+
+  it("validates the draft against the questions its own earlier steps create", async () => {
+    let seen: unknown;
+    const outcome = await propose({
+      steps: createPlan(),
+      screen: "/forms",
+      validate: (_definition, pending) => {
+        seen = pending;
+        return Promise.resolve({ issues: [], warnings: [] });
+      },
+    });
+    expect(outcome.ok).toBe(true);
+    expect(seen).toEqual([{ questionId: "q_new_one", version: 1, definition: question }]);
+  });
+
+  it("tells the card which step creates each new question", async () => {
+    const outcome = await propose({ steps: createPlan(), screen: "/forms" });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.proposal.steps[2]?.draft?.createdBy).toEqual([
+      { questionId: "q_new_one", step: 1 },
+    ]);
+  });
+
+  it("binds the draft without its form id, which the create step mints", async () => {
+    const outcome = await propose({ steps: createPlan(), screen: "/forms" });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    const bound = outcome.proposal.steps[2]?.args["definition"] as Record<string, unknown>;
+    expect(Object.keys(bound).sort()).toEqual(["defaultLocale", "rules", "steps", "title"]);
+  });
+
+  it("refuses a plan whose draft has a problem the plan does not fix", async () => {
+    const outcome = await propose({
+      steps: createPlan(),
+      screen: "/forms",
+      validate: () =>
+        Promise.resolve({
+          issues: [{ code: "BACKWARD_RULE_TARGET", message: "A rule targets an earlier step" }],
+          warnings: [],
+        } as never),
+    });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toContain("A rule targets an earlier step");
+    expect(outcome.reason).toContain("THIS plan");
+  });
+
+  it("is not refused by an unpublished pin, whoever pinned it", async () => {
+    const outcome = await propose({
+      steps: createPlan(),
+      screen: "/forms",
+      validate: () =>
+        Promise.resolve({
+          issues: [
+            {
+              code: "UNPUBLISHED_QUESTION_PIN",
+              message: "pins an unpublished version",
+              path: { question: "q_somebody_elses" },
+            },
+          ],
+          warnings: [],
+        } as never),
+    });
+    expect(outcome.ok).toBe(true);
+  });
+});
+
+describe("buildProposal: one plan may fix a pinned question and change the draft", () => {
+  const fixed = {
+    questionId: "q_old_one",
+    type: "longText",
+    label: { en: "Old one" },
+    required: true,
+    constraints: { maxLength: 100 },
+  };
+
+  it("treats a question the plan rewrites as the pending definition for its version", async () => {
+    let seen: unknown;
+    const outcome = await propose({
+      steps: [
+        {
+          kind: "question.saveDraft",
+          args: { questionId: "q_old_one", version: 3, definition: fixed },
+        },
+        { kind: "form.saveDraft", args: { formId: "frm_a", definition: draftBody() } },
+      ],
+      validate: (_definition, pending) => {
+        seen = pending;
+        return Promise.resolve({ issues: [], warnings: [] });
+      },
+    });
+    expect(outcome.ok).toBe(true);
+    expect(seen).toEqual([{ questionId: "q_old_one", version: 3, definition: fixed }]);
+  });
+
+  it("does not call a rewritten question new, since the plan creates none", async () => {
+    const outcome = await propose({
+      steps: [
+        {
+          kind: "question.saveDraft",
+          args: { questionId: "q_old_one", version: 3, definition: fixed },
+        },
+        { kind: "form.saveDraft", args: { formId: "frm_a", definition: draftBody() } },
+      ],
+    });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.proposal.steps[1]?.draft?.newQuestions).toEqual([]);
+    expect(outcome.proposal.steps[1]?.draft?.createdBy).toEqual([]);
+  });
+});
+
+describe("buildProposal: one Confirm covers one context", () => {
+  it("refuses a plan mixing an authoring kind with an operational one", async () => {
+    const outcome = await propose({
+      steps: [publish, { kind: "form.close", args: { formId: "frm_a" } }],
+    });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toContain("mixes authoring");
+    expect(outcome.reason).toContain("two plans");
+  });
+
+  it("accepts a plan of operational kinds alone", async () => {
+    const outcome = await propose({
+      steps: [mint, { kind: "form.close", args: { formId: "frm_a" } }],
+    });
+    expect(outcome.ok).toBe(true);
+  });
+
+  it("accepts a plan that spans authoring and administration", async () => {
+    const outcome = await propose({
+      steps: [
+        { kind: "form.settings", args: { formId: "frm_a", challengeRequired: true } },
+        {
+          kind: "workspace.settings",
+          args: { workspaceId: "wsp_a", requireSecondApprover: true },
+        },
+      ],
+      grants: [EDITOR, APPROVER, { role: "forms.owner", environments: ["all"], forms: ["all"] }],
+    });
+    expect(outcome.ok).toBe(true);
+  });
+});
+
+describe("buildProposal: a local kind is refused away from its own screen", () => {
+  it("names the screen that runs it and the kinds that work from anywhere", async () => {
+    const outcome = await propose({
+      steps: [applyDraft],
+      screen: "/forms",
+      proposedDraft: { definition: draftFixture("frm_a"), newQuestions: [] },
+    });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toContain("/forms/[formId] screen itself");
+    expect(outcome.reason).toContain("form.saveDraft");
+  });
+
+  it("still says it is a permission when the caller holds no cell for it", async () => {
+    const outcome = await propose({
+      steps: [applyDraft],
+      grants: [VIEWER],
+      proposedDraft: { definition: draftFixture("frm_a"), newQuestions: [] },
+    });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toContain("form: write");
+  });
+
+  it("refuses an apply-draft naming a form other than the screen's own", async () => {
+    const outcome = await propose({
+      steps: [{ kind: "apply-draft", args: { formId: "frm_other" } }],
+      proposedDraft: { definition: draftFixture("frm_other"), newQuestions: [] },
+    });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toContain("other than the one this screen has open");
+  });
+});
+
+describe("buildProposal: the workspace names a card shows", () => {
+  it("carries the names of the workspaces its own arguments name", async () => {
+    const outcome = await propose({
+      steps: [
+        { kind: "form.create", args: { slug: "named", defaultLocale: "en", workspaceId: "wsp_a" } },
+      ],
+      screen: "/forms",
+      workspaceNames: (ids) =>
+        Promise.resolve(ids.map((workspaceId) => ({ workspaceId, name: "Clinic forms" }))),
+    });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.proposal.workspaces).toEqual([{ workspaceId: "wsp_a", name: "Clinic forms" }]);
+  });
+
+  it("carries none where no step names a workspace", async () => {
+    const outcome = await propose({
+      steps: [publish],
+      workspaceNames: () => Promise.resolve([{ workspaceId: "wsp_a", name: "Clinic forms" }]),
+    });
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.proposal.workspaces).toBeUndefined();
   });
 });

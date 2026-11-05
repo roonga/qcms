@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { REDACT_FRAGMENTS } from "@roonga/qcms-observability";
 
-import { ACTION_KIND_NAMES, actionKind } from "./actions/registry.js";
+import { ACTION_KIND_NAMES, actionKind, actsInOneEnvironment } from "./actions/registry.js";
 import {
   SCREEN_IDS,
   SCREENS,
@@ -236,5 +236,71 @@ describe("no answer value can be described by any schema", () => {
     expect(offendingFragment("answers")).toBe("answer");
     expect(offendingFragment("answerValue")).toBe("answer");
     expect(offendingFragment("secretEncrypted")).toBe("secret");
+  });
+});
+
+describe("the environment line a card shows is derived, not listed", () => {
+  it("shows one for a kind whose act is one environment's, and for no other", () => {
+    const shows: string[] = [];
+    const hides: string[] = [];
+    for (const name of ACTION_KIND_NAMES) {
+      const def = actionKind(name);
+      if (def === undefined) continue;
+      (actsInOneEnvironment(def) ? shows : hides).push(name);
+    }
+    // Derived from the kind's own cells through SEC-3's policy, so a new kind lands on the
+    // right side without anyone remembering to add it here.
+    expect(shows).toEqual([
+      "form.publish",
+      "form.release",
+      "form.close",
+      "form.reopen",
+      "link.mint",
+      "link.revoke",
+      "response.erase",
+      "response.unflag",
+      "response.export",
+      "webhook.create",
+      "webhook.rotate",
+      "webhook.retarget",
+      "webhook.reactivate",
+      "webhook.deactivate",
+      "webhook.redeliver",
+    ]);
+    expect(hides).toContain("form.create");
+    expect(hides).toContain("form.saveDraft");
+    expect(hides).toContain("apply-draft");
+    expect(hides).toContain("form.settings");
+    expect(hides).toContain("access.grant");
+    expect(hides).toContain("question.create");
+  });
+
+  it("names the publish by its argument, which is why it keeps its line", () => {
+    const publish = actionKind("form.publish");
+    expect(publish?.environmentFrom).toBe("argument");
+    // Its own cell is not environment-scoped; `alsoCell` and the argument are.
+    expect(actsInOneEnvironment(publish as NonNullable<typeof publish>)).toBe(true);
+  });
+});
+
+describe("the kinds that carry a definition the route parses", () => {
+  it("declares every question-definition kind, so the propose tool checks it", () => {
+    const declared = ACTION_KIND_NAMES.filter(
+      (name) => actionKind(name)?.carriesQuestionDefinition === true,
+    );
+    expect(declared).toEqual(["question.create", "question.saveDraft"]);
+  });
+
+  it("declares the kinds whose draft argument the server validates", () => {
+    const declared = ACTION_KIND_NAMES.filter(
+      (name) => actionKind(name)?.carriesDraftArgument === true,
+    );
+    expect(declared).toEqual(["form.saveDraft"]);
+  });
+
+  it("keeps apply-draft the one local kind, which is what ties it to one screen", () => {
+    const local = ACTION_KIND_NAMES.filter((name) => actionKind(name)?.local === true);
+    expect(local).toEqual(["apply-draft"]);
+    expect(actionKind("apply-draft")?.screen).toBe("/forms/[formId]");
   });
 });

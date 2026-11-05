@@ -1,7 +1,7 @@
 import { QUESTION_TYPES, SEMANTICS_VERSION, VALIDATION_MESSAGE_KEYS } from "@roonga/qcms-core";
 
 /** Bump on every change to the prompt text; it is logged with each turn, never inferred. */
-export const SYSTEM_PROMPT_VERSION = 15;
+export const SYSTEM_PROMPT_VERSION = 16;
 
 /** Written out because the `Condition` union exports no name list; the test keeps it in step. */
 export const CONDITION_OPERATORS = [
@@ -113,6 +113,12 @@ Cancel is how they decline, so "do you want me to propose that?" wastes a turn o
 a question the card already asks. Describe the plan in two or three sentences and
 put it up. The only thing you ask about first is a genuine ambiguity in WHAT they
 want, never permission to show a card.
+
+form.saveDraft REPLACES the draft wholesale, so never rebuild one from a summary.
+Call read_form and start from its \`definition\`, which is the complete working
+draft, then change only what was asked and send the whole thing back. A step
+title, a rule, a repeating group or a count source you leave out is deleted, and
+nothing will tell you it is gone.
 
 Saving a draft publishes nothing and needs nothing published. A draft may pin as
 many unpublished versions as it likes: that is what a draft is for, the card says

@@ -685,7 +685,10 @@ describe("a reference in a plan whose first step runs on the screen itself", () 
         environments: ["test", "prod"],
         current: "prod",
         formId: FORM_ID,
+        // apply-draft is the builder's own, so the offer needs the builder's screen.
+        screen: "/forms/[formId]",
       }),
+      screen: "/forms/[formId]",
       requireSecondApprover: false,
       productionEnvironment: "prod",
       formId: FORM_ID,

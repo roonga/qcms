@@ -74,7 +74,9 @@ beforeAll(async () => {
 
   deps = makeDeps({
     db: testDb.db,
-    env: validEnv({ QCMS_FLAG_AGENT_AUTHORING: "fake" }),
+    // The read walk calls one tool per step, and the caller holds every cell, so the
+    // ceiling has to clear the whole registry for a single turn to cover it.
+    env: validEnv({ QCMS_FLAG_AGENT_AUTHORING: "fake", QCMS_AGENT_MAX_STEPS: "40" }),
     logger: recorder.logger,
     draftAssistant: aiSdkDraftAssistant({
       model: recordingModel,
@@ -741,7 +743,8 @@ describe("every screen's context, with a sentinel in the database", () => {
       }
     }
     // The read tools only: a propose tool puts a card up for the user to confirm, so a
-    // read walk never executes one.
+    // read walk never executes one. The walk runs as the seeded owner, who holds every
+    // cell, so every read tool is offered somewhere in it.
     expect([...executed].sort()).toEqual([...AGENT_READ_TOOL_NAMES].sort());
   });
 
@@ -976,7 +979,7 @@ describe("a reduced-grant caller over HTTP", () => {
   );
 
   it(
-    "refuses that caller every draft verb and reaches no card",
+    "offers that caller no draft verb at all, and reaches no card",
     async () => {
       const res = await turnAs(viewer, "/assist", {
         conversation: [{ role: "user", content: "rewrite this form #qcms-fake:read-all" }],
@@ -987,13 +990,35 @@ describe("a reduced-grant caller over HTTP", () => {
       expect(res.status).toBe(200);
       const events = await readEvents(res);
       const ended = outcomes(events);
-      // The read tool the viewer's grants do cover, so the three refusals below are the
-      // cell and not a turn that failed before any tool ran.
+      // The read tool the viewer's grants do cover, so the absences below are the cell and
+      // not a turn that failed before any tool ran.
       expect(ended.get("search_question_library")).toBe("done");
-      expect(ended.get("propose_questions")).toBe("failed");
-      expect(ended.get("propose_draft")).toBe("failed");
-      expect(ended.get("validate_draft")).toBe("failed");
+      // Not offered rather than offered and refused: the model is never told they exist.
+      for (const verb of ["propose_questions", "propose_draft", "validate_draft"]) {
+        expect(ended.has(verb), verb).toBe(false);
+      }
       expect(events.some((event) => event.type === "action")).toBe(false);
+      expect(events.some((event) => event.type === "plan")).toBe(false);
+    },
+    BOOT_TIMEOUT,
+  );
+
+  it(
+    "offers a read-only caller neither propose tool, so it cannot put a card up",
+    async () => {
+      const res = await turnAs(viewer, "/assist", {
+        conversation: [{ role: "user", content: "close this form #qcms-fake:read-only-user" }],
+        screen: "/forms",
+        conversationId: "cnv_viewer_propose",
+      });
+      expect(res.status).toBe(200);
+      const events = await readEvents(res);
+      const announced = events.flatMap((event) =>
+        event.type === "status" && event.tool !== undefined ? [event.tool] : [],
+      );
+      expect(announced).not.toContain("propose_action");
+      expect(announced).not.toContain("propose_plan");
+      expect(events.some((event) => event.type === "action" || event.type === "plan")).toBe(false);
     },
     BOOT_TIMEOUT,
   );
@@ -1026,9 +1051,9 @@ describe("a reduced-grant caller over HTTP", () => {
       expect(res.status).toBe(200);
       const events = await readEvents(res);
       // The screen's own read is `form: read`, which this caller holds, so the facts
-      // reached the provider and the refusal below is the tool's own cell.
+      // reached the provider; the preview cell it does not hold leaves the tool unoffered.
       expect(JSON.stringify(providerCalls)).toContain(FORM_ID);
-      expect(outcomes(events).get("test_rule")).toBe("failed");
+      expect(outcomes(events).has("test_rule")).toBe(false);
     },
     BOOT_TIMEOUT,
   );

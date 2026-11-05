@@ -123,6 +123,11 @@ export interface ProposeInput {
   readonly appKey: string;
   /** The environment the switcher named for this turn. */
   readonly current: string;
+  /**
+   * The screen the turn is on. It decides one thing: whether a `local` kind is absent
+   * because of where the turn is rather than because of a grant, so the refusal says which.
+   */
+  readonly screen?: string | undefined;
   readonly offered: readonly OfferedActionKind[];
   /** The workspace's ADR-41 switch, which refuses a publish-then-release-to-prod plan. */
   readonly requireSecondApprover: boolean;
@@ -248,7 +253,8 @@ function proposedDraftRefusal(
 function questionDefinitionRefusal(step: ProposedStep, index: number): string | undefined {
   const checked = checkQuestionDefinition(step.args["definition"]);
   if (checked.ok) return undefined;
-  const named = step.args["questionId"] ?? step.args["slug"];
+  const definition = step.args["definition"] as { readonly questionId?: unknown } | undefined;
+  const named = step.args["questionId"] ?? definition?.questionId ?? step.args["slug"];
   const subject = typeof named === "string" && named !== "" ? ` (${named})` : "";
   const issues = checked.issues
     .map((issue) => {
@@ -405,9 +411,9 @@ function stepRefusal(
 
   const allowed = offeredEnvironments(input.offered, step.kind);
   if (allowed.length === 0) {
-    // A local kind is absent because of where the turn is, not because of a grant, so it
-    // says so and names the kinds that do work from anywhere.
-    if (def.local === true) {
+    // A local kind away from its own screen is absent because of where the turn is rather
+    // than because of a grant, so it says so and names the kinds that work from anywhere.
+    if (def.local === true && def.screen !== input.screen) {
       return {
         reason:
           `${step.kind} is run by the ${def.screen} screen itself, so it can only be proposed ` +
