@@ -1837,15 +1837,12 @@ export const messages = {
   "ops.common.copied": "Copied to the clipboard.",
   "ops.common.copyFailed": "That could not be copied. Select the text and copy it manually.",
 
-  "ops.area.responses.formsFailed": "The form list could not be loaded. {message}",
 
   "ops.area.webhooks.title": "Webhook operations",
 
   "ops.area.webhooks.intro":
-    "The dead-letter queue below covers every form. Endpoints are configured per form, on that form's Webhooks screen - open one from the list below.",
+    "The dead-letter queue below covers every form. Endpoints are configured per form, on that form's Webhooks screen - open one from the Operations forms table.",
 
-  "ops.area.webhooks.pickForm": "Configure webhooks for {slug}",
-  "ops.area.webhooks.noForms": "No forms exist yet, so there is nothing to deliver.",
   "ops.area.webhooks.filter.form": "Form",
   "ops.area.webhooks.filter.formAll": "Any form",
 
@@ -2194,6 +2191,7 @@ export const messages = {
     "Deliveries that exhausted their retries. Fix the target, then redeliver: a redelivered item is queued for the next delivery pass.",
   "ops.deadLetters.table": "Dead-lettered deliveries",
   "ops.deadLetters.column.event": "Event",
+  "ops.deadLetters.column.form": "Form",
   "ops.deadLetters.column.target": "Endpoint",
   "ops.deadLetters.column.attempts": "Attempts",
   "ops.deadLetters.column.lastError": "Last error",
