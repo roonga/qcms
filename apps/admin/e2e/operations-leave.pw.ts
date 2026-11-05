@@ -130,8 +130,11 @@ test("Exit Operations returns to where the operator came from, without the warni
   page,
 }) => {
   await signInWithTotp(page, EMAIL, secret);
-  await page.goto(`/forms/${FORM_ID}/rules`);
+  await page.goto(`/forms/${FORM_ID}/versions`);
   await waitForHydration(page);
+  // Where the editor settled, which is the address Exit should come back to.
+  const cameFrom = new URL(page.url()).pathname;
+  expect(cameFrom).toMatch(new RegExp(`^/forms/${FORM_ID}`, "u"));
 
   await page
     .getByRole("navigation", { name: "Primary" })
@@ -142,9 +145,9 @@ test("Exit Operations returns to where the operator came from, without the warni
   await expect(page).toHaveURL(new RegExp(`/operations/forms/${FORM_ID}/`, "u"));
 
   const exit = page.getByTestId("qcms-mode-exit");
-  await expect(exit).toHaveAttribute("href", `/forms/${FORM_ID}/rules`);
+  await expect(exit).toHaveAttribute("href", cameFrom);
   await exit.click();
-  await expect(page).toHaveURL(new RegExp(`/forms/${FORM_ID}/rules$`, "u"));
+  await expect(page).toHaveURL(new RegExp(`${cameFrom}$`, "u"));
   await expect(leaveDialog(page)).toHaveCount(0);
   await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
 });
