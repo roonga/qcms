@@ -182,7 +182,11 @@ test("an access group is created with the pickers, granted to a member and taken
   await expect(page.getByText(`${MEMBER} now holds ${name}.`)).toBeVisible();
   await expect(row).toContainText(MEMBER);
 
-  await row.getByRole("button", { name: `Revoke this access group from ${MEMBER}` }).click();
+  await row
+    .getByRole("listitem")
+    .filter({ hasText: MEMBER })
+    .getByRole("button", { name: "Revoke", exact: true })
+    .click();
   await expect(row).toContainText("Nobody");
   await row.getByRole("button", { name: "Remove group" }).click();
   await expect(page.getByRole("region", { name: "Access groups" })).not.toContainText(name);
