@@ -1,8 +1,6 @@
-import Link from "next/link";
-
 import { Select, TextField } from "@/components/kit";
 import { activeFilterCount, RailFilters } from "@/components/rail-filters";
-import { RailCount, RailFrame } from "@/components/rail-frame";
+import { RailCount, RailFrame, RailTree } from "@/components/rail-frame";
 import { t } from "@/lib/i18n/en";
 import { LIBRARY_SEARCH_MAX_LENGTH } from "@/lib/library-search";
 import {
@@ -12,6 +10,7 @@ import {
   type OperationsListState,
   type OperationsWorkspace,
 } from "@/lib/ops/operations-forms";
+import { operationsRailItems } from "@/lib/shell/area-rails";
 
 export function OperationsFormsRail({
   state,
@@ -27,38 +26,11 @@ export function OperationsFormsRail({
   return (
     <RailFrame
       subject={t("shell.mode.operations.name")}
-      title={t("shell.mode.operations.name")}
       testId="qcms-operations-rail"
-      filterCount={activeCount}
       {...(activeCount > 0
         ? { count: <RailCount>{activeFilterCount(activeCount)}</RailCount> }
         : {})}
-      {...(showQueues
-        ? {
-            sections: (
-              <ul className="qcms-rail__group" data-rail-group="sections">
-                <li>
-                  <Link
-                    href="/webhooks"
-                    className="qcms-rail__link"
-                    data-rail-item="queue:delivery-failures"
-                  >
-                    {t("operations.queue.deliveryFailures")}
-                  </Link>
-                </li>
-                <li>
-                  <Link
-                    href="/responses/erasures"
-                    className="qcms-rail__link"
-                    data-rail-item="queue:erasure-log"
-                  >
-                    {t("operations.queue.erasureLog")}
-                  </Link>
-                </li>
-              </ul>
-            ),
-          }
-        : {})}
+      sections={<RailTree items={operationsRailItems("forms", showQueues)} />}
       filters={
         <RailFilters activeCount={activeCount} clearHref={operationsClearHref(state)}>
           {state.environment !== undefined && (

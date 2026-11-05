@@ -1,11 +1,10 @@
-import Link from "next/link";
-
 import { Select, TextField } from "@/components/kit";
 import { activeFilterCount, RailFilters } from "@/components/rail-filters";
-import { RailCount, RailFrame } from "@/components/rail-frame";
+import { RailCount, RailFrame, RailTree } from "@/components/rail-frame";
 import { t } from "@/lib/i18n/en";
 import { LIBRARY_SEARCH_MAX_LENGTH } from "@/lib/library-search";
 import type { QuestionListFilters } from "@/lib/questions/list-filters";
+import { questionsRailItems } from "@/lib/shell/area-rails";
 import { QUESTION_TYPES } from "@/lib/questions/types";
 
 export function QuestionsListRail({ filters }: { readonly filters: QuestionListFilters }) {
@@ -14,9 +13,8 @@ export function QuestionsListRail({ filters }: { readonly filters: QuestionListF
   return (
     <RailFrame
       subject={t("questions.title")}
-      title={t("questions.title")}
       testId="qcms-questions-rail"
-      filterCount={activeCount}
+      sections={<RailTree items={questionsRailItems("all")} />}
       {...(activeCount > 0
         ? { count: <RailCount>{activeFilterCount(activeCount)}</RailCount> }
         : {})}
@@ -55,11 +53,6 @@ export function QuestionsListRail({ filters }: { readonly filters: QuestionListF
             ]}
           />
         </RailFilters>
-      }
-      actions={
-        <Link href="/questions/new" className="qcms-rail__action-link">
-          {t("questions.new")}
-        </Link>
       }
     />
   );

@@ -83,22 +83,27 @@ export function rememberedReturn(pathname: string, search: string): string | und
 }
 
 /**
- * Where Exit Operations goes: the remembered address when it is still a same-origin path
+ * Where Exit Operations goes: the remembered address when it resolves to a same-origin path
  * outside Operations that this caller may open, otherwise the fallback.
  */
 export function operationsExitHref(
   remembered: string | null | undefined,
   capabilities: ShellCapabilities,
   fallback: string,
+  origin: string,
 ): string {
   if (remembered === null || remembered === undefined) return fallback;
-  // A backslash reads as a slash in a URL, so "/\host" would leave the origin.
-  if (!remembered.startsWith("/") || remembered.startsWith("//") || remembered.includes("\\")) {
+  // URL parsing drops tab and newline and reads a backslash as a slash, so "/\t//host" leaves the origin.
+  if (!remembered.startsWith("/") || /[\u0000-\u001f\u007f\\]/u.test(remembered)) return fallback;
+  let url: URL;
+  try {
+    url = new URL(remembered, origin);
+  } catch {
     return fallback;
   }
-  const pathname = remembered.split(/[?#]/u)[0] ?? "";
-  if (isPersonalRoute(pathname)) return fallback;
-  if (declaredMode(pathname) === "operations") return fallback;
-  if (!permitsPath(capabilities, pathname)) return fallback;
-  return remembered;
+  if (url.origin !== new URL(origin).origin) return fallback;
+  if (isPersonalRoute(url.pathname)) return fallback;
+  if (declaredMode(url.pathname) === "operations") return fallback;
+  if (!permitsPath(capabilities, url.pathname)) return fallback;
+  return `${url.pathname}${url.search}${url.hash}`;
 }

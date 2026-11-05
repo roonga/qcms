@@ -97,28 +97,60 @@ describe("a plain navigation", () => {
 
 describe("where Exit Operations goes", () => {
   it("is where the operator came from", () => {
-    expect(operationsExitHref("/forms/frm_a/rules?step=2", EVERYTHING, "/questions")).toBe(
+    expect(operationsExitHref("/forms/frm_a/rules?step=2", EVERYTHING, "/questions", ORIGIN)).toBe(
       "/forms/frm_a/rules?step=2",
     );
-    expect(operationsExitHref("/workspaces/ws_a", EVERYTHING, "/questions")).toBe(
+    expect(operationsExitHref("/workspaces/ws_a", EVERYTHING, "/questions", ORIGIN)).toBe(
       "/workspaces/ws_a",
     );
   });
 
   it("falls back when that is unknown or not a place Exit may go", () => {
-    expect(operationsExitHref(null, EVERYTHING, "/questions")).toBe("/questions");
-    expect(operationsExitHref("//evil.example/x", EVERYTHING, "/questions")).toBe("/questions");
-    expect(operationsExitHref("/\\evil.example", EVERYTHING, "/questions")).toBe("/questions");
-    expect(operationsExitHref("https://evil.example", EVERYTHING, "/questions")).toBe("/questions");
-    expect(operationsExitHref("/operations/forms/frm_a", EVERYTHING, "/questions")).toBe(
+    expect(operationsExitHref(null, EVERYTHING, "/questions", ORIGIN)).toBe("/questions");
+    expect(operationsExitHref("//evil.example/x", EVERYTHING, "/questions", ORIGIN)).toBe(
       "/questions",
     );
-    expect(operationsExitHref("/settings", EVERYTHING, "/questions")).toBe("/questions");
+    expect(operationsExitHref("/\\evil.example", EVERYTHING, "/questions", ORIGIN)).toBe(
+      "/questions",
+    );
+    expect(operationsExitHref("https://evil.example", EVERYTHING, "/questions", ORIGIN)).toBe(
+      "/questions",
+    );
+    expect(operationsExitHref("/operations/forms/frm_a", EVERYTHING, "/questions", ORIGIN)).toBe(
+      "/questions",
+    );
+    expect(operationsExitHref("/settings", EVERYTHING, "/questions", ORIGIN)).toBe("/questions");
+  });
+
+  it("falls back on control characters and on anything resolving to another origin", () => {
+    for (const remembered of [
+      "/\t//evil.example",
+      "/\n/evil.example",
+      "/\r//evil.example",
+      "/forms\u0000",
+      "/forms\u007f",
+      "/\t/\\evil.example",
+    ]) {
+      expect(operationsExitHref(remembered, EVERYTHING, "/questions", ORIGIN), remembered).toBe(
+        "/questions",
+      );
+    }
+  });
+
+  it("returns the resolved same-origin address", () => {
+    expect(operationsExitHref("/forms/../questions?q=a#x", EVERYTHING, "/forms", ORIGIN)).toBe(
+      "/questions?q=a#x",
+    );
+    expect(operationsExitHref("/forms/../operations", EVERYTHING, "/questions", ORIGIN)).toBe(
+      "/questions",
+    );
   });
 
   it("falls back when the caller no longer holds the area", () => {
     const authoringOnly = { ...NO_CAPABILITIES, authoring: true, operations: true };
-    expect(operationsExitHref("/workspaces/ws_a", authoringOnly, "/questions")).toBe("/questions");
+    expect(operationsExitHref("/workspaces/ws_a", authoringOnly, "/questions", ORIGIN)).toBe(
+      "/questions",
+    );
   });
 
   it("remembers only addresses outside Operations and the personal routes", () => {

@@ -12,11 +12,11 @@ import {
 
 import { useAssistant } from "@/lib/agent/panel-context";
 import { announce } from "@/lib/announce";
-import { t, tPlural } from "@/lib/i18n/en";
+import { t } from "@/lib/i18n/en";
 import {
-  HIDE_SIDEBAR_ID,
+  isRailShortcut,
   RAIL_REGION_ID,
-  SHOW_SIDEBAR_ID,
+  RAIL_TOGGLE_ID,
   SIDEBAR_ATTRIBUTE,
   SIDEBAR_HOLD_ATTRIBUTE,
   sidebarCookie,
@@ -24,8 +24,6 @@ import {
   type SidebarSetting,
 } from "@/lib/sidebar";
 
-/* Update the hiding attribute synchronously before moving focus to the control that reveals the rail
-   again. */
 export interface SidebarControl {
   readonly setting: SidebarSetting;
   readonly hidden: boolean;
@@ -43,6 +41,16 @@ const INERT: SidebarControl = {
 
 const SidebarContext = createContext<SidebarControl>(INERT);
 
+function typingOutsideRail(): boolean {
+  const active = document.activeElement;
+  const typing =
+    active instanceof HTMLInputElement ||
+    active instanceof HTMLTextAreaElement ||
+    active instanceof HTMLSelectElement ||
+    (active instanceof HTMLElement && active.isContentEditable);
+  return typing && document.getElementById(RAIL_REGION_ID)?.contains(active) !== true;
+}
+
 export function SidebarProvider({
   setting,
   secureCookies,
@@ -54,20 +62,23 @@ export function SidebarProvider({
 }) {
   const [chosen, setChosen] = useState(setting);
   const [held, setHeld] = useState(false);
-  const [focusId, setFocusId] = useState<string | undefined>(undefined);
-
-  useEffect(() => {
-    if (focusId === undefined) return;
-    document.getElementById(focusId)?.focus();
-    setFocusId(undefined);
-  }, [focusId]);
 
   const setSetting = useCallback(
     (next: SidebarSetting) => {
+      // Collapsing hides the rail's contents, so focus inside them would be lost.
+      if (next === "hidden") {
+        const rail = document.getElementById(RAIL_REGION_ID);
+        if (rail?.contains(document.activeElement) === true) {
+          document.getElementById(RAIL_TOGGLE_ID)?.focus();
+        }
+      }
       setChosen(next);
-      document.cookie = sidebarCookie(next, secureCookies);
       document.documentElement.setAttribute(SIDEBAR_ATTRIBUTE, next);
-      setFocusId(next === "hidden" ? SHOW_SIDEBAR_ID : HIDE_SIDEBAR_ID);
+      try {
+        document.cookie = sidebarCookie(next, secureCookies);
+      } catch {
+        // Without the cookie the choice lasts until the next full load.
+      }
     },
     [secureCookies],
   );
@@ -92,56 +103,62 @@ export function useSidebar(): SidebarControl {
   return useContext(SidebarContext);
 }
 
-export function HideSidebarButton() {
-  const { hidden, setSetting } = useSidebar();
-  return (
-    <div className="qcms-rail__hide">
-      <button
-        id={HIDE_SIDEBAR_ID}
-        type="button"
-        className="qcms-railtoggle"
-        data-testid="qcms-hide-sidebar"
-        aria-controls={RAIL_REGION_ID}
-        aria-expanded={!hidden}
-        onClick={() => {
-          setSetting("hidden");
-        }}
-      >
-        {t("rail.hide")}
-      </button>
-    </div>
-  );
-}
-
-export function ShowSidebarButton({ filterCount }: { readonly filterCount: number }) {
+/** The top bar's one rail control, also pressed by Alt+Shift+S. */
+export function RailToggle() {
   const { hidden, setSetting } = useSidebar();
   const assistant = useAssistant();
-  const label =
-    filterCount > 0
-      ? t("rail.show.filtered", {
-          filters: tPlural("rail.show.oneFilter", "rail.show.filters", filterCount),
-        })
-      : t("rail.show");
+
+  const toggle = useCallback(() => {
+    if (!hidden) {
+      setSetting("hidden");
+      return;
+    }
+    setSetting("shown");
+    // A rail held collapsed by the open assistant returns only once the assistant closes.
+    if (assistant?.open === true) {
+      assistant.close();
+      announce(t("agent.sidebar.shown"));
+    }
+  }, [assistant, hidden, setSetting]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (!isRailShortcut(event) || typingOutsideRail()) return;
+      event.preventDefault();
+      toggle();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [toggle]);
+
+  const label = hidden ? t("rail.expand") : t("rail.collapse");
   return (
-    <div className="qcms-rail__show">
-      <button
-        id={SHOW_SIDEBAR_ID}
-        type="button"
-        className="qcms-railtoggle"
-        data-testid="qcms-show-sidebar"
-        aria-controls={RAIL_REGION_ID}
-        aria-expanded={!hidden}
-        onClick={() => {
-          setSetting("shown");
-          // Announce through the shell region because this action closes the panel containing its own region.
-          if (assistant?.open === true) {
-            assistant.close();
-            announce(t("agent.sidebar.shown"));
-          }
-        }}
-      >
-        {label}
-      </button>
-    </div>
+    <button
+      id={RAIL_TOGGLE_ID}
+      type="button"
+      className="qcms-railtoggle"
+      data-testid="qcms-rail-toggle"
+      aria-label={label}
+      aria-controls={RAIL_REGION_ID}
+      aria-expanded={!hidden}
+      aria-keyshortcuts="Alt+Shift+S"
+      title={t("rail.toggle.title", { action: label })}
+      onClick={toggle}
+    >
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <rect
+          x="2.75"
+          y="3.75"
+          width="14.5"
+          height="12.5"
+          rx="2"
+          stroke="currentColor"
+          strokeWidth="1.5"
+        />
+        <path d="M7.5 3.75v12.5" stroke="currentColor" strokeWidth="1.5" />
+      </svg>
+    </button>
   );
 }

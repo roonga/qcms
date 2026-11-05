@@ -43,10 +43,11 @@ describe("the Settings rail's markup", () => {
     expect(marked).toContain('aria-controls="settings-panel-twofactor"');
   });
 
-  it("names the screen in the Header, not the active section, and offers no way back", async () => {
+  it("repeats neither the screen nor the active section in the Header, and offers no way back", async () => {
     const html = await render(SETTINGS_SECTION_IDS.twoFactor);
     const summary = html.slice(html.indexOf("<summary"), html.indexOf("</summary>"));
-    expect(summary).toContain("Settings");
+    expect(summary).toContain("qcms-rail__summary--area");
+    expect(summary).not.toContain("Settings");
     expect(summary).not.toContain("Two-factor authentication");
     expect(html).not.toContain("qcms-rail__back");
   });
@@ -74,7 +75,7 @@ describe("the Settings rail's markup", () => {
   it("collapses into a native details, open, so the disclosure needs no script", async () => {
     const html = await render();
     expect(html).toContain('<details class="qcms-rail__disclosure" open=""');
-    expect(html).toContain('<summary class="qcms-rail__summary">');
+    expect(html).toContain('<summary class="qcms-rail__summary qcms-rail__summary--area">');
   });
 
   it("reaches for no router, because a fragment is not a route", () => {

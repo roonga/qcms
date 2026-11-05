@@ -10,12 +10,15 @@ export const messages = {
   "rail.filters.apply": "Apply",
   "rail.filters.clear": "Clear filters",
 
-  /** Include active filter count when the hidden rail would otherwise conceal it. */
-  "rail.hide": "Hide sidebar",
-  "rail.show": "Show sidebar",
-  "rail.show.filtered": "Show sidebar · {filters}",
-  "rail.show.oneFilter": "1 filter",
-  "rail.show.filters": "{count} filters",
+  "rail.collapse": "Collapse sidebar",
+  "rail.expand": "Expand sidebar",
+  "rail.toggle.title": "{action} (Alt+Shift+S)",
+  /** The narrow-width disclosure's name on an area rail, which carries no title of its own. */
+  "rail.menu": "Menu",
+  "rail.allQuestions": "All questions",
+  "rail.allForms": "All forms",
+
+  "breadcrumb.label": "Breadcrumb",
 
   "app.title": "QCMS",
   "app.description": "Author questionnaires, publish forms, and review responses.",
@@ -105,7 +108,7 @@ export const messages = {
 
   "shell.mode.operations.name": "Operations",
   "shell.mode.operations.exit": "Exit Operations",
-  "shell.mode.operations.announce": "Operations. The authoring menus are not shown here.",
+  "shell.mode.operations.announce": "Operations. Links out of it ask before leaving.",
   "shell.leave.title": "Leave Operations?",
   "shell.leave.goes": "This link opens {area}, outside Operations.",
   "shell.leave.environment":
@@ -171,6 +174,7 @@ export const messages = {
   "operations.page.next": "Next page",
   "operations.page.first": "First page",
 
+  "operations.rail.forms": "Forms",
   "operations.queue.deliveryFailures": "Delivery failures",
   "operations.queue.erasureLog": "Erasure log",
 
