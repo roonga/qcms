@@ -8,11 +8,12 @@ import {
   SCREEN_IDS,
   SCREENS,
   isFormSubtreeScreen,
+  isOperationalScreen,
   isScreenId,
-  offerableActionKinds,
   type ScreenId,
 } from "./screens.js";
 import {
+  AGENT_READ_TOOL_NAMES,
   AGENT_TOOL_NAMES,
   TOOLS,
   ToolNotAllowedError,
@@ -23,13 +24,14 @@ import {
 } from "./tools/registry.js";
 import type { AgentContext } from "./types.js";
 
-function turnContext(screen: ScreenId): AgentContext {
+function turnContext(tools: readonly AgentToolName[]): AgentContext {
   return {
-    screen,
+    screen: "/forms",
     facts: {},
+    defaults: { environment: "test" },
     conversation: [{ role: "user", content: "hi" }],
     maxSteps: 4,
-    tools: SCREENS[screen].readTools,
+    tools,
     authorize: () => Promise.resolve(),
   };
 }
@@ -80,58 +82,12 @@ describe("the screen registry", () => {
     expect(isScreenId("/sign-in")).toBe(false);
   });
 
-  it("declares only registered action kinds, each mirroring a control on a screen that offers it", () => {
-    for (const id of SCREEN_IDS) {
-      for (const kind of SCREENS[id].actionKinds) {
-        expect(ACTION_KIND_NAMES).toContain(kind);
-        // The descriptor names one screen, where its marker shows and what its audit row
-        // records. A kind offered on a second screen still mirrors that one control.
-        const mirror = actionKind(kind)?.screen;
-        expect(mirror, kind).toBeDefined();
-        expect(SCREENS[mirror as ScreenId].actionKinds, kind).toContain(kind);
-      }
+  it("names a registered screen as every action kind's own control", () => {
+    for (const kind of ACTION_KIND_NAMES) {
+      const mirror = actionKind(kind)?.screen;
+      expect(mirror, kind).toBeDefined();
+      expect(SCREEN_IDS, kind).toContain(mirror as ScreenId);
     }
-  });
-
-  it("offers the form create from the library and from the creating screen, mirroring the library's control", () => {
-    expect(SCREENS["/forms"].actionKinds).toEqual(["form.create"]);
-    expect(SCREENS["/forms/new"].actionKinds).toEqual(["form.create"]);
-    expect(actionKind("form.create")?.screen).toBe("/forms");
-  });
-
-  it("carries each screen's own kinds on the builder, the releases screen and the links screen", () => {
-    expect(SCREENS["/forms/[formId]"].actionKinds).toEqual([
-      "apply-draft",
-      "form.publish",
-      "form.settings",
-    ]);
-    expect(SCREENS["/forms/[formId]/publish"].actionKinds).toEqual(["form.release"]);
-    expect(SCREENS["/operations/forms/[formId]/links"].actionKinds).toEqual([
-      "link.mint",
-      "link.revoke",
-    ]);
-    // The intake door is the Intake screen's rather than the builder's: it acts on one
-    // environment's intake and the builder's draft belongs to none.
-    expect(SCREENS["/operations/forms/[formId]/intake"].actionKinds).toEqual([
-      "form.close",
-      "form.reopen",
-    ]);
-  });
-
-  it("declares only registered tools, and declares them only where their port exists", () => {
-    for (const id of SCREEN_IDS) {
-      for (const name of SCREENS[id].readTools) {
-        expect(AGENT_TOOL_NAMES).toContain(name);
-      }
-    }
-
-    expect(SCREENS["/forms/[formId]"].readTools).toEqual([
-      "search_question_library",
-      "propose_questions",
-      "propose_draft",
-      "validate_draft",
-    ]);
-    expect(SCREENS["/forms/[formId]/preview"].readTools).toEqual(["project_draft"]);
   });
 
   it("counts the form subtree as the span of one conversation", () => {
@@ -152,50 +108,16 @@ describe("the screen registry", () => {
     expect(isFormSubtreeScreen("/forms")).toBe(false);
   });
 
-  it("offers one form subtree's kinds per screen, and the two subtrees are separate", () => {
-    // Two lists, because they are two contexts: an authoring plan edits a shared draft and
-    // an operational plan acts in one environment, so a plan spanning both would be one
-    // confirmation spanning two things.
-    const authoring = ["apply-draft", "form.publish", "form.settings", "form.release"];
-    const operational = [
-      "link.mint",
-      "link.revoke",
-      "webhook.create",
-      "webhook.rotate",
-      "webhook.retarget",
-      "webhook.reactivate",
-      "webhook.deactivate",
-      "webhook.redeliver",
-      "response.export",
-      "response.erase",
-      "response.unflag",
-      "form.close",
-      "form.reopen",
-    ];
-    const expectedFor = (id: string): readonly string[] => {
-      if (id.startsWith("/operations/")) return operational;
-      return id === "/forms/[formId]" ? [...authoring, "question.publish"] : authoring;
-    };
-    for (const id of SCREEN_IDS.filter(isFormSubtreeScreen)) {
-      expect(offerableActionKinds(id), id).toEqual(expectedFor(id));
-    }
-  });
-
-  it("offers a question publish on the builder alone, and on no other screen of the subtree", () => {
-    expect(offerableActionKinds("/forms/[formId]")).toContain("question.publish");
-    for (const id of SCREEN_IDS.filter(
-      (candidate) => isFormSubtreeScreen(candidate) && candidate !== "/forms/[formId]",
-    )) {
-      expect(offerableActionKinds(id), id).not.toContain("question.publish");
-    }
-    expect(offerableActionKinds("/questions/[questionId]")).toContain("question.publish");
-  });
-
-  it("keeps a screen outside a form subtree on its own kinds", () => {
-    for (const id of SCREEN_IDS.filter((candidate) => !isFormSubtreeScreen(candidate))) {
-      expect(offerableActionKinds(id), id).toEqual(SCREENS[id].actionKinds);
-    }
-    expect(offerableActionKinds("/operations")).toEqual([]);
+  it("partitions the action kinds into authoring and operational, which is what a plan may not mix", () => {
+    const operational = ACTION_KIND_NAMES.filter((kind) =>
+      isOperationalScreen(actionKind(kind)?.screen ?? ""),
+    );
+    expect(operational).toContain("link.mint");
+    expect(operational).toContain("response.erase");
+    expect(operational).toContain("webhook.retarget");
+    expect(operational).not.toContain("form.publish");
+    expect(operational).not.toContain("apply-draft");
+    expect(operational).not.toContain("access.grant");
   });
 
   it("offers each workspace section only its own kinds, so no plan spans two sections", () => {
@@ -215,39 +137,35 @@ describe("the screen registry", () => {
   });
 });
 
-describe("one door per screen", () => {
-  it("offers the provider exactly the screen's declared list", () => {
-    for (const id of SCREEN_IDS) {
-      const offered = Object.keys(agentToolSet(turnContext(id), createProposalState()));
-      expect([...offered].sort(), id).toEqual([...SCREENS[id].readTools].sort());
-    }
+describe("one door, by grant and registry", () => {
+  it("offers the provider exactly the list the caller's grants reached", () => {
+    const offered = Object.keys(
+      agentToolSet(turnContext(["search_forms", "read_form"]), createProposalState()),
+    );
+    expect([...offered].sort()).toEqual(["read_form", "search_forms"]);
   });
 
-  it("refuses every registered name the current screen does not declare", async () => {
-    for (const id of SCREEN_IDS) {
-      const declared: readonly AgentToolName[] = SCREENS[id].readTools;
-      for (const name of AGENT_TOOL_NAMES) {
-        if (declared.includes(name)) continue;
-        await expect(
-          runAgentTool(name, {}, turnContext(id), createProposalState()),
-          `${id} must refuse ${name}`,
-        ).rejects.toBeInstanceOf(ToolNotAllowedError);
-      }
-    }
-  });
-
-  it("refuses a name outside the registry on every screen", async () => {
-    for (const id of SCREEN_IDS) {
+  it("refuses every registered name outside this turn's list", async () => {
+    const ctx = turnContext(["search_forms"]);
+    for (const name of AGENT_TOOL_NAMES) {
+      if (name === "search_forms") continue;
       await expect(
-        runAgentTool("erase_session", {}, turnContext(id), createProposalState()),
+        runAgentTool(name, {}, ctx, createProposalState()),
+        `must refuse ${name}`,
       ).rejects.toBeInstanceOf(ToolNotAllowedError);
     }
+  });
+
+  it("refuses a name outside the registry", async () => {
+    await expect(
+      runAgentTool("erase_session", {}, turnContext(AGENT_READ_TOOL_NAMES), createProposalState()),
+    ).rejects.toBeInstanceOf(ToolNotAllowedError);
   });
 
   it("checks a tool's own cell before the tool runs", async () => {
     const refused: string[] = [];
     const ctx: AgentContext = {
-      ...turnContext("/forms/[formId]/preview"),
+      ...turnContext(["project_draft"]),
       authorize: (cell) => {
         refused.push(`${cell.resource}:${cell.action}`);
         return Promise.reject(new Error("refused"));
@@ -262,15 +180,14 @@ describe("one door per screen", () => {
     expect(refused).toEqual(["form:preview"]);
   });
 
-  // The per-form route requires `form: write` of every caller, so the draft verbs ask for
-  // it here too: a reader on the builder screen is refused them whichever route carried
-  // the turn.
+  // A reader holds no `form: write` in any workspace, so the draft verbs are refused
+  // whichever screen the turn is on and whichever route carried it.
   it.each(["propose_draft", "propose_questions", "validate_draft"] as const)(
     "refuses %s for a caller who holds no form write",
     async (name) => {
       const asked: string[] = [];
       const ctx: AgentContext = {
-        ...turnContext("/forms/[formId]"),
+        ...turnContext(["propose_draft", "propose_questions", "validate_draft"]),
         authorize: (cell) => {
           asked.push(`${cell.resource}:${cell.action}`);
           return Promise.reject(new Error("refused"));
@@ -283,6 +200,13 @@ describe("one door per screen", () => {
       expect(asked).toEqual(["form:write"]);
     },
   );
+
+  it("declares a cell or the installation claim for every read tool", () => {
+    for (const name of AGENT_READ_TOOL_NAMES) {
+      const def = TOOLS[name];
+      expect(def.cell !== undefined || def.claim === true, name).toBe(true);
+    }
+  });
 });
 
 describe("no answer value can be described by any schema", () => {

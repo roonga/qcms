@@ -16,7 +16,6 @@ import { loadConfig } from "./config.js";
 import type { Deps } from "./deps.js";
 import { PROD_ENVIRONMENT, type Databases } from "./environments.js";
 import { selectDraftAssistant } from "./features/agent/assistant.js";
-import { SCREENS } from "./features/agent/screens.js";
 import { buildProposal } from "./features/agent/tools/propose.js";
 import { AGENT_PROPOSE_TOOL_NAMES } from "./features/agent/tools/registry.js";
 import type { AgentContext, AssistContext, DraftAssistant } from "./features/agent/types.js";
@@ -274,29 +273,40 @@ export async function seedGrants(
 /** A key of the right shape for a unit test; nothing it signs leaves the process. */
 const TEST_APP_KEY = "test-app-key-test-app-key-test-ap";
 
+/** The draft verbs a writer on the builder holds, which is what a unit-test turn exercises. */
+const BUILDER_TOOLS = [
+  "search_question_library",
+  "propose_questions",
+  "propose_draft",
+  "validate_draft",
+] as const;
+
+/** The builder's own kinds, offered to a unit-test writer in the one test environment. */
+const BUILDER_KINDS = ["apply-draft", "form.publish", "form.settings"] as const;
+
 /**
- * A turn on the builder screen: the draft ports {@link AssistContext} holds, that screen's
- * own tool list, the propose tools a writer is offered there, and an authorisation that
- * has nothing to refuse because no grant is resolved in a unit test.
+ * A turn on the builder screen: the draft ports {@link AssistContext} holds, the draft
+ * verbs, the propose tools a writer is offered, and an authorisation that has nothing to
+ * refuse because no grant is resolved in a unit test.
  */
 export function builderTurnContext(
   assist: AssistContext,
   facts: Readonly<Record<string, unknown>> = {},
 ): AgentContext {
-  const offered = SCREENS["/forms/[formId]"].actionKinds.map((kind) => ({
-    kind,
-    environments: ["test"],
-  }));
+  const offered = BUILDER_KINDS.map((kind) => ({ kind, environments: ["test"] }));
   return {
     screen: "/forms/[formId]",
     facts,
+    defaults: { formId: assist.draft.formId, environment: "test" },
     conversation: assist.conversation,
     maxSteps: assist.maxSteps,
-    tools: [...SCREENS["/forms/[formId]"].readTools, ...AGENT_PROPOSE_TOOL_NAMES],
+    tools: [...BUILDER_TOOLS, ...AGENT_PROPOSE_TOOL_NAMES],
     authorize: () => Promise.resolve(),
     draft: assist.draft,
     questionLibrary: assist.questionLibrary,
     validate: assist.validate,
+    formDefinition: () =>
+      Promise.resolve({ formId: assist.draft.formId, definition: assist.draft }),
     offeredActionKinds: offered,
     propose: (input) =>
       buildProposal({
@@ -304,7 +314,6 @@ export function builderTurnContext(
         subject: "usr_test",
         appKey: TEST_APP_KEY,
         current: "test",
-        screen: "/forms/[formId]",
         offered,
         requireSecondApprover: false,
         productionEnvironment: PROD_ENVIRONMENT,

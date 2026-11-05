@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { SCREENS, type ScreenId } from "../screens.js";
-import { createProposalState, runAgentTool, TOOLS } from "./registry.js";
+import { type ScreenId } from "../screens.js";
+import { AGENT_READ_TOOL_NAMES, createProposalState, runAgentTool, TOOLS } from "./registry.js";
 import type { AgentToolName } from "./registry.js";
 import type { AgentContext } from "../types.js";
 
@@ -178,9 +178,10 @@ function contextFor(
   const ctx: AgentContext = {
     screen,
     facts: {},
+    defaults: { environment: "test" },
     conversation: [],
     maxSteps: 4,
-    tools: SCREENS[screen].readTools,
+    tools: [...AGENT_READ_TOOL_NAMES],
     authorize: () => Promise.resolve(),
     ...ports,
   };
@@ -191,7 +192,7 @@ describe("the read tools of D1 to D7", () => {
   it.each(READS.map((read) => [read.tool, read] as const))(
     "%s is declared on its own screen and reaches that screen's port",
     async (_name, read) => {
-      expect(SCREENS[read.screen].readTools).toContain(read.tool);
+      expect(AGENT_READ_TOOL_NAMES).toContain(read.tool);
       const inputs: unknown[] = [];
       const { ctx } = contextFor(read.screen, {
         [read.port]: (input: unknown) => {

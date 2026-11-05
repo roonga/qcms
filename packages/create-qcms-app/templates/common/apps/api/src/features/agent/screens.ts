@@ -4,11 +4,11 @@ import { administrationContexts } from "./contexts/administration.js";
 import { authoringContexts } from "./contexts/authoring.js";
 import { operationsContexts } from "./contexts/operations.js";
 import type { ScreenBuildInput } from "./contexts/support.js";
-import type { AgentToolName } from "./tools/registry.js";
 
 /**
- * Intersect the current screen's declared tool set with the registry so a turn cannot gain tools from
- * another screen.
+ * The screen registry. A screen is **context**: the facts it can show and the default
+ * subject ids a tool call takes when it names none. It is not a permission list: what a
+ * turn may read and propose is the caller's own grants (`docs/agent-principle.md`).
  */
 export const SCREEN_IDS = [
   "/forms",
@@ -57,123 +57,46 @@ export interface ScreenDef {
    */
   readonly facts: z.ZodType;
   build(input: ScreenBuildInput): Promise<unknown>;
-  readonly readTools: readonly AgentToolName[];
-  /** A screen with no action kind offers explanation and navigation. */
-  readonly actionKinds: readonly string[];
 }
 
-const DRAFT_TOOLS: readonly AgentToolName[] = [
-  "search_question_library",
-  "propose_questions",
-  "propose_draft",
-  "validate_draft",
-];
-
-const NONE: readonly string[] = [];
-
-function screen(
-  context: {
-    readonly facts: z.ZodType;
-    readonly build: (input: ScreenBuildInput) => Promise<unknown>;
-  },
-  readTools: readonly AgentToolName[] = [],
-  actionKinds: readonly string[] = NONE,
-): ScreenDef {
-  return {
-    facts: context.facts,
-    build: (input) => context.build(input),
-    readTools,
-    actionKinds,
-  };
+function screen(context: {
+  readonly facts: z.ZodType;
+  readonly build: (input: ScreenBuildInput) => Promise<unknown>;
+}): ScreenDef {
+  return { facts: context.facts, build: (input) => context.build(input) };
 }
 
-/** Frozen so nothing can graft a screen, a tool or an action kind on at runtime. */
+/** Frozen so nothing can graft a screen on at runtime. */
 export const SCREENS: Readonly<Record<ScreenId, ScreenDef>> = Object.freeze({
-  "/forms": screen(authoringContexts.formsList, ["search_forms"], ["form.create"]),
-  "/forms/new": screen(authoringContexts.newForm, [], ["form.create"]),
-  "/forms/[formId]": screen(authoringContexts.builder, DRAFT_TOOLS, [
-    "apply-draft",
-    "form.publish",
-    "form.settings",
-  ]),
-  "/forms/[formId]/rules": screen(authoringContexts.rules, ["validate_draft", "test_rule"]),
-  "/forms/[formId]/preview": screen(authoringContexts.preview, ["project_draft"]),
-  "/forms/[formId]/versions": screen(authoringContexts.versions, ["diff_form_versions"]),
-  "/forms/[formId]/versions/[version]": screen(authoringContexts.versionDetail, [
-    "diff_form_versions",
-  ]),
-  "/forms/[formId]/publish": screen(authoringContexts.releases, [], ["form.release"]),
-  "/operations/forms/[formId]/links": screen(
-    authoringContexts.links,
-    ["count_links"],
-    ["link.mint", "link.revoke"],
-  ),
-  "/operations/forms/[formId]/webhooks": screen(
-    operationsContexts.formWebhooks,
-    ["delivery_status"],
-    [
-      "webhook.create",
-      "webhook.rotate",
-      "webhook.retarget",
-      "webhook.reactivate",
-      "webhook.deactivate",
-      "webhook.redeliver",
-    ],
-  ),
-  "/operations/forms/[formId]/responses": screen(
-    operationsContexts.responseList,
-    ["list_responses", "count_responses"],
-    ["response.export"],
-  ),
-  "/operations/forms/[formId]/responses/[sessionId]": screen(
-    operationsContexts.responseDetail,
-    [],
-    ["response.erase", "response.unflag"],
-  ),
-  "/operations/forms/[formId]/intake": screen(
-    operationsContexts.formIntake,
-    [],
-    ["form.close", "form.reopen"],
-  ),
+  "/forms": screen(authoringContexts.formsList),
+  "/forms/new": screen(authoringContexts.newForm),
+  "/forms/[formId]": screen(authoringContexts.builder),
+  "/forms/[formId]/rules": screen(authoringContexts.rules),
+  "/forms/[formId]/preview": screen(authoringContexts.preview),
+  "/forms/[formId]/versions": screen(authoringContexts.versions),
+  "/forms/[formId]/versions/[version]": screen(authoringContexts.versionDetail),
+  "/forms/[formId]/publish": screen(authoringContexts.releases),
+  "/operations/forms/[formId]/links": screen(authoringContexts.links),
+  "/operations/forms/[formId]/webhooks": screen(operationsContexts.formWebhooks),
+  "/operations/forms/[formId]/responses": screen(operationsContexts.responseList),
+  "/operations/forms/[formId]/responses/[sessionId]": screen(operationsContexts.responseDetail),
+  "/operations/forms/[formId]/intake": screen(operationsContexts.formIntake),
   "/operations/forms/[formId]/erase": screen(operationsContexts.formErase),
-  "/questions": screen(
-    authoringContexts.questions,
-    ["search_question_library"],
-    ["question.create"],
-  ),
-  "/questions/new": screen(
-    authoringContexts.newQuestion,
-    ["search_question_library"],
-    ["question.create"],
-  ),
-  "/questions/[questionId]": screen(
-    authoringContexts.questionDetail,
-    ["search_question_library", "diff_question_versions"],
-    ["question.saveDraft", "question.publish", "question.deprecate", "question.newVersion"],
-  ),
+  "/questions": screen(authoringContexts.questions),
+  "/questions/new": screen(authoringContexts.newQuestion),
+  "/questions/[questionId]": screen(authoringContexts.questionDetail),
   "/me/access": screen(administrationContexts.myAccess),
   "/operations": screen(operationsContexts.operations),
   "/responses": screen(operationsContexts.responsePicker),
   "/responses/erasures": screen(operationsContexts.erasures),
   "/settings": screen(administrationContexts.settings),
-  "/webhooks": screen(operationsContexts.deadLetters, ["count_dead_letters"]),
+  "/webhooks": screen(operationsContexts.deadLetters),
   "/workspaces": screen(administrationContexts.workspaces),
-  // One workspace's sections share one set of facts, and each offers only its own kinds.
-  "/workspaces/[workspaceId]/members": screen(
-    administrationContexts.workspaceDetail,
-    [],
-    ["member.role"],
-  ),
-  "/workspaces/[workspaceId]/access-groups": screen(
-    administrationContexts.workspaceDetail,
-    [],
-    ["access.groupCreate", "access.groupRemove", "access.grant", "access.revoke"],
-  ),
-  "/workspaces/[workspaceId]/settings": screen(
-    administrationContexts.workspaceDetail,
-    [],
-    ["workspace.settings"],
-  ),
+  // One workspace's sections share one set of facts. Which kinds each offers is the
+  // caller's own grants now, so every section is the same context builder.
+  "/workspaces/[workspaceId]/members": screen(administrationContexts.workspaceDetail),
+  "/workspaces/[workspaceId]/access-groups": screen(administrationContexts.workspaceDetail),
+  "/workspaces/[workspaceId]/settings": screen(administrationContexts.workspaceDetail),
   "/workspaces/[workspaceId]/audit": screen(administrationContexts.workspaceDetail),
   "/workspaces/[workspaceId]/assistant-actions": screen(administrationContexts.workspaceDetail),
 });
@@ -192,39 +115,11 @@ export function isFormSubtreeScreen(screenId: ScreenId): boolean {
   return FORM_AUTHORING_SCREENS.includes(screenId) || FORM_OPERATIONS_SCREENS.includes(screenId);
 }
 
-const BUILDER_SCREEN: ScreenId = "/forms/[formId]";
-
 /**
- * Publishing a question the builder's own saved draft pins unpublished. The control lives
- * on the question's own page and the step still runs that page's action; what the builder
- * adds is the offer, and the propose tool refuses any other question id.
+ * Whether a screen owns one environment's operational state rather than authoring content.
+ * It is what the no-mixing rule partitions a plan's kinds by, independent of the screen the
+ * turn is on (D2).
  */
-const DRAFT_QUESTION_ACTION_KINDS: readonly string[] = Object.freeze(["question.publish"]);
-
-function kindsAcross(ids: readonly ScreenId[]): readonly string[] {
-  const kinds: string[] = [];
-  for (const id of ids) {
-    for (const kind of SCREENS[id].actionKinds) {
-      if (!kinds.includes(kind)) kinds.push(kind);
-    }
-  }
-  return Object.freeze(kinds);
-}
-
-const FORM_AUTHORING_ACTION_KINDS = kindsAcross(FORM_AUTHORING_SCREENS);
-const FORM_OPERATIONS_ACTION_KINDS = kindsAcross(FORM_OPERATIONS_SCREENS);
-
-/**
- * The kinds a turn on this screen may propose: its own subtree's on a form-scoped screen,
- * so one plan can span it, and the screen's own elsewhere. The two form subtrees are
- * separate lists because an authoring plan edits a shared draft while an operational plan
- * acts in one environment, and a plan mixing them would be one confirmation spanning both.
- */
-export function offerableActionKinds(screenId: ScreenId): readonly string[] {
-  if (screenId === BUILDER_SCREEN) {
-    return [...FORM_AUTHORING_ACTION_KINDS, ...DRAFT_QUESTION_ACTION_KINDS];
-  }
-  if (FORM_AUTHORING_SCREENS.includes(screenId)) return FORM_AUTHORING_ACTION_KINDS;
-  if (FORM_OPERATIONS_SCREENS.includes(screenId)) return FORM_OPERATIONS_ACTION_KINDS;
-  return SCREENS[screenId].actionKinds;
+export function isOperationalScreen(screenId: string): boolean {
+  return screenId.startsWith("/operations/");
 }

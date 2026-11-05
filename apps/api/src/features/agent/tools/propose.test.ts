@@ -22,13 +22,11 @@ function propose(args: {
   readonly proposalsThisTurn?: number;
   readonly proposedDraft?: ProposeInput["proposedDraft"];
   readonly validate?: ProposeInput["validate"];
-  readonly screen?: ProposeInput["screen"];
   readonly savedDraft?: ProposeInput["savedDraft"];
 }) {
   const grants = args.grants ?? [EDITOR, APPROVER];
   return buildProposal({
     steps: args.steps,
-    screen: args.screen ?? "/forms/[formId]",
     ...(args.savedDraft === undefined ? {} : { savedDraft: args.savedDraft }),
     ...(args.proposedDraft === undefined ? {} : { proposedDraft: args.proposedDraft }),
     validate: args.validate ?? (() => Promise.resolve({ issues: [], warnings: [] })),
@@ -617,7 +615,6 @@ describe("buildProposal: publishing the questions a saved draft pins (issue #120
   it("leaves the question's own page alone: no pin set is consulted there", async () => {
     const outcome = await propose({
       steps: [publishQuestion("q_anything", 3)],
-      screen: "/questions/[questionId]",
     });
     expect(outcome.ok).toBe(true);
   });

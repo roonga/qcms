@@ -82,7 +82,6 @@ describe("the kinds a screen offers", () => {
       grants,
       environments: [...ENVIRONMENTS],
       current: "test",
-      screen,
       formId: "frm_a",
     });
   }

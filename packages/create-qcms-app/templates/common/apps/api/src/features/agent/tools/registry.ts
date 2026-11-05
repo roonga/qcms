@@ -1,7 +1,7 @@
 /**
- * One frozen registry and one door: {@link runAgentTool} refuses every name outside the current screen's
- * declared list before anything is dispatched, and checks a tool's declared permission cell for the calling
- * principal first (ADR-25).
+ * One frozen registry and one door: {@link runAgentTool} refuses every name outside the registry and every
+ * name this caller holds no cell for, before anything is dispatched (ADR-25,
+ * `docs/agent-principle.md`). The screen decides nothing here; the caller's own grants do.
  */
 
 import { asSchema, jsonSchema, tool, type JSONSchema7, type Schema, type ToolSet } from "ai";
@@ -23,19 +23,29 @@ import type { AgentContext, ToolCell } from "../types.js";
 /** Adding a name here is a security decision: the registry, tool set and door all read it. */
 export const AGENT_TOOL_NAMES = [
   "search_question_library",
+  "list_questions",
+  "read_question",
+  "diff_question_versions",
   "propose_questions",
   "propose_draft",
   "validate_draft",
   "project_draft",
   "test_rule",
+  "read_form",
+  "search_forms",
+  "list_form_versions",
   "diff_form_versions",
+  "list_releases",
   "count_links",
+  "list_links",
   "list_responses",
   "count_responses",
   "delivery_status",
+  "list_webhooks",
   "count_dead_letters",
-  "diff_question_versions",
-  "search_forms",
+  "list_erasures",
+  "list_workspaces",
+  "read_workspace",
   "propose_action",
   "propose_plan",
 ] as const;
@@ -64,7 +74,7 @@ export class ToolNotAllowedError extends Error {
   readonly tool: string;
   constructor(tool: string) {
     // Model-supplied text: recorded, never executed or re-dispatched.
-    super(`Tool "${tool}" is not available on this screen`);
+    super(`Tool "${tool}" is not available to this user`);
     this.name = "ToolNotAllowedError";
     this.tool = tool;
   }
@@ -94,14 +104,73 @@ export function createProposalState(): ProposalState {
   };
 }
 
+/**
+ * The subject a call names, or the screen's own when it names none. The screen supplies a
+ * default id and never a limit: the caller's grant on the id that is resolved is what
+ * decides, and the port makes that check per call.
+ */
+const FORM_SUBJECT = {
+  formId: z
+    .string()
+    .max(200)
+    .optional()
+    .describe("The form to read. Defaults to the form the current screen is about."),
+} as const;
+
+const QUESTION_SUBJECT = {
+  questionId: z
+    .string()
+    .max(200)
+    .optional()
+    .describe("The question to read. Defaults to the question the current screen is about."),
+} as const;
+
+const WORKSPACE_SUBJECT = {
+  workspaceId: z
+    .string()
+    .max(200)
+    .optional()
+    .describe("The workspace to read. Defaults to the workspace the current screen is about."),
+} as const;
+
+const Limit = z.number().int().min(1).max(50).default(10);
+
 const SearchInput = z.object({
   query: z
     .string()
     .max(200)
     .optional()
     .describe("Case-insensitive substring matched against the question slug and id."),
-  limit: z.number().int().min(1).max(50).default(10),
+  limit: Limit,
 });
+
+const ListQuestionsInput = z.object({
+  query: z
+    .string()
+    .max(200)
+    .optional()
+    .describe("Case-insensitive substring matched against the question slug and id."),
+  limit: Limit,
+});
+
+const ReadQuestionInput = z.object({
+  ...QUESTION_SUBJECT,
+  version: z
+    .number()
+    .int()
+    .min(1)
+    .max(1_000_000)
+    .optional()
+    .describe("Which version's definition to return. The newest version when absent."),
+});
+
+const FormSubjectInput = z.object(FORM_SUBJECT);
+
+const FormListingInput = z.object({ ...FORM_SUBJECT, limit: Limit });
+
+const WorkspaceSubjectInput = z.object(WORKSPACE_SUBJECT);
+
+const LimitOnlyInput = z.object({ limit: Limit });
 
 const ProposeQuestionsInput = z.object({
   questions: z
@@ -117,10 +186,11 @@ const ProposeDraftInput = z.object({
   ),
 });
 
-const ValidateInput = z.object({});
+const ValidateInput = z.object(FORM_SUBJECT);
 
 const TestRuleInput = z.object({
-  ruleId: z.string().min(1).max(200).describe("The rule to evaluate, from this screen's facts."),
+  ...FORM_SUBJECT,
+  ruleId: z.string().min(1).max(200).describe("The rule to evaluate, by its ruleId."),
   answers: z
     .record(z.string(), z.unknown())
     .default({})
@@ -136,6 +206,7 @@ const TestRuleInput = z.object({
 
 /** `null` on either side names the working draft, which is what a versions screen diffs against. */
 const DiffFormVersionsInput = z.object({
+  ...FORM_SUBJECT,
   from: z.number().int().min(1).max(1_000_000).nullable().default(null),
   to: z.number().int().min(1).max(1_000_000).nullable().default(null),
 });
@@ -143,25 +214,26 @@ const DiffFormVersionsInput = z.object({
 const NoInput = z.object({});
 
 const ResponseFiltersInput = z.object({
+  ...FORM_SUBJECT,
   version: z.number().int().min(1).max(1_000_000).optional(),
   from: z.string().max(40).optional().describe("Inclusive lower bound on the start time."),
   to: z.string().max(40).optional().describe("Exclusive upper bound on the start time."),
   flagged: z.boolean().optional(),
 });
 
-const ListResponsesInput = ResponseFiltersInput.extend({
-  limit: z.number().int().min(1).max(50).default(10),
-});
+const ListResponsesInput = ResponseFiltersInput.extend({ limit: Limit });
 
 const DeliveryStatusInput = z.object({
+  ...FORM_SUBJECT,
   webhookId: z
     .string()
     .max(200)
     .optional()
-    .describe("One endpoint from this screen's facts, or every endpoint when absent."),
+    .describe("One of this form's endpoints, or every endpoint when absent."),
 });
 
 const DiffQuestionVersionsInput = z.object({
+  ...QUESTION_SUBJECT,
   from: z.number().int().min(1).max(1_000_000),
   to: z.number().int().min(1).max(1_000_000),
 });
@@ -172,10 +244,11 @@ const SearchFormsInput = z.object({
     .max(200)
     .optional()
     .describe("Case-insensitive substring matched against the form slug and id."),
-  limit: z.number().int().min(1).max(50).default(10),
+  limit: Limit,
 });
 
 const ProjectDraftInput = z.object({
+  ...FORM_SUBJECT,
   answers: z
     .record(z.string(), z.unknown())
     .default({})
@@ -199,6 +272,10 @@ const ProposeOutput = z.strictObject({
  * What each tool may return. The shapes are enumerated so "no answer value" is a property
  * of the schema; the vocabulary test walks every one of them.
  */
+const Instant = z.string().nullable();
+
+const PinOutput = z.strictObject({ questionId: z.string(), version: z.number().int() });
+
 const Outputs = {
   search_question_library: z.strictObject({
     questions: z.array(
@@ -208,6 +285,94 @@ const Outputs = {
         version: z.number().int(),
         // Opaque on purpose: a question definition is author content, validated by the kernel.
         definition: z.unknown(),
+      }),
+    ),
+  }),
+  list_questions: z.strictObject({
+    matched: z.number().int(),
+    questions: z.array(
+      z.strictObject({
+        questionId: z.string(),
+        slug: z.string(),
+        latestVersion: z.number().int(),
+        latestStatus: z.string(),
+        publishedAt: Instant,
+      }),
+    ),
+  }),
+  read_question: z.strictObject({
+    questionId: z.string(),
+    slug: z.string(),
+    workspaceId: z.string(),
+    versions: z.array(
+      z.strictObject({
+        version: z.number().int(),
+        status: z.string(),
+        publishedAt: Instant,
+        type: z.string().nullable(),
+      }),
+    ),
+    definitionVersion: z.number().int().nullable(),
+    definition: z.unknown(),
+  }),
+  read_form: z.strictObject({
+    formId: z.string(),
+    slug: z.string(),
+    title: z.string().nullable(),
+    environment: z.string(),
+    defaultLocale: z.string(),
+    hasDraft: z.boolean(),
+    latestPublishedVersion: z.number().int().nullable(),
+    releasedVersion: z.number().int().nullable(),
+    closed: z.boolean(),
+    challengeRequired: z.boolean(),
+    stepCount: z.number().int(),
+    questionCount: z.number().int(),
+    ruleCount: z.number().int(),
+    steps: z.array(
+      z.strictObject({
+        stepId: z.string(),
+        title: z.string().nullable(),
+        questionCount: z.number().int(),
+      }),
+    ),
+    rules: z.array(z.strictObject({ ruleId: z.string(), targets: z.array(z.string()) })),
+    pinnedQuestions: z.array(PinOutput),
+    unpublishedPins: z.array(PinOutput),
+  }),
+  list_form_versions: z.strictObject({
+    formId: z.string(),
+    versions: z.array(
+      z.strictObject({
+        version: z.number().int(),
+        publishedAt: Instant,
+        releasedIn: z.array(z.string()),
+        stepCount: z.number().int(),
+        questionCount: z.number().int(),
+      }),
+    ),
+  }),
+  list_releases: z.strictObject({
+    formId: z.string(),
+    environments: z.array(z.string()),
+    states: z.array(
+      z.strictObject({
+        environment: z.string(),
+        version: z.number().int().nullable(),
+        closed: z.boolean(),
+      }),
+    ),
+    releases: z.array(
+      z.strictObject({
+        environment: z.string(),
+        version: z.number().int(),
+        releasedAt: Instant,
+        releasedBy: z.string(),
+        approvedBy: z.string().nullable(),
+        fromEnvironment: z.string().nullable(),
+        replacedVersion: z.number().int().nullable(),
+        rollback: z.boolean(),
+        closed: z.boolean(),
       }),
     ),
   }),
@@ -271,6 +436,25 @@ const Outputs = {
     expired: z.number().int(),
     total: z.number().int(),
   }),
+  // No link URL or token exists to return: minting one is an action, never a read.
+  list_links: z.strictObject({
+    formId: z.string(),
+    environment: z.string(),
+    active: z.number().int(),
+    consumed: z.number().int(),
+    revoked: z.number().int(),
+    expired: z.number().int(),
+    total: z.number().int(),
+    links: z.array(
+      z.strictObject({
+        linkId: z.string(),
+        state: z.enum(["active", "consumed", "revoked", "expired"]),
+        oneTime: z.boolean(),
+        expiresAt: Instant,
+        createdAt: Instant,
+      }),
+    ),
+  }),
   list_responses: z.strictObject({
     total: z.number().int(),
     responses: z.array(
@@ -297,11 +481,85 @@ const Outputs = {
       z.strictObject({ webhookId: z.string(), url: z.string(), active: z.boolean() }),
     ),
   }),
+  // Configuration and delivery state. No payload, consumer body or last-error string.
+  list_webhooks: z.strictObject({
+    formId: z.string(),
+    environment: z.string(),
+    endpoints: z.array(
+      z.strictObject({
+        webhookId: z.string(),
+        url: z.string(),
+        active: z.boolean(),
+        createdAt: Instant,
+      }),
+    ),
+    deliveries: z.array(
+      z.strictObject({
+        deliveryId: z.string(),
+        eventType: z.string(),
+        state: z.enum(["delivered", "cancelled", "dead", "pending"]),
+        attempts: z.number().int(),
+        lastStatus: z.number().int().nullable(),
+        lastAttemptAt: Instant,
+        deliveredAt: Instant,
+        nextAttemptAt: Instant,
+      }),
+    ),
+  }),
   count_dead_letters: z.strictObject({
     scanned: z.number().int(),
     truncated: z.boolean(),
     total: z.number().int(),
     byForm: z.array(z.strictObject({ formId: z.string(), count: z.number().int() })),
+  }),
+  // The erasure log holds no answers, which is why the principle admits it (point 4).
+  list_erasures: z.strictObject({
+    environment: z.string(),
+    erasures: z.array(
+      z.strictObject({
+        sessionId: z.string(),
+        formId: z.string(),
+        formVersion: z.number().int(),
+        erasedAt: Instant,
+        reason: z.string(),
+      }),
+    ),
+  }),
+  list_workspaces: z.strictObject({
+    workspaces: z.array(
+      z.strictObject({
+        workspaceId: z.string(),
+        name: z.string(),
+        slug: z.string(),
+        shared: z.boolean(),
+        archived: z.boolean(),
+        requireSecondApprover: z.boolean(),
+      }),
+    ),
+  }),
+  read_workspace: z.strictObject({
+    workspaceId: z.string(),
+    name: z.string(),
+    shared: z.boolean(),
+    requireSecondApprover: z.boolean(),
+    // Staff data, not respondent data (Q11).
+    members: z.array(
+      z.strictObject({
+        userId: z.string(),
+        email: z.string(),
+        name: z.string(),
+        role: z.string(),
+      }),
+    ),
+    accessGroups: z.array(
+      z.strictObject({
+        groupId: z.string(),
+        name: z.string(),
+        role: z.string(),
+        environments: z.array(z.string()),
+        forms: z.array(z.string()),
+      }),
+    ),
   }),
   diff_question_versions: z.strictObject({
     questionId: z.string(),
@@ -335,12 +593,18 @@ const Outputs = {
   propose_plan: ProposeOutput,
 } as const satisfies Record<AgentToolName, z.ZodType>;
 
-/**
- * The draft verbs' cell, which is the one the per-form assist route requires. Declared on
- * the tools as well, so a reader reaching the builder screen through the screen route is
- * refused them there too rather than by which route carried the turn.
- */
+/** The draft verbs' cell, which is the one the per-form assist route requires. */
 const DRAFT_WRITE: ToolCell = { resource: "form", action: "write" };
+
+const FORM_READ: ToolCell = { resource: "form", action: "read" };
+const FORM_PREVIEW: ToolCell = { resource: "form", action: "preview" };
+const QUESTION_READ: ToolCell = { resource: "question", action: "read" };
+const RELEASE_READ: ToolCell = { resource: "release", action: "read" };
+const LINK_READ: ToolCell = { resource: "link", action: "read" };
+const WEBHOOK_READ: ToolCell = { resource: "webhook", action: "read" };
+const RESPONSE_READ: ToolCell = { resource: "response", action: "read" };
+const WORKSPACE_READ: ToolCell = { resource: "workspace", action: "read" };
+const MEMBERSHIP_READ: ToolCell = { resource: "membership", action: "read" };
 
 /** An executor may only touch the {@link AgentContext} it is handed. */
 interface AgentToolDef {
@@ -352,8 +616,14 @@ interface AgentToolDef {
    */
   readonly schemaFor?: (ctx: AgentContext) => z.ZodType;
   readonly outputSchema: z.ZodType;
-  /** The cell the door checks for the calling principal before the tool runs. */
+  /**
+   * The cell the door checks before the tool runs, and the one that decides whether the
+   * tool is offered. The door asks whether the caller holds it on any subject; the port
+   * re-asks it on the subject the call names, and that is the limit.
+   */
   readonly cell?: ToolCell;
+  /** Installation-wide operator state: the administrator claim, never a workspace grant. */
+  readonly claim?: true;
   execute(input: unknown, ctx: AgentContext, state: ProposalState): Promise<unknown>;
 }
 
@@ -436,18 +706,22 @@ function proposeQuestions(
   };
 }
 
+/**
+ * The form named in the draft is the subject, and the port checks this caller's `form:
+ * write` on it, so a draft may be proposed for any form the user may edit. A form they
+ * cannot reach is a refusal the model reads, not a failed turn.
+ */
 async function proposeDraft(
   input: unknown,
   ctx: AgentContext,
   state: ProposalState,
 ): Promise<Record<string, unknown>> {
   const { definition } = ProposeDraftInput.parse(input);
-  // The turn is scoped to one form: a renamed formId is refused, never a cross-form write.
-  if (definition.formId !== port(ctx.draft, "propose_draft").formId) {
-    return {
-      accepted: false,
-      reason: "formId must match the form being edited",
-    };
+  const resolve = port(ctx.formDefinition, "propose_draft");
+  try {
+    await resolve({ formId: definition.formId, action: "write" });
+  } catch (error) {
+    return { accepted: false, reason: reasonOf(error) };
   }
   state.proposedDraft = definition;
   const { issues, warnings } = await port(ctx.validate, "propose_draft")(definition);
@@ -455,18 +729,31 @@ async function proposeDraft(
   return { accepted: true, valid: issues.length === 0, issues, warnings };
 }
 
+/** A refusal the model may act on, never a stack or a vendor string. */
+function reasonOf(error: unknown): string {
+  return error instanceof Error ? error.message : "That form could not be read.";
+}
+
 async function validateProposal(
+  input: unknown,
   ctx: AgentContext,
   state: ProposalState,
 ): Promise<Record<string, unknown>> {
-  const definition = state.proposedDraft ?? port(ctx.draft, "validate_draft");
+  const asked = ValidateInput.parse(input);
+  const definition =
+    state.proposedDraft ??
+    (await port(ctx.formDefinition, "validate_draft")({ formId: asked.formId, action: "write" }))
+      .definition;
   const { issues, warnings } = await port(ctx.validate, "validate_draft")(definition);
   return { valid: issues.length === 0, issues, warnings };
 }
 
 async function projectDraft(input: unknown, ctx: AgentContext): Promise<Record<string, unknown>> {
-  const { answers } = ProjectDraftInput.parse(input);
-  const projection = await port(ctx.projectDraft, "project_draft")(answers);
+  const asked = ProjectDraftInput.parse(input);
+  const projection = await port(
+    ctx.projectDraft,
+    "project_draft",
+  )({ formId: asked.formId, answers: asked.answers });
   return {
     visibleSteps: [...projection.visibleSteps],
     visibleQuestions: [...projection.visibleQuestions],
@@ -480,6 +767,7 @@ async function testRule(input: unknown, ctx: AgentContext): Promise<Record<strin
     ctx.testRule,
     "test_rule",
   )({
+    formId: asked.formId,
     ruleId: asked.ruleId,
     answers: asked.answers,
     instances: asked.instances,
@@ -507,8 +795,59 @@ export const TOOLS: Readonly<Record<AgentToolName, AgentToolDef>> = Object.freez
       "Search the published question library. Returns question definitions only - never response data.",
     inputSchema: SearchInput,
     outputSchema: Outputs.search_question_library,
-    cell: { resource: "question", action: "read" },
+    cell: QUESTION_READ,
     execute: (input, ctx) => searchLibrary(input, ctx),
+  },
+  list_questions: {
+    description:
+      "List the question library with each question's latest version and its status, " +
+      "draft and deprecated versions included. Definitions only, never response data.",
+    inputSchema: ListQuestionsInput,
+    outputSchema: Outputs.list_questions,
+    cell: QUESTION_READ,
+    execute: (input, ctx) =>
+      port(ctx.listQuestions, "list_questions")(ListQuestionsInput.parse(input)),
+  },
+  read_question: {
+    description:
+      "Read one question: its versions with their statuses, and the complete definition " +
+      "of the version you name (label, help, type, required, constraints, messages and " +
+      "options). Authoring content only.",
+    inputSchema: ReadQuestionInput,
+    outputSchema: Outputs.read_question,
+    cell: QUESTION_READ,
+    execute: (input, ctx) =>
+      port(ctx.readQuestion, "read_question")(ReadQuestionInput.parse(input)),
+  },
+  read_form: {
+    description:
+      "Read one form: its slug and title, whether it has a draft, its latest published " +
+      "version, what is released in the current environment, its steps with their question " +
+      "counts, its rule ids and the question versions its draft pins unpublished.",
+    inputSchema: FormSubjectInput,
+    outputSchema: Outputs.read_form,
+    cell: FORM_READ,
+    execute: (input, ctx) => port(ctx.readForm, "read_form")(FormSubjectInput.parse(input)),
+  },
+  list_form_versions: {
+    description:
+      "List one form's published versions, each with when it was published, which " +
+      "environments it is released in, and its step and question counts.",
+    inputSchema: FormListingInput,
+    outputSchema: Outputs.list_form_versions,
+    cell: FORM_READ,
+    execute: (input, ctx) =>
+      port(ctx.listFormVersions, "list_form_versions")(FormListingInput.parse(input)),
+  },
+  list_releases: {
+    description:
+      "Report this deployment's environments, which version of one form stands in each " +
+      "and whether it is closed, plus that form's release history with who released and " +
+      "who approved.",
+    inputSchema: FormListingInput,
+    outputSchema: Outputs.list_releases,
+    cell: RELEASE_READ,
+    execute: (input, ctx) => port(ctx.listReleases, "list_releases")(FormListingInput.parse(input)),
   },
   propose_questions: {
     description:
@@ -528,86 +867,124 @@ export const TOOLS: Readonly<Record<AgentToolName, AgentToolDef>> = Object.freez
   },
   validate_draft: {
     description:
-      "Run the publish validation over the currently proposed draft and return its blocking issues and its non-blocking warnings.",
+      "Run the publish validation over the draft you have proposed this turn, or over the " +
+      "form's saved draft when you have proposed none, and return its blocking issues and " +
+      "its non-blocking warnings.",
     inputSchema: ValidateInput,
     outputSchema: Outputs.validate_draft,
     cell: DRAFT_WRITE,
-    execute: (_input, ctx, state) => validateProposal(ctx, state),
+    execute: (input, ctx, state) => validateProposal(input, ctx, state),
   },
   project_draft: {
     description:
-      "Project the draft for hypothetical answers and return which steps and questions a respondent would see. Reads no submitted answer.",
+      "Project a form's draft for hypothetical answers and return which steps and questions a respondent would see. Reads no submitted answer.",
     inputSchema: ProjectDraftInput,
     outputSchema: Outputs.project_draft,
-    cell: { resource: "form", action: "preview" },
+    cell: FORM_PREVIEW,
     execute: (input, ctx) => projectDraft(input, ctx),
   },
   test_rule: {
     description:
-      "Evaluate one of this form's rules against hypothetical answers and report whether " +
+      "Evaluate one of a form's rules against hypothetical answers and report whether " +
       "its condition matched. Reads no submitted answer and changes nothing.",
     inputSchema: TestRuleInput,
     outputSchema: Outputs.test_rule,
+    cell: FORM_PREVIEW,
     execute: (input, ctx) => testRule(input, ctx),
   },
   diff_form_versions: {
     description:
-      "Compare two published versions of this form, or one of them against the working " +
+      "Compare two published versions of a form, or one of them against its working " +
       "draft (null), and report which steps, pinned questions and rules differ. Structure " +
       "only: no authored text and no response data.",
     inputSchema: DiffFormVersionsInput,
     outputSchema: Outputs.diff_form_versions,
+    cell: FORM_READ,
     execute: (input, ctx) =>
       port(ctx.diffFormVersions, "diff_form_versions")(DiffFormVersionsInput.parse(input)),
   },
   count_links: {
     description:
-      "Count this form's secure links by state in the current environment. No link URL or " +
+      "Count a form's secure links by state in the current environment. No link URL or " +
       "token exists to return.",
-    inputSchema: NoInput,
+    inputSchema: FormSubjectInput,
     outputSchema: Outputs.count_links,
-    execute: (_input, ctx) => port(ctx.countLinks, "count_links")(),
+    cell: LINK_READ,
+    execute: (input, ctx) => port(ctx.countLinks, "count_links")(FormSubjectInput.parse(input)),
+  },
+  list_links: {
+    description:
+      "List a form's secure links in the current environment with each one's state, " +
+      "whether it is single-use and when it expires. No link URL or token exists to return.",
+    inputSchema: FormListingInput,
+    outputSchema: Outputs.list_links,
+    cell: LINK_READ,
+    execute: (input, ctx) => port(ctx.listLinks, "list_links")(FormListingInput.parse(input)),
   },
   list_responses: {
     description:
-      "List this form's responses under the screen's own four filters, metadata only: " +
+      "List a form's responses under the response list's own four filters, metadata only: " +
       "session id, times, version, access mode and flag state. Never an answer value.",
     inputSchema: ListResponsesInput,
     outputSchema: Outputs.list_responses,
+    cell: RESPONSE_READ,
     execute: (input, ctx) =>
       port(ctx.listResponses, "list_responses")(ListResponsesInput.parse(input)),
   },
   count_responses: {
     description:
-      "Count this form's responses under the screen's own four filters. Never an answer value.",
+      "Count a form's responses under the response list's own four filters. Never an answer value.",
     inputSchema: ResponseFiltersInput,
     outputSchema: Outputs.count_responses,
+    cell: RESPONSE_READ,
     execute: (input, ctx) =>
       port(ctx.countResponses, "count_responses")(ResponseFiltersInput.parse(input)),
   },
   delivery_status: {
     description:
-      "Report this form's webhook endpoints and the state of their recent deliveries: " +
+      "Report a form's webhook endpoints and the state of their recent deliveries: " +
       "counts by state and the attempt bound that was scanned. Never a payload, a " +
       "consumer response body or an error string.",
     inputSchema: DeliveryStatusInput,
     outputSchema: Outputs.delivery_status,
+    cell: WEBHOOK_READ,
     execute: (input, ctx) =>
       port(ctx.deliveryStatus, "delivery_status")(DeliveryStatusInput.parse(input)),
+  },
+  list_webhooks: {
+    description:
+      "List a form's webhook endpoints in the current environment and their recent " +
+      "deliveries with each one's state, attempts and last HTTP status. Never a payload, " +
+      "a consumer response body or an error string.",
+    inputSchema: FormListingInput,
+    outputSchema: Outputs.list_webhooks,
+    cell: WEBHOOK_READ,
+    execute: (input, ctx) => port(ctx.listWebhooks, "list_webhooks")(FormListingInput.parse(input)),
   },
   count_dead_letters: {
     description:
       "Count the dead-letter queue, by form, within the bound it scanned. Never a payload.",
     inputSchema: NoInput,
     outputSchema: Outputs.count_dead_letters,
+    claim: true,
     execute: (_input, ctx) => port(ctx.countDeadLetters, "count_dead_letters")(),
+  },
+  list_erasures: {
+    description:
+      "List the erasure log for the current environment: which session was erased, from " +
+      "which form and version, when and why. The log holds no answers.",
+    inputSchema: LimitOnlyInput,
+    outputSchema: Outputs.list_erasures,
+    claim: true,
+    execute: (input, ctx) => port(ctx.listErasures, "list_erasures")(LimitOnlyInput.parse(input)),
   },
   diff_question_versions: {
     description:
-      "Compare two versions of this question and report which members of the definition " +
+      "Compare two versions of a question and report which members of the definition " +
       "differ, by name. The names only, never their content.",
     inputSchema: DiffQuestionVersionsInput,
     outputSchema: Outputs.diff_question_versions,
+    cell: QUESTION_READ,
     execute: (input, ctx) =>
       port(
         ctx.diffQuestionVersions,
@@ -620,7 +997,27 @@ export const TOOLS: Readonly<Record<AgentToolName, AgentToolDef>> = Object.freez
       "and released version in the current environment.",
     inputSchema: SearchFormsInput,
     outputSchema: Outputs.search_forms,
+    cell: FORM_READ,
     execute: (input, ctx) => port(ctx.searchForms, "search_forms")(SearchFormsInput.parse(input)),
+  },
+  list_workspaces: {
+    description:
+      "List the workspaces this caller administers, with whether each is the shared " +
+      "library and whether it requires a second approver for a production release.",
+    inputSchema: NoInput,
+    outputSchema: Outputs.list_workspaces,
+    cell: WORKSPACE_READ,
+    execute: (_input, ctx) => port(ctx.listWorkspaces, "list_workspaces")(),
+  },
+  read_workspace: {
+    description:
+      "Read one workspace's members with their roles, and its access groups with the " +
+      "role, environments and forms each group grants.",
+    inputSchema: WorkspaceSubjectInput,
+    outputSchema: Outputs.read_workspace,
+    cell: MEMBERSHIP_READ,
+    execute: (input, ctx) =>
+      port(ctx.readWorkspace, "read_workspace")(WorkspaceSubjectInput.parse(input)),
   },
   propose_action: {
     description:
@@ -664,10 +1061,20 @@ function providerSchema(zodType: z.ZodType): Schema<unknown> {
   );
 }
 
+/** The tools whose offer is decided by the installation-wide administrator claim. */
+export function isClaimTool(name: AgentToolName): boolean {
+  return TOOLS[name].claim === true;
+}
+
+/** A read tool's own cell, which is what decides whether this caller is offered it. */
+export function toolCell(name: AgentToolName): ToolCell | undefined {
+  return TOOLS[name].cell;
+}
+
 /**
- * The only door. A name outside the registry, or outside **this screen's** list, is
- * refused before anything is dispatched, and a tool that declares a cell runs only once
- * the calling principal is shown to hold it.
+ * The only door. A name outside the registry, or outside the list this caller's grants
+ * reach, is refused before anything is dispatched, and a tool that declares a cell runs
+ * only once the calling principal is shown to hold it.
  */
 export async function runAgentTool(
   name: string,

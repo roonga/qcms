@@ -5,6 +5,7 @@ import {
   getLatestPublishedVersion,
   listQuestionVersions,
   listQuestions,
+  listWorkspaces,
 } from "@roonga/qcms-db";
 import { getForm, getWorkspace } from "@roonga/qcms-db";
 import type { QuestionRow, QuestionVersionRow } from "@roonga/qcms-db";
@@ -19,47 +20,33 @@ import {
   requireUnusedQuestionId,
   type DefinitionRefusal,
 } from "../questions/create.js";
-import {
-  projectDraftFlow,
-  requireFormDefinition,
-  storeDraftDefinition,
-  validateDraft,
-} from "../forms/handler.js";
+import { requireFormDefinition, storeDraftDefinition, validateDraft } from "../forms/handler.js";
 import type { Resource } from "../membership/policy.js";
 import { PRODUCTION_ENVIRONMENT } from "../membership/policy.js";
-import { holdsInstallationClaim, resolveGrants } from "../membership/resolver.js";
-import { actionKind } from "./actions/registry.js";
+import { holdsInstallationClaim, type ResolvedMembership } from "../membership/resolver.js";
 import { savedDraftPins } from "./draft-pins.js";
-import { offeredActionKinds, offersNoAction } from "./grant-filter.js";
+import { offeredActionKinds, offersNoAction, type OfferedActionKind } from "./grant-filter.js";
 import { buildProposal } from "./tools/propose.js";
-import { AGENT_PROPOSE_TOOL_NAMES, type AgentToolName } from "./tools/registry.js";
+import {
+  AGENT_PROPOSE_TOOL_NAMES,
+  AGENT_READ_TOOL_NAMES,
+  isClaimTool,
+  toolCell,
+  type AgentToolName,
+} from "./tools/registry.js";
 import { readPorts } from "./contexts/reads.js";
 import {
-  requireCell,
+  callerWorkspaces,
+  forbidden,
+  holdsCellIn,
   requireForm,
-  requireQuestion,
-  workspacesHoldingOrNone,
   type ScreenBuildInput,
   type ScreenParams,
 } from "./contexts/support.js";
-import {
-  isFormSubtreeScreen,
-  isScreenId,
-  offerableActionKinds,
-  SCREENS,
-  type ScreenId,
-} from "./screens.js";
+import { isFormSubtreeScreen, isScreenId, SCREENS, type ScreenId } from "./screens.js";
 import { actionResultRefusal, type ConversationTurnBody } from "./schema.js";
 import type { acceptProposalRoute, assistRoute, screenAssistRoute } from "./route.js";
-import type {
-  AgentContext,
-  AssistContext,
-  AssistEvent,
-  AssistTurn,
-  LibraryEntry,
-  ProjectDraftPort,
-  ValidateDraftPort,
-} from "./types.js";
+import type { AgentContext, AssistEvent, AssistTurn, LibraryEntry } from "./types.js";
 
 const fail = {
   noDraft: (): ApiError => new ApiError("NOT_FOUND", 404, "This form has no draft to work on yet"),
@@ -85,12 +72,6 @@ const fail = {
     ),
   resultNotAllowlisted: (reason: string): ApiError =>
     new ApiError("ACTION_RESULT_NOT_ALLOWED", 400, reason),
-  noWorkspaceForTool: (): ApiError =>
-    new ApiError(
-      "FORBIDDEN",
-      403,
-      "This screen has no workspace of its own, so no tool that needs a grant runs on it.",
-    ),
   /** Names which question, since a proposal card can list several. */
   proposedQuestionRefused: (questionId: string, issues: readonly DefinitionRefusal[]): ApiError =>
     new ApiError(
@@ -150,172 +131,181 @@ function maxStepsFor(deps: Deps): number {
   return deps.config.agent.provider === "none" ? 1 : deps.config.agent.maxSteps;
 }
 
-/** The builder screen's draft ports, which are {@link AssistContext}'s shape. */
-function buildContext(
-  deps: Deps,
-  draft: FormDefinition,
-  conversation: readonly AssistTurn[],
-): AssistContext {
-  return {
-    draft,
-    questionLibrary: questionLibrary(deps),
-    conversation,
-    // The builder's own validation, so the two verdicts cannot disagree.
-    validate: async (definition) => {
-      const { issues, warnings } = await validateDraft(deps, definition);
-      return { issues, warnings };
-    },
-    maxSteps: maxStepsFor(deps),
-  };
-}
-
 /**
- * The turn's context: the screen's facts, built under the caller's grants, and the ports
- * its declared tools close over. The facts are parsed rather than trusted, so a field a
- * builder added without declaring it fails here instead of reaching the provider.
+ * The turn's context: the screen's facts, the default subject ids a call takes when it
+ * names none, and the ports behind every tool this caller's grants reach. The facts are
+ * parsed rather than trusted, so an undeclared field fails here, not at the provider.
  */
 async function buildScreenContext(args: {
   readonly deps: Deps;
   readonly screen: ScreenId;
   readonly build: ScreenBuildInput;
   readonly conversation: readonly AssistTurn[];
-  /** Resolved after the screen's own cell check, so no draft is read before it. */
-  readonly drafts?: () => Promise<AssistContext | undefined>;
+  /** The screen's own form draft, resolved after its cell check, for the preamble. */
+  readonly draft?: () => Promise<FormDefinition | undefined>;
 }): Promise<AgentContext> {
   const screen = SCREENS[args.screen];
   const facts = screen.facts.parse(await screen.build(args.build));
-  const drafts = await args.drafts?.();
-  const workspaceId = await screenWorkspace(args.build);
-  const actions = await actionPorts({
-    deps: args.deps,
-    build: args.build,
-    screen: args.screen,
-    workspaceId,
-    validate: drafts?.validate,
-  });
+  const draft = await args.draft?.();
+  const reads = readPorts(args.build);
+  const held = await callerWorkspaces(args.build);
+  const actions = actionPorts({ deps: args.deps, build: args.build, held });
   return {
     screen: args.screen,
     facts,
+    defaults: {
+      formId: args.build.params.formId,
+      questionId: args.build.params.questionId,
+      workspaceId: args.build.params.workspaceId,
+      environment: args.build.environment,
+    },
     conversation: args.conversation,
     maxSteps: maxStepsFor(args.deps),
-    tools: [...screen.readTools, ...actions.tools],
-    // The same evaluator the route middleware uses, closed over this caller and the
-    // workspace this screen's subject belongs to.
+    // The caller's own permissions, not the screen's: the whole point of the principle's
+    // point 1 and point 5.
+    tools: [...grantedReadTools(args.build, held), ...actions.tools],
+    // The same evaluator the route middleware uses. It asks whether this caller holds the
+    // cell on any subject at all; the port re-asks it on the subject the call names, and
+    // that is the limit.
     authorize: async (cell) => {
-      if (workspaceId === undefined) throw fail.noWorkspaceForTool();
-      await requireCell(args.build, {
-        workspaceId,
-        resource: cell.resource as Resource,
-        action: cell.action,
-      });
+      await Promise.resolve();
+      if (
+        !holdsCellIn(held, args.build.environment, { ...cell, resource: cell.resource as Resource })
+      )
+        throw forbidden(
+          `This needs a grant carrying ${cell.resource}: ${cell.action} in some workspace. ` +
+            "Your own grants are at GET /admin/me/access.",
+        );
     },
-    ...(drafts === undefined
-      ? {}
-      : {
-          draft: drafts.draft,
-          questionLibrary: drafts.questionLibrary,
-          validate: drafts.validate,
-        }),
-    ...(screen.readTools.includes("project_draft") && drafts !== undefined
-      ? { projectDraft: projectionPort(args.deps, drafts.draft) }
-      : {}),
-    // Each port re-makes its own screen's read check, so a declared tool is still refused
-    // for a caller the screen itself would refuse.
-    ...readPorts({ input: args.build, declared: screen.readTools, draft: drafts?.draft }),
+    questionLibrary: questionLibrary(args.deps),
+    ...(draft === undefined ? {} : { draft }),
+    ...reads,
     ...actions.ports,
   };
 }
 
+/** The read tools this caller holds a cell for, whatever screen the turn is on. */
+function grantedReadTools(
+  build: ScreenBuildInput,
+  held: readonly ResolvedMembership[],
+): readonly AgentToolName[] {
+  return AGENT_READ_TOOL_NAMES.filter((name) => {
+    if (isClaimTool(name)) return build.principal.claim;
+    const cell = toolCell(name);
+    if (cell === undefined) return true;
+    return holdsCellIn(held, build.environment, {
+      resource: cell.resource as Resource,
+      action: cell.action,
+    });
+  });
+}
+
+/** The union across the caller's workspaces: a kind held in one of them is offered. */
+function mergeOffers(
+  offers: readonly (readonly OfferedActionKind[])[],
+): readonly OfferedActionKind[] {
+  const byKind = new Map<string, Set<string>>();
+  for (const offer of offers) {
+    for (const entry of offer) {
+      const environments = byKind.get(entry.kind) ?? new Set<string>();
+      for (const environment of entry.environments) environments.add(environment);
+      byKind.set(entry.kind, environments);
+    }
+  }
+  return [...byKind.entries()].map(([kind, environments]) => ({
+    kind,
+    environments: [...environments],
+  }));
+}
+
 /**
- * The propose tools' port and the kinds the grant filter offered this caller. A caller holding none gets
- * neither the port nor the tools, which is how "a read-only user is offered no write" is structural rather
- * than a prompt (principle point 1).
+ * The propose tools' port and the kinds the grant filter offered this caller, across every
+ * workspace they hold a grant in. A caller holding none gets neither the port nor the
+ * tools, which is how "a read-only user is offered no write" is structural (point 1).
  */
-async function actionPorts(args: {
+function actionPorts(args: {
   readonly deps: Deps;
   readonly build: ScreenBuildInput;
-  readonly screen: ScreenId;
-  readonly workspaceId: string | undefined;
-
-  readonly validate: ValidateDraftPort | undefined;
-}): Promise<{
+  readonly held: readonly ResolvedMembership[];
+}): {
   readonly tools: readonly AgentToolName[];
   readonly ports: Partial<Pick<AgentContext, "propose" | "offeredActionKinds">>;
-}> {
-  const kinds = offerableActionKinds(args.screen);
-  if (kinds.length === 0) return { tools: [], ports: {} };
-
-  // A library screen has no subject of its own, and the kinds it offers are the ones that
-  // make one. The filter judges them against a workspace the caller may create in; which
-  // workspace the act lands in stays the route's own, from the arguments.
-  const workspaceId = args.workspaceId ?? (await creatableWorkspace(args.build, kinds));
-  if (workspaceId === undefined) return { tools: [], ports: {} };
-
-  const resolved = await resolveGrants(args.deps.databases.control, {
-    userId: args.build.principal.userId,
-    workspaceId,
-    claim: args.build.principal.claim,
-  });
-  const offered = offeredActionKinds({
-    memberRole: resolved.memberRole,
-    grants: resolved.grants,
-    environments: args.deps.databases.names,
-    current: args.build.environment,
-    screen: args.screen,
-    formId: args.build.params.formId,
-  });
+} {
+  const offered = mergeOffers(
+    args.held.map((membership) =>
+      offeredActionKinds({
+        memberRole: membership.memberRole,
+        grants: membership.grants,
+        environments: args.deps.databases.names,
+        current: args.build.environment,
+        formId: args.build.params.formId,
+      }),
+    ),
+  );
   // Present with an empty list rather than absent, so the system prompt can say this user
-  // changes nothing here.
+  // changes nothing anywhere.
   if (offersNoAction(offered)) return { tools: [], ports: { offeredActionKinds: offered } };
 
-  const workspace = await getWorkspace(args.deps.databases.control, workspaceId);
   const named = args.build.params.formId;
   const parsedForm = named === undefined ? undefined : parseFormId(named);
-  const formId = parsedForm?.ok === true ? parsedForm.value : undefined;
+  const screenForm = parsedForm?.ok === true ? parsedForm.value : undefined;
+  const workspaceId = screenForm === undefined ? args.build.params.workspaceId : undefined;
   return {
     tools: AGENT_PROPOSE_TOOL_NAMES,
     ports: {
       offeredActionKinds: offered,
-      propose: (input) =>
+      propose: async (input) =>
         buildProposal({
           ...input,
           subject: args.build.principal.userId,
           appKey: args.deps.config.keys.app,
           current: args.build.environment,
-          screen: args.screen,
           offered,
-          ...(formId === undefined ? {} : { savedDraft: () => savedDraftPins(args.deps, formId) }),
-          requireSecondApprover: workspace?.requireSecondApprover ?? false,
+          savedDraft: (formId) => savedDraftsFor(args.deps, formId),
+          requireSecondApprover: await secondApproverFor(args.deps, {
+            formId: screenForm,
+            workspaceId,
+          }),
           productionEnvironment: PRODUCTION_ENVIRONMENT,
-          formId: args.build.params.formId,
+          formId: named,
           issuedAt: args.deps.clock.now(),
-          validate: args.validate,
+          validate: (definition) => validateDraft(args.deps, definition),
         }),
     },
   };
 }
 
-async function creatableWorkspace(
-  input: ScreenBuildInput,
-  kinds: readonly string[],
-): Promise<string | undefined> {
-  for (const name of kinds) {
-    const def = actionKind(name);
-    if (def === undefined) continue;
-    const [first] = await workspacesHoldingOrNone(input, def.cell);
-    if (first !== undefined) return first;
+/** The saved draft of whichever form the plan publishes, parsed rather than trusted. */
+async function savedDraftsFor(deps: Deps, formId: string) {
+  const parsed = parseFormId(formId);
+  return parsed.ok ? savedDraftPins(deps, parsed.value) : undefined;
+}
+
+/**
+ * ADR-41's two-person switch belongs to the workspace the act lands in. A plan proposed
+ * from a screen with no subject names its form in the step's arguments, so the strictest
+ * reading is taken: any workspace the caller may act in that requires it.
+ */
+async function secondApproverFor(
+  deps: Deps,
+  subject: { readonly formId: FormId | undefined; readonly workspaceId: string | undefined },
+): Promise<boolean> {
+  if (subject.formId !== undefined) {
+    const form = await getForm(deps.databases.control, subject.formId);
+    if (form === undefined) return true;
+    return (
+      (await getWorkspace(deps.databases.control, form.workspaceId))?.requireSecondApprover === true
+    );
   }
-  return undefined;
-}
-
-async function screenWorkspace(input: ScreenBuildInput): Promise<string | undefined> {
-  if (input.params.formId !== undefined) return (await requireForm(input)).workspaceId;
-  if (input.params.questionId !== undefined) return (await requireQuestion(input)).workspaceId;
-  return input.params.workspaceId;
-}
-
-function projectionPort(deps: Deps, draft: FormDefinition): ProjectDraftPort {
-  return async (answers) => projectDraftFlow(deps, draft, answers);
+  if (subject.workspaceId !== undefined) {
+    return (
+      (await getWorkspace(deps.databases.control, subject.workspaceId))?.requireSecondApprover ===
+      true
+    );
+  }
+  return (await listWorkspaces(deps.databases.control)).some(
+    (workspace) => workspace.requireSecondApprover,
+  );
 }
 
 function screenBuildInput(args: {
@@ -456,7 +446,7 @@ export function makeAssistHandler(deps: Deps): RouteHandler<typeof assistRoute, 
       deps,
       screen,
       conversation: body.conversation,
-      drafts: () => Promise.resolve(buildContext(deps, definition, body.conversation)),
+      draft: () => Promise.resolve(definition),
       build: screenBuildInput({
         deps,
         principal: callerOf(c),
@@ -507,8 +497,8 @@ function callerOf(c: {
 
 /**
  * The turn for a screen with no form in its route. One screen id, one context builder, one door: the
- * registry decides what this turn may read, and the builder checks its own permission cell before it reads
- * it.
+ * caller's grants decide what this turn may read, and the builder checks its own permission cell before it
+ * reads the facts.
  */
 export function makeScreenAssistHandler(
   deps: Deps,
@@ -536,7 +526,7 @@ export function makeScreenAssistHandler(
       screen,
       conversation: body.conversation,
       build,
-      ...(isFormSubtreeScreen(screen) ? { drafts: () => formSubtreeDrafts(deps, build) } : {}),
+      ...(build.params.formId === undefined ? {} : { draft: () => screenDraft(deps, build) }),
     });
 
     return new Response(assistStream(deps, ctx, controller), {
@@ -547,20 +537,20 @@ export function makeScreenAssistHandler(
 }
 
 /**
- * A form-subtree screen reached through this route still gets the draft ports its own
- * route would give it, so one screen behaves the same whichever route carried the turn.
+ * The working definition of the form the screen names, for the preamble that asks for
+ * changes. Every read and every verb resolves its own subject through its port, so this is
+ * the screen's default and nothing more.
  */
-async function formSubtreeDrafts(
+async function screenDraft(
   deps: Deps,
   build: ScreenBuildInput,
-): Promise<AssistContext | undefined> {
+): Promise<FormDefinition | undefined> {
   const { formId } = await requireForm(build);
   const draftRow = await getDraft(deps.databases.control, formId);
-  const definition =
+  return (
     draftRow?.definition ??
-    (await getLatestPublishedVersion(deps.databases.control, formId))?.definition;
-  if (definition === undefined) return undefined;
-  return buildContext(deps, definition, []);
+    (await getLatestPublishedVersion(deps.databases.control, formId))?.definition
+  );
 }
 
 /** Derived so the operator can predict it; a collision is a clean 409, not a mangled name. */

@@ -13,7 +13,7 @@ import { actionKind } from "../actions/registry.js";
 import type { ActionKindDef } from "../actions/types.js";
 import type { PinnedQuestion, SavedDraftPins } from "../draft-pins.js";
 import { offeredEnvironments, type OfferedActionKind } from "../grant-filter.js";
-import type { ScreenId } from "../screens.js";
+import { isOperationalScreen } from "../screens.js";
 import {
   argumentsDigest,
   isStepReference,
@@ -31,9 +31,6 @@ export const MAX_PLAN_STEPS = PROPOSAL_MAX_STEPS;
 const PUBLISH_QUESTION_KIND = "question.publish";
 
 const PUBLISH_FORM_KIND = "form.publish";
-
-/** The question's own page, where publishing one needs no draft to justify it. */
-const QUESTION_DETAIL_SCREEN: ScreenId = "/questions/[questionId]";
 
 export const ProposedStep = z.strictObject({
   kind: z.string().min(1).max(100),
@@ -100,8 +97,6 @@ export interface ProposeInput {
   readonly appKey: string;
   /** The environment the switcher named for this turn. */
   readonly current: string;
-  /** The screen the turn is on, which decides whether a question publish needs a pin. */
-  readonly screen: ScreenId;
   readonly offered: readonly OfferedActionKind[];
   /** The workspace's ADR-41 switch, which refuses a publish-then-release-to-prod plan. */
   readonly requireSecondApprover: boolean;
@@ -123,11 +118,11 @@ export interface ProposeInput {
       }
     | undefined;
   /**
-   * The form's saved draft, read when a step asks to publish one of the versions it pins
-   * unpublished. Absent, a question publish away from the question's own page is refused
-   * rather than allowed unverified; a plan built from it is bound to its revision.
+   * One form's saved draft, read when a plan publishes both a question version and the form
+   * that pins it. Absent, such a plan is refused rather than allowed unverified; a plan
+   * built from the pin set is bound to that draft's revision.
    */
-  readonly savedDraft?: (() => Promise<SavedDraftPins | undefined>) | undefined;
+  readonly savedDraft?: ((formId: string) => Promise<SavedDraftPins | undefined>) | undefined;
   /** The builder's own validation, so the card's two lists and a publish cannot disagree. */
   readonly validate?:
     | ((definition: FormDefinition) => Promise<{
@@ -313,11 +308,12 @@ function kindRefusal(
   step: ProposedStep,
   index: number,
   pinned: readonly PinnedQuestion[],
+  pinChecked: boolean,
 ): string | undefined {
   if (def.carriesProposedDraft === true) {
     return proposedDraftRefusal(input, def, step, index);
   }
-  if (step.kind === PUBLISH_QUESTION_KIND && input.screen !== QUESTION_DETAIL_SCREEN) {
+  if (step.kind === PUBLISH_QUESTION_KIND && pinChecked) {
     return pinnedQuestionRefusal(step, index, pinned);
   }
   return undefined;
@@ -328,6 +324,7 @@ function stepRefusal(
   step: ProposedStep,
   index: number,
   pinned: readonly PinnedQuestion[],
+  pinChecked: boolean,
 ): { readonly reason: string } | { readonly step: PlanStep; readonly def: ActionKindDef } {
   const def = actionKind(step.kind);
   if (def === undefined) {
@@ -362,7 +359,7 @@ function stepRefusal(
     };
   }
 
-  const descriptorIssue = kindRefusal(input, def, step, index, pinned);
+  const descriptorIssue = kindRefusal(input, def, step, index, pinned, pinChecked);
   if (descriptorIssue !== undefined) return { reason: descriptorIssue };
 
   return {
@@ -480,36 +477,66 @@ function capRefusal(input: ProposeInput): string | undefined {
   return undefined;
 }
 
+/** The form a plan publishes, which is the draft its question publishes are checked against. */
+function publishedFormId(input: ProposeInput): string | undefined {
+  for (const step of input.steps) {
+    if (step.kind !== PUBLISH_FORM_KIND) continue;
+    const named = step.args["formId"];
+    if (typeof named === "string" && named !== "") return named;
+  }
+  return input.formId;
+}
+
 /**
- * The draft's unpublished pins, read only when a step asks to publish one of them, with
- * the revision the token binds so Confirm can refuse a draft that has moved since.
+ * The draft's unpublished pins, read only when a plan publishes a question version and the
+ * form that pins it: that is the only shape whose safety the pin set decides, since a
+ * dangling pin is what refuses a publish. Any other plan reads none and binds no revision.
  */
-async function resolvedPins(
-  input: ProposeInput,
-): Promise<
-  | { readonly pinned: readonly PinnedQuestion[]; readonly revision: number | undefined }
+async function resolvedPins(input: ProposeInput): Promise<
+  | {
+      readonly pinned: readonly PinnedQuestion[];
+      readonly revision: number | undefined;
+      readonly formId: string | undefined;
+    }
   | { readonly reason: string }
 > {
-  const needed =
-    input.screen !== QUESTION_DETAIL_SCREEN &&
-    input.steps.some((step) => step.kind === PUBLISH_QUESTION_KIND);
-  if (!needed) return { pinned: [], revision: undefined };
-  if (input.savedDraft === undefined) {
+  const empty = { pinned: [], revision: undefined, formId: publishedFormId(input) } as const;
+  const publishes = (kind: string): boolean => input.steps.some((step) => step.kind === kind);
+  if (!publishes(PUBLISH_FORM_KIND) || !publishes(PUBLISH_QUESTION_KIND)) return empty;
+  const formId = publishedFormId(input);
+  if (input.savedDraft === undefined || formId === undefined) {
     return {
       reason:
-        `This screen cannot say which question versions the form's draft pins, so ${PUBLISH_QUESTION_KIND} ` +
-        "cannot be proposed here. Publish the question from its own page in the library.",
+        "This deployment cannot say which question versions the form's draft pins, so a plan " +
+        `publishing both ${PUBLISH_QUESTION_KIND} and ${PUBLISH_FORM_KIND} cannot be proposed. ` +
+        "Publish the question from its own page in the library.",
     };
   }
-  const saved = await input.savedDraft();
+  const saved = await input.savedDraft(formId);
   if (saved === undefined) {
     return {
       reason:
-        `This form has no saved draft, so it pins no unpublished question version and ` +
-        `${PUBLISH_QUESTION_KIND} cannot be proposed here. Publish the question from its own page in the library.`,
+        "This form has no saved draft, so it pins no unpublished question version and nothing " +
+        `is published by ${PUBLISH_FORM_KIND}. Publish the question from its own page in the library.`,
     };
   }
-  return { pinned: saved.pins, revision: saved.revision };
+  return { pinned: saved.pins, revision: saved.revision, formId };
+}
+
+/**
+ * One Confirm covers one context. An authoring plan edits shared authoring content; an
+ * operational plan acts on one environment's live state, so a plan mixing them would be one
+ * confirmation spanning both.
+ */
+function mixedContextRefusal(steps: readonly PlanStep[]): string | undefined {
+  const operational = steps.filter((step) => isOperationalScreen(step.screen));
+  if (operational.length === 0 || operational.length === steps.length) return undefined;
+  const authoring = steps.find((step) => !isOperationalScreen(step.screen));
+  return (
+    `This plan mixes authoring (${authoring?.kind ?? ""}) with operational ` +
+    `(${operational[0]?.kind ?? ""}) steps, and one Confirm covers one context. Propose the ` +
+    "authoring steps and the operational steps as two plans."
+  );
 }
 
 /** The refusals that are about the plan as a whole rather than about one step. */
@@ -518,6 +545,8 @@ function planShapeRefusal(
   steps: readonly PlanStep[],
   boundRevision: number | undefined,
 ): string | undefined {
+  const mixed = mixedContextRefusal(steps);
+  if (mixed !== undefined) return mixed;
   const ordering = publishOrderRefusal(input.steps);
   if (ordering !== undefined) return ordering;
   if (boundRevision !== undefined) {
@@ -543,10 +572,11 @@ export async function buildProposal(input: ProposeInput): Promise<ProposeOutcome
 
   const resolved = await resolvedPins(input);
   if ("reason" in resolved) return refuse(resolved.reason);
+  const pinChecked = resolved.revision !== undefined;
 
   const steps: PlanStep[] = [];
   for (const [index, step] of input.steps.entries()) {
-    const checked = stepRefusal(input, step, index, resolved.pinned);
+    const checked = stepRefusal(input, step, index, resolved.pinned, pinChecked);
     if ("reason" in checked) return refuse(checked.reason);
     steps.push(checked.step);
   }
@@ -566,6 +596,9 @@ export async function buildProposal(input: ProposeInput): Promise<ProposeOutcome
     });
   }
 
+  // The form the plan acts on rather than the one the screen names, because a plan may be
+  // proposed from anywhere and the bound revision has to be that form's own.
+  const boundFormId = resolved.formId ?? input.formId;
   const token =
     tokenSteps.length === 0
       ? undefined
@@ -573,7 +606,7 @@ export async function buildProposal(input: ProposeInput): Promise<ProposeOutcome
           sub: input.subject,
           pid: proposalId,
           steps: tokenSteps,
-          formId: input.formId,
+          formId: boundFormId,
           draftRevision: resolved.revision,
           issuedAt: input.issuedAt,
         });
@@ -586,7 +619,7 @@ export async function buildProposal(input: ProposeInput): Promise<ProposeOutcome
       steps: await withProposedDraft(input, steps),
       proposedAt: input.issuedAt.toISOString(),
       expiresAt: new Date(input.issuedAt.getTime() + 10 * 60 * 1000).toISOString(),
-      formId: input.formId,
+      formId: boundFormId,
       currentEnvironment: input.current,
     },
   };
