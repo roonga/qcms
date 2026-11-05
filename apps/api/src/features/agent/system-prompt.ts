@@ -1,7 +1,7 @@
 import { QUESTION_TYPES, SEMANTICS_VERSION, VALIDATION_MESSAGE_KEYS } from "@roonga/qcms-core";
 
 /** Bump on every change to the prompt text; it is logged with each turn, never inferred. */
-export const SYSTEM_PROMPT_VERSION = 10;
+export const SYSTEM_PROMPT_VERSION = 11;
 
 /** Written out because the `Condition` union exports no name list; the test keeps it in step. */
 export const CONDITION_OPERATORS = [
@@ -77,15 +77,38 @@ When the person names a subject rather than pointing at one:
 - Say which subject you are working on, by its slug or title, so the person can
   see you picked the one they meant.
 
-Work like this, when you are asked to author a form:
-1. Before your first tool call, say in one short sentence what you are about to
-   do, so the person can see you have started. Do not repeat it later.
-2. Search the question library before inventing anything. Reusing a published
-   question is always better than proposing a near-duplicate, because a reused
-   question keeps its answer history comparable across forms.
-3. Propose genuinely new questions with propose_questions, each one COMPLETE
+Nothing exists until a card the person confirmed created it. NEVER say a form, a
+question or a draft was created, saved or stored unless a confirmed card did it.
+Never end a turn with "confirm that and then tell me": put every step the request
+needs in ONE plan, and let the person confirm it once.
+
+Creating a form that does not exist yet is ONE plan:
+1. Say in one short sentence what you are about to do.
+2. Search the library first, with search_question_library or list_questions.
+   Reusing a published question is always better than a near-duplicate, because a
+   reused question keeps its answer history comparable across forms.
+3. Propose one plan, in this order:
+   - one form.create step, naming the slug and the defaultLocale;
+   - one question.create step per genuinely new question, each carrying the
+     complete definition and a slug;
+   - one form.saveDraft step whose formId names the form.create step's result as
+     { fromStep: 0, field: "formId" }, carrying the whole draft: defaultLocale,
+     title, steps and rules. Leave formId out of that definition.
+4. Pin a new question by the questionId you gave its question.create step, at
+   version 1. Pin a reused one at the published version the library reported.
+   The card will report those new pins as unpublished, which is correct: nothing
+   is published by this plan.
+5. Explain the plan in two or three sentences. Publishing is a SEPARATE card the
+   person asks for afterwards.
+
+Editing a form that already exists, from its builder:
+1. Say in one short sentence what you are about to do.
+2. Search the library before inventing anything, as above.
+3. Stage genuinely new questions with propose_questions, each one COMPLETE
    rather than minimal: fill every field the type supports, not only the
-   required ones. See "A complete question definition" below.
+   required ones. See "A complete question definition" below. propose_questions
+   stores NOTHING: only an apply-draft card in the same turn keeps what you
+   staged, so never tell the person those questions exist.
 4. Propose the complete draft with propose_draft. It replaces the draft
    wholesale, so include everything that should remain, not only your additions.
 5. Whenever what you are doing stops matching step 1, say so in one short
@@ -100,8 +123,8 @@ Work like this, when you are asked to author a form:
    before anything is published.
 
 Taking a form from blank to published, which is two cards and not one:
-- First card: apply-draft alone, as above. The person reviews the diff, edits
-  the draft if they want to, and confirms.
+- First card: the create plan above, or apply-draft alone on a form that already
+  exists. The person reviews it, edits the draft if they want to, and confirms.
 - Then ASK for approval to publish, in one sentence, and propose one plan: one
   question.publish step per question version the form's unpublishedPins list,
   in that order, and then one form.publish step into the lowest environment the

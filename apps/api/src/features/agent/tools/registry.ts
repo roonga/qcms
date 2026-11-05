@@ -376,9 +376,13 @@ const Outputs = {
       }),
     ),
   }),
+  // Every field says the same thing: nothing was created. The one consumer is the kind
+  // that applies a proposed draft, and a turn that proposes no such card keeps nothing.
   propose_questions: z.strictObject({
-    accepted: z.number().int(),
+    staged: z.number().int(),
     questionIds: z.array(z.string()),
+    stored: z.literal(false),
+    keptBy: z.literal("apply-draft"),
   }),
   propose_draft: z.strictObject({
     accepted: z.boolean(),
@@ -693,7 +697,12 @@ async function searchLibrary(input: unknown, ctx: AgentContext): Promise<{ quest
 function proposeQuestions(
   input: unknown,
   state: ProposalState,
-): { accepted: number; questionIds: QuestionId[] } {
+): {
+  staged: number;
+  questionIds: QuestionId[];
+  stored: false;
+  keptBy: "apply-draft";
+} {
   const { questions } = ProposeQuestionsInput.parse(input);
   for (const question of questions) {
     const existing = state.newQuestions.findIndex((q) => q.questionId === question.questionId);
@@ -701,15 +710,17 @@ function proposeQuestions(
     state.newQuestions.push(question);
   }
   return {
-    accepted: questions.length,
+    staged: questions.length,
     questionIds: state.newQuestions.map((q) => q.questionId),
+    stored: false,
+    keptBy: "apply-draft",
   };
 }
 
 /**
  * The form named in the draft is the subject, and the port checks this caller's `form:
- * write` on it, so a draft may be proposed for any form the user may edit. A form they
- * cannot reach is a refusal the model reads, not a failed turn.
+ * write` on it. Its one consumer is the apply-draft card, which saves through the builder on
+ * a form that exists, so a form that does not is refused with the plan that works instead.
  */
 async function proposeDraft(
   input: unknown,
@@ -729,9 +740,16 @@ async function proposeDraft(
   return { accepted: true, valid: issues.length === 0, issues, warnings };
 }
 
+const NO_SUCH_FORM = [
+  "This draft names a form that does not exist here, and propose_draft only stages a draft",
+  "for a form the builder can save. To create a form, propose one plan instead: form.create,",
+  "a question.create step per new question, then form.saveDraft carrying the whole draft.",
+].join(" ");
+
 /** A refusal the model may act on, never a stack or a vendor string. */
 function reasonOf(error: unknown): string {
-  return error instanceof Error ? error.message : "That form could not be read.";
+  if (!(error instanceof Error)) return "That form could not be read.";
+  return error.message.includes("No such form") ? NO_SUCH_FORM : error.message;
 }
 
 async function validateProposal(
@@ -851,7 +869,10 @@ export const TOOLS: Readonly<Record<AgentToolName, AgentToolDef>> = Object.freez
   },
   propose_questions: {
     description:
-      "Propose new question definitions. They are returned to the human for review and are not created or published by this call.",
+      "Stage new question definitions for the apply-draft card, and nothing else. It " +
+      "creates nothing: the definitions are kept only by an apply-draft card proposed in " +
+      "the same turn, and are discarded otherwise. To create a question the user keeps, " +
+      "propose a question.create step instead.",
     inputSchema: ProposeQuestionsInput,
     outputSchema: Outputs.propose_questions,
     cell: DRAFT_WRITE,

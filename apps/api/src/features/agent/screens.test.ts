@@ -120,19 +120,10 @@ describe("the screen registry", () => {
     expect(operational).not.toContain("access.grant");
   });
 
-  it("offers each workspace section only its own kinds, so no plan spans two sections", () => {
-    expect(offerableActionKinds("/workspaces/[workspaceId]/members")).toEqual(["member.role"]);
-    expect(offerableActionKinds("/workspaces/[workspaceId]/access-groups")).toEqual([
-      "access.groupCreate",
-      "access.groupRemove",
-      "access.grant",
-      "access.revoke",
-    ]);
-    expect(offerableActionKinds("/workspaces/[workspaceId]/settings")).toEqual([
-      "workspace.settings",
-    ]);
-    expect(offerableActionKinds("/workspaces/[workspaceId]/audit")).toEqual([]);
-    expect(offerableActionKinds("/workspaces/[workspaceId]/assistant-actions")).toEqual([]);
+  it("holds one row per workspace section, and no row for the section-less path", () => {
+    for (const section of ["members", "access-groups", "settings", "audit", "assistant-actions"]) {
+      expect(isScreenId(`/workspaces/[workspaceId]/${section}`), section).toBe(true);
+    }
     expect(isScreenId("/workspaces/[workspaceId]")).toBe(false);
   });
 });

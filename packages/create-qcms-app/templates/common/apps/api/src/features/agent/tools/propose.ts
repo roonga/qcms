@@ -6,7 +6,11 @@
 
 import { z } from "zod";
 
-import type { FormDefinition, QuestionDefinition } from "@roonga/qcms-core";
+import {
+  FormDefinition as FormDefinitionSchema,
+  type FormDefinition,
+  type QuestionDefinition,
+} from "@roonga/qcms-core";
 
 import type { PublishIssue, PublishWarning } from "../../forms/handler.js";
 import { actionKind } from "../actions/registry.js";
@@ -31,6 +35,15 @@ export const MAX_PLAN_STEPS = PROPOSAL_MAX_STEPS;
 const PUBLISH_QUESTION_KIND = "question.publish";
 
 const PUBLISH_FORM_KIND = "form.publish";
+
+const CREATE_QUESTION_KIND = "question.create";
+
+/**
+ * The id a draft is validated under when its form is an earlier step's result. Nothing
+ * depends on the value: the validation resolves pinned question versions, and the real id
+ * is minted by the create step and injected by the screen's own save.
+ */
+const PENDING_FORM_ID = "frm_pending";
 
 export const ProposedStep = z.strictObject({
   kind: z.string().min(1).max(100),
@@ -266,13 +279,18 @@ function boundPublishLastRefusal(steps: readonly PlanStep[]): string | undefined
   );
 }
 
+/** A step that saves the form's draft, and so moves the revision a bound plan rests on. */
+function writesDraft(step: PlanStep): boolean {
+  const def = actionKind(step.kind);
+  return step.local || def?.carriesDraftArgument === true;
+}
+
 /**
- * A local step saves the draft through the screen, which moves its revision, so in a plan
- * bound to that revision no token step may follow one: it would be refused as a draft
- * change the user never made.
+ * A step that saves the draft moves its revision, so in a plan bound to that revision no
+ * token step may follow one: it would be refused as a draft change the user never made.
  */
 function boundAfterDraftWriteRefusal(steps: readonly PlanStep[]): string | undefined {
-  const writeAt = steps.findIndex((step) => step.local);
+  const writeAt = steps.findIndex((step) => writesDraft(step));
   if (writeAt < 0) return undefined;
   const after = steps.findIndex((step, index) => index > writeAt && carriesToken(step));
   if (after < 0) return undefined;
@@ -366,7 +384,9 @@ function stepRefusal(
     step: {
       kind: step.kind,
       screen: def.screen,
-      args: step.args,
+      // Normalised, so the card shows and the digest binds the same arguments the request's
+      // own recompute will produce.
+      args: def.normaliseArgs?.(step.args) ?? step.args,
       environment,
       handOff: def.handOff === true,
       local: def.local === true,
@@ -466,6 +486,71 @@ async function withProposedDraft(
   );
 }
 
+/** The definitions this plan's own `question.create` steps carry, which the card lists beside the diff. */
+function plannedQuestions(steps: readonly PlanStep[]): readonly QuestionDefinition[] {
+  return steps.flatMap((step) => {
+    if (step.kind !== CREATE_QUESTION_KIND) return [];
+    const definition = step.args["definition"];
+    return typeof definition === "object" && definition === null
+      ? []
+      : [definition as QuestionDefinition];
+  });
+}
+
+/**
+ * A draft carried as an argument gets the two advisory lists the applied draft gets: the
+ * server's own validation over the definition the card shows. A plan that creates the form
+ * validates under a placeholder id, since the verdict is about the pins and the rules.
+ */
+async function withDraftArguments(
+  input: ProposeInput,
+  steps: readonly PlanStep[],
+): Promise<readonly PlanStep[]> {
+  const validate = input.validate;
+  if (validate === undefined) return steps;
+  const created = plannedQuestions(steps);
+  const out: PlanStep[] = [];
+  for (const step of steps) {
+    const parsed =
+      actionKind(step.kind)?.carriesDraftArgument === true
+        ? FormDefinitionSchema.safeParse({
+            ...(step.args["definition"] as Record<string, unknown>),
+            formId: typeof step.args["formId"] === "string" ? step.args["formId"] : PENDING_FORM_ID,
+          })
+        : undefined;
+    if (parsed === undefined || !parsed.success) {
+      out.push(step);
+      continue;
+    }
+    const { issues, warnings } = await validate(parsed.data);
+    out.push({
+      ...step,
+      draft: { definition: parsed.data, newQuestions: created, issues, warnings },
+    });
+  }
+  return out;
+}
+
+/**
+ * A draft argument the kernel cannot parse is refused at propose time, so no card ever
+ * offers to save a definition the save itself would reject.
+ */
+function draftArgumentRefusal(steps: readonly PlanStep[]): string | undefined {
+  for (const [index, step] of steps.entries()) {
+    if (actionKind(step.kind)?.carriesDraftArgument !== true) continue;
+    const parsed = FormDefinitionSchema.safeParse({
+      ...(step.args["definition"] as Record<string, unknown>),
+      formId: typeof step.args["formId"] === "string" ? step.args["formId"] : PENDING_FORM_ID,
+    });
+    if (parsed.success) continue;
+    return (
+      `Step ${String(index + 1)}'s draft is not a valid FormDefinition: ${parsed.error.message} ` +
+      "Send defaultLocale, title, steps and rules, and leave formId out."
+    );
+  }
+  return undefined;
+}
+
 function capRefusal(input: ProposeInput): string | undefined {
   if (input.proposalsThisTurn >= PROPOSALS_PER_TURN) {
     return "One proposal per turn; put the steps in one plan.";
@@ -547,6 +632,8 @@ function planShapeRefusal(
 ): string | undefined {
   const mixed = mixedContextRefusal(steps);
   if (mixed !== undefined) return mixed;
+  const malformed = draftArgumentRefusal(steps);
+  if (malformed !== undefined) return malformed;
   const ordering = publishOrderRefusal(input.steps);
   if (ordering !== undefined) return ordering;
   if (boundRevision !== undefined) {
@@ -616,7 +703,7 @@ export async function buildProposal(input: ProposeInput): Promise<ProposeOutcome
     proposal: {
       proposalId,
       token,
-      steps: await withProposedDraft(input, steps),
+      steps: await withDraftArguments(input, await withProposedDraft(input, steps)),
       proposedAt: input.issuedAt.toISOString(),
       expiresAt: new Date(input.issuedAt.getTime() + 10 * 60 * 1000).toISOString(),
       formId: boundFormId,

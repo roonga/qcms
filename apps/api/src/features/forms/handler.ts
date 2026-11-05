@@ -712,15 +712,21 @@ export function makePutDraftHandler(deps: Deps): RouteHandler<typeof putDraftRou
   return async (c) => {
     const formId = requireFormId(c.req.valid("param").id);
     const definition = requireDefinition(c.req.valid("json").definition);
+    const site = agentStepSite(c);
 
     // Save first, then advise: a draft may be temporarily inconsistent, and the issues
-    // block publish rather than the save.
-    const saved = await storeDraftDefinition(
-      deps.databases.control,
-      formId,
-      definition,
-      c.req.valid("json").agentAssisted ?? false,
-    );
+    // block publish rather than the save. The agent row rides the save's own transaction,
+    // so a refused save writes none.
+    const saved = await deps.databases.control.transaction(async (tx) => {
+      const row = await storeDraftDefinition(
+        tx,
+        formId,
+        definition,
+        c.req.valid("json").agentAssisted ?? false,
+      );
+      await writeAgentStep(tx, site, formId, deps.clock.now());
+      return row;
+    });
     const { issues, warnings } = await validateDraft(deps, definition);
 
     return c.json(

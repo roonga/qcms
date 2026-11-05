@@ -124,6 +124,7 @@ export async function saveDraft(
   definition: DraftForm,
   agentAssisted?: boolean,
   newQuestions?: readonly unknown[],
+  proposal?: AgentProposalRef,
 ): Promise<
   ApiResult<{
     readonly issues: readonly FormIssue[];
@@ -151,6 +152,7 @@ export async function saveDraft(
         })
       : await adminApiFetch(session, draftPath, {
           method: "PUT",
+          headers: proposalHeaders(proposal),
           body: agentAssisted === undefined ? { definition } : { definition, agentAssisted },
         }),
   );
