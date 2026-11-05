@@ -45,6 +45,7 @@ const FORMS: readonly FormListItem[] = [
     slug: "alpha-form",
     defaultLocale: "en",
     status: "open",
+    workspaceId: "org_default_workspace",
     hasDraft: true,
     latestVersion: 2,
     publishedAt: "2026-08-01T10:00:00.000Z",

@@ -424,8 +424,22 @@ Phase 6 ships in slices, as the workspace ruling allows. Each slice is one branc
    session exists here, and erases through the response detail's own type-to-confirm
    dialog.
 4. Workspaces stops being a mode and its sections become screens, carrying the #1208
-   access-group field rulings. One branch, because the second ruling changes the shell's
-   mode model and the first changes what that model contains.
+   access-group field rulings (`fix/1204-workspaces-sections`). One branch, because the
+   second ruling changes the shell's mode model and the first changes what that model
+   contains. Operations is the shell's one focused mode (`apps/admin/lib/shell/modes.ts`);
+   Workspaces keeps its area, landing and remembered workspace but shows the application
+   navigation and no Exit. The five sections are routes under
+   `/workspaces/{workspaceId}` (`members`, `access-groups`, `settings`, `audit`,
+   `assistant-actions`, listed in `apps/admin/lib/membership/sections.ts`), each headed by
+   its section name, and the workspace's own address is a `redirects()` entry to `members`.
+   The Workspaces rail is one tree: All workspaces, each workspace, and the current
+   workspace's sections expanded beneath it, with no back link. The agent's workspace
+   screen is five screens sharing one facts builder, each offering only its own kinds, so
+   no plan spans two sections. The access-group form picks a role by plain name with a
+   one-line description, environments from the installation's list, and All forms or forms
+   by name from the caller's own form read (`GET /admin/forms` names each form's
+   `workspaceId`); the group's name is derived from those picks and a label under Advanced,
+   and a grant picks from the workspace's members.
 5. One persistent rail per area and one top bar in every area, both the shell's chrome. It
    replaces the swap-and-back-link rail slice 2 builds
    (`apps/admin/components/ops/operations-form-rail.tsx`), so it is ordered after slice 2,

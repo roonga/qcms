@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { t } from "@/lib/i18n/en";
 import type { AgentProposalRef } from "@/lib/server/agent-proposal";
+import { WORKSPACE_SECTIONS, workspaceSectionHref } from "@/lib/membership/sections";
 import type { MembershipActionState } from "@/lib/membership/types";
 import {
   addHolder,
@@ -17,8 +18,11 @@ import { requireAdminSession } from "@/lib/server/session";
 
 /* The API authorizes grants; hiding a control here cannot be the access boundary. */
 
+// Every section, because one act shows on more than one: a grant adds a member row and an audit row.
 function refresh(workspaceId: string): void {
-  revalidatePath(`/workspaces/${workspaceId}`);
+  for (const section of WORKSPACE_SECTIONS) {
+    revalidatePath(workspaceSectionHref(workspaceId, section));
+  }
 }
 
 export async function createAccessGroupAction(

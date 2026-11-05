@@ -89,7 +89,11 @@ describe("every screen has a page in the slot, whether or not it has a rail", ()
       "/responses/erasures",
       "/webhooks",
       "/workspaces",
-      "/workspaces/[workspaceId]",
+      "/workspaces/[workspaceId]/members",
+      "/workspaces/[workspaceId]/access-groups",
+      "/workspaces/[workspaceId]/settings",
+      "/workspaces/[workspaceId]/audit",
+      "/workspaces/[workspaceId]/assistant-actions",
     ];
     expect(sorted([...withRail, ...NO_SECTION])).toEqual(sorted(shellScreens()));
   });

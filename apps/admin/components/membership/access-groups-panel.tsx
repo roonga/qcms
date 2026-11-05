@@ -2,9 +2,26 @@
 
 import { useState, useTransition } from "react";
 
-import { Alert, Button, Select, TextField } from "@/components/kit";
+import { Alert, Button, Checkbox, Select, TextField } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
 import { HeadingMarker } from "@/components/agent/heading-marker";
+import {
+  ALL,
+  formOptions,
+  GROUP_ROLES,
+  grantCandidates,
+  groupNameFor,
+  isChosen,
+  roleDescription,
+  roleName,
+  scopeLabel,
+  scopeOf,
+  toggleAll,
+  toggleOne,
+  type GrantCandidate,
+  type NamedForm,
+  type ScopeChoice,
+} from "@/lib/membership/access-group-form";
 import type { AccessGroupList, MembershipActionState } from "@/lib/membership/types";
 
 /* Group names are labels, never authorization inputs or join keys; grants come from role, scope, and
@@ -13,7 +30,8 @@ export function AccessGroupsPanel({
   list,
   message,
   environments,
-  roles,
+  forms,
+  members,
   create,
   remove,
   grant,
@@ -21,8 +39,11 @@ export function AccessGroupsPanel({
 }: {
   readonly list: AccessGroupList | undefined;
   readonly message: string | undefined;
+  /** The installation's environments, in its own order. */
   readonly environments: readonly string[];
-  readonly roles: readonly string[];
+  /** The workspace's forms this caller may read. */
+  readonly forms: readonly NamedForm[];
+  readonly members: readonly GrantCandidate[];
   readonly create: (
     workspaceId: string,
     body: {
@@ -47,14 +68,23 @@ export function AccessGroupsPanel({
 }) {
   const [state, setState] = useState<MembershipActionState>({ status: "idle" });
   const [pending, startTransition] = useTransition();
-  const [name, setName] = useState("");
-  const [role, setRole] = useState(roles[0] ?? "");
-  const [scope, setScope] = useState("all");
-  const [forms, setForms] = useState("all");
+  const [role, setRole] = useState<string>(GROUP_ROLES[0]);
+  const [envChoice, setEnvChoice] = useState<ScopeChoice>(ALL);
+  const [formChoice, setFormChoice] = useState<ScopeChoice>(ALL);
+  const [formSearch, setFormSearch] = useState("");
   const [label, setLabel] = useState("");
-  const [holderEmail, setHolderEmail] = useState<Record<string, string>>({});
+  const [holder, setHolder] = useState<Readonly<Record<string, string>>>({});
 
   const workspaceId = list?.workspaceId ?? "";
+  const scope = scopeOf(envChoice, environments);
+  const formScope = scopeOf(
+    formChoice,
+    forms.map((form) => form.formId),
+  );
+  const name = groupNameFor(role, scope, label);
+  const formNames = new Map(forms.map((form) => [form.formId, form.name]));
+  const shownForms = formOptions(forms, formSearch, formChoice);
+  const description = roleDescription(role);
 
   function run(action: () => Promise<MembershipActionState>): void {
     startTransition(async () => {
@@ -65,9 +95,9 @@ export function AccessGroupsPanel({
   return (
     <section aria-labelledby="qcms-access-groups-heading" className="flex min-w-0 flex-col gap-4">
       <div className="flex min-w-0 flex-col gap-1">
-        <h2 id="qcms-access-groups-heading" className="text-lg font-semibold text-(--color-text)">
+        <h1 id="qcms-access-groups-heading" className="text-xl font-semibold text-(--color-text)">
           {t("membership.groups.heading")}
-        </h2>
+        </h1>
         <p className="text-sm text-(--color-text-muted)">{t("membership.groups.intro")}</p>
         <p className="text-xs text-(--color-text-muted)">{t("membership.groups.nameHelp")}</p>
         {list !== undefined && (
@@ -88,92 +118,127 @@ export function AccessGroupsPanel({
           <p className="text-sm text-(--color-text-muted)">{t("membership.groups.none")}</p>
         ) : (
           <ul className="flex min-w-0 flex-col gap-4">
-            {list.groups.map((group) => (
-              <li key={group.teamId} className="flex min-w-0 flex-col gap-2 border-t pt-2">
-                <p className="text-sm font-medium break-all text-(--color-text)">{group.name}</p>
-                <p className="text-xs break-all text-(--color-text-muted)">
-                  {t("membership.groups.derivedName", {
-                    fullName: group.fullName,
-                    directoryName: group.directoryName,
-                  })}
-                </p>
-                <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs break-all text-(--color-text-muted)">
-                  <dt>{t("membership.groups.columnRole")}</dt>
-                  <dd>{group.role}</dd>
-                  <dt>{t("membership.groups.columnEnvironments")}</dt>
-                  <dd>{group.environments.join(", ")}</dd>
-                  <dt>{t("membership.groups.columnForms")}</dt>
-                  <dd>{group.forms.join(", ")}</dd>
-                  <dt>{t("membership.groups.columnHolders")}</dt>
-                  <dd>
-                    {group.holders.length === 0
-                      ? t("membership.groups.noHolders")
-                      : String(group.holders.length)}
-                  </dd>
-                </dl>
+            {list.groups.map((group) => {
+              const candidates = grantCandidates(members, group.holders);
+              const chosen = holder[group.teamId] ?? null;
+              return (
+                <li key={group.teamId} className="flex min-w-0 flex-col gap-2 border-t pt-2">
+                  <p className="text-sm font-medium break-all text-(--color-text)">{group.name}</p>
+                  <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs break-all text-(--color-text-muted)">
+                    <dt>{t("membership.groups.columnRole")}</dt>
+                    <dd>{roleName(group.role)}</dd>
+                    <dt>{t("membership.groups.columnEnvironments")}</dt>
+                    <dd>{scopeLabel(group.environments, "membership.groups.scopeAll")}</dd>
+                    <dt>{t("membership.groups.columnForms")}</dt>
+                    <dd>
+                      {scopeLabel(
+                        group.forms,
+                        "membership.groups.scopeAll",
+                        (formId) => formNames.get(formId) ?? formId,
+                      )}
+                    </dd>
+                    <dt>{t("membership.groups.columnHolders")}</dt>
+                    <dd>
+                      {group.holders.length === 0
+                        ? t("membership.groups.noHolders")
+                        : String(group.holders.length)}
+                    </dd>
+                  </dl>
+                  <details>
+                    <summary className="text-xs text-(--color-text-muted)">
+                      {t("membership.groups.advanced")}
+                    </summary>
+                    <p className="text-xs break-all text-(--color-text-muted)">
+                      {t("membership.groups.derivedName", {
+                        fullName: group.fullName,
+                        directoryName: group.directoryName,
+                      })}
+                    </p>
+                  </details>
 
-                <div className="flex min-w-0 flex-wrap items-end gap-2">
-                  <TextField
-                    label={t("membership.groups.addHolderEmail")}
-                    type="email"
-                    value={holderEmail[group.teamId] ?? ""}
-                    onChange={(value: string) => {
-                      setHolderEmail((current) => ({ ...current, [group.teamId]: value }));
-                    }}
-                  />
-                  <Button
-                    isDisabled={pending}
-                    onPress={() => {
-                      run(() => grant(workspaceId, group.teamId, holderEmail[group.teamId] ?? ""));
-                    }}
-                  >
-                    {t("membership.groups.addHolderSubmit")}
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    isDisabled={pending}
-                    onPress={() => {
-                      run(() => remove(workspaceId, group.teamId));
-                    }}
-                  >
-                    {t("membership.groups.remove")}
-                  </Button>
-                </div>
-
-                {group.holders.length > 0 && (
-                  <ul className="flex min-w-0 flex-col gap-1">
-                    {group.holders.map((holder) => (
-                      <li key={holder.userId} className="flex min-w-0 flex-wrap items-center gap-2">
-                        <span className="min-w-0 text-xs break-all text-(--color-text-muted)">
-                          {holder.email}
-                        </span>
-                        {/* Keep holder identity in the accessible name without widening the visible Revoke control past the mobile
-   viewport. */}
+                  <div className="flex min-w-0 flex-wrap items-end gap-2">
+                    {candidates.length === 0 ? (
+                      <p className="text-xs text-(--color-text-muted)">
+                        {t("membership.groups.addHolderNone")}
+                      </p>
+                    ) : (
+                      <>
+                        <Select
+                          label={t("membership.groups.addHolderMember")}
+                          placeholder={t("membership.groups.addHolderChoose")}
+                          description={t("membership.groups.addHolderHelp")}
+                          value={chosen}
+                          onChange={(value: string) => {
+                            setHolder((current) => ({ ...current, [group.teamId]: value }));
+                          }}
+                          items={candidates.map((member) => ({
+                            label: member.email,
+                            value: member.email,
+                          }))}
+                        />
                         <Button
-                          variant="secondary"
-                          isDisabled={pending}
-                          aria-label={t("membership.groups.removeHolderFor", {
-                            email: holder.email,
-                          })}
+                          isDisabled={pending || chosen === null}
                           onPress={() => {
-                            run(() => revoke(workspaceId, group.teamId, holder.userId));
+                            if (chosen === null) return;
+                            run(() => grant(workspaceId, group.teamId, chosen));
                           }}
                         >
-                          {t("membership.groups.removeHolder")}
+                          {t("membership.groups.addHolderSubmit")}
                         </Button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </li>
-            ))}
+                      </>
+                    )}
+                    <Button
+                      variant="secondary"
+                      isDisabled={pending}
+                      onPress={() => {
+                        run(() => remove(workspaceId, group.teamId));
+                      }}
+                    >
+                      {t("membership.groups.remove")}
+                    </Button>
+                  </div>
+
+                  {group.holders.length > 0 && (
+                    <ul className="flex min-w-0 flex-col gap-1">
+                      {group.holders.map((entry) => (
+                        <li
+                          key={entry.userId}
+                          className="flex min-w-0 flex-wrap items-center gap-2"
+                        >
+                          <span className="min-w-0 text-xs break-all text-(--color-text-muted)">
+                            {entry.email}
+                          </span>
+                          {/* Keep holder identity in the accessible name without widening the visible Revoke control past the mobile
+   viewport. */}
+                          <Button
+                            variant="secondary"
+                            isDisabled={pending}
+                            aria-label={t("membership.groups.removeHolderFor", {
+                              email: entry.email,
+                            })}
+                            onPress={() => {
+                              run(() => revoke(workspaceId, group.teamId, entry.userId));
+                            }}
+                          >
+                            {t("membership.groups.removeHolder")}
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         ))}
 
-      <div className="flex min-w-0 flex-col gap-2 border-t pt-4">
-        <h3 className="text-sm font-semibold text-(--color-text)">
+      <div
+        className="flex min-w-0 flex-col gap-3 border-t pt-4"
+        data-testid="qcms-access-group-create"
+      >
+        <h2 className="text-sm font-semibold text-(--color-text)">
           {t("membership.groups.create")}
-        </h3>
+        </h2>
         <HeadingMarker
           control={[
             "membership.groupCreate",
@@ -183,50 +248,105 @@ export function AccessGroupsPanel({
           ]}
           block
         >
-          <TextField
-            label={t("membership.groups.createName")}
-            value={name}
-            onChange={setName}
-            isRequired
+          <Select
+            label={t("membership.groups.createRole")}
+            value={role}
+            onChange={setRole}
+            items={GROUP_ROLES.map((entry) => ({ label: roleName(entry), value: entry }))}
+            {...(description === undefined ? {} : { description })}
           />
         </HeadingMarker>
-        <Select
-          label={t("membership.groups.createRole")}
-          value={role}
-          onChange={setRole}
-          items={roles.map((entry) => ({ label: entry, value: entry }))}
-        />
-        <TextField
-          label={t("membership.groups.createEnvironments")}
-          value={scope}
-          onChange={setScope}
-          description={environments.join(", ")}
-          isRequired
-        />
-        <TextField
-          label={t("membership.groups.createForms")}
-          value={forms}
-          onChange={setForms}
-          isRequired
-        />
-        <TextField label={t("membership.groups.createLabel")} value={label} onChange={setLabel} />
+
+        <fieldset className="flex min-w-0 flex-col gap-1">
+          <legend className="text-sm font-medium text-(--color-text)">
+            {t("membership.groups.createEnvironments")}
+          </legend>
+          <Checkbox
+            label={t("membership.groups.allEnvironments")}
+            isSelected={envChoice.kind === "all"}
+            onChange={(on: boolean) => {
+              setEnvChoice((current) => toggleAll(current, on));
+            }}
+          />
+          {environments.map((environment) => (
+            <Checkbox
+              key={environment}
+              label={environment}
+              isSelected={isChosen(envChoice, environment)}
+              onChange={(on: boolean) => {
+                setEnvChoice((current) => toggleOne(current, environment, on));
+              }}
+            />
+          ))}
+        </fieldset>
+
+        <fieldset className="flex min-w-0 flex-col gap-1">
+          <legend className="text-sm font-medium text-(--color-text)">
+            {t("membership.groups.createForms")}
+          </legend>
+          <Checkbox
+            label={t("membership.groups.allForms")}
+            isSelected={formChoice.kind === "all"}
+            onChange={(on: boolean) => {
+              setFormChoice((current) => toggleAll(current, on));
+            }}
+          />
+          <TextField
+            label={t("membership.groups.formSearch")}
+            value={formSearch}
+            onChange={setFormSearch}
+            description={t("membership.groups.formsReadable")}
+          />
+          {shownForms.length === 0 ? (
+            <p className="text-xs text-(--color-text-muted)">{t("membership.groups.noForms")}</p>
+          ) : (
+            shownForms.map((form) => (
+              <Checkbox
+                key={form.formId}
+                label={form.name}
+                isSelected={isChosen(formChoice, form.formId)}
+                onChange={(on: boolean) => {
+                  setFormChoice((current) => toggleOne(current, form.formId, on));
+                }}
+              />
+            ))
+          )}
+        </fieldset>
+
+        <details>
+          <summary className="text-sm text-(--color-text)">
+            {t("membership.groups.advanced")}
+          </summary>
+          <div className="flex flex-col gap-2 pt-2">
+            <TextField
+              label={t("membership.groups.createLabel")}
+              value={label}
+              onChange={setLabel}
+            />
+            <p className="text-xs text-(--color-text-muted)">
+              {t("membership.groups.directoryHelp")}
+            </p>
+          </div>
+        </details>
+
+        <p className="text-xs break-all text-(--color-text-muted)" data-testid="qcms-group-name">
+          {name === undefined
+            ? t("membership.groups.createNameMissing")
+            : t("membership.groups.createName", { name })}
+        </p>
         <div>
           <Button
-            isDisabled={pending}
+            isDisabled={pending || name === undefined || formScope.length === 0}
             onPress={() => {
+              if (name === undefined) return;
+              const trimmed = label.trim();
               run(() =>
                 create(workspaceId, {
                   name,
                   role,
-                  environments: scope
-                    .split("-")
-                    .map((entry) => entry.trim())
-                    .filter(Boolean),
-                  forms: forms
-                    .split("\n")
-                    .map((entry) => entry.trim())
-                    .filter(Boolean),
-                  ...(label === "" ? {} : { label }),
+                  environments: scope,
+                  forms: formScope,
+                  ...(trimmed === "" ? {} : { label: trimmed }),
                 }),
               );
             }}

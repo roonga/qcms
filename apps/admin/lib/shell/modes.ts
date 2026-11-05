@@ -1,7 +1,8 @@
+/** The shell's areas. Only Operations is a focused mode, with its own header and Exit; the others keep the application navigation. */
 export const SHELL_MODES = ["normal", "operations", "workspaces"] as const;
 export type ShellMode = (typeof SHELL_MODES)[number];
 
-export type FocusedShellMode = Exclude<ShellMode, "normal">;
+export type FocusedShellMode = "operations";
 
 export interface ShellCapabilities {
   readonly authoring: boolean;
@@ -47,7 +48,7 @@ const DEFINITIONS: readonly ModeDefinition[] = [
   {
     mode: "workspaces",
     landing: WORKSPACES_PATH,
-    focused: true,
+    focused: false,
     capabilities: ["workspaces"],
     routes: [WORKSPACES_PATH],
   },
@@ -111,7 +112,7 @@ function definitionFor(mode: ShellMode): ModeDefinition {
 
 export function focusedMode(mode: ShellMode): FocusedShellMode | undefined {
   if (!definitionFor(mode).focused) return undefined;
-  return mode === "normal" ? undefined : mode;
+  return mode === "operations" ? mode : undefined;
 }
 
 export function landingPathForMode(mode: ShellMode): string {

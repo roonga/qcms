@@ -1,5 +1,7 @@
 /** Remembered cookies are navigation preferences, never authorization. Restore only values still present in the API-permitted set. */
 
+import { workspaceHref } from "../membership/sections.ts";
+
 import { landingPathForMode, WORKSPACES_PATH, type ShellMode } from "./modes.ts";
 
 export const SHELL_MODE_COOKIE = "qcms-shell-mode";
@@ -43,7 +45,7 @@ export function restoredWorkspacePath(
 ): string {
   if (remembered === undefined) return WORKSPACES_PATH;
   if (!permittedIds.includes(remembered)) return WORKSPACES_PATH;
-  return `${WORKSPACES_PATH}/${encodeURIComponent(remembered)}`;
+  return workspaceHref(remembered);
 }
 
 export interface RememberedContext {

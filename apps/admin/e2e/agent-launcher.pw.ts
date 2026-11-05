@@ -60,7 +60,11 @@ const SHELL_PAGES: readonly string[] = [
   "/settings",
   "/webhooks",
   "/workspaces",
-  `/workspaces/${WORKSPACE_ID}`,
+  `/workspaces/${WORKSPACE_ID}/members`,
+  `/workspaces/${WORKSPACE_ID}/access-groups`,
+  `/workspaces/${WORKSPACE_ID}/settings`,
+  `/workspaces/${WORKSPACE_ID}/audit`,
+  `/workspaces/${WORKSPACE_ID}/assistant-actions`,
 ];
 
 const UNAUTHENTICATED_PAGES: readonly string[] = [

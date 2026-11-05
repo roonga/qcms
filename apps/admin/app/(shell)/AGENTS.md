@@ -65,7 +65,7 @@ was missing from the rail sweep for two cycles while every gate stayed green.
   chip in `lib/agent/context-chip.ts`, and `apps/api/src/features/agent/screens.ts` with a
   facts schema and a context builder.
 - **The screen count is spelled out in prose in several files** and every one of them moves
-  when a screen arrives. `grep -rn "twenty-five screens" apps/admin packages/create-qcms-app`
+  when a screen arrives. `grep -rn "twenty-nine screens" apps/admin packages/create-qcms-app`
   finds them, whatever the current number is. Issue #882 proposes deriving or deleting
   those counts; until that is decided they are hand-maintained.
 - **No `loading.tsx` above a screen that answers 404.** That file is a Suspense boundary

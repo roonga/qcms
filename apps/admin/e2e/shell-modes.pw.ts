@@ -104,20 +104,26 @@ test("Settings opened from normal mode after a focused visit shows no focused he
   await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
 });
 
-test("entering Workspaces replaces the navigation too, and Exit returns", async ({ page }) => {
+test("Workspaces is a section of the application: the navigation stays and there is no Exit", async ({
+  page,
+}) => {
   await signInWithTotp(page, EVERYTHING, everythingSecret);
 
-  await page
-    .getByRole("navigation", { name: "Primary" })
-    .getByRole("link", { name: "Workspaces" })
-    .click();
+  const nav = page.getByRole("navigation", { name: "Primary" });
+  await nav.getByRole("link", { name: "Workspaces" }).click();
+  await expect(page).toHaveURL(/\/workspaces$/);
 
-  const header = page.getByTestId("qcms-mode-header");
-  await expect(header).toHaveAttribute("data-mode", "workspaces");
-  await expect(page.getByRole("navigation", { name: "Primary" })).toHaveCount(0);
+  await expect(page.getByTestId("qcms-mode-header")).toHaveCount(0);
+  await expect(page.getByTestId("qcms-mode-exit")).toHaveCount(0);
+  await expect(nav.getByRole("link", { name: "Workspaces" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await expect(nav.getByRole("link", { name: "Questions" })).toBeVisible();
 
-  await page.getByTestId("qcms-mode-exit").click();
-  await expect(page).toHaveURL(/\/questions$/);
+  await page.goto(`/workspaces/${WORKSPACE_ID}/access-groups`);
+  await expect(page.getByTestId("qcms-mode-header")).toHaveCount(0);
+  await expect(nav).toBeVisible();
 });
 
 test("an Operations-only caller lands in Operations and is offered no authoring menu", async ({
@@ -139,8 +145,11 @@ test("a workspace-only caller lands in Workspaces with no Exit at all", async ({
   await page.goto("/");
 
   await expect(page).toHaveURL(/\/workspaces$/);
-  await expect(page.getByTestId("qcms-mode-header")).toHaveAttribute("data-mode", "workspaces");
+  await expect(page.getByTestId("qcms-mode-header")).toHaveCount(0);
   await expect(page.getByTestId("qcms-mode-exit")).toHaveCount(0);
+  await expect(
+    page.getByRole("navigation", { name: "Primary" }).getByRole("link", { name: "Workspaces" }),
+  ).toBeVisible();
   await expect(page.getByRole("link", { name: "Questions" })).toHaveCount(0);
 });
 
@@ -167,8 +176,9 @@ test("a rejected workspace bookmark still has All workspaces", async ({ page }) 
 
   await page.goto("/workspaces/ws_not_a_workspace");
 
+  await expect(page).toHaveURL(/\/workspaces\/ws_not_a_workspace\/members$/);
   await expect(page.getByText("No such workspace, or you do not manage it")).toBeVisible();
-  await page.getByRole("link", { name: "All workspaces" }).click();
+  await page.locator("main#main-content").getByRole("link", { name: "All workspaces" }).click();
   await expect(page).toHaveURL(/\/workspaces$/);
 });
 
@@ -177,8 +187,8 @@ test("the root lands an authoring caller in authoring, whatever a mode remembere
 }) => {
   await signInWithTotp(page, EVERYTHING, everythingSecret);
 
-  await page.goto(`/workspaces/${WORKSPACE_ID}`);
-  await expect(page.getByRole("heading", { level: 2, name: "Members" })).toBeVisible();
+  await page.goto(`/workspaces/${WORKSPACE_ID}/members`);
+  await expect(page.getByRole("heading", { level: 1, name: "Members" })).toBeVisible();
 
   await page.goto("/");
   await expect(page).toHaveURL(/\/questions$/);
@@ -187,13 +197,13 @@ test("the root lands an authoring caller in authoring, whatever a mode remembere
 test("the root restores the workspace a workspace-only caller was last on", async ({ page }) => {
   await signInWithTotp(page, WORKSPACES_ONLY, workspacesSecret, /\/workspaces$/);
 
-  await page.goto(`/workspaces/${WORKSPACE_ID}`);
-  await expect(page.getByRole("heading", { level: 2, name: "Members" })).toBeVisible();
+  await page.goto(`/workspaces/${WORKSPACE_ID}/audit`);
+  await expect(page.getByRole("heading", { level: 1, name: "Access audit" })).toBeVisible();
   // Wait for hydration: the remembered context is written by a client effect, not by server rendering.
   await waitForHydration(page);
 
   await page.goto("/");
-  await expect(page).toHaveURL(new RegExp(`/workspaces/${WORKSPACE_ID}$`));
+  await expect(page).toHaveURL(new RegExp(`/workspaces/${WORKSPACE_ID}/members$`));
 });
 
 test("the root falls back to All workspaces when the remembered one is not permitted", async ({

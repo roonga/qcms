@@ -74,8 +74,11 @@ function twoPerson(page: Page): Locator {
   return page.getByRole("checkbox", { name: "Require a second approver for production" });
 }
 
-async function openWorkspace(page: Page): Promise<void> {
-  await page.goto(`/workspaces/${WORKSPACE_ID}`);
+async function openWorkspace(
+  page: Page,
+  section: "members" | "access-groups" | "settings" = "access-groups",
+): Promise<void> {
+  await page.goto(`/workspaces/${WORKSPACE_ID}/${section}`);
   await waitForHydration(page);
   await openPanel(page);
 }
@@ -101,6 +104,7 @@ test("confirms all six kinds one card at a time, each read back by its own panel
   await expect(groupRow(page, ALONE)).toContainText("@admin.test", { timeout: 30_000 });
 
   const holder = await grantedHolder(page, ALONE);
+  await openWorkspace(page, "members");
   await propose(page, "propose-member-role", `make that account an owner ${naming(ALONE)}`);
   const toOwner = ((await card(page).textContent()) ?? "").includes("to forms.owner");
   await confirm(page, /^Done\./u);
@@ -109,6 +113,7 @@ test("confirms all six kinds one card at a time, each read back by its own panel
     { timeout: 30_000 },
   );
 
+  await openWorkspace(page);
   await propose(page, "propose-access-revoke", `take the group back again ${naming(ALONE)}`);
   await confirm(page, /^Done\./u);
   await expect(groupRow(page, ALONE)).toContainText("Nobody", { timeout: 30_000 });
@@ -170,30 +175,27 @@ test("confirms a group's whole life inside one plan, each step naming what the f
   });
 });
 
-test("confirms a role change and the second-approver switch inside one plan, then puts the switch back", async ({
+test("confirms the second-approver switch on its own screen, then puts it back", async ({
   page,
 }) => {
   test.setTimeout(600_000);
   await signInWithTotp(page, EMAIL, totpSecret);
-  await openWorkspace(page);
+  await openWorkspace(page, "settings");
 
   await expect(twoPerson(page)).not.toBeChecked();
 
   const before = await auditTally();
-  await propose(page, "plan-workspace-settings", `re-role them and turn it on ${naming(ALONE)}`);
-  await confirm(page, /^Done\. All 2 steps ran/u);
-  await expectStepChips(page, ["Done", "Done"]);
-
-  await openWorkspace(page);
+  await propose(page, "propose-workspace-settings", `turn it on ${naming(ALONE)}`);
+  await confirm(page, /^Done\./u);
+  await openWorkspace(page, "settings");
   await expect(twoPerson(page)).toBeChecked();
 
   await propose(page, "propose-workspace-settings", `turn it off again ${naming(ALONE)}`);
   await confirm(page, /^Done\./u);
-  await openWorkspace(page);
+  await openWorkspace(page, "settings");
   await expect(twoPerson(page)).not.toBeChecked();
 
   expect(auditDelta(before, await auditTally())).toEqual({
-    "member.role": 1,
     "workspace.settings": 2,
   });
 });

@@ -80,7 +80,11 @@ describe("every route titles its own browser tab", () => {
       "/webhooks",
 
       "/workspaces",
-      "/workspaces/[workspaceId]",
+      "/workspaces/[workspaceId]/access-groups",
+      "/workspaces/[workspaceId]/assistant-actions",
+      "/workspaces/[workspaceId]/audit",
+      "/workspaces/[workspaceId]/members",
+      "/workspaces/[workspaceId]/settings",
     ]);
   });
 

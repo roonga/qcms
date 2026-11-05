@@ -35,7 +35,7 @@ function screens(): readonly { readonly path: string; readonly testId: string }[
     { path: "/responses/erasures", testId: "qcms-erasures-rail" },
     { path: "/webhooks", testId: "qcms-webhooks-rail" },
     { path: "/workspaces", testId: "qcms-workspaces-rail" },
-    { path: `/workspaces/${WORKSPACE_ID}`, testId: "qcms-workspace-rail" },
+    { path: `/workspaces/${WORKSPACE_ID}/members`, testId: "qcms-workspaces-rail" },
     { path: "/settings", testId: "qcms-settings-rail" },
   ];
 }

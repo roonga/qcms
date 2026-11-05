@@ -53,10 +53,11 @@ describe("the agent screen table", () => {
       screen: "/forms/[formId]/versions/[version]",
       params: { formId: "frm_x", version: 3 },
     });
-    expect(screenForPath("/workspaces/wsp_a")).toEqual({
-      screen: "/workspaces/[workspaceId]",
+    expect(screenForPath("/workspaces/wsp_a/access-groups")).toEqual({
+      screen: "/workspaces/[workspaceId]/access-groups",
       params: { workspaceId: "wsp_a" },
     });
+    expect(screenForPath("/workspaces/wsp_a")).toBeUndefined();
   });
 
   it("prefers a literal row over a placeholder where both would match", () => {

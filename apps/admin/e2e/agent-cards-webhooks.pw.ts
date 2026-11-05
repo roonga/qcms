@@ -125,7 +125,7 @@ async function buildPublishableForm(page: Page, slug: string): Promise<string> {
 }
 
 async function setSecondApprover(page: Page, on: boolean): Promise<void> {
-  await page.goto(`/workspaces/${WORKSPACE_ID}`);
+  await page.goto(`/workspaces/${WORKSPACE_ID}/settings`);
   await waitForHydration(page);
   const control = page.getByRole("checkbox", {
     name: "Require a second approver for production",

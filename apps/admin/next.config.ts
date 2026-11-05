@@ -62,6 +62,11 @@ export default function adminNextConfig(phase: string): NextConfig {
           destination: "/operations/forms/:formId/export",
           permanent: true,
         },
+        {
+          source: "/workspaces/:workspaceId",
+          destination: "/workspaces/:workspaceId/members",
+          permanent: false,
+        },
       ]),
   };
 }

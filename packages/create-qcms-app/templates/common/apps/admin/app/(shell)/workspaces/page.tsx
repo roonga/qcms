@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { Alert } from "@/components/kit";
 import { DeniedRecovery } from "@/components/shell/denied-recovery";
 import { t } from "@/lib/i18n/en";
+import { workspaceHref } from "@/lib/membership/sections";
 import { pageMetadata } from "@/lib/page-title";
 import { listWorkspaces } from "@/lib/server/membership";
 import { navigableCapabilities, shellAccess } from "@/lib/server/shell";
@@ -43,7 +44,7 @@ export default async function WorkspacesPage() {
             {workspaces.data.map((workspace) => (
               <li key={workspace.workspaceId} className="flex flex-col gap-1">
                 <Link
-                  href={`/workspaces/${workspace.workspaceId}`}
+                  href={workspaceHref(workspace.workspaceId)}
                   className="text-sm font-medium text-(--color-link) underline"
                 >
                   {workspace.name}

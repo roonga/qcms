@@ -83,7 +83,7 @@ function bodyMember(facts: ActionRequestFacts, name: string): unknown {
 
 export const createAccessGroup: ActionKindDef = {
   kind: "access.groupCreate",
-  screen: "/workspaces/[workspaceId]",
+  screen: "/workspaces/[workspaceId]/access-groups",
   route: { method: "POST", path: "/admin/workspaces/{id}/access-groups" },
   cell: { resource: "membership", action: "write" },
   environmentFrom: "switcher",
@@ -110,7 +110,7 @@ export const createAccessGroup: ActionKindDef = {
 
 export const removeAccessGroup: ActionKindDef = {
   kind: "access.groupRemove",
-  screen: "/workspaces/[workspaceId]",
+  screen: "/workspaces/[workspaceId]/access-groups",
   route: { method: "DELETE", path: GROUP_PATH },
   cell: { resource: "membership", action: "write" },
   environmentFrom: "switcher",
@@ -133,7 +133,7 @@ export const removeAccessGroup: ActionKindDef = {
 
 export const grantAccessGroup: ActionKindDef = {
   kind: "access.grant",
-  screen: "/workspaces/[workspaceId]",
+  screen: "/workspaces/[workspaceId]/access-groups",
   route: { method: "POST", path: `${GROUP_PATH}/holders` },
   cell: { resource: "membership", action: "write" },
   environmentFrom: "switcher",
@@ -157,7 +157,7 @@ export const grantAccessGroup: ActionKindDef = {
 
 export const revokeAccessGroup: ActionKindDef = {
   kind: "access.revoke",
-  screen: "/workspaces/[workspaceId]",
+  screen: "/workspaces/[workspaceId]/access-groups",
   route: { method: "DELETE", path: `${GROUP_PATH}/holders/{userId}` },
   cell: { resource: "membership", action: "write" },
   environmentFrom: "switcher",
@@ -179,7 +179,7 @@ export const revokeAccessGroup: ActionKindDef = {
 
 export const setMemberRole: ActionKindDef = {
   kind: "member.role",
-  screen: "/workspaces/[workspaceId]",
+  screen: "/workspaces/[workspaceId]/members",
   route: { method: "PUT", path: "/admin/workspaces/{id}/members/{userId}" },
   cell: { resource: "membership", action: "write" },
   environmentFrom: "switcher",
@@ -203,7 +203,7 @@ export const setMemberRole: ActionKindDef = {
 
 export const saveWorkspaceSettings: ActionKindDef = {
   kind: "workspace.settings",
-  screen: "/workspaces/[workspaceId]",
+  screen: "/workspaces/[workspaceId]/settings",
   route: { method: "PUT", path: "/admin/workspaces/{id}/settings" },
   cell: { resource: "workspace", action: "update" },
   environmentFrom: "switcher",

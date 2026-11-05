@@ -15,6 +15,7 @@ const FORM_ROW = {
   slug: "intake",
   defaultLocale: "en",
   status: "open" as const,
+  workspaceId: "org_default_workspace",
   hasDraft: true,
   latestVersion: 1,
   publishedAt: "2026-02-01T00:00:00.000Z",

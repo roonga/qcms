@@ -95,7 +95,7 @@ async function expectNoHorizontalScroll(page: Page, state: string): Promise<void
 }
 
 async function setTwoPersonSwitch(page: Page, on: boolean): Promise<void> {
-  await page.goto(`/workspaces/${WORKSPACE_ID}`);
+  await page.goto(`/workspaces/${WORKSPACE_ID}/settings`);
   await waitForHydration(page);
   const control = twoPersonControl(page);
   // Click the label: React Aria hides the checkbox input, so input-targeted actions cannot reach it.
@@ -141,7 +141,7 @@ test("the switch is off by default, and an owner turns it on through the panel",
   test.setTimeout(300_000);
   proposerSecret = await enrollNewAdmin(page, PROPOSER);
 
-  await page.goto(`/workspaces/${WORKSPACE_ID}`);
+  await page.goto(`/workspaces/${WORKSPACE_ID}/settings`);
 
   await expect(twoPersonControl(page)).not.toBeChecked();
 
