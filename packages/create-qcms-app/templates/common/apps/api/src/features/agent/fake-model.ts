@@ -1197,8 +1197,8 @@ const INJECTION_REASON =
   "so I have put both in one plan.";
 
 const READ_ONLY_REASON =
-  "You cannot change anything on this screen, so I can only explain what is here and " +
-  "point you at it.";
+  "Your account cannot change anything here or anywhere else, so I can only explain what " +
+  "is here and point you at it.";
 
 function planActionStep(script: FakeScript, prompt: readonly PromptMessage[]): StreamPart[] {
   if (script === "read-only-user") {
