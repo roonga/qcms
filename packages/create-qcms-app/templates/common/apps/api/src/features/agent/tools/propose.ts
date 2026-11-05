@@ -576,19 +576,13 @@ function plannedQuestions(steps: readonly PlanStep[]): readonly PlannedQuestion[
 }
 
 /**
- * A draft carried as an argument gets the two advisory lists the applied draft gets: the
- * server's own validation over the definition the card shows. A plan that creates the form
- * validates under a placeholder id, since the verdict is about the pins and the rules.
+ * An issue a draft save is entitled to carry: an unpublished pin whoever made it, since a
+ * draft is where an unpublished version is meant to sit, and a dangling reference only for a
+ * question this plan creates. Anything else is a defect the model can still fix.
  */
-/**
- * A pin on a question this plan creates: expected, explained on the card, and resolved by
- * the plan's own earlier step. Every other blocking issue is a defect in what the model
- * sent, which it can fix now.
- */
-function isPlannedPin(issue: PublishIssue, created: ReadonlySet<string>): boolean {
-  if (issue.code !== "UNPUBLISHED_QUESTION_PIN" && issue.code !== "DANGLING_QUESTION_REF") {
-    return false;
-  }
+function isExpectedPinIssue(issue: PublishIssue, created: ReadonlySet<string>): boolean {
+  if (issue.code === "UNPUBLISHED_QUESTION_PIN") return true;
+  if (issue.code !== "DANGLING_QUESTION_REF") return false;
   const named = (issue as { readonly path?: { readonly question?: unknown } }).path?.question;
   return typeof named === "string" && created.has(named);
 }
@@ -630,14 +624,14 @@ async function withDraftArguments(
       continue;
     }
     const { issues, warnings } = await validate(parsed.data, pending);
-    const blocking = issues.filter((issue) => !isPlannedPin(issue, plannedIds));
+    const blocking = issues.filter((issue) => !isExpectedPinIssue(issue, plannedIds));
     if (blocking.length > 0) {
       return {
         reason:
-          `Step ${String(index + 1)}'s draft would not publish: ` +
+          `Step ${String(index + 1)}'s draft has a problem this plan does not fix: ` +
           `${blocking.map((issue) => issue.message).join(" ")} ` +
-          "Fix it and propose the plan again. The unpublished pins on questions this plan " +
-          "creates are expected and are not what this is about.",
+          "Add the steps that fix it to THIS plan and propose it again, rather than asking " +
+          "for a card of its own. An unpublished pin is not what this is about.",
       };
     }
     out.push({
