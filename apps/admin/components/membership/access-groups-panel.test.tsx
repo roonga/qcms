@@ -26,7 +26,7 @@ const LIST: AccessGroupList = {
   ],
 };
 
-function renderPanel(create = vi.fn(async () => DONE)) {
+function renderPanel(create = vi.fn(() => Promise.resolve(DONE))) {
   render(
     <AccessGroupsPanel
       list={LIST}
@@ -41,9 +41,9 @@ function renderPanel(create = vi.fn(async () => DONE)) {
         { userId: "u2", email: "free@qcms.test", name: "Free" },
       ]}
       create={create}
-      remove={vi.fn(async () => DONE)}
-      grant={vi.fn(async () => DONE)}
-      revoke={vi.fn(async () => DONE)}
+      remove={vi.fn(() => Promise.resolve(DONE))}
+      grant={vi.fn(() => Promise.resolve(DONE))}
+      revoke={vi.fn(() => Promise.resolve(DONE))}
     />,
   );
   return create;

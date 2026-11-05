@@ -100,7 +100,7 @@ export function groupNameFor(
 ): string | undefined {
   if (environments.length === 0) return undefined;
   const trimmed = label.trim();
-  return `${environments.join("-")}.${role}${trimmed === "" ? "" : `.${trimmed}`}`;
+  return [environments.join("-"), role, ...(trimmed === "" ? [] : [trimmed])].join(".");
 }
 
 export interface NamedForm {
