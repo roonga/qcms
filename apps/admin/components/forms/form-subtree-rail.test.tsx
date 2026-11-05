@@ -60,10 +60,10 @@ describe("the rail's markup", () => {
     expect(at("<nav")).toBeLessThan(at('class="qcms-rail__actions"'));
   });
 
-  it("carries the way back to Forms, and the form's status as its one tag", async () => {
+  it("carries the way to all forms, and the form's status as its one tag", async () => {
     const html = await render(LINKS);
     expect(html).toContain('href="/forms" class="qcms-rail__back"');
-    expect(html).toContain(">Forms</a>");
+    expect(html).toContain(">All forms</a>");
     const summary = html.slice(html.indexOf("<summary"), html.indexOf("</summary>"));
     expect(summary).toContain('class="qcms-tag qcms-tag--form-open" data-status="open"');
     expect(summary).toContain(">Open</span>");
@@ -131,11 +131,11 @@ describe("the rail's markup", () => {
 
   it("names the form in the Header, with the form's own issue total", async () => {
     const onASection = await render(LINKS);
-    expect(onASection).toMatch(/<span class="qcms-rail__summary-text">life<\/span>/u);
+    expect(onASection).toMatch(/<span class="qcms-rail__summary-text"[^>]*>life<\/span>/u);
     expect(onASection).toMatch(/data-testid="qcms-rail-summary-count">2 issues</u);
 
     const onAStep = await render({ kind: "step", stepId: "stp_health" });
-    expect(onAStep).toMatch(/<span class="qcms-rail__summary-text">life<\/span>/u);
+    expect(onAStep).toMatch(/<span class="qcms-rail__summary-text"[^>]*>life<\/span>/u);
     expect(onAStep).toMatch(/data-testid="qcms-rail-summary-count">2 issues</u);
   });
 
@@ -149,7 +149,7 @@ describe("the rail's markup", () => {
 
   it("drops the Header's count when the form has no issues at all", async () => {
     const html = await render(LINKS, STEPS, new Map());
-    expect(html).toMatch(/<span class="qcms-rail__summary-text">life<\/span>/u);
+    expect(html).toMatch(/<span class="qcms-rail__summary-text"[^>]*>life<\/span>/u);
     expect(html).not.toContain("qcms-rail-summary-count");
   });
 

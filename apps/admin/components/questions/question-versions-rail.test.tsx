@@ -125,11 +125,11 @@ describe("the question rail's markup", () => {
     expect(render()).not.toMatch(/<h[1-6]/u);
   });
 
-  it("puts the way back at the top of the rail, outside the disclosure", () => {
+  it("puts the way to all questions at the top of the rail, outside the disclosure", () => {
     const html = render();
     expect(html.indexOf('href="/questions"')).toBeLessThan(html.indexOf("<details"));
     expect(html).toContain('class="qcms-rail__back"');
-    expect(html).toContain("Questions");
+    expect(html).toContain("All questions");
   });
 
   it("states the question's own details under its id, as a description list", () => {

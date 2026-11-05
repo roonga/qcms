@@ -334,7 +334,7 @@ test("561 puts every shared rail row in the same box on all three builder-family
   }
 });
 
-test("1116 heads every form screen's rail the same way, and leaves no breadcrumb behind", async ({
+test("1116 heads every form screen's rail the same way, with the breadcrumb above the column", async ({
   page,
 }) => {
   test.setTimeout(600_000);
@@ -352,8 +352,8 @@ test("1116 heads every form screen's rail the same way, and leaves no breadcrumb
 
       await expect
         .soft(
-          rail.getByRole("link", { name: "Forms", exact: true }),
-          `${screen.path} at ${String(width)} offers the way back to Forms`,
+          rail.getByRole("link", { name: "All forms", exact: true }),
+          `${screen.path} at ${String(width)} offers the way to all forms`,
         )
         .toBeVisible();
 
@@ -376,9 +376,17 @@ test("1116 heads every form screen's rail the same way, and leaves no breadcrumb
       await expect
         .soft(
           page.locator('main#main-content [aria-label="Breadcrumb"]'),
-          `${screen.path} at ${String(width)} has no breadcrumb in its column`,
+          `${screen.path} at ${String(width)} has no breadcrumb inside its column`,
         )
         .toHaveCount(0);
+      await expect
+        .soft(
+          page
+            .getByRole("navigation", { name: "Breadcrumb" })
+            .getByRole("link", { name: "Forms", exact: true }),
+          `${screen.path} at ${String(width)} has the shell's breadcrumb above it`,
+        )
+        .toBeVisible();
     }
   }
   await page.setViewportSize({ width: SIDEBAR, height: 900 });

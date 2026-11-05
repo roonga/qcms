@@ -34,8 +34,9 @@ export function OperationsFormRail({
   return (
     <RailFrame
       subject={name}
-      back={{ href: OPERATIONS_PATH, label: t("shell.mode.operations.name") }}
-      title={name}
+      context={{ href: OPERATIONS_PATH, label: t("rail.allForms") }}
+      label={name}
+      crumbs={{ form: name }}
       testId="qcms-operations-form-rail"
       sections={
         <ul className="qcms-rail__group" data-rail-group="sections">

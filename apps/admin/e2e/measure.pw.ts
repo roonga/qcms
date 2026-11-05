@@ -227,7 +227,7 @@ test("675 spends one section-padding token on the bar and the column alike, at 1
   expect(pads.mainEnd, "and both sides of the column").toBe(20);
 });
 
-test("648 puts the wordmark, the nav and the content column on one left edge, at 1280", async ({
+test("648 starts the bar and the content column one pad in, with the nav after the mark, at 1280", async ({
   page,
 }) => {
   test.setTimeout(300_000);
@@ -247,26 +247,20 @@ test("648 puts the wordmark, the nav and the content column on one left edge, at
       return element.getBoundingClientRect().left + (Number.isNaN(pad) ? 0 : pad);
     };
     const header = document.querySelector("header");
-    const trailing = document.querySelector("header nav")?.parentElement?.nextElementSibling;
+    const trailing = document.querySelector(".qcms-topbar__tools");
     const nav = document.querySelector("header nav")?.parentElement?.getBoundingClientRect();
     return {
-      wordmark: contentLeft(".qcms-wordmark"),
+      wordmark: contentLeft(".qcms-topbar__toggle"),
       main: contentLeft("main#main-content"),
       wordmarkRight:
         document.querySelector(".qcms-wordmark")?.getBoundingClientRect().right ?? Number.NaN,
       navLeft: nav?.left ?? Number.NaN,
       navRight: nav?.right ?? Number.NaN,
-      trailingLeft:
-        trailing === null || trailing === undefined
-          ? Number.NaN
-          : trailing.getBoundingClientRect().left,
+      trailingLeft: trailing === null ? Number.NaN : trailing.getBoundingClientRect().left,
 
       barWidth: header === null ? Number.NaN : header.getBoundingClientRect().width,
       railRight: document.querySelector(".qcms-rail")?.getBoundingClientRect().right ?? Number.NaN,
-      trailingRight:
-        trailing === null || trailing === undefined
-          ? Number.NaN
-          : trailing.getBoundingClientRect().right,
+      trailingRight: trailing === null ? Number.NaN : trailing.getBoundingClientRect().right,
       viewport: document.documentElement.clientWidth,
     };
   });

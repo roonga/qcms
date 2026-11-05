@@ -45,8 +45,8 @@ export function QuestionVersionsRail({
   return (
     <RailFrame
       subject={questionId}
-      back={{ href: "/questions", label: t("questions.title") }}
-      title={<span className="qcms-rail__id">{questionId}</span>}
+      context={{ href: "/questions", label: t("rail.allQuestions") }}
+      label={<span className="qcms-rail__id">{questionId}</span>}
       testId="qcms-question-rail"
       count={<QuestionRailIssueCount />}
       {...(selectedVersion === undefined

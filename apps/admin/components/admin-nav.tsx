@@ -51,7 +51,7 @@ export function AdminNav({ capabilities }: { readonly capabilities: ShellCapabil
 
   return (
     <nav aria-label={t("nav.label")}>
-      <ul className="flex flex-wrap items-center gap-1">
+      <ul className="flex items-center gap-1">
         {items.map((item) => (
           <li key={item.href}>
             <NavLink href={item.href} label={item.label} pathname={pathname} />

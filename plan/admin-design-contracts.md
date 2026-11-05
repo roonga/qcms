@@ -943,6 +943,24 @@ closes with it.
 
 ## 7. The rail
 
+### 7.00 Amendments, 2026-11-02 and 2026-11-04 (Code Owner, #1204 and #1208)
+
+These win over §7.0 where they disagree; the as-built record is phase 6 slice 5 in
+`plan/environment-navigation-implementation.md`.
+
+- **One persistent rail per area, a tree of two levels at most.** An area's rail never swaps
+  for a back link and a new list, and every row is a screen. Ruling 2.1's back link survives
+  only inside one item, as "‹ All forms" or "‹ All questions" above the item's name.
+- **One title per screen.** The rail never repeats the page heading, so an area rail's Header
+  carries no subject; below `--bp-sidebar` its disclosure reads "Menu".
+- **Ruling 3 is reversed: a breadcrumb row heads every screen**, area then section then item,
+  in one position and one line high.
+- **Ruling 8 is replaced.** An icon button at the top bar's start, also `Alt+Shift+S`,
+  collapses the rail to a 56px strip over 200ms (none under reduced motion), remembered per
+  viewer. The content column carries no rail control of its own.
+- **One top bar in every area**, with the environment dropdown in a reserved slot, so nothing
+  moves between Questions, Forms, Workspaces and Operations.
+
 ### 7.0 Ruling, 2026-10-24 (Code Owner): one rail on every screen
 
 **This subsection governs the rail.** Where anything else in this document disagrees with it about the rail (the preamble, the rest of §7 and §7a included), this subsection wins; those passages are kept as history and rationale, and the sentences it reverses are marked "Superseded 2026-10-24" where they stand. The analysis and the screen-by-screen evidence are in `plan/left-rail-proposal.md`. Work: #1115 (this record), #1116 (frame), #1117 (every screen and list filters), #1118 (section filters), #1119 (hide toggle).

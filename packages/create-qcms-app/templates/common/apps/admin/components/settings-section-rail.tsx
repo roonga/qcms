@@ -12,7 +12,6 @@ export function SettingsSectionRail({ initial }: { readonly initial: SettingsSec
   return (
     <RailFrame
       subject={t("settings.title")}
-      title={t("settings.title")}
       testId="qcms-settings-rail"
       sections={
         <ul className="qcms-rail__group" data-rail-group="sections">

@@ -10,12 +10,15 @@ export const messages = {
   "rail.filters.apply": "Apply",
   "rail.filters.clear": "Clear filters",
 
-  /** Include active filter count when the hidden rail would otherwise conceal it. */
-  "rail.hide": "Hide sidebar",
-  "rail.show": "Show sidebar",
-  "rail.show.filtered": "Show sidebar · {filters}",
-  "rail.show.oneFilter": "1 filter",
-  "rail.show.filters": "{count} filters",
+  "rail.collapse": "Collapse sidebar",
+  "rail.expand": "Expand sidebar",
+  "rail.toggle.title": "{action} (Alt+Shift+S)",
+  /** The narrow-width disclosure's name on an area rail, which carries no title of its own. */
+  "rail.menu": "Menu",
+  "rail.allQuestions": "All questions",
+  "rail.allForms": "All forms",
+
+  "breadcrumb.label": "Breadcrumb",
 
   "app.title": "QCMS",
   "app.description": "Author questionnaires, publish forms, and review responses.",
@@ -105,7 +108,7 @@ export const messages = {
 
   "shell.mode.operations.name": "Operations",
   "shell.mode.operations.exit": "Exit Operations",
-  "shell.mode.operations.announce": "Operations. The authoring menus are not shown here.",
+  "shell.mode.operations.announce": "Operations. Links out of it ask before leaving.",
   "shell.leave.title": "Leave Operations?",
   "shell.leave.goes": "This link opens {area}, outside Operations.",
   "shell.leave.environment":
@@ -1840,7 +1843,7 @@ export const messages = {
   "ops.common.copied": "Copied to the clipboard.",
   "ops.common.copyFailed": "That could not be copied. Select the text and copy it manually.",
 
-  "ops.area.webhooks.title": "Webhook operations",
+  "ops.area.webhooks.title": "Delivery failures",
 
   "ops.area.webhooks.intro":
     "The dead-letter queue below covers every form. Endpoints are configured per form, on that form's Webhooks screen - open one from the Operations forms table.",

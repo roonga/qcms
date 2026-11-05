@@ -440,11 +440,40 @@ Phase 6 ships in slices, as the workspace ruling allows. Each slice is one branc
    by name from the caller's own form read (`GET /admin/forms` names each form's
    `workspaceId`); the group's name is derived from those picks and a label under Advanced,
    and a grant picks from the workspace's members.
-5. One persistent rail per area and one top bar in every area, both the shell's chrome. It
-   replaces the swap-and-back-link rail slice 2 builds
-   (`apps/admin/components/ops/operations-form-rail.tsx`), so it is ordered after slice 2,
-   and it touches the same shell modules as slice 4, so those two are ordered rather than
-   run in parallel.
+5. One persistent rail per area, one top bar in every area, the rail toggle and the
+   breadcrumb row, all the shell's chrome (`fix/1204-persistent-rail-topbar`).
+   - **Top bar.** One grid in every area (`apps/admin/components/shell/shell-chrome.tsx`):
+     the rail toggle, the wordmark, the application navigation, an Exit slot and an
+     environment slot, then the trailing tools. Operations fills the two slots with Exit
+     Operations and the environment dropdown; elsewhere they stand empty at the same size,
+     the navigation scrolls rather than wraps, and the environment edge is an inset shadow,
+     so the bar's height and the heading's position do not change between areas. The
+     application navigation stays inside Operations, with Operations current, and its links
+     out of the mode take the leave warning.
+   - **Area rails.** Questions, Forms, Operations and Workspaces each keep one tree
+     (`apps/admin/lib/shell/area-rails.ts`, `RailTree` in `apps/admin/components/rail-frame.tsx`):
+     All questions and New question, All forms and New form, All forms, Delivery failures
+     and Erasure log for Operations, and the Workspaces tree from slice 4. An area rail has
+     no back link and no title, so it never repeats the page heading; below the sidebar
+     breakpoint its disclosure reads "Menu". The New question screen's panels expand beneath
+     its row. Dead letters is a section of the Delivery failures screen, so it has no rail
+     row of its own.
+   - **Item rails.** Inside one item the rail is that item's context: "‹ All forms" or
+     "‹ All questions", the item's name as a label rather than a heading, and its screens.
+     One form in Operations takes this shape by ruling; the editor's form rail and the
+     question rail take the same shape, which keeps their steps, versions and panels.
+   - **Rail toggle.** An icon button at the top bar's start, and `Alt+Shift+S` outside a
+     text field, collapse the rail to a 56px strip over 200ms, with no transition under
+     reduced motion. The choice is the existing per-viewer cookie, so the server renders it
+     and nothing jumps on load. The button carries `aria-expanded` and `aria-controls`, and
+     collapsing with focus inside the rail moves focus to it. The assistant's 1024 to 1279px
+     hold still gives the panel the whole track.
+   - **Breadcrumb.** The content column's first row on every screen, one line high, reading
+     area, section, item (`apps/admin/lib/shell/breadcrumbs.ts`). The rail slot renders it,
+     so each screen's rail supplies the names its address does not carry.
+   - **Exit return address.** It is refused when it carries a control character or a
+     backslash, or resolves to another origin, and a query-only change outside Operations
+     is remembered.
 
 Addresses the move takes:
 

@@ -1840,8 +1840,7 @@ because it was exposed, the way back is:
    set-once rather than as something to rotate on a schedule.
 4. Redeliver the dead-lettered deliveries once the consumers are verifying again. That
    is **not** on the per-form page from step 2: the dead-letter queue is
-   deployment-wide, so it lives on the **Webhooks** area page in the main nav
-   ("Webhook operations").
+   deployment-wide, so it lives on Operations' **Delivery failures** screen.
 
 The cost of a key change is therefore re-coordinating a shared secret with every
 webhook consumer, plus the deliveries that dead-lettered in between, which are

@@ -290,10 +290,10 @@ test("history renders the stored compiled document and never previews (exit crit
 
   expect(await versionView.locator("h2").count()).toBeGreaterThan(0);
 
-  await expect(page.locator('[aria-label="Breadcrumb"]')).toHaveCount(0);
+  await expect(versionView.locator('[aria-label="Breadcrumb"]')).toHaveCount(0);
   const rail = page.getByTestId("qcms-rail");
   await expect(rail).toContainText(FORM_TITLE);
-  await expect(rail.getByRole("link", { name: "Forms", exact: true })).toBeVisible();
+  await expect(rail.getByRole("link", { name: "All forms", exact: true })).toBeVisible();
 
   await expect(page.getByRole("heading", { name: /^Version 1$|^Viewing v1$/u })).toHaveCount(1);
 

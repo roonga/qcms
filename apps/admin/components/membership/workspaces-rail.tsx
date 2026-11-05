@@ -32,11 +32,14 @@ export function WorkspacesRail({
   readonly workspaces: readonly WorkspaceRailRow[];
   readonly selected?: { readonly workspaceId: string; readonly section: WorkspaceSection };
 }) {
+  const selectedName = workspaces.find(
+    (workspace) => workspace.workspaceId === selected?.workspaceId,
+  )?.name;
   return (
     <RailFrame
       subject={t("membership.area.title")}
-      title={t("membership.area.title")}
       testId="qcms-workspaces-rail"
+      {...(selectedName === undefined ? {} : { crumbs: { workspace: selectedName } })}
       sections={
         <ul className="qcms-rail__group" data-rail-group="sections">
           <li>

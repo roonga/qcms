@@ -41,8 +41,9 @@ export function FormSubtreeRail({
   return (
     <RailFrame
       subject={name}
-      back={{ href: "/forms", label: t("forms.title") }}
-      title={name}
+      context={{ href: "/forms", label: t("rail.allForms") }}
+      label={name}
+      crumbs={{ form: name }}
       tag={
         <span className={`qcms-tag qcms-tag--form-${status}`} data-status={status}>
           {t(`forms.status.${status}`)}

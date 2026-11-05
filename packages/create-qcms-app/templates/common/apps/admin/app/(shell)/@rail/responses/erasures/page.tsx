@@ -1,17 +1,24 @@
-import { RailFrame } from "@/components/rail-frame";
+import { RailFrame, RailTree } from "@/components/rail-frame";
 import { t } from "@/lib/i18n/en";
+import { navigableCapabilities, shellAccess } from "@/lib/server/shell";
 import { requireAdminSession } from "@/lib/server/session";
-import { OPERATIONS_PATH } from "@/lib/shell/modes";
+import { operationsRailItems } from "@/lib/shell/area-rails";
 
-/* The erasure-log API accepts no filters. */
 export default async function ErasureLogRail() {
-  await requireAdminSession();
+  const session = await requireAdminSession();
+  const access = await shellAccess(session);
   return (
     <RailFrame
-      subject={t("ops.erasures.title")}
-      back={{ href: OPERATIONS_PATH, label: t("shell.mode.operations.name") }}
-      title={t("ops.erasures.title")}
+      subject={t("shell.mode.operations.name")}
       testId="qcms-erasures-rail"
+      sections={
+        <RailTree
+          items={operationsRailItems(
+            "erasure-log",
+            navigableCapabilities(access).siteConfiguration,
+          )}
+        />
+      }
     />
   );
 }

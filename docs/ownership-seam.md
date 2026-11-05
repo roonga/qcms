@@ -93,13 +93,13 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (583 files common to both shapes)
+### Scaffolded paths (585 files common to both shapes)
 
 | Path                                                                            | Files |
 | ------------------------------------------------------------------------------- | ----- |
 | `(project root)`                                                                | 8     |
-| `apps/`                                                                         | 572   |
-| `apps/admin/`                                                                   | 360   |
+| `apps/`                                                                         | 574   |
+| `apps/admin/`                                                                   | 362   |
 | `apps/admin/app/`                                                               | 95    |
 | `apps/admin/app/(shell)/`                                                       | 76    |
 | `apps/admin/app/(shell)/@rail/`                                                 | 33    |
@@ -197,7 +197,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/components/questions/`                                              | 15    |
 | `apps/admin/components/shell/`                                                  | 5     |
 | `apps/admin/components/test-support/`                                           | 3     |
-| `apps/admin/lib/`                                                               | 128   |
+| `apps/admin/lib/`                                                               | 130   |
 | `apps/admin/lib/agent/`                                                         | 13    |
 | `apps/admin/lib/forms/`                                                         | 31    |
 | `apps/admin/lib/i18n/`                                                          | 2     |
@@ -205,7 +205,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/lib/ops/`                                                           | 15    |
 | `apps/admin/lib/questions/`                                                     | 9     |
 | `apps/admin/lib/server/`                                                        | 31    |
-| `apps/admin/lib/shell/`                                                         | 3     |
+| `apps/admin/lib/shell/`                                                         | 5     |
 | `apps/api/`                                                                     | 138   |
 | `apps/api/src/`                                                                 | 135   |
 | `apps/api/src/features/`                                                        | 103   |
@@ -291,7 +291,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (583)</summary>
+<summary>Every scaffolded file (585)</summary>
 
 ```
 .dockerignore
@@ -515,8 +515,8 @@ apps/admin/components/settings-panels.tsx
 apps/admin/components/settings-section-rail.tsx
 apps/admin/components/shell/denied-recovery.tsx
 apps/admin/components/shell/leave-operations-guard.tsx
-apps/admin/components/shell/mode-header.tsx
 apps/admin/components/shell/my-access-rail.tsx
+apps/admin/components/shell/shell-breadcrumb.tsx
 apps/admin/components/shell/shell-chrome.tsx
 apps/admin/components/sidebar-toggle.tsx
 apps/admin/components/test-support/git-binary.ts
@@ -647,6 +647,8 @@ apps/admin/lib/server/telemetry-redaction.ts
 apps/admin/lib/server/webhook-ops.ts
 apps/admin/lib/settings-panel.ts
 apps/admin/lib/settings-sections.ts
+apps/admin/lib/shell/area-rails.ts
+apps/admin/lib/shell/breadcrumbs.ts
 apps/admin/lib/shell/context.ts
 apps/admin/lib/shell/leave-operations.ts
 apps/admin/lib/shell/modes.ts

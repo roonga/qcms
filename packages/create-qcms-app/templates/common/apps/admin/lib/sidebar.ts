@@ -12,8 +12,10 @@ export const SIDEBAR_ATTRIBUTE = "data-sidebar";
 
 export const SIDEBAR_HOLD_ATTRIBUTE = "data-sidebar-hold";
 
-export const HIDE_SIDEBAR_ID = "qcms-hide-sidebar";
-export const SHOW_SIDEBAR_ID = "qcms-show-sidebar";
+export const RAIL_TOGGLE_ID = "qcms-rail-toggle";
+
+/** Where the rail is a column the toggle can collapse; below it the rail is a disclosure. */
+export const SIDEBAR_QUERY = "(min-width: 64rem)";
 
 export const RAIL_REGION_ID = "qcms-rail-region";
 
@@ -34,4 +36,19 @@ export function sidebarCookie(setting: SidebarSetting, secure: boolean): string 
 
 export function sidebarHidden(setting: SidebarSetting, held: boolean): boolean {
   return held || setting === "hidden";
+}
+
+export interface ShortcutFacts {
+  readonly key: string;
+  readonly code: string;
+  readonly altKey: boolean;
+  readonly shiftKey: boolean;
+  readonly ctrlKey: boolean;
+  readonly metaKey: boolean;
+}
+
+/** Alt+Shift+S, read from the physical key because macOS turns Option+Shift+S into another character. */
+export function isRailShortcut(event: ShortcutFacts): boolean {
+  if (!event.altKey || !event.shiftKey || event.ctrlKey || event.metaKey) return false;
+  return event.code === "KeyS" || event.key.toLowerCase() === "s";
 }

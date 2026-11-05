@@ -112,7 +112,7 @@ test("655 opens on Account with one panel showing and one row marked", async ({ 
   ]);
   expect(state.heading, "the heading names the section, not the screen").toBe("Account");
 
-  await expect(page.locator(".qcms-rail__summary-text")).toHaveText("Settings");
+  await expect(page.locator(".qcms-rail__summary"), "the rail repeats no title").toBeHidden();
 });
 
 test("655 switches the panel, the heading and the mark together when a row is followed", async ({
