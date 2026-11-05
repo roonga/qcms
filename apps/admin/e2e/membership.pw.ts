@@ -189,5 +189,6 @@ test("an access group is created with the pickers, granted to a member and taken
     .click();
   await expect(row).toContainText("Nobody");
   await row.getByRole("button", { name: "Remove group" }).click();
-  await expect(page.getByRole("region", { name: "Access groups" })).not.toContainText(name);
+  await expect(page.getByText("The group and every grant it carried were removed")).toBeVisible();
+  await expect(row).toHaveCount(0);
 });
