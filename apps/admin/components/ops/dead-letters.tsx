@@ -5,7 +5,9 @@ import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { EmptyState } from "@/components/empty-state";
 import { useEnvironmentUnknown } from "@/components/environment-scope";
 import { Alert, Button, Dialog } from "@/components/kit";
+import { QueueFormCell } from "@/components/ops/queue-form-cell";
 import { focusPostAction } from "@/lib/ops/post-action-focus";
+import type { QueueFormNames } from "@/lib/ops/queue-forms";
 import type { DeadLetterItem } from "@/lib/ops/types";
 import { unexpected } from "@/lib/ops/unexpected";
 import type { ReadState } from "@/lib/read-state";
@@ -26,10 +28,12 @@ const IDLE: RedeliverState = { status: "idle" };
    items. */
 export function DeadLetters({
   deadLetters,
+  formNames,
   redeliver,
   redeliverAll,
 }: {
   readonly deadLetters: ReadState<readonly DeadLetterItem[]>;
+  readonly formNames: QueueFormNames;
   readonly redeliver: (formId: string, deliveryId: string) => Promise<RedeliverState>;
   readonly redeliverAll: (
     targets: readonly { readonly formId: string; readonly deliveryId: string }[],
@@ -137,6 +141,7 @@ export function DeadLetters({
                 <thead>
                   <tr>
                     <th scope="col">{t("ops.deadLetters.column.event")}</th>
+                    <th scope="col">{t("ops.deadLetters.column.form")}</th>
                     <th scope="col">{t("ops.deadLetters.column.target")}</th>
                     <th scope="col" className="qcms-cell--num">
                       {t("ops.deadLetters.column.attempts")}
@@ -158,6 +163,9 @@ export function DeadLetters({
                       <th scope="row">
                         <code className="qcms-link-id">{row.eventType}</code>
                       </th>
+                      <td>
+                        <QueueFormCell names={formNames} formId={row.formId} />
+                      </td>
                       <td>
                         <span className="qcms-link-url">{row.url}</span>
                       </td>

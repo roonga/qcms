@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { Metadata } from "next";
 
 import { Alert } from "@/components/kit";
@@ -8,6 +7,7 @@ import { pageMetadata } from "@/lib/page-title";
 import { readState } from "@/lib/read-state";
 import { shownEnvironment } from "@/lib/environment";
 import { readWebhookOpsFilters } from "@/lib/ops/list-filters";
+import { queueFormNames } from "@/lib/ops/queue-forms";
 import { resolvedEnvironment } from "@/lib/server/environments";
 import { listAllForms } from "@/lib/server/forms";
 import { listDeadLetters } from "@/lib/server/webhook-ops";
@@ -19,7 +19,8 @@ export function generateMetadata(): Metadata {
   return pageMetadata(t("ops.area.webhooks.title"));
 }
 
-/* The dead-letter endpoint is global and accepts no form filter; the rail narrows returned rows. */
+/* The dead-letter endpoint is global and accepts no form filter; the rail narrows returned rows. Form names
+   come from the caller's own form read, so a form they cannot read shows its id. */
 export default async function WebhooksPage({
   searchParams,
 }: {
@@ -57,37 +58,10 @@ export default async function WebhooksPage({
       )}
       <DeadLetters
         deadLetters={readState(shownQueue)}
+        formNames={queueFormNames(forms)}
         redeliver={redeliverAction.bind(null, shown)}
         redeliverAll={redeliverAllAction.bind(null, shown)}
       />
-
-      <section aria-labelledby="qcms-webhook-forms-heading" className="flex flex-col gap-2">
-        <h2 id="qcms-webhook-forms-heading" className="text-lg font-semibold text-(--color-text)">
-          {t("nav.forms")}
-        </h2>
-        {!forms.ok && (
-          <Alert variant="warning">
-            {t("ops.area.responses.formsFailed", { message: forms.message })}
-          </Alert>
-        )}
-        {forms.ok &&
-          (forms.data.length === 0 ? (
-            <p className="text-sm text-(--color-text-muted)">{t("ops.area.webhooks.noForms")}</p>
-          ) : (
-            <ul className="flex flex-col gap-1">
-              {forms.data.map((form) => (
-                <li key={form.formId}>
-                  <Link
-                    className="qcms-text-link"
-                    href={`/operations/forms/${encodeURIComponent(form.formId)}/webhooks`}
-                  >
-                    {t("ops.area.webhooks.pickForm", { slug: form.slug })}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          ))}
-      </section>
     </div>
   );
 }

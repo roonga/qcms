@@ -357,11 +357,17 @@ evidence that a response existed **there** and was erased.
 
 ## Where an operator performs it (task 035)
 
-Erasure has one door in the app, and it is on the **response detail** - the screen
-showing the answers that are about to go, so nobody erases from a list of ids. The door
-is shown only to a caller holding the erase cell on that form in the selected
-environment, so a reader who may not erase is not offered a control that can only be
-refused; the API refuses the act either way. Pressing
+Erasure has two doors in the app, and both open the same confirmation. The first is on
+the **response detail** - the screen showing the answers that are about to go, so nobody
+erases from a list of ids. The second is the form's **Erase** screen in Operations,
+`/operations/forms/{formId}/erase`, beside Intake in that form's rail. It is the known
+target journey for an eraser who holds no response read: it lists nothing, asks for the
+session id the data subject's request names, says whether that session exists in the
+selected environment (through the same `erasure-scope` read the cross-environment offer
+uses, which returns no answers), and then offers the same erasure. Both doors are shown
+only to a caller holding the erase cell on that form in the selected environment, so a
+reader who may not erase is not offered a control that can only be refused; the API
+refuses the lookup and the act either way. Pressing
 "Erase respondent data" opens a type-to-confirm dialog that states three separate facts
 rather than asking for certainty: what is deleted (every answer and the submission, with
 no undo, no soft delete, and nothing this screen can restore from), what remains (the
@@ -380,7 +386,8 @@ Afterwards the same URL keeps working and shows the tombstone: an operator with 
 in a ticket gets "this was erased, here is the record" rather than a 404. Every tombstone
 is also listed at **/responses/erasures**, which is the compliance evidence - a screen
 that can be shown to whoever asks whether a request was honoured, because it holds no
-answers to leak.
+answers to leak. Each row names its form when the operator may read that form, and shows
+the form id otherwise.
 
 ## What erasure does NOT cover
 

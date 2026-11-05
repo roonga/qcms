@@ -24,6 +24,7 @@ export const SCREEN_IDS = [
   "/operations/forms/[formId]/responses",
   "/operations/forms/[formId]/responses/[sessionId]",
   "/operations/forms/[formId]/intake",
+  "/operations/forms/[formId]/erase",
   "/questions",
   "/questions/new",
   "/questions/[questionId]",
@@ -130,6 +131,7 @@ export const SCREENS: Readonly<Record<ScreenId, ScreenDef>> = Object.freeze({
     [],
     ["form.close", "form.reopen"],
   ),
+  "/operations/forms/[formId]/erase": screen(operationsContexts.formErase),
   "/questions": screen(
     authoringContexts.questions,
     ["search_question_library"],

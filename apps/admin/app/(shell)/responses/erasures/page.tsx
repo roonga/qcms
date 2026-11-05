@@ -4,9 +4,12 @@ import { EmptyState } from "@/components/empty-state";
 import { Alert } from "@/components/kit";
 import { erasureReasonText } from "@/components/ops/ops-tags";
 import { EntityId } from "@/components/entity-id";
+import { QueueFormCell } from "@/components/ops/queue-form-cell";
 import { OperatorDateTime } from "@/components/operator-time";
 import { t, tPlural } from "@/lib/i18n/en";
+import { queueFormNames } from "@/lib/ops/queue-forms";
 import { pageMetadata } from "@/lib/page-title";
+import { listAllForms } from "@/lib/server/forms";
 import { listErasures } from "@/lib/server/responses";
 import { requireAdminSession } from "@/lib/server/session";
 
@@ -16,7 +19,8 @@ export function generateMetadata(): Metadata {
 
 export default async function ErasureLogPage() {
   const session = await requireAdminSession();
-  const erasures = await listErasures(session);
+  const [erasures, forms] = await Promise.all([listErasures(session), listAllForms(session)]);
+  const names = queueFormNames(forms);
 
   return (
     <div className="flex flex-col gap-6">
@@ -67,7 +71,7 @@ export default async function ErasureLogPage() {
                       <EntityId kind="session" value={row.sessionId} />
                     </th>
                     <td>
-                      <EntityId kind="form" value={row.formId} />
+                      <QueueFormCell names={names} formId={row.formId} />
                     </td>
                     <td className="qcms-cell--num">v{row.formVersion}</td>
                     <td className="qcms-cell--num">

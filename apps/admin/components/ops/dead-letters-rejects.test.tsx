@@ -26,6 +26,7 @@ describe("a rejected redelivery", () => {
     render(
       <DeadLetters
         deadLetters={{ ok: true, data: [ROW] }}
+        formNames={{}}
         redeliver={() => Promise.reject(new TypeError("fetch failed"))}
         redeliverAll={() => Promise.resolve({ status: "idle" })}
       />,

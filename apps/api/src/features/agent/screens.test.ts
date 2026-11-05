@@ -147,6 +147,7 @@ describe("the screen registry", () => {
       "/operations/forms/[formId]/responses",
       "/operations/forms/[formId]/responses/[sessionId]",
       "/operations/forms/[formId]/intake",
+      "/operations/forms/[formId]/erase",
     ]);
     expect(isFormSubtreeScreen("/forms")).toBe(false);
   });

@@ -223,6 +223,21 @@ async function buildFormIntake(input: ScreenBuildInput): Promise<z.infer<typeof 
   };
 }
 
+export const formEraseFacts = z.strictObject({
+  formId: z.string(),
+  environment: z.string(),
+});
+
+/**
+ * One form's known-target erasure in the selected environment. It names no session and
+ * reads no response, so it is admitted on the erase cell alone.
+ */
+async function buildFormErase(input: ScreenBuildInput): Promise<z.infer<typeof formEraseFacts>> {
+  const { formId, workspaceId } = await requireForm(input);
+  await requireCell(input, { workspaceId, resource: "response", action: "erase", formId });
+  return { formId, environment: input.environment };
+}
+
 const DeliveryFact = z.strictObject({
   deliveryId: z.string(),
   eventType: z.string(),
@@ -527,4 +542,5 @@ export const operationsContexts = {
   responseDetail: { facts: responseDetailFacts, build: buildResponseDetail },
   formWebhooks: { facts: formWebhooksFacts, build: buildFormWebhooks },
   formIntake: { facts: formIntakeFacts, build: buildFormIntake },
+  formErase: { facts: formEraseFacts, build: buildFormErase },
 } as const;

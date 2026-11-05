@@ -22,7 +22,7 @@ running anything.
 
 The last two are **one place**, asked of whichever rail the screen sits beside. A screen
 about one form is either authoring or operational (Code Owner, 2026-11-02): the editor's rail
-nests the form's steps under its own row, and the Operations rail is the four contexts of the
+nests the form's steps under its own row, and the Operations rail is the operational contexts the caller holds in the
 selected environment, so a row in the wrong sweep asserts a rail the screen does not have. A
 screen about no form is in neither, which is why the place is asked per route rather than
 waived per screen.
@@ -65,7 +65,7 @@ was missing from the rail sweep for two cycles while every gate stayed green.
   chip in `lib/agent/context-chip.ts`, and `apps/api/src/features/agent/screens.ts` with a
   facts schema and a context builder.
 - **The screen count is spelled out in prose in several files** and every one of them moves
-  when a screen arrives. `grep -rn "twenty-three screens" apps/admin packages/create-qcms-app`
+  when a screen arrives. `grep -rn "twenty-five screens" apps/admin packages/create-qcms-app`
   finds them, whatever the current number is. Issue #882 proposes deriving or deleting
   those counts; until that is decided they are hand-maintained.
 - **No `loading.tsx` above a screen that answers 404.** That file is a Suspense boundary

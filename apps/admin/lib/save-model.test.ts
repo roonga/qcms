@@ -135,6 +135,11 @@ const SCREENS: readonly ScreenRow[] = [
     why: "Navigation only. §7 gives the rail no actions at all, so there is nothing on it to save.",
   },
   {
+    route: "app/(shell)/@rail/operations/forms/[formId]/erase/page.tsx",
+    model: "readonly",
+    why: "Navigation only. §7 gives the rail no actions at all, so there is nothing on it to save.",
+  },
+  {
     route: "app/(shell)/@rail/settings/page.tsx",
     model: "readonly",
     why: "Navigation only. §7a gives the Settings rail no actions and no counts, so there is nothing on it to save.",
@@ -219,6 +224,11 @@ const SCREENS: readonly ScreenRow[] = [
     route: "app/(shell)/operations/forms/[formId]/intake/page.tsx",
     model: "action",
     why: "Close and reopen, each one confirmed act in one environment with its own outcome region. The reading above them is not authored.",
+  },
+  {
+    route: "app/(shell)/operations/forms/[formId]/erase/page.tsx",
+    model: "action",
+    why: "Find one session, then erase it: a type-to-confirm act in one environment with its own outcome region. The id typed to find it is not stored.",
   },
   {
     route: "app/(shell)/questions/page.tsx",

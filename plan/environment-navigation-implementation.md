@@ -405,9 +405,24 @@ Phase 6 ships in slices, as the workspace ruling allows. Each slice is one branc
    and `apps/admin/e2e/operations-form-rail.pw.ts` for Operations'. The form subtree's
    offerable action kinds become two lists, so no plan spans authoring and operational acts
    in one confirmation.
-3. The leave warning: the kit Dialog, Stay focused by default, Escape is Stay, focus
-   returned, nothing shown for navigation inside Operations, unit and Playwright coverage
-   including browser back.
+3. The leave warning, the Exit control, the queue form names and the eraser screen
+   (`fix/1204-operations-leave-warning`). The warning is the kit Dialog with Stay focused
+   first, Escape and a click outside are Stay, and Stay returns focus to the link. One
+   capture-phase listener on the document, mounted only while the shell is in Operations,
+   stops any plain same-origin link whose destination is outside the mode
+   (`apps/admin/lib/shell/leave-operations.ts`), so no link has to opt in. Movement inside
+   Operations, its global queues and the personal routes asks nothing; a new tab, a
+   download and another origin pass. Browser back is not intercepted. Exit Operations
+   carries the one exemption and goes to the last address outside Operations this tab
+   visited, kept in `sessionStorage` and rechecked against the caller's areas, falling back
+   to the other area's landing. The dead-letter queue and the erasure log name each row's
+   form from the caller's own form read, a form they cannot read shows its id, and the
+   dead-letter page and its rail drop the per-form picker. The Erase screen,
+   `/operations/forms/{formId}/erase`, is the fifth context in the form's rail, admitted on
+   `response: erase`, the same cell the response detail's door reads, so an eraser-only row
+   now opens it. It asks for a session id, reads `erasure-scope` to say whether that
+   session exists here, and erases through the response detail's own type-to-confirm
+   dialog.
 4. Workspaces stops being a mode and its sections become screens, carrying the #1208
    access-group field rulings. One branch, because the second ruling changes the shell's
    mode model and the first changes what that model contains.
@@ -438,7 +453,7 @@ Rulings on the two questions phase 6 left open (Code Owner, 2026-11-04, on #1204
 
 Operations keeps a visible "Exit Operations" control returning to where the user came
 from, and incidental links out of Operations show the Stay/Leave warning. Slice three
-builds the queue form names, the eraser screen, the Exit control and the leave warning.
+carries the queue form names, the eraser screen, the Exit control and the leave warning.
 
 The Erase control on a response's detail shows only to a caller who holds the erase role
 for that form and environment; the API's refusal stays as it is (Code Owner,

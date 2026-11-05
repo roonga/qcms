@@ -23,6 +23,7 @@ const OPERATOR = uniqueAdminEmail("opsrail");
 const VIEWER = uniqueAdminEmail("opsviewer");
 
 let operatorSecret = "";
+let viewerSecret = "";
 /** A production response, submitted through the real respondent routes. */
 let sessionId = "";
 
@@ -34,7 +35,7 @@ interface Screen {
   readonly title: string;
 }
 
-/** All five of one form's operational screens, in the order the rail draws its rows. */
+/** All six of one form's operational screens, in the order the rail draws its rows. */
 function screens(): readonly Screen[] {
   return [
     {
@@ -63,6 +64,11 @@ function screens(): readonly Screen[] {
       current: "section:intake",
       title: `Intake: ${FORM_ID} - QCMS`,
     },
+    {
+      path: `/operations/forms/${FORM_ID}/erase`,
+      current: "section:erase",
+      title: `Erase: ${FORM_ID} - QCMS`,
+    },
   ];
 }
 
@@ -90,7 +96,7 @@ test("every operational screen of one form marks its own rail row and names its 
     await page.goto(screen.path);
     await expect(page.locator("main#main-content"), `${screen.path} is the shell`).toHaveCount(1);
 
-    // Soft throughout, so one sweep reports all five verdicts rather than stopping at the
+    // Soft throughout, so one sweep reports all six verdicts rather than stopping at the
     // first screen that disagrees.
     const rail = page.getByTestId("qcms-operations-form-rail");
     await expect.soft(rail, `${screen.path} carries the Operations form rail`).toBeVisible();
@@ -168,7 +174,7 @@ test("a response viewer reaches Operations, a form's responses and one response"
   test.setTimeout(600_000);
   // Operations is this persona's landing: `responses.viewer` reaches no authoring area, so
   // the default `/questions` is a wait that can only time out.
-  await enrollNewAdmin(page, VIEWER, /\/operations$/u);
+  viewerSecret = await enrollNewAdmin(page, VIEWER, /\/operations$/u);
   await chooseEnvironment(page, "test");
 
   // Operations in `test`, which is the only area this persona's grants admit it to beyond
@@ -195,7 +201,7 @@ test("a response viewer reaches Operations, a form's responses and one response"
   const rail = page.getByTestId("qcms-operations-form-rail");
   await expect(rail).toBeVisible();
   await expect(rail.locator('[data-rail-item="section:responses"]')).toBeVisible();
-  for (const absent of ["links", "webhooks", "intake"]) {
+  for (const absent of ["links", "webhooks", "intake", "erase"]) {
     await expect(
       rail.locator(`[data-rail-item="section:${absent}"]`),
       `the viewer's rail offers no ${absent} row`,
@@ -221,4 +227,61 @@ test("a response viewer reaches Operations, a form's responses and one response"
   // environment: not the cross-environment offer, and not the control beside it.
   await expect(page.getByTestId("qcms-erasure-elsewhere")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Erase respondent data…" })).toHaveCount(0);
+});
+
+test("an owner erases one response by its session id from the form's Erase screen", async ({
+  page,
+}) => {
+  test.setTimeout(600_000);
+  const erasable = await submitResponse(SLUG, [[ACCIDENT, false]]);
+  await signInWithTotp(page, OPERATOR, operatorSecret);
+  await chooseEnvironment(page, "prod");
+  await page.goto(`/operations/forms/${FORM_ID}/responses`);
+
+  // The owner holds the erase cell in prod, so the rail offers the screen beside Intake.
+  const rail = page.getByTestId("qcms-operations-form-rail");
+  await rail.locator('[data-rail-item="section:erase"]').click();
+  await expect(page).toHaveURL(new RegExp(`/operations/forms/${FORM_ID}/erase$`, "u"));
+  await waitForHydration(page);
+
+  const known = page.getByTestId("qcms-known-target-erasure");
+  await known.getByRole("textbox", { name: "Session id" }).fill("ses_neverexisted");
+  await known.getByRole("button", { name: "Find this session" }).click();
+  await expect(page.getByTestId("qcms-known-target-status")).toContainText(
+    "No session ses_neverexisted exists for this form in prod.",
+  );
+  await expect(page.getByRole("button", { name: "Erase respondent data…" })).toHaveCount(0);
+
+  await known.getByRole("textbox", { name: "Session id" }).fill(erasable);
+  await known.getByRole("button", { name: "Find this session" }).click();
+  await expect(page.getByTestId("qcms-known-target-found")).toContainText(erasable);
+  await page.getByRole("button", { name: "Erase respondent data…" }).click();
+
+  const dialog = page.getByRole("alertdialog");
+  await expect(dialog.getByTestId("qcms-erase-environment")).toContainText("prod");
+  await dialog.getByRole("textbox", { name: "Type the session id to confirm" }).fill(erasable);
+  await dialog.getByRole("button", { name: "Erase permanently" }).click();
+
+  await expect(page.getByTestId("qcms-tombstone")).toContainText(erasable);
+  await page.goto(`/operations/forms/${FORM_ID}/responses/${erasable}`);
+  await expect(page.getByTestId("qcms-tombstone")).toContainText(erasable);
+});
+
+test("a response viewer is offered no Erase screen, and its address offers nothing", async ({
+  page,
+}) => {
+  test.setTimeout(300_000);
+  await signInWithTotp(page, VIEWER, viewerSecret, /\/operations$/u);
+  await chooseEnvironment(page, "prod");
+  await page.goto(`/operations/forms/${FORM_ID}/responses`);
+  await expect(page.getByTestId("qcms-operations-form-rail")).toBeVisible();
+  await expect(
+    page.getByTestId("qcms-operations-form-rail").locator('[data-rail-item="section:erase"]'),
+  ).toHaveCount(0);
+
+  await page.goto(`/operations/forms/${FORM_ID}/erase`);
+  await expect(page.getByTestId("qcms-known-target-erasure")).toHaveCount(0);
+  await expect(page.locator("main#main-content")).toContainText(
+    "You do not hold the erase role for this form in prod",
+  );
 });

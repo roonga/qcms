@@ -238,9 +238,9 @@ describe("the Operations forms table's states", () => {
     expect(html).toContain('href="/operations/forms/frm_survey/responses"');
     expect(html).not.toContain('href="/operations/forms/frm_survey/links"');
     expect(html).not.toContain('href="/operations/forms/frm_survey/intake"');
-    // The eraser's row names the form and links nowhere.
-    expect(html).toContain("Leavers");
-    expect(html).not.toContain("frm_leavers/");
+    // The eraser's row opens the known-target Erase screen and nothing that lists responses.
+    expect(html).toContain('href="/operations/forms/frm_leavers/erase"');
+    expect(html).not.toContain('href="/operations/forms/frm_leavers/responses"');
   });
 
   it("asks for the chip's environment, so Last release is read where the chip says", async () => {

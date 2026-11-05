@@ -32,6 +32,10 @@ const HANDLERS: Readonly<Record<string, readonly string[]>> = {
     "confirm and withdraw a pending prod endpoint change (ops/endpoint-proposals.test.tsx)",
   ],
   "ops/form-intake.tsx": ["close/reopen (ops/form-intake-rejects.test.tsx)"],
+  "ops/known-target-erasure.tsx": [
+    "look a session up (ops/known-target-erasure.test.tsx)",
+    "erase (ops/known-target-erasure.test.tsx)",
+  ],
   "ops/response-detail.tsx": [
     "release a withheld event (ops/response-detail-rejects.test.tsx)",
     "erase (ops/response-detail-rejects.test.tsx)",
@@ -70,13 +74,13 @@ describe("the rejection handlers of the admin's forms and ops components", () =>
     expect(found).toStrictEqual(declared);
   });
 
-  it("number seventeen, of which fourteen are action rejections (nine at issue #352)", () => {
+  it("number nineteen, of which sixteen are action rejections (nine at issue #352)", () => {
     const entries = Object.values(HANDLERS).flat();
-    expect(entries).toHaveLength(17);
+    expect(entries).toHaveLength(19);
 
     const clipboard = entries.filter((entry) => entry.startsWith("copy"));
     expect(clipboard).toHaveLength(3);
 
-    expect(entries.length - clipboard.length).toBe(14);
+    expect(entries.length - clipboard.length).toBe(16);
   });
 });

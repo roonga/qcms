@@ -38,6 +38,8 @@ export const MEASURE_BY_ROUTE = {
   "/operations/forms/[formId]/webhooks": "wide",
   /** No POC draws Intake: one panel of state, so it takes `/me/access`' prose cap. */
   "/operations/forms/[formId]/intake": "prose",
+  /** No POC draws the known-target erasure: one field and one act, so it takes the same prose cap. */
+  "/operations/forms/[formId]/erase": "prose",
 
   "/questions": "list",
   /** question-editor-poc.html draws outer 1600 and inner editor-column 720; the inner element owns its own width. */

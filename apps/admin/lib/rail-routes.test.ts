@@ -24,6 +24,7 @@ const CURRENT_CONTEXT: Readonly<Record<string, string>> = {
   "/operations/forms/[formId]/links": "links",
   "/operations/forms/[formId]/webhooks": "webhooks",
   "/operations/forms/[formId]/intake": "intake",
+  "/operations/forms/[formId]/erase": "erase",
 };
 
 const NO_SECTION: readonly string[] = [];
@@ -102,6 +103,7 @@ describe("every screen has a page in the slot, whether or not it has a rail", ()
 describe("which screens carry the form-subtree section", () => {
   it("counts the screens about one form, split between the editor's and Operations'", () => {
     expect(sorted(formContextScreens())).toEqual([
+      "/operations/forms/[formId]/erase",
       "/operations/forms/[formId]/intake",
       "/operations/forms/[formId]/links",
       "/operations/forms/[formId]/responses",

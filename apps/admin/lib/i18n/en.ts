@@ -108,6 +108,15 @@ export const messages = {
   "shell.mode.workspaces.name": "Workspaces",
   "shell.mode.workspaces.exit": "Exit Workspaces",
   "shell.mode.workspaces.announce": "Workspaces. The authoring menus are not shown here.",
+  "shell.leave.title": "Leave Operations?",
+  "shell.leave.goes": "This link opens {area}, outside Operations.",
+  "shell.leave.environment":
+    "The {environment} environment you selected in Operations does not apply there.",
+  "shell.leave.environmentUnknown":
+    "The environment you selected in Operations does not apply there.",
+  "shell.leave.area.elsewhere": "another part of QCMS",
+  "shell.leave.stay": "Stay in Operations",
+  "shell.leave.leave": "Leave",
 
   /** Do not resolve refused IDs to titles: that would disclose their existence. */
   "shell.denied.title": "You do not have access to this area",
@@ -1109,6 +1118,7 @@ export const messages = {
   // The per-form Operations screen, named for what it carries rather than for the acts on
   // it: what the selected environment serves, and whether it is taking responses.
   "forms.tab.intake": "Intake",
+  "forms.tab.erase": "Erase",
 
   "forms.publish.action": "Publish",
   /** Pluralize each count separately; a single sentence cannot choose the correct form for three independent numbers. */
@@ -1529,6 +1539,7 @@ export const messages = {
   "agent.context.form.responses": "Form {subject}: response metadata, no answers",
   "agent.context.form.response": "Form {subject}: session {session}, metadata only",
   "agent.context.form.intake": "Form {subject}: intake in this environment",
+  "agent.context.form.erase": "Form {subject}: erasure by session id, no answers",
   "agent.context.questions": "The question library",
   "agent.context.questions.new": "A new question, nothing saved yet",
   "agent.context.question": "Question {subject}",
@@ -1827,15 +1838,11 @@ export const messages = {
   "ops.common.copied": "Copied to the clipboard.",
   "ops.common.copyFailed": "That could not be copied. Select the text and copy it manually.",
 
-  "ops.area.responses.formsFailed": "The form list could not be loaded. {message}",
-
   "ops.area.webhooks.title": "Webhook operations",
 
   "ops.area.webhooks.intro":
-    "The dead-letter queue below covers every form. Endpoints are configured per form, on that form's Webhooks screen - open one from the list below.",
+    "The dead-letter queue below covers every form. Endpoints are configured per form, on that form's Webhooks screen - open one from the Operations forms table.",
 
-  "ops.area.webhooks.pickForm": "Configure webhooks for {slug}",
-  "ops.area.webhooks.noForms": "No forms exist yet, so there is nothing to deliver.",
   "ops.area.webhooks.filter.form": "Form",
   "ops.area.webhooks.filter.formAll": "Any form",
 
@@ -1991,6 +1998,17 @@ export const messages = {
   "ops.erase.elsewhere.go": "Go to {environment}",
   "ops.erase.elsewhere.done": "{environment}: already erased there",
   "ops.erase.elsewhere.pending": "{environment}: not erased there yet",
+
+  "ops.erase.known.intro":
+    "Erase one respondent's data in {environment} by its session id. Nothing here lists responses, so the id comes from the data subject's request.",
+  "ops.erase.known.denied":
+    "You do not hold the erase role for this form in {environment}, so there is nothing to do here.",
+  "ops.erase.known.sessionLabel": "Session id",
+  "ops.erase.known.find": "Find this session",
+  "ops.erase.known.required": "Enter a session id.",
+  "ops.erase.known.missing": "No session {sessionId} exists for this form in {environment}.",
+  "ops.erase.known.found": "Session {sessionId} exists in {environment}.",
+  "ops.erase.known.lookupFailed": "The session could not be looked up. {message}",
 
   "ops.tombstone.title": "Erased",
   "ops.tombstone.body":
@@ -2173,6 +2191,7 @@ export const messages = {
     "Deliveries that exhausted their retries. Fix the target, then redeliver: a redelivered item is queued for the next delivery pass.",
   "ops.deadLetters.table": "Dead-lettered deliveries",
   "ops.deadLetters.column.event": "Event",
+  "ops.deadLetters.column.form": "Form",
   "ops.deadLetters.column.target": "Endpoint",
   "ops.deadLetters.column.attempts": "Attempts",
   "ops.deadLetters.column.lastError": "Last error",

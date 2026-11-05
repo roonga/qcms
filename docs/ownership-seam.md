@@ -93,16 +93,16 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (564 files common to both shapes)
+### Scaffolded paths (573 files common to both shapes)
 
 | Path                                                                            | Files |
 | ------------------------------------------------------------------------------- | ----- |
 | `(project root)`                                                                | 8     |
-| `apps/`                                                                         | 553   |
-| `apps/admin/`                                                                   | 341   |
-| `apps/admin/app/`                                                               | 85    |
-| `apps/admin/app/(shell)/`                                                       | 66    |
-| `apps/admin/app/(shell)/@rail/`                                                 | 28    |
+| `apps/`                                                                         | 562   |
+| `apps/admin/`                                                                   | 350   |
+| `apps/admin/app/`                                                               | 87    |
+| `apps/admin/app/(shell)/`                                                       | 68    |
+| `apps/admin/app/(shell)/@rail/`                                                 | 29    |
 | `apps/admin/app/(shell)/@rail/forms/`                                           | 9     |
 | `apps/admin/app/(shell)/@rail/forms/[formId]/`                                  | 7     |
 | `apps/admin/app/(shell)/@rail/forms/[formId]/preview/`                          | 1     |
@@ -113,9 +113,10 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/(shell)/@rail/forms/new/`                                       | 1     |
 | `apps/admin/app/(shell)/@rail/me/`                                              | 1     |
 | `apps/admin/app/(shell)/@rail/me/access/`                                       | 1     |
-| `apps/admin/app/(shell)/@rail/operations/`                                      | 7     |
-| `apps/admin/app/(shell)/@rail/operations/forms/`                                | 6     |
-| `apps/admin/app/(shell)/@rail/operations/forms/[formId]/`                       | 6     |
+| `apps/admin/app/(shell)/@rail/operations/`                                      | 8     |
+| `apps/admin/app/(shell)/@rail/operations/forms/`                                | 7     |
+| `apps/admin/app/(shell)/@rail/operations/forms/[formId]/`                       | 7     |
+| `apps/admin/app/(shell)/@rail/operations/forms/[formId]/erase/`                 | 1     |
 | `apps/admin/app/(shell)/@rail/operations/forms/[formId]/intake/`                | 1     |
 | `apps/admin/app/(shell)/@rail/operations/forms/[formId]/links/`                 | 1     |
 | `apps/admin/app/(shell)/@rail/operations/forms/[formId]/responses/`             | 2     |
@@ -142,9 +143,10 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/(shell)/forms/new/`                                             | 2     |
 | `apps/admin/app/(shell)/me/`                                                    | 1     |
 | `apps/admin/app/(shell)/me/access/`                                             | 1     |
-| `apps/admin/app/(shell)/operations/`                                            | 7     |
-| `apps/admin/app/(shell)/operations/forms/`                                      | 6     |
-| `apps/admin/app/(shell)/operations/forms/[formId]/`                             | 6     |
+| `apps/admin/app/(shell)/operations/`                                            | 8     |
+| `apps/admin/app/(shell)/operations/forms/`                                      | 7     |
+| `apps/admin/app/(shell)/operations/forms/[formId]/`                             | 7     |
+| `apps/admin/app/(shell)/operations/forms/[formId]/erase/`                       | 1     |
 | `apps/admin/app/(shell)/operations/forms/[formId]/export/`                      | 1     |
 | `apps/admin/app/(shell)/operations/forms/[formId]/intake/`                      | 1     |
 | `apps/admin/app/(shell)/operations/forms/[formId]/links/`                       | 1     |
@@ -177,23 +179,23 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/two-factor/recovery-codes/`                                     | 2     |
 | `apps/admin/app/two-factor/recovery-codes/confirm/`                             | 1     |
 | `apps/admin/app/two-factor/recovery/verify/`                                    | 1     |
-| `apps/admin/components/`                                                        | 125   |
+| `apps/admin/components/`                                                        | 129   |
 | `apps/admin/components/agent/`                                                  | 8     |
 | `apps/admin/components/forms/`                                                  | 42    |
 | `apps/admin/components/membership/`                                             | 8     |
-| `apps/admin/components/ops/`                                                    | 15    |
+| `apps/admin/components/ops/`                                                    | 18    |
 | `apps/admin/components/questions/`                                              | 15    |
-| `apps/admin/components/shell/`                                                  | 4     |
+| `apps/admin/components/shell/`                                                  | 5     |
 | `apps/admin/components/test-support/`                                           | 3     |
-| `apps/admin/lib/`                                                               | 124   |
+| `apps/admin/lib/`                                                               | 127   |
 | `apps/admin/lib/agent/`                                                         | 13    |
 | `apps/admin/lib/forms/`                                                         | 31    |
 | `apps/admin/lib/i18n/`                                                          | 2     |
 | `apps/admin/lib/membership/`                                                    | 2     |
-| `apps/admin/lib/ops/`                                                           | 13    |
+| `apps/admin/lib/ops/`                                                           | 15    |
 | `apps/admin/lib/questions/`                                                     | 9     |
 | `apps/admin/lib/server/`                                                        | 31    |
-| `apps/admin/lib/shell/`                                                         | 2     |
+| `apps/admin/lib/shell/`                                                         | 3     |
 | `apps/api/`                                                                     | 138   |
 | `apps/api/src/`                                                                 | 135   |
 | `apps/api/src/features/`                                                        | 103   |
@@ -279,7 +281,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (564)</summary>
+<summary>Every scaffolded file (573)</summary>
 
 ```
 .dockerignore
@@ -299,6 +301,7 @@ apps/admin/app/(shell)/@rail/forms/new/page.tsx
 apps/admin/app/(shell)/@rail/forms/page.tsx
 apps/admin/app/(shell)/@rail/me/access/page.tsx
 apps/admin/app/(shell)/@rail/no-section.ts
+apps/admin/app/(shell)/@rail/operations/forms/[formId]/erase/page.tsx
 apps/admin/app/(shell)/@rail/operations/forms/[formId]/intake/page.tsx
 apps/admin/app/(shell)/@rail/operations/forms/[formId]/links/page.tsx
 apps/admin/app/(shell)/@rail/operations/forms/[formId]/rail-slot.tsx
@@ -331,6 +334,7 @@ apps/admin/app/(shell)/forms/page.tsx
 apps/admin/app/(shell)/forms/published-cell.tsx
 apps/admin/app/(shell)/layout.tsx
 apps/admin/app/(shell)/me/access/page.tsx
+apps/admin/app/(shell)/operations/forms/[formId]/erase/page.tsx
 apps/admin/app/(shell)/operations/forms/[formId]/export/route.ts
 apps/admin/app/(shell)/operations/forms/[formId]/intake/page.tsx
 apps/admin/app/(shell)/operations/forms/[formId]/links/page.tsx
@@ -450,13 +454,16 @@ apps/admin/components/operator-time.tsx
 apps/admin/components/ops/dead-letters.tsx
 apps/admin/components/ops/delivery-dashboard.tsx
 apps/admin/components/ops/endpoint-proposals.tsx
+apps/admin/components/ops/erase-dialog.tsx
 apps/admin/components/ops/erasure-elsewhere.tsx
 apps/admin/components/ops/form-intake.tsx
+apps/admin/components/ops/known-target-erasure.tsx
 apps/admin/components/ops/operations-form-rail.tsx
 apps/admin/components/ops/operations-forms-rail.tsx
 apps/admin/components/ops/operations-forms-table.tsx
 apps/admin/components/ops/operations-screen.tsx
 apps/admin/components/ops/ops-tags.tsx
+apps/admin/components/ops/queue-form-cell.tsx
 apps/admin/components/ops/response-browser.tsx
 apps/admin/components/ops/response-detail.tsx
 apps/admin/components/ops/tombstone-card.tsx
@@ -488,6 +495,7 @@ apps/admin/components/searchable-select.tsx
 apps/admin/components/settings-panels.tsx
 apps/admin/components/settings-section-rail.tsx
 apps/admin/components/shell/denied-recovery.tsx
+apps/admin/components/shell/leave-operations-guard.tsx
 apps/admin/components/shell/mode-header.tsx
 apps/admin/components/shell/my-access-rail.tsx
 apps/admin/components/shell/shell-chrome.tsx
@@ -562,11 +570,13 @@ apps/admin/lib/ops/browse.ts
 apps/admin/lib/ops/erasure.ts
 apps/admin/lib/ops/export.ts
 apps/admin/lib/ops/form-contexts.ts
+apps/admin/lib/ops/known-target.ts
 apps/admin/lib/ops/labels.ts
 apps/admin/lib/ops/list-filters.ts
 apps/admin/lib/ops/operations-forms.ts
 apps/admin/lib/ops/paging.ts
 apps/admin/lib/ops/post-action-focus.ts
+apps/admin/lib/ops/queue-forms.ts
 apps/admin/lib/ops/response-filters.ts
 apps/admin/lib/ops/types.ts
 apps/admin/lib/ops/unexpected.ts
@@ -618,6 +628,7 @@ apps/admin/lib/server/webhook-ops.ts
 apps/admin/lib/settings-panel.ts
 apps/admin/lib/settings-sections.ts
 apps/admin/lib/shell/context.ts
+apps/admin/lib/shell/leave-operations.ts
 apps/admin/lib/shell/modes.ts
 apps/admin/lib/sidebar.ts
 apps/admin/lib/time-zone.ts

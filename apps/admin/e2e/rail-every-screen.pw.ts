@@ -28,7 +28,7 @@ function screens(): readonly { readonly path: string; readonly testId: string }[
     { path: `/forms/${FORM_ID}`, testId: "qcms-rail" },
     { path: "/me/access", testId: "qcms-my-access-rail" },
     { path: "/operations", testId: "qcms-operations-rail" },
-    // One operational screen of a form stands for the five its own sweep walks: they carry
+    // One operational screen of a form stands for the six its own sweep walks: they carry
     // the other rail a form has.
     { path: `/operations/forms/${FORM_ID}/responses`, testId: "qcms-operations-form-rail" },
     { path: "/responses", testId: "qcms-operations-rail" },

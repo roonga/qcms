@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 import { Select } from "@/components/kit";
 import { activeFilterCount, RailFilters } from "@/components/rail-filters";
 import { RailCount, RailFrame } from "@/components/rail-frame";
@@ -42,17 +40,6 @@ export function WebhookOpsRail({
               {t("ops.deadLetters.heading")}
             </a>
           </li>
-          {forms.map((form) => (
-            <li key={form.formId}>
-              <Link
-                href={`/operations/forms/${encodeURIComponent(form.formId)}/webhooks`}
-                className="qcms-rail__link"
-                data-rail-item={`form:${form.formId}`}
-              >
-                {form.slug}
-              </Link>
-            </li>
-          ))}
         </ul>
       }
       filters={

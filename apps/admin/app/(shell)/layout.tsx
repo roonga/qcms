@@ -69,6 +69,7 @@ export default async function ShellLayout({
                 capabilities={capabilities}
                 rememberedMode={rememberedMode(cookieStore)}
                 secureCookies={secureCookies()}
+                environmentName={resolved.status === "known" ? resolved.environment : ""}
                 environment={
                   resolved.status === "known" ? (
                     <EnvironmentSwitcher

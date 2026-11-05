@@ -14,6 +14,7 @@ export const AGENT_SCREENS = [
   "/operations/forms/[formId]/responses",
   "/operations/forms/[formId]/responses/[sessionId]",
   "/operations/forms/[formId]/intake",
+  "/operations/forms/[formId]/erase",
   "/questions",
   "/questions/new",
   "/questions/[questionId]",
