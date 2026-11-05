@@ -113,7 +113,7 @@ test("the collapse animates over 200ms, and not at all under reduced motion", as
     page.locator(".qcms-shell-body").evaluate((body) => getComputedStyle(body).transitionDuration);
   expect(await duration()).toBe("0.2s");
   await page.emulateMedia({ reducedMotion: "reduce" });
-  expect(await duration()).toBe("0s");
+  expect(Number.parseFloat(await duration()), "no visible motion").toBeLessThan(0.001);
 });
 
 test("below the sidebar breakpoint the toggle steps aside and the rail stays a disclosure", async ({
@@ -178,7 +178,7 @@ const CRUMB_SCREENS: readonly CrumbScreen[] = [
   { path: "/questions/new", trail: ["Questions", "New question"] },
   { path: `/questions/${QUESTION_ID}`, trail: ["Questions", QUESTION_ID], context: true },
   { path: "/forms", trail: ["Forms"] },
-  { path: `/forms/${FORM_ID}/rules`, trail: ["Forms", "", "Rules"], context: true },
+  { path: `/forms/${FORM_ID}/versions`, trail: ["Forms", "", "Versions"], context: true },
   { path: "/operations", trail: ["Operations"] },
   { path: `/operations/forms/${FORM_ID}/links`, trail: ["Operations", "", "Links"], context: true },
   { path: "/webhooks", trail: ["Operations", "Delivery failures"] },

@@ -41,8 +41,7 @@ const chipState = (page: Page) =>
       fill: triggerStyle?.backgroundColor ?? "",
       borderStyle: triggerStyle?.borderTopStyle ?? "",
       borderWidth: triggerStyle?.borderTopWidth ?? "",
-      edgeWidth: barStyle.borderTopWidth,
-      edgeColour: barStyle.borderTopColor,
+      edge: barStyle.boxShadow,
       barHeight: bar.getBoundingClientRect().height,
       mainTop: main?.getBoundingClientRect().top ?? 0,
     };
@@ -63,13 +62,15 @@ test("the chip is in the Operations header and on no normal screen", async ({ pa
   ).toBeVisible();
   const operations = await chipState(page);
   expect(operations.text, "the name is always written").toBe("prod");
-  expect(operations.edgeWidth, "the bar carries the environment edge").toBe("3px");
+  expect(operations.edge, "the bar carries the environment edge, taking no space").toMatch(
+    /0px 3px 0px 0px inset/u,
+  );
 
   for (const area of normalScreens()) {
     await page.goto(area);
     await expect(chip, `${area} has no environment context`).toHaveCount(0);
     const normal = await chipState(page);
-    expect(normal.edgeWidth, `${area} draws no environment edge`).toBe("0px");
+    expect(normal.edge, `${area} draws no environment edge`).toBe("none");
   }
 });
 
@@ -91,7 +92,7 @@ test("draws prod and a non-prod environment differently, and announces the switc
   expect(nonProd.borderWidth).toBe("2px");
 
   expect(nonProd.fill).not.toBe(production.fill);
-  expect(nonProd.edgeColour).not.toBe(production.edgeColour);
+  expect(nonProd.edge).not.toBe(production.edge);
 
   await expect(page.getByTestId("qcms-environment-status")).toHaveText(/Now working in test/u);
 

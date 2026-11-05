@@ -196,10 +196,10 @@ button {
   grid-template-columns: auto minmax(0, 1fr) auto auto;
   grid-template-areas:
     "brand . env tools"
-    "nav nav nav exit";
+    "nav nav exit exit";
   grid-auto-rows: minmax(var(--admin-control-h), auto);
   align-items: center;
-  column-gap: var(--space-3);
+  column-gap: var(--space-2);
   row-gap: var(--space-2);
   padding-inline: var(--admin-section-pad);
   padding-block: 0.5rem;
@@ -211,22 +211,25 @@ button {
 .qcms-topbar__inner > .qcms-wordmark {
   grid-area: brand;
 }
+/* The inset keeps focus rings inside the scroll clip. */
 .qcms-topbar__nav {
   grid-area: nav;
   min-inline-size: 0;
+  margin: -4px;
+  padding: 4px;
   overflow-x: auto;
 }
 .qcms-topbar__exit {
   grid-area: exit;
   display: flex;
   justify-content: flex-end;
-  inline-size: 9rem;
+  min-inline-size: 0;
 }
 .qcms-topbar__env {
   grid-area: env;
   display: flex;
   justify-content: flex-end;
-  inline-size: 8rem;
+  inline-size: 6rem;
 }
 .qcms-topbar__tools {
   grid-area: tools;
@@ -239,6 +242,13 @@ button {
   .qcms-topbar__inner {
     grid-template-columns: auto auto minmax(0, 1fr) auto auto auto;
     grid-template-areas: "toggle brand nav exit env tools";
+    column-gap: var(--space-3);
+  }
+  .qcms-topbar__exit {
+    inline-size: 9rem;
+  }
+  .qcms-topbar__env {
+    inline-size: 8rem;
   }
   .qcms-topbar__toggle {
     display: flex;
