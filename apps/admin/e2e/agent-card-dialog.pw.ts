@@ -3,7 +3,7 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { openPanel, propose } from "./support/agent-card.js";
 import { TEST_ENVIRONMENT_STORAGE } from "./support/environment.js";
-import { enrollNewAdmin } from "./support/flow.js";
+import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 
 /* The card opens in a dialog, and a plan walks page by page with Confirm on the review page alone.
    A narrow viewport is the case the panel cannot show a plan in, which is why the dialog exists. */
@@ -15,6 +15,8 @@ test.describe.configure({ mode: "serial" });
 const EMAIL = uniqueAdminEmail("agentcarddialog1230");
 const RUN = Date.now().toString(36);
 
+let totpSecret = "";
+
 test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
 });
@@ -23,7 +25,7 @@ const dialog = (page: import("@playwright/test").Page) => page.getByTestId("qcms
 
 test("walks a plan in the dialog, confirming on the review page alone", async ({ page }) => {
   test.setTimeout(300_000);
-  await enrollNewAdmin(page, EMAIL);
+  totpSecret = await enrollNewAdmin(page, EMAIL);
   // The narrow case: a plan of several steps does not fit the panel, so the dialog carries it.
   await page.setViewportSize({ width: 420, height: 900 });
   await page.goto("/forms");
@@ -59,6 +61,7 @@ test("walks a plan in the dialog, confirming on the review page alone", async ({
 
 test("titles a single-step dialog with the step and repeats it nowhere", async ({ page }) => {
   test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
   await page.setViewportSize({ width: 420, height: 900 });
   await page.goto("/forms");
   await openPanel(page);
