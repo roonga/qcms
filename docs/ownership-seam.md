@@ -189,15 +189,15 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/two-factor/recovery-codes/`                                     | 2     |
 | `apps/admin/app/two-factor/recovery-codes/confirm/`                             | 1     |
 | `apps/admin/app/two-factor/recovery/verify/`                                    | 1     |
-| `apps/admin/components/`                                                        | 130   |
-| `apps/admin/components/agent/`                                                  | 8     |
+| `apps/admin/components/`                                                        | 132   |
+| `apps/admin/components/agent/`                                                  | 10    |
 | `apps/admin/components/forms/`                                                  | 42    |
 | `apps/admin/components/membership/`                                             | 9     |
 | `apps/admin/components/ops/`                                                    | 18    |
 | `apps/admin/components/questions/`                                              | 15    |
 | `apps/admin/components/shell/`                                                  | 5     |
 | `apps/admin/components/test-support/`                                           | 3     |
-| `apps/admin/lib/`                                                               | 130   |
+| `apps/admin/lib/`                                                               | 128   |
 | `apps/admin/lib/agent/`                                                         | 13    |
 | `apps/admin/lib/forms/`                                                         | 31    |
 | `apps/admin/lib/i18n/`                                                          | 2     |
@@ -205,7 +205,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/lib/ops/`                                                           | 15    |
 | `apps/admin/lib/questions/`                                                     | 9     |
 | `apps/admin/lib/server/`                                                        | 31    |
-| `apps/admin/lib/shell/`                                                         | 5     |
+| `apps/admin/lib/shell/`                                                         | 3     |
 | `apps/api/`                                                                     | 138   |
 | `apps/api/src/`                                                                 | 135   |
 | `apps/api/src/features/`                                                        | 103   |
@@ -401,6 +401,8 @@ apps/admin/components/agent/apply-draft-detail.tsx
 apps/admin/components/agent/assistant-button.tsx
 apps/admin/components/agent/assistant-conversation.tsx
 apps/admin/components/agent/assistant-dock.tsx
+apps/admin/components/agent/card-dialog.tsx
+apps/admin/components/agent/card-parts.tsx
 apps/admin/components/agent/heading-marker.tsx
 apps/admin/components/agent/proposal-marker.tsx
 apps/admin/components/agent/step-actions.ts
@@ -515,8 +517,8 @@ apps/admin/components/settings-panels.tsx
 apps/admin/components/settings-section-rail.tsx
 apps/admin/components/shell/denied-recovery.tsx
 apps/admin/components/shell/leave-operations-guard.tsx
+apps/admin/components/shell/mode-header.tsx
 apps/admin/components/shell/my-access-rail.tsx
-apps/admin/components/shell/shell-breadcrumb.tsx
 apps/admin/components/shell/shell-chrome.tsx
 apps/admin/components/sidebar-toggle.tsx
 apps/admin/components/test-support/git-binary.ts
@@ -647,8 +649,6 @@ apps/admin/lib/server/telemetry-redaction.ts
 apps/admin/lib/server/webhook-ops.ts
 apps/admin/lib/settings-panel.ts
 apps/admin/lib/settings-sections.ts
-apps/admin/lib/shell/area-rails.ts
-apps/admin/lib/shell/breadcrumbs.ts
 apps/admin/lib/shell/context.ts
 apps/admin/lib/shell/leave-operations.ts
 apps/admin/lib/shell/modes.ts
