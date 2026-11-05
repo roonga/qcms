@@ -638,7 +638,9 @@ async function withDraftArguments(
       ...step,
       draft: {
         definition: parsed.data,
-        newQuestions: created.map((entry) => entry.definition),
+        // The created ones only: a version an earlier step rewrites is not a new question,
+        // and its pin is an ordinary unpublished pin rather than one this plan invents.
+        newQuestions: created.filter((entry) => entry.created).map((entry) => entry.definition),
         issues,
         warnings,
         createdBy,

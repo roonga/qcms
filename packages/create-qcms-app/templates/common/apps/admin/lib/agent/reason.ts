@@ -36,7 +36,10 @@ function flatten(text: string): string {
       continue;
     }
     if (marked) {
-      parts.push(`${listing ? ", " : " "}${body}`);
+      // A comma only where it continues a run of items; after a finished sentence it would
+      // read as punctuation the writer did not use.
+      const continues = listing && !/[.!?]$/.test(parts.at(-1) ?? "");
+      parts.push(`${continues ? ", " : " "}${body}`);
       listing = true;
     } else {
       parts.push(` ${body}`);
