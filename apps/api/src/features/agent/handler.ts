@@ -28,7 +28,7 @@ import {
 } from "../questions/create.js";
 import { requireFormDefinition, storeDraftDefinition, validateDraft } from "../forms/handler.js";
 import type { Resource } from "../membership/policy.js";
-import { decideAccess, PRODUCTION_ENVIRONMENT } from "../membership/policy.js";
+import { PRODUCTION_ENVIRONMENT } from "../membership/policy.js";
 import { holdsInstallationClaim, type ResolvedMembership } from "../membership/resolver.js";
 import { savedDraftPins } from "./draft-pins.js";
 import { offeredActionKinds, offersNoAction, type OfferedActionKind } from "./grant-filter.js";
@@ -46,10 +46,10 @@ import {
   callerWorkspaces,
   forbidden,
   holdsCellIn,
-  membershipIn,
+  requireCell,
   requireForm,
+  resolveForm,
   workspacesHolding,
-  workspacesHoldingOrNone,
   type ScreenBuildInput,
   type ScreenParams,
 } from "./contexts/support.js";
@@ -331,21 +331,20 @@ async function canWriteDraft(
 ): Promise<boolean> {
   const cell = { resource: "form" as Resource, action: "write" };
   if (!("formId" in subject)) {
-    const held = await workspacesHoldingOrNone(build, cell);
+    const held = await workspacesHolding(build, cell);
     return subject.createdInWorkspace === undefined
       ? held.length > 0
       : held.includes(subject.createdInWorkspace);
   }
-  const parsed = parseFormId(subject.formId);
-  if (!parsed.ok) return false;
-  const form = await getForm(build.deps.databases.control, parsed.value);
-  if (form === undefined) return false;
-  const resolved = await membershipIn(build, form.workspaceId);
-  return decideAccess({
-    memberRole: resolved.memberRole,
-    grants: resolved.grants,
-    request: { resource: cell.resource, action: cell.action },
-  }).allowed;
+  // `resolveForm` then `requireCell` is the pair every read port uses, so the environment
+  // scoping and the refusal are the ones the route itself would apply.
+  try {
+    const { workspaceId } = await resolveForm(build, subject.formId);
+    await requireCell(build, { workspaceId, ...cell });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** R6's own question: an id used before is never reused, whatever its question's state. */
