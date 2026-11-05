@@ -257,11 +257,6 @@ function proposedDraftRefusal(
   return undefined;
 }
 
-/**
- * The route's own check, run before any card exists, with the server's own words and the
- * spelling it suggests. So the model corrects the definition rather than the person watching
- * step 2 of a confirmed plan fail on it.
- */
 /** R6: an id is stable forever and never reused, so a create naming a taken one cannot run. */
 async function takenQuestionIdRefusal(
   input: ProposeInput,
@@ -313,6 +308,11 @@ async function draftWriteRefusal(
   );
 }
 
+/**
+ * The route's own check, run before any card exists, with the server's own words and the
+ * spelling it suggests. So the model corrects the definition rather than the person watching
+ * step 2 of a confirmed plan fail on it.
+ */
 function questionDefinitionRefusal(step: ProposedStep, index: number): string | undefined {
   const checked = checkQuestionDefinition(step.args["definition"]);
   if (checked.ok) return undefined;
