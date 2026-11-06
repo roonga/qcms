@@ -32,10 +32,12 @@ export function RailDisclosure({ children }: { readonly children: ReactNode }) {
       onToggle={(event) => {
         setOpen(event.currentTarget.open);
       }}
-      // Preventing the summary click also covers Enter and Space, whose native action dispatches click.
+      // Preventing the summary click also covers Enter and Space, whose native action dispatches click. Only this
+      // disclosure own summary: nested accordions inside the rail must still toggle.
       onClickCapture={(event) => {
         if (!pinned) return;
-        if ((event.target as HTMLElement).closest("summary") !== null) event.preventDefault();
+        const summary = (event.target as HTMLElement).closest("summary");
+        if (summary?.parentElement === event.currentTarget) event.preventDefault();
       }}
       {...(ready ? { "data-ready": "" } : {})}
     >
