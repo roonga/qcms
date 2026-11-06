@@ -235,8 +235,11 @@ async function loadSubmission(sessionId: string): Promise<SubmissionView | undef
   return getSubmission(testDb.db, SessionId.parse(sessionId));
 }
 
-async function startSession(slug = "auto"): Promise<StartBody> {
-  const res = await app.request("/sessions", {
+async function startSession(
+  slug = "auto",
+  targetApp: ReturnType<typeof createApp> = app,
+): Promise<StartBody> {
+  const res = await targetApp.request("/sessions", {
     method: "POST",
     headers: { "content-type": "application/json", "x-qcms-internal-token": internalToken },
     body: JSON.stringify({ formSlug: slug }),
@@ -250,8 +253,9 @@ async function postAnswer(
   token: string,
   questionId: string,
   value: unknown,
+  targetApp: ReturnType<typeof createApp> = app,
 ): Promise<Response> {
-  return app.request(`/sessions/${id}/answers`, {
+  return targetApp.request(`/sessions/${id}/answers`, {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -421,17 +425,33 @@ describe("hidden-answer exclusion (exit criterion 3)", () => {
 });
 
 describe("text answers that look like other JSON", () => {
+  // Its own app on the shared config, so these sessions spend their own session-create
+  // allowance rather than the one the tests after them still need.
+  let textApp: ReturnType<typeof createApp>;
+  beforeAll(() => {
+    textApp = createApp(
+      makeDeps({ db: testDb.db, clock: fixedClock(NOW), config: deps.config }),
+      PUBLIC_ONLY,
+      {
+        groups: {
+          anonymous: [registerAnonymousEntry],
+          respondent: [registerLinkEntry, registerServeStep, registerSubmit],
+        },
+      },
+    );
+  });
+
   // A stored text answer is a JSON string, and a `jsonb` column that parses the driver's
   // already-parsed value hands the sweep a number, which "must be text" then refuses.
   it.each(["234234234", "true", "null", "[1]", "  42 "])(
     "accepts %j as a text answer and locks it unchanged",
     async (typed) => {
-      const { sessionId, sessionToken } = await startSession("policy");
-      expect((await postAnswer(sessionId, sessionToken, "q_policy_number", typed)).status).toBe(
-        200,
-      );
+      const { sessionId, sessionToken } = await startSession("policy", textApp);
+      expect(
+        (await postAnswer(sessionId, sessionToken, "q_policy_number", typed, textApp)).status,
+      ).toBe(200);
 
-      const res = await submit(sessionId, sessionToken);
+      const res = await submit(sessionId, sessionToken, {}, textApp);
       expect(res.status).toBe(200);
 
       const submission = await loadSubmission(sessionId);
