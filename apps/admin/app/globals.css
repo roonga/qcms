@@ -2188,8 +2188,11 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
 }
 
 .qcms-rail__body {
-  padding-inline: 0.5rem;
+  padding-inline: 0;
   padding-block-end: 1rem;
+}
+.qcms-rail__body > :not(nav) {
+  padding-inline: 0.5rem;
 }
 
 @media (width < 64rem) {
