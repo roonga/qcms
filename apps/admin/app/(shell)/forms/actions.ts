@@ -163,6 +163,7 @@ export async function saveDraftAction(
   draft: DraftForm,
   agentAssisted?: boolean,
   newQuestions?: readonly unknown[],
+  proposal?: AgentProposalRef,
 ): Promise<SaveDraftState> {
   const session = await requireAdminSession();
   if (!withinCap(draft)) {
@@ -175,7 +176,7 @@ export async function saveDraftAction(
     };
   }
 
-  const result = await saveDraft(session, formId, draft, agentAssisted, newQuestions);
+  const result = await saveDraft(session, formId, draft, agentAssisted, newQuestions, proposal);
   if (!result.ok) {
     return {
       status: "error",

@@ -17,6 +17,9 @@ export interface AgentDraftProposal {
   readonly issues: readonly FormIssue[];
 
   readonly warnings: readonly FormIssue[];
+
+  /* Which step of this plan creates each new question, so a pin can name it. */
+  readonly createdBy?: readonly { readonly questionId: string; readonly step: number }[];
 }
 
 // Keep args opaque: a value may reference an earlier step result rather than carrying a literal.
@@ -25,6 +28,9 @@ export interface AgentCardTemplate {
   readonly consequenceKeys: readonly string[];
 
   readonly headingControl?: string;
+
+  /* A draft belongs to no environment, so its card shows no environment line. */
+  readonly hideEnvironment?: boolean;
 
   readonly typedConfirmation?: string;
 
@@ -53,6 +59,12 @@ export interface AgentPlanStep {
   readonly resultAllowlist: readonly string[];
 }
 
+/* Display context, not an argument: the card shows a workspace by name, and the digest binds the id. */
+export interface AgentWorkspaceName {
+  readonly workspaceId: string;
+  readonly name: string;
+}
+
 export interface AgentProposal {
   readonly proposalId: string;
   // Hand-off-only plans have no confirmation token.
@@ -61,6 +73,8 @@ export interface AgentProposal {
   readonly proposedAt: string;
   readonly expiresAt: string;
   readonly formId: string | undefined;
+
+  readonly workspaces?: readonly AgentWorkspaceName[];
 
   readonly currentEnvironment: string;
 }
@@ -267,6 +281,7 @@ function toCardTemplate(raw: unknown): AgentCardTemplate | undefined {
     ...(typeof headingControl === "string" ? { headingControl } : {}),
     ...(typeof typedConfirmation === "string" ? { typedConfirmation } : {}),
     ...(createdLink === undefined ? {} : { createdLink }),
+    ...(raw["hideEnvironment"] === true ? { hideEnvironment: true } : {}),
   };
 }
 
@@ -299,12 +314,27 @@ function toDraftProposal(raw: unknown): AgentDraftProposal | undefined {
   if (!isKeyedObject(raw)) return undefined;
   const definition = raw["definition"];
   if (!isKeyedObject(definition)) return undefined;
+  const createdBy = toCreatedBy(raw["createdBy"]);
   return {
     definition,
     newQuestions: Array.isArray(raw["newQuestions"]) ? raw["newQuestions"] : [],
     issues: parseIssues(raw["issues"]),
     warnings: parseIssues(raw["warnings"]),
+    ...(createdBy.length === 0 ? {} : { createdBy }),
   };
+}
+
+function toCreatedBy(
+  raw: unknown,
+): readonly { readonly questionId: string; readonly step: number }[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((entry) => {
+    if (!isKeyedObject(entry)) return [];
+    const questionId = entry["questionId"];
+    const step = entry["step"];
+    if (typeof questionId !== "string" || questionId === "") return [];
+    return Number.isInteger(step) ? [{ questionId, step: step as number }] : [];
+  });
 }
 
 function toAgentProposal(raw: unknown): AgentProposal | undefined {
@@ -325,6 +355,7 @@ function toAgentProposal(raw: unknown): AgentProposal | undefined {
   const token = raw["token"];
   const formId = raw["formId"];
   const currentEnvironment = raw["currentEnvironment"];
+  const workspaces = toWorkspaceNames(raw["workspaces"]);
   // Do not invent a missing destination environment: confirmation is bound to the selection under which the turn ran.
   if (typeof currentEnvironment !== "string" || currentEnvironment === "") return undefined;
   return {
@@ -335,5 +366,17 @@ function toAgentProposal(raw: unknown): AgentProposal | undefined {
     expiresAt,
     formId: typeof formId === "string" ? formId : undefined,
     currentEnvironment,
+    ...(workspaces.length === 0 ? {} : { workspaces }),
   };
+}
+
+function toWorkspaceNames(raw: unknown): readonly AgentWorkspaceName[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((entry) => {
+    if (!isKeyedObject(entry)) return [];
+    const workspaceId = entry["workspaceId"];
+    const name = entry["name"];
+    if (typeof workspaceId !== "string" || workspaceId === "") return [];
+    return typeof name === "string" && name !== "" ? [{ workspaceId, name }] : [];
+  });
 }

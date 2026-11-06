@@ -26,6 +26,7 @@ export function ApplyDraftDetail({
   const diff =
     current === undefined ? undefined : proposalDiff(current, draft.definition, draft.newQuestions);
   const pendingPins = pendingNewQuestionPins(draft.definition, draft.newQuestions);
+  const createdBy = new Map((draft.createdBy ?? []).map((entry) => [entry.questionId, entry.step]));
 
   return (
     <div className="qcms-acard__draft" data-testid="qcms-acard-draft">
@@ -62,7 +63,12 @@ export function ApplyDraftDetail({
             <ul className="qcms-acard__advisory">
               {draft.issues.map((issue, index) => (
                 <li key={`${issue.code}:${String(index)}`}>
-                  <DraftIssue issue={issue} current={current} pendingPins={pendingPins} />
+                  <DraftIssue
+                    issue={issue}
+                    current={current}
+                    pendingPins={pendingPins}
+                    createdBy={createdBy}
+                  />
                 </li>
               ))}
             </ul>
@@ -79,7 +85,12 @@ export function ApplyDraftDetail({
           <ul className="qcms-acard__advisory">
             {draft.warnings.map((warning, index) => (
               <li key={`${warning.code}:${String(index)}`}>
-                <DraftIssue issue={warning} current={current} pendingPins={pendingPins} />
+                <DraftIssue
+                  issue={warning}
+                  current={current}
+                  pendingPins={pendingPins}
+                  createdBy={createdBy}
+                />
               </li>
             ))}
           </ul>
@@ -93,16 +104,21 @@ function DraftIssue({
   issue,
   current,
   pendingPins,
+  createdBy,
 }: {
   readonly issue: FormIssue;
   readonly current: DraftForm | undefined;
   readonly pendingPins: ReadonlySet<string>;
+  readonly createdBy: ReadonlyMap<string, number>;
 }) {
   const questionId = issue.path?.question;
   if (questionId !== undefined && isPendingNewQuestionPin(issue, pendingPins)) {
+    const step = createdBy.get(questionId);
     return (
       <span data-issue-code={issue.code} data-new-question={questionId}>
-        {t("forms.assist.newQuestionPending", { questionId })}
+        {step === undefined
+          ? t("forms.assist.newQuestionPending", { questionId })
+          : t("forms.assist.newQuestionFromStep", { questionId, step: step + 1 })}
       </span>
     );
   }

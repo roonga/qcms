@@ -7,7 +7,6 @@ import { builderTurnContext, recordingLogger, validEnv } from "../../../test-sup
 import { loadConfig } from "../../../config.js";
 import { aiSdkDraftAssistant, selectDraftAssistant } from "../assistant.js";
 import { fakeAssistantModel } from "../fake-model.js";
-import { SCREENS } from "../screens.js";
 import { collectRefs } from "./tool-schema.js";
 import {
   AGENT_PROPOSE_TOOL_NAMES,
@@ -56,7 +55,7 @@ function contextFixture(message: string): AssistContext {
 }
 
 describe("the agent tool registry", () => {
-  it("is the authoring verbs, the screens' read tools and the two propose tools", () => {
+  it("names every tool the door may dispatch, and nothing else", () => {
     expect([...AGENT_TOOL_NAMES].sort()).toEqual([
       "count_dead_letters",
       "count_links",
@@ -64,12 +63,22 @@ describe("the agent tool registry", () => {
       "delivery_status",
       "diff_form_versions",
       "diff_question_versions",
+      "list_erasures",
+      "list_form_versions",
+      "list_links",
+      "list_questions",
+      "list_releases",
       "list_responses",
+      "list_webhooks",
+      "list_workspaces",
       "project_draft",
       "propose_action",
       "propose_draft",
       "propose_plan",
       "propose_questions",
+      "read_form",
+      "read_question",
+      "read_workspace",
       "search_forms",
       "search_question_library",
       "test_rule",
@@ -82,11 +91,6 @@ describe("the agent tool registry", () => {
     expect([...AGENT_READ_TOOL_NAMES, ...AGENT_PROPOSE_TOOL_NAMES].sort()).toEqual(
       [...AGENT_TOOL_NAMES].sort(),
     );
-    for (const screen of Object.values(SCREENS)) {
-      for (const name of screen.readTools) {
-        expect(AGENT_READ_TOOL_NAMES).toContain(name);
-      }
-    }
   });
 
   it("offers the provider the current screen's list and nothing else", () => {

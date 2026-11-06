@@ -1,6 +1,7 @@
 import { parseQuestionDefinition, QuestionId, stepQuestionRefs } from "@roonga/qcms-core";
 import {
   SEED_WORKSPACE_ID,
+  authOrganization,
   createQuestion,
   createQuestionVersion,
   getDraft,
@@ -74,7 +75,9 @@ beforeAll(async () => {
 
   deps = makeDeps({
     db: testDb.db,
-    env: validEnv({ QCMS_FLAG_AGENT_AUTHORING: "fake" }),
+    // The read walk calls one tool per step, and the caller holds every cell, so the
+    // ceiling has to clear the whole registry for a single turn to cover it.
+    env: validEnv({ QCMS_FLAG_AGENT_AUTHORING: "fake", QCMS_AGENT_MAX_STEPS: "40" }),
     logger: recorder.logger,
     draftAssistant: aiSdkDraftAssistant({
       model: recordingModel,
@@ -124,7 +127,23 @@ async function put(path: string, body: unknown): Promise<Response> {
   });
 }
 
-async function seedPublishedQuestion(id: string, label: string): Promise<void> {
+async function createWorkspaceRow(
+  exec: typeof testDb.db,
+  id: string,
+  name: string,
+  slug: string,
+): Promise<void> {
+  await exec
+    .insert(authOrganization)
+    .values({ id, name, slug })
+    .onConflictDoNothing({ target: authOrganization.id });
+}
+
+async function seedPublishedQuestion(
+  id: string,
+  label: string,
+  workspaceId: string = SEED_WORKSPACE_ID,
+): Promise<void> {
   const questionId = QuestionId.parse(id);
   const parsed = parseQuestionDefinition({
     questionId: id,
@@ -133,7 +152,7 @@ async function seedPublishedQuestion(id: string, label: string): Promise<void> {
   });
   if (!parsed.ok) throw new Error(`fixture question ${id} did not parse`);
   await createQuestion(testDb.db, {
-    workspaceId: SEED_WORKSPACE_ID,
+    workspaceId,
     questionId,
     slug: id.replace(/_/g, "-"),
   });
@@ -741,7 +760,8 @@ describe("every screen's context, with a sentinel in the database", () => {
       }
     }
     // The read tools only: a propose tool puts a card up for the user to confirm, so a
-    // read walk never executes one.
+    // read walk never executes one. The walk runs as the seeded owner, who holds every
+    // cell, so every read tool is offered somewhere in it.
     expect([...executed].sort()).toEqual([...AGENT_READ_TOOL_NAMES].sort());
   });
 
@@ -976,7 +996,7 @@ describe("a reduced-grant caller over HTTP", () => {
   );
 
   it(
-    "refuses that caller every draft verb and reaches no card",
+    "offers that caller no draft verb at all, and reaches no card",
     async () => {
       const res = await turnAs(viewer, "/assist", {
         conversation: [{ role: "user", content: "rewrite this form #qcms-fake:read-all" }],
@@ -987,13 +1007,35 @@ describe("a reduced-grant caller over HTTP", () => {
       expect(res.status).toBe(200);
       const events = await readEvents(res);
       const ended = outcomes(events);
-      // The read tool the viewer's grants do cover, so the three refusals below are the
-      // cell and not a turn that failed before any tool ran.
+      // The read tool the viewer's grants do cover, so the absences below are the cell and
+      // not a turn that failed before any tool ran.
       expect(ended.get("search_question_library")).toBe("done");
-      expect(ended.get("propose_questions")).toBe("failed");
-      expect(ended.get("propose_draft")).toBe("failed");
-      expect(ended.get("validate_draft")).toBe("failed");
+      // Not offered rather than offered and refused: the model is never told they exist.
+      for (const verb of ["propose_questions", "propose_draft", "validate_draft"]) {
+        expect(ended.has(verb), verb).toBe(false);
+      }
       expect(events.some((event) => event.type === "action")).toBe(false);
+      expect(events.some((event) => event.type === "plan")).toBe(false);
+    },
+    BOOT_TIMEOUT,
+  );
+
+  it(
+    "offers a read-only caller neither propose tool, so it cannot put a card up",
+    async () => {
+      const res = await turnAs(viewer, "/assist", {
+        conversation: [{ role: "user", content: "close this form #qcms-fake:read-only-user" }],
+        screen: "/forms",
+        conversationId: "cnv_viewer_propose",
+      });
+      expect(res.status).toBe(200);
+      const events = await readEvents(res);
+      const announced = events.flatMap((event) =>
+        event.type === "status" && event.tool !== undefined ? [event.tool] : [],
+      );
+      expect(announced).not.toContain("propose_action");
+      expect(announced).not.toContain("propose_plan");
+      expect(events.some((event) => event.type === "action" || event.type === "plan")).toBe(false);
     },
     BOOT_TIMEOUT,
   );
@@ -1003,6 +1045,27 @@ describe("a reduced-grant caller over HTTP", () => {
       conversation: [{ role: "user", content: "rewrite this form" }],
     });
     expect(res.status).toBe(403);
+  });
+
+  // The tool is offered to anyone holding `question: read` anywhere, so the read itself has
+  // to be the one their grants allow: another workspace's library is not theirs to see.
+  it("returns no question from a workspace this caller holds no question read in", async () => {
+    const OTHER = "wsp_other_library";
+    await createWorkspaceRow(testDb.db, OTHER, "Other library", "other-library");
+    await seedPublishedQuestion("q_other_workspace", "Other workspace question", OTHER);
+    await seedPublishedQuestion("q_own_workspace", "Own workspace question");
+
+    const res = await turnAs(viewer, "/assist", {
+      conversation: [{ role: "user", content: "find me a question #qcms-fake:read-all" }],
+      screen: "/questions",
+      conversationId: "cnv_viewer_library",
+    });
+    expect(res.status).toBe(200);
+    await readEvents(res);
+
+    const sent = JSON.stringify(providerCalls.slice(-1));
+    expect(sent).toContain("q_own_workspace");
+    expect(sent).not.toContain("q_other_workspace");
   });
 
   it("refuses a caller holding no grant in any workspace", async () => {
@@ -1026,9 +1089,9 @@ describe("a reduced-grant caller over HTTP", () => {
       expect(res.status).toBe(200);
       const events = await readEvents(res);
       // The screen's own read is `form: read`, which this caller holds, so the facts
-      // reached the provider and the refusal below is the tool's own cell.
+      // reached the provider; the preview cell it does not hold leaves the tool unoffered.
       expect(JSON.stringify(providerCalls)).toContain(FORM_ID);
-      expect(outcomes(events).get("test_rule")).toBe("failed");
+      expect(outcomes(events).has("test_rule")).toBe(false);
     },
     BOOT_TIMEOUT,
   );

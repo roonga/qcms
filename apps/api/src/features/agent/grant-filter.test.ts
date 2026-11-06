@@ -75,44 +75,46 @@ describe("the grant filter (section 6.1, criterion 3)", () => {
   });
 });
 
-describe("the kinds a screen offers", () => {
+describe("the kinds a caller is offered, whatever screen the turn is on", () => {
   function onScreen(screen: ScreenId, grants: readonly HeldGrant[]) {
     return offeredActionKinds({
       memberRole: undefined,
       grants,
       environments: [...ENVIRONMENTS],
       current: "test",
-      screen,
       formId: "frm_a",
+      screen,
     });
   }
 
   const kindsOn = (screen: ScreenId, grants: readonly HeldGrant[]) =>
     onScreen(screen, grants).map((entry) => entry.kind);
 
-  it("offers one form subtree's kinds from a screen in it, and never the other's", () => {
-    // Both roles, because publishing is the editor's cell and a production release is the
-    // approver's.
-    const approver = [editorIn(["test", "prod"]), approverIn(["test", "prod"])];
-    // Two subtrees: an authoring plan edits a shared draft and an operational one acts in
-    // one environment, so one plan never spans both.
-    const authoring = ["apply-draft", "form.publish", "form.settings", "form.release"];
-    const operational = [
-      "link.mint",
-      "link.revoke",
-      "webhook.create",
-      "webhook.rotate",
-      "webhook.retarget",
-      "webhook.reactivate",
-      "webhook.deactivate",
-      "webhook.redeliver",
-      "form.close",
-      "form.reopen",
-    ];
-    expect(kindsOn("/operations/forms/[formId]/links", approver)).toEqual(operational);
-    expect(kindsOn("/operations/forms/[formId]/responses", approver)).toEqual(operational);
+  // Both roles, because publishing is the editor's cell and a production release is the
+  // approver's.
+  const approver = () => [editorIn(["test", "prod"]), approverIn(["test", "prod"])];
 
-    expect(kindsOn("/forms/[formId]", approver)).toEqual([...authoring, "question.publish"]);
+  it("offers the same kinds from a screen in a form subtree and from one outside it", () => {
+    const fromBuilder = kindsOn("/forms/[formId]", approver());
+    const fromList = kindsOn("/forms", approver());
+    // `apply-draft` is the one exception: the builder runs it through its own save.
+    expect(fromBuilder).toContain("apply-draft");
+    expect(fromList).not.toContain("apply-draft");
+    expect(fromBuilder.filter((kind) => kind !== "apply-draft")).toEqual(fromList);
+  });
+
+  it("offers an operational kind from an authoring screen, and the reverse", () => {
+    expect(kindsOn("/forms", approver())).toContain("link.mint");
+    expect(kindsOn("/forms", approver())).toContain("webhook.retarget");
+    expect(kindsOn("/operations/forms/[formId]/links", approver())).toContain("form.publish");
+    expect(kindsOn("/settings", approver())).toContain("form.create");
+  });
+
+  it("offers a local kind on its own screen alone, since only that screen can run it", () => {
+    for (const screen of ["/forms", "/forms/[formId]/rules", "/questions", "/settings"] as const) {
+      expect(kindsOn(screen, approver()), screen).not.toContain("apply-draft");
+    }
+    expect(kindsOn("/forms/[formId]", approver())).toContain("apply-draft");
   });
 
   // The data family is separate and neither implies the other (ADR-41), so the response
@@ -121,32 +123,39 @@ describe("the kinds a screen offers", () => {
     const eraser: readonly HeldGrant[] = [
       { role: "responses.eraser", environments: ["all"], forms: ["all"] },
     ];
-    expect(kindsOn("/operations/forms/[formId]/responses/[sessionId]", eraser)).toEqual([
-      "response.erase",
-      "response.unflag",
-    ]);
-    expect(
-      kindsOn("/operations/forms/[formId]/responses/[sessionId]", [editorIn(["all"])]),
-    ).not.toContain("response.erase");
+    const kinds = kindsOn("/operations/forms/[formId]/responses/[sessionId]", eraser);
+    expect(kinds).toContain("response.erase");
+    expect(kinds).toContain("response.unflag");
+    expect(kindsOn("/forms", [editorIn(["all"])])).not.toContain("response.erase");
   });
 
-  it("still cuts the subtree's kinds to the pairs the caller holds", () => {
+  it("still cuts every kind to the pairs the caller holds", () => {
     const viewer: readonly HeldGrant[] = [
       { role: "forms.viewer", environments: ["all"], forms: ["all"] },
     ];
     expect(kindsOn("/operations/forms/[formId]/links", viewer)).toEqual([]);
-    const editor = onScreen("/operations/forms/[formId]/responses", [editorIn(["test"])]);
-    // `form.release` is the editor's own screen's and is not offered from here: a release
-    // is authoring. What an operational screen cuts to the pairs held is its own list.
-    expect(offeredEnvironments(editor, "form.release")).toEqual([]);
+    expect(kindsOn("/forms/[formId]", viewer)).toEqual([]);
+    const editor = onScreen("/forms", [editorIn(["test"])]);
     expect(offeredEnvironments(editor, "link.mint")).toEqual(["test"]);
-    expect(editor.map((entry) => entry.kind)).toContain("link.mint");
+    // A production release is the approver's cell, so an editor is offered the kind in no
+    // environment at all rather than in one it cannot act in.
+    expect(offeredEnvironments(editor, "form.release")).toEqual(["test"]);
   });
 
-  it("offers a screen outside a form subtree nothing of the subtree's, only its own", () => {
-    const approver = [editorIn(["test", "prod"]), approverIn(["test", "prod"])];
-    expect(kindsOn("/operations", approver)).toEqual([]);
-    expect(kindsOn("/forms", approver)).toEqual(["form.create"]);
-    expect(kindsOn("/forms/new", approver)).toEqual(["form.create"]);
+  it("offers a form-scoped kind away from one form's own screen", () => {
+    // `response: read` and its family are the only form-scoped cells, and a screen with no
+    // form of its own names none, so the offer rests on the caller's own form scope.
+    const eraser: readonly HeldGrant[] = [
+      { role: "responses.eraser", environments: ["all"], forms: ["all"] },
+    ];
+    expect(
+      offeredActionKinds({
+        memberRole: undefined,
+        grants: eraser,
+        environments: [...ENVIRONMENTS],
+        current: "test",
+        screen: "/responses",
+      }).map((entry) => entry.kind),
+    ).toContain("response.erase");
   });
 });

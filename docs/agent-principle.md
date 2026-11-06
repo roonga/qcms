@@ -16,6 +16,29 @@ This file is the one place the principle governing the admin assistant is stated
 4. **No respondent responses.** The agent never receives answer values, the answer ledger, or webhook payloads (which carry answers). Response metadata is allowed: session ids, started and submitted times, form version, access type, flag status and reason, counts, the erasure log (which holds no answers) and delivery status. That is enough to find a submission and propose an action on it without reading what the respondent said.
 5. **Everywhere.** The assistant is available on every admin screen, and the principle is the same on all of them. There is no separate list of permitted or forbidden actions to maintain: the user's own permissions are the list.
 
+## How the code implements point 5 (Code Owner, 2026-11-06, issue #1229)
+
+Point 5 said the user's own permissions are the list, and the code did not do that: the tool
+set and the offered action kinds came from a per-screen registry. Five rulings close the gap,
+and ADR-25 carries them as an amendment.
+
+1. **The screen is context.** It supplies the facts and the default subject ids a tool call
+   takes when it names none. A turn may name any other subject the user can reach.
+2. **One typed read tool per admin GET route**, each with a strict output schema that cannot
+   describe respondent content. No generic passthrough.
+3. **One plan, one context.** A plan may not mix authoring kinds with kinds acting on one
+   environment's operational state. The partition is derived from each kind's own screen.
+4. **The draft-pin binding is for a publishing plan.** Only a plan containing `form.publish`
+   is checked against the saved draft's unpublished pins and bound to its revision.
+5. **One screen dependency remains.** `apply-draft` is run by the form builder's own save, so
+   it and the two tools that stage for it exist there alone. From anywhere else the same work
+   is a plan of `question.create` steps and one `form.saveDraft`.
+
+Nothing in point 4 moves: the read tools added for point 2 reach form and question structure,
+release and environment state, links, endpoint configuration and delivery state, workspaces,
+members, access groups and the erasure log, and not one of them can return an answer value,
+the answer ledger or a webhook payload.
+
 ## Limits
 
 - The serving path never uses an LLM. Respondents never meet the agent (Project Goal §8).

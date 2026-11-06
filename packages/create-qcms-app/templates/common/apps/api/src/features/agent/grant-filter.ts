@@ -1,7 +1,7 @@
 /**
- * The grant filter (section 6.1): the kinds offered in the propose tools' schemas,
- * filtered on (kind, environment) pairs through the evaluator the route middleware uses.
- * It keeps proposals honest; the API's authorisation at execution is the limit.
+ * The grant filter (section 6.1): the kinds offered in the propose tools' schemas, as
+ * (kind, environment) pairs the route middleware's own evaluator allows. Every registered
+ * kind is considered whatever screen the turn is on; execution remains the limit.
  */
 
 import {
@@ -12,7 +12,6 @@ import {
 } from "../membership/policy.js";
 import { ACTION_KIND_NAMES, actionKind } from "./actions/registry.js";
 import type { ActionKindDef } from "./actions/types.js";
-import { offerableActionKinds, type ScreenId } from "./screens.js";
 
 export interface OfferedActionKind {
   readonly kind: string;
@@ -30,29 +29,46 @@ export interface GrantFilterInput {
   readonly environments: readonly string[];
   /** The environment the switcher named for this turn. */
   readonly current: string;
-  /**
-   * The screen the turn is on, which fixes the kinds to consider through
-   * `offerableActionKinds`. Omitted, every registered kind is considered.
-   */
-  readonly screen?: ScreenId;
+  /** The form the screen names, which narrows a form-scoped cell to that subject. */
   readonly formId?: string | undefined;
+  /**
+   * The screen the turn is on. The one thing it decides is a `local` kind: that step is run
+   * by the screen's own client-side write path, so it exists only where that screen is.
+   * Every other kind is decided by the caller's grants alone.
+   */
+  readonly screen?: string | undefined;
+}
+
+/**
+ * The form ids a form-scoped cell can be asked about when the screen names none: whatever
+ * the caller's grants name, plus the wildcard. Such a cell asked with no form id is refused
+ * outright, so the offer would otherwise be empty away from one form's own screen.
+ */
+function candidateForms(input: GrantFilterInput): readonly (string | undefined)[] {
+  if (input.formId !== undefined) return [input.formId];
+  const ids = new Set<string>(["all"]);
+  for (const grant of input.grants) for (const id of grant.forms) ids.add(id);
+  return [...ids];
 }
 
 function holds(input: GrantFilterInput, def: ActionKindDef, environment: string): boolean {
   for (const cell of [def.cell, ...(def.alsoCell === undefined ? [] : [def.alsoCell])]) {
-    const decision = decideAccess({
-      memberRole: input.memberRole,
-      grants: input.grants,
-      request: {
-        resource: cell.resource,
-        action: cell.action,
-        ...(isEnvironmentScoped(cell.resource, cell.action) ? { environment } : {}),
-        ...(isFormScoped(cell.resource, cell.action) && input.formId !== undefined
-          ? { formId: input.formId }
-          : {}),
-      },
-    });
-    if (!decision.allowed) return false;
+    const formScoped = isFormScoped(cell.resource, cell.action);
+    const subjects = formScoped ? candidateForms(input) : [undefined];
+    const allowed = subjects.some(
+      (formId) =>
+        decideAccess({
+          memberRole: input.memberRole,
+          grants: input.grants,
+          request: {
+            resource: cell.resource,
+            action: cell.action,
+            ...(isEnvironmentScoped(cell.resource, cell.action) ? { environment } : {}),
+            ...(formScoped && formId !== undefined ? { formId } : {}),
+          },
+        }).allowed,
+    );
+    if (!allowed) return false;
   }
   return true;
 }
@@ -64,10 +80,12 @@ function holds(input: GrantFilterInput, def: ActionKindDef, environment: string)
  */
 export function offeredActionKinds(input: GrantFilterInput): readonly OfferedActionKind[] {
   const offered: OfferedActionKind[] = [];
-  const kinds = input.screen === undefined ? ACTION_KIND_NAMES : offerableActionKinds(input.screen);
-  for (const name of kinds) {
+  for (const name of ACTION_KIND_NAMES) {
     const def = actionKind(name);
     if (def === undefined) continue;
+    // A local kind reaches no route: only its own screen can run it, so only its own
+    // screen may offer it.
+    if (def.local === true && def.screen !== input.screen) continue;
     if (def.environmentFrom === "switcher") {
       if (holds(input, def, input.current)) {
         offered.push({ kind: name, environments: [input.current] });

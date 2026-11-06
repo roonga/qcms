@@ -6,14 +6,19 @@
 
 import { z } from "zod";
 
-import type { FormDefinition, QuestionDefinition } from "@roonga/qcms-core";
+import {
+  FormDefinition as FormDefinitionSchema,
+  type FormDefinition,
+  type QuestionDefinition,
+} from "@roonga/qcms-core";
 
-import type { PublishIssue, PublishWarning } from "../../forms/handler.js";
-import { actionKind } from "../actions/registry.js";
+import type { PendingQuestionVersion, PublishIssue, PublishWarning } from "../../forms/handler.js";
+import { checkQuestionDefinition } from "../../questions/create.js";
+import { actionKind, actsInOneEnvironment } from "../actions/registry.js";
 import type { ActionKindDef } from "../actions/types.js";
 import type { PinnedQuestion, SavedDraftPins } from "../draft-pins.js";
 import { offeredEnvironments, type OfferedActionKind } from "../grant-filter.js";
-import type { ScreenId } from "../screens.js";
+import { isOperationalScreen } from "../screens.js";
 import {
   argumentsDigest,
   isStepReference,
@@ -32,8 +37,16 @@ const PUBLISH_QUESTION_KIND = "question.publish";
 
 const PUBLISH_FORM_KIND = "form.publish";
 
-/** The question's own page, where publishing one needs no draft to justify it. */
-const QUESTION_DETAIL_SCREEN: ScreenId = "/questions/[questionId]";
+const CREATE_QUESTION_KIND = "question.create";
+
+const SAVE_QUESTION_KIND = "question.saveDraft";
+
+/**
+ * The id a draft is validated under when its form is an earlier step's result. Nothing
+ * depends on the value: the validation resolves pinned question versions, and the real id
+ * is minted by the create step and injected by the screen's own save.
+ */
+const PENDING_FORM_ID = "frm_pending";
 
 export const ProposedStep = z.strictObject({
   kind: z.string().min(1).max(100),
@@ -52,6 +65,8 @@ export interface ProposedDraftStep {
   readonly newQuestions: readonly QuestionDefinition[];
   readonly issues: readonly PublishIssue[];
   readonly warnings: readonly PublishWarning[];
+  /** Which step of this plan creates each new question, so the card can name it. */
+  readonly createdBy?: readonly { readonly questionId: string; readonly step: number }[];
 }
 
 /** One step as the card will display it, with its arguments resolved only symbolically. */
@@ -74,6 +89,12 @@ export interface PlanStep {
   readonly resultAllowlist: readonly string[];
 }
 
+/** Display context, never an argument: the card names a workspace, and the digest binds its id. */
+export interface WorkspaceName {
+  readonly workspaceId: string;
+  readonly name: string;
+}
+
 export interface Proposal {
   readonly proposalId: string;
   readonly token: string | undefined;
@@ -87,6 +108,8 @@ export interface Proposal {
    * against the selection, so the card needs the selection as well as the destination.
    */
   readonly currentEnvironment: string;
+  /** The names of the workspaces this plan's arguments name, for the card to show. */
+  readonly workspaces?: readonly WorkspaceName[];
 }
 
 export type ProposeOutcome =
@@ -100,14 +123,32 @@ export interface ProposeInput {
   readonly appKey: string;
   /** The environment the switcher named for this turn. */
   readonly current: string;
-  /** The screen the turn is on, which decides whether a question publish needs a pin. */
-  readonly screen: ScreenId;
+  /**
+   * The screen the turn is on. It decides one thing: whether a `local` kind is absent
+   * because of where the turn is rather than because of a grant, so the refusal says which.
+   */
+  readonly screen?: string | undefined;
   readonly offered: readonly OfferedActionKind[];
   /** The workspace's ADR-41 switch, which refuses a publish-then-release-to-prod plan. */
   readonly requireSecondApprover: boolean;
   /** The environment name a production act runs in, from the deployment's own mount. */
   readonly productionEnvironment: string;
   readonly formId?: string | undefined;
+  /** Resolves the names of the workspaces a plan's own arguments name. */
+  readonly workspaceNames?:
+    ((workspaceIds: readonly string[]) => Promise<readonly WorkspaceName[]>) | undefined;
+  /**
+   * Whether this caller may write the draft of the form a step names, asked before that
+   * draft is read or validated. A step whose form an earlier step creates asks about that
+   * step's own target workspace, since the form does not exist yet.
+   */
+  readonly canWriteDraft?:
+    | ((
+        subject: { readonly formId: string } | { readonly createdInWorkspace: string | undefined },
+      ) => Promise<boolean>)
+    | undefined;
+  /** Whether a questionId is already taken, which the create route refuses (R6). */
+  readonly questionIdTaken?: ((questionId: string) => Promise<boolean>) | undefined;
   readonly issuedAt: Date;
 
   readonly proposalsThisTurn: number;
@@ -123,14 +164,17 @@ export interface ProposeInput {
       }
     | undefined;
   /**
-   * The form's saved draft, read when a step asks to publish one of the versions it pins
-   * unpublished. Absent, a question publish away from the question's own page is refused
-   * rather than allowed unverified; a plan built from it is bound to its revision.
+   * One form's saved draft, read when a plan publishes both a question version and the form
+   * that pins it. Absent, such a plan is refused rather than allowed unverified; a plan
+   * built from the pin set is bound to that draft's revision.
    */
-  readonly savedDraft?: (() => Promise<SavedDraftPins | undefined>) | undefined;
+  readonly savedDraft?: ((formId: string) => Promise<SavedDraftPins | undefined>) | undefined;
   /** The builder's own validation, so the card's two lists and a publish cannot disagree. */
   readonly validate?:
-    | ((definition: FormDefinition) => Promise<{
+    | ((
+        definition: FormDefinition,
+        pending?: readonly PendingQuestionVersion[],
+      ) => Promise<{
         readonly issues: readonly PublishIssue[];
         readonly warnings: readonly PublishWarning[];
       }>)
@@ -199,10 +243,93 @@ function proposedDraftRefusal(
   if (named !== proposed.definition.formId) {
     return `Step ${String(index + 1)} names a different form from the draft this turn proposed.`;
   }
+  // The builder runs this step against the form it has open, so the screen's own form is
+  // the only one it can apply a draft to.
+  if (input.formId !== undefined && named !== input.formId) {
+    return (
+      `Step ${String(index + 1)} applies a draft to a form other than the one this screen has ` +
+      "open, and only that form's own builder can run it. Propose form.saveDraft instead."
+    );
+  }
   if (input.steps.filter((entry) => entry.kind === def.kind).length > 1) {
     return `A plan applies the proposed draft once. Keep one ${def.kind} step.`;
   }
   return undefined;
+}
+
+/** R6: an id is stable forever and never reused, so a create naming a taken one cannot run. */
+async function takenQuestionIdRefusal(
+  input: ProposeInput,
+  step: ProposedStep,
+  index: number,
+): Promise<string | undefined> {
+  const taken = input.questionIdTaken;
+  if (taken === undefined || step.kind !== CREATE_QUESTION_KIND) return undefined;
+  const definition = step.args["definition"] as { readonly questionId?: unknown } | undefined;
+  const questionId = definition?.questionId;
+  if (typeof questionId !== "string" || questionId === "") return undefined;
+  if (!(await taken(questionId))) return undefined;
+  return (
+    `Step ${String(index + 1)} creates "${questionId}", but that questionId has been used ` +
+    "before and ids are never reused. Choose a new id, or pin the existing question's " +
+    "published version instead of creating one."
+  );
+}
+
+/**
+ * Whether this caller may write the draft a step saves, asked before the draft is read or
+ * validated. A step whose form an earlier step creates asks about that step's own target
+ * workspace, since the form does not exist yet.
+ */
+async function draftWriteRefusal(
+  input: ProposeInput,
+  steps: readonly ProposedStep[],
+  step: ProposedStep,
+  index: number,
+): Promise<string | undefined> {
+  const allowed = input.canWriteDraft;
+  if (allowed === undefined) return undefined;
+  const named = step.args["formId"];
+  if (typeof named === "string" && named !== "") {
+    if (await allowed({ formId: named })) return undefined;
+    return (
+      `Step ${String(index + 1)} saves a draft to ${named}, which this user may not write. ` +
+      'This needs a grant carrying "form: write" in the workspace that owns it.'
+    );
+  }
+  if (!isStepReference(named)) return undefined;
+  const creator = steps[named.fromStep]?.args["workspaceId"];
+  const createdInWorkspace = typeof creator === "string" ? creator : undefined;
+  if (await allowed({ createdInWorkspace })) return undefined;
+  return (
+    `Step ${String(index + 1)} saves a draft to the form step ${String(named.fromStep + 1)} ` +
+    'creates, and this user may not write a draft there. This needs a grant carrying "form: ' +
+    'write" in that workspace.'
+  );
+}
+
+/**
+ * The route's own check, run before any card exists, with the server's own words and the
+ * spelling it suggests. So the model corrects the definition rather than the person watching
+ * step 2 of a confirmed plan fail on it.
+ */
+function questionDefinitionRefusal(step: ProposedStep, index: number): string | undefined {
+  const checked = checkQuestionDefinition(step.args["definition"]);
+  if (checked.ok) return undefined;
+  const definition = step.args["definition"] as { readonly questionId?: unknown } | undefined;
+  const named = step.args["questionId"] ?? definition?.questionId ?? step.args["slug"];
+  const subject = typeof named === "string" && named !== "" ? ` (${named})` : "";
+  const issues = checked.issues
+    .map((issue) => {
+      const at =
+        issue.path === undefined || issue.path.length === 0 ? "" : `${issue.path.join(".")}: `;
+      return `${at}${issue.message}`;
+    })
+    .join(" ");
+  return (
+    `Step ${String(index + 1)}'s question definition${subject} is invalid, so it cannot be ` +
+    `proposed: ${issues} Correct the definition and propose the plan again.`
+  );
 }
 
 /**
@@ -271,13 +398,18 @@ function boundPublishLastRefusal(steps: readonly PlanStep[]): string | undefined
   );
 }
 
+/** A step that saves the form's draft, and so moves the revision a bound plan rests on. */
+function writesDraft(step: PlanStep): boolean {
+  const def = actionKind(step.kind);
+  return step.local || def?.carriesDraftArgument === true;
+}
+
 /**
- * A local step saves the draft through the screen, which moves its revision, so in a plan
- * bound to that revision no token step may follow one: it would be refused as a draft
- * change the user never made.
+ * A step that saves the draft moves its revision, so in a plan bound to that revision no
+ * token step may follow one: it would be refused as a draft change the user never made.
  */
 function boundAfterDraftWriteRefusal(steps: readonly PlanStep[]): string | undefined {
-  const writeAt = steps.findIndex((step) => step.local);
+  const writeAt = steps.findIndex((step) => writesDraft(step));
   if (writeAt < 0) return undefined;
   const after = steps.findIndex((step, index) => index > writeAt && carriesToken(step));
   if (after < 0) return undefined;
@@ -313,22 +445,28 @@ function kindRefusal(
   step: ProposedStep,
   index: number,
   pinned: readonly PinnedQuestion[],
+  pinChecked: boolean,
 ): string | undefined {
+  if (def.carriesQuestionDefinition === true) {
+    const invalid = questionDefinitionRefusal(step, index);
+    if (invalid !== undefined) return invalid;
+  }
   if (def.carriesProposedDraft === true) {
     return proposedDraftRefusal(input, def, step, index);
   }
-  if (step.kind === PUBLISH_QUESTION_KIND && input.screen !== QUESTION_DETAIL_SCREEN) {
+  if (step.kind === PUBLISH_QUESTION_KIND && pinChecked) {
     return pinnedQuestionRefusal(step, index, pinned);
   }
   return undefined;
 }
 
-function stepRefusal(
+async function stepRefusal(
   input: ProposeInput,
   step: ProposedStep,
   index: number,
   pinned: readonly PinnedQuestion[],
-): { readonly reason: string } | { readonly step: PlanStep; readonly def: ActionKindDef } {
+  pinChecked: boolean,
+): Promise<{ readonly reason: string } | { readonly step: PlanStep; readonly def: ActionKindDef }> {
   const def = actionKind(step.kind);
   if (def === undefined) {
     return { reason: `There is no action kind named "${step.kind}".` };
@@ -336,6 +474,16 @@ function stepRefusal(
 
   const allowed = offeredEnvironments(input.offered, step.kind);
   if (allowed.length === 0) {
+    // A local kind away from its own screen is absent because of where the turn is rather
+    // than because of a grant, so it says so and names the kinds that work from anywhere.
+    if (def.local === true && def.screen !== input.screen) {
+      return {
+        reason:
+          `${step.kind} is run by the ${def.screen} screen itself, so it can only be proposed ` +
+          "from there. From anywhere else, propose a question.create step per new question " +
+          "and one form.saveDraft step carrying the whole draft.",
+      };
+    }
     return {
       reason: `This user does not hold the permission "${def.cell.resource}: ${def.cell.action}", so ${step.kind} cannot be proposed. Explain and navigate instead.`,
     };
@@ -362,18 +510,29 @@ function stepRefusal(
     };
   }
 
-  const descriptorIssue = kindRefusal(input, def, step, index, pinned);
+  const descriptorIssue = kindRefusal(input, def, step, index, pinned, pinChecked);
   if (descriptorIssue !== undefined) return { reason: descriptorIssue };
+
+  // Both ask a question the route will ask anyway, before this step's draft is read or
+  // validated, so no card offers a step the route would refuse on its subject alone.
+  const taken = await takenQuestionIdRefusal(input, step, index);
+  if (taken !== undefined) return { reason: taken };
+  if (def.carriesDraftArgument === true) {
+    const unwritable = await draftWriteRefusal(input, input.steps, step, index);
+    if (unwritable !== undefined) return { reason: unwritable };
+  }
 
   return {
     step: {
       kind: step.kind,
       screen: def.screen,
-      args: step.args,
+      // Normalised, so the card shows and the digest binds the same arguments the request's
+      // own recompute will produce.
+      args: def.normaliseArgs?.(step.args) ?? step.args,
       environment,
       handOff: def.handOff === true,
       local: def.local === true,
-      card: def.card,
+      card: actsInOneEnvironment(def) ? def.card : { ...def.card, hideEnvironment: true },
       resultAllowlist: def.resultAllowlist,
     },
     def,
@@ -469,6 +628,127 @@ async function withProposedDraft(
   );
 }
 
+interface PlannedQuestion {
+  readonly step: number;
+  readonly version: number;
+  readonly created: boolean;
+  readonly definition: QuestionDefinition;
+}
+
+/**
+ * The question versions this plan writes before a later step saves a draft: the ones it
+ * creates, and the ones it rewrites. A pinned question with a pre-existing defect is
+ * therefore fixed inside the same plan rather than by a card of its own.
+ */
+function plannedQuestions(steps: readonly PlanStep[]): readonly PlannedQuestion[] {
+  return steps.flatMap((step, index) => {
+    const created = step.kind === CREATE_QUESTION_KIND;
+    if (!created && step.kind !== SAVE_QUESTION_KIND) return [];
+    const definition = step.args["definition"];
+    if (typeof definition !== "object" || definition === null) return [];
+    const named = step.args["version"];
+    // A create always writes v1; a save names the draft version it replaces.
+    const version = created || typeof named !== "number" ? 1 : named;
+    return [{ step: index, version, created, definition: definition as QuestionDefinition }];
+  });
+}
+
+/**
+ * An issue a draft save is entitled to carry: an unpublished pin whoever made it, since a
+ * draft is where an unpublished version is meant to sit, and a dangling reference only for a
+ * question this plan creates. Anything else is a defect the model can still fix.
+ */
+function isExpectedPinIssue(issue: PublishIssue, created: ReadonlySet<string>): boolean {
+  if (issue.code === "UNPUBLISHED_QUESTION_PIN") return true;
+  if (issue.code !== "DANGLING_QUESTION_REF") return false;
+  const named = (issue as { readonly path?: { readonly question?: unknown } }).path?.question;
+  return typeof named === "string" && created.has(named);
+}
+
+async function withDraftArguments(
+  input: ProposeInput,
+  steps: readonly PlanStep[],
+): Promise<{ readonly reason: string } | { readonly steps: readonly PlanStep[] }> {
+  const validate = input.validate;
+  if (validate === undefined) return { steps };
+  const created = plannedQuestions(steps);
+  // Only a created question's pin is an expected unpublished pin; a rewritten one keeps
+  // whatever status it already had.
+  const createdBy = created
+    .filter((entry) => entry.created)
+    .map((entry) => ({ questionId: entry.definition.questionId, step: entry.step }));
+  const plannedIds = new Set(
+    created.filter((entry) => entry.created).map((entry) => entry.definition.questionId),
+  );
+  const out: PlanStep[] = [];
+  for (const [index, step] of steps.entries()) {
+    const parsed =
+      actionKind(step.kind)?.carriesDraftArgument === true
+        ? FormDefinitionSchema.safeParse({
+            ...(step.args["definition"] as Record<string, unknown>),
+            formId: typeof step.args["formId"] === "string" ? step.args["formId"] : PENDING_FORM_ID,
+          })
+        : undefined;
+    if (parsed === undefined || !parsed.success) {
+      out.push(step);
+      continue;
+    }
+    // The versions written BEFORE this step, because that is the draft this save stores. A
+    // create the model put after the save has not run when the draft is written.
+    const pending: PendingQuestionVersion[] = created
+      .filter((entry) => entry.step < index)
+      .map((entry) => ({
+        questionId: entry.definition.questionId,
+        version: entry.version,
+        definition: entry.definition,
+      }));
+    const { issues, warnings } = await validate(parsed.data, pending);
+    const blocking = issues.filter((issue) => !isExpectedPinIssue(issue, plannedIds));
+    if (blocking.length > 0) {
+      return {
+        reason:
+          `Step ${String(index + 1)}'s draft has a problem this plan does not fix: ` +
+          `${blocking.map((issue) => issue.message).join(" ")} ` +
+          "Add the steps that fix it to THIS plan and propose it again, rather than asking " +
+          "for a card of its own. An unpublished pin is not what this is about.",
+      };
+    }
+    out.push({
+      ...step,
+      draft: {
+        definition: parsed.data,
+        // The created ones only: a version an earlier step rewrites is not a new question,
+        // and its pin is an ordinary unpublished pin rather than one this plan invents.
+        newQuestions: created.filter((entry) => entry.created).map((entry) => entry.definition),
+        issues,
+        warnings,
+        createdBy,
+      },
+    });
+  }
+  return { steps: out };
+}
+
+/**
+ * A draft argument the kernel cannot parse is refused at propose time, so no card ever
+ * offers to save a definition the save itself would reject.
+ */
+function draftArgumentRefusal(steps: readonly PlanStep[]): string | undefined {
+  for (const [index, step] of steps.entries()) {
+    if (actionKind(step.kind)?.carriesDraftArgument !== true) continue;
+    const parsed = FormDefinitionSchema.safeParse({
+      ...(step.args["definition"] as Record<string, unknown>),
+      formId: typeof step.args["formId"] === "string" ? step.args["formId"] : PENDING_FORM_ID,
+    });
+    if (parsed.success) continue;
+    return (
+      `Step ${String(index + 1)}'s draft is not a valid FormDefinition: ${parsed.error.message} ` +
+      "Send defaultLocale, title, steps and rules, and leave formId out."
+    );
+  }
+  return undefined;
+}
+
 function capRefusal(input: ProposeInput): string | undefined {
   if (input.proposalsThisTurn >= PROPOSALS_PER_TURN) {
     return "One proposal per turn; put the steps in one plan.";
@@ -480,36 +760,66 @@ function capRefusal(input: ProposeInput): string | undefined {
   return undefined;
 }
 
+/** The form a plan publishes, which is the draft its question publishes are checked against. */
+function publishedFormId(input: ProposeInput): string | undefined {
+  for (const step of input.steps) {
+    if (step.kind !== PUBLISH_FORM_KIND) continue;
+    const named = step.args["formId"];
+    if (typeof named === "string" && named !== "") return named;
+  }
+  return input.formId;
+}
+
 /**
- * The draft's unpublished pins, read only when a step asks to publish one of them, with
- * the revision the token binds so Confirm can refuse a draft that has moved since.
+ * The draft's unpublished pins, read only when a plan publishes a question version and the
+ * form that pins it: that is the only shape whose safety the pin set decides, since a
+ * dangling pin is what refuses a publish. Any other plan reads none and binds no revision.
  */
-async function resolvedPins(
-  input: ProposeInput,
-): Promise<
-  | { readonly pinned: readonly PinnedQuestion[]; readonly revision: number | undefined }
+async function resolvedPins(input: ProposeInput): Promise<
+  | {
+      readonly pinned: readonly PinnedQuestion[];
+      readonly revision: number | undefined;
+      readonly formId: string | undefined;
+    }
   | { readonly reason: string }
 > {
-  const needed =
-    input.screen !== QUESTION_DETAIL_SCREEN &&
-    input.steps.some((step) => step.kind === PUBLISH_QUESTION_KIND);
-  if (!needed) return { pinned: [], revision: undefined };
-  if (input.savedDraft === undefined) {
+  const empty = { pinned: [], revision: undefined, formId: publishedFormId(input) } as const;
+  const publishes = (kind: string): boolean => input.steps.some((step) => step.kind === kind);
+  if (!publishes(PUBLISH_FORM_KIND) || !publishes(PUBLISH_QUESTION_KIND)) return empty;
+  const formId = publishedFormId(input);
+  if (input.savedDraft === undefined || formId === undefined) {
     return {
       reason:
-        `This screen cannot say which question versions the form's draft pins, so ${PUBLISH_QUESTION_KIND} ` +
-        "cannot be proposed here. Publish the question from its own page in the library.",
+        "This deployment cannot say which question versions the form's draft pins, so a plan " +
+        `publishing both ${PUBLISH_QUESTION_KIND} and ${PUBLISH_FORM_KIND} cannot be proposed. ` +
+        "Publish the question from its own page in the library.",
     };
   }
-  const saved = await input.savedDraft();
+  const saved = await input.savedDraft(formId);
   if (saved === undefined) {
     return {
       reason:
-        `This form has no saved draft, so it pins no unpublished question version and ` +
-        `${PUBLISH_QUESTION_KIND} cannot be proposed here. Publish the question from its own page in the library.`,
+        "This form has no saved draft, so it pins no unpublished question version and nothing " +
+        `is published by ${PUBLISH_FORM_KIND}. Publish the question from its own page in the library.`,
     };
   }
-  return { pinned: saved.pins, revision: saved.revision };
+  return { pinned: saved.pins, revision: saved.revision, formId };
+}
+
+/**
+ * One Confirm covers one context. An authoring plan edits shared authoring content; an
+ * operational plan acts on one environment's live state, so a plan mixing them would be one
+ * confirmation spanning both.
+ */
+function mixedContextRefusal(steps: readonly PlanStep[]): string | undefined {
+  const operational = steps.filter((step) => isOperationalScreen(step.screen));
+  if (operational.length === 0 || operational.length === steps.length) return undefined;
+  const authoring = steps.find((step) => !isOperationalScreen(step.screen));
+  return (
+    `This plan mixes authoring (${authoring?.kind ?? ""}) with operational ` +
+    `(${operational[0]?.kind ?? ""}) steps, and one Confirm covers one context. Propose the ` +
+    "authoring steps and the operational steps as two plans."
+  );
 }
 
 /** The refusals that are about the plan as a whole rather than about one step. */
@@ -518,6 +828,10 @@ function planShapeRefusal(
   steps: readonly PlanStep[],
   boundRevision: number | undefined,
 ): string | undefined {
+  const mixed = mixedContextRefusal(steps);
+  if (mixed !== undefined) return mixed;
+  const malformed = draftArgumentRefusal(steps);
+  if (malformed !== undefined) return malformed;
   const ordering = publishOrderRefusal(input.steps);
   if (ordering !== undefined) return ordering;
   if (boundRevision !== undefined) {
@@ -543,16 +857,21 @@ export async function buildProposal(input: ProposeInput): Promise<ProposeOutcome
 
   const resolved = await resolvedPins(input);
   if ("reason" in resolved) return refuse(resolved.reason);
+  const pinChecked = resolved.revision !== undefined;
 
   const steps: PlanStep[] = [];
   for (const [index, step] of input.steps.entries()) {
-    const checked = stepRefusal(input, step, index, resolved.pinned);
+    const checked = await stepRefusal(input, step, index, resolved.pinned, pinChecked);
     if ("reason" in checked) return refuse(checked.reason);
     steps.push(checked.step);
   }
 
   const shape = planShapeRefusal(input, steps, resolved.revision);
   if (shape !== undefined) return refuse(shape);
+
+  // Validated before anything is signed, so a refused plan mints no token at all.
+  const enriched = await withDraftArguments(input, await withProposedDraft(input, steps));
+  if ("reason" in enriched) return refuse(enriched.reason);
 
   const proposalId = `prp_${crypto.randomUUID().replaceAll("-", "")}`;
   const tokenIndex = tokenIndexes(steps);
@@ -566,6 +885,9 @@ export async function buildProposal(input: ProposeInput): Promise<ProposeOutcome
     });
   }
 
+  // The form the plan acts on rather than the one the screen names, because a plan may be
+  // proposed from anywhere and the bound revision has to be that form's own.
+  const boundFormId = resolved.formId ?? input.formId;
   const token =
     tokenSteps.length === 0
       ? undefined
@@ -573,7 +895,7 @@ export async function buildProposal(input: ProposeInput): Promise<ProposeOutcome
           sub: input.subject,
           pid: proposalId,
           steps: tokenSteps,
-          formId: input.formId,
+          formId: boundFormId,
           draftRevision: resolved.revision,
           issuedAt: input.issuedAt,
         });
@@ -583,11 +905,29 @@ export async function buildProposal(input: ProposeInput): Promise<ProposeOutcome
     proposal: {
       proposalId,
       token,
-      steps: await withProposedDraft(input, steps),
+      steps: enriched.steps,
       proposedAt: input.issuedAt.toISOString(),
       expiresAt: new Date(input.issuedAt.getTime() + 10 * 60 * 1000).toISOString(),
-      formId: input.formId,
+      formId: boundFormId,
       currentEnvironment: input.current,
+      ...(await namedWorkspaces(input, steps)),
     },
   };
+}
+
+/** Spread-shaped, because `exactOptionalPropertyTypes` refuses an explicit `undefined`. */
+async function namedWorkspaces(
+  input: ProposeInput,
+  steps: readonly PlanStep[],
+): Promise<{ workspaces?: readonly WorkspaceName[] }> {
+  const resolve = input.workspaceNames;
+  if (resolve === undefined) return {};
+  const ids = new Set<string>();
+  for (const step of steps) {
+    const named = step.args["workspaceId"];
+    if (typeof named === "string" && named !== "") ids.add(named);
+  }
+  if (ids.size === 0) return {};
+  const named = await resolve([...ids]);
+  return named.length === 0 ? {} : { workspaces: named };
 }
