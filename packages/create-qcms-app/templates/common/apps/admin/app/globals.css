@@ -3092,7 +3092,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 .qcms-envswitch .qcms-envchip,
 .qcms-envmenu .qcms-envchip {
   box-sizing: border-box;
-  min-inline-size: 60px;
+  min-inline-size: 52px;
   block-size: 24px;
   display: inline-flex;
   align-items: center;
@@ -3117,9 +3117,11 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   cursor: pointer;
   flex-shrink: 0;
 }
-.qcms-envtrigger__change,
-.qcms-envtrigger__caret {
+.qcms-envtrigger__change {
   display: none;
+}
+.qcms-envtrigger__caret {
+  flex-shrink: 0;
 }
 .qcms-envtrigger[data-hovered],
 .qcms-envtrigger[aria-expanded="true"] {
@@ -3167,15 +3169,10 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   color: var(--color-text-muted);
   font-size: 13px;
 }
-.qcms-envmenu .qcms-envchip {
-  min-inline-size: 52px;
-}
-
 /* The slot reserves one width in every area, so the label and the word only appear where they fit. */
 @variant sidebar {
   .qcms-envswitch__label,
-  .qcms-envtrigger__change,
-  .qcms-envtrigger__caret {
+  .qcms-envtrigger__change {
     display: inline-flex;
   }
   .qcms-envswitch .qcms-envchip {
