@@ -131,8 +131,6 @@ export const messages = {
   "shell.denied.myAccess": "See what you can access",
 
   /** Missing grants and missing data must remain indistinguishable in table cells. */
-  "operations.count.one": "1 form",
-  "operations.count.other": "{count} forms",
   "operations.table": "Forms you can operate",
   "operations.column.form": "Form",
   "operations.column.workspace": "Workspace",

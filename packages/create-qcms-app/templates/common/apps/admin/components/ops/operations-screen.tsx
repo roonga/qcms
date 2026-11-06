@@ -5,7 +5,7 @@ import { Alert } from "@/components/kit";
 import { OperationsFormsTable } from "@/components/ops/operations-forms-table";
 import { DeniedRecovery } from "@/components/shell/denied-recovery";
 import { shownEnvironment } from "@/lib/environment";
-import { t, tPlural } from "@/lib/i18n/en";
+import { t } from "@/lib/i18n/en";
 import {
   operationsApiQuery,
   operationsClearHref,
@@ -71,9 +71,6 @@ export async function OperationsScreen({
           <NoForms state={state} />
         ) : (
           <div className="flex flex-col gap-2">
-            <p className="text-sm text-(--color-text-muted)" data-testid="qcms-operations-count">
-              {tPlural("operations.count.one", "operations.count.other", result.page.total)}
-            </p>
             <OperationsFormsTable rows={result.page.forms} />
             <Pager state={state} next={result.page.nextCursor} />
           </div>
