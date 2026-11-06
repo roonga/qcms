@@ -6,7 +6,7 @@ export const SKIP_WAITING = "SKIP_WAITING";
 
 /**
  * The whole worker. It registers no `fetch` listener and opens no cache, so no authenticated page,
- * API response or respondent answer can be stored by it; `sw-route.test.ts` asserts both of a served body.
+ * API response or respondent answer can be stored by it; `app/sw.js/route.test.ts` asserts both of a served body.
  */
 export const SERVICE_WORKER_SOURCE = `self.addEventListener("install", () => {
   // Stay waiting until a page asks: an unannounced takeover reloads under the operator.
