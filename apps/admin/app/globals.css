@@ -3089,6 +3089,12 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   background-color: var(--color-env-test-subtle);
   color: var(--color-env-test-fg);
 }
+.qcms-envchip[data-slot="1"],
+.qcms-opsbar:has(.qcms-envswitch[data-slot="1"]) {
+  border-color: var(--color-env-test);
+  background-color: var(--color-env-test-subtle);
+  color: var(--color-env-test-fg);
+}
 .qcms-envchip[data-slot="2"],
 .qcms-opsbar:has(.qcms-envswitch[data-slot="2"]) {
   border-color: var(--color-env-2);

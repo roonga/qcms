@@ -20,12 +20,12 @@ const ENVIRONMENT_MENU: MenuClassNames = {
   item: "qcms-menu__item qcms-envmenu__item",
 };
 
-/** Production is always its own colour; the others take the tints 2 to 6 in list order, then repeat. */
+/** Production is always its own colour; the others take the tints 1 to 6 in list order, then repeat. */
 function tintSlot(environments: readonly string[], environment: string): number | undefined {
   if (environmentKind(environment) === "prod") return undefined;
   const others = environments.filter((candidate) => environmentKind(candidate) !== "prod");
   const index = others.indexOf(environment);
-  return index < 0 ? undefined : 2 + (index % 5);
+  return index < 0 ? undefined : 1 + (index % 6);
 }
 
 export function EnvironmentSwitcher({

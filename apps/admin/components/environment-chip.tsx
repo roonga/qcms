@@ -13,7 +13,7 @@ export function EnvironmentChip({
   slot,
 }: {
   readonly environment: string | undefined;
-  /** The tint a non-production environment takes, 2 to 6; the first non-production tint is the default. */
+  /** The tint a non-production environment takes, 1 to 6. */
   readonly slot?: number | undefined;
   /* A chip beside the same name in words repeats it, so the row's name says it once. */
   readonly decorative?: boolean;
