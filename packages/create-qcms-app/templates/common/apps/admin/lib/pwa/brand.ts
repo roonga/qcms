@@ -7,9 +7,9 @@ export const PWA_GROUND_COLOR = "#04080f";
 /** The mark drawn on that ground: the accent as Dark mode states it, which the cobalt of Light mode is not legible as. */
 export const PWA_MARK_COLOR = "#7aa2ff";
 
-/** `theme_color`: the accent, which colours the installed window's title bar and the task switcher. */
+/** The manifest's `theme_color`, used where no document is loaded: the install prompt and the splash. Chromium prefers the page's own `theme-color` once one is rendered. */
 export const PWA_ACCENT_COLOR = "#2456c6";
 
-/** `theme-color` per colour scheme: each mode's page colour, so browser chrome matches the document. */
+/** The document's `theme-color` per colour scheme, which is what an open window's chrome follows. */
 export const PWA_PAGE_COLOR_LIGHT = "#f4f6f9";
 export const PWA_PAGE_COLOR_DARK = PWA_GROUND_COLOR;

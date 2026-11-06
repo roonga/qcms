@@ -1,3 +1,5 @@
+import type { Page } from "@playwright/test";
+
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
@@ -123,4 +125,48 @@ test("an authenticated screen runs the worker and stores nothing", async ({ page
 
   const update = page.getByTestId("qcms-app-update");
   await expect(update, "a first install replaces nothing, so no notice is offered").toHaveCount(0);
+});
+
+/** The script URL the browser is asked to install second. A new URL installs even on identical bytes. */
+const REPLACEMENT = "/sw.js?replacement";
+
+function controllerUrl(page: Page): Promise<string | null> {
+  return page.evaluate(() => navigator.serviceWorker.controller?.scriptURL ?? null);
+}
+
+test("offers the reload once a replacement is waiting, and hands it over on the press", async ({
+  page,
+}) => {
+  await page.goto("/sign-in");
+
+  // The notice speaks only when something is being replaced, so let the first worker take control first.
+  await expect.poll(async () => controllerUrl(page), { timeout: 30_000 }).toMatch(/\/sw\.js$/);
+  const before = await controllerUrl(page);
+
+  // Same scope, so this updates the registration the page already holds; `install` never calls
+  // skipWaiting, so the second worker waits instead of taking over.
+  await page.evaluate(async (script) => {
+    await navigator.serviceWorker.register(script, { scope: "/" });
+  }, REPLACEMENT);
+
+  const notice = page.getByTestId("qcms-app-update");
+  await expect(notice).toBeVisible({ timeout: 30_000 });
+  await expect(notice).toContainText("A new version of QCMS is available.");
+  expect(
+    await page.evaluate(
+      async () => (await navigator.serviceWorker.getRegistration("/"))?.waiting?.scriptURL ?? null,
+    ),
+    "the notice is offered because a worker is waiting, not on a timer",
+  ).toContain("replacement");
+
+  await page.getByRole("button", { name: "Reload" }).click();
+
+  await expect.poll(async () => controllerUrl(page), { timeout: 30_000 }).toContain("replacement");
+  expect(await controllerUrl(page), "the running version was replaced").not.toBe(before);
+
+  await expect(notice, "the replacement is current, so nothing is offered again").toHaveCount(0);
+  expect(
+    await page.evaluate(async () => (await caches.keys()).length),
+    "the replacement caches nothing either",
+  ).toBe(0);
 });

@@ -1,12 +1,18 @@
+import { existsSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
 import { describe, expect, it } from "vitest";
 
 import {
+  ALLOWED_LITERAL_COLOURS,
   catalogValues,
   checkAdminTheme,
   findLiteralColours,
   literalColourFunctions,
   stripComments,
 } from "./check-admin-theme.mjs";
+
+const ROOT = fileURLToPath(new URL("../", import.meta.url));
 
 describe("literal colour detection", () => {
   it("rejects the shapes that break light/dark/HC", () => {
@@ -87,6 +93,24 @@ describe("catalog values", () => {
   it("catches a user-facing name on a continuation line", () => {
     const bad = CATALOG.replace("Scan this code", "Scan this admin code");
     expect(catalogValues(bad).some((v) => /admin/i.test(v.text))).toBe(true);
+  });
+});
+
+describe("the allowance for a colour no custom property can reach", () => {
+  it("names only files that exist and really do write a colour down", () => {
+    for (const [allowed] of ALLOWED_LITERAL_COLOURS) {
+      expect(existsSync(`${ROOT}${allowed}`), allowed).toBe(true);
+      expect(
+        findLiteralColours(readFileSync(`${ROOT}${allowed}`, "utf8")).length,
+        `${allowed} needs no allowance`,
+      ).toBeGreaterThan(0);
+    }
+  });
+
+  it("pairs each with a test that pins its values to the sheet", () => {
+    for (const [allowed, pinnedBy] of ALLOWED_LITERAL_COLOURS) {
+      expect(existsSync(`${ROOT}${pinnedBy}`), `${allowed} is pinned by ${pinnedBy}`).toBe(true);
+    }
   });
 });
 

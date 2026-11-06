@@ -12,8 +12,8 @@ export function buildAdminCsp(nonce: string): string {
     `script-src 'self' 'nonce-${nonce}'${devScriptSrc()}`,
     `connect-src 'self'`,
     `frame-src 'none'`,
-    // Both already resolve to this through `default-src`; naming them keeps the installable surface
-    // stated rather than incidental.
+    // A worker falls back through `child-src` to `script-src`, so naming it also keeps the nonce and
+    // development's `'unsafe-eval'` off one; the manifest falls back to `default-src`, already this.
     `worker-src 'self'`,
     `manifest-src 'self'`,
   ];
