@@ -274,6 +274,7 @@ function CountFields({
           />
           <TextField
             label={t("forms.group.max")}
+            description={t("forms.group.maxRequired")}
             isRequired
             value={count.max === undefined ? "" : String(count.max)}
             inputMode="numeric"

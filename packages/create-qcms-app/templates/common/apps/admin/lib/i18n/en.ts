@@ -682,6 +682,8 @@ export const messages = {
   "forms.group.min": "Minimum instances",
   "forms.group.max": "Maximum instances",
   /** A bounded group maximum is security-relevant: no installation-wide ceiling bounds respondent-created instances. */
+  "forms.group.maxRequired":
+    "Required. This is the only limit on how many instances a respondent can create.",
   "forms.group.maxMissing": "Set a maximum. Until you do, this form cannot be published.",
   "forms.group.instanceLabel": "Heading for each instance",
   "forms.group.instanceLabelHint":
