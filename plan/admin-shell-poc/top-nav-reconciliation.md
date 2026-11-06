@@ -72,11 +72,15 @@ groupings within the installation.
 
 ## Source audit
 
+The inventory above is the entry set as it stood before the navigation work. The shipped
+shell is in [the user guide](../../docs/form-publishing-flow.md); where the two differ, the
+shipped shell is what runs and this POC remains flow guidance.
+
 - [Responses index](<../../apps/admin/app/(shell)/responses/page.tsx>)
 - [Erasure log](<../../apps/admin/app/(shell)/responses/erasures/page.tsx>)
-- [Webhook operations](<../../apps/admin/app/(shell)/webhooks/page.tsx>)
+- [Delivery failures](<../../apps/admin/app/(shell)/webhooks/page.tsx>)
 - [Workspaces index](<../../apps/admin/app/(shell)/workspaces/page.tsx>)
-- [Workspace management](<../../apps/admin/app/(shell)/workspaces/[workspaceId]/page.tsx>)
+- [Workspace members](<../../apps/admin/app/(shell)/workspaces/[workspaceId]/members/page.tsx>)
 - [Personal settings](<../../apps/admin/app/(shell)/settings/page.tsx>)
 - [Account menu](../../apps/admin/components/account-menu.tsx)
-- [Appearance menu](../../apps/admin/components/appearance-menu.tsx)
+- [Appearance control](../../apps/admin/components/theme-toggle.tsx)

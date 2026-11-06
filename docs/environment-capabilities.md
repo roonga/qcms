@@ -1,14 +1,17 @@
 # Environment capabilities: UX review brief
 
-For the latest agreed navigation/publishing direction and a code-backed role audit,
-see the [implementation handover](../plan/environment-navigation-implementation.md).
-This earlier capability brief and the interactive POC do not override the existing
-permission matrix. The POC is flow guidance, not a visual specification.
+**The navigation and publishing work this brief fed has shipped.** What an operator
+sees is [the publishing and navigation guide](form-publishing-flow.md); the flow and
+permission contract is the
+[implementation handover](../plan/environment-navigation-implementation.md), and
+`docs/SECURITY_DESIGN.md` §3.2 is the normative permission matrix. Neither this brief
+nor the interactive POC overrides it. The POC remains flow guidance and is not a
+visual specification.
 
 This brief describes domain capabilities and constraints for an independent UX
 recommendation. It deliberately specifies no navigation, screen layout, control
-placement or interaction sequence. It records current server capabilities; it does
-not approve a new workflow or change authorization.
+placement or interaction sequence; the request at the end of it has been answered.
+It records server capabilities, and the table below stays accurate for them.
 
 ## Shared content and environment state
 
@@ -83,8 +86,10 @@ requires its own grant; installation administration is not a response-data bypas
   cannot be a production candidate.
 - A test release records availability, not a successful manual test or approval.
   There is no separate persisted test-pass gate in this workflow.
-- The server does not require dev before test, or staging before production. A
-  proposed mandatory dev/test/staging sequence would be a new product decision.
+- Prerequisites are an installation-wide, versioned release-workflow configuration,
+  written by the installation administrator alone and read by every `forms.` role. No
+  revision is seeded, so a deployment that configures none keeps the test-before-prod
+  rule above and no other ordering.
 - In a deployment containing both test and prod, direct combined publication and
   release to prod is refused. Production releases use an existing eligible version.
 - A prod-only deployment can publish and release directly when the caller has both
@@ -102,6 +107,8 @@ requires its own grant; installation administration is not a response-data bypas
   data and webhook delivery remain isolated to the link's environment.
 
 ## Independent recommendation requested
+
+Answered and shipped; kept for the record. The brief asked for the following.
 
 Propose a clear UX using only these capabilities and constraints. Treat navigation
 and the authoring/release interaction model as open design decisions.

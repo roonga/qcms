@@ -1,24 +1,23 @@
-# Form publishing: test to production
+# Publishing and navigating the admin
 
-Workflow: build and preview a **draft** in **test**, publish and release
-it to test in one action, verify it, then switch to **prod** and release that same
-version. See the [implementation plan](../plan/form-publishing-workflow.md).
+Workflow: build and preview a **draft**, publish and release it to **test** in one
+confirmation, verify it, then run the wizard again on that same version to release it
+to **prod**. Authoring belongs to no environment, so nothing has to be switched to
+publish. See the [implementation plan](../plan/form-publishing-workflow.md).
 
 ```mermaid
 flowchart TD
-    A[Select test; draft questions and publish their versions] --> B[Build form draft: steps, question versions and rules]
+    A[Draft questions and publish their versions] --> B[Build form draft: steps, question versions and rules]
     B --> P[Preview the draft]
     P --> C[Publish wizard: freeze a version and release it to test in one confirmation]
     C --> E[Test the respondent journey, branches and submission]
     E --> F{Tests pass?}
     F -->|No| G[Revise a draft seeded from the latest published version]
     G --> P
-    F -->|Yes| S[Switch top navigation to prod]
-    S --> H[Select and release the same tested version to prod]
-    H --> I[Share production form or secure links]
+    F -->|Yes| S[Publish wizard on that same version, with prod as the destination]
+    S --> I[Share production form or secure links]
     I --> J[Respondents complete and submit the form]
-    H -. Future changes .-> T[Switch to test]
-    T --> G
+    S -. Future changes .-> G
 ```
 
 - Draft is the editable authoring state shared across environments. Only published
@@ -42,11 +41,13 @@ only the environments the operator may release this form into, and says why an
 environment it cannot use is not eligible.
 
 In the test/prod workflow, production offers existing versions previously
-released to test, plus previously deployed production versions for rollback. Draft
-editing is available in test, and a draft cannot be published straight into
-production. The review step shows what freezes and, per destination, the version that
+released to test, plus previously deployed production versions for rollback. A draft
+cannot be published straight into production. The review step shows what freezes and,
+per destination, the version that
 environment serves now and the version it will serve. A test release does not itself
 prove that manual testing passed. The diagram assumes intake is open in both environments.
+Draft editing belongs to no environment, so the Operations selector never decides where a
+draft is released.
 
 After a release, the Operations table is where a released form is operated, and it is the
 only place those screens live. Its environment is the Operations header's own selector, and
@@ -67,11 +68,45 @@ For Docker, set `QCMS_PORTAL_ENVIRONMENTS=test` in `.env` and recreate the porta
 container to serve test links under `/test/`. The portal serves only prod when this
 setting is empty.
 
+## Navigating the admin
+
+The application navigation offers Questions, Forms, Workspaces and Operations, and shows
+only the areas your grants reach. Settings and My access are in the avatar menu; opening
+either from inside Operations keeps you in Operations.
+
+**Operations is the one area that has an environment.** It carries the environment
+selector and an Exit control, and it is where a released form is operated. Every other
+area works on shared authoring content and shows no environment. A link that leaves
+Operations asks first, naming where it goes and saying the selected environment does not
+apply there; Stay keeps you where you are and Exit Operations returns to the last place
+outside Operations this tab visited. Moving inside Operations, including to its global
+Delivery failures and Erasure log screens, asks nothing.
+
+**Where you land depends on what you hold.** An account with only operational grants
+lands in Operations and is offered no authoring menu; an account that only manages
+workspaces lands in Workspaces. An address you may not open says so and offers a
+permitted way on without naming the form or workspace behind it.
+
+**Each area keeps one left rail.** Its top-level items stay visible and the current
+item's own screens expand beneath it, two levels at most. Inside one form or question
+the rail becomes that item's context: a link back to the list, the item's name and its
+screens. The rail never repeats the page heading, and a breadcrumb line heads every
+screen with the area, the section and the item.
+
+The icon button at the start of the top bar, or `Alt+Shift+S` outside a text field,
+collapses the rail to a narrow strip. The choice is remembered per viewer. Below the
+sidebar breakpoint the rail is a disclosure named Menu instead, and the toggle steps
+aside.
+
 ## Sources
 
 - [Playwright draft-to-test-to-prod journey](../apps/admin/e2e/forms-promotion.pw.ts)
 - [Playwright publishing journey](../apps/admin/e2e/forms-publish.pw.ts)
 - [Production approval tests](../apps/admin/e2e/two-person-rule.pw.ts)
+- [Shell areas, landing and exits](../apps/admin/e2e/shell-modes.pw.ts)
+- [Leaving Operations](../apps/admin/e2e/operations-leave.pw.ts)
+- [One top bar, the rail toggle and the breadcrumb](../apps/admin/e2e/shell-frame.pw.ts)
+- [Deployment-origin links over the Docker stack](../apps/e2e/full-stack-conditional-form.pw.ts)
 - [Publishing implementation](../apps/api/src/features/forms/README.md)
 - [Releases and session versioning](../apps/api/src/features/releases/README.md)
 - [Submission E2E test](../apps/api/e2e/01-full-loop.e2e.ts)
