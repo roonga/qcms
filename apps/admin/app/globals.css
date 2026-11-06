@@ -2416,7 +2416,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   color: var(--color-text);
 }
 .qcms-rail__link[aria-current="page"] {
-  border-color: var(--color-primary);
+  border-inline-start-color: var(--color-primary);
   border-radius: 0;
   background-color: var(--color-info-subtle);
   color: var(--color-primary);
