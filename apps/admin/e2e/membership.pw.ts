@@ -32,7 +32,7 @@ test("the membership area is reachable from the shell's navigation", async ({ pa
     .getByRole("navigation", { name: "Primary" })
     .getByRole("link", { name: "Workspaces" })
     .click();
-  await expect(page.getByRole("heading", { level: 1, name: "Workspaces" })).toBeVisible();
+  await expect(page).toHaveURL(/\/workspaces\/[^/]+\/members$/);
 
   await page.getByTestId("account-menu").getByRole("button").click();
   await page.getByRole("menuitem", { name: "My access" }).click();

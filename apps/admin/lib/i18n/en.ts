@@ -2281,10 +2281,6 @@ export const messages = {
   "membership.area.noWorkspaces":
     "You manage no workspace. Your own grants are on the access panel below.",
   "membership.area.loadFailed": "The workspaces could not be read: {message}",
-  "membership.area.shared": "Shared question library",
-  "membership.area.archived": "Archived",
-  "membership.area.twoPerson": "Second approver required",
-  "membership.area.counts": "{forms} form(s), {questions} question(s)",
   "membership.workspace.notFound": "No such workspace, or you do not manage it.",
   "membership.workspace.allWorkspaces": "All workspaces",
   "membership.workspace.context": "Workspace: {name}",

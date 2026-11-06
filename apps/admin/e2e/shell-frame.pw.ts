@@ -188,7 +188,6 @@ const CRUMB_SCREENS: readonly CrumbScreen[] = [
   { path: "/operations", trail: ["Operations"] },
   { path: `/operations/forms/${FORM_ID}/links`, trail: ["Operations", "", "Links"], context: true },
   { path: "/webhooks", trail: ["Operations", "Delivery failures"] },
-  { path: "/workspaces", trail: ["Workspaces"] },
   { path: `/workspaces/${WORKSPACE_ID}/members`, trail: ["Workspaces", "", "Members"] },
   { path: "/settings", trail: ["Settings"] },
 ];
