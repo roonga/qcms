@@ -3133,43 +3133,19 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   opacity: 0.7;
 }
 .qcms-envmenu {
-  min-inline-size: 21rem;
-}
-.qcms-envmenu__item {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  block-size: auto;
-  min-block-size: 52px;
-  align-content: center;
-  row-gap: 2px;
-  padding-block: var(--space-2);
+  min-inline-size: 12rem;
 }
 .qcms-envmenu__row {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2);
 }
-.qcms-envmenu__name {
-  font-size: 14px;
-  font-weight: 600;
-}
-.qcms-envmenu__mark {
-  margin-inline-start: auto;
+.qcms-envmenu__check {
+  display: inline-flex;
+  flex: none;
+  inline-size: 16px;
+  block-size: 16px;
   color: var(--color-primary);
-  font-size: 13px;
-  font-weight: 600;
-}
-.qcms-envmenu__meaning {
-  padding-inline-start: calc(52px + var(--space-3));
-  color: var(--color-text-muted);
-  font-size: 13px;
-}
-.qcms-envmenu__note {
-  margin: 0;
-  padding-inline: var(--space-3);
-  padding-block: var(--space-2);
-  color: var(--color-text-muted);
-  font-size: 13px;
 }
 /* The slot reserves one width in every area, so the label and the word only appear where they fit. */
 @variant sidebar {

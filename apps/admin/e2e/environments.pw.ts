@@ -132,17 +132,12 @@ test("the selector is a labelled dropdown whose rows name, mean and mark each en
   );
   await expect(rows.filter({ hasText: "Live forms that respondents use" })).toHaveCount(1);
   await expect(rows.filter({ hasText: "Checking released versions before prod" })).toHaveCount(1);
-  await expect(
-    page.getByText("Applies to every Operations screen. Lists return to page 1."),
-    "the note sits outside the rows the arrow keys walk",
-  ).toBeVisible();
-
   const opened = await page.evaluate(() => document.activeElement?.getAttribute("role") ?? "");
   expect(opened, "opening from the keyboard lands in the rows").toBe("menuitemradio");
 
   await page.keyboard.press("ArrowDown");
   const focused = await page.evaluate(
-    () => document.activeElement?.querySelector(".qcms-envmenu__name")?.textContent?.trim() ?? "",
+    () => document.activeElement?.querySelector(".qcms-envchip")?.textContent?.trim() ?? "",
   );
   expect(focused, "the arrow keys walk to a named environment").not.toBe("");
   await page.keyboard.press("Enter");
