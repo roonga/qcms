@@ -243,7 +243,6 @@ button {
   align-items: center;
   gap: var(--space-2);
   min-inline-size: 0;
-  max-inline-size: 45%;
 }
 .qcms-wsswitch__sep {
   display: none;
@@ -287,8 +286,10 @@ button {
   flex: none;
   color: var(--color-text-muted);
 }
+/* The name truncates rather than pushing the navigation off the row; the tooltip and the menu carry it whole. */
 .qcms-wsswitch__name {
   min-inline-size: 0;
+  max-inline-size: 40vw;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -315,9 +316,6 @@ button {
   color: var(--color-primary);
 }
 @variant sidebar {
-  .qcms-wsswitch {
-    max-inline-size: none;
-  }
   .qcms-wsswitch__sep {
     display: inline;
   }
