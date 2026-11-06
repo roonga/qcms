@@ -48,8 +48,7 @@ export function RulesEditor({
 
   return (
     <section aria-labelledby={sectionHeadingId("rules")} className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-(--color-text-muted)">{t("forms.rules.lensNote")}</p>
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <Button
           variant="secondary"
           size="md"

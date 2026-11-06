@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, useTransition } from "react";
 
+import { FieldHelp } from "@/components/help-tip";
 import { HeadingMarker } from "@/components/agent/heading-marker";
 import { EmptyState } from "@/components/empty-state";
 import { EntityId } from "@/components/entity-id";
@@ -380,19 +381,20 @@ function ExportDialog({
             setFormat(next === "json" ? "json" : "csv");
           }}
         />
-        <Select
-          label={t("ops.export.shape")}
-          value={shape}
-          isDisabled={!needsShape}
-          description={shapeHint(format, shape)}
-          items={[
-            { label: t("ops.export.shapeLong"), value: "long" },
-            { label: t("ops.export.shapeWide"), value: "wide" },
-          ]}
-          onChange={(next) => {
-            setShape(next === "wide" ? "wide" : "long");
-          }}
-        />
+        <FieldHelp help={shapeHint(format, shape)}>
+          <Select
+            label={t("ops.export.shape")}
+            value={shape}
+            isDisabled={!needsShape}
+            items={[
+              { label: t("ops.export.shapeLong"), value: "long" },
+              { label: t("ops.export.shapeWide"), value: "wide" },
+            ]}
+            onChange={(next) => {
+              setShape(next === "wide" ? "wide" : "long");
+            }}
+          />
+        </FieldHelp>
         <Select
           label={t("ops.export.version")}
           value={version}

@@ -1,3 +1,4 @@
+import { HelpTip } from "@/components/help-tip";
 import { Alert } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
 import type { MyAccess } from "@/lib/membership/types";
@@ -11,11 +12,11 @@ export function MyAccessPanel({
 }) {
   return (
     <section aria-labelledby="qcms-my-access-heading" className="flex min-w-0 flex-col gap-3">
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-wrap items-center gap-2">
         <h2 id="qcms-my-access-heading" className="text-lg font-semibold text-(--color-text)">
           {t("membership.mine.heading")}
         </h2>
-        <p className="text-sm text-(--color-text-muted)">{t("membership.mine.intro")}</p>
+        <HelpTip>{t("membership.mine.intro")}</HelpTip>
       </div>
 
       {access === undefined && (

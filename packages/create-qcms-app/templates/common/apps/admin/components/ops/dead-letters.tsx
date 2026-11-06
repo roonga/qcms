@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 
+import { HelpTip } from "@/components/help-tip";
 import { EmptyState } from "@/components/empty-state";
 import { useEnvironmentUnknown } from "@/components/environment-scope";
 import { Alert, Button, Dialog } from "@/components/kit";
@@ -76,15 +77,17 @@ export function DeadLetters({
       data-testid="qcms-dead-letters"
     >
       <div className="flex flex-col gap-1">
-        <h2
-          id="qcms-dead-letters-heading"
-          ref={heading}
-          tabIndex={-1}
-          className="text-lg font-semibold text-(--color-text)"
-        >
-          {t("ops.deadLetters.heading")}
-        </h2>
-        <p className="text-sm text-(--color-text-muted)">{t("ops.deadLetters.intro")}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <h2
+            id="qcms-dead-letters-heading"
+            ref={heading}
+            tabIndex={-1}
+            className="text-lg font-semibold text-(--color-text)"
+          >
+            {t("ops.deadLetters.heading")}
+          </h2>
+          <HelpTip>{t("ops.deadLetters.intro")}</HelpTip>
+        </div>
       </div>
 
       <div

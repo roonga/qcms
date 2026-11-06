@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState, useTransition } from "react";
 
+import { HelpTip } from "@/components/help-tip";
 import { useEnvironmentUnknown } from "@/components/environment-scope";
 import { Alert, Button, Dialog } from "@/components/kit";
 import { EraseDialog } from "@/components/ops/erase-dialog";
@@ -291,12 +292,13 @@ function Summary({
           </>
         )}
       </dd>
-      <dt>{t("ops.detail.contentHash")}</dt>
+      <dt>
+        {t("ops.detail.contentHash")} <HelpTip>{t("ops.detail.contentHashHint")}</HelpTip>
+      </dt>
       <dd>
         <code className="qcms-link-id" data-testid="qcms-content-hash">
           {detail.contentHash}
         </code>
-        <span className="block text-(--color-text-muted)">{t("ops.detail.contentHashHint")}</span>
       </dd>
       <dt>{t("ops.responses.column.flag")}</dt>
       <dd>{flagged === null ? t("ops.responses.flag.clean") : flagReasonText(flagged)}</dd>
@@ -316,10 +318,12 @@ function Answers({
   const keys = orderedAnswerKeys(detail.answers, pins);
   return (
     <section aria-labelledby="qcms-answers-heading" className="flex flex-col gap-2">
-      <h2 id="qcms-answers-heading" className="text-base font-semibold text-(--color-text)">
-        {t("ops.detail.answers")}
-      </h2>
-      <p className="text-sm text-(--color-text-muted)">{t("ops.detail.answersIntro")}</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 id="qcms-answers-heading" className="text-base font-semibold text-(--color-text)">
+          {t("ops.detail.answers")}
+        </h2>
+        <HelpTip>{t("ops.detail.answersIntro")}</HelpTip>
+      </div>
       {keys.length === 0 ? (
         <p className="text-sm text-(--color-text-muted)" data-testid="qcms-answers-empty">
           {t("ops.detail.noAnswer")}
@@ -377,10 +381,12 @@ function LedgerTimeline({
 }) {
   return (
     <section aria-labelledby="qcms-ledger-heading" className="flex flex-col gap-2">
-      <h2 id="qcms-ledger-heading" className="text-base font-semibold text-(--color-text)">
-        {t("ops.detail.ledger")}
-      </h2>
-      <p className="text-sm text-(--color-text-muted)">{t("ops.detail.ledgerIntro")}</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 id="qcms-ledger-heading" className="text-base font-semibold text-(--color-text)">
+          {t("ops.detail.ledger")}
+        </h2>
+        <HelpTip>{t("ops.detail.ledgerIntro")}</HelpTip>
+      </div>
       {detail.ledger.length === 0 ? (
         <p className="text-sm text-(--color-text-muted)" data-testid="qcms-ledger-empty">
           {t("ops.detail.ledgerEmpty")}

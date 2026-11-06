@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { HelpTip } from "@/components/help-tip";
 import { EmptyState } from "@/components/empty-state";
 import { cancelledReasonText, DeliveryStatusTag } from "@/components/ops/ops-tags";
 import { OperatorDateTime, useOperatorDateTimeFormat } from "@/components/operator-time";
@@ -26,10 +27,12 @@ export function DeliveryDashboard({
       data-testid="qcms-delivery-dashboard"
     >
       <div className="flex flex-col gap-1">
-        <h2 id="qcms-deliveries-heading" className="text-lg font-semibold text-(--color-text)">
-          {t("ops.deliveries.heading")}
-        </h2>
-        <p className="text-sm text-(--color-text-muted)">{t("ops.deliveries.intro")}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 id="qcms-deliveries-heading" className="text-lg font-semibold text-(--color-text)">
+            {t("ops.deliveries.heading")}
+          </h2>
+          <HelpTip>{t("ops.deliveries.intro")}</HelpTip>
+        </div>
       </div>
 
       {rows !== undefined &&

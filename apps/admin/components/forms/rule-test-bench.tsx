@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 
+import { HelpTip } from "@/components/help-tip";
 import { Button, NumberField, Select } from "@/components/kit";
 import {
   IDLE_PREVIEW,
@@ -59,11 +60,11 @@ export function RuleTestBench({
           data-testid="qcms-bench-digest"
         >
           {benchDigest(rule.ruleId, conditionReferences(rule.when).length)}
-        </span>
+        </span>{" "}
+        <HelpTip>{t("forms.bench.note")}</HelpTip>
       </div>
 
       <div className="mt-1 flex flex-col gap-4">
-        <p className="text-sm text-(--color-text-muted)">{t("forms.bench.note")}</p>
         <BenchBody
           draft={draft}
           rule={rule}
@@ -111,12 +112,11 @@ export function RuleTestBenchPanel({
             rule?.ruleId,
             rule === undefined ? 0 : conditionReferences(rule.when).length,
           )}
-        </span>
+        </span>{" "}
+        <HelpTip>{t("forms.bench.note")}</HelpTip>
       </div>
 
       <div className="mt-3 flex flex-col gap-4">
-        <p className="text-sm text-(--color-text-muted)">{t("forms.bench.note")}</p>
-
         {rule === undefined ? (
           <p className="text-sm text-(--color-text-muted)">{t("forms.bench.noRules")}</p>
         ) : (
@@ -171,8 +171,9 @@ function BenchBody({
     <>
       {groups.length > 0 && (
         <fieldset className="qcms-fieldset qcms-fieldset--flat" data-testid="qcms-bench-instances">
-          <legend className="qcms-fieldset__legend">{t("forms.bench.instances")}</legend>
-          <p className="text-sm text-(--color-text-muted)">{t("forms.bench.instancesNote")}</p>
+          <legend className="qcms-fieldset__legend">
+            {t("forms.bench.instances")} <HelpTip>{t("forms.bench.instancesNote")}</HelpTip>
+          </legend>
           <div className="flex flex-wrap items-end gap-3">
             {groups.map((group) => (
               <NumberField

@@ -262,7 +262,6 @@ export const messages = {
   "questions.filter.clear": "Clear filters",
 
   "questions.table.label": "Question library",
-  "questions.table.hint": "Open a question from the link in its ID column.",
   "questions.open": "Open question {questionId}",
   "questions.column.id": "Question ID",
   "questions.column.label": "Label",
@@ -308,7 +307,6 @@ export const messages = {
 
   "questions.editor.label": "Label",
   "questions.editor.help": "Help text",
-  "questions.editor.helpHint": "Optional. Shown under the control.",
   "questions.editor.required": "An answer is required",
   "questions.editor.save": "Save draft",
   "questions.editor.manualModel":
@@ -497,7 +495,6 @@ export const messages = {
   "forms.new": "New form",
 
   "forms.table.label": "Form library",
-  "forms.table.hint": "Open a form from the link in its Slug column.",
   "forms.open": "Open form {slug}",
   "forms.column.formId": "Form ID",
   "forms.column.slug": "Slug",
@@ -538,7 +535,6 @@ export const messages = {
   "forms.create.idNote":
     "Generated from the slug and permanent from the moment you create it. An ID is never reused for a different meaning, so a form with the wrong ID is replaced by a new one, never renamed (R6).",
   "forms.create.formTitle": "Title",
-  "forms.create.formTitleHint": "What a respondent sees at the top of the questionnaire.",
   "forms.create.locale": "Default locale",
   "forms.create.localeHint": "The locale every step and question must have text for.",
   "forms.create.submit": "Create form",
@@ -551,7 +547,6 @@ export const messages = {
     "Started from the newest published version. Nothing is stored until the first save.",
   "forms.builder.draftSource.none": "Nothing has been drafted or published for this form yet.",
   "forms.builder.formTitle": "Form title",
-  "forms.builder.formTitleHint": "Shown to a respondent. Saved with the draft.",
   "forms.builder.seeded":
     "This draft was started from the newest published version and has not been saved yet. Your first change stores it.",
   "forms.builder.concurrent":
@@ -632,7 +627,6 @@ export const messages = {
   "forms.step.insertBelow": "Insert a question below {questionId}",
   "forms.step.pinMoved": "{questionId} moved to position {position} of {total}",
   "forms.step.pinRemoved": "{questionId} removed from this step",
-  "forms.step.emptyBody": "Pin a question from the library and it will appear here.",
   "forms.step.column.reorder": "Row actions",
   "forms.step.column.question": "Question",
   "forms.step.column.type": "Type",
@@ -724,8 +718,6 @@ export const messages = {
   "forms.group.untitled": "Untitled group",
 
   "forms.picker.title": "Add questions to {title}",
-  "forms.picker.description":
-    "Choose one or more published versions, then add them together. A deprecated version is listed but cannot be pinned, and a question already in this form cannot be pinned twice.",
   "forms.picker.search": "Search",
   "forms.picker.tableLabel": "Question versions",
   "forms.picker.hint":
@@ -760,8 +752,6 @@ export const messages = {
   "forms.picker.cancel": "Cancel",
   /** Table columns are group members; their type comes from the pinned question and is never edited here. */
   "forms.columns.title": "Columns",
-  "forms.columns.description":
-    "Each column of the table is one question in this group, and the order below is the order the columns are drawn in. A column's type is the question's own: change it in the question, not here.",
   "forms.columns.tableLabel": "Table columns",
   "forms.columns.column.ordinal": "#",
   "forms.columns.column.label": "Column",
@@ -936,8 +926,6 @@ export const messages = {
   "forms.operand.unsupported": "This operator does not apply to this question's type.",
 
   "forms.json.label": "Condition JSON for rule {ruleId}",
-  "forms.json.note":
-    "The same condition as the pickers above, in the engine's own DSL. Editing here updates the pickers; the pickers are the primary surface (ADR-19). Autocomplete offers operators, pinned question IDs, and the option IDs of the referenced question's pinned version.",
   "forms.json.parseError":
     "Not valid JSON yet, so the condition above is unchanged. The pickers still hold the last version that parsed.",
   "forms.json.shapeError": "Valid JSON, but not a condition this editor can render.",
@@ -1411,8 +1399,6 @@ export const messages = {
   "forms.history.compareRowSame": "Unchanged",
 
   "forms.links.heading": "Secure links",
-  "forms.links.intro":
-    "A secure link is a signed, expiring invitation to one form. Mint them here, hand them out, and revoke any that should stop working.",
   "forms.links.needsPublish":
     "Publish this form before minting links: a link opens the newest published version, and there is not one yet.",
   "forms.links.mint": "Mint links",
@@ -2372,7 +2358,6 @@ export const messages = {
   "membership.groups.removeFailed": "The group was not removed: {message}",
   "membership.groups.addHolderMember": "Member",
   "membership.groups.addHolderChoose": "Choose a member",
-  "membership.groups.addHolderHelp": "Only members of this workspace are offered.",
   "membership.groups.addHolderNone": "Every member of this workspace already holds this group.",
   "membership.groups.addHolderSubmit": "Grant",
   "membership.groups.holderAdded": "{email} now holds {name}.",

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { EmptyState } from "@/components/empty-state";
 import { EntityId } from "@/components/entity-id";
+import { HelpTip } from "@/components/help-tip";
 import { Alert, Button, Dialog, TextField } from "@/components/kit";
 import { ALLOWED_COLUMN_TYPES, columnTypeNote } from "@/lib/forms/table-columns";
 import {
@@ -97,7 +98,6 @@ export function LibraryPicker({
     <Dialog
       isOpen={isOpen}
       title={t("forms.picker.title", { title: stepTitle })}
-      description={t("forms.picker.description")}
       onOpenChange={(open) => {
         if (!open) dismiss();
       }}
@@ -196,6 +196,7 @@ export function LibraryPicker({
             <h3 aria-live="polite" className="text-sm font-semibold" id={CHOSEN_HEADING_ID}>
               {t("forms.picker.chosenHeading", { count: chosenRows.length })}
             </h3>
+            <HelpTip>{t("forms.picker.hint")}</HelpTip>
             {chosenRows.length === 0 ? (
               <p className="text-sm text-(--color-text-muted)">{t("forms.picker.chosenEmpty")}</p>
             ) : (
@@ -236,9 +237,6 @@ export function LibraryPicker({
           </section>
         )}
 
-        {library.ok && (
-          <p className="text-sm text-(--color-text-muted)">{t("forms.picker.hint")}</p>
-        )}
         <div className="qcms-picker__footer">
           <Button variant="ghost" size="md" onPress={dismiss}>
             {t("forms.picker.cancel")}

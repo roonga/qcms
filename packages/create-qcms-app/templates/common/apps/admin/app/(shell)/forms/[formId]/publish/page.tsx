@@ -44,8 +44,12 @@ export default async function FormPublishPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <FormPageHeader formId={form.formId} section="publish" status={form.status} />
-      <p className="text-sm text-(--color-text-muted)">{t("forms.publish.intro")}</p>
+      <FormPageHeader
+        formId={form.formId}
+        section="publish"
+        status={form.status}
+        help={t("forms.publish.intro")}
+      />
       <PublishWizard
         formId={form.formId}
         versions={form.versions.map((version) => version.version)}

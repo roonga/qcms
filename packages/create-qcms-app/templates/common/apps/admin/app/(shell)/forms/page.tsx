@@ -76,12 +76,7 @@ export default async function FormsPage({
           />
         ))}
 
-      {result.ok && result.data.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <FormsTable rows={result.data} />
-          <p className="text-sm text-(--color-text-muted)">{t("forms.table.hint")}</p>
-        </div>
-      )}
+      {result.ok && result.data.length > 0 && <FormsTable rows={result.data} />}
     </div>
   );
 }

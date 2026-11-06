@@ -3845,13 +3845,12 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   line-height: 1;
   cursor: help;
 }
+/* Fixed, not absolute: a hidden absolute box still widens the document on a narrow screen. */
 .qcms-helptip__body {
-  position: absolute;
-  inset-block-start: calc(100% + 0.375rem);
-  inset-inline-start: 0;
+  position: fixed;
   z-index: 20;
   inline-size: max-content;
-  max-inline-size: 18rem;
+  max-inline-size: min(18rem, calc(100vw - 1rem));
   padding: 0.5rem 0.625rem;
   border: 1px solid var(--color-border-strong);
   border-radius: 0.375rem;
@@ -3862,11 +3861,21 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   visibility: hidden;
   opacity: 0;
   transition: opacity 120ms;
+  pointer-events: none;
 }
-.qcms-helptip:hover .qcms-helptip__body,
-.qcms-helptip:focus-within .qcms-helptip__body {
+.qcms-helptip__body[data-open="true"] {
   visibility: visible;
   opacity: 1;
+}
+
+.qcms-field-help {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: 0.375rem;
+}
+.qcms-field-help > .qcms-helptip {
+  margin-block-start: 0.125rem;
 }
 
 .qcms-rail__accordion > summary {
