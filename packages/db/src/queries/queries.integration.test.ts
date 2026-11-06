@@ -4,7 +4,7 @@ import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { CompiledForm } from "@roonga/qcms-a2ui-compiler";
-import { FormId, LinkId, QuestionId, SessionId } from "@roonga/qcms-core";
+import { FormId, LinkId, OptionId, QuestionId, SessionId } from "@roonga/qcms-core";
 import type { AnswerValue, FormDefinition, LockedSubmission } from "@roonga/qcms-core";
 
 import * as schema from "../schema/index.js";
@@ -745,7 +745,14 @@ describe("answers helpers", () => {
       accessMode: "anonymous",
       expiresAt: new Date(Date.now() + 86_400_000),
     });
-    const values: AnswerValue[] = [42, 0, -1.5, true, false, ["opt_a", "opt_b"]];
+    const values: AnswerValue[] = [
+      42,
+      0,
+      -1.5,
+      true,
+      false,
+      [OptionId.parse("opt_a"), OptionId.parse("opt_b")],
+    ];
     const t0 = Date.now();
     const questionIds = values.map((_, index) => QuestionId.parse(`q_typed_${String(index)}`));
     for (const [index, value] of values.entries()) {
