@@ -79,12 +79,7 @@ export default async function QuestionsPage({
           />
         ))}
 
-      {result.ok && result.data.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <QuestionsTable rows={result.data} />
-          <p className="text-sm text-(--color-text-muted)">{t("questions.table.hint")}</p>
-        </div>
-      )}
+      {result.ok && result.data.length > 0 && <QuestionsTable rows={result.data} />}
     </div>
   );
 }

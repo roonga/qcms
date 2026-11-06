@@ -1,3 +1,4 @@
+import { FieldHelp } from "@/components/help-tip";
 import { Select, TextField } from "@/components/kit";
 import { activeFilterCount, RailFilters } from "@/components/rail-filters";
 import { RailCount, RailFrame, RailTree } from "@/components/rail-frame";
@@ -36,13 +37,14 @@ export function OperationsFormsRail({
           {state.environment !== undefined && (
             <input type="hidden" name="env" value={state.environment} />
           )}
-          <TextField
-            name="q"
-            label={t("operations.filter.search")}
-            description={t("operations.filter.searchHint")}
-            defaultValue={search}
-            maxLength={LIBRARY_SEARCH_MAX_LENGTH}
-          />
+          <FieldHelp help={t("operations.filter.searchHint")}>
+            <TextField
+              name="q"
+              label={t("operations.filter.search")}
+              defaultValue={search}
+              maxLength={LIBRARY_SEARCH_MAX_LENGTH}
+            />
+          </FieldHelp>
           <Select
             name="workspace"
             label={t("operations.filter.workspace")}
