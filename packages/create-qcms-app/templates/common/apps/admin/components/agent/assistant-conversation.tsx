@@ -12,6 +12,7 @@ import {
 
 import { AssistMark } from "@/components/forms/assist-mark";
 import { AssistMarkdown } from "@/components/forms/assist-markdown";
+import { REASON_CHARS } from "@/lib/agent/reason";
 import { Button } from "@/components/kit";
 import { nextDraftSaved, type BuilderAssistSnapshot } from "@/lib/agent/builder-assist-bridge";
 import {
@@ -49,7 +50,9 @@ import { readAssistEvents, type AgentProposal, type AssistEvent } from "@/lib/fo
 import { ActionCard } from "./action-card";
 import { runStepAction } from "./step-actions";
 
-const MAX_REASON = 280;
+/* Room for the card's own flattener to cut on a word boundary: a hard cut here would strand a
+   half word no later pass could repair. The card quotes REASON_CHARS of what this keeps. */
+const REASON_SOURCE_CHARS = 4 * REASON_CHARS;
 
 function handOffFields(args: Readonly<Record<string, unknown>>): Readonly<Record<string, string>> {
   const fields: Record<string, string> = {};
@@ -296,7 +299,7 @@ function ScreenConversation({
       }
       const text = turnText(ended).trim();
       if (text !== "") conversation.append([{ role: "assistant", content: text }]);
-      setReason(lastTextSegment(ended).trim().slice(0, MAX_REASON));
+      setReason(lastTextSegment(ended).trim().slice(0, REASON_SOURCE_CHARS));
       onAnnounce(stoppedRef.current ? t("agent.announce.stopped") : t("agent.announce.done"));
     } catch {
       if (!stoppedRef.current) {

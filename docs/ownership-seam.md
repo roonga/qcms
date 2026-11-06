@@ -93,13 +93,13 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (586 files common to both shapes)
+### Scaffolded paths (590 files common to both shapes)
 
 | Path                                                                            | Files |
 | ------------------------------------------------------------------------------- | ----- |
 | `(project root)`                                                                | 8     |
-| `apps/`                                                                         | 575   |
-| `apps/admin/`                                                                   | 363   |
+| `apps/`                                                                         | 579   |
+| `apps/admin/`                                                                   | 367   |
 | `apps/admin/app/`                                                               | 95    |
 | `apps/admin/app/(shell)/`                                                       | 76    |
 | `apps/admin/app/(shell)/@rail/`                                                 | 33    |
@@ -189,16 +189,16 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/two-factor/recovery-codes/`                                     | 2     |
 | `apps/admin/app/two-factor/recovery-codes/confirm/`                             | 1     |
 | `apps/admin/app/two-factor/recovery/verify/`                                    | 1     |
-| `apps/admin/components/`                                                        | 131   |
-| `apps/admin/components/agent/`                                                  | 8     |
+| `apps/admin/components/`                                                        | 134   |
+| `apps/admin/components/agent/`                                                  | 11    |
 | `apps/admin/components/forms/`                                                  | 42    |
 | `apps/admin/components/membership/`                                             | 9     |
 | `apps/admin/components/ops/`                                                    | 18    |
 | `apps/admin/components/questions/`                                              | 15    |
 | `apps/admin/components/shell/`                                                  | 5     |
 | `apps/admin/components/test-support/`                                           | 3     |
-| `apps/admin/lib/`                                                               | 130   |
-| `apps/admin/lib/agent/`                                                         | 13    |
+| `apps/admin/lib/`                                                               | 131   |
+| `apps/admin/lib/agent/`                                                         | 14    |
 | `apps/admin/lib/forms/`                                                         | 31    |
 | `apps/admin/lib/i18n/`                                                          | 2     |
 | `apps/admin/lib/membership/`                                                    | 3     |
@@ -291,7 +291,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (586)</summary>
+<summary>Every scaffolded file (590)</summary>
 
 ```
 .dockerignore
@@ -401,6 +401,9 @@ apps/admin/components/agent/apply-draft-detail.tsx
 apps/admin/components/agent/assistant-button.tsx
 apps/admin/components/agent/assistant-conversation.tsx
 apps/admin/components/agent/assistant-dock.tsx
+apps/admin/components/agent/card-dialog.tsx
+apps/admin/components/agent/card-parts.tsx
+apps/admin/components/agent/definition-detail.tsx
 apps/admin/components/agent/heading-marker.tsx
 apps/admin/components/agent/proposal-marker.tsx
 apps/admin/components/agent/step-actions.ts
@@ -535,6 +538,7 @@ apps/admin/lib/agent/panel-context.ts
 apps/admin/lib/agent/panel.ts
 apps/admin/lib/agent/plan-state.ts
 apps/admin/lib/agent/proposal-window.ts
+apps/admin/lib/agent/reason.ts
 apps/admin/lib/agent/runner.ts
 apps/admin/lib/agent/screen-filters.ts
 apps/admin/lib/agent/screens.ts

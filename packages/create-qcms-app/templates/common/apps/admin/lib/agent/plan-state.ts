@@ -24,10 +24,20 @@ export type StepResultFields = Readonly<Record<string, ScalarField>>;
 
 export type ReportedResults = Readonly<Record<number, StepResultFields>>;
 
+/* The server's own refusal detail for a failed step: an authoring-boundary issue, never respondent data,
+   and never carried into the replayed conversation. */
+export interface AgentStepIssue {
+  readonly code: string;
+  readonly message: string;
+  readonly path?: string;
+}
+
 export interface AgentStepView {
   readonly state: AgentStepState;
 
   readonly message?: string;
+
+  readonly issues?: readonly AgentStepIssue[];
 
   readonly result?: StepResultFields;
   /** One-time secrets stay on the card and never enter action-result history. */
@@ -49,6 +59,8 @@ export interface AgentCardView {
 export interface AgentStepResult {
   readonly outcome: "done" | "failed" | "pending-approval";
   readonly message?: string;
+
+  readonly issues?: readonly AgentStepIssue[];
 
   readonly result?: Readonly<Record<string, unknown>>;
   /** A one-time reveal for the card alone, never for the next turn. */
@@ -158,6 +170,7 @@ export function settleStep(
   const settled: AgentStepView = {
     state: result.outcome,
     ...(result.message === undefined ? {} : { message: result.message }),
+    ...(result.issues === undefined || result.issues.length === 0 ? {} : { issues: result.issues }),
     ...(kept === undefined ? {} : { result: kept }),
     ...(result.revealed === undefined ? {} : { revealed: result.revealed }),
   };
@@ -289,14 +302,18 @@ export function resultLine(card: AgentCardView): CatalogLine | undefined {
   }
 }
 
+/* The announcement for a card still running. A settled card is announced by its own result line, which
+   takes focus, so a live region repeating it would read the outcome twice. */
+export function runningLine(card: AgentCardView): CatalogLine | undefined {
+  if (card.state !== "running" || card.runningIndex === undefined) return undefined;
+  return {
+    key: "agent.card.live.running",
+    params: { step: card.runningIndex + 1, count: card.steps.length },
+  };
+}
+
 export function liveLine(card: AgentCardView): CatalogLine | undefined {
-  if (card.state === "running" && card.runningIndex !== undefined) {
-    return {
-      key: "agent.card.live.running",
-      params: { step: card.runningIndex + 1, count: card.steps.length },
-    };
-  }
-  return resultLine(card);
+  return runningLine(card) ?? resultLine(card);
 }
 
 /** Build replay only from registered result allowlists and the card fold, never model text or content. */

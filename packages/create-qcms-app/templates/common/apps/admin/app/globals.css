@@ -1275,6 +1275,22 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   max-inline-size: min(var(--container-measure-wide), calc(100vw - 2rem));
 }
 
+div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
+  max-inline-size: min(var(--container-measure-narrow), calc(100vw - 2rem));
+}
+
+/* A dense plan has no room to spare on a phone: the dialog becomes the whole screen. */
+@media (width < 40rem) {
+  div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
+    inline-size: 100vw;
+    max-inline-size: 100vw;
+    min-block-size: 100vh;
+    max-block-size: 100vh;
+    border: 0;
+    border-radius: 0;
+  }
+}
+
 /* min-block-size: 0 lets the list shrink and scroll instead of pushing Save and Cancel beyond the dialog
    fold. */
 .qcms-rule-wizard {
@@ -3534,6 +3550,42 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   font-size: 12px;
   color: var(--color-text-muted);
 }
+.qcms-acard__definition {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-block-start: var(--space-2);
+  font-size: 13px;
+}
+.qcms-acard__deflist {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2px;
+  margin: 0;
+}
+.qcms-acard__deflist dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.qcms-acard__deflist dt:not(:first-child) {
+  margin-block-start: var(--space-2);
+}
+.qcms-acard__definition pre {
+  margin: var(--space-1) 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+.qcms-acard__definition summary {
+  min-block-size: 24px;
+  cursor: pointer;
+}
+.qcms-acard__definition summary:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
 .qcms-acard__reason {
   display: flex;
   flex-direction: column;
@@ -3608,6 +3660,40 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   color: var(--color-danger-fg);
   font-size: 13px;
   font-weight: 600;
+}
+.qcms-acard-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  color: var(--color-text);
+  font-size: 15px;
+}
+.qcms-acard-dialog__chip,
+.qcms-acard-dialog__progress {
+  margin: 0;
+}
+.qcms-acard-dialog__progress {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+.qcms-acard-dialog__page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.qcms-acard-dialog__page:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+.qcms-acard-dialog .qcms-acard__step:last-child {
+  border-block-end: 0;
+}
+.qcms-acard-dialog .qcms-acard__step,
+.qcms-acard-dialog .qcms-acard__foot,
+.qcms-acard-dialog .qcms-acard__reason,
+.qcms-acard-dialog .qcms-acard__band {
+  padding-inline: 0;
 }
 .qcms-pmark__group {
   display: inline-flex;

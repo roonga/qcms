@@ -672,7 +672,6 @@ describe("a reference in a plan whose first step runs on the screen itself", () 
         },
       ],
       proposedDraft: { definition: draftFor(FORM_ID), newQuestions: [] },
-      screen: "/forms/[formId]",
       validate: () => Promise.resolve({ issues: [], warnings: [] }),
       subject: owner.userId,
       appKey: deps.config.keys.app,
@@ -686,7 +685,10 @@ describe("a reference in a plan whose first step runs on the screen itself", () 
         environments: ["test", "prod"],
         current: "prod",
         formId: FORM_ID,
+        // apply-draft is the builder's own, so the offer needs the builder's screen.
+        screen: "/forms/[formId]",
       }),
+      screen: "/forms/[formId]",
       requireSecondApprover: false,
       productionEnvironment: "prod",
       formId: FORM_ID,
@@ -1376,7 +1378,6 @@ describe("a mint proposed in the shape the model may produce runs end to end", (
       steps: [
         { kind: "link.mint", args: { formId: FORM_ID, count: 2, expiresAt, oneTime: false } },
       ],
-      screen: "/operations/forms/[formId]/links",
       subject: owner.userId,
       appKey: deps.config.keys.app,
       current: "prod",

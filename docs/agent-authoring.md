@@ -176,7 +176,9 @@ Not "is instructed not to". **Cannot**, structurally.
 - **Keep a secret.** A webhook secret, a minted link URL and an export's bytes reach your screen and stop there; the next turn is told only an allowlisted summary ("rotated the endpoint's secret", never the secret). An act that needs you to type a secret opens the screen's own control instead, and may only be the last step of a plan.
 - **Change deployment configuration, or reach the database at all.**
 
-A tool call outside the screen's own list is refused server-side before dispatch and logged, and the turn that attempted it produces **no proposal at all**.
+A tool call outside the registry, or one your own grants do not reach, is refused server-side before dispatch and logged, and the turn that attempted it produces **no proposal at all**.
+
+**What the assistant may read and propose is your own permissions, not the screen you are on** (Code Owner, 2026-11-06). The screen supplies the facts and the default ids a call uses when it names none, so the assistant can answer about another form, question or workspace you may reach without you navigating there first. One exception: applying a proposed draft is run by the form builder itself, so that card is offered on a form's own builder screen; asked anywhere else, the assistant proposes a plan that creates the questions and saves the draft instead.
 
 ### What is recorded
 

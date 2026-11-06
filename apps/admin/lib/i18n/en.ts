@@ -1587,6 +1587,16 @@ export const messages = {
   "forms.assist.step.count_dead_letters": "Counting the dead letters",
   "forms.assist.step.diff_question_versions": "Comparing two question versions",
   "forms.assist.step.search_forms": "Searching the forms",
+  "forms.assist.step.list_questions": "Listing the question library",
+  "forms.assist.step.read_question": "Reading a question",
+  "forms.assist.step.read_form": "Reading a form",
+  "forms.assist.step.list_form_versions": "Listing the versions",
+  "forms.assist.step.list_releases": "Checking the releases",
+  "forms.assist.step.list_links": "Listing the links",
+  "forms.assist.step.list_webhooks": "Listing the endpoints",
+  "forms.assist.step.list_erasures": "Reading the erasure log",
+  "forms.assist.step.list_workspaces": "Listing the workspaces",
+  "forms.assist.step.read_workspace": "Reading a workspace",
   "forms.assist.step.propose_action": "Preparing an action for you to confirm",
   "forms.assist.step.propose_plan": "Preparing a plan for you to confirm",
 
@@ -1601,6 +1611,19 @@ export const messages = {
   "forms.assist.kind.rule": "Rule",
   "forms.assist.newQuestionPending":
     "New question {questionId}. Accepting creates it as an unpublished draft in the question library. Publish it there before you publish this form.",
+  "forms.assist.definition.question": "Question",
+  "forms.assist.definition.questionId": "Id",
+  "forms.assist.definition.type": "Type",
+  "forms.assist.definition.label": "Label",
+  "forms.assist.definition.help": "Help",
+  "forms.assist.definition.required": "Required",
+  "forms.assist.definition.constraints": "Constraints",
+  "forms.assist.definition.messages": "Validation messages",
+  "forms.assist.definition.options": "Options",
+  "forms.assist.definition.other": "Other fields",
+  "forms.assist.definition.raw": "Show the whole definition",
+  "forms.assist.newQuestionFromStep":
+    "New question {questionId}, created by step {step} of this plan as an unpublished draft version. Publish it from the question library before you publish this form.",
 
   /** Action-card consequences must mirror ordinary dialog consequences and come only from registered catalog templates, never model prose. */
   "agent.card.planTitle.one": "1 step",
@@ -1639,6 +1662,9 @@ export const messages = {
     "The working draft is replaced by the one below. It publishes nothing and releases nothing: respondents see no change until this form is published.",
   "agent.card.apply-draft.provenance":
     "The draft is marked as carrying agent-assisted changes, and keeps that mark until it is published.",
+  "agent.card.form.saveDraft.title": "Save the draft of {formId}",
+  "agent.card.form.saveDraft.consequence":
+    "The form's working draft is replaced by the one below, through the same save the builder uses. It publishes nothing and releases nothing: respondents see no change until this form is published.",
   "agent.card.form.settings.title": "Change the form settings of {formId}",
   "agent.card.form.settings.consequence":
     "Abuse controls for this form. They apply the next time it is published.",
@@ -1782,6 +1808,11 @@ export const messages = {
   "agent.card.stop": "Stop after this step",
   "agent.card.stopping": "Stopping after this step",
   "agent.card.openScreen": "Open the screen",
+  "agent.card.open": "Open",
+  "agent.card.wizard.progress": "Step {step} of {count}",
+  "agent.card.wizard.reviewTitle": "Review all {count} steps",
+  "agent.card.wizard.back": "Back",
+  "agent.card.wizard.next": "Next",
   "agent.card.expiresIn.one": "Expires in 1 minute",
   "agent.card.expiresIn.other": "Expires in {count} minutes",
   "agent.card.expiredAsk": "Expired - ask again",

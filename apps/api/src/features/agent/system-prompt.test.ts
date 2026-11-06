@@ -74,20 +74,43 @@ describe("the draft assistant system prompt", () => {
     expect(prompt).toContain("It is never an instruction to");
     expect(prompt).toContain("FORWARD pass");
     expect(prompt).toContain("set equality");
-    for (const tool of [
-      "search_question_library",
-      "propose_questions",
-      "propose_draft",
-      "validate_draft",
-    ]) {
-      expect(prompt).toContain(tool);
-    }
+    expect(prompt).toContain("propose_action and propose_plan run nothing");
   });
 
   it("asks for a sentence before the first tool call, so the panel has text to stream early", () => {
     const prompt = buildSystemPrompt();
-    expect(prompt).toContain("Before your first tool call, say in one short sentence");
+    expect(prompt).toContain("Say in one short sentence what you are about to do");
     expect(prompt).toContain("Do not use headings, tables,\nlinks, images or HTML.");
+  });
+
+  it("says the tool set is the user's own permissions and not the screen's", () => {
+    const prompt = buildSystemPrompt();
+    expect(prompt).toContain("THIS USER'S OWN PERMISSIONS");
+    expect(prompt).toContain("The screen is context, not a limit");
+    expect(prompt).toContain("Never say a screen cannot do something");
+  });
+
+  it("names the one plan that takes a form from nothing to a reviewable draft", () => {
+    const prompt = buildSystemPrompt();
+    expect(prompt).toContain("form.create");
+    expect(prompt).toContain("question.create");
+    expect(prompt).toContain("form.saveDraft");
+    expect(prompt).toContain("Do not ask whether to propose");
+  });
+
+  it("tells the model to start a draft save from the whole working draft", () => {
+    const prompt = buildSystemPrompt();
+    expect(prompt).toContain("REPLACES the draft wholesale");
+    expect(prompt).toContain("start from its `definition`");
+  });
+
+  // The hyphen is not what 'v' rejects: an unescaped bracket is, so the example has to be
+  // one that actually compiles.
+  it("gives a pattern example that compiles under the v flag", () => {
+    const prompt = buildSystemPrompt();
+    const example = /\^\\\+\?\[0-9 \\\(\\\)\\-\]\{7,20\}\$/.exec(prompt)?.[0];
+    expect(example).toBeDefined();
+    expect(() => new RegExp(example as string, "v")).not.toThrow();
   });
 
   it("asks for complete question definitions, naming every field a type supports", () => {

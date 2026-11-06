@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { offerableActionKinds } from "../screens.js";
 import { advertisedJsonSchema } from "./registry.js";
 import { proposeActionSchema, proposePlanSchema } from "./propose-schema.js";
 
@@ -63,10 +62,9 @@ describe("the propose tools' advertised schemas", () => {
   });
 
   it("accepts a plan spanning one form subtree, and refuses one spanning both", () => {
-    const authoring = offerableActionKinds("/forms/[formId]").map((kind) => ({
-      kind,
-      environments: ["test"],
-    }));
+    const authoring = ["apply-draft", "form.publish", "form.settings", "form.release"].map(
+      (kind) => ({ kind, environments: ["test"] }),
+    );
     const parsed = proposePlanSchema(authoring).safeParse({
       steps: [
         { kind: "form.publish", args: { formId: "frm_a", environment: "test" } },

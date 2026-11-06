@@ -92,7 +92,7 @@ export async function createQuestionForCardAction(
     input.workspaceId,
     proposal,
   );
-  if (!result.ok) return { status: "error", message: result.message };
+  if (!result.ok) return { status: "error", message: result.message, issues: result.issues };
   revalidatePath("/questions");
   return {
     status: "done",

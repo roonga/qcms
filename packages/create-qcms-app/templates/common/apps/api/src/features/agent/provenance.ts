@@ -111,6 +111,15 @@ function referencesFor(
   return found;
 }
 
+/** The form this step's own arguments name, which is the subject its audit row records. */
+function stepFormId(
+  recomputed: Readonly<Record<string, unknown>>,
+  token: ProposalTokenPayload,
+): string | undefined {
+  const named = recomputed["formId"];
+  return typeof named === "string" && named !== "" ? named : token.formId;
+}
+
 async function argumentsMatch(
   def: ActionKindDef,
   input: ProvenanceInput,
@@ -204,6 +213,7 @@ export async function checkProvenance(input: ProvenanceInput): Promise<Provenanc
     return refused("AGENT_PROPOSAL_ARGUMENTS");
   }
 
+  const recomputed = routed.recomputeArgs(input.facts);
   return {
     ok: true,
     proposal: {
@@ -214,7 +224,15 @@ export async function checkProvenance(input: ProvenanceInput): Promise<Provenanc
       screen: routed.screen,
       environment: step.environment,
       proposedAt: new Date(token.iat),
-      formId: token.formId,
+      // The step's own subject, not the plan's: a plan proposed from one form's screen may
+      // name another, and the audit row has to say which form the act touched. The token's
+      // `formId` stays the plan's, which is what the draft-revision binding rests on.
+      formId: stepFormId(
+        typeof recomputed === "object" && recomputed !== null
+          ? (recomputed as Record<string, unknown>)
+          : {},
+        token,
+      ),
       references: routed.references,
     },
   };

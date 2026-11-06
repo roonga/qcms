@@ -124,6 +124,9 @@ export async function startApiServer(): Promise<void> {
     QCMS_RL_ROSTER_IP_MAX: "1000000",
     QCMS_FLAG_AGENT_AUTHORING: "fake",
     QCMS_RL_AGENT_ASSIST_MAX: "1000000",
+    // The read walk calls one tool per step, and a seeded owner holds every cell, so the
+    // ceiling has to clear the whole registry for one turn to finish the walk.
+    QCMS_AGENT_MAX_STEPS: "40",
     // `summary` makes reasoning events arrive, so the browser suite can see the disclosure.
     QCMS_AGENT_THINKING: "summary",
   });

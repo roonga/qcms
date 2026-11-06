@@ -179,6 +179,8 @@ test("refuses the publish card after the editor changes the saved draft", async 
   await expectServing(page, formId, "Nothing released");
 });
 
+// Inside a plan that publishes the form, which is the only shape the pin set decides: a
+// question publish on its own may name any version the user may publish.
 test("refuses to publish a question this form's draft does not pin", async ({ page }) => {
   test.setTimeout(600_000);
   await signInWithTotp(page, EMAIL, totpSecret);
@@ -187,7 +189,7 @@ test("refuses to publish a question this form's draft does not pin", async ({ pa
 
   await page
     .getByTestId("qcms-assistant-composer")
-    .fill("#qcms-fake:propose-question-publish-foreign publish that other question");
+    .fill("#qcms-fake:plan-publish-pins-foreign publish that other question and the form");
   await page.getByTestId("qcms-assistant-send").locator("button").click();
 
   await expect(page.getByTestId("qcms-assistant-streaming")).toBeVisible({ timeout: 30_000 });

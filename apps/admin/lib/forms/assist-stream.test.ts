@@ -127,6 +127,81 @@ describe("readAssistEvents", () => {
     expect(event.proposal.steps[0]?.draft).toEqual(draft);
   });
 
+  /* The parser mirrors the wire shape with an explicit allowlist, so a field it does not name
+     is dropped and the card never sees it. */
+  it("carries the card template's hideEnvironment, which a draft card rests on", async () => {
+    const step = {
+      ...applyDraftStep({ definition: { formId: "frm_a" }, newQuestions: [], issues: [] }),
+      card: {
+        titleKey: "agent.card.apply-draft.title",
+        consequenceKeys: [],
+        hideEnvironment: true,
+      },
+    };
+    const events = await collect(streamOf([frame("action", { proposal: proposalWith(step) })]));
+    const event = events[0];
+    if (event?.type !== "action") throw new Error("expected an action frame");
+    expect(event.proposal.steps[0]?.card.hideEnvironment).toBe(true);
+  });
+
+  it("omits hideEnvironment where the API sent none, rather than inventing false", async () => {
+    const events = await collect(
+      streamOf([
+        frame("action", {
+          proposal: proposalWith(
+            applyDraftStep({ definition: { formId: "frm_a" }, newQuestions: [], issues: [] }),
+          ),
+        }),
+      ]),
+    );
+    const event = events[0];
+    if (event?.type !== "action") throw new Error("expected an action frame");
+    expect(event.proposal.steps[0]?.card.hideEnvironment).toBeUndefined();
+  });
+
+  it("carries which step of the plan creates each new question", async () => {
+    const step = applyDraftStep({
+      definition: { formId: "frm_a" },
+      newQuestions: [],
+      issues: [],
+      createdBy: [{ questionId: "q_new", step: 1 }],
+    });
+    const events = await collect(streamOf([frame("action", { proposal: proposalWith(step) })]));
+    const event = events[0];
+    if (event?.type !== "action") throw new Error("expected an action frame");
+    expect(event.proposal.steps[0]?.draft?.createdBy).toEqual([{ questionId: "q_new", step: 1 }]);
+  });
+
+  it("drops a createdBy entry that names no question or no step", async () => {
+    const step = applyDraftStep({
+      definition: { formId: "frm_a" },
+      newQuestions: [],
+      issues: [],
+      createdBy: [{ questionId: "", step: 1 }, { questionId: "q_ok" }, "nonsense"],
+    });
+    const events = await collect(streamOf([frame("action", { proposal: proposalWith(step) })]));
+    const event = events[0];
+    if (event?.type !== "action") throw new Error("expected an action frame");
+    expect(event.proposal.steps[0]?.draft?.createdBy).toBeUndefined();
+  });
+
+  it("carries the workspace names a card shows, and drops a nameless row", async () => {
+    const proposal = {
+      ...proposalWith(
+        applyDraftStep({ definition: { formId: "frm_a" }, newQuestions: [], issues: [] }),
+      ),
+      workspaces: [
+        { workspaceId: "wsp_a", name: "Clinic forms" },
+        { workspaceId: "wsp_b" },
+        { name: "no id" },
+      ],
+    };
+    const events = await collect(streamOf([frame("action", { proposal })]));
+    const event = events[0];
+    if (event?.type !== "action") throw new Error("expected an action frame");
+    expect(event.proposal.workspaces).toEqual([{ workspaceId: "wsp_a", name: "Clinic forms" }]);
+  });
+
   it("reads an applied draft with no warnings key as no warnings, not as absent", async () => {
     const events = await collect(
       streamOf([

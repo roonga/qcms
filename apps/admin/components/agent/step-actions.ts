@@ -7,6 +7,7 @@ import {
   releaseVersionAction,
   reviewReleaseAction,
   revokeLinkAction,
+  saveDraftAction as saveFormDraftAction,
   setFormStatusAction,
   updateSettingsAction,
 } from "@/app/(shell)/forms/actions";
@@ -39,8 +40,9 @@ import { isErasureReason } from "@/lib/ops/erasure";
 import { IDLE_MUTATION } from "@/lib/questions/editor-state";
 import type { MembershipActionState } from "@/lib/membership/types";
 import type { WebhookActionState } from "@/components/ops/webhook-config";
-import type { AgentStepResult } from "@/lib/agent/plan-state";
+import type { AgentStepIssue, AgentStepResult } from "@/lib/agent/plan-state";
 import type { AgentPlanStep } from "@/lib/forms/assist-stream";
+import type { DraftForm } from "@/lib/forms/types";
 import type { RunStepRequest } from "@/lib/agent/runner";
 import { t } from "@/lib/i18n/en";
 
@@ -50,6 +52,44 @@ function text(value: unknown, fallback = ""): string {
 
 function count(value: unknown): number {
   return typeof value === "number" ? value : Number.parseInt(text(value, "1"), 10) || 1;
+}
+
+function countOf(definition: object, member: string): number {
+  const value = (definition as Record<string, unknown>)[member];
+  return Array.isArray(value) ? value.length : 0;
+}
+
+/* A step item is a pinned question or a repeating group holding them, never both. */
+function pinnedCount(definition: object): number {
+  const steps = (definition as { steps?: unknown }).steps;
+  if (!Array.isArray(steps)) return 0;
+  let total = 0;
+  for (const step of steps) {
+    const items = (step as { items?: unknown } | null)?.items;
+    if (!Array.isArray(items)) continue;
+    for (const item of items) {
+      const nested = (item as { items?: unknown } | null)?.items;
+      total += Array.isArray(nested) ? nested.length : 1;
+    }
+  }
+  return total;
+}
+
+/* The API's own definition issues, kept as the authoring-boundary text they are. */
+function stepIssues(
+  // `path` is read positionally because the two slices spell it differently: a question's is
+  // a member list, a draft's a named shape of step, question and version.
+  issues: readonly { code: string; message: string; path?: unknown }[] | undefined,
+): readonly AgentStepIssue[] {
+  return (issues ?? []).map((issue) => {
+    const parts = Array.isArray(issue.path)
+      ? (issue.path as readonly unknown[])
+      : Object.values((issue.path ?? {}) as Readonly<Record<string, unknown>>);
+    const path = parts
+      .filter((part) => typeof part === "string" || typeof part === "number")
+      .join(".");
+    return { code: issue.code, message: issue.message, ...(path === "" ? {} : { path }) };
+  });
 }
 
 function strings(value: unknown): readonly string[] {
@@ -286,7 +326,11 @@ const QUESTION_RUNNERS: Readonly<Record<string, StepRunner>> = {
       proposalRef(agentProposal, tokenStep),
     );
     if (state.status !== "done" || state.questionId === undefined) {
-      return { outcome: "failed", message: text(state.message) };
+      return {
+        outcome: "failed",
+        message: text(state.message),
+        issues: stepIssues(state.issues),
+      };
     }
     return {
       outcome: "done",
@@ -312,7 +356,9 @@ const QUESTION_RUNNERS: Readonly<Record<string, StepRunner>> = {
       body,
       proposalRef(agentProposal, tokenStep),
     );
-    if (state.status !== "saved") return { outcome: "failed", message: text(state.message) };
+    if (state.status !== "saved") {
+      return { outcome: "failed", message: text(state.message), issues: stepIssues(state.issues) };
+    }
     return {
       outcome: "done",
       result: { questionId: text(args["questionId"]), version, status: "draft" },
@@ -355,6 +401,35 @@ const RUNNERS: Readonly<Record<string, StepRunner>> = {
       return { outcome: "failed", message: text(state.message) };
     }
     return { outcome: "done", result: { formId: state.formId, slug: text(state.slug) } };
+  },
+  /* The form id may be the create step's own result, and the definition the card bound carries no
+     formId, so the save puts the resolved one back. */
+  "form.saveDraft": async ({ tokenStep, args, agentProposal }) => {
+    const formId = text(args["formId"]);
+    const definition = args["definition"];
+    if (formId === "" || typeof definition !== "object" || definition === null) {
+      return { outcome: "failed", message: t("agent.card.note.unresolvedReference") };
+    }
+    const draft = { ...(definition as Record<string, unknown>), formId } as unknown as DraftForm;
+    const state = await saveFormDraftAction(
+      formId,
+      draft,
+      true,
+      undefined,
+      proposalRef(agentProposal, tokenStep),
+    );
+    if (state.status !== "saved") {
+      return { outcome: "failed", message: text(state.message), issues: stepIssues(state.issues) };
+    }
+    return {
+      outcome: "done",
+      result: {
+        formId,
+        steps: countOf(definition, "steps"),
+        questions: pinnedCount(definition),
+        rules: countOf(definition, "rules"),
+      },
+    };
   },
   "form.publish": publishStep,
   "form.settings": async ({ tokenStep, args, agentProposal }) => {

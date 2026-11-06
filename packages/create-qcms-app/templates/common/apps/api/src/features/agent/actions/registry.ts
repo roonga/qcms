@@ -3,7 +3,7 @@
  * at the propose tool, and nothing can graft one on at runtime.
  */
 
-import { applyDraft, closeForm, reopenForm, updateFormSettings } from "./forms.js";
+import { applyDraft, closeForm, reopenForm, saveFormDraft, updateFormSettings } from "./forms.js";
 import { createForm } from "./forms-library.js";
 import { mintLinks, revokeLink } from "./links.js";
 import {
@@ -23,6 +23,7 @@ import {
 } from "./questions.js";
 import { publishForm, releaseVersion } from "./releases.js";
 import { eraseResponse, exportResponses, unflagResponse } from "./responses.js";
+import { isEnvironmentScoped } from "../../membership/policy.js";
 import type { ActionKindDef } from "./types.js";
 import {
   createWebhook,
@@ -36,6 +37,7 @@ import {
 const DEFS: readonly ActionKindDef[] = [
   createForm,
   applyDraft,
+  saveFormDraft,
   publishForm,
   releaseVersion,
   updateFormSettings,
@@ -77,6 +79,19 @@ export function isActionKind(name: string): boolean {
 
 export function actionKind(name: string): ActionKindDef | undefined {
   return isActionKind(name) ? ACTION_KINDS[name] : undefined;
+}
+
+/**
+ * Whether this kind's act is one environment's, which decides whether its card shows an
+ * environment line. Read off the kind's own cells through SEC-3's policy rather than a hand
+ * list: a kind naming its destination in an argument acts in one, and otherwise the matrix
+ * decides. An authoring act (a draft, a question, settings, a grant) is in none.
+ */
+export function actsInOneEnvironment(def: ActionKindDef): boolean {
+  if (def.environmentFrom === "argument") return true;
+  return [def.cell, ...(def.alsoCell === undefined ? [] : [def.alsoCell])].some((cell) =>
+    isEnvironmentScoped(cell.resource, cell.action),
+  );
 }
 
 function sameMembers(want: readonly string[], got: readonly string[]): boolean {
