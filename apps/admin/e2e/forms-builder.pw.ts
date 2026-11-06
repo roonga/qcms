@@ -532,6 +532,48 @@ test("both panels are in the heading outline, with a digest the panel repeats", 
   await cancelRuleEditor(page);
 });
 
+test("every help tip on the builder opens on hover, dismisses on Escape, and stays on screen", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.goto(`/forms/${insuranceFormId}`);
+
+  const settings = page.locator('section[aria-labelledby="qcms-settings-heading"]');
+  const button = settings.getByRole("button", { name: "More information" });
+  await expect(button).toBeVisible();
+  const tip = settings.getByRole("tooltip", { includeHidden: true });
+  await expect(tip).toBeHidden();
+
+  await button.hover();
+  await expect(tip).toBeVisible();
+  await button.focus();
+  await page.keyboard.press("Escape");
+  await expect(tip).toBeHidden();
+
+  await button.focus();
+  await expect(tip).toBeVisible();
+
+  const width = page.viewportSize()?.width ?? 0;
+  expect(width).toBeGreaterThan(0);
+  const tips = page.getByRole("button", { name: "More information" });
+  const count = await tips.count();
+  expect(count).toBeGreaterThan(1);
+  for (let at = 0; at < count; at++) {
+    const each = tips.nth(at);
+    await each.scrollIntoViewIfNeeded();
+    await each.hover();
+    const body = page.locator('[role="tooltip"]:visible').first();
+    const box = await body.boundingBox();
+    expect(box, "an open help tip has a box").not.toBeNull();
+    expect(
+      (box?.x ?? 0) + (box?.width ?? 0),
+      "an open help tip ends inside the viewport",
+    ).toBeLessThanOrEqual(width);
+    expect(box?.x ?? -1, "an open help tip starts inside the viewport").toBeGreaterThanOrEqual(0);
+  }
+});
+
 test("the rule wizard buffers: Cancel discards, Save commits (Code Owner, 2026-08-30)", async ({
   page,
 }) => {
