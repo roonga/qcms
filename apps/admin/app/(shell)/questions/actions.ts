@@ -15,6 +15,7 @@ import {
   saveVersion,
 } from "@/lib/server/questions";
 import { requireAdminSession } from "@/lib/server/session";
+import { currentWorkspaceId } from "@/lib/server/workspace-context";
 
 /* Every action authenticates independently; returning state preserves unsaved edits when the API rejects a
    definition. */
@@ -62,7 +63,13 @@ export async function createQuestionAction(
   const slug = readText(formData, "slug").trim();
   if (definition === undefined) return MALFORMED;
 
-  const result = await createQuestion(session, slug, definition);
+  // Name the workspace the author is in: with more than one the API refuses to guess.
+  const result = await createQuestion(
+    session,
+    slug,
+    definition,
+    await currentWorkspaceId(session),
+  );
   if (!result.ok) {
     return {
       status: "error",

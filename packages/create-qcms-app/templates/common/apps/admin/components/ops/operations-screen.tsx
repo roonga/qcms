@@ -18,6 +18,7 @@ import { resolvedEnvironment } from "@/lib/server/environments";
 import { listOperationsForms } from "@/lib/server/operations";
 import { navigableCapabilities, shellAccess } from "@/lib/server/shell";
 import { requireAdminSession } from "@/lib/server/session";
+import { currentWorkspaceId } from "@/lib/server/workspace-context";
 import { permitsPath } from "@/lib/shell/modes";
 
 /** The heading this area keeps while its discovery read is in flight. */
@@ -43,14 +44,20 @@ export async function OperationsScreen({
     return <DeniedRecovery capabilities={capabilities} />;
   }
 
-  const resolved = await resolvedEnvironment(session);
+  const [resolved, workspaceId] = await Promise.all([
+    resolvedEnvironment(session),
+    currentWorkspaceId(session),
+  ]);
   const environment = shownEnvironment(resolved);
   const read = readOperationsListState(await searchParams);
   const state = environment === undefined ? read : operationsInEnvironment(read, environment);
   const result =
     environment === undefined
       ? undefined
-      : await listOperationsForms(session, operationsApiQuery(state, environment));
+      : await listOperationsForms(
+          session,
+          operationsApiQuery(state, environment, workspaceId),
+        );
 
   return (
     <div className="flex min-w-0 flex-col gap-6">

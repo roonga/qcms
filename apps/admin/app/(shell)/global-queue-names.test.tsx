@@ -18,6 +18,14 @@ const HELD = [{ formId: "frm_held", slug: "held-form" }];
 let formsResult: unknown = { ok: true, data: [] };
 const deadLetters = vi.hoisted((): { names: unknown } => ({ names: undefined }));
 
+vi.mock("@/lib/server/workspace-context", () => ({
+  currentWorkspaceId: () => Promise.resolve("org_default_workspace"),
+  currentWorkspaceContext: () =>
+    Promise.resolve({
+      choices: [{ workspaceId: "org_default_workspace", name: "Default workspace" }],
+      current: { workspaceId: "org_default_workspace", name: "Default workspace" },
+    }),
+}));
 vi.mock("@/lib/server/session", () => ({
   requireAdminSession: () => Promise.resolve(SESSION),
 }));

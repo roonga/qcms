@@ -195,7 +195,7 @@ button {
   grid-template-columns: auto minmax(0, 1fr) auto;
   grid-template-areas:
     "brand . tools"
-    "nav nav nav";
+    "workspace nav nav";
   grid-auto-rows: minmax(var(--admin-control-h), auto);
   align-items: center;
   column-gap: var(--space-2);
@@ -227,12 +227,105 @@ button {
 }
 @variant sidebar {
   .qcms-topbar__inner {
-    grid-template-columns: auto auto minmax(0, 1fr) auto;
-    grid-template-areas: "toggle brand nav tools";
+    grid-template-columns: auto auto auto minmax(0, 1fr) auto;
+    grid-template-areas: "toggle brand workspace nav tools";
     column-gap: var(--space-3);
   }
   .qcms-topbar__toggle {
     display: flex;
+  }
+}
+
+/* The current workspace, right after the wordmark: never a colour, which stays for environments. */
+.qcms-wsswitch {
+  grid-area: workspace;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  max-inline-size: 45%;
+}
+.qcms-wsswitch__sep {
+  display: none;
+  flex: none;
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+.qcms-wsswitch__divider {
+  flex: none;
+  inline-size: 1px;
+  block-size: 20px;
+  background-color: var(--color-border-strong);
+}
+.qcms-wsswitch__trigger {
+  min-block-size: var(--admin-control-h);
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-inline: var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.qcms-wsswitch__trigger:hover,
+.qcms-wsswitch__trigger[data-hovered],
+.qcms-wsswitch__trigger[aria-expanded="true"] {
+  background-color: var(--color-ghost-hover);
+}
+:root.hc .qcms-wsswitch__trigger {
+  border-width: 2px;
+}
+.qcms-wsswitch__glyph,
+.qcms-wsswitch__caret {
+  flex: none;
+  color: var(--color-text-muted);
+}
+.qcms-wsswitch__name {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* The menu writes each name in full, so a long one wraps rather than truncating twice. */
+.qcms-wsmenu {
+  min-inline-size: var(--trigger-width, 0);
+  max-inline-size: 22rem;
+}
+.qcms-wsmenu__item {
+  block-size: auto;
+  align-items: flex-start;
+}
+.qcms-wsmenu__row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  white-space: normal;
+}
+.qcms-wsmenu__check {
+  display: inline-flex;
+  flex: none;
+  inline-size: 16px;
+  block-size: 16px;
+  color: var(--color-primary);
+}
+@variant sidebar {
+  .qcms-wsswitch {
+    max-inline-size: none;
+  }
+  .qcms-wsswitch__sep {
+    display: inline;
+  }
+  .qcms-wsswitch__divider {
+    display: none;
+  }
+  .qcms-wsswitch__name {
+    max-inline-size: 15rem;
   }
 }
 

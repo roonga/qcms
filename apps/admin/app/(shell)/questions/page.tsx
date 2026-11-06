@@ -11,6 +11,7 @@ import { optionalProp } from "@/lib/questions/errors";
 import { readQuestionListFilters } from "@/lib/questions/list-filters";
 import { listQuestions } from "@/lib/server/questions";
 import { requireAdminSession } from "@/lib/server/session";
+import { currentWorkspaceId } from "@/lib/server/workspace-context";
 
 /* The API exposes no updated timestamp or pagination; show the actual created date rather than inventing
    either. */
@@ -30,6 +31,7 @@ export default async function QuestionsPage({
   const result = await listQuestions(session, {
     ...optionalProp("status", status),
     ...optionalProp("type", type),
+    ...optionalProp("workspaceId", await currentWorkspaceId(session)),
     search,
   });
 

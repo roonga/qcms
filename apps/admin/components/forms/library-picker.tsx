@@ -167,7 +167,14 @@ export function LibraryPicker({
                       <th scope="row">
                         <EntityId kind="question" value={row.questionId} />
                       </th>
-                      <td>{row.label}</td>
+                      <td>
+                        {row.label}
+                        {row.shared && (
+                          <span className="qcms-tag qcms-tag--draft" data-picker-shared="">
+                            {t("forms.picker.shared")}
+                          </span>
+                        )}
+                      </td>
                       <td className="qcms-cell--drop">{row.type}</td>
                       <td className="qcms-cell--num">
                         {t("forms.version.value", { version: row.version })}

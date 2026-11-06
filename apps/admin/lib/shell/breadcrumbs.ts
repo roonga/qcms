@@ -1,5 +1,6 @@
 import { t, type MessageKey } from "../i18n/en.ts";
 import {
+  ALL_WORKSPACES_SEGMENT,
   WORKSPACE_SECTION_LABELS,
   WORKSPACE_SECTIONS,
   workspaceHref,
@@ -94,6 +95,9 @@ function workspaces(rest: readonly string[], names: CrumbNames): Crumb[] {
   const area: Crumb = { label: t("nav.workspaces"), href: "/workspaces" };
   const [workspaceId, section] = rest;
   if (workspaceId === undefined) return [area];
+  if (workspaceId === ALL_WORKSPACES_SEGMENT) {
+    return [area, { label: t("membership.workspace.allWorkspaces") }];
+  }
   const id = decode(workspaceId);
   const workspace: Crumb = { label: names.workspace ?? id, href: workspaceHref(id) };
   if (section === undefined || !isWorkspaceSection(section)) return [area, workspace];

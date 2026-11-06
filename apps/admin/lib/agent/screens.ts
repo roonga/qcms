@@ -25,6 +25,7 @@ export const AGENT_SCREENS = [
   "/settings",
   "/webhooks",
   "/workspaces",
+  "/workspaces/all",
   "/workspaces/[workspaceId]/members",
   "/workspaces/[workspaceId]/access-groups",
   "/workspaces/[workspaceId]/settings",

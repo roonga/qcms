@@ -108,6 +108,12 @@ export const messages = {
 
   "nav.operations": "Operations",
 
+  "workspace.switcher.legend": "Workspace",
+  /** The trigger's own visible text has to appear in its name, in order and unbroken (WCAG 2.5.3). */
+  "workspace.switcher.trigger": "Workspace {name}",
+  /** Announce switches only; the first render already names the workspace. */
+  "workspace.switcher.nowIn": "Now in {name}.",
+
   "shell.mode.operations.name": "Operations",
   "shell.mode.operations.exit": "Exit Operations",
   "shell.mode.operations.exitText": "Exit",
@@ -158,7 +164,6 @@ export const messages = {
   "operations.empty.filtered": "No forms match these filters.",
   "operations.filter.search": "Search",
   "operations.filter.searchHint": "Matches a form's name or identifier.",
-  "operations.rail.more": "More",
   "operations.filter.intake": "Intake",
   "operations.filter.intakeAll": "Any intake",
   "operations.filter.sort": "Sort",
@@ -734,6 +739,8 @@ export const messages = {
   "forms.picker.column.type": "Type",
   "forms.picker.column.version": "Version",
   "forms.picker.column.state": "State",
+  /** A shared-library question is pinnable into any workspace's form but editable only where it lives. */
+  "forms.picker.shared": "Shared",
   "forms.picker.statePinnable": "Pinnable",
   "forms.picker.stateDeprecated": "Deprecated",
   "forms.picker.statePinned": "Already in this form",
@@ -1543,6 +1550,7 @@ export const messages = {
   "agent.context.settings": "Workspace settings",
   "agent.context.webhooks": "Endpoints and delivery state, no payloads",
   "agent.context.workspaces": "Workspaces you can read",
+  "agent.context.workspaces.all": "Every workspace you can open",
   "agent.context.workspace.members": "Workspace {subject}: members",
   "agent.context.workspace.accessGroups": "Workspace {subject}: access groups",
   "agent.context.workspace.settings": "Workspace {subject}: settings",
@@ -2278,6 +2286,11 @@ export const messages = {
   "membership.area.loadFailed": "The workspaces could not be read: {message}",
   "membership.workspace.notFound": "No such workspace, or you do not manage it.",
   "membership.workspace.allWorkspaces": "All workspaces",
+  "membership.allWorkspaces.table": "Every workspace you can open, by name",
+  "membership.allWorkspaces.column.name": "Workspace",
+  "membership.allWorkspaces.column.forms": "Forms",
+  "membership.allWorkspaces.column.questions": "Questions",
+  "membership.allWorkspaces.archived": "Archived",
   "membership.workspace.context": "Workspace: {name}",
 
   /** Plain role names, each with one line on what it allows; the wire id never reaches the screen. */

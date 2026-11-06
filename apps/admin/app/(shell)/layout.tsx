@@ -13,6 +13,7 @@ import { EnvironmentScope } from "@/components/environment-scope";
 import { EnvironmentSwitcher } from "@/components/environment-switcher";
 import { MeasuredMain } from "@/components/measured-main";
 import { ShellChrome } from "@/components/shell/shell-chrome";
+import { WorkspaceSwitcher } from "@/components/shell/workspace-switcher";
 import { RailToggle, SidebarProvider } from "@/components/sidebar-toggle";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { TopbarHeight } from "@/components/topbar-height";
@@ -22,6 +23,8 @@ import { resolvedEnvironment } from "@/lib/server/environments";
 import { t } from "@/lib/i18n/en";
 import { navigableCapabilities, rememberedMode, shellAccess } from "@/lib/server/shell";
 import { requireAdminSession } from "@/lib/server/session";
+import { currentWorkspaceContext } from "@/lib/server/workspace-context";
+import { offersWorkspaceChoice } from "@/lib/shell/workspace-context";
 import { PANEL_COOKIE, parsePanelState, type PanelState } from "@/lib/agent/panel";
 import { agentAuthoringEnabled } from "@/lib/server/agent";
 import { SIDEBAR_COOKIE, parseSidebarSetting } from "@/lib/sidebar";
@@ -42,7 +45,11 @@ export default async function ShellLayout({
   const accessPromise = shellAccess(session);
   // Resolve selection once for chrome and API headers. A failed environment read stays unknown and disables
   // environment-sensitive actions.
-  const [access, resolved] = await Promise.all([accessPromise, resolvedEnvironment(session)]);
+  const [access, resolved, workspaces] = await Promise.all([
+    accessPromise,
+    resolvedEnvironment(session),
+    currentWorkspaceContext(session),
+  ]);
   const capabilities = navigableCapabilities(access);
   const sidebar = parseSidebarSetting(cookieStore.get(SIDEBAR_COOKIE)?.value);
   const assistant = agentAuthoringEnabled();
@@ -68,6 +75,13 @@ export default async function ShellLayout({
                 <RailToggle />
               </div>
               <span className="qcms-wordmark">{t("app.title")}</span>
+              {offersWorkspaceChoice(workspaces) && workspaces.current !== undefined && (
+                <WorkspaceSwitcher
+                  choices={workspaces.choices}
+                  current={workspaces.current}
+                  secureCookies={secureCookies()}
+                />
+              )}
               <ShellChrome
                 capabilities={capabilities}
                 rememberedMode={rememberedMode(cookieStore)}

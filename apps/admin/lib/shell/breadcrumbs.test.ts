@@ -12,6 +12,9 @@ function labels(trail: readonly Crumb[]): string[] {
   return trail.map((crumb) => crumb.label);
 }
 
+/** The top bar's Operations group names that area, so its own roots carry no crumb of their own. */
+const NO_TRAIL: readonly string[] = ["/operations", "/responses"];
+
 describe("the breadcrumb", () => {
   it("reads area, then section, then item, and links every crumb but the page itself", () => {
     const trail = breadcrumbTrail("/operations/forms/frm_a/responses/ses_1", { form: "Quote" });
@@ -62,7 +65,7 @@ describe("the breadcrumb", () => {
     ]);
   });
 
-  it("has a trail for every screen in the shell", () => {
+  it("has a trail for every screen in the shell but the roots the top bar names", () => {
     const pages = trackedFilesUnder(SHELL, { match: /(?:^|\/)page\.tsx$/u }).filter(
       (file: string) => !file.startsWith("@rail/"),
     );
@@ -71,8 +74,11 @@ describe("the breadcrumb", () => {
       const address = page
         .replace(/(?:^|\/)page\.tsx$/u, "")
         .replace(/^/u, "/")
-        .replace(/\[([A-Za-z]+)\]/gu, "x_$1");
-      expect(breadcrumbTrail(address).length, address).toBeGreaterThan(0);
+        .replace(/\[([A-Za-z]+)\]/gu, "x_$1")
+        .replace(/(?<=.)\/$/u, "");
+      const trail = breadcrumbTrail(address);
+      if (NO_TRAIL.includes(address)) expect(trail, address).toEqual([]);
+      else expect(trail.length, address).toBeGreaterThan(0);
     }
   });
 });

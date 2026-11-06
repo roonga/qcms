@@ -1,12 +1,9 @@
-import Link from "next/link";
-
-import { WorkspaceSummary } from "@/components/membership/workspace-summary";
-import { RailFrame } from "@/components/rail-frame";
+import { RailFrame, RailTree } from "@/components/rail-frame";
 import { t } from "@/lib/i18n/en";
 import {
+  ALL_WORKSPACES_PATH,
   WORKSPACE_SECTION_LABELS,
   WORKSPACE_SECTIONS,
-  workspaceHref,
   workspaceSectionHref,
   type WorkspaceSection,
 } from "@/lib/membership/sections";
@@ -16,87 +13,37 @@ export interface WorkspaceRailRow {
   readonly name: string;
 }
 
-function current(on: boolean) {
-  return on ? { "aria-current": "page" as const } : {};
-}
-
 /**
- * The Workspaces area rail. A lone workspace is always expanded; several form an accordion with
- * the current one (or the first, on the list) open. Two levels at most and no back link.
+ * The Workspaces area rail: the current workspace's sections, with the way back to the
+ * full list. The switcher in the top bar is the only chooser, so no workspace is named here.
  */
 export function WorkspacesRail({
-  workspaces,
-  selected,
+  workspace,
+  section,
 }: {
-  readonly workspaces: readonly WorkspaceRailRow[];
-  readonly selected?: { readonly workspaceId: string; readonly section: WorkspaceSection };
+  readonly workspace?: WorkspaceRailRow;
+  readonly section?: WorkspaceSection;
 }) {
-  const selectedName = workspaces.find(
-    (workspace) => workspace.workspaceId === selected?.workspaceId,
-  )?.name;
-  const openWorkspaceId = selected?.workspaceId ?? workspaces[0]?.workspaceId;
   return (
     <RailFrame
       subject={t("membership.area.title")}
       testId="qcms-workspaces-rail"
-      {...(selectedName === undefined ? {} : { crumbs: { workspace: selectedName } })}
-      sections={
-        <ul className="qcms-rail__group" data-rail-group="sections">
-          {workspaces.map((workspace) => {
-            const open = workspace.workspaceId === openWorkspaceId;
-            const sections = (
-              <ul className="qcms-rail__group pl-3" data-rail-group="workspace-sections">
-                {WORKSPACE_SECTIONS.map((section) => (
-                  <li key={section}>
-                    <Link
-                      href={workspaceSectionHref(workspace.workspaceId, section)}
-                      className="qcms-rail__link"
-                      data-rail-item={`section:${section}`}
-                      {...current(
-                        selected?.workspaceId === workspace.workspaceId &&
-                          selected.section === section,
-                      )}
-                    >
-                      {t(WORKSPACE_SECTION_LABELS[section])}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            );
-            return (
-              <li key={workspace.workspaceId}>
-                {workspaces.length === 1 ? (
-                  <>
-                    <Link
-                      href={workspaceHref(workspace.workspaceId)}
-                      className="qcms-rail__link"
-                      data-rail-item={`workspace:${workspace.workspaceId}`}
-                      aria-expanded
-                    >
-                      {workspace.name}
-                    </Link>
-                    {sections}
-                  </>
-                ) : (
-                  <details
-                    name="qcms-workspaces-accordion"
-                    className="qcms-rail__accordion"
-                    open={open}
-                  >
-                    <WorkspaceSummary
-                      href={workspaceHref(workspace.workspaceId)}
-                      railItem={`workspace:${workspace.workspaceId}`}
-                    >
-                      {workspace.name}
-                    </WorkspaceSummary>
-                    {sections}
-                  </details>
-                )}
-              </li>
-            );
+      context={{ href: ALL_WORKSPACES_PATH, label: t("membership.workspace.allWorkspaces") }}
+      {...(workspace === undefined ? {} : { crumbs: { workspace: workspace.name } })}
+      {...(workspace === undefined
+        ? {}
+        : {
+            sections: (
+              <RailTree
+                items={WORKSPACE_SECTIONS.map((entry) => ({
+                  key: `section:${entry}`,
+                  href: workspaceSectionHref(workspace.workspaceId, entry),
+                  label: t(WORKSPACE_SECTION_LABELS[entry]),
+                  current: entry === section,
+                }))}
+              />
+            ),
           })}
-        </ul>
-      }
     />
   );
 }

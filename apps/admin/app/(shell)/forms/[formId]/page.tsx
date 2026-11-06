@@ -17,6 +17,7 @@ import { agentAuthoringEnabled } from "@/lib/server/agent";
 import { resolvedEnvironment } from "@/lib/server/environments";
 import { getForm, loadPinnableQuestions } from "@/lib/server/forms";
 import { requireAdminSession } from "@/lib/server/session";
+import { currentWorkspaceId } from "@/lib/server/workspace-context";
 
 import { saveDraftAction, updateSettingsAction, validateDraftAction } from "../actions";
 
@@ -61,7 +62,7 @@ export default async function FormBuilderPage({
 
   const [detail, library, resolved] = await Promise.all([
     getForm(session, formId),
-    loadPinnableQuestions(session),
+    loadPinnableQuestions(session, await currentWorkspaceId(session)),
     resolvedEnvironment(session),
   ]);
   const shown = shownEnvironment(resolved);

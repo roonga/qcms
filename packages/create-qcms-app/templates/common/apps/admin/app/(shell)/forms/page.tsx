@@ -10,6 +10,7 @@ import { pageMetadata } from "@/lib/page-title";
 import { optionalProp } from "@/lib/questions/errors";
 import { listForms } from "@/lib/server/forms";
 import { requireAdminSession } from "@/lib/server/session";
+import { currentWorkspaceId } from "@/lib/server/workspace-context";
 
 import { FormsTable } from "./forms-table";
 
@@ -27,6 +28,7 @@ export default async function FormsPage({
 
   const result = await listForms(session, {
     ...optionalProp("status", status),
+    ...optionalProp("workspaceId", await currentWorkspaceId(session)),
     search,
     sort,
   });

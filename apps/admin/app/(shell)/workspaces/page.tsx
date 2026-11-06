@@ -9,6 +9,7 @@ import { pageMetadata } from "@/lib/page-title";
 import { listWorkspaces } from "@/lib/server/membership";
 import { navigableCapabilities, shellAccess } from "@/lib/server/shell";
 import { requireAdminSession } from "@/lib/server/session";
+import { currentWorkspaceId } from "@/lib/server/workspace-context";
 import { permitsPath, WORKSPACES_PATH } from "@/lib/shell/modes";
 
 export function generateMetadata(): Metadata {
@@ -21,12 +22,11 @@ export default async function WorkspacesPage() {
   if (!permitsPath(capabilities, WORKSPACES_PATH)) {
     return <DeniedRecovery capabilities={capabilities} />;
   }
+  // The remembered workspace, or the first permitted one by name: a fresh browser has to
+  // land somewhere, and the area's own list is a separate address.
+  const landing = await currentWorkspaceId(session);
+  if (landing !== undefined) redirect(workspaceHref(landing));
   const workspaces = await listWorkspaces(session);
-  if (workspaces.ok) {
-    const landing =
-      workspaces.data.find((workspace) => workspace.slug === "default") ?? workspaces.data[0];
-    if (landing !== undefined) redirect(workspaceHref(landing.workspaceId));
-  }
 
   return (
     <div className="flex min-w-0 flex-col gap-8">

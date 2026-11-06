@@ -30,6 +30,7 @@ const QUESTIONS: readonly QuestionListItem[] = [
   {
     questionId: "q_alpha",
     slug: "alpha",
+    workspaceId: "org_default_workspace",
     createdAt: "2026-08-01T10:00:00.000Z",
     latestVersion: 3,
     latestStatus: "published",

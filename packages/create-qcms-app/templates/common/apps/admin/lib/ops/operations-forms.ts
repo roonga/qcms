@@ -62,7 +62,6 @@ export interface OperationsFormsPage {
 export interface OperationsListState {
   readonly environment: string | undefined;
   readonly search: string;
-  readonly workspaceId: string | undefined;
   readonly intake: OperationsIntake | undefined;
   readonly sort: OperationsSort;
   readonly cursor: string | undefined;
@@ -95,16 +94,11 @@ export function readOperationsListState(
   params: Readonly<Record<string, SearchParam>>,
 ): OperationsListState {
   const search = firstValue(params["q"]) ?? "";
-  const workspaceId = presentValue(params["workspace"]);
   const intake = parseIntake(params["intake"]);
-  const activeCount =
-    (search.trim() === "" ? 0 : 1) +
-    (workspaceId === undefined ? 0 : 1) +
-    (intake === undefined ? 0 : 1);
+  const activeCount = (search.trim() === "" ? 0 : 1) + (intake === undefined ? 0 : 1);
   return {
     environment: presentValue(params["env"]),
     search,
-    workspaceId,
     intake,
     sort: parseSort(params["sort"]),
     cursor: presentValue(params["cursor"]),
@@ -130,39 +124,35 @@ export function operationsHref(
   return href([
     ["env", state.environment],
     ["q", state.search.trim() === "" ? undefined : state.search],
-    ["workspace", state.workspaceId],
     ["intake", state.intake],
     ["sort", state.sort === DEFAULT_OPERATIONS_SORT ? undefined : state.sort],
     ["cursor", cursor],
   ]);
 }
 
-/** An environment switch resets cursor and workspace filter because those workspace choices belong to one environment. */
+/** An environment switch resets the page position: a cursor cut in one environment names no row in another. */
 export function operationsInEnvironment(
   state: OperationsListState,
   environment: string,
 ): OperationsListState {
   if (state.environment === environment) return state;
-  const activeCount = (state.search.trim() === "" ? 0 : 1) + (state.intake === undefined ? 0 : 1);
-  return {
-    ...state,
-    environment,
-    workspaceId: undefined,
-    cursor: undefined,
-    isFiltered: activeCount > 0,
-    activeCount,
-  };
+  return { ...state, environment, cursor: undefined };
 }
 
 export function operationsClearHref(state: OperationsListState): string {
   return href([["env", state.environment]]);
 }
 
-export function operationsApiQuery(state: OperationsListState, environment: string): string {
+/** `workspaceId` is the current workspace, not a filter: Operations reads the one the shell is in. */
+export function operationsApiQuery(
+  state: OperationsListState,
+  environment: string,
+  workspaceId: string | undefined,
+): string {
   const query = new URLSearchParams({ environment });
   const term = state.search.trim();
   if (term !== "") query.set("q", term);
-  if (state.workspaceId !== undefined) query.set("workspaceId", state.workspaceId);
+  if (workspaceId !== undefined) query.set("workspaceId", workspaceId);
   if (state.intake !== undefined) query.set("intake", state.intake);
   query.set("sort", state.sort);
   if (state.cursor !== undefined) query.set("cursor", state.cursor);

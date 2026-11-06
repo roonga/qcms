@@ -34,6 +34,14 @@ const FORM_ROW = {
   publishedAt: "2026-02-01T00:00:00.000Z",
 };
 
+vi.mock("@/lib/server/workspace-context", () => ({
+  currentWorkspaceId: () => Promise.resolve("org_default_workspace"),
+  currentWorkspaceContext: () =>
+    Promise.resolve({
+      choices: [{ workspaceId: "org_default_workspace", name: "Default workspace" }],
+      current: { workspaceId: "org_default_workspace", name: "Default workspace" },
+    }),
+}));
 vi.mock("@/lib/server/session", () => ({
   requireAdminSession: () => Promise.resolve(SESSION),
 }));

@@ -43,10 +43,13 @@ export async function listForms(
     readonly status?: FormStatus;
     readonly search?: string;
     readonly sort?: FormSort;
+    /** The current workspace: a form never belongs to two, so one list never spans two. */
+    readonly workspaceId?: string;
   } = {},
 ): Promise<ApiResult<readonly FormListItem[]>> {
   const query = new URLSearchParams();
   if (filters.status !== undefined) query.set("status", filters.status);
+  if (filters.workspaceId !== undefined) query.set("workspaceId", filters.workspaceId);
   if (filters.search !== undefined && filters.search.trim() !== "") {
     query.set("search", filters.search.trim());
   }
@@ -59,10 +62,13 @@ export async function listForms(
 }
 
 /** Use a separate unfiltered reader because React cache keys filter objects by identity. Page and rail share this request-only read. */
-export const listAllForms: (session: AdminSession) => Promise<ApiResult<readonly FormListItem[]>> =
-  cache(async (session: AdminSession): Promise<ApiResult<readonly FormListItem[]>> =>
-    listForms(session),
-  );
+export const listAllForms: (
+  session: AdminSession,
+  workspaceId?: string,
+) => Promise<ApiResult<readonly FormListItem[]>> = cache(
+  async (session: AdminSession, workspaceId?: string): Promise<ApiResult<readonly FormListItem[]>> =>
+    listForms(session, workspaceId === undefined ? {} : { workspaceId }),
+);
 
 export async function createForm(
   session: AdminSession,
@@ -434,12 +440,24 @@ export async function setFormStatus(
   };
 }
 
-/** Ask for versions=all in one read: a newer draft must not hide an older published, pinnable version. Drop unreadable entries rather than failing a usable library. */
+/**
+ * Ask for versions=all in one read: a newer draft must not hide an older published,
+ * pinnable version. Drop unreadable entries rather than failing a usable library.
+ *
+ * Scoped to the form's own workspace plus the shared library, which is exactly what may
+ * be pinned here (ADR-41); the API re-decides every pin at save and publish.
+ */
 export async function loadPinnableQuestions(
   session: AdminSession,
+  workspaceId?: string,
 ): Promise<ApiResult<readonly PinnableQuestion[]>> {
+  const query = new URLSearchParams({ versions: "all" });
+  if (workspaceId !== undefined) {
+    query.set("workspaceId", workspaceId);
+    query.set("shared", "include");
+  }
   const list = await read<{ questions: QuestionListItem[] }>(
-    await adminApiFetch(session, "/questions?versions=all"),
+    await adminApiFetch(session, `/questions?${query.toString()}`),
   );
   if (!list.ok) return list;
 
@@ -450,6 +468,7 @@ export async function loadPinnableQuestions(
     pinnable.push({
       questionId: question.questionId,
       slug: question.slug,
+      shared: workspaceId !== undefined && question.workspaceId !== workspaceId,
       label: question.label,
       type: question.type,
       versions: versions.map((version) => ({

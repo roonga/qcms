@@ -30,6 +30,14 @@ const listForms = vi.fn((_session: unknown, filters?: unknown) => {
   return Promise.resolve(formsResult);
 });
 
+vi.mock("@/lib/server/workspace-context", () => ({
+  currentWorkspaceId: () => Promise.resolve("org_default_workspace"),
+  currentWorkspaceContext: () =>
+    Promise.resolve({
+      choices: [{ workspaceId: "org_default_workspace", name: "Default workspace" }],
+      current: { workspaceId: "org_default_workspace", name: "Default workspace" },
+    }),
+}));
 vi.mock("@/lib/server/session", () => ({
   requireAdminSession: () => Promise.resolve(SESSION),
 }));
@@ -75,13 +83,22 @@ describe("the form library sends its filters to the API rather than applying the
   it("passes the search term, the status filter and the sort key straight through", async () => {
     await renderForms({ q: "vehicle", status: "closed", sort: "published-desc" });
 
-    expect(askedFor()).toEqual({ search: "vehicle", status: "closed", sort: "published-desc" });
+    expect(askedFor()).toEqual({
+      search: "vehicle",
+      status: "closed",
+      sort: "published-desc",
+      workspaceId: "org_default_workspace",
+    });
   });
 
   it("asks for the default order and no status when the URL names neither", async () => {
     await renderForms({});
 
-    expect(askedFor()).toEqual({ search: "", sort: "slug-asc" });
+    expect(askedFor()).toEqual({
+      search: "",
+      sort: "slug-asc",
+      workspaceId: "org_default_workspace",
+    });
   });
 
   it("asks for the default order when the URL names one the API does not offer", async () => {
@@ -142,8 +159,8 @@ describe("the rail's Filters part is a native GET form whose values come back fr
     expect(await renderRail({ status: "open" })).toContain("rail.filters.clear");
   });
 
-  it("carries the creating action, and the content column keeps its own", async () => {
-    expect(await renderRail({})).toContain('href="/forms/new"');
+  it("leaves the creating action to the content column's heading row", async () => {
+    expect(await renderRail({})).not.toContain('href="/forms/new"');
     expect(await renderForms({})).toContain('href="/forms/new"');
   });
 });

@@ -70,22 +70,33 @@ describe("an area's rail", () => {
     expect(summary.closest("summary")?.className).toContain("qcms-rail__summary--area");
   });
 
-  it("draws the Workspaces tree with no back link and no title", () => {
+  it("draws the current workspace's sections, named nowhere but the switcher", () => {
     render(
-      <WorkspacesRail
-        workspaces={[
-          { workspaceId: "org_a", name: "Alpha" },
-          { workspaceId: "org_b", name: "Beta" },
-        ]}
-        selected={{ workspaceId: "org_a", section: "audit" }}
-      />,
+      <WorkspacesRail workspace={{ workspaceId: "org_a", name: "Alpha" }} section="audit" />,
     );
     const rail = screen.getByTestId("qcms-workspaces-rail");
-    expect(rail.querySelector(".qcms-rail__back")).toBeNull();
     expect(screen.getByTestId("qcms-rail-label").textContent).toBe("Menu");
-    const open = rail.querySelectorAll(".qcms-rail__accordion[open] > summary");
-    expect(Array.from(open).map((summary) => summary.textContent)).toEqual(["Alpha"]);
-    expect(rail.querySelectorAll(".qcms-rail__accordion")).toHaveLength(2);
+    expect(rail.querySelectorAll(".qcms-rail__accordion")).toHaveLength(0);
+    expect(rail.textContent).not.toContain("Alpha");
     expect(within(rail).getByRole("link", { current: "page" }).textContent).toBe("Access audit");
+    expect(
+      within(rail)
+        .getAllByRole("link")
+        .map((link) => link.getAttribute("data-rail-item")),
+    ).toEqual([
+      null,
+      "section:members",
+      "section:access-groups",
+      "section:settings",
+      "section:audit",
+      "section:assistant-actions",
+    ]);
+  });
+
+  it("offers the way back to the full list", () => {
+    render(<WorkspacesRail workspace={{ workspaceId: "org_a", name: "Alpha" }} />);
+    const back = screen.getByTestId("qcms-rail-context");
+    expect(back.getAttribute("href")).toBe("/workspaces/all");
+    expect(back.textContent).toContain("All workspaces");
   });
 });

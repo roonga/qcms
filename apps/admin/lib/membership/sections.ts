@@ -2,6 +2,11 @@ import type { MessageKey } from "../i18n/en.ts";
 
 export const WORKSPACES_ROOT = "/workspaces";
 
+/** The full list. Its own address because the area's root lands on the current workspace. */
+export const ALL_WORKSPACES_PATH = `${WORKSPACES_ROOT}/all`;
+
+export const ALL_WORKSPACES_SEGMENT = "all";
+
 /** Each section of one workspace is its own screen, in the rail's order; the first is where the workspace's own address lands. */
 export const WORKSPACE_SECTIONS = [
   "members",
