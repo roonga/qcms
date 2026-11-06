@@ -130,8 +130,6 @@ export const messages = {
   "shell.denied.recover": "Go to an area you can use",
   "shell.denied.myAccess": "See what you can access",
 
-  "operations.intro": "The forms you can operate, and the installation's delivery queues.",
-
   /** Missing grants and missing data must remain indistinguishable in table cells. */
   "operations.count.one": "1 form",
   "operations.count.other": "{count} forms",

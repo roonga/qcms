@@ -24,12 +24,7 @@ import { permitsPath } from "@/lib/shell/modes";
 export function OperationsLoading() {
   return (
     <div className="flex min-w-0 flex-col gap-6" data-testid="qcms-operations-loading">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-xl font-semibold text-(--color-text)">
-          {t("shell.mode.operations.name")}
-        </h1>
-        <p className="text-sm text-(--color-text-muted)">{t("operations.intro")}</p>
-      </div>
+      <h1 className="sr-only">{t("shell.mode.operations.name")}</h1>
       <p className="text-sm text-(--color-text-muted)" role="status">
         {t("operations.loading")}
       </p>
@@ -59,12 +54,7 @@ export async function OperationsScreen({
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-xl font-semibold text-(--color-text)">
-          {t("shell.mode.operations.name")}
-        </h1>
-        <p className="text-sm text-(--color-text-muted)">{t("operations.intro")}</p>
-      </div>
+      <h1 className="sr-only">{t("shell.mode.operations.name")}</h1>
 
       {environment === undefined && (
         <Alert variant="warning">{t("operations.environmentUnknown")}</Alert>
