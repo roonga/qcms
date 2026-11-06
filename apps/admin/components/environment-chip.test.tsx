@@ -65,7 +65,6 @@ describe("the environment dropdown", () => {
   it("labels the slot and offers the change on the trigger", () => {
     const { control } = chip("prod");
     expect(control.textContent).toContain(t("environment.legend"));
-    expect(control.textContent).toContain(t("environment.change"));
     const trigger = screen.getByRole("button");
     expect(trigger.getAttribute("aria-haspopup")).not.toBeNull();
     expect(trigger.getAttribute("aria-expanded")).toBe("false");

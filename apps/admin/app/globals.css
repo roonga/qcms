@@ -3097,9 +3097,6 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   font-size: 14px;
   cursor: pointer;
 }
-.qcms-envtrigger__change {
-  display: none;
-}
 .qcms-envtrigger__caret {
   flex-shrink: 0;
 }
@@ -3151,8 +3148,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
 }
 /* The slot reserves one width in every area, so the label and the word only appear where they fit. */
 @variant sidebar {
-  .qcms-envswitch__label,
-  .qcms-envtrigger__change {
+  .qcms-envswitch__label {
     display: inline-flex;
   }
   .qcms-envswitch .qcms-envchip {

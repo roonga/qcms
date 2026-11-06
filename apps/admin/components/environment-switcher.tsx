@@ -64,9 +64,6 @@ export function EnvironmentSwitcher({
         trigger={
           <>
             <EnvironmentChip environment={current} />
-            {/* Separate the two pieces of text, so the trigger's name can hold them both as written
-                (WCAG 2.5.3). A whitespace node is no flex item, so the gap still sets the spacing. */}{" "}
-            <span className="qcms-envtrigger__change">{t("environment.change")}</span>
             <svg
               className="qcms-envtrigger__caret"
               width="16"

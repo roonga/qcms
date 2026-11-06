@@ -76,8 +76,7 @@ export const messages = {
   /** Environment names are API data, never a closed catalog vocabulary. */
   "environment.legend": "Environment",
   /** The trigger's own visible text has to appear in its name, in order and unbroken (WCAG 2.5.3). */
-  "environment.trigger": "Environment {environment} Change",
-  "environment.change": "Change",
+  "environment.trigger": "Environment {environment}",
   "environment.selected": "Selected",
   /** Say what a choice reaches, so switching does not read as a filter on the list below. */
   "environment.appliesTo": "Applies to every Operations screen. Lists return to page 1.",
