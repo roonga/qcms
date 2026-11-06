@@ -186,7 +186,6 @@ export const messages = {
   "operations.queue.erasureLog": "Erasure log",
 
   "access.title": "My access",
-  "access.intro": "What this account holds, and who to ask for more.",
   "access.none":
     "You hold no form, question, response or workspace grant yet. Ask an owner of the " +
     "workspace you need to add you to one of its access groups.",
@@ -257,7 +256,6 @@ export const messages = {
 
   /** Confirmations teach immutable versions and permanent IDs; refusal copy names the rule and remedy without blaming the author. */
   "questions.title": "Questions",
-  "questions.intro": "The governed library. Every version is published, never overwritten.",
   "questions.new": "New question",
 
   "questions.filter.search": "Search",
@@ -502,7 +500,6 @@ export const messages = {
 
   /** Copy must teach manual frozen pins, forward-only targets, set equality versus containment, and deployment-dependent challenges; none may imply protection or upgrades the API does not provide. */
   "forms.title": "Forms",
-  "forms.intro": "Compose published questions into steps, and branch between them with rules.",
   "forms.new": "New form",
 
   "forms.table.label": "Form library",
@@ -1884,9 +1881,6 @@ export const messages = {
 
   "ops.area.webhooks.title": "Delivery failures",
 
-  "ops.area.webhooks.intro":
-    "The dead-letter queue below covers every form. Endpoints are configured per form, on that form's Webhooks screen - open one from the Operations forms table.",
-
   "ops.area.webhooks.filter.form": "Form",
   "ops.area.webhooks.filter.formAll": "Any form",
 
@@ -2065,8 +2059,6 @@ export const messages = {
   "ops.erase.reason.unknown": "Recorded as {reason}",
 
   "ops.erasures.title": "Erasure log",
-  "ops.erasures.intro":
-    "Every erasure, newest first. A row is the evidence that a session existed and was erased; it holds no answers.",
   "ops.erasures.table": "Erasure tombstones",
   "ops.erasures.column.sessionId": "Session",
   "ops.erasures.column.formId": "Form",
@@ -2294,8 +2286,6 @@ export const messages = {
 
   /** Test response grants are grants on personal data, including real respondents. Access-group names are labels; role and scope fields alone authorize. */
   "membership.area.title": "Workspaces",
-  "membership.area.intro":
-    "A workspace owns forms and questions, and its membership is what authorises work on them. A grant is a role and its scope, and a person holds as many grants as their job needs.",
   "membership.area.noWorkspaces":
     "You manage no workspace. Your own grants are on the access panel below.",
   "membership.area.loadFailed": "The workspaces could not be read: {message}",

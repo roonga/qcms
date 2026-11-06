@@ -2400,6 +2400,10 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
 :root.hc .qcms-rail__filters {
   border-color: var(--color-border-strong);
 }
+.qcms-rail__filters:first-child {
+  margin-block-start: 0;
+  border-block-start: 0;
+}
 .qcms-rail__filters-title {
   display: flex;
   align-items: center;

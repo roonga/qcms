@@ -25,8 +25,7 @@ export default async function ErasureLogPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h1 className="text-xl font-semibold text-(--color-text)">{t("ops.erasures.title")}</h1>
-        <p className="text-sm text-(--color-text-muted)">{t("ops.erasures.intro")}</p>
+        <h1 className="sr-only">{t("ops.erasures.title")}</h1>
       </div>
 
       {!erasures.ok && (

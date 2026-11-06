@@ -22,9 +22,7 @@ export default async function NewQuestionPage() {
       <div className="flex flex-col gap-1">
         <div className="qcms-question-head">
           <div className="qcms-question-head__id">
-            <h1 className="text-xl font-semibold text-(--color-text)">
-              {t("questions.create.title")}
-            </h1>
+            <h1 className="sr-only">{t("questions.create.title")}</h1>
           </div>
           <QuestionSave mode="create" />
         </div>

@@ -1,11 +1,10 @@
 import { Select, TextField } from "@/components/kit";
 import { activeFilterCount, RailFilters } from "@/components/rail-filters";
-import { RailCount, RailFrame, RailTree } from "@/components/rail-frame";
+import { RailCount, RailFrame } from "@/components/rail-frame";
 import type { FormListFilters } from "@/lib/forms/list-filters";
 import { FORM_SORTS } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
 import { LIBRARY_SEARCH_MAX_LENGTH } from "@/lib/library-search";
-import { formsRailItems } from "@/lib/shell/area-rails";
 
 export function FormsListRail({ filters }: { readonly filters: FormListFilters }) {
   const { status, sort, search, activeCount } = filters;
@@ -14,7 +13,6 @@ export function FormsListRail({ filters }: { readonly filters: FormListFilters }
     <RailFrame
       subject={t("forms.title")}
       testId="qcms-forms-rail"
-      sections={<RailTree items={formsRailItems("all")} />}
       {...(activeCount > 0
         ? { count: <RailCount>{activeFilterCount(activeCount)}</RailCount> }
         : {})}
