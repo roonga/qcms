@@ -45,10 +45,7 @@ export default async function WebhooksPage({
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-col gap-1">
-        <h1 className="text-xl font-semibold text-(--color-text)">
-          {t("ops.area.webhooks.title")}
-        </h1>
-        <p className="text-sm text-(--color-text-muted)">{t("ops.area.webhooks.intro")}</p>
+        <h1 className="sr-only">{t("ops.area.webhooks.title")}</h1>
       </div>
 
       {!deadLetters.ok && (

@@ -2,6 +2,7 @@
 
 import { useId, useState, type ReactNode } from "react";
 
+import { FieldHelp } from "@/components/help-tip";
 import { Alert, Checkbox, TextField } from "@/components/kit";
 import { countTargets, filterTargets, targetGroups } from "@/lib/forms/rule-targets";
 import type { TargetStepGroup } from "@/lib/forms/rule-targets";
@@ -59,12 +60,13 @@ export function RuleTargets({
             </p>
 
             <div className="qcms-targets__filter">
-              <TextField
-                label={t("forms.rule.targetsFilter")}
-                description={t("forms.rule.targetsFilterHint")}
-                value={query}
-                onChange={setQuery}
-              />
+              <FieldHelp help={t("forms.rule.targetsFilterHint")}>
+                <TextField
+                  label={t("forms.rule.targetsFilter")}
+                  value={query}
+                  onChange={setQuery}
+                />
+              </FieldHelp>
               <p
                 aria-live="polite"
                 className="text-sm text-(--color-text-muted)"

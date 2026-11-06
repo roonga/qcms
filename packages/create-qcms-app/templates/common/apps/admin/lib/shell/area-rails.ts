@@ -8,48 +8,12 @@ export interface AreaRailItem {
   readonly current: boolean;
 }
 
-export type QuestionsRailCurrent = "all" | "new";
-export type FormsRailCurrent = "all" | "new";
 export type OperationsRailCurrent = "forms" | "delivery-failures" | "erasure-log";
 
 export const OPERATIONS_QUEUE_PATHS = {
   "delivery-failures": "/webhooks",
   "erasure-log": "/responses/erasures",
 } as const;
-
-export function questionsRailItems(current: QuestionsRailCurrent): readonly AreaRailItem[] {
-  return [
-    {
-      key: "section:all-questions",
-      href: "/questions",
-      label: t("rail.allQuestions"),
-      current: current === "all",
-    },
-    {
-      key: "section:new-question",
-      href: "/questions/new",
-      label: t("questions.create.title"),
-      current: current === "new",
-    },
-  ];
-}
-
-export function formsRailItems(current: FormsRailCurrent): readonly AreaRailItem[] {
-  return [
-    {
-      key: "section:all-forms",
-      href: "/forms",
-      label: t("rail.allForms"),
-      current: current === "all",
-    },
-    {
-      key: "section:new-form",
-      href: "/forms/new",
-      label: t("forms.create.title"),
-      current: current === "new",
-    },
-  ];
-}
 
 /**
  * The Operations area's tree. The installation-wide queues show only to a caller who may

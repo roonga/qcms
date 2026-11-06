@@ -110,7 +110,6 @@ export function SecureLinks({
         <h2 id="qcms-links-heading" className="text-lg font-semibold text-(--color-text)">
           {t("forms.links.heading")}
         </h2>
-        <p className="text-sm text-(--color-text-muted)">{t("forms.links.intro")}</p>
       </div>
 
       {canMint ? (

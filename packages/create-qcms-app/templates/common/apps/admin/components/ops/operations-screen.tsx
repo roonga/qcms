@@ -28,7 +28,6 @@ export function OperationsLoading() {
         <h1 className="text-xl font-semibold text-(--color-text)">
           {t("shell.mode.operations.name")}
         </h1>
-        <p className="text-sm text-(--color-text-muted)">{t("operations.intro")}</p>
       </div>
       <p className="text-sm text-(--color-text-muted)" role="status">
         {t("operations.loading")}
@@ -63,7 +62,6 @@ export async function OperationsScreen({
         <h1 className="text-xl font-semibold text-(--color-text)">
           {t("shell.mode.operations.name")}
         </h1>
-        <p className="text-sm text-(--color-text-muted)">{t("operations.intro")}</p>
       </div>
 
       {environment === undefined && (

@@ -1,10 +1,10 @@
+import { FieldHelp } from "@/components/help-tip";
 import { Select, TextField } from "@/components/kit";
 import { activeFilterCount, RailFilters } from "@/components/rail-filters";
-import { RailCount, RailFrame, RailTree } from "@/components/rail-frame";
+import { RailCount, RailFrame } from "@/components/rail-frame";
 import { t } from "@/lib/i18n/en";
 import { LIBRARY_SEARCH_MAX_LENGTH } from "@/lib/library-search";
 import type { QuestionListFilters } from "@/lib/questions/list-filters";
-import { questionsRailItems } from "@/lib/shell/area-rails";
 import { QUESTION_TYPES } from "@/lib/questions/types";
 
 export function QuestionsListRail({ filters }: { readonly filters: QuestionListFilters }) {
@@ -14,19 +14,19 @@ export function QuestionsListRail({ filters }: { readonly filters: QuestionListF
     <RailFrame
       subject={t("questions.title")}
       testId="qcms-questions-rail"
-      sections={<RailTree items={questionsRailItems("all")} />}
       {...(activeCount > 0
         ? { count: <RailCount>{activeFilterCount(activeCount)}</RailCount> }
         : {})}
       filters={
         <RailFilters activeCount={activeCount} clearHref="/questions">
-          <TextField
-            name="q"
-            label={t("questions.filter.search")}
-            description={t("questions.filter.searchHint")}
-            defaultValue={search}
-            maxLength={LIBRARY_SEARCH_MAX_LENGTH}
-          />
+          <FieldHelp help={t("questions.filter.searchHint")}>
+            <TextField
+              name="q"
+              label={t("questions.filter.search")}
+              defaultValue={search}
+              maxLength={LIBRARY_SEARCH_MAX_LENGTH}
+            />
+          </FieldHelp>
           <Select
             name="status"
             label={t("questions.filter.status")}

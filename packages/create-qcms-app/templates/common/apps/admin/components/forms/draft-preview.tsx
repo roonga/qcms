@@ -9,6 +9,7 @@ import {
 } from "@roonga/qcms-ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { HelpTip } from "@/components/help-tip";
 import { Alert, Button, NumberField } from "@/components/kit";
 import { usePreviewLocale } from "@/components/locale-context";
 import { IssueEntry } from "@/components/forms/validation-panel";
@@ -109,14 +110,14 @@ export function DraftPreview({
       data-testid="qcms-draft-preview"
     >
       <div className="flex flex-col gap-1">
-        <h2 id="qcms-preview-heading" className="text-lg font-semibold text-(--color-text)">
-          {t("forms.preview.heading")}
-        </h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 id="qcms-preview-heading" className="text-lg font-semibold text-(--color-text)">
+            {t("forms.preview.heading")}
+          </h2>
+          <HelpTip>{t("forms.preview.explain")}</HelpTip>
+        </div>
         <p className="qcms-preview-banner" data-testid="qcms-preview-banner">
           {t("forms.preview.banner")}
-        </p>
-        <p className="qcms-respondent-note text-sm text-(--color-text-muted)">
-          {t("forms.preview.explain")}
         </p>
       </div>
 
@@ -150,13 +151,15 @@ export function DraftPreview({
           data-testid="qcms-preview-rejected"
           className="flex flex-col gap-2 rounded-md border border-(--color-border-strong) bg-(--color-background-muted) p-4"
         >
-          <h3
-            id="qcms-preview-rejected-heading"
-            className="text-base font-semibold text-(--color-text)"
-          >
-            {t("forms.preview.unavailable")}
-          </h3>
-          <p className="text-sm text-(--color-text-muted)">{t("forms.preview.unavailableHint")}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3
+              id="qcms-preview-rejected-heading"
+              className="text-base font-semibold text-(--color-text)"
+            >
+              {t("forms.preview.unavailable")}
+            </h3>
+            <HelpTip>{t("forms.preview.unavailableHint")}</HelpTip>
+          </div>
           <ul className="flex flex-col gap-2">
             {(state.issues ?? []).map((issue, position) => (
               <li key={`${issue.code}:${String(position)}`}>
