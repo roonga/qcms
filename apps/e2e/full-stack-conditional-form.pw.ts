@@ -18,6 +18,7 @@ import {
   toggleTarget,
   waitForSaveAfter,
 } from "../admin/e2e/support/forms.js";
+import { chooseEnvironment } from "../admin/e2e/support/environment.js";
 import { publishDraftThroughWizard } from "../admin/e2e/support/publish.js";
 import { waitForHydration as waitForAdminHydration } from "../admin/e2e/support/hydration.js";
 import { waitForHydration as waitForPortalHydration } from "../portal/e2e/support/hydration.js";
@@ -231,7 +232,7 @@ test.describe.serial("conditional form journey", () => {
     test("verifies the published version through a test link before production promotion", async ({
       page,
     }) => {
-      await page.goto(`/forms/${formId}/links`);
+      await page.goto(`/operations/forms/${formId}/links`);
       await waitForAdminHydration(page);
       await page.getByRole("button", { name: "Mint links", exact: true }).click();
       await fillDate(page, "Expires", "12312030");
@@ -272,6 +273,41 @@ test.describe.serial("conditional form journey", () => {
       // Publishing freezes into `control`; a session resolves what is released to its
       // environment, so without this release the respondent route answers 409 (ADR-40).
       await releaseNewestVersion(page, formId);
+    });
+
+    test("offers production addresses on the deployment's own portal origin, and they reach it", async ({
+      page,
+    }) => {
+      // The harness suites read an example host out of the API fixture, so the composed origin
+      // is only ever navigable here, against the stack's configured QCMS_PORTAL_BASE_URL.
+      await chooseEnvironment(page, "prod");
+      await page.goto(`/operations/forms/${formId}/links`);
+      await waitForAdminHydration(page);
+
+      const publicAddress = new URL(
+        await page.getByTestId("qcms-public-form-link").locator("code").innerText(),
+      );
+      expect(publicAddress.origin).toBe(PORTAL_URL);
+      expect(publicAddress.pathname).toBe(`/f/${FORM_SLUG}`);
+
+      await page.getByRole("button", { name: "Mint links", exact: true }).click();
+      await fillDate(page, "Expires", "12312030");
+      await page
+        .getByRole("dialog")
+        .getByRole("button", { name: "Mint for prod", exact: true })
+        .click();
+      const minted = page.getByTestId("qcms-minted-links");
+      await expect(minted).toBeVisible();
+      const link = new URL(await minted.locator("code").innerText());
+      expect(link.origin).toBe(PORTAL_URL);
+      expect(link.pathname).toMatch(/^\/l\//u);
+
+      await page.goto(link.href);
+      await expect(page).toHaveURL(
+        (url) => url.origin === PORTAL_URL && url.pathname.startsWith("/s/ses_"),
+      );
+      await waitForPortalHydration(page);
+      await expect(page.getByText(questionLabel("Short text"))).toBeVisible();
     });
 
     test("refuses a cross-site Start and creates no session (SEC-9, issue #487)", async ({

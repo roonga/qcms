@@ -1,8 +1,10 @@
 # Environment navigation and publishing: implementation handover
 
-Status: implementation proposal, prepared 2026-10-28. Runtime implementation has
-not started on this branch. The branch preserves the interactive exploration and
-this handover; it is not a production-ready feature.
+Status: delivered. Prepared 2026-10-28 as an implementation proposal; the seven
+phases shipped through issues #1163, #1174, #1181, #1183, #1197, #1204 and #1233.
+This document stays the flow and permission contract the shipped behaviour is read
+against; it is no longer a record of outstanding work. The POC it cites remains
+guidance for flow and interaction and is not the source of truth for look and feel.
 
 ## Authority and scope
 
@@ -317,8 +319,25 @@ settings, even if an Operations screen links to their authorized editor.
 | 6. Operational integration | Responses, Links, Webhooks, intake, global queues/logs and workspace mode                 | Existing functions preserved under real permissions; actual links work in the chosen environment                           |
 | 7. Shipping                | E2E/CI coverage, template sync, changeset, user/security/architecture docs                | Required gates green; exact PR head independently reviewed; comments resolved before merge                                 |
 
-**Phase 1 is ruled (PR #1163); phases 2, 3, 4 and 5 have landed (issues #1174, #1181,
-#1183 and #1197). Phase 6 is ruled and ships in slices (issue #1204).**
+**Every phase has landed: 1 ruled in PR #1163, then issues #1174, #1181, #1183, #1197,
+#1204 in five slices, and #1233 for shipping.** Phase 7 closed the verification list
+against the suites below, carried the user, security and architecture documentation to
+what shipped, and left this document and the POC as guidance rather than a work queue.
+
+| Verification item                                                                      | Where it is asserted                                                                                      |
+| -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Personas, role and scope negatives                                                     | `apps/api/e2e/security/01-authorization-matrix.e2e.ts`, `apps/api/src/features/membership`                |
+| Atomicity, idempotency, stale review, revocation, outbox failure                       | `apps/api/src/features/releases/publish-batch.integration.test.ts`                                        |
+| Release resolution, rollback, pinned sessions, second person                           | `apps/api/src/features/releases/releases.integration.test.ts`                                             |
+| Operations discovery and its projection                                                | `apps/api/src/features/operations/operations.integration.test.ts`                                         |
+| Operations-only and Workspaces-only landing, exits, denied bookmarks, in-mode settings | `apps/admin/e2e/shell-modes.pw.ts`, `apps/admin/e2e/operations-leave.pw.ts`                               |
+| Area rails, one top bar, rail toggle, breadcrumb                                       | `apps/admin/e2e/shell-frame.pw.ts`, `apps/admin/e2e/rail-every-screen.pw.ts`                              |
+| Operations-owned per-form screens, eraser journey                                      | `apps/admin/e2e/operations-form-rail.pw.ts`                                                               |
+| List filters local, state in the URL, stale env                                        | `apps/admin/e2e/operations-forms.pw.ts`, `apps/admin/e2e/environments.pw.ts`                              |
+| Versions, Available in, one publish wizard                                             | `apps/admin/e2e/forms-publish.pw.ts`, `apps/admin/e2e/forms-promotion.pw.ts`                              |
+| Second-person release and webhook approval                                             | `apps/admin/e2e/two-person-rule.pw.ts`                                                                    |
+| Keyboard, focus, accessible names, reflow                                              | `apps/admin/e2e/a11y-axe.pw.ts`, `apps/admin/e2e/focus-not-obscured.pw.ts`, `apps/admin/e2e/reflow.pw.ts` |
+| Deployment-origin test and prod links                                                  | `apps/e2e/full-stack-conditional-form.pw.ts`                                                              |
 
 Phase 6 notes, Code Owner, 2026-11-02:
 
