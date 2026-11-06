@@ -1,6 +1,7 @@
 import type { A2UIErrors, A2UIStepDocument } from "@roonga/qcms-ui";
 
 import { t } from "./i18n/en";
+import type { FieldRefusals } from "./submit-errors";
 import { authorMessageFor } from "./validation-message";
 import { instanceLabels, messagesOf, questionLabels, questionPositions } from "./visible";
 
@@ -164,4 +165,25 @@ export function stepSummaryEntries(
     ],
     visibleQuestions,
   );
+}
+
+/**
+ * The messages to draw beside the fields of one step: the author's message for the
+ * constraint that failed where there is one, else the message the refusal carried. A
+ * refusal naming a question this step does not render is dropped, which is what keeps a
+ * refusal about another step, or about a question a branch has since hidden, off it.
+ */
+export function authoredFieldErrors(
+  document: A2UIStepDocument | null,
+  refusals: FieldRefusals,
+  visibleQuestions: readonly string[],
+): A2UIErrors {
+  const visible = new Set(visibleQuestions);
+  const messages = messagesOf(document);
+  const resolved: Record<string, string> = {};
+  for (const [field, refusal] of Object.entries(refusals)) {
+    if (refusal === undefined || !visible.has(field)) continue;
+    resolved[field] = authorMessageFor(messages.get(field), refusal.constraint) ?? refusal.message;
+  }
+  return resolved;
 }

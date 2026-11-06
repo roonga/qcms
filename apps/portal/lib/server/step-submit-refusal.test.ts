@@ -70,7 +70,6 @@ vi.mock("@/lib/server/environment", async () => await import("./environment"));
 vi.mock("@/lib/server/route-helpers", async () => await import("./route-helpers"));
 vi.mock("@/lib/server/step-form", async () => await import("./step-form"));
 vi.mock("@/lib/i18n/en", async () => await import("../i18n/en"));
-vi.mock("@/lib/submit-errors", async () => await import("../submit-errors"));
 vi.mock("@/lib/validation-message", async () => await import("../validation-message"));
 
 const stepRoute = await import("../../app/s/[sessionId]/step/route");

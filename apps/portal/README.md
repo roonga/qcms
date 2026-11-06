@@ -50,6 +50,17 @@ open registration links, hydrating into the shared `@roonga/qcms-ui` renderer. T
 | `/done`                   | Completion receipt (submittedAt + contentHash)             |
 | `/link-error`, `/expired` | Friendly typed-error pages                                 |
 
+## Validation messages
+
+An answer the API refuses shows beside its own question, keyed to the value it describes,
+so the message lasts exactly as long as that value does. A refused submit (422
+`SUBMISSION_INVALID`) is read the same way: `lib/submit-errors.ts` maps the sweep's
+per-question detail onto field keys, each message is drawn on the step that asks the
+question, and the error summary names the other steps that still need attention and moves
+the respondent to one. The author's message for the failed constraint wins where there is
+one (ADR-32), which is why the constraint rather than the sentence is what travels. A count
+refusal (ADR-42) names no question and stays a page-level notice.
+
 ## Theming (ADR-30): managed themes over a four-group token contract
 
 Presentation is **configuration**, not a code change. A deployment picks one of

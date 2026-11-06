@@ -34,13 +34,13 @@ import {
   type RejectedAnswers,
 } from "@/lib/answer-record";
 import {
+  authoredFieldErrors,
   missingOnStep,
   refusalsOnStep,
   requiredFieldErrors,
   stepSummaryEntries,
 } from "@/lib/error-summary";
 import {
-  authoredFieldErrors,
   NO_SUBMIT_REFUSAL,
   otherStepErrors,
   otherStepMessage,

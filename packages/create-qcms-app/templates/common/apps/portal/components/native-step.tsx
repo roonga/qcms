@@ -12,10 +12,15 @@ import {
   NO_ROSTER_ACTION,
   SESSION_FIELD,
 } from "@/lib/repeat";
-import { missingOnStep, requiredFieldErrors, stepSummaryEntries } from "@/lib/error-summary";
+import {
+  authoredFieldErrors,
+  missingOnStep,
+  requiredFieldErrors,
+  stepSummaryEntries,
+} from "@/lib/error-summary";
 import { t } from "@/lib/i18n/en";
 import { mergeStepValues } from "@/lib/step-values";
-import { authoredFieldErrors, contextRefusals } from "@/lib/submit-errors";
+import { contextRefusals } from "@/lib/submit-errors";
 import { buttonClass } from "@/lib/ui";
 import { documentForVisible } from "@/lib/visible";
 import { rosterMap } from "@/lib/rosters";

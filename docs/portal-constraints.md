@@ -209,6 +209,14 @@ they get one render per POST and nothing re-validates under them as they type. T
 flow draws the summary alone. That asymmetry is deliberate on this side and open on the
 other: **issue #967** asks whether the hydrated path should mark the field too.
 
+**A refused submit is the exception: both paths mark the field for it.** The sweep's 422
+names every question it refused, and those questions are spread over steps the respondent
+is not looking at, so a summary on the step they pressed Submit from could only report a
+gap somewhere else. Each message is drawn on the step that asks its question, as the
+author wrote it for the constraint that failed, and the summary names the other steps that
+still need attention and moves the respondent to one. What the Continue gate reports about
+an unanswered question on the current step is unchanged, and so is #967.
+
 **Clearing an answer works without scripting too** (issue #127). A native form cannot say
 "I emptied this": it posts an emptied text box exactly as it posts a never-touched one,
 and posts an all-unchecked checkbox group as nothing at all, so the BFF - which holds no

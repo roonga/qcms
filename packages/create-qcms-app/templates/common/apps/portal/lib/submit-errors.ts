@@ -1,14 +1,15 @@
-import type { A2UIErrors, A2UIStepDocument } from "@roonga/qcms-ui";
 import { INSTANCE_NAME_SEPARATOR } from "@roonga/qcms-ui/repeat-node";
 
 import { t } from "./i18n/en";
-import { authorMessageFor, defaultAnswerMessage, firstAnswerRejection } from "./validation-message";
-import { messagesOf } from "./visible";
+import { defaultAnswerMessage, firstAnswerRejection } from "./validation-message";
+
+// Nothing in this module may reach the renderer: the no-JS step route reads a refusal,
+// and a route handler importing a client component fails the portal's build.
 
 /**
  * One field's refusal: the constraint it failed plus the message to fall back to. The
- * author's message is resolved later, on the step that renders the field, because those
- * messages ride on that step's compiled document (ADR-32).
+ * author's message is resolved by `authoredFieldErrors`, on the step that renders the
+ * field, because those messages ride on that step's compiled document (ADR-32).
  */
 export interface FieldRefusal {
   readonly constraint?: string | undefined;
@@ -106,27 +107,6 @@ export function contextRefusals(
     refusals[field] = { constraint: constraints[field], message };
   }
   return refusals;
-}
-
-/**
- * The messages to draw beside the fields of one step: the author's message for the
- * constraint that failed where there is one, else the message the refusal carried. A
- * refusal naming a question this step does not render is dropped, which is what keeps a
- * refusal about another step, or about a question a branch has since hidden, off it.
- */
-export function authoredFieldErrors(
-  document: A2UIStepDocument | null,
-  refusals: FieldRefusals,
-  visibleQuestions: readonly string[],
-): A2UIErrors {
-  const visible = new Set(visibleQuestions);
-  const messages = messagesOf(document);
-  const resolved: Record<string, string> = {};
-  for (const [field, refusal] of Object.entries(refusals)) {
-    if (refusal === undefined || !visible.has(field)) continue;
-    resolved[field] = authorMessageFor(messages.get(field), refusal.constraint) ?? refusal.message;
-  }
-  return resolved;
 }
 
 /** One line of the summary for a step the respondent is not on. */
