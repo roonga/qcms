@@ -3735,10 +3735,23 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   opacity: 0;
   transition: opacity 120ms;
 }
-.qcms-helptip:hover .qcms-helptip__body,
-.qcms-helptip:focus-within .qcms-helptip__body {
+.qcms-helptip__body--end {
+  inset-inline-start: auto;
+  inset-inline-end: 0;
+}
+.qcms-helptip__body[data-open="true"] {
   visibility: visible;
   opacity: 1;
+}
+
+.qcms-field-help {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: 0.375rem;
+}
+.qcms-field-help > .qcms-helptip {
+  margin-block-start: 0.125rem;
 }
 
 .qcms-rail__accordion > summary {
