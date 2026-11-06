@@ -14,6 +14,7 @@ import {
   Select,
 } from "@/components/kit";
 import { AgentProvenanceTag } from "@/components/forms/agent-provenance-tag";
+import { HelpTip } from "@/components/help-tip";
 import { environmentCookie } from "@/lib/environment";
 import type { PublishBatchState } from "@/lib/forms/builder-state";
 import { IDLE_PUBLISH_BATCH } from "@/lib/forms/builder-state";
@@ -543,11 +544,9 @@ export function PublishWizard({
       {step === "destinations" && review !== undefined && (
         <fieldset className="flex flex-col gap-3" data-testid="qcms-publish-destinations">
           <legend className="text-base font-semibold" ref={setHeading} tabIndex={-1}>
-            {t("forms.publish.step.destinations")}
+            {t("forms.publish.step.destinations")}{" "}
+            <HelpTip>{t("forms.publish.destinations.hint")}</HelpTip>
           </legend>
-          <p className="text-sm text-(--color-text-muted)">
-            {t("forms.publish.destinations.hint")}
-          </p>
           <p className="text-sm text-(--color-text-muted)" data-testid="qcms-publish-workflow">
             {review.workflowSource === "configured"
               ? t("forms.publish.workflow.configured", { revision: review.workflowRevision ?? 0 })

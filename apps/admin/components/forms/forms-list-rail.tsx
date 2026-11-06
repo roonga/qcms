@@ -1,3 +1,4 @@
+import { FieldHelp } from "@/components/help-tip";
 import { Select, TextField } from "@/components/kit";
 import { activeFilterCount, RailFilters } from "@/components/rail-filters";
 import { RailCount, RailFrame } from "@/components/rail-frame";
@@ -18,13 +19,14 @@ export function FormsListRail({ filters }: { readonly filters: FormListFilters }
         : {})}
       filters={
         <RailFilters activeCount={activeCount} clearHref="/forms">
-          <TextField
-            name="q"
-            label={t("forms.filter.search")}
-            description={t("forms.filter.searchHint")}
-            defaultValue={search}
-            maxLength={LIBRARY_SEARCH_MAX_LENGTH}
-          />
+          <FieldHelp help={t("forms.filter.searchHint")}>
+            <TextField
+              name="q"
+              label={t("forms.filter.search")}
+              defaultValue={search}
+              maxLength={LIBRARY_SEARCH_MAX_LENGTH}
+            />
+          </FieldHelp>
           <Select
             name="status"
             label={t("forms.filter.status")}
