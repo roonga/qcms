@@ -66,7 +66,10 @@ export const listAllForms: (
   session: AdminSession,
   workspaceId?: string,
 ) => Promise<ApiResult<readonly FormListItem[]>> = cache(
-  async (session: AdminSession, workspaceId?: string): Promise<ApiResult<readonly FormListItem[]>> =>
+  async (
+    session: AdminSession,
+    workspaceId?: string,
+  ): Promise<ApiResult<readonly FormListItem[]>> =>
     listForms(session, workspaceId === undefined ? {} : { workspaceId }),
 );
 

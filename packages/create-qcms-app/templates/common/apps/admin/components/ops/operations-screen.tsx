@@ -54,10 +54,7 @@ export async function OperationsScreen({
   const result =
     environment === undefined
       ? undefined
-      : await listOperationsForms(
-          session,
-          operationsApiQuery(state, environment, workspaceId),
-        );
+      : await listOperationsForms(session, operationsApiQuery(state, environment, workspaceId));
 
   return (
     <div className="flex min-w-0 flex-col gap-6">

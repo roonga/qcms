@@ -54,11 +54,10 @@ test("a workspace's old address lands on its first section, and each section is 
   await expect(page).toHaveURL(new RegExp(`/workspaces/${WORKSPACE_ID}/members$`));
 
   const rail = page.getByTestId("qcms-workspaces-rail");
-  await expect(rail.locator(".qcms-rail__back")).toHaveCount(0);
-  await expect(rail.locator(`[data-rail-item="workspace:${WORKSPACE_ID}"]`)).toHaveAttribute(
-    "aria-expanded",
-    "true",
-  );
+  // The switcher in the top bar is the only chooser, so the rail names sections and the
+  // way back to the full list, never a workspace.
+  await expect(rail.getByTestId("qcms-rail-context")).toHaveAttribute("href", "/workspaces/all");
+  await expect(rail.locator(`[data-rail-item="workspace:${WORKSPACE_ID}"]`)).toHaveCount(0);
 
   const sections = [
     ["members", "Members"],
@@ -79,6 +78,19 @@ test("a workspace's old address lands on its first section, and each section is 
     await expect(page.getByRole("heading", { level: 2, name: heading })).toHaveCount(0);
     await expect(page.getByTestId("qcms-mode-exit")).toHaveCount(0);
   }
+});
+
+test("one workspace draws no switcher, and the full list is its own screen", async ({ page }) => {
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.goto(`/workspaces/${WORKSPACE_ID}/members`);
+
+  // Counted over the workspaces this caller may open: with one there is no choice to offer.
+  await expect(page.getByTestId("qcms-workspace-switcher")).toHaveCount(0);
+
+  await page.getByTestId("qcms-workspaces-rail").getByTestId("qcms-rail-context").click();
+  await expect(page).toHaveURL(/\/workspaces\/all$/);
+  const table = page.getByTestId("qcms-all-workspaces-table");
+  await expect(table.getByRole("row").filter({ hasText: "Default workspace" })).toHaveCount(1);
 });
 
 test("the access-groups screen states that a name is only a label", async ({ page }) => {

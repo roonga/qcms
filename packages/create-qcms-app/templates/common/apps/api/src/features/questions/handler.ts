@@ -252,16 +252,16 @@ export function makeDeprecateVersionHandler(
 async function readableWorkspaces(
   deps: Deps,
   grant: GrantContext | undefined,
-  narrow: { readonly workspaceId?: string; readonly shared?: "include" },
+  workspaceId: string | undefined,
+  shared: "include" | undefined,
 ): Promise<{ workspaceIds?: readonly string[] }> {
-  const asked = workspaceFilterNarrowedTo(grant, narrow.workspaceId);
-  const held = asked.workspaceIds;
+  const held = workspaceFilterNarrowedTo(grant, workspaceId).workspaceIds;
   if (held === undefined) return {};
-  if (narrow.workspaceId !== undefined && narrow.shared !== "include") return { workspaceIds: held };
-  if (held.length === 0) return { workspaceIds: held };
-  const shared = await getSharedWorkspace(deps.databases.control);
-  if (shared === undefined || held.includes(shared.id)) return { workspaceIds: held };
-  return { workspaceIds: [...held, shared.id] };
+  const wantsShared = workspaceId === undefined || shared === "include";
+  if (!wantsShared || held.length === 0) return { workspaceIds: held };
+  const library = await getSharedWorkspace(deps.databases.control);
+  if (library === undefined || held.includes(library.id)) return { workspaceIds: held };
+  return { workspaceIds: [...held, library.id] };
 }
 
 export function makeListQuestionsHandler(
@@ -271,10 +271,7 @@ export function makeListQuestionsHandler(
     const { status, type, search, versions, workspaceId, shared } = c.req.valid("query");
     const summaries = await listQuestions(
       deps.databases.control,
-      await readableWorkspaces(deps, c.get("grantContext"), {
-        ...(workspaceId === undefined ? {} : { workspaceId }),
-        ...(shared === undefined ? {} : { shared }),
-      }),
+      await readableWorkspaces(deps, c.get("grantContext"), workspaceId, shared),
     );
 
     const byStatus =

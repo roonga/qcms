@@ -71,9 +71,7 @@ describe("an area's rail", () => {
   });
 
   it("draws the current workspace's sections, named nowhere but the switcher", () => {
-    render(
-      <WorkspacesRail workspace={{ workspaceId: "org_a", name: "Alpha" }} section="audit" />,
-    );
+    render(<WorkspacesRail workspace={{ workspaceId: "org_a", name: "Alpha" }} section="audit" />);
     const rail = screen.getByTestId("qcms-workspaces-rail");
     expect(screen.getByTestId("qcms-rail-label").textContent).toBe("Menu");
     expect(rail.querySelectorAll(".qcms-rail__accordion")).toHaveLength(0);

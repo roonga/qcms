@@ -64,12 +64,7 @@ export async function createQuestionAction(
   if (definition === undefined) return MALFORMED;
 
   // Name the workspace the author is in: with more than one the API refuses to guess.
-  const result = await createQuestion(
-    session,
-    slug,
-    definition,
-    await currentWorkspaceId(session),
-  );
+  const result = await createQuestion(session, slug, definition, await currentWorkspaceId(session));
   if (!result.ok) {
     return {
       status: "error",

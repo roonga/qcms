@@ -28,10 +28,7 @@ export default async function OperationsRailSlot({
   const result =
     environment === undefined
       ? undefined
-      : await listOperationsForms(
-          session,
-          operationsApiQuery(state, environment, workspaceId),
-        );
+      : await listOperationsForms(session, operationsApiQuery(state, environment, workspaceId));
 
   return (
     <OperationsFormsRail

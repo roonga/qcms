@@ -2,11 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { RoutePolicy } from "./route-policy.js";
 
-import {
-  workspaceFilterFor,
-  workspaceFilterNarrowedTo,
-  type GrantContext,
-} from "./context.js";
+import { workspaceFilterFor, workspaceFilterNarrowedTo, type GrantContext } from "./context.js";
 
 const POLICY = {} as RoutePolicy;
 
