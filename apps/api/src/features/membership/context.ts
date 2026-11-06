@@ -43,3 +43,16 @@ export function workspaceFilterFor(grant: GrantContext | undefined): {
   if (grant?.workspaceIds === undefined) return {};
   return { workspaceIds: grant.workspaceIds };
 }
+
+// One named workspace, intersected with what the caller holds. A workspace they hold
+// nothing in narrows to the empty list rather than widening to everything, so a guessed
+// id reads as empty rather than as another group's rows.
+export function workspaceFilterNarrowedTo(
+  grant: GrantContext | undefined,
+  workspaceId: string | undefined,
+): { workspaceIds?: readonly string[] } {
+  const held = workspaceFilterFor(grant).workspaceIds;
+  if (workspaceId === undefined) return held === undefined ? {} : { workspaceIds: held };
+  if (held === undefined || held.includes(workspaceId)) return { workspaceIds: [workspaceId] };
+  return { workspaceIds: [] };
+}

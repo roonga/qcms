@@ -253,6 +253,7 @@ describe("questions helpers", () => {
       latestVersion: 2,
       latestStatus: "published",
       slug: "q-summary-slug",
+      workspaceId: SEED_WORKSPACE_ID,
     });
   });
 

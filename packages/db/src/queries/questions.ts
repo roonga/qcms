@@ -46,6 +46,7 @@ export type _QuestionVersionRowMatchesTable = AssignableTo<
 export interface QuestionSummary {
   readonly questionId: QuestionId;
   readonly slug: string;
+  readonly workspaceId: string;
   readonly createdAt: Date;
   readonly latestVersion: number;
   readonly latestStatus: QuestionVersionRow["status"];
@@ -237,6 +238,7 @@ export async function listQuestions(
     .selectDistinctOn([questions.questionId], {
       questionId: questions.questionId,
       slug: questions.slug,
+      workspaceId: questions.workspaceId,
       createdAt: questions.createdAt,
       latestVersion: questionVersions.version,
       latestStatus: questionVersions.status,
