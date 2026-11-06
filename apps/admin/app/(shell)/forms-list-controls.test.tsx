@@ -149,21 +149,6 @@ describe("the rail's Filters part is a native GET form whose values come back fr
 });
 
 describe("the three list states, and the panel each one shows", () => {
-  it("counts the rows above the table", async () => {
-    formsResult = { ok: true, data: [FORM_ROW, { ...FORM_ROW, formId: "frm_two", slug: "two" }] };
-
-    const markup = await renderForms({});
-
-    expect(markup).toContain('data-testid="qcms-forms-count"');
-    expect(markup).toContain("forms.count.other");
-  });
-
-  it("counts one row with the singular, which is a catalog choice and not an appended s", async () => {
-    const markup = await renderForms({});
-
-    expect(markup).toContain("forms.count.one");
-  });
-
   it("offers creating when an unfiltered library is empty", async () => {
     formsResult = { ok: true, data: [] };
 
@@ -206,7 +191,6 @@ describe("the three list states, and the panel each one shows", () => {
     const markup = await renderForms({ q: "vehicle" });
 
     expect(markup).toContain("forms.error.listFailed");
-    expect(markup).not.toContain('data-testid="qcms-forms-count"');
     expect(markup).not.toContain('data-testid="qcms-forms-table-stub"');
     expect(markup).not.toContain("forms.empty.");
   });

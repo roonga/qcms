@@ -347,38 +347,6 @@ test("the panel is reachable, navigable and dismissable from the keyboard alone"
   await expect(trigger).not.toBeFocused();
 });
 
-test("the preview strip is a pointer shortcut and is hidden from assistive technology", async ({
-  page,
-}) => {
-  await signInWithTotp(page, EMAIL, totpSecret);
-  await choose(page, { polarity: "Light", high: false });
-  await openAppearance(page);
-
-  const tiles = page.locator(".qcms-appearance__tile");
-  await expect(tiles).toHaveCount(4);
-  await expect(page.locator('[aria-hidden="true"] .qcms-appearance__tile')).toHaveCount(4);
-  expect(
-    await tiles.evaluateAll((nodes) =>
-      nodes.every((node) => (node as HTMLElement).tabIndex === -1),
-    ),
-  ).toBe(true);
-
-  const field = async (index: number): Promise<number> =>
-    luminance(
-      await tiles
-        .nth(index)
-        .locator(".qcms-themepreview")
-        .evaluate((node) => getComputedStyle(node).backgroundColor),
-    );
-  expect(await field(0), "the Light tile").toBeGreaterThan(0.8);
-  expect(await field(1), "the Dark tile").toBeLessThan(0.1);
-
-  await tiles.nth(3).click();
-  expect(await rootClasses(page)).toEqual(["dark", "hc"]);
-  await expect(panel(page)).toBeVisible();
-  await page.keyboard.press("Escape");
-});
-
 test("a persisted choice is on screen in the first painted frame", async ({ page }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
   await choose(page, { polarity: "Dark", high: true });

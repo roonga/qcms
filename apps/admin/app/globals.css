@@ -440,8 +440,7 @@ button {
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 1px;
 }
-.qcms-appearance__hint,
-.qcms-appearance__note {
+.qcms-appearance__hint {
   margin: 0;
   font-size: 11px;
   line-height: 16px;
@@ -491,61 +490,6 @@ button {
 .qcms-appearance__switchbutton[data-focus-visible] .qcms-appearance__track {
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
-}
-
-.qcms-appearance__preview {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--space-1);
-}
-.qcms-appearance__tile {
-  display: grid;
-  gap: var(--space-0-5);
-  padding: 0;
-  border: none;
-  background: none;
-  min-block-size: 0;
-  cursor: pointer;
-  text-align: center;
-}
-.qcms-themepreview {
-  display: grid;
-  gap: 2px;
-  padding: var(--space-1);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background-color: var(--color-background);
-}
-.qcms-themepreview__bar {
-  block-size: 4px;
-  border-radius: 1px;
-  background-color: var(--color-primary);
-}
-.qcms-themepreview__text {
-  block-size: 8px;
-  border-radius: 1px;
-  background-color: var(--color-text);
-}
-.qcms-appearance__tile[data-current="true"] .qcms-themepreview {
-  border-width: 2px;
-  border-color: var(--color-border-strong);
-}
-.qcms-appearance__tilecaption {
-  display: block;
-  font-size: 11px;
-  line-height: 16px;
-  color: var(--color-text-muted);
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.qcms-appearance__tile[data-current="true"] .qcms-appearance__tilecaption {
-  color: var(--color-text);
-  font-weight: 600;
-}
-.qcms-appearance__tilecheck {
-  margin-inline-end: 2px;
-  font-weight: 600;
 }
 
 .qcms-avatar {
@@ -3739,4 +3683,60 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
 }
 :is([data-theme="hc"], [data-theme="hc-dark"]) [data-proposed="true"]:not(:focus-visible) {
   outline: 2px dashed var(--color-border-strong);
+}
+
+/* Where the breadcrumb row shares the line, the page action sits on it instead of taking a row of its own. */
+.qcms-page-actionbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+@variant sidebar {
+  .qcms-page-actionbar {
+    block-size: 0;
+    flex-wrap: nowrap;
+    translate: 0 -1.875rem;
+  }
+}
+
+.qcms-helptip {
+  position: relative;
+  display: inline-flex;
+  vertical-align: middle;
+}
+.qcms-helptip__button {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 1.125rem;
+  block-size: 1.125rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  line-height: 1;
+  cursor: help;
+}
+.qcms-helptip__body {
+  position: absolute;
+  inset-block-start: calc(100% + 0.375rem);
+  inset-inline-start: 0;
+  z-index: 20;
+  inline-size: max-content;
+  max-inline-size: 18rem;
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 0.375rem;
+  background: var(--color-surface-raised, var(--color-surface));
+  color: var(--color-text);
+  font-size: 13px;
+  line-height: 1.4;
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 120ms;
+}
+.qcms-helptip:hover .qcms-helptip__body,
+.qcms-helptip:focus-within .qcms-helptip__body {
+  visibility: visible;
+  opacity: 1;
 }

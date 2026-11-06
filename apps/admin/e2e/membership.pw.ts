@@ -34,7 +34,8 @@ test("the membership area is reachable from the shell's navigation", async ({ pa
     .click();
   await expect(page.getByRole("heading", { level: 1, name: "Workspaces" })).toBeVisible();
 
-  await page.getByRole("link", { name: "My access" }).first().click();
+  await page.getByTestId("account-menu").getByRole("button").click();
+  await page.getByRole("menuitem", { name: "My access" }).click();
   await expect(page.getByRole("heading", { level: 2, name: "Your own access" })).toBeVisible();
   await expect(
     page.getByText("You hold the installation-wide claim", { exact: false }),

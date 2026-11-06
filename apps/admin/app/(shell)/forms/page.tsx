@@ -5,7 +5,7 @@ import { HeadingMarker } from "@/components/agent/heading-marker";
 import { EmptyState } from "@/components/empty-state";
 import { Alert } from "@/components/kit";
 import { readFormListFilters } from "@/lib/forms/list-filters";
-import { t, tPlural } from "@/lib/i18n/en";
+import { t } from "@/lib/i18n/en";
 import { pageMetadata } from "@/lib/page-title";
 import { optionalProp } from "@/lib/questions/errors";
 import { listForms } from "@/lib/server/forms";
@@ -35,10 +35,8 @@ export default async function FormsPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <h1 className="sr-only">{t("forms.title")}</h1>
-        </div>
+      <div className="qcms-page-actionbar">
+        <h1 className="sr-only">{t("forms.title")}</h1>
         {!(isEmpty && !isFiltered) && (
           <HeadingMarker control="forms.create">
             <Link href="/forms/new" className="qcms-button-link">
@@ -78,9 +76,6 @@ export default async function FormsPage({
 
       {result.ok && result.data.length > 0 && (
         <div className="flex flex-col gap-2">
-          <p className="text-sm text-(--color-text-muted)" data-testid="qcms-forms-count">
-            {tPlural("forms.count.one", "forms.count.other", result.data.length)}
-          </p>
           <FormsTable rows={result.data} />
           <p className="text-sm text-(--color-text-muted)">{t("forms.table.hint")}</p>
         </div>

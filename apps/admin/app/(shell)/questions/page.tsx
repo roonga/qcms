@@ -35,10 +35,8 @@ export default async function QuestionsPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <h1 className="sr-only">{t("questions.title")}</h1>
-        </div>
+      <div className="qcms-page-actionbar">
+        <h1 className="sr-only">{t("questions.title")}</h1>
         {/* Offer creation once: the unfiltered empty panel owns it, while a filtered-empty list keeps the header
    action. */}
         {!(result.ok && result.data.length === 0 && !isFiltered) && (

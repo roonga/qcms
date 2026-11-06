@@ -109,9 +109,7 @@ test("1117 puts the list filters in the rail and nowhere else", async ({ page })
       )
       .toHaveCount(0);
     await expect.soft(filters, `${path} is a search region`).toHaveAttribute("role", "search");
-    await expect
-      .soft(filters.getByTestId("qcms-rail-filters-title"), `${path} names the part`)
-      .toContainText("Filters");
+    await expect.soft(filters, `${path} names the part`).toHaveAttribute("aria-label", "Filters");
   }
 });
 

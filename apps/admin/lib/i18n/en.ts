@@ -15,6 +15,7 @@ export const messages = {
   "rail.toggle.title": "{action} (Alt+Shift+S)",
   /** The narrow-width disclosure's name on an area rail, which carries no title of its own. */
   "rail.menu": "Menu",
+  "help.label": "More information",
   "rail.allQuestions": "All questions",
   "rail.allForms": "All forms",
 
@@ -71,12 +72,6 @@ export const messages = {
   "appearance.contrast.legend": "High contrast",
   "appearance.contrast.on": "On",
   "appearance.contrast.off": "Off",
-
-  "appearance.contrast.note": "High contrast never follows your system.",
-  "appearance.preview.light": "Light",
-  "appearance.preview.dark": "Dark",
-  "appearance.preview.lightHc": "Light, high contrast",
-  "appearance.preview.darkHc": "Dark, high contrast",
 
   /** Environment names are API data, never a closed catalog vocabulary. */
   "environment.legend": "Environment",
@@ -530,8 +525,6 @@ export const messages = {
   "forms.filter.sort.published-asc": "Oldest published",
   "forms.filter.clear": "Clear filters",
   /** Keep counted phrases in catalog plural forms; do not append an English s in code. */
-  "forms.count.one": "{count} form.",
-  "forms.count.other": "{count} forms.",
 
   "forms.empty.title": "No forms yet",
   "forms.empty.body":

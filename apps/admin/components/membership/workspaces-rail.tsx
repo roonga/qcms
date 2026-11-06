@@ -5,12 +5,10 @@ import { t } from "@/lib/i18n/en";
 import {
   WORKSPACE_SECTION_LABELS,
   WORKSPACE_SECTIONS,
-  WORKSPACES_ROOT,
   workspaceHref,
   workspaceSectionHref,
   type WorkspaceSection,
 } from "@/lib/membership/sections";
-import { MY_ACCESS_PATH } from "@/lib/shell/modes";
 
 export interface WorkspaceRailRow {
   readonly workspaceId: string;
@@ -42,16 +40,6 @@ export function WorkspacesRail({
       {...(selectedName === undefined ? {} : { crumbs: { workspace: selectedName } })}
       sections={
         <ul className="qcms-rail__group" data-rail-group="sections">
-          <li>
-            <Link
-              href={WORKSPACES_ROOT}
-              className="qcms-rail__link"
-              data-rail-item="section:all-workspaces"
-              {...current(selected === undefined)}
-            >
-              {t("membership.workspace.allWorkspaces")}
-            </Link>
-          </li>
           {workspaces.map((workspace) => {
             const open = selected?.workspaceId === workspace.workspaceId;
             return (
@@ -83,15 +71,6 @@ export function WorkspacesRail({
               </li>
             );
           })}
-          <li>
-            <Link
-              href={MY_ACCESS_PATH}
-              className="qcms-rail__link"
-              data-rail-item="section:my-access"
-            >
-              {t("access.title")}
-            </Link>
-          </li>
         </ul>
       }
     />
