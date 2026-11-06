@@ -3740,3 +3740,21 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   visibility: visible;
   opacity: 1;
 }
+
+.qcms-rail__accordion > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  list-style: none;
+}
+.qcms-rail__accordion > summary::-webkit-details-marker {
+  display: none;
+}
+.qcms-rail__accordion > summary::after {
+  content: "›";
+  transition: rotate 120ms;
+}
+.qcms-rail__accordion[open] > summary::after {
+  rotate: 90deg;
+}
