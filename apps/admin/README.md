@@ -249,13 +249,28 @@ It is a **development** tool. It writes the database directly, which is why it l
   `pnpm check:all`) fails on a literal colour anywhere else, on drift from the design
   copy, and on any user-facing string that names this app "admin". Change the design in
   `plan/admin-theme/`, rebuild there, and copy the result back - never hand-edit the
-  landed sheet.
+  landed sheet. **`lib/pwa/brand.ts` is the one exception**, because a manifest member and
+  a generated PNG cannot reference a custom property: it names four colours and
+  `lib/pwa/brand.test.ts` pins each of them to its mode in the sheet, so the sheet stays the
+  source of truth even where a `var(--...)` cannot reach.
 - **Mode (light / dark / high-contrast) is a per-operator control**, not a deployment
   setting, and the app is never adopter-themeable (portal themes are for respondents). An
   explicit choice is the `qcms-app-mode` cookie, stamped as a root class by the root
   layout; with no choice, the sheet's own `prefers-color-scheme` block follows the machine.
   That split is why there is no pre-paint script here and no `script-src` allowance for
   one. High-contrast is never inferred.
+- **This app installs, and its service worker exists only to offer the update.** `app/manifest.ts`
+  (`/manifest.webmanifest`) declares the standalone window, `start_url: "/questions"` and the icon
+  set; `app/apple-icon.tsx` and `app/pwa-icon-192`/`-512` draw the mark from `lib/pwa/icon-mark.tsx`
+  with `next/og`, so the only committed image stays `app/icon.svg`. The 192 and 512 PNGs are listed
+  under both `any` and `maskable`: Chromium picks its primary icon from `any` alone, so a
+  maskable-only set is not installable, and the mark sits inside the maskable safe zone, which costs
+  the `any` use some padding. **The worker registers no `fetch` handler and opens no cache**
+  (`lib/pwa/service-worker.ts`, served by `app/sw.js/route.ts` with `Cache-Control: no-cache`), so
+  nothing authenticated is ever stored; it replaces the running version only when the operator
+  presses Reload in `components/app-update.tsx`, which posts `SKIP_WAITING` first. The root layout
+  carries the Apple web-app meta and `viewportFit: "cover"`; the sticky top bar pads itself out of
+  the safe-area insets in `app/globals.css`.
 - **The response export is a route handler, not a server action** (`app/(shell)/forms/[formId]/export/route.ts`), because its product is bytes for the browser to save rather than state for a component to render. The upstream body is passed through untouched: an export larger than this process's memory still works, the API's UTF-8 BOM and CRLF records survive (both of which a re-encode would break), and answer values never exist as a value this app could log or serialize. Its `version`, `from` and `to` are validated before the call, through the same validators the response browser reads (`lib/ops/response-filters.ts`), so both surfaces agree on what a filter is. A parameter that names no filter refuses the export with a 400 rather than being dropped from it: the browser can put a caveat in a notice beside the table, an export cannot, and a file wider than the range its requester asked for outlives the request that made it.
 - **A webhook secret exists in this app for one render.** `createWebhookAction` and `rotateSecretAction` are the only functions that ever hold one, and each hands it straight to the panel that shows it once. There is no "show secret" action anywhere, because the API stores ciphertext and has no route that could serve one (SEC-6). The endpoints table says "Stored, not retrievable" where a secret column would otherwise invite someone to look.
 - **`proxy.ts`** sets the security headers (SEC-9) and deliberately does **not**

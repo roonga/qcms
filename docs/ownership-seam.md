@@ -93,14 +93,14 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (585 files common to both shapes)
+### Scaffolded paths (595 files common to both shapes)
 
 | Path                                                                            | Files |
 | ------------------------------------------------------------------------------- | ----- |
 | `(project root)`                                                                | 8     |
-| `apps/`                                                                         | 574   |
-| `apps/admin/`                                                                   | 362   |
-| `apps/admin/app/`                                                               | 95    |
+| `apps/`                                                                         | 584   |
+| `apps/admin/`                                                                   | 372   |
+| `apps/admin/app/`                                                               | 100   |
 | `apps/admin/app/(shell)/`                                                       | 76    |
 | `apps/admin/app/(shell)/@rail/`                                                 | 33    |
 | `apps/admin/app/(shell)/@rail/forms/`                                           | 9     |
@@ -177,9 +177,12 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/change-password/`                                               | 2     |
 | `apps/admin/app/change-password/submit/`                                        | 1     |
 | `apps/admin/app/healthz/`                                                       | 1     |
+| `apps/admin/app/pwa-icon-192/`                                                  | 1     |
+| `apps/admin/app/pwa-icon-512/`                                                  | 1     |
 | `apps/admin/app/sign-in/`                                                       | 2     |
 | `apps/admin/app/sign-in/submit/`                                                | 1     |
 | `apps/admin/app/sign-out/`                                                      | 1     |
+| `apps/admin/app/sw.js/`                                                         | 1     |
 | `apps/admin/app/two-factor/`                                                    | 8     |
 | `apps/admin/app/two-factor/challenge/`                                          | 2     |
 | `apps/admin/app/two-factor/challenge/verify/`                                   | 1     |
@@ -189,7 +192,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/two-factor/recovery-codes/`                                     | 2     |
 | `apps/admin/app/two-factor/recovery-codes/confirm/`                             | 1     |
 | `apps/admin/app/two-factor/recovery/verify/`                                    | 1     |
-| `apps/admin/components/`                                                        | 130   |
+| `apps/admin/components/`                                                        | 131   |
 | `apps/admin/components/agent/`                                                  | 8     |
 | `apps/admin/components/forms/`                                                  | 42    |
 | `apps/admin/components/membership/`                                             | 9     |
@@ -197,12 +200,13 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/components/questions/`                                              | 15    |
 | `apps/admin/components/shell/`                                                  | 5     |
 | `apps/admin/components/test-support/`                                           | 3     |
-| `apps/admin/lib/`                                                               | 130   |
+| `apps/admin/lib/`                                                               | 134   |
 | `apps/admin/lib/agent/`                                                         | 13    |
 | `apps/admin/lib/forms/`                                                         | 31    |
 | `apps/admin/lib/i18n/`                                                          | 2     |
 | `apps/admin/lib/membership/`                                                    | 3     |
 | `apps/admin/lib/ops/`                                                           | 15    |
+| `apps/admin/lib/pwa/`                                                           | 4     |
 | `apps/admin/lib/questions/`                                                     | 9     |
 | `apps/admin/lib/server/`                                                        | 31    |
 | `apps/admin/lib/shell/`                                                         | 5     |
@@ -291,7 +295,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (585)</summary>
+<summary>Every scaffolded file (595)</summary>
 
 ```
 .dockerignore
@@ -375,16 +379,21 @@ apps/admin/app/(shell)/workspaces/[workspaceId]/audit/page.tsx
 apps/admin/app/(shell)/workspaces/[workspaceId]/members/page.tsx
 apps/admin/app/(shell)/workspaces/[workspaceId]/settings/page.tsx
 apps/admin/app/(shell)/workspaces/page.tsx
+apps/admin/app/apple-icon.tsx
 apps/admin/app/change-password/page.tsx
 apps/admin/app/change-password/submit/route.ts
 apps/admin/app/globals.css
 apps/admin/app/healthz/route.ts
 apps/admin/app/icon.svg
 apps/admin/app/layout.tsx
+apps/admin/app/manifest.ts
 apps/admin/app/page.tsx
+apps/admin/app/pwa-icon-192/route.tsx
+apps/admin/app/pwa-icon-512/route.tsx
 apps/admin/app/sign-in/page.tsx
 apps/admin/app/sign-in/submit/route.ts
 apps/admin/app/sign-out/route.ts
+apps/admin/app/sw.js/route.ts
 apps/admin/app/theme.css
 apps/admin/app/two-factor/challenge/page.tsx
 apps/admin/app/two-factor/challenge/verify/route.ts
@@ -405,6 +414,7 @@ apps/admin/components/agent/heading-marker.tsx
 apps/admin/components/agent/proposal-marker.tsx
 apps/admin/components/agent/step-actions.ts
 apps/admin/components/announcer.tsx
+apps/admin/components/app-update.tsx
 apps/admin/components/appearance-glyph.tsx
 apps/admin/components/auth-screen.tsx
 apps/admin/components/clear-conversation.tsx
@@ -603,6 +613,10 @@ apps/admin/lib/ops/unexpected.ts
 apps/admin/lib/page-headings.ts
 apps/admin/lib/page-title.ts
 apps/admin/lib/preview-theme.ts
+apps/admin/lib/pwa/brand.ts
+apps/admin/lib/pwa/icon-mark.tsx
+apps/admin/lib/pwa/manifest.ts
+apps/admin/lib/pwa/service-worker.ts
 apps/admin/lib/questions/definition.ts
 apps/admin/lib/questions/editor-bridge.ts
 apps/admin/lib/questions/editor-state.ts

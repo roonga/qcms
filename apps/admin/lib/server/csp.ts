@@ -12,6 +12,10 @@ export function buildAdminCsp(nonce: string): string {
     `script-src 'self' 'nonce-${nonce}'${devScriptSrc()}`,
     `connect-src 'self'`,
     `frame-src 'none'`,
+    // Both already resolve to this through `default-src`; naming them keeps the installable surface
+    // stated rather than incidental.
+    `worker-src 'self'`,
+    `manifest-src 'self'`,
   ];
   return directives.join("; ");
 }
