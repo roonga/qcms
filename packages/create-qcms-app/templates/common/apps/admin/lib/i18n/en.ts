@@ -80,8 +80,8 @@ export const messages = {
 
   /** Environment names are API data, never a closed catalog vocabulary. */
   "environment.legend": "Environment",
-  /** Name the control and what pressing it does, because the chip beside it is the value, not the action. */
-  "environment.trigger": "Environment: {environment}. Change environment",
+  /** The trigger's own visible text has to appear in its name, in order and unbroken (WCAG 2.5.3). */
+  "environment.trigger": "Environment {environment} Change",
   "environment.change": "Change",
   "environment.selected": "Selected",
   /** Say what a choice reaches, so switching does not read as a filter on the list below. */

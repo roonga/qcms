@@ -118,7 +118,7 @@ test("the selector is a labelled dropdown whose rows name, mean and mark each en
   await expect(chip, "the slot says what the control is about").toContainText("Environment");
   const trigger = chip.getByRole("button");
   await expect(trigger).toHaveAttribute("aria-expanded", "false");
-  await expect(trigger).toHaveAccessibleName("Environment: prod. Change environment");
+  await expect(trigger).toHaveAccessibleName("Environment prod Change");
   await expect(trigger, "the change is written, not left to the caret").toContainText("Change");
 
   await trigger.focus();
