@@ -8,6 +8,7 @@ import {
   AssistantProvider,
 } from "@/components/agent/assistant-dock";
 import { Announcer } from "@/components/announcer";
+import { EnvironmentChip, EnvironmentSlot } from "@/components/environment-chip";
 import { EnvironmentScope } from "@/components/environment-scope";
 import { EnvironmentSwitcher } from "@/components/environment-switcher";
 import { MeasuredMain } from "@/components/measured-main";
@@ -16,7 +17,6 @@ import { RailToggle, SidebarProvider } from "@/components/sidebar-toggle";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { TopbarHeight } from "@/components/topbar-height";
 import { MODE_COOKIE, parseAppearance } from "@/lib/appearance";
-import { environmentKind } from "@/lib/environment";
 import { secureCookies } from "@/lib/server/config";
 import { resolvedEnvironment } from "@/lib/server/environments";
 import { t } from "@/lib/i18n/en";
@@ -81,17 +81,9 @@ export default async function ShellLayout({
                       secureCookies={secureCookies()}
                     />
                   ) : (
-                    <div
-                      className="qcms-envswitch"
-                      data-testid="qcms-environment-switcher"
-                      data-environment=""
-                      data-kind={environmentKind(undefined)}
-                      data-pending="false"
-                    >
-                      <span className="qcms-envtrigger qcms-envtrigger--static">
-                        {t("environment.unknown")}
-                      </span>
-                    </div>
+                    <EnvironmentSlot environment={undefined}>
+                      <EnvironmentChip environment={undefined} />
+                    </EnvironmentSlot>
                   )
                 }
                 trailing={

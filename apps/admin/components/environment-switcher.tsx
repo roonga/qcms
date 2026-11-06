@@ -3,15 +3,29 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import { Menu } from "@/components/kit";
-import { menuClasses } from "@/components/menu-slots";
+import { EnvironmentChip, EnvironmentSlot } from "@/components/environment-chip";
+import { Menu, MenuItemText } from "@/components/kit";
+import type { MenuClassNames } from "@/components/kit";
+import { MENU_SURFACE } from "@/components/menu-slots";
 import { environmentCookie, environmentKind } from "@/lib/environment";
 import { t } from "@/lib/i18n/en";
 
 /* Refresh server-rendered rows after switching; changing a cookie alone leaves the displayed environment
    stale. */
 
-const SELECTED_MARK = "✓";
+const ENVIRONMENT_MENU: MenuClassNames = {
+  ...MENU_SURFACE,
+  trigger: "qcms-envtrigger",
+  popover: "qcms-menu qcms-envmenu",
+  item: "qcms-menu__item qcms-envmenu__item",
+  header: "qcms-envmenu__note",
+};
+
+function meaning(environment: string): string {
+  return environmentKind(environment) === "prod"
+    ? t("environment.meaning.prod")
+    : t("environment.meaning.nonProd");
+}
 
 export function EnvironmentSwitcher({
   environments,
@@ -44,22 +58,37 @@ export function EnvironmentSwitcher({
   };
 
   return (
-    <div
-      className="qcms-envswitch"
-      data-testid="qcms-environment-switcher"
-      data-environment={current}
-      data-kind={environmentKind(current)}
-      data-pending={isPending ? "true" : "false"}
-    >
+    <EnvironmentSlot environment={current} pending={isPending}>
       <Menu
         triggerLabel={t("environment.trigger", { environment: current })}
         trigger={
-          <span className="qcms-envswitch__name" aria-hidden="true">
-            {current}
-          </span>
+          <>
+            <EnvironmentChip environment={current} />
+            {/* The trigger's own name already offers the change, so these would announce it twice. */}
+            <span className="qcms-envtrigger__change" aria-hidden="true">
+              {t("environment.change")}
+            </span>
+            <svg
+              className="qcms-envtrigger__caret"
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              fill="none"
+              aria-hidden="true"
+            >
+              <path
+                d="M4 6l4 4 4-4"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </>
         }
         menuLabel={t("environment.legend")}
-        classNames={menuClasses("qcms-envtrigger")}
+        classNames={ENVIRONMENT_MENU}
+        header={t("environment.appliesTo")}
         selectionMode="single"
         disallowEmptySelection
         selectedKeys={[current]}
@@ -72,10 +101,16 @@ export function EnvironmentSwitcher({
           textValue: environment,
           label: (
             <>
-              <span className="qcms-menu__check" aria-hidden="true">
-                {environment === current ? SELECTED_MARK : ""}
-              </span>
-              {environment}
+              <MenuItemText slot="label" className="qcms-envmenu__row">
+                <EnvironmentChip environment={environment} decorative />
+                <span className="qcms-envmenu__name">{environment}</span>
+                <span className="qcms-envmenu__mark" aria-hidden="true">
+                  {environment === current ? t("environment.selected") : ""}
+                </span>
+              </MenuItemText>
+              <MenuItemText slot="description" className="qcms-envmenu__meaning">
+                {meaning(environment)}
+              </MenuItemText>
             </>
           ),
         }))}
@@ -83,6 +118,6 @@ export function EnvironmentSwitcher({
       <span className="qcms-visually-hidden" role="status" data-testid="qcms-environment-status">
         {announced}
       </span>
-    </div>
+    </EnvironmentSlot>
   );
 }

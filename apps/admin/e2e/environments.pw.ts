@@ -8,6 +8,7 @@ import { chooseEnvironment, environmentChip, OPERATIONS_PATH } from "./support/e
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 import { createForm } from "./support/forms.js";
 import { ADMIN_BASE_URL } from "./support/harness-config.js";
+import { waitForHydration } from "./support/hydration.js";
 
 test.describe.configure({ mode: "serial" });
 
@@ -32,15 +33,15 @@ const chipState = (page: Page) =>
     const bar = document.querySelector("header.qcms-topbar");
     if (bar === null) throw new Error("no topbar");
     const barStyle = getComputedStyle(bar);
-    const trigger = chip?.querySelector(".qcms-envtrigger") ?? null;
-    const triggerStyle = trigger === null ? null : getComputedStyle(trigger);
+    const name = chip?.querySelector(".qcms-envchip") ?? null;
+    const nameStyle = name === null ? null : getComputedStyle(name);
     const main = document.querySelector("main");
     return {
       kind: chip?.getAttribute("data-kind") ?? "",
-      text: (trigger?.textContent ?? "").trim(),
-      fill: triggerStyle?.backgroundColor ?? "",
-      borderStyle: triggerStyle?.borderTopStyle ?? "",
-      borderWidth: triggerStyle?.borderTopWidth ?? "",
+      text: (name?.textContent ?? "").trim(),
+      fill: nameStyle?.backgroundColor ?? "",
+      borderStyle: nameStyle?.borderTopStyle ?? "",
+      borderWidth: nameStyle?.borderTopWidth ?? "",
       edge: barStyle.boxShadow,
       barHeight: bar.getBoundingClientRect().height,
       mainTop: main?.getBoundingClientRect().top ?? 0,
@@ -101,6 +102,54 @@ test("draws prod and a non-prod environment differently, and announces the switc
   await expect(environmentChip(page)).toHaveAttribute("data-environment", "test");
   await page.reload();
   await expect(environmentChip(page)).toHaveAttribute("data-environment", "test");
+  await chooseEnvironment(page, "prod");
+});
+
+test("the selector is a labelled dropdown whose rows name, mean and mark each environment", async ({
+  page,
+}) => {
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(OPERATIONS_PATH);
+  await waitForHydration(page);
+
+  const chip = environmentChip(page);
+  await expect(chip, "the slot says what the control is about").toContainText("Environment");
+  const trigger = chip.getByRole("button");
+  await expect(trigger).toHaveAttribute("aria-expanded", "false");
+  await expect(trigger).toHaveAccessibleName("Environment: prod. Change environment");
+  await expect(trigger, "the change is written, not left to the caret").toContainText("Change");
+
+  await trigger.focus();
+  await page.keyboard.press("Enter");
+  const menu = page.getByRole("menu");
+  await expect(menu).toBeVisible();
+  const rows = menu.getByRole("menuitemradio");
+  expect(await rows.count(), "one row per configured environment").toBeGreaterThanOrEqual(2);
+  await expect(menu.getByRole("menuitemradio", { name: "prod", exact: true })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+  await expect(rows.filter({ hasText: "Live forms that respondents use" })).toHaveCount(1);
+  await expect(rows.filter({ hasText: "Checking released versions before prod" })).toHaveCount(1);
+  await expect(
+    page.getByText("Applies to every Operations screen. Lists return to page 1."),
+    "the note sits outside the rows the arrow keys walk",
+  ).toBeVisible();
+
+  const opened = await page.evaluate(() => document.activeElement?.getAttribute("role") ?? "");
+  expect(opened, "opening from the keyboard lands in the rows").toBe("menuitemradio");
+
+  await page.keyboard.press("ArrowDown");
+  const focused = await page.evaluate(
+    () => document.activeElement?.querySelector(".qcms-envmenu__name")?.textContent?.trim() ?? "",
+  );
+  expect(focused, "the arrow keys walk to a named environment").not.toBe("");
+  await page.keyboard.press("Enter");
+  await expect(chip).toHaveAttribute("data-pending", "false");
+  await expect(chip).toHaveAttribute("data-environment", focused);
+
   await chooseEnvironment(page, "prod");
 });
 

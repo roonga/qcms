@@ -80,7 +80,15 @@ export const messages = {
 
   /** Environment names are API data, never a closed catalog vocabulary. */
   "environment.legend": "Environment",
-  "environment.trigger": "Environment: {environment}",
+  /** Name the control and what pressing it does, because the chip beside it is the value, not the action. */
+  "environment.trigger": "Environment: {environment}. Change environment",
+  "environment.change": "Change",
+  "environment.selected": "Selected",
+  /** Say what a choice reaches, so switching does not read as a filter on the list below. */
+  "environment.appliesTo": "Applies to every Operations screen. Lists return to page 1.",
+  /** Environments are installation data, so the meaning follows prod or non-prod, never a name. */
+  "environment.meaning.prod": "Live forms that respondents use",
+  "environment.meaning.nonProd": "Checking released versions before prod",
   /** Announce switches only; first render already names the environment. */
   "environment.nowWorking": "Now working in {environment}.",
   /** Destructive confirmations must restate the environment because targeting the wrong one cannot be undone. */

@@ -248,7 +248,7 @@ button {
     inline-size: 9rem;
   }
   .qcms-topbar__env {
-    inline-size: 8rem;
+    inline-size: 18rem;
   }
   .qcms-topbar__toggle {
     display: flex;
@@ -3052,50 +3052,135 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 .qcms-envswitch {
   display: inline-flex;
   align-items: center;
+  gap: var(--space-2);
+  min-inline-size: 0;
   flex-shrink: 0;
 }
-.qcms-envtrigger {
-  block-size: 32px;
-  min-block-size: 32px;
-  min-inline-size: 5.5rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.375rem;
-  padding-inline: var(--space-3);
-  border: 2px solid var(--color-border-strong);
-  border-radius: var(--radius-control);
-  background-color: var(--color-surface);
-  color: var(--color-text);
-  font-size: 11px;
+.qcms-envswitch__label {
+  min-inline-size: 0;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* One chip wherever an environment is named: in the bar, in its menu and in an assistant card. */
+.qcms-envchip {
+  display: inline-block;
+  padding: 0 4px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  cursor: pointer;
-  flex-shrink: 0;
 }
-.qcms-envswitch[data-kind="prod"] .qcms-envtrigger {
+.qcms-envchip[data-kind="prod"] {
   border-color: var(--color-env-prod);
   background-color: var(--color-env-prod);
   color: var(--color-env-prod-foreground);
 }
-.qcms-envswitch[data-kind="nonprod"] .qcms-envtrigger {
+.qcms-envchip[data-kind="nonprod"] {
   border-color: var(--color-env-test);
   background-color: var(--color-env-test-subtle);
   color: var(--color-env-test-fg);
 }
-.qcms-envswitch[data-kind="unknown"] .qcms-envtrigger {
+.qcms-envchip[data-kind="unknown"] {
   border-style: dashed;
+}
+/* In the bar the chip is a sized target whose border weight never changes, so no state is wider. */
+.qcms-envswitch .qcms-envchip,
+.qcms-envmenu .qcms-envchip {
+  box-sizing: border-box;
+  min-inline-size: 60px;
+  block-size: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-inline: var(--space-2);
+  border-width: 2px;
+  font-size: 11px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.qcms-envtrigger {
+  min-block-size: var(--admin-control-h);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-inline: var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font-size: 14px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.qcms-envtrigger__change,
+.qcms-envtrigger__caret {
+  display: none;
 }
 .qcms-envtrigger[data-hovered],
 .qcms-envtrigger[aria-expanded="true"] {
-  box-shadow: 0 0 0 2px var(--color-border-strong);
+  background-color: var(--color-ghost-hover);
 }
 .qcms-envswitch[data-pending="true"] .qcms-envtrigger {
   opacity: 0.7;
 }
-.qcms-envtrigger--static {
-  cursor: default;
+.qcms-envmenu {
+  min-inline-size: 21rem;
+}
+.qcms-envmenu__item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  block-size: auto;
+  min-block-size: 52px;
+  align-content: center;
+  row-gap: 2px;
+  padding-block: var(--space-2);
+}
+.qcms-envmenu__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.qcms-envmenu__name {
+  font-size: 14px;
+  font-weight: 600;
+}
+.qcms-envmenu__mark {
+  margin-inline-start: auto;
+  color: var(--color-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+.qcms-envmenu__meaning {
+  padding-inline-start: calc(52px + var(--space-3));
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+.qcms-envmenu__note {
+  margin: 0;
+  padding-inline: var(--space-3);
+  padding-block: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+.qcms-envmenu .qcms-envchip {
+  min-inline-size: 52px;
+}
+
+/* The slot reserves one width in every area, so the label and the word only appear where they fit. */
+@variant sidebar {
+  .qcms-envswitch__label,
+  .qcms-envtrigger__change,
+  .qcms-envtrigger__caret {
+    display: inline-flex;
+  }
+  .qcms-envswitch .qcms-envchip {
+    min-inline-size: 88px;
+  }
 }
 
 .qcms-topbar:has(.qcms-envswitch[data-kind="prod"]) {
@@ -3448,23 +3533,6 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   font-family: var(--font-mono);
   font-size: 12px;
   color: var(--color-text-muted);
-}
-.qcms-envchip {
-  display: inline-block;
-  padding: 0 4px;
-  border: 1px solid var(--color-env-test);
-  border-radius: var(--radius-sm);
-  background-color: var(--color-env-test-subtle);
-  color: var(--color-env-test-fg);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-.qcms-envchip[data-kind="prod"] {
-  border-color: var(--color-env-prod);
-  background-color: var(--color-env-prod);
-  color: var(--color-env-prod-foreground);
 }
 .qcms-acard__reason {
   display: flex;
