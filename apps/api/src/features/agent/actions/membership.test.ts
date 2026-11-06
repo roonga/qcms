@@ -75,7 +75,7 @@ describe("D8's action kinds", () => {
     };
     for (const def of DEFS) {
       expect(def.screen, def.kind).toBe(`/workspaces/[workspaceId]/${sections[def.kind] ?? ""}`);
-      expect(SCREENS[def.screen].actionKinds, def.kind).toContain(def.kind);
+      expect(SCREENS[def.screen], def.kind).toBeDefined();
       expect(def.card.headingControl, def.kind).not.toBeUndefined();
     }
   });

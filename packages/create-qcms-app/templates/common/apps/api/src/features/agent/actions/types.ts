@@ -44,6 +44,12 @@ export interface ActionCardTemplate {
 
   readonly headingControl?: string;
   /**
+   * Set by the propose tool from the kind's own cells: an act in no environment shows no
+   * environment line, which would otherwise read as a live change. The step still binds the
+   * environment it was proposed under, whatever the card shows.
+   */
+  readonly hideEnvironment?: true;
+  /**
    * For a kind that creates something: the page route the card links the new item at, and
    * the result field that fills the route's own id. A page route only, so a card can never
    * link at a route handler.
@@ -78,6 +84,14 @@ export interface ActionKindDef {
    */
   readonly environmentArgument?: string;
   readonly args: z.ZodType;
+  /**
+   * The arguments as the card displays them and the digest binds them, where a member the
+   * model may send is the server's own to derive. `recomputeArgs` applies the same rule to
+   * the request, so the two sides agree.
+   */
+  readonly normaliseArgs?: (
+    args: Readonly<Record<string, unknown>>,
+  ) => Readonly<Record<string, unknown>>;
   /** What the card displays, which is what the digest is taken over. */
   recomputeArgs(facts: ActionRequestFacts): unknown;
   /**
@@ -102,6 +116,18 @@ export interface ActionKindDef {
    * server's two advisory lists to it.
    */
   readonly carriesProposedDraft?: true;
+  /**
+   * The draft this kind saves is its own `definition` argument, so the propose tool
+   * validates that argument and attaches the server's two advisory lists to the step, as it
+   * does for the kind that applies a proposed draft.
+   */
+  readonly carriesDraftArgument?: true;
+  /**
+   * A kind whose `definition` argument is a question definition the route parses. The
+   * propose tool runs the route's own check over it, so no card offers a step the route
+   * would refuse on its arguments alone.
+   */
+  readonly carriesQuestionDefinition?: true;
   readonly card: ActionCardTemplate;
   readonly description: string;
 }

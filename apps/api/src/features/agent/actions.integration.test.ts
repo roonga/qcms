@@ -586,13 +586,42 @@ describe("publishing the questions a saved draft pins (issue #1205)", () => {
   it(
     "refuses a question the saved draft does not pin, and proposes nothing at all",
     async () => {
+      // Inside a plan that publishes the form, which is the only shape the pin set decides.
       const events = await turn({
         caller: owner,
         screen: "/forms/[formId]",
         formId: PINNED_FORM_ID,
-        script: "propose-question-publish-foreign",
+        script: "plan-publish-pins-foreign",
       });
       expect(proposals(events)).toEqual([]);
+    },
+    CONTAINER_BOOT_TIMEOUT_MS,
+  );
+
+  it(
+    "proposes one card from nothing: create the form, its question, then save the draft",
+    async () => {
+      const events = await turn({
+        caller: owner,
+        screen: "/forms",
+        script: "plan-blank-to-draft",
+      });
+      const [event] = proposals(events);
+      const steps = event?.proposal.steps ?? [];
+      expect(steps.map((step) => step.kind)).toEqual([
+        "form.create",
+        "question.create",
+        "form.saveDraft",
+      ]);
+      // The draft names the form by the create step's own result, and the card shows the
+      // server's own verdict on it.
+      expect(steps[2]?.args["formId"]).toEqual({ fromStep: 0, field: "formId" });
+      expect(steps[2]?.draft?.issues).toBeDefined();
+      expect(steps[2]?.draft?.createdBy).toHaveLength(1);
+      // No environment line on any of the three: none of these acts is one environment's.
+      for (const step of steps) {
+        expect(step.card.hideEnvironment, step.kind).toBe(true);
+      }
     },
     CONTAINER_BOOT_TIMEOUT_MS,
   );

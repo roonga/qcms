@@ -90,8 +90,13 @@ export interface ScreenForm {
   readonly row: FormRow;
 }
 
-export async function requireForm(input: ScreenBuildInput): Promise<ScreenForm> {
-  const raw = input.params.formId;
+/**
+ * The form a tool names, or the one the screen names when it names none. The screen is
+ * context: it supplies the default id, and a tool may reach any other subject the caller's
+ * own grants cover.
+ */
+export async function resolveForm(input: ScreenBuildInput, named?: string): Promise<ScreenForm> {
+  const raw = named ?? input.params.formId;
   if (raw === undefined) throw fail.missing("form");
   const parsed = parseFormId(raw);
   if (!parsed.ok) throw fail.malformed("form");
@@ -100,16 +105,33 @@ export async function requireForm(input: ScreenBuildInput): Promise<ScreenForm> 
   return { formId: parsed.value, workspaceId: row.workspaceId, row };
 }
 
-export async function requireQuestion(
+export async function requireForm(input: ScreenBuildInput): Promise<ScreenForm> {
+  return resolveForm(input);
+}
+
+export async function resolveQuestion(
   input: ScreenBuildInput,
+  named?: string,
 ): Promise<{ readonly questionId: QuestionId; readonly workspaceId: string }> {
-  const raw = input.params.questionId;
+  const raw = named ?? input.params.questionId;
   if (raw === undefined) throw fail.missing("question");
   const parsed = parseQuestionId(raw);
   if (!parsed.ok) throw fail.malformed("question");
   const row = await getQuestion(input.deps.databases.control, parsed.value);
   if (row === undefined) throw fail.notFound("question");
   return { questionId: parsed.value, workspaceId: row.workspaceId };
+}
+
+export async function requireQuestion(
+  input: ScreenBuildInput,
+): Promise<{ readonly questionId: QuestionId; readonly workspaceId: string }> {
+  return resolveQuestion(input);
+}
+
+export function resolveWorkspaceId(input: ScreenBuildInput, named?: string): string {
+  const raw = named ?? input.params.workspaceId;
+  if (raw === undefined || raw === "") throw fail.missing("workspace");
+  return raw;
 }
 
 export function requireSession(input: ScreenBuildInput): SessionId {
@@ -192,6 +214,59 @@ export async function workspacesHoldingOrNone(
     claim: input.principal.claim,
   });
   return workspacesAllowing(resolved, requestFor({ ...args, environment: input.environment }));
+}
+
+/**
+ * The form ids a membership can answer a form-scoped cell for: whatever its grants name,
+ * plus the wildcard a workspace-wide grant carries. A form-scoped cell asked with no form
+ * id is refused outright by the policy, so eligibility has to ask about some form.
+ */
+function candidateForms(membership: ResolvedMembership): readonly string[] {
+  const ids = new Set<string>(["all"]);
+  for (const grant of membership.grants) for (const id of grant.forms) ids.add(id);
+  return [...ids];
+}
+
+/** The caller's grants in every workspace they hold one in, resolved once per turn. */
+export async function callerWorkspaces(
+  input: ScreenBuildInput,
+): Promise<readonly ResolvedMembership[]> {
+  return resolveCallerWorkspaces(input.deps.databases.control, {
+    userId: input.principal.userId,
+    claim: input.principal.claim,
+  });
+}
+
+/**
+ * Whether the caller holds a cell on any subject at all, which is what decides whether a
+ * read tool is offered this turn. It is deliberately coarse: the tool's own port re-makes
+ * the check against the subject the call names, and that check is the control.
+ */
+export function holdsCellIn(
+  resolved: readonly ResolvedMembership[],
+  environment: string,
+  args: { readonly resource: Resource; readonly action: string },
+): boolean {
+  if (!isFormScoped(args.resource, args.action)) {
+    return workspacesAllowing(resolved, requestFor({ ...args, environment })).length > 0;
+  }
+  return resolved.some((membership) =>
+    candidateForms(membership).some(
+      (formId) =>
+        decideAccess({
+          memberRole: membership.memberRole,
+          grants: membership.grants,
+          request: requestFor({ ...args, environment, formId }),
+        }).allowed,
+    ),
+  );
+}
+
+export async function holdsCellAnywhere(
+  input: ScreenBuildInput,
+  args: { readonly resource: Resource; readonly action: string },
+): Promise<boolean> {
+  return holdsCellIn(await callerWorkspaces(input), input.environment, args);
 }
 
 /** The workspaces the caller holds a cell in, which is what narrows a list screen's read. */

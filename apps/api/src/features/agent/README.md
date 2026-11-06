@@ -1,8 +1,8 @@
 # Agent slice (tasks 041 and 082, ADR-25, SEC-17)
 
 Flag-gated agent assistance on every admin screen: one bounded tool loop,
-relayed to the admin as server-sent events. On the form builder it proposes a
-draft `FormDefinition`; on every other screen it explains and navigates.
+relayed to the admin as server-sent events. What a turn may read and propose is
+the signed-in user's own permissions, wherever they are standing.
 
 **ADR-25 in one line: the agent proposes, the kernel validates, the human
 publishes.** Nothing here touches the serving path, and nothing here can reach a
@@ -32,59 +32,126 @@ flag-gated, and streams rather than returning a modelled JSON body.
 
 ## Files
 
-| File                                    | What it is                                                                                                                                                                            |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `types.ts`                              | The `DraftAssistant` port, `AgentContext`, `AssistContext`, `AssistEvent`, `AssistProposal`. The PII boundary is the context's shape.                                                 |
-| `screens.ts`                            | The frozen `SCREENS` registry: one row per `(shell)` page, each with its facts schema, context builder, read tools and action kinds.                                                  |
-| `contexts/`                             | The per-screen context builders, grouped by area, each checking its own SEC-3 cell before it reads anything.                                                                          |
-| `contexts/reads.ts`                     | The read ports of D1 to D7: one per read tool a screen declares, each re-making its own screen's read check.                                                                          |
-| `tools/registry.ts`                     | The frozen tool registry, the single dispatch door, and the provider tool set built from the current screen's list.                                                                   |
-| `system-prompt.ts`                      | The versioned system prompt, assembled from the kernel's own contracts. Reviewed like code.                                                                                           |
-| `assistant.ts`                          | The `streamText` tool loop, the stop-reason mapping, and the provider selector.                                                                                                       |
-| `actions/`                              | One module per action-kind group, each kind's descriptor: its route, cell, argument schema, how the middleware recomputes its arguments, its result allowlist and its card templates. |
-| `proposal-token.ts`                     | The signed proposal token: the ordered step list, each step's argument digest and the environment it acts in.                                                                         |
-| `draft-pins.ts`                         | The form's saved draft as a plan sees it: the versions it pins unpublished, and the revision a plan built from them is bound to.                                                      |
-| `provenance.ts` / `provenance-mount.ts` | The provenance check and the middleware the admin group mounts it as. It adds provenance and never rights.                                                                            |
-| `audit.ts`                              | The one `control.agent_actions` row a confirmed step writes.                                                                                                                          |
-| `grant-filter.ts`                       | The (kind, environment) pairs a turn is offered, through the evaluator the route middleware uses.                                                                                     |
-| `fake-model.ts`                         | The deterministic scripted model CI drives, including the hostile scripts.                                                                                                            |
-| `route.ts` / `handler.ts` / `schema.ts` | The flag-gated registrar, the SSE relay and its 15 second keep-alive, the request schema.                                                                                             |
-| `thinking.ts`                           | One function from `QCMS_AGENT_THINKING` to the provider's own options, and nothing vendor-shaped anywhere else (081).                                                                 |
+| File                                    | What it is                                                                                                                                                                                                                               |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `types.ts`                              | The `DraftAssistant` port, `AgentContext`, `AssistContext`, `AssistEvent`, `AssistProposal`. The PII boundary is the context's shape.                                                                                                    |
+| `screens.ts`                            | The frozen `SCREENS` registry: one row per `(shell)` page, each with its facts schema and context builder. A screen is context, never a permission list.                                                                                 |
+| `contexts/`                             | The per-screen context builders, grouped by area, each checking its own SEC-3 cell before it reads anything.                                                                                                                             |
+| `contexts/reads.ts`                     | One read port per admin GET route, each taking the subject ids the call names and re-making that screen's own read check against the subject it resolved. A port that spans workspaces narrows to the ones the caller holds its cell in. |
+| `tools/registry.ts`                     | The frozen tool registry, the single dispatch door, and the provider tool set built from the list this caller's grants reach.                                                                                                            |
+| `system-prompt.ts`                      | The versioned system prompt, assembled from the kernel's own contracts. Reviewed like code.                                                                                                                                              |
+| `assistant.ts`                          | The `streamText` tool loop, the stop-reason mapping, and the provider selector.                                                                                                                                                          |
+| `actions/`                              | One module per action-kind group, each kind's descriptor: its route, cell, argument schema, how the middleware recomputes its arguments, its result allowlist and its card templates.                                                    |
+| `proposal-token.ts`                     | The signed proposal token: the ordered step list, each step's argument digest and the environment it acts in.                                                                                                                            |
+| `draft-pins.ts`                         | The form's saved draft as a plan sees it: the versions it pins unpublished, and the revision a plan built from them is bound to.                                                                                                         |
+| `provenance.ts` / `provenance-mount.ts` | The provenance check and the middleware the admin group mounts it as. It adds provenance and never rights.                                                                                                                               |
+| `audit.ts`                              | The one `control.agent_actions` row a confirmed step writes.                                                                                                                                                                             |
+| `grant-filter.ts`                       | The (kind, environment) pairs a turn is offered, through the evaluator the route middleware uses.                                                                                                                                        |
+| `fake-model.ts`                         | The deterministic scripted model CI drives, including the hostile scripts.                                                                                                                                                               |
+| `route.ts` / `handler.ts` / `schema.ts` | The flag-gated registrar, the SSE relay and its 15 second keep-alive, the request schema.                                                                                                                                                |
+| `thinking.ts`                           | One function from `QCMS_AGENT_THINKING` to the provider's own options, and nothing vendor-shaped anywhere else (081).                                                                                                                    |
 
 ## The registry and the door are security controls
 
-The read verbs are the builder's four (`search_question_library`,
-`propose_questions`, `propose_draft`, `validate_draft`), the preview projection
-(`project_draft`) and D1 to D7's screen reads: `test_rule`,
-`diff_form_versions`, `count_links`, `list_responses`, `count_responses`,
-`delivery_status`, `count_dead_letters`, `diff_question_versions` and
-`search_forms`. Beside them sit the two propose tools, which execute nothing.
+One typed read tool per admin GET route (D1): the question library
+(`search_question_library`, `list_questions`, `read_question`,
+`diff_question_versions`), forms (`read_form`, `search_forms`,
+`list_form_versions`, `diff_form_versions`, `list_releases`), one environment's
+operational state (`count_links`, `list_links`, `list_webhooks`,
+`delivery_status`, `list_responses`, `count_responses`, `count_dead_letters`,
+`list_erasures`), administration (`list_workspaces`, `read_workspace`), the
+preview verbs (`project_draft`, `test_rule`) and the draft verbs
+(`propose_questions`, `propose_draft`, `validate_draft`). Beside them sit the two
+propose tools, which execute nothing. There is no generic GET passthrough.
 Publish, erase, link minting, webhook configuration and every read of response
 **content** are absent from the module, so an agent cannot call them however it
 is prompted, jailbroken or swapped.
 
 Three properties hold structurally, and all three are tested:
 
-1. **One door, per screen.** `runAgentTool` is the only way a tool executes. It
-   refuses a name outside the registry and a registered name outside **the
-   current screen's** list, before dispatch; the tool set handed to the provider
-   is built from that same list, so the model is never told the other verbs
-   exist. A refused call is logged and the turn produces **no proposal at all**,
-   and the loop ends at the refusing step rather than asking again until
-   `QCMS_AGENT_MAX_STEPS` runs out. A tool that declares a SEC-3 cell runs only
-   once the calling principal is shown to hold it, through the same policy
-   evaluator the route middleware uses.
+1. **One door, by grant.** `runAgentTool` is the only way a tool executes. It
+   refuses a name outside the registry and a registered name this caller holds no
+   cell for, before dispatch; the tool set handed to the provider is built from
+   that same list, so the model is never told the other verbs exist. A refused
+   call is logged and the turn produces **no proposal at all**, and the loop ends
+   at the refusing step rather than asking again until `QCMS_AGENT_MAX_STEPS`
+   runs out. The door asks whether the caller holds the cell on any subject at
+   all; each port re-asks it on the subject the call resolved, through the same
+   policy evaluator the route middleware uses, and that check is the limit.
 2. **The browser sends no context.** A turn carries a screen id, the route's own
    ids and the response list's four filters. The screen's own builder computes
    the facts here, under the caller's grants, so a tampered client cannot hand
    the model something its screen would not show.
 3. **No respondent answer.** Every facts schema and every tool output schema is a
-   `z.strictObject` of enumerated fields, and the response screens' builders
-   close over a metadata projection that selects no answer column and joins no
-   answer table. `screens.test.ts` walks every schema and fails on a field whose
-   name matches the respondent-content or secret vocabulary the stdout redactor
-   uses; the staff-identity fragments are excluded, because a workspace member's
-   name and email are staff data and may flow (Q11).
+   `z.strictObject` of enumerated fields, or an opaque blob of author content (a
+   question definition, a form draft) the kernel validates. `screens.test.ts`
+   walks every schema and fails on a field whose name matches the
+   respondent-content or secret vocabulary the stdout redactor uses; the
+   staff-identity fragments are excluded, because a workspace member's name and
+   email are staff data and may flow (Q11).
+
+## The screen is context, not a permission list
+
+The tool set and the offered action kinds are the caller's own permissions, in
+every workspace they hold a grant in, whatever screen the turn is on. The screen
+contributes the facts and the **default subject ids** a tool call takes when it
+names none, and a turn may name any other subject the user can reach.
+
+**One screen dependency survives, and only one.** `apply-draft` is a `local`
+kind: the form builder runs it through its own client-side save, so no other
+screen can. The grant filter therefore withholds a local kind away from its own
+screen, and the two tools whose only consumer that card is
+(`propose_questions`, `propose_draft`) are withheld with it. From anywhere else
+the same work is a plan of `question.create` steps and one `form.saveDraft`, and
+both the refusal and the system prompt say so.
+
+## A card never offers a step the route would reject
+
+Every question definition a plan carries goes through `checkQuestionDefinition`
+at propose time, the same function `POST /admin/questions` runs. A pattern a
+browser cannot compile under the `v` flag is refused with the spelling the
+authoring boundary derived, so the model corrects itself rather than the person
+watching step 2 of a confirmed plan fail.
+
+The subject of a step is authorised before that subject is read. A
+`form.saveDraft` naming a form this caller holds no `form: write` on is refused
+in the turn, not left to fail at Confirm, and the check runs before the form's
+draft and workspace row are read to validate it; a `formId` naming an earlier
+step's result is checked in the workspace that create targets. A
+`question.create` whose id has been used before is refused the same way, with
+the route's own reason, because ids are never reused (R6).
+
+A draft a plan saves is validated by the same `validateDraft` a publish runs,
+against the question versions the plan's **own earlier steps** write: a
+`question.create` step's definition as draft v1, a `question.saveDraft` step's as
+the version it names. One plan can therefore repair a pinned question and change
+the draft under one Confirm, and the card's advisory lists describe the state the
+plan will leave behind. A plan whose draft would still not publish for any reason
+other than an unpublished pin is refused before a card exists; an unpublished pin
+never refuses a draft save, whoever pinned it, because a draft is where an
+unpublished version is meant to sit.
+
+## `form.saveDraft` takes a form from nothing to a reviewable draft
+
+`form.saveDraft` saves a complete draft through `PUT /admin/forms/{id}/draft`,
+the route every other edit takes, with the sticky agent-assisted mark. It is
+proposable from any screen and its `formId` may name an earlier step's result, so
+one card can be `form.create`, a `question.create` per new question, then
+`form.saveDraft` pinning them. Publishing stays a separate card.
+
+The digest binds the whole draft the card displayed, with one deliberate
+exclusion: the `formId` inside the definition is the create step's own minted
+value and the model never names it, so the step's own `formId` argument binds the
+subject instead. `normaliseArgs` strips it on the propose side and
+`recomputeArgs` strips it from the request, so the two sides digest the same
+object.
+
+`read_form` returns the **complete** working draft and the latest published
+version as opaque author content, because a draft save replaces the draft
+wholesale: a model rebuilding one from a summary would silently drop a rule, a
+repeating group, a step title or a count source. The system prompt says to start
+every `form.saveDraft` from that definition.
+name and email are staff data and may flow (Q11).
 
 `assist.integration.test.ts` proves the last one against a real database: a
 submitted answer and a webhook payload both carry a sentinel while a turn runs on
@@ -94,10 +161,11 @@ the payload. The same run asserts that a session id **is** present, so the
 metadata half of the rule is pinned too.
 
 Each of those turns runs the fake provider's `read-all` script, which calls every
-tool the screen offers, one per step. So the boundary is asserted over the output
-of every registered read tool rather than over the facts alone, and the walk fails
-if a tool stops being reachable: it asserts that every name in `AGENT_TOOL_NAMES`
-executed.
+tool the caller holds a cell for, one per step, so its step ceiling is raised to
+clear the registry in one turn. The boundary is asserted over the output of every
+registered read tool rather than over the facts alone, and the walk fails if a
+tool stops being reachable: it asserts that every name in
+`AGENT_READ_TOOL_NAMES` executed.
 
 ## Facts and tool results are delimited as data
 
@@ -114,11 +182,16 @@ propose against it.
 ## A read tool is refused wherever its screen would be
 
 Each read port in `contexts/reads.ts` re-makes the grant check its own screen's
-read makes, which is not always the one cell the door can express: the response
-reads are per-form, the form search is over the workspaces the caller holds
-`form: read` in, and the dead-letter count needs the installation-wide claim the
-screen itself needs. So a port absent and a port refused are both "nothing" to
-the model, and a caller the screen would refuse learns nothing through a tool.
+read makes, against the subject the call resolved, which is not always the one
+cell the door can express: the response reads are per-form, the form search is
+over the workspaces the caller holds `form: read` in, and the dead-letter count
+and the erasure log need the installation-wide claim those screens need. So a
+port unoffered and a port refused are both "nothing" to the model, and a caller
+the screen would refuse learns nothing through a tool.
+
+A draft that does not compile cannot be projected, which `project_draft` reports
+as an outcome rather than throwing: every draft with an unpublished pin would
+otherwise fail the tool with nothing the model could act on.
 
 Two counts are bounded rather than exact, and say so in their own result:
 `delivery_status` and `count_dead_letters` scan a fixed window and report

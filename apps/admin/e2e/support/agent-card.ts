@@ -121,12 +121,16 @@ export function auditDelta(
   return delta;
 }
 
-export async function expectAxeClean(page: Page, state: string): Promise<void> {
+export async function expectAxeClean(
+  page: Page,
+  state: string,
+  root = ".qcms-acard",
+): Promise<void> {
   await page.evaluate(() => {
     window.scrollTo(0, 0);
   });
   const results = await new AxeBuilder({ page })
-    .include(".qcms-acard")
+    .include(root)
     .options({ runOnly: { type: "tag", values: TAGS }, rules: EXTRA_RULES })
     .analyze();
   expect(

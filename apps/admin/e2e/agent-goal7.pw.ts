@@ -170,7 +170,7 @@ test("offers a read-only user no write at all", async ({ page }) => {
   const before = await auditTally();
   await send(page, "read-only-user", "close this form for me");
 
-  await expect(turns(page)).toContainText("You cannot change anything on this screen", {
+  await expect(turns(page)).toContainText("cannot change anything here or anywhere else", {
     timeout: 120_000,
   });
   await expect(card(page)).toHaveCount(0);

@@ -20,7 +20,6 @@ import {
   toolOutcomeEvent,
 } from "./assistant.js";
 import { FAKE_REASONING_SENTINEL, fakeAssistantModel } from "./fake-model.js";
-import { SCREENS } from "./screens.js";
 import {
   ASSIST_ERROR_CODES,
   type AgentContext,
@@ -637,7 +636,7 @@ describe("prompt framing", () => {
     return {
       ...builderTurnContext(contextFor("what would a respondent see").ctx),
       screen: "/forms/[formId]/preview",
-      tools: SCREENS["/forms/[formId]/preview"].readTools,
+      tools: ["project_draft"],
     };
   }
 

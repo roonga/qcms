@@ -26,4 +26,6 @@ export interface QuestionCardState {
   readonly version?: number;
   readonly versionStatus?: string;
   readonly message?: string;
+  /* The definition issues the API reported, so a card can say what it refused and why. */
+  readonly issues?: readonly DefinitionIssue[];
 }
