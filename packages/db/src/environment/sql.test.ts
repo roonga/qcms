@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { CONTROL_TABLE_NAMES } from "../schema/control/index.js";
 import { DATA_PLANE_TABLE_NAMES } from "../schema/data/index.js";
 
-import { environmentObjectNames } from "./sql.js";
+import { createEnvironmentStatements, environmentObjectNames } from "./sql.js";
 
 /**
  * Literals on purpose: a guard dropped from the schema module would otherwise vanish
@@ -42,6 +42,15 @@ describe("the per-environment set", () => {
     expect(prod.schema).toBe("data_prod");
     expect(prod.reportingSchema).toBe("reporting_prod");
     expect(prod.role).toBe("qcms_app_prod");
+  });
+});
+
+describe("the answer value column", () => {
+  it("is emitted as jsonb, custom read mapping and all", () => {
+    const created = createEnvironmentStatements("test").find((statement) =>
+      /create table "data_test"\."answers"/i.test(statement),
+    );
+    expect(created).toContain(`"value" jsonb`);
   });
 });
 
