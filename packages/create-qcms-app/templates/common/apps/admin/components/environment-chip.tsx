@@ -14,7 +14,7 @@ export function EnvironmentChip({
 }: {
   readonly environment: string | undefined;
   /** The tint a non-production environment takes, 2 to 6; the first non-production tint is the default. */
-  readonly slot?: number;
+  readonly slot?: number | undefined;
   /* A chip beside the same name in words repeats it, so the row's name says it once. */
   readonly decorative?: boolean;
 }) {
@@ -38,7 +38,7 @@ export function EnvironmentSlot({
   children,
 }: {
   readonly environment: string | undefined;
-  readonly slot?: number;
+  readonly slot?: number | undefined;
   readonly pending?: boolean;
   readonly children: ReactNode;
 }) {
