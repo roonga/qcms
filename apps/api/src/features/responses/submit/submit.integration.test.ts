@@ -427,7 +427,9 @@ describe("text answers that look like other JSON", () => {
     "accepts %j as a text answer and locks it unchanged",
     async (typed) => {
       const { sessionId, sessionToken } = await startSession("policy");
-      expect((await postAnswer(sessionId, sessionToken, "q_policy_number", typed)).status).toBe(200);
+      expect((await postAnswer(sessionId, sessionToken, "q_policy_number", typed)).status).toBe(
+        200,
+      );
 
       const res = await submit(sessionId, sessionToken);
       expect(res.status).toBe(200);
