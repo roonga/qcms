@@ -163,7 +163,7 @@ test("the selector stays inside its reserved slot at every width", async ({ page
       const edge = (selector: string, side: "left" | "right") =>
         document.querySelector(selector)?.getBoundingClientRect()[side] ?? Number.NaN;
       return {
-        slot: edge(".qcms-topbar__env", "right"),
+        slot: edge(".qcms-opsbar", "right"),
         control: edge(".qcms-envswitch", "right"),
         tools: edge(".qcms-topbar__tools", "left"),
       };

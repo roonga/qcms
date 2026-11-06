@@ -114,6 +114,7 @@ export const messages = {
 
   "shell.mode.operations.name": "Operations",
   "shell.mode.operations.exit": "Exit Operations",
+  "shell.mode.operations.exitText": "Exit",
   "shell.mode.operations.announce": "Operations. Links out of it ask before leaving.",
   "shell.leave.title": "Leave Operations?",
   "shell.leave.goes": "This link opens {area}, outside Operations.",
