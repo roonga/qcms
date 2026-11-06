@@ -1,5 +1,5 @@
-import Link from "next/link";
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 
 import { Alert } from "@/components/kit";
 import { DeniedRecovery } from "@/components/shell/denied-recovery";
@@ -22,12 +22,16 @@ export default async function WorkspacesPage() {
     return <DeniedRecovery capabilities={capabilities} />;
   }
   const workspaces = await listWorkspaces(session);
+  if (workspaces.ok) {
+    const landing =
+      workspaces.data.find((workspace) => workspace.slug === "default") ?? workspaces.data[0];
+    if (landing !== undefined) redirect(workspaceHref(landing.workspaceId));
+  }
 
   return (
     <div className="flex min-w-0 flex-col gap-8">
       <div className="flex flex-col gap-1">
-        <h1 className="text-xl font-semibold text-(--color-text)">{t("membership.area.title")}</h1>
-        <p className="text-sm text-(--color-text-muted)">{t("membership.area.intro")}</p>
+        <h1 className="sr-only">{t("membership.area.title")}</h1>
       </div>
 
       {!workspaces.ok && (
@@ -36,34 +40,9 @@ export default async function WorkspacesPage() {
         </Alert>
       )}
 
-      {workspaces.ok &&
-        (workspaces.data.length === 0 ? (
-          <p className="text-sm text-(--color-text-muted)">{t("membership.area.noWorkspaces")}</p>
-        ) : (
-          <ul className="flex flex-col gap-2">
-            {workspaces.data.map((workspace) => (
-              <li key={workspace.workspaceId} className="flex flex-col gap-1">
-                <Link
-                  href={workspaceHref(workspace.workspaceId)}
-                  className="text-sm font-medium text-(--color-link) underline"
-                >
-                  {workspace.name}
-                </Link>
-                <p className="text-xs text-(--color-text-muted)">
-                  {workspace.slug}
-                  {" - "}
-                  {t("membership.area.counts", {
-                    forms: workspace.forms,
-                    questions: workspace.questions,
-                  })}
-                  {workspace.isShared ? ` - ${t("membership.area.shared")}` : ""}
-                  {workspace.requireSecondApprover ? ` - ${t("membership.area.twoPerson")}` : ""}
-                  {workspace.archivedAt === null ? "" : ` - ${t("membership.area.archived")}`}
-                </p>
-              </li>
-            ))}
-          </ul>
-        ))}
+      {workspaces.ok && (
+        <p className="text-sm text-(--color-text-muted)">{t("membership.area.noWorkspaces")}</p>
+      )}
     </div>
   );
 }

@@ -15,6 +15,7 @@ export const messages = {
   "rail.toggle.title": "{action} (Alt+Shift+S)",
   /** The narrow-width disclosure's name on an area rail, which carries no title of its own. */
   "rail.menu": "Menu",
+  "help.label": "More information",
   "rail.allQuestions": "All questions",
   "rail.allForms": "All forms",
 
@@ -33,6 +34,10 @@ export const messages = {
   "requiresJs.title": "JavaScript is required",
   "requiresJs.body":
     "QCMS needs JavaScript to run. Turn on JavaScript in your browser settings, then reload this page.",
+
+  /** Offer the reload rather than taking it: a replacement worker must not interrupt an edit in progress. */
+  "appUpdate.available": "A new version of QCMS is available.",
+  "appUpdate.reload": "Reload",
 
   "action.skipToContent": "Skip to content",
   "action.signIn": "Sign in",
@@ -72,17 +77,10 @@ export const messages = {
   "appearance.contrast.on": "On",
   "appearance.contrast.off": "Off",
 
-  "appearance.contrast.note": "High contrast never follows your system.",
-  "appearance.preview.light": "Light",
-  "appearance.preview.dark": "Dark",
-  "appearance.preview.lightHc": "Light, high contrast",
-  "appearance.preview.darkHc": "Dark, high contrast",
-
   /** Environment names are API data, never a closed catalog vocabulary. */
   "environment.legend": "Environment",
   /** The trigger's own visible text has to appear in its name, in order and unbroken (WCAG 2.5.3). */
-  "environment.trigger": "Environment {environment} Change",
-  "environment.change": "Change",
+  "environment.trigger": "Environment {environment}",
   "environment.selected": "Selected",
   /** Say what a choice reaches, so switching does not read as a filter on the list below. */
   "environment.appliesTo": "Applies to every Operations screen. Lists return to page 1.",
@@ -186,7 +184,6 @@ export const messages = {
   "operations.queue.erasureLog": "Erasure log",
 
   "access.title": "My access",
-  "access.intro": "What this account holds, and who to ask for more.",
   "access.none":
     "You hold no form, question, response or workspace grant yet. Ask an owner of the " +
     "workspace you need to add you to one of its access groups.",
@@ -257,7 +254,6 @@ export const messages = {
 
   /** Confirmations teach immutable versions and permanent IDs; refusal copy names the rule and remedy without blaming the author. */
   "questions.title": "Questions",
-  "questions.intro": "The governed library. Every version is published, never overwritten.",
   "questions.new": "New question",
 
   "questions.filter.search": "Search",
@@ -452,7 +448,6 @@ export const messages = {
   "questions.detail.type": "Type",
   "questions.detail.created": "Created",
 
-  "questions.detail.typeLocked": "{type} (locked)",
   "questions.detail.deprecatedNote":
     "This version is deprecated: no new form can pin it. Forms that already pin it keep working exactly as they are, and no answer already collected changes.",
 
@@ -502,7 +497,6 @@ export const messages = {
 
   /** Copy must teach manual frozen pins, forward-only targets, set equality versus containment, and deployment-dependent challenges; none may imply protection or upgrades the API does not provide. */
   "forms.title": "Forms",
-  "forms.intro": "Compose published questions into steps, and branch between them with rules.",
   "forms.new": "New form",
 
   "forms.table.label": "Form library",
@@ -533,8 +527,6 @@ export const messages = {
   "forms.filter.sort.published-asc": "Oldest published",
   "forms.filter.clear": "Clear filters",
   /** Keep counted phrases in catalog plural forms; do not append an English s in code. */
-  "forms.count.one": "{count} form.",
-  "forms.count.other": "{count} forms.",
 
   "forms.empty.title": "No forms yet",
   "forms.empty.body":
@@ -1884,9 +1876,6 @@ export const messages = {
 
   "ops.area.webhooks.title": "Delivery failures",
 
-  "ops.area.webhooks.intro":
-    "The dead-letter queue below covers every form. Endpoints are configured per form, on that form's Webhooks screen - open one from the Operations forms table.",
-
   "ops.area.webhooks.filter.form": "Form",
   "ops.area.webhooks.filter.formAll": "Any form",
 
@@ -2065,8 +2054,6 @@ export const messages = {
   "ops.erase.reason.unknown": "Recorded as {reason}",
 
   "ops.erasures.title": "Erasure log",
-  "ops.erasures.intro":
-    "Every erasure, newest first. A row is the evidence that a session existed and was erased; it holds no answers.",
   "ops.erasures.table": "Erasure tombstones",
   "ops.erasures.column.sessionId": "Session",
   "ops.erasures.column.formId": "Form",
@@ -2294,15 +2281,9 @@ export const messages = {
 
   /** Test response grants are grants on personal data, including real respondents. Access-group names are labels; role and scope fields alone authorize. */
   "membership.area.title": "Workspaces",
-  "membership.area.intro":
-    "A workspace owns forms and questions, and its membership is what authorises work on them. A grant is a role and its scope, and a person holds as many grants as their job needs.",
   "membership.area.noWorkspaces":
     "You manage no workspace. Your own grants are on the access panel below.",
   "membership.area.loadFailed": "The workspaces could not be read: {message}",
-  "membership.area.shared": "Shared question library",
-  "membership.area.archived": "Archived",
-  "membership.area.twoPerson": "Second approver required",
-  "membership.area.counts": "{forms} form(s), {questions} question(s)",
   "membership.workspace.notFound": "No such workspace, or you do not manage it.",
   "membership.workspace.allWorkspaces": "All workspaces",
   "membership.workspace.context": "Workspace: {name}",

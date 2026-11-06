@@ -5,7 +5,7 @@
  * byte for byte with its design copy; the naming check reads catalog VALUES only.
  */
 
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = fileURLToPath(new URL("../", import.meta.url));
@@ -14,8 +14,17 @@ export const LANDED_SHEET = "apps/admin/app/theme.css";
 export const PLAN_SHEET = "plan/admin-theme/tokens.css";
 export const CATALOG = "apps/admin/lib/i18n/en.ts";
 
-const SCAN_DIRS = ["apps/admin/app", "apps/admin/components"];
+const SCAN_DIRS = ["apps/admin/app", "apps/admin/components", "apps/admin/lib"];
 const SCAN_EXTENSIONS = [".css", ".ts", ".tsx"];
+
+/**
+ * The one file allowed to write a colour down outside the sheet: a manifest member and a generated
+ * PNG cannot reference a custom property. Its own test pins every value to the sheet, so the
+ * exception is gated rather than merely tolerated.
+ */
+export const ALLOWED_LITERAL_COLOURS = new Map([
+  ["apps/admin/lib/pwa/brand.ts", "apps/admin/lib/pwa/brand.test.ts"],
+]);
 
 /**
  * Bounded on both sides, and a digits-only run of three or four characters is excluded,
@@ -108,6 +117,17 @@ export function checkAdminTheme() {
 
   for (const relative of SCAN_DIRS.flatMap(walk)) {
     if (relative === LANDED_SHEET) continue;
+    const pinnedBy = ALLOWED_LITERAL_COLOURS.get(relative);
+    if (pinnedBy !== undefined) {
+      // An allowance whose guard is gone is worse than no allowance.
+      if (!existsSync(`${ROOT}${pinnedBy}`)) {
+        problems.push(
+          `${relative} is allowed literal colours only while ${pinnedBy} pins them to ` +
+            `${LANDED_SHEET}, and that file is missing`,
+        );
+      }
+      continue;
+    }
     const source = stripComments(
       readFileSync(`${ROOT}${relative}`, "utf8"),
       !relative.endsWith(".css"),

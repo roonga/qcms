@@ -22,8 +22,7 @@ export default async function MyAccessPage() {
   return (
     <div className="flex min-w-0 flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h1 className="text-xl font-semibold text-(--color-text)">{t("access.title")}</h1>
-        <p className="text-sm text-(--color-text-muted)">{t("access.intro")}</p>
+        <h1 className="sr-only">{t("access.title")}</h1>
       </div>
 
       {noGrants && (

@@ -12,7 +12,9 @@ const PRODUCTION =
   "style-src 'self' 'unsafe-inline'; " +
   "script-src 'self' 'nonce-n1'; " +
   "connect-src 'self'; " +
-  "frame-src 'none'";
+  "frame-src 'none'; " +
+  "worker-src 'self'; " +
+  "manifest-src 'self'";
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -34,6 +36,12 @@ describe("the admin content security policy", () => {
         "script-src 'self' 'nonce-n1' 'unsafe-eval'",
       ),
     );
+  });
+
+  it("grants the worker and the manifest this origin and no wider", () => {
+    expect(buildAdminCsp("n1")).toContain("worker-src 'self'");
+    expect(buildAdminCsp("n1")).toContain("manifest-src 'self'");
+    expect(buildAdminCsp("n1")).not.toMatch(/(worker|manifest)-src [^;]*(\*|blob:|data:)/);
   });
 
   it("never grants 'unsafe-inline' to script, in either mode", () => {

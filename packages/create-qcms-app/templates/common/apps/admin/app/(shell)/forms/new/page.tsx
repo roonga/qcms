@@ -27,7 +27,7 @@ export default async function NewFormPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
-        <h1 className="text-xl font-semibold text-(--color-text)">{t("forms.create.title")}</h1>
+        <h1 className="sr-only">{t("forms.create.title")}</h1>
       </div>
       <div className="qcms-card">
         <Card padding="md" radius="md" border>

@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { HelpTip } from "@/components/help-tip";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
@@ -97,8 +98,8 @@ export default async function FormBuilderPage({
         )}
         formMeta={
           <p className="text-sm text-(--color-text-muted)">
-            {form.formId} · {form.defaultLocale} · {t(`forms.status.${form.status}`)} ·{" "}
-            {t(`forms.builder.draftSource.${form.draftSource}`)}
+            {form.formId} · {form.defaultLocale} · {t(`forms.status.${form.status}`)}{" "}
+            <HelpTip>{t(`forms.builder.draftSource.${form.draftSource}`)}</HelpTip>
           </p>
         }
         formActions={
