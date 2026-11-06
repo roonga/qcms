@@ -2402,7 +2402,8 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   gap: 0.5rem;
   padding-inline: 0.5rem;
   padding-block: var(--space-2);
-  border-inline-start: 2px solid transparent;
+  border-inline-start: 3px solid transparent;
+  border-block: 1px solid transparent;
   border-radius: var(--radius-control);
   color: var(--color-text);
   font-size: 0.875rem;
@@ -2415,15 +2416,17 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   color: var(--color-text);
 }
 .qcms-rail__link[aria-current="page"] {
-  border-inline-start-color: var(--color-primary);
+  border-color: var(--color-primary);
+  border-radius: 0;
   background-color: var(--color-info-subtle);
-  color: var(--color-info-fg);
+  color: var(--color-primary);
   font-weight: 600;
 }
 .qcms-rail__link[aria-current="page"]:has(~ .qcms-rail__group [aria-current="page"]),
 .qcms-rail-steps__row:has(~ .qcms-rail__group [aria-current="page"])
   .qcms-rail__link[aria-current="page"] {
-  border-inline-start-color: transparent;
+  border-color: transparent;
+  border-radius: var(--radius-control);
   background-color: transparent;
   color: var(--color-text);
   font-weight: 600;
