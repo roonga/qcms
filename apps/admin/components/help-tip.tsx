@@ -1,27 +1,34 @@
 "use client";
 
-import { useId, useRef, useState, type ReactNode } from "react";
+import { useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 import { t } from "@/lib/i18n/en";
+
+const GUTTER = 8;
+const GAP = 6;
 
 /* Help that is worth keeping but not worth a line of its own: a "?" that opens on hover, focus or tap. */
 export function HelpTip({ children }: { readonly children: ReactNode }) {
   const id = useId();
   const [isOpen, setOpen] = useState(false);
-  const [alignToEnd, setAlignToEnd] = useState(false);
+  const [spot, setSpot] = useState<{ readonly top: number; readonly left: number } | undefined>(
+    undefined,
+  );
   const root = useRef<HTMLSpanElement>(null);
   const body = useRef<HTMLSpanElement>(null);
 
-  /* The tip is as wide as its text and starts at the button, so only the inline-end edge can clip it.
-     A hidden tip still has layout, so this measures before the first paint rather than after. */
-  const show = (): void => {
-    setOpen(true);
-    const left = root.current?.getBoundingClientRect().left;
-    const width = body.current?.offsetWidth;
-    if (left !== undefined && width !== undefined) {
-      setAlignToEnd(left + width > document.documentElement.clientWidth);
-    }
-  };
+  /* The tip is placed against the viewport, not the button: an absolute box would widen the document
+     even while hidden, and a tip wider than the space beside the button would be cut off. */
+  useLayoutEffect(() => {
+    if (!isOpen) return;
+    const anchor = root.current?.getBoundingClientRect();
+    const tip = body.current;
+    if (anchor === undefined || tip === null) return;
+    const viewport = document.documentElement.clientWidth;
+    const width = Math.min(tip.offsetWidth, viewport - GUTTER * 2);
+    const left = Math.min(Math.max(anchor.left, GUTTER), viewport - GUTTER - width);
+    setSpot({ top: anchor.bottom + GAP, left });
+  }, [isOpen]);
 
   const hide = (): void => {
     setOpen(false);
@@ -31,11 +38,15 @@ export function HelpTip({ children }: { readonly children: ReactNode }) {
     <span
       ref={root}
       className="qcms-helptip"
-      onPointerEnter={show}
+      onPointerEnter={() => {
+        setOpen(true);
+      }}
       onPointerLeave={() => {
         if (root.current?.contains(document.activeElement) !== true) hide();
       }}
-      onFocus={show}
+      onFocus={() => {
+        setOpen(true);
+      }}
       onBlur={hide}
       onKeyDown={(event) => {
         if (event.key !== "Escape" || !isOpen) return;
@@ -50,11 +61,7 @@ export function HelpTip({ children }: { readonly children: ReactNode }) {
         aria-describedby={id}
         aria-expanded={isOpen}
         onClick={() => {
-          if (isOpen) {
-            hide();
-            return;
-          }
-          show();
+          setOpen(!isOpen);
         }}
       >
         ?
@@ -63,8 +70,9 @@ export function HelpTip({ children }: { readonly children: ReactNode }) {
         ref={body}
         role="tooltip"
         id={id}
-        className={alignToEnd ? "qcms-helptip__body qcms-helptip__body--end" : "qcms-helptip__body"}
+        className="qcms-helptip__body"
         data-open={isOpen ? "true" : "false"}
+        {...(spot === undefined ? {} : { style: { top: spot.top, left: spot.left } })}
       >
         {children}
       </span>

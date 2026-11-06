@@ -102,6 +102,7 @@ export function AccessGroupsPanel({
           </h1>
           <HelpTip>{t("membership.groups.intro")}</HelpTip>
         </div>
+        <p className="text-xs text-(--color-text-muted)">{t("membership.groups.nameHelp")}</p>
         {list !== undefined && (
           <p className="text-xs text-(--color-text-muted)">{list.scopeNote}</p>
         )}
@@ -334,8 +335,7 @@ export function AccessGroupsPanel({
         <p className="text-xs break-all text-(--color-text-muted)" data-testid="qcms-group-name">
           {name === undefined
             ? t("membership.groups.createNameMissing")
-            : t("membership.groups.createName", { name })}{" "}
-          <HelpTip>{t("membership.groups.nameHelp")}</HelpTip>
+            : t("membership.groups.createName", { name })}
         </p>
         <div>
           <Button

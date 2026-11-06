@@ -7,6 +7,23 @@ const trigger = () => screen.getByRole("button", { name: "More information" });
 const tip = () => screen.getByRole("tooltip", { hidden: true });
 const isOpen = () => tip().getAttribute("data-open") === "true";
 
+function atViewport({
+  viewport,
+  left,
+  width,
+}: {
+  readonly viewport: number;
+  readonly left: number;
+  readonly width: number;
+}): void {
+  vi.spyOn(document.documentElement, "clientWidth", "get").mockReturnValue(viewport);
+  vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(width);
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
+    left,
+    bottom: 40,
+  } as DOMRect);
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
 });
@@ -64,30 +81,34 @@ describe("the help tip", () => {
     expect(isOpen()).toBe(true);
   });
 
-  it("flips to the inline end when the tip would run past the viewport", () => {
+  it("places an open tip against the viewport, so a hidden one cannot widen the page", () => {
     render(<HelpTip>Only published versions can be pinned.</HelpTip>);
-    vi.spyOn(document.documentElement, "clientWidth", "get").mockReturnValue(400);
-    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(288);
-    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
-      left: 380,
-    } as DOMRect);
+    expect(tip().style.position).toBe("");
+    expect(tip().style.left).toBe("");
 
+    atViewport({ viewport: 1200, left: 100, width: 288 });
     fireEvent.pointerEnter(trigger());
 
-    expect(tip().className).toContain("qcms-helptip__body--end");
+    expect(tip().style.left).toBe("100px");
+    expect(tip().style.top).toBe("46px");
   });
 
-  it("leaves the tip at the inline start when it fits", () => {
+  it("pulls a tip back inside the viewport rather than letting it run off the end", () => {
     render(<HelpTip>Only published versions can be pinned.</HelpTip>);
-    vi.spyOn(document.documentElement, "clientWidth", "get").mockReturnValue(1200);
-    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(288);
-    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
-      left: 100,
-    } as DOMRect);
+    atViewport({ viewport: 390, left: 300, width: 288 });
 
     fireEvent.pointerEnter(trigger());
 
-    expect(tip().className).not.toContain("qcms-helptip__body--end");
+    expect(tip().style.left).toBe("94px");
+  });
+
+  it("keeps a tip off the start edge when it is wider than the viewport allows", () => {
+    render(<HelpTip>Only published versions can be pinned.</HelpTip>);
+    atViewport({ viewport: 390, left: 4, width: 600 });
+
+    fireEvent.pointerEnter(trigger());
+
+    expect(tip().style.left).toBe("8px");
   });
 
   it("describes the button rather than naming it, so the tip is not the accessible name", () => {
