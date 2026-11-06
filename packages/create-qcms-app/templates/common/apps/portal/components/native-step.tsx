@@ -15,30 +15,12 @@ import {
 import { missingOnStep, requiredFieldErrors, stepSummaryEntries } from "@/lib/error-summary";
 import { t } from "@/lib/i18n/en";
 import { mergeStepValues } from "@/lib/step-values";
+import { authoredFieldErrors, contextRefusals } from "@/lib/submit-errors";
 import { buttonClass } from "@/lib/ui";
-import { authorMessageFor } from "@/lib/validation-message";
-import { documentForVisible, messagesOf } from "@/lib/visible";
+import { documentForVisible } from "@/lib/visible";
 import { rosterMap } from "@/lib/rosters";
 import type { StepContext } from "@/lib/server/route-helpers";
 import type { StepResponse } from "@/lib/server/api";
-
-// The author's message for the constraint the API refused on, else the default the BFF
-// route resolved.
-function authoredErrors(
-  stepDocument: A2UIStepDocument | null,
-  context: StepContext | undefined,
-): A2UIErrors {
-  const errors = context?.errors ?? {};
-  const constraints = context?.constraints ?? {};
-  if (Object.keys(errors).length === 0) return errors;
-  const messages = messagesOf(stepDocument);
-  const resolved: Record<string, string> = {};
-  for (const [questionId, fallback] of Object.entries(errors)) {
-    const authored = authorMessageFor(messages.get(questionId), constraints[questionId]);
-    resolved[questionId] = authored ?? fallback;
-  }
-  return resolved;
-}
 
 function viewProgress(
   initial: StepResponse,
@@ -60,6 +42,7 @@ function viewProgress(
 function noticeFor(key: string | undefined): string | undefined {
   if (key === "step.notSaved") return t("step.notSaved");
   if (key === "step.countOutOfRange") return t("step.countOutOfRange");
+  if (key === "step.submitRefused") return t("step.submitRefused");
   return undefined;
 }
 
@@ -95,14 +78,6 @@ export function NativeStep({
 
   const stepDocument = initial.step as unknown as A2UIStepDocument | null;
   const repeating = stepDocument !== null && hasRepeatGroup(stepDocument.root);
-  // The route carries the constraint rather than the final string, because only this
-  // render holds the compiled document the author's messages ride on (ADR-32).
-  const refused: A2UIErrors = authoredErrors(stepDocument, context);
-  const missing = missingOnStep(
-    context?.missingRequired ?? [],
-    initial.flowState.visibleQuestions,
-    refused,
-  );
   const visibleSet = new Set(initial.flowState.visibleQuestions);
   const rosters = rosterMap(initial.rosters);
   // Spread into both the pre-expansion and the renderer's own `repeat` prop, so the two
@@ -123,9 +98,19 @@ export function NativeStep({
       ? null
       : { stepId: stepDocument.stepId, root: expanded };
 
-  // The expanded document, so an authored required message on a question inside a group
-  // is found: `missing` names those fields by their qualified name, which only the
-  // expanded tree carries.
+  // The route carries the constraint rather than the final string, because only this
+  // render holds the compiled document the author's messages ride on (ADR-32), expanded
+  // so a field inside a group is found under the qualified name the refusal uses.
+  const refused: A2UIErrors = authoredFieldErrors(
+    expandedDocument,
+    contextRefusals(context?.errors ?? {}, context?.constraints ?? {}),
+    initial.flowState.visibleQuestions,
+  );
+  const missing = missingOnStep(
+    context?.missingRequired ?? [],
+    initial.flowState.visibleQuestions,
+    refused,
+  );
   const errors: A2UIErrors = { ...refused, ...requiredFieldErrors(expandedDocument, missing) };
   const values: A2UIValues = {
     ...mergeStepValues(initial.values, context?.values),

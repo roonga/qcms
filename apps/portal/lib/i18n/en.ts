@@ -48,6 +48,14 @@ export const messages = {
   // from the compiler's lexicon, so a published form keeps the wording it was published
   // with (ADR-36's precedent).
   "errorSummary.inInstance": "{instance}: {message}",
+  // A refused submit reports questions on steps the respondent is not looking at. "Step"
+  // is the progress indicator's vocabulary, and the number is the same 1-based one it
+  // shows.
+  "errorSummary.onStep.one": "Step {step} has 1 answer to fix.",
+  "errorSummary.onStep.other": "Step {step} has {count} answers to fix.",
+  // For a question this browser has not drawn yet, which has no step number to name.
+  "errorSummary.onAnotherStep.one": "Another step has 1 answer to fix.",
+  "errorSummary.onAnotherStep.other": "Other steps have {count} answers to fix.",
   "repeat.maxReached": "You have added as many as this form allows.",
   "repeat.notAddable": "This part of the form is not one you can add to.",
   "repeat.failed": "We could not make that change. Please try again.",
@@ -69,6 +77,9 @@ export const messages = {
   // at a step that still holds everything they typed and has no other way to tell.
   "step.countOutOfRange":
     "One of the repeated sections does not have enough entries to submit. Add the entries it needs and try again.",
+  // The landing step has nothing marked on it, so this has to say where to look.
+  "step.submitRefused":
+    "We could not submit your answers. Some of them still need fixing. Please go back through the steps and check each one.",
   "step.notSaved":
     "We could not save your answers just now. Nothing was saved, and everything you typed is still here. Please press Continue again.",
   "flow.submitReady": "You have answered everything. Submit your responses when you are ready.",

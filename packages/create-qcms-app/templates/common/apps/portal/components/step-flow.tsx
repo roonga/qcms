@@ -33,7 +33,22 @@ import {
   type PostedRecord,
   type RejectedAnswers,
 } from "@/lib/answer-record";
-import { missingOnStep, refusalsOnStep, stepSummaryEntries } from "@/lib/error-summary";
+import {
+  missingOnStep,
+  refusalsOnStep,
+  requiredFieldErrors,
+  stepSummaryEntries,
+} from "@/lib/error-summary";
+import {
+  authoredFieldErrors,
+  NO_SUBMIT_REFUSAL,
+  otherStepErrors,
+  otherStepMessage,
+  refusedFields,
+  submitRefusal,
+  withoutField,
+  type SubmitRefusal,
+} from "@/lib/submit-errors";
 import {
   countRefusalAfterSuccess,
   failureAfterSuccess,
@@ -281,7 +296,18 @@ export function StepFlow({
   // The same refusals, readable from a queued callback: the Continue gate runs behind any
   // answer post the click itself caused and must see what that post recorded.
   const rejectedRef = useRef<RejectedAnswers>(rejected);
-  const errors: A2UIErrors = useMemo(() => visibleErrors(rejected, values), [rejected, values]);
+  const answerErrors: A2UIErrors = useMemo(
+    () => visibleErrors(rejected, values),
+    [rejected, values],
+  );
+  // What the submit sweep refused, per question, for the whole session: a refusal names a
+  // question on whatever step holds it, and is drawn beside that question when the
+  // respondent is on it.
+  const [refusedSubmit, setRefusedSubmit] = useState<SubmitRefusal>(NO_SUBMIT_REFUSAL);
+  // Which cursor each question was last rendered at, so the summary can name the step a
+  // refusal belongs to and move the respondent there. Only this client's own renders: the
+  // API projects one step at a time (R2).
+  const stepOfFieldRef = useRef<Map<string, number>>(new Map());
   // Focus moves to the summary on the counter's bump and on nothing else: its entries
   // change as the respondent corrects fields, and following that would pull them out of
   // the field they are typing in.
@@ -404,6 +430,7 @@ export function StepFlow({
           // The refused value is no longer what the server holds, so its message can
           // never apply again even if the respondent re-enters that value.
           updateRejected((prev) => withoutRejection(prev, name));
+          setRefusedSubmit((prev) => withoutField(prev, name));
           noteSuccess({ kind: "answer", questionId: name });
           return true;
         }
@@ -541,6 +568,9 @@ export function StepFlow({
         else next[name] = value;
         return next;
       });
+      // On the change rather than on the accepted post, so a submit refusal behaves like
+      // an answer refusal: the message goes as soon as the value it describes does.
+      setRefusedSubmit((prev) => withoutField(prev, name));
       // ADR-31's commit moment. The moment comes from the compiled document because the
       // value alone cannot separate a singleChoice OptionId from a date or a long-text
       // string, and a change mid-entry is a keystroke rather than an answer.
@@ -593,9 +623,17 @@ export function StepFlow({
       }
       if (res.status === 422) {
         noteSuccess({ kind: "submitRefused" });
+        const details = errorDetailsOf(await readJsonSafely(res));
         // A count refusal has no field to show a message beside, so it gets a
         // page-level one.
-        setCountRefused(isCountRefusal(errorDetailsOf(await readJsonSafely(res))));
+        setCountRefused(isCountRefusal(details));
+        const refusal = submitRefusal(details);
+        setRefusedSubmit(refusal);
+        // Nothing to read on this step, so the respondent is taken to the step the API
+        // calls incomplete, where at least one of these questions is.
+        const here = new Set(snapshotRef.current.flowState.visibleQuestions);
+        const shown = refusedFields(refusal).some((field) => here.has(field));
+        if (!shown && refusal.missingRequired.length > 0) await doNavigate("current");
         requestSummary();
         return "ok";
       }
@@ -750,21 +788,51 @@ export function StepFlow({
   const pendingAttr = intentPending ? true : undefined;
 
   const stepVisibleQuestions = snapshot.flowState.visibleQuestions;
-  const stepRefusals = refusalsOnStep(errors, stepVisibleQuestions);
+  const answerRefusals = refusalsOnStep(answerErrors, stepVisibleQuestions);
+  // The sweep's verdict on this step's questions. An answer refusal wins over it: that one
+  // is about the value on screen now, this one about the value the sweep read.
+  const sweptRefusals = authoredFieldErrors(
+    expandedStep,
+    refusedSubmit.invalid,
+    stepVisibleQuestions,
+  );
+  const stepRefusals: A2UIErrors = { ...sweptRefusals, ...answerRefusals };
+  const sweptMissing = missingOnStep(
+    refusedSubmit.missingRequired,
+    stepVisibleQuestions,
+    stepRefusals,
+  );
+  // The Continue gate's own report stays summary-only, as it is for an unanswered question
+  // the respondent has not been told about yet.
+  const summaryMissing = showSummary
+    ? [
+        ...new Set([
+          ...sweptMissing,
+          ...missingOnStep(snapshot.flowState.missingRequired, stepVisibleQuestions, stepRefusals),
+        ]),
+      ]
+    : sweptMissing;
+  // Beside the fields: the sweep's messages and the answer refusals, never the gate's.
+  const errors: A2UIErrors = {
+    ...requiredFieldErrors(expandedStep, sweptMissing),
+    ...sweptRefusals,
+    ...answerErrors,
+  };
   const summaryEntries = showSummary
-    ? stepSummaryEntries(
-        expandedStep,
-        stepRefusals,
-        missingOnStep(snapshot.flowState.missingRequired, stepVisibleQuestions, stepRefusals),
-        stepVisibleQuestions,
-      )
+    ? stepSummaryEntries(expandedStep, stepRefusals, summaryMissing, stepVisibleQuestions)
+    : [];
+  const otherSteps = showSummary
+    ? otherStepErrors(refusedFields(refusedSubmit), stepVisibleQuestions, stepOfFieldRef.current)
     : [];
   const summaryCountRef = useRef(0);
-  summaryCountRef.current = summaryEntries.length;
+  summaryCountRef.current = summaryEntries.length + otherSteps.length;
 
   // The SSR first paint needs neither announcement nor focus move, so the diff against
   // `prevFlowRef` is empty on mount and this becomes active from the first action.
   useEffect(() => {
+    for (const field of snapshot.flowState.visibleQuestions) {
+      stepOfFieldRef.current.set(field, snapshot.progress.stepIndex);
+    }
     const container = fieldsRef.current;
     const previous = prevFlowRef.current;
     const next = flowViewOf(snapshot);
@@ -840,6 +908,24 @@ export function StepFlow({
     [],
   );
 
+  /**
+   * The summary is re-requested rather than left alone, so focus lands on the arriving
+   * step's own summary. `undefined` means this client never drew the question, leaving the
+   * API's first incomplete step as the only target it can name.
+   */
+  const goToRefusedStep = useCallback(
+    (target: number | undefined) => (): void => {
+      runIntent(async () => {
+        if ((await doNavigate(target ?? "current")) === "failed") {
+          reportFailure({ kind: "refresh" });
+          return;
+        }
+        requestSummary();
+      });
+    },
+    [runIntent, doNavigate, reportFailure, requestSummary],
+  );
+
   return (
     <PortalShell progress={progress}>
       {/* Mounted on the controlled flow rather than in `PortalShell`, which `NativeStep`
@@ -853,7 +939,7 @@ export function StepFlow({
           {announcement}
         </div>
 
-        {summaryEntries.length > 0 ? (
+        {summaryEntries.length + otherSteps.length > 0 ? (
           <div
             ref={errorSummaryRef}
             role="alert"
@@ -875,6 +961,20 @@ export function StepFlow({
                   >
                     {entry.message}
                   </a>
+                </li>
+              ))}
+              {/* A button and not a link: the target is not on this page, and pressing it
+                  fetches another step rather than moving within this one. */}
+              {otherSteps.map((entry) => (
+                <li key={entry.stepIndex ?? "unknown"}>
+                  <button
+                    type="button"
+                    onClick={goToRefusedStep(entry.stepIndex)}
+                    data-testid="error-summary-step"
+                    className="text-left text-sm text-(--color-danger-fg) underline"
+                  >
+                    {otherStepMessage(entry)}
+                  </button>
                 </li>
               ))}
             </ul>

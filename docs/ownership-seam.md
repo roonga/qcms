@@ -93,12 +93,12 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (589 files common to both shapes)
+### Scaffolded paths (590 files common to both shapes)
 
 | Path                                                                            | Files |
 | ------------------------------------------------------------------------------- | ----- |
 | `(project root)`                                                                | 8     |
-| `apps/`                                                                         | 578   |
+| `apps/`                                                                         | 579   |
 | `apps/admin/`                                                                   | 366   |
 | `apps/admin/app/`                                                               | 95    |
 | `apps/admin/app/(shell)/`                                                       | 76    |
@@ -231,7 +231,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/api/src/middleware/`                                                      | 7     |
 | `apps/api/src/routes/`                                                          | 1     |
 | `apps/api/src/schedulers/`                                                      | 4     |
-| `apps/portal/`                                                                  | 74    |
+| `apps/portal/`                                                                  | 75    |
 | `apps/portal/app/`                                                              | 19    |
 | `apps/portal/app/appearance/`                                                   | 1     |
 | `apps/portal/app/done/`                                                         | 1     |
@@ -249,7 +249,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/portal/app/s/[sessionId]/step/`                                           | 1     |
 | `apps/portal/app/s/[sessionId]/submit/`                                         | 1     |
 | `apps/portal/components/`                                                       | 15    |
-| `apps/portal/lib/`                                                              | 33    |
+| `apps/portal/lib/`                                                              | 34    |
 | `apps/portal/lib/i18n/`                                                         | 2     |
 | `apps/portal/lib/server/`                                                       | 18    |
 | `docker/`                                                                       | 3     |
@@ -291,7 +291,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (589)</summary>
+<summary>Every scaffolded file (590)</summary>
 
 ```
 .dockerignore
@@ -867,6 +867,7 @@ apps/portal/lib/server/step-form.ts
 apps/portal/lib/server/telemetry-redaction.ts
 apps/portal/lib/server/theme.ts
 apps/portal/lib/step-values.ts
+apps/portal/lib/submit-errors.ts
 apps/portal/lib/turnstile.ts
 apps/portal/lib/ui.ts
 apps/portal/lib/validation-message.ts

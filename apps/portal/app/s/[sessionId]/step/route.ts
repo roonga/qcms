@@ -22,6 +22,7 @@ import {
 } from "@/lib/server/route-helpers";
 import { clearSessionToken, readSessionToken } from "@/lib/server/session-cookie";
 import { decodeStepForm } from "@/lib/server/step-form";
+import { submitRefusal } from "@/lib/submit-errors";
 import { defaultAnswerMessage, firstAnswerRejection } from "@/lib/validation-message";
 
 /**
@@ -236,18 +237,46 @@ export async function POST(
     await clearSessionToken();
     return NextResponse.redirect(new URL(`${await currentBasePath()}/done`, request.url), 303);
   } catch (error) {
-    // A count refusal has no field to hang a message on, so it needs the page-level
-    // notice or the press returns the same step in silence. The notice rides as a
-    // catalogue key, so a cookie from an earlier build cannot render a blank banner.
-    if (error instanceof ApiError && isCountRefusal(error.details)) {
-      await writeStepContext({
-        values,
-        errors: {},
-        constraints: {},
-        missingRequired: [],
-        notice: "step.countOutOfRange",
-      });
+    if (error instanceof ApiError) {
+      await writeStepContext(await refusedSubmitContext(sessionId, token, values, error.details));
     }
     return await backToStep(request, sessionId);
   }
+}
+
+/**
+ * Narrowed to the step the redirect lands on, which is the API's first incomplete one. A
+ * refusal with nothing to show there, a count refusal (ADR-42) among them, becomes a
+ * page-level notice instead, or the press returns the same step in silence.
+ */
+async function refusedSubmitContext(
+  sessionId: string,
+  token: string,
+  values: Record<string, A2UIAnswerValue>,
+  details: unknown,
+): Promise<StepContext> {
+  const silent = (notice: string): StepContext => ({
+    values,
+    errors: {},
+    constraints: {},
+    missingRequired: [],
+    notice,
+  });
+  if (isCountRefusal(details)) return silent("step.countOutOfRange");
+
+  const refusal = submitRefusal(details);
+  const landing = await projectionOrNone(sessionId, token);
+  const visible = new Set(landing?.flowState.visibleQuestions ?? []);
+  const errors: Record<string, string> = {};
+  const constraints: Record<string, string> = {};
+  for (const [field, entry] of Object.entries(refusal.invalid)) {
+    if (entry === undefined || !visible.has(field)) continue;
+    errors[field] = entry.message;
+    if (entry.constraint !== undefined) constraints[field] = entry.constraint;
+  }
+  const missingRequired = refusal.missingRequired.filter((field) => visible.has(field));
+  if (Object.keys(errors).length === 0 && missingRequired.length === 0) {
+    return silent("step.submitRefused");
+  }
+  return { values, errors, constraints, missingRequired };
 }
