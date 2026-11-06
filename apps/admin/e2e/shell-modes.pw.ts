@@ -30,7 +30,7 @@ test("the application navigation offers the areas the caller holds", async ({ pa
   const nav = page.getByRole("navigation", { name: "Primary" });
   await expect(nav.getByRole("link", { name: "Questions" })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Forms" })).toBeVisible();
-  await expect(nav.getByRole("link", { name: "Operations" })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Operations", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Workspaces" })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Settings" })).toHaveCount(0);
 });
@@ -54,7 +54,7 @@ test("entering Operations keeps the application navigation and fills its own slo
 
   await page
     .getByRole("navigation", { name: "Primary" })
-    .getByRole("link", { name: "Operations" })
+    .getByRole("link", { name: "Operations", exact: true })
     .click();
 
   const header = page.getByTestId("qcms-mode-header");
@@ -62,7 +62,9 @@ test("entering Operations keeps the application navigation and fills its own slo
   await expect(header).toHaveAttribute("data-mode", "operations");
   await expect(page.getByTestId("qcms-mode-exit")).toBeVisible();
   await expect(
-    page.getByRole("navigation", { name: "Primary" }).getByRole("link", { name: "Operations" }),
+    page
+      .getByRole("navigation", { name: "Primary" })
+      .getByRole("link", { name: "Operations", exact: true }),
   ).toHaveAttribute("aria-current", "page");
 });
 
@@ -234,7 +236,7 @@ test("the Operations landing is reached again by re-entering the mode", async ({
 
   await page
     .getByRole("navigation", { name: "Primary" })
-    .getByRole("link", { name: "Operations" })
+    .getByRole("link", { name: "Operations", exact: true })
     .click();
   await expect(page).toHaveURL(/\/operations$/);
 });

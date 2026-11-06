@@ -138,7 +138,7 @@ test("Exit Operations returns to where the operator came from, without the warni
 
   await page
     .getByRole("navigation", { name: "Primary" })
-    .getByRole("link", { name: "Operations" })
+    .getByRole("link", { name: "Operations", exact: true })
     .click();
   await expect(page).toHaveURL(/\/operations$/u);
   await page.locator(`tr[data-form-id="${FORM_ID}"]`).getByTestId("qcms-operations-name").click();
