@@ -153,6 +153,31 @@ test("the selector is a labelled dropdown whose rows name, mean and mark each en
   await chooseEnvironment(page, "prod");
 });
 
+test("the selector stays inside its reserved slot at every width", async ({ page }) => {
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+
+  for (const width of [1440, 1280, 1024, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(OPERATIONS_PATH);
+    const edges = await page.evaluate(() => {
+      const edge = (selector: string, side: "left" | "right") =>
+        document.querySelector(selector)?.getBoundingClientRect()[side] ?? Number.NaN;
+      return {
+        slot: edge(".qcms-topbar__env", "right"),
+        control: edge(".qcms-envswitch", "right"),
+        tools: edge(".qcms-topbar__tools", "left"),
+      };
+    });
+    expect
+      .soft(edges.control, `the control fits its slot at ${String(width)}`)
+      .toBeLessThanOrEqual(edges.slot);
+    expect
+      .soft(edges.control, `and covers no trailing tool at ${String(width)}`)
+      .toBeLessThanOrEqual(edges.tools);
+  }
+});
+
 test("switching environments moves neither the bar nor the content column", async ({
   page,
   context,

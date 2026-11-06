@@ -3054,9 +3054,11 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   align-items: center;
   gap: var(--space-2);
   min-inline-size: 0;
-  flex-shrink: 0;
+  max-inline-size: 100%;
 }
+/* Hidden where the slot is too narrow for it; nothing here may spill into the trailing tools. */
 .qcms-envswitch__label {
+  display: none;
   min-inline-size: 0;
   overflow: hidden;
   color: var(--color-text-muted);
@@ -3100,11 +3102,13 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   padding-inline: var(--space-2);
   border-width: 2px;
   font-size: 11px;
+  overflow: hidden;
   white-space: nowrap;
-  flex-shrink: 0;
 }
 .qcms-envtrigger {
   min-block-size: var(--admin-control-h);
+  min-inline-size: 0;
+  max-inline-size: 100%;
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
@@ -3115,7 +3119,6 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   color: var(--color-text);
   font-size: 14px;
   cursor: pointer;
-  flex-shrink: 0;
 }
 .qcms-envtrigger__change {
   display: none;
