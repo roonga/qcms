@@ -1,5 +1,4 @@
 import { t } from "../i18n/en.ts";
-import { OPERATIONS_PATH } from "./modes.ts";
 
 export interface AreaRailItem {
   readonly key: string;
@@ -23,14 +22,7 @@ export function operationsRailItems(
   current: OperationsRailCurrent,
   showQueues: boolean,
 ): readonly AreaRailItem[] {
-  const items: AreaRailItem[] = [
-    {
-      key: "section:forms",
-      href: OPERATIONS_PATH,
-      label: t("rail.allForms"),
-      current: current === "forms",
-    },
-  ];
+  const items: AreaRailItem[] = [];
   if (showQueues || current === "delivery-failures") {
     items.push({
       key: "queue:delivery-failures",

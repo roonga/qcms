@@ -16,7 +16,6 @@ describe("the breadcrumb", () => {
   it("reads area, then section, then item, and links every crumb but the page itself", () => {
     const trail = breadcrumbTrail("/operations/forms/frm_a/responses/ses_1", { form: "Quote" });
     expect(trail).toEqual([
-      { label: "Operations", href: "/operations" },
       { label: "Quote" },
       { label: "Responses", href: "/operations/forms/frm_a/responses" },
       { label: "ses_1", code: true },
@@ -43,9 +42,9 @@ describe("the breadcrumb", () => {
   });
 
   it("puts the global queues under Operations", () => {
-    expect(labels(breadcrumbTrail("/webhooks"))).toEqual(["Operations", "Delivery failures"]);
-    expect(labels(breadcrumbTrail("/responses/erasures"))).toEqual(["Operations", "Erasure log"]);
-    expect(breadcrumbTrail("/operations")).toEqual([{ label: "Operations" }]);
+    expect(labels(breadcrumbTrail("/webhooks"))).toEqual(["Delivery failures"]);
+    expect(labels(breadcrumbTrail("/responses/erasures"))).toEqual(["Erasure log"]);
+    expect(breadcrumbTrail("/operations")).toEqual([]);
   });
 
   it("names a workspace's section beneath the workspace", () => {

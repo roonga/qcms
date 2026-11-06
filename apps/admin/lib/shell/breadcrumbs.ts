@@ -76,18 +76,18 @@ function forms(rest: readonly string[], names: CrumbNames): Crumb[] {
   return [area, form, { label: t(key) }];
 }
 
+/* The top bar's Operations group names the area, so the trail starts below it. */
 function operations(rest: readonly string[], names: CrumbNames): Crumb[] {
-  const area: Crumb = { label: t("nav.operations"), href: "/operations" };
   const [kind, formId, context, sessionId] = rest;
-  if (kind !== "forms" || formId === undefined) return [area];
+  if (kind !== "forms" || formId === undefined) return [];
   const form: Crumb = { label: names.form ?? decode(formId) };
   const key = context === undefined ? undefined : OPERATIONS_SECTIONS[context];
-  if (key === undefined) return [area, form];
+  if (key === undefined) return [form];
   if (sessionId !== undefined) {
     const href = `/operations/forms/${encodeURIComponent(decode(formId))}/${context ?? ""}`;
-    return [area, form, { label: t(key), href }, { label: decode(sessionId), code: true }];
+    return [form, { label: t(key), href }, { label: decode(sessionId), code: true }];
   }
-  return [area, form, { label: t(key) }];
+  return [form, { label: t(key) }];
 }
 
 function workspaces(rest: readonly string[], names: CrumbNames): Crumb[] {
@@ -107,7 +107,6 @@ function workspaces(rest: readonly string[], names: CrumbNames): Crumb[] {
 export function breadcrumbTrail(pathname: string, names: CrumbNames = {}): readonly Crumb[] {
   const segments = pathname.split("/").filter((segment) => segment !== "");
   const [top, ...rest] = segments;
-  const operationsArea: Crumb = { label: t("nav.operations"), href: "/operations" };
   let trail: Crumb[];
   switch (top) {
     case "questions":
@@ -120,13 +119,10 @@ export function breadcrumbTrail(pathname: string, names: CrumbNames = {}): reado
       trail = operations(rest, names);
       break;
     case "webhooks":
-      trail = [operationsArea, { label: t("operations.queue.deliveryFailures") }];
+      trail = [{ label: t("operations.queue.deliveryFailures") }];
       break;
     case "responses":
-      trail =
-        rest[0] === "erasures"
-          ? [operationsArea, { label: t("operations.queue.erasureLog") }]
-          : [operationsArea];
+      trail = rest[0] === "erasures" ? [{ label: t("operations.queue.erasureLog") }] : [];
       break;
     case "workspaces":
       trail = workspaces(rest, names);

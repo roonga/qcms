@@ -1,9 +1,14 @@
 import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { WorkspacesRail } from "./membership/workspaces-rail.tsx";
 import { RailFrame, RailTree } from "./rail-frame.tsx";
 import { operationsRailItems } from "../lib/shell/area-rails.ts";
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  usePathname: () => null,
+}));
 
 function itemKeys(items: readonly { readonly key: string }[]): string[] {
   return items.map((item) => item.key);
@@ -17,14 +22,12 @@ describe("an area's rail", () => {
   });
 
   it("shows the installation queues only to a caller who may open them", () => {
-    expect(itemKeys(operationsRailItems("forms", false))).toEqual(["section:forms"]);
+    expect(itemKeys(operationsRailItems("forms", false))).toEqual([]);
     expect(itemKeys(operationsRailItems("forms", true))).toEqual([
-      "section:forms",
       "queue:delivery-failures",
       "queue:erasure-log",
     ]);
     expect(itemKeys(operationsRailItems("delivery-failures", false))).toEqual([
-      "section:forms",
       "queue:delivery-failures",
     ]);
   });
@@ -35,7 +38,7 @@ describe("an area's rail", () => {
         subject="Operations"
         sections={
           <RailTree
-            items={operationsRailItems("forms", true).map((item) =>
+            items={operationsRailItems("delivery-failures", true).map((item) =>
               item.current
                 ? { ...item, expanded: true, children: <ul data-testid="sub-items" /> }
                 : item,
@@ -46,10 +49,10 @@ describe("an area's rail", () => {
     );
     const rail = screen.getByRole("complementary", { name: "Operations" });
     const current = within(rail).getByRole("link", { current: "page" });
-    expect(current.textContent).toBe("All forms");
+    expect(current.textContent).toBe("Delivery failures");
     expect(current.getAttribute("aria-expanded")).toBe("true");
     expect(
-      within(rail).getByRole("link", { name: "Delivery failures" }).hasAttribute("aria-expanded"),
+      within(rail).getByRole("link", { name: "Erasure log" }).hasAttribute("aria-expanded"),
     ).toBe(false);
     expect(screen.getByTestId("sub-items")).toBeTruthy();
     expect(rail.querySelector(".qcms-rail__back")).toBeNull();
@@ -80,12 +83,9 @@ describe("an area's rail", () => {
     const rail = screen.getByTestId("qcms-workspaces-rail");
     expect(rail.querySelector(".qcms-rail__back")).toBeNull();
     expect(screen.getByTestId("qcms-rail-label").textContent).toBe("Menu");
-    expect(within(rail).getByRole("link", { name: "Alpha" }).getAttribute("aria-expanded")).toBe(
-      "true",
-    );
-    expect(within(rail).getByRole("link", { name: "Beta" }).getAttribute("aria-expanded")).toBe(
-      "false",
-    );
+    const open = rail.querySelectorAll(".qcms-rail__accordion[open] > summary");
+    expect(Array.from(open).map((summary) => summary.textContent)).toEqual(["Alpha"]);
+    expect(rail.querySelectorAll(".qcms-rail__accordion")).toHaveLength(2);
     expect(within(rail).getByRole("link", { current: "page" }).textContent).toBe("Access audit");
   });
 });
