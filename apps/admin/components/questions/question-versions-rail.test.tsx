@@ -54,8 +54,6 @@ function render(
   return renderToStaticMarkup(
     <QuestionVersionsRail
       questionId="q_smoking_status"
-      slug="smoking-status"
-      createdAt="2025-06-01T09:00:00.000Z"
       versions={versions}
       selected={selected}
       panels={PANELS}
@@ -72,8 +70,6 @@ function renderedText(): string {
     const { container, unmount } = renderClient(
       <QuestionVersionsRail
         questionId="q_smoking_status"
-        slug="smoking-status"
-        createdAt="2025-06-01T09:00:00.000Z"
         versions={VERSIONS}
         selected={3}
         panels={PANELS}
@@ -130,23 +126,6 @@ describe("the question rail's markup", () => {
     expect(html.indexOf('href="/questions"')).toBeLessThan(html.indexOf("<details"));
     expect(html).toContain('class="qcms-rail__back"');
     expect(html).toContain("All questions");
-  });
-
-  it("states the question's own details under its id, as a description list", () => {
-    const html = render();
-    expect(html).toContain('<dl class="qcms-rail__facts">');
-    expect(html).toContain("<dt>Slug</dt>");
-    expect(html).toContain("smoking-status</dd>");
-    expect(html).toContain("<dt>Created</dt>");
-    expect(html).toContain('<dd><time dateTime="2025-06-01T09:00:00.000Z"></time></dd>');
-    expect(renderedText()).toContain("Created1 Jun 2025");
-  });
-
-  it("states the type once, with its locked status, and never inside the editor", () => {
-    const html = render();
-    expect(html).toContain("<dt>Type</dt>");
-    expect(html).toContain("Number (locked)");
-    expect(html).not.toContain("Type is locked to");
   });
 
   it("makes every version row an anchor that goes somewhere", () => {
@@ -233,25 +212,11 @@ describe("the question rail's markup", () => {
     expect(text).toContain("Never published");
   });
 
-  it("digests the group above it: how many versions, and which one is live", () => {
-    expect(render()).toContain("3 versions, v2 published");
-  });
-
-  it("says so plainly when nothing has been published, in the singular where it applies", () => {
-    expect(render(1, [version(1, "draft", null)])).toContain("1 version, none published");
-  });
-
   it("renders the actions it is handed, in the Actions part under the list", () => {
     const withActions = render();
     expect(withActions.indexOf("<nav")).toBeLessThan(withActions.indexOf("stub-actions"));
     expect(withActions).toContain('<div class="qcms-rail__actions">');
     expect(render(3, VERSIONS, null)).not.toContain("stub-actions");
-  });
-
-  it("states the selected version's status in the Header, as its one tag", () => {
-    const header = render(2).slice(0, render(2).indexOf("qcms-rail__facts"));
-    expect(header).toContain('data-status="published"');
-    expect([...header.matchAll(/class="qcms-tag/gu)]).toHaveLength(1);
   });
 
   it("badges no panel before a save has been refused", () => {

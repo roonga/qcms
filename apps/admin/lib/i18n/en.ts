@@ -445,7 +445,6 @@ export const messages = {
   "questions.detail.type": "Type",
   "questions.detail.created": "Created",
 
-  "questions.detail.typeLocked": "{type} (locked)",
   "questions.detail.deprecatedNote":
     "This version is deprecated: no new form can pin it. Forms that already pin it keep working exactly as they are, and no answer already collected changes.",
 

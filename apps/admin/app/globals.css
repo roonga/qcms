@@ -2527,33 +2527,40 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   text-decoration: underline;
 }
 
-.qcms-rail__facts {
-  display: grid;
-  grid-template-columns: auto 1fr;
+.qcms-question-facts {
+  display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: 0.125rem 0.5rem;
-  padding-inline: 0.5rem;
-  padding-block-end: 0.5rem;
-  margin: 0;
-  font-size: 0.75rem;
+  gap: 0.25rem 1.5rem;
+  font-size: 0.875rem;
 }
-.qcms-rail__facts > dt {
+.qcms-question-facts__list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 1.5rem;
+  margin: 0;
+}
+.qcms-question-facts__list > dt {
+  display: inline;
   color: var(--color-text-muted);
-  white-space: nowrap;
 }
-.qcms-rail__facts > dd {
+.qcms-question-facts__list > dt::after {
+  content: " ";
+}
+.qcms-question-facts__list > dd {
+  display: inline;
   min-inline-size: 0;
-  margin: 0;
+  margin: 0 0.75rem 0 0;
   color: var(--color-text);
   overflow-wrap: anywhere;
 }
-.qcms-rail__facts-slug {
+.qcms-question-facts__slug {
   font-family: var(--font-mono);
 }
-
-.qcms-rail__digest {
-  padding-inline: 0.5rem;
-  margin-block-end: 0.25rem;
+.qcms-question-facts__digest {
+  margin: 0;
+  color: var(--color-text-muted);
 }
 
 /* Indent panels beneath the selected version so the two current markers express a parent and child rather
