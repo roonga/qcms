@@ -327,7 +327,8 @@ what shipped, and left this document and the POC as guidance rather than a work 
 | Verification item                                                                      | Where it is asserted                                                                                      |
 | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | Personas, role and scope negatives                                                     | `apps/api/e2e/security/01-authorization-matrix.e2e.ts`, `apps/api/src/features/membership`                |
-| Atomicity, idempotency, stale review, outbox                                           | `apps/api/src/features/releases/releases.integration.test.ts`                                             |
+| Atomicity, idempotency, stale review, revocation, outbox failure                       | `apps/api/src/features/releases/publish-batch.integration.test.ts`                                        |
+| Release resolution, rollback, pinned sessions, second person                           | `apps/api/src/features/releases/releases.integration.test.ts`                                             |
 | Operations discovery and its projection                                                | `apps/api/src/features/operations/operations.integration.test.ts`                                         |
 | Operations-only and Workspaces-only landing, exits, denied bookmarks, in-mode settings | `apps/admin/e2e/shell-modes.pw.ts`, `apps/admin/e2e/operations-leave.pw.ts`                               |
 | Area rails, one top bar, rail toggle, breadcrumb                                       | `apps/admin/e2e/shell-frame.pw.ts`, `apps/admin/e2e/rail-every-screen.pw.ts`                              |

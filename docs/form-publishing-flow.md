@@ -40,14 +40,13 @@ confirmation and then releases into every destination or into none of them. It l
 only the environments the operator may release this form into, and says why an
 environment it cannot use is not eligible.
 
-In the test/prod workflow, production offers existing versions previously
-released to test, plus previously deployed production versions for rollback. A draft
-cannot be published straight into production. The review step shows what freezes and,
-per destination, the version that
-environment serves now and the version it will serve. A test release does not itself
-prove that manual testing passed. The diagram assumes intake is open in both environments.
-Draft editing belongs to no environment, so the Operations selector never decides where a
-draft is released.
+In the test/prod workflow, production offers existing versions previously released to
+test, plus previously deployed production versions for rollback. A draft cannot be
+published straight into production. The review step shows what freezes and, per
+destination, the version that environment serves now and the version it will serve. A
+test release does not itself prove that manual testing passed. The diagram assumes
+intake is open in both environments. Draft editing belongs to no environment, so the
+Operations selector never decides where a draft is released.
 
 After a release, the Operations table is where a released form is operated, and it is the
 only place those screens live. Its environment is the Operations header's own selector, and
