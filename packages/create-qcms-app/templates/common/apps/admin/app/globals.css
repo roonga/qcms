@@ -189,14 +189,13 @@ button {
   color: var(--color-text);
 }
 
-/* Every slot keeps its size in every area, so entering Operations moves nothing: the Exit and environment
-   slots stand empty elsewhere and the navigation scrolls rather than wraps. */
+/* The navigation scrolls rather than wraps. */
 .qcms-topbar__inner {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   grid-template-areas:
-    "brand . env tools"
-    "nav nav exit exit";
+    "brand . tools"
+    "nav nav nav";
   grid-auto-rows: minmax(var(--admin-control-h), auto);
   align-items: center;
   column-gap: var(--space-2);
@@ -219,18 +218,6 @@ button {
   padding: 4px;
   overflow-x: auto;
 }
-.qcms-topbar__exit {
-  grid-area: exit;
-  display: flex;
-  justify-content: flex-end;
-  min-inline-size: 0;
-}
-.qcms-topbar__env {
-  grid-area: env;
-  display: flex;
-  justify-content: flex-end;
-  inline-size: 6rem;
-}
 .qcms-topbar__tools {
   grid-area: tools;
   display: flex;
@@ -240,15 +227,9 @@ button {
 }
 @variant sidebar {
   .qcms-topbar__inner {
-    grid-template-columns: auto auto minmax(0, 1fr) auto auto auto;
-    grid-template-areas: "toggle brand nav exit env tools";
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
+    grid-template-areas: "toggle brand nav tools";
     column-gap: var(--space-3);
-  }
-  .qcms-topbar__exit {
-    inline-size: 9rem;
-  }
-  .qcms-topbar__env {
-    inline-size: 18rem;
   }
   .qcms-topbar__toggle {
     display: flex;
@@ -290,35 +271,79 @@ button {
   border-inline-start: 1px solid var(--color-border);
 }
 
-.qcms-modeheader {
-  display: flex;
-  flex-wrap: wrap;
+.qcms-opsbar {
+  display: inline-flex;
   align-items: center;
-  gap: var(--space-3);
-  min-inline-size: 0;
+  gap: var(--space-1);
+  min-block-size: var(--admin-control-h);
+  padding-inline: var(--space-2) var(--space-1);
+  border: 2px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background-color: var(--color-surface);
+  color: var(--color-text);
 }
-.qcms-modeheader__name {
+.qcms-opsbar:has(.qcms-envswitch[data-kind="prod"]) {
+  border-color: var(--color-env-prod);
+  background-color: var(--color-env-prod);
+  color: var(--color-env-prod-foreground);
+}
+.qcms-opsbar:has(.qcms-envswitch[data-kind="nonprod"]) {
+  border-color: var(--color-env-test);
+  background-color: var(--color-env-test-subtle);
+  color: var(--color-env-test-fg);
+}
+.qcms-opsbar__title {
+  padding-inline: var(--space-1);
+  color: inherit;
   font-size: 14px;
   font-weight: 600;
-  color: var(--color-text);
-}
-.qcms-modeheader__exit {
-  display: inline-block;
-  max-inline-size: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 6px;
   white-space: nowrap;
-  line-height: calc(var(--admin-control-h) - 2px);
-  min-block-size: var(--admin-control-h);
-  padding-inline: var(--space-3);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-control);
-  color: var(--color-text);
-  font-size: 14px;
-  text-decoration: none;
 }
-.qcms-modeheader__exit:hover {
-  background-color: var(--color-ghost-hover);
+.qcms-opsbar__divider {
+  flex: none;
+  inline-size: 1px;
+  block-size: 20px;
+  margin-inline: var(--space-1);
+  background-color: currentColor;
+}
+:root.hc .qcms-opsbar__divider {
+  inline-size: 2px;
+}
+.qcms-opsbar__exit {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 32px;
+  padding-inline: var(--space-2);
+  border-radius: var(--radius-control);
+  color: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.qcms-opsbar__exit:hover,
+.qcms-opsbar .qcms-envtrigger[data-hovered],
+.qcms-opsbar .qcms-envtrigger[aria-expanded="true"] {
+  background-color: color-mix(in srgb, currentColor 16%, transparent);
+}
+.qcms-opsbar .qcms-envswitch__label {
+  display: none;
+}
+.qcms-opsbar .qcms-envtrigger {
+  min-block-size: 32px;
+  border: 0;
+  background-color: transparent;
+  color: inherit;
+}
+.qcms-opsbar .qcms-envswitch .qcms-envchip {
+  min-inline-size: 0;
+  padding-inline: 0;
+  border-color: transparent;
+  background-color: transparent;
+  color: inherit;
 }
 
 .qcms-card {
@@ -3064,6 +3089,36 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   background-color: var(--color-env-test-subtle);
   color: var(--color-env-test-fg);
 }
+.qcms-envchip[data-slot="2"],
+.qcms-opsbar:has(.qcms-envswitch[data-slot="2"]) {
+  border-color: var(--color-env-2);
+  background-color: var(--color-env-2-subtle);
+  color: var(--color-env-2-fg);
+}
+.qcms-envchip[data-slot="3"],
+.qcms-opsbar:has(.qcms-envswitch[data-slot="3"]) {
+  border-color: var(--color-env-3);
+  background-color: var(--color-env-3-subtle);
+  color: var(--color-env-3-fg);
+}
+.qcms-envchip[data-slot="4"],
+.qcms-opsbar:has(.qcms-envswitch[data-slot="4"]) {
+  border-color: var(--color-env-4);
+  background-color: var(--color-env-4-subtle);
+  color: var(--color-env-4-fg);
+}
+.qcms-envchip[data-slot="5"],
+.qcms-opsbar:has(.qcms-envswitch[data-slot="5"]) {
+  border-color: var(--color-env-5);
+  background-color: var(--color-env-5-subtle);
+  color: var(--color-env-5-fg);
+}
+.qcms-envchip[data-slot="6"],
+.qcms-opsbar:has(.qcms-envswitch[data-slot="6"]) {
+  border-color: var(--color-env-6);
+  background-color: var(--color-env-6-subtle);
+  color: var(--color-env-6-fg);
+}
 .qcms-envchip[data-kind="unknown"] {
   border-style: dashed;
 }
@@ -3108,43 +3163,20 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   opacity: 0.7;
 }
 .qcms-envmenu {
-  min-inline-size: 21rem;
-}
-.qcms-envmenu__item {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  block-size: auto;
-  min-block-size: 52px;
-  align-content: center;
-  row-gap: 2px;
-  padding-block: var(--space-2);
+  min-inline-size: var(--trigger-width, 0);
+  inline-size: max-content;
 }
 .qcms-envmenu__row {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2);
 }
-.qcms-envmenu__name {
-  font-size: 14px;
-  font-weight: 600;
-}
-.qcms-envmenu__mark {
-  margin-inline-start: auto;
+.qcms-envmenu__check {
+  display: inline-flex;
+  flex: none;
+  inline-size: 16px;
+  block-size: 16px;
   color: var(--color-primary);
-  font-size: 13px;
-  font-weight: 600;
-}
-.qcms-envmenu__meaning {
-  padding-inline-start: calc(52px + var(--space-3));
-  color: var(--color-text-muted);
-  font-size: 13px;
-}
-.qcms-envmenu__note {
-  margin: 0;
-  padding-inline: var(--space-3);
-  padding-block: var(--space-2);
-  color: var(--color-text-muted);
-  font-size: 13px;
 }
 /* The slot reserves one width in every area, so the label and the word only appear where they fit. */
 @variant sidebar {
@@ -3154,16 +3186,6 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   .qcms-envswitch .qcms-envchip {
     min-inline-size: 88px;
   }
-}
-
-.qcms-topbar:has(.qcms-envswitch[data-kind="prod"]) {
-  box-shadow: inset 0 3px 0 var(--color-env-prod);
-}
-.qcms-topbar:has(.qcms-envswitch[data-kind="nonprod"]) {
-  box-shadow: inset 0 3px 0 var(--color-env-test);
-}
-.qcms-topbar:has(.qcms-envswitch[data-kind="unknown"]) {
-  box-shadow: inset 0 3px 0 var(--color-border-strong);
 }
 
 .qcms-rollback {

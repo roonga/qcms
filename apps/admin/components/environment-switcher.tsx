@@ -7,7 +7,7 @@ import { EnvironmentChip, EnvironmentSlot } from "@/components/environment-chip"
 import { Menu, MenuItemText } from "@/components/kit";
 import type { MenuClassNames } from "@/components/kit";
 import { MENU_SURFACE } from "@/components/menu-slots";
-import { environmentCookie } from "@/lib/environment";
+import { environmentCookie, environmentKind } from "@/lib/environment";
 import { t } from "@/lib/i18n/en";
 
 /* Refresh server-rendered rows after switching; changing a cookie alone leaves the displayed environment
@@ -19,6 +19,14 @@ const ENVIRONMENT_MENU: MenuClassNames = {
   popover: "qcms-menu qcms-envmenu",
   item: "qcms-menu__item qcms-envmenu__item",
 };
+
+/** Production is always its own colour; the others take the tints 2 to 6 in list order, then repeat. */
+function tintSlot(environments: readonly string[], environment: string): number | undefined {
+  if (environmentKind(environment) === "prod") return undefined;
+  const others = environments.filter((candidate) => environmentKind(candidate) !== "prod");
+  const index = others.indexOf(environment);
+  return index < 0 ? undefined : 2 + (index % 5);
+}
 
 export function EnvironmentSwitcher({
   environments,
@@ -51,12 +59,16 @@ export function EnvironmentSwitcher({
   };
 
   return (
-    <EnvironmentSlot environment={current} pending={isPending}>
+    <EnvironmentSlot
+      environment={current}
+      pending={isPending}
+      slot={tintSlot(environments, current)}
+    >
       <Menu
         triggerLabel={t("environment.trigger", { environment: current })}
         trigger={
           <>
-            <EnvironmentChip environment={current} />
+            <EnvironmentChip environment={current} slot={tintSlot(environments, current)} />
             <svg
               className="qcms-envtrigger__caret"
               width="16"
@@ -102,7 +114,10 @@ export function EnvironmentSwitcher({
                   </svg>
                 )}
               </span>
-              <EnvironmentChip environment={environment} />
+              <EnvironmentChip
+                environment={environment}
+                slot={tintSlot(environments, environment)}
+              />
             </MenuItemText>
           ),
         }))}

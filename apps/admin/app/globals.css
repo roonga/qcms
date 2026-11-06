@@ -3089,6 +3089,36 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   background-color: var(--color-env-test-subtle);
   color: var(--color-env-test-fg);
 }
+.qcms-envchip[data-slot="2"],
+.qcms-opsbar:has(.qcms-envswitch[data-slot="2"]) {
+  border-color: var(--color-env-2);
+  background-color: var(--color-env-2-subtle);
+  color: var(--color-env-2-fg);
+}
+.qcms-envchip[data-slot="3"],
+.qcms-opsbar:has(.qcms-envswitch[data-slot="3"]) {
+  border-color: var(--color-env-3);
+  background-color: var(--color-env-3-subtle);
+  color: var(--color-env-3-fg);
+}
+.qcms-envchip[data-slot="4"],
+.qcms-opsbar:has(.qcms-envswitch[data-slot="4"]) {
+  border-color: var(--color-env-4);
+  background-color: var(--color-env-4-subtle);
+  color: var(--color-env-4-fg);
+}
+.qcms-envchip[data-slot="5"],
+.qcms-opsbar:has(.qcms-envswitch[data-slot="5"]) {
+  border-color: var(--color-env-5);
+  background-color: var(--color-env-5-subtle);
+  color: var(--color-env-5-fg);
+}
+.qcms-envchip[data-slot="6"],
+.qcms-opsbar:has(.qcms-envswitch[data-slot="6"]) {
+  border-color: var(--color-env-6);
+  background-color: var(--color-env-6-subtle);
+  color: var(--color-env-6-fg);
+}
 .qcms-envchip[data-kind="unknown"] {
   border-style: dashed;
 }
@@ -3133,7 +3163,8 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   opacity: 0.7;
 }
 .qcms-envmenu {
-  min-inline-size: 12rem;
+  min-inline-size: var(--trigger-width, 0);
+  inline-size: max-content;
 }
 .qcms-envmenu__row {
   display: flex;

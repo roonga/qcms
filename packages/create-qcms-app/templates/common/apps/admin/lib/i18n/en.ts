@@ -81,12 +81,8 @@ export const messages = {
   "environment.legend": "Environment",
   /** The trigger's own visible text has to appear in its name, in order and unbroken (WCAG 2.5.3). */
   "environment.trigger": "Environment {environment}",
-  "environment.selected": "Selected",
   /** Say what a choice reaches, so switching does not read as a filter on the list below. */
-  "environment.appliesTo": "Applies to every Operations screen. Lists return to page 1.",
   /** Environments are installation data, so the meaning follows prod or non-prod, never a name. */
-  "environment.meaning.prod": "Live forms that respondents use",
-  "environment.meaning.nonProd": "Checking released versions before prod",
   /** Announce switches only; first render already names the environment. */
   "environment.nowWorking": "Now working in {environment}.",
   /** Destructive confirmations must restate the environment because targeting the wrong one cannot be undone. */
@@ -114,6 +110,7 @@ export const messages = {
 
   "shell.mode.operations.name": "Operations",
   "shell.mode.operations.exit": "Exit Operations",
+  "shell.mode.operations.exitText": "Exit",
   "shell.mode.operations.announce": "Operations. Links out of it ask before leaving.",
   "shell.leave.title": "Leave Operations?",
   "shell.leave.goes": "This link opens {area}, outside Operations.",
