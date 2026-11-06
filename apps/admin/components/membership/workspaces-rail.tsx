@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { WorkspaceSummary } from "@/components/membership/workspace-summary";
 import { RailFrame } from "@/components/rail-frame";
 import { t } from "@/lib/i18n/en";
 import {
@@ -82,12 +83,12 @@ export function WorkspacesRail({
                     className="qcms-rail__accordion"
                     open={open}
                   >
-                    <summary
-                      className="qcms-rail__link"
-                      data-rail-item={`workspace:${workspace.workspaceId}`}
+                    <WorkspaceSummary
+                      href={workspaceHref(workspace.workspaceId)}
+                      railItem={`workspace:${workspace.workspaceId}`}
                     >
                       {workspace.name}
-                    </summary>
+                    </WorkspaceSummary>
                     {sections}
                   </details>
                 )}
