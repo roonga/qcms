@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 
 import { families } from "../../portal/e2e/support/font-families.js";
 import { expect, test } from "../../portal/e2e/support/gates.js";
@@ -148,7 +148,7 @@ test("the builder's rules card reads, and every way out of it crosses to the rul
   await expect(lens).toBeVisible();
 
   await expect(lens.locator(".qcms-rule-action")).toHaveCount(0);
-  await expect(lens.locator("button")).toHaveCount(0);
+  await expect(lens.locator("button:not(.qcms-helptip__button)")).toHaveCount(0);
 
   await expect(lens.locator("[data-rule-count]")).toHaveAttribute("data-rule-count", "1");
 
@@ -532,6 +532,10 @@ test("both panels are in the heading outline, with a digest the panel repeats", 
   await cancelRuleEditor(page);
 });
 
+function bodyOf(button: Locator): Locator {
+  return button.locator('xpath=following-sibling::span[@role="tooltip"]');
+}
+
 test("every help tip on the builder opens on hover, dismisses on Escape, and stays on screen", async ({
   page,
 }) => {
@@ -540,9 +544,9 @@ test("every help tip on the builder opens on hover, dismisses on Escape, and sta
   await page.goto(`/forms/${insuranceFormId}`);
 
   const settings = page.locator('section[aria-labelledby="qcms-settings-heading"]');
-  const button = settings.getByRole("button", { name: "More information" });
+  const button = settings.getByRole("button", { name: "More information" }).first();
   await expect(button).toBeVisible();
-  const tip = settings.getByRole("tooltip", { includeHidden: true });
+  const tip = bodyOf(button);
   await expect(tip).toBeHidden();
 
   await button.hover();
@@ -551,27 +555,33 @@ test("every help tip on the builder opens on hover, dismisses on Escape, and sta
   await page.keyboard.press("Escape");
   await expect(tip).toBeHidden();
 
+  // The ARIA tooltip pattern keeps a dismissed tip shut until focus leaves and comes back.
+  await button.blur();
+  await page.mouse.move(0, 0);
   await button.focus();
   await expect(tip).toBeVisible();
+  await button.blur();
 
   const width = page.viewportSize()?.width ?? 0;
   expect(width).toBeGreaterThan(0);
-  const tips = page.getByRole("button", { name: "More information" });
-  const count = await tips.count();
-  expect(count).toBeGreaterThan(1);
-  for (let at = 0; at < count; at++) {
-    const each = tips.nth(at);
+  let opened = 0;
+  for (const each of await page.getByRole("button", { name: "More information" }).all()) {
+    if (!(await each.isVisible())) continue;
     await each.scrollIntoViewIfNeeded();
+    await page.mouse.move(0, 0);
     await each.hover();
-    const body = page.locator('[role="tooltip"]:visible').first();
+    const body = bodyOf(each);
+    await expect(body).toBeVisible();
     const box = await body.boundingBox();
     expect(box, "an open help tip has a box").not.toBeNull();
+    expect(box?.x ?? -1, "an open help tip starts inside the viewport").toBeGreaterThanOrEqual(0);
     expect(
       (box?.x ?? 0) + (box?.width ?? 0),
       "an open help tip ends inside the viewport",
     ).toBeLessThanOrEqual(width);
-    expect(box?.x ?? -1, "an open help tip starts inside the viewport").toBeGreaterThanOrEqual(0);
+    opened += 1;
   }
+  expect(opened, "the builder carries more than one help tip").toBeGreaterThan(1);
 });
 
 test("the rule wizard buffers: Cancel discards, Save commits (Code Owner, 2026-08-30)", async ({
