@@ -1,8 +1,9 @@
 import { sql } from "drizzle-orm";
-import { boolean, check, index, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, check, index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 import type { AnswerValue, InstanceId, QuestionId, SessionId } from "@roonga/qcms-core";
 
+import { jsonbValue } from "../jsonb-value.js";
 import { sessions } from "./sessions.js";
 
 /**
@@ -22,7 +23,8 @@ export const answers = pgTable(
     questionId: text("question_id").$type<QuestionId>().notNull(),
     /** `null` for a question outside every repeating group. */
     instanceId: text("instance_id").$type<InstanceId>(),
-    value: jsonb("value").$type<AnswerValue>(),
+    /** A text answer is a JSON string, which `jsonb()` would read back double-parsed. */
+    value: jsonbValue<AnswerValue>("value"),
     retracted: boolean("retracted").notNull().default(false),
     answeredAt: timestamp("answered_at", { withTimezone: true, mode: "date" })
       .notNull()

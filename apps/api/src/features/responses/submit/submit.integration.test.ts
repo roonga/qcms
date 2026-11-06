@@ -62,6 +62,28 @@ const Q_ACCIDENT_DEF = readFixture(
   "valid",
   "boolean.json",
 ) as Parameters<typeof createQuestionVersion>[1]["definition"];
+// Inline rather than a fixture: the golden corpus has no pattern-free text question, and
+// the pattern on `q_full_name` refuses digits.
+const Q_POLICY_DEF = {
+  type: "shortText",
+  questionId: "q_policy_number",
+  label: { en: "Policy number" },
+  required: true,
+  constraints: { minLength: 1, maxLength: 40 },
+} as unknown as Parameters<typeof createQuestionVersion>[1]["definition"];
+const POLICY_DEF = {
+  formId: "frm_policy_number",
+  defaultLocale: "en",
+  title: { en: "Policy number" },
+  steps: [
+    {
+      stepId: "stp_policy",
+      title: { en: "Policy" },
+      items: [{ questionId: "q_policy_number", version: 1 }],
+    },
+  ],
+  rules: [],
+} as unknown as VersionInput["definition"];
 const Q_ACCIDENT_COUNT_DEF = readFixture(
   "packages",
   "core",
@@ -106,6 +128,13 @@ beforeAll(async () => {
 
   await seedQuestions();
   await seedForm("frm_auto_quote", "auto", GOLDEN as unknown as VersionInput["compiled"]);
+  await seedForm(
+    "frm_policy_number",
+    "policy",
+    GOLDEN as unknown as VersionInput["compiled"],
+    "1",
+    POLICY_DEF,
+  );
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
 afterAll(async () => {
@@ -136,6 +165,15 @@ async function seedQuestions(): Promise<void> {
     questionId: QuestionId.parse("q_accident_count"),
     definition: Q_ACCIDENT_COUNT_DEF,
   });
+  await createQuestion(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    questionId: QuestionId.parse("q_policy_number"),
+    slug: "policy-number",
+  });
+  await createQuestionVersion(testDb.db, {
+    questionId: QuestionId.parse("q_policy_number"),
+    definition: Q_POLICY_DEF,
+  });
 }
 
 // `semanticsVersion` defaults to the one this evaluator implements and is overridden only
@@ -145,6 +183,7 @@ async function seedForm(
   slug: string,
   compiled: VersionInput["compiled"],
   semanticsVersion = "1",
+  definition: VersionInput["definition"] = INSURANCE_DEF,
 ): Promise<FormId> {
   const formId = FormId.parse(id);
   await createForm(testDb.db, {
@@ -155,7 +194,7 @@ async function seedForm(
   });
   const version = await insertFormVersion(testDb.db, {
     formId,
-    definition: INSURANCE_DEF,
+    definition,
     compiled,
     compilerVersion: GOLDEN.compilerVersion,
     a2uiSpecVersion: GOLDEN.a2uiSpecVersion,
@@ -379,6 +418,31 @@ describe("hidden-answer exclusion (exit criterion 3)", () => {
     );
     expect(webhookIds).toEqual(["q_at_fault_accident"]);
   });
+});
+
+describe("text answers that look like other JSON", () => {
+  // A stored text answer is a JSON string, and a `jsonb` column that parses the driver's
+  // already-parsed value hands the sweep a number, which "must be text" then refuses.
+  it.each(["234234234", "true", "null", "[1]", "  42 "])(
+    "accepts %j as a text answer and locks it unchanged",
+    async (typed) => {
+      const { sessionId, sessionToken } = await startSession("policy");
+      expect((await postAnswer(sessionId, sessionToken, "q_policy_number", typed)).status).toBe(200);
+
+      const res = await submit(sessionId, sessionToken);
+      expect(res.status).toBe(200);
+
+      const submission = await loadSubmission(sessionId);
+      expect(submission?.lockedAnswers.answers).toEqual([
+        { questionId: "q_policy_number", value: typed },
+      ]);
+
+      const ledger = (await answerLedger(testDb.db, SessionId.parse(sessionId))) as {
+        value: unknown;
+      }[];
+      expect(ledger.map((row) => row.value)).toEqual([typed]);
+    },
+  );
 });
 
 describe("required-answer sweep (exit criterion 4)", () => {

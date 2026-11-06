@@ -693,6 +693,74 @@ describe("answers helpers", () => {
     expect(ledger.map((r) => r.value)).toEqual(["first", "second", "third", 42]);
   });
 
+  it("reads a text answer back as the string it stored, whatever JSON it looks like", async () => {
+    const { formId, version } = await seedPublishedForm("frm_answer_text");
+    const sessionId = SessionId.parse("ses_answer_text");
+    await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
+      sessionId,
+      formId,
+      formVersion: version,
+      accessMode: "anonymous",
+      expiresAt: new Date(Date.now() + 86_400_000),
+    });
+    // Each one is a JSON document in its own right, so a second parse of the stored
+    // string turns it into a number, a boolean, SQL NULL or an array.
+    const texts = ["123", "true", "null", "[1]", "  42 "];
+    const t0 = Date.now();
+    const questionIds = texts.map((_, index) => QuestionId.parse(`q_text_${String(index)}`));
+    for (const [index, text] of texts.entries()) {
+      await appendAnswer(testDb.db, {
+        sessionId,
+        questionId: questionIds[index]!,
+        value: text,
+        answeredAt: new Date(t0 + index),
+      });
+    }
+
+    const latest = await latestAnswers(testDb.db, sessionId);
+    expect(questionIds.map((questionId) => latest.get(questionId))).toEqual(texts);
+
+    const ledger = await answerLedger(testDb.db, sessionId);
+    expect(ledger.map((row) => row.value)).toEqual(texts);
+
+    // The SQL type is still jsonb holding JSON strings, not text.
+    const stored = await testDb.client.query<{ kind: string; value: string }>(
+      `select jsonb_typeof(value) as kind, value #>> '{}' as value
+         from answers where session_id = $1 order by answered_at`,
+      [sessionId],
+    );
+    expect(stored.rows.map((row) => row.kind)).toEqual(texts.map(() => "string"));
+    expect(stored.rows.map((row) => row.value)).toEqual(texts);
+  });
+
+  it("round-trips every other answer type unchanged", async () => {
+    const { formId, version } = await seedPublishedForm("frm_answer_types");
+    const sessionId = SessionId.parse("ses_answer_types");
+    await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
+      sessionId,
+      formId,
+      formVersion: version,
+      accessMode: "anonymous",
+      expiresAt: new Date(Date.now() + 86_400_000),
+    });
+    const values: AnswerValue[] = [42, 0, -1.5, true, false, ["opt_a", "opt_b"]];
+    const t0 = Date.now();
+    const questionIds = values.map((_, index) => QuestionId.parse(`q_typed_${String(index)}`));
+    for (const [index, value] of values.entries()) {
+      await appendAnswer(testDb.db, {
+        sessionId,
+        questionId: questionIds[index]!,
+        value,
+        answeredAt: new Date(t0 + index),
+      });
+    }
+
+    const latest = await latestAnswers(testDb.db, sessionId);
+    expect(questionIds.map((questionId) => latest.get(questionId))).toEqual(values);
+  });
+
   it("retracts an answer as a tombstone append: absent from latestAnswers, present in the ledger", async () => {
     const { formId, version } = await seedPublishedForm("frm_retract");
     const sessionId = SessionId.parse("ses_retract");
