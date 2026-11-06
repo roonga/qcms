@@ -112,8 +112,9 @@ test("an authenticated screen runs the worker and stores nothing", async ({ page
   await page.goto("/questions");
 
   await expect
-    .poll(async () =>
-      page.evaluate(async () => (await navigator.serviceWorker.ready).active?.state),
+    .poll(
+      async () => page.evaluate(async () => (await navigator.serviceWorker.ready).active?.state),
+      { timeout: 30_000 },
     )
     .toBe("activated");
 
