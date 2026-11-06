@@ -34,6 +34,10 @@ export const messages = {
   "requiresJs.body":
     "QCMS needs JavaScript to run. Turn on JavaScript in your browser settings, then reload this page.",
 
+  /** Offer the reload rather than taking it: a replacement worker must not interrupt an edit in progress. */
+  "appUpdate.available": "A new version of QCMS is available.",
+  "appUpdate.reload": "Reload",
+
   "action.skipToContent": "Skip to content",
   "action.signIn": "Sign in",
   "action.signOut": "Sign out",
