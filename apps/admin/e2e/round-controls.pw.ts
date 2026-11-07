@@ -106,3 +106,40 @@ test("every round control measures square, at both widths in all four themes", a
   }
   expect(seen, "no round control was measured, so nothing was asserted").toBeGreaterThan(0);
 });
+
+// A disc that is present and round can still be unreachable, which a measurement alone would pass.
+async function coveredHelp(page: Page): Promise<readonly string[]> {
+  await waitForHydration(page);
+  return page.evaluate(() => {
+    const covered: string[] = [];
+    for (const node of document.querySelectorAll("main .qcms-help__button")) {
+      node.scrollIntoView({ block: "nearest", inline: "nearest" });
+      const box = node.getBoundingClientRect();
+      const name = node.getAttribute("aria-label") ?? "unnamed";
+      if (box.width === 0 || box.height === 0) {
+        covered.push(`${name}: no area`);
+        continue;
+      }
+      const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+      if (hit === node || node.contains(hit)) continue;
+      const over = hit === null ? "nothing" : hit.tagName.toLowerCase();
+      covered.push(`${name}: ${over}.${hit?.getAttribute("class") ?? ""} takes the centre`);
+    }
+    return covered;
+  });
+}
+
+test("no help disc in a screen's content is covered or without area", async ({ page }) => {
+  test.setTimeout(600_000);
+  await signInWithTotp(page, EMAIL, secret);
+  const screens = [`/questions/${questionId}`, "/forms/new", "/me/access", "/webhooks"];
+
+  for (const width of [WIDE, NARROW]) {
+    await page.setViewportSize({ width, height: width === WIDE ? 900 : 844 });
+    for (const screen of screens) {
+      await page.goto(screen);
+      if (screen.startsWith("/questions/q")) await openPanel(page, "options");
+      expect.soft(await coveredHelp(page), `${screen} at ${String(width)}`).toEqual([]);
+    }
+  }
+});

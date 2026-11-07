@@ -24,7 +24,7 @@ export function FormPageHeader({
   return (
     <div className="flex flex-col gap-3">
       <div className="qcms-page-header">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="qcms-help-head">
           <h1
             id={heading?.id ?? sectionHeadingId(section)}
             tabIndex={heading === undefined ? undefined : -1}

@@ -30,7 +30,7 @@ export function TableColumnView({
       className="rounded-md border border-(--color-border) bg-(--color-surface) p-4"
       data-testid="table-column-view"
     >
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="qcms-help-head">
         <h3 id={headingId} className="text-base font-semibold text-(--color-text)">
           {t("forms.columns.title")}
         </h3>

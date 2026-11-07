@@ -93,7 +93,7 @@ export function WebhookConfig({
       data-testid="qcms-webhook-config"
     >
       <div className="flex flex-col gap-1">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="qcms-help-head">
           <h2 id="qcms-webhooks-heading" className="text-lg font-semibold text-(--color-text)">
             {t("ops.webhooks.heading")}
           </h2>

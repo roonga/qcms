@@ -314,7 +314,7 @@ function Answers({
   const keys = orderedAnswerKeys(detail.answers, pins);
   return (
     <section aria-labelledby="qcms-answers-heading" className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="qcms-help-head">
         <h2 id="qcms-answers-heading" className="text-base font-semibold text-(--color-text)">
           {t("ops.detail.answers")}
         </h2>
@@ -377,7 +377,7 @@ function LedgerTimeline({
 }) {
   return (
     <section aria-labelledby="qcms-ledger-heading" className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="qcms-help-head">
         <h2 id="qcms-ledger-heading" className="text-base font-semibold text-(--color-text)">
           {t("ops.detail.ledger")}
         </h2>

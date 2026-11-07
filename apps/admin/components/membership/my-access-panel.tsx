@@ -13,7 +13,7 @@ export function MyAccessPanel({
 }) {
   return (
     <section aria-labelledby="qcms-my-access-heading" className="flex min-w-0 flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="qcms-help-head">
         <h2 id="qcms-my-access-heading" className="text-lg font-semibold text-(--color-text)">
           {t("membership.mine.heading")}
         </h2>
