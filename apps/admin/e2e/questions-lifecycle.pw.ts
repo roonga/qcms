@@ -810,7 +810,11 @@ test("the type picker is locked once the question exists", async ({ page }) => {
   await page.goto(`/questions/${questionIdFor("preview")}`);
   await expect(page.getByRole("button", { name: /Type$/ })).toHaveCount(0);
 
-  await expect(page.getByTestId("qcms-question-rail")).toContainText("Long text (locked)");
+  // The facts moved out of the rail into the page body, where the type is stated, not offered.
+  const facts = page.getByTestId("qcms-question-facts");
+  await expect(facts).toContainText("Type");
+  await expect(facts).toContainText("Long text");
+  await expect(page.getByTestId("qcms-question-rail")).not.toContainText("Long text");
   await expect(page.getByRole("main")).not.toContainText("Type is locked to");
 
   await page.goto("/questions/new");

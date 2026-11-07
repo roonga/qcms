@@ -157,7 +157,8 @@ test("one top bar: entering Operations moves neither the bar, the rail nor the h
 }) => {
   test.setTimeout(600_000);
   await signInWithTotp(page, EMAIL, secret);
-  const areas = ["/questions", "/forms", "/workspaces", "/operations"];
+  // `/workspaces` lands on the current workspace, so the area's own list is the landing here.
+  const areas = ["/questions", "/forms", "/workspaces/all", "/operations"];
   for (const one of frameCases()) {
     await page.setViewportSize({ width: one.width, height: 900 });
     await presetEnvironment(page, one.environment);
@@ -167,8 +168,16 @@ test("one top bar: entering Operations moves neither the bar, the rail nor the h
       await highContrast(page, one.hc);
       frames.push(await frame(page));
     }
+    const first = frames[0];
     for (const [index, path] of areas.entries()) {
-      expect.soft(frames[index], `${path} ${caseName(one)}`).toEqual(frames[0]);
+      const here = frames[index];
+      expect
+        .soft({ header: here?.header, rail: here?.rail }, `${path} ${caseName(one)} chrome`)
+        .toEqual({ header: first?.header, rail: first?.rail });
+      // Operations names itself in the bar's group rather than in a crumb, so its landing
+      // draws no trail and its title cannot sit where a trail would have put one.
+      if (path === "/operations") continue;
+      expect.soft(here, `${path} ${caseName(one)}`).toEqual(first);
     }
   }
 });
@@ -186,8 +195,9 @@ const CRUMB_SCREENS: readonly CrumbScreen[] = [
   { path: `/questions/${QUESTION_ID}`, trail: ["Questions", QUESTION_ID], context: true },
   { path: "/forms", trail: ["Forms"] },
   { path: `/forms/${FORM_ID}/versions`, trail: ["Forms", "", "Versions"], context: true },
-  { path: `/operations/forms/${FORM_ID}/links`, trail: ["Operations", "", "Links"], context: true },
-  { path: "/webhooks", trail: ["Operations", "Delivery failures"] },
+  // The top bar's Operations group names the area, so an Operations trail starts below it.
+  { path: `/operations/forms/${FORM_ID}/links`, trail: ["", "Links"], context: true },
+  { path: "/webhooks", trail: ["Delivery failures"] },
   {
     path: `/workspaces/${WORKSPACE_ID}/members`,
     trail: ["Workspaces", "", "Members"],

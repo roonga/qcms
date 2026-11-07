@@ -161,10 +161,17 @@ test("the global queues are Operations destinations, reached from its rail", asy
   await expect(page).toHaveURL(/\/webhooks$/u);
   await expect(page.getByTestId("qcms-mode-header")).toHaveAttribute("data-mode", "operations");
   await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
-  await page.getByTestId("qcms-webhooks-rail").getByRole("link", { name: "All forms" }).click();
-  await expect(page).toHaveURL(/\/operations$/u);
-
-  await page.getByTestId("qcms-operations-rail").getByRole("link", { name: "Erasure log" }).click();
+  await page.getByTestId("qcms-webhooks-rail").getByRole("link", { name: "Erasure log" }).click();
   await expect(page).toHaveURL(/\/responses\/erasures$/u);
   await expect(page.getByTestId("qcms-mode-header")).toHaveAttribute("data-mode", "operations");
+
+  // The rails hold queues and filters only, so the way back to the forms list is the group's title.
+  await page
+    .getByTestId("qcms-mode-header")
+    .getByRole("link", { name: "Operations", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/operations$/u);
+  await expect(
+    page.getByTestId("qcms-operations-rail").getByRole("link", { name: "Delivery failures" }),
+  ).toBeVisible();
 });

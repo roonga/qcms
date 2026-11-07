@@ -498,10 +498,10 @@ test("1116 gives the parent of the current row no fill, so one row reads as sele
     /^panel:/u,
   );
   expect(filled[0]?.weight, "the selected row is at the title weight").toBe("600");
-  expect(filled[0]?.edge, "and carries the 2px accent edge").toBe("2px");
+  expect(filled[0]?.edge, "and carries the 3px accent edge").toBe("3px");
   for (const parent of painted.filter((row) => !row.filled)) {
     expect(parent.weight, `${parent.item} is a parent, at weight 600`).toBe("600");
-    expect(parent.edge, `${parent.item} keeps the edge transparent`).toBe("2px");
+    expect(parent.edge, `${parent.item} keeps the edge transparent`).toBe("3px");
   }
 });
 

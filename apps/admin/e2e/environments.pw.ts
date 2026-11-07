@@ -98,7 +98,9 @@ test("draws prod and a non-prod environment differently, and announces the switc
   expect(nonProd.text, "the environment is named in words (WCAG 1.4.1)").toBe("test");
   expect(nonProd.borderWidth).toBe("2px");
 
-  expect(nonProd.fill).not.toBe(production.fill);
+  expect(nonProd.fill, "the chip adds no fill of its own; the group carries the tint").toBe(
+    production.fill,
+  );
   expect(nonProd.groupFill, "the Operations group is tinted per environment").not.toBe(
     production.groupFill,
   );
@@ -166,20 +168,29 @@ test("the selector stays inside its reserved slot at every width", async ({ page
     await page.setViewportSize({ width, height: 900 });
     await page.goto(OPERATIONS_PATH);
     const edges = await page.evaluate(() => {
-      const edge = (selector: string, side: "left" | "right") =>
-        document.querySelector(selector)?.getBoundingClientRect()[side] ?? Number.NaN;
+      const box = (selector: string) => document.querySelector(selector)?.getBoundingClientRect();
+      const control = box(".qcms-envswitch");
+      const group = box(".qcms-opsbar");
+      const tools = box(".qcms-topbar__tools");
+      if (control === undefined || group === undefined || tools === undefined) {
+        throw new Error("the bar is missing the group, the control or the trailing tools");
+      }
       return {
-        slot: edge(".qcms-opsbar", "right"),
-        control: edge(".qcms-envswitch", "right"),
-        tools: edge(".qcms-topbar__tools", "left"),
+        slot: group.right,
+        control: control.right,
+        // The bar wraps below the sidebar breakpoint, so two boxes only cover one another
+        // when they overlap on both axes; an x comparison alone reads across rows.
+        covers:
+          control.left < tools.right &&
+          tools.left < control.right &&
+          control.top < tools.bottom &&
+          tools.top < control.bottom,
       };
     });
     expect
       .soft(edges.control, `the control fits its slot at ${String(width)}`)
       .toBeLessThanOrEqual(edges.slot);
-    expect
-      .soft(edges.control, `and covers no trailing tool at ${String(width)}`)
-      .toBeLessThanOrEqual(edges.tools);
+    expect.soft(edges.covers, `and covers no trailing tool at ${String(width)}`).toBe(false);
   }
 });
 
