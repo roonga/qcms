@@ -31,3 +31,22 @@ browser gate and the PR are the remaining work, plus one item that arrived late.
    cause the ruling names is confirmed here: `button { min-block-size: var(--admin-control-h) }` in
    `apps/admin/app/globals.css` gives every button a 40px block minimum, which is what drew the help
    disc as a tall oval.
+
+## Added for the next lane (Code Owner, 2026-11-08)
+
+5. "No ovals: round controls", in its own commit(s): `.qcms-avatar` a 32px locked circle;
+   `.qcms-modetrigger` a 32px square ghost icon button on `radius-control`; the `.qcms-help-dot`
+   call sites in `components/forms/public-form-link.tsx`, `components/forms/rule-targets.tsx` and
+   `components/save-model.tsx` take the Help disc; `.qcms-opt-insert__plus` a 24px square ghost on
+   `radius-sm` with a 12px plus and the name "Insert option after <option>"; the radio dot, switch
+   thumb and assistant pulses take `flex: none` and `aspect-ratio: 1`; shared `.qcms-round` (sized
+   by `--round-size`) and `.qcms-iconbutton` (32px, `radius-control`; `--sm` 24px, `radius-sm`);
+   2px borders on icon buttons in high contrast. A locked circle sets equal inline and block size,
+   `aspect-ratio: 1`, `flex: none`, `align-self: center`, `padding: 0` and resets the button base's
+   `min-block-size`, which is the oval's cause. Add a Playwright assertion that every round control
+   measures equal width and height at 1280 and 390 in all four themes.
+6. Two findings from the audit: the help glyph sits 12px after a heading because the button's own
+   4px margin adds to an 8px container gap, where the Help card asks for 4px; and one
+   `.qcms-help__button` inside `main` on the question detail screen could not be hovered by
+   Playwright in three runs, while the sweep still found the disc present and round there, so the
+   target is covered or has no area. Both need a look.
