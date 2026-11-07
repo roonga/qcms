@@ -469,7 +469,7 @@ test("closes the form to new sessions and reopens it (deliverable: close/reopen)
   await page.getByRole("button", { name: "Close to new responses in prod" }).click();
   const dialog = page.getByRole("alertdialog");
 
-  await expect(dialog).toContainText("finish on the version they pinned");
+  await expect(dialog).toContainText("finish on the version they started on");
 
   await expect(dialog).toContainText("Every other environment is unaffected");
   await dialog.getByRole("button", { name: "Close it in prod" }).click();

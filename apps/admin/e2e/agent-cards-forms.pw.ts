@@ -59,7 +59,7 @@ test("confirms a close and a reopen on the Availability screen, changing the scr
 
   await propose(page, "propose-form-reopen", "reopen it");
   await confirm(page, /^Done\./u);
-  await expect(page.getByRole("button", { name: /^Close in/u })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Close to new responses in/u })).toBeVisible();
 
   expect(auditDelta(before, await auditTally())).toEqual({ "form.close": 1, "form.reopen": 1 });
 });
@@ -77,7 +77,7 @@ test("sends nothing when the card is cancelled", async ({ page }) => {
 
   expect(auditDelta(before, await auditTally())).toEqual({});
 
-  await expect(page.getByRole("button", { name: /^Close in/u })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Close to new responses in/u })).toBeVisible();
 });
 
 test("lists each confirmed act in the workspace's assistant audit", async ({ page }) => {

@@ -256,7 +256,7 @@ test("a destructive confirmation names the environment it is about", async ({ pa
   await page.goto(`/forms/${formId}`);
   await expect(page.getByRole("button", { name: /^Publish/u })).toHaveCount(0);
   await expect(page.getByTestId("qcms-publish-entry")).toBeVisible();
-  await expect(page.getByRole("button", { name: /^Close in/u })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Close to new responses in/u })).toHaveCount(0);
 });
 
 test("a dialog never acts in an environment another tab switched to", async ({ page }) => {
