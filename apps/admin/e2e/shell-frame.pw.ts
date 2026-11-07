@@ -77,7 +77,8 @@ test("the rail toggle collapses the rail to a strip from the keyboard, and the c
 
   const toggle = page.getByTestId("qcms-rail-toggle");
   const rail = page.locator("aside.qcms-rail");
-  const first = rail.getByRole("link", { name: "All questions" });
+  // A list rail carries its filters, so the first stop inside it is the search box.
+  const first = rail.getByRole("textbox", { name: "Search" });
   await expect(toggle).toHaveAttribute("aria-expanded", "true");
   await expect(toggle).toHaveAttribute("aria-controls", "qcms-rail-region");
   await expect(toggle).toHaveAccessibleName("Collapse sidebar");
@@ -107,7 +108,7 @@ test("the rail toggle collapses the rail to a strip from the keyboard, and the c
   await expect(page.locator("html")).toHaveAttribute("data-sidebar", "shown");
   await expect.poll(() => railWidth(page)).toBe(240);
   await expect(
-    page.locator("aside.qcms-rail").getByRole("link", { name: "All forms" }),
+    page.locator("aside.qcms-rail").getByRole("textbox", { name: "Search" }),
   ).toBeVisible();
 });
 

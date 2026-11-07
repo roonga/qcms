@@ -573,7 +573,6 @@ ${block(":root.dark", dark)}
 ${indent(block(":root:not(.light):not(.dark):not(.hc)", dark))}
 }
 
-
 ${block(":root.hc", hc)}
 
 /* The combined dark high-contrast selector must outrank the light high-contrast layer. */

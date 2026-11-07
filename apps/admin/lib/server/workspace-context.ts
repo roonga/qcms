@@ -11,11 +11,9 @@ import { listWorkspaces, readMyAccess } from "./membership.ts";
 import type { AdminSession } from "./session.ts";
 
 /**
- * The one resolution the top bar, the rails and every list read. A failed access read
- * offers no workspace rather than guessing one: a list scoped to a guess would be a list
- * of the wrong group's rows.
- *
- * An installation administrator holds no member row and no grant anywhere, so the
+ * The one resolution the top bar, the rails and every list read. A failed access read offers
+ * no workspace rather than guessing one, because a list scoped to a guess is a list of the
+ * wrong group's rows. An installation administrator holds no member row anywhere, so the
  * installation's own list is what they may open.
  */
 export async function currentWorkspaceContext(session: AdminSession): Promise<WorkspaceContext> {
