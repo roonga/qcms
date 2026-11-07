@@ -51,7 +51,7 @@ test("with prod selected, the builder, Rules and Preview load and stay put", asy
   await waitForHydration(page);
   await expect(page, "the builder does not bounce").toHaveURL(new RegExp(`/forms/${formId}$`));
   await expect(page.getByTestId("qcms-published-form-review")).toHaveCount(0);
-  const title = field(page, "Title");
+  const title = field(page, "Form title");
   await expect(title).toBeVisible();
   await expect(title).toBeEditable();
   // The rail reads the draft, not a released definition, so it names what is being authored.

@@ -4,7 +4,7 @@ import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { chooseEnvironment, environmentChip } from "./support/environment.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 import { waitForHydration } from "./support/hydration.js";
-import { moreActions, openEraseDialog, submitResponse } from "./support/ops.js";
+import { ERASE_ITEM, moreActions, submitResponse } from "./support/ops.js";
 
 /**
  * One form's operational screens in a browser: their rail, their tabs, and the journey a
@@ -249,12 +249,13 @@ test("an owner erases one response by its session id from the form's Erase scree
   await expect(page.getByTestId("qcms-known-target-status")).toContainText(
     "No session ses_neverexisted exists for this form in prod.",
   );
-  await expect(moreActions(page)).toHaveCount(0);
+  // This screen keeps its own erase control; only a response's own page header holds the menu.
+  await expect(page.getByRole("button", { name: ERASE_ITEM })).toHaveCount(0);
 
   await known.getByRole("textbox", { name: "Session id" }).fill(erasable);
   await known.getByRole("button", { name: "Find this session" }).click();
   await expect(page.getByTestId("qcms-known-target-found")).toContainText(erasable);
-  await openEraseDialog(page);
+  await page.getByRole("button", { name: ERASE_ITEM }).click();
 
   const dialog = page.getByRole("alertdialog");
   await expect(dialog.getByTestId("qcms-erase-environment")).toContainText("prod");

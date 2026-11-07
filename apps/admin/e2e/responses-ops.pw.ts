@@ -132,8 +132,9 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
 
     await expect(page.getByRole("heading", { name: `Response ${revised}` })).toHaveCount(1);
 
+    // Authoring is one screen in every environment, so the builder heads it rather than a review.
     await page.goto(`/forms/${FORM_ID}`);
-    await expect(page.locator("h1").first()).toHaveText("Published form");
+    await expect(page.locator("h1").first()).toHaveText("Form details");
     await expect(page.locator("h1").first(), "and not the form's name").not.toHaveText(SLUG);
   });
 

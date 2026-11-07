@@ -179,7 +179,7 @@ test("publishes a draft, verifies it in test, then promotes the same version to 
   // Authoring is the same screen in every environment: prod draws the builder, not a review state.
   await page.goto(`/forms/${formId}`);
   await expect(page.getByTestId("qcms-published-form-review")).toHaveCount(0);
-  await expect(page.getByRole("textbox", { name: "Title", exact: true })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Form title", exact: true })).toBeVisible();
   await page.goto(`/forms/${formId}/versions`);
   await releaseVersion(page, formId, "prod");
 
