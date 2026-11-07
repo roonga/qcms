@@ -176,11 +176,9 @@ test("one top bar: entering Operations moves neither the bar, the rail nor the t
       expect
         .soft({ header: here.header, rail: here.rail }, `${path} ${caseName(one)} chrome`)
         .toEqual({ header: first.header, rail: first.rail });
-      /* Not the title: every area landing hides its own `h1`, and a hidden box follows whether
-         the screen carries a header action, not the bar above it. The trail is the drawn thing
-         heading these screens. Operations names itself in the bar's group instead and draws
-         none, and below the sidebar breakpoint the rail becomes a disclosure above the trail,
-         so what follows it is the area's own rail rather than the bar. */
+      /* The trail, not the title: every landing hides its `h1`, whose box then follows whether
+         the screen carries a header action. Operations names itself in the group and draws no
+         trail, and below the breakpoint the rail is a disclosure above the trail. */
       if (path === "/operations" || one.width !== WIDE) continue;
       expect.soft(here.crumbs, `${path} ${caseName(one)} trail`).toEqual(first.crumbs);
     }
