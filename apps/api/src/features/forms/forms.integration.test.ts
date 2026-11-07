@@ -1723,8 +1723,9 @@ describe("GET /admin/forms - search, status filter and sort", () => {
 });
 
 /**
- * `canWriteDraft` is the caller's own `form: write` and nothing else, which is why the
- * production read asserts it while the deprecated `workflow.canEdit` says the opposite.
+ * `canWriteDraft` is the caller's own `form: write` and nothing else. The deprecated
+ * `workflow.canEdit` answers the same grant now: the selected environment does not gate authoring
+ * the one shared draft.
  */
 describe("the form detail write capability", () => {
   const formId = "frm_capability";
@@ -1775,10 +1776,10 @@ describe("the form detail write capability", () => {
     expect((await capability({ token: adminSessionToken }, "test")).canWriteDraft).toBe(true);
   });
 
-  it("stays true in production, where the deprecated workflow verdict is false", async () => {
+  it("stays true in production, and the workflow verdict agrees there", async () => {
     const body = await capability({ token: adminSessionToken }, "prod");
     expect(body.canWriteDraft).toBe(true);
-    expect(body.workflow.canEdit).toBe(false);
+    expect(body.workflow.canEdit).toBe(true);
   });
 
   it("is false for a caller holding only forms.viewer", async () => {
