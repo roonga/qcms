@@ -213,6 +213,9 @@ button {
 /* The inset keeps focus rings inside the scroll clip. */
 .qcms-topbar__nav {
   grid-area: nav;
+  /* Containing block for the live regions inside the bar: an absolute box whose containing block
+     sits outside this scroller escapes the clip and lengthens the page's own sideways scroll. */
+  position: relative;
   min-inline-size: 0;
   margin: -4px;
   padding: 4px;
