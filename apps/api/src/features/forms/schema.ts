@@ -421,7 +421,7 @@ export const PublishedAndReleasedResponse = z
 
 /**
  * Required with no default, and in the body rather than taken from the environment
- * switcher's header: closing intake is an operational act, so the caller states the
+ * switcher's header: closing a form is an operational act, so the caller states the
  * environment rather than inheriting one it may not have been looking at.
  */
 export const FormEnvironmentBody = z

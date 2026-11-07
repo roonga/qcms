@@ -239,7 +239,7 @@ beforeAll(async () => {
   );
 
   // `claims` open in `prod` and `test`, `permits` released and closed in `prod`, `other`
-  // never released: the three intake readings.
+  // never released: the three availability readings.
   await insertFormRelease(control, {
     formId: FORM_CLAIMS,
     environment: "test",
@@ -583,7 +583,7 @@ describe("operations discovery: bounds, filters and pagination", () => {
     expect(res.status).toBe(400);
   });
 
-  it("filters on the search term, the workspace and the intake, and totals the filtered set", async () => {
+  it("filters on the search term, the workspace and the availability, and totals the filtered set", async () => {
     const searched = await operations(viewer.token, "environment=prod&q=claims");
     expect(searched.body.forms.map((row) => row.slug)).toEqual(["ops-claims"]);
     expect(searched.body.total).toBe(1);

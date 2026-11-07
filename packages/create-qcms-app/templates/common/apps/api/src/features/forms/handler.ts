@@ -1530,7 +1530,7 @@ export function makePublishAndReleaseFormHandler(
         approvedBy,
         // The version is new, so it was released nowhere before this.
         fromEnvironment: undefined,
-        // A new version into a closed environment does not resume intake.
+        // A new version into a closed environment does not reopen it.
         closed: (await getFormEnvironmentState(tx, formId, environment))?.closed ?? false,
       });
       return { version, release };
