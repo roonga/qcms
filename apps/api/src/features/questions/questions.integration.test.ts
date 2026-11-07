@@ -18,7 +18,13 @@ import { createApp } from "../../app.js";
 import type { Deps } from "../../deps.js";
 import { registerGrantCheck } from "../membership/middleware.js";
 import { ADMIN_SESSION_HEADER, registerAdminAuth } from "../../middleware/admin-auth.js";
-import { internalTokenFor, makeDeps, seedAdminSession, validEnv } from "../../test-support.js";
+import {
+  internalTokenFor,
+  makeDeps,
+  seedAdminSession,
+  seedGrants,
+  validEnv,
+} from "../../test-support.js";
 import { registerQuestions } from "./route.js";
 
 const ADMIN_ONLY = { public: false, internal: false, admin: true } as const;
@@ -28,6 +34,7 @@ let deps: Deps;
 let app: ReturnType<typeof createApp>;
 let internalToken: string;
 let adminSessionToken: string;
+let adminUserId: string;
 
 beforeAll(async () => {
   testDb = await startTestDb();
@@ -36,7 +43,9 @@ beforeAll(async () => {
     groups: { admin: [registerAdminAuth, registerGrantCheck, registerQuestions] },
   });
   internalToken = internalTokenFor(deps.config);
-  adminSessionToken = (await seedAdminSession(testDb.db)).token;
+  const session = await seedAdminSession(testDb.db);
+  adminSessionToken = session.token;
+  adminUserId = session.userId;
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
 afterAll(async () => {
@@ -478,6 +487,11 @@ describe("GET /admin/questions - summary, status filter, search", () => {
           .onConflictDoNothing({ target: authOrganization.id });
       }
       await setWorkspaceShared(testDb.db, LIBRARY, true);
+      // These assertions are about narrowing a read, not about reaching a workspace, so the
+      // caller holds both: a narrow to a workspace they hold nothing in is empty by design.
+      for (const workspaceId of [OTHER, LIBRARY]) {
+        await seedGrants(testDb.db, { userId: adminUserId, workspaceId });
+      }
 
       for (const [workspaceId, id, slug] of [
         [OTHER, "q_ws_other", "ws-other"],
@@ -491,8 +505,21 @@ describe("GET /admin/questions - summary, status filter, search", () => {
       }
     });
 
+    // Put the installation back to one workspace: authoring a new object refuses to guess
+    // between several, so a workspace left behind here fails every later create.
     afterAll(async () => {
       await setWorkspaceShared(testDb.db, LIBRARY, false);
+      await testDb.client.query(
+        `delete from control.question_versions where question_id = any($1::text[])`,
+        [["q_ws_other", "q_ws_shared"]],
+      );
+      await testDb.client.query(
+        `delete from control.questions where question_id = any($1::text[])`,
+        [["q_ws_other", "q_ws_shared"]],
+      );
+      await testDb.client.query(`delete from control."organization" where id = any($1::text[])`, [
+        [OTHER, LIBRARY],
+      ]);
     });
 
     async function idsOf(path: string): Promise<string[]> {
