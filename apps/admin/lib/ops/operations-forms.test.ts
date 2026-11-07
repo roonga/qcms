@@ -76,7 +76,6 @@ describe("readOperationsListState", () => {
   it("falls back to the default order rather than refusing an unknown one", () => {
     expect(readOperationsListState({ sort: "whatever" }).sort).toBe("slug-asc");
     expect(readOperationsListState({ availability: "whatever" }).intake).toBeUndefined();
-    // The filter was named `intake` before the screen was, and a bookmark still carries it.
     expect(readOperationsListState({ intake: "closed" }).intake).toBe("closed");
   });
 

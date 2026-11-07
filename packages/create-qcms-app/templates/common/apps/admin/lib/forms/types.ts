@@ -129,8 +129,6 @@ export interface FormSettings {
   readonly minSubmitMs: number | null;
 }
 
-export type FormStatus = "open" | "closed";
-
 /** The library's third reading: a form with no release in this environment. */
 export const FORM_AVAILABILITIES = ["open", "closed", "unreleased"] as const;
 
