@@ -36,13 +36,20 @@ const chipState = (page: Page) =>
     const name = chip?.querySelector(".qcms-envchip") ?? null;
     const nameStyle = name === null ? null : getComputedStyle(name);
     const main = document.querySelector("main");
+    // The environment now tints the Operations group, which exists only in Operations, so
+    // "no environment context" is the group's absence rather than a shadow reading none.
+    const group = document.querySelector(".qcms-opsbar");
+    const groupStyle = group === null ? null : getComputedStyle(group);
     return {
       kind: chip?.getAttribute("data-kind") ?? "",
       text: (name?.textContent ?? "").trim(),
       fill: nameStyle?.backgroundColor ?? "",
       borderStyle: nameStyle?.borderTopStyle ?? "",
       borderWidth: nameStyle?.borderTopWidth ?? "",
-      edge: barStyle.boxShadow,
+      group: group !== null,
+      groupFill: groupStyle?.backgroundColor ?? "",
+      groupBorder: groupStyle?.borderTopColor ?? "",
+      barEdge: barStyle.boxShadow,
       barHeight: bar.getBoundingClientRect().height,
       mainTop: main?.getBoundingClientRect().top ?? 0,
     };
@@ -63,15 +70,14 @@ test("the chip is in the Operations header and on no normal screen", async ({ pa
   ).toBeVisible();
   const operations = await chipState(page);
   expect(operations.text, "the name is always written").toBe("prod");
-  expect(operations.edge, "the bar carries the environment edge, taking no space").toMatch(
-    /0px 3px 0px 0px inset/u,
-  );
+  expect(operations.group, "the Operations group carries the environment").toBe(true);
+  expect(operations.barEdge, "and the bar itself draws no edge of its own").toBe("none");
 
   for (const area of normalScreens()) {
     await page.goto(area);
     await expect(chip, `${area} has no environment context`).toHaveCount(0);
     const normal = await chipState(page);
-    expect(normal.edge, `${area} draws no environment edge`).toBe("none");
+    expect(normal.group, `${area} carries no Operations group`).toBe(false);
   }
 });
 
@@ -93,7 +99,10 @@ test("draws prod and a non-prod environment differently, and announces the switc
   expect(nonProd.borderWidth).toBe("2px");
 
   expect(nonProd.fill).not.toBe(production.fill);
-  expect(nonProd.edge).not.toBe(production.edge);
+  expect(nonProd.groupFill, "the Operations group is tinted per environment").not.toBe(
+    production.groupFill,
+  );
+  expect(nonProd.groupBorder).not.toBe(production.groupBorder);
 
   await expect(page.getByTestId("qcms-environment-status")).toHaveText(/Now working in test/u);
 
