@@ -3887,8 +3887,13 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   flex: none;
   align-items: center;
   justify-content: center;
+  align-self: center;
   inline-size: 24px;
   block-size: 24px;
+  aspect-ratio: 1;
+  /* The button base gives every button a 40px block minimum, which is what drew the disc as an oval. */
+  min-inline-size: 0;
+  min-block-size: 0;
   margin-block: -4px;
   margin-inline-start: 4px;
   padding: 0;
