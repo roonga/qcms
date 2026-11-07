@@ -152,7 +152,7 @@ function caseName({ width, environment, hc }: FrameCase): string {
   return `at ${String(width)} in ${environment}${hc ? ", high contrast" : ""}`;
 }
 
-test("one top bar: entering Operations moves neither the bar, the rail nor the heading", async ({
+test("one top bar: entering Operations moves neither the bar, the rail nor the trail", async ({
   page,
 }) => {
   test.setTimeout(600_000);
@@ -176,10 +176,12 @@ test("one top bar: entering Operations moves neither the bar, the rail nor the h
       expect
         .soft({ header: here.header, rail: here.rail }, `${path} ${caseName(one)} chrome`)
         .toEqual({ header: first.header, rail: first.rail });
-      // Operations names itself in the bar's group rather than in a crumb, so its landing
-      // draws no trail and its title cannot sit where a trail would have put one.
+      /* Not the title: every area landing hides its own `h1`, and a hidden box follows whether
+         the screen carries a header action, not the bar above it. The trail is the drawn thing
+         heading these screens, so its position is what may not move. Operations names itself in
+         the bar's group instead, and so draws no trail to compare. */
       if (path === "/operations") continue;
-      expect.soft(here, `${path} ${caseName(one)}`).toEqual(first);
+      expect.soft(here.crumbs, `${path} ${caseName(one)} trail`).toEqual(first.crumbs);
     }
   }
 });
