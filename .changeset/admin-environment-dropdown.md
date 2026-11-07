@@ -1,15 +1,17 @@
 ---
 "@roonga/qcms-ui": minor
+"@roonga/qcms-db": minor
 "create-qcms-app": minor
 ---
 
-Make the Operations environment selector a dropdown, and give a menu row a second line.
+Clean up the admin: one top bar toolbar, a workspace switcher, and lists scoped to a workspace.
 
 - `@roonga/qcms-ui/kit` exports `MenuItemText`, the stack's own label and description slots
-  for a menu row, so a row that names a known value keeps that value as its accessible name
-  and carries its meaning in a description.
-- The selector reads as what it is: a visible Environment label, a bordered trigger holding
-  the environment chip, the word Change and a caret, and one radio row per configured
-  environment naming it, saying what it is for and marking the current one.
-- One `.qcms-envchip` now serves the bar, its menu and an assistant card, instead of two
-  rules declaring the same chip differently.
+  for a menu row, so a row that names a known value keeps that value as its accessible name.
+- The environment selector is a menu: a labelled trigger holding the environment chip and a
+  caret, then one row per configured environment, each its own chip with a check on the
+  current one. Production keeps its own colour and the rest take tints in list order.
+- Operations carries the area title, the environment and Exit Operations in one top bar group.
+- `listQuestions` returns each question's `workspaceId`, so a library list can be scoped to
+  the workspace the operator is working in.
+- One `.qcms-envchip` rule serves the bar, its menu and an assistant card.

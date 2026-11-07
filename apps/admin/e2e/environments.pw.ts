@@ -105,7 +105,7 @@ test("draws prod and a non-prod environment differently, and announces the switc
   await chooseEnvironment(page, "prod");
 });
 
-test("the selector is a labelled dropdown whose rows name, mean and mark each environment", async ({
+test("the selector is a labelled dropdown whose rows name and mark each environment", async ({
   page,
 }) => {
   test.setTimeout(300_000);
@@ -130,8 +130,10 @@ test("the selector is a labelled dropdown whose rows name, mean and mark each en
     "aria-checked",
     "true",
   );
-  await expect(rows.filter({ hasText: "Live forms that respondents use" })).toHaveCount(1);
-  await expect(rows.filter({ hasText: "Checking released versions before prod" })).toHaveCount(1);
+  await expect(
+    rows.locator(".qcms-envmenu__check svg"),
+    "the check marks the current environment and only that one",
+  ).toHaveCount(1);
   const opened = await page.evaluate(() => document.activeElement?.getAttribute("role") ?? "");
   expect(opened, "opening from the keyboard lands in the rows").toBe("menuitemradio");
 
