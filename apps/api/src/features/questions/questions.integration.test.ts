@@ -529,6 +529,15 @@ describe("GET /admin/questions - summary, status filter, search", () => {
       return body.questions.map((q) => q.questionId);
     }
 
+    async function idsFor(token: string, path: string): Promise<string[]> {
+      const response = await app.request(`/admin${path}`, {
+        headers: authHeaders({ [ADMIN_SESSION_HEADER]: token }),
+      });
+      expect(response.status, `${path} is readable by this caller`).toBe(200);
+      const body = (await response.json()) as { questions: Array<{ questionId: string }> };
+      return body.questions.map((q) => q.questionId);
+    }
+
     it("names each row's owning workspace", async () => {
       const body = (await (await get("/questions")).json()) as {
         questions: Array<{ questionId: string; workspaceId: string }>;
@@ -560,6 +569,26 @@ describe("GET /admin/questions - summary, status filter, search", () => {
 
     it("refuses a value the parameter does not define", async () => {
       expect((await get(`/questions?workspaceId=${OTHER}&shared=yes`)).status).toBe(400);
+    });
+
+    it("reads empty when a scoped caller names a workspace they hold nothing in", async () => {
+      const scoped = await seedAdminSession(testDb.db, {
+        label: "ws_scoped",
+        claim: false,
+        owner: false,
+      });
+
+      // The same caller, so an empty answer below is the narrowing and not a refusal.
+      expect(await idsFor(scoped.token, `/questions?workspaceId=${SEED_WORKSPACE_ID}`)).toContain(
+        "q_list_apple",
+      );
+
+      expect(await idsFor(scoped.token, `/questions?workspaceId=${OTHER}`)).toEqual([]);
+      // Still empty: the shared library joins a narrowed read only where something is held.
+      expect(await idsFor(scoped.token, `/questions?workspaceId=${OTHER}&shared=include`)).toEqual(
+        [],
+      );
+      expect(await idsFor(scoped.token, `/questions?workspaceId=${LIBRARY}`)).toEqual([]);
     });
   });
 });

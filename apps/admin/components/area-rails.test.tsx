@@ -91,10 +91,15 @@ describe("an area's rail", () => {
     ]);
   });
 
-  it("offers the way back to the full list", () => {
-    render(<WorkspacesRail workspace={{ workspaceId: "org_a", name: "Alpha" }} />);
+  it("offers the way back to the full list from inside one workspace", () => {
+    render(<WorkspacesRail workspace={{ workspaceId: "org_a", name: "Alpha" }} section="audit" />);
     const back = screen.getByTestId("qcms-rail-context");
     expect(back.getAttribute("href")).toBe("/workspaces/all");
     expect(back.textContent).toContain("All workspaces");
+  });
+
+  it("offers it nowhere else, so the full list never links to itself", () => {
+    render(<WorkspacesRail workspace={{ workspaceId: "org_a", name: "Alpha" }} />);
+    expect(screen.queryByTestId("qcms-rail-context")).toBeNull();
   });
 });

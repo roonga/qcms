@@ -961,6 +961,21 @@ These win over §7.0 where they disagree; the as-built record is phase 6 slice 5
 - **One top bar in every area**, with the environment dropdown in a reserved slot, so nothing
   moves between Questions, Forms, Workspaces and Operations.
 
+### 7.01 Amendments, 2026-11-07 (Code Owner, #1208)
+
+The build is right and these records follow it. Each line wins over the passage it names.
+
+- **The current-row accent edge is 3px**, not the 2px at §7.0 ruling 2's current-row mark.
+- **The Filters part carries no visible title.** The `<form role="search">` keeps "Filters" as
+  its accessible name only, which replaces the styled paragraph in the §7.0 clarifications.
+- **A question's facts live in the page body**, not in the rail Header, which reverses the
+  first §7.0 clarification. The rail names versions and panels.
+- **An Operations trail starts below the area**, because the top bar's Operations group already
+  names it. Elsewhere §7.00's area-then-section-then-item order stands.
+- **The environment tints the Operations group** and the bar draws no edge of its own, so the
+  3px bar edge and the chip's `5.5rem` inline floor in §7a are retired. The as-built record is
+  `plan/environment-navigation-implementation.md`.
+
 ### 7.0 Ruling, 2026-10-24 (Code Owner): one rail on every screen
 
 **This subsection governs the rail.** Where anything else in this document disagrees with it about the rail (the preamble, the rest of §7 and §7a included), this subsection wins; those passages are kept as history and rationale, and the sentences it reverses are marked "Superseded 2026-10-24" where they stand. The analysis and the screen-by-screen evidence are in `plan/left-rail-proposal.md`. Work: #1115 (this record), #1116 (frame), #1117 (every screen and list filters), #1118 (section filters), #1119 (hide toggle).
@@ -974,10 +989,10 @@ The eight rulings:
    1. **Header:** a back link to the parent screen (none on a top-level screen), the subject's name, and at most one status tag. Below `--bp-sidebar` the Header is the disclosure's summary, shut by default. Above it, it is a visible plain header on every rail. It is one element at both widths, as the 2026-08-22 amendment below requires.
    2. **Sections:** anchors to the subject's routes or same-page panels, inside `<nav aria-label="<subject> sections">`. Never buttons.
    3. **Children:** nested under the current section only.
-   4. **Filters:** the screen's filters in `<form role="search">`, with a "Filters" heading and an active count. They are ordered Search, status, type or other, then sort. "Apply" submits the filter form and the URL carries the state, so a filtered list can be bookmarked and reloaded. This is not a no-JS path: the admin requires JavaScript (the 2026-09-27 ruling above).
+   4. **Filters:** the screen's filters in `<form role="search">`, named "Filters" and carrying an active count (a visible title until §7.01). They are ordered Search, status, type or other, then sort. "Apply" submits the filter form and the URL carries the state, so a filtered list can be bookmarked and reloaded. This is not a no-JS path: the admin requires JavaScript (the 2026-09-27 ruling above).
    5. **Actions:** structural actions only ("New question", "New form", "Add step", "New version").
    - The root is `<aside aria-label="<subject>">`.
-   - **One current-row mark:** tinted fill, weight 600 and a 2px inline-start accent edge. A parent of the current row gets the same weight and no fill, so exactly one row reads as selected. (The mark was weight 700 until the foundations ruling of 2026-10-24 made 600 the app's ceiling, issue #1121; the fill is what carries the distinction now.)
+   - **One current-row mark:** tinted fill, weight 600 and a 3px inline-start accent edge (2px until §7.01). A parent of the current row gets the same weight and no fill, so exactly one row reads as selected. (The mark was weight 700 until the foundations ruling of 2026-10-24 made 600 the app's ceiling, issue #1121; the fill is what carries the distinction now.)
    - 240px wide, under the topbar, sticky, viewport height, scrolling on its own. Its background runs to the bottom of the window.
 3. **The way back is the Header's back link.** It replaces the content-column breadcrumb on every screen.
 4. **Filters live in the rail.** List filters (Questions, Forms, Responses index, Webhooks) and section filters (a form's Responses and Version history) move out of the content column.
@@ -1006,10 +1021,10 @@ The eight rulings:
 
 **Clarifications of the rulings (conductor drafting, 2026-10-24, from the review of #1120; the Code Owner corrects on request):**
 
-- **The question rail's details group** (Slug, Created, Type with its locked status) stays and sits in the Header under the subject as secondary lines. It describes the subject, so it belongs with it. **Per-row digests and issue badges** (per step, per panel) stay as row content in Sections and Children.
+- **The question rail's details group** (Slug, Created, Type) sat in the Header under the subject as secondary lines until §7.01 moved it to the page body. **Per-row digests and issue badges** (per step, per panel) stay as row content in Sections and Children.
 - **The collapsed summary** (below `--bp-sidebar`) shows the subject plus at most one count: the issue total on the form and question rails, or the active filter count on a list screen. It truncates with an ellipsis, and the count never truncates. The back link stays visible through the collapse, as the question rail's already does.
 - **The form's sections are eight, not seven:** Releases joined the sibling list after it was written (§7.1 below lists seven). The routes `/export` and `/assist` are endpoints, not screens, and get no row.
-- **The Filters part's "Filters" heading is a styled paragraph, not a heading element** (Code Owner, issue #1117). The rail renders before `<main>`, so a heading element in it sits above the screen's own `<h1>` and `heading-order` reports it on every railed screen at once. The `<form role="search">` takes the same word as its accessible name, so nothing is lost to a screen reader. The filtered-empty panel keeps §3's own "Clear filters" beside the rail's.
+- **The Filters part's "Filters" heading was a styled paragraph, not a heading element** (Code Owner, issue #1117), and §7.01 drops the visible text entirely. The rail renders before `<main>`, so a heading element in it sits above the screen's own `<h1>` and `heading-order` reports it on every railed screen at once. The `<form role="search">` takes the same word as its accessible name, so nothing is lost to a screen reader. The filtered-empty panel keeps §3's own "Clear filters" beside the rail's.
 
 **What still holds from the passages below:**
 
@@ -1557,12 +1572,12 @@ which always writes the environment's name.
 - the set could not be read: **dashed** `--color-border-strong`, static, with nothing
   to press.
 
-Beside it the topbar carries a **3px environment edge** in the matching colour. It is
-drawn from the chip's own kind rather than a second attribute, so the two cannot
-disagree, and it is therefore present exactly where the chip is.
+Beside it the topbar carried a **3px environment edge** in the matching colour until §7.01
+retired it: the colour now tints the Operations group that holds the chip, which is drawn
+from the chip's own kind rather than a second attribute, so the two cannot disagree.
 
-**Zero layout shift between environments.** The chip is 32px tall with a 2px border
-and a `5.5rem` inline floor in every state, and the edge is 3px in every state, so
+**Zero layout shift between environments.** The chip is 32px tall with a 2px border in every
+state (its `5.5rem` inline floor went with §7.01, since the group sets the width now), so
 switching environments changes neither the topbar's height nor the content column's
 position. That is the property the retired banner could not have: it was the bar's
 second line under a non-prod environment only, so every switch moved every screen.
