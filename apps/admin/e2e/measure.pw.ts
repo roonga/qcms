@@ -64,8 +64,9 @@ function screens(sessionId: string): readonly Screen[] {
     { path: "/settings", cap: "prose" },
     { path: "/webhooks", cap: "wide" },
 
-    /* `/workspaces` is absent on purpose: it redirects to the current workspace, so a browser
-       measures that screen and never the cap the route itself declares. */
+    /* The route redirects to the current workspace, so the cap read here is that landing's and
+       not the `ops` one the route declares for its empty-installation fallback. */
+    { path: "/workspaces", cap: "log" },
     { path: "/workspaces/all", cap: "list" },
     { path: `/workspaces/${WORKSPACE_ID}/members`, cap: "log" },
     { path: `/workspaces/${WORKSPACE_ID}/access-groups`, cap: "log" },
