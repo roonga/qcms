@@ -4,16 +4,17 @@ import { test } from "../../portal/e2e/support/gates.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 import {
+  TestConsumer,
   deactivateExistingWebhooks,
   deadUrl,
   openDeliverer,
+  openEraseDialog,
   openResponses,
   openWebhooks,
   reviseAnswer,
   startSession,
   submitResponse,
   submitSession,
-  TestConsumer,
 } from "./support/ops.js";
 
 // Serial tests advance shared enrollment and response state but get fresh browser contexts.
@@ -197,7 +198,7 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     await page.goto(`/operations/forms/${FORM_ID}/responses/${erasable}`);
     await expect(page.getByTestId("qcms-response-detail")).toBeVisible();
 
-    await page.getByRole("button", { name: "Erase respondent data…" }).click();
+    await openEraseDialog(page);
     const dialog = page.getByTestId("qcms-erase-dialog");
     await expect(dialog).toBeVisible();
 
@@ -556,7 +557,7 @@ function webhookRow(page: Page) {
 
 async function eraseResponse(page: Page, sessionId: string): Promise<void> {
   await page.goto(`/operations/forms/${FORM_ID}/responses/${sessionId}`);
-  await page.getByRole("button", { name: "Erase respondent data…" }).click();
+  await openEraseDialog(page);
   const dialog = page.getByTestId("qcms-erase-dialog");
   await expect(dialog).toBeVisible();
   await dialog.getByRole("textbox", { name: /Type the session id/ }).fill(sessionId);

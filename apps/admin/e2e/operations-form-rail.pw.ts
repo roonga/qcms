@@ -4,7 +4,7 @@ import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { chooseEnvironment, environmentChip } from "./support/environment.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 import { waitForHydration } from "./support/hydration.js";
-import { submitResponse } from "./support/ops.js";
+import { moreActions, openEraseDialog, submitResponse } from "./support/ops.js";
 
 /**
  * One form's operational screens in a browser: their rail, their tabs, and the journey a
@@ -125,7 +125,7 @@ test("every operational screen of one form marks its own rail row and names its 
   // An owner holds the erase cell on this form in prod through their member role, which no
   // named grant carries, so the door is there to find.
   await page.goto(`/operations/forms/${FORM_ID}/responses/${sessionId}`);
-  await expect(page.getByRole("button", { name: "Erase respondent data…" })).toBeVisible();
+  await expect(moreActions(page)).toBeVisible();
 });
 
 test("intake closes and reopens one environment from the screen that owns it", async ({ page }) => {
@@ -225,7 +225,7 @@ test("a response viewer reaches Operations, a form's responses and one response"
   // Neither erasure door reaches a caller holding no erase cell on this form and
   // environment: not the cross-environment offer, and not the control beside it.
   await expect(page.getByTestId("qcms-erasure-elsewhere")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Erase respondent data…" })).toHaveCount(0);
+  await expect(moreActions(page)).toHaveCount(0);
 });
 
 test("an owner erases one response by its session id from the form's Erase screen", async ({
@@ -249,12 +249,12 @@ test("an owner erases one response by its session id from the form's Erase scree
   await expect(page.getByTestId("qcms-known-target-status")).toContainText(
     "No session ses_neverexisted exists for this form in prod.",
   );
-  await expect(page.getByRole("button", { name: "Erase respondent data…" })).toHaveCount(0);
+  await expect(moreActions(page)).toHaveCount(0);
 
   await known.getByRole("textbox", { name: "Session id" }).fill(erasable);
   await known.getByRole("button", { name: "Find this session" }).click();
   await expect(page.getByTestId("qcms-known-target-found")).toContainText(erasable);
-  await page.getByRole("button", { name: "Erase respondent data…" }).click();
+  await openEraseDialog(page);
 
   const dialog = page.getByRole("alertdialog");
   await expect(dialog.getByTestId("qcms-erase-environment")).toContainText("prod");

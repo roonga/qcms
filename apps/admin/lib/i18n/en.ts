@@ -1950,6 +1950,7 @@ export const messages = {
   "ops.export.emptyNote.json": "A JSON export that matches nothing downloads as an empty list.",
 
   "ops.detail.heading": "Response {sessionId}",
+  "ops.detail.moreActions": "More actions",
   "ops.detail.back": "Back to responses",
   "ops.detail.answers": "Locked answers",
   "ops.detail.answersIntro":

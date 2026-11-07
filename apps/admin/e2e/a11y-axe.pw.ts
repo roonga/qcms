@@ -39,7 +39,7 @@ import {
   waitForSaved,
 } from "./support/forms.js";
 import { waitForHydration } from "./support/hydration.js";
-import { openDeliverer, submitResponse, TestConsumer } from "./support/ops.js";
+import { TestConsumer, openDeliverer, openEraseDialog, submitResponse } from "./support/ops.js";
 import { chooseDestination, chooseSource, publishDraftThroughWizard } from "./support/publish.js";
 import {
   addOption,
@@ -771,7 +771,7 @@ async function sweepOperations(
   await expect(page.getByTestId("qcms-response-detail")).toBeVisible();
   await expectNoViolations(page, "a response detail with its ledger");
 
-  await page.getByRole("button", { name: "Erase respondent data…" }).click();
+  await openEraseDialog(page);
   await expect(page.getByTestId("qcms-erase-dialog")).toBeVisible();
   await expectNoViolations(page, "the erasure confirmation");
 
