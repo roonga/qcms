@@ -107,7 +107,7 @@ export function HelpTip({
       <button
         ref={button}
         type="button"
-        className="qcms-help__button"
+        className="qcms-round qcms-help__button"
         data-size={size}
         aria-label={label === undefined ? t("help.label") : t("help.named", { label })}
         aria-describedby={id}
@@ -121,7 +121,7 @@ export function HelpTip({
           else show();
         }}
       >
-        <HelpGlyph />
+        <HelpDisc />
       </button>
       <span
         ref={body}
@@ -148,7 +148,7 @@ export function HelpTip({
 }
 
 /* Drawn rather than typed: a font "?" inside a ring is stretched into an oval by whatever row holds it. */
-function HelpGlyph() {
+export function HelpDisc() {
   return (
     <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
       <circle className="qcms-help__disc" cx="8" cy="8" r="8" />

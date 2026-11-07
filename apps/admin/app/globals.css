@@ -136,6 +136,51 @@ button {
   font-weight: 600;
 }
 
+/* The block minimum above applies to every button, which is what stretched small round controls into
+   ovals. A control that must stay circular or square locks both axes here, once, rather than at each
+   call site. */
+.qcms-round,
+.qcms-iconbutton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  align-self: center;
+  inline-size: var(--round-size);
+  block-size: var(--round-size);
+  min-inline-size: var(--round-size);
+  min-block-size: var(--round-size);
+  aspect-ratio: 1;
+  padding: 0;
+}
+.qcms-round {
+  --round-size: 32px;
+  border-radius: 50%;
+}
+.qcms-iconbutton {
+  --round-size: 32px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background-color: var(--color-ghost);
+  color: var(--color-text);
+  cursor: pointer;
+}
+.qcms-iconbutton--sm {
+  --round-size: 24px;
+  border-radius: var(--radius-sm);
+}
+.qcms-iconbutton:hover,
+.qcms-iconbutton[aria-expanded="true"] {
+  background-color: var(--color-ghost-hover);
+}
+.qcms-iconbutton:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+:root.hc .qcms-iconbutton {
+  border: 2px solid var(--color-border-strong);
+}
+
 .qcms-tabular {
   font-variant-numeric: tabular-nums;
 }
@@ -455,30 +500,6 @@ button {
 
 /* MenuTrigger portals popovers to document.body, outside the trigger's class hierarchy. */
 
-.qcms-modetrigger {
-  inline-size: 32px;
-  block-size: 32px;
-  /* Override the button minimum too: min-block-size would otherwise beat this square's block-size. */
-  min-block-size: 32px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-radius: 50%;
-  background-color: var(--color-ghost);
-  color: var(--color-text);
-  cursor: pointer;
-  flex-shrink: 0;
-}
-.qcms-modetrigger:hover,
-.qcms-modetrigger[aria-expanded="true"] {
-  background-color: var(--color-ghost-hover);
-  box-shadow: 0 0 0 2px var(--color-border-strong);
-}
-:root.hc .qcms-modetrigger {
-  border: 2px solid var(--color-border-strong);
-}
-
 .qcms-appearance {
   position: relative;
 }
@@ -597,6 +618,7 @@ button {
   inset-inline-start: 2px;
   inline-size: 12px;
   block-size: 12px;
+  aspect-ratio: 1;
   border-radius: 50%;
   background-color: var(--color-border-strong);
 }
@@ -613,21 +635,13 @@ button {
 }
 
 .qcms-avatar {
-  inline-size: 32px;
-  block-size: 32px;
-  min-block-size: 32px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   border: none;
-  border-radius: 50%;
   background-color: var(--color-primary);
   color: var(--color-primary-foreground);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.02em;
   cursor: pointer;
-  flex-shrink: 0;
 }
 .qcms-avatar[data-hovered],
 .qcms-avatar[aria-expanded="true"] {
@@ -1185,11 +1199,13 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  inline-size: 16px;
-  block-size: 16px;
-  border-radius: 50%;
-  background-color: var(--color-primary);
-  color: var(--color-primary-foreground);
+  flex: none;
+  inline-size: 24px;
+  block-size: 24px;
+  aspect-ratio: 1;
+  border-radius: var(--radius-sm);
+  background-color: var(--color-ghost);
+  color: var(--color-primary);
   font-size: 12px;
   font-weight: 600;
   line-height: 1;
@@ -1495,19 +1511,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
 }
 
 .qcms-copyid {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  inline-size: 24px;
-  block-size: 24px;
-  min-block-size: 24px;
-  padding: 0;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
   color: var(--color-text-muted);
-  cursor: pointer;
 }
 .qcms-copyid[data-copied] {
   color: var(--color-success-fg);
@@ -1678,9 +1682,10 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   outline-offset: 2px;
 }
 .qcms-radio__dot {
-  flex-shrink: 0;
+  flex: none;
   inline-size: 14px;
   block-size: 14px;
+  aspect-ratio: 1;
   margin-block-start: 3px;
   border: 1px solid var(--color-border-strong);
   border-radius: 50%;
@@ -2415,33 +2420,6 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   font-weight: 600;
 }
 
-.qcms-help-dot {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  inline-size: 20px;
-  block-size: 20px;
-  min-block-size: 20px;
-  padding: 0;
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--color-text-muted);
-  font-size: 0.75rem;
-  line-height: 1;
-  cursor: pointer;
-}
-.qcms-help-dot:hover {
-  background-color: var(--color-ghost-hover);
-  color: var(--color-text);
-}
-/* Reveal controls for pointer-less devices too: touch cannot discover hover-only menus. */
-.qcms-help-dot[aria-expanded="true"] {
-  background-color: var(--color-ghost-hover);
-  color: var(--color-text);
-}
-
 .qcms-public-link__url {
   min-inline-size: 0;
   color: inherit;
@@ -2992,8 +2970,10 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   color: var(--color-text);
 }
 .qcms-assist-steps__pulse {
+  flex: none;
   inline-size: 8px;
   block-size: 8px;
+  aspect-ratio: 1;
   border-radius: 50%;
   background-color: var(--color-primary);
   animation: qcms-assist-pulse 1.2s ease-in-out infinite;
@@ -3018,8 +2998,10 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   color: var(--color-text-muted);
 }
 .qcms-assist-think__pulse {
+  flex: none;
   inline-size: 6px;
   block-size: 6px;
+  aspect-ratio: 1;
   border-radius: 50%;
   background-color: var(--color-primary);
   animation: qcms-assist-pulse 1.2s ease-in-out infinite;
@@ -3878,27 +3860,14 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   align-items: center;
   vertical-align: middle;
 }
-/* The glyph is drawn, and the button's own size and negative block margins keep a 20px label line and a
-   40px header row exactly as tall: nothing here may stretch, which is what turned the old ring into an
-   oval. */
+/* The negative block margins keep a 20px label line and a 40px header row exactly as tall as they were
+   without the glyph. */
 .qcms-help__button {
+  --round-size: 24px;
   position: relative;
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  align-self: center;
-  inline-size: 24px;
-  block-size: 24px;
-  aspect-ratio: 1;
-  /* The button base gives every button a 40px block minimum, which is what drew the disc as an oval. */
-  min-inline-size: 0;
-  min-block-size: 0;
   margin-block: -4px;
   margin-inline-start: 4px;
-  padding: 0;
   border: 0;
-  border-radius: 50%;
   background: transparent;
   color: var(--color-text-muted);
   cursor: help;
