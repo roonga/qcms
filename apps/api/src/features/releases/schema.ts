@@ -138,7 +138,7 @@ export const ReleaseReviewResponse = z
 
 /**
  * One destination. `expectedSequence` is the newest release-state sequence the review
- * reported, so it covers the released version and the intake state together: a close and a
+ * reported, so it covers the released version and the closed state together: a close and a
  * reopen each append a row. `fromEnvironment` records the path and authorises nothing (F7).
  */
 const BatchTarget = z

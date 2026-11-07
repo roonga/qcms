@@ -502,6 +502,7 @@ export const messages = {
   "forms.column.version": "Published",
   "forms.status.open": "Open",
   "forms.status.closed": "Closed",
+  "forms.status.unreleased": "Not Released",
   "forms.draft.present": "Unpublished draft",
   "forms.draft.none": "No draft",
   "forms.version.none": "Never published",

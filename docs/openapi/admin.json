@@ -443,7 +443,8 @@
             "type": "string",
             "enum": [
               "open",
-              "closed"
+              "closed",
+              "unreleased"
             ],
             "example": "open"
           },
@@ -4737,7 +4738,7 @@
         }
       },
       "get": {
-        "summary": "List forms with draft/published status; filter by status, search slug/title, choose a sort (admin)",
+        "summary": "List forms with draft/published state and per-environment availability; filter, search slug/title, sort (admin)",
         "tags": [
           "forms"
         ],
@@ -4754,7 +4755,8 @@
               "type": "string",
               "enum": [
                 "open",
-                "closed"
+                "closed",
+                "unreleased"
               ],
               "example": "open"
             },
@@ -6834,7 +6836,7 @@
     "/admin/forms/{id}/release-review": {
       "post": {
         "summary": "What releasing a draft or a version into each permitted target would do (admin)",
-        "description": "A read, and it writes nothing: no version, no release, no review token and no access-audit row. It reports one target per environment the caller holds `release: create` in and no others, with what is serving there, whether intake is closed, the committed release rows that satisfy the target's prerequisite, the blockers that remain, and whether the two-person rule applies and would refuse this account as the version's author. Until a release-workflow revision is configured the review reports `workflowSource: default`, which is this deployment's derived test and prod behaviour, and a missing production prerequisite keeps the TEST_RELEASE_REQUIRED code. A version with a prior release in the target itself is a rollback and is eligible there regardless of prerequisites; the two-person rule still applies to it. The review is a report rather than a reservation: the confirmation rechecks every expectation in its own transaction.",
+        "description": "A read, and it writes nothing: no version, no release, no review token and no access-audit row. It reports one target per environment the caller holds `release: create` in and no others, with what is serving there, whether the form is closed there, the committed release rows that satisfy the target's prerequisite, the blockers that remain, and whether the two-person rule applies and would refuse this account as the version's author. Until a release-workflow revision is configured the review reports `workflowSource: default`, which is this deployment's derived test and prod behaviour, and a missing production prerequisite keeps the TEST_RELEASE_REQUIRED code. A version with a prior release in the target itself is a rollback and is eligible there regardless of prerequisites; the two-person rule still applies to it. The review is a report rather than a reservation: the confirmation rechecks every expectation in its own transaction.",
         "tags": [
           "releases"
         ],
@@ -6923,7 +6925,7 @@
     "/admin/forms/{id}/release-batch": {
       "post": {
         "summary": "Release one published version into every named destination, atomically (admin)",
-        "description": "One confirmation, one transaction. **Every destination is authorised on its own**: the gate evaluates `release: create` once per listed environment and refuses on the first failure, naming only that environment, so a request naming `test` and `prod` cannot reach `prod` on a `test` grant. At commit the workflow revision, each destination's newest release-state sequence, the prerequisite evidence and the two-person rule are all rechecked, and any refusal rolls back the whole act: a denied second destination leaves no release row and no queued event for the first. `idempotencyKey` is scoped to the calling account and this form; the same key with the same intent replays the stored result with `replayed: true`, and the same key with a different intent is refused with 422. Only successes are stored, so a refusal leaves the key free to retry. `expectedSequence` is `null` for a destination with no release history, and covers intake as well as the version because a close and a reopen each append a row.",
+        "description": "One confirmation, one transaction. **Every destination is authorised on its own**: the gate evaluates `release: create` once per listed environment and refuses on the first failure, naming only that environment, so a request naming `test` and `prod` cannot reach `prod` on a `test` grant. At commit the workflow revision, each destination's newest release-state sequence, the prerequisite evidence and the two-person rule are all rechecked, and any refusal rolls back the whole act: a denied second destination leaves no release row and no queued event for the first. `idempotencyKey` is scoped to the calling account and this form; the same key with the same intent replays the stored result with `replayed: true`, and the same key with a different intent is refused with 422. Only successes are stored, so a refusal leaves the key free to retry. `expectedSequence` is `null` for a destination with no release history, and covers the closed state as well as the version because a close and a reopen each append a row.",
         "tags": [
           "releases"
         ],

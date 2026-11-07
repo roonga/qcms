@@ -1634,9 +1634,11 @@ describe("GET /admin/forms - search, status filter and sort", () => {
     expect(await slugs("search=lst-nothing-matches-this")).toEqual([]);
   });
 
-  it("filters by the request environment's lifecycle status", async () => {
+  it("filters by the request environment's availability, which has three readings", async () => {
     expect(await slugs(`${SCOPE}&status=closed`)).toEqual(["lst-bravo"]);
-    expect(await slugs(`${SCOPE}&status=open`)).toEqual(["lst-alpha", "lst-charlie"]);
+    // Nothing is released to this environment but bravo, and bravo is closed.
+    expect(await slugs(`${SCOPE}&status=open`)).toEqual([]);
+    expect(await slugs(`${SCOPE}&status=unreleased`)).toEqual(["lst-alpha", "lst-charlie"]);
   });
 
   it("orders by slug in both directions, and slug ascending is the default", async () => {
@@ -1667,7 +1669,7 @@ describe("GET /admin/forms - search, status filter and sort", () => {
   });
 
   it("applies the three together", async () => {
-    expect(await slugs(`search=zebra&status=open&sort=slug-desc`)).toEqual([
+    expect(await slugs(`search=zebra&status=unreleased&sort=slug-desc`)).toEqual([
       "lst-charlie",
       "lst-alpha",
     ]);

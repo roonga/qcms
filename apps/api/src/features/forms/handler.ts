@@ -540,14 +540,18 @@ export function makeListFormsHandler(deps: Deps): RouteHandler<typeof listFormsR
       ...workspaceFilterNarrowedTo(c.get("grantContext"), workspaceId),
     });
     // One query for the whole list rather than one per form. A form with nothing released
-    // in this environment is absent from the map and reads `open`: nobody has closed it.
+    // in this environment is absent from the map, and there is nothing there to open or
+    // close.
     const environment = requireEnvironment(
       deps,
       c.get("requestEnvironment") ?? deps.databases.defaultEnvironment,
     );
     const states = await environmentStatesByForm(deps.databases.control, environment);
-    const statusOf = (formId: FormId): "open" | "closed" =>
-      states.get(formId)?.closed === true ? "closed" : "open";
+    const statusOf = (formId: FormId): "open" | "closed" | "unreleased" => {
+      const state = states.get(formId);
+      if (state === undefined) return "unreleased";
+      return state.closed ? "closed" : "open";
+    };
 
     // Narrows before the per-row reads below, so a closed-only list of fifty forms does
     // not pay for fifty drafts.

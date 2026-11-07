@@ -94,7 +94,6 @@ export function readOperationsListState(
   params: Readonly<Record<string, SearchParam>>,
 ): OperationsListState {
   const search = firstValue(params["q"]) ?? "";
-  // A bookmark can still carry this filter's former `intake` name.
   const intake = parseIntake(params["availability"] ?? params["intake"]);
   const activeCount = (search.trim() === "" ? 0 : 1) + (intake === undefined ? 0 : 1);
   return {

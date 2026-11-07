@@ -116,14 +116,16 @@ test("reopens a filtered library from its URL alone, controls and all", async ({
   test.setTimeout(120_000);
   await signInWithTotp(page, EMAIL, totpSecret);
 
-  await openLibrary(page, "&status=open&sort=slug-desc");
+  await openLibrary(page, "&status=unreleased&sort=slug-desc");
 
   expect(await listedSlugs(page)).toEqual([CHARLIE, ALPHA]);
 
   const toolbar = page.locator("form.qcms-filters");
   await expect(field(page, "Search")).toHaveValue(SCOPE);
 
-  await expect(toolbar.getByRole("button", { name: /Availability$/ })).toContainText("Open");
+  await expect(toolbar.getByRole("button", { name: /Availability$/ })).toContainText(
+    "Not Released",
+  );
   await expect(toolbar.getByRole("button", { name: /Sort by$/ })).toContainText("Slug (Z to A)");
 });
 

@@ -69,7 +69,7 @@ export const listFormsRoute = createRoute({
   method: "get",
   path: "/forms",
   summary:
-    "List forms with draft/published status; filter by status, search slug/title, choose a sort (admin)",
+    "List forms with draft/published state and per-environment availability; filter, search slug/title, sort (admin)",
   tags,
   request: { query: ListFormsQuery },
   responses: {

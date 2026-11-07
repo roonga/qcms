@@ -12,13 +12,13 @@ import type {
   CompiledStep,
   DraftForm,
   DraftPreview,
+  FormAvailability,
   FormDetail,
   FormPublishingWorkflow,
   FormIssue,
   FormListItem,
   FormSettings,
   FormSort,
-  FormStatus,
   FormVersionSnapshot,
   FormVersionSummary,
   PinnableQuestion,
@@ -40,7 +40,7 @@ export type { ApiResult };
 export async function listForms(
   session: AdminSession,
   filters: {
-    readonly status?: FormStatus;
+    readonly status?: FormAvailability;
     readonly search?: string;
     readonly sort?: FormSort;
     /** The current workspace: a form never belongs to two, so one list never spans two. */
