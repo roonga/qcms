@@ -65,6 +65,7 @@ function screens(sessionId: string): readonly Screen[] {
     { path: "/webhooks", cap: "wide" },
 
     { path: "/workspaces", cap: "ops" },
+    { path: "/workspaces/all", cap: "list" },
     { path: `/workspaces/${WORKSPACE_ID}/members`, cap: "log" },
     { path: `/workspaces/${WORKSPACE_ID}/access-groups`, cap: "log" },
     { path: `/workspaces/${WORKSPACE_ID}/settings`, cap: "log" },

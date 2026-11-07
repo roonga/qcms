@@ -30,7 +30,6 @@ describe("readOperationsListState", () => {
     expect(readOperationsListState({})).toEqual({
       environment: undefined,
       search: "",
-      workspaceId: undefined,
       intake: undefined,
       sort: "slug-asc",
       cursor: undefined,
@@ -39,11 +38,10 @@ describe("readOperationsListState", () => {
     });
   });
 
-  it("counts the three filters and leaves the order and the page position out", () => {
+  it("counts the two filters and leaves the order and the page position out", () => {
     const state = readOperationsListState({
       env: "test",
       q: "intake",
-      workspace: "ws_1",
       intake: "closed",
       sort: "released-desc",
       cursor: "abc",
@@ -51,13 +49,17 @@ describe("readOperationsListState", () => {
     expect(state).toMatchObject({
       environment: "test",
       search: "intake",
-      workspaceId: "ws_1",
       intake: "closed",
       sort: "released-desc",
       cursor: "abc",
       isFiltered: true,
-      activeCount: 3,
+      activeCount: 2,
     });
+  });
+
+  it("ignores a workspace the address names: the switcher is the only chooser", () => {
+    expect(readOperationsListState({ workspace: "ws_1" })).toMatchObject({ activeCount: 0 });
+    expect(operationsHref(readOperationsListState({ workspace: "ws_1" }))).toBe("/operations");
   });
 
   it("does not count whitespace as a search", () => {
@@ -65,9 +67,8 @@ describe("readOperationsListState", () => {
   });
 
   it("treats an empty parameter as absent, which is what the any option submits", () => {
-    expect(readOperationsListState({ env: "", workspace: "", cursor: "" })).toMatchObject({
+    expect(readOperationsListState({ env: "", cursor: "" })).toMatchObject({
       environment: undefined,
-      workspaceId: undefined,
       cursor: undefined,
     });
   });
@@ -86,7 +87,6 @@ describe("the addresses the screen links to", () => {
   const state = readOperationsListState({
     env: "test",
     q: "intake",
-    workspace: "ws_1",
     intake: "open",
     sort: "released-desc",
     cursor: "page2",
@@ -94,7 +94,7 @@ describe("the addresses the screen links to", () => {
 
   it("is the whole view, in one fixed parameter order", () => {
     expect(operationsHref(state)).toBe(
-      "/operations?env=test&q=intake&workspace=ws_1&intake=open&sort=released-desc&cursor=page2",
+      "/operations?env=test&q=intake&intake=open&sort=released-desc&cursor=page2",
     );
   });
 
@@ -109,11 +109,10 @@ describe("the addresses the screen links to", () => {
     expect(operationsHref(state, { cursor: undefined })).not.toContain("cursor=");
   });
 
-  it("resets the page and the workspace when the environment moves, keeping the rest", () => {
+  it("resets the page when the environment moves, keeping every filter", () => {
     const moved = operationsInEnvironment(state, "prod");
     expect(moved).toMatchObject({
       environment: "prod",
-      workspaceId: undefined,
       cursor: undefined,
       search: "intake",
       intake: "open",
@@ -147,15 +146,21 @@ describe("the addresses the screen links to", () => {
 
 describe("operationsApiQuery", () => {
   it("names the environment explicitly and sends the resolved order", () => {
-    expect(operationsApiQuery(readOperationsListState({}), "prod")).toBe(
+    expect(operationsApiQuery(readOperationsListState({}), "prod", undefined)).toBe(
       "environment=prod&sort=slug-asc",
     );
   });
 
-  it("trims the term it sends and passes every set filter through", () => {
+  it("names the current workspace, not one the address asked for", () => {
     const query = operationsApiQuery(
-      readOperationsListState({ q: " intake ", workspace: "ws_1", intake: "closed", cursor: "c" }),
+      readOperationsListState({
+        q: " intake ",
+        workspace: "ws_ignored",
+        intake: "closed",
+        cursor: "c",
+      }),
       "test",
+      "ws_1",
     );
     expect(query).toBe(
       "environment=test&q=intake&workspaceId=ws_1&intake=closed&sort=slug-asc&cursor=c",
@@ -163,7 +168,7 @@ describe("operationsApiQuery", () => {
   });
 
   it("sends no term for a whitespace search", () => {
-    expect(operationsApiQuery(readOperationsListState({ q: "  " }), "prod")).toBe(
+    expect(operationsApiQuery(readOperationsListState({ q: "  " }), "prod", undefined)).toBe(
       "environment=prod&sort=slug-asc",
     );
   });

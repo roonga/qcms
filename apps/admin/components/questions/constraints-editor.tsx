@@ -3,6 +3,7 @@
 import { compilesUnderV, toVSafePattern } from "@roonga/qcms-ui";
 import { useState } from "react";
 
+import { FieldHelp } from "@/components/help-tip";
 import { Checkbox, DatePicker, NumberField, TextField } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
 import { PATTERN_INPUT_LIMIT } from "@/lib/questions/definition";
@@ -84,17 +85,18 @@ function PatternField({ constraints, onChange, issues, isFrozen }: PanelProps) {
 
   return (
     <div className="flex flex-col gap-2">
-      <TextField
-        label={t("questions.constraint.pattern")}
-        description={t("questions.constraint.patternHint")}
-        value={pattern}
-        maxLength={PATTERN_INPUT_LIMIT}
-        isDisabled={isFrozen}
-        {...fieldErrorProps(issues, "constraints.pattern")}
-        onChange={(next) => {
-          onChange({ ...constraints, pattern: next === "" ? undefined : next });
-        }}
-      />
+      <FieldHelp help={t("questions.constraint.patternHint")}>
+        <TextField
+          label={t("questions.constraint.pattern")}
+          value={pattern}
+          maxLength={PATTERN_INPUT_LIMIT}
+          isDisabled={isFrozen}
+          {...fieldErrorProps(issues, "constraints.pattern")}
+          onChange={(next) => {
+            onChange({ ...constraints, pattern: next === "" ? undefined : next });
+          }}
+        />
+      </FieldHelp>
       {vNote !== "" && (
         <p
           aria-live="polite"

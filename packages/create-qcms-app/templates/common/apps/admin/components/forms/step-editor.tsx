@@ -3,6 +3,7 @@
 import { useRef, useState, type ReactNode } from "react";
 
 import { EmptyState } from "@/components/empty-state";
+import { FieldHelp, HelpTip } from "@/components/help-tip";
 import { Button, Dialog, TextField } from "@/components/kit";
 import { stepGridRows, type PinRowAction, type PinRowView } from "@/lib/forms/pin-grid";
 import type {
@@ -98,9 +99,9 @@ export function StepEditor({
         <h1 id="qcms-step-heading" className="text-base font-semibold text-(--color-text)">
           {t("forms.step.heading", { title })}
         </h1>
+        <HelpTip>{t("forms.step.pinNote")}</HelpTip>
         {saveFlash}
       </div>
-      <p className="text-sm text-(--color-text-muted)">{t("forms.step.pinNote")}</p>
 
       {hasRows ? (
         <OwnershipGrid
@@ -119,11 +120,7 @@ export function StepEditor({
           }}
         />
       ) : (
-        <EmptyState
-          heading={t("forms.step.empty")}
-          body={t("forms.step.emptyBody")}
-          testId="qcms-step-empty"
-        />
+        <EmptyState heading={t("forms.step.empty")} testId="qcms-step-empty" />
       )}
 
       <div ref={addRef} className="flex flex-wrap gap-2">
@@ -172,12 +169,9 @@ export function StepEditor({
             if (!isOpen) setAddingGroup(false);
           }}
         >
-          <TextField
-            label={t("forms.group.newName")}
-            description={t("forms.group.nameHint")}
-            value={groupName}
-            onChange={setGroupName}
-          />
+          <FieldHelp help={t("forms.group.nameHint")}>
+            <TextField label={t("forms.group.newName")} value={groupName} onChange={setGroupName} />
+          </FieldHelp>
           <Button
             variant="primary"
             size="md"

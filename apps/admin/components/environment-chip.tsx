@@ -10,8 +10,11 @@ import { t } from "@/lib/i18n/en";
 export function EnvironmentChip({
   environment,
   decorative,
+  slot,
 }: {
   readonly environment: string | undefined;
+  /** The tint a non-production environment takes, 1 to 6. */
+  readonly slot?: number | undefined;
   /* A chip beside the same name in words repeats it, so the row's name says it once. */
   readonly decorative?: boolean;
 }) {
@@ -19,6 +22,7 @@ export function EnvironmentChip({
     <span
       className="qcms-envchip"
       data-kind={environmentKind(environment)}
+      {...(slot !== undefined && { "data-slot": String(slot) })}
       {...(decorative === true && { "aria-hidden": "true" })}
     >
       {environment ?? t("environment.unknown")}
@@ -30,9 +34,11 @@ export function EnvironmentChip({
 export function EnvironmentSlot({
   environment,
   pending,
+  slot,
   children,
 }: {
   readonly environment: string | undefined;
+  readonly slot?: number | undefined;
   readonly pending?: boolean;
   readonly children: ReactNode;
 }) {
@@ -42,6 +48,7 @@ export function EnvironmentSlot({
       data-testid="qcms-environment-switcher"
       data-environment={environment ?? ""}
       data-kind={environmentKind(environment)}
+      {...(slot !== undefined && { "data-slot": String(slot) })}
       data-pending={pending === true ? "true" : "false"}
     >
       <span className="qcms-envswitch__label">{t("environment.legend")}</span>

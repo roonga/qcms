@@ -35,6 +35,14 @@ const QUESTION_ROW = {
   latestVersion: 1,
 };
 
+vi.mock("@/lib/server/workspace-context", () => ({
+  currentWorkspaceId: () => Promise.resolve("org_default_workspace"),
+  currentWorkspaceContext: () =>
+    Promise.resolve({
+      choices: [{ workspaceId: "org_default_workspace", name: "Default workspace" }],
+      current: { workspaceId: "org_default_workspace", name: "Default workspace" },
+    }),
+}));
 vi.mock("@/lib/server/session", () => ({
   requireAdminSession: () => Promise.resolve(SESSION),
 }));

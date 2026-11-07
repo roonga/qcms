@@ -67,7 +67,7 @@ import { challengeEnforceable } from "../../config.js";
 import { agentStepSite, writeAgentStep } from "../agent/audit.js";
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
-import { workspaceFilterFor } from "../membership/context.js";
+import { workspaceFilterNarrowedTo } from "../membership/context.js";
 import { approvalForRelease } from "../membership/two-person.js";
 import type { ApiEnv } from "../../openapi.js";
 import { recordRelease } from "../releases/release.js";
@@ -530,11 +530,12 @@ export function makeCreateFormHandler(deps: Deps): RouteHandler<typeof createFor
 
 export function makeListFormsHandler(deps: Deps): RouteHandler<typeof listFormsRoute, ApiEnv> {
   return async (c) => {
-    const { status, search, sort } = c.req.valid("query");
-    // Narrowed to the workspaces the caller holds `form: read` in, so two groups sharing
-    // one installation do not see each other's forms; `undefined` is every workspace.
+    const { status, search, sort, workspaceId } = c.req.valid("query");
+    // Narrowed to the workspaces the caller holds `form: read` in, and to the one named
+    // when the request names one, so two groups sharing one installation do not see each
+    // other's forms; `undefined` is every workspace.
     const rows = await listForms(deps.databases.control, {
-      ...workspaceFilterFor(c.get("grantContext")),
+      ...workspaceFilterNarrowedTo(c.get("grantContext"), workspaceId),
     });
     // One query for the whole list rather than one per form. A form with nothing released
     // in this environment is absent from the map and reads `open`: nobody has closed it.

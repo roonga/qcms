@@ -289,6 +289,7 @@ const SCREENS: readonly ScreenRow[] = [
   },
   ...[
     "app/(shell)/@rail/workspaces/page.tsx",
+    "app/(shell)/@rail/workspaces/all/page.tsx",
     "app/(shell)/@rail/workspaces/[workspaceId]/members/page.tsx",
     "app/(shell)/@rail/workspaces/[workspaceId]/access-groups/page.tsx",
     "app/(shell)/@rail/workspaces/[workspaceId]/settings/page.tsx",
@@ -303,6 +304,11 @@ const SCREENS: readonly ScreenRow[] = [
     route: "app/(shell)/workspaces/page.tsx",
     model: "readonly",
     why: "The workspaces this administrator administers, and their own grants. Nothing on it is authored: a grant is not something its holder changes, and the one act a reader can take from here is following a link to a workspace.",
+  },
+  {
+    route: "app/(shell)/workspaces/all/page.tsx",
+    model: "readonly",
+    why: "Every workspace this administrator can open, by name, with a link into each. Nothing on it is authored: the only act a reader takes from here is following one of those links.",
   },
   {
     route: "app/(shell)/workspaces/[workspaceId]/members/page.tsx",

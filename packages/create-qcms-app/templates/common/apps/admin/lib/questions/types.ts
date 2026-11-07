@@ -89,6 +89,8 @@ export interface QuestionVersion {
 export interface QuestionListItem {
   readonly questionId: string;
   readonly slug: string;
+  /** The owning workspace, which tells a shared-library row from one of the reader's own. */
+  readonly workspaceId: string;
   readonly createdAt: string;
   readonly latestVersion: number;
   readonly latestStatus: QuestionStatus;

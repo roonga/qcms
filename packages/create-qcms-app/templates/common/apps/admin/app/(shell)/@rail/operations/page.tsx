@@ -9,6 +9,7 @@ import { resolvedEnvironment } from "@/lib/server/environments";
 import { listOperationsForms } from "@/lib/server/operations";
 import { navigableCapabilities, shellAccess } from "@/lib/server/shell";
 import { requireAdminSession } from "@/lib/server/session";
+import { currentWorkspaceId } from "@/lib/server/workspace-context";
 
 export default async function OperationsRailSlot({
   searchParams,
@@ -17,21 +18,22 @@ export default async function OperationsRailSlot({
 }) {
   const session = await requireAdminSession();
   const read = readOperationsListState(await searchParams);
-  const [access, resolved] = await Promise.all([
+  const [access, resolved, workspaceId] = await Promise.all([
     shellAccess(session),
     resolvedEnvironment(session),
+    currentWorkspaceId(session),
   ]);
   const environment = shownEnvironment(resolved);
   const state = environment === undefined ? read : operationsInEnvironment(read, environment);
   const result =
     environment === undefined
       ? undefined
-      : await listOperationsForms(session, operationsApiQuery(state, environment));
+      : await listOperationsForms(session, operationsApiQuery(state, environment, workspaceId));
 
   return (
     <OperationsFormsRail
       state={state}
-      workspaces={result?.status === "ok" ? result.page.workspaces : []}
+      forms={result?.status === "ok" ? result.page.forms : []}
       showQueues={navigableCapabilities(access).siteConfiguration}
     />
   );

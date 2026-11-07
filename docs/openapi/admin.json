@@ -218,6 +218,10 @@
             "type": "string",
             "example": "favourite-colour"
           },
+          "workspaceId": {
+            "type": "string",
+            "example": "org_default_workspace"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -269,6 +273,7 @@
         "required": [
           "questionId",
           "slug",
+          "workspaceId",
           "createdAt",
           "latestVersion",
           "latestStatus",
@@ -4102,6 +4107,28 @@
             "required": false,
             "name": "versions",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 64,
+              "example": "org_default_workspace"
+            },
+            "required": false,
+            "name": "workspaceId",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "include"
+              ],
+              "example": "include"
+            },
+            "required": false,
+            "name": "shared",
+            "in": "query"
           }
         ],
         "responses": {
@@ -4758,6 +4785,16 @@
             },
             "required": false,
             "name": "sort",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 64,
+              "example": "org_default_workspace"
+            },
+            "required": false,
+            "name": "workspaceId",
             "in": "query"
           }
         ],

@@ -18,13 +18,14 @@ const ENVIRONMENT_MENU: MenuClassNames = {
   trigger: "qcms-envtrigger",
   popover: "qcms-menu qcms-envmenu",
   item: "qcms-menu__item qcms-envmenu__item",
-  header: "qcms-envmenu__note",
 };
 
-function meaning(environment: string): string {
-  return environmentKind(environment) === "prod"
-    ? t("environment.meaning.prod")
-    : t("environment.meaning.nonProd");
+/** Production is always its own colour; the others take the tints 1 to 6 in list order, then repeat. */
+function tintSlot(environments: readonly string[], environment: string): number | undefined {
+  if (environmentKind(environment) === "prod") return undefined;
+  const others = environments.filter((candidate) => environmentKind(candidate) !== "prod");
+  const index = others.indexOf(environment);
+  return index < 0 ? undefined : 1 + (index % 6);
 }
 
 export function EnvironmentSwitcher({
@@ -58,15 +59,16 @@ export function EnvironmentSwitcher({
   };
 
   return (
-    <EnvironmentSlot environment={current} pending={isPending}>
+    <EnvironmentSlot
+      environment={current}
+      pending={isPending}
+      slot={tintSlot(environments, current)}
+    >
       <Menu
         triggerLabel={t("environment.trigger", { environment: current })}
         trigger={
           <>
-            <EnvironmentChip environment={current} />
-            {/* Separate the two pieces of text, so the trigger's name can hold them both as written
-                (WCAG 2.5.3). A whitespace node is no flex item, so the gap still sets the spacing. */}{" "}
-            <span className="qcms-envtrigger__change">{t("environment.change")}</span>
+            <EnvironmentChip environment={current} slot={tintSlot(environments, current)} />
             <svg
               className="qcms-envtrigger__caret"
               width="16"
@@ -87,7 +89,6 @@ export function EnvironmentSwitcher({
         }
         menuLabel={t("environment.legend")}
         classNames={ENVIRONMENT_MENU}
-        header={t("environment.appliesTo")}
         selectionMode="single"
         disallowEmptySelection
         selectedKeys={[current]}
@@ -99,18 +100,25 @@ export function EnvironmentSwitcher({
           id: environment,
           textValue: environment,
           label: (
-            <>
-              <MenuItemText slot="label" className="qcms-envmenu__row">
-                <EnvironmentChip environment={environment} decorative />
-                <span className="qcms-envmenu__name">{environment}</span>
-                <span className="qcms-envmenu__mark" aria-hidden="true">
-                  {environment === current ? t("environment.selected") : ""}
-                </span>
-              </MenuItemText>
-              <MenuItemText slot="description" className="qcms-envmenu__meaning">
-                {meaning(environment)}
-              </MenuItemText>
-            </>
+            <MenuItemText slot="label" className="qcms-envmenu__row">
+              <span className="qcms-envmenu__check" aria-hidden="true">
+                {environment === current && (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M5 12l5 5 9-10"
+                      stroke="currentColor"
+                      strokeWidth="2.25"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                )}
+              </span>
+              <EnvironmentChip
+                environment={environment}
+                slot={tintSlot(environments, environment)}
+              />
+            </MenuItemText>
           ),
         }))}
       />

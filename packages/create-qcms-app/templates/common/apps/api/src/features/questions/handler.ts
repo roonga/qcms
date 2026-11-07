@@ -30,7 +30,7 @@ import type { QuestionStatus, QuestionVersionRow } from "@roonga/qcms-db";
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import { agentStepSite, writeAgentStep } from "../agent/audit.js";
-import { type GrantContext, workspaceFilterFor } from "../membership/context.js";
+import { type GrantContext, workspaceFilterNarrowedTo } from "../membership/context.js";
 import type { ApiEnv } from "../../openapi.js";
 import { resolveWorkspaceForNewObject } from "../workspaces/resolve.js";
 import {
@@ -252,23 +252,26 @@ export function makeDeprecateVersionHandler(
 async function readableWorkspaces(
   deps: Deps,
   grant: GrantContext | undefined,
+  workspaceId: string | undefined,
+  shared: "include" | undefined,
 ): Promise<{ workspaceIds?: readonly string[] }> {
-  const filter = workspaceFilterFor(grant);
-  const held = filter.workspaceIds;
+  const held = workspaceFilterNarrowedTo(grant, workspaceId).workspaceIds;
   if (held === undefined) return {};
-  const shared = await getSharedWorkspace(deps.databases.control);
-  if (shared === undefined || held.includes(shared.id)) return { workspaceIds: held };
-  return { workspaceIds: [...held, shared.id] };
+  const wantsShared = workspaceId === undefined || shared === "include";
+  if (!wantsShared || held.length === 0) return { workspaceIds: held };
+  const library = await getSharedWorkspace(deps.databases.control);
+  if (library === undefined || held.includes(library.id)) return { workspaceIds: held };
+  return { workspaceIds: [...held, library.id] };
 }
 
 export function makeListQuestionsHandler(
   deps: Deps,
 ): RouteHandler<typeof listQuestionsRoute, ApiEnv> {
   return async (c) => {
-    const { status, type, search, versions } = c.req.valid("query");
+    const { status, type, search, versions, workspaceId, shared } = c.req.valid("query");
     const summaries = await listQuestions(
       deps.databases.control,
-      await readableWorkspaces(deps, c.get("grantContext")),
+      await readableWorkspaces(deps, c.get("grantContext"), workspaceId, shared),
     );
 
     const byStatus =
@@ -296,6 +299,7 @@ export function makeListQuestionsHandler(
       items.push({
         questionId: s.questionId,
         slug: s.slug,
+        workspaceId: s.workspaceId,
         createdAt: s.createdAt.toISOString(),
         latestVersion: s.latestVersion,
         latestStatus: s.latestStatus,

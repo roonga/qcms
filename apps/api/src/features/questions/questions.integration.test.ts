@@ -4,7 +4,13 @@ import {
   HONEYPOT_NODE_TYPE,
 } from "@roonga/qcms-a2ui-compiler";
 import { parseQuestionDefinition, QuestionId } from "@roonga/qcms-core";
-import { SEED_WORKSPACE_ID, createQuestion, createQuestionVersion } from "@roonga/qcms-db";
+import {
+  SEED_WORKSPACE_ID,
+  authOrganization,
+  createQuestion,
+  createQuestionVersion,
+  setWorkspaceShared,
+} from "@roonga/qcms-db";
 import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -454,6 +460,79 @@ describe("GET /admin/questions - summary, status filter, search", () => {
 
     it("refuses a value the parameter does not define", async () => {
       expect((await get("/questions?versions=some")).status).toBe(400);
+    });
+  });
+
+  describe("?workspaceId", () => {
+    const OTHER = "org_q_other";
+    const LIBRARY = "org_q_library";
+
+    beforeAll(async () => {
+      for (const [id, slug] of [
+        [OTHER, "q-other"],
+        [LIBRARY, "q-library"],
+      ] as const) {
+        await testDb.db
+          .insert(authOrganization)
+          .values({ id, name: slug, slug })
+          .onConflictDoNothing({ target: authOrganization.id });
+      }
+      await setWorkspaceShared(testDb.db, LIBRARY, true);
+
+      for (const [workspaceId, id, slug] of [
+        [OTHER, "q_ws_other", "ws-other"],
+        [LIBRARY, "q_ws_shared", "ws-shared"],
+      ] as const) {
+        const questionId = QuestionId.parse(id);
+        const parsed = parseQuestionDefinition(shortText(id, slug));
+        if (!parsed.ok) throw new Error(`workspace fixture ${id} did not parse`);
+        await createQuestion(testDb.db, { workspaceId, questionId, slug });
+        await createQuestionVersion(testDb.db, { questionId, definition: parsed.value });
+      }
+    });
+
+    afterAll(async () => {
+      await setWorkspaceShared(testDb.db, LIBRARY, false);
+    });
+
+    async function idsOf(path: string): Promise<string[]> {
+      const body = (await (await get(path)).json()) as {
+        questions: Array<{ questionId: string }>;
+      };
+      return body.questions.map((q) => q.questionId);
+    }
+
+    it("names each row's owning workspace", async () => {
+      const body = (await (await get("/questions")).json()) as {
+        questions: Array<{ questionId: string; workspaceId: string }>;
+      };
+      expect(body.questions.find((q) => q.questionId === "q_ws_other")?.workspaceId).toBe(OTHER);
+      expect(body.questions.find((q) => q.questionId === "q_list_apple")?.workspaceId).toBe(
+        SEED_WORKSPACE_ID,
+      );
+    });
+
+    it("narrows to the workspace named, shared library included", async () => {
+      expect(await idsOf(`/questions?workspaceId=${OTHER}`)).toEqual(["q_ws_other"]);
+      expect(await idsOf(`/questions?workspaceId=${LIBRARY}`)).toEqual(["q_ws_shared"]);
+    });
+
+    it("puts the shared library back beside it only when asked", async () => {
+      expect(await idsOf(`/questions?workspaceId=${OTHER}&shared=include`)).toEqual([
+        "q_ws_other",
+        "q_ws_shared",
+      ]);
+    });
+
+    it("spans every readable workspace when none is named", async () => {
+      const every = await idsOf("/questions");
+      expect(every).toContain("q_ws_other");
+      expect(every).toContain("q_ws_shared");
+      expect(every).toContain("q_list_apple");
+    });
+
+    it("refuses a value the parameter does not define", async () => {
+      expect((await get(`/questions?workspaceId=${OTHER}&shared=yes`)).status).toBe(400);
     });
   });
 });

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 
+import { HelpTip } from "@/components/help-tip";
 import { issuesForRule, NEW_RULE_HASH, ruleHref, rulesHref } from "@/lib/forms/issues";
 import { ruleSentence, type RuleSentenceSegment } from "@/lib/forms/rule-sentence";
 import { issueCountLabel } from "@/lib/forms/subtree-rail";
@@ -34,9 +35,8 @@ export function RulesLens({
         <span className="text-sm text-(--color-text-muted)" data-rule-count={draft.rules.length}>
           {tPlural("forms.rules.lensCountOne", "forms.rules.lensCount", draft.rules.length)}
         </span>
+        <HelpTip>{t("forms.rules.lensNote")}</HelpTip>
       </div>
-
-      <p className="text-sm text-(--color-text-muted)">{t("forms.rules.lensNote")}</p>
 
       {draft.rules.length === 0 ? (
         <p className="text-sm text-(--color-text-muted)">{t("forms.rules.empty")}</p>

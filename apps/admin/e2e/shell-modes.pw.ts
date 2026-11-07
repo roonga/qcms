@@ -30,7 +30,7 @@ test("the application navigation offers the areas the caller holds", async ({ pa
   const nav = page.getByRole("navigation", { name: "Primary" });
   await expect(nav.getByRole("link", { name: "Questions" })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Forms" })).toBeVisible();
-  await expect(nav.getByRole("link", { name: "Operations" })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Operations", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Workspaces" })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Settings" })).toHaveCount(0);
 });
@@ -54,7 +54,7 @@ test("entering Operations keeps the application navigation and fills its own slo
 
   await page
     .getByRole("navigation", { name: "Primary" })
-    .getByRole("link", { name: "Operations" })
+    .getByRole("link", { name: "Operations", exact: true })
     .click();
 
   const header = page.getByTestId("qcms-mode-header");
@@ -62,7 +62,9 @@ test("entering Operations keeps the application navigation and fills its own slo
   await expect(header).toHaveAttribute("data-mode", "operations");
   await expect(page.getByTestId("qcms-mode-exit")).toBeVisible();
   await expect(
-    page.getByRole("navigation", { name: "Primary" }).getByRole("link", { name: "Operations" }),
+    page
+      .getByRole("navigation", { name: "Primary" })
+      .getByRole("link", { name: "Operations", exact: true }),
   ).toHaveAttribute("aria-current", "page");
 });
 
@@ -114,7 +116,7 @@ test("Workspaces is a section of the application: the navigation stays and there
 
   const nav = page.getByRole("navigation", { name: "Primary" });
   await nav.getByRole("link", { name: "Workspaces" }).click();
-  await expect(page).toHaveURL(/\/workspaces$/);
+  await expect(page).toHaveURL(/\/workspaces\/[^/]+\/members$/);
 
   await expect(page.getByTestId("qcms-mode-header")).toHaveCount(0);
   await expect(page.getByTestId("qcms-mode-exit")).toHaveCount(0);
@@ -144,11 +146,11 @@ test("an Operations-only caller lands in Operations and is offered no authoring 
 });
 
 test("a workspace-only caller lands in Workspaces with no Exit at all", async ({ page }) => {
-  workspacesSecret = await enrollNewAdmin(page, WORKSPACES_ONLY, /\/workspaces$/);
+  workspacesSecret = await enrollNewAdmin(page, WORKSPACES_ONLY, /\/workspaces\/[^/]+\/members$/);
 
   await page.goto("/");
 
-  await expect(page).toHaveURL(/\/workspaces$/);
+  await expect(page).toHaveURL(/\/workspaces\/[^/]+\/members$/);
   await expect(page.getByTestId("qcms-mode-header")).toHaveCount(0);
   await expect(page.getByTestId("qcms-mode-exit")).toHaveCount(0);
   await expect(
@@ -162,7 +164,7 @@ test("a workspace-only caller lands in Workspaces with no Exit at all", async ({
 test("a caller holding only the claim gets the queues, no form rows and no names", async ({
   page,
 }) => {
-  await signInWithTotp(page, WORKSPACES_ONLY, workspacesSecret, /\/workspaces$/);
+  await signInWithTotp(page, WORKSPACES_ONLY, workspacesSecret, /\/workspaces\/[^/]+\/members$/);
 
   await page.goto("/operations");
 
@@ -178,14 +180,14 @@ test("a caller holding only the claim gets the queues, no form rows and no names
 });
 
 test("a rejected workspace bookmark still has All workspaces", async ({ page }) => {
-  await signInWithTotp(page, WORKSPACES_ONLY, workspacesSecret, /\/workspaces$/);
+  await signInWithTotp(page, WORKSPACES_ONLY, workspacesSecret, /\/workspaces\/[^/]+\/members$/);
 
   await page.goto("/workspaces/ws_not_a_workspace");
 
   await expect(page).toHaveURL(/\/workspaces\/ws_not_a_workspace\/members$/);
   await expect(page.getByText("No such workspace, or you do not manage it")).toBeVisible();
   await page.locator("main#main-content").getByRole("link", { name: "All workspaces" }).click();
-  await expect(page).toHaveURL(/\/workspaces$/);
+  await expect(page).toHaveURL(/\/workspaces\/[^/]+\/members$/);
 });
 
 test("the root lands an authoring caller in authoring, whatever a mode remembered", async ({
@@ -201,7 +203,7 @@ test("the root lands an authoring caller in authoring, whatever a mode remembere
 });
 
 test("the root restores the workspace a workspace-only caller was last on", async ({ page }) => {
-  await signInWithTotp(page, WORKSPACES_ONLY, workspacesSecret, /\/workspaces$/);
+  await signInWithTotp(page, WORKSPACES_ONLY, workspacesSecret, /\/workspaces\/[^/]+\/members$/);
 
   await page.goto(`/workspaces/${WORKSPACE_ID}/audit`);
   await expect(page.getByRole("heading", { level: 1, name: "Access audit" })).toBeVisible();
@@ -215,14 +217,14 @@ test("the root restores the workspace a workspace-only caller was last on", asyn
 test("the root falls back to All workspaces when the remembered one is not permitted", async ({
   page,
 }) => {
-  await signInWithTotp(page, WORKSPACES_ONLY, workspacesSecret, /\/workspaces$/);
+  await signInWithTotp(page, WORKSPACES_ONLY, workspacesSecret, /\/workspaces\/[^/]+\/members$/);
 
   await page
     .context()
     .addCookies([{ name: "qcms-shell-workspace", value: "ws_revoked", url: ADMIN_BASE_URL }]);
   await page.goto("/");
 
-  await expect(page).toHaveURL(/\/workspaces$/);
+  await expect(page).toHaveURL(/\/workspaces\/[^/]+\/members$/);
 });
 
 test("the Operations landing is reached again by re-entering the mode", async ({ page }) => {
@@ -234,7 +236,7 @@ test("the Operations landing is reached again by re-entering the mode", async ({
 
   await page
     .getByRole("navigation", { name: "Primary" })
-    .getByRole("link", { name: "Operations" })
+    .getByRole("link", { name: "Operations", exact: true })
     .click();
   await expect(page).toHaveURL(/\/operations$/);
 });

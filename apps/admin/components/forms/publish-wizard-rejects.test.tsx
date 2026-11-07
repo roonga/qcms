@@ -180,7 +180,7 @@ describe("moving between steps", () => {
 
     await user.click(screen.getByRole("button", { name: t("forms.publish.next") }));
     await screen.findByTestId("qcms-publish-destinations");
-    expect(document.activeElement?.textContent).toBe(t("forms.publish.step.destinations"));
+    expect(document.activeElement?.textContent).toContain(t("forms.publish.step.destinations"));
     expect(screen.getByTestId("qcms-publish-step-status").textContent).toBe(
       t("forms.publish.step.announce", { step: t("forms.publish.step.destinations") }),
     );
@@ -190,6 +190,6 @@ describe("moving between steps", () => {
     expect(document.activeElement?.textContent).toBe(t("forms.publish.step.review"));
 
     await user.click(screen.getByRole("button", { name: t("forms.publish.back") }));
-    expect(document.activeElement?.textContent).toBe(t("forms.publish.step.destinations"));
+    expect(document.activeElement?.textContent).toContain(t("forms.publish.step.destinations"));
   });
 });

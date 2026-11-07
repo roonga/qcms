@@ -1,27 +1,40 @@
+import { FieldHelp } from "@/components/help-tip";
 import { Select, TextField } from "@/components/kit";
 import { activeFilterCount, RailFilters } from "@/components/rail-filters";
 import { RailCount, RailFrame, RailTree } from "@/components/rail-frame";
 import { t } from "@/lib/i18n/en";
 import { LIBRARY_SEARCH_MAX_LENGTH } from "@/lib/library-search";
+import { formContextHref } from "@/lib/ops/form-contexts";
 import {
   OPERATIONS_INTAKES,
   OPERATIONS_SORTS,
   operationsClearHref,
+  type OperationsFormRow,
   type OperationsListState,
-  type OperationsWorkspace,
 } from "@/lib/ops/operations-forms";
 import { operationsRailItems } from "@/lib/shell/area-rails";
 
+/* The rows are already the current workspace's, because the switcher in the top bar is the only chooser:
+   the rail names forms, never workspaces. */
+
 export function OperationsFormsRail({
   state,
-  workspaces,
+  forms,
   showQueues,
 }: {
   readonly state: OperationsListState;
-  readonly workspaces: readonly OperationsWorkspace[];
+  readonly forms: readonly OperationsFormRow[];
   readonly showQueues: boolean;
 }) {
-  const { search, workspaceId, intake, sort, activeCount } = state;
+  const { search, intake, sort, activeCount } = state;
+  const items = [
+    ...operationsRailItems("forms", showQueues),
+    ...forms.map((form) => ({
+      key: `form:${form.formId}`,
+      href: formContextHref(form.formId, "responses"),
+      label: form.displayName,
+    })),
+  ];
 
   return (
     <RailFrame
@@ -30,32 +43,20 @@ export function OperationsFormsRail({
       {...(activeCount > 0
         ? { count: <RailCount>{activeFilterCount(activeCount)}</RailCount> }
         : {})}
-      sections={<RailTree items={operationsRailItems("forms", showQueues)} />}
+      {...(items.length === 0 ? {} : { sections: <RailTree items={items} /> })}
       filters={
         <RailFilters activeCount={activeCount} clearHref={operationsClearHref(state)}>
           {state.environment !== undefined && (
             <input type="hidden" name="env" value={state.environment} />
           )}
-          <TextField
-            name="q"
-            label={t("operations.filter.search")}
-            description={t("operations.filter.searchHint")}
-            defaultValue={search}
-            maxLength={LIBRARY_SEARCH_MAX_LENGTH}
-          />
-          <Select
-            name="workspace"
-            label={t("operations.filter.workspace")}
-            defaultValue={workspaceId ?? ""}
-            placeholder={t("operations.filter.workspaceAll")}
-            items={[
-              { label: t("operations.filter.workspaceAll"), value: "" },
-              ...workspaces.map((workspace) => ({
-                label: workspace.name,
-                value: workspace.workspaceId,
-              })),
-            ]}
-          />
+          <FieldHelp help={t("operations.filter.searchHint")}>
+            <TextField
+              name="q"
+              label={t("operations.filter.search")}
+              defaultValue={search}
+              maxLength={LIBRARY_SEARCH_MAX_LENGTH}
+            />
+          </FieldHelp>
           <Select
             name="intake"
             label={t("operations.filter.intake")}

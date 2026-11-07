@@ -38,6 +38,15 @@ export const ListFormsQuery = z.object({
     .enum(["slug-asc", "slug-desc", "published-desc", "published-asc"])
     .optional()
     .openapi({ param: { name: "sort", in: "query" }, example: "slug-asc" }),
+  /**
+   * Narrows to one workspace. Without it the read spans every workspace the caller holds
+   * `form: read` in.
+   */
+  workspaceId: z
+    .string()
+    .max(64)
+    .optional()
+    .openapi({ param: { name: "workspaceId", in: "query" }, example: "org_default_workspace" }),
 });
 
 /**

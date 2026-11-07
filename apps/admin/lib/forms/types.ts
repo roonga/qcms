@@ -227,6 +227,8 @@ export interface IssuePath {
 export interface PinnableQuestion {
   readonly questionId: string;
   readonly slug: string;
+  /** True for the shared library's own rows: pinnable into this form, editable only where they live. Absent when the read did not say. */
+  readonly shared?: boolean;
   readonly label: LocalizedText | null;
 
   readonly type: QuestionType | null;

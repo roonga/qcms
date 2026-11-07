@@ -1,3 +1,4 @@
+import { HelpTip } from "@/components/help-tip";
 import { EntityId } from "@/components/entity-id";
 import { Alert } from "@/components/kit";
 import { OperatorDateTime } from "@/components/operator-time";
@@ -15,11 +16,11 @@ export function AgentAuditPanel({
 }) {
   return (
     <section aria-labelledby="qcms-agent-audit-heading" className="flex min-w-0 flex-col gap-3">
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-wrap items-center gap-2">
         <h1 id="qcms-agent-audit-heading" className="text-xl font-semibold text-(--color-text)">
           {t("membership.agentAudit.heading")}
         </h1>
-        <p className="text-sm text-(--color-text-muted)">{t("membership.agentAudit.intro")}</p>
+        <HelpTip>{t("membership.agentAudit.intro")}</HelpTip>
       </div>
 
       {audit === undefined && (

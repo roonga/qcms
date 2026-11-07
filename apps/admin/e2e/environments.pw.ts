@@ -118,8 +118,7 @@ test("the selector is a labelled dropdown whose rows name, mean and mark each en
   await expect(chip, "the slot says what the control is about").toContainText("Environment");
   const trigger = chip.getByRole("button");
   await expect(trigger).toHaveAttribute("aria-expanded", "false");
-  await expect(trigger).toHaveAccessibleName("Environment prod Change");
-  await expect(trigger, "the change is written, not left to the caret").toContainText("Change");
+  await expect(trigger).toHaveAccessibleName("Environment prod");
 
   await trigger.focus();
   await page.keyboard.press("Enter");
@@ -133,17 +132,12 @@ test("the selector is a labelled dropdown whose rows name, mean and mark each en
   );
   await expect(rows.filter({ hasText: "Live forms that respondents use" })).toHaveCount(1);
   await expect(rows.filter({ hasText: "Checking released versions before prod" })).toHaveCount(1);
-  await expect(
-    page.getByText("Applies to every Operations screen. Lists return to page 1."),
-    "the note sits outside the rows the arrow keys walk",
-  ).toBeVisible();
-
   const opened = await page.evaluate(() => document.activeElement?.getAttribute("role") ?? "");
   expect(opened, "opening from the keyboard lands in the rows").toBe("menuitemradio");
 
   await page.keyboard.press("ArrowDown");
   const focused = await page.evaluate(
-    () => document.activeElement?.querySelector(".qcms-envmenu__name")?.textContent?.trim() ?? "",
+    () => document.activeElement?.querySelector(".qcms-envchip")?.textContent?.trim() ?? "",
   );
   expect(focused, "the arrow keys walk to a named environment").not.toBe("");
   await page.keyboard.press("Enter");
@@ -164,7 +158,7 @@ test("the selector stays inside its reserved slot at every width", async ({ page
       const edge = (selector: string, side: "left" | "right") =>
         document.querySelector(selector)?.getBoundingClientRect()[side] ?? Number.NaN;
       return {
-        slot: edge(".qcms-topbar__env", "right"),
+        slot: edge(".qcms-opsbar", "right"),
         control: edge(".qcms-envswitch", "right"),
         tools: edge(".qcms-topbar__tools", "left"),
       };

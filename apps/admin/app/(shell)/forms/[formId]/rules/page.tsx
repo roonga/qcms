@@ -10,6 +10,7 @@ import { readState } from "@/lib/read-state";
 import { formVerdict } from "@/lib/server/form-verdict";
 import { getForm, loadPinnableQuestions } from "@/lib/server/forms";
 import { requireAdminSession } from "@/lib/server/session";
+import { currentWorkspaceId } from "@/lib/server/workspace-context";
 
 import { previewConditionAction, saveDraftAction, validateDraftAction } from "../../actions";
 
@@ -34,7 +35,7 @@ export default async function FormRulesPage({
 
   const [detail, library] = await Promise.all([
     getForm(session, formId),
-    loadPinnableQuestions(session),
+    loadPinnableQuestions(session, await currentWorkspaceId(session)),
   ]);
 
   if (!detail.ok) {

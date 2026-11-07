@@ -32,8 +32,6 @@ export default async function QuestionDetailRail({
   return (
     <QuestionVersionsRail
       questionId={rail.questionId}
-      slug={rail.slug}
-      createdAt={rail.createdAt}
       versions={rail.versions}
       selected={selected.version}
       panels={panels}

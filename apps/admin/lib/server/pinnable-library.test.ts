@@ -46,9 +46,9 @@ const TWO_VERSIONS = [
 
 let library: { questions: unknown[] } = { questions: [] };
 
-async function loadLibrary(): Promise<unknown> {
+async function loadLibrary(workspaceId?: string): Promise<unknown> {
   const { loadPinnableQuestions } = await import("./forms.ts");
-  return loadPinnableQuestions(SESSION);
+  return loadPinnableQuestions(SESSION, workspaceId);
 }
 
 describe("loadPinnableQuestions", () => {
@@ -62,6 +62,36 @@ describe("loadPinnableQuestions", () => {
     await loadLibrary();
 
     expect(requested).toEqual(["/questions?versions=all"]);
+  });
+
+  it("asks for the form's own workspace and the shared library beside it", async () => {
+    await loadLibrary("org_home");
+
+    expect(requested).toEqual(["/questions?versions=all&workspaceId=org_home&shared=include"]);
+  });
+
+  it("tags the rows the shared library owns, and only those", async () => {
+    library = {
+      questions: [
+        { ...row("q_mine", TWO_VERSIONS), workspaceId: "org_home" },
+        { ...row("q_shared", TWO_VERSIONS), workspaceId: "org_library" },
+      ],
+    };
+
+    const result = (await loadLibrary("org_home")) as {
+      data: readonly { questionId: string; shared: boolean }[];
+    };
+
+    expect(result.data.map((question) => [question.questionId, question.shared])).toEqual([
+      ["q_mine", false],
+      ["q_shared", true],
+    ]);
+  });
+
+  it("claims nothing about sharing when no workspace was named", async () => {
+    const result = (await loadLibrary()) as { data: readonly { shared: boolean }[] };
+
+    expect(result.data.every((question) => question.shared === false)).toBe(true);
   });
 
   it("still makes one request as the library grows, which is the point", async () => {

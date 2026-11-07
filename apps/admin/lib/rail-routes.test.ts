@@ -89,6 +89,7 @@ describe("every screen has a page in the slot, whether or not it has a rail", ()
       "/responses/erasures",
       "/webhooks",
       "/workspaces",
+      "/workspaces/all",
       "/workspaces/[workspaceId]/members",
       "/workspaces/[workspaceId]/access-groups",
       "/workspaces/[workspaceId]/settings",

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { HelpTip } from "@/components/help-tip";
 import { Alert, Button, Dialog, Tab, TabList, TabPanel, Tabs } from "@/components/kit";
 import { conditionGroupReferences, conditionReferences } from "@/lib/forms/condition";
 import { upsertRule } from "@/lib/forms/draft";
@@ -115,9 +116,7 @@ export function RuleWizard({
         {scope.kind === "group" && (
           <p className="qcms-rule-scope" data-testid="qcms-rule-scope">
             <span className="qcms-tag qcms-tag--draft">{scopeChipLabel(scope)}</span>
-            <span className="ms-2 text-sm text-(--color-text-muted)">
-              {t("forms.rule.scopeNote", { group: scope.label, noun: scope.noun })}
-            </span>
+            <HelpTip>{t("forms.rule.scopeNote", { group: scope.label, noun: scope.noun })}</HelpTip>
           </p>
         )}
         {scope.kind === "spanning" && (

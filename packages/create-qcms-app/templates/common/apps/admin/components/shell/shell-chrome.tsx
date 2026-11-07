@@ -19,15 +19,15 @@ import {
   focusedMode,
   landingPathForMode,
   modeForPath,
+  OPERATIONS_PATH,
   rememberableMode,
   type ShellCapabilities,
   type ShellMode,
 } from "@/lib/shell/modes";
 
 /**
- * The top bar after the wordmark, one structure in every area: the application navigation,
- * then the Exit and environment slots, which keep their size outside Operations so entering
- * it moves nothing, then the trailing tools.
+ * The top bar after the wordmark: the application navigation, where Operations becomes one group
+ * of title, environment and Exit, then the trailing tools.
  */
 export function ShellChrome({
   capabilities,
@@ -67,26 +67,39 @@ export function ShellChrome({
   return (
     <>
       <div className="qcms-topbar__nav">
-        <AdminNav capabilities={capabilities} />
-      </div>
-      <div className="qcms-topbar__exit">
-        {inOperations && exit !== undefined && (
-          <Link
-            href={exit}
-            className="qcms-modeheader__exit"
-            data-testid="qcms-mode-exit"
-            {...{ [LEAVE_EXEMPT_ATTRIBUTE]: "" }}
-          >
-            {t("shell.mode.operations.exit")}
-          </Link>
-        )}
-      </div>
-      <div className="qcms-topbar__env">
-        {inOperations && (
-          <div className="qcms-modeheader" data-testid="qcms-mode-header" data-mode="operations">
-            {environment}
-          </div>
-        )}
+        <AdminNav
+          capabilities={capabilities}
+          operationsGroup={
+            inOperations ? (
+              <div
+                className="qcms-opsbar"
+                role="group"
+                aria-label={t("nav.operations")}
+                data-testid="qcms-mode-header"
+                data-mode="operations"
+              >
+                <Link href={OPERATIONS_PATH} aria-current="page" className="qcms-opsbar__title">
+                  {t("nav.operations")}
+                </Link>
+                {environment}
+                {exit !== undefined && (
+                  <>
+                    <span className="qcms-opsbar__divider" aria-hidden="true" />
+                    <Link
+                      href={exit}
+                      className="qcms-opsbar__exit"
+                      aria-label={t("shell.mode.operations.exit")}
+                      data-testid="qcms-mode-exit"
+                      {...{ [LEAVE_EXEMPT_ATTRIBUTE]: "" }}
+                    >
+                      {t("shell.mode.operations.exitText")}
+                    </Link>
+                  </>
+                )}
+              </div>
+            ) : undefined
+          }
+        />
       </div>
       <div className="qcms-topbar__tools">{trailing}</div>
       {inOperations && <LeaveOperationsGuard environment={environmentName} />}

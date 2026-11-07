@@ -65,37 +65,20 @@ describe("the environment dropdown", () => {
   it("labels the slot and offers the change on the trigger", () => {
     const { control } = chip("prod");
     expect(control.textContent).toContain(t("environment.legend"));
-    expect(control.textContent).toContain(t("environment.change"));
     const trigger = screen.getByRole("button");
     expect(trigger.getAttribute("aria-haspopup")).not.toBeNull();
     expect(trigger.getAttribute("aria-expanded")).toBe("false");
   });
 
-  it("offers one radio row per environment, naming it, meaning it and marking the current one", async () => {
+  it("offers one radio row per environment, named by its chip, with a check on the current one", async () => {
     const user = userEvent.setup();
     chip("prod");
     await user.click(screen.getByRole("button"));
 
     const rows = screen.getAllByRole("menuitemradio");
     expect(rows.map((row) => row.getAttribute("aria-checked"))).toEqual(["true", "false", "false"]);
-
-    const production = screen.getByRole("menuitemradio", { name: "prod" });
-    const describes = production.getAttribute("aria-describedby") ?? "";
-    expect(document.getElementById(describes)?.textContent).toBe(t("environment.meaning.prod"));
-    expect(production.textContent).toContain(t("environment.selected"));
-
-    const other = screen.getByRole("menuitemradio", { name: "staging" });
-    const meaning = other.getAttribute("aria-describedby") ?? "";
-    expect(document.getElementById(meaning)?.textContent).toBe(t("environment.meaning.nonProd"));
-    expect(other.textContent).not.toContain(t("environment.selected"));
-  });
-
-  it("says what a choice reaches, outside the rows the arrow keys walk", async () => {
-    const user = userEvent.setup();
-    chip("prod");
-    await user.click(screen.getByRole("button"));
-
-    const note = screen.getByText(t("environment.appliesTo"));
-    expect(screen.getByRole("menu").contains(note)).toBe(false);
+    expect(screen.getByRole("menuitemradio", { name: "prod" }).querySelector("svg")).not.toBeNull();
+    expect(screen.getByRole("menuitemradio", { name: "staging" }).querySelector("svg")).toBeNull();
+    expect(screen.getByRole("menu").getAttribute("aria-label")).toBe(t("environment.legend"));
   });
 });

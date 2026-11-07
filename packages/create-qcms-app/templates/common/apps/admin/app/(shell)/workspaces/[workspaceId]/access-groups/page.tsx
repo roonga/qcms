@@ -40,8 +40,9 @@ export default async function WorkspaceAccessGroupsPage({
     listAccessGroups(screen.session, workspaceId),
     listMembers(screen.session, workspaceId),
     listEnvironments(screen.session),
-    // The caller's own form read: a form they cannot read is never offered by name.
-    listAllForms(screen.session),
+    // The caller's own form read, narrowed to this workspace: a group scopes only forms
+    // it owns, and a form the caller cannot read is never offered by name.
+    listAllForms(screen.session, workspaceId),
   ]);
 
   return (

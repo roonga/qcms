@@ -1,11 +1,11 @@
+import { FieldHelp } from "@/components/help-tip";
 import { Select, TextField } from "@/components/kit";
 import { activeFilterCount, RailFilters } from "@/components/rail-filters";
-import { RailCount, RailFrame, RailTree } from "@/components/rail-frame";
+import { RailCount, RailFrame } from "@/components/rail-frame";
 import type { FormListFilters } from "@/lib/forms/list-filters";
 import { FORM_SORTS } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
 import { LIBRARY_SEARCH_MAX_LENGTH } from "@/lib/library-search";
-import { formsRailItems } from "@/lib/shell/area-rails";
 
 export function FormsListRail({ filters }: { readonly filters: FormListFilters }) {
   const { status, sort, search, activeCount } = filters;
@@ -14,19 +14,19 @@ export function FormsListRail({ filters }: { readonly filters: FormListFilters }
     <RailFrame
       subject={t("forms.title")}
       testId="qcms-forms-rail"
-      sections={<RailTree items={formsRailItems("all")} />}
       {...(activeCount > 0
         ? { count: <RailCount>{activeFilterCount(activeCount)}</RailCount> }
         : {})}
       filters={
         <RailFilters activeCount={activeCount} clearHref="/forms">
-          <TextField
-            name="q"
-            label={t("forms.filter.search")}
-            description={t("forms.filter.searchHint")}
-            defaultValue={search}
-            maxLength={LIBRARY_SEARCH_MAX_LENGTH}
-          />
+          <FieldHelp help={t("forms.filter.searchHint")}>
+            <TextField
+              name="q"
+              label={t("forms.filter.search")}
+              defaultValue={search}
+              maxLength={LIBRARY_SEARCH_MAX_LENGTH}
+            />
+          </FieldHelp>
           <Select
             name="status"
             label={t("forms.filter.status")}

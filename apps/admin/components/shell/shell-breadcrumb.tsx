@@ -12,6 +12,7 @@ export function ShellBreadcrumb({ names }: { readonly names?: CrumbNames }) {
   const pathname = usePathname() as string | null;
   const trail = breadcrumbTrail(pathname ?? "", names);
   const last = trail.length - 1;
+  if (trail.length === 0) return <div className="qcms-crumbs" aria-hidden="true" />;
   return (
     <nav aria-label={t("breadcrumb.label")} className="qcms-crumbs" data-testid="qcms-breadcrumb">
       <ol className="qcms-crumbs__list">

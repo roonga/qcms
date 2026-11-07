@@ -1671,6 +1671,44 @@ describe("GET /admin/forms - search, status filter and sort", () => {
   ])("400s %s before the handler runs", async (_name, query) => {
     expect((await listGet(`/forms?${query}`)).status).toBe(400);
   });
+
+  describe("?workspaceId", () => {
+    const OTHER = "org_lst_other";
+
+    beforeAll(async () => {
+      await testDb.db
+        .insert(authOrganization)
+        .values({ id: OTHER, name: "lst-other", slug: "lst-other" })
+        .onConflictDoNothing({ target: authOrganization.id });
+      expect(
+        (
+          await listPost("/forms", {
+            formId: "frm_lst_delta",
+            slug: "lst-delta",
+            defaultLocale: "en",
+            workspaceId: OTHER,
+          })
+        ).status,
+      ).toBe(201);
+    });
+
+    it("narrows to the workspace named", async () => {
+      expect(await slugs(`${SCOPE}&workspaceId=${SEED_WORKSPACE_ID}`)).toEqual([
+        "lst-alpha",
+        "lst-bravo",
+        "lst-charlie",
+      ]);
+      expect(await slugs(`${SCOPE}&workspaceId=${OTHER}`)).toEqual(["lst-delta"]);
+    });
+
+    it("spans every readable workspace when none is named", async () => {
+      expect(await slugs(SCOPE)).toEqual(["lst-alpha", "lst-bravo", "lst-charlie", "lst-delta"]);
+    });
+
+    it("answers nothing for a workspace that owns no form", async () => {
+      expect(await slugs(`${SCOPE}&workspaceId=org_lst_absent`)).toEqual([]);
+    });
+  });
 });
 
 /**

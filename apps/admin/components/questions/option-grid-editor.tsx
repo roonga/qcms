@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 
+import { HelpTip } from "@/components/help-tip";
 import { RowMenu } from "@/components/row-menu";
 import { announce } from "@/lib/announce";
 import { t } from "@/lib/i18n/en";
@@ -290,8 +291,9 @@ export function OptionGridEditor({
 
   return (
     <fieldset className="qcms-fieldset">
-      <legend className="qcms-fieldset__legend">{t("questions.options.legend")}</legend>
-      <p className="text-sm text-(--color-text-muted)">{t("questions.options.note")}</p>
+      <legend className="qcms-fieldset__legend">
+        {t("questions.options.legend")} <HelpTip>{t("questions.options.note")}</HelpTip>
+      </legend>
 
       <div className="qcms-opt-grid">
         <div className="qcms-opt-grid__head" aria-hidden="true">
