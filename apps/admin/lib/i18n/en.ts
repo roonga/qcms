@@ -81,8 +81,6 @@ export const messages = {
   "environment.legend": "Environment",
   /** The trigger's own visible text has to appear in its name, in order and unbroken (WCAG 2.5.3). */
   "environment.trigger": "Environment {environment}",
-  /** Say what a choice reaches, so switching does not read as a filter on the list below. */
-  /** Environments are installation data, so the meaning follows prod or non-prod, never a name. */
   /** Announce switches only; first render already names the environment. */
   "environment.nowWorking": "Now working in {environment}.",
   /** Destructive confirmations must restate the environment because targeting the wrong one cannot be undone. */

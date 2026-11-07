@@ -33,7 +33,8 @@ test.beforeAll(async ({ browser }) => {
 interface Frame {
   readonly header: number;
   readonly rail: number;
-  readonly heading: number;
+  /** Where the column starts. Every area landing hides its own `h1`, so this is the drawn title row. */
+  readonly main: number;
   readonly crumbs: number;
 }
 
@@ -46,8 +47,9 @@ async function frame(page: Page): Promise<Frame> {
     return {
       header: Math.round(box("header.qcms-topbar")?.height ?? -1),
       rail: Math.round(box("aside.qcms-rail")?.width ?? -1),
-      heading: Math.round((box("main#main-content h1")?.top ?? -1) + window.scrollY),
-      crumbs: Math.round((box("nav.qcms-crumbs")?.top ?? -1) + window.scrollY),
+      main: Math.round((box("main#main-content")?.top ?? -1) + window.scrollY),
+      // Not `nav.qcms-crumbs`: an area that names itself in the bar draws the row without a trail.
+      crumbs: Math.round((box(".qcms-crumbs")?.top ?? -1) + window.scrollY),
     };
   });
 }
@@ -152,7 +154,7 @@ function caseName({ width, environment, hc }: FrameCase): string {
   return `at ${String(width)} in ${environment}${hc ? ", high contrast" : ""}`;
 }
 
-test("one top bar: entering Operations moves neither the bar, the rail nor the trail", async ({
+test("one top bar: entering Operations moves neither the bar, the rail nor the heading", async ({
   page,
 }) => {
   test.setTimeout(600_000);
@@ -173,14 +175,7 @@ test("one top bar: entering Operations moves neither the bar, the rail nor the t
     for (const [index, path] of areas.entries()) {
       const here = frames[index];
       if (here === undefined) throw new Error(`${path} was not measured`);
-      expect
-        .soft({ header: here.header, rail: here.rail }, `${path} ${caseName(one)} chrome`)
-        .toEqual({ header: first.header, rail: first.rail });
-      /* The trail, not the title: every landing hides its `h1`, whose box then follows whether
-         the screen carries a header action. Operations names itself in the group and draws no
-         trail, and below the breakpoint the rail is a disclosure above the trail. */
-      if (path === "/operations" || one.width !== WIDE) continue;
-      expect.soft(here.crumbs, `${path} ${caseName(one)} trail`).toEqual(first.crumbs);
+      expect.soft(here, `${path} ${caseName(one)}`).toEqual(first);
     }
   }
 });

@@ -14,8 +14,8 @@ export interface WorkspaceRailRow {
 }
 
 /**
- * The Workspaces area rail: the current workspace's sections, with the way back to the
- * full list. The switcher in the top bar is the only chooser, so no workspace is named here.
+ * The Workspaces area rail: the current workspace's sections, and inside one of them the way
+ * back to the full list. The switcher in the top bar is the only chooser, so none is named here.
  */
 export function WorkspacesRail({
   workspace,
@@ -28,7 +28,12 @@ export function WorkspacesRail({
     <RailFrame
       subject={t("membership.area.title")}
       testId="qcms-workspaces-rail"
-      context={{ href: ALL_WORKSPACES_PATH, label: t("membership.workspace.allWorkspaces") }}
+      {...(section === undefined
+        ? {}
+        : {
+            // Inside one workspace only: on the full list it would point at the screen it is on.
+            context: { href: ALL_WORKSPACES_PATH, label: t("membership.workspace.allWorkspaces") },
+          })}
       {...(workspace === undefined ? {} : { crumbs: { workspace: workspace.name } })}
       {...(workspace === undefined
         ? {}

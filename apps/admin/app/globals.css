@@ -2175,8 +2175,10 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   padding-block-start: var(--admin-section-pad);
 }
 /* One line at every width, so the heading below starts at the same height on every screen. The inset
-   keeps focus rings inside the clip. */
+   keeps focus rings inside the clip, and content-box keeps the minimum about the line rather than
+   the line plus that inset, so a row with no trail in it is still exactly as tall. */
 .qcms-crumbs__list {
+  box-sizing: content-box;
   display: flex;
   align-items: center;
   min-block-size: 1.25rem;
@@ -3879,24 +3881,6 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
 }
 .qcms-field-help > .qcms-helptip {
   margin-block-start: 0.125rem;
-}
-
-.qcms-rail__accordion > summary {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  cursor: pointer;
-  list-style: none;
-}
-.qcms-rail__accordion > summary::-webkit-details-marker {
-  display: none;
-}
-.qcms-rail__accordion > summary::after {
-  content: "›";
-  transition: rotate 120ms;
-}
-.qcms-rail__accordion[open] > summary::after {
-  rotate: 90deg;
 }
 
 /* viewportFit: cover draws the document under the status bar and the home indicator, so the sticky top

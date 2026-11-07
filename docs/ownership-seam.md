@@ -93,13 +93,13 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (609 files common to both shapes)
+### Scaffolded paths (608 files common to both shapes)
 
 | Path                                                                            | Files |
 | ------------------------------------------------------------------------------- | ----- |
 | `(project root)`                                                                | 8     |
-| `apps/`                                                                         | 598   |
-| `apps/admin/`                                                                   | 386   |
+| `apps/`                                                                         | 597   |
+| `apps/admin/`                                                                   | 385   |
 | `apps/admin/app/`                                                               | 102   |
 | `apps/admin/app/(shell)/`                                                       | 78    |
 | `apps/admin/app/(shell)/@rail/`                                                 | 34    |
@@ -194,10 +194,10 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/two-factor/recovery-codes/`                                     | 2     |
 | `apps/admin/app/two-factor/recovery-codes/confirm/`                             | 1     |
 | `apps/admin/app/two-factor/recovery/verify/`                                    | 1     |
-| `apps/admin/components/`                                                        | 139   |
+| `apps/admin/components/`                                                        | 138   |
 | `apps/admin/components/agent/`                                                  | 11    |
 | `apps/admin/components/forms/`                                                  | 42    |
-| `apps/admin/components/membership/`                                             | 10    |
+| `apps/admin/components/membership/`                                             | 9     |
 | `apps/admin/components/ops/`                                                    | 18    |
 | `apps/admin/components/questions/`                                              | 16    |
 | `apps/admin/components/shell/`                                                  | 6     |
@@ -297,7 +297,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (609)</summary>
+<summary>Every scaffolded file (608)</summary>
 
 ```
 .dockerignore
@@ -485,7 +485,6 @@ apps/admin/components/membership/members-panel.tsx
 apps/admin/components/membership/my-access-panel.tsx
 apps/admin/components/membership/workspace-screen.tsx
 apps/admin/components/membership/workspace-settings-panel.tsx
-apps/admin/components/membership/workspace-summary.tsx
 apps/admin/components/membership/workspaces-rail-slot.tsx
 apps/admin/components/membership/workspaces-rail.tsx
 apps/admin/components/menu-slots.ts

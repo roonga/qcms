@@ -12,7 +12,14 @@ export function ShellBreadcrumb({ names }: { readonly names?: CrumbNames }) {
   const pathname = usePathname() as string | null;
   const trail = breadcrumbTrail(pathname ?? "", names);
   const last = trail.length - 1;
-  if (trail.length === 0) return <div className="qcms-crumbs" aria-hidden="true" />;
+  // An area that names itself in the top bar draws no trail, and the row still spends its own
+  // line, so the heading below starts at one height on every screen.
+  if (trail.length === 0)
+    return (
+      <div className="qcms-crumbs" aria-hidden="true">
+        <div className="qcms-crumbs__list" />
+      </div>
+    );
   return (
     <nav aria-label={t("breadcrumb.label")} className="qcms-crumbs" data-testid="qcms-breadcrumb">
       <ol className="qcms-crumbs__list">
