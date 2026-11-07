@@ -169,11 +169,13 @@ test("one top bar: entering Operations moves neither the bar, the rail nor the h
       frames.push(await frame(page));
     }
     const first = frames[0];
+    if (first === undefined) throw new Error("no area was measured");
     for (const [index, path] of areas.entries()) {
       const here = frames[index];
+      if (here === undefined) throw new Error(`${path} was not measured`);
       expect
-        .soft({ header: here?.header, rail: here?.rail }, `${path} ${caseName(one)} chrome`)
-        .toEqual({ header: first?.header, rail: first?.rail });
+        .soft({ header: here.header, rail: here.rail }, `${path} ${caseName(one)} chrome`)
+        .toEqual({ header: first.header, rail: first.rail });
       // Operations names itself in the bar's group rather than in a crumb, so its landing
       // draws no trail and its title cannot sit where a trail would have put one.
       if (path === "/operations") continue;
