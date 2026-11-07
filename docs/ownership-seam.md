@@ -93,16 +93,16 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (599 files common to both shapes)
+### Scaffolded paths (608 files common to both shapes)
 
 | Path                                                                            | Files |
 | ------------------------------------------------------------------------------- | ----- |
 | `(project root)`                                                                | 8     |
-| `apps/`                                                                         | 588   |
-| `apps/admin/`                                                                   | 376   |
-| `apps/admin/app/`                                                               | 100   |
-| `apps/admin/app/(shell)/`                                                       | 76    |
-| `apps/admin/app/(shell)/@rail/`                                                 | 33    |
+| `apps/`                                                                         | 597   |
+| `apps/admin/`                                                                   | 385   |
+| `apps/admin/app/`                                                               | 102   |
+| `apps/admin/app/(shell)/`                                                       | 78    |
+| `apps/admin/app/(shell)/@rail/`                                                 | 34    |
 | `apps/admin/app/(shell)/@rail/forms/`                                           | 9     |
 | `apps/admin/app/(shell)/@rail/forms/[formId]/`                                  | 7     |
 | `apps/admin/app/(shell)/@rail/forms/[formId]/preview/`                          | 1     |
@@ -129,13 +129,14 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/(shell)/@rail/responses/erasures/`                              | 1     |
 | `apps/admin/app/(shell)/@rail/settings/`                                        | 1     |
 | `apps/admin/app/(shell)/@rail/webhooks/`                                        | 1     |
-| `apps/admin/app/(shell)/@rail/workspaces/`                                      | 6     |
+| `apps/admin/app/(shell)/@rail/workspaces/`                                      | 7     |
 | `apps/admin/app/(shell)/@rail/workspaces/[workspaceId]/`                        | 5     |
 | `apps/admin/app/(shell)/@rail/workspaces/[workspaceId]/access-groups/`          | 1     |
 | `apps/admin/app/(shell)/@rail/workspaces/[workspaceId]/assistant-actions/`      | 1     |
 | `apps/admin/app/(shell)/@rail/workspaces/[workspaceId]/audit/`                  | 1     |
 | `apps/admin/app/(shell)/@rail/workspaces/[workspaceId]/members/`                | 1     |
 | `apps/admin/app/(shell)/@rail/workspaces/[workspaceId]/settings/`               | 1     |
+| `apps/admin/app/(shell)/@rail/workspaces/all/`                                  | 1     |
 | `apps/admin/app/(shell)/assist/`                                                | 1     |
 | `apps/admin/app/(shell)/forms/`                                                 | 13    |
 | `apps/admin/app/(shell)/forms/[formId]/`                                        | 7     |
@@ -167,13 +168,14 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/(shell)/settings/password/`                                     | 1     |
 | `apps/admin/app/(shell)/settings/recovery-codes/`                               | 1     |
 | `apps/admin/app/(shell)/webhooks/`                                              | 2     |
-| `apps/admin/app/(shell)/workspaces/`                                            | 7     |
+| `apps/admin/app/(shell)/workspaces/`                                            | 8     |
 | `apps/admin/app/(shell)/workspaces/[workspaceId]/`                              | 6     |
 | `apps/admin/app/(shell)/workspaces/[workspaceId]/access-groups/`                | 1     |
 | `apps/admin/app/(shell)/workspaces/[workspaceId]/assistant-actions/`            | 1     |
 | `apps/admin/app/(shell)/workspaces/[workspaceId]/audit/`                        | 1     |
 | `apps/admin/app/(shell)/workspaces/[workspaceId]/members/`                      | 1     |
 | `apps/admin/app/(shell)/workspaces/[workspaceId]/settings/`                     | 1     |
+| `apps/admin/app/(shell)/workspaces/all/`                                        | 1     |
 | `apps/admin/app/change-password/`                                               | 2     |
 | `apps/admin/app/change-password/submit/`                                        | 1     |
 | `apps/admin/app/healthz/`                                                       | 1     |
@@ -192,15 +194,15 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/two-factor/recovery-codes/`                                     | 2     |
 | `apps/admin/app/two-factor/recovery-codes/confirm/`                             | 1     |
 | `apps/admin/app/two-factor/recovery/verify/`                                    | 1     |
-| `apps/admin/components/`                                                        | 134   |
+| `apps/admin/components/`                                                        | 138   |
 | `apps/admin/components/agent/`                                                  | 11    |
 | `apps/admin/components/forms/`                                                  | 42    |
 | `apps/admin/components/membership/`                                             | 9     |
 | `apps/admin/components/ops/`                                                    | 18    |
-| `apps/admin/components/questions/`                                              | 15    |
-| `apps/admin/components/shell/`                                                  | 5     |
+| `apps/admin/components/questions/`                                              | 16    |
+| `apps/admin/components/shell/`                                                  | 6     |
 | `apps/admin/components/test-support/`                                           | 3     |
-| `apps/admin/lib/`                                                               | 135   |
+| `apps/admin/lib/`                                                               | 138   |
 | `apps/admin/lib/agent/`                                                         | 14    |
 | `apps/admin/lib/forms/`                                                         | 31    |
 | `apps/admin/lib/i18n/`                                                          | 2     |
@@ -208,8 +210,8 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/lib/ops/`                                                           | 15    |
 | `apps/admin/lib/pwa/`                                                           | 4     |
 | `apps/admin/lib/questions/`                                                     | 9     |
-| `apps/admin/lib/server/`                                                        | 31    |
-| `apps/admin/lib/shell/`                                                         | 5     |
+| `apps/admin/lib/server/`                                                        | 32    |
+| `apps/admin/lib/shell/`                                                         | 7     |
 | `apps/api/`                                                                     | 138   |
 | `apps/api/src/`                                                                 | 135   |
 | `apps/api/src/features/`                                                        | 103   |
@@ -295,7 +297,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (599)</summary>
+<summary>Every scaffolded file (608)</summary>
 
 ```
 .dockerignore
@@ -335,6 +337,7 @@ apps/admin/app/(shell)/@rail/workspaces/[workspaceId]/assistant-actions/page.tsx
 apps/admin/app/(shell)/@rail/workspaces/[workspaceId]/audit/page.tsx
 apps/admin/app/(shell)/@rail/workspaces/[workspaceId]/members/page.tsx
 apps/admin/app/(shell)/@rail/workspaces/[workspaceId]/settings/page.tsx
+apps/admin/app/(shell)/@rail/workspaces/all/page.tsx
 apps/admin/app/(shell)/@rail/workspaces/page.tsx
 apps/admin/app/(shell)/assist/route.ts
 apps/admin/app/(shell)/forms/[formId]/assist/route.ts
@@ -378,6 +381,7 @@ apps/admin/app/(shell)/workspaces/[workspaceId]/assistant-actions/page.tsx
 apps/admin/app/(shell)/workspaces/[workspaceId]/audit/page.tsx
 apps/admin/app/(shell)/workspaces/[workspaceId]/members/page.tsx
 apps/admin/app/(shell)/workspaces/[workspaceId]/settings/page.tsx
+apps/admin/app/(shell)/workspaces/all/page.tsx
 apps/admin/app/(shell)/workspaces/page.tsx
 apps/admin/app/apple-icon.tsx
 apps/admin/app/change-password/page.tsx
@@ -424,6 +428,7 @@ apps/admin/components/clear-conversation.tsx
 apps/admin/components/copy-entity-id.tsx
 apps/admin/components/empty-state.tsx
 apps/admin/components/entity-id.tsx
+apps/admin/components/environment-chip.tsx
 apps/admin/components/environment-scope.tsx
 apps/admin/components/environment-switcher.tsx
 apps/admin/components/forms/agent-provenance-tag.tsx
@@ -468,6 +473,7 @@ apps/admin/components/forms/table-column-view.tsx
 apps/admin/components/forms/validation-panel.tsx
 apps/admin/components/forms/version-history.tsx
 apps/admin/components/forms/version-view.tsx
+apps/admin/components/help-tip.tsx
 apps/admin/components/hydration-marker.tsx
 apps/admin/components/kit.tsx
 apps/admin/components/locale-context.tsx
@@ -509,6 +515,7 @@ apps/admin/components/questions/new-question-rail.tsx
 apps/admin/components/questions/option-grid-editor.tsx
 apps/admin/components/questions/published-on-day.tsx
 apps/admin/components/questions/question-editor.tsx
+apps/admin/components/questions/question-facts.tsx
 apps/admin/components/questions/question-panel-rows.tsx
 apps/admin/components/questions/question-preview.tsx
 apps/admin/components/questions/question-save.tsx
@@ -531,6 +538,7 @@ apps/admin/components/shell/leave-operations-guard.tsx
 apps/admin/components/shell/my-access-rail.tsx
 apps/admin/components/shell/shell-breadcrumb.tsx
 apps/admin/components/shell/shell-chrome.tsx
+apps/admin/components/shell/workspace-switcher.tsx
 apps/admin/components/sidebar-toggle.tsx
 apps/admin/components/test-support/git-binary.ts
 apps/admin/components/test-support/jsx-cells.ts
@@ -663,6 +671,7 @@ apps/admin/lib/server/session.ts
 apps/admin/lib/server/shell.ts
 apps/admin/lib/server/telemetry-redaction.ts
 apps/admin/lib/server/webhook-ops.ts
+apps/admin/lib/server/workspace-context.ts
 apps/admin/lib/settings-panel.ts
 apps/admin/lib/settings-sections.ts
 apps/admin/lib/shell/area-rails.ts
@@ -670,6 +679,8 @@ apps/admin/lib/shell/breadcrumbs.ts
 apps/admin/lib/shell/context.ts
 apps/admin/lib/shell/leave-operations.ts
 apps/admin/lib/shell/modes.ts
+apps/admin/lib/shell/workspace-context.ts
+apps/admin/lib/shell/workspace-switch.ts
 apps/admin/lib/sidebar.ts
 apps/admin/lib/time-zone.ts
 apps/admin/lib/topbar.ts

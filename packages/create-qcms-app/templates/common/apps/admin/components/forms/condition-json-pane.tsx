@@ -106,7 +106,6 @@ export function ConditionJsonPane({
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-sm text-(--color-text-muted)">{t("forms.json.note")}</p>
       <div ref={host} data-testid="qcms-condition-json" />
       {!isReady && (
         <pre className="qcms-tabular qcms-scroll-x rounded-md border border-(--color-border) bg-(--color-background) p-2 text-sm text-(--color-text)">

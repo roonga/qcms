@@ -41,7 +41,13 @@ import {
   REQUEST_ENVIRONMENT_HEADER,
   registerRequestEnvironment,
 } from "../../middleware/request-environment.js";
-import { internalTokenFor, makeDeps, seedAdminSession, validEnv } from "../../test-support.js";
+import {
+  internalTokenFor,
+  makeDeps,
+  seedAdminSession,
+  seedGrants,
+  validEnv,
+} from "../../test-support.js";
 import { registerForms } from "./route.js";
 
 const ADMIN_ONLY = { public: false, internal: false, admin: true } as const;
@@ -51,6 +57,7 @@ let deps: Deps;
 let app: ReturnType<typeof createApp>;
 let internalToken: string;
 let adminSessionToken: string;
+let adminUserId: string;
 
 beforeAll(async () => {
   testDb = await startTestDb();
@@ -59,7 +66,9 @@ beforeAll(async () => {
     groups: { admin: [registerAdminAuth, registerGrantCheck, registerForms] },
   });
   internalToken = internalTokenFor(deps.config);
-  adminSessionToken = (await seedAdminSession(testDb.db)).token;
+  const session = await seedAdminSession(testDb.db);
+  adminSessionToken = session.token;
+  adminUserId = session.userId;
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
 afterAll(async () => {
@@ -1671,6 +1680,46 @@ describe("GET /admin/forms - search, status filter and sort", () => {
   ])("400s %s before the handler runs", async (_name, query) => {
     expect((await listGet(`/forms?${query}`)).status).toBe(400);
   });
+
+  describe("?workspaceId", () => {
+    const OTHER = "org_lst_other";
+
+    beforeAll(async () => {
+      await testDb.db
+        .insert(authOrganization)
+        .values({ id: OTHER, name: "lst-other", slug: "lst-other" })
+        .onConflictDoNothing({ target: authOrganization.id });
+      // Narrowing a read is what these assert; authoring into the workspace needs the grant.
+      await seedGrants(testDb.db, { userId: adminUserId, workspaceId: OTHER });
+      expect(
+        (
+          await listPost("/forms", {
+            formId: "frm_lst_delta",
+            slug: "lst-delta",
+            defaultLocale: "en",
+            workspaceId: OTHER,
+          })
+        ).status,
+      ).toBe(201);
+    });
+
+    it("narrows to the workspace named", async () => {
+      expect(await slugs(`${SCOPE}&workspaceId=${SEED_WORKSPACE_ID}`)).toEqual([
+        "lst-alpha",
+        "lst-bravo",
+        "lst-charlie",
+      ]);
+      expect(await slugs(`${SCOPE}&workspaceId=${OTHER}`)).toEqual(["lst-delta"]);
+    });
+
+    it("spans every readable workspace when none is named", async () => {
+      expect(await slugs(SCOPE)).toEqual(["lst-alpha", "lst-bravo", "lst-charlie", "lst-delta"]);
+    });
+
+    it("answers nothing for a workspace that owns no form", async () => {
+      expect(await slugs(`${SCOPE}&workspaceId=org_lst_absent`)).toEqual([]);
+    });
+  });
 });
 
 /**
@@ -1706,7 +1755,14 @@ describe("the form detail write capability", () => {
         admin: [registerAdminAuth, registerGrantCheck, registerRequestEnvironment, registerForms],
       },
     });
-    await post("/forms", { formId, slug: "capability", defaultLocale: "en" });
+    // Named, because the list tests above leave a second workspace behind and authoring
+    // refuses to guess between several.
+    await post("/forms", {
+      formId,
+      slug: "capability",
+      defaultLocale: "en",
+      workspaceId: SEED_WORKSPACE_ID,
+    });
     viewer = await seedAdminSession(testDb.db, {
       label: "capability_viewer",
       claim: false,

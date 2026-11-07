@@ -138,7 +138,7 @@ test("650 spells out each version's status and digests the group above them", as
   await page.goto(detailPath());
 
   const rail = page.getByTestId("qcms-question-rail");
-  await expect(rail.locator(".qcms-rail__digest")).toHaveText(
+  await expect(page.locator(".qcms-question-facts__digest")).toHaveText(
     `3 versions, v${String(fixture.publishedVersion)} published`,
   );
   const row = (version: number) => rail.locator(`[data-rail-version="${String(version)}"]`);
@@ -282,7 +282,7 @@ test("2026-09-27 switches a panel while the rail is a shut disclosure at 390px",
   await page.setViewportSize({ width: 1280, height: 900 });
 });
 
-test("2026-09-27 states the question's details in the rail and the way to all questions above them", async ({
+test("2026-09-27 states the question's details in the page body and the way to all questions in the rail", async ({
   page,
 }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
@@ -290,12 +290,12 @@ test("2026-09-27 states the question's details in the rail and the way to all qu
   await page.goto(detailPath());
 
   const rail = page.getByTestId("qcms-question-rail");
-  const details = rail.locator(".qcms-rail__facts");
+  const details = page.getByTestId("qcms-question-facts");
   await expect(details).toContainText("Slug");
   await expect(details).toContainText(`e2e-qrail-${RUN}`);
   await expect(details).toContainText("Created");
 
-  await expect(details).toContainText("Short text (locked)");
+  await expect(details).toContainText("Short text");
   await expect(page.getByRole("main")).not.toContainText("Type is locked to");
 
   await expect(page.getByRole("main")).not.toContainText("Slug:");
@@ -498,10 +498,10 @@ test("1116 gives the parent of the current row no fill, so one row reads as sele
     /^panel:/u,
   );
   expect(filled[0]?.weight, "the selected row is at the title weight").toBe("600");
-  expect(filled[0]?.edge, "and carries the 2px accent edge").toBe("2px");
+  expect(filled[0]?.edge, "and carries the 3px accent edge").toBe("3px");
   for (const parent of painted.filter((row) => !row.filled)) {
     expect(parent.weight, `${parent.item} is a parent, at weight 600`).toBe("600");
-    expect(parent.edge, `${parent.item} keeps the edge transparent`).toBe("2px");
+    expect(parent.edge, `${parent.item} keeps the edge transparent`).toBe("3px");
   }
 });
 

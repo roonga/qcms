@@ -13,6 +13,8 @@ export function rowId(questionId: string, version: number): string {
 export interface PickerRow {
   readonly questionId: string;
   readonly label: string;
+  /** Owned by the shared library, so the author can pin it here but edits it where it lives. */
+  readonly shared: boolean;
   readonly type: string;
   readonly version: number;
   readonly state: string;
@@ -66,6 +68,7 @@ export function pinnableRows(
       rows.push({
         questionId: question.questionId,
         label: textOf(question.label ?? undefined),
+        shared: question.shared === true,
         type:
           question.type === null
             ? t("questions.column.typeUnknown")

@@ -44,11 +44,9 @@ afterEach(() => {
 });
 
 describe("the top bar", () => {
-  it("keeps the application navigation and both reserved slots in every area", () => {
+  it("folds Operations, the environment and Exit into one group in Operations only", () => {
     const view = render(chrome());
     expect(screen.getByRole("navigation", { name: "Primary" })).toBeTruthy();
-    expect(view.container.querySelector(".qcms-topbar__exit")).not.toBeNull();
-    expect(view.container.querySelector(".qcms-topbar__env")).not.toBeNull();
     expect(screen.queryByTestId("qcms-mode-header")).toBeNull();
     expect(screen.queryByTestId("qcms-mode-exit")).toBeNull();
 

@@ -8,6 +8,7 @@ import { chooseEnvironment, environmentChip, OPERATIONS_PATH } from "./support/e
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 import { createForm } from "./support/forms.js";
 import { ADMIN_BASE_URL } from "./support/harness-config.js";
+import { waitForHydration } from "./support/hydration.js";
 
 test.describe.configure({ mode: "serial" });
 
@@ -32,16 +33,23 @@ const chipState = (page: Page) =>
     const bar = document.querySelector("header.qcms-topbar");
     if (bar === null) throw new Error("no topbar");
     const barStyle = getComputedStyle(bar);
-    const trigger = chip?.querySelector(".qcms-envtrigger") ?? null;
-    const triggerStyle = trigger === null ? null : getComputedStyle(trigger);
+    const name = chip?.querySelector(".qcms-envchip") ?? null;
+    const nameStyle = name === null ? null : getComputedStyle(name);
     const main = document.querySelector("main");
+    // The environment now tints the Operations group, which exists only in Operations, so
+    // "no environment context" is the group's absence rather than a shadow reading none.
+    const group = document.querySelector(".qcms-opsbar");
+    const groupStyle = group === null ? null : getComputedStyle(group);
     return {
       kind: chip?.getAttribute("data-kind") ?? "",
-      text: (trigger?.textContent ?? "").trim(),
-      fill: triggerStyle?.backgroundColor ?? "",
-      borderStyle: triggerStyle?.borderTopStyle ?? "",
-      borderWidth: triggerStyle?.borderTopWidth ?? "",
-      edge: barStyle.boxShadow,
+      text: (name?.textContent ?? "").trim(),
+      fill: nameStyle?.backgroundColor ?? "",
+      borderStyle: nameStyle?.borderTopStyle ?? "",
+      borderWidth: nameStyle?.borderTopWidth ?? "",
+      group: group !== null,
+      groupFill: groupStyle?.backgroundColor ?? "",
+      groupBorder: groupStyle?.borderTopColor ?? "",
+      barEdge: barStyle.boxShadow,
       barHeight: bar.getBoundingClientRect().height,
       mainTop: main?.getBoundingClientRect().top ?? 0,
     };
@@ -62,15 +70,14 @@ test("the chip is in the Operations header and on no normal screen", async ({ pa
   ).toBeVisible();
   const operations = await chipState(page);
   expect(operations.text, "the name is always written").toBe("prod");
-  expect(operations.edge, "the bar carries the environment edge, taking no space").toMatch(
-    /0px 3px 0px 0px inset/u,
-  );
+  expect(operations.group, "the Operations group carries the environment").toBe(true);
+  expect(operations.barEdge, "and the bar itself draws no edge of its own").toBe("none");
 
   for (const area of normalScreens()) {
     await page.goto(area);
     await expect(chip, `${area} has no environment context`).toHaveCount(0);
     const normal = await chipState(page);
-    expect(normal.edge, `${area} draws no environment edge`).toBe("none");
+    expect(normal.group, `${area} carries no Operations group`).toBe(false);
   }
 });
 
@@ -91,8 +98,13 @@ test("draws prod and a non-prod environment differently, and announces the switc
   expect(nonProd.text, "the environment is named in words (WCAG 1.4.1)").toBe("test");
   expect(nonProd.borderWidth).toBe("2px");
 
-  expect(nonProd.fill).not.toBe(production.fill);
-  expect(nonProd.edge).not.toBe(production.edge);
+  expect(nonProd.fill, "the chip adds no fill of its own; the group carries the tint").toBe(
+    production.fill,
+  );
+  expect(nonProd.groupFill, "the Operations group is tinted per environment").not.toBe(
+    production.groupFill,
+  );
+  expect(nonProd.groupBorder).not.toBe(production.groupBorder);
 
   await expect(page.getByTestId("qcms-environment-status")).toHaveText(/Now working in test/u);
 
@@ -102,6 +114,84 @@ test("draws prod and a non-prod environment differently, and announces the switc
   await page.reload();
   await expect(environmentChip(page)).toHaveAttribute("data-environment", "test");
   await chooseEnvironment(page, "prod");
+});
+
+test("the selector is a labelled dropdown whose rows name and mark each environment", async ({
+  page,
+}) => {
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(OPERATIONS_PATH);
+  await waitForHydration(page);
+
+  const chip = environmentChip(page);
+  await expect(chip, "the slot says what the control is about").toContainText("Environment");
+  const trigger = chip.getByRole("button");
+  await expect(trigger).toHaveAttribute("aria-expanded", "false");
+  await expect(trigger).toHaveAccessibleName("Environment prod");
+
+  await trigger.focus();
+  await page.keyboard.press("Enter");
+  const menu = page.getByRole("menu");
+  await expect(menu).toBeVisible();
+  const rows = menu.getByRole("menuitemradio");
+  expect(await rows.count(), "one row per configured environment").toBeGreaterThanOrEqual(2);
+  await expect(menu.getByRole("menuitemradio", { name: "prod", exact: true })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+  await expect(
+    rows.locator(".qcms-envmenu__check svg"),
+    "the check marks the current environment and only that one",
+  ).toHaveCount(1);
+  const opened = await page.evaluate(() => document.activeElement?.getAttribute("role") ?? "");
+  expect(opened, "opening from the keyboard lands in the rows").toBe("menuitemradio");
+
+  await page.keyboard.press("ArrowDown");
+  const focused = await page.evaluate(
+    () => document.activeElement?.querySelector(".qcms-envchip")?.textContent?.trim() ?? "",
+  );
+  expect(focused, "the arrow keys walk to a named environment").not.toBe("");
+  await page.keyboard.press("Enter");
+  await expect(chip).toHaveAttribute("data-pending", "false");
+  await expect(chip).toHaveAttribute("data-environment", focused);
+
+  await chooseEnvironment(page, "prod");
+});
+
+test("the selector stays inside its reserved slot at every width", async ({ page }) => {
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+
+  for (const width of [1440, 1280, 1024, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto(OPERATIONS_PATH);
+    const edges = await page.evaluate(() => {
+      const box = (selector: string) => document.querySelector(selector)?.getBoundingClientRect();
+      const control = box(".qcms-envswitch");
+      const group = box(".qcms-opsbar");
+      const tools = box(".qcms-topbar__tools");
+      if (control === undefined || group === undefined || tools === undefined) {
+        throw new Error("the bar is missing the group, the control or the trailing tools");
+      }
+      return {
+        slot: group.right,
+        control: control.right,
+        // The bar wraps below the sidebar breakpoint, so two boxes only cover one another
+        // when they overlap on both axes; an x comparison alone reads across rows.
+        covers:
+          control.left < tools.right &&
+          tools.left < control.right &&
+          control.top < tools.bottom &&
+          tools.top < control.bottom,
+      };
+    });
+    expect
+      .soft(edges.control, `the control fits its slot at ${String(width)}`)
+      .toBeLessThanOrEqual(edges.slot);
+    expect.soft(edges.covers, `and covers no trailing tool at ${String(width)}`).toBe(false);
+  }
 });
 
 test("switching environments moves neither the bar nor the content column", async ({

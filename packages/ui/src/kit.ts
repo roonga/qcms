@@ -44,6 +44,12 @@ export {
   SwitchField,
 } from "react-aria-components";
 
+/**
+ * A menu row's own label and second line. The vendored Menu renders each row as a React Aria
+ * item, so these slots are what put a row's meaning in its description rather than its name.
+ */
+export { Text as MenuItemText } from "react-aria-components";
+
 /** Aliases avoid collisions with vendored names; the stack owns combobox focus and listbox relationships. */
 export {
   Button as ComboBoxButton,

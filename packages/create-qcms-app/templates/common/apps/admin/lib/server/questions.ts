@@ -42,17 +42,20 @@ async function read<T>(response: Response): Promise<ApiResult<T>> {
   return { ok: true, data: (await response.json()) as T };
 }
 
+/** `workspaceId` is the current workspace: a question never belongs to two, so one list never spans two. */
 export async function listQuestions(
   session: AdminSession,
   filters: {
     readonly status?: QuestionStatus;
     readonly type?: QuestionType;
     readonly search?: string;
+    readonly workspaceId?: string;
   } = {},
 ): Promise<ApiResult<readonly QuestionListItem[]>> {
   const query = new URLSearchParams();
   if (filters.status !== undefined) query.set("status", filters.status);
   if (filters.type !== undefined) query.set("type", filters.type);
+  if (filters.workspaceId !== undefined) query.set("workspaceId", filters.workspaceId);
   if (filters.search !== undefined && filters.search.trim() !== "") {
     query.set("search", filters.search.trim());
   }

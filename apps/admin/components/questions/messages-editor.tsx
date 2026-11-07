@@ -1,5 +1,6 @@
 "use client";
 
+import { HelpTip } from "@/components/help-tip";
 import { TextField } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
 import {
@@ -38,8 +39,9 @@ export function MessagesEditor({
 
   return (
     <fieldset className="qcms-fieldset">
-      <legend className="qcms-fieldset__legend">{t("questions.editor.messages")}</legend>
-      <p className="text-sm text-(--color-text-muted)">{t("questions.message.note")}</p>
+      <legend className="qcms-fieldset__legend">
+        {t("questions.editor.messages")} <HelpTip>{t("questions.message.note")}</HelpTip>
+      </legend>
       <div className="flex flex-col gap-4">
         {keys.map((key) => (
           <TextField
@@ -75,8 +77,9 @@ export function BooleanLabelsEditor({
 }) {
   return (
     <fieldset className="qcms-fieldset">
-      <legend className="qcms-fieldset__legend">{t("questions.editor.booleanLabels")}</legend>
-      <p className="text-sm text-(--color-text-muted)">{t("questions.booleanLabel.note")}</p>
+      <legend className="qcms-fieldset__legend">
+        {t("questions.editor.booleanLabels")} <HelpTip>{t("questions.booleanLabel.note")}</HelpTip>
+      </legend>
       <div className="qcms-constraints">
         <TextField
           label={t("questions.booleanLabel.yes")}

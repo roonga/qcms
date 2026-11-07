@@ -257,6 +257,77 @@ table.tokens tr:last-child td{border-bottom:none;}
 /* footer */
 footer{padding:48px 0 64px; color:var(--muted-foreground); font-size:13px;}
 footer .fnote{font-family:var(--font-mono); font-size:11.5px; max-width:70ch;}
+
+/* Operator navigation. The environment values are the QCMS app's own tokens, so the group's
+   colour here is the colour it draws. */
+:root{
+  --ds-env-prod:#b5137f; --ds-env-prod-fg:#ffffff;
+  --ds-env-1:#7040c8; --ds-env-1-subtle:#f3eefc; --ds-env-1-fg:#5b2fae;
+  --ds-env-2:#0f766e; --ds-env-2-subtle:#e5f4f1; --ds-env-2-fg:#0b5c55;
+  --ds-env-3:#0a6a9c; --ds-env-3-subtle:#e6f2f9; --ds-env-3-fg:#08557d;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme]){
+    --ds-env-prod:#ff6fd0; --ds-env-prod-fg:#0b0f1a;
+    --ds-env-1:#b69cff; --ds-env-1-subtle:#221a38; --ds-env-1-fg:#d6c8ff;
+    --ds-env-2:#4fd1c5; --ds-env-2-subtle:#0e2a29; --ds-env-2-fg:#a7f0e8;
+    --ds-env-3:#6cc4f0; --ds-env-3-subtle:#0e2436; --ds-env-3-fg:#b9e4fb;
+  }
+}
+:root[data-theme="dark"], .t-dark{
+  --ds-env-prod:#ff6fd0; --ds-env-prod-fg:#0b0f1a;
+  --ds-env-1:#b69cff; --ds-env-1-subtle:#221a38; --ds-env-1-fg:#d6c8ff;
+  --ds-env-2:#4fd1c5; --ds-env-2-subtle:#0e2a29; --ds-env-2-fg:#a7f0e8;
+  --ds-env-3:#6cc4f0; --ds-env-3-subtle:#0e2436; --ds-env-3-fg:#b9e4fb;
+}
+.mono-ish{font-family:var(--font-mono); font-size:.88em;}
+.ds-nav-demo{display:flex; flex-direction:column;}
+.ds-bar{
+  display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  border:1px solid var(--border); border-radius:10px;
+  background:var(--card); padding:10px 14px;
+  font-family:var(--font-ui); font-size:13px;
+}
+.ds-mark{font-weight:600; letter-spacing:-.02em;}
+.ds-ws{display:inline-flex; align-items:center; gap:6px; color:var(--muted-foreground);}
+.ds-ws-sep{color:var(--border);}
+.ds-caret{font-size:9px; opacity:.75;}
+.ds-link{padding:5px 9px; border-radius:6px; color:var(--muted-foreground);}
+.ds-ops{
+  display:inline-flex; align-items:center; gap:4px; margin-left:auto;
+  border:2px solid var(--border); border-radius:8px; padding:3px 5px 3px 8px;
+}
+.ds-ops--prod{border-color:var(--ds-env-prod); background:var(--ds-env-prod); color:var(--ds-env-prod-fg);}
+.ds-ops--slot1{border-color:var(--ds-env-1); background:var(--ds-env-1-subtle); color:var(--ds-env-1-fg);}
+.ds-ops--slot2{border-color:var(--ds-env-2); background:var(--ds-env-2-subtle); color:var(--ds-env-2-fg);}
+.ds-ops-title{font-weight:600; text-decoration:underline; text-decoration-thickness:2px; text-underline-offset:5px; padding:0 4px;}
+.ds-ops-env{display:inline-flex; align-items:center; gap:5px; padding:3px 7px; border-radius:6px; font-weight:600;}
+.ds-ops-div{width:1px; height:18px; margin:0 4px; background:currentColor;}
+.ds-ops-exit{padding:3px 8px; border-radius:6px; font-weight:600;}
+.ds-menu{border:1px solid var(--border); border-radius:10px; background:var(--popover); padding:10px; font-family:var(--font-ui); font-size:13px;}
+.ds-menu-legend{font-size:10.5px; letter-spacing:.1em; text-transform:uppercase; color:var(--muted-foreground); padding:2px 6px 8px;}
+.ds-menu-row{display:flex; align-items:center; gap:8px; padding:5px 6px; border-radius:6px;}
+.ds-check{width:14px; text-align:center; color:var(--primary);}
+.ds-pill{border:2px solid transparent; border-radius:6px; padding:2px 9px; font-weight:600; font-size:12px;}
+.ds-pill--prod{border-color:var(--ds-env-prod); background:var(--ds-env-prod); color:var(--ds-env-prod-fg);}
+.ds-pill--slot1{border-color:var(--ds-env-1); background:var(--ds-env-1-subtle); color:var(--ds-env-1-fg);}
+.ds-pill--slot2{border-color:var(--ds-env-2); background:var(--ds-env-2-subtle); color:var(--ds-env-2-fg);}
+.ds-pill--slot3{border-color:var(--ds-env-3); background:var(--ds-env-3-subtle); color:var(--ds-env-3-fg);}
+.ds-rail{
+  border:1px solid var(--border); border-radius:10px; background:var(--muted);
+  padding:12px 10px; display:flex; flex-direction:column; gap:3px;
+  font-family:var(--font-ui); font-size:13px; max-width:260px;
+}
+.ds-rail-row{border-left:3px solid transparent; border-radius:6px; padding:6px 8px; color:var(--muted-foreground);}
+.ds-rail-row--current{
+  border-left-color:var(--primary); border-radius:0;
+  background:var(--info-surface); color:var(--primary); font-weight:600;
+}
+.ds-rail-sep{height:1px; margin:7px 2px; background:var(--border);}
+.ds-rail-filters{margin-top:10px; padding-top:10px; border-top:1px solid var(--border); display:flex; flex-direction:column; gap:8px;}
+.ds-rail-field{display:flex; flex-direction:column; gap:4px; font-size:11.5px; color:var(--muted-foreground);}
+.ds-rail-input{height:26px; border:1px solid var(--input); border-radius:4px; background:var(--card);}
+@media (max-width:760px){ .ds-ops{margin-left:0;} }
 </style>
 
 <!-- ============================== TOP BAR ============================== -->
@@ -269,6 +340,7 @@ footer .fnote{font-family:var(--font-mono); font-size:11.5px; max-width:70ch;}
     <nav class="topnav" aria-label="Sections">
       <a href="#seats">Seats</a>
       <a href="#foundations">Foundations</a>
+      <a href="#operator-nav">Operator navigation</a>
     </nav>
     <button class="toggle" id="themeToggle" type="button" aria-pressed="false" aria-label="Toggle light and dark theme">
       <span class="ico" id="toggleIco" aria-hidden="true"></span>
@@ -559,9 +631,131 @@ footer .fnote{font-family:var(--font-mono); font-size:11.5px; max-width:70ch;}
   </div>
 </section>
 
+<!-- ============================== OPERATOR NAVIGATION ============================== -->
+<section id="operator-nav">
+  <div class="wrap">
+    <div class="eyebrow">QCMS seat</div>
+    <h2 class="sec-title">Operations, environments and workspaces in one top bar</h2>
+    <p class="sec-lede">The QCMS top bar is the application navigation. Operations is the one area that acts on live respondent data, so it names itself, its environment and its way out as a single group in that bar: one object to read, one colour to notice. Workspaces is a scope, not a colour, and sits beside the wordmark.</p>
+
+    <div style="margin-top:40px;">
+      <div class="block-title">The Operations group</div>
+      <p class="block-note" style="margin-top:8px;">The area title, the environment trigger, a divider and Exit, inside one bordered group that takes the environment's colour. It replaces the Operations navigation item while the operator is in the area, so the area is named once. The group is the indicator: it carries the border and the fill, the chip inside it is transparent and writes the name, and the bar itself draws no edge.</p>
+      <div class="ds-nav-demo" style="margin-top:20px;">
+        <div class="ds-bar">
+          <span class="ds-mark">QCMS</span>
+          <span class="ds-ws"><span class="ds-ws-sep">/</span>Acme insurance<span class="ds-caret">&#9662;</span></span>
+          <span class="ds-link">Questions</span>
+          <span class="ds-link">Forms</span>
+          <span class="ds-link">Workspaces</span>
+          <span class="ds-ops ds-ops--prod">
+            <span class="ds-ops-title">Operations</span>
+            <span class="ds-ops-env">prod<span class="ds-caret">&#9662;</span></span>
+            <span class="ds-ops-div" aria-hidden="true"></span>
+            <span class="ds-ops-exit">Exit</span>
+          </span>
+        </div>
+        <div class="ds-bar" style="margin-top:12px;">
+          <span class="ds-mark">QCMS</span>
+          <span class="ds-ws"><span class="ds-ws-sep">/</span>Acme insurance<span class="ds-caret">&#9662;</span></span>
+          <span class="ds-link">Questions</span>
+          <span class="ds-link">Forms</span>
+          <span class="ds-link">Workspaces</span>
+          <span class="ds-ops ds-ops--slot1">
+            <span class="ds-ops-title">Operations</span>
+            <span class="ds-ops-env">staging<span class="ds-caret">&#9662;</span></span>
+            <span class="ds-ops-div" aria-hidden="true"></span>
+            <span class="ds-ops-exit">Exit</span>
+          </span>
+        </div>
+        <div class="ds-bar" style="margin-top:12px;">
+          <span class="ds-mark">QCMS</span>
+          <span class="ds-ws"><span class="ds-ws-sep">/</span>Acme insurance<span class="ds-caret">&#9662;</span></span>
+          <span class="ds-link">Questions</span>
+          <span class="ds-link">Forms</span>
+          <span class="ds-link">Workspaces</span>
+          <span class="ds-ops ds-ops--slot2">
+            <span class="ds-ops-title">Operations</span>
+            <span class="ds-ops-env">test<span class="ds-caret">&#9662;</span></span>
+            <span class="ds-ops-div" aria-hidden="true"></span>
+            <span class="ds-ops-exit">Exit</span>
+          </span>
+        </div>
+      </div>
+      <div class="meta-row" style="margin-top:18px;">
+        <span class="chip"><span class="dot" style="background:var(--ds-env-prod);"></span>prod: solid fill</span>
+        <span class="chip"><span class="dot" style="background:var(--ds-env-1);"></span>slot 1: outlined on a tint</span>
+        <span class="chip"><span class="dot" style="background:var(--ds-env-2);"></span>slot 2, and so on to 6</span>
+        <span class="chip">The group takes the 2px border in every state</span>
+        <span class="chip">The name is always written (WCAG 1.4.1)</span>
+        <span class="chip">No bar edge, no second line</span>
+      </div>
+    </div>
+
+    <div class="grid-2" style="margin-top:40px;">
+      <div class="demo-box">
+        <div class="block-title">The environment menu</div>
+        <p class="block-note" style="margin-top:8px;">The trigger is a labelled dropdown, not a toggle: a set of two is as likely as a set of six. Production is always its own colour, and the rest take the tints 1 to 6 in list order, then repeat, so two non-prod environments never read as the same place. Each row is its own chip, so the colour that will tint the group is visible before the switch, and the current row carries the check.</p>
+        <div class="ds-menu" style="margin-top:16px;">
+          <div class="ds-menu-legend">Environment</div>
+          <div class="ds-menu-row"><span class="ds-check">&#10003;</span><span class="ds-pill ds-pill--prod">prod</span></div>
+          <div class="ds-menu-row"><span class="ds-check"></span><span class="ds-pill ds-pill--slot1">staging</span></div>
+          <div class="ds-menu-row"><span class="ds-check"></span><span class="ds-pill ds-pill--slot2">test</span></div>
+          <div class="ds-menu-row"><span class="ds-check"></span><span class="ds-pill ds-pill--slot3">sandbox</span></div>
+        </div>
+        <p class="block-note" style="margin-top:14px;">Switching announces itself in a live region ("Now working in test."), and a destructive confirmation restates the environment, because targeting the wrong one cannot be undone.</p>
+      </div>
+
+      <div class="demo-box">
+        <div class="block-title">The workspace switcher</div>
+        <p class="block-note" style="margin-top:8px;">Right after the wordmark, because it scopes everything to its right. It is drawn in neutrals and never in colour: colour means environment here, and a workspace is not a risk. It appears only where there is a choice, so a single-workspace installation sees no control.</p>
+        <div class="ds-nav-demo" style="margin-top:16px;">
+          <div class="ds-bar" style="border:0; padding:0;">
+            <span class="ds-mark">QCMS</span>
+            <span class="ds-ws"><span class="ds-ws-sep">/</span>Acme insurance<span class="ds-caret">&#9662;</span></span>
+          </div>
+        </div>
+        <p class="block-note" style="margin-top:14px;">Choosing a workspace reloads the document rather than pushing a route: every rail and list is rendered from that choice on the server, so a client refresh would leave some of them a step behind.</p>
+      </div>
+    </div>
+
+    <div style="margin-top:40px;">
+      <div class="block-title">The Operations rail</div>
+      <p class="block-note" style="margin-top:8px;">A list rail holds the area's own destinations and its filters, and nothing else: no "All" row back to the screen it is on and no "New" row, because the list is already here and Operations creates nothing. Operations keeps its two installation-wide queues, then the current workspace's forms, then the filters.</p>
+      <div class="grid-2" style="margin-top:20px;">
+        <div>
+          <aside class="ds-rail" aria-label="Operations">
+            <div class="ds-rail-row">Delivery failures</div>
+            <div class="ds-rail-row">Erasure log</div>
+            <div class="ds-rail-sep" aria-hidden="true"></div>
+            <div class="ds-rail-row ds-rail-row--current">Vehicle insurance</div>
+            <div class="ds-rail-row">Home contents</div>
+            <div class="ds-rail-filters">
+              <div class="ds-rail-field"><span>Search</span><span class="ds-rail-input"></span></div>
+              <div class="ds-rail-field"><span>Intake</span><span class="ds-rail-input"></span></div>
+              <div class="ds-rail-field"><span>Sort</span><span class="ds-rail-input"></span></div>
+            </div>
+          </aside>
+        </div>
+        <div>
+          <div class="meta-row" style="margin-top:0;">
+            <span class="chip">240px, under the bar, scrolling on its own</span>
+            <span class="chip">One current row: tint, weight 600, 3px accent edge</span>
+            <span class="chip">Filters are a form named "Filters", with no visible title</span>
+            <span class="chip">An area rail carries no back link and no title</span>
+          </div>
+          <p class="block-note" style="margin-top:18px;">The trail in the content column starts below the area in Operations, because the group in the bar has already named it. The row is still drawn and still spends its line, so no column starts higher than another.</p>
+        </div>
+      </div>
+    </div>
+
+    <p class="block-note" style="margin-top:28px;">Records: the rulings are in <span class="mono-ish">plan/admin-design-contracts.md</span> &sect;7.00 and &sect;7.01, and the as-built detail is in <span class="mono-ish">plan/environment-navigation-implementation.md</span>.</p>
+  </div>
+</section>
+
 <footer>
   <div class="wrap">
-    <p class="fnote">QCMS Design System / shared foundations / v0.1. Every color pair on this page meets WCAG 2.2 AA in both themes (4.5:1 body text, 3:1 large and UI). Fonts are system stacks: no external requests. Component vocabulary, product mockups, and per-seat rules live in the Portal and QCMS design docs.</p>
+    <p class="fnote">QCMS Design System / shared foundations / v0.1. Every color pair on this page meets WCAG 2.2 AA in both themes (4.5:1 body text, 3:1 large and UI). Fonts are system stacks: no external requests. Component vocabulary and product mockups live in the Portal and QCMS design docs; the operator navigation above is the QCMS seat's own chrome, recorded here because both seats read this page.</p>
   </div>
 </footer>
 

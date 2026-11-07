@@ -18,6 +18,7 @@ export {
   Form,
   I18nProvider,
   Menu,
+  MenuItemText,
   NumberField,
   RadioButton,
   RadioField,

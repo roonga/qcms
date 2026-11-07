@@ -32,6 +32,7 @@ describe("the environment chip", () => {
       expect(control.getAttribute("data-environment")).toBe(environment);
       expect(control.getAttribute("data-kind")).toBe(kind);
       expect(control.textContent).toContain(environment);
+      expect(control.querySelector(".qcms-envchip")?.getAttribute("data-kind")).toBe(kind);
       expect(
         screen.getByRole("button", { name: t("environment.trigger", { environment }) }),
       ).toBeTruthy();
@@ -57,5 +58,27 @@ describe("the environment chip", () => {
     expect(control.getAttribute("data-kind")).toBe("nonprod");
     expect(document.cookie).toContain(`${ENVIRONMENT_COOKIE}=test`);
     expect(refresh).toHaveBeenCalled();
+  });
+});
+
+describe("the environment dropdown", () => {
+  it("labels the slot and offers the change on the trigger", () => {
+    const { control } = chip("prod");
+    expect(control.textContent).toContain(t("environment.legend"));
+    const trigger = screen.getByRole("button");
+    expect(trigger.getAttribute("aria-haspopup")).not.toBeNull();
+    expect(trigger.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("offers one radio row per environment, named by its chip, with a check on the current one", async () => {
+    const user = userEvent.setup();
+    chip("prod");
+    await user.click(screen.getByRole("button"));
+
+    const rows = screen.getAllByRole("menuitemradio");
+    expect(rows.map((row) => row.getAttribute("aria-checked"))).toEqual(["true", "false", "false"]);
+    expect(screen.getByRole("menuitemradio", { name: "prod" }).querySelector("svg")).not.toBeNull();
+    expect(screen.getByRole("menuitemradio", { name: "staging" }).querySelector("svg")).toBeNull();
+    expect(screen.getByRole("menu").getAttribute("aria-label")).toBe(t("environment.legend"));
   });
 });

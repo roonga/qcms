@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 
+import { HelpTip } from "@/components/help-tip";
 import { Alert, Button } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
 import { HeadingMarker } from "@/components/agent/heading-marker";
@@ -29,11 +30,11 @@ export function MembersPanel({
 
   return (
     <section aria-labelledby="qcms-members-heading" className="flex min-w-0 flex-col gap-3">
-      <div className="flex flex-col gap-1">
+      <div className="flex flex-wrap items-center gap-2">
         <h1 id="qcms-members-heading" className="text-xl font-semibold text-(--color-text)">
           {t("membership.members.heading")}
         </h1>
-        <p className="text-sm text-(--color-text-muted)">{t("membership.members.intro")}</p>
+        <HelpTip>{t("membership.members.intro")}</HelpTip>
       </div>
 
       {members === undefined && (

@@ -4,7 +4,13 @@ import {
   HONEYPOT_NODE_TYPE,
 } from "@roonga/qcms-a2ui-compiler";
 import { parseQuestionDefinition, QuestionId } from "@roonga/qcms-core";
-import { SEED_WORKSPACE_ID, createQuestion, createQuestionVersion } from "@roonga/qcms-db";
+import {
+  SEED_WORKSPACE_ID,
+  authOrganization,
+  createQuestion,
+  createQuestionVersion,
+  setWorkspaceShared,
+} from "@roonga/qcms-db";
 import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -12,7 +18,13 @@ import { createApp } from "../../app.js";
 import type { Deps } from "../../deps.js";
 import { registerGrantCheck } from "../membership/middleware.js";
 import { ADMIN_SESSION_HEADER, registerAdminAuth } from "../../middleware/admin-auth.js";
-import { internalTokenFor, makeDeps, seedAdminSession, validEnv } from "../../test-support.js";
+import {
+  internalTokenFor,
+  makeDeps,
+  seedAdminSession,
+  seedGrants,
+  validEnv,
+} from "../../test-support.js";
 import { registerQuestions } from "./route.js";
 
 const ADMIN_ONLY = { public: false, internal: false, admin: true } as const;
@@ -22,6 +34,7 @@ let deps: Deps;
 let app: ReturnType<typeof createApp>;
 let internalToken: string;
 let adminSessionToken: string;
+let adminUserId: string;
 
 beforeAll(async () => {
   testDb = await startTestDb();
@@ -30,7 +43,9 @@ beforeAll(async () => {
     groups: { admin: [registerAdminAuth, registerGrantCheck, registerQuestions] },
   });
   internalToken = internalTokenFor(deps.config);
-  adminSessionToken = (await seedAdminSession(testDb.db)).token;
+  const session = await seedAdminSession(testDb.db);
+  adminSessionToken = session.token;
+  adminUserId = session.userId;
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
 afterAll(async () => {
@@ -454,6 +469,126 @@ describe("GET /admin/questions - summary, status filter, search", () => {
 
     it("refuses a value the parameter does not define", async () => {
       expect((await get("/questions?versions=some")).status).toBe(400);
+    });
+  });
+
+  describe("?workspaceId", () => {
+    const OTHER = "org_q_other";
+    const LIBRARY = "org_q_library";
+
+    beforeAll(async () => {
+      for (const [id, slug] of [
+        [OTHER, "q-other"],
+        [LIBRARY, "q-library"],
+      ] as const) {
+        await testDb.db
+          .insert(authOrganization)
+          .values({ id, name: slug, slug })
+          .onConflictDoNothing({ target: authOrganization.id });
+      }
+      await setWorkspaceShared(testDb.db, LIBRARY, true);
+      // These assertions are about narrowing a read, not about reaching a workspace, so the
+      // caller holds both: a narrow to a workspace they hold nothing in is empty by design.
+      for (const workspaceId of [OTHER, LIBRARY]) {
+        await seedGrants(testDb.db, { userId: adminUserId, workspaceId });
+      }
+
+      for (const [workspaceId, id, slug] of [
+        [OTHER, "q_ws_other", "ws-other"],
+        [LIBRARY, "q_ws_shared", "ws-shared"],
+      ] as const) {
+        const questionId = QuestionId.parse(id);
+        const parsed = parseQuestionDefinition(shortText(id, slug));
+        if (!parsed.ok) throw new Error(`workspace fixture ${id} did not parse`);
+        await createQuestion(testDb.db, { workspaceId, questionId, slug });
+        await createQuestionVersion(testDb.db, { questionId, definition: parsed.value });
+      }
+    });
+
+    // Put the installation back to one workspace: authoring a new object refuses to guess
+    // between several, so a workspace left behind here fails every later create.
+    afterAll(async () => {
+      await setWorkspaceShared(testDb.db, LIBRARY, false);
+      await testDb.client.query(
+        `delete from control.question_versions where question_id = any($1::text[])`,
+        [["q_ws_other", "q_ws_shared"]],
+      );
+      await testDb.client.query(
+        `delete from control.questions where question_id = any($1::text[])`,
+        [["q_ws_other", "q_ws_shared"]],
+      );
+      await testDb.client.query(`delete from control."organization" where id = any($1::text[])`, [
+        [OTHER, LIBRARY],
+      ]);
+    });
+
+    async function idsOf(path: string): Promise<string[]> {
+      const body = (await (await get(path)).json()) as {
+        questions: Array<{ questionId: string }>;
+      };
+      return body.questions.map((q) => q.questionId);
+    }
+
+    async function idsFor(token: string, path: string): Promise<string[]> {
+      const response = await app.request(`/admin${path}`, {
+        headers: authHeaders({ [ADMIN_SESSION_HEADER]: token }),
+      });
+      expect(response.status, `${path} is readable by this caller`).toBe(200);
+      const body = (await response.json()) as { questions: Array<{ questionId: string }> };
+      return body.questions.map((q) => q.questionId);
+    }
+
+    it("names each row's owning workspace", async () => {
+      const body = (await (await get("/questions")).json()) as {
+        questions: Array<{ questionId: string; workspaceId: string }>;
+      };
+      expect(body.questions.find((q) => q.questionId === "q_ws_other")?.workspaceId).toBe(OTHER);
+      expect(body.questions.find((q) => q.questionId === "q_list_apple")?.workspaceId).toBe(
+        SEED_WORKSPACE_ID,
+      );
+    });
+
+    it("narrows to the workspace named, shared library included", async () => {
+      expect(await idsOf(`/questions?workspaceId=${OTHER}`)).toEqual(["q_ws_other"]);
+      expect(await idsOf(`/questions?workspaceId=${LIBRARY}`)).toEqual(["q_ws_shared"]);
+    });
+
+    it("puts the shared library back beside it only when asked", async () => {
+      expect(await idsOf(`/questions?workspaceId=${OTHER}&shared=include`)).toEqual([
+        "q_ws_other",
+        "q_ws_shared",
+      ]);
+    });
+
+    it("spans every readable workspace when none is named", async () => {
+      const every = await idsOf("/questions");
+      expect(every).toContain("q_ws_other");
+      expect(every).toContain("q_ws_shared");
+      expect(every).toContain("q_list_apple");
+    });
+
+    it("refuses a value the parameter does not define", async () => {
+      expect((await get(`/questions?workspaceId=${OTHER}&shared=yes`)).status).toBe(400);
+    });
+
+    it("reads empty when a scoped caller names a workspace they hold nothing in", async () => {
+      const scoped = await seedAdminSession(testDb.db, {
+        label: "ws_scoped",
+        claim: false,
+        owner: false,
+      });
+
+      // The same caller, so an empty answer below is the narrowing and not a refusal.
+      expect(await idsFor(scoped.token, `/questions?workspaceId=${SEED_WORKSPACE_ID}`)).toContain(
+        "q_list_apple",
+      );
+
+      expect(await idsFor(scoped.token, `/questions?workspaceId=${OTHER}`)).toEqual([]);
+      // Still empty: the shared library joins a narrowed read only where something is held.
+      expect(await idsFor(scoped.token, `/questions?workspaceId=${OTHER}&shared=include`)).toEqual(
+        [],
+      );
+      expect(await idsFor(scoped.token, `/questions?workspaceId=${LIBRARY}`)).toEqual([]);
     });
   });
 });

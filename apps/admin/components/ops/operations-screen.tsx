@@ -5,7 +5,7 @@ import { Alert } from "@/components/kit";
 import { OperationsFormsTable } from "@/components/ops/operations-forms-table";
 import { DeniedRecovery } from "@/components/shell/denied-recovery";
 import { shownEnvironment } from "@/lib/environment";
-import { t, tPlural } from "@/lib/i18n/en";
+import { t } from "@/lib/i18n/en";
 import {
   operationsApiQuery,
   operationsClearHref,
@@ -18,18 +18,14 @@ import { resolvedEnvironment } from "@/lib/server/environments";
 import { listOperationsForms } from "@/lib/server/operations";
 import { navigableCapabilities, shellAccess } from "@/lib/server/shell";
 import { requireAdminSession } from "@/lib/server/session";
+import { currentWorkspaceId } from "@/lib/server/workspace-context";
 import { permitsPath } from "@/lib/shell/modes";
 
 /** The heading this area keeps while its discovery read is in flight. */
 export function OperationsLoading() {
   return (
     <div className="flex min-w-0 flex-col gap-6" data-testid="qcms-operations-loading">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-xl font-semibold text-(--color-text)">
-          {t("shell.mode.operations.name")}
-        </h1>
-        <p className="text-sm text-(--color-text-muted)">{t("operations.intro")}</p>
-      </div>
+      <h1 className="sr-only">{t("shell.mode.operations.name")}</h1>
       <p className="text-sm text-(--color-text-muted)" role="status">
         {t("operations.loading")}
       </p>
@@ -48,23 +44,21 @@ export async function OperationsScreen({
     return <DeniedRecovery capabilities={capabilities} />;
   }
 
-  const resolved = await resolvedEnvironment(session);
+  const [resolved, workspaceId] = await Promise.all([
+    resolvedEnvironment(session),
+    currentWorkspaceId(session),
+  ]);
   const environment = shownEnvironment(resolved);
   const read = readOperationsListState(await searchParams);
   const state = environment === undefined ? read : operationsInEnvironment(read, environment);
   const result =
     environment === undefined
       ? undefined
-      : await listOperationsForms(session, operationsApiQuery(state, environment));
+      : await listOperationsForms(session, operationsApiQuery(state, environment, workspaceId));
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-xl font-semibold text-(--color-text)">
-          {t("shell.mode.operations.name")}
-        </h1>
-        <p className="text-sm text-(--color-text-muted)">{t("operations.intro")}</p>
-      </div>
+      <h1 className="sr-only">{t("shell.mode.operations.name")}</h1>
 
       {environment === undefined && (
         <Alert variant="warning">{t("operations.environmentUnknown")}</Alert>
@@ -81,9 +75,6 @@ export async function OperationsScreen({
           <NoForms state={state} />
         ) : (
           <div className="flex flex-col gap-2">
-            <p className="text-sm text-(--color-text-muted)" data-testid="qcms-operations-count">
-              {tPlural("operations.count.one", "operations.count.other", result.page.total)}
-            </p>
             <OperationsFormsTable rows={result.page.forms} />
             <Pager state={state} next={result.page.nextCursor} />
           </div>

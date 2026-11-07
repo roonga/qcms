@@ -3,6 +3,7 @@
 import { useId } from "react";
 
 import { EntityId } from "@/components/entity-id";
+import { HelpTip } from "@/components/help-tip";
 import { Alert, Button } from "@/components/kit";
 import { columnTypeNote, tableColumnRows } from "@/lib/forms/table-columns";
 import type { DraftPin, PinnableQuestion } from "@/lib/forms/types";
@@ -29,14 +30,15 @@ export function TableColumnView({
       className="rounded-md border border-(--color-border) bg-(--color-surface) p-4"
       data-testid="table-column-view"
     >
-      <h3 id={headingId} className="text-base font-semibold text-(--color-text)">
-        {t("forms.columns.title")}
-      </h3>
+      <div className="flex flex-wrap items-center gap-2">
+        <h3 id={headingId} className="text-base font-semibold text-(--color-text)">
+          {t("forms.columns.title")}
+        </h3>
+        <HelpTip>
+          <span data-testid="column-type-note">{columnTypeNote()}</span>
+        </HelpTip>
+      </div>
       <div className="mt-3 flex flex-col gap-4">
-        <p className="text-sm text-(--color-text-muted)">{t("forms.columns.description")}</p>
-        <p className="text-sm text-(--color-text-muted)" data-testid="column-type-note">
-          {columnTypeNote()}
-        </p>
         {refused.length === 0 ? null : (
           <div data-testid="column-types-refused">
             <Alert variant="warning">{t("forms.columns.refusedHint")}</Alert>

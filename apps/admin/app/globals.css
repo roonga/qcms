@@ -189,14 +189,13 @@ button {
   color: var(--color-text);
 }
 
-/* Every slot keeps its size in every area, so entering Operations moves nothing: the Exit and environment
-   slots stand empty elsewhere and the navigation scrolls rather than wraps. */
+/* The navigation scrolls rather than wraps. */
 .qcms-topbar__inner {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   grid-template-areas:
-    "brand . env tools"
-    "nav nav exit exit";
+    "brand . tools"
+    "workspace nav nav";
   grid-auto-rows: minmax(var(--admin-control-h), auto);
   align-items: center;
   column-gap: var(--space-2);
@@ -214,22 +213,13 @@ button {
 /* The inset keeps focus rings inside the scroll clip. */
 .qcms-topbar__nav {
   grid-area: nav;
+  /* Containing block for the live regions inside the bar: an absolute box whose containing block
+     sits outside this scroller escapes the clip and lengthens the page's own sideways scroll. */
+  position: relative;
   min-inline-size: 0;
   margin: -4px;
   padding: 4px;
   overflow-x: auto;
-}
-.qcms-topbar__exit {
-  grid-area: exit;
-  display: flex;
-  justify-content: flex-end;
-  min-inline-size: 0;
-}
-.qcms-topbar__env {
-  grid-area: env;
-  display: flex;
-  justify-content: flex-end;
-  inline-size: 6rem;
 }
 .qcms-topbar__tools {
   grid-area: tools;
@@ -240,18 +230,103 @@ button {
 }
 @variant sidebar {
   .qcms-topbar__inner {
-    grid-template-columns: auto auto minmax(0, 1fr) auto auto auto;
-    grid-template-areas: "toggle brand nav exit env tools";
+    grid-template-columns: auto auto auto minmax(0, 1fr) auto;
+    grid-template-areas: "toggle brand workspace nav tools";
     column-gap: var(--space-3);
-  }
-  .qcms-topbar__exit {
-    inline-size: 9rem;
-  }
-  .qcms-topbar__env {
-    inline-size: 8rem;
   }
   .qcms-topbar__toggle {
     display: flex;
+  }
+}
+
+/* The current workspace, right after the wordmark: never a colour, which stays for environments. */
+.qcms-wsswitch {
+  grid-area: workspace;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+.qcms-wsswitch__sep {
+  display: none;
+  flex: none;
+  color: var(--color-text-muted);
+  font-size: 14px;
+}
+.qcms-wsswitch__divider {
+  flex: none;
+  inline-size: 1px;
+  block-size: 20px;
+  background-color: var(--color-border-strong);
+}
+.qcms-wsswitch__trigger {
+  min-block-size: var(--admin-control-h);
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-inline: var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.qcms-wsswitch__trigger:hover,
+.qcms-wsswitch__trigger[data-hovered],
+.qcms-wsswitch__trigger[aria-expanded="true"] {
+  background-color: var(--color-ghost-hover);
+}
+:root.hc .qcms-wsswitch__trigger {
+  border-width: 2px;
+}
+.qcms-wsswitch__glyph,
+.qcms-wsswitch__caret {
+  flex: none;
+  color: var(--color-text-muted);
+}
+/* The name truncates rather than pushing the navigation off the row; the tooltip and the menu carry it whole. */
+.qcms-wsswitch__name {
+  min-inline-size: 0;
+  max-inline-size: 40vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* The menu writes each name in full, so a long one wraps rather than truncating twice. */
+.qcms-wsmenu {
+  min-inline-size: var(--trigger-width, 0);
+  max-inline-size: 22rem;
+}
+.qcms-wsmenu__item {
+  block-size: auto;
+  align-items: flex-start;
+}
+.qcms-wsmenu__row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  white-space: normal;
+}
+.qcms-wsmenu__check {
+  display: inline-flex;
+  flex: none;
+  inline-size: 16px;
+  block-size: 16px;
+  color: var(--color-primary);
+}
+@variant sidebar {
+  .qcms-wsswitch__sep {
+    display: inline;
+  }
+  .qcms-wsswitch__divider {
+    display: none;
+  }
+  .qcms-wsswitch__name {
+    max-inline-size: 15rem;
   }
 }
 
@@ -290,35 +365,79 @@ button {
   border-inline-start: 1px solid var(--color-border);
 }
 
-.qcms-modeheader {
-  display: flex;
-  flex-wrap: wrap;
+.qcms-opsbar {
+  display: inline-flex;
   align-items: center;
-  gap: var(--space-3);
-  min-inline-size: 0;
+  gap: var(--space-1);
+  min-block-size: var(--admin-control-h);
+  padding-inline: var(--space-2) var(--space-1);
+  border: 2px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background-color: var(--color-surface);
+  color: var(--color-text);
 }
-.qcms-modeheader__name {
+.qcms-opsbar:has(.qcms-envswitch[data-kind="prod"]) {
+  border-color: var(--color-env-prod);
+  background-color: var(--color-env-prod);
+  color: var(--color-env-prod-foreground);
+}
+.qcms-opsbar:has(.qcms-envswitch[data-kind="nonprod"]) {
+  border-color: var(--color-env-test);
+  background-color: var(--color-env-test-subtle);
+  color: var(--color-env-test-fg);
+}
+.qcms-opsbar__title {
+  padding-inline: var(--space-1);
+  color: inherit;
   font-size: 14px;
   font-weight: 600;
-  color: var(--color-text);
-}
-.qcms-modeheader__exit {
-  display: inline-block;
-  max-inline-size: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 6px;
   white-space: nowrap;
-  line-height: calc(var(--admin-control-h) - 2px);
-  min-block-size: var(--admin-control-h);
-  padding-inline: var(--space-3);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-control);
-  color: var(--color-text);
-  font-size: 14px;
-  text-decoration: none;
 }
-.qcms-modeheader__exit:hover {
-  background-color: var(--color-ghost-hover);
+.qcms-opsbar__divider {
+  flex: none;
+  inline-size: 1px;
+  block-size: 20px;
+  margin-inline: var(--space-1);
+  background-color: currentColor;
+}
+:root.hc .qcms-opsbar__divider {
+  inline-size: 2px;
+}
+.qcms-opsbar__exit {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 32px;
+  padding-inline: var(--space-2);
+  border-radius: var(--radius-control);
+  color: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.qcms-opsbar__exit:hover,
+.qcms-opsbar .qcms-envtrigger[data-hovered],
+.qcms-opsbar .qcms-envtrigger[aria-expanded="true"] {
+  background-color: color-mix(in srgb, currentColor 16%, transparent);
+}
+.qcms-opsbar .qcms-envswitch__label {
+  display: none;
+}
+.qcms-opsbar .qcms-envtrigger {
+  min-block-size: 32px;
+  border: 0;
+  background-color: transparent;
+  color: inherit;
+}
+.qcms-opsbar .qcms-envswitch .qcms-envchip {
+  min-inline-size: 0;
+  padding-inline: 0;
+  border-color: transparent;
+  background-color: transparent;
+  color: inherit;
 }
 
 .qcms-card {
@@ -440,8 +559,7 @@ button {
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 1px;
 }
-.qcms-appearance__hint,
-.qcms-appearance__note {
+.qcms-appearance__hint {
   margin: 0;
   font-size: 11px;
   line-height: 16px;
@@ -491,61 +609,6 @@ button {
 .qcms-appearance__switchbutton[data-focus-visible] .qcms-appearance__track {
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
-}
-
-.qcms-appearance__preview {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--space-1);
-}
-.qcms-appearance__tile {
-  display: grid;
-  gap: var(--space-0-5);
-  padding: 0;
-  border: none;
-  background: none;
-  min-block-size: 0;
-  cursor: pointer;
-  text-align: center;
-}
-.qcms-themepreview {
-  display: grid;
-  gap: 2px;
-  padding: var(--space-1);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background-color: var(--color-background);
-}
-.qcms-themepreview__bar {
-  block-size: 4px;
-  border-radius: 1px;
-  background-color: var(--color-primary);
-}
-.qcms-themepreview__text {
-  block-size: 8px;
-  border-radius: 1px;
-  background-color: var(--color-text);
-}
-.qcms-appearance__tile[data-current="true"] .qcms-themepreview {
-  border-width: 2px;
-  border-color: var(--color-border-strong);
-}
-.qcms-appearance__tilecaption {
-  display: block;
-  font-size: 11px;
-  line-height: 16px;
-  color: var(--color-text-muted);
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.qcms-appearance__tile[data-current="true"] .qcms-appearance__tilecaption {
-  color: var(--color-text);
-  font-weight: 600;
-}
-.qcms-appearance__tilecheck {
-  margin-inline-end: 2px;
-  font-weight: 600;
 }
 
 .qcms-avatar {
@@ -2112,8 +2175,10 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   padding-block-start: var(--admin-section-pad);
 }
 /* One line at every width, so the heading below starts at the same height on every screen. The inset
-   keeps focus rings inside the clip. */
+   keeps focus rings inside the clip, and content-box keeps the minimum about the line rather than
+   the line plus that inset, so a row with no trail in it is still exactly as tall. */
 .qcms-crumbs__list {
+  box-sizing: content-box;
   display: flex;
   align-items: center;
   min-block-size: 1.25rem;
@@ -2244,8 +2309,11 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
 }
 
 .qcms-rail__body {
-  padding-inline: 0.5rem;
+  padding-inline: 0;
   padding-block-end: 1rem;
+}
+.qcms-rail__body > :not(nav) {
+  padding-inline: 0.5rem;
 }
 
 @media (width < 64rem) {
@@ -2400,6 +2468,10 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
 :root.hc .qcms-rail__filters {
   border-color: var(--color-border-strong);
 }
+.qcms-rail__filters:first-child {
+  margin-block-start: 0;
+  border-block-start: 0;
+}
 .qcms-rail__filters-title {
   display: flex;
   align-items: center;
@@ -2454,7 +2526,8 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   gap: 0.5rem;
   padding-inline: 0.5rem;
   padding-block: var(--space-2);
-  border-inline-start: 2px solid transparent;
+  border-inline-start: 3px solid transparent;
+  border-block: 1px solid transparent;
   border-radius: var(--radius-control);
   color: var(--color-text);
   font-size: 0.875rem;
@@ -2468,14 +2541,16 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
 }
 .qcms-rail__link[aria-current="page"] {
   border-inline-start-color: var(--color-primary);
+  border-radius: 0;
   background-color: var(--color-info-subtle);
-  color: var(--color-info-fg);
+  color: var(--color-primary);
   font-weight: 600;
 }
 .qcms-rail__link[aria-current="page"]:has(~ .qcms-rail__group [aria-current="page"]),
 .qcms-rail-steps__row:has(~ .qcms-rail__group [aria-current="page"])
   .qcms-rail__link[aria-current="page"] {
-  border-inline-start-color: transparent;
+  border-color: transparent;
+  border-radius: var(--radius-control);
   background-color: transparent;
   color: var(--color-text);
   font-weight: 600;
@@ -2573,33 +2648,40 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   text-decoration: underline;
 }
 
-.qcms-rail__facts {
-  display: grid;
-  grid-template-columns: auto 1fr;
+.qcms-question-facts {
+  display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: 0.125rem 0.5rem;
-  padding-inline: 0.5rem;
-  padding-block-end: 0.5rem;
-  margin: 0;
-  font-size: 0.75rem;
+  gap: 0.25rem 1.5rem;
+  font-size: 0.875rem;
 }
-.qcms-rail__facts > dt {
+.qcms-question-facts__list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 1.5rem;
+  margin: 0;
+}
+.qcms-question-facts__list > dt {
+  display: inline;
   color: var(--color-text-muted);
-  white-space: nowrap;
 }
-.qcms-rail__facts > dd {
+.qcms-question-facts__list > dt::after {
+  content: " ";
+}
+.qcms-question-facts__list > dd {
+  display: inline;
   min-inline-size: 0;
-  margin: 0;
+  margin: 0 0.75rem 0 0;
   color: var(--color-text);
   overflow-wrap: anywhere;
 }
-.qcms-rail__facts-slug {
+.qcms-question-facts__slug {
   font-family: var(--font-mono);
 }
-
-.qcms-rail__digest {
-  padding-inline: 0.5rem;
-  margin-block-end: 0.25rem;
+.qcms-question-facts__digest {
+  margin: 0;
+  color: var(--color-text-muted);
 }
 
 /* Indent panels beneath the selected version so the two current markers express a parent and child rather
@@ -3068,60 +3150,144 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
 .qcms-envswitch {
   display: inline-flex;
   align-items: center;
-  flex-shrink: 0;
+  gap: var(--space-2);
+  min-inline-size: 0;
+  max-inline-size: 100%;
 }
-.qcms-envtrigger {
-  block-size: 32px;
-  min-block-size: 32px;
-  min-inline-size: 5.5rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.375rem;
-  padding-inline: var(--space-3);
-  border: 2px solid var(--color-border-strong);
-  border-radius: var(--radius-control);
-  background-color: var(--color-surface);
-  color: var(--color-text);
-  font-size: 11px;
+/* Hidden where the slot is too narrow for it; nothing here may spill into the trailing tools. */
+.qcms-envswitch__label {
+  display: none;
+  min-inline-size: 0;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* One chip wherever an environment is named: in the bar, in its menu and in an assistant card. */
+.qcms-envchip {
+  display: inline-block;
+  padding: 0 4px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  cursor: pointer;
-  flex-shrink: 0;
 }
-.qcms-envswitch[data-kind="prod"] .qcms-envtrigger {
+.qcms-envchip[data-kind="prod"] {
   border-color: var(--color-env-prod);
   background-color: var(--color-env-prod);
   color: var(--color-env-prod-foreground);
 }
-.qcms-envswitch[data-kind="nonprod"] .qcms-envtrigger {
+.qcms-envchip[data-kind="nonprod"] {
   border-color: var(--color-env-test);
   background-color: var(--color-env-test-subtle);
   color: var(--color-env-test-fg);
 }
-.qcms-envswitch[data-kind="unknown"] .qcms-envtrigger {
+.qcms-envchip[data-slot="1"],
+.qcms-opsbar:has(.qcms-envswitch[data-slot="1"]) {
+  border-color: var(--color-env-test);
+  background-color: var(--color-env-test-subtle);
+  color: var(--color-env-test-fg);
+}
+.qcms-envchip[data-slot="2"],
+.qcms-opsbar:has(.qcms-envswitch[data-slot="2"]) {
+  border-color: var(--color-env-2);
+  background-color: var(--color-env-2-subtle);
+  color: var(--color-env-2-fg);
+}
+.qcms-envchip[data-slot="3"],
+.qcms-opsbar:has(.qcms-envswitch[data-slot="3"]) {
+  border-color: var(--color-env-3);
+  background-color: var(--color-env-3-subtle);
+  color: var(--color-env-3-fg);
+}
+.qcms-envchip[data-slot="4"],
+.qcms-opsbar:has(.qcms-envswitch[data-slot="4"]) {
+  border-color: var(--color-env-4);
+  background-color: var(--color-env-4-subtle);
+  color: var(--color-env-4-fg);
+}
+.qcms-envchip[data-slot="5"],
+.qcms-opsbar:has(.qcms-envswitch[data-slot="5"]) {
+  border-color: var(--color-env-5);
+  background-color: var(--color-env-5-subtle);
+  color: var(--color-env-5-fg);
+}
+.qcms-envchip[data-slot="6"],
+.qcms-opsbar:has(.qcms-envswitch[data-slot="6"]) {
+  border-color: var(--color-env-6);
+  background-color: var(--color-env-6-subtle);
+  color: var(--color-env-6-fg);
+}
+.qcms-envchip[data-kind="unknown"] {
   border-style: dashed;
+}
+/* In the bar the chip is a sized target whose border weight never changes, so no state is wider. */
+.qcms-envswitch .qcms-envchip,
+.qcms-envmenu .qcms-envchip {
+  box-sizing: border-box;
+  min-inline-size: 52px;
+  block-size: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-inline: var(--space-2);
+  border-width: 2px;
+  font-size: 11px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.qcms-envtrigger {
+  min-block-size: var(--admin-control-h);
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-inline: var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font-size: 14px;
+  cursor: pointer;
+}
+.qcms-envtrigger__caret {
+  flex-shrink: 0;
 }
 .qcms-envtrigger[data-hovered],
 .qcms-envtrigger[aria-expanded="true"] {
-  box-shadow: 0 0 0 2px var(--color-border-strong);
+  background-color: var(--color-ghost-hover);
 }
 .qcms-envswitch[data-pending="true"] .qcms-envtrigger {
   opacity: 0.7;
 }
-.qcms-envtrigger--static {
-  cursor: default;
+.qcms-envmenu {
+  min-inline-size: var(--trigger-width, 0);
+  inline-size: max-content;
 }
-
-.qcms-topbar:has(.qcms-envswitch[data-kind="prod"]) {
-  box-shadow: inset 0 3px 0 var(--color-env-prod);
+.qcms-envmenu__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
-.qcms-topbar:has(.qcms-envswitch[data-kind="nonprod"]) {
-  box-shadow: inset 0 3px 0 var(--color-env-test);
+.qcms-envmenu__check {
+  display: inline-flex;
+  flex: none;
+  inline-size: 16px;
+  block-size: 16px;
+  color: var(--color-primary);
 }
-.qcms-topbar:has(.qcms-envswitch[data-kind="unknown"]) {
-  box-shadow: inset 0 3px 0 var(--color-border-strong);
+/* The slot reserves one width in every area, so the label and the word only appear where they fit. */
+@variant sidebar {
+  .qcms-envswitch__label {
+    display: inline-flex;
+  }
+  .qcms-envswitch .qcms-envchip {
+    min-inline-size: 88px;
+  }
 }
 
 .qcms-rollback {
@@ -3501,23 +3667,6 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   outline: 2px solid var(--color-focus-ring);
   outline-offset: 2px;
 }
-.qcms-envchip {
-  display: inline-block;
-  padding: 0 4px;
-  border: 1px solid var(--color-env-test);
-  border-radius: var(--radius-sm);
-  background-color: var(--color-env-test-subtle);
-  color: var(--color-env-test-fg);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-.qcms-envchip[data-kind="prod"] {
-  border-color: var(--color-env-prod);
-  background-color: var(--color-env-prod);
-  color: var(--color-env-prod-foreground);
-}
 .qcms-acard__reason {
   display: flex;
   flex-direction: column;
@@ -3667,6 +3816,71 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
 }
 :is([data-theme="hc"], [data-theme="hc-dark"]) [data-proposed="true"]:not(:focus-visible) {
   outline: 2px dashed var(--color-border-strong);
+}
+
+/* Where the breadcrumb row shares the line, the page action sits on it instead of taking a row of its own. */
+.qcms-page-actionbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+@variant sidebar {
+  .qcms-page-actionbar {
+    block-size: 0;
+    flex-wrap: nowrap;
+    translate: 0 -1.875rem;
+  }
+}
+
+.qcms-helptip {
+  position: relative;
+  display: inline-flex;
+  vertical-align: middle;
+}
+.qcms-helptip__button {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 1.125rem;
+  block-size: 1.125rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  line-height: 1;
+  cursor: help;
+}
+/* Fixed, not absolute: a hidden absolute box still widens the document on a narrow screen. */
+.qcms-helptip__body {
+  position: fixed;
+  z-index: 20;
+  inline-size: max-content;
+  max-inline-size: min(18rem, calc(100vw - 1rem));
+  padding: 0.5rem 0.625rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 0.375rem;
+  background: var(--color-surface-raised, var(--color-surface));
+  color: var(--color-text);
+  font-size: 13px;
+  line-height: 1.4;
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 120ms;
+  pointer-events: none;
+}
+.qcms-helptip__body[data-open="true"] {
+  visibility: visible;
+  opacity: 1;
+}
+
+.qcms-field-help {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: 0.375rem;
+}
+.qcms-field-help > .qcms-helptip {
+  margin-block-start: 0.125rem;
 }
 
 /* viewportFit: cover draws the document under the status bar and the home indicator, so the sticky top

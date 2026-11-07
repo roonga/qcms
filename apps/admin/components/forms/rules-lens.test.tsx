@@ -80,6 +80,10 @@ function hrefs(markup: string): string[] {
   return [...markup.matchAll(/href="([^"]*)"/gu)].map((match) => match[1] ?? "");
 }
 
+function buttonClasses(markup: string): string[] {
+  return [...markup.matchAll(/<button[^>]*class="([^"]*)"/gu)].map((match) => match[1] ?? "");
+}
+
 describe("the builder's rules lens", () => {
   it("addresses every rule by route AND fragment, never by a bare fragment", async () => {
     const markup = await render();
@@ -109,7 +113,7 @@ describe("the builder's rules lens", () => {
     const markup = await render();
 
     expect(markup).not.toContain("qcms-rule-action");
-    expect(markup).not.toContain("<button");
+    expect(buttonClasses(markup)).toEqual(["qcms-helptip__button"]);
   });
 
   it("tags a rule that carries issues, and says nothing about one that does not", async () => {

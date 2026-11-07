@@ -84,7 +84,6 @@ test("searches the library from the toolbar, and puts the term in the URL", asyn
 
   await expect(page).toHaveURL(new RegExp(`[?&]q=${ALPHA}`));
   expect(await listedSlugs(page)).toEqual([ALPHA]);
-  await expect(page.getByTestId("qcms-forms-count")).toHaveText("1 form.");
 });
 
 test("filters by status from the toolbar", async ({ page }) => {
@@ -120,7 +119,6 @@ test("reopens a filtered library from its URL alone, controls and all", async ({
   await openLibrary(page, "&status=open&sort=slug-desc");
 
   expect(await listedSlugs(page)).toEqual([CHARLIE, ALPHA]);
-  await expect(page.getByTestId("qcms-forms-count")).toHaveText("2 forms.");
 
   const toolbar = page.locator("form.qcms-filters");
   await expect(field(page, "Search")).toHaveValue(SCOPE);
@@ -140,7 +138,6 @@ test("says something useful when the filters match nothing, and offers the way b
   await page.getByRole("button", { name: "Apply" }).click();
 
   await expect(page.getByText("No form matches this search.")).toBeVisible();
-  await expect(page.getByTestId("qcms-forms-count")).toHaveCount(0);
 
   await page.getByRole("main").getByRole("link", { name: "Clear filters" }).click();
   await expect(page).toHaveURL(/\/forms$/);

@@ -35,6 +35,7 @@ function screens(): readonly { readonly path: string; readonly testId: string }[
     { path: "/responses/erasures", testId: "qcms-erasures-rail" },
     { path: "/webhooks", testId: "qcms-webhooks-rail" },
     { path: "/workspaces", testId: "qcms-workspaces-rail" },
+    { path: "/workspaces/all", testId: "qcms-workspaces-rail" },
     { path: `/workspaces/${WORKSPACE_ID}/members`, testId: "qcms-workspaces-rail" },
     { path: "/settings", testId: "qcms-settings-rail" },
   ];
@@ -109,9 +110,7 @@ test("1117 puts the list filters in the rail and nowhere else", async ({ page })
       )
       .toHaveCount(0);
     await expect.soft(filters, `${path} is a search region`).toHaveAttribute("role", "search");
-    await expect
-      .soft(filters.getByTestId("qcms-rail-filters-title"), `${path} names the part`)
-      .toContainText("Filters");
+    await expect.soft(filters, `${path} names the part`).toHaveAttribute("aria-label", "Filters");
   }
 });
 

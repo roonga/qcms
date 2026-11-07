@@ -462,19 +462,21 @@ Phase 6 ships in slices, as the workspace ruling allows. Each slice is one branc
 5. One persistent rail per area, one top bar in every area, the rail toggle and the
    breadcrumb row, all the shell's chrome (`fix/1204-persistent-rail-topbar`).
    - **Top bar.** One grid in every area (`apps/admin/components/shell/shell-chrome.tsx`):
-     the rail toggle, the wordmark, the application navigation, an Exit slot and an
-     environment slot, then the trailing tools. Operations fills the two slots with Exit
-     Operations and the environment dropdown; elsewhere they stand empty at the same size,
-     the navigation scrolls rather than wraps, and the environment edge is an inset shadow,
-     so the bar's height and the heading's position do not change between areas. The
+     the rail toggle, the wordmark, the application navigation and the trailing tools. In
+     Operations the navigation's own Operations item becomes one group of the area title, the
+     environment dropdown, a divider and Exit (Code Owner, 2026-11-07, #1208: the environment
+     tints that group, which replaces the separate Exit and environment slots and the bar's
+     inset-shadow edge). The navigation scrolls rather than wraps, so the bar's height and the
+     heading's position do not change between areas. The
      application navigation stays inside Operations, with Operations current, and its links
      out of the mode take the leave warning.
    - **Area rails.** Questions, Forms, Operations and Workspaces each keep one tree
      (`apps/admin/lib/shell/area-rails.ts`, `RailTree` in `apps/admin/components/rail-frame.tsx`):
-     All questions and New question, All forms and New form, All forms, Delivery failures
-     and Erasure log for Operations, and the Workspaces tree from slice 4. An area rail has
-     no back link and no title, so it never repeats the page heading; below the sidebar
-     breakpoint its disclosure reads "Menu". The New question screen's panels expand beneath
+     the queues and filters each area owns, and the Workspaces tree from slice 4 (Code Owner,
+     2026-11-07, #1208: a list rail drops the All and New rows, so Operations keeps Delivery
+     failures, Erasure log and the workspace's forms). An area rail has no back link and no
+     title, so it never repeats the page heading; below the sidebar breakpoint its disclosure
+     reads "Menu". The New question screen's panels expand beneath
      its row. Dead letters is a section of the Delivery failures screen, so it has no rail
      row of its own.
    - **Item rails.** Inside one item the rail is that item's context: "‹ All forms" or
@@ -488,8 +490,10 @@ Phase 6 ships in slices, as the workspace ruling allows. Each slice is one branc
      collapsing with focus inside the rail moves focus to it. The assistant's 1024 to 1279px
      hold still gives the panel the whole track.
    - **Breadcrumb.** The content column's first row on every screen, one line high, reading
-     area, section, item (`apps/admin/lib/shell/breadcrumbs.ts`). The rail slot renders it,
-     so each screen's rail supplies the names its address does not carry.
+     area, section, item (`apps/admin/lib/shell/breadcrumbs.ts`). An Operations trail starts
+     below the area, because the group above already names it (Code Owner, 2026-11-07, #1208),
+     and the row still spends its line there so no column starts higher. The rail slot renders
+     it, so each screen's rail supplies the names its address does not carry.
    - **Exit return address.** It is refused when it carries a control character or a
      backslash, or resolves to another origin, and a query-only change outside Operations
      is remembered.

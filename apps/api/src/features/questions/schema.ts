@@ -61,6 +61,23 @@ export const ListQuestionsQuery = z.object({
     .enum(["all"])
     .optional()
     .openapi({ param: { name: "versions", in: "query" }, example: "all" }),
+  /**
+   * Narrows to the questions this one workspace owns. Without it the read spans every
+   * workspace the caller may read, plus the shared library.
+   */
+  workspaceId: z
+    .string()
+    .max(64)
+    .optional()
+    .openapi({ param: { name: "workspaceId", in: "query" }, example: "org_default_workspace" }),
+  /**
+   * With `workspaceId`, puts the shared library (ADR-41) back beside it, which is what a
+   * pin picker offers. An enum of one value rather than a boolean, matching `versions`.
+   */
+  shared: z
+    .enum(["include"])
+    .optional()
+    .openapi({ param: { name: "shared", in: "query" }, example: "include" }),
 });
 
 /**
@@ -112,6 +129,8 @@ export const QuestionListItem = z
   .object({
     questionId: z.string().openapi({ example: "q_favourite_colour" }),
     slug: z.string().openapi({ example: "favourite-colour" }),
+    /** The owning workspace, so a caller reading several can tell a shared row from its own. */
+    workspaceId: z.string().openapi({ example: "org_default_workspace" }),
     createdAt: z.iso.datetime(),
     latestVersion: z.number().int().positive().openapi({ example: 2 }),
     latestStatus: QuestionStatus.openapi({ example: "published" }),

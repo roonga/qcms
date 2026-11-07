@@ -17,22 +17,6 @@ import { t } from "@/lib/i18n/en";
 /* Use a custom panel: react-aria Popover closes on the trigger's zero-delta focus scroll, producing a
    flicker on open. */
 
-const SELECTED_MARK = "✓";
-
-const PREVIEW_STATES: readonly { readonly state: string; readonly value: Appearance }[] = [
-  { state: "light", value: { polarity: "light", contrast: "normal" } },
-  { state: "dark", value: { polarity: "dark", contrast: "normal" } },
-  { state: "light-hc", value: { polarity: "light", contrast: "high" } },
-  { state: "dark-hc", value: { polarity: "dark", contrast: "high" } },
-];
-
-const PREVIEW_LABEL: Readonly<Record<string, string>> = {
-  light: t("appearance.preview.light"),
-  dark: t("appearance.preview.dark"),
-  "light-hc": t("appearance.preview.lightHc"),
-  "dark-hc": t("appearance.preview.darkHc"),
-};
-
 function polarityLabel(polarity: Polarity): string {
   if (polarity === "auto") return t("appearance.polarity.auto");
   if (polarity === "dark") return t("appearance.polarity.dark");
@@ -218,40 +202,6 @@ export function ThemeToggle({
                 <span className="qcms-appearance__track" aria-hidden="true" />
               </SwitchButton>
             </SwitchField>
-            <p className="qcms-appearance__note">{t("appearance.contrast.note")}</p>
-            {/* The tiles duplicate the controls and stay aria-hidden; prevent pointer presses from moving focus into
-   them. */}
-            <div className="qcms-appearance__preview" aria-hidden="true">
-              {PREVIEW_STATES.map(({ state, value }) => {
-                const current =
-                  value.polarity === resolved && value.contrast === appearance.contrast;
-                return (
-                  <button
-                    key={state}
-                    type="button"
-                    tabIndex={-1}
-                    data-current={current ? "true" : "false"}
-                    className="qcms-appearance__tile"
-                    onPointerDown={(event) => event.preventDefault()}
-                    onClick={() => {
-                      apply(value);
-                      focusControl(`input[type="radio"][value="${value.polarity}"]`);
-                    }}
-                  >
-                    <span className="qcms-themepreview" data-state={state}>
-                      <span className="qcms-themepreview__bar" />
-                      <span className="qcms-themepreview__text" />
-                    </span>
-                    <span className="qcms-appearance__tilecaption">
-                      <span className="qcms-appearance__tilecheck">
-                        {current ? SELECTED_MARK : ""}
-                      </span>
-                      {PREVIEW_LABEL[state]}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
           </div>
         </div>
       ) : null}

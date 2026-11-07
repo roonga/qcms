@@ -22,14 +22,13 @@ export function RailFilters({
       className="qcms-filters qcms-rail__filters"
       data-testid="qcms-rail-filters"
     >
-      <p className="qcms-rail__filters-title" data-testid="qcms-rail-filters-title">
-        <span>{t("rail.filters")}</span>
-        {activeCount > 0 && (
+      {activeCount > 0 && (
+        <p className="qcms-rail__filters-title" data-testid="qcms-rail-filters-title">
           <span className="qcms-tag qcms-tag--draft" data-rail-filters-active={activeCount}>
             {activeFilterCount(activeCount)}
           </span>
-        )}
-      </p>
+        </p>
+      )}
       {children}
       <div className="qcms-rail__filters-apply">
         <Button type="submit" variant="secondary" size="md">

@@ -8,20 +8,23 @@ import {
   AssistantProvider,
 } from "@/components/agent/assistant-dock";
 import { Announcer } from "@/components/announcer";
+import { EnvironmentChip, EnvironmentSlot } from "@/components/environment-chip";
 import { EnvironmentScope } from "@/components/environment-scope";
 import { EnvironmentSwitcher } from "@/components/environment-switcher";
 import { MeasuredMain } from "@/components/measured-main";
 import { ShellChrome } from "@/components/shell/shell-chrome";
+import { WorkspaceSwitcher } from "@/components/shell/workspace-switcher";
 import { RailToggle, SidebarProvider } from "@/components/sidebar-toggle";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { TopbarHeight } from "@/components/topbar-height";
 import { MODE_COOKIE, parseAppearance } from "@/lib/appearance";
-import { environmentKind } from "@/lib/environment";
 import { secureCookies } from "@/lib/server/config";
 import { resolvedEnvironment } from "@/lib/server/environments";
 import { t } from "@/lib/i18n/en";
 import { navigableCapabilities, rememberedMode, shellAccess } from "@/lib/server/shell";
 import { requireAdminSession } from "@/lib/server/session";
+import { currentWorkspaceContext } from "@/lib/server/workspace-context";
+import { offersWorkspaceChoice } from "@/lib/shell/workspace-context";
 import { PANEL_COOKIE, parsePanelState, type PanelState } from "@/lib/agent/panel";
 import { agentAuthoringEnabled } from "@/lib/server/agent";
 import { SIDEBAR_COOKIE, parseSidebarSetting } from "@/lib/sidebar";
@@ -42,7 +45,11 @@ export default async function ShellLayout({
   const accessPromise = shellAccess(session);
   // Resolve selection once for chrome and API headers. A failed environment read stays unknown and disables
   // environment-sensitive actions.
-  const [access, resolved] = await Promise.all([accessPromise, resolvedEnvironment(session)]);
+  const [access, resolved, workspaces] = await Promise.all([
+    accessPromise,
+    resolvedEnvironment(session),
+    currentWorkspaceContext(session),
+  ]);
   const capabilities = navigableCapabilities(access);
   const sidebar = parseSidebarSetting(cookieStore.get(SIDEBAR_COOKIE)?.value);
   const assistant = agentAuthoringEnabled();
@@ -68,6 +75,13 @@ export default async function ShellLayout({
                 <RailToggle />
               </div>
               <span className="qcms-wordmark">{t("app.title")}</span>
+              {offersWorkspaceChoice(workspaces) && workspaces.current !== undefined && (
+                <WorkspaceSwitcher
+                  choices={workspaces.choices}
+                  current={workspaces.current}
+                  secureCookies={secureCookies()}
+                />
+              )}
               <ShellChrome
                 capabilities={capabilities}
                 rememberedMode={rememberedMode(cookieStore)}
@@ -81,17 +95,9 @@ export default async function ShellLayout({
                       secureCookies={secureCookies()}
                     />
                   ) : (
-                    <div
-                      className="qcms-envswitch"
-                      data-testid="qcms-environment-switcher"
-                      data-environment=""
-                      data-kind={environmentKind(undefined)}
-                      data-pending="false"
-                    >
-                      <span className="qcms-envtrigger qcms-envtrigger--static">
-                        {t("environment.unknown")}
-                      </span>
-                    </div>
+                    <EnvironmentSlot environment={undefined}>
+                      <EnvironmentChip environment={undefined} />
+                    </EnvironmentSlot>
                   )
                 }
                 trailing={

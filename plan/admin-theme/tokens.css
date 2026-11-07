@@ -39,11 +39,26 @@
   --color-focus-ring: #2456c6;
   --color-overlay: rgb(0 0 0 / 0.5);
   --shadow-color: 222deg 30% 20%;
-  --color-env-prod: #1e293b;
+  --color-env-prod: #b5137f;
   --color-env-prod-foreground: #ffffff;
   --color-env-test: #7040c8;
   --color-env-test-subtle: #f3eefc;
   --color-env-test-fg: #5b2fae;
+  --color-env-2: #0f766e;
+  --color-env-2-subtle: #e5f4f1;
+  --color-env-2-fg: #0b5c55;
+  --color-env-3: #0a6a9c;
+  --color-env-3-subtle: #e6f2f9;
+  --color-env-3-fg: #08557d;
+  --color-env-4: #9a4b1c;
+  --color-env-4-subtle: #f7ede5;
+  --color-env-4-fg: #7a3a12;
+  --color-env-5: #5c6a10;
+  --color-env-5-subtle: #f0f3df;
+  --color-env-5-fg: #4a560b;
+  --color-env-6: #55657e;
+  --color-env-6-subtle: #eef1f5;
+  --color-env-6-fg: #3d4b60;
   --space-0-5: 2px;
   --space-1: 4px;
   --space-1-5: 6px;
@@ -106,11 +121,26 @@
   --color-focus-ring: #7aa2ff;
   --color-overlay: rgb(0 0 0 / 0.6);
   --shadow-color: 222deg 60% 2%;
-  --color-env-prod: #cbd5e1;
+  --color-env-prod: #ff6fd0;
   --color-env-prod-foreground: #0b0f1a;
   --color-env-test: #b69cff;
   --color-env-test-subtle: #221a38;
   --color-env-test-fg: #d6c8ff;
+  --color-env-2: #4fd1c5;
+  --color-env-2-subtle: #0e2a29;
+  --color-env-2-fg: #a7f0e8;
+  --color-env-3: #6cc4f0;
+  --color-env-3-subtle: #0e2436;
+  --color-env-3-fg: #b9e4fb;
+  --color-env-4: #e9a074;
+  --color-env-4-subtle: #33200f;
+  --color-env-4-fg: #f6cfb5;
+  --color-env-5: #c3cf6a;
+  --color-env-5-subtle: #23270c;
+  --color-env-5-fg: #e2ea9f;
+  --color-env-6: #9fb0c8;
+  --color-env-6-subtle: #18202d;
+  --color-env-6-fg: #d3dcea;
 }
 
 /* Infer polarity only; high contrast requires explicit choice. Exclude .light and .hc so auto dark cannot
@@ -154,11 +184,26 @@
     --color-focus-ring: #7aa2ff;
     --color-overlay: rgb(0 0 0 / 0.6);
     --shadow-color: 222deg 60% 2%;
-    --color-env-prod: #cbd5e1;
+    --color-env-prod: #ff6fd0;
     --color-env-prod-foreground: #0b0f1a;
     --color-env-test: #b69cff;
     --color-env-test-subtle: #221a38;
     --color-env-test-fg: #d6c8ff;
+    --color-env-2: #4fd1c5;
+    --color-env-2-subtle: #0e2a29;
+    --color-env-2-fg: #a7f0e8;
+    --color-env-3: #6cc4f0;
+    --color-env-3-subtle: #0e2436;
+    --color-env-3-fg: #b9e4fb;
+    --color-env-4: #e9a074;
+    --color-env-4-subtle: #33200f;
+    --color-env-4-fg: #f6cfb5;
+    --color-env-5: #c3cf6a;
+    --color-env-5-subtle: #23270c;
+    --color-env-5-fg: #e2ea9f;
+    --color-env-6: #9fb0c8;
+    --color-env-6-subtle: #18202d;
+    --color-env-6-fg: #d3dcea;
   }
 }
 
@@ -199,11 +244,26 @@
   --color-primary-hover: #08348f;
   --color-primary-active: #062a75;
   --color-primary-foreground: #ffffff;
-  --color-env-prod: #000000;
+  --color-env-prod: #8c0b62;
   --color-env-prod-foreground: #ffffff;
   --color-env-test: #4a1d9e;
   --color-env-test-subtle: #ffffff;
   --color-env-test-fg: #3d1585;
+  --color-env-2: #0b5550;
+  --color-env-2-subtle: #ffffff;
+  --color-env-2-fg: #08443f;
+  --color-env-3: #0a4a73;
+  --color-env-3-subtle: #ffffff;
+  --color-env-3-fg: #073d5f;
+  --color-env-4: #6e3009;
+  --color-env-4-subtle: #ffffff;
+  --color-env-4-fg: #5a2707;
+  --color-env-5: #434d05;
+  --color-env-5-subtle: #ffffff;
+  --color-env-5-fg: #363e04;
+  --color-env-6: #3a4558;
+  --color-env-6-subtle: #ffffff;
+  --color-env-6-fg: #2c3545;
 }
 
 /* The combined dark high-contrast selector must outrank the light high-contrast layer. */
@@ -244,11 +304,26 @@
   --color-primary-hover: #b8cfff;
   --color-primary-active: #c6d9ff;
   --color-primary-foreground: #000000;
-  --color-env-prod: #ffffff;
+  --color-env-prod: #ffa3e4;
   --color-env-prod-foreground: #000000;
   --color-env-test: #cdb8ff;
   --color-env-test-subtle: #000000;
   --color-env-test-fg: #e2d8ff;
+  --color-env-2: #7ee8dc;
+  --color-env-2-subtle: #000000;
+  --color-env-2-fg: #b5f5ee;
+  --color-env-3: #9ad8ff;
+  --color-env-3-subtle: #000000;
+  --color-env-3-fg: #c9ebff;
+  --color-env-4: #ffbe94;
+  --color-env-4-subtle: #000000;
+  --color-env-4-fg: #ffdcc4;
+  --color-env-5: #dbe683;
+  --color-env-5-subtle: #000000;
+  --color-env-5-fg: #ecf3b8;
+  --color-env-6: #c3cfe0;
+  --color-env-6-subtle: #000000;
+  --color-env-6-fg: #dde5f0;
 }
 
 /* Auto dark high contrast must outrank .hc and stay disjoint from the ordinary auto-dark selector. */
@@ -290,11 +365,26 @@
     --color-primary-hover: #b8cfff;
     --color-primary-active: #c6d9ff;
     --color-primary-foreground: #000000;
-    --color-env-prod: #ffffff;
+    --color-env-prod: #ffa3e4;
     --color-env-prod-foreground: #000000;
     --color-env-test: #cdb8ff;
     --color-env-test-subtle: #000000;
     --color-env-test-fg: #e2d8ff;
+    --color-env-2: #7ee8dc;
+    --color-env-2-subtle: #000000;
+    --color-env-2-fg: #b5f5ee;
+    --color-env-3: #9ad8ff;
+    --color-env-3-subtle: #000000;
+    --color-env-3-fg: #c9ebff;
+    --color-env-4: #ffbe94;
+    --color-env-4-subtle: #000000;
+    --color-env-4-fg: #ffdcc4;
+    --color-env-5: #dbe683;
+    --color-env-5-subtle: #000000;
+    --color-env-5-fg: #ecf3b8;
+    --color-env-6: #c3cfe0;
+    --color-env-6-subtle: #000000;
+    --color-env-6-fg: #dde5f0;
   }
 }
 
@@ -336,11 +426,26 @@
   --color-surface-hover: #eef1f6;
   --color-focus-ring: #2456c6;
   --color-overlay: rgb(0 0 0 / 0.5);
-  --color-env-prod: #1e293b;
+  --color-env-prod: #b5137f;
   --color-env-prod-foreground: #ffffff;
   --color-env-test: #7040c8;
   --color-env-test-subtle: #f3eefc;
   --color-env-test-fg: #5b2fae;
+  --color-env-2: #0f766e;
+  --color-env-2-subtle: #e5f4f1;
+  --color-env-2-fg: #0b5c55;
+  --color-env-3: #0a6a9c;
+  --color-env-3-subtle: #e6f2f9;
+  --color-env-3-fg: #08557d;
+  --color-env-4: #9a4b1c;
+  --color-env-4-subtle: #f7ede5;
+  --color-env-4-fg: #7a3a12;
+  --color-env-5: #5c6a10;
+  --color-env-5-subtle: #f0f3df;
+  --color-env-5-fg: #4a560b;
+  --color-env-6: #55657e;
+  --color-env-6-subtle: #eef1f5;
+  --color-env-6-fg: #3d4b60;
 }
 
 .qcms-themepreview[data-state="dark"] {
@@ -380,11 +485,26 @@
   --color-surface-hover: #0e1626;
   --color-focus-ring: #7aa2ff;
   --color-overlay: rgb(0 0 0 / 0.6);
-  --color-env-prod: #cbd5e1;
+  --color-env-prod: #ff6fd0;
   --color-env-prod-foreground: #0b0f1a;
   --color-env-test: #b69cff;
   --color-env-test-subtle: #221a38;
   --color-env-test-fg: #d6c8ff;
+  --color-env-2: #4fd1c5;
+  --color-env-2-subtle: #0e2a29;
+  --color-env-2-fg: #a7f0e8;
+  --color-env-3: #6cc4f0;
+  --color-env-3-subtle: #0e2436;
+  --color-env-3-fg: #b9e4fb;
+  --color-env-4: #e9a074;
+  --color-env-4-subtle: #33200f;
+  --color-env-4-fg: #f6cfb5;
+  --color-env-5: #c3cf6a;
+  --color-env-5-subtle: #23270c;
+  --color-env-5-fg: #e2ea9f;
+  --color-env-6: #9fb0c8;
+  --color-env-6-subtle: #18202d;
+  --color-env-6-fg: #d3dcea;
 }
 
 .qcms-themepreview[data-state="light-hc"] {
@@ -424,11 +544,26 @@
   --color-primary-hover: #08348f;
   --color-primary-active: #062a75;
   --color-primary-foreground: #ffffff;
-  --color-env-prod: #000000;
+  --color-env-prod: #8c0b62;
   --color-env-prod-foreground: #ffffff;
   --color-env-test: #4a1d9e;
   --color-env-test-subtle: #ffffff;
   --color-env-test-fg: #3d1585;
+  --color-env-2: #0b5550;
+  --color-env-2-subtle: #ffffff;
+  --color-env-2-fg: #08443f;
+  --color-env-3: #0a4a73;
+  --color-env-3-subtle: #ffffff;
+  --color-env-3-fg: #073d5f;
+  --color-env-4: #6e3009;
+  --color-env-4-subtle: #ffffff;
+  --color-env-4-fg: #5a2707;
+  --color-env-5: #434d05;
+  --color-env-5-subtle: #ffffff;
+  --color-env-5-fg: #363e04;
+  --color-env-6: #3a4558;
+  --color-env-6-subtle: #ffffff;
+  --color-env-6-fg: #2c3545;
 }
 
 .qcms-themepreview[data-state="dark-hc"] {
@@ -468,9 +603,24 @@
   --color-primary-hover: #b8cfff;
   --color-primary-active: #c6d9ff;
   --color-primary-foreground: #000000;
-  --color-env-prod: #ffffff;
+  --color-env-prod: #ffa3e4;
   --color-env-prod-foreground: #000000;
   --color-env-test: #cdb8ff;
   --color-env-test-subtle: #000000;
   --color-env-test-fg: #e2d8ff;
+  --color-env-2: #7ee8dc;
+  --color-env-2-subtle: #000000;
+  --color-env-2-fg: #b5f5ee;
+  --color-env-3: #9ad8ff;
+  --color-env-3-subtle: #000000;
+  --color-env-3-fg: #c9ebff;
+  --color-env-4: #ffbe94;
+  --color-env-4-subtle: #000000;
+  --color-env-4-fg: #ffdcc4;
+  --color-env-5: #dbe683;
+  --color-env-5-subtle: #000000;
+  --color-env-5-fg: #ecf3b8;
+  --color-env-6: #c3cfe0;
+  --color-env-6-subtle: #000000;
+  --color-env-6-fg: #dde5f0;
 }

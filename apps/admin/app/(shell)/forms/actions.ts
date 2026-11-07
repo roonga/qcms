@@ -49,6 +49,7 @@ import {
 } from "@/lib/server/releases";
 import { confirmShownEnvironment } from "@/lib/server/environments";
 import { requireAdminSession, type AdminSession } from "@/lib/server/session";
+import { currentWorkspaceId } from "@/lib/server/workspace-context";
 
 /* Every action authenticates independently: layouts do not run for action POSTs. Bound environment values
    can only cause refusal, not grant authority. */
@@ -82,7 +83,13 @@ export async function createFormAction(
   const slug = readText(formData, "slug").trim();
   const title = readText(formData, "title").trim();
   const defaultLocale = readText(formData, "defaultLocale").trim();
-  const created = await createFormIdentity(session, { slug, defaultLocale });
+  // Name the workspace the author is in: with more than one the API refuses to guess.
+  const workspaceId = await currentWorkspaceId(session);
+  const created = await createFormIdentity(session, {
+    slug,
+    defaultLocale,
+    ...(workspaceId === undefined ? {} : { workspaceId }),
+  });
   if (!created.ok) {
     return {
       status: "error",

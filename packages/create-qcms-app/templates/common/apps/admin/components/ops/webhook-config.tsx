@@ -2,6 +2,7 @@
 
 import { useCallback, useState, useTransition } from "react";
 
+import { HelpTip } from "@/components/help-tip";
 import { EmptyState } from "@/components/empty-state";
 import { EntityId } from "@/components/entity-id";
 import { useEnvironmentUnknown } from "@/components/environment-scope";
@@ -92,10 +93,12 @@ export function WebhookConfig({
       data-testid="qcms-webhook-config"
     >
       <div className="flex flex-col gap-1">
-        <h2 id="qcms-webhooks-heading" className="text-lg font-semibold text-(--color-text)">
-          {t("ops.webhooks.heading")}
-        </h2>
-        <p className="text-sm text-(--color-text-muted)">{t("ops.webhooks.intro")}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <h2 id="qcms-webhooks-heading" className="text-lg font-semibold text-(--color-text)">
+            {t("ops.webhooks.heading")}
+          </h2>
+          <HelpTip>{t("ops.webhooks.intro")}</HelpTip>
+        </div>
       </div>
 
       {/* A failed list read must keep creation available; only a successful empty read delegates creation to the

@@ -188,11 +188,21 @@ carry the DS tight tracking.
 | focus-ring / surface                   | `#2456c6`  | `#ffffff`  |  6.52 |      3 |  PASS  |
 | primary / surface (link-UI)            | `#2456c6`  | `#ffffff`  |  6.52 |      3 |  PASS  |
 | primary / background (topbar active)   | `#2456c6`  | `#f4f6f9`  |  6.02 |      3 |  PASS  |
-| env-prod-fg / env-prod (chip)          | `#ffffff`  | `#1e293b`  | 14.63 |    4.5 |  PASS  |
+| env-prod-fg / env-prod (chip)          | `#ffffff`  | `#b5137f`  |  6.24 |    4.5 |  PASS  |
 | env-test-fg / env-test-subtle (chip)   | `#5b2fae`  | `#f3eefc`  |  7.49 |    4.5 |  PASS  |
 | env-test / env-test-subtle (chip edge) | `#7040c8`  | `#f3eefc`  |  5.66 |      3 |  PASS  |
-| env-prod / background (bar edge)       | `#1e293b`  | `#f4f6f9`  | 13.51 |      3 |  PASS  |
+| env-prod / background (bar edge)       | `#b5137f`  | `#f4f6f9`  |  5.77 |      3 |  PASS  |
 | env-test / background (bar edge)       | `#7040c8`  | `#f4f6f9`  |  5.96 |      3 |  PASS  |
+| env-2-fg / env-2-subtle (chip)         | `#0b5c55`  | `#e5f4f1`  |  6.93 |    4.5 |  PASS  |
+| env-2 / background (group edge)        | `#0f766e`  | `#f4f6f9`  |  5.06 |      3 |  PASS  |
+| env-3-fg / env-3-subtle (chip)         | `#08557d`  | `#e6f2f9`  |  7.07 |    4.5 |  PASS  |
+| env-3 / background (group edge)        | `#0a6a9c`  | `#f4f6f9`  |  5.46 |      3 |  PASS  |
+| env-4-fg / env-4-subtle (chip)         | `#7a3a12`  | `#f7ede5`  |  7.45 |    4.5 |  PASS  |
+| env-4 / background (group edge)        | `#9a4b1c`  | `#f4f6f9`  |  5.71 |      3 |  PASS  |
+| env-5-fg / env-5-subtle (chip)         | `#4a560b`  | `#f0f3df`  |  7.08 |    4.5 |  PASS  |
+| env-5 / background (group edge)        | `#5c6a10`  | `#f4f6f9`  |  5.50 |      3 |  PASS  |
+| env-6-fg / env-6-subtle (chip)         | `#3d4b60`  | `#eef1f5`  |  7.81 |    4.5 |  PASS  |
+| env-6 / background (group edge)        | `#55657e`  | `#f4f6f9`  |  5.47 |      3 |  PASS  |
 
 ### cobalt / dark
 
@@ -225,11 +235,21 @@ carry the DS tight tracking.
 | focus-ring / surface                   | `#7aa2ff`  | `#080f1a`  |  7.72 |      3 |  PASS  |
 | primary / surface (link-UI)            | `#7aa2ff`  | `#080f1a`  |  7.72 |      3 |  PASS  |
 | primary / background (topbar active)   | `#7aa2ff`  | `#04080f`  |  8.06 |      3 |  PASS  |
-| env-prod-fg / env-prod (chip)          | `#0b0f1a`  | `#cbd5e1`  | 12.89 |    4.5 |  PASS  |
+| env-prod-fg / env-prod (chip)          | `#0b0f1a`  | `#ff6fd0`  |  7.69 |    4.5 |  PASS  |
 | env-test-fg / env-test-subtle (chip)   | `#d6c8ff`  | `#221a38`  | 10.66 |    4.5 |  PASS  |
 | env-test / env-test-subtle (chip edge) | `#b69cff`  | `#221a38`  |  7.22 |      3 |  PASS  |
-| env-prod / background (bar edge)       | `#cbd5e1`  | `#04080f`  | 13.51 |      3 |  PASS  |
+| env-prod / background (bar edge)       | `#ff6fd0`  | `#04080f`  |  8.06 |      3 |  PASS  |
 | env-test / background (bar edge)       | `#b69cff`  | `#04080f`  |  8.78 |      3 |  PASS  |
+| env-2-fg / env-2-subtle (chip)         | `#a7f0e8`  | `#0e2a29`  | 11.78 |    4.5 |  PASS  |
+| env-2 / background (group edge)        | `#4fd1c5`  | `#04080f`  | 10.76 |      3 |  PASS  |
+| env-3-fg / env-3-subtle (chip)         | `#b9e4fb`  | `#0e2436`  | 11.74 |    4.5 |  PASS  |
+| env-3 / background (group edge)        | `#6cc4f0`  | `#04080f`  | 10.31 |      3 |  PASS  |
+| env-4-fg / env-4-subtle (chip)         | `#f6cfb5`  | `#33200f`  | 10.71 |    4.5 |  PASS  |
+| env-4 / background (group edge)        | `#e9a074`  | `#04080f`  |  9.31 |      3 |  PASS  |
+| env-5-fg / env-5-subtle (chip)         | `#e2ea9f`  | `#23270c`  | 12.07 |    4.5 |  PASS  |
+| env-5 / background (group edge)        | `#c3cf6a`  | `#04080f`  | 11.90 |      3 |  PASS  |
+| env-6-fg / env-6-subtle (chip)         | `#d3dcea`  | `#18202d`  | 11.84 |    4.5 |  PASS  |
+| env-6 / background (group edge)        | `#9fb0c8`  | `#04080f`  |  9.09 |      3 |  PASS  |
 
 ### cobalt / high-contrast, light field (universal layer + cobalt accent)
 
@@ -256,10 +276,20 @@ carry the DS tight tracking.
 | focus-ring / background                   | `#0a3ea8`  | `#ffffff`  |  9.26 |      3 |  PASS  |
 | focus-ring / surface                      | `#0a3ea8`  | `#ffffff`  |  9.26 |      3 |  PASS  |
 | primary / surface                         | `#0a3ea8`  | `#ffffff`  |  9.26 |      3 |  PASS  |
-| env-prod-fg / env-prod (chip, AAA)        | `#ffffff`  | `#000000`  | 21.00 |      7 |  PASS  |
+| env-prod-fg / env-prod (chip, AAA)        | `#ffffff`  | `#8c0b62`  |  8.98 |      7 |  PASS  |
 | env-test-fg / env-test-subtle (chip, AAA) | `#3d1585`  | `#ffffff`  | 12.77 |      7 |  PASS  |
-| env-prod / background (bar edge)          | `#000000`  | `#ffffff`  | 21.00 |      3 |  PASS  |
+| env-prod / background (bar edge)          | `#8c0b62`  | `#ffffff`  |  8.98 |      3 |  PASS  |
 | env-test / background (bar edge)          | `#4a1d9e`  | `#ffffff`  | 10.71 |      3 |  PASS  |
+| env-2-fg / env-2-subtle (chip, AAA)       | `#08443f`  | `#ffffff`  | 11.00 |      7 |  PASS  |
+| env-2 / background (group edge)           | `#0b5550`  | `#ffffff`  |  8.64 |      3 |  PASS  |
+| env-3-fg / env-3-subtle (chip, AAA)       | `#073d5f`  | `#ffffff`  | 11.40 |      7 |  PASS  |
+| env-3 / background (group edge)           | `#0a4a73`  | `#ffffff`  |  9.38 |      3 |  PASS  |
+| env-4-fg / env-4-subtle (chip, AAA)       | `#5a2707`  | `#ffffff`  | 12.15 |      7 |  PASS  |
+| env-4 / background (group edge)           | `#6e3009`  | `#ffffff`  | 10.05 |      3 |  PASS  |
+| env-5-fg / env-5-subtle (chip, AAA)       | `#363e04`  | `#ffffff`  | 11.37 |      7 |  PASS  |
+| env-5 / background (group edge)           | `#434d05`  | `#ffffff`  |  9.12 |      3 |  PASS  |
+| env-6-fg / env-6-subtle (chip, AAA)       | `#2c3545`  | `#ffffff`  | 12.34 |      7 |  PASS  |
+| env-6 / background (group edge)           | `#3a4558`  | `#ffffff`  |  9.67 |      3 |  PASS  |
 
 ### cobalt / high-contrast, dark field (universal layer + cobalt dark accent)
 
@@ -286,10 +316,20 @@ carry the DS tight tracking.
 | focus-ring / background                   | `#8ab4ff`  | `#000000`  | 10.05 |      3 |  PASS  |
 | focus-ring / surface                      | `#8ab4ff`  | `#000000`  | 10.05 |      3 |  PASS  |
 | primary / surface                         | `#a9c4ff`  | `#000000`  | 12.03 |      3 |  PASS  |
-| env-prod-fg / env-prod (chip, AAA)        | `#000000`  | `#ffffff`  | 21.00 |      7 |  PASS  |
+| env-prod-fg / env-prod (chip, AAA)        | `#000000`  | `#ffa3e4`  | 11.61 |      7 |  PASS  |
 | env-test-fg / env-test-subtle (chip, AAA) | `#e2d8ff`  | `#000000`  | 15.50 |      7 |  PASS  |
-| env-prod / background (bar edge)          | `#ffffff`  | `#000000`  | 21.00 |      3 |  PASS  |
+| env-prod / background (bar edge)          | `#ffa3e4`  | `#000000`  | 11.61 |      3 |  PASS  |
 | env-test / background (bar edge)          | `#cdb8ff`  | `#000000`  | 11.90 |      3 |  PASS  |
+| env-2-fg / env-2-subtle (chip, AAA)       | `#b5f5ee`  | `#000000`  | 17.26 |      7 |  PASS  |
+| env-2 / background (group edge)           | `#7ee8dc`  | `#000000`  | 14.46 |      3 |  PASS  |
+| env-3-fg / env-3-subtle (chip, AAA)       | `#c9ebff`  | `#000000`  | 16.81 |      7 |  PASS  |
+| env-3 / background (group edge)           | `#9ad8ff`  | `#000000`  | 13.64 |      3 |  PASS  |
+| env-4-fg / env-4-subtle (chip, AAA)       | `#ffdcc4`  | `#000000`  | 16.29 |      7 |  PASS  |
+| env-4 / background (group edge)           | `#ffbe94`  | `#000000`  | 13.05 |      3 |  PASS  |
+| env-5-fg / env-5-subtle (chip, AAA)       | `#ecf3b8`  | `#000000`  | 18.08 |      7 |  PASS  |
+| env-5 / background (group edge)           | `#dbe683`  | `#000000`  | 15.66 |      3 |  PASS  |
+| env-6-fg / env-6-subtle (chip, AAA)       | `#dde5f0`  | `#000000`  | 16.54 |      7 |  PASS  |
+| env-6 / background (group edge)           | `#c3cfe0`  | `#000000`  | 13.32 |      3 |  PASS  |
 
 ### cobalt / the dark-field accent rule
 

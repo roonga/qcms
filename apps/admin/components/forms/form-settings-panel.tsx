@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { FieldHelp, HelpTip } from "@/components/help-tip";
 import { Alert, Checkbox, NumberField } from "@/components/kit";
 import type { FormSettings } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
@@ -41,22 +42,22 @@ export function FormSettingsPanel({
           data-testid="qcms-settings-digest"
         >
           {settingsDigest(settings)}
-        </span>
+        </span>{" "}
+        <HelpTip>{t("forms.settings.note")}</HelpTip>
       </div>
 
       <div className="mt-3 flex flex-col gap-4">
-        <p className="text-sm text-(--color-text-muted)">{t("forms.settings.note")}</p>
-
         <HeadingMarker control="builder.settings" block>
           <div className="flex flex-col gap-2">
-            <Checkbox
-              label={t("forms.settings.challengeRequired")}
-              isSelected={settings.challengeRequired}
-              onChange={(isSelected) => {
-                onChange({ ...settings, challengeRequired: isSelected });
-              }}
-            />
-            <p className="text-sm text-(--color-text-muted)">{t("forms.settings.challengeHint")}</p>
+            <FieldHelp help={t("forms.settings.challengeHint")}>
+              <Checkbox
+                label={t("forms.settings.challengeRequired")}
+                isSelected={settings.challengeRequired}
+                onChange={(isSelected) => {
+                  onChange({ ...settings, challengeRequired: isSelected });
+                }}
+              />
+            </FieldHelp>
             {!challengeEnforceable && settings.challengeRequired && (
               <div data-testid="qcms-challenge-unenforceable">
                 <Alert variant="warning">{t("forms.settings.challengeUnenforceable")}</Alert>
@@ -79,15 +80,16 @@ export function FormSettingsPanel({
             }}
           />
           {!usesDefault && (
-            <NumberField
-              label={t("forms.settings.minSubmit")}
-              description={t("forms.settings.minSubmitHint")}
-              value={settings.minSubmitMs ?? 0}
-              minValue={0}
-              onChange={(next) => {
-                onChange({ ...settings, minSubmitMs: Number.isFinite(next) ? next : 0 });
-              }}
-            />
+            <FieldHelp help={t("forms.settings.minSubmitHint")}>
+              <NumberField
+                label={t("forms.settings.minSubmit")}
+                value={settings.minSubmitMs ?? 0}
+                minValue={0}
+                onChange={(next) => {
+                  onChange({ ...settings, minSubmitMs: Number.isFinite(next) ? next : 0 });
+                }}
+              />
+            </FieldHelp>
           )}
         </div>
       </div>

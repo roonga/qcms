@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 
+import { FieldHelp, HelpTip } from "@/components/help-tip";
 import { Alert, Button, Checkbox, Select, TextField } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
 import { HeadingMarker } from "@/components/agent/heading-marker";
@@ -95,10 +96,12 @@ export function AccessGroupsPanel({
   return (
     <section aria-labelledby="qcms-access-groups-heading" className="flex min-w-0 flex-col gap-4">
       <div className="flex min-w-0 flex-col gap-1">
-        <h1 id="qcms-access-groups-heading" className="text-xl font-semibold text-(--color-text)">
-          {t("membership.groups.heading")}
-        </h1>
-        <p className="text-sm text-(--color-text-muted)">{t("membership.groups.intro")}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 id="qcms-access-groups-heading" className="text-xl font-semibold text-(--color-text)">
+            {t("membership.groups.heading")}
+          </h1>
+          <HelpTip>{t("membership.groups.intro")}</HelpTip>
+        </div>
         <p className="text-xs text-(--color-text-muted)">{t("membership.groups.nameHelp")}</p>
         {list !== undefined && (
           <p className="text-xs text-(--color-text-muted)">{list.scopeNote}</p>
@@ -166,7 +169,6 @@ export function AccessGroupsPanel({
                         <Select
                           label={t("membership.groups.addHolderMember")}
                           placeholder={t("membership.groups.addHolderChoose")}
-                          description={t("membership.groups.addHolderHelp")}
                           value={chosen}
                           onChange={(value: string) => {
                             setHolder((current) => ({ ...current, [group.teamId]: value }));
@@ -291,12 +293,13 @@ export function AccessGroupsPanel({
               setFormChoice((current) => toggleAll(current, on));
             }}
           />
-          <TextField
-            label={t("membership.groups.formSearch")}
-            value={formSearch}
-            onChange={setFormSearch}
-            description={t("membership.groups.formsReadable")}
-          />
+          <FieldHelp help={t("membership.groups.formsReadable")}>
+            <TextField
+              label={t("membership.groups.formSearch")}
+              value={formSearch}
+              onChange={setFormSearch}
+            />
+          </FieldHelp>
           {shownForms.length === 0 ? (
             <p className="text-xs text-(--color-text-muted)">{t("membership.groups.noForms")}</p>
           ) : (

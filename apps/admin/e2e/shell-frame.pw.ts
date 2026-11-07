@@ -33,7 +33,8 @@ test.beforeAll(async ({ browser }) => {
 interface Frame {
   readonly header: number;
   readonly rail: number;
-  readonly heading: number;
+  /** Where the column starts. Every area landing hides its own `h1`, so this is the drawn title row. */
+  readonly main: number;
   readonly crumbs: number;
 }
 
@@ -46,8 +47,9 @@ async function frame(page: Page): Promise<Frame> {
     return {
       header: Math.round(box("header.qcms-topbar")?.height ?? -1),
       rail: Math.round(box("aside.qcms-rail")?.width ?? -1),
-      heading: Math.round((box("main#main-content h1")?.top ?? -1) + window.scrollY),
-      crumbs: Math.round((box("nav.qcms-crumbs")?.top ?? -1) + window.scrollY),
+      main: Math.round((box("main#main-content")?.top ?? -1) + window.scrollY),
+      // Not `nav.qcms-crumbs`: an area that names itself in the bar draws the row without a trail.
+      crumbs: Math.round((box(".qcms-crumbs")?.top ?? -1) + window.scrollY),
     };
   });
 }
@@ -77,7 +79,8 @@ test("the rail toggle collapses the rail to a strip from the keyboard, and the c
 
   const toggle = page.getByTestId("qcms-rail-toggle");
   const rail = page.locator("aside.qcms-rail");
-  const first = rail.getByRole("link", { name: "All questions" });
+  // A list rail carries its filters, so the first stop inside it is the search box.
+  const first = rail.getByRole("textbox", { name: "Search" });
   await expect(toggle).toHaveAttribute("aria-expanded", "true");
   await expect(toggle).toHaveAttribute("aria-controls", "qcms-rail-region");
   await expect(toggle).toHaveAccessibleName("Collapse sidebar");
@@ -107,7 +110,7 @@ test("the rail toggle collapses the rail to a strip from the keyboard, and the c
   await expect(page.locator("html")).toHaveAttribute("data-sidebar", "shown");
   await expect.poll(() => railWidth(page)).toBe(240);
   await expect(
-    page.locator("aside.qcms-rail").getByRole("link", { name: "All forms" }),
+    page.locator("aside.qcms-rail").getByRole("textbox", { name: "Search" }),
   ).toBeVisible();
 });
 
@@ -156,7 +159,8 @@ test("one top bar: entering Operations moves neither the bar, the rail nor the h
 }) => {
   test.setTimeout(600_000);
   await signInWithTotp(page, EMAIL, secret);
-  const areas = ["/questions", "/forms", "/workspaces", "/operations"];
+  // `/workspaces` lands on the current workspace, so the area's own list is the landing here.
+  const areas = ["/questions", "/forms", "/workspaces/all", "/operations"];
   for (const one of frameCases()) {
     await page.setViewportSize({ width: one.width, height: 900 });
     await presetEnvironment(page, one.environment);
@@ -166,8 +170,12 @@ test("one top bar: entering Operations moves neither the bar, the rail nor the h
       await highContrast(page, one.hc);
       frames.push(await frame(page));
     }
+    const first = frames[0];
+    if (first === undefined) throw new Error("no area was measured");
     for (const [index, path] of areas.entries()) {
-      expect.soft(frames[index], `${path} ${caseName(one)}`).toEqual(frames[0]);
+      const here = frames[index];
+      if (here === undefined) throw new Error(`${path} was not measured`);
+      expect.soft(here, `${path} ${caseName(one)}`).toEqual(first);
     }
   }
 });
@@ -185,11 +193,14 @@ const CRUMB_SCREENS: readonly CrumbScreen[] = [
   { path: `/questions/${QUESTION_ID}`, trail: ["Questions", QUESTION_ID], context: true },
   { path: "/forms", trail: ["Forms"] },
   { path: `/forms/${FORM_ID}/versions`, trail: ["Forms", "", "Versions"], context: true },
-  { path: "/operations", trail: ["Operations"] },
-  { path: `/operations/forms/${FORM_ID}/links`, trail: ["Operations", "", "Links"], context: true },
-  { path: "/webhooks", trail: ["Operations", "Delivery failures"] },
-  { path: "/workspaces", trail: ["Workspaces"] },
-  { path: `/workspaces/${WORKSPACE_ID}/members`, trail: ["Workspaces", "", "Members"] },
+  // The top bar's Operations group names the area, so an Operations trail starts below it.
+  { path: `/operations/forms/${FORM_ID}/links`, trail: ["", "Links"], context: true },
+  { path: "/webhooks", trail: ["Delivery failures"] },
+  {
+    path: `/workspaces/${WORKSPACE_ID}/members`,
+    trail: ["Workspaces", "", "Members"],
+    context: true,
+  },
   { path: "/settings", trail: ["Settings"] },
 ];
 

@@ -255,6 +255,7 @@ test("the authenticated shell states have zero violations", async ({ page }) => 
     "/responses/erasures",
     "/webhooks",
     "/workspaces",
+    "/workspaces/all",
     "/settings",
   ]) {
     await page.goto(path);

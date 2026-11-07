@@ -1,21 +1,18 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { OperatorDay } from "@/components/operator-time";
 import { PublishedOnDay } from "@/components/questions/published-on-day";
 import { QuestionPanelRows } from "@/components/questions/question-panel-rows";
 import { QuestionRailIssueCount } from "@/components/questions/rail-issue-count";
 import { StatusTag } from "@/components/questions/status-tag";
 import { RailFrame } from "@/components/rail-frame";
-import { t, tPlural } from "@/lib/i18n/en";
+import { t } from "@/lib/i18n/en";
 import type { QuestionPanel, QuestionPanelId } from "@/lib/questions/panels";
 import type { QuestionVersion } from "@/lib/questions/types";
-import { latestPublishedVersion, versionRailItems } from "@/lib/questions/version-rail";
+import { versionRailItems } from "@/lib/questions/version-rail";
 
 export function QuestionVersionsRail({
   questionId,
-  slug,
-  createdAt,
   versions,
   selected,
   panels,
@@ -23,8 +20,6 @@ export function QuestionVersionsRail({
   actions,
 }: {
   readonly questionId: string;
-  readonly slug: string;
-  readonly createdAt: string;
   readonly versions: readonly QuestionVersion[];
   readonly selected: number;
   readonly panels: readonly QuestionPanel[];
@@ -32,15 +27,6 @@ export function QuestionVersionsRail({
   readonly actions?: ReactNode;
 }) {
   const items = versionRailItems(questionId, versions, selected);
-  const published = latestPublishedVersion(versions);
-  const digest =
-    published === null
-      ? tPlural("questions.rail.digestNoneOne", "questions.rail.digestNone", versions.length)
-      : tPlural("questions.rail.digestOne", "questions.rail.digest", versions.length, {
-          version: published,
-        });
-  const selectedVersion = versions.find((version) => version.version === selected);
-  const type = selectedVersion?.definition.type;
 
   return (
     <RailFrame
@@ -49,29 +35,7 @@ export function QuestionVersionsRail({
       label={<span className="qcms-rail__id">{questionId}</span>}
       testId="qcms-question-rail"
       count={<QuestionRailIssueCount />}
-      {...(selectedVersion === undefined
-        ? {}
-        : { tag: <StatusTag status={selectedVersion.status} /> })}
       {...(actions === undefined ? {} : { actions })}
-      lines={
-        <>
-          <dl className="qcms-rail__facts">
-            <dt>{t("questions.detail.slug")}</dt>
-            <dd className="qcms-rail__facts-slug">{slug}</dd>
-            <dt>{t("questions.detail.created")}</dt>
-            <dd>
-              <OperatorDay iso={createdAt} />
-            </dd>
-            {type !== undefined && (
-              <>
-                <dt>{t("questions.detail.type")}</dt>
-                <dd>{t("questions.detail.typeLocked", { type: t(`questions.type.${type}`) })}</dd>
-              </>
-            )}
-          </dl>
-          <p className="qcms-rail__sub qcms-rail__digest">{digest}</p>
-        </>
-      }
       sections={
         <ul
           className="qcms-rail__group"

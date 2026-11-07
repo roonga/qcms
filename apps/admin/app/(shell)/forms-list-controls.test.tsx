@@ -30,6 +30,14 @@ const listForms = vi.fn((_session: unknown, filters?: unknown) => {
   return Promise.resolve(formsResult);
 });
 
+vi.mock("@/lib/server/workspace-context", () => ({
+  currentWorkspaceId: () => Promise.resolve("org_default_workspace"),
+  currentWorkspaceContext: () =>
+    Promise.resolve({
+      choices: [{ workspaceId: "org_default_workspace", name: "Default workspace" }],
+      current: { workspaceId: "org_default_workspace", name: "Default workspace" },
+    }),
+}));
 vi.mock("@/lib/server/session", () => ({
   requireAdminSession: () => Promise.resolve(SESSION),
 }));
@@ -75,13 +83,22 @@ describe("the form library sends its filters to the API rather than applying the
   it("passes the search term, the status filter and the sort key straight through", async () => {
     await renderForms({ q: "vehicle", status: "closed", sort: "published-desc" });
 
-    expect(askedFor()).toEqual({ search: "vehicle", status: "closed", sort: "published-desc" });
+    expect(askedFor()).toEqual({
+      search: "vehicle",
+      status: "closed",
+      sort: "published-desc",
+      workspaceId: "org_default_workspace",
+    });
   });
 
   it("asks for the default order and no status when the URL names neither", async () => {
     await renderForms({});
 
-    expect(askedFor()).toEqual({ search: "", sort: "slug-asc" });
+    expect(askedFor()).toEqual({
+      search: "",
+      sort: "slug-asc",
+      workspaceId: "org_default_workspace",
+    });
   });
 
   it("asks for the default order when the URL names one the API does not offer", async () => {
@@ -142,28 +159,13 @@ describe("the rail's Filters part is a native GET form whose values come back fr
     expect(await renderRail({ status: "open" })).toContain("rail.filters.clear");
   });
 
-  it("carries the creating action, and the content column keeps its own", async () => {
-    expect(await renderRail({})).toContain('href="/forms/new"');
+  it("leaves the creating action to the content column's heading row", async () => {
+    expect(await renderRail({})).not.toContain('href="/forms/new"');
     expect(await renderForms({})).toContain('href="/forms/new"');
   });
 });
 
 describe("the three list states, and the panel each one shows", () => {
-  it("counts the rows above the table", async () => {
-    formsResult = { ok: true, data: [FORM_ROW, { ...FORM_ROW, formId: "frm_two", slug: "two" }] };
-
-    const markup = await renderForms({});
-
-    expect(markup).toContain('data-testid="qcms-forms-count"');
-    expect(markup).toContain("forms.count.other");
-  });
-
-  it("counts one row with the singular, which is a catalog choice and not an appended s", async () => {
-    const markup = await renderForms({});
-
-    expect(markup).toContain("forms.count.one");
-  });
-
   it("offers creating when an unfiltered library is empty", async () => {
     formsResult = { ok: true, data: [] };
 
@@ -206,7 +208,6 @@ describe("the three list states, and the panel each one shows", () => {
     const markup = await renderForms({ q: "vehicle" });
 
     expect(markup).toContain("forms.error.listFailed");
-    expect(markup).not.toContain('data-testid="qcms-forms-count"');
     expect(markup).not.toContain('data-testid="qcms-forms-table-stub"');
     expect(markup).not.toContain("forms.empty.");
   });

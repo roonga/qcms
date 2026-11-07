@@ -27,6 +27,9 @@ const sent = vi.hoisted((): { mintExpiresAt: string | undefined } => ({
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
+vi.mock("@/lib/server/workspace-context", () => ({
+  currentWorkspaceId: () => Promise.resolve("org_default_workspace"),
+}));
 vi.mock("next/navigation", () => ({
   redirect: (to: string) => {
     throw new Error(`redirected to ${to}`);

@@ -28,6 +28,7 @@ const CHIPS: Readonly<Record<AgentScreen, MessageKey>> = {
   "/settings": "agent.context.settings",
   "/webhooks": "agent.context.webhooks",
   "/workspaces": "agent.context.workspaces",
+  "/workspaces/all": "agent.context.workspaces.all",
   "/workspaces/[workspaceId]/members": "agent.context.workspace.members",
   "/workspaces/[workspaceId]/access-groups": "agent.context.workspace.accessGroups",
   "/workspaces/[workspaceId]/settings": "agent.context.workspace.settings",

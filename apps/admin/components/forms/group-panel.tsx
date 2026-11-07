@@ -4,6 +4,7 @@ import { useRef, useState, type ReactNode } from "react";
 
 import { EmptyState } from "@/components/empty-state";
 import { EntityId } from "@/components/entity-id";
+import { FieldHelp, HelpTip } from "@/components/help-tip";
 import { Alert, Button, Select, TextField } from "@/components/kit";
 import { messageForIssue } from "@/lib/forms/issues";
 import { stepGridRows, type PinRowAction, type PinRowView } from "@/lib/forms/pin-grid";
@@ -96,9 +97,9 @@ export function GroupPanel({
         <h1 id="qcms-group-heading" className="text-base font-semibold text-(--color-text)">
           {t("forms.group.heading", { label: name })}
         </h1>
+        <HelpTip>{t("forms.group.note")}</HelpTip>
         {saveFlash}
       </div>
-      <p className="text-sm text-(--color-text-muted)">{t("forms.group.note")}</p>
 
       {groupIssues.length > 0 && (
         <ul aria-label={t("forms.group.issues")} className="flex flex-col gap-1">
@@ -115,12 +116,9 @@ export function GroupPanel({
       )}
 
       {/* Group ids are minted once and remain stable across renames because conditions reference them. */}
-      <TextField
-        label={t("forms.group.name")}
-        description={t("forms.group.nameHint")}
-        value={label}
-        onChange={onRename}
-      />
+      <FieldHelp help={t("forms.group.nameHint")}>
+        <TextField label={t("forms.group.name")} value={label} onChange={onRename} />
+      </FieldHelp>
       <p className="text-sm text-(--color-text-muted)">
         <span className="me-2">{t("forms.group.idLabel")}</span>
         <EntityId kind="group" value={group.groupId} copy />
@@ -318,12 +316,9 @@ function InstanceLabelField({
   const preview = template.replaceAll("{n}", "1");
   return (
     <div className="flex flex-col gap-2">
-      <TextField
-        label={t("forms.group.instanceLabel")}
-        description={t("forms.group.instanceLabelHint")}
-        value={template}
-        onChange={onChange}
-      />
+      <FieldHelp help={t("forms.group.instanceLabelHint")}>
+        <TextField label={t("forms.group.instanceLabel")} value={template} onChange={onChange} />
+      </FieldHelp>
       <p className="text-sm text-(--color-text-muted)" data-testid="qcms-group-label-preview">
         <span className="me-2">{t("forms.group.instanceLabelPreview")}</span>
         {preview === "" ? (

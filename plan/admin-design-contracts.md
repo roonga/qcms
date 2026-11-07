@@ -958,8 +958,24 @@ These win over §7.0 where they disagree; the as-built record is phase 6 slice 5
 - **Ruling 8 is replaced.** An icon button at the top bar's start, also `Alt+Shift+S`,
   collapses the rail to a 56px strip over 200ms (none under reduced motion), remembered per
   viewer. The content column carries no rail control of its own.
-- **One top bar in every area**, with the environment dropdown in a reserved slot, so nothing
+- **One top bar in every area**, where Operations becomes one group of its title, the
+  environment dropdown and Exit rather than filling separate reserved slots (§7.01), so nothing
   moves between Questions, Forms, Workspaces and Operations.
+
+### 7.01 Amendments, 2026-11-07 (Code Owner, #1208)
+
+The build is right and these records follow it. Each line wins over the passage it names.
+
+- **The current-row accent edge is 3px**, not the 2px at §7.0 ruling 2's current-row mark.
+- **The Filters part carries no visible title.** The `<form role="search">` keeps "Filters" as
+  its accessible name only, which replaces the styled paragraph in the §7.0 clarifications.
+- **A question's facts live in the page body**, not in the rail Header, which reverses the
+  first §7.0 clarification. The rail names versions and panels.
+- **An Operations trail starts below the area**, because the top bar's Operations group already
+  names it. Elsewhere §7.00's area-then-section-then-item order stands.
+- **The environment tints the Operations group**, which is the indicator now, and the bar draws
+  no edge of its own. §10's 3px bar edge and the chip's `5.5rem` inline floor are retired, and
+  §10's anatomy follows. The as-built record is `plan/environment-navigation-implementation.md`.
 
 ### 7.0 Ruling, 2026-10-24 (Code Owner): one rail on every screen
 
@@ -974,10 +990,10 @@ The eight rulings:
    1. **Header:** a back link to the parent screen (none on a top-level screen), the subject's name, and at most one status tag. Below `--bp-sidebar` the Header is the disclosure's summary, shut by default. Above it, it is a visible plain header on every rail. It is one element at both widths, as the 2026-08-22 amendment below requires.
    2. **Sections:** anchors to the subject's routes or same-page panels, inside `<nav aria-label="<subject> sections">`. Never buttons.
    3. **Children:** nested under the current section only.
-   4. **Filters:** the screen's filters in `<form role="search">`, with a "Filters" heading and an active count. They are ordered Search, status, type or other, then sort. "Apply" submits the filter form and the URL carries the state, so a filtered list can be bookmarked and reloaded. This is not a no-JS path: the admin requires JavaScript (the 2026-09-27 ruling above).
+   4. **Filters:** the screen's filters in `<form role="search">`, named "Filters" and carrying an active count (a visible title until §7.01). They are ordered Search, status, type or other, then sort. "Apply" submits the filter form and the URL carries the state, so a filtered list can be bookmarked and reloaded. This is not a no-JS path: the admin requires JavaScript (the 2026-09-27 ruling above).
    5. **Actions:** structural actions only ("New question", "New form", "Add step", "New version").
    - The root is `<aside aria-label="<subject>">`.
-   - **One current-row mark:** tinted fill, weight 600 and a 2px inline-start accent edge. A parent of the current row gets the same weight and no fill, so exactly one row reads as selected. (The mark was weight 700 until the foundations ruling of 2026-10-24 made 600 the app's ceiling, issue #1121; the fill is what carries the distinction now.)
+   - **One current-row mark:** tinted fill, weight 600 and a 3px inline-start accent edge (2px until §7.01). A parent of the current row gets the same weight and no fill, so exactly one row reads as selected. (The mark was weight 700 until the foundations ruling of 2026-10-24 made 600 the app's ceiling, issue #1121; the fill is what carries the distinction now.)
    - 240px wide, under the topbar, sticky, viewport height, scrolling on its own. Its background runs to the bottom of the window.
 3. **The way back is the Header's back link.** It replaces the content-column breadcrumb on every screen.
 4. **Filters live in the rail.** List filters (Questions, Forms, Responses index, Webhooks) and section filters (a form's Responses and Version history) move out of the content column.
@@ -1006,10 +1022,10 @@ The eight rulings:
 
 **Clarifications of the rulings (conductor drafting, 2026-10-24, from the review of #1120; the Code Owner corrects on request):**
 
-- **The question rail's details group** (Slug, Created, Type with its locked status) stays and sits in the Header under the subject as secondary lines. It describes the subject, so it belongs with it. **Per-row digests and issue badges** (per step, per panel) stay as row content in Sections and Children.
+- **The question rail's details group** (Slug, Created, Type) sat in the Header under the subject as secondary lines until §7.01 moved it to the page body. **Per-row digests and issue badges** (per step, per panel) stay as row content in Sections and Children.
 - **The collapsed summary** (below `--bp-sidebar`) shows the subject plus at most one count: the issue total on the form and question rails, or the active filter count on a list screen. It truncates with an ellipsis, and the count never truncates. The back link stays visible through the collapse, as the question rail's already does.
 - **The form's sections are eight, not seven:** Releases joined the sibling list after it was written (§7.1 below lists seven). The routes `/export` and `/assist` are endpoints, not screens, and get no row.
-- **The Filters part's "Filters" heading is a styled paragraph, not a heading element** (Code Owner, issue #1117). The rail renders before `<main>`, so a heading element in it sits above the screen's own `<h1>` and `heading-order` reports it on every railed screen at once. The `<form role="search">` takes the same word as its accessible name, so nothing is lost to a screen reader. The filtered-empty panel keeps §3's own "Clear filters" beside the rail's.
+- **The Filters part's "Filters" heading was a styled paragraph, not a heading element** (Code Owner, issue #1117), and §7.01 drops the visible text entirely. The rail renders before `<main>`, so a heading element in it sits above the screen's own `<h1>` and `heading-order` reports it on every railed screen at once. The `<form role="search">` takes the same word as its accessible name, so nothing is lost to a screen reader. The filtered-empty panel keeps §3's own "Clear filters" beside the rail's.
 
 **What still holds from the passages below:**
 
@@ -1537,34 +1553,37 @@ components each deciding locally and correctly-by-their-own-clause.
 
 ## 10. The environment indicator
 
-Ruled 2026-10-24 (Code Owner, #1122); re-scoped 2026-10-28 so the chip and the edge
-live in the Operations header only, Normal mode having no environment context.
+Ruled 2026-10-24 (Code Owner, #1122); re-scoped 2026-10-28 so the environment context
+lives in the Operations header only, Normal mode having none.
 
 **Environments never use status colours.** Not success, not warning, not danger. An
 environment is a **place**, and a warning hue on it says "something is wrong" about
 an ordinary test environment while leaving the app no colour for a real warning
-beside it. The family is `--color-env-prod`, `--color-env-prod-foreground`,
-`--color-env-test`, `--color-env-test-subtle` and `--color-env-test-fg`, generated by
-`plan/admin-theme/build.mjs` with the same contrast gate as every other token and
-present in all four fields (light, dark, and both high-contrast fields).
+beside it. The families are `--color-env-prod` with `--color-env-prod-foreground`, and one
+border, subtle and foreground triple per non-prod slot: `--color-env-test` for slot 1 and
+`--color-env-2` to `--color-env-6` after it. All are generated by `plan/admin-theme/build.mjs`
+with the same contrast gate as every other token and present in all four fields (light, dark,
+and both high-contrast fields).
 
-**The anatomy.** The switcher is the indicator: one chip, in the Operations header,
-which always writes the environment's name.
+**The anatomy.** Since §7.01 the **Operations group** is the indicator: it takes the 2px
+border and the fill, and the chip inside it is transparent and writes the environment's
+name. Outside that group, in the menu's own rows, the chip still carries the colour itself.
 
 - `prod`: **solid** `--color-env-prod` with `--color-env-prod-foreground`.
-- any non-prod environment: **outlined** `--color-env-test` on
-  `--color-env-test-subtle`, text `--color-env-test-fg`.
-- the set could not be read: **dashed** `--color-border-strong`, static, with nothing
-  to press.
+- any non-prod environment: **outlined**, in the tint its list slot was given: slot 1 is
+  `--color-env-test` on `--color-env-test-subtle` with `--color-env-test-fg`, and slots 2 to 6
+  take the `--color-env-2` to `--color-env-6` families in list order, then repeat.
+- the set could not be read: the group stays neutral on `--color-border-strong`, static, with
+  nothing to press, and the chip's own border goes **dashed** where it draws one.
 
-Beside it the topbar carries a **3px environment edge** in the matching colour. It is
-drawn from the chip's own kind rather than a second attribute, so the two cannot
-disagree, and it is therefore present exactly where the chip is.
+The topbar itself carried a **3px environment edge** in the matching colour until §7.01 retired
+it. The tint is read from the switcher's own kind and slot rather than from a second attribute,
+so the group and the name it holds cannot disagree.
 
-**Zero layout shift between environments.** The chip is 32px tall with a 2px border
-and a `5.5rem` inline floor in every state, and the edge is 3px in every state, so
-switching environments changes neither the topbar's height nor the content column's
-position. That is the property the retired banner could not have: it was the bar's
+**Zero layout shift between environments.** The group keeps its 2px border in every state and
+the chip is 24px inside a 32px trigger (the chip's `5.5rem` inline floor went with §7.01, since
+the group sets the width now), so switching environments changes neither the topbar's height nor
+the content column's position. That is the property the retired banner could not have: it was the bar's
 second line under a non-prod environment only, so every switch moved every screen.
 
 **Colour is never the only carrier** (WCAG 1.4.1): the name is written, the three

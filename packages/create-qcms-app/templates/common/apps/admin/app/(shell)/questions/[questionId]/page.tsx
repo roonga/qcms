@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { QuestionFacts } from "@/components/questions/question-facts";
 import { notFound } from "next/navigation";
 
 import { HeadingMarker } from "@/components/agent/heading-marker";
@@ -54,7 +55,7 @@ export default async function QuestionDetailPage({
     detail.data.versions[detail.data.versions.length - 1]?.version ?? selected.version;
 
   return (
-    <div className="qcms-editor-column flex flex-col gap-6">
+    <div className="flex flex-col gap-6">
       {/* QuestionSave reads client pending state through the editor bridge and submits the editor's form by id. */}
       <div className="qcms-question-head">
         <div className="qcms-question-head__id">
@@ -87,7 +88,16 @@ export default async function QuestionDetailPage({
         </div>
       </div>
 
-      <div className="qcms-card">
+      <QuestionFacts
+        slug={detail.data.slug}
+        createdAt={detail.data.createdAt}
+        versions={detail.data.versions}
+        selected={selected.version}
+      />
+
+      {/* The editor keeps the 720 its POC draws while the head and the facts take the outer cap
+   (`plan/admin-design-contracts.md`: the drawn inner number rides on the element). */}
+      <div className="qcms-editor-column qcms-card">
         <Card padding="md" radius="md" border>
           <div className="flex flex-col gap-4">
             {/* Key by version: soft navigation otherwise preserves the previous editor state under the new version's

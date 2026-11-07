@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
+import { FieldHelp, HelpTip } from "@/components/help-tip";
 import { Alert, Checkbox, Select, TextField } from "@/components/kit";
 import { useAppLocale } from "@/components/locale-context";
 import { t } from "@/lib/i18n/en";
@@ -355,25 +356,25 @@ function ContentPanel({
             />
             <div className="qcms-id-callout">
               <p className="text-xs uppercase tracking-wide text-(--color-text-muted)">
-                {t("questions.create.id")}
+                {t("questions.create.id")} <HelpTip>{t("questions.create.idNote")}</HelpTip>
               </p>
               <p className="qcms-id-callout__value">
                 {questionId === "" ? t("questions.create.idPending") : questionId}
               </p>
-              <p className="text-sm text-(--color-text-muted)">{t("questions.create.idNote")}</p>
             </div>
-            <Select
-              label={t("questions.create.type")}
-              description={t("questions.create.typeNote")}
-              value={definition.type}
-              items={QUESTION_TYPES.map((type) => ({
-                label: t(`questions.type.${type}`),
-                value: type,
-              }))}
-              onChange={(next) => {
-                onType(next as QuestionType);
-              }}
-            />
+            <FieldHelp help={t("questions.create.typeNote")}>
+              <Select
+                label={t("questions.create.type")}
+                value={definition.type}
+                items={QUESTION_TYPES.map((type) => ({
+                  label: t(`questions.type.${type}`),
+                  value: type,
+                }))}
+                onChange={(next) => {
+                  onType(next as QuestionType);
+                }}
+              />
+            </FieldHelp>
           </>
         )}
         <TextField
@@ -388,7 +389,6 @@ function ContentPanel({
         />
         <TextField
           label={t("questions.editor.help")}
-          description={t("questions.editor.helpHint")}
           value={textOf(definition.help)}
           isDisabled={isFrozen}
           {...fieldErrorProps(issues, "help")}

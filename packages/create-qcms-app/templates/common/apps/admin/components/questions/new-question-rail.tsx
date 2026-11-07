@@ -1,11 +1,10 @@
 "use client";
 
 import { QuestionRailIssueCount } from "@/components/questions/rail-issue-count";
-import { RailFrame, RailTree } from "@/components/rail-frame";
+import { RailFrame } from "@/components/rail-frame";
 import { t, tPlural } from "@/lib/i18n/en";
 import { useQuestionPanels } from "@/lib/questions/editor-bridge";
 import type { QuestionPanel } from "@/lib/questions/panels";
-import { questionsRailItems } from "@/lib/shell/area-rails";
 
 export function NewQuestionRail({ panels }: { readonly panels: readonly QuestionPanel[] }) {
   const live = useQuestionPanels();
@@ -49,13 +48,7 @@ export function NewQuestionRail({ panels }: { readonly panels: readonly Question
       subject={t("questions.title")}
       testId="qcms-new-question-rail"
       count={<QuestionRailIssueCount />}
-      sections={
-        <RailTree
-          items={questionsRailItems("new").map((item) =>
-            item.current ? { ...item, expanded: true, children: panelRows } : item,
-          )}
-        />
-      }
+      sections={panelRows}
     />
   );
 }

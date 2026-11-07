@@ -323,7 +323,6 @@ export function FormBuilder({
           <FormNotices detail={detail} concurrentRead={concurrentNoticeRead} />
           <TextField
             label={t("forms.builder.formTitle")}
-            description={t("forms.builder.formTitleHint")}
             value={textOf(draft.title, draft.defaultLocale)}
             onChange={(next) => {
               mutate({ ...draft, title: { ...draft.title, [draft.defaultLocale]: next } });

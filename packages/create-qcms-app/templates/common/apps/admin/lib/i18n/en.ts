@@ -15,6 +15,7 @@ export const messages = {
   "rail.toggle.title": "{action} (Alt+Shift+S)",
   /** The narrow-width disclosure's name on an area rail, which carries no title of its own. */
   "rail.menu": "Menu",
+  "help.label": "More information",
   "rail.allQuestions": "All questions",
   "rail.allForms": "All forms",
 
@@ -76,15 +77,10 @@ export const messages = {
   "appearance.contrast.on": "On",
   "appearance.contrast.off": "Off",
 
-  "appearance.contrast.note": "High contrast never follows your system.",
-  "appearance.preview.light": "Light",
-  "appearance.preview.dark": "Dark",
-  "appearance.preview.lightHc": "Light, high contrast",
-  "appearance.preview.darkHc": "Dark, high contrast",
-
   /** Environment names are API data, never a closed catalog vocabulary. */
   "environment.legend": "Environment",
-  "environment.trigger": "Environment: {environment}",
+  /** The trigger's own visible text has to appear in its name, in order and unbroken (WCAG 2.5.3). */
+  "environment.trigger": "Environment {environment}",
   /** Announce switches only; first render already names the environment. */
   "environment.nowWorking": "Now working in {environment}.",
   /** Destructive confirmations must restate the environment because targeting the wrong one cannot be undone. */
@@ -110,8 +106,15 @@ export const messages = {
 
   "nav.operations": "Operations",
 
+  "workspace.switcher.legend": "Workspace",
+  /** The trigger's own visible text has to appear in its name, in order and unbroken (WCAG 2.5.3). */
+  "workspace.switcher.trigger": "Workspace {name}",
+  /** Announce switches only; the first render already names the workspace. */
+  "workspace.switcher.nowIn": "Now in {name}.",
+
   "shell.mode.operations.name": "Operations",
   "shell.mode.operations.exit": "Exit Operations",
+  "shell.mode.operations.exitText": "Exit",
   "shell.mode.operations.announce": "Operations. Links out of it ask before leaving.",
   "shell.leave.title": "Leave Operations?",
   "shell.leave.goes": "This link opens {area}, outside Operations.",
@@ -131,11 +134,7 @@ export const messages = {
   "shell.denied.recover": "Go to an area you can use",
   "shell.denied.myAccess": "See what you can access",
 
-  "operations.intro": "The forms you can operate, and the installation's delivery queues.",
-
   /** Missing grants and missing data must remain indistinguishable in table cells. */
-  "operations.count.one": "1 form",
-  "operations.count.other": "{count} forms",
   "operations.table": "Forms you can operate",
   "operations.column.form": "Form",
   "operations.column.workspace": "Workspace",
@@ -163,8 +162,6 @@ export const messages = {
   "operations.empty.filtered": "No forms match these filters.",
   "operations.filter.search": "Search",
   "operations.filter.searchHint": "Matches a form's name or identifier.",
-  "operations.filter.workspace": "Workspace",
-  "operations.filter.workspaceAll": "Any workspace",
   "operations.filter.intake": "Intake",
   "operations.filter.intakeAll": "Any intake",
   "operations.filter.sort": "Sort",
@@ -182,7 +179,6 @@ export const messages = {
   "operations.queue.erasureLog": "Erasure log",
 
   "access.title": "My access",
-  "access.intro": "What this account holds, and who to ask for more.",
   "access.none":
     "You hold no form, question, response or workspace grant yet. Ask an owner of the " +
     "workspace you need to add you to one of its access groups.",
@@ -253,7 +249,6 @@ export const messages = {
 
   /** Confirmations teach immutable versions and permanent IDs; refusal copy names the rule and remedy without blaming the author. */
   "questions.title": "Questions",
-  "questions.intro": "The governed library. Every version is published, never overwritten.",
   "questions.new": "New question",
 
   "questions.filter.search": "Search",
@@ -265,7 +260,6 @@ export const messages = {
   "questions.filter.clear": "Clear filters",
 
   "questions.table.label": "Question library",
-  "questions.table.hint": "Open a question from the link in its ID column.",
   "questions.open": "Open question {questionId}",
   "questions.column.id": "Question ID",
   "questions.column.label": "Label",
@@ -311,7 +305,6 @@ export const messages = {
 
   "questions.editor.label": "Label",
   "questions.editor.help": "Help text",
-  "questions.editor.helpHint": "Optional. Shown under the control.",
   "questions.editor.required": "An answer is required",
   "questions.editor.save": "Save draft",
   "questions.editor.manualModel":
@@ -448,7 +441,6 @@ export const messages = {
   "questions.detail.type": "Type",
   "questions.detail.created": "Created",
 
-  "questions.detail.typeLocked": "{type} (locked)",
   "questions.detail.deprecatedNote":
     "This version is deprecated: no new form can pin it. Forms that already pin it keep working exactly as they are, and no answer already collected changes.",
 
@@ -498,11 +490,9 @@ export const messages = {
 
   /** Copy must teach manual frozen pins, forward-only targets, set equality versus containment, and deployment-dependent challenges; none may imply protection or upgrades the API does not provide. */
   "forms.title": "Forms",
-  "forms.intro": "Compose published questions into steps, and branch between them with rules.",
   "forms.new": "New form",
 
   "forms.table.label": "Form library",
-  "forms.table.hint": "Open a form from the link in its Slug column.",
   "forms.open": "Open form {slug}",
   "forms.column.formId": "Form ID",
   "forms.column.slug": "Slug",
@@ -529,8 +519,6 @@ export const messages = {
   "forms.filter.sort.published-asc": "Oldest published",
   "forms.filter.clear": "Clear filters",
   /** Keep counted phrases in catalog plural forms; do not append an English s in code. */
-  "forms.count.one": "{count} form.",
-  "forms.count.other": "{count} forms.",
 
   "forms.empty.title": "No forms yet",
   "forms.empty.body":
@@ -545,7 +533,6 @@ export const messages = {
   "forms.create.idNote":
     "Generated from the slug and permanent from the moment you create it. An ID is never reused for a different meaning, so a form with the wrong ID is replaced by a new one, never renamed (R6).",
   "forms.create.formTitle": "Title",
-  "forms.create.formTitleHint": "What a respondent sees at the top of the questionnaire.",
   "forms.create.locale": "Default locale",
   "forms.create.localeHint": "The locale every step and question must have text for.",
   "forms.create.submit": "Create form",
@@ -558,7 +545,6 @@ export const messages = {
     "Started from the newest published version. Nothing is stored until the first save.",
   "forms.builder.draftSource.none": "Nothing has been drafted or published for this form yet.",
   "forms.builder.formTitle": "Form title",
-  "forms.builder.formTitleHint": "Shown to a respondent. Saved with the draft.",
   "forms.builder.seeded":
     "This draft was started from the newest published version and has not been saved yet. Your first change stores it.",
   "forms.builder.concurrent":
@@ -639,7 +625,6 @@ export const messages = {
   "forms.step.insertBelow": "Insert a question below {questionId}",
   "forms.step.pinMoved": "{questionId} moved to position {position} of {total}",
   "forms.step.pinRemoved": "{questionId} removed from this step",
-  "forms.step.emptyBody": "Pin a question from the library and it will appear here.",
   "forms.step.column.reorder": "Row actions",
   "forms.step.column.question": "Question",
   "forms.step.column.type": "Type",
@@ -731,8 +716,6 @@ export const messages = {
   "forms.group.untitled": "Untitled group",
 
   "forms.picker.title": "Add questions to {title}",
-  "forms.picker.description":
-    "Choose one or more published versions, then add them together. A deprecated version is listed but cannot be pinned, and a question already in this form cannot be pinned twice.",
   "forms.picker.search": "Search",
   "forms.picker.tableLabel": "Question versions",
   "forms.picker.hint":
@@ -746,6 +729,8 @@ export const messages = {
   "forms.picker.column.type": "Type",
   "forms.picker.column.version": "Version",
   "forms.picker.column.state": "State",
+  /** A shared-library question is pinnable into any workspace's form but editable only where it lives. */
+  "forms.picker.shared": "Shared",
   "forms.picker.statePinnable": "Pinnable",
   "forms.picker.stateDeprecated": "Deprecated",
   "forms.picker.statePinned": "Already in this form",
@@ -765,8 +750,6 @@ export const messages = {
   "forms.picker.cancel": "Cancel",
   /** Table columns are group members; their type comes from the pinned question and is never edited here. */
   "forms.columns.title": "Columns",
-  "forms.columns.description":
-    "Each column of the table is one question in this group, and the order below is the order the columns are drawn in. A column's type is the question's own: change it in the question, not here.",
   "forms.columns.tableLabel": "Table columns",
   "forms.columns.column.ordinal": "#",
   "forms.columns.column.label": "Column",
@@ -941,8 +924,6 @@ export const messages = {
   "forms.operand.unsupported": "This operator does not apply to this question's type.",
 
   "forms.json.label": "Condition JSON for rule {ruleId}",
-  "forms.json.note":
-    "The same condition as the pickers above, in the engine's own DSL. Editing here updates the pickers; the pickers are the primary surface (ADR-19). Autocomplete offers operators, pinned question IDs, and the option IDs of the referenced question's pinned version.",
   "forms.json.parseError":
     "Not valid JSON yet, so the condition above is unchanged. The pickers still hold the last version that parsed.",
   "forms.json.shapeError": "Valid JSON, but not a condition this editor can render.",
@@ -1416,8 +1397,6 @@ export const messages = {
   "forms.history.compareRowSame": "Unchanged",
 
   "forms.links.heading": "Secure links",
-  "forms.links.intro":
-    "A secure link is a signed, expiring invitation to one form. Mint them here, hand them out, and revoke any that should stop working.",
   "forms.links.needsPublish":
     "Publish this form before minting links: a link opens the newest published version, and there is not one yet.",
   "forms.links.mint": "Mint links",
@@ -1555,6 +1534,7 @@ export const messages = {
   "agent.context.settings": "Workspace settings",
   "agent.context.webhooks": "Endpoints and delivery state, no payloads",
   "agent.context.workspaces": "Workspaces you can read",
+  "agent.context.workspaces.all": "Every workspace you can open",
   "agent.context.workspace.members": "Workspace {subject}: members",
   "agent.context.workspace.accessGroups": "Workspace {subject}: access groups",
   "agent.context.workspace.settings": "Workspace {subject}: settings",
@@ -1880,9 +1860,6 @@ export const messages = {
 
   "ops.area.webhooks.title": "Delivery failures",
 
-  "ops.area.webhooks.intro":
-    "The dead-letter queue below covers every form. Endpoints are configured per form, on that form's Webhooks screen - open one from the Operations forms table.",
-
   "ops.area.webhooks.filter.form": "Form",
   "ops.area.webhooks.filter.formAll": "Any form",
 
@@ -2061,8 +2038,6 @@ export const messages = {
   "ops.erase.reason.unknown": "Recorded as {reason}",
 
   "ops.erasures.title": "Erasure log",
-  "ops.erasures.intro":
-    "Every erasure, newest first. A row is the evidence that a session existed and was erased; it holds no answers.",
   "ops.erasures.table": "Erasure tombstones",
   "ops.erasures.column.sessionId": "Session",
   "ops.erasures.column.formId": "Form",
@@ -2290,17 +2265,16 @@ export const messages = {
 
   /** Test response grants are grants on personal data, including real respondents. Access-group names are labels; role and scope fields alone authorize. */
   "membership.area.title": "Workspaces",
-  "membership.area.intro":
-    "A workspace owns forms and questions, and its membership is what authorises work on them. A grant is a role and its scope, and a person holds as many grants as their job needs.",
   "membership.area.noWorkspaces":
     "You manage no workspace. Your own grants are on the access panel below.",
   "membership.area.loadFailed": "The workspaces could not be read: {message}",
-  "membership.area.shared": "Shared question library",
-  "membership.area.archived": "Archived",
-  "membership.area.twoPerson": "Second approver required",
-  "membership.area.counts": "{forms} form(s), {questions} question(s)",
   "membership.workspace.notFound": "No such workspace, or you do not manage it.",
   "membership.workspace.allWorkspaces": "All workspaces",
+  "membership.allWorkspaces.table": "Every workspace you can open, by name",
+  "membership.allWorkspaces.column.name": "Workspace",
+  "membership.allWorkspaces.column.forms": "Forms",
+  "membership.allWorkspaces.column.questions": "Questions",
+  "membership.allWorkspaces.archived": "Archived",
   "membership.workspace.context": "Workspace: {name}",
 
   /** Plain role names, each with one line on what it allows; the wire id never reaches the screen. */
@@ -2382,7 +2356,6 @@ export const messages = {
   "membership.groups.removeFailed": "The group was not removed: {message}",
   "membership.groups.addHolderMember": "Member",
   "membership.groups.addHolderChoose": "Choose a member",
-  "membership.groups.addHolderHelp": "Only members of this workspace are offered.",
   "membership.groups.addHolderNone": "Every member of this workspace already holds this group.",
   "membership.groups.addHolderSubmit": "Grant",
   "membership.groups.holderAdded": "{email} now holds {name}.",
