@@ -95,7 +95,9 @@ export default async function QuestionDetailPage({
         selected={selected.version}
       />
 
-      <div className="qcms-card">
+      {/* The editor keeps the 720 its POC draws while the head and the facts take the outer cap
+   (`plan/admin-design-contracts.md`: the drawn inner number rides on the element). */}
+      <div className="qcms-editor-column qcms-card">
         <Card padding="md" radius="md" border>
           <div className="flex flex-col gap-4">
             {/* Key by version: soft navigation otherwise preserves the previous editor state under the new version's
