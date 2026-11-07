@@ -679,11 +679,10 @@ export function makeGetFormHandler(deps: Deps): RouteHandler<typeof getFormRoute
     const workflow = {
       enabled: workflowEnabled,
       environment,
-      canEdit: allows("form", "write") && !(workflowEnabled && environment === "prod"),
-      canPublish:
-        allows("form", "publish") &&
-        allows("release", "create") &&
-        !(workflowEnabled && environment === "prod"),
+      // Authoring acts on the one shared draft, so the selected environment never gates it, and the
+      // publish wizard decides release:create per destination rather than for the selection.
+      canEdit: allows("form", "write"),
+      canPublish: allows("form", "publish"),
       canRelease: allows("release", "create"),
       eligibleVersions: eligible,
       preferredVersion: preferred?.version ?? eligible[0] ?? null,

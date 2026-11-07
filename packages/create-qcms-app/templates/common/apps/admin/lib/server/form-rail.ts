@@ -29,8 +29,8 @@ export async function loadFormRail(
   const detail = await getForm(session, formId);
   if (!detail.ok) return null;
   const form = detail.data;
-  const immutable = form.workflow?.enabled === true && !form.workflow.canEdit;
-  const draft = immutable ? (form.releasedDefinition ?? null) : form.draft;
+  // Always the draft: the rail names the form being authored, and no environment selection changes that.
+  const draft = form.draft;
   if (draft === null) {
     return {
       formId: form.formId,
@@ -42,7 +42,7 @@ export async function loadFormRail(
     };
   }
 
-  const verdict = immutable ? undefined : await formVerdict(session, form.formId, draft);
+  const verdict = await formVerdict(session, form.formId, draft);
   return {
     formId: form.formId,
     slug: form.slug,
