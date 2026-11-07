@@ -31,7 +31,6 @@ export function WorkspacesRail({
       {...(section === undefined
         ? {}
         : {
-            // Inside one workspace only: on the full list it would point at the screen it is on.
             context: { href: ALL_WORKSPACES_PATH, label: t("membership.workspace.allWorkspaces") },
           })}
       {...(workspace === undefined ? {} : { crumbs: { workspace: workspace.name } })}
