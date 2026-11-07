@@ -1576,9 +1576,9 @@ name. Outside that group, in the menu's own rows, the chip still carries the col
 - the set could not be read: the group stays neutral on `--color-border-strong`, static, with
   nothing to press, and the chip's own border goes **dashed** where it draws one.
 
-Beside it the topbar carried a **3px environment edge** in the matching colour until §7.01
-retired it: the colour now tints the Operations group that holds the chip, which is drawn
-from the chip's own kind rather than a second attribute, so the two cannot disagree.
+The topbar itself carried a **3px environment edge** in the matching colour until §7.01 retired
+it. The tint is read from the switcher's own kind and slot rather than from a second attribute,
+so the group and the name it holds cannot disagree.
 
 **Zero layout shift between environments.** The group keeps its 2px border in every state and
 the chip is 24px inside a 32px trigger (the chip's `5.5rem` inline floor went with §7.01, since
