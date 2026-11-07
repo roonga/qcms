@@ -34,10 +34,10 @@ function contexts(capabilities: readonly string[]): readonly string[] {
 }
 
 describe("a row's operational contexts", () => {
-  it("offers a forms viewer its links, webhooks and intake, and no authoring screen", () => {
-    // Intake arrives with `form: read`; changing it takes `form: close`, which the API
+  it("offers a forms viewer its links, webhooks and availability, and no authoring screen", () => {
+    // Availability arrives with `form: read`; changing it takes `form: close`, which the API
     // checks at the act rather than at the link.
-    expect(contexts(VIEWER)).toEqual(["links", "webhooks", "intake"]);
+    expect(contexts(VIEWER)).toEqual(["links", "webhooks", "availability"]);
     expect(primaryFormContext(row(VIEWER))?.context).toBe("links");
     // The builder, Rules, Preview, Versions and Publish are the editor's and are not
     // offered here.
@@ -45,7 +45,7 @@ describe("a row's operational contexts", () => {
       "responses",
       "links",
       "webhooks",
-      "intake",
+      "availability",
       "erase",
     ]);
   });
@@ -69,7 +69,7 @@ describe("a row's operational contexts", () => {
       "responses",
       "links",
       "webhooks",
-      "intake",
+      "availability",
     ]);
   });
 
@@ -84,7 +84,7 @@ describe("a row's operational contexts", () => {
   it("addresses every context under Operations", () => {
     expect(formContextHref("frm a", "responses")).toBe("/operations/forms/frm%20a/responses");
     expect(formContextHref("frm_a", "webhooks")).toBe("/operations/forms/frm_a/webhooks");
-    expect(formContextHref("frm_a", "intake")).toBe("/operations/forms/frm_a/intake");
+    expect(formContextHref("frm_a", "availability")).toBe("/operations/forms/frm_a/availability");
     expect(formContextHref("frm_a", "erase")).toBe("/operations/forms/frm_a/erase");
   });
 });

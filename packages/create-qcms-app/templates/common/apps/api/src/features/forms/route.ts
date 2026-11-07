@@ -267,7 +267,8 @@ export const publishBatchRoute = createRoute({
 export const closeFormRoute = createRoute({
   method: "post",
   path: "/forms/{id}/close",
-  summary: "Close one environment's intake; in-flight sessions finish (admin)",
+  summary:
+    "Close the form to new responses in one environment; in-progress sessions finish (admin)",
   tags,
   request: { params: FormIdParam, body: jsonBody(FormEnvironmentBody) },
   responses: {
@@ -283,7 +284,7 @@ export const closeFormRoute = createRoute({
 export const reopenFormRoute = createRoute({
   method: "post",
   path: "/forms/{id}/reopen",
-  summary: "Reopen one environment's intake (admin)",
+  summary: "Reopen the form to new responses in one environment (admin)",
   tags,
   request: { params: FormIdParam, body: jsonBody(FormEnvironmentBody) },
   responses: {

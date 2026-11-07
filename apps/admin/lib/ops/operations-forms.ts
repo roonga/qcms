@@ -94,7 +94,8 @@ export function readOperationsListState(
   params: Readonly<Record<string, SearchParam>>,
 ): OperationsListState {
   const search = firstValue(params["q"]) ?? "";
-  const intake = parseIntake(params["intake"]);
+  // A bookmark can still carry this filter's former `intake` name.
+  const intake = parseIntake(params["availability"] ?? params["intake"]);
   const activeCount = (search.trim() === "" ? 0 : 1) + (intake === undefined ? 0 : 1);
   return {
     environment: presentValue(params["env"]),
@@ -124,7 +125,7 @@ export function operationsHref(
   return href([
     ["env", state.environment],
     ["q", state.search.trim() === "" ? undefined : state.search],
-    ["intake", state.intake],
+    ["availability", state.intake],
     ["sort", state.sort === DEFAULT_OPERATIONS_SORT ? undefined : state.sort],
     ["cursor", cursor],
   ]);
@@ -153,6 +154,7 @@ export function operationsApiQuery(
   const term = state.search.trim();
   if (term !== "") query.set("q", term);
   if (workspaceId !== undefined) query.set("workspaceId", workspaceId);
+  // `intake` is the API's own parameter name.
   if (state.intake !== undefined) query.set("intake", state.intake);
   query.set("sort", state.sort);
   if (state.cursor !== undefined) query.set("cursor", state.cursor);

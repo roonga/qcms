@@ -5628,7 +5628,7 @@
     },
     "/admin/forms/{id}/close": {
       "post": {
-        "summary": "Close one environment's intake; in-flight sessions finish (admin)",
+        "summary": "Close the form to new responses in one environment; in-progress sessions finish (admin)",
         "tags": [
           "forms"
         ],
@@ -5716,7 +5716,7 @@
     },
     "/admin/forms/{id}/reopen": {
       "post": {
-        "summary": "Reopen one environment's intake (admin)",
+        "summary": "Reopen the form to new responses in one environment (admin)",
         "tags": [
           "forms"
         ],
@@ -9478,7 +9478,7 @@
     "/admin/operations/forms": {
       "get": {
         "summary": "The forms a caller may operate in one environment (admin)",
-        "description": "Bounded search, workspace, form and intake filters, stable sorting and cursor pagination. A caller reaches it holding any one of `form: read`, `response: read`, `response: erase` or `response: dispose`, and each row carries only the fields the cells they hold for that form and environment would authorise elsewhere: release state needs `form: read`, and response counts need `response: read` for that exact form and environment. A count writes no access-audit row, because an aggregate is not a read of anybody's answers. No caller is served a draft, a draft flag, a latest version or a publication time. The environment is an explicit query parameter with no default, and a caller holding nothing in it is served an empty page rather than a refusal.",
+        "description": "Bounded search, workspace, form and availability filters, stable sorting and cursor pagination. A caller reaches it holding any one of `form: read`, `response: read`, `response: erase` or `response: dispose`, and each row carries only the fields the cells they hold for that form and environment would authorise elsewhere: release state needs `form: read`, and response counts need `response: read` for that exact form and environment. A count writes no access-audit row, because an aggregate is not a read of anybody's answers. No caller is served a draft, a draft flag, a latest version or a publication time. The environment is an explicit query parameter with no default, and a caller holding nothing in it is served an empty page rather than a refusal.",
         "tags": [
           "operations"
         ],

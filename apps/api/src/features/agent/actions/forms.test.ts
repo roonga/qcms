@@ -72,7 +72,7 @@ describe("D1's action kinds", () => {
     expect(updateFormSettings.args.safeParse({ formId: "frm_a", other: 1 }).success).toBe(false);
   });
 
-  it("recomputes the intake kinds from the route alone, so the body's environment is checked apart", () => {
+  it("recomputes the availability kinds from the route alone, so the body's environment is checked apart", () => {
     for (const def of [closeForm, reopenForm]) {
       expect(def.recomputeArgs(factsFor(def, { environment: "prod" })), def.kind).toEqual({
         formId: "frm_a",

@@ -25,7 +25,7 @@ test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
 });
 
-test("lists the forms this caller operates, separating unreleased from closed intake", async ({
+test("lists the forms this caller operates, separating unreleased from closed", async ({
   page,
 }) => {
   totpSecret = await enrollNewAdmin(page, EMAIL);
@@ -102,7 +102,7 @@ test("a row opens the form's operational contexts in the environment the chip na
   // Every context link names its own row. The first the caller may open is the form's
   // NAME, so the list beside it is the rest; an account here holds every cell.
   const contexts = row.getByTestId("qcms-operations-contexts");
-  for (const context of ["Links", "Webhooks", "Intake"]) {
+  for (const context of ["Links", "Webhooks", "Availability"]) {
     await expect(contexts.getByRole("link", { name: `${context} for ${ALPHA}` })).toBeVisible();
   }
   // No authoring screen is offered from here.
@@ -140,6 +140,9 @@ test("the addresses the operational screens had still arrive, with their query",
 
   await page.goto(`/forms/${formId}/webhooks`);
   await expect(page).toHaveURL(new RegExp(`/operations/forms/${formId}/webhooks$`, "u"));
+
+  await page.goto(`/operations/forms/${formId}/intake`);
+  await expect(page).toHaveURL(new RegExp(`/operations/forms/${formId}/availability$`, "u"));
 });
 
 test("the legacy responses picker redirects to the Operations table", async ({ page }) => {

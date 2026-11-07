@@ -13,7 +13,7 @@ export const AGENT_SCREENS = [
   "/operations/forms/[formId]/webhooks",
   "/operations/forms/[formId]/responses",
   "/operations/forms/[formId]/responses/[sessionId]",
-  "/operations/forms/[formId]/intake",
+  "/operations/forms/[formId]/availability",
   "/operations/forms/[formId]/erase",
   "/questions",
   "/questions/new",

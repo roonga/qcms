@@ -31,7 +31,7 @@ const HANDLERS: Readonly<Record<string, readonly string[]>> = {
   "ops/endpoint-proposals.tsx": [
     "confirm and withdraw a pending prod endpoint change (ops/endpoint-proposals.test.tsx)",
   ],
-  "ops/form-intake.tsx": ["close/reopen (ops/form-intake-rejects.test.tsx)"],
+  "ops/form-availability.tsx": ["close/reopen (ops/form-availability-rejects.test.tsx)"],
   "ops/known-target-erasure.tsx": [
     "look a session up (ops/known-target-erasure.test.tsx)",
     "erase (ops/known-target-erasure.test.tsx)",

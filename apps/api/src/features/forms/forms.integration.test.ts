@@ -1596,7 +1596,7 @@ describe("GET /admin/forms - search, status filter and sort", () => {
     // fixed order and one row with no date.
     expect((await listPost("/forms/frm_lst_alpha/publish")).status).toBe(200);
     // Bravo also releases, because the closed state lives on the release row: there is
-    // no intake to close in an environment nothing is released to.
+    // nothing to close in an environment nothing is released to.
     expect(
       (
         await listPost("/forms/frm_lst_bravo/publish-and-release", {

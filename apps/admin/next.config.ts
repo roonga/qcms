@@ -63,6 +63,11 @@ export default function adminNextConfig(phase: string): NextConfig {
           permanent: true,
         },
         {
+          source: "/operations/forms/:formId/intake",
+          destination: "/operations/forms/:formId/availability",
+          permanent: true,
+        },
+        {
           /* `all` is the area's own list, not a workspace id, so it is excluded here: a
              redirect runs before routing and would swallow that screen. */
           source: "/workspaces/:workspaceId((?!all$)[^/]+)",

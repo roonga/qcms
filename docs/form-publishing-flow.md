@@ -45,20 +45,20 @@ test, plus previously deployed production versions for rollback. A draft cannot 
 published straight into production. The review step shows what freezes and, per
 destination, the version that environment serves now and the version it will serve. A
 test release does not itself prove that manual testing passed. The diagram assumes
-intake is open in both environments. Draft editing belongs to no environment, so the
+the form is accepting responses in both environments. Draft editing belongs to no environment, so the
 Operations selector never decides where a draft is released.
 
 After a release, the Operations table is where a released form is operated, and it is the
 only place those screens live. Its environment is the Operations header's own selector, and
 each row offers the contexts the operator holds a read for on that form in that
-environment: its Responses, its Links, its Webhooks and its Intake. A row offers no context
+environment: its Responses, its Links, its Webhooks and its Availability. A row offers no context
 the operator's grants do not reach, so an account that may only read responses reaches the
 response browser and nothing else about the form, and an account that may only erase
 reaches no screen from the row at all. It offers no authoring screen either: the builder,
 Rules, Preview, Versions and the publish wizard work on a draft that belongs to no
 environment, while these screens are one environment's.
 
-Intake is where a form is closed to new sessions and reopened. Both the reading and the two
+Availability is where a form is closed to new responses and reopened. Both the reading and the two
 acts are the selected environment's, because the closed state is per form and environment:
 closing production leaves a test run serving, and the confirmation names the environment it
 is about before anything happens.

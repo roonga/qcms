@@ -4,7 +4,7 @@ import type { ActionKindDef, ActionRequestFacts } from "./types.js";
 
 /**
  * The builder screen's own acts: the draft the assistant proposes, the abuse-control
- * settings and the intake door. Each runs in the switcher's environment, so a plan proposed
+ * settings and the availability door. Each runs in the switcher's environment, so a plan proposed
  * under one environment and confirmed under another is refused before anything runs.
  */
 
@@ -26,7 +26,7 @@ const SettingsArgs = z.strictObject({
     .describe("The minimum time on the form, or null to use the deployment's own floor."),
 });
 
-const IntakeArgs = z.strictObject({
+const AvailabilityArgs = z.strictObject({
   formId: z.string().min(1).max(200),
 });
 
@@ -75,7 +75,7 @@ export const applyDraft: ActionKindDef = {
   screen: "/forms/[formId]",
   cell: { resource: "form", action: "write" },
   environmentFrom: "switcher",
-  args: IntakeArgs,
+  args: AvailabilityArgs,
   recomputeArgs: (facts) => ({ formId: facts.params.id ?? "" }),
   references: [],
   // Counts, so the next turn learns what it applied without any of the draft travelling.
@@ -151,15 +151,15 @@ export const updateFormSettings: ActionKindDef = {
     "leaves every session already under way untouched.",
 };
 
-// Both kinds act on one environment's intake, and the builder edits a draft that belongs
-// to no environment, so each names the per-form Intake screen.
+// Both kinds act on one environment's availability, and the builder edits a draft that
+// belongs to no environment, so each names the per-form Availability screen.
 export const closeForm: ActionKindDef = {
   kind: "form.close",
-  screen: "/operations/forms/[formId]/intake",
+  screen: "/operations/forms/[formId]/availability",
   route: { method: "POST", path: "/admin/forms/{id}/close" },
   cell: { resource: "form", action: "close" },
   environmentFrom: "switcher",
-  args: IntakeArgs,
+  args: AvailabilityArgs,
   recomputeArgs: (facts) => ({ formId: facts.params.id ?? "" }),
   references: [],
   resultAllowlist: ["status", "environment"],
@@ -175,11 +175,11 @@ export const closeForm: ActionKindDef = {
 
 export const reopenForm: ActionKindDef = {
   kind: "form.reopen",
-  screen: "/operations/forms/[formId]/intake",
+  screen: "/operations/forms/[formId]/availability",
   route: { method: "POST", path: "/admin/forms/{id}/reopen" },
   cell: { resource: "form", action: "close" },
   environmentFrom: "switcher",
-  args: IntakeArgs,
+  args: AvailabilityArgs,
   recomputeArgs: (facts) => ({ formId: facts.params.id ?? "" }),
   references: [],
   resultAllowlist: ["status", "environment"],

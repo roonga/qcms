@@ -78,12 +78,12 @@ test("changes nothing when the card is cancelled", async ({ page }) => {
   expect(auditDelta(before, await auditTally())).toEqual({});
 });
 
-test("confirms the close and the reopen inside one plan, on the Intake screen", async ({
+test("confirms the close and the reopen inside one plan, on the Availability screen", async ({
   page,
 }) => {
   test.setTimeout(600_000);
   await signInWithTotp(page, EMAIL, totpSecret);
-  await page.goto(`/operations/forms/${formId}/intake`);
+  await page.goto(`/operations/forms/${formId}/availability`);
   await openPanel(page);
   await expect(page.getByRole("button", { name: /^Close in/u })).toBeVisible();
 

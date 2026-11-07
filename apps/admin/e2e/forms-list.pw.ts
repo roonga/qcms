@@ -54,7 +54,7 @@ test("creates the library this spec reads, and closes one of its forms", async (
 
   await createForm(page, ALPHA, "Alpha zebra");
 
-  // Publish and release before closing: intake state belongs to an environment's release, not the form identity.
+  // Publish and release before closing: the closed state belongs to an environment's release, not the form identity.
   const bravoId = await createForm(page, BRAVO, "Bravo quokka");
   await addStep(page, "Driving history");
   await pinQuestion(page, "q_at_fault_accident", 2);
@@ -62,8 +62,8 @@ test("creates the library this spec reads, and closes one of its forms", async (
   await waitForSaved(page);
   await publishDraftThroughWizard(page, { formId: bravoId, version: 1, environment: "test" });
 
-  await page.goto(`/operations/forms/${bravoId}/intake`);
-  await page.getByRole("button", { name: "Close in test" }).click();
+  await page.goto(`/operations/forms/${bravoId}/availability`);
+  await page.getByRole("button", { name: "Close to new responses in test" }).click();
   const dialog = page.getByRole("alertdialog");
   await dialog.getByRole("button", { name: "Close it in test" }).click();
   await expect(page.getByTestId("qcms-form-closed")).toBeVisible({ timeout: 30_000 });
@@ -91,7 +91,7 @@ test("filters by status from the toolbar", async ({ page }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
   await openLibrary(page);
 
-  await chooseOption(page.locator("form.qcms-filters"), "Status", "Closed");
+  await chooseOption(page.locator("form.qcms-filters"), "Availability", "Closed");
   await page.getByRole("button", { name: "Apply" }).click();
 
   await expect(page).toHaveURL(/[?&]status=closed/);

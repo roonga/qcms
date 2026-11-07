@@ -159,17 +159,19 @@ const fail = {
     new ApiError(
       "NOT_RELEASED",
       409,
-      `This form has no released version in ${environment}, so there is no intake to close or reopen`,
+      `This form has no released version in ${environment}, so there is nothing to close or reopen`,
     ),
   /**
    * A refusal rather than a second identical row, so the history that answers "who
-   * stopped production intake, and when" holds no row that recorded no change.
+   * closed production, and when" holds no row that recorded no change.
    */
   alreadyInState: (environment: string, closed: boolean): ApiError =>
     new ApiError(
       closed ? "ALREADY_CLOSED" : "ALREADY_OPEN",
       409,
-      `Intake in ${environment} is already ${closed ? "closed" : "open"}`,
+      closed
+        ? `This form is already closed in ${environment}`
+        : `This form is already accepting responses in ${environment}`,
     ),
   /**
    * A 500 rather than an empty actor in the audit, which would look like an answer. The
