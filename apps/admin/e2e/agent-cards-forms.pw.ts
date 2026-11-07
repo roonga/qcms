@@ -19,7 +19,7 @@ import { pinProposalClock, runOutProposalWindow } from "./support/agent.js";
 import { enrollNewAdmin, fillStable, signInWithTotp } from "./support/flow.js";
 import { waitForHydration } from "./support/hydration.js";
 
-// Close and reopen the shared seed in one test so later specs find it accepting responses.
+// Close and reopen the shared seed in one test so later specs find it open.
 // This relies on workers: 1 and fullyParallel: false.
 
 test.describe.configure({ mode: "serial" });

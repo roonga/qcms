@@ -123,7 +123,7 @@ test("reopens a filtered library from its URL alone, controls and all", async ({
   const toolbar = page.locator("form.qcms-filters");
   await expect(field(page, "Search")).toHaveValue(SCOPE);
 
-  await expect(toolbar.getByRole("button", { name: /Status$/ })).toContainText("Open");
+  await expect(toolbar.getByRole("button", { name: /Availability$/ })).toContainText("Open");
   await expect(toolbar.getByRole("button", { name: /Sort by$/ })).toContainText("Slug (Z to A)");
 });
 
@@ -151,7 +151,7 @@ test("the toolbar is reachable and operable from the keyboard alone", async ({ p
 
   await expect(field(page, "Search")).toBeVisible();
   const toolbar = page.locator("form.qcms-filters");
-  await expect(toolbar.getByRole("button", { name: /Status$/ })).toBeVisible();
+  await expect(toolbar.getByRole("button", { name: /Availability$/ })).toBeVisible();
   await expect(toolbar.getByRole("button", { name: /Sort by$/ })).toBeVisible();
 
   await field(page, "Search").focus();

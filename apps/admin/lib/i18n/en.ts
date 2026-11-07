@@ -145,9 +145,9 @@ export const messages = {
   "operations.column.inProgress": "In progress",
   "operations.context.named": "{context} for {form}",
 
-  "operations.intake.open": "Accepting responses",
+  "operations.intake.open": "Open",
   "operations.intake.closed": "Closed",
-  "operations.intake.unreleased": "No release",
+  "operations.intake.unreleased": "Not Released",
   "operations.release.none": "No release",
   "operations.loading": "Loading the forms you can operate.",
 
@@ -500,7 +500,7 @@ export const messages = {
   "forms.column.status": "Availability",
   "forms.column.draft": "Draft",
   "forms.column.version": "Published",
-  "forms.status.open": "Accepting responses",
+  "forms.status.open": "Open",
   "forms.status.closed": "Closed",
   "forms.draft.present": "Unpublished draft",
   "forms.draft.none": "No draft",
@@ -1144,7 +1144,7 @@ export const messages = {
   "forms.lifecycle.alreadyClosedHere":
     "This form is already closed in this environment. Nothing changed, and nothing was recorded.",
   "forms.lifecycle.alreadyOpenHere":
-    "This form is already accepting responses in this environment. Nothing changed, and nothing was recorded.",
+    "This form is already open in this environment. Nothing changed, and nothing was recorded.",
 
   "forms.releases.currentHeading": "Released now",
   "forms.releases.currentTable": "The version released to each environment",
@@ -1201,7 +1201,7 @@ export const messages = {
 
   "forms.versions.reviewVersion": "Review version {version}",
   "forms.versions.summaryHeading": "What each environment is serving",
-  "forms.versions.intakeOpen": "Accepting responses",
+  "forms.versions.intakeOpen": "Open",
   "forms.versions.intakeClosed": "Closed",
   "forms.versions.column.intake": "Availability",
   "forms.versions.publishEntry": "Publish…",

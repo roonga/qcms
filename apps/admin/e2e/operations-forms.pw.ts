@@ -38,9 +38,9 @@ test("lists the forms this caller operates, separating unreleased from closed", 
   await expect(table).toBeVisible();
   await expect(table.getByRole("row").filter({ hasText: ALPHA })).toHaveCount(1);
   await expect(table.getByRole("row").filter({ hasText: BETA })).toHaveCount(1);
-  await expect(
-    table.getByRole("row").filter({ hasText: ALPHA }).getByText("No release"),
-  ).toHaveCount(2);
+  const alpha = table.getByRole("row").filter({ hasText: ALPHA });
+  await expect(alpha.getByText("No release")).toHaveCount(1);
+  await expect(alpha.getByText("Not Released")).toHaveCount(1);
 });
 
 test("a filter narrows the rows below it and changes nothing above them", async ({ page }) => {

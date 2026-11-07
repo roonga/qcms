@@ -171,7 +171,7 @@ const fail = {
       409,
       closed
         ? `This form is already closed in ${environment}`
-        : `This form is already accepting responses in ${environment}`,
+        : `This form is already open in ${environment}`,
     ),
   /**
    * A 500 rather than an empty actor in the audit, which would look like an answer. The

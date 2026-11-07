@@ -45,7 +45,7 @@ test, plus previously deployed production versions for rollback. A draft cannot 
 published straight into production. The review step shows what freezes and, per
 destination, the version that environment serves now and the version it will serve. A
 test release does not itself prove that manual testing passed. The diagram assumes
-the form is accepting responses in both environments. Draft editing belongs to no environment, so the
+the form is open in both environments. Draft editing belongs to no environment, so the
 Operations selector never decides where a draft is released.
 
 After a release, the Operations table is where a released form is operated, and it is the

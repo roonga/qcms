@@ -148,9 +148,7 @@ test("a form closes and reopens one environment from the screen that owns it", a
   await page.getByRole("button", { name: "Reopen in prod" }).click();
   const reopening = page.getByRole("alertdialog");
   await reopening.getByRole("button", { name: "Reopen it in prod" }).click();
-  await expect(page.getByTestId("qcms-form-availability-reading")).toHaveText(
-    "Accepting responses",
-  );
+  await expect(page.getByTestId("qcms-form-availability-reading")).toHaveText("Open");
 });
 
 test("the builder offers no availability act, because that screen is authoring now", async ({
