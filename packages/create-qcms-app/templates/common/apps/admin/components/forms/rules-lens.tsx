@@ -29,13 +29,15 @@ export function RulesLens({
       data-testid="qcms-rules-lens"
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 id="qcms-rules-lens-heading" className="text-base font-semibold text-(--color-text)">
-          {t("forms.tab.rules")}
-        </h2>
+        <div className="qcms-help-head">
+          <h2 id="qcms-rules-lens-heading" className="text-base font-semibold text-(--color-text)">
+            {t("forms.tab.rules")}
+          </h2>
+          <HelpTip>{t("forms.rules.lensNote")}</HelpTip>
+        </div>
         <span className="text-sm text-(--color-text-muted)" data-rule-count={draft.rules.length}>
           {tPlural("forms.rules.lensCountOne", "forms.rules.lensCount", draft.rules.length)}
         </span>
-        <HelpTip>{t("forms.rules.lensNote")}</HelpTip>
       </div>
 
       {draft.rules.length === 0 ? (

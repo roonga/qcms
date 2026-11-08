@@ -4015,6 +4015,17 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   margin-block-start: 0.125rem;
 }
 
+/* The glyph's own 4px is the whole distance from the heading it follows, so a row that pairs the two adds
+   no column gap of its own. */
+.qcms-help-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 0;
+  row-gap: var(--space-1);
+  min-inline-size: 0;
+}
+
 /* viewportFit: cover draws the document under the status bar and the home indicator, so the sticky top
    bar and the update notice pad themselves out of the insets. */
 .qcms-topbar {
