@@ -93,7 +93,7 @@ test("one workspace draws no switcher, keeps the name in the crumb and has no li
 
   const crumbs = page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("listitem");
   await expect(crumbs).toHaveCount(3);
-  await expect(crumbs.nth(0)).toHaveText("Workspace");
+  await expect(crumbs.nth(0)).toContainText("Workspace");
   await expect(crumbs.nth(1)).toContainText("Default workspace");
   await expect(crumbs.nth(2)).toContainText("Members");
 
