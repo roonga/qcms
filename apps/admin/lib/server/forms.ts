@@ -79,6 +79,7 @@ export async function createForm(
     readonly formId: string;
     readonly slug: string;
     readonly defaultLocale: string;
+    readonly title?: string;
     readonly workspaceId?: string;
   },
   proposal?: AgentProposalRef,
