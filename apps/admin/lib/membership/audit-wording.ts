@@ -152,9 +152,11 @@ export function agentActLabel(kind: string): string {
   return wording === undefined ? kind : t(wording.act);
 }
 
+const BY_SCREEN: Readonly<Record<string, MessageKey>> = SCREEN_LABELS;
+
 /** The screen a step reached, by the name it carries there; an unknown route reads as its pattern. */
 export function agentScreenLabel(screen: string): string {
-  const key = SCREEN_LABELS[screen as AgentScreen];
+  const key = BY_SCREEN[screen];
   return key === undefined ? screen : t(key);
 }
 
