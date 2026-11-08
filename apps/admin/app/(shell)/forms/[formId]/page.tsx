@@ -73,6 +73,7 @@ export default async function FormBuilderPage({
   }
 
   const form = seedTitle(detail.data, firstValue(query["title"]).trim());
+  // A permission matter only: the selected environment never decides whether the draft may be authored.
   if (form.workflow?.enabled && !form.workflow.canEdit) {
     return (
       <FormProductionReview
