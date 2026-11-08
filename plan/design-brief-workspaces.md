@@ -70,7 +70,7 @@ Design the whole area for both cases: one workspace (the common case) and severa
 
 ## Access map (reference for the managing screens)
 
-Matrix of installation, environments, workspaces, members, access groups, roles and the acts each can run: https://claude.ai/artifact/BYDtci7dm4D4j7ZGcgiyew (private; Code Owner shares on request).
+The matrix of installation, environments, workspaces, members, access groups, roles and the acts each can run is kept out of band; the Code Owner shares it on request.
 
 - Roles: `forms.viewer`, `forms.editor`, `forms.approver` (only role with prod writes), `forms.owner` (administers, touches nothing inside), `responses.viewer`, `responses.eraser`. The installation claim acts as owner in every workspace, has no member row and reads no response data.
 - An access group is a role plus environments plus a forms scope.

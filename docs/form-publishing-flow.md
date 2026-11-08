@@ -36,9 +36,7 @@ Publishing and releasing both run through the publish wizard at
 `/forms/{formId}/publish`, reached from the Publish entry on the form's Versions
 screen. The wizard takes a source (the shared draft, or an existing version), the
 destinations to release into, and one confirmation; it writes nothing before that
-confirmation and then releases into every destination or into none of them. The wizard
-accepts a `returnTo`, limited to the agent build screen, and goes back there when the
-operator leaves it. It lists
+confirmation and then releases into every destination or into none of them. It lists
 only the environments the operator may release this form into, and says why an
 environment it cannot use is not eligible.
 
@@ -49,6 +47,10 @@ destination, the version that environment serves now and the version it will ser
 test release does not itself prove that manual testing passed. The diagram assumes
 the form is open in both environments. Draft editing belongs to no environment, so the
 Operations selector never decides where a draft is released.
+
+Planned, not shipped (agent builder task U1, `plan/agent-builder-decisions.md`): the wizard
+will accept a `returnTo` limited to the agent build screen and go back there when the
+operator leaves it.
 
 After a release, the Operations table is where a released form is operated, and it is the
 only place those screens live. Its environment is the Operations header's own selector, and
