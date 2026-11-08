@@ -387,10 +387,12 @@ Phase 6 notes, Code Owner, 2026-11-02:
   form's screens and back to all forms is movement inside Operations, so the environment
   selector and the leave warning behave exactly as they do elsewhere in the mode.
 - **One top bar in every area.** Entering Operations shifts the layout today. The top bar
-  has one height and one layout everywhere, the environment dropdown sits in a reserved
-  slot that moves nothing, the environment-coloured edge takes no space or is drawn neutral
-  outside Operations, and the rail width and the page heading's position are identical
-  across Questions, Forms, Workspaces and Operations. A measure assertion beside
+  has one height and one layout everywhere, Operations names itself, its environment and its
+  way out as one group that the environment tints, the bar draws no edge of its own, and the
+  rail width and the page heading's position are identical across Questions, Forms,
+  Workspaces and Operations (amended 2026-11-07, Code Owner, #1208: that one group replaces
+  the reserved environment slot and the bar's coloured edge;
+  `plan/admin-design-contracts.md` 7.01 and 10, and slice 5 below). A measure assertion beside
   `apps/admin/e2e/measure.pw.ts` compares the header height, the rail width and the
   heading's top on a Questions screen and an Operations screen, in `test` and `prod`, light
   and high contrast, at 1280 and 390.
