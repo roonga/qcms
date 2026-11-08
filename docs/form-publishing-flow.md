@@ -36,7 +36,9 @@ Publishing and releasing both run through the publish wizard at
 `/forms/{formId}/publish`, reached from the Publish entry on the form's Versions
 screen. The wizard takes a source (the shared draft, or an existing version), the
 destinations to release into, and one confirmation; it writes nothing before that
-confirmation and then releases into every destination or into none of them. It lists
+confirmation and then releases into every destination or into none of them. The wizard
+accepts a `returnTo`, limited to the agent build screen, and goes back there when the
+operator leaves it. It lists
 only the environments the operator may release this form into, and says why an
 environment it cannot use is not eligible.
 
