@@ -16,6 +16,7 @@ export const messages = {
   /** The narrow-width disclosure's name on an area rail, which carries no title of its own. */
   "rail.menu": "Menu",
   "help.label": "More information",
+  "help.named": "Help: {label}",
   "rail.allQuestions": "All questions",
   "rail.allForms": "All forms",
 
@@ -1307,7 +1308,7 @@ export const messages = {
     "The published version could not be loaded. Close this confirmation and try again.",
   "forms.workflow.alreadyReleased": "v{version} is already released to {environment}.",
   "forms.workflow.noPublishPermission":
-    "Publishing here requires permission to publish forms and release versions to {environment}.",
+    "Publishing requires permission to publish forms in this workspace.",
   "forms.workflow.noReleasePermission":
     "You do not have permission to release versions to {environment} in this workspace.",
   "forms.workflow.noCandidate":
@@ -1317,9 +1318,6 @@ export const messages = {
     "Publish and verify this version in test, then switch to prod and release the existing version.",
   "forms.workflow.noEditPermission":
     "You do not have permission to edit form drafts in this workspace.",
-  "forms.workflow.editInTest":
-    "Draft changes are shared. Select test in the top navigation to edit and publish them.",
-  "forms.workflow.switchToTest": "Switch to test",
   "forms.workflow.noReleasedVersion":
     "Nothing is released in this environment yet. Select a published version on Versions to review and release it.",
   "forms.workflow.reviewCurrent": "Currently released: v{version}",
@@ -1949,6 +1947,7 @@ export const messages = {
   "ops.export.emptyNote.json": "A JSON export that matches nothing downloads as an empty list.",
 
   "ops.detail.heading": "Response {sessionId}",
+  "ops.detail.moreActions": "More actions",
   "ops.detail.back": "Back to responses",
   "ops.detail.answers": "Locked answers",
   "ops.detail.answersIntro":

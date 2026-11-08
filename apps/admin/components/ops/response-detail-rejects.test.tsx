@@ -2,6 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
+import { ResponseActions } from "./response-actions.tsx";
 import { ResponseDetail } from "./response-detail.tsx";
 import { t } from "../../lib/i18n/en.ts";
 import type { ResponseDetail as ResponseDetailData } from "../../lib/ops/types.ts";
@@ -35,17 +36,19 @@ function renderDetail(props: {
   readonly unflag?: () => Promise<never>;
 }): void {
   render(
-    <ResponseDetail
-      detail={DETAIL}
-      pins={[]}
-      labels={new Map()}
-      labelsFailed={false}
-      linksHref="/operations/forms/form-1/links"
-      environment="test"
-      erasable
-      erase={props.erase ?? (() => Promise.resolve({ status: "error" as const }))}
-      unflag={props.unflag ?? (() => Promise.resolve({ status: "error" as const }))}
-    />,
+    <>
+      <ResponseActions />
+      <ResponseDetail
+        detail={DETAIL}
+        pins={[]}
+        labels={new Map()}
+        labelsFailed={false}
+        linksHref="/operations/forms/form-1/links"
+        environment="test"
+        erase={props.erase ?? (() => Promise.resolve({ status: "error" as const }))}
+        unflag={props.unflag ?? (() => Promise.resolve({ status: "error" as const }))}
+      />
+    </>,
   );
 }
 
@@ -66,7 +69,8 @@ describe("a rejected response action", { timeout: 30_000 }, () => {
     const user = userEvent.setup();
     renderDetail({ erase: transportFailure });
 
-    await user.click(screen.getByRole("button", { name: t("ops.erase.button") }));
+    await user.click(screen.getByRole("button", { name: t("ops.detail.moreActions") }));
+    await user.click(await screen.findByRole("menuitem", { name: t("ops.erase.button") }));
     const dialog = await screen.findByTestId("qcms-erase-dialog");
 
     await user.type(

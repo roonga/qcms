@@ -5,7 +5,7 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { chooseEnvironment } from "./support/environment.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
-import { submitResponse } from "./support/ops.js";
+import { moreActions, openEraseDialog, submitResponse } from "./support/ops.js";
 
 test.describe.configure({ mode: "serial" });
 
@@ -31,7 +31,7 @@ test("a response's detail offers no other environment when there is nothing else
   totpSecret = await enrollNewAdmin(page, EMAIL);
 
   await page.goto(`/operations/forms/${FORM_ID}/responses/${prodSession}`);
-  await expect(page.getByRole("button", { name: "Erase respondent data…" })).toBeVisible();
+  await expect(moreActions(page)).toBeVisible();
 
   await expect(page.getByTestId("qcms-erasure-elsewhere")).toHaveCount(0);
 });
@@ -41,7 +41,7 @@ test("the erasure confirmation names the environment it would act in", async ({ 
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto(`/operations/forms/${FORM_ID}/responses/${prodSession}`);
 
-  await page.getByRole("button", { name: "Erase respondent data…" }).click();
+  await openEraseDialog(page);
   const dialog = page.getByTestId("qcms-erase-dialog");
   await expect(dialog).toBeVisible();
 
@@ -65,12 +65,12 @@ test("a response read reaches the selected environment and no other", async ({
 
   await chooseEnvironment(page, "test");
   await page.goto(`/operations/forms/${FORM_ID}/responses/${prodSession}`);
-  await expect(page.locator("body")).not.toContainText("Erase respondent data…");
+  await expect(moreActions(page)).toHaveCount(0);
 
   await page.goto(`/operations/forms/${FORM_ID}/responses`);
   await chooseEnvironment(page, "prod");
   await page.goto(`/operations/forms/${FORM_ID}/responses/${prodSession}`);
-  await expect(page.getByRole("button", { name: "Erase respondent data…" })).toBeVisible();
+  await expect(moreActions(page)).toBeVisible();
 });
 
 test("an export downloads under the environment it was read from (Q8)", async ({ page }) => {
