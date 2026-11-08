@@ -8,6 +8,7 @@ import type {
 } from "../forms/builder-state.ts";
 import { parseIssues } from "../forms/issues.ts";
 import { readDraftRules, readDraftSteps } from "../forms/draft-payload.ts";
+import { FORM_AVAILABILITIES } from "../forms/types.ts";
 import type {
   CompiledStep,
   DraftForm,
@@ -92,6 +93,12 @@ export async function createForm(
   );
 }
 
+// An unreadable reading falls back to open rather than unreleased: unreleased hides both
+// acts, and the API refuses a close it cannot perform anyway.
+function parseAvailability(raw: unknown): FormAvailability {
+  return FORM_AVAILABILITIES.find((value) => value === raw) ?? "open";
+}
+
 /** False challengeEnforceable warns instead of promising protection the API did not report. React cache is request-only and depends on callers sharing the memoized session object. */
 export const getForm: (session: AdminSession, formId: string) => Promise<ApiResult<FormDetail>> =
   cache(async (session: AdminSession, formId: string): Promise<ApiResult<FormDetail>> => {
@@ -107,7 +114,7 @@ export const getForm: (session: AdminSession, formId: string) => Promise<ApiResu
         formId: asString(raw["formId"], formId),
         slug: asString(raw["slug"], formId),
         defaultLocale,
-        status: raw["status"] === "closed" ? "closed" : "open",
+        status: parseAvailability(raw["status"]),
         draft: parseDraft(raw["draft"], formId, defaultLocale),
         draftSource: parseDraftSource(raw["draftSource"]),
         releasedDefinition: parseDraft(raw["releasedDefinition"], formId, defaultLocale),
