@@ -47,6 +47,7 @@
   --admin-topbar-h: calc(var(--admin-control-h) + 1rem + 1px);
   --admin-rail-w: 15rem;
   --admin-rail-collapsed-w: 3.5rem;
+  --admin-crumb-line-h: 1.25rem;
 }
 
 @theme static {
@@ -678,6 +679,29 @@ button {
 }
 :root.hc .qcms-menu__item[data-selected] {
   box-shadow: inset 2px 0 0 var(--color-primary);
+}
+.qcms-menu__item--danger {
+  color: var(--color-danger-fg);
+}
+.qcms-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-block-size: var(--admin-control-h);
+  padding-inline: var(--admin-control-pad-x);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.qcms-menu-trigger:hover {
+  background-color: var(--color-ghost-hover);
+}
+:root.hc .qcms-menu-trigger {
+  border-width: 2px;
 }
 .qcms-menu__check {
   inline-size: 1em;
@@ -2181,13 +2205,13 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   box-sizing: content-box;
   display: flex;
   align-items: center;
-  min-block-size: 1.25rem;
+  min-block-size: var(--admin-crumb-line-h);
   margin: -4px;
   padding: 4px;
   overflow: hidden;
   list-style: none;
   font-size: 0.8125rem;
-  line-height: 1.25rem;
+  line-height: var(--admin-crumb-line-h);
   white-space: nowrap;
 }
 .qcms-crumbs__item {
@@ -3818,7 +3842,24 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   outline: 2px dashed var(--color-border-strong);
 }
 
-/* Where the breadcrumb row shares the line, the page action sits on it instead of taking a row of its own. */
+/* One header pattern on every screen: the heading leads the row and the screen's actions close it. */
+.qcms-page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.qcms-page-header__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Where the breadcrumb row shares the line, the page action sits on it instead of taking a row of its own:
+   it rides the crumb line's centre, which is the column's own padding plus half that line above the content
+   box it starts in, so the two cannot drift apart. `shell-frame.pw.ts` asserts the landing. */
 .qcms-page-actionbar {
   display: flex;
   flex-wrap: wrap;
@@ -3828,7 +3869,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   .qcms-page-actionbar {
     block-size: 0;
     flex-wrap: nowrap;
-    translate: 0 -1.875rem;
+    translate: 0 calc(-1 * (var(--admin-section-pad) + var(--admin-crumb-line-h) / 2));
   }
 }
 

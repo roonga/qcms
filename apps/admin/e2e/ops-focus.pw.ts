@@ -4,7 +4,7 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { activeElementId, enrollNewAdmin, signInWithTotp } from "./support/flow.js";
-import { openDeliverer, submitResponse } from "./support/ops.js";
+import { openDeliverer, openEraseDialog, submitResponse } from "./support/ops.js";
 
 // These own responses leave no delivery-count side effects: flagged submissions queue no event,
 // and erasure redacts events before fan-out.
@@ -70,7 +70,7 @@ test("erasing a response leaves focus on the tombstone, not on the body", async 
   await signInWithTotp(page, EMAIL, totpSecret);
 
   await page.goto(`/operations/forms/${FORM_ID}/responses/${erasable}`);
-  await page.getByRole("button", { name: "Erase respondent data…" }).click();
+  await openEraseDialog(page);
   const dialog = page.getByTestId("qcms-erase-dialog");
   await expect(dialog).toBeVisible();
   await dialog.getByRole("textbox", { name: /Type the session id/ }).fill(erasable);
@@ -122,7 +122,7 @@ test("the erasure outcome is still announced after the revalidation replaces the
     "a live region has to exist before the action for this to mean anything",
   ).toBeGreaterThan(0);
 
-  await page.getByRole("button", { name: "Erase respondent data…" }).click();
+  await openEraseDialog(page);
   const dialog = page.getByTestId("qcms-erase-dialog");
   await expect(dialog).toBeVisible();
   await dialog.getByRole("textbox", { name: /Type the session id/ }).fill(announceable);
