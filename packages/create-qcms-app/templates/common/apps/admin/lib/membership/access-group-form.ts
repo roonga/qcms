@@ -1,4 +1,4 @@
-import { t, type MessageKey } from "../i18n/en.ts";
+import { t, tPlural, type MessageKey } from "../i18n/en.ts";
 
 /** The roles an access group can carry. `forms.owner` belongs to the member row, never to a group. */
 export const GROUP_ROLES = [
@@ -135,12 +135,40 @@ export function grantCandidates(
   return members.filter((member) => !holding.has(member.userId));
 }
 
+/** The wire word for an unbounded scope, which also covers whatever is added later. */
+export function isAllScope(scope: readonly string[]): boolean {
+  return scope.length === 1 && scope[0] === "all";
+}
+
 /** A scope as the group's row reads it: `all` as the catalog's word, names where known. */
 export function scopeLabel(
   scope: readonly string[],
   allKey: MessageKey,
   nameOf: (value: string) => string = (value) => value,
 ): string {
-  if (scope.length === 1 && scope[0] === "all") return t(allKey);
+  if (isAllScope(scope)) return t(allKey);
   return scope.map(nameOf).join(", ");
+}
+
+export interface ScopedRole {
+  readonly role: string;
+  readonly environments: readonly string[];
+  readonly forms: readonly string[];
+}
+
+/** A group's title in plain words: its role and its scope. The stored name stays under Advanced. */
+export function groupTitle(group: ScopedRole): string {
+  return t("membership.groups.title", {
+    role: roleName(group.role),
+    environments: isAllScope(group.environments)
+      ? t("membership.groups.titleAllEnvironments")
+      : group.environments.join(", "),
+    forms: isAllScope(group.forms)
+      ? t("membership.groups.titleAllForms")
+      : tPlural(
+          "membership.groups.titleForms.one",
+          "membership.groups.titleForms.other",
+          group.forms.length,
+        ),
+  });
 }

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 
 import { EmptyState } from "@/components/empty-state";
 import { Alert } from "@/components/kit";
@@ -10,18 +11,27 @@ import { pageMetadata } from "@/lib/page-title";
 import { listWorkspaces } from "@/lib/server/membership";
 import { navigableCapabilities, shellAccess } from "@/lib/server/shell";
 import { requireAdminSession } from "@/lib/server/session";
+import { currentWorkspaceContext } from "@/lib/server/workspace-context";
 import { permitsPath, WORKSPACES_PATH } from "@/lib/shell/modes";
+import { offersWorkspaceChoice } from "@/lib/shell/workspace-context";
 
 export function generateMetadata(): Metadata {
   return pageMetadata(t("membership.workspace.allWorkspaces"));
 }
 
-/** The whole list, which the area's own root never shows: it lands on the current workspace. */
+/**
+ * The whole list, which the area's own root never shows: it lands on the current workspace.
+ * A caller with one workspace has no list to read, so this address lands on that workspace.
+ */
 export default async function AllWorkspacesPage() {
   const session = await requireAdminSession();
   const capabilities = navigableCapabilities(await shellAccess(session));
   if (!permitsPath(capabilities, WORKSPACES_PATH)) {
     return <DeniedRecovery capabilities={capabilities} />;
+  }
+  const context = await currentWorkspaceContext(session);
+  if (!offersWorkspaceChoice(context) && context.current !== undefined) {
+    redirect(workspaceHref(context.current.workspaceId));
   }
   const workspaces = await listWorkspaces(session);
   const rows = workspaces.ok
@@ -30,7 +40,9 @@ export default async function AllWorkspacesPage() {
 
   return (
     <div className="flex min-w-0 flex-col gap-6">
-      <h1 className="sr-only">{t("membership.workspace.allWorkspaces")}</h1>
+      <h1 className="text-xl font-semibold text-(--color-text)">
+        {t("membership.workspace.allWorkspaces")}
+      </h1>
 
       {!workspaces.ok && (
         <Alert variant="error">
@@ -40,7 +52,7 @@ export default async function AllWorkspacesPage() {
 
       {workspaces.ok && rows.length === 0 && (
         <EmptyState
-          heading={t("membership.area.noWorkspaces")}
+          heading={t("membership.allWorkspaces.none")}
           testId="qcms-all-workspaces-empty"
         />
       )}

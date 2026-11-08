@@ -3,17 +3,30 @@ import { EntityId } from "@/components/entity-id";
 import { Alert } from "@/components/kit";
 import { OperatorDateTime } from "@/components/operator-time";
 import { t } from "@/lib/i18n/en";
+import {
+  agentActionPlans,
+  agentActLabel,
+  agentScreenLabel,
+  agentStepDetail,
+  type AgentAuditNames,
+} from "@/lib/membership/audit-wording";
 import type { AgentAuditPage } from "@/lib/membership/types";
+
+const COLUMNS = 7;
 
 /* Audit human-confirmed acts using non-content facts only; never include answers, secrets, or authored
    text. */
 export function AgentAuditPanel({
   audit,
   message,
+  names,
 }: {
   readonly audit: AgentAuditPage | undefined;
   readonly message: string | undefined;
+  /** This workspace's groups and members, so a row's one id reads as the thing it named. */
+  readonly names: AgentAuditNames;
 }) {
+  const plans = audit === undefined ? [] : agentActionPlans(audit.rows);
   return (
     <section aria-labelledby="qcms-agent-audit-heading" className="flex min-w-0 flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -34,6 +47,9 @@ export function AgentAuditPanel({
           <p className="text-sm text-(--color-text-muted)">{t("membership.agentAudit.none")}</p>
         ) : (
           <>
+            <p className="text-sm text-(--color-text-muted)">
+              {t("membership.agentAudit.confirmedOnly")}
+            </p>
             <p className="text-xs text-(--color-text-muted)">
               {t("membership.agentAudit.total", { total: audit.total })}
             </p>
@@ -47,43 +63,53 @@ export function AgentAuditPanel({
                     <th scope="col">{t("membership.agentAudit.columnWhen")}</th>
                     <th scope="col">{t("membership.agentAudit.columnActor")}</th>
                     <th scope="col">{t("membership.agentAudit.columnKind")}</th>
-                    <th scope="col">{t("membership.agentAudit.columnStep")}</th>
+                    <th scope="col">{t("membership.agentAudit.columnDetail")}</th>
                     <th scope="col">{t("membership.agentAudit.columnScreen")}</th>
                     <th scope="col">{t("membership.agentAudit.columnEnvironment")}</th>
                     <th scope="col">{t("membership.agentAudit.columnForm")}</th>
-                    <th scope="col">{t("membership.agentAudit.columnDetail")}</th>
                   </tr>
                 </thead>
-                <tbody>
-                  {audit.rows.map((row) => (
-                    <tr key={row.id}>
-                      <td>
-                        <OperatorDateTime iso={row.confirmedAt} />
-                      </td>
-                      <td>
-                        {row.actorEmail ??
-                          t("membership.agentAudit.unknownActor", { actor: row.actor })}
-                      </td>
-                      <td>{row.kind}</td>
-                      <td>
-                        {t("membership.agentAudit.step", {
-                          index: row.stepIndex + 1,
-                          count: row.stepCount,
-                        })}
-                      </td>
-                      <td>{row.screen}</td>
-                      <td>{row.environment ?? t("membership.agentAudit.empty")}</td>
-                      <td>
-                        {row.formId === null ? (
-                          t("membership.agentAudit.empty")
-                        ) : (
-                          <EntityId kind="form" value={row.formId} />
-                        )}
-                      </td>
-                      <td>{row.detail ?? t("membership.agentAudit.empty")}</td>
+                {plans.map((plan) => (
+                  <tbody key={plan.proposalId} data-proposal={plan.proposalId}>
+                    <tr>
+                      <th scope="colgroup" colSpan={COLUMNS} data-testid="qcms-agent-audit-plan">
+                        {plan.heading}
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
+                    {plan.steps.map((row) => {
+                      const detail = agentStepDetail(row.kind, row.detail, names);
+                      return (
+                        <tr key={row.id}>
+                          <td>
+                            <OperatorDateTime iso={row.confirmedAt} />
+                          </td>
+                          <td>
+                            {row.actorEmail ??
+                              t("membership.agentAudit.unknownActor", { actor: row.actor })}
+                          </td>
+                          <td>{agentActLabel(row.kind)}</td>
+                          <td>
+                            {detail === undefined
+                              ? t("membership.agentAudit.empty")
+                              : t("membership.agentAudit.detail", {
+                                  label: detail.label,
+                                  value: detail.value,
+                                })}
+                          </td>
+                          <td>{agentScreenLabel(row.screen)}</td>
+                          <td>{row.environment ?? t("membership.agentAudit.empty")}</td>
+                          <td>
+                            {row.formId === null ? (
+                              t("membership.agentAudit.empty")
+                            ) : (
+                              <EntityId kind="form" value={row.formId} />
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                ))}
               </table>
             </div>
           </>

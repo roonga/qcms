@@ -36,6 +36,7 @@ export function ShellChrome({
   environment,
   environmentName,
   trailing,
+  multipleWorkspaces,
 }: {
   readonly capabilities: ShellCapabilities;
   readonly rememberedMode: ShellMode | undefined;
@@ -44,6 +45,8 @@ export function ShellChrome({
   /** The selected environment's name, empty when it is unknown. */
   readonly environmentName: string;
   readonly trailing: ReactNode;
+  /** Whether this caller may open more than one workspace, which decides the area's name. */
+  readonly multipleWorkspaces: boolean;
 }) {
   const pathname = usePathname();
   const search = useSearchParams().toString();
@@ -69,6 +72,7 @@ export function ShellChrome({
       <div className="qcms-topbar__nav">
         <AdminNav
           capabilities={capabilities}
+          multipleWorkspaces={multipleWorkspaces}
           operationsGroup={
             inOperations ? (
               <div
@@ -102,7 +106,12 @@ export function ShellChrome({
         />
       </div>
       <div className="qcms-topbar__tools">{trailing}</div>
-      {inOperations && <LeaveOperationsGuard environment={environmentName} />}
+      {inOperations && (
+        <LeaveOperationsGuard
+          environment={environmentName}
+          multipleWorkspaces={multipleWorkspaces}
+        />
+      )}
       <span className="qcms-visually-hidden" role="status" data-testid="qcms-shell-mode-status">
         {focused === undefined ? "" : t(`shell.mode.${focused}.announce`)}
       </span>

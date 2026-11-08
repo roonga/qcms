@@ -8,6 +8,9 @@ import { AccessGroupsPanel } from "./access-groups-panel";
 
 const DONE: MembershipActionState = { status: "done", message: "ok" };
 
+/** The group's plain title, which the stored name no longer stands in for. */
+const TITLE = "Release approver, test, 1 form";
+
 const LIST: AccessGroupList = {
   workspaceId: "ws_1",
   scopeNote: "",
@@ -62,19 +65,22 @@ describe("the access-group form", () => {
     }
   });
 
-  it("reads a group's role by its plain name, its forms by name", () => {
+  it("titles a group by its role and scope, with the stored name under Advanced", () => {
     renderPanel();
-    const row = screen.getByText("test.forms.approver").closest("li");
+    const row = screen.getByText(TITLE).closest("li");
     expect(row).not.toBeNull();
     const scope = within(row as HTMLElement);
-    expect(scope.getByText("Release approver")).toBeTruthy();
     expect(scope.queryByText("forms.approver")).toBeNull();
     expect(scope.getByText("claims")).toBeTruthy();
+    const advanced = scope.getByText("Advanced").closest("details");
+    expect(advanced?.textContent).toContain("Stored name test.forms.approver");
+    expect(advanced?.textContent).toContain("Full name ws.test.forms.approver");
+    expect(advanced?.textContent).toContain("In a directory qcms.ws.test.forms.approver");
   });
 
   it("offers only members who do not hold the group yet", () => {
     renderPanel();
-    const row = screen.getByText("test.forms.approver").closest("li") as HTMLElement;
+    const row = screen.getByText(TITLE).closest("li") as HTMLElement;
     const options = within(row).getAllByRole("option", { hidden: true });
     expect(
       options.map((option) => option.textContent?.trim()).filter((text) => text !== ""),

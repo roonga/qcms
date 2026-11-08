@@ -102,4 +102,16 @@ describe("an area's rail", () => {
     render(<WorkspacesRail workspace={{ workspaceId: "org_a", name: "Alpha" }} />);
     expect(screen.queryByTestId("qcms-rail-context")).toBeNull();
   });
+
+  it("names the area in the singular and offers no list when there is one workspace", () => {
+    render(
+      <WorkspacesRail
+        workspace={{ workspaceId: "org_a", name: "Alpha" }}
+        section="audit"
+        multiple={false}
+      />,
+    );
+    expect(screen.getByTestId("qcms-workspaces-rail").getAttribute("aria-label")).toBe("Workspace");
+    expect(screen.queryByTestId("qcms-rail-context")).toBeNull();
+  });
 });

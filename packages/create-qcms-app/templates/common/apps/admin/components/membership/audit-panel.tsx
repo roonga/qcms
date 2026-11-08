@@ -3,6 +3,7 @@ import { EntityId } from "@/components/entity-id";
 import { Alert } from "@/components/kit";
 import { OperatorDateTime } from "@/components/operator-time";
 import { t } from "@/lib/i18n/en";
+import { auditKindLabel } from "@/lib/membership/audit-wording";
 import type { AuditPage } from "@/lib/membership/types";
 
 /* Audit rows must contain acts only, with no answer values, respondent identifiers, or question text. */
@@ -58,7 +59,7 @@ export function AuditPanel({
                       <td>
                         {row.actorEmail ?? t("membership.audit.unknownActor", { actor: row.actor })}
                       </td>
-                      <td>{row.kind}</td>
+                      <td>{auditKindLabel(row.kind)}</td>
                       <td>{row.environment ?? t("membership.audit.empty")}</td>
                       <td>
                         {row.formId === null ? (

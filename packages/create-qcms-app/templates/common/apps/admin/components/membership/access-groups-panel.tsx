@@ -12,6 +12,7 @@ import {
   GROUP_ROLES,
   grantCandidates,
   groupNameFor,
+  groupTitle,
   isChosen,
   roleDescription,
   roleName,
@@ -102,10 +103,6 @@ export function AccessGroupsPanel({
           </h1>
           <HelpTip>{t("membership.groups.intro")}</HelpTip>
         </div>
-        <p className="text-xs text-(--color-text-muted)">{t("membership.groups.nameHelp")}</p>
-        {list !== undefined && (
-          <p className="text-xs text-(--color-text-muted)">{list.scopeNote}</p>
-        )}
       </div>
 
       {list === undefined && (
@@ -125,8 +122,12 @@ export function AccessGroupsPanel({
               const candidates = grantCandidates(members, group.holders);
               const chosen = holder[group.teamId] ?? null;
               return (
-                <li key={group.teamId} className="flex min-w-0 flex-col gap-2 border-t pt-2">
-                  <p className="text-sm font-medium break-all text-(--color-text)">{group.name}</p>
+                <li
+                  key={group.teamId}
+                  className="flex min-w-0 flex-col gap-2 border-t pt-2"
+                  data-group-name={group.name}
+                >
+                  <p className="text-sm font-medium text-(--color-text)">{groupTitle(group)}</p>
                   <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs break-all text-(--color-text-muted)">
                     <dt>{t("membership.groups.columnRole")}</dt>
                     <dd>{roleName(group.role)}</dd>
@@ -151,12 +152,15 @@ export function AccessGroupsPanel({
                     <summary className="text-xs text-(--color-text-muted)">
                       {t("membership.groups.advanced")}
                     </summary>
-                    <p className="text-xs break-all text-(--color-text-muted)">
-                      {t("membership.groups.derivedName", {
-                        fullName: group.fullName,
-                        directoryName: group.directoryName,
-                      })}
-                    </p>
+                    <ul className="flex flex-col gap-1 pt-1 text-xs break-all text-(--color-text-muted)">
+                      <li>{t("membership.groups.storedName", { name: group.name })}</li>
+                      <li>{t("membership.groups.derivedName", { fullName: group.fullName })}</li>
+                      <li>
+                        {t("membership.groups.directoryName", {
+                          directoryName: group.directoryName,
+                        })}
+                      </li>
+                    </ul>
                   </details>
 
                   <div className="flex min-w-0 flex-wrap items-end gap-2">
@@ -263,13 +267,15 @@ export function AccessGroupsPanel({
           <legend className="text-sm font-medium text-(--color-text)">
             {t("membership.groups.createEnvironments")}
           </legend>
-          <Checkbox
-            label={t("membership.groups.allEnvironments")}
-            isSelected={envChoice.kind === "all"}
-            onChange={(on: boolean) => {
-              setEnvChoice((current) => toggleAll(current, on));
-            }}
-          />
+          <FieldHelp help={t("membership.groups.allEnvironmentsHelp")}>
+            <Checkbox
+              label={t("membership.groups.allEnvironments")}
+              isSelected={envChoice.kind === "all"}
+              onChange={(on: boolean) => {
+                setEnvChoice((current) => toggleAll(current, on));
+              }}
+            />
+          </FieldHelp>
           {environments.map((environment) => (
             <Checkbox
               key={environment}
@@ -286,13 +292,15 @@ export function AccessGroupsPanel({
           <legend className="text-sm font-medium text-(--color-text)">
             {t("membership.groups.createForms")}
           </legend>
-          <Checkbox
-            label={t("membership.groups.allForms")}
-            isSelected={formChoice.kind === "all"}
-            onChange={(on: boolean) => {
-              setFormChoice((current) => toggleAll(current, on));
-            }}
-          />
+          <FieldHelp help={t("membership.groups.allFormsHelp")}>
+            <Checkbox
+              label={t("membership.groups.allForms")}
+              isSelected={formChoice.kind === "all"}
+              onChange={(on: boolean) => {
+                setFormChoice((current) => toggleAll(current, on));
+              }}
+            />
+          </FieldHelp>
           <FieldHelp help={t("membership.groups.formsReadable")}>
             <TextField
               label={t("membership.groups.formSearch")}
@@ -326,17 +334,21 @@ export function AccessGroupsPanel({
               value={label}
               onChange={setLabel}
             />
+            <p
+              className="text-xs break-all text-(--color-text-muted)"
+              data-testid="qcms-group-name"
+            >
+              {name === undefined
+                ? t("membership.groups.createNameMissing")
+                : t("membership.groups.createName", { name })}
+            </p>
+            <p className="text-xs text-(--color-text-muted)">{t("membership.groups.nameHelp")}</p>
             <p className="text-xs text-(--color-text-muted)">
               {t("membership.groups.directoryHelp")}
             </p>
           </div>
         </details>
 
-        <p className="text-xs break-all text-(--color-text-muted)" data-testid="qcms-group-name">
-          {name === undefined
-            ? t("membership.groups.createNameMissing")
-            : t("membership.groups.createName", { name })}
-        </p>
         <div>
           <Button
             isDisabled={pending || name === undefined || formScope.length === 0}

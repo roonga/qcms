@@ -20,7 +20,7 @@ const EVERYTHING: ShellCapabilities = {
   siteConfiguration: true,
 };
 
-function chrome() {
+function chrome(multipleWorkspaces = true) {
   return (
     <ShellChrome
       capabilities={EVERYTHING}
@@ -29,6 +29,7 @@ function chrome() {
       environment={<span data-testid="qcms-environment-switcher">test</span>}
       environmentName="test"
       trailing={<span>tools</span>}
+      multipleWorkspaces={multipleWorkspaces}
     />
   );
 }
@@ -55,6 +56,15 @@ describe("the top bar", () => {
     expect(screen.getByRole("navigation", { name: "Primary" })).toBeTruthy();
     expect(screen.getByTestId("qcms-mode-header").getAttribute("data-mode")).toBe("operations");
     expect(screen.getByTestId("qcms-mode-exit")).toBeTruthy();
+  });
+
+  it("names the area in the singular when the caller may open one workspace", () => {
+    const view = render(chrome());
+    expect(screen.getByRole("link", { name: "Workspaces" })).toBeTruthy();
+
+    view.rerender(chrome(false));
+    expect(screen.getByRole("link", { name: "Workspace" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Workspaces" })).toBeNull();
   });
 
   it("remembers a query-only change outside Operations for Exit to return to", () => {

@@ -84,6 +84,7 @@ export default async function ShellLayout({
               )}
               <ShellChrome
                 capabilities={capabilities}
+                multipleWorkspaces={offersWorkspaceChoice(workspaces)}
                 rememberedMode={rememberedMode(cookieStore)}
                 secureCookies={secureCookies()}
                 environmentName={resolved.status === "known" ? resolved.environment : ""}
