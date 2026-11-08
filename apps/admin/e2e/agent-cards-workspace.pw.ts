@@ -177,7 +177,8 @@ test("Assistant actions reads that plan back in words, grouped and in order", as
   await expect(
     page.getByText("confirmed by a person and then succeeded", { exact: false }),
   ).toBeVisible();
-  await expect(page.getByRole("columnheader", { name: "Step" })).toHaveCount(0);
+  // Exact: a plan's own heading row is a column header too, and every one says "step".
+  await expect(page.getByRole("columnheader", { name: "Step", exact: true })).toHaveCount(0);
 
   const planned = page
     .locator("tbody")
