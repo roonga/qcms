@@ -352,7 +352,8 @@ describe("test-to-production eligibility", () => {
       workflow: { canPublish: boolean };
     };
     expect(form.draft).not.toBeNull();
-    expect(form.workflow.canPublish).toBe(false);
+    // The refusal above is the gate; `canPublish` is the caller's grant and follows no environment.
+    expect(form.workflow.canPublish).toBe(true);
     expect(await releasedEvents("prod", formId)).toBe(0);
   });
 });
