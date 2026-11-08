@@ -31,9 +31,7 @@ export default async function WorkspacesPage() {
 
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      <h1 className="text-xl font-semibold text-(--color-text)">
-        {t(workspaceAreaLabel(false))}
-      </h1>
+      <h1 className="text-xl font-semibold text-(--color-text)">{t(workspaceAreaLabel(false))}</h1>
 
       {!workspaces.ok && (
         <Alert variant="error">
