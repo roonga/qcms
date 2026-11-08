@@ -1,0 +1,939 @@
+    <!DOCTYPE html>
+<!--[if lt IE 7]>       <html class="no-js lt-ie10 lt-ie9 lt-ie8 lt-ie7" lang="en"> <![endif]-->
+<!--[if IE 7]>          <html class="no-js lt-ie10 lt-ie9 lt-ie8" lang="en"> <![endif]-->
+<!--[if IE 8]>          <html class="no-js lt-ie10 lt-ie9" lang="en"> <![endif]-->
+<!--[if IE 9]>          <html class="no-js lt-ie10" lang="en"> <![endif]-->
+<!--[if gt IE 9]><!-->  <html class="no-js" lang="en"> <!--<![endif]-->
+    <head prefix="dcterms: http://purl.org/dc/terms">
+        <meta charset="UTF-8">
+
+        <link rel="search" type="application/opensearchdescription+xml" title="West Northamptonshire Council - Northampton Area" href="https://forms.westnorthants.gov.uk/site/scripts/opensearch.php">
+        <link rel="stylesheet" type="text/css" href="//forms.westnorthants.gov.uk/site/styles/libs/select2.min.css">
+
+        <link rel="apple-touch-icon" sizes="180x180" href="//forms.westnorthants.gov.uk/site/favicon/apple-touch-icon.png">
+        <link rel="icon" type="image/png" sizes="32x32" href="//forms.westnorthants.gov.uk/site/favicon/favicon-32x32.png">
+        <link rel="icon" type="image/png" sizes="16x16" href="//forms.westnorthants.gov.uk/site/favicon/favicon-16x16.png">
+        <link rel="manifest" href="//forms.westnorthants.gov.uk/site/favicon/site.webmanifest">
+        <link rel="mask-icon" href="//forms.westnorthants.gov.uk/site/favicon/safari-pinned-tab.svg" color="#5bbad5">
+        <meta name="msapplication-TileColor" content="#ffffff">
+        <meta name="theme-color" content="#ffffff">
+
+        <link href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap" rel="stylesheet">
+        <link rel="stylesheet" type="text/css" href="//forms.westnorthants.gov.uk/site/dist/orbit.css?v=3.41.0">
+        <!--[if lt IE 9]>
+            <link href="//forms.westnorthants.gov.uk/site/dist/orbit-oldie.css?v=3.41.0" rel="stylesheet" type="text/css">
+        <![endif]-->
+        <link href="//customer.cludo.com/css/overlay/cludo-search-default.min.css" type="text/css" rel="stylesheet">
+        <link rel="stylesheet" type="text/css" href="//forms.westnorthants.gov.uk/site/styles/standard.css">
+ <!--Global site tag (gtag.js) - Google Analytics -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=UA-1011747-1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());gtag('config', 'UA-1011747-1');
+</script>
+
+<script>
+$( document ).ready(function() {
+    $(document).on( 
+      'keydown', function(event) { 
+        if (event.key == "Escape") { 
+			GoExitSurvey(false);
+        } 
+    }); 
+// Only it not the main homepage
+if($(".home-page").length == 0){
+
+//removes top tasks button on all pages except the homepage
+$('.top-tasks__more-btn').remove();
+}
+//adds accessibility statement to all downloads pages
+if (window.location.href.indexOf('/downloads') > 0) {
+	$(".page-content h1:first").after('<p><strong>Document(s) on this page may or may not be accessible.<br><a class="download_red" href="https://www.northampton.gov.uk/accessibility">To find out more about our handling of documents...</a></strong></p)<br>');
+}
+
+//initially restructure the Sidebar to be the first column of the page for correct tab order
+$(".sidebar--primary").prependTo('.site-main .container:first');
+
+//sort out tab order for all pages
+$('a, input, select, button, textarea, nav, section, aside, article').attr('tabindex',0);
+
+// For all of the Website, Forms detach - KM 
+$('.list-item--forms').detach();
+
+$("table").each(function () {
+	if(!$(this).hasClass('calendar__table')){
+		$( this ).replaceWith( "<table>" + this.innerHTML + "</table>" );
+	}
+});
+
+$("#content").each(function () {
+	if ($(this).find('h1:first').length) {
+		var asidelabelclassname = $(this).find('h1:first').text();
+			if ($(".sidebar").find('.calendar__heading').length) {
+			
+				$(".sidebar .calendar__heading").replaceWith($('<h2 id="calendar__heading">Events calendar for ' + asidelabelclassname + '</h2>'));
+				$(".sidebar table").attr("aria-describedby","calendar__heading");
+			}
+	}
+	});
+
+$(".yearSelect").each(function () {
+  $( this ).attr( "aria-label", "Year Selector" );
+});
+
+$(".monthSelect").each(function () {
+  $( this ).attr( "aria-label", "Month Selector" );
+});
+
+//Aria-label changes or additions, Site survey
+$("#cmx").each(function () {
+$(this).attr("aria-label", "To escape this site survey popup  use the escape key");
+});
+$('.cmx-tab-right a span').text("To escape this site survey popup use the escape key");
+
+$(".site-announcement__heading").each(function () {
+$(this).replaceWith($('<p class="site-announcement__heading">' + this.innerHTML + '</p>'));
+});
+
+//article wrapper for site-announcements wrap in article
+$(".site-announcement").each(function () {
+$(this).replaceWith($('<section aria-label="This section is for site wide announcements"><div class="site-announcement">' + this.innerHTML + '</div></section>'));
+});
+ 
+// now prepend it to the Main class
+//$('.site-announcement:first').prependTo('.site-main:first');
+
+//need now to turn it into a p ( and change formatting - due to logical tab indexing it would be the first header on the page)
+$(".sidebar__heading").each(function () {
+$(this).replaceWith($('<div class="sidebar__heading">' + this.innerHTML + '</div>'));
+});
+
+
+$(".site-main").each(function () {
+	if ($( this ).hasClass("site-main")){
+		var className = $('main').attr('class');
+		$(this).attr("aria-label", className + " page for the content");
+	}
+});	
+
+$("#council-services").each(function () {
+$(this).attr("name", "Council Services Menu");
+});
+
+//cludo-search-form - need to write something better
+$("#cludo-search-form").each(function () {
+var formlabel = $(this).find('div:first').attr('id');
+$(this).attr("aria-label","Form for " + formlabel );
+});
+
+// add & change aria label to input
+$("#search-site input").each(function () {
+$(this).attr("aria-label", "The Main site search Input field");
+ });
+ 
+ //and button
+$("#search-site button").each(function () {
+$(this).attr("aria-label", "The button for the main site search input field");
+$(this).attr("name", "This is the button for the main site search input field");
+ });
+ 
+// new deescription for breadcrumb trial
+$(".breadcrumb__prefix").each(function () {
+$(this).text("Content - Start of Breadcrumb Navigation");
+ });
+
+//aside add labels
+	$(".page-content aside").each(function () {
+		if ($(this).find('h2:first').length) {
+			var asidelabelclassname = $(this).find('h2:first').text();
+		} else if ($(this).find('p:first').length){
+			var asidelabelclassname = $(this).find('p:first').text();
+		} else if ($(this).find('a:first').length) {
+			var asidelabelclassname = $(this).find('a:first').text();
+		} else if ($(this).find('h3:first').length) {
+			var asidelabelclassname = $(this).find('h3:first').text();
+		};
+		$(this).attr("aria-label", asidelabelclassname);		 
+        $(this).attr("name", asidelabelclassname);
+	});
+	
+//convert aside sidebar turn into a div
+	$(".related-links").each(function () {
+		$(this).replaceWith($('<div class="related-links" aria-label="Sidebar Related Information links">' + this.innerHTML + '</div>'));
+	});
+//convert aside sidebar turn into a div
+	$(".sidebar__content aside").each(function () {
+	$(this).replaceWith($('<div class="boxed" aria-label="More Items in this gallery">' + this.innerHTML + '</div>'));
+	});	
+
+// change article text label and name
+	$("#content article").each(function () {
+		var articlelabel = $(this).find("span:first").text();
+		$(this).attr("aria-label", articlelabel);
+		$(this).attr("name", articlelabel);
+	});
+	
+//navigation change label and name
+		$(".nav--categories").each(function () {
+		if ($(this).find('h2:first').length) {
+			var navlabel = $(this).find('h2:first').text();
+		} else {
+			var navlabel = $(this).closest('nav').prev('h1').text();
+		}
+		$(this).attr("aria-label", navlabel);
+		$(this).attr("name", navlabel);
+		});
+// navingation boxed-in section
+		$(".boxed--in-section").each(function () {
+		var navlabel= $(this).find("h2:first").text();
+		$(this).attr("aria-label", navlabel);
+		$(this).attr("name", navlabel);
+	});
+
+//section add relevent labels and name
+$(".page-content section").each(function () {
+	if ($(this).find('h2:first').length) {
+		var asidelabelclassname = $(this).find('h2:first').text();
+	} else {
+		var asidelabelclassname = $(this).find('p:first').text();
+	};
+	$(this).attr("aria-label", asidelabelclassname);
+	$(this).attr("name", asidelabelclassname);
+	});
+
+$(".page-content small").each(function () {
+	$(this).replaceWith($('<span>' + this.innerHTML + '</span>'));
+});
+
+	
+//main adds label
+	$("main").each(function () {
+	if ($( "main" ).hasClass("site-main")){
+		var className = $('main').attr('class');
+		$(this).attr("aria-label", className + " page for the content");
+	}
+	});	
+
+//download label to a / icon / span	 
+    $(".download").each(function () {
+	var textfound = $(this).find("a:first").text();
+	$(this).attr("aria-label", textfound);
+        $("span", this).attr("aria-label", "Download " +textfound);
+        $("span", this).text("Download " + textfound);
+        $("a:not(first)", this).attr("aria-label", "Link to " +textfound);
+	});
+//change labels for site footer content
+$(".suppliers").each(function () {
+		$(this).attr("aria-label", "Site footer website suppliers");
+	});
+$(".site-footer__content").each(function () {
+		$(this).attr("aria-label", "Site footer content");
+	});
+$(".site-footer__links nav").each(function () {
+		$(this).attr("aria-label", "Site footer links");
+	});
+});
+</script>        <meta name="author" content="West Northamptonshire Council - Northampton Area">
+        <meta name="revisit-after" content="2 days">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta property="dcterms:creator" content="West Northamptonshire Council - Northampton Area">
+        <meta property="dcterms:coverage" content="Northampton, Northamptonshire, England, United Kingdom, Great Britain">
+        <meta property="dcterms:format" content="text/html">
+        <meta property="dcterms:identifier" content="https://forms.westnorthants.gov.uk/xfp/form/237">
+        <meta property="dcterms:language" content="en">
+        <meta property="dcterms:publisher" content="West Northamptonshire Council - Northampton Area">
+        <meta property="dcterms:rightsHolder" content="West Northamptonshire Council - Northampton Area">
+        <meta name="robots" content="index,follow">
+<meta name="Keywords" content="Northampton,planning,regeneration,enterprise,housing,council,tax,benefits,parks,parking,town, elections," /><!-- HTML5 Template -->
+
+	<!-- not HTML5 suppported -->
+	<!-- Dublin Core Metadata -->
+<meta name="dcterms.creator" content="Micheala Frizelle" >
+<meta name="robots" content="index,follow" >
+<meta name="dc.created" content="2019-05-18" >
+<meta name="dc.modified" content="2019-05-18" >
+<meta name="dc.description" content="Customer Satisfaction Survey " >
+<meta name="dcterms.format" content="text/html" >
+<meta name="dcterms.identifier" content="http://forms.westnorthants.gov.uk/xfp/form/237?" >
+<meta name="dcterms.language" content="en" >
+<meta name="dcterms.publisher" content="Northampton Borough Council" >
+<meta name="dcterms.rights" content="Northampton Borough Council" >
+<meta name="dc.title" content="Customer Satisfaction Survey" >
+<meta name="dcterms.coverage" content="Northampton, Northamptonshire, England, United Kingdom, Great Britain" >
+	<!-- eGMS Metadata -->
+<meta name="eGMS.status" content="V1.0 Public Consumption" >
+<meta name="dcterms.subject" content="Your council" >
+        <script src="//forms.westnorthants.gov.uk/site/javascript/swfobject.js?v=3.41.0"></script>
+        <script src="//forms.westnorthants.gov.uk/site/dist/libs/modernizr.custom.js?v=3.41.0"></script>
+        <!--[if lt IE 9]>
+        <script src="//forms.westnorthants.gov.uk/site/javascript/libs/ie9-js/index.js?v=3.41.0"></script>
+        <![endif]-->
+        <script>
+            (function (html) {
+                html.className = html.className.replace(/\bno-js\b/, 'js');
+            })(document.getElementsByTagName('html')[0]);
+        </script>
+        <script src="//forms.westnorthants.gov.uk/site/javascript/grunticon.js?v=3.41.0"></script>
+        <script>
+            grunticon(["//forms.westnorthants.gov.uk/site/dist/icons/icons.data.svg.css?v=3.41.0", "//forms.westnorthants.gov.uk/site/dist/icons/icons.data.png.css?v=3.41.0", "//forms.westnorthants.gov.uk/site/dist/icons/icons.fallback.css?v=3.41.0"], grunticon.svgLoadedCallback);
+        </script>
+        <noscript><link rel="stylesheet" href="//forms.westnorthants.gov.uk/site/dist/icons/icons.fallback.css?v=3.41.0"></noscript>
+<title>How did we do today? | Customer Satisfaction Survey</title>    </head>
+    <body class="one-column">
+    <div class="site">
+<header class="site-header site-header--new site-header--scrolled site-header--xfp-council snc" id="top" aria-label="Site Header">
+    <ul class="list list--skip-links">
+        <li class="list__item">
+            <a class="list__link" href="#content" rel="nofollow">Skip to content</a>
+        </li>
+    </ul>
+
+    <div class="container site-header__container">
+        <div class="site-header__banner">
+            <div class="identity">
+                <a class="identity__link" href="https://www.westnorthants.gov.uk">
+                    <picture class="identity__logo-image">
+                        <source srcset="//forms.westnorthants.gov.uk/site/images/logo-wnc-white.svg" type="image/svg+xml">
+                        <img
+                            src="//forms.westnorthants.gov.uk/site/images/logo-wnc-white.png"
+                            class="identity__logo"
+                            alt="West Northamptonshire Council home" />
+                    </picture>
+                </a>
+            </div>
+        </div>
+        <div class="site-header__account">
+            <a class="site-header__account-link" href="https://forms.westnorthants.gov.uk/myaccount">
+                <span class="site-header__account-text"> My Account</span>
+            </a>
+        </div>
+    </div>
+</header>
+        <main class="site-main">
+            <div class="container">                <div class="page-primary ">
+                    <div class="page-primary__content">
+                        <div class="page-primary__extras">
+                                                    </div>
+                    </div>
+                </div>
+                <div class="site-content">
+                    <div class="page-content">
+                        <div id="content" tabindex="-1">
+                                                    <h1 class="page-heading">Customer Satisfaction Survey</h1>
+                        
+
+            <link rel="stylesheet" type="text/css" href="//forms.westnorthants.gov.uk/site/xfp/css/dropzone.css?v=xfp_cb_55" />
+    
+    
+
+                                        
+                    
+        <form
+        class="form form--block form--form-builder"
+        method="post"        action="/xfp/form/237"        enctype="multipart/form-data" novalidate
+    >
+
+
+            
+                
+        
+                                        
+                                
+                                                <h2 class="form__heading">
+    How did we do today?
+</h2>
+                            
+                                        
+        
+        
+                <input type="hidden" name="__token" value="b4900f6b0c0af8731fdfc9be.Vz7hDB0SkxXsxo1E0lAbn94T-3K2lOqHvgLEdykVjGU.M0mGS3FopCWJhLt0ogkjyZZkrxrG8Lv00VvwFUBx9RQCCodOWHD-Yai8yA" />
+
+        
+                        <div id="question-holder">
+                                                                            <input type="hidden" name="page" id="page" value="70" class="">
+                                                                                    <input type="hidden" name="locale" id="locale" value="en_GB" class=" form-locale">
+                                                                                    <input type="hidden" name="injectedParams" id="injectedParams" value="{&quot;formID&quot;:&quot;237&quot;}" class="">
+                                                
+                                                                                                        
+<input type="hidden" name="q6cb3d7cc61c948e89da3535fa61e942e4a6e5698" id="q6cb3d7cc61c948e89da3535fa61e942e4a6e5698" value="0">
+
+                                                                                                                                                                                                                                                <div class="form__control js-question">            <label class="form__label" for="q34460a1ef2ca678152a20e44438c3d6be82d009f">Contact channel</label>
+            <div class="form__component form__component--dropdown">    
+    
+    
+
+    <select
+        class="form__select"
+        id="q34460a1ef2ca678152a20e44438c3d6be82d009f"
+        name="q34460a1ef2ca678152a20e44438c3d6be82d009f"
+                                        autocomplete="off"
+            >
+                                                        <option
+                                                    value=""
+                             selected="selected"                                                                        >
+                                                    Please select...
+                                            </option>
+                                                                <option
+                                                    value="face_to_face"
+                                                                                                    >
+                                                    Face to face
+                                            </option>
+                                                                <option
+                                                    value="web"
+                                                                                                    >
+                                                    Web
+                                            </option>
+                                                                <option
+                                                    value="email"
+                                                                                                    >
+                                                    Email
+                                            </option>
+                                                                <option
+                                                    value="social_media"
+                                                                                                    >
+                                                    Social media
+                                            </option>
+                                                                <option
+                                                    value="telephone"
+                                                                                                    >
+                                                    Telephone
+                                            </option>
+                                                                <option
+                                                    value="web_chat"
+                                                                                                    >
+                                                    Web chat
+                                            </option>
+                                        </select>
+</div></div>
+
+                                                                                                                                                                                                                                                <div class="form__control js-question">            <label class="form__label" for="qb936ce35c16d53dce884080cc6b8fd02ada65884">How knowledgeable did you find our customer service advisor to be?</label>
+            <div class="form__component form__component--dropdown">    
+    
+    
+
+    <select
+        class="form__select"
+        id="qb936ce35c16d53dce884080cc6b8fd02ada65884"
+        name="qb936ce35c16d53dce884080cc6b8fd02ada65884"
+                                        autocomplete="off"
+            >
+                                                        <option
+                                                    value=""
+                             selected="selected"                                                                        >
+                                                    Please select ...
+                                            </option>
+                                                                <option
+                                                    value="very_knowledgeable"
+                                                                                                    >
+                                                    Very knowledgeable
+                                            </option>
+                                                                <option
+                                                    value="knowledgeable"
+                                                                                                    >
+                                                    Knowledgeable
+                                            </option>
+                                                                <option
+                                                    value="not_knowledgeable"
+                                                                                                    >
+                                                    Not knowledgeable
+                                            </option>
+                                                                <option
+                                                    value="not_at_all_knowledgeable"
+                                                                                                    >
+                                                    Not at all knowledgeable
+                                            </option>
+                                        </select>
+</div></div>
+
+                                                                                                                                                                                                                                                <div class="form__control js-question">            <label class="form__label" for="q88f4617c6128c52bde625abf21449a4a0889b8e0">How helpful was our customer service advisor?</label>
+            <div class="form__component form__component--dropdown">    
+    
+    
+
+    <select
+        class="form__select"
+        id="q88f4617c6128c52bde625abf21449a4a0889b8e0"
+        name="q88f4617c6128c52bde625abf21449a4a0889b8e0"
+                                        autocomplete="off"
+            >
+                                                        <option
+                                                    value=""
+                             selected="selected"                                                                        >
+                                                    Please select ...
+                                            </option>
+                                                                <option
+                                                    value="very_helpful"
+                                                                                                    >
+                                                    Very helpful
+                                            </option>
+                                                                <option
+                                                    value="helpful"
+                                                                                                    >
+                                                    Helpful
+                                            </option>
+                                                                <option
+                                                    value="unhelpful"
+                                                                                                    >
+                                                    Unhelpful
+                                            </option>
+                                                                <option
+                                                    value="very_unhelpful"
+                                                                                                    >
+                                                    Very unhelpful
+                                            </option>
+                                        </select>
+</div></div>
+
+                                                                                                                                                                                                                                                <div class="form__control js-question">            <label class="form__label" for="qa6a8c48cc896afca92b750c949889fb23303ebb1">How clear was the information that our customer service advisor provided to you?</label>
+            <div class="form__component form__component--dropdown">    
+    
+    
+
+    <select
+        class="form__select"
+        id="qa6a8c48cc896afca92b750c949889fb23303ebb1"
+        name="qa6a8c48cc896afca92b750c949889fb23303ebb1"
+                                        autocomplete="off"
+            >
+                                                        <option
+                                                    value=""
+                             selected="selected"                                                                        >
+                                                    Please select ...
+                                            </option>
+                                                                <option
+                                                    value="very_clear"
+                                                                                                    >
+                                                    Very clear
+                                            </option>
+                                                                <option
+                                                    value="clear"
+                                                                                                    >
+                                                    Clear
+                                            </option>
+                                                                <option
+                                                    value="unclear"
+                                                                                                    >
+                                                    Unclear
+                                            </option>
+                                                                <option
+                                                    value="very_unclear"
+                                                                                                    >
+                                                    Very unclear
+                                            </option>
+                                        </select>
+</div></div>
+
+                                                                                                                                                                                                                                                <div class="form__control js-question">            <label class="form__label" for="q95fa94e89638737a9fc31387beb6aa349abd8ff2">How accessible did you find your chosen method of contact today?</label>
+            <div class="form__component form__component--dropdown">    
+
+    
+
+    <select
+        class="form__select"
+        id="q95fa94e89638737a9fc31387beb6aa349abd8ff2"
+        name="q95fa94e89638737a9fc31387beb6aa349abd8ff2"
+                                        autocomplete="off"
+            >
+                                                        <option
+                                                    value="very_accessible"
+                                                                                                    >
+                                                    Very accessible
+                                            </option>
+                                                                <option
+                                                    value="accessible"
+                                                                                                    >
+                                                    Accessible
+                                            </option>
+                                                                <option
+                                                    value="not_accessible"
+                                                                                                    >
+                                                    Not accessible
+                                            </option>
+                                                                <option
+                                                    value="not_at_all_accessible"
+                                                                                                    >
+                                                    Not at all accessible
+                                            </option>
+                                        </select>
+</div></div>
+
+                                                                                                                                                                                                                                                <div class="form__control js-question">            <label class="form__label" for="qecd3375a28fe2140c7a491803793c6b81f79c501">Overall how satisfied are you with the experience you had with us today?</label>
+            <div class="form__component form__component--dropdown">    
+    
+    
+
+    <select
+        class="form__select"
+        id="qecd3375a28fe2140c7a491803793c6b81f79c501"
+        name="qecd3375a28fe2140c7a491803793c6b81f79c501"
+                                        autocomplete="off"
+            >
+                                                        <option
+                                                    value=""
+                             selected="selected"                                                                        >
+                                                    Please select ...
+                                            </option>
+                                                                <option
+                                                    value="very_satisfied"
+                                                                                                    >
+                                                    Very satisfied
+                                            </option>
+                                                                <option
+                                                    value="satisfied"
+                                                                                                    >
+                                                    Satisfied
+                                            </option>
+                                                                <option
+                                                    value="dissatisfied"
+                                                                                                    >
+                                                    Dissatisfied
+                                            </option>
+                                                                <option
+                                                    value="very_dissatisfied"
+                                                                                                    >
+                                                    Very dissatisfied
+                                            </option>
+                                        </select>
+</div></div>
+
+                                                                                                                                                                                                                                                <div class="form__control js-question">            <label class="form__label" for="q1f4c2200c96f583df1555746dce9257b56ec7582">Based on your scores above, please tell us where you feel we have done well or where you feel we could have done better.  Any feedback which is received will form part of our ongoing commitment to improving our services.</label>
+            <div class="form__component form__component--text-area">
+<textarea
+        class="form__textarea"
+        name="q1f4c2200c96f583df1555746dce9257b56ec7582"
+        id="q1f4c2200c96f583df1555746dce9257b56ec7582"
+        rows="4"
+        cols="40"
+        placeholder=""
+                                            autocomplete="off"
+            ></textarea></div></div>
+
+                                                                                                                                                                                                                                                <div class="form__control js-question">            <label class="form__label" for="qb645d26272bf03bfaed6d0f5182215a327e19a43">Describe your original enquiry in 100 characters or less<em class="form__required-note" title="Required">
+    Required
+</em>
+</label>
+            <div class="form__component form__component--text-area">
+<textarea
+        class="form__textarea"
+        name="qb645d26272bf03bfaed6d0f5182215a327e19a43"
+        id="qb645d26272bf03bfaed6d0f5182215a327e19a43"
+        rows="2"
+        cols="40"
+        placeholder=""
+        maxlength="100"         aria-required="true"             aria-describedby="qb645d26272bf03bfaed6d0f5182215a327e19a43_help"
+                    autocomplete="off"
+            ></textarea>                    <span class="form__help" id="qb645d26272bf03bfaed6d0f5182215a327e19a43_help">This will help us provide a more seamless service</span>
+                </div></div>
+
+                                                                                                                                        
+            <div
+                            class="form__section"
+                                id="section_s3731db00c0f01cd46fa471b9370a7302c792614d"
+                data-section-name="s3731db00c0f01cd46fa471b9370a7302c792614d"
+                                
+                    >
+
+                            
+                                    <div class="form__section-content">
+                                                                                                                                                                                                                                                                                            <div class="form__control js-question">            <label class="form__label" for="q1968292c09fa77f281f2baef4f7236ba55573aac">First Name:<em class="form__required-note" title="Required">
+    Required
+</em>
+</label>
+            <div class="form__component form__component--text-field">
+<input
+    class="form__field"
+    id="q1968292c09fa77f281f2baef4f7236ba55573aac"
+    type="text"
+    name="q1968292c09fa77f281f2baef4f7236ba55573aac"
+    value=""
+            maxlength="255"
+                    autocomplete="off"
+        aria-required="true"         >
+</div></div>
+
+                                                                                                                                                                                                                                                                                                                                                                                <div class="form__control js-question">            <label class="form__label" for="q748ba1c8f08d6c864ced812958564d765aa85f03">Surname:<em class="form__required-note" title="Required">
+    Required
+</em>
+</label>
+            <div class="form__component form__component--text-field">
+<input
+    class="form__field"
+    id="q748ba1c8f08d6c864ced812958564d765aa85f03"
+    type="text"
+    name="q748ba1c8f08d6c864ced812958564d765aa85f03"
+    value=""
+            maxlength="255"
+                    autocomplete="off"
+        aria-required="true"         >
+</div></div>
+
+                                                                                                                                                                                                                                                                                                                                                                                <div class="form__control js-question"><fieldset class="form__fieldset"><legend class="form__label form__label--legend">
+
+                                Postcode:<em class="form__required-note" title="Required">
+    Required
+</em>
+
+        
+        
+    </legend><div class="form__component form__component--integrated">
+            <div class="form__level" id="q90a0bad4a2410a5193a387d05b0e8e71c146be0b_0">
+                                                                        <div data-secondary="data_0_0" class="form__control">
+                                                                                                <label class="form__label" for="q90a0bad4a2410a5193a387d05b0e8e71c146be0b_0_0">Postcode</label>
+                                
+                                                                    <span class="integrated-component">
+                                                                                        
+<input
+    class="form__field"
+    id="q90a0bad4a2410a5193a387d05b0e8e71c146be0b_0_0"
+    type="text"
+    name="q90a0bad4a2410a5193a387d05b0e8e71c146be0b_0_0"
+    value=""
+            maxlength="255"
+                    autocomplete="postal-code"
+        aria-required="true"         >
+                                        
+                                                                                                                                                                                        <button type="submit" name="callback" value="&#x7B;&quot;action&quot;&#x3A;&quot;ic&quot;,&quot;element&quot;&#x3A;&quot;q90a0bad4a2410a5193a387d05b0e8e71c146be0b&quot;,&quot;data&quot;&#x3A;0,&quot;tableRow&quot;&#x3A;-1&#x7D;" class="button button--secondary btn--lookup">Lookup</button>
+                                                                                                                                                                        </span>
+                                                                                                                                                                                                    </div>
+                                                
+                                                </div>
+    </div></fieldset></div>
+
+                                                                                                                                                                                                                                                                                                                                                                                <div class="form__control js-question">            <label class="form__label" for="q1d280c045e1dd306e0d97b6971344866a77915ca">Telephone Number:</label>
+            <div class="form__component form__component--text-field">
+<input
+    class="form__field"
+    id="q1d280c045e1dd306e0d97b6971344866a77915ca"
+    type="text"
+    name="q1d280c045e1dd306e0d97b6971344866a77915ca"
+    value=""
+            maxlength="255"
+                    autocomplete="off"
+                >
+</div></div>
+
+                                                                                                                                                                                    </div>
+                                    </div>
+                                                            </div>
+    
+
+    
+
+        
+                                
+
+                
+                                
+        
+            <footer class="form__footer form__xfp-footer">
+
+                                <div class="form__actions">
+                                    <button
+    class="button button--primary button--right"
+    type="submit"
+    name="next"
+    value="Next"
+            >
+    Next
+    </button>
+                                            </div>
+                    
+    </footer>
+
+    </form>
+            
+    
+                        <script src="//forms.westnorthants.gov.uk/site/xfp/js/src/in-page-branching.js?v=xfp_cb_55"></script>
+            <script src="//forms.westnorthants.gov.uk/site/xfp/js/src/file-uploads.js?v=xfp_cb_55"></script>
+            <script src="//forms.westnorthants.gov.uk/site/xfp/js/src/dropzone.js?v=xfp_cb_55"></script>
+            <script src="//forms.westnorthants.gov.uk/site/xfp/js/src/date-input-polyfill.dist.js?v=xfp_cb_55"></script>
+            <script src="//ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+            <script src="//forms.westnorthants.gov.uk/site/xfp/javascript/event-booking/booking.js?v=xfp_cb_55"></script>
+        
+                    <script>
+                var uploads = new FileUploads();
+                uploads.init();
+
+                var branching = new InPageBranching();
+                branching.init();
+
+                
+                document.querySelector('form.form--form-builder').addEventListener('submit', function(ev) {
+                    var formTag = document.querySelector('form.form--form-builder');
+
+                    if (formTag.getAttribute('data-submitted') !== 'true') {
+                        formTag.setAttribute('data-submitted', 'true');
+                        return true;
+                    }
+
+                    ev.preventDefault();
+                    return false;
+                });
+            </script>
+            
+    
+
+                            </div>
+                        </div>
+                    </div>
+     </div>            </main>
+<section id="council-services" class="council-services is-hidden toggle-target" aria-hidden="true" tabindex="-1">
+    <div class="council-services__content">
+        <button id="council-services-close" class="council-services__close button button--simple" type="button" data-a11y-toggle="council-services">
+            <span class="visually-hidden">close menu</span><span class="icon icon-close-white" data-grunticon-embed></span>
+        </button>
+        <div class="container container--narrow container--flush">
+            <h2 class="council-services__heading">Services menu</h2>
+            <div class="council-services__list-wrap">
+                <ul class="list list--council-services">
+                                            <li class="list__item">
+                            <a class="list__link" href="https://www.westnorthants.gov.uk/council-tax">Council Tax</a>
+                        </li>
+                                            <li class="list__item">
+                            <a class="list__link" href="https://www.westnorthants.gov.uk/benefits/apply-housing-benefit">Benefits</a>
+                        </li>
+                                            <li class="list__item">
+                            <a class="list__link" href="https://www.westnorthants.gov.uk/housing">Housing</a>
+                        </li>
+                                            <li class="list__item">
+                            <a class="list__link" href="https://www.westnorthants.gov.uk/planning-and-building-control">Planning services</a>
+                        </li>
+                                            <li class="list__item">
+                            <a class="list__link" href="https://www.westnorthants.gov.uk/bins-recycling-and-waste">Bins, waste &amp; recycling</a>
+                        </li>
+                                            <li class="list__item">
+                            <a class="list__link" href="https://www.westnorthants.gov.uk/business-licensing-and-regeneration">Licensing &amp; business regulation</a>
+                        </li>
+                                            <li class="list__item">
+                            <a class="list__link" href="https://www.westnorthants.gov.uk/environmental-health">Environmental issues</a>
+                        </li>
+                                            <li class="list__item">
+                            <a class="list__link" href="https://www.westnorthants.gov.uk/your-council">Your council</a>
+                        </li>
+                                            <li class="list__item">
+                            <a class="list__link" href="https://www.westnorthants.gov.uk/culture-and-tourism">Our town</a>
+                        </li>
+                                            <li class="list__item">
+                            <a class="list__link" href="https://www.westnorthants.gov.uk/parks-sports-and-leisure">Leisure &amp; culture</a>
+                        </li>
+                                            <li class="list__item">
+                            <a class="list__link" href="https://www.westnorthants.gov.uk/community-safety-and-emergencies">Stronger, safer communities</a>
+                        </li>
+                                            <li class="list__item">
+                            <a class="list__link" href="https://www.westnorthants.gov.uk/commercial/northampton-guildhall">The Guildhall</a>
+                        </li>
+                                            <li class="list__item">
+                            <a class="list__link" href="https://www.westnorthants.gov.uk/parking">Parking</a>
+                        </li>
+                                            <li class="list__item">
+                            <a class="list__link" href="https://www.westnorthants.gov.uk/jobs-and-careers">Jobs &amp; careers</a>
+                        </li>
+                                    </ul>
+            </div>
+            <ul class="list list--council-services-subnav">
+                                    <li class="list__item">
+                        <a class="list__link" href="https://www.westnorthants.gov.uk/">A-Z</a>
+                    </li>
+                            </ul>
+        </div>
+        <button class="focus-jump" type="button" data-href="#council-services-close">Close Council Services</button>
+    </div>
+    <span class="council-services__overlay" role="button" tabindex="0" data-a11y-toggle="council-services"><span class="visually-hidden"> Council Services</span></span>
+</section>
+<!-- googleoff: index -->
+
+<footer class="site-footer">
+    <div class="container">
+        <div class="site-footer__content">
+
+            <nav class="site-footer__links" aria-label="Footer">
+                <ul class="list list--site-footer"><li class="list__item"><a class="list__link" href="https://www.westnorthants.gov.uk/your-council/accessibility-statement">Accessibility</a></li><li class="list__item"><a class="list__link" href="https://www.westnorthants.gov.uk/your-council/corporate-privacy-notice">Privacy</a></li><li class="list__item"><a class="list__link" href="https://www.westnorthants.gov.uk/your-council/contact-us">Contact Us</a></li><li class="list__item"><a class="list__link" href="https://www.westnorthants.gov.uk/your-council/copyright-statement">Copyright</a></li><li class="list__item"><a class="list__link" href="https://www.westnorthants.gov.uk/your-council/make-payment">Payments</a></li></ul>
+            </nav>
+
+            
+<div class="site-footer__social-links">
+    <ul class="list list--social-links">
+        <li class="list__item"><a class="list__link" href="https://twitter.com/WestNorthants">
+        <span class="icon icon--full icon-social icon-social--twitter"></span>
+        <span class="icon-fallback">Twitter</span></a></li><li class="list__item"><a class="list__link" href="https://www.facebook.com/WestNorthants">
+        <span class="icon icon--full icon-social icon-social--facebook"></span>
+        <span class="icon-fallback">Facebook</span></a></li><li class="list__item"><a class="list__link" href="https://www.instagram.com/westnorthants/">
+        <span class="icon icon--full icon-social icon-social--instagram"></span>
+        <span class="icon-fallback">Instagram</span></a></li><li class="list__item"><a class="list__link" href="https://www.youtube.com/channel/UCDyc2cNcl19OvcGOCuZDTBQ">
+        <span class="icon icon--full icon-social icon-social--youtube"></span>
+        <span class="icon-fallback">YouTube</span></a></li><li class="list__item"><a class="list__link" href="https://www.linkedin.com/company/west-northamptonshire-council">
+        <span class="icon icon--full icon-social icon-social--linkedin"></span>
+        <span class="icon-fallback">LinkedIn</span></a></li></ul>
+</div>
+
+            <section class="site-footer__suppliers suppliers" aria-label="Suppliers">
+                <h2 class="suppliers__heading">Suppliers</h2>
+                <p class="suppliers__content">
+                    &copy; West Northamptonshire Council 2026. Designed and Powered by <a class="suppliers__link suppliers__link--powered-by" href="https://www.jadu.net"><strong>Jadu</strong></a>.
+                </p>
+            </section>
+        </div>
+
+        <div class="site-footer__identity">
+            <div class="identity">
+                <picture class="identity__image">
+                    <source srcset="//forms.westnorthants.gov.uk/site/images/logo-wnc-white.svg" type="image/svg+xml">
+                    <img
+                        src="//forms.westnorthants.gov.uk/site/images/logo-wnc-white.png"
+                        class="identity__logo"
+                        alt="West Northamptonshire Council home" />
+                </picture>
+            </div>
+        </div>
+    </div>
+
+    <ul class="list list--back-to-top">
+        <li class="list__item"><a class="list__link" href="#top" rel="nofollow">Back to the top</a></li>
+    </ul>
+</footer>
+<!-- googleon: index -->
+
+        <script src="//ajax.googleapis.com/ajax/libs/jquery/1.12.4/jquery.min.js"></script>
+        <script>window.jQuery || document.write('<script src="//forms.westnorthants.gov.uk/site/dist/libs/jquery.min.js?v=3.41.0"><\/script>')</script>
+        <script type="text/javascript" src="//customer.cludo.com/scripts/bundles/search-script.min.js"></script>
+        <script src="//forms.westnorthants.gov.uk/site/dist/orbit.js?v=3.41.0"></script>
+
+        <script src="//forms.westnorthants.gov.uk/site/javascript/libs/select2.min.js"></script>
+        <!-- Insert at the bottom of each page inside the body tag. -->
+<!--[if lte IE 9]>
+<script src="https://api.cludo.com/scripts/xdomain.js" slave="https://api.cludo.com/proxy.html"></script>
+<![endif]-->
+<!--[if lte IE 8]>
+<script type="text/javascript" src="https://api.cludo.com/scripts/event.js"></script>
+<![endif]-->
+
+<script type="text/javascript" src="https://customer.cludo.com/scripts/bundles/search-script.min.js"></script>
+<script>
+    var CludoSearch;
+    (function () {
+        var cludoSettings = {
+            customerId: 123,
+            engineId: 1157,
+            type: 'standardOverlay',
+            initSearchBoxText: 'Search',
+            theme: { themeColor: '#951D41', 
+themeBannerColor: { 
+    textColor: '#fff', 
+    backgroundColor: '#951D41' 
+}, 
+borderRadius: 10, 
+borderRadiusInput: 5 },
+            language: 'en'
+        };
+
+        CludoSearch = new Cludo(cludoSettings);
+        CludoSearch.init();
+    })();
+</script>
+
+        <script src="//forms.westnorthants.gov.uk/site/javascript/libs/select2.min.js"></script>
+        </div>
+    </body>
+</html>
+

@@ -4,20 +4,22 @@ Status: Code Owner rulings recorded 2026-11-08. Nothing built. Source: the "QCMS
 
 ## Rulings
 
-| # | Question | Ruling | Decision records to change |
-|---|---|---|---|
-| Q1 | Is the agent the only authoring surface? | No. Existing builder screens stay reachable as "Edit by hand". The agent-first shell is the default when the agent flag is on. | `docs/adr/admin.md` (note under ADR-19, ADR-25) |
-| Q2 | May draft edits apply without Confirm? | Yes, as a draft-scoped edit class: applied through the single draft save path, one `control.agent_actions` row per edit, Undo offered. Publish, library publish, links, webhooks, erase and membership keep Confirm. | `docs/agent-principle.md` point 2, ADR-25, SEC-17 |
-| Q3 | Preview mechanism | Inline ADR-38 island with container-query breakpoints. No iframe. | none |
-| Q4 | Where appearance lives | Nullable `appearance` jsonb on `form_drafts` and `form_versions`, outside `FormDefinition`. Frozen at publish. Deployment env stays the default. | ADR-30, supersedes the per-form exclusion in `docs/features/049-admin-theme-editor.md` |
-| Q5 | High contrast for derived themes | Every theme ships its own high-contrast palettes (not a single shared layer). Differs from the review recommendation. | ADR-30, `docs/theming.md`, `packages/ui/src/theme-tokens.test.ts` |
-| Q6 | Respondent controls | Display mode, high contrast, text size, and a legibility face override (System, Atkinson Hyperlegible, OpenDyslexic, Lexend). Density is admin-only. `POST /appearance` stays for no-JS. | ADR-30, `docs/portal-constraints.md` |
-| Q7 | Website fetch for theme derive | Accepted under a new SEC-18: DNS resolve and pin, private ranges refused, https only, no redirects, size and time caps, no page text to the model, raster logo only, PDF deferred, rate limit, audit row. | `docs/SECURITY_DESIGN.md` (SEC-18) |
-| Q8 | Portal rail | Names every step; rule-hidden steps show "Not needed". Back-jump to completed steps through the existing cursor; forward refused. | ADR-28 |
-| Q9 | Text size compounding | Admin base 16 to 24 px multiplied by respondent scale 100, 125, 150, 200 percent; product capped at 32 px; reflow proven at 320 px. | `docs/theming.md` |
-| Q10 | Workspace appearance lock | In scope now. Differs from the review recommendation. | ADR-41 scope, SEC-3 policy rows, SEC-15 audit |
-| Q11 | Faces outside the registry | Derived faces map to the registry or System. New fonts are separate registry PRs. Boards to use registry faces. | none |
-| Q12 | Top-bar Publish and Share preview | Publish opens the existing wizard. Share preview opens the authenticated admin preview route. No public preview links. | none |
+Q13 (entry and exit) approved 2026-11-08; text to be added from the Code Owner's checkout.
+
+| #   | Question                                 | Ruling                                                                                                                                                                                                               | Decision records to change                                                             |
+| --- | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Q1  | Is the agent the only authoring surface? | No. Existing builder screens stay reachable as "Edit by hand". The agent-first shell is the default when the agent flag is on.                                                                                       | `docs/adr/admin.md` (note under ADR-19, ADR-25)                                        |
+| Q2  | May draft edits apply without Confirm?   | Yes, as a draft-scoped edit class: applied through the single draft save path, one `control.agent_actions` row per edit, Undo offered. Publish, library publish, links, webhooks, erase and membership keep Confirm. | `docs/agent-principle.md` point 2, ADR-25, SEC-17                                      |
+| Q3  | Preview mechanism                        | Inline ADR-38 island with container-query breakpoints. No iframe.                                                                                                                                                    | none                                                                                   |
+| Q4  | Where appearance lives                   | Nullable `appearance` jsonb on `form_drafts` and `form_versions`, outside `FormDefinition`. Frozen at publish. Deployment env stays the default.                                                                     | ADR-30, supersedes the per-form exclusion in `docs/features/049-admin-theme-editor.md` |
+| Q5  | High contrast for derived themes         | Every theme ships its own high-contrast palettes (not a single shared layer). Differs from the review recommendation.                                                                                                | ADR-30, `docs/theming.md`, `packages/ui/src/theme-tokens.test.ts`                      |
+| Q6  | Respondent controls                      | Display mode, high contrast, text size, and a legibility face override (System, Atkinson Hyperlegible, OpenDyslexic, Lexend). Density is admin-only. `POST /appearance` stays for no-JS.                             | ADR-30, `docs/portal-constraints.md`                                                   |
+| Q7  | Website fetch for theme derive           | Accepted under a new SEC-18: DNS resolve and pin, private ranges refused, https only, no redirects, size and time caps, no page text to the model, raster logo only, PDF deferred, rate limit, audit row.            | `docs/SECURITY_DESIGN.md` (SEC-18)                                                     |
+| Q8  | Portal rail                              | Names every step; rule-hidden steps show "Not needed". Back-jump to completed steps through the existing cursor; forward refused.                                                                                    | ADR-28                                                                                 |
+| Q9  | Text size compounding                    | Admin base 16 to 24 px multiplied by respondent scale 100, 125, 150, 200 percent; product capped at 32 px; reflow proven at 320 px.                                                                                  | `docs/theming.md`                                                                      |
+| Q10 | Workspace appearance lock                | In scope now. Differs from the review recommendation.                                                                                                                                                                | ADR-41 scope, SEC-3 policy rows, SEC-15 audit                                          |
+| Q11 | Faces outside the registry               | Derived faces map to the registry or System. New fonts are separate registry PRs. Boards to use registry faces.                                                                                                      | none                                                                                   |
+| Q12 | Top-bar Publish and Share preview        | Publish opens the existing wizard. Share preview opens the authenticated admin preview route. No public preview links.                                                                                               | none                                                                                   |
 
 ## Review findings carried into the plan
 
@@ -38,37 +40,37 @@ Status: Code Owner rulings recorded 2026-11-08. Nothing built. Source: the "QCMS
 
 Size: S under a day, M two to three days, L a week or more. Tier: F Fable, O Opus, S Sonnet.
 
-| ID | Task | Deps | Size | Tier |
-|---|---|---|---|---|
-| W1 | Decision bundle: ADR-19/25/28/30/41 notes, SEC-3/9 check, SEC-17 and agent-principle amendment, new SEC-18, supersede 049 exclusion, panel-width and rail exception | none | M | F |
-| A1 | Shared pure appearance module: Zod schema, WCAG contrast (4.5, 3, 7), derive light, dark and full high-contrast palettes, correction report; update token test per Q5 | W1 | M | O |
-| D1 | `appearance` jsonb on drafts and versions; publish copies it; append-only tests | W1, A1 | M | O |
-| D2 | `control.workspace_themes` (tokens, face, corners, logo, source host) plus workspace appearance lock column | W1, A1 | M | S |
-| A2 | Draft PUT accepts `appearance` and validates contrast; start-session and serve-step return the pinned version's appearance; OpenAPI | D1 | M | O |
-| A3 | Workspace themes CRUD, appearance lock, SEC-3 rows, SEC-15 audit, logo route | D2 | M | S |
-| A4 | Theme derive route with hardened `BrandFetcher` port (SEC-18) | A1, A3, W1 | L | O, Fable review |
-| A5 | Serve-step `steps` list, current-step question labels, progress mode, cursor back-jump | D1 | M | O |
-| A6 | Draft edit ops and Undo through the single draft save path, per-edit audit row | W1 | L | O |
-| G1 | Agent facts: preview selection and layout report, strict schemas, sentinel tests | none | S | S |
-| G2 | Action kinds `form.appearance`, `theme.derive` (Confirm), `theme.save`; cards and consequence bands | A2, A3, A4 | M | O |
-| G3 | Builder edit tools (question, step, rule, copy) as draft-scoped edits | A6 | L | O |
-| G4 | System prompt and fake-model scripts for the new surface | G2, G3 | M | S |
-| U1 | Builder shell route: agent pane, preview, top bar; "Edit by hand" link | W1 | L | O |
-| U2 | Preview pane: devices, WxH, rotate, zoom, polarity and high contrast, Reset answers, layout collector | U1 | L | O |
-| U3 | Inspect mode and selection fact | U2, G1 | M | O |
-| U4 | Appearance drawer with pure `lib/forms/text-size.ts` rule module (Custom is a state) and locked state | A2, A1 | L | O |
-| U5 | Derive flow: URL input, Confirm card, "Not saved" row, save as workspace theme, correction messaging | A4, U4, G2 | M | O |
-| U6 | Workspace themes and appearance lock on workspace settings | A3 | S | S |
-| P1 | Per-form appearance on a page-level carrier; deployment env as default; brand per form; CSP check | A2 | L | O |
-| P2 | Progress modes: side rail, top indicator, none; no-JS links; narrow fold | A5 | L | O |
-| P3 | Respondent menu with legibility face; keep `POST /appearance` | P1 | M | O |
-| P4 | Text-size scale: root multiplier, cap 32 px, reflow at 320 px | P3 | M | O |
-| S1 | Design system artifact: TextSize card, Appearance drawer, preview toolbar, rail states | W1 | S | S |
-| S2 | Docs: `docs/theming.md`, `docs/operations.md`, `docs/deploy-enterprise.md`, `apps/portal/README.md`, `docs/agent-authoring.md`, create-qcms-app templates | W1, A1 | S | S |
-| X1 | Vitest with each task: contrast and derivation, fetcher with fake resolver, text-size rule, rail state derivation | with tasks | n/a | O, S |
-| X2 | Playwright portal: rail at 1024 and 390, no-JS, respondent menu, reflow at 320, axe in light, dark and high contrast, appearance frozen across publish | P1 to P4 | M | O |
-| X3 | Playwright admin: shell, device switch, inspect, drawer to publish to portal, derive against a local fixture server | U1 to U5 | L | O |
-| X4 | SEC-17 sentinel and vocabulary tests over new facts and tools | G1 to G4 | M | S |
+| ID  | Task                                                                                                                                                                  | Deps       | Size | Tier            |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ---- | --------------- |
+| W1  | Decision bundle: ADR-19/25/28/30/41 notes, SEC-3/9 check, SEC-17 and agent-principle amendment, new SEC-18, supersede 049 exclusion, panel-width and rail exception   | none       | M    | F               |
+| A1  | Shared pure appearance module: Zod schema, WCAG contrast (4.5, 3, 7), derive light, dark and full high-contrast palettes, correction report; update token test per Q5 | W1         | M    | O               |
+| D1  | `appearance` jsonb on drafts and versions; publish copies it; append-only tests                                                                                       | W1, A1     | M    | O               |
+| D2  | `control.workspace_themes` (tokens, face, corners, logo, source host) plus workspace appearance lock column                                                           | W1, A1     | M    | S               |
+| A2  | Draft PUT accepts `appearance` and validates contrast; start-session and serve-step return the pinned version's appearance; OpenAPI                                   | D1         | M    | O               |
+| A3  | Workspace themes CRUD, appearance lock, SEC-3 rows, SEC-15 audit, logo route                                                                                          | D2         | M    | S               |
+| A4  | Theme derive route with hardened `BrandFetcher` port (SEC-18)                                                                                                         | A1, A3, W1 | L    | O, Fable review |
+| A5  | Serve-step `steps` list, current-step question labels, progress mode, cursor back-jump                                                                                | D1         | M    | O               |
+| A6  | Draft edit ops and Undo through the single draft save path, per-edit audit row                                                                                        | W1         | L    | O               |
+| G1  | Agent facts: preview selection and layout report, strict schemas, sentinel tests                                                                                      | none       | S    | S               |
+| G2  | Action kinds `form.appearance`, `theme.derive` (Confirm), `theme.save`; cards and consequence bands                                                                   | A2, A3, A4 | M    | O               |
+| G3  | Builder edit tools (question, step, rule, copy) as draft-scoped edits                                                                                                 | A6         | L    | O               |
+| G4  | System prompt and fake-model scripts for the new surface                                                                                                              | G2, G3     | M    | S               |
+| U1  | Builder shell route: agent pane, preview, top bar; "Edit by hand" link                                                                                                | W1         | L    | O               |
+| U2  | Preview pane: devices, WxH, rotate, zoom, polarity and high contrast, Reset answers, layout collector                                                                 | U1         | L    | O               |
+| U3  | Inspect mode and selection fact                                                                                                                                       | U2, G1     | M    | O               |
+| U4  | Appearance drawer with pure `lib/forms/text-size.ts` rule module (Custom is a state) and locked state                                                                 | A2, A1     | L    | O               |
+| U5  | Derive flow: URL input, Confirm card, "Not saved" row, save as workspace theme, correction messaging                                                                  | A4, U4, G2 | M    | O               |
+| U6  | Workspace themes and appearance lock on workspace settings                                                                                                            | A3         | S    | S               |
+| P1  | Per-form appearance on a page-level carrier; deployment env as default; brand per form; CSP check                                                                     | A2         | L    | O               |
+| P2  | Progress modes: side rail, top indicator, none; no-JS links; narrow fold                                                                                              | A5         | L    | O               |
+| P3  | Respondent menu with legibility face; keep `POST /appearance`                                                                                                         | P1         | M    | O               |
+| P4  | Text-size scale: root multiplier, cap 32 px, reflow at 320 px                                                                                                         | P3         | M    | O               |
+| S1  | Design system artifact: TextSize card, Appearance drawer, preview toolbar, rail states                                                                                | W1         | S    | S               |
+| S2  | Docs: `docs/theming.md`, `docs/operations.md`, `docs/deploy-enterprise.md`, `apps/portal/README.md`, `docs/agent-authoring.md`, create-qcms-app templates             | W1, A1     | S    | S               |
+| X1  | Vitest with each task: contrast and derivation, fetcher with fake resolver, text-size rule, rail state derivation                                                     | with tasks | n/a  | O, S            |
+| X2  | Playwright portal: rail at 1024 and 390, no-JS, respondent menu, reflow at 320, axe in light, dark and high contrast, appearance frozen across publish                | P1 to P4   | M    | O               |
+| X3  | Playwright admin: shell, device switch, inspect, drawer to publish to portal, derive against a local fixture server                                                   | U1 to U5   | L    | O               |
+| X4  | SEC-17 sentinel and vocabulary tests over new facts and tools                                                                                                         | G1 to G4   | M    | S               |
 
 The old builder screens are not retired (Q1), so there is no retirement task.
 

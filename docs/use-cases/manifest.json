@@ -1,0 +1,514 @@
+{
+  "collected_on": "2026-11-01",
+  "assets": [
+    {
+      "path": "ahm-travel-insurance-claim/source.pdf",
+      "source_url": "https://static.ahm.com.au/files/forms/ahm-travel-insurance-claim-form.pdf",
+      "final_url": "https://static.ahm.com.au/files/forms/ahm-travel-insurance-claim-form.pdf",
+      "media_type": "application/pdf",
+      "bytes": 315860,
+      "sha256": "2f473aa7718bf0dadb8292f850524d6dad3177ec200cbccbd8c42396cf07632f",
+      "retrieved_on": "2026-11-01",
+      "pages": 13,
+      "acroform_fields": 520,
+      "pdf_title": "",
+      "pdf_form_type": "AcroForm",
+      "pdf_encryption": "no"
+    },
+    {
+      "path": "australian-hospital-insurance-claim/source.pdf",
+      "source_url": "https://www.medibank.com.au/content/dam/client/documents/pdfs/National_Hospital_Claim_Form.pdf",
+      "final_url": "https://www.medibank.com.au/content/dam/client/documents/pdfs/National_Hospital_Claim_Form.pdf",
+      "media_type": "application/pdf",
+      "bytes": 59898,
+      "sha256": "7cf3a11f3fcb5e11675631fd95fe3fd4687be4087cf4486e95d6e0c21cc36f55",
+      "retrieved_on": "2026-11-01",
+      "pages": 2,
+      "pdf_form_type": "none",
+      "pdf_encryption": "no",
+      "acroform_fields": 0
+    },
+    {
+      "path": "australian-medicare-enrolment/source.pdf",
+      "source_url": "https://www.servicesaustralia.gov.au/sites/default/files/2026-09/ms004-2609-f.pdf",
+      "final_url": "https://www.servicesaustralia.gov.au/sites/default/files/2026-09/ms004-2609-f.pdf",
+      "media_type": "application/pdf",
+      "bytes": 623319,
+      "sha256": "92503c86be9ebd14ecc0b534abb5ec14242222c4ff78923a161947600f2959b5",
+      "retrieved_on": "2026-11-01",
+      "pages": 17,
+      "pdf_form_type": "AcroForm",
+      "pdf_encryption": "yes (print:yes copy:yes change:no addNotes:yes algorithm:AES)",
+      "acroform_fields": null
+    },
+    {
+      "path": "australian-passport-application/b11-general-declaration.pdf",
+      "source_url": "https://www.passports.gov.au/sites/default/files/documents/2025-11/B11-%20General%20declaration.pdf",
+      "final_url": "https://www.passports.gov.au/sites/default/files/documents/2025-11/B11-%20General%20declaration.pdf",
+      "media_type": "application/pdf",
+      "bytes": 570424,
+      "sha256": "4ec7633393fc936707e160c3035c40a136686667ade1098e49dcd36893025f11",
+      "retrieved_on": "2026-11-01",
+      "pages": 1,
+      "pdf_form_type": "AcroForm",
+      "pdf_encryption": "yes (print:yes copy:no change:no addNotes:yes algorithm:AES-256)",
+      "acroform_fields": null
+    },
+    {
+      "path": "australian-passport-application/pc8-guidance.pdf",
+      "source_url": "https://germany.embassy.gov.au/files/beln/Australian%20Passport%20Overseas%20New%20Application%20%28PC8%29.pdf",
+      "final_url": "https://germany.embassy.gov.au/files/beln/Australian%20Passport%20Overseas%20New%20Application%20%28PC8%29.pdf",
+      "media_type": "application/pdf",
+      "bytes": 769351,
+      "sha256": "90bfbca855f01a02cb127721fa0468a99d8edcc9c4bbdab999ca094548123d5e",
+      "retrieved_on": "2026-11-01",
+      "pages": 2,
+      "acroform_fields": 0,
+      "pdf_title": "Microsoft Word - Australian Passport Overseas New Application (PC8).DOCX",
+      "pdf_form_type": "none",
+      "pdf_encryption": "no"
+    },
+    {
+      "path": "australian-passport-application/reference.html",
+      "source_url": "https://morocco.embassy.gov.au/rbat/pc8.html",
+      "final_url": "https://morocco.embassy.gov.au/rbat/pc8.html",
+      "media_type": "text/html",
+      "bytes": 31755,
+      "sha256": "2ee76c08e857f3bc9e3af6ad788095a9932601d3b2487f348ede81b68548320b",
+      "retrieved_on": "2026-11-01"
+    },
+    {
+      "path": "canadian-adult-passport/source-en.pdf",
+      "source_url": "https://www.canada.ca/content/dam/ircc/migration/ircc/english/passport/forms/pdf/pptc153.pdf",
+      "final_url": "https://www.canada.ca/content/dam/ircc/migration/ircc/english/passport/forms/pdf/pptc153.pdf",
+      "media_type": "application/pdf",
+      "bytes": 1697778,
+      "sha256": "9a8457b65f769f3c0d4265b917689f5433372208d120844f2328281291412fa5",
+      "retrieved_on": "2026-11-01",
+      "pages": 8,
+      "pdf_form_type": "XFA",
+      "pdf_encryption": "yes (print:yes copy:no change:no addNotes:no algorithm:AES)",
+      "acroform_fields": null
+    },
+    {
+      "path": "canadian-adult-passport/source-fr.pdf",
+      "source_url": "https://www.canada.ca/content/dam/ircc/migration/ircc/francais/passeport/formulaires/pdf/pptc154.pdf",
+      "final_url": "https://www.canada.ca/content/dam/ircc/migration/ircc/francais/passeport/formulaires/pdf/pptc154.pdf",
+      "media_type": "application/pdf",
+      "bytes": 1730761,
+      "sha256": "70f6837edbc2ddaabe38c7aa0306343277dd81a1a48fdebe79bca55d4e458e5b",
+      "retrieved_on": "2026-11-01",
+      "pages": 9,
+      "pdf_form_type": "XFA",
+      "pdf_encryption": "yes (print:yes copy:no change:no addNotes:no algorithm:AES)",
+      "acroform_fields": null
+    },
+    {
+      "path": "course-evaluation-survey/source.pdf",
+      "source_url": "https://www.bscc.ca.gov/wp-content/uploads/STC_Course_Evaluation_Form.pdf",
+      "final_url": "https://www.bscc.ca.gov/wp-content/uploads/STC_Course_Evaluation_Form.pdf",
+      "media_type": "application/pdf",
+      "bytes": 89446,
+      "sha256": "4745336e07884bff6af72e0b8510af98fe8dacaf43ffc1ad66ad37ddd6f57d3c",
+      "retrieved_on": "2026-11-01",
+      "pages": 1,
+      "pdf_form_type": "AcroForm",
+      "pdf_encryption": "yes (print:yes copy:no change:no addNotes:no algorithm:RC4)",
+      "acroform_fields": null
+    },
+    {
+      "path": "nhs-new-patient-questionnaire/source.pdf",
+      "source_url": "https://www.loganpractice.scot.nhs.uk/wp-content/uploads/sites/881/2026/01/New-Patient-Questionnaire-updated.pdf",
+      "final_url": "https://www.loganpractice.scot.nhs.uk/wp-content/uploads/sites/881/2026/01/New-Patient-Questionnaire-updated.pdf",
+      "media_type": "application/pdf",
+      "bytes": 692360,
+      "sha256": "588ec30072e7317bc4728a732e18283640b1b2ec5315f1b58898047a9af88a9e",
+      "retrieved_on": "2026-11-01",
+      "pages": 2,
+      "acroform_fields": 0,
+      "pdf_title": "",
+      "pdf_form_type": "none",
+      "pdf_encryption": "no"
+    },
+    {
+      "path": "nsw-driver-licence/source.pdf",
+      "source_url": "https://correctiveservices.dcj.nsw.gov.au/content/dam/dcj/corrective-services-nsw/documents/related-links/library/License-application-form.pdf",
+      "final_url": "https://correctiveservices.dcj.nsw.gov.au/documents/related-links/library/License-application-form.pdf",
+      "media_type": "application/pdf",
+      "bytes": 433032,
+      "sha256": "7182bb26024ddefe414f070481f4dc116ac662d18eaa0055c97d380ecba5de02",
+      "retrieved_on": "2026-11-01",
+      "pages": 4,
+      "pdf_form_type": "XFA",
+      "pdf_encryption": "yes (print:yes copy:yes change:no addNotes:yes algorithm:AES)",
+      "acroform_fields": null
+    },
+    {
+      "path": "nz-tax-code-ir330/source.pdf",
+      "source_url": "https://www.ird.govt.nz/-/media/project/ir/home/documents/forms-and-guides/ir300---ir399/ir330/ir330.pdf",
+      "final_url": "https://www.ird.govt.nz/-/media/project/ir/home/documents/forms-and-guides/ir300---ir399/ir330/ir330.pdf",
+      "media_type": "application/pdf",
+      "bytes": 360027,
+      "sha256": "f891260d9f619904de0c53538d528477ccd78587f0c4e0f54aefb33ba2cf83f6",
+      "retrieved_on": "2026-11-01",
+      "pages": 4,
+      "acroform_fields": 17,
+      "pdf_title": "",
+      "pdf_form_type": "AcroForm",
+      "pdf_encryption": "no"
+    },
+    {
+      "path": "uk-customer-satisfaction-survey/source.html",
+      "source_url": "https://forms.westnorthants.gov.uk/xfp/form/237",
+      "final_url": "https://forms.westnorthants.gov.uk/xfp/form/237",
+      "media_type": "text/html; charset=UTF-8",
+      "bytes": 53004,
+      "sha256": "c12870d94d03ea10c27a7308a0f1efe841b1b28eea85ed6506a06f4d1088db07",
+      "retrieved_on": "2026-11-01"
+    },
+    {
+      "path": "us-american-community-survey/source.pdf",
+      "source_url": "https://www2.census.gov/programs-surveys/acs/methodology/questionnaires/2025/quest25.pdf",
+      "final_url": "https://www2.census.gov/programs-surveys/acs/methodology/questionnaires/2025/quest25.pdf",
+      "media_type": "application/pdf",
+      "bytes": 3277066,
+      "sha256": "78c76d5e98aeaa5452f2013fbde201943f8a162666651a5b7d8347d96b7f041f",
+      "retrieved_on": "2026-11-01",
+      "pages": 20,
+      "acroform_fields": 54,
+      "pdf_title": "The American Community Survey - Informational Copy (2025)",
+      "pdf_form_type": "AcroForm",
+      "pdf_encryption": "no"
+    },
+    {
+      "path": "us-brfss-health-survey/source.pdf",
+      "source_url": "https://www.cdc.gov/brfss/questionnaires/pdf-ques/2024-BRFSS-Questionnaire-508.pdf?download=1",
+      "final_url": "https://www.cdc.gov/brfss/questionnaires/pdf-ques/2024-BRFSS-Questionnaire-508.pdf?download=1",
+      "media_type": "application/pdf",
+      "bytes": 967272,
+      "sha256": "4f8019a3a472da77e45d9507148ddfcb1732870847cb9a452c2a2429d4aa334b",
+      "retrieved_on": "2026-11-01",
+      "pages": 109,
+      "pdf_form_type": "AcroForm",
+      "pdf_encryption": "no",
+      "acroform_fields": null
+    },
+    {
+      "path": "us-health-insurance-cms1500/source.pdf",
+      "source_url": "https://www.cms.gov/Medicare/CMS-Forms/CMS-Forms/downloads/cms1500.pdf",
+      "final_url": "https://www.cms.gov/Medicare/CMS-Forms/CMS-Forms/downloads/cms1500.pdf",
+      "media_type": "application/pdf",
+      "bytes": 2272067,
+      "sha256": "ef8ad08547816a73acfd1aa9aae6dbfb9ee8541f59b635a395cff9a228c12087",
+      "retrieved_on": "2026-11-01",
+      "pages": 4,
+      "acroform_fields": 0,
+      "pdf_title": "Health Insurance Claim form",
+      "pdf_form_type": "AcroForm",
+      "pdf_encryption": "no"
+    },
+    {
+      "path": "us-naturalization-n400/source.pdf",
+      "source_url": "https://www.uscis.gov/sites/default/files/document/forms/n-400.pdf",
+      "final_url": "https://www.uscis.gov/sites/default/files/document/forms/n-400.pdf",
+      "media_type": "application/pdf",
+      "bytes": 776244,
+      "sha256": "8b33868ba071e261bf5e8d87d9667860d1f6d2c4de76101eb1e674404a82d909",
+      "retrieved_on": "2026-11-01",
+      "inspection_note": "Encrypted XFA PDF; pypdf raises Invalid padding bytes. Poppler pdfinfo validates 14 pages. Original preserved.",
+      "pages": 14,
+      "pdf_form_type": "XFA",
+      "pdf_encryption": "yes (print:yes copy:no change:no addNotes:yes algorithm:AES)",
+      "acroform_fields": null
+    },
+    {
+      "path": "us-tax-withholding-w4/source.pdf",
+      "source_url": "https://www.irs.gov/pub/irs-pdf/fw4.pdf",
+      "final_url": "https://www.irs.gov/pub/irs-pdf/fw4.pdf",
+      "media_type": "application/pdf",
+      "bytes": 208845,
+      "sha256": "92444d8856ce55d9e25dca8b6d1420634fc68b11e1ab1f760916ea29ddd312b2",
+      "retrieved_on": "2026-11-01",
+      "pages": 5,
+      "acroform_fields": 54,
+      "pdf_title": "2026 Form W-4",
+      "pdf_form_type": "XFA",
+      "pdf_encryption": "no"
+    },
+    {
+      "path": "who5-wellbeing-survey/source-en.pdf",
+      "source_url": "https://cdn.who.int/media/docs/default-source/mental-health/who-5_english-original4da539d6ed4b49389e3afe47cda2326a.pdf?download=true&sfvrsn=ed43f352_11",
+      "final_url": "https://cdn.who.int/media/docs/default-source/mental-health/who-5_english-original4da539d6ed4b49389e3afe47cda2326a.pdf?download=true&sfvrsn=ed43f352_11",
+      "media_type": "application/pdf",
+      "bytes": 2708340,
+      "sha256": "2d5b5c3d4ae1d9a5c60887694398328fdf77675804e843885347e2d6cc43e72e",
+      "retrieved_on": "2026-11-01",
+      "pages": 8,
+      "acroform_fields": 0,
+      "pdf_title": "",
+      "pdf_form_type": "none",
+      "pdf_encryption": "no"
+    },
+    {
+      "path": "who5-wellbeing-survey/source-zh.pdf",
+      "source_url": "https://cdn.who.int/media/docs/default-source/mental-health/five-well-being-index-(who-5)/who5_chinese_pr.pdf?sfvrsn=a6a33639_5",
+      "final_url": "https://cdn.who.int/media/docs/default-source/mental-health/five-well-being-index-(who-5)/who5_chinese_pr.pdf?sfvrsn=a6a33639_5",
+      "media_type": "application/pdf",
+      "bytes": 521476,
+      "sha256": "2d4e8cc7a36bf31b56b7061bddc3a995496a153778cd842241eb9c43ba1cc298",
+      "retrieved_on": "2026-11-01",
+      "pages": 2,
+      "acroform_fields": 0,
+      "pdf_title": "Microsoft Word - WHO-5_Chinese_til_'pdf 310809.doc",
+      "pdf_form_type": "none",
+      "pdf_encryption": "no"
+    }
+  ],
+  "cases": [
+    {
+      "id": "australian-passport-application",
+      "title": "Australian passport application (PC8) and B11 declaration",
+      "domain": "government",
+      "jurisdiction": "Australia",
+      "languages": "English",
+      "status": "partial",
+      "publisher": "Australian Passport Office / Australian embassies",
+      "landing_url": "https://www.passports.gov.au/forms",
+      "assets": [
+        "australian-passport-application/reference.html",
+        "australian-passport-application/pc8-guidance.pdf",
+        "australian-passport-application/b11-general-declaration.pdf"
+      ]
+    },
+    {
+      "id": "nsw-driver-licence",
+      "title": "NSW driver licence application (Form 1001)",
+      "domain": "government",
+      "jurisdiction": "Australia",
+      "languages": "English",
+      "status": "downloaded",
+      "publisher": "Transport for NSW; official copy hosted by Corrective Services NSW",
+      "landing_url": "https://correctiveservices.dcj.nsw.gov.au/download.html/documents/related-links/library/License-application-form.pdf",
+      "assets": [
+        "nsw-driver-licence/source.pdf"
+      ]
+    },
+    {
+      "id": "canadian-adult-passport",
+      "title": "Canadian adult general passport application (PPTC 153 / 154)",
+      "domain": "government",
+      "jurisdiction": "Canada",
+      "languages": "English; French",
+      "status": "downloaded",
+      "publisher": "Immigration, Refugees and Citizenship Canada",
+      "landing_url": "https://www.canada.ca/en/immigration-refugees-citizenship/services/canadian-passports/forms.html",
+      "assets": [
+        "canadian-adult-passport/source-en.pdf",
+        "canadian-adult-passport/source-fr.pdf"
+      ]
+    },
+    {
+      "id": "us-naturalization-n400",
+      "title": "US application for naturalization (N-400)",
+      "domain": "government",
+      "jurisdiction": "United States",
+      "languages": "English",
+      "status": "downloaded",
+      "publisher": "US Citizenship and Immigration Services",
+      "landing_url": "https://www.uscis.gov/n-400",
+      "assets": [
+        "us-naturalization-n400/source.pdf"
+      ]
+    },
+    {
+      "id": "nz-tax-code-ir330",
+      "title": "New Zealand tax code declaration (IR330)",
+      "domain": "government",
+      "jurisdiction": "New Zealand",
+      "languages": "English",
+      "status": "downloaded",
+      "publisher": "Inland Revenue",
+      "landing_url": "https://www.ird.govt.nz/tax-code",
+      "assets": [
+        "nz-tax-code-ir330/source.pdf"
+      ]
+    },
+    {
+      "id": "us-tax-withholding-w4",
+      "title": "US employee withholding certificate (W-4)",
+      "domain": "government",
+      "jurisdiction": "United States",
+      "languages": "English",
+      "status": "downloaded",
+      "publisher": "Internal Revenue Service",
+      "landing_url": "https://www.irs.gov/forms-pubs/about-form-w-4",
+      "assets": [
+        "us-tax-withholding-w4/source.pdf"
+      ]
+    },
+    {
+      "id": "australian-medicare-enrolment",
+      "title": "Australian Medicare enrolment (MS004)",
+      "domain": "health",
+      "jurisdiction": "Australia",
+      "languages": "English",
+      "status": "downloaded",
+      "publisher": "Services Australia",
+      "landing_url": "https://www.servicesaustralia.gov.au/ms004",
+      "assets": [
+        "australian-medicare-enrolment/source.pdf"
+      ]
+    },
+    {
+      "id": "nhs-new-patient-questionnaire",
+      "title": "NHS Logan Practice new-patient questionnaire",
+      "domain": "health",
+      "jurisdiction": "United Kingdom (Scotland)",
+      "languages": "English",
+      "status": "downloaded",
+      "publisher": "Logan Practice / NHS Lanarkshire",
+      "landing_url": "https://www.loganpractice.scot.nhs.uk/wp-content/uploads/sites/881/2026/01/New-Patient-Questionnaire-updated.pdf",
+      "assets": [
+        "nhs-new-patient-questionnaire/source.pdf"
+      ]
+    },
+    {
+      "id": "us-health-insurance-cms1500",
+      "title": "US health insurance claim (CMS-1500)",
+      "domain": "insurance",
+      "jurisdiction": "United States",
+      "languages": "English",
+      "status": "downloaded",
+      "publisher": "Centers for Medicare & Medicaid Services / NUCC",
+      "landing_url": "https://www.cms.gov/Medicare/CMS-Forms/CMS-Forms/cms-forms-items/cms1188854",
+      "assets": [
+        "us-health-insurance-cms1500/source.pdf"
+      ]
+    },
+    {
+      "id": "ahm-travel-insurance-claim",
+      "title": "ahm travel insurance claim",
+      "domain": "insurance",
+      "jurisdiction": "Australia",
+      "languages": "English",
+      "status": "downloaded",
+      "publisher": "ahm / Travel Insurance Partners",
+      "landing_url": "https://ahm.com.au/travel-insurance/claim",
+      "assets": [
+        "ahm-travel-insurance-claim/source.pdf"
+      ]
+    },
+    {
+      "id": "australian-hospital-insurance-claim",
+      "title": "Australian national private patient hospital claim",
+      "domain": "insurance",
+      "jurisdiction": "Australia",
+      "languages": "English",
+      "status": "downloaded",
+      "publisher": "National hospital claim form hosted by Medibank",
+      "landing_url": "https://www.medibank.com.au/content/dam/client/documents/pdfs/National_Hospital_Claim_Form.pdf",
+      "assets": [
+        "australian-hospital-insurance-claim/source.pdf"
+      ]
+    },
+    {
+      "id": "us-american-community-survey",
+      "title": "US American Community Survey (ACS)",
+      "domain": "survey",
+      "jurisdiction": "United States",
+      "languages": "English",
+      "status": "downloaded",
+      "publisher": "US Census Bureau",
+      "landing_url": "https://www.census.gov/programs-surveys/acs/about/forms-and-instructions/2025.html",
+      "assets": [
+        "us-american-community-survey/source.pdf"
+      ]
+    },
+    {
+      "id": "us-brfss-health-survey",
+      "title": "US BRFSS health survey questionnaire",
+      "domain": "survey",
+      "jurisdiction": "United States",
+      "languages": "English",
+      "status": "downloaded",
+      "publisher": "US Centers for Disease Control and Prevention",
+      "landing_url": "https://www.cdc.gov/brfss/questionnaires/",
+      "assets": [
+        "us-brfss-health-survey/source.pdf"
+      ]
+    },
+    {
+      "id": "who5-wellbeing-survey",
+      "title": "WHO-5 wellbeing survey",
+      "domain": "survey",
+      "jurisdiction": "International",
+      "languages": "English; Simplified Chinese",
+      "status": "downloaded",
+      "publisher": "World Health Organization; Chinese PDF credits Psychiatric Research Unit and translators",
+      "landing_url": "https://www.who.int/publications/m/item/WHO-UCN-MSD-MHE-2024.01",
+      "assets": [
+        "who5-wellbeing-survey/source-en.pdf",
+        "who5-wellbeing-survey/source-zh.pdf"
+      ]
+    },
+    {
+      "id": "course-evaluation-survey",
+      "title": "Course evaluation survey",
+      "domain": "survey",
+      "jurisdiction": "United States (California)",
+      "languages": "English",
+      "status": "downloaded",
+      "publisher": "California Board of State and Community Corrections",
+      "landing_url": "https://www.bscc.ca.gov/wp-content/uploads/STC_Course_Evaluation_Form.pdf",
+      "assets": [
+        "course-evaluation-survey/source.pdf"
+      ]
+    },
+    {
+      "id": "uk-customer-satisfaction-survey",
+      "title": "Council customer satisfaction survey",
+      "domain": "survey",
+      "jurisdiction": "United Kingdom (England)",
+      "languages": "English",
+      "status": "partial",
+      "publisher": "West Northamptonshire Council",
+      "landing_url": "https://forms.westnorthants.gov.uk/xfp/form/237",
+      "assets": [
+        "uk-customer-satisfaction-survey/source.html"
+      ]
+    },
+    {
+      "id": "nz-adult-passport",
+      "title": "New Zealand adult passport application (PAS310)",
+      "domain": "government",
+      "jurisdiction": "New Zealand",
+      "languages": "English",
+      "status": "link-only",
+      "publisher": "New Zealand Department of Internal Affairs",
+      "landing_url": "https://www.passports.govt.nz/paper-application-forms",
+      "assets": []
+    },
+    {
+      "id": "cahps-health-plan-experience",
+      "title": "CAHPS adult Medicaid health-plan experience survey 5.1",
+      "domain": "survey",
+      "jurisdiction": "United States",
+      "languages": "English",
+      "status": "link-only",
+      "publisher": "Agency for Healthcare Research and Quality",
+      "landing_url": "https://www.ahrq.gov/cahps/surveys-guidance/hp/index.html",
+      "assets": []
+    },
+    {
+      "id": "bupa-health-insurance-claim",
+      "title": "Bupa Hong Kong clinical insurance claim",
+      "domain": "insurance",
+      "jurisdiction": "Hong Kong",
+      "languages": "English; Traditional Chinese",
+      "status": "link-only",
+      "publisher": "Bupa (Asia) Limited",
+      "landing_url": "https://www.bupa.com.hk/en/companies-employees/customer-care/download-forms/",
+      "assets": []
+    }
+  ]
+}
