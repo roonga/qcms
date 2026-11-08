@@ -48,6 +48,10 @@ test release does not itself prove that manual testing passed. The diagram assum
 the form is open in both environments. Draft editing belongs to no environment, so the
 Operations selector never decides where a draft is released.
 
+Planned, not shipped (agent builder task U1, `plan/agent-builder-decisions.md`): the wizard
+will accept a `returnTo` limited to the agent build screen and go back there when the
+operator leaves it.
+
 After a release, the Operations table is where a released form is operated, and it is the
 only place those screens live. Its environment is the Operations header's own selector, and
 each row offers the contexts the operator holds a read for on that form in that
