@@ -129,7 +129,7 @@ export interface FormSettings {
   readonly minSubmitMs: number | null;
 }
 
-/** The library's third reading: a form with no release in this environment. */
+/** A form's availability in one environment; the third reading is no release there at all. */
 export const FORM_AVAILABILITIES = ["open", "closed", "unreleased"] as const;
 
 export type FormAvailability = (typeof FORM_AVAILABILITIES)[number];
@@ -179,7 +179,7 @@ export interface FormDetail {
   readonly formId: string;
   readonly slug: string;
   readonly defaultLocale: string;
-  readonly status: "open" | "closed";
+  readonly status: FormAvailability;
   readonly draft: DraftForm | null;
   readonly draftSource: "open" | "seeded" | "none";
   readonly versions: readonly FormVersionSummary[];

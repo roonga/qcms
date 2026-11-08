@@ -283,7 +283,7 @@ export const FormDetailResponse = z
     formId: z.string().openapi({ example: "frm_signup" }),
     slug: z.string().openapi({ example: "signup" }),
     defaultLocale: z.string().openapi({ example: "en" }),
-    status: FormStatus.openapi({ example: "open" }),
+    status: FormAvailability.openapi({ example: "open" }),
     /** The open draft, else the latest published definition as a seed, else null. */
     draft: z.unknown(),
     releasedDefinition: z.unknown(),

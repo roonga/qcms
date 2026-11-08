@@ -169,6 +169,10 @@ test("releases a published version to an environment and records it (task 065)",
   const now = page.getByTestId("qcms-released-now");
   await expect(now.locator('tr[data-environment="prod"]')).toContainText("Nothing released");
   await expect(now.locator('tr[data-environment="test"]')).toContainText("v1");
+  await expect(now.locator('tr[data-environment="prod"] td[data-availability]')).toHaveText(
+    "Not Released",
+  );
+  await expect(page.getByText("Availability: Not Released")).toBeVisible();
 
   await page.getByTestId("qcms-publish-entry").click();
   await page.waitForURL(`**/forms/${formId}/publish`);
@@ -176,6 +180,8 @@ test("releases a published version to an environment and records it (task 065)",
 
   await page.goto(`/forms/${formId}/versions`);
   await expect(now.locator('tr[data-environment="prod"]')).toContainText("v1");
+  await expect(now.locator('tr[data-environment="prod"] td[data-availability]')).toHaveText("Open");
+  await expect(page.getByText("Availability: Open")).toBeVisible();
 
   await expect(now.locator('tr[data-environment="test"]')).toContainText("v1");
 
@@ -186,6 +192,7 @@ test("releases a published version to an environment and records it (task 065)",
   await expect(history).not.toContainText(ISO_TIMESTAMP);
 
   const versions = page.getByRole("table", { name: "Published versions" });
+  await expect(versions.getByRole("columnheader", { name: "First released" })).toBeVisible();
   await expect(versions.locator('tr[data-form-version="1"]')).toContainText("prod");
   await expect(versions.locator('tr[data-form-version="1"] td[data-available-in]')).toContainText(
     "prod",

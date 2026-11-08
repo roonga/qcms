@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import { HelpTip } from "@/components/help-tip";
+import type { FormAvailability } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
 import { sectionHeadingId } from "@/lib/page-headings";
 import type { FormSection } from "@/lib/page-title";
@@ -14,7 +15,7 @@ export function FormPageHeader({
 }: {
   readonly formId: string;
   readonly section: FormSection;
-  readonly status?: "open" | "closed";
+  readonly status?: FormAvailability;
   readonly heading?: { readonly id: string; readonly text: string };
   readonly help?: ReactNode;
 }) {

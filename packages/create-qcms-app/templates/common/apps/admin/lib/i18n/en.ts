@@ -148,7 +148,7 @@ export const messages = {
   "operations.intake.open": "Open",
   "operations.intake.closed": "Closed",
   "operations.intake.unreleased": "Not Released",
-  "operations.release.none": "No release",
+  "operations.release.none": "Not Released",
   "operations.loading": "Loading the forms you can operate.",
 
   "operations.environmentUnknown":
@@ -540,7 +540,7 @@ export const messages = {
   "forms.create.submitting": "Creating the form...",
 
   "forms.builder.formId": "Form ID",
-  "forms.builder.status": "Status",
+  "forms.builder.status": "Availability",
   "forms.builder.draftSource.open": "Editing the saved draft.",
   "forms.builder.draftSource.seeded":
     "Started from the newest published version. Nothing is stored until the first save.",
@@ -1202,8 +1202,6 @@ export const messages = {
 
   "forms.versions.reviewVersion": "Review version {version}",
   "forms.versions.summaryHeading": "What each environment is serving",
-  "forms.versions.intakeOpen": "Open",
-  "forms.versions.intakeClosed": "Closed",
   "forms.versions.column.intake": "Availability",
   "forms.versions.publishEntry": "Publish…",
 
@@ -1363,7 +1361,7 @@ export const messages = {
   "forms.history.filter.legend": "Show",
   "forms.history.filter.hidden":
     "{count} versions are hidden because they were never released anywhere.",
-  "forms.history.column.released": "Released",
+  "forms.history.column.released": "First released",
   "forms.history.releasedIn": "{environments}",
   "forms.history.releasedNowhere": "Nowhere",
   "forms.history.column.version": "Version",
