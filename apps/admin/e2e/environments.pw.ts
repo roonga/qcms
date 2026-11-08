@@ -6,8 +6,15 @@ import { MODE_COOKIE } from "../lib/appearance.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { chooseEnvironment, environmentChip, OPERATIONS_PATH } from "./support/environment.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
-import { createForm } from "./support/forms.js";
+import {
+  addStep,
+  createForm,
+  pinQuestion,
+  releaseNewestVersion,
+  waitForSaved,
+} from "./support/forms.js";
 import { ADMIN_BASE_URL } from "./support/harness-config.js";
+import { publishDraftThroughWizard } from "./support/publish.js";
 import { waitForHydration } from "./support/hydration.js";
 
 test.describe.configure({ mode: "serial" });
@@ -243,6 +250,13 @@ test("a destructive confirmation names the environment it is about", async ({ pa
   await chooseEnvironment(page, "test");
 
   formId = await createForm(page, FORM_SLUG, "Environment restatement");
+  await addStep(page, "Cover");
+  await pinQuestion(page, "q_at_fault_accident", 2);
+  await waitForSaved(page);
+  // Close acts on a release, so a form with nothing released here is offered no verb at all.
+  await publishDraftThroughWizard(page, { formId, version: 1, environment: "test" });
+  await releaseNewestVersion(page, formId, "prod");
+  await chooseEnvironment(page, "test");
   await page.goto(`/operations/forms/${formId}/availability`);
 
   await page.getByRole("button", { name: "Close to new responses in test" }).click();
