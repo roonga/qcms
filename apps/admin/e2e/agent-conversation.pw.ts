@@ -100,7 +100,7 @@ test("follows the operator from the library to a builder and on, naming each scr
 
   await ask(page, "and from the builder");
 
-  await navigate(page, "Workspaces", "**/workspaces");
+  await navigate(page, "Workspace", "**/workspaces");
   await expect(turns(page), "both turns survive leaving the form").toContainText(
     "what can you see here",
   );
@@ -147,7 +147,7 @@ test("expires a waiting card when the operator leaves the screen it was proposed
   await propose(page, "propose-form-create", `start a form here #qcms-fake-new:${RUN}`);
   await expect(cardChip(page)).toHaveText("Proposed");
 
-  await navigate(page, "Workspaces", "**/workspaces");
+  await navigate(page, "Workspace", "**/workspaces");
   await expect(cardChip(page), "the card can no longer be confirmed").toHaveText("Expired");
   await expect(card(page).getByRole("button", { name: /^Confirm/u })).toBeDisabled();
   await expect(turns(page), "the dialogue itself is untouched").toContainText("start a form here");

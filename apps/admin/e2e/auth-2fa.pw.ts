@@ -141,7 +141,7 @@ test("a real otplib code completes the challenge and the shell nav marks the act
 
   const nav = page.getByRole("navigation", { name: "Primary" });
 
-  for (const item of ["Questions", "Forms", "Workspaces", "Operations"]) {
+  for (const item of ["Questions", "Forms", "Workspace", "Operations"]) {
     await expect(nav.getByRole("link", { name: item })).toBeVisible();
   }
 
