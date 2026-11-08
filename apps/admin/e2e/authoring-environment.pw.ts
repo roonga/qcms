@@ -13,8 +13,6 @@ import { openPublishWizard } from "./support/publish.js";
 
 const EMAIL = uniqueAdminEmail("authenv");
 const RUN = Date.now().toString(36);
-/** Seeded with a draft, so the wizard's draft source is offered on its own merits. */
-const SEEDED_FORM_ID = "frm_auto_quote";
 
 let secret = "";
 let formId = "";
@@ -72,13 +70,20 @@ test("with prod selected, the builder, Rules and Preview load and stay put", asy
   await expect(page.getByRole("heading", { level: 1, name: "Preview" })).toBeVisible();
 });
 
-test("with prod selected, the publish wizard still offers the shared draft", async ({ page }) => {
+test("the publish wizard offers the shared draft, and offers it the same in both", async ({
+  page,
+}) => {
   test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, secret);
-  await presetEnvironment(page, "prod");
 
-  await openPublishWizard(page, SEEDED_FORM_ID);
-  const source = page.getByTestId("qcms-publish-source");
-  await expect(source).toBeVisible();
-  await expect(source.getByRole("radio", { name: /shared draft/u })).toBeEnabled();
+  for (const environment of ["prod", "test"] as const) {
+    await presetEnvironment(page, environment);
+    await openPublishWizard(page, formId);
+    const source = page.getByTestId("qcms-publish-source");
+    await expect(source).toBeVisible();
+    await expect(
+      source.getByRole("radio", { name: /shared draft/u }),
+      `the draft source in ${environment}`,
+    ).toBeEnabled();
+  }
 });

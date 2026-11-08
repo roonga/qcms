@@ -483,12 +483,16 @@ export function makeCreateFormHandler(deps: Deps): RouteHandler<typeof createFor
     const locale = parseLocaleCode(body.defaultLocale);
     if (!locale.ok) throw fail.invalidLocale();
 
+    // A stepless draft cannot be stored through the draft route, so the name the author
+    // gave the form is written here or it is lost.
+    const named = body.title?.trim() ?? "";
+
     // Deliberately not publishable: publish re-parses it and rejects until the author
     // saves real content.
     const emptyDraft: FormDefinition = {
       formId,
       defaultLocale: locale.value,
-      title: {},
+      title: named === "" ? {} : { [locale.value]: named },
       steps: [],
       rules: [],
     };
