@@ -12,9 +12,9 @@ function render(current: FormContext, held: readonly FormContext[]): string {
 
 describe("the rail beside one form's operational screens", () => {
   it("offers every context an operator holds, in the rail's own order", () => {
-    const html = render("responses", ["responses", "links", "webhooks", "intake"]);
+    const html = render("responses", ["responses", "links", "webhooks", "availability"]);
 
-    for (const context of ["responses", "links", "webhooks", "intake"]) {
+    for (const context of ["responses", "links", "webhooks", "availability"]) {
       expect(html).toContain(`data-rail-item="section:${context}"`);
       expect(html).toContain(`/operations/forms/frm_intake/${context}`);
     }
@@ -26,7 +26,7 @@ describe("the rail beside one form's operational screens", () => {
     expect(html).toContain('data-rail-item="section:responses"');
     expect(html).not.toContain('data-rail-item="section:links"');
     expect(html).not.toContain('data-rail-item="section:webhooks"');
-    expect(html).not.toContain('data-rail-item="section:intake"');
+    expect(html).not.toContain('data-rail-item="section:availability"');
   });
 
   it("keeps the screen being served, so a refused cell read cannot empty the rail", () => {

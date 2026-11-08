@@ -4,6 +4,9 @@ import { LIBRARY_SEARCH_MAX_LENGTH } from "../../openapi.js";
 
 const FormLifecycle = z.enum(["open", "closed"]);
 
+/** A third reading, because a form with no release here is neither open nor closed. */
+const FormAvailability = z.enum(["open", "closed", "unreleased"]);
+
 export const FormIdParam = z.object({
   id: z.string().openapi({ param: { name: "id", in: "path" }, example: "frm_signup" }),
 });
@@ -18,7 +21,7 @@ export const FormVersionParam = z.object({
  * an order over a column that is not indexed or not stable.
  */
 export const ListFormsQuery = z.object({
-  status: FormLifecycle.optional().openapi({
+  status: FormAvailability.optional().openapi({
     param: { name: "status", in: "query" },
     example: "open",
   }),
@@ -249,7 +252,7 @@ export const FormListItem = z
     slug: z.string().openapi({ example: "signup" }),
     workspaceId: z.string().openapi({ example: "org_default_workspace" }),
     defaultLocale: z.string().openapi({ example: "en" }),
-    status: FormStatus.openapi({ example: "open" }),
+    status: FormAvailability.openapi({ example: "open" }),
     hasDraft: z.boolean().openapi({ example: true }),
     latestVersion: z.number().int().positive().nullable().openapi({ example: 2 }),
     publishedAt: z.iso.datetime().nullable(),
@@ -418,7 +421,7 @@ export const PublishedAndReleasedResponse = z
 
 /**
  * Required with no default, and in the body rather than taken from the environment
- * switcher's header: closing intake is an operational act, so the caller states the
+ * switcher's header: closing a form is an operational act, so the caller states the
  * environment rather than inheriting one it may not have been looking at.
  */
 export const FormEnvironmentBody = z

@@ -10,20 +10,20 @@ export const FORM_OPERATIONAL_CONTEXTS = [
   "responses",
   "links",
   "webhooks",
-  "intake",
+  "availability",
   "erase",
 ] as const;
 export type FormContext = (typeof FORM_OPERATIONAL_CONTEXTS)[number];
 
 /**
- * The cell that admits each context. Intake takes `form: read`, not the `form: close` its
+ * The cell that admits each context. Availability takes `form: read`, not the `form: close` its
  * acts carry, so a reader who may not change it still sees it. Erase is the act itself.
  */
 const ADMITTING_CELL: Readonly<Record<FormContext, string>> = {
   responses: "response:read",
   links: "link:read",
   webhooks: "webhook:read",
-  intake: "form:read",
+  availability: "form:read",
   erase: "response:erase",
 };
 

@@ -204,9 +204,9 @@ export const formIntakeFacts = z.strictObject({
 });
 
 /**
- * One form's intake in the selected environment: what is serving there, and whether it is
- * taking responses. Admitted on `form: read` rather than the `form: close` its two acts
- * carry, so a reader who may not change intake can still be told what it is.
+ * One form's availability in the selected environment: what is serving there, and whether
+ * it is taking responses. Admitted on `form: read` rather than the `form: close` its two
+ * acts carry, so a reader who may not change it can still be told what it is.
  */
 async function buildFormIntake(input: ScreenBuildInput): Promise<z.infer<typeof formIntakeFacts>> {
   const { formId, workspaceId } = await requireForm(input);

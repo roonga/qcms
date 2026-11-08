@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EnvironmentScope } from "./environment-scope.tsx";
 import { EnvironmentSwitcher } from "./environment-switcher.tsx";
 import { FormActions } from "./forms/form-actions.tsx";
-import { FormIntake } from "./ops/form-intake.tsx";
+import { FormAvailability } from "./ops/form-availability.tsx";
 import { ResponseActions } from "./ops/response-actions.tsx";
 import { ResponseDetail } from "./ops/response-detail.tsx";
 import { ENVIRONMENT_COOKIE } from "../lib/environment.ts";
@@ -20,9 +20,11 @@ vi.mock("next/navigation", () => ({
 
 const SWITCHED = t("environment.switched", { shown: "prod", current: "test" });
 
-function formIntake(setStatus = () => Promise.resolve({ status: "error", message: SWITCHED })) {
+function formAvailability(
+  setStatus = () => Promise.resolve({ status: "error", message: SWITCHED }),
+) {
   return (
-    <FormIntake
+    <FormAvailability
       slug="intake"
       status="open"
       setStatus={setStatus as () => Promise<{ status: "error"; message: string }>}
@@ -36,7 +38,7 @@ function environmentBoundControls() {
   return (
     <>
       <FormActions formId="form-1" environment="prod" />
-      {formIntake()}
+      {formAvailability()}
     </>
   );
 }
@@ -107,7 +109,7 @@ describe("an unknown environment", () => {
   it("leaves everything enabled outside the unknown state", () => {
     render(
       <EnvironmentScope selection="prod" unknown={false}>
-        {formIntake()}
+        {formAvailability()}
       </EnvironmentScope>,
     );
 
@@ -121,7 +123,7 @@ describe("an unknown environment", () => {
 describe("a refusal because another tab switched", { timeout: 30_000 }, () => {
   it("is said inside the close dialog, which stays open", async () => {
     const user = userEvent.setup();
-    render(formIntake());
+    render(formAvailability());
 
     await user.click(
       screen.getByRole("button", { name: t("forms.lifecycle.close", { environment: "prod" }) }),

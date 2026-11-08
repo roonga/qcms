@@ -116,8 +116,8 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/(shell)/@rail/operations/`                                      | 8     |
 | `apps/admin/app/(shell)/@rail/operations/forms/`                                | 7     |
 | `apps/admin/app/(shell)/@rail/operations/forms/[formId]/`                       | 7     |
+| `apps/admin/app/(shell)/@rail/operations/forms/[formId]/availability/`          | 1     |
 | `apps/admin/app/(shell)/@rail/operations/forms/[formId]/erase/`                 | 1     |
-| `apps/admin/app/(shell)/@rail/operations/forms/[formId]/intake/`                | 1     |
 | `apps/admin/app/(shell)/@rail/operations/forms/[formId]/links/`                 | 1     |
 | `apps/admin/app/(shell)/@rail/operations/forms/[formId]/responses/`             | 2     |
 | `apps/admin/app/(shell)/@rail/operations/forms/[formId]/responses/[sessionId]/` | 1     |
@@ -152,9 +152,9 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/(shell)/operations/`                                            | 8     |
 | `apps/admin/app/(shell)/operations/forms/`                                      | 7     |
 | `apps/admin/app/(shell)/operations/forms/[formId]/`                             | 7     |
+| `apps/admin/app/(shell)/operations/forms/[formId]/availability/`                | 1     |
 | `apps/admin/app/(shell)/operations/forms/[formId]/erase/`                       | 1     |
 | `apps/admin/app/(shell)/operations/forms/[formId]/export/`                      | 1     |
-| `apps/admin/app/(shell)/operations/forms/[formId]/intake/`                      | 1     |
 | `apps/admin/app/(shell)/operations/forms/[formId]/links/`                       | 1     |
 | `apps/admin/app/(shell)/operations/forms/[formId]/responses/`                   | 2     |
 | `apps/admin/app/(shell)/operations/forms/[formId]/responses/[sessionId]/`       | 1     |
@@ -317,8 +317,8 @@ apps/admin/app/(shell)/@rail/forms/new/page.tsx
 apps/admin/app/(shell)/@rail/forms/page.tsx
 apps/admin/app/(shell)/@rail/me/access/page.tsx
 apps/admin/app/(shell)/@rail/no-section.ts
+apps/admin/app/(shell)/@rail/operations/forms/[formId]/availability/page.tsx
 apps/admin/app/(shell)/@rail/operations/forms/[formId]/erase/page.tsx
-apps/admin/app/(shell)/@rail/operations/forms/[formId]/intake/page.tsx
 apps/admin/app/(shell)/@rail/operations/forms/[formId]/links/page.tsx
 apps/admin/app/(shell)/@rail/operations/forms/[formId]/rail-slot.tsx
 apps/admin/app/(shell)/@rail/operations/forms/[formId]/responses/[sessionId]/page.tsx
@@ -355,9 +355,9 @@ apps/admin/app/(shell)/forms/page.tsx
 apps/admin/app/(shell)/forms/published-cell.tsx
 apps/admin/app/(shell)/layout.tsx
 apps/admin/app/(shell)/me/access/page.tsx
+apps/admin/app/(shell)/operations/forms/[formId]/availability/page.tsx
 apps/admin/app/(shell)/operations/forms/[formId]/erase/page.tsx
 apps/admin/app/(shell)/operations/forms/[formId]/export/route.ts
-apps/admin/app/(shell)/operations/forms/[formId]/intake/page.tsx
 apps/admin/app/(shell)/operations/forms/[formId]/links/page.tsx
 apps/admin/app/(shell)/operations/forms/[formId]/responses/[sessionId]/page.tsx
 apps/admin/app/(shell)/operations/forms/[formId]/responses/page.tsx
@@ -493,7 +493,7 @@ apps/admin/components/ops/delivery-dashboard.tsx
 apps/admin/components/ops/endpoint-proposals.tsx
 apps/admin/components/ops/erase-dialog.tsx
 apps/admin/components/ops/erasure-elsewhere.tsx
-apps/admin/components/ops/form-intake.tsx
+apps/admin/components/ops/form-availability.tsx
 apps/admin/components/ops/known-target-erasure.tsx
 apps/admin/components/ops/operations-form-rail.tsx
 apps/admin/components/ops/operations-forms-rail.tsx

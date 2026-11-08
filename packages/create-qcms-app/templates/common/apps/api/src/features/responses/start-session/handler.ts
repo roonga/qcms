@@ -133,7 +133,7 @@ async function enforceChallenge(
 }
 
 /**
- * Closed is checked before nothing-released, so a stopped intake says so. Called before
+ * Closed is checked before nothing-released, so a closed form says so. Called before
  * anything is spent: a closed environment consumes no one-time link and charges no
  * challenge.
  */

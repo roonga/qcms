@@ -140,7 +140,7 @@ export const messages = {
   "operations.column.form": "Form",
   "operations.column.workspace": "Workspace",
   "operations.column.released": "Released",
-  "operations.column.intake": "Intake",
+  "operations.column.intake": "Availability",
   "operations.column.lastRelease": "Last release",
   "operations.column.submitted": "Submitted",
   "operations.column.inProgress": "In progress",
@@ -148,7 +148,7 @@ export const messages = {
 
   "operations.intake.open": "Open",
   "operations.intake.closed": "Closed",
-  "operations.intake.unreleased": "No release",
+  "operations.intake.unreleased": "Not Released",
   "operations.release.none": "No release",
   "operations.loading": "Loading the forms you can operate.",
 
@@ -163,8 +163,8 @@ export const messages = {
   "operations.empty.filtered": "No forms match these filters.",
   "operations.filter.search": "Search",
   "operations.filter.searchHint": "Matches a form's name or identifier.",
-  "operations.filter.intake": "Intake",
-  "operations.filter.intakeAll": "Any intake",
+  "operations.filter.intake": "Availability",
+  "operations.filter.intakeAll": "Any",
   "operations.filter.sort": "Sort",
   "operations.filter.sort.slug-asc": "Identifier A to Z",
   "operations.filter.sort.slug-desc": "Identifier Z to A",
@@ -498,11 +498,12 @@ export const messages = {
   "forms.column.formId": "Form ID",
   "forms.column.slug": "Slug",
   "forms.column.locale": "Locale",
-  "forms.column.status": "Status",
+  "forms.column.status": "Availability",
   "forms.column.draft": "Draft",
   "forms.column.version": "Published",
   "forms.status.open": "Open",
   "forms.status.closed": "Closed",
+  "forms.status.unreleased": "Not Released",
   "forms.draft.present": "Unpublished draft",
   "forms.draft.none": "No draft",
   "forms.version.none": "Never published",
@@ -511,8 +512,8 @@ export const messages = {
 
   "forms.filter.search": "Search",
   "forms.filter.searchHint": "Matches the slug and the form title.",
-  "forms.filter.status": "Status",
-  "forms.filter.statusAll": "Any status",
+  "forms.filter.status": "Availability",
+  "forms.filter.statusAll": "Any",
   "forms.filter.sort": "Sort by",
   "forms.filter.sort.slug-asc": "Slug (A to Z)",
   "forms.filter.sort.slug-desc": "Slug (Z to A)",
@@ -1104,7 +1105,7 @@ export const messages = {
   "forms.tab.publish": "Publish",
   // The per-form Operations screen, named for what it carries rather than for the acts on
   // it: what the selected environment serves, and whether it is taking responses.
-  "forms.tab.intake": "Intake",
+  "forms.tab.availability": "Availability",
   "forms.tab.erase": "Erase",
 
   "forms.publish.action": "Publish",
@@ -1125,27 +1126,27 @@ export const messages = {
   "forms.publish.blockedAnnounce.other": "Publish blocked: {count} issues to fix, listed below.",
 
   /** Closing targets one environment; title, body and confirm control must not imply a global stop. */
-  "forms.lifecycle.close": "Close in {environment}",
+  "forms.lifecycle.close": "Close to new responses in {environment}",
   "forms.lifecycle.reopen": "Reopen in {environment}",
-  "forms.lifecycle.closeTitle": "Close {slug} to new sessions in {environment}?",
+  "forms.lifecycle.closeTitle": "Close {slug} to new responses in {environment}?",
   "forms.lifecycle.closeBody":
-    "No one can start this form in {environment} after it closes. Every other environment is unaffected: a test run keeps going if one is under way. Sessions already under way here keep going too and finish on the version they pinned (R1); their answers are unaffected.",
+    "No one can start a new response to this form in {environment} after it closes. Every other environment is unaffected: a test run keeps going if one is under way. Responses already in progress here keep going too and finish on the version they started on; their answers are unaffected.",
   "forms.lifecycle.reopenTitle": "Reopen {slug} in {environment}?",
   "forms.lifecycle.reopenBody":
-    "New sessions can start in {environment} again, on the version released there.",
+    "New responses can start in {environment} again, on the version released there.",
   "forms.lifecycle.confirmClose": "Close it in {environment}",
   "forms.lifecycle.confirmReopen": "Reopen it in {environment}",
   "forms.lifecycle.cancel": "Cancel",
   "forms.lifecycle.pending": "Working...",
-  "forms.lifecycle.failed": "The form status did not change. {message}",
+  "forms.lifecycle.failed": "The availability did not change. {message}",
   "forms.lifecycle.closedNote":
-    "This form is closed in {environment}. New sessions there are refused; in-flight sessions finish normally, and other environments are unaffected.",
+    "This form is closed in {environment}. It is not accepting new responses there; responses already in progress finish normally, and other environments are unaffected.",
   "forms.lifecycle.notReleasedHere":
-    "Nothing is released in this environment, so there is no intake to close there. Release a version first.",
+    "Nothing is released in this environment, so there is nothing to close there. Release a version first.",
   "forms.lifecycle.alreadyClosedHere":
-    "Intake in this environment is already closed. Nothing changed, and nothing was recorded.",
+    "This form is already closed in this environment. Nothing changed, and nothing was recorded.",
   "forms.lifecycle.alreadyOpenHere":
-    "Intake in this environment is already open. Nothing changed, and nothing was recorded.",
+    "This form is already open in this environment. Nothing changed, and nothing was recorded.",
 
   "forms.releases.currentHeading": "Released now",
   "forms.releases.currentTable": "The version released to each environment",
@@ -1193,8 +1194,8 @@ export const messages = {
   "forms.releases.failed": "Nothing was released. {message}",
   "forms.releases.rollbackDone": "v{version} is released to {environment} again, as a rollback.",
 
-  /** Available in means serving now; historical destinations must not appear live. */
-  "forms.versions.availableIn": "Available in",
+  /** Released to means serving now; historical destinations must not appear live. */
+  "forms.versions.availableIn": "Released to",
   "forms.versions.availableNowhere": "Nowhere",
   "forms.versions.publishedBy": "Published by",
   "forms.versions.publisherUnknown": "Not recorded",
@@ -1204,7 +1205,7 @@ export const messages = {
   "forms.versions.summaryHeading": "What each environment is serving",
   "forms.versions.intakeOpen": "Open",
   "forms.versions.intakeClosed": "Closed",
-  "forms.versions.column.intake": "Intake",
+  "forms.versions.column.intake": "Availability",
   "forms.versions.publishEntry": "Publish…",
 
   "forms.publish.intro":
@@ -1230,7 +1231,8 @@ export const messages = {
     "Freezes a new version and releases it nowhere. Another account can release it afterwards.",
   "forms.publish.destinations.serving": "Serving v{version}",
   "forms.publish.destinations.unreleased": "Nothing released here",
-  "forms.publish.destinations.closedNote": "Intake is closed here, and releasing leaves it closed.",
+  "forms.publish.destinations.closedNote":
+    "This form is closed here, and releasing leaves it closed.",
   "forms.publish.destinations.protected": "Production",
   "forms.publish.destinations.rollbackNote": "This moves {environment} back from v{current}.",
   "forms.publish.destinations.evidence": "Satisfied by the release of v{version} in {environment}.",
@@ -1298,7 +1300,6 @@ export const messages = {
 
   "forms.workflow.release": "Release v{version} to {environment}",
   "forms.workflow.publishedForm": "Published form",
-  "forms.workflow.intake": "Intake",
   "forms.workflow.testCandidate": "This version was released to test.",
   "forms.workflow.firstRelease": "v{version} will be the first version released to {environment}.",
   "forms.workflow.replacesVersion": "v{version} will replace v{current} in {environment}.",
@@ -1310,8 +1311,6 @@ export const messages = {
     "Publishing here requires permission to publish forms and release versions to {environment}.",
   "forms.workflow.noReleasePermission":
     "You do not have permission to release versions to {environment} in this workspace.",
-  "forms.workflow.intakeClosed":
-    "The new version is released to {environment}; intake remains closed.",
   "forms.workflow.noCandidate":
     "No version is available to release to {environment}. Publish and verify a version in test first.",
   "forms.workflow.reviewVersion": "Review v{version}",
@@ -1520,7 +1519,7 @@ export const messages = {
   "agent.context.form.webhooks": "Form {subject}: webhooks, no payloads",
   "agent.context.form.responses": "Form {subject}: response metadata, no answers",
   "agent.context.form.response": "Form {subject}: session {session}, metadata only",
-  "agent.context.form.intake": "Form {subject}: intake in this environment",
+  "agent.context.form.availability": "Form {subject}: availability in this environment",
   "agent.context.form.erase": "Form {subject}: erasure by session id, no answers",
   "agent.context.questions": "The question library",
   "agent.context.questions.new": "A new question, nothing saved yet",
@@ -1642,12 +1641,12 @@ export const messages = {
   "agent.card.form.settings.title": "Change the form settings of {formId}",
   "agent.card.form.settings.consequence":
     "Abuse controls for this form. They apply the next time it is published.",
-  "agent.card.form.close.title": "Close {formId} to new sessions in {environment}",
+  "agent.card.form.close.title": "Close {formId} to new responses in {environment}",
   "agent.card.form.close.consequence":
-    "No one can start this form in {environment} after it closes. Every other environment is unaffected: a test run keeps going if one is under way. Sessions already under way here keep going too and finish on the version they pinned (R1); their answers are unaffected.",
+    "No one can start a new response to this form in {environment} after it closes. Every other environment is unaffected: a test run keeps going if one is under way. Responses already in progress here keep going too and finish on the version they started on; their answers are unaffected.",
   "agent.card.form.reopen.title": "Reopen {formId} in {environment}",
   "agent.card.form.reopen.consequence":
-    "New sessions can start in {environment} again, on the version released there.",
+    "New responses can start in {environment} again, on the version released there.",
   "agent.card.webhook.create.title": "Add a delivery endpoint at {url}",
   "agent.card.webhook.create.consequence":
     "This form's events are delivered to that URL in {environment}, signed with a secret.",
@@ -2285,7 +2284,7 @@ export const messages = {
     "Authors, previews and publishes forms, and releases, links and webhooks outside production.",
   "membership.role.formsApprover.name": "Release approver",
   "membership.role.formsApprover.description":
-    "Releases versions and changes intake, links and webhooks, production included. Edits no draft.",
+    "Releases versions, closes and reopens forms, and changes links and webhooks, production included. Edits no draft.",
   "membership.role.formsOwner.name": "Workspace owner",
   "membership.role.formsOwner.description":
     "Manages this workspace's members, access groups, settings and access audit.",

@@ -11,11 +11,11 @@ import { t } from "@/lib/i18n/en";
 import { unexpected } from "@/lib/ops/unexpected";
 
 /**
- * The intake door: closing one form to new sessions in the selected environment, and
+ * The availability door: closing one form to new responses in the selected environment, and
  * reopening it. The closed state is per (form, environment) and an act against the wrong
  * one is not undoable (Q6), so the control carries the environment it acts in.
  */
-export function FormIntake({
+export function FormAvailability({
   slug,
   status,
   setStatus,
@@ -54,12 +54,12 @@ export function FormIntake({
 
   return (
     <section
-      aria-labelledby="qcms-form-intake-heading"
+      aria-labelledby="qcms-form-availability-heading"
       className="flex flex-col gap-3"
-      data-testid="qcms-form-intake"
+      data-testid="qcms-form-availability"
     >
-      <h2 id="qcms-form-intake-heading" className="qcms-visually-hidden">
-        {t("forms.workflow.intake")}
+      <h2 id="qcms-form-availability-heading" className="qcms-visually-hidden">
+        {t("forms.tab.availability")}
       </h2>
 
       <div className="flex flex-wrap items-center gap-2">
@@ -86,7 +86,11 @@ export function FormIntake({
         </p>
       )}
 
-      <div aria-live="polite" className="flex flex-col gap-2" data-testid="qcms-form-intake-status">
+      <div
+        aria-live="polite"
+        className="flex flex-col gap-2"
+        data-testid="qcms-form-availability-status"
+      >
         {lifecycle.status === "error" && (
           <Alert variant="error">
             {t("forms.lifecycle.failed", { message: lifecycle.message ?? "" })}

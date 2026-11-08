@@ -28,6 +28,7 @@ describe("readFormListFilters", () => {
 
   it.each([
     ["an unknown status is any status", { status: "archived" }, { status: undefined }],
+    ["the third reading is a status", { status: "unreleased" }, { status: "unreleased" }],
     ["an unknown sort is the default order", { sort: "oldest" }, { sort: "slug-asc" }],
     [
       "a repeated parameter takes its first value",

@@ -54,7 +54,7 @@ function screens(sessionId: string): readonly Screen[] {
     { path: "/me/access", cap: "prose" },
     { path: "/operations", cap: "list" },
     { path: `/operations/forms/${FORM_ID}/erase`, cap: "prose" },
-    { path: `/operations/forms/${FORM_ID}/intake`, cap: "prose" },
+    { path: `/operations/forms/${FORM_ID}/availability`, cap: "prose" },
     { path: `/operations/forms/${FORM_ID}/links`, cap: "wide" },
     { path: `/operations/forms/${FORM_ID}/responses`, cap: "wide" },
     { path: `/operations/forms/${FORM_ID}/responses/${sessionId}`, cap: "wide" },

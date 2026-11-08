@@ -737,11 +737,11 @@ async function sweepOperations(
   await expect(page.getByTestId("qcms-operations-table")).toBeVisible();
   await expectNoViolations(page, "the Operations forms table");
 
-  await page.goto(`/operations/forms/${pub.formId}/intake`);
+  await page.goto(`/operations/forms/${pub.formId}/availability`);
   await waitForHydration(page);
-  await expect(page.getByTestId("qcms-form-intake")).toBeVisible();
-  await expectNoViolations(page, "one form's intake");
-  await page.getByRole("button", { name: /^Close in / }).click();
+  await expect(page.getByTestId("qcms-form-availability")).toBeVisible();
+  await expectNoViolations(page, "one form's availability");
+  await page.getByRole("button", { name: /^Close to new responses in / }).click();
   await expect(page.getByRole("alertdialog")).toBeVisible();
   await expectNoViolations(page, "close-form confirmation");
   await page.keyboard.press("Escape");

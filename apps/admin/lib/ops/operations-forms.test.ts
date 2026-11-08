@@ -42,7 +42,7 @@ describe("readOperationsListState", () => {
     const state = readOperationsListState({
       env: "test",
       q: "intake",
-      intake: "closed",
+      availability: "closed",
       sort: "released-desc",
       cursor: "abc",
     });
@@ -75,7 +75,8 @@ describe("readOperationsListState", () => {
 
   it("falls back to the default order rather than refusing an unknown one", () => {
     expect(readOperationsListState({ sort: "whatever" }).sort).toBe("slug-asc");
-    expect(readOperationsListState({ intake: "whatever" }).intake).toBeUndefined();
+    expect(readOperationsListState({ availability: "whatever" }).intake).toBeUndefined();
+    expect(readOperationsListState({ intake: "closed" }).intake).toBe("closed");
   });
 
   it("takes the first value of a repeated parameter", () => {
@@ -87,14 +88,14 @@ describe("the addresses the screen links to", () => {
   const state = readOperationsListState({
     env: "test",
     q: "intake",
-    intake: "open",
+    availability: "open",
     sort: "released-desc",
     cursor: "page2",
   });
 
   it("is the whole view, in one fixed parameter order", () => {
     expect(operationsHref(state)).toBe(
-      "/operations?env=test&q=intake&intake=open&sort=released-desc&cursor=page2",
+      "/operations?env=test&q=intake&availability=open&sort=released-desc&cursor=page2",
     );
   });
 
@@ -121,7 +122,7 @@ describe("the addresses the screen links to", () => {
       isFiltered: true,
     });
     expect(operationsHref(moved)).toBe(
-      "/operations?env=prod&q=intake&intake=open&sort=released-desc",
+      "/operations?env=prod&q=intake&availability=open&sort=released-desc",
     );
   });
 
@@ -175,7 +176,7 @@ describe("operationsApiQuery", () => {
 });
 
 describe("intakeOf", () => {
-  it("separates no release from closed intake", () => {
+  it("separates no release from a closed form", () => {
     expect(intakeOf(ROW)).toBe("open");
     expect(intakeOf({ ...ROW, release: { ...RELEASE, closed: true } })).toBe("closed");
     expect(intakeOf({ ...ROW, hasRelease: false, release: null })).toBe("unreleased");

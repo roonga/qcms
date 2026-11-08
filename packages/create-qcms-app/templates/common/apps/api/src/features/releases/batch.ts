@@ -29,7 +29,7 @@ export interface BatchTarget {
   /**
    * The newest release-state sequence the review reported, `null` for never released
    * there. A close, a reopen and a release each append a row, so this one expectation
-   * covers the released version and the intake state together.
+   * covers the released version and the closed state together.
    */
   readonly expectedSequence: number | null;
   readonly fromEnvironment?: string | undefined;
@@ -330,7 +330,7 @@ async function writeReleases(
       releasedBy: input.principalId,
       approvedBy: input.approvals.get(target.environment),
       fromEnvironment: target.fromEnvironment,
-      // Releasing into a closed environment does not resume intake.
+      // Releasing into a closed environment does not reopen it.
       closed:
         (await getFormEnvironmentState(tx, input.formId, target.environment))?.closed ?? false,
     });

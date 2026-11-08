@@ -159,17 +159,19 @@ const fail = {
     new ApiError(
       "NOT_RELEASED",
       409,
-      `This form has no released version in ${environment}, so there is no intake to close or reopen`,
+      `This form has no released version in ${environment}, so there is nothing to close or reopen`,
     ),
   /**
    * A refusal rather than a second identical row, so the history that answers "who
-   * stopped production intake, and when" holds no row that recorded no change.
+   * closed production, and when" holds no row that recorded no change.
    */
   alreadyInState: (environment: string, closed: boolean): ApiError =>
     new ApiError(
       closed ? "ALREADY_CLOSED" : "ALREADY_OPEN",
       409,
-      `Intake in ${environment} is already ${closed ? "closed" : "open"}`,
+      closed
+        ? `This form is already closed in ${environment}`
+        : `This form is already open in ${environment}`,
     ),
   /**
    * A 500 rather than an empty actor in the audit, which would look like an answer. The
@@ -538,14 +540,18 @@ export function makeListFormsHandler(deps: Deps): RouteHandler<typeof listFormsR
       ...workspaceFilterNarrowedTo(c.get("grantContext"), workspaceId),
     });
     // One query for the whole list rather than one per form. A form with nothing released
-    // in this environment is absent from the map and reads `open`: nobody has closed it.
+    // in this environment is absent from the map, and there is nothing there to open or
+    // close.
     const environment = requireEnvironment(
       deps,
       c.get("requestEnvironment") ?? deps.databases.defaultEnvironment,
     );
     const states = await environmentStatesByForm(deps.databases.control, environment);
-    const statusOf = (formId: FormId): "open" | "closed" =>
-      states.get(formId)?.closed === true ? "closed" : "open";
+    const statusOf = (formId: FormId): "open" | "closed" | "unreleased" => {
+      const state = states.get(formId);
+      if (state === undefined) return "unreleased";
+      return state.closed ? "closed" : "open";
+    };
 
     // Narrows before the per-row reads below, so a closed-only list of fifty forms does
     // not pay for fifty drafts.
@@ -1523,7 +1529,7 @@ export function makePublishAndReleaseFormHandler(
         approvedBy,
         // The version is new, so it was released nowhere before this.
         fromEnvironment: undefined,
-        // A new version into a closed environment does not resume intake.
+        // A new version into a closed environment does not reopen it.
         closed: (await getFormEnvironmentState(tx, formId, environment))?.closed ?? false,
       });
       return { version, release };

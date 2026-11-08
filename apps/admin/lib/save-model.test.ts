@@ -130,7 +130,7 @@ const SCREENS: readonly ScreenRow[] = [
     why: "Navigation only. §7 gives the rail no actions at all, so there is nothing on it to save.",
   },
   {
-    route: "app/(shell)/@rail/operations/forms/[formId]/intake/page.tsx",
+    route: "app/(shell)/@rail/operations/forms/[formId]/availability/page.tsx",
     model: "readonly",
     why: "Navigation only. §7 gives the rail no actions at all, so there is nothing on it to save.",
   },
@@ -221,7 +221,7 @@ const SCREENS: readonly ScreenRow[] = [
     why: "Add, retarget, rotate, activate. Each is a discrete confirmed operation with its own outcome region.",
   },
   {
-    route: "app/(shell)/operations/forms/[formId]/intake/page.tsx",
+    route: "app/(shell)/operations/forms/[formId]/availability/page.tsx",
     model: "action",
     why: "Close and reopen, each one confirmed act in one environment with its own outcome region. The reading above them is not authored.",
   },

@@ -54,7 +54,7 @@ test("creates the library this spec reads, and closes one of its forms", async (
 
   await createForm(page, ALPHA, "Alpha zebra");
 
-  // Publish and release before closing: intake state belongs to an environment's release, not the form identity.
+  // Publish and release before closing: the closed state belongs to an environment's release, not the form identity.
   const bravoId = await createForm(page, BRAVO, "Bravo quokka");
   await addStep(page, "Driving history");
   await pinQuestion(page, "q_at_fault_accident", 2);
@@ -62,8 +62,8 @@ test("creates the library this spec reads, and closes one of its forms", async (
   await waitForSaved(page);
   await publishDraftThroughWizard(page, { formId: bravoId, version: 1, environment: "test" });
 
-  await page.goto(`/operations/forms/${bravoId}/intake`);
-  await page.getByRole("button", { name: "Close in test" }).click();
+  await page.goto(`/operations/forms/${bravoId}/availability`);
+  await page.getByRole("button", { name: "Close to new responses in test" }).click();
   const dialog = page.getByRole("alertdialog");
   await dialog.getByRole("button", { name: "Close it in test" }).click();
   await expect(page.getByTestId("qcms-form-closed")).toBeVisible({ timeout: 30_000 });
@@ -91,7 +91,7 @@ test("filters by status from the toolbar", async ({ page }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
   await openLibrary(page);
 
-  await chooseOption(page.locator("form.qcms-filters"), "Status", "Closed");
+  await chooseOption(page.locator("form.qcms-filters"), "Availability", "Closed");
   await page.getByRole("button", { name: "Apply" }).click();
 
   await expect(page).toHaveURL(/[?&]status=closed/);
@@ -116,14 +116,16 @@ test("reopens a filtered library from its URL alone, controls and all", async ({
   test.setTimeout(120_000);
   await signInWithTotp(page, EMAIL, totpSecret);
 
-  await openLibrary(page, "&status=open&sort=slug-desc");
+  await openLibrary(page, "&status=unreleased&sort=slug-desc");
 
   expect(await listedSlugs(page)).toEqual([CHARLIE, ALPHA]);
 
   const toolbar = page.locator("form.qcms-filters");
   await expect(field(page, "Search")).toHaveValue(SCOPE);
 
-  await expect(toolbar.getByRole("button", { name: /Status$/ })).toContainText("Open");
+  await expect(toolbar.getByRole("button", { name: /Availability$/ })).toContainText(
+    "Not Released",
+  );
   await expect(toolbar.getByRole("button", { name: /Sort by$/ })).toContainText("Slug (Z to A)");
 });
 
@@ -151,7 +153,7 @@ test("the toolbar is reachable and operable from the keyboard alone", async ({ p
 
   await expect(field(page, "Search")).toBeVisible();
   const toolbar = page.locator("form.qcms-filters");
-  await expect(toolbar.getByRole("button", { name: /Status$/ })).toBeVisible();
+  await expect(toolbar.getByRole("button", { name: /Availability$/ })).toBeVisible();
   await expect(toolbar.getByRole("button", { name: /Sort by$/ })).toBeVisible();
 
   await field(page, "Search").focus();

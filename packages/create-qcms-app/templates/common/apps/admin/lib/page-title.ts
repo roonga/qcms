@@ -13,7 +13,7 @@ export type FormSection =
   | "links"
   | "responses"
   | "webhooks"
-  | "intake"
+  | "availability"
   | "erase";
 
 export function pageMetadata(page: string): Metadata {

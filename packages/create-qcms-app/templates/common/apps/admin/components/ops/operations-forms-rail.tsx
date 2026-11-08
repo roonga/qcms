@@ -58,7 +58,7 @@ export function OperationsFormsRail({
             />
           </FieldHelp>
           <Select
-            name="intake"
+            name="availability"
             label={t("operations.filter.intake")}
             defaultValue={intake ?? ""}
             placeholder={t("operations.filter.intakeAll")}
