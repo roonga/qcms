@@ -31,6 +31,8 @@ const NARROW = { width: 390, height: 844 } as const;
 
 const WIDE = { width: 1440, height: 900 } as const;
 
+const WIDE_SHORT = { width: 1440, height: 600 } as const;
+
 // Use distinct published question ids; a second version of one id introduces a duplicate-question issue.
 const LIBRARY_PINS = [
   { questionId: "q_full_name", version: 1 },
@@ -187,7 +189,9 @@ test("1011 focus reached from below clears the top bar on a form, at 390 and at 
   const path = `/forms/${FORM_ID}`;
 
   expectClearOfTheBar(await focusFromBelow(page, path, NARROW), `${path} at 390`);
-  expectClearOfTheBar(await focusFromBelow(page, path, WIDE), `${path} at 1440`);
+  // A builder whose page action rides the crumb row no longer overflows 900px, and a screen that
+  // cannot scroll tests nothing here.
+  expectClearOfTheBar(await focusFromBelow(page, path, WIDE_SHORT), `${path} at 1440`);
 });
 
 test("1011 focus reached from below clears the top bar on the question library", async ({
