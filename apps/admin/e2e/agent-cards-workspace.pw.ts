@@ -62,12 +62,10 @@ async function grantedHolder(page: Page, label: string): Promise<string> {
   return ((await address.textContent()) ?? "").trim();
 }
 
-// Scope to this group: new accounts also hold standing workspace groups independently of these grants.
+// Scope to this group: new accounts also hold standing workspace groups independently of these
+// grants. The stored name sits under Advanced now, so the row carries it as an attribute.
 function groupRow(page: Page, label: string): Locator {
-  return groups(page)
-    .getByRole("listitem")
-    .filter({ hasText: `test.responses.viewer.${label}` })
-    .first();
+  return groups(page).locator(`[data-group-name="test.responses.viewer.${label}"]`).first();
 }
 
 function twoPerson(page: Page): Locator {
@@ -109,7 +107,7 @@ test("confirms all six kinds one card at a time, each read back by its own panel
   const toOwner = ((await card(page).textContent()) ?? "").includes("to forms.owner");
   await confirm(page, /^Done\./u);
   await expect(members(page).getByRole("row").filter({ hasText: holder })).toContainText(
-    toOwner ? "Workspace owner" : "Member (grants nothing on its own)",
+    toOwner ? "Workspace owner" : "No access",
     { timeout: 30_000 },
   );
 
@@ -120,9 +118,7 @@ test("confirms all six kinds one card at a time, each read back by its own panel
 
   await propose(page, "propose-access-group-remove", `remove that group ${naming(ALONE)}`);
   await confirm(page, /^Done\./u);
-  await expect(groups(page)).not.toContainText(`test.responses.viewer.${ALONE}`, {
-    timeout: 30_000,
-  });
+  await expect(groupRow(page, ALONE)).toHaveCount(0, { timeout: 30_000 });
 
   expect(auditDelta(before, await auditTally())).toEqual({
     "access.groupCreate": 1,
@@ -163,9 +159,7 @@ test("confirms a group's whole life inside one plan, each step naming what the f
   await confirm(page, /^Done\. All 4 steps ran/u);
   await expectStepChips(page, ["Done", "Done", "Done", "Done"]);
   await expectAxeClean(page, "done plan");
-  await expect(groups(page)).not.toContainText(`test.responses.viewer.${PLANNED}`, {
-    timeout: 30_000,
-  });
+  await expect(groupRow(page, PLANNED)).toHaveCount(0, { timeout: 30_000 });
 
   expect(auditDelta(before, await auditTally())).toEqual({
     "access.groupCreate": 1,
@@ -173,6 +167,40 @@ test("confirms a group's whole life inside one plan, each step naming what the f
     "access.revoke": 1,
     "access.groupRemove": 1,
   });
+});
+
+test("Assistant actions reads that plan back in words, grouped and in order", async ({ page }) => {
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.goto(`/workspaces/${WORKSPACE_ID}/assistant-actions`);
+
+  await expect(
+    page.getByText("confirmed by a person and then succeeded", { exact: false }),
+  ).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "Step" })).toHaveCount(0);
+
+  const planned = page
+    .locator("tbody")
+    .filter({ hasText: `Plan of 4 steps, confirmed by ${EMAIL}` })
+    .first();
+  await expect(planned.getByTestId("qcms-agent-audit-plan")).toHaveText(
+    `Plan of 4 steps, confirmed by ${EMAIL}`,
+  );
+  // The header row carries no cells, so the third cell of each step row is its act.
+  await expect(planned.locator("tr td:nth-child(3)")).toHaveText([
+    "Created an access group",
+    "Granted an access group",
+    "Revoked an access group",
+    "Removed an access group",
+  ]);
+  await expect(planned).toContainText("Access groups");
+  // The revoked person is still a member, so their id resolves; the group the plan took down
+  // in its last step does not.
+  await expect(planned).toContainText(/Person: \S+@/u);
+  await expect(planned).toContainText("Access group:");
+  await expect(planned).toContainText("(removed)");
+  await expect(planned).not.toContainText("access.groupCreate");
+  await expect(planned).not.toContainText("/workspaces/[workspaceId]/access-groups");
 });
 
 test("confirms the second-approver switch on its own screen, then puts it back", async ({
