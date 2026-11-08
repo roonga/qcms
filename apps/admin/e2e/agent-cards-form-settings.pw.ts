@@ -78,14 +78,14 @@ test("changes nothing when the card is cancelled", async ({ page }) => {
   expect(auditDelta(before, await auditTally())).toEqual({});
 });
 
-test("confirms the close and the reopen inside one plan, on the Intake screen", async ({
+test("confirms the close and the reopen inside one plan, on the Availability screen", async ({
   page,
 }) => {
   test.setTimeout(600_000);
   await signInWithTotp(page, EMAIL, totpSecret);
-  await page.goto(`/operations/forms/${formId}/intake`);
+  await page.goto(`/operations/forms/${formId}/availability`);
   await openPanel(page);
-  await expect(page.getByRole("button", { name: /^Close in/u })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Close to new responses in/u })).toBeVisible();
 
   const before = await auditTally();
   await propose(page, "plan-intake", "close intake and reopen it");
@@ -95,7 +95,9 @@ test("confirms the close and the reopen inside one plan, on the Intake screen", 
   await expectStepChips(page, ["Done", "Done"]);
   await expectAxeClean(page, "done plan");
 
-  await expect(page.getByRole("button", { name: /^Close in/u })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("button", { name: /^Close to new responses in/u })).toBeVisible({
+    timeout: 30_000,
+  });
   expect(auditDelta(before, await auditTally())).toEqual({
     "form.close": 1,
     "form.reopen": 1,

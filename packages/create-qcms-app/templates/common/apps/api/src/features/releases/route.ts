@@ -76,8 +76,8 @@ export const releaseReviewRoute = createRoute({
   description:
     "A read, and it writes nothing: no version, no release, no review token and no " +
     "access-audit row. It reports one target per environment the caller holds " +
-    "`release: create` in and no others, with what is serving there, whether intake is " +
-    "closed, the committed release rows that satisfy the target's prerequisite, the " +
+    "`release: create` in and no others, with what is serving there, whether the form is " +
+    "closed there, the committed release rows that satisfy the target's prerequisite, the " +
     "blockers that remain, and whether the two-person rule applies and would refuse this " +
     "account as the version's author. Until a release-workflow revision is configured " +
     "the review reports `workflowSource: default`, which is this deployment's derived " +
@@ -135,7 +135,8 @@ export const releaseBatchRoute = createRoute({
     "the same intent replays the stored result with `replayed: true`, and the same key " +
     "with a different intent is refused with 422. Only successes are stored, so a " +
     "refusal leaves the key free to retry. `expectedSequence` is `null` for a " +
-    "destination with no release history, and covers intake as well as the version " +
+    "destination with no release history, and covers the closed state as well as the " +
+    "version " +
     "because a close and a reopen each append a row.",
   tags,
   request: { params: FormIdParam, body: jsonBody(ReleaseBatchBody) },

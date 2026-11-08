@@ -892,7 +892,7 @@ describe("one confirmation is one transaction", () => {
     expect(await getDraft(control, formId)).toBeDefined();
   });
 
-  it("refuses a destination whose intake changed, which the sequence carries", async () => {
+  it("refuses a destination whose closed state changed, which the sequence carries", async () => {
     const formId = await seedForm(2);
     await insertFormRelease(control, {
       formId,
@@ -928,7 +928,7 @@ describe("one confirmation is one transaction", () => {
     ).toBe("test");
     expect((await listFormReleases(control, formId, "test")).length).toBe(2);
 
-    // And the same confirmation carrying the new sequence succeeds without reopening intake.
+    // And the same confirmation carrying the new sequence succeeds without reopening it.
     const done = await call(editorTest.token, "POST", `/forms/${formId}/release-batch`, {
       idempotencyKey: KEYS(),
       expectedWorkflowRevision: null,

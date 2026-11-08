@@ -1,11 +1,17 @@
-import { DEFAULT_FORM_SORT, FORM_SORTS, type FormSort, type FormStatus } from "./types.ts";
+import {
+  DEFAULT_FORM_SORT,
+  FORM_AVAILABILITIES,
+  FORM_SORTS,
+  type FormAvailability,
+  type FormSort,
+} from "./types.ts";
 
 // URL filters are request parameters only; the API owns narrowing and ordering, including results beyond one response.
 
 export type SearchParam = string | string[] | undefined;
 
 export interface FormListFilters {
-  readonly status: FormStatus | undefined;
+  readonly status: FormAvailability | undefined;
 
   readonly sort: FormSort;
 
@@ -20,9 +26,9 @@ function firstValue(raw: SearchParam): string | undefined {
   return Array.isArray(raw) ? raw[0] : raw;
 }
 
-function parseStatus(raw: SearchParam): FormStatus | undefined {
+function parseStatus(raw: SearchParam): FormAvailability | undefined {
   const value = firstValue(raw);
-  return value === "open" || value === "closed" ? value : undefined;
+  return FORM_AVAILABILITIES.find((status) => status === value);
 }
 
 function parseSort(raw: SearchParam): FormSort {

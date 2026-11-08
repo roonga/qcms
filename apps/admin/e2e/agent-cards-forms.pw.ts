@@ -19,7 +19,7 @@ import { pinProposalClock, runOutProposalWindow } from "./support/agent.js";
 import { enrollNewAdmin, fillStable, signInWithTotp } from "./support/flow.js";
 import { waitForHydration } from "./support/hydration.js";
 
-// Close and reopen the shared seed in one test so later specs retain an open intake.
+// Close and reopen the shared seed in one test so later specs find it open.
 // This relies on workers: 1 and fullyParallel: false.
 
 test.describe.configure({ mode: "serial" });
@@ -28,7 +28,7 @@ const EMAIL = uniqueAdminEmail("agentcards083forms");
 
 const FORM_ID = "frm_auto_quote";
 
-const INTAKE = `/operations/forms/${FORM_ID}/intake`;
+const AVAILABILITY = `/operations/forms/${FORM_ID}/availability`;
 
 const WORKSPACE_ID = "org_default_workspace";
 
@@ -38,12 +38,12 @@ test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
 });
 
-test("confirms a close and a reopen on the Intake screen, changing the screen and recording each act", async ({
+test("confirms a close and a reopen on the Availability screen, changing the screen and recording each act", async ({
   page,
 }) => {
   test.setTimeout(300_000);
   totpSecret = await enrollNewAdmin(page, EMAIL);
-  await page.goto(INTAKE);
+  await page.goto(AVAILABILITY);
   await openPanel(page);
 
   const before = await auditTally();
@@ -59,7 +59,7 @@ test("confirms a close and a reopen on the Intake screen, changing the screen an
 
   await propose(page, "propose-form-reopen", "reopen it");
   await confirm(page, /^Done\./u);
-  await expect(page.getByRole("button", { name: /^Close in/u })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Close to new responses in/u })).toBeVisible();
 
   expect(auditDelta(before, await auditTally())).toEqual({ "form.close": 1, "form.reopen": 1 });
 });
@@ -67,7 +67,7 @@ test("confirms a close and a reopen on the Intake screen, changing the screen an
 test("sends nothing when the card is cancelled", async ({ page }) => {
   test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);
-  await page.goto(INTAKE);
+  await page.goto(AVAILABILITY);
   await openPanel(page);
 
   const before = await auditTally();
@@ -77,7 +77,7 @@ test("sends nothing when the card is cancelled", async ({ page }) => {
 
   expect(auditDelta(before, await auditTally())).toEqual({});
 
-  await expect(page.getByRole("button", { name: /^Close in/u })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Close to new responses in/u })).toBeVisible();
 });
 
 test("lists each confirmed act in the workspace's assistant audit", async ({ page }) => {
@@ -142,7 +142,7 @@ test("ticks a waiting card into Expired once its window runs out", async ({ page
   test.setTimeout(300_000);
   await pinProposalClock(page);
   await signInWithTotp(page, EMAIL, totpSecret);
-  await page.goto(INTAKE);
+  await page.goto(AVAILABILITY);
   await openPanel(page);
 
   const before = await auditTally();

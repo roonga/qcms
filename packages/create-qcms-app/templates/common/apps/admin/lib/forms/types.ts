@@ -129,7 +129,10 @@ export interface FormSettings {
   readonly minSubmitMs: number | null;
 }
 
-export type FormStatus = "open" | "closed";
+/** The library's third reading: a form with no release in this environment. */
+export const FORM_AVAILABILITIES = ["open", "closed", "unreleased"] as const;
+
+export type FormAvailability = (typeof FORM_AVAILABILITIES)[number];
 
 export const FORM_SORTS = ["slug-asc", "slug-desc", "published-desc", "published-asc"] as const;
 
@@ -142,7 +145,7 @@ export interface FormListItem {
   readonly slug: string;
   readonly workspaceId: string;
   readonly defaultLocale: string;
-  readonly status: FormStatus;
+  readonly status: FormAvailability;
   readonly hasDraft: boolean;
   readonly latestVersion: number | null;
   readonly publishedAt: string | null;

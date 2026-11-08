@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 
 import { Alert } from "@/components/kit";
 import { FormPageHeader } from "@/components/forms/form-page-header";
-import { FormIntake } from "@/components/ops/form-intake";
+import { FormAvailability } from "@/components/ops/form-availability";
 import { shownEnvironment } from "@/lib/environment";
 import { t, type MessageKey } from "@/lib/i18n/en";
 import { formSectionName, pageMetadata } from "@/lib/page-title";
@@ -20,15 +20,15 @@ export async function generateMetadata({
   readonly params: Promise<{ formId: string }>;
 }): Promise<Metadata> {
   const { formId } = await params;
-  return pageMetadata(formSectionName("intake", formId));
+  return pageMetadata(formSectionName("availability", formId));
 }
 
 /**
- * One form's intake in the selected environment: what is serving there, whether it is
+ * One form's availability in the selected environment: what is serving there, whether it is
  * taking responses, and the two acts that change that. The three readings are the
  * Operations table's own, so a reader arriving from a row meets no second vocabulary.
  */
-export default async function FormIntakePage({
+export default async function FormAvailabilityPage({
   params,
 }: {
   readonly params: Promise<{ formId: string }>;
@@ -54,21 +54,23 @@ export default async function FormIntakePage({
 
   return (
     <div className="flex flex-col gap-6">
-      <FormPageHeader formId={form.formId} section="intake" status={form.status} />
+      <FormPageHeader formId={form.formId} section="availability" status={form.status} />
       <p className="text-sm text-(--color-text-muted)">
         {t("environment.inThis", { environment })}
       </p>
-      <dl className="flex flex-col gap-2 text-sm" data-testid="qcms-form-intake-state">
+      <dl className="flex flex-col gap-2 text-sm" data-testid="qcms-form-availability-state">
         <div className="flex gap-2">
           <dt className="text-(--color-text-muted)">{t("operations.column.released")}</dt>
           <dd>{released === null ? t("operations.release.none") : released}</dd>
         </div>
         <div className="flex gap-2">
           <dt className="text-(--color-text-muted)">{t("operations.column.intake")}</dt>
-          <dd data-testid="qcms-form-intake-reading">{t(intakeReading(form.status, released))}</dd>
+          <dd data-testid="qcms-form-availability-reading">
+            {t(availabilityReading(form.status, released))}
+          </dd>
         </div>
       </dl>
-      <FormIntake
+      <FormAvailability
         slug={form.slug}
         status={form.status}
         environment={environment}
@@ -81,7 +83,7 @@ export default async function FormIntakePage({
 }
 
 /** The table's three readings, so this screen and that row say the same word. */
-function intakeReading(status: "open" | "closed", released: number | null): MessageKey {
+function availabilityReading(status: "open" | "closed", released: number | null): MessageKey {
   if (released === null) return "operations.intake.unreleased";
   return status === "closed" ? "operations.intake.closed" : "operations.intake.open";
 }

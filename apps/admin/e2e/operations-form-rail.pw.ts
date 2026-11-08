@@ -60,9 +60,9 @@ function screens(): readonly Screen[] {
       title: `Webhooks: ${FORM_ID} - QCMS`,
     },
     {
-      path: `/operations/forms/${FORM_ID}/intake`,
-      current: "section:intake",
-      title: `Intake: ${FORM_ID} - QCMS`,
+      path: `/operations/forms/${FORM_ID}/availability`,
+      current: "section:availability",
+      title: `Availability: ${FORM_ID} - QCMS`,
     },
     {
       path: `/operations/forms/${FORM_ID}/erase`,
@@ -128,30 +128,32 @@ test("every operational screen of one form marks its own rail row and names its 
   await expect(page.getByRole("button", { name: "Erase respondent data…" })).toBeVisible();
 });
 
-test("intake closes and reopens one environment from the screen that owns it", async ({ page }) => {
+test("a form closes and reopens one environment from the screen that owns it", async ({ page }) => {
   test.setTimeout(300_000);
   await signInWithTotp(page, OPERATOR, operatorSecret);
   await chooseEnvironment(page, "prod");
-  await page.goto(`/operations/forms/${FORM_ID}/intake`);
+  await page.goto(`/operations/forms/${FORM_ID}/availability`);
 
   // The acts name the environment they land in: the closed state is per (form,
   // environment) and closing the wrong one is not undoable (Q6).
-  await page.getByRole("button", { name: "Close in prod" }).click();
+  await page.getByRole("button", { name: "Close to new responses in prod" }).click();
   const closing = page.getByRole("alertdialog");
   await expect(closing).toContainText("In prod.");
   await closing.getByRole("button", { name: "Close it in prod" }).click();
 
   await expect(page.getByTestId("qcms-form-closed")).toBeVisible();
-  await expect(page.getByTestId("qcms-form-intake-reading")).toHaveText("Closed");
+  await expect(page.getByTestId("qcms-form-availability-reading")).toHaveText("Closed");
 
   // Put it back, so the fixture is where every other spec in the suite expects it.
   await page.getByRole("button", { name: "Reopen in prod" }).click();
   const reopening = page.getByRole("alertdialog");
   await reopening.getByRole("button", { name: "Reopen it in prod" }).click();
-  await expect(page.getByTestId("qcms-form-intake-reading")).toHaveText("Open");
+  await expect(page.getByTestId("qcms-form-availability-reading")).toHaveText("Open");
 });
 
-test("the builder offers no intake act, because that screen is authoring now", async ({ page }) => {
+test("the builder offers no availability act, because that screen is authoring now", async ({
+  page,
+}) => {
   test.setTimeout(300_000);
   await signInWithTotp(page, OPERATOR, operatorSecret);
   // The editing environment: in prod the builder is a read-only review of what is released,
@@ -160,9 +162,9 @@ test("the builder offers no intake act, because that screen is authoring now", a
   await page.goto(`/forms/${FORM_ID}`);
   await waitForHydration(page);
 
-  // Absent, not disabled: a caller looking for the intake door is sent to Operations
+  // Absent, not disabled: a caller looking for the availability door is sent to Operations
   // rather than offered a refusal on an authoring screen.
-  await expect(page.getByRole("button", { name: /^Close in /u })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Close to new responses in /u })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /^Reopen in /u })).toHaveCount(0);
   await expect(page.getByTestId("qcms-publish-entry")).toBeVisible();
 });
@@ -200,7 +202,7 @@ test("a response viewer reaches Operations, a form's responses and one response"
   const rail = page.getByTestId("qcms-operations-form-rail");
   await expect(rail).toBeVisible();
   await expect(rail.locator('[data-rail-item="section:responses"]')).toBeVisible();
-  for (const absent of ["links", "webhooks", "intake", "erase"]) {
+  for (const absent of ["links", "webhooks", "availability", "erase"]) {
     await expect(
       rail.locator(`[data-rail-item="section:${absent}"]`),
       `the viewer's rail offers no ${absent} row`,
@@ -237,7 +239,7 @@ test("an owner erases one response by its session id from the form's Erase scree
   await chooseEnvironment(page, "prod");
   await page.goto(`/operations/forms/${FORM_ID}/responses`);
 
-  // The owner holds the erase cell in prod, so the rail offers the screen beside Intake.
+  // The owner holds the erase cell in prod, so the rail offers the screen beside Availability.
   const rail = page.getByTestId("qcms-operations-form-rail");
   await rail.locator('[data-rail-item="section:erase"]').click();
   await expect(page).toHaveURL(new RegExp(`/operations/forms/${FORM_ID}/erase$`, "u"));

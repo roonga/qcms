@@ -2,7 +2,7 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
-import { FormIntake } from "./form-intake.tsx";
+import { FormAvailability } from "./form-availability.tsx";
 import { t } from "../../lib/i18n/en.ts";
 import { unexpected } from "../../lib/ops/unexpected.ts";
 
@@ -10,11 +10,16 @@ function transportFailure(): Promise<never> {
   return Promise.reject(new TypeError("fetch failed"));
 }
 
-describe("a rejected intake act", () => {
+describe("a rejected availability act", () => {
   it("says the status did not change, and keeps the lifecycle dialog open to say it", async () => {
     const user = userEvent.setup();
     render(
-      <FormIntake slug="intake" status="open" setStatus={transportFailure} environment="prod" />,
+      <FormAvailability
+        slug="intake"
+        status="open"
+        setStatus={transportFailure}
+        environment="prod"
+      />,
     );
 
     await user.click(

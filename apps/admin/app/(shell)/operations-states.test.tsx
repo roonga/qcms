@@ -199,7 +199,7 @@ describe("the Operations forms table's states", () => {
     expect(html).toContain('href="/operations?env=test"');
   });
 
-  it("separates no release from closed intake, and masks what the caller cannot count", async () => {
+  it("separates no release from a closed form, and masks what the caller cannot count", async () => {
     capabilities = EVERYTHING;
     listResult = { status: "ok", page: page([RELEASED, UNRELEASED, CLOSED]) };
 
@@ -238,14 +238,14 @@ describe("the Operations forms table's states", () => {
     expect(html).toContain('href="/operations/forms/frm_intake/responses"');
     expect(html).toContain('href="/operations/forms/frm_intake/links"');
     expect(html).toContain('href="/operations/forms/frm_intake/webhooks"');
-    expect(html).toContain('href="/operations/forms/frm_intake/intake"');
+    expect(html).toContain('href="/operations/forms/frm_intake/availability"');
     // No authoring screen from a row, and no address outside the Operations subtree.
     expect(html).not.toContain('href="/operations/forms/frm_intake/versions"');
     expect(html).not.toContain('href="/forms/frm_intake');
     // The response-only row reaches its responses and nothing else about the form.
     expect(html).toContain('href="/operations/forms/frm_survey/responses"');
     expect(html).not.toContain('href="/operations/forms/frm_survey/links"');
-    expect(html).not.toContain('href="/operations/forms/frm_survey/intake"');
+    expect(html).not.toContain('href="/operations/forms/frm_survey/availability"');
     // The eraser's row opens the known-target Erase screen and nothing that lists responses.
     expect(html).toContain('href="/operations/forms/frm_leavers/erase"');
     expect(html).not.toContain('href="/operations/forms/frm_leavers/responses"');

@@ -238,7 +238,7 @@ export function makeReleaseVersionHandler(
           // procedural; `undefined` where none was required.
           approvedBy,
           fromEnvironment,
-          // Releasing into a closed environment does not resume intake.
+          // Releasing into a closed environment does not reopen it.
           closed: current?.closed ?? false,
         });
       });

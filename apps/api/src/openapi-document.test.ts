@@ -141,7 +141,7 @@ describe("the form library list declares its filters in the contract (issue 686)
 
   it("pins the values the filters accept, so a client cannot guess a fifth sort key", () => {
     const params = queryParams(committedAdmin, "get", "/admin/forms");
-    expect(params.get("status")).toMatchObject({ enum: ["open", "closed"] });
+    expect(params.get("status")).toMatchObject({ enum: ["open", "closed", "unreleased"] });
     expect(params.get("sort")).toMatchObject({
       enum: ["slug-asc", "slug-desc", "published-desc", "published-asc"],
     });

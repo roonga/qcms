@@ -34,8 +34,8 @@ It records server capabilities, and the table below stays accurate for them.
   content nor respondent data.
 - A new session uses its environment's released version. Existing sessions keep
   the version they started with, including after a promotion or rollback.
-- Closing intake is per form and environment. Releasing another version does not
-  automatically reopen closed intake.
+- Closing a form is per form and environment. Releasing another version does not
+  automatically reopen a closed form.
 
 ## What a user can do
 
@@ -53,7 +53,7 @@ can hold several roles.
 | Release a published form version                           | Not an authoring edit              | Editor or approver | Editor or approver | Editor or approver | Approver                                  |
 | Publish and release a new form version atomically          | Requires publishing permission too | Editor             | Editor             | Editor             | Conditional; see below                    |
 | Roll back by releasing an older eligible version           | Not an authoring edit              | Editor or approver | Editor or approver | Editor or approver | Approver                                  |
-| Close or reopen intake                                     | Not an authoring edit              | Editor or approver | Editor or approver | Editor or approver | Approver                                  |
+| Close or reopen a form                                     | Not an authoring edit              | Editor or approver | Editor or approver | Editor or approver | Approver                                  |
 | Create or revoke environment-bound secure links            | Not an authoring edit              | Editor or approver | Editor or approver | Editor or approver | Approver                                  |
 | Configure webhook endpoints                                | Not an authoring edit              | Editor or approver | Editor or approver | Editor or approver | Approver; optional second account         |
 | Complete a released form as a respondent                   | Not an authoring edit              | Secure link        | Secure link        | Secure link        | Public entry when allowed, or secure link |

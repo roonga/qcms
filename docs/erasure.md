@@ -360,7 +360,7 @@ evidence that a response existed **there** and was erased.
 Erasure has two doors in the app, and both open the same confirmation. The first is on
 the **response detail** - the screen showing the answers that are about to go, so nobody
 erases from a list of ids. The second is the form's **Erase** screen in Operations,
-`/operations/forms/{formId}/erase`, beside Intake in that form's rail. It is the known
+`/operations/forms/{formId}/erase`, beside Availability in that form's rail. It is the known
 target journey for an eraser who holds no response read: it lists nothing, asks for the
 session id the data subject's request names, says whether that session exists in the
 selected environment (through the same `erasure-scope` read the cross-environment offer

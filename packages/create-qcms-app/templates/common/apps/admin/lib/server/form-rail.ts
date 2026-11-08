@@ -13,7 +13,7 @@ export interface FormRailData {
   readonly slug: string;
   /** An empty title is an unnamed form, not a missing field; the slug remains its address. */
   readonly title: string;
-  /** Read open/closed from the form, not the draft: intake can close while the draft still exists. */
+  /** Read open/closed from the form, not the draft: a form can close while the draft still exists. */
   readonly status: "open" | "closed";
 
   readonly steps: readonly DraftStep[];

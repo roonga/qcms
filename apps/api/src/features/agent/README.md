@@ -451,7 +451,7 @@ builder returns an answer, a ledger row or a payload, and nothing here changes t
 ## A step's row is written where the step's act is not
 
 `control.agent_actions` lives in the control database. Where the act does too - a
-publish, a release, a link, a form's settings or its intake - the row rides the
+publish, a release, a link, a form's settings or its availability - the row rides the
 act's own transaction, so a step that failed wrote none and the card's report and
 the audit agree.
 

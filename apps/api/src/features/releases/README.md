@@ -118,9 +118,9 @@ environment at all.
 
 ## The closed state (task 066, Q18)
 
-The same state carries whether intake is **open** in that environment:
+The same state carries whether the form is **open** in that environment:
 `control.form_releases.closed`, read as the newest row for the (form, environment) pair.
-So one read answers both "which version is released here" and "is intake open here",
+So one read answers both "which version is released here" and "is the form open here",
 which is what the respondent path asks on every start.
 
 It sits on this state rather than in a table beside it for a privilege reason as much as a
@@ -133,7 +133,7 @@ released version forward with the flag flipped. They inherit this table's proper
 rather than needing their own: the history records who closed `prod` and when, nothing can
 rewrite it, and a close is never observed as a version change. **A release does not
 reopen a closed environment** - it carries the current value forward, because closing is a
-deliberate operational act and releasing a version is not a request to resume intake.
+deliberate operational act and releasing a version is not a request to reopen it.
 
 ## The configurable release workflow (Q85, Q86)
 
@@ -188,8 +188,8 @@ transaction.
 
 The expectation per destination is the **sequence** rather than the version number, because
 a close and a reopen each append a row: one expectation therefore covers the released
-version and the intake state together, and a close that landed after the review is a
-`STALE_REVIEW` rather than a release that quietly reopened intake.
+version and the closed state together, and a close that landed after the review is a
+`STALE_REVIEW` rather than a release that quietly reopened the form.
 
 The composite primary key stays the race backstop, and a `23505` becomes `RELEASE_RACED`.
 `fromEnvironment` is recorded per destination and derived from no sibling (F7).

@@ -36,8 +36,8 @@ export const MEASURE_BY_ROUTE = {
   "/forms/[formId]/versions/[version]": "wide",
 
   "/operations/forms/[formId]/webhooks": "wide",
-  /** No POC draws Intake: one panel of state, so it takes `/me/access`' prose cap. */
-  "/operations/forms/[formId]/intake": "prose",
+  /** No POC draws Availability: one panel of state, so it takes `/me/access`' prose cap. */
+  "/operations/forms/[formId]/availability": "prose",
   /** No POC draws the known-target erasure: one field and one act, so it takes the same prose cap. */
   "/operations/forms/[formId]/erase": "prose",
 

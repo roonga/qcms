@@ -32,7 +32,7 @@ const OPERATIONS_SECTIONS: Readonly<Record<string, MessageKey>> = {
   responses: "forms.tab.responses",
   links: "forms.tab.links",
   webhooks: "forms.tab.webhooks",
-  intake: "forms.tab.intake",
+  availability: "forms.tab.availability",
   erase: "forms.tab.erase",
 };
 
