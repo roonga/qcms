@@ -14,11 +14,14 @@ export function MembersPanel({
   workspaceId,
   members,
   message,
+  roles,
   setRole,
 }: {
   readonly workspaceId: string;
   readonly members: readonly WorkspaceMember[] | undefined;
   readonly message: string | undefined;
+  /** Each group's role in plain words, by the stored name the member row carries. */
+  readonly roles: ReadonlyMap<string, string>;
   readonly setRole: (
     workspaceId: string,
     userId: string,
@@ -79,7 +82,7 @@ export function MembersPanel({
                         <td>
                           {member.groups.length === 0
                             ? t("membership.members.noGroups")
-                            : member.groups.join(", ")}
+                            : member.groups.map((name) => roles.get(name) ?? name).join(", ")}
                         </td>
                         <td>
                           <Button
