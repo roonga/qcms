@@ -93,19 +93,19 @@
     "@axe-core/playwright": "^4.14.0",
     "@changesets/cli": "^3.0.3",
     "@eslint/js": "^10.0.1",
-    "@playwright/test": "^1.64.1",
-    "@vitest/coverage-v8": "5.0.5",
-    "chrome-launcher": "^1.2.2",
+    "@playwright/test": "^1.65.0",
+    "@vitest/coverage-v8": "5.1.0",
+    "chrome-launcher": "^1.2.3",
     "eslint": "^10.14.0",
     "eslint-plugin-sonarjs": "^4.2.2",
     "jscpd": "^5.4.1",
     "lighthouse": "^13.6.0",
-    "otplib": "^13.5.0",
+    "otplib": "^13.6.0",
     "prettier": "^3.9.10",
     "tsx": "^4.23.15",
     "turbo": "^2.11.10",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.72.1",
-    "vitest": "^5.0.5"
+    "vitest": "^5.1.0"
   }
 }
