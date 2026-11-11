@@ -531,7 +531,10 @@
             </tr>
             <tr>
               <th scope="row">Move a form to another workspace</th>
-              <td>Edit forms in both workspaces</td>
+              <td>
+                Edit forms in both workspaces, and a Workspace administrator of the workspace the
+                form is leaving to do it or approve it
+              </td>
               <td>Everywhere</td>
               <td>Authors, in both</td>
             </tr>
@@ -737,8 +740,9 @@
       </p>
       <p class="tip">
         Adding yourself to a group that has View responses or Erase responses needs an approver
-        while <a href="#second-approval">second approval</a> is on. With it off, you can do it
-        yourself, and the grant and every later read are recorded in the audit.
+        while <a href="#second-approval">second approval</a> is on. So does changing a group you are
+        in so that it gains one of those roles, or a new environment for one. With it off, you can
+        do it yourself, and the grant and every later read are recorded in the audit.
       </p>
 
       <h3 id="change-access">Change or remove someone's access</h3>
@@ -791,6 +795,11 @@
         you did not tick. A group never reaches into another workspace.
       </p>
       <p>
+        If you are in the group yourself and second approval is on, adding View responses or Erase
+        responses to it, or a new environment for those roles, waits for an approver. The approver
+        approves the group as it was when you asked.
+      </p>
+      <p>
         You choose each group's name, and you can rename or delete any group, starter groups
         included. If no group covers a role or an environment any more, Access groups shows a
         notice.
@@ -828,17 +837,21 @@
         </li>
         <li>Links and opening or closing a form need no approval.</li>
         <li>
-          Turning the rule off, and adding yourself to a group with a response role, need an
-          approver: a different Workspace administrator of this workspace, or a Site administrator
-          who is not you.
+          Turning the rule off, and giving yourself a response role or a new environment for one,
+          need an approver: a different Workspace administrator of this workspace, or a Site
+          administrator who is not you. A Site administrator who is not you can always approve.
         </li>
         <li>Nobody can approve their own request.</li>
       </ul>
       <p>
-        A request to turn the rule off, or to add yourself to a group with a response role, waits
-        for the approver. Workspace administrators find it under Requests on the workspace's Audit
-        screen; Site administrators find it under Approval requests in Site configuration. A request
-        lasts 7 days.
+        If second approval is on and nobody else could approve any more, for example because the
+        other administrator was disabled, Settings shows a warning.
+      </p>
+      <p>
+        A request to turn the rule off, or to give yourself response access, waits for the approver.
+        Workspace administrators find it under Requests on the workspace's Audit screen; Site
+        administrators find it under Approval requests in Site configuration. A request lasts 7
+        days.
       </p>
       <p class="refused">
         <strong>If refused:</strong> turning it on is refused when nobody else could approve,
@@ -858,6 +871,10 @@
         still want. By default, where another administrator exists, the re-confirmation must come
         from someone other than the person who did the reset or reactivation. A Site administrator
         can re-confirm too, unless they did the reset or reactivation themselves.
+      </p>
+      <p>
+        Nobody re-confirms their own membership, whatever their role. Being a Workspace
+        administrator is not suspended by a reset or reactivation.
       </p>
 
       <h3 id="settings">Rename the workspace</h3>
@@ -899,7 +916,8 @@
 
       <h3 id="move-form">Move a form to another workspace</h3>
       <p class="meta">
-        <strong>Who:</strong> anyone with Edit forms in both workspaces &middot;
+        <strong>Who:</strong> anyone with Edit forms in both workspaces, done or approved by a
+        Workspace administrator of the workspace the form is leaving &middot;
         <strong>Where:</strong> Forms, the form's Move form screen
       </p>
       <ol class="steps">
@@ -911,7 +929,11 @@
         </li>
         <li>Confirm.</li>
       </ol>
-      <p>The form's responses move with it. No group changes in either workspace.</p>
+      <p>
+        If you are not a Workspace administrator of the workspace the form is leaving, the move
+        waits until one of them approves it. The form's responses move with it. No group changes in
+        either workspace.
+      </p>
       <p class="refused">
         <strong>If refused:</strong> you need Edit forms in the destination workspace too. Ask its
         Workspace administrator.
@@ -928,6 +950,10 @@
         questions, which show a shared tag. Only people with Edit forms in the library workspace
         itself can change them. Publishing a question freezes a version others can pin; it involves
         no environment.
+      </p>
+      <p>
+        Before a workspace is marked, the confirmation states who will be able to see its questions.
+        Marking and unmarking are recorded in the site audit and in that workspace's audit.
       </p>
 
       <h3 id="leaves">When someone leaves</h3>
@@ -948,6 +974,11 @@
         audit, Workspaces, New workspace and Shared question library. You can also administer every
         workspace as its Workspace administrator would. Being a Site administrator does not let you
         read forms or responses; add yourself to a group in a workspace if you need that.
+      </p>
+      <p>
+        A Site administrator is trusted at site level. A Site administrator could, for example,
+        create a second account and use it to approve their own request. The audit is the check on
+        what Site administrators do.
       </p>
 
       <h3 id="create-account">Create an account</h3>
@@ -993,8 +1024,14 @@
       </p>
       <p>
         <strong>Disabling a Site administrator</strong> is the same Disable account. You re-enter
-        your password and second factor, and where there is more than one Site administrator, a
-        second one must approve it under Approval requests. There is no separate suspend.
+        your password and second factor, and where there are three or more Site administrators,
+        another one, not the person being disabled, must approve it under Approval requests. With
+        exactly two, your password and second factor are enough, and the audit records it. There is
+        no separate suspend.
+      </p>
+      <p>
+        Disabling an account removes its Site administrator role. Reactivating the account does not
+        give it back.
       </p>
       <p>Accounts cannot be deleted, only disabled, so the audit history keeps its names.</p>
       <p class="refused">
@@ -1031,24 +1068,28 @@
         <li>Confirm with your password and second factor.</li>
         <li>
           If there are two or more Site administrators, the change waits as an approval request
-          until another Site administrator approves it.
+          until another Site administrator approves it. The person being demoted never counts as the
+          approver: with exactly two Site administrators, your password and second factor alone
+          demote the other, and the audit records it.
         </li>
       </ol>
       <p>
-        New accounts are never Site administrators. By default, when you are the only Site
-        administrator, your password and second factor alone are enough to promote a second one, and
-        the last active Site administrator can never be demoted. Every change is recorded in an
-        audit that nobody can edit.
+        Only Site administrators who are active and have claimed their account count, approve or can
+        be the last one. You cannot promote an account that has not been claimed yet. New accounts
+        are never Site administrators. By default, when you are the only Site administrator, your
+        password and second factor alone are enough to promote a second one, and the last active
+        Site administrator can never be demoted. Every change is recorded in an audit that nobody
+        can edit.
       </p>
 
       <h3 id="approvals">Decide approval requests</h3>
       <p class="meta"><strong>Where:</strong> Site configuration, Approval requests</p>
       <p>
         Approve or reject a pending request from another Site administrator, or a workspace request
-        to turn second approval off or to let an administrator add themselves to a group with a
-        response role. You cannot approve your own. A request that nobody decides expires after 7
-        days and can no longer be approved. Requests, approvals, rejections and expiries are all
-        recorded in the site audit.
+        to turn second approval off, to let an administrator give themselves response access, or to
+        move a form out of a workspace. You cannot approve your own. A request that nobody decides
+        expires after 7 days and can no longer be approved. Requests, approvals, rejections and
+        expiries are all recorded in the site audit.
       </p>
 
       <h3 id="create-ws">Create a workspace</h3>
@@ -1071,9 +1112,10 @@
       <h3 id="site-audit">Read the site audit</h3>
       <p class="meta"><strong>Where:</strong> Site configuration, Site audit</p>
       <p>
-        Records account acts (create, disable, reactivate, reset) and Site administrator acts
-        (promotions, demotions and approval requests). An act that affects a workspace is also
-        copied into that workspace's audit. Nobody can edit or delete an entry.
+        Records account acts (create, disable, reactivate, reset), Site administrator acts
+        (promotions, demotions and approval requests) and marking the shared question library. An
+        act that affects a workspace is also copied into that workspace's audit. Nobody can edit or
+        delete an entry.
       </p>
     </section>
 
@@ -1115,6 +1157,10 @@
         <span class="env">prod</span>. <span class="env">prod</span> only accepts a version already
         published to another environment, so a draft never goes straight to
         <span class="env">prod</span>. To roll back, publish an earlier version.
+      </p>
+      <p>
+        On a site whose only environment is <span class="env">prod</span>, there is nowhere else to
+        publish first, so a draft can be published straight to <span class="env">prod</span>.
       </p>
 
       <h3 id="publish-approval">With second approval on</h3>
@@ -1187,7 +1233,8 @@
             <tr>
               <th scope="row">Publishing a draft to prod was refused</th>
               <td>
-                <span class="env">prod</span> only takes a version already published elsewhere.
+                <span class="env">prod</span> only takes a version already published elsewhere, when
+                the site has another environment.
               </td>
               <td>
                 Publish to <span class="env">test</span> first, then publish that version to
@@ -1236,6 +1283,13 @@
               <th scope="row">Move form was refused</th>
               <td>You need Edit forms in both workspaces.</td>
               <td>Ask the destination's Workspace administrator for access.</td>
+            </tr>
+            <tr>
+              <th scope="row">My form move is waiting</th>
+              <td>
+                A Workspace administrator of the workspace the form is leaving must approve it.
+              </td>
+              <td>Ask one of them to approve the request.</td>
             </tr>
             <tr>
               <th scope="row">Turning on second approval was refused</th>
