@@ -6,6 +6,8 @@ It closes the decisions named under "Decisions required before their dependent
 implementation" in [the implementation plan](environment-navigation-implementation.md),
 audited against `origin/main` at `8dd38ea5`. No ruling weakens an existing policy row.
 
+Workspace access (roles, environment sets, administrators, second approval) is specified in [`docs/WORKSPACE_ACCESS.md`](../docs/WORKSPACE_ACCESS.md), which supersedes the role names and rules below wherever they differ.
+
 Vocabulary: a **cell** is a `(resource, action)` pair from `policy.ts`; a **row** is a
 route entry in `route-policy.ts`; **the matrix** is the second table in SEC-3 section 3.2,
 which `plan/environments-and-workspaces.md` section 6 holds as its specification.

@@ -6,6 +6,8 @@ This document stays the flow and permission contract the shipped behaviour is re
 against; it is no longer a record of outstanding work. The POC it cites remains
 guidance for flow and interaction and is not the source of truth for look and feel.
 
+Workspace access (roles, environment sets, administrators, second approval) is specified in [`docs/WORKSPACE_ACCESS.md`](../docs/WORKSPACE_ACCESS.md), which supersedes the role names and rules below wherever they differ.
+
 ## Authority and scope
 
 **The environment-navigation POC is guidance for flow, navigation and interaction.

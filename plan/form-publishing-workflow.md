@@ -2,6 +2,8 @@
 
 Status: implemented. Updated 2026-10-26.
 
+Workspace access (roles, environment sets, administrators, second approval) is specified in [`docs/WORKSPACE_ACCESS.md`](../docs/WORKSPACE_ACCESS.md), which supersedes the role names and rules below wherever they differ.
+
 This amends the form-authoring UX in [the environments plan](environments-and-workspaces.md)
 for deployments serving both `test` and `prod`. It keeps one shared draft and one
 immutable version history. Prod-only deployments are outside this change.
@@ -54,7 +56,7 @@ uses the chosen immutable version, even if a newer draft or published version ex
   "tests passed" merely because it was released there.
 - A version previously released to prod also remains available for rollback, including
   versions deployed before this workflow. Rollback appends a release record.
-- Prod requires `forms.approver` with prod in scope in the form's workspace.
+- Prod requires Publish forms for prod in the form's workspace.
   With the second-person rule enabled, the releaser must differ from the publisher.
   Publication in test records that publisher, so this existing rule continues to work.
 - No draft is published during promotion and no new version is created. Production
