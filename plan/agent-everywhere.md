@@ -6,7 +6,7 @@ This document is the working record behind them: the architecture, the screen in
 **All four phases are launch scope and on the launch gate** (section 1.2).
 Sections rewritten after the rulings keep a one-line note of what was recommended before, so a later reader can see what was weighed.
 
-Workspace access (roles, environment sets, administrators, second approval) is specified in [`docs/WORKSPACE_ACCESS.md`](../docs/WORKSPACE_ACCESS.md), which supersedes the role names and rules below wherever they differ.
+Workspace access (roles, environment sets, administrators, second approval) is specified in [`docs/WORKSPACE_ACCESS.md`](../docs/WORKSPACE_ACCESS.md), which supersedes the role names and rules below wherever they differ. That model is not built yet; its [status table](../docs/WORKSPACE_ACCESS.md#1-status-and-authority) says what is.
 
 Every claim about current code cites `path:line` at `1cd3bdf7`.
 Vendor behaviour is cited from the installed package types (`ai` 7.0.136, `@ai-sdk/anthropic` 4.0.78, `@ai-sdk/openai` 4.0.91, `@ai-sdk/google` 4.0.93, `@ai-sdk/provider` 4.0.26) and from the AI SDK's Anthropic provider page (ai-sdk.dev, "Anthropic", sections "Reasoning", "Thinking Display" and "Thinking Updates", read 2026-10-19).
@@ -43,7 +43,7 @@ The Code Owner delegated the remaining questions to the conductor's recommended 
 | Q9  | **No small-count suppression.** Counts are metadata, not answer values.                                                                                                              |
 | Q10 | **An agent count read writes a SEC-15 `read` row**, so "who looked" includes the agent's looks on a user's behalf; once per conversation for each distinct filter set (section 1.5). |
 | Q11 | **Staff names and emails may go to the provider.** They are not respondent data.                                                                                                     |
-| Q12 | **A new append-only `control.agent_actions` table**, readable by whoever can read the existing access audit (Workspace administrators and Site administrators).                      |
+| Q12 | **A new append-only `control.agent_actions` table**, readable by whoever can read the existing access audit (workspace owners and the installation administrator).                   |
 | Q13 | **The proposal-token key is derived from an existing key**, with no new variable (section 7.4).                                                                                      |
 | Q14 | **An in-house safe Markdown subset renderer**, with no new dependency.                                                                                                               |
 | Q15 | **The conversation lives in memory only.**                                                                                                                                           |
@@ -56,7 +56,7 @@ The Code Owner delegated the remaining questions to the conductor's recommended 
 ### 1.4 Acts with no admin screen control (Code Owner, 2026-10-20)
 
 **Only acts that have a control on an admin screen are proposable; an act becomes proposable when it gets a screen.**
-Some acts a user may perform exist only in the API: the Site administrator creates and archives workspaces and marks the shared one there (`apps/admin/app/(shell)/workspaces/page.tsx` says so in its header comment). Confirm runs a screen's own server action, and these have none, so they have no card until a screen for them is built. This was the last open question of the previous revision.
+Some acts a user may perform exist only in the API: the installation administrator creates and archives workspaces and marks the shared one there (`apps/admin/app/(shell)/workspaces/page.tsx` says so in its header comment). Confirm runs a screen's own server action, and these have none, so they have no card until a screen for them is built. This was the last open question of the previous revision.
 
 ### 1.5 The review rulings (Code Owner, 2026-10-24)
 
@@ -349,7 +349,7 @@ Each step's existing trail is written exactly as if the user had pressed the scr
 
 **In addition**, every confirmed agent step writes one row to a new append-only `control.agent_actions` table (Q12), in the step's own transaction, through one helper the handlers call when `c.var.agentProposal` is set: proposal id, step index, step count, actor, workspace, environment, form, action kind, screen, proposed-at, confirmed-at, and a non-content detail (a version number, an environment name, a count, a role name) that doubles as the record later steps' references are checked against. `(proposal id, step index)` is unique. No `LocalizedText`, no answer value, no secret.
 It takes the SEC-15 precedent shape: append-only, no foreign key, `INSERT` without `RETURNING` for application roles, no `UPDATE` or `DELETE` for any of them (`docs/SECURITY_DESIGN.md:700`, `SECURITY_DESIGN.md:708-716`).
-It is readable by whoever can read the existing access audit: the workspace's Workspace administrators and Site administrators (`docs/SECURITY_DESIGN.md` §8d).
+It is readable by whoever can read the existing access audit: the workspace's owners and the installation administrator (`docs/SECURITY_DESIGN.md:696`).
 A failed step writes no row (its transaction rolled back), so the table records exactly what ran, and the card's report and the audit agree.
 
 ## 7. Security mechanics

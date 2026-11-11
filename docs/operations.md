@@ -210,11 +210,15 @@ database, in your egress firewall's logs, in your consumer's access logs, and on
 screen that lists the endpoint.
 
 The product mitigates the mistake and does not fix it. A staff account holding only
-View forms reads the endpoint URL with its **query string masked** (Q58), masked by the
+`forms.viewer` reads the endpoint URL with its **query string masked** (Q58), masked by the
 API in its own response rather than by a client, so every consumer of that route sees the
-same thing. Edit forms and Publish forms holders see the whole URL, because they author the
-form or set its endpoint. **The URL is not treated as a secret and the signing secret is**, so masking a
+same thing. A `forms.editor` and above sees the whole URL, because they are the roles that
+set it. **The URL is not treated as a secret and the signing secret is**, so masking a
 query string is a mitigation rather than a control, and this paragraph is the control.
+
+The role names in this guide are the ones the API enforces today. The decided workspace
+access model is [`docs/WORKSPACE_ACCESS.md`](WORKSPACE_ACCESS.md) and is not built yet; its
+[status table](WORKSPACE_ACCESS.md#1-status-and-authority) says what is.
 
 **Webhook egress is per environment** (ADR-40, SEC-14). `webhooks`, `outbox` and
 `webhook_deliveries` live in each environment's own schema, so a deliverer running under
@@ -776,7 +780,7 @@ request, so it cannot be migrate-only.
 What it holds instead:
 
 - **`qcms_app_control`: `SELECT` and `INSERT`.** The read is the audit a workspace's
-  Workspace administrators and Site administrators see through the authoring surface; the insert
+  owners and the installation administrator see through the authoring surface; the insert
   is there because a grant write and its audit row are both control-pool acts.
 - **Every `qcms_app_<env>`: `INSERT`, and nothing else on the table.** A response read
   runs on the environment's pool, and its audit row commits in the **same transaction** as

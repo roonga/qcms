@@ -4,7 +4,7 @@
 sees is [the publishing and navigation guide](form-publishing-flow.md); the flow and
 permission contract is the
 [implementation handover](../plan/environment-navigation-implementation.md), and
-[`docs/WORKSPACE_ACCESS.md`](WORKSPACE_ACCESS.md) is the normative permission model. Neither this brief
+`docs/SECURITY_DESIGN.md` §3.2 is the normative permission matrix. Neither this brief
 nor the interactive POC overrides it. The POC remains flow guidance and is not a
 visual specification.
 
@@ -39,7 +39,46 @@ It records server capabilities, and the table below stays accurate for them.
 
 ## What a user can do
 
-Who may do what is specified in [`docs/WORKSPACE_ACCESS.md` section 3](WORKSPACE_ACCESS.md#role-by-act). Roles are held through access groups, each with one explicit environment set: View forms and Edit forms ignore the environment, while Publish forms, View responses and Erase responses apply only in the group's environments. There is no form scope, and administrators hold no form or response role by the role. Respondent entry instead requires a valid secure link or permitted public access.
+This section records the roles as built. The decided workspace access model is
+[`docs/WORKSPACE_ACCESS.md`](WORKSPACE_ACCESS.md) and is not built yet; its
+[status table](WORKSPACE_ACCESS.md#1-status-and-authority) says what is.
+
+Every administrative capability below also requires workspace membership and the
+relevant role. Respondent entry instead requires a valid secure link or permitted
+public access. Environment access alone grants no administrative action. A person
+can hold several roles.
+
+| Capability                                                 | Shared authoring                   | dev                | test               | stg                | prod                                      |
+| ---------------------------------------------------------- | ---------------------------------- | ------------------ | ------------------ | ------------------ | ----------------------------------------- |
+| Create and edit questions, publish question versions       | Editor                             | Shared operation   | Shared operation   | Shared operation   | Shared operation                          |
+| Create and edit form drafts, rules and question references | Editor                             | Shared operation   | Shared operation   | Shared operation   | Shared operation                          |
+| Preview a form draft with hypothetical answers             | Editor                             | Shared operation   | Shared operation   | Shared operation   | Shared operation                          |
+| Publish an immutable form version without releasing it     | Editor                             | Shared operation   | Shared operation   | Shared operation   | Shared operation                          |
+| Release a published form version                           | Not an authoring edit              | Editor or approver | Editor or approver | Editor or approver | Approver                                  |
+| Publish and release a new form version atomically          | Requires publishing permission too | Editor             | Editor             | Editor             | Conditional; see below                    |
+| Roll back by releasing an older eligible version           | Not an authoring edit              | Editor or approver | Editor or approver | Editor or approver | Approver                                  |
+| Close or reopen a form                                     | Not an authoring edit              | Editor or approver | Editor or approver | Editor or approver | Approver                                  |
+| Create or revoke environment-bound secure links            | Not an authoring edit              | Editor or approver | Editor or approver | Editor or approver | Approver                                  |
+| Configure webhook endpoints                                | Not an authoring edit              | Editor or approver | Editor or approver | Editor or approver | Approver; optional second account         |
+| Complete a released form as a respondent                   | Not an authoring edit              | Secure link        | Secure link        | Secure link        | Public entry when allowed, or secure link |
+| Read and export responses                                  | Not an authoring edit              | Responses viewer   | Responses viewer   | Responses viewer   | Responses viewer                          |
+| Erase a response                                           | Not an authoring edit              | Responses eraser   | Responses eraser   | Responses eraser   | Responses eraser                          |
+
+"Shared operation" means the server operation has no environment scope; it is
+not a recommendation to place an editor inside every environment. All environment
+operations require the destination environment in the caller's grant. Response
+operations additionally require the form in scope.
+
+Configuration and version-history reads are available to the forms viewer,
+editor and approver roles across their workspace. A forms viewer cannot edit,
+release or read responses. An approver role alone cannot edit or publish drafts.
+An editor role alone cannot perform production releases or production operational
+writes, even with an environment scope of `all`.
+
+A workspace owner administers memberships, grants and workspace settings. An
+installation administrator manages installation settings, environments and accounts.
+Neither role alone grants authoring, releasing or response access. Response access
+requires its own grant; installation administration is not a response-data bypass.
 
 ## Release and approval constraints
 
@@ -52,17 +91,17 @@ Who may do what is specified in [`docs/WORKSPACE_ACCESS.md` section 3](WORKSPACE
 - A test release records availability, not a successful manual test or approval.
   There is no separate persisted test-pass gate in this workflow.
 - Prerequisites are an installation-wide, versioned release-workflow configuration,
-  written by a Site administrator alone and read by every form role. No
+  written by the installation administrator alone and read by every `forms.` role. No
   revision is seeded, so a deployment that configures none keeps the test-before-prod
   rule above and no other ordering.
 - In a deployment containing both test and prod, direct combined publication and
   release to prod is refused. Production releases use an existing eligible version.
 - A prod-only deployment can publish and release directly when the caller has both
-  Edit forms and Publish forms for prod and second approval is off. Separate
+  editor and prod approver permissions and the second-person rule is off. Separate
   publication and release remain possible.
-- A workspace can require a second person for production. Then the publisher
-  must differ from the account that froze that version, including for rollback.
-  Holding both roles does not let one account satisfy this rule alone.
+- A workspace can require a second person for production. Then the releasing
+  approver must differ from the account that published that version, including for
+  rollback. Holding both roles does not let one account satisfy this rule alone.
 - The same optional rule makes production webhook changes a proposal followed by
   confirmation from another eligible account. The new endpoint stays pending until
   confirmed. Non-production operations do not use this second-person gate.

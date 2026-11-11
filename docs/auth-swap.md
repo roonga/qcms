@@ -8,8 +8,8 @@ task does not have to rediscover it.
 
 **Read this first, because it changes the size of the job.** The Code Owner ruled on
 2026-09-26 that **authorisation lives in better-auth's `organization` and `team` tables**
-(issue #995, Q32; ADR-41): a workspace is an organisation row, an access group is a team
-carrying its roles and environment set, and QCMS evaluates the
+(issue #995, Q32; ADR-41): a workspace is an organisation row, a grant is a team whose
+additional fields carry a role and its environment and form scope, and QCMS evaluates the
 plugin's own statements in its API middleware. So **leaving better-auth now means migrating
 authorisation too**, not only the thing that issues sessions. The three seams below are
 still the three seams, and a fourth has joined them.
@@ -127,7 +127,7 @@ any supported composition.
 
 **It also seeds the installation's first workspace** (task 068), through the server-side
 `createOrganization` with an explicit `userId`, which writes the organisation row and the
-`member` row of its first Workspace administrator in one act. A swap has to keep that: a form and a
+`member` row carrying `forms.owner` in one act. A swap has to keep that: a form and a
 question each reference a workspace with a non-null foreign key, so an installation with
 no workspace is one in which nothing can be authored. Whatever replaces the library has to
 leave something for `control.forms.workspace_id` to point at, and has to create it before
@@ -139,9 +139,9 @@ This one is new and it is the largest. Since Q32, `organization`, `member`, `inv
 `team` and `teamMember` are where workspaces, membership, roles and scope live, and the
 roles are better-auth access-control statements that QCMS evaluates through the library's
 own authorize function. Replacing the library therefore means carrying five things across:
-the organisation rows and their `isShared`, `requireSecondApprover` and `archivedAt`
-fields; the member rows that hold the Workspace administrator flag; the team rows whose
-fields hold the group's roles and environment set; the team's
+the organisation rows and their `isShared`, `requireSecondApprover`, `archivedAt` and
+`seedNewEditorsWithTestData` fields; the member rows that hold `forms.owner`; the team rows
+whose additional fields hold a role and its `environments` and `forms` scope; the team's
 `externalGroupId`, which carries a unique constraint and is the key a directory mapping joins
 on (Q39), so a swap that dropped it would strand every group-derived grant; and the statement
 evaluation the middleware calls.
@@ -154,8 +154,8 @@ installation-wide at the database, at most one workspace is marked shared, the a
 refuses while the workspace owns any form at all or is the shared library, and the publish-time pin rule
 allows a form to pin its own workspace's questions or the shared workspace's and refuses
 everything else (`apps/api/src/features/workspaces/rules.ts`). A replacement has to satisfy
-those; it does not have to re-derive them. The team rows, the roles, the environment sets and
-the statement evaluation are task 069's and later.
+those; it does not have to re-derive them. The team rows, the six roles, the scope and the
+statement evaluation are still ahead, with task 069.
 
 **One write path is worth naming, because a replacement will want to short-cut it.** A
 workspace is created by calling the library's server-side `createOrganization`, never by
@@ -164,10 +164,16 @@ the plugin's own HTTP endpoints are refused for everyone (Q45), so there is exac
 door. Whatever replaces the library needs one door with the same property, or a workspace
 will eventually exist with no owner.
 
-What does **not** move is the model. Workspace access is QCMS's own decision, and
-[`docs/WORKSPACE_ACCESS.md`](WORKSPACE_ACCESS.md) is the specification a replacement would
-have to satisfy. So the work is a data migration and a re-implementation of one evaluation
+What does **not** move is the model. The two role families, the environment and form scopes,
+the administer-only installation claim, the two-person switch and the access audit are QCMS
+decisions recorded in ADR-41, and the permissions matrix in
+`plan/environments-and-workspaces.md` is the specification a replacement would have to
+satisfy. So the work is a data migration and a re-implementation of one evaluation
 function, against a written specification, rather than a redesign.
+
+This page describes what is built. The decided workspace access model, which a later
+replacement would satisfy instead, is [`docs/WORKSPACE_ACCESS.md`](WORKSPACE_ACCESS.md) and
+is not built yet; its [status table](WORKSPACE_ACCESS.md#1-status-and-authority) says what is.
 
 ## What a swap must not change
 

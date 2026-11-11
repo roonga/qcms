@@ -988,7 +988,7 @@
         <strong>To reactivate</strong>, open the account and reactivate it. The person gets an
         emailed link to set a new password and enrol a second factor again. Their memberships return
         at once, except places in groups with View responses or Erase responses, which stay
-        suspended until a Workspace administrator in each workspace
+        suspended until a Workspace administrator in each workspace, or a Site administrator,
         <a href="#reconfirm">re-confirms</a> them.
       </p>
       <p>
@@ -1010,9 +1010,9 @@
       </ol>
       <p>
         All of the person's sessions end at the same moment. Their places in groups with View
-        responses or Erase responses are suspended until a Workspace administrator of each workspace
-        re-confirms them; other access keeps working. The reset is recorded in the site audit and in
-        each affected workspace's audit.
+        responses or Erase responses are suspended until a Workspace administrator of each
+        workspace, or a Site administrator, re-confirms them; other access keeps working. The reset
+        is recorded in the site audit and in each affected workspace's audit.
       </p>
       <p>
         By default, where another administrator exists, someone other than you does the
@@ -1020,8 +1020,8 @@
         audit entry is the only check.
       </p>
       <p>
-        The person signs in again through an emailed single-use link and sets a new password and
-        second factor, the same way as a new account.
+        By default, the person signs in again through an emailed single-use link, then sets a new
+        password after a password reset or enrols a new second factor after a factor reset.
       </p>
 
       <h3 id="appoint-siteadmin">Appoint another Site administrator</h3>
@@ -1217,7 +1217,10 @@
             <tr>
               <th scope="row">My response access stopped after a reset or reactivation</th>
               <td>Response memberships are suspended until re-confirmed.</td>
-              <td>Ask a Workspace administrator of that workspace to re-confirm.</td>
+              <td>
+                Ask a Workspace administrator of that workspace, or a Site administrator, to
+                re-confirm.
+              </td>
             </tr>
             <tr>
               <th scope="row">I cannot remove a Workspace administrator</th>
@@ -1317,7 +1320,8 @@
         <dd>Add a person to, or remove them from, an access group.</dd>
         <dt>Authors</dt>
         <dd>
-          Starter group: Edit forms, Publish forms, View responses; <span class="env">test</span>.
+          Starter group: Edit forms, Publish forms, View responses; every environment but
+          <span class="env">prod</span>.
         </dd>
         <dt>Publishers</dt>
         <dd>Starter group: Publish forms; <span class="env">prod</span>.</dd>

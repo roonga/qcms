@@ -2,7 +2,7 @@
 
 Status: recommendation for review; no application changes approved or implemented.
 
-Workspace access (roles, environment sets, administrators, second approval) is specified in [`docs/WORKSPACE_ACCESS.md`](../docs/WORKSPACE_ACCESS.md), which supersedes the role names and rules below wherever they differ.
+Workspace access (roles, environment sets, administrators, second approval) is specified in [`docs/WORKSPACE_ACCESS.md`](../docs/WORKSPACE_ACCESS.md), which supersedes the role names and rules below wherever they differ. That model is not built yet; its [status table](../docs/WORKSPACE_ACCESS.md#1-status-and-authority) says what is.
 
 ## Review input and independence
 
