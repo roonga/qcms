@@ -483,12 +483,14 @@ export function makeCreateFormHandler(deps: Deps): RouteHandler<typeof createFor
     const locale = parseLocaleCode(body.defaultLocale);
     if (!locale.ok) throw fail.invalidLocale();
 
+    const named = body.title?.trim() ?? "";
+
     // Deliberately not publishable: publish re-parses it and rejects until the author
     // saves real content.
     const emptyDraft: FormDefinition = {
       formId,
       defaultLocale: locale.value,
-      title: {},
+      title: named === "" ? {} : { [locale.value]: named },
       steps: [],
       rules: [],
     };
@@ -685,11 +687,10 @@ export function makeGetFormHandler(deps: Deps): RouteHandler<typeof getFormRoute
     const workflow = {
       enabled: workflowEnabled,
       environment,
-      canEdit: allows("form", "write") && !(workflowEnabled && environment === "prod"),
-      canPublish:
-        allows("form", "publish") &&
-        allows("release", "create") &&
-        !(workflowEnabled && environment === "prod"),
+      // Authoring acts on the one shared draft, so the selected environment never gates it, and the
+      // publish wizard decides release:create per destination rather than for the selection.
+      canEdit: allows("form", "write"),
+      canPublish: allows("form", "publish"),
       canRelease: allows("release", "create"),
       eligibleVersions: eligible,
       preferredVersion: preferred?.version ?? eligible[0] ?? null,

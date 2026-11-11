@@ -27,7 +27,7 @@ export function DeliveryDashboard({
       data-testid="qcms-delivery-dashboard"
     >
       <div className="flex flex-col gap-1">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="qcms-help-head">
           <h2 id="qcms-deliveries-heading" className="text-lg font-semibold text-(--color-text)">
             {t("ops.deliveries.heading")}
           </h2>

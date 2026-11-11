@@ -96,11 +96,11 @@ export function AccessGroupsPanel({
 
   return (
     <section aria-labelledby="qcms-access-groups-heading" className="flex min-w-0 flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="qcms-help-head">
         <h1 id="qcms-access-groups-heading" className="text-xl font-semibold text-(--color-text)">
           {t("membership.groups.heading")}
         </h1>
-        <HelpTip>{t("membership.groups.intro")}</HelpTip>
+        <HelpTip label={t("membership.groups.heading")}>{t("membership.groups.intro")}</HelpTip>
       </div>
 
       {list === undefined && (
@@ -265,7 +265,10 @@ export function AccessGroupsPanel({
           <legend className="text-sm font-medium text-(--color-text)">
             {t("membership.groups.createEnvironments")}
           </legend>
-          <div className="flex min-w-0 items-center gap-1">
+          <FieldHelp
+            help={t("membership.groups.allEnvironmentsHelp")}
+            label={t("membership.groups.allEnvironments")}
+          >
             <Checkbox
               label={t("membership.groups.allEnvironments")}
               isSelected={envChoice.kind === "all"}
@@ -273,8 +276,7 @@ export function AccessGroupsPanel({
                 setEnvChoice((current) => toggleAll(current, on));
               }}
             />
-            <HelpTip>{t("membership.groups.allEnvironmentsHelp")}</HelpTip>
-          </div>
+          </FieldHelp>
           {environments.map((environment) => (
             <Checkbox
               key={environment}
@@ -291,7 +293,10 @@ export function AccessGroupsPanel({
           <legend className="text-sm font-medium text-(--color-text)">
             {t("membership.groups.createForms")}
           </legend>
-          <div className="flex min-w-0 items-center gap-1">
+          <FieldHelp
+            help={t("membership.groups.allFormsHelp")}
+            label={t("membership.groups.allForms")}
+          >
             <Checkbox
               label={t("membership.groups.allForms")}
               isSelected={formChoice.kind === "all"}
@@ -299,8 +304,7 @@ export function AccessGroupsPanel({
                 setFormChoice((current) => toggleAll(current, on));
               }}
             />
-            <HelpTip>{t("membership.groups.allFormsHelp")}</HelpTip>
-          </div>
+          </FieldHelp>
           <FieldHelp help={t("membership.groups.formsReadable")}>
             <TextField
               label={t("membership.groups.formSearch")}

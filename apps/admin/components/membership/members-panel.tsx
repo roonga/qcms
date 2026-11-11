@@ -33,7 +33,7 @@ export function MembersPanel({
 
   return (
     <section aria-labelledby="qcms-members-heading" className="flex min-w-0 flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="qcms-help-head">
         <h1 id="qcms-members-heading" className="text-xl font-semibold text-(--color-text)">
           {t("membership.members.heading")}
         </h1>

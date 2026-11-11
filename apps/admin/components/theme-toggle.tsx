@@ -133,7 +133,7 @@ export function ThemeToggle({
       <button
         ref={triggerRef}
         type="button"
-        className="qcms-modetrigger"
+        className="qcms-iconbutton"
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label={t("appearance.trigger", { state: stateLabel(appearance, resolved) })}
