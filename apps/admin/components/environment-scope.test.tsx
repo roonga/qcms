@@ -37,7 +37,7 @@ function formAvailability(
 function environmentBoundControls() {
   return (
     <>
-      <FormActions formId="form-1" environment="prod" />
+      <FormActions formId="form-1" />
       {formAvailability()}
     </>
   );
