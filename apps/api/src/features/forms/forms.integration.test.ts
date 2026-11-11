@@ -1641,6 +1641,19 @@ describe("GET /admin/forms - search, status filter and sort", () => {
     expect(await slugs(`${SCOPE}&status=unreleased`)).toEqual(["lst-alpha", "lst-charlie"]);
   });
 
+  it("gives the detail read the same three readings, so a row and its screen agree", async () => {
+    async function statusOf(formId: string): Promise<string> {
+      const res = await listGet(`/forms/${formId}`);
+      expect(res.status).toBe(200);
+      return ((await res.json()) as { status: string }).status;
+    }
+
+    expect(await statusOf("frm_lst_bravo")).toBe("closed");
+    // Published but released nowhere here, and never published: neither is open.
+    expect(await statusOf("frm_lst_alpha")).toBe("unreleased");
+    expect(await statusOf("frm_lst_charlie")).toBe("unreleased");
+  });
+
   it("orders by slug in both directions, and slug ascending is the default", async () => {
     expect(await slugs(SCOPE)).toEqual(["lst-alpha", "lst-bravo", "lst-charlie"]);
     expect(await slugs(`${SCOPE}&sort=slug-asc`)).toEqual([

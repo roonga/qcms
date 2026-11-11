@@ -138,7 +138,7 @@ export const messages = {
   "operations.table": "Forms you can operate",
   "operations.column.form": "Form",
   "operations.column.workspace": "Workspace",
-  "operations.column.released": "Released",
+  "operations.column.released": "Version",
   "operations.column.intake": "Availability",
   "operations.column.lastRelease": "Last release",
   "operations.column.submitted": "Submitted",
@@ -148,7 +148,7 @@ export const messages = {
   "operations.intake.open": "Open",
   "operations.intake.closed": "Closed",
   "operations.intake.unreleased": "Not Released",
-  "operations.release.none": "No release",
+  "operations.release.none": "None",
   "operations.loading": "Loading the forms you can operate.",
 
   "operations.environmentUnknown":
@@ -540,7 +540,7 @@ export const messages = {
   "forms.create.submitting": "Creating the form...",
 
   "forms.builder.formId": "Form ID",
-  "forms.builder.status": "Status",
+  "forms.builder.status": "Availability",
   "forms.builder.draftSource.open": "Editing the saved draft.",
   "forms.builder.draftSource.seeded":
     "Started from the newest published version. Nothing is stored until the first save.",
@@ -1141,7 +1141,7 @@ export const messages = {
   "forms.lifecycle.closedNote":
     "This form is closed in {environment}. It is not accepting new responses there; responses already in progress finish normally, and other environments are unaffected.",
   "forms.lifecycle.notReleasedHere":
-    "Nothing is released in this environment, so there is nothing to close there. Release a version first.",
+    "Nothing is released in this environment, so there is nothing to close or reopen there. Release a version first.",
   "forms.lifecycle.alreadyClosedHere":
     "This form is already closed in this environment. Nothing changed, and nothing was recorded.",
   "forms.lifecycle.alreadyOpenHere":
@@ -1155,7 +1155,7 @@ export const messages = {
   "forms.releases.column.releasedBy": "Released by",
   "forms.releases.column.fromEnvironment": "Promoted from",
   "forms.releases.column.approvedBy": "Approved by",
-  "forms.releases.none": "Nothing released",
+  "forms.releases.none": "None",
   "forms.releases.noSource": "Released directly",
   "forms.releases.noApproval": "No approval recorded",
   "forms.releases.historyHeading": "Release history",
@@ -1202,8 +1202,6 @@ export const messages = {
 
   "forms.versions.reviewVersion": "Review version {version}",
   "forms.versions.summaryHeading": "What each environment is serving",
-  "forms.versions.intakeOpen": "Open",
-  "forms.versions.intakeClosed": "Closed",
   "forms.versions.column.intake": "Availability",
   "forms.versions.publishEntry": "Publish…",
 
@@ -1360,7 +1358,7 @@ export const messages = {
   "forms.history.filter.legend": "Show",
   "forms.history.filter.hidden":
     "{count} versions are hidden because they were never released anywhere.",
-  "forms.history.column.released": "Released",
+  "forms.history.column.released": "Released in",
   "forms.history.releasedIn": "{environments}",
   "forms.history.releasedNowhere": "Nowhere",
   "forms.history.column.version": "Version",

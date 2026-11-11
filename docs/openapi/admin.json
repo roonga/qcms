@@ -500,7 +500,8 @@
             "type": "string",
             "enum": [
               "open",
-              "closed"
+              "closed",
+              "unreleased"
             ],
             "example": "open"
           },

@@ -10,7 +10,7 @@ import {
   type RailCurrent,
   type RailItem,
 } from "@/lib/forms/subtree-rail";
-import type { DraftStep } from "@/lib/forms/types";
+import type { DraftStep, FormAvailability } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
 
 export function FormSubtreeRail({
@@ -27,7 +27,7 @@ export function FormSubtreeRail({
   readonly formId: string;
   readonly slug: string;
   readonly title: string;
-  readonly status: "open" | "closed";
+  readonly status: FormAvailability;
   readonly steps: readonly DraftStep[];
   readonly issueCounts: ReadonlyMap<string, number>;
   readonly current: RailCurrent;

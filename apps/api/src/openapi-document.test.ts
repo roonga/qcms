@@ -151,6 +151,20 @@ describe("the form library list declares its filters in the contract (issue 686)
   it("answers 400 for a refused filter, which is the shape the BFF renders", () => {
     expect(responseCodes(committedAdmin, "get", "/admin/forms")).toContain("400");
   });
+
+  it("carries the third reading on the reads, and not on what create, close and reopen answer", () => {
+    const schemas = (committedAdmin.components?.schemas ?? {}) as Record<
+      string,
+      { properties?: Record<string, { enum?: string[] }> }
+    >;
+    const statusEnum = (name: string): string[] | undefined =>
+      schemas[name]?.properties?.["status"]?.enum;
+
+    expect(statusEnum("FormDetailResponse")).toEqual(["open", "closed", "unreleased"]);
+    expect(statusEnum("FormListItem")).toEqual(["open", "closed", "unreleased"]);
+    expect(statusEnum("CreatedFormResponse")).toEqual(["open", "closed"]);
+    expect(statusEnum("FormStatusResponse")).toEqual(["open", "closed"]);
+  });
 });
 
 describe("the question library list bounds its search term too (issue #862)", () => {

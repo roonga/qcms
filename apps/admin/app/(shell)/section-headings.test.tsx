@@ -90,6 +90,27 @@ describe("the section routes name their section in the h1 (issue 679)", () => {
   });
 });
 
+describe("the header's availability line", () => {
+  it.each([
+    ["open", "Open"],
+    ["closed", "Closed"],
+    ["unreleased", "Not Released"],
+  ] as const)("labels %s as Availability, reading '%s'", (status, reading) => {
+    const markup = renderToStaticMarkup(
+      <FormPageHeader formId="frm_alpha" section="versions" status={status} />,
+    );
+
+    expect(markup).toContain("Availability");
+    expect(markup).not.toContain("Status");
+    expect(markup).toContain(reading);
+  });
+
+  it("agrees with the readings the Forms list and Operations use", () => {
+    expect(messages["forms.builder.status"]).toBe("Availability");
+    expect(messages["forms.status.unreleased"]).toBe(messages["operations.intake.unreleased"]);
+  });
+});
+
 describe("the builder route names its screen, not its form (reversal of issue 679)", () => {
   it("renders no FormPageHeader, and heads itself from the client", () => {
     const source = routeSource("forms/[formId]/page.tsx");
