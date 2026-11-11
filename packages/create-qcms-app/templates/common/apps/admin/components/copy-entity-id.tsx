@@ -17,7 +17,7 @@ export function CopyEntityId({
   return (
     <button
       type="button"
-      className="qcms-copyid"
+      className="qcms-iconbutton qcms-iconbutton--sm qcms-copyid"
       data-readonly-action="copy"
       aria-label={t(`ids.copy.${kind}`, { id: display })}
       onClick={() => {
