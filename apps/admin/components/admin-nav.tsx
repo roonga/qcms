@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
 import { t } from "@/lib/i18n/en";
+import { workspaceAreaLabel } from "@/lib/membership/sections";
 import {
   AUTHORING_PATH,
   OPERATIONS_PATH,
@@ -49,10 +50,12 @@ function NavLink({
 export function AdminNav({
   capabilities,
   operationsGroup,
+  multipleWorkspaces = true,
 }: {
   readonly capabilities: ShellCapabilities;
   /** Stands in for the Operations item while in Operations, so the area is named once. */
   readonly operationsGroup?: ReactNode;
+  readonly multipleWorkspaces?: boolean;
 }) {
   const pathname = usePathname();
   const items = ITEMS.filter((item) => capabilities[item.area]);
@@ -67,7 +70,11 @@ export function AdminNav({
         ))}
         {capabilities.workspaces && (
           <li>
-            <NavLink href={WORKSPACES_PATH} label={t("nav.workspaces")} pathname={pathname} />
+            <NavLink
+              href={WORKSPACES_PATH}
+              label={t(workspaceAreaLabel(multipleWorkspaces))}
+              pathname={pathname}
+            />
           </li>
         )}
         {permitsMode(capabilities, SEPARATED.area) && (

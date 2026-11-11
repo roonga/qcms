@@ -64,10 +64,10 @@ function screens(sessionId: string): readonly Screen[] {
     { path: "/settings", cap: "prose" },
     { path: "/webhooks", cap: "wide" },
 
-    /* The route redirects to the current workspace, so the cap read here is that landing's and
-       not the `ops` one the route declares for its empty-installation fallback. */
+    /* Both routes redirect to the current workspace, so the cap read here is that landing's and
+       not the `ops` or `list` one each route declares for an installation with a choice. */
     { path: "/workspaces", cap: "log" },
-    { path: "/workspaces/all", cap: "list" },
+    { path: "/workspaces/all", cap: "log" },
     { path: `/workspaces/${WORKSPACE_ID}/members`, cap: "log" },
     { path: `/workspaces/${WORKSPACE_ID}/access-groups`, cap: "log" },
     { path: `/workspaces/${WORKSPACE_ID}/settings`, cap: "log" },

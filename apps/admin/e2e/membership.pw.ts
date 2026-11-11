@@ -28,9 +28,10 @@ test.beforeAll(async () => {
 test("the membership area is reachable from the shell's navigation", async ({ page }) => {
   totpSecret = await enrollNewAdmin(page, EMAIL);
 
+  // One workspace, so the area names itself in the singular.
   await page
     .getByRole("navigation", { name: "Primary" })
-    .getByRole("link", { name: "Workspaces" })
+    .getByRole("link", { name: "Workspace", exact: true })
     .click();
   await expect(page).toHaveURL(/\/workspaces\/[^/]+\/members$/);
 
@@ -54,10 +55,11 @@ test("a workspace's old address lands on its first section, and each section is 
   await expect(page).toHaveURL(new RegExp(`/workspaces/${WORKSPACE_ID}/members$`));
 
   const rail = page.getByTestId("qcms-workspaces-rail");
-  // The switcher in the top bar is the only chooser, so the rail names sections and the
-  // way back to the full list, never a workspace.
-  await expect(rail.getByTestId("qcms-rail-context")).toHaveAttribute("href", "/workspaces/all");
+  // The switcher in the top bar is the only chooser, so the rail names sections, never a
+  // workspace; with one workspace there is no list to go back to either.
+  await expect(rail.getByTestId("qcms-rail-context")).toHaveCount(0);
   await expect(rail.locator(`[data-rail-item="workspace:${WORKSPACE_ID}"]`)).toHaveCount(0);
+  await expect(page.getByTestId("qcms-workspace-context")).toHaveCount(0);
 
   const sections = [
     ["members", "Members"],
@@ -80,28 +82,41 @@ test("a workspace's old address lands on its first section, and each section is 
   }
 });
 
-test("one workspace draws no switcher, and the full list is its own screen", async ({ page }) => {
+test("one workspace draws no switcher, keeps the name in the crumb and has no list", async ({
+  page,
+}) => {
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto(`/workspaces/${WORKSPACE_ID}/members`);
 
   // Counted over the workspaces this caller may open: with one there is no choice to offer.
   await expect(page.getByTestId("qcms-workspace-switcher")).toHaveCount(0);
 
-  await page.getByTestId("qcms-workspaces-rail").getByTestId("qcms-rail-context").click();
-  await expect(page).toHaveURL(/\/workspaces\/all$/);
-  const table = page.getByTestId("qcms-all-workspaces-table");
-  await expect(table.getByRole("row").filter({ hasText: "Default workspace" })).toHaveCount(1);
+  const crumbs = page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("listitem");
+  await expect(crumbs).toHaveCount(3);
+  await expect(crumbs.nth(0)).toContainText("Workspace");
+  await expect(crumbs.nth(1)).toContainText("Default workspace");
+  await expect(crumbs.nth(2)).toContainText("Members");
+
+  await page.goto("/workspaces/all");
+  await expect(page).toHaveURL(new RegExp(`/workspaces/${WORKSPACE_ID}/members$`));
 });
 
-test("the access-groups screen states that a name is only a label", async ({ page }) => {
+test("the naming grammar is behind Advanced, not a paragraph under the heading", async ({
+  page,
+}) => {
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto(`/workspaces/${WORKSPACE_ID}/access-groups`);
 
+  const create = page.getByTestId("qcms-access-group-create");
   await expect(
-    page.getByText("is a label rather than a mechanism", { exact: false }),
+    create.getByText("is a label rather than a mechanism", { exact: false }),
+  ).toBeHidden();
+  await create.getByText("Advanced", { exact: true }).click();
+  await expect(
+    create.getByText("is a label rather than a mechanism", { exact: false }),
   ).toBeVisible();
   await expect(
-    page.getByText("Nothing reads a name to authorise anything", { exact: false }),
+    create.getByText("Nothing reads a name to authorise anything", { exact: false }),
   ).toBeVisible();
 });
 
@@ -163,8 +178,8 @@ test("an access group is created with the pickers, granted to a member and taken
       checked: on,
     });
   };
-  const allEnvironments = "All environments, including any added later";
-  const allForms = "All forms in this workspace, including any added later";
+  const allEnvironments = "All environments";
+  const allForms = "All forms";
 
   await tick(allEnvironments, false);
   await expect(create.getByRole("button", { name: "Create group" })).toBeDisabled();
@@ -186,12 +201,12 @@ test("an access group is created with the pickers, granted to a member and taken
   await create.getByRole("button", { name: "Create group" }).click();
   await expect(page.getByText(`The access group ${name} was created`)).toBeVisible();
 
+  // The stored name lives under Advanced, so the row is found by it rather than titled by it.
   const row = page
     .getByRole("region", { name: "Access groups" })
-    .getByRole("listitem")
-    .filter({ hasText: name })
+    .locator(`[data-group-name="${name}"]`)
     .first();
-  await expect(row).toContainText("Response viewer");
+  await expect(row.locator("p").first()).toHaveText("Response viewer, test, 1 form");
   await expect(row).toContainText(FORM_SLUG);
   await expect(row).toContainText("Nobody");
   await expect(row.getByRole("textbox", { name: "Account address" })).toHaveCount(0);
@@ -200,6 +215,17 @@ test("an access group is created with the pickers, granted to a member and taken
   await row.getByRole("button", { name: "Grant", exact: true }).click();
   await expect(page.getByText(`${MEMBER} now holds ${name}.`)).toBeVisible();
   await expect(row).toContainText(MEMBER);
+
+  // Members names the group by its role and its scope, so two groups of one role are told apart.
+  await page.goto(`/workspaces/${WORKSPACE_ID}/members`);
+  await expect(
+    page
+      .getByRole("table", { name: /members/iu })
+      .getByRole("row")
+      .filter({ hasText: MEMBER }),
+  ).toContainText("Response viewer, test, 1 form");
+  await page.goto(`/workspaces/${WORKSPACE_ID}/access-groups`);
+  await waitForHydration(page);
 
   await row
     .getByRole("listitem")

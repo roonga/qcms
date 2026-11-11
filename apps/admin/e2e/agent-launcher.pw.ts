@@ -452,7 +452,7 @@ test("carries one conversation across the form's subtree and out of it, and a re
   await expect(turns, "the builder's turns are still here").toContainText("what is on this screen");
   await expect(turns).toContainText("more detail");
 
-  await page.locator("header").getByRole("link", { name: "Workspaces" }).click();
+  await page.locator("header").getByRole("link", { name: "Workspace", exact: true }).click();
   await page.waitForURL("**/workspaces");
   await expect(turns, "leaving the form keeps the conversation").toContainText(
     "what is on this screen",

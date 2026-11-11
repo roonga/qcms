@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { Button, Dialog } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
+import { workspaceAreaLabel } from "@/lib/membership/sections";
 import {
   LEAVE_EXEMPT_ATTRIBUTE,
   leaveDestination,
@@ -18,15 +19,23 @@ interface PendingLeave {
   readonly destination: LeaveDestination;
 }
 
-function areaName(destination: LeaveDestination): string {
-  return destination === "elsewhere" ? t("shell.leave.area.elsewhere") : t(`nav.${destination}`);
+function areaName(destination: LeaveDestination, multipleWorkspaces: boolean): string {
+  if (destination === "elsewhere") return t("shell.leave.area.elsewhere");
+  if (destination === "workspaces") return t(workspaceAreaLabel(multipleWorkspaces));
+  return t(`nav.${destination}`);
 }
 
 /**
  * Asks before a link takes the operator out of Operations. Mounted only while the shell is
  * in Operations; the Exit control carries {@link LEAVE_EXEMPT_ATTRIBUTE} and is let through.
  */
-export function LeaveOperationsGuard({ environment }: { readonly environment: string }) {
+export function LeaveOperationsGuard({
+  environment,
+  multipleWorkspaces = true,
+}: {
+  readonly environment: string;
+  readonly multipleWorkspaces?: boolean;
+}) {
   const router = useRouter();
   const [pending, setPending] = useState<PendingLeave | null>(null);
   const origin = useRef<HTMLElement | null>(null);
@@ -96,7 +105,9 @@ export function LeaveOperationsGuard({ environment }: { readonly environment: st
     >
       <div className="flex flex-col gap-4" data-testid="qcms-leave-operations">
         <p className="text-sm text-(--color-text)">
-          {t("shell.leave.goes", { area: areaName(pending.destination) })}
+          {t("shell.leave.goes", {
+            area: areaName(pending.destination, multipleWorkspaces),
+          })}
         </p>
         <p className="text-sm text-(--color-text)">
           {environment === ""

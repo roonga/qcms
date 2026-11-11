@@ -31,7 +31,7 @@ test("the application navigation offers the areas the caller holds", async ({ pa
   await expect(nav.getByRole("link", { name: "Questions" })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Forms" })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Operations", exact: true })).toBeVisible();
-  await expect(nav.getByRole("link", { name: "Workspaces" })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Workspace", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Settings" })).toHaveCount(0);
 });
 
@@ -115,12 +115,12 @@ test("Workspaces is a section of the application: the navigation stays and there
   await signInWithTotp(page, EVERYTHING, everythingSecret);
 
   const nav = page.getByRole("navigation", { name: "Primary" });
-  await nav.getByRole("link", { name: "Workspaces" }).click();
+  await nav.getByRole("link", { name: "Workspace", exact: true }).click();
   await expect(page).toHaveURL(/\/workspaces\/[^/]+\/members$/);
 
   await expect(page.getByTestId("qcms-mode-header")).toHaveCount(0);
   await expect(page.getByTestId("qcms-mode-exit")).toHaveCount(0);
-  await expect(nav.getByRole("link", { name: "Workspaces" })).toHaveAttribute(
+  await expect(nav.getByRole("link", { name: "Workspace", exact: true })).toHaveAttribute(
     "aria-current",
     "page",
   );
@@ -154,7 +154,9 @@ test("a workspace-only caller lands in Workspaces with no Exit at all", async ({
   await expect(page.getByTestId("qcms-mode-header")).toHaveCount(0);
   await expect(page.getByTestId("qcms-mode-exit")).toHaveCount(0);
   await expect(
-    page.getByRole("navigation", { name: "Primary" }).getByRole("link", { name: "Workspaces" }),
+    page
+      .getByRole("navigation", { name: "Primary" })
+      .getByRole("link", { name: "Workspace", exact: true }),
   ).toBeVisible();
   await expect(
     page.getByRole("navigation", { name: "Primary" }).getByRole("link", { name: "Questions" }),

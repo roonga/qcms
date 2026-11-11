@@ -87,8 +87,9 @@ test("lists each confirmed act in the workspace's assistant audit", async ({ pag
   await waitForHydration(page);
 
   const table = page.getByRole("table", { name: /assistant/iu });
-  await expect(table).toContainText("form.close");
-  await expect(table).toContainText("form.reopen");
+  await expect(table).toContainText("Closed a form to new responses");
+  await expect(table).toContainText("Reopened a form");
+  await expect(table).not.toContainText("form.close");
 
   await expect(table).toContainText(EMAIL);
 });
