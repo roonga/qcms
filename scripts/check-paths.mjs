@@ -54,6 +54,18 @@ export const ALLOWED = [
     match: "vscode",
     why: "the dev container's own fixed user home (ADR-29). The image creates that user, so every contributor's container has this path identically: it is container-internal in the same sense as /workspaces, not a property of anyone's machine. The three uses are bind-mount targets and a config directory inside the container.",
   },
+  {
+    file: "docs/use-cases/manifest.json",
+    kind: "posix home",
+    match: "documents",
+    why: "a segment of a publisher's own source URL (the IR330 form at ird.govt.nz), not a filesystem path.",
+  },
+  {
+    file: "docs/use-cases/nz-tax-code-ir330/README.md",
+    kind: "posix home",
+    match: "documents",
+    why: "a segment of a publisher's own source URL (the IR330 form at ird.govt.nz), not a filesystem path.",
+  },
 ];
 
 /**
