@@ -6,6 +6,7 @@ import { EnvironmentScope } from "./environment-scope.tsx";
 import { EnvironmentSwitcher } from "./environment-switcher.tsx";
 import { FormActions } from "./forms/form-actions.tsx";
 import { FormAvailability } from "./ops/form-availability.tsx";
+import { ResponseActions } from "./ops/response-actions.tsx";
 import { ResponseDetail } from "./ops/response-detail.tsx";
 import { ENVIRONMENT_COOKIE } from "../lib/environment.ts";
 import { t } from "../lib/i18n/en.ts";
@@ -153,20 +154,23 @@ describe("a refusal because another tab switched", { timeout: 30_000 }, () => {
     };
     const user = userEvent.setup();
     render(
-      <ResponseDetail
-        detail={detail}
-        pins={[]}
-        labels={new Map()}
-        labelsFailed={false}
-        linksHref="/forms/form-1/links"
-        environment="prod"
-        erasable
-        erase={() => Promise.resolve({ status: "error", message: SWITCHED })}
-        unflag={() => Promise.resolve({ status: "error" })}
-      />,
+      <>
+        <ResponseActions />
+        <ResponseDetail
+          detail={detail}
+          pins={[]}
+          labels={new Map()}
+          labelsFailed={false}
+          linksHref="/forms/form-1/links"
+          environment="prod"
+          erase={() => Promise.resolve({ status: "error", message: SWITCHED })}
+          unflag={() => Promise.resolve({ status: "error" })}
+        />
+      </>,
     );
 
-    await user.click(screen.getByRole("button", { name: t("ops.erase.button") }));
+    await user.click(screen.getByRole("button", { name: t("ops.detail.moreActions") }));
+    await user.click(await screen.findByRole("menuitem", { name: t("ops.erase.button") }));
     const dialog = await screen.findByTestId("qcms-erase-dialog");
     await user.type(
       within(dialog).getByRole("textbox", { name: t("ops.erase.confirmLabel") }),

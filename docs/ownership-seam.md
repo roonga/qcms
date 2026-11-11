@@ -93,13 +93,13 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (608 files common to both shapes)
+### Scaffolded paths (610 files common to both shapes)
 
 | Path                                                                            | Files |
 | ------------------------------------------------------------------------------- | ----- |
 | `(project root)`                                                                | 8     |
-| `apps/`                                                                         | 597   |
-| `apps/admin/`                                                                   | 385   |
+| `apps/`                                                                         | 599   |
+| `apps/admin/`                                                                   | 387   |
 | `apps/admin/app/`                                                               | 102   |
 | `apps/admin/app/(shell)/`                                                       | 78    |
 | `apps/admin/app/(shell)/@rail/`                                                 | 34    |
@@ -194,20 +194,20 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/two-factor/recovery-codes/`                                     | 2     |
 | `apps/admin/app/two-factor/recovery-codes/confirm/`                             | 1     |
 | `apps/admin/app/two-factor/recovery/verify/`                                    | 1     |
-| `apps/admin/components/`                                                        | 138   |
+| `apps/admin/components/`                                                        | 139   |
 | `apps/admin/components/agent/`                                                  | 11    |
 | `apps/admin/components/forms/`                                                  | 42    |
 | `apps/admin/components/membership/`                                             | 9     |
-| `apps/admin/components/ops/`                                                    | 18    |
+| `apps/admin/components/ops/`                                                    | 19    |
 | `apps/admin/components/questions/`                                              | 16    |
 | `apps/admin/components/shell/`                                                  | 6     |
 | `apps/admin/components/test-support/`                                           | 3     |
-| `apps/admin/lib/`                                                               | 138   |
+| `apps/admin/lib/`                                                               | 139   |
 | `apps/admin/lib/agent/`                                                         | 14    |
 | `apps/admin/lib/forms/`                                                         | 31    |
 | `apps/admin/lib/i18n/`                                                          | 2     |
 | `apps/admin/lib/membership/`                                                    | 3     |
-| `apps/admin/lib/ops/`                                                           | 15    |
+| `apps/admin/lib/ops/`                                                           | 16    |
 | `apps/admin/lib/pwa/`                                                           | 4     |
 | `apps/admin/lib/questions/`                                                     | 9     |
 | `apps/admin/lib/server/`                                                        | 32    |
@@ -297,7 +297,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (608)</summary>
+<summary>Every scaffolded file (610)</summary>
 
 ```
 .dockerignore
@@ -502,6 +502,7 @@ apps/admin/components/ops/operations-forms-table.tsx
 apps/admin/components/ops/operations-screen.tsx
 apps/admin/components/ops/ops-tags.tsx
 apps/admin/components/ops/queue-form-cell.tsx
+apps/admin/components/ops/response-actions.tsx
 apps/admin/components/ops/response-browser.tsx
 apps/admin/components/ops/response-detail.tsx
 apps/admin/components/ops/tombstone-card.tsx
@@ -609,6 +610,7 @@ apps/admin/lib/membership/sections.ts
 apps/admin/lib/membership/types.ts
 apps/admin/lib/ops/answers.ts
 apps/admin/lib/ops/browse.ts
+apps/admin/lib/ops/erase-request.ts
 apps/admin/lib/ops/erasure.ts
 apps/admin/lib/ops/export.ts
 apps/admin/lib/ops/form-contexts.ts

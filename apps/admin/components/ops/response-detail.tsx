@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 
 import { HelpTip } from "@/components/help-tip";
 import { useEnvironmentUnknown } from "@/components/environment-scope";
@@ -11,6 +11,7 @@ import { flagReasonText } from "@/components/ops/ops-tags";
 import { TombstoneCard } from "@/components/ops/tombstone-card";
 import { announce } from "@/lib/announce";
 import { answerText } from "@/lib/ops/answers";
+import { resetEraseRequests, useEraseRequests } from "@/lib/ops/erase-request";
 import type { ErasureReason } from "@/lib/ops/erasure";
 import { labelFor, orderedAnswerKeys, type QuestionPin } from "@/lib/ops/labels";
 import {
@@ -37,7 +38,6 @@ export function ResponseDetail({
   labelsFailed,
   linksHref,
   environment,
-  erasable,
   erase,
   unflag,
 }: {
@@ -49,9 +49,6 @@ export function ResponseDetail({
   /* An erasure acts in one selected environment only; the confirmation must name it because the act cannot
      be undone. */
   readonly environment: string;
-  /* Absent rather than disabled: a caller without the erase cell is not offered a door that can only
-     refuse. */
-  readonly erasable: boolean;
   readonly erase: (
     sessionId: string,
     reason: ErasureReason,
@@ -79,6 +76,9 @@ export function ResponseDetail({
   const [released, setReleased] = useState(false);
   const [isPending, startTransition] = useTransition();
   const environmentUnknown = useEnvironmentUnknown();
+  // The door is the page header's own menu, so the request arrives from another client tree.
+  const eraseRequests = useEraseRequests();
+  const seenErase = useRef(0);
 
   // Announce through the shell region because erasure revalidation unmounts this subtree mid-announcement.
   const noteErasure = useCallback((message: string) => {
@@ -107,6 +107,17 @@ export function ResponseDetail({
     if (!released) return undefined;
     return focusPostAction(document.getElementById(RESPONSE_HEADING_ID));
   }, [released]);
+
+  // Consume each request once, so an ordinary rerender cannot reopen a cancelled dialog.
+  useEffect(() => {
+    if (eraseRequests === seenErase.current) return;
+    seenErase.current = eraseRequests;
+    if (environmentUnknown) return;
+    setErasureNote("");
+    setDialog("erase");
+  }, [eraseRequests, environmentUnknown]);
+
+  useEffect(() => resetEraseRequests, []);
 
   const runUnflag = useCallback(() => {
     startTransition(() => {
@@ -196,21 +207,6 @@ export function ResponseDetail({
           {labelsFailed && <Alert variant="warning">{t("ops.detail.labelsFailed")}</Alert>}
           <Answers detail={detail} pins={pins} labels={labels} />
           <LedgerTimeline detail={detail} labels={labels} />
-          {erasable && (
-            <HeadingMarker control="responses.erase">
-              <Button
-                variant="danger"
-                size="md"
-                isDisabled={isPending || environmentUnknown}
-                onPress={() => {
-                  setErasureNote("");
-                  setDialog("erase");
-                }}
-              >
-                {t("ops.erase.button")}
-              </Button>
-            </HeadingMarker>
-          )}
         </>
       ) : (
         <TombstoneCard tombstone={tombstone} />
@@ -318,7 +314,7 @@ function Answers({
   const keys = orderedAnswerKeys(detail.answers, pins);
   return (
     <section aria-labelledby="qcms-answers-heading" className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="qcms-help-head">
         <h2 id="qcms-answers-heading" className="text-base font-semibold text-(--color-text)">
           {t("ops.detail.answers")}
         </h2>
@@ -381,7 +377,7 @@ function LedgerTimeline({
 }) {
   return (
     <section aria-labelledby="qcms-ledger-heading" className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="qcms-help-head">
         <h2 id="qcms-ledger-heading" className="text-base font-semibold text-(--color-text)">
           {t("ops.detail.ledger")}
         </h2>
