@@ -16,6 +16,7 @@ export const messages = {
   /** The narrow-width disclosure's name on an area rail, which carries no title of its own. */
   "rail.menu": "Menu",
   "help.label": "More information",
+  "help.named": "Help: {label}",
   "rail.allQuestions": "All questions",
   "rail.allForms": "All forms",
 

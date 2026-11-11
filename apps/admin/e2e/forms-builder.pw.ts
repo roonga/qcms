@@ -148,7 +148,7 @@ test("the builder's rules card reads, and every way out of it crosses to the rul
   await expect(lens).toBeVisible();
 
   await expect(lens.locator(".qcms-rule-action")).toHaveCount(0);
-  await expect(lens.locator("button:not(.qcms-helptip__button)")).toHaveCount(0);
+  await expect(lens.locator("button:not(.qcms-help__button)")).toHaveCount(0);
 
   await expect(lens.locator("[data-rule-count]")).toHaveAttribute("data-rule-count", "1");
 
