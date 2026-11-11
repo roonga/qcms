@@ -39,7 +39,7 @@ test("lists the forms this caller operates, separating unreleased from closed", 
   await expect(table.getByRole("row").filter({ hasText: ALPHA })).toHaveCount(1);
   await expect(table.getByRole("row").filter({ hasText: BETA })).toHaveCount(1);
   const alpha = table.getByRole("row").filter({ hasText: ALPHA });
-  await expect(alpha.locator('td[data-released="false"]')).toHaveText("Not Released");
+  await expect(alpha.locator('td[data-released="false"]')).toHaveText("None");
   await expect(alpha.locator('td[data-availability="unreleased"]')).toHaveText("Not Released");
 });
 

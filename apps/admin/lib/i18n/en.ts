@@ -138,7 +138,7 @@ export const messages = {
   "operations.table": "Forms you can operate",
   "operations.column.form": "Form",
   "operations.column.workspace": "Workspace",
-  "operations.column.released": "Released",
+  "operations.column.released": "Version",
   "operations.column.intake": "Availability",
   "operations.column.lastRelease": "Last release",
   "operations.column.submitted": "Submitted",
@@ -148,7 +148,7 @@ export const messages = {
   "operations.intake.open": "Open",
   "operations.intake.closed": "Closed",
   "operations.intake.unreleased": "Not Released",
-  "operations.release.none": "Not Released",
+  "operations.release.none": "None",
   "operations.loading": "Loading the forms you can operate.",
 
   "operations.environmentUnknown":
@@ -1155,7 +1155,7 @@ export const messages = {
   "forms.releases.column.releasedBy": "Released by",
   "forms.releases.column.fromEnvironment": "Promoted from",
   "forms.releases.column.approvedBy": "Approved by",
-  "forms.releases.none": "Nothing released",
+  "forms.releases.none": "None",
   "forms.releases.noSource": "Released directly",
   "forms.releases.noApproval": "No approval recorded",
   "forms.releases.historyHeading": "Release history",
@@ -1361,7 +1361,7 @@ export const messages = {
   "forms.history.filter.legend": "Show",
   "forms.history.filter.hidden":
     "{count} versions are hidden because they were never released anywhere.",
-  "forms.history.column.released": "First released",
+  "forms.history.column.released": "Released in",
   "forms.history.releasedIn": "{environments}",
   "forms.history.releasedNowhere": "Nowhere",
   "forms.history.column.version": "Version",

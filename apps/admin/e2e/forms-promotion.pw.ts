@@ -150,12 +150,12 @@ test("publishes a draft, verifies it in test, then promotes the same version to 
   await page.getByRole("link", { name: "Cancel", exact: true }).click();
   await page.waitForURL(`**/forms/${formId}/versions`);
   const released = page.getByTestId("qcms-released-now");
-  await expect(released.locator('tr[data-environment="test"]')).toContainText("Nothing released");
+  await expect(released.locator('tr[data-environment="test"]')).toContainText("None");
 
   await publishDraftThroughWizard(page, { formId, version: 1, environment: "test" });
   await page.goto(`/forms/${formId}/versions`);
   await expect(released.locator('tr[data-environment="test"]')).toContainText("v1");
-  await expect(released.locator('tr[data-environment="prod"]')).toContainText("Nothing released");
+  await expect(released.locator('tr[data-environment="prod"]')).toContainText("None");
 
   await page.goto(`/operations/forms/${formId}/links`);
   await waitForHydration(page);
@@ -174,7 +174,7 @@ test("publishes a draft, verifies it in test, then promotes the same version to 
   const testSession = await completeForm(page, "test");
 
   await page.goto(`/forms/${formId}/versions`);
-  await expect(released.locator('tr[data-environment="prod"]')).toContainText("Nothing released");
+  await expect(released.locator('tr[data-environment="prod"]')).toContainText("None");
   await chooseEnvironment(page, "prod");
   await page.goto(`/forms/${formId}`);
   await expect(page.getByTestId("qcms-published-form-review")).toBeVisible();
