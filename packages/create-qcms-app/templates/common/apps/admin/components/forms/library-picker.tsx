@@ -193,10 +193,12 @@ export function LibraryPicker({
             data-testid="qcms-picker-chosen"
             id={CHOSEN_PANE_ID}
           >
-            <h3 aria-live="polite" className="text-sm font-semibold" id={CHOSEN_HEADING_ID}>
-              {t("forms.picker.chosenHeading", { count: chosenRows.length })}
-            </h3>
-            <HelpTip>{t("forms.picker.hint")}</HelpTip>
+            <div className="qcms-help-head">
+              <h3 aria-live="polite" className="text-sm font-semibold" id={CHOSEN_HEADING_ID}>
+                {t("forms.picker.chosenHeading", { count: chosenRows.length })}
+              </h3>
+              <HelpTip>{t("forms.picker.hint")}</HelpTip>
+            </div>
             {chosenRows.length === 0 ? (
               <p className="text-sm text-(--color-text-muted)">{t("forms.picker.chosenEmpty")}</p>
             ) : (

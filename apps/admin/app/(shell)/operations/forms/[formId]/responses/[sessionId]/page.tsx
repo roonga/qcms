@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import { Alert } from "@/components/kit";
 import { FormPageHeader } from "@/components/forms/form-page-header";
 import { ErasureElsewhereOffer } from "@/components/ops/erasure-elsewhere";
+import { ResponseActions } from "@/components/ops/response-actions";
 import { ResponseDetail } from "@/components/ops/response-detail";
 import { TombstoneCard } from "@/components/ops/tombstone-card";
 import { mayEraseResponses } from "@/lib/ops/erasure";
@@ -97,7 +98,7 @@ export default async function ResponseDetailPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <FormPageHeader {...withStatus} />
+      <FormPageHeader {...withStatus} actions={<ResponseActions offered={erasable} />} />
       <Link className="qcms-text-link" href={responsesHref(formId)}>
         {t("ops.detail.back")}
       </Link>
@@ -109,7 +110,6 @@ export default async function ResponseDetailPage({
         labels={labels}
         labelsFailed={failed}
         linksHref={`/operations/forms/${encodeURIComponent(formId)}/links`}
-        erasable={erasable}
         erase={eraseSessionAction.bind(null, formId, shown)}
         unflag={unflagResponseAction.bind(null, formId, shown)}
       />

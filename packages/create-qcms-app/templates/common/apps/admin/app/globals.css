@@ -47,6 +47,7 @@
   --admin-topbar-h: calc(var(--admin-control-h) + 1rem + 1px);
   --admin-rail-w: 15rem;
   --admin-rail-collapsed-w: 3.5rem;
+  --admin-crumb-line-h: 1.25rem;
 }
 
 @theme static {
@@ -133,6 +134,51 @@ textarea {
 }
 button {
   font-weight: 600;
+}
+
+/* The block minimum above applies to every button, which is what stretched small round controls into
+   ovals. A control that must stay circular or square locks both axes here, once, rather than at each
+   call site. */
+.qcms-round,
+.qcms-iconbutton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  align-self: center;
+  inline-size: var(--round-size);
+  block-size: var(--round-size);
+  min-inline-size: var(--round-size);
+  min-block-size: var(--round-size);
+  aspect-ratio: 1;
+  padding: 0;
+}
+.qcms-round {
+  --round-size: 32px;
+  border-radius: 50%;
+}
+.qcms-iconbutton {
+  --round-size: 32px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background-color: var(--color-ghost);
+  color: var(--color-text);
+  cursor: pointer;
+}
+.qcms-iconbutton--sm {
+  --round-size: 24px;
+  border-radius: var(--radius-sm);
+}
+.qcms-iconbutton:hover,
+.qcms-iconbutton[aria-expanded="true"] {
+  background-color: var(--color-ghost-hover);
+}
+.qcms-iconbutton:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+:root.hc .qcms-iconbutton {
+  border: 2px solid var(--color-border-strong);
 }
 
 .qcms-tabular {
@@ -454,30 +500,6 @@ button {
 
 /* MenuTrigger portals popovers to document.body, outside the trigger's class hierarchy. */
 
-.qcms-modetrigger {
-  inline-size: 32px;
-  block-size: 32px;
-  /* Override the button minimum too: min-block-size would otherwise beat this square's block-size. */
-  min-block-size: 32px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  border-radius: 50%;
-  background-color: var(--color-ghost);
-  color: var(--color-text);
-  cursor: pointer;
-  flex-shrink: 0;
-}
-.qcms-modetrigger:hover,
-.qcms-modetrigger[aria-expanded="true"] {
-  background-color: var(--color-ghost-hover);
-  box-shadow: 0 0 0 2px var(--color-border-strong);
-}
-:root.hc .qcms-modetrigger {
-  border: 2px solid var(--color-border-strong);
-}
-
 .qcms-appearance {
   position: relative;
 }
@@ -596,6 +618,7 @@ button {
   inset-inline-start: 2px;
   inline-size: 12px;
   block-size: 12px;
+  aspect-ratio: 1;
   border-radius: 50%;
   background-color: var(--color-border-strong);
 }
@@ -612,21 +635,13 @@ button {
 }
 
 .qcms-avatar {
-  inline-size: 32px;
-  block-size: 32px;
-  min-block-size: 32px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   border: none;
-  border-radius: 50%;
   background-color: var(--color-primary);
   color: var(--color-primary-foreground);
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.02em;
   cursor: pointer;
-  flex-shrink: 0;
 }
 .qcms-avatar[data-hovered],
 .qcms-avatar[aria-expanded="true"] {
@@ -678,6 +693,29 @@ button {
 }
 :root.hc .qcms-menu__item[data-selected] {
   box-shadow: inset 2px 0 0 var(--color-primary);
+}
+.qcms-menu__item--danger {
+  color: var(--color-danger-fg);
+}
+.qcms-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-block-size: var(--admin-control-h);
+  padding-inline: var(--admin-control-pad-x);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.qcms-menu-trigger:hover {
+  background-color: var(--color-ghost-hover);
+}
+:root.hc .qcms-menu-trigger {
+  border-width: 2px;
 }
 .qcms-menu__check {
   inline-size: 1em;
@@ -1161,11 +1199,13 @@ button {
   display: flex;
   align-items: center;
   justify-content: center;
-  inline-size: 16px;
-  block-size: 16px;
-  border-radius: 50%;
-  background-color: var(--color-primary);
-  color: var(--color-primary-foreground);
+  flex: none;
+  inline-size: 24px;
+  block-size: 24px;
+  aspect-ratio: 1;
+  border-radius: var(--radius-sm);
+  background-color: var(--color-ghost);
+  color: var(--color-primary);
   font-size: 12px;
   font-weight: 600;
   line-height: 1;
@@ -1471,19 +1511,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
 }
 
 .qcms-copyid {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  inline-size: 24px;
-  block-size: 24px;
-  min-block-size: 24px;
-  padding: 0;
-  border: none;
-  border-radius: var(--radius-sm);
-  background: transparent;
   color: var(--color-text-muted);
-  cursor: pointer;
 }
 .qcms-copyid[data-copied] {
   color: var(--color-success-fg);
@@ -1654,9 +1682,10 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   outline-offset: 2px;
 }
 .qcms-radio__dot {
-  flex-shrink: 0;
+  flex: none;
   inline-size: 14px;
   block-size: 14px;
+  aspect-ratio: 1;
   margin-block-start: 3px;
   border: 1px solid var(--color-border-strong);
   border-radius: 50%;
@@ -2182,13 +2211,13 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   box-sizing: content-box;
   display: flex;
   align-items: center;
-  min-block-size: 1.25rem;
+  min-block-size: var(--admin-crumb-line-h);
   margin: -4px;
   padding: 4px;
   overflow: hidden;
   list-style: none;
   font-size: 0.8125rem;
-  line-height: 1.25rem;
+  line-height: var(--admin-crumb-line-h);
   white-space: nowrap;
 }
 .qcms-crumbs__item {
@@ -2390,33 +2419,6 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   font-size: 13px;
   line-height: 18px;
   font-weight: 600;
-}
-
-.qcms-help-dot {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  inline-size: 20px;
-  block-size: 20px;
-  min-block-size: 20px;
-  padding: 0;
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--color-text-muted);
-  font-size: 0.75rem;
-  line-height: 1;
-  cursor: pointer;
-}
-.qcms-help-dot:hover {
-  background-color: var(--color-ghost-hover);
-  color: var(--color-text);
-}
-/* Reveal controls for pointer-less devices too: touch cannot discover hover-only menus. */
-.qcms-help-dot[aria-expanded="true"] {
-  background-color: var(--color-ghost-hover);
-  color: var(--color-text);
 }
 
 .qcms-public-link__url {
@@ -2969,8 +2971,10 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   color: var(--color-text);
 }
 .qcms-assist-steps__pulse {
+  flex: none;
   inline-size: 8px;
   block-size: 8px;
+  aspect-ratio: 1;
   border-radius: 50%;
   background-color: var(--color-primary);
   animation: qcms-assist-pulse 1.2s ease-in-out infinite;
@@ -2995,8 +2999,10 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   color: var(--color-text-muted);
 }
 .qcms-assist-think__pulse {
+  flex: none;
   inline-size: 6px;
   block-size: 6px;
+  aspect-ratio: 1;
   border-radius: 50%;
   background-color: var(--color-primary);
   animation: qcms-assist-pulse 1.2s ease-in-out infinite;
@@ -3819,7 +3825,24 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   outline: 2px dashed var(--color-border-strong);
 }
 
-/* Where the breadcrumb row shares the line, the page action sits on it instead of taking a row of its own. */
+/* One header pattern on every screen: the heading leads the row and the screen's actions close it. */
+.qcms-page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.qcms-page-header__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* Where the breadcrumb row shares the line, the page action sits on it instead of taking a row of its own:
+   it rides the crumb line's centre, which is the column's own padding plus half that line above the content
+   box it starts in, so the two cannot drift apart. `shell-frame.pw.ts` asserts the landing. */
 .qcms-page-actionbar {
   display: flex;
   flex-wrap: wrap;
@@ -3829,59 +3852,179 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   .qcms-page-actionbar {
     block-size: 0;
     flex-wrap: nowrap;
-    translate: 0 -1.875rem;
+    translate: 0 calc(-1 * (var(--admin-section-pad) + var(--admin-crumb-line-h) / 2));
   }
 }
 
-.qcms-helptip {
-  position: relative;
+.qcms-help {
   display: inline-flex;
+  align-items: center;
   vertical-align: middle;
 }
-.qcms-helptip__button {
-  display: inline-grid;
-  place-items: center;
-  inline-size: 1.125rem;
-  block-size: 1.125rem;
-  border: 1px solid var(--color-border-strong);
-  border-radius: 9999px;
+/* The negative block margins keep a 20px label line and a 40px header row exactly as tall as they were
+   without the glyph. */
+.qcms-help__button {
+  --round-size: 24px;
+  position: relative;
+  margin-block: -4px;
+  margin-inline-start: 4px;
+  border: 0;
   background: transparent;
   color: var(--color-text-muted);
-  font-size: 11px;
-  line-height: 1;
   cursor: help;
 }
+.qcms-help__button > svg {
+  inline-size: 16px;
+  block-size: 16px;
+  overflow: visible;
+}
+.qcms-help__button[data-size="header"] > svg {
+  inline-size: 14px;
+  block-size: 14px;
+}
+.qcms-help__disc {
+  fill: var(--color-surface-hover);
+}
+.qcms-help__mark {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.qcms-help__dot {
+  fill: currentColor;
+}
+.qcms-help__button:hover {
+  color: var(--color-text);
+}
+.qcms-help__button:hover .qcms-help__disc {
+  fill: var(--color-ghost-active);
+}
+.qcms-help__button:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  color: var(--color-text);
+}
+.qcms-help__button[aria-expanded="true"] {
+  color: var(--color-text);
+}
+.qcms-help__button[aria-expanded="true"] .qcms-help__disc {
+  fill: var(--color-text);
+}
+.qcms-help__button[aria-expanded="true"] .qcms-help__mark {
+  stroke: var(--color-surface);
+}
+.qcms-help__button[aria-expanded="true"] .qcms-help__dot {
+  fill: var(--color-surface);
+}
+/* High contrast carries no fill in any state: a ring in the mark's own colour. */
+:root.hc .qcms-help__disc,
+:root.hc .qcms-help__button[aria-expanded="true"] .qcms-help__disc {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5px;
+}
+:root.hc .qcms-help__button[aria-expanded="true"] .qcms-help__mark {
+  stroke: currentColor;
+}
+:root.hc .qcms-help__button[aria-expanded="true"] .qcms-help__dot {
+  fill: currentColor;
+}
+/* A touch target of 44px that grows no row (WCAG 2.5.8). */
+@media (pointer: coarse) {
+  .qcms-help__button::before {
+    content: "";
+    position: absolute;
+    inset-block-start: 50%;
+    inset-inline-start: 50%;
+    inline-size: 44px;
+    block-size: 44px;
+    translate: -50% -50%;
+  }
+}
 /* Fixed, not absolute: a hidden absolute box still widens the document on a narrow screen. */
-.qcms-helptip__body {
+.qcms-help__tip {
   position: fixed;
   z-index: 20;
   inline-size: max-content;
-  max-inline-size: min(18rem, calc(100vw - 1rem));
-  padding: 0.5rem 0.625rem;
+  max-inline-size: min(18rem, calc(100vw - 2rem));
+  padding: var(--space-2) var(--space-3);
   border: 1px solid var(--color-border-strong);
-  border-radius: 0.375rem;
-  background: var(--color-surface-raised, var(--color-surface));
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  box-shadow:
+    0 2px 4px hsl(var(--shadow-color) / 0.1),
+    0 30px 70px -30px hsl(var(--shadow-color) / 0.4);
   color: var(--color-text);
   font-size: 13px;
   line-height: 1.4;
+  overflow-wrap: anywhere;
   visibility: hidden;
   opacity: 0;
   transition: opacity 120ms;
-  pointer-events: none;
 }
-.qcms-helptip__body[data-open="true"] {
+.qcms-help__tip[data-open="true"] {
   visibility: visible;
   opacity: 1;
 }
-
-.qcms-field-help {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: start;
-  column-gap: 0.375rem;
+@media (prefers-reduced-motion: reduce) {
+  .qcms-help__tip {
+    transition: none;
+  }
 }
-.qcms-field-help > .qcms-helptip {
+/* The pointer keeps the tip tied to its glyph wherever the box was shifted or clamped. */
+.qcms-help__tip::before {
+  content: "";
+  position: absolute;
+  inset-block-start: -6px;
+  inset-inline-start: var(--qcms-help-arrow, 15px);
+  inline-size: 10px;
+  block-size: 10px;
+  border-inline-start: 1px solid var(--color-border-strong);
+  border-block-start: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+  rotate: 45deg;
+}
+.qcms-help__tip[data-placement="top"]::before {
+  inset-block-start: auto;
+  inset-block-end: -6px;
+  border-block-start: 0;
+  border-inline-start: 0;
+  border-inline-end: 1px solid var(--color-border-strong);
+  border-block-end: 1px solid var(--color-border-strong);
+}
+:root.hc .qcms-help__tip {
+  border-width: 2px;
+  box-shadow: none;
+}
+:root.hc .qcms-help__tip::before {
+  border-width: 2px;
+}
+
+/* A flex row, not a grid: an `auto` grid column squeezed the glyph narrower than it is tall, which is
+   the oval. The field takes the room and the glyph takes none, on the label's line. */
+.qcms-field-help {
+  display: flex;
+  align-items: flex-start;
+}
+.qcms-field-help > :first-child {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+}
+.qcms-field-help > .qcms-help {
+  flex: none;
   margin-block-start: 0.125rem;
+}
+
+/* The glyph's own 4px is the whole distance from the heading it follows, so a row that pairs the two adds
+   no column gap of its own. */
+.qcms-help-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 0;
+  row-gap: var(--space-1);
+  min-inline-size: 0;
 }
 
 /* viewportFit: cover draws the document under the status bar and the home indicator, so the sticky top

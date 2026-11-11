@@ -96,10 +96,12 @@ export function StepEditor({
       className="flex flex-col gap-4 rounded-md border border-(--color-border) bg-(--color-surface) p-4"
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h1 id="qcms-step-heading" className="text-base font-semibold text-(--color-text)">
-          {t("forms.step.heading", { title })}
-        </h1>
-        <HelpTip>{t("forms.step.pinNote")}</HelpTip>
+        <div className="qcms-help-head">
+          <h1 id="qcms-step-heading" className="text-base font-semibold text-(--color-text)">
+            {t("forms.step.heading", { title })}
+          </h1>
+          <HelpTip>{t("forms.step.pinNote")}</HelpTip>
+        </div>
         {saveFlash}
       </div>
 

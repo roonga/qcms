@@ -28,7 +28,7 @@ export function AccountMenu({ email, name }: { readonly email: string; readonly 
             <span className="qcms-menu__email">{email}</span>
           </>
         }
-        classNames={menuClasses("qcms-avatar")}
+        classNames={menuClasses("qcms-avatar qcms-round")}
         onAction={(key) => {
           if (key !== "sign-out") return;
           // The POST does not clear tab storage, so the assistant conversation goes here.

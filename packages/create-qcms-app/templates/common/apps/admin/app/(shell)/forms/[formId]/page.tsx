@@ -7,7 +7,6 @@ import { Alert } from "@/components/kit";
 import { FormProductionReview } from "@/components/forms/form-production-review";
 import { FormActions } from "@/components/forms/form-actions";
 import { CONCURRENT_NOTICE_COOKIE, isConcurrentNoticeDismissed } from "@/lib/builder-notice";
-import { shownEnvironment } from "@/lib/environment";
 import { FormBuilder } from "@/components/forms/form-builder";
 import type { FormDetail } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
@@ -65,7 +64,6 @@ export default async function FormBuilderPage({
     loadPinnableQuestions(session, await currentWorkspaceId(session)),
     resolvedEnvironment(session),
   ]);
-  const shown = shownEnvironment(resolved);
 
   if (!detail.ok) {
     if (detail.code === "FORM_NOT_FOUND" || detail.code === "INVALID_FORM_ID") notFound();
@@ -73,6 +71,7 @@ export default async function FormBuilderPage({
   }
 
   const form = seedTitle(detail.data, firstValue(query["title"]).trim());
+  // A permission matter only: the selected environment never decides whether the draft may be authored.
   if (form.workflow?.enabled && !form.workflow.canEdit) {
     return (
       <FormProductionReview
@@ -103,13 +102,7 @@ export default async function FormBuilderPage({
             <HelpTip>{t(`forms.builder.draftSource.${form.draftSource}`)}</HelpTip>
           </p>
         }
-        formActions={
-          <FormActions
-            workflow={form.workflow}
-            formId={form.formId}
-            environment={shown ?? t("environment.unknown")}
-          />
-        }
+        formActions={<FormActions workflow={form.workflow} formId={form.formId} />}
         saveDraft={saveDraftAction.bind(null, form.formId)}
         validateDraft={validateDraftAction.bind(null, form.formId)}
         updateSettings={updateSettingsAction.bind(null, form.formId)}

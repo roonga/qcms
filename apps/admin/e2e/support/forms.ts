@@ -14,12 +14,7 @@ export function field(page: Page, name: string): Locator {
 
 export async function createForm(page: Page, slug: string, title: string): Promise<string> {
   await page.goto("/forms/new");
-  const switchToTest = page.getByRole("button", { name: "Switch to test", exact: true });
-  if (await switchToTest.isVisible()) {
-    await waitForHydration(page);
-    await switchToTest.click();
-    await expect(switchToTest).toHaveCount(0);
-  }
+  await waitForHydration(page);
 
   await fillStable(field(page, "Slug"), slug);
   await fillStable(field(page, "Title"), title);

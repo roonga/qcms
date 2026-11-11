@@ -177,9 +177,8 @@ test("publishes a draft, verifies it in test, then promotes the same version to 
   await expect(released.locator('tr[data-environment="prod"]')).toContainText("None");
   await chooseEnvironment(page, "prod");
   await page.goto(`/forms/${formId}`);
-  await expect(page.getByTestId("qcms-published-form-review")).toBeVisible();
-  await expect(page.getByRole("button", { name: /Publish/u })).toHaveCount(0);
-  await expect(page.getByRole("textbox", { name: "Title", exact: true })).toHaveCount(0);
+  await expect(page.getByTestId("qcms-published-form-review")).toHaveCount(0);
+  await expect(page.getByRole("textbox", { name: "Form title", exact: true })).toBeVisible();
   await page.goto(`/forms/${formId}/versions`);
   await releaseVersion(page, formId, "prod");
 

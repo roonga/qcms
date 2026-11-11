@@ -8,12 +8,10 @@ import { t } from "@/lib/i18n/en";
 
 export function FormActions({
   formId,
-  environment,
   workflow,
 }: {
   readonly workflow?: FormPublishingWorkflow | undefined;
   readonly formId: string;
-  readonly environment: string;
 }) {
   const canPublish = workflow?.canPublish !== false;
 
@@ -43,7 +41,7 @@ export function FormActions({
 
       {workflow?.enabled && !workflow.canPublish && (
         <p className="text-sm text-(--color-text-muted)">
-          {t("forms.workflow.noPublishPermission", { environment })}
+          {t("forms.workflow.noPublishPermission")}
         </p>
       )}
     </section>
