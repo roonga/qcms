@@ -1724,9 +1724,69 @@ describe("GET /admin/forms - search, status filter and sort", () => {
   });
 });
 
+describe("POST /admin/forms names the first draft", () => {
+  async function draftTitleOf(formId: string): Promise<Record<string, string> | undefined> {
+    const stored = await getDraft(testDb.db, FormId.parse(formId));
+    return (stored?.definition as { readonly title: Record<string, string> } | undefined)?.title;
+  }
+
+  it("writes the title it was given, in the form's default locale", async () => {
+    const created = await post("/forms", {
+      formId: "frm_named_create",
+      slug: "named-create",
+      defaultLocale: "en",
+      title: "  Vehicle insurance quote  ",
+      workspaceId: SEED_WORKSPACE_ID,
+    });
+    expect(created.status).toBe(201);
+
+    expect(await draftTitleOf("frm_named_create")).toEqual({ en: "Vehicle insurance quote" });
+  });
+
+  it("leaves the draft unnamed when no title is sent", async () => {
+    const created = await post("/forms", {
+      formId: "frm_unnamed_create",
+      slug: "unnamed-create",
+      defaultLocale: "en",
+      workspaceId: SEED_WORKSPACE_ID,
+    });
+    expect(created.status).toBe(201);
+
+    expect(await draftTitleOf("frm_unnamed_create")).toEqual({});
+  });
+
+  it("refuses a caller without the write grant, title or not", async () => {
+    const viewer = await seedAdminSession(testDb.db, {
+      label: "create_title_viewer",
+      claim: false,
+      grants: ["forms.viewer"],
+      owner: false,
+    });
+    const refused = await app.request("/admin/forms", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-qcms-internal-token": internalToken,
+        [ADMIN_SESSION_HEADER]: viewer.token,
+      },
+      body: JSON.stringify({
+        formId: "frm_refused_create",
+        slug: "refused-create",
+        defaultLocale: "en",
+        title: "Refused",
+        workspaceId: SEED_WORKSPACE_ID,
+      }),
+    });
+
+    expect(refused.status).toBe(403);
+    expect(await draftTitleOf("frm_refused_create")).toBeUndefined();
+  });
+});
+
 /**
- * `canWriteDraft` is the caller's own `form: write` and nothing else, which is why the
- * production read asserts it while the deprecated `workflow.canEdit` says the opposite.
+ * `canWriteDraft` is the caller's own `form: write` and nothing else. The deprecated
+ * `workflow.canEdit` answers the same grant: the selected environment does not gate authoring the
+ * one shared draft.
  */
 describe("the form detail write capability", () => {
   const formId = "frm_capability";
@@ -1777,10 +1837,10 @@ describe("the form detail write capability", () => {
     expect((await capability({ token: adminSessionToken }, "test")).canWriteDraft).toBe(true);
   });
 
-  it("stays true in production, where the deprecated workflow verdict is false", async () => {
+  it("stays true in production, and the workflow verdict agrees there", async () => {
     const body = await capability({ token: adminSessionToken }, "prod");
     expect(body.canWriteDraft).toBe(true);
-    expect(body.workflow.canEdit).toBe(false);
+    expect(body.workflow.canEdit).toBe(true);
   });
 
   it("is false for a caller holding only forms.viewer", async () => {

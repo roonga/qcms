@@ -33,6 +33,13 @@ test("lists the forms this caller operates, separating unreleased from closed", 
   await createForm(page, BETA, "Operations beta");
 
   await page.goto("/operations");
+  await waitForHydration(page);
+
+  // The table pages at 25 rows, so narrow it to this run rather than asserting on whichever
+  // page the accumulated fixtures leave these two on.
+  const filters = page.getByTestId("qcms-rail-filters");
+  await fillStable(filters.getByRole("textbox", { name: "Search" }), RUN);
+  await filters.getByRole("button", { name: "Apply" }).click();
 
   const table = page.getByTestId("qcms-operations-table");
   await expect(table).toBeVisible();

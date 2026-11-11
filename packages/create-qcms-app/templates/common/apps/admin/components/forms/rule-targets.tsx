@@ -2,7 +2,7 @@
 
 import { useId, useState, type ReactNode } from "react";
 
-import { FieldHelp } from "@/components/help-tip";
+import { FieldHelp, HelpDisc } from "@/components/help-tip";
 import { Alert, Checkbox, TextField } from "@/components/kit";
 import { countTargets, filterTargets, targetGroups } from "@/lib/forms/rule-targets";
 import type { TargetStepGroup } from "@/lib/forms/rule-targets";
@@ -95,7 +95,7 @@ export function RuleTargets({
                   help={
                     <button
                       type="button"
-                      className="qcms-help-dot"
+                      className="qcms-round qcms-help__button"
                       aria-expanded={helpOpen}
                       aria-controls={helpId}
                       aria-label={t("forms.rule.targetsHelpLabel")}
@@ -103,7 +103,7 @@ export function RuleTargets({
                         setHelpOpen((open) => !open);
                       }}
                     >
-                      <span aria-hidden="true">{"?"}</span>
+                      <HelpDisc />
                     </button>
                   }
                   helpPanel={

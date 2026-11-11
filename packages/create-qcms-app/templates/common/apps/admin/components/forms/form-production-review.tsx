@@ -2,14 +2,13 @@ import { Alert } from "@/components/kit";
 import { FormPageHeader } from "@/components/forms/form-page-header";
 import { ReleasePanel } from "@/components/forms/release-panel";
 import { VersionView } from "@/components/forms/version-view";
-import { SwitchToTest } from "@/components/forms/switch-to-test";
 import type { FormDetail } from "@/lib/forms/types";
 import { VERSION_HEADING_ID } from "@/lib/page-headings";
 import { t } from "@/lib/i18n/en";
 import { getFormVersion } from "@/lib/server/forms";
 import { listReleases } from "@/lib/server/releases";
 import { requireAdminSession } from "@/lib/server/session";
-import { previewPortalTheme, secureCookies } from "@/lib/server/config";
+import { previewPortalTheme } from "@/lib/server/config";
 import { releaseVersionAction, reviewFormVersionAction } from "@/app/(shell)/forms/actions";
 
 export async function FormProductionReview({
@@ -34,14 +33,7 @@ export async function FormProductionReview({
         status={form.status}
         heading={{ id: "qcms-published-form-heading", text: t("forms.workflow.publishedForm") }}
       />
-      <Alert variant="info">
-        {t(
-          environment === "prod" ? "forms.workflow.editInTest" : "forms.workflow.noEditPermission",
-        )}
-      </Alert>
-      {environment === "prod" && environments.includes("test") && (
-        <SwitchToTest secure={secureCookies()} />
-      )}
+      <Alert variant="info">{t("forms.workflow.noEditPermission")}</Alert>
       {!history.ok ? (
         <Alert variant="error">{history.message}</Alert>
       ) : (

@@ -31,7 +31,7 @@ describe("an opaque id", () => {
   it("carries a copy control naming the entity and the value it shows", () => {
     const markup = markupOf(<EntityId kind="session" value={SESSION} />);
     expect(markup).toContain('aria-label="Copy session id ses_45cf6345"');
-    expect(markup).toMatch(/<button[^>]*class="qcms-copyid"/);
+    expect(markup).toMatch(/<button[^>]*class="[^"]*qcms-copyid"/);
   });
 
   it("gets that control by default, because §2 requires one wherever an id is abbreviated", () => {

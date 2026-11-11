@@ -311,7 +311,8 @@ export function FormBuilder({
               <h1 className="qcms-visually-hidden">{screenName}</h1>
             </div>
             <div>{formActions}</div>
-            <div className="flex flex-col items-end gap-1">
+            {/* Two help discs ride these lines; a tighter gap overlaps their 24px targets (WCAG 2.5.8). */}
+            <div className="flex flex-col items-end gap-2">
               <div>{formMeta}</div>
               <AmbientSaveStatus
                 isSaving={status === "saving" || settingsSaving}
