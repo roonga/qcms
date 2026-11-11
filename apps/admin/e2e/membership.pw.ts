@@ -219,7 +219,10 @@ test("an access group is created with the pickers, granted to a member and taken
   // Members names the group by its role and its scope, so two groups of one role are told apart.
   await page.goto(`/workspaces/${WORKSPACE_ID}/members`);
   await expect(
-    page.getByRole("table", { name: /members/iu }).getByRole("row").filter({ hasText: MEMBER }),
+    page
+      .getByRole("table", { name: /members/iu })
+      .getByRole("row")
+      .filter({ hasText: MEMBER }),
   ).toContainText("Response viewer, test, 1 form");
   await page.goto(`/workspaces/${WORKSPACE_ID}/access-groups`);
   await waitForHydration(page);
