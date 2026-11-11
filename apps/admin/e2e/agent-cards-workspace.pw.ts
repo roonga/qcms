@@ -63,7 +63,7 @@ async function grantedHolder(page: Page, label: string): Promise<string> {
 }
 
 // Scope to this group: new accounts also hold standing workspace groups independently of these
-// grants. The stored name sits under Advanced now, so the row carries it as an attribute.
+// grants. The stored name lives under Advanced, so the row carries it as an attribute.
 function groupRow(page: Page, label: string): Locator {
   return groups(page).locator(`[data-group-name="test.responses.viewer.${label}"]`).first();
 }

@@ -6,7 +6,7 @@ import {
   workspaceSectionTitle,
   WorkspaceScreenFrame,
 } from "@/components/membership/workspace-screen";
-import { groupRoleNames } from "@/lib/membership/access-group-form";
+import { groupTitlesByName } from "@/lib/membership/access-group-form";
 import { pageMetadata } from "@/lib/page-title";
 import { listAccessGroups, listMembers } from "@/lib/server/membership";
 
@@ -30,7 +30,7 @@ export default async function WorkspaceMembersPage({
   const screen = await loadWorkspaceScreen(workspaceId);
   if (screen.kind === "denied") return screen.element;
   // A member row carries its groups by stored name, which is wire vocabulary; the groups read
-  // is what turns each one into its role. A failed read leaves the stored names.
+  // is what turns each one into its role and scope. A failed read leaves the stored names.
   const [members, groups] = await Promise.all([
     listMembers(screen.session, workspaceId),
     listAccessGroups(screen.session, workspaceId),
@@ -41,7 +41,7 @@ export default async function WorkspaceMembersPage({
         workspaceId={workspaceId}
         members={members.ok ? members.data : undefined}
         message={members.ok ? undefined : members.message}
-        roles={groupRoleNames(groups.ok ? groups.data.groups : [])}
+        groups={groupTitlesByName(groups.ok ? groups.data.groups : [])}
         setRole={setMemberRoleAction}
       />
     </WorkspaceScreenFrame>

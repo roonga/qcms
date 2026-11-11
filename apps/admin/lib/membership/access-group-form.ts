@@ -150,13 +150,6 @@ export function scopeLabel(
   return scope.map(nameOf).join(", ");
 }
 
-/** Each group's role in plain words, by the stored name a member row carries. */
-export function groupRoleNames(
-  groups: readonly { readonly name: string; readonly role: string }[],
-): ReadonlyMap<string, string> {
-  return new Map(groups.map((group) => [group.name, roleName(group.role)]));
-}
-
 export interface ScopedRole {
   readonly role: string;
   readonly environments: readonly string[];
@@ -178,4 +171,11 @@ export function groupTitle(group: ScopedRole): string {
           group.forms.length,
         ),
   });
+}
+
+/** Each group's title, by the stored name a member row carries. */
+export function groupTitlesByName(
+  groups: readonly (ScopedRole & { readonly name: string })[],
+): ReadonlyMap<string, string> {
+  return new Map(groups.map((group) => [group.name, groupTitle(group)]));
 }

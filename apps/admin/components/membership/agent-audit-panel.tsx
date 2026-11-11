@@ -72,7 +72,7 @@ export function AgentAuditPanel({
                 {plans.map((plan) => (
                   <tbody key={plan.proposalId} data-proposal={plan.proposalId}>
                     <tr>
-                      <th scope="colgroup" colSpan={COLUMNS} data-testid="qcms-agent-audit-plan">
+                      <th scope="rowgroup" colSpan={COLUMNS} data-testid="qcms-agent-audit-plan">
                         {plan.heading}
                       </th>
                     </tr>

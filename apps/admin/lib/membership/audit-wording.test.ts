@@ -79,7 +79,7 @@ describe("audit wording", () => {
   });
 
   it("offers no detail for a kind that records none, or for a row that carries none", () => {
-    expect(agentStepDetail("response.unflag", "whatever", NAMES)).toBeUndefined();
+    expect(agentStepDetail("response.export", "whatever", NAMES)).toBeUndefined();
     expect(agentStepDetail("access.grant", null, NAMES)).toBeUndefined();
   });
 

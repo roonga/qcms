@@ -64,7 +64,10 @@ const ACTIONS: Readonly<Record<string, ActionWording>> = {
   "link.mint": { act: "membership.agentAudit.act.link.mint", detail: "count" },
   "link.revoke": { act: "membership.agentAudit.act.link.revoke", detail: "linkId" },
   "response.erase": { act: "membership.agentAudit.act.response.erase", detail: "reason" },
-  "response.unflag": { act: "membership.agentAudit.act.response.unflag" },
+  "response.unflag": {
+    act: "membership.agentAudit.act.response.unflag",
+    detail: "environment",
+  },
   "response.export": { act: "membership.agentAudit.act.response.export" },
   "webhook.create": { act: "membership.agentAudit.act.webhook.create", detail: "webhookId" },
   "webhook.rotate": { act: "membership.agentAudit.act.webhook.rotate", detail: "webhookId" },
