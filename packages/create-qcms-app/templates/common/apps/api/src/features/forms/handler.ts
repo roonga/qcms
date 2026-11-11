@@ -531,14 +531,8 @@ export function makeCreateFormHandler(deps: Deps): RouteHandler<typeof createFor
   };
 }
 
-/**
- * The three readings of a form's availability in one environment. The list and the detail read
- * share it so a row and the screen it opens cannot disagree; no state means no release here,
- * which is neither open nor closed.
- */
-function availabilityOf(
-  state: FormEnvironmentState | undefined,
-): "open" | "closed" | "unreleased" {
+/** The list and the detail read share this so a row and the screen it opens cannot disagree. */
+function availabilityOf(state: FormEnvironmentState | undefined): "open" | "closed" | "unreleased" {
   if (state === undefined) return "unreleased";
   return state.closed ? "closed" : "open";
 }

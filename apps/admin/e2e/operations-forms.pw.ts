@@ -39,8 +39,8 @@ test("lists the forms this caller operates, separating unreleased from closed", 
   await expect(table.getByRole("row").filter({ hasText: ALPHA })).toHaveCount(1);
   await expect(table.getByRole("row").filter({ hasText: BETA })).toHaveCount(1);
   const alpha = table.getByRole("row").filter({ hasText: ALPHA });
-  // Two cells: the released version and the availability both read this in a row with no release.
-  await expect(alpha.getByText("Not Released")).toHaveCount(2);
+  await expect(alpha.locator('td[data-released="false"]')).toHaveText("Not Released");
+  await expect(alpha.locator('td[data-availability="unreleased"]')).toHaveText("Not Released");
 });
 
 test("a filter narrows the rows below it and changes nothing above them", async ({ page }) => {

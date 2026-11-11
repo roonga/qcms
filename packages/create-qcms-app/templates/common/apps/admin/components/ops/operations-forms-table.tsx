@@ -42,8 +42,10 @@ export function OperationsFormsTable({ rows }: { readonly rows: readonly Operati
                 <FormContexts row={row} />
               </th>
               <td className="qcms-cell--drop">{row.workspace.name}</td>
-              <td className="qcms-cell--num">{releasedText(row)}</td>
-              <td>{intakeText(row)}</td>
+              <td className="qcms-cell--num" data-released={row.hasRelease ? "true" : "false"}>
+                {releasedText(row)}
+              </td>
+              <td data-availability={intakeOf(row) ?? "unknown"}>{intakeText(row)}</td>
               <td className="qcms-cell--num">
                 {row.counts === null ? t("ops.common.none") : row.counts.submitted}
               </td>

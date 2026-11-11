@@ -1141,7 +1141,7 @@ export const messages = {
   "forms.lifecycle.closedNote":
     "This form is closed in {environment}. It is not accepting new responses there; responses already in progress finish normally, and other environments are unaffected.",
   "forms.lifecycle.notReleasedHere":
-    "Nothing is released in this environment, so there is nothing to close there. Release a version first.",
+    "Nothing is released in this environment, so there is nothing to close or reopen there. Release a version first.",
   "forms.lifecycle.alreadyClosedHere":
     "This form is already closed in this environment. Nothing changed, and nothing was recorded.",
   "forms.lifecycle.alreadyOpenHere":

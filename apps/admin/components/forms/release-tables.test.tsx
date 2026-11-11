@@ -32,7 +32,6 @@ describe("what each environment is serving", () => {
     expect(markup).toContain('data-availability="open"');
     expect(markup).toContain('data-availability="closed"');
     expect(markup).toContain('data-availability="unreleased"');
-    // The cell was blank for an environment with no release, which read as a missing value.
     expect(markup).toContain(">Not Released<");
   });
 });
