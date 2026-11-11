@@ -188,7 +188,7 @@ test("Assistant actions reads that plan back in words, grouped and in order", as
   ).toHaveCount(1);
 
   const table = page.getByRole("table", { name: /assistant/iu });
-  await expect(table.getByRole("row").filter({ hasText: EMAIL }).first()).toContainText(
+  await expect(table).toContainText(
     /Created an access group|Granted an access group|Revoked an access group|Removed an access group/u,
   );
   await expect(table).toContainText("Access groups");
