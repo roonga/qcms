@@ -4,7 +4,25 @@ Status: Code Owner rulings recorded 2026-11-08. Nothing built. Source: the "QCMS
 
 ## Rulings
 
-Q13 (entry and exit) approved 2026-11-08; text to be added from the Code Owner's checkout.
+### Q13: entry and exit (Code Owner, 2026-11-08, revised 2026-11-12)
+
+- The agent builder is a parallel screen and mode, like Operations. It does not change the standard assistant (the docked assistant) in any way.
+- Two entry points, both behind the agent flag:
+  - The New form screen offers "Start blank" (today's flow) or "Build with the assistant", which opens the builder with an empty form.
+  - A form's menu gets "Edit with the agent builder", which opens the builder on that form's open draft.
+  - There is no top bar start screen and no standalone top bar entry. Flag off: both entries are absent and the route is 404.
+- Routes: `/forms/[formId]/build` for an existing form, `/forms/new/build` for a new form (no id until the first confirmed step).
+- A new form is created lazily: the form and its first draft are created when the first step is confirmed, not when the builder opens, so abandoned sessions leave nothing. Until then Share preview and Publish are off.
+- An existing form edits the open draft only, never a released version. A form with no open draft first offers "Start a new draft", as the publish wizard does.
+- Publishing stays in the publish wizard, which takes a `returnTo` limited to the build screen.
+- Authoring ignores the environment: no environment selector in the builder.
+- Mode chrome, like Operations:
+  - The top bar shows a group with the title "Agent builder", the form name (or "New form") and an Exit. No rail, no breadcrumb row.
+  - The heading row holds Edit by hand, Share preview and Publish.
+  - Below 64rem the assistant pane and the preview are two tabs.
+  - Exit returns to where the user entered (the form or the New form screen). Edit by hand goes to `/forms/<id>`.
+- The builder has its own conversation store, not shared with the docked assistant, and the dock does not render in the mode. The safety rule stays: an assistant proposal runs only from an ActionCard. This supersedes the earlier "one conversation store feeds the dock and the build pane".
+- The existing manual builder and the docked assistant stay as they are.
 
 | #   | Question                                 | Ruling                                                                                                                                                                                                               | Decision records to change                                                             |
 | --- | ---------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
@@ -40,37 +58,37 @@ Q13 (entry and exit) approved 2026-11-08; text to be added from the Code Owner's
 
 Size: S under a day, M two to three days, L a week or more. Tier: F Fable, O Opus, S Sonnet.
 
-| ID  | Task                                                                                                                                                                  | Deps       | Size | Tier            |
-| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ---- | --------------- |
-| W1  | Decision bundle: ADR-19/25/28/30/41 notes, SEC-3/9 check, SEC-17 and agent-principle amendment, new SEC-18, supersede 049 exclusion, panel-width and rail exception   | none       | M    | F               |
-| A1  | Shared pure appearance module: Zod schema, WCAG contrast (4.5, 3, 7), derive light, dark and full high-contrast palettes, correction report; update token test per Q5 | W1         | M    | O               |
-| D1  | `appearance` jsonb on drafts and versions; publish copies it; append-only tests                                                                                       | W1, A1     | M    | O               |
-| D2  | `control.workspace_themes` (tokens, face, corners, logo, source host) plus workspace appearance lock column                                                           | W1, A1     | M    | S               |
-| A2  | Draft PUT accepts `appearance` and validates contrast; start-session and serve-step return the pinned version's appearance; OpenAPI                                   | D1         | M    | O               |
-| A3  | Workspace themes CRUD, appearance lock, SEC-3 rows, SEC-15 audit, logo route                                                                                          | D2         | M    | S               |
-| A4  | Theme derive route with hardened `BrandFetcher` port (SEC-18)                                                                                                         | A1, A3, W1 | L    | O, Fable review |
-| A5  | Serve-step `steps` list, current-step question labels, progress mode, cursor back-jump                                                                                | D1         | M    | O               |
-| A6  | Draft edit ops and Undo through the single draft save path, per-edit audit row                                                                                        | W1         | L    | O               |
-| G1  | Agent facts: preview selection and layout report, strict schemas, sentinel tests                                                                                      | none       | S    | S               |
-| G2  | Action kinds `form.appearance`, `theme.derive` (Confirm), `theme.save`; cards and consequence bands                                                                   | A2, A3, A4 | M    | O               |
-| G3  | Builder edit tools (question, step, rule, copy) as draft-scoped edits                                                                                                 | A6         | L    | O               |
-| G4  | System prompt and fake-model scripts for the new surface                                                                                                              | G2, G3     | M    | S               |
-| U1  | Builder shell route: agent pane, preview, top bar; "Edit by hand" link                                                                                                | W1         | L    | O               |
-| U2  | Preview pane: devices, WxH, rotate, zoom, polarity and high contrast, Reset answers, layout collector                                                                 | U1         | L    | O               |
-| U3  | Inspect mode and selection fact                                                                                                                                       | U2, G1     | M    | O               |
-| U4  | Appearance drawer with pure `lib/forms/text-size.ts` rule module (Custom is a state) and locked state                                                                 | A2, A1     | L    | O               |
-| U5  | Derive flow: URL input, Confirm card, "Not saved" row, save as workspace theme, correction messaging                                                                  | A4, U4, G2 | M    | O               |
-| U6  | Workspace themes and appearance lock on workspace settings                                                                                                            | A3         | S    | S               |
-| P1  | Per-form appearance on a page-level carrier; deployment env as default; brand per form; CSP check                                                                     | A2         | L    | O               |
-| P2  | Progress modes: side rail, top indicator, none; no-JS links; narrow fold                                                                                              | A5         | L    | O               |
-| P3  | Respondent menu with legibility face; keep `POST /appearance`                                                                                                         | P1         | M    | O               |
-| P4  | Text-size scale: root multiplier, cap 32 px, reflow at 320 px                                                                                                         | P3         | M    | O               |
-| S1  | Design system artifact: TextSize card, Appearance drawer, preview toolbar, rail states                                                                                | W1         | S    | S               |
-| S2  | Docs: `docs/theming.md`, `docs/operations.md`, `docs/deploy-enterprise.md`, `apps/portal/README.md`, `docs/agent-authoring.md`, create-qcms-app templates             | W1, A1     | S    | S               |
-| X1  | Vitest with each task: contrast and derivation, fetcher with fake resolver, text-size rule, rail state derivation                                                     | with tasks | n/a  | O, S            |
-| X2  | Playwright portal: rail at 1024 and 390, no-JS, respondent menu, reflow at 320, axe in light, dark and high contrast, appearance frozen across publish                | P1 to P4   | M    | O               |
-| X3  | Playwright admin: shell, device switch, inspect, drawer to publish to portal, derive against a local fixture server                                                   | U1 to U5   | L    | O               |
-| X4  | SEC-17 sentinel and vocabulary tests over new facts and tools                                                                                                         | G1 to G4   | M    | S               |
+| ID  | Task                                                                                                                                                                                                                                                    | Deps       | Size | Tier            |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------- | ---- | --------------- |
+| W1  | Decision bundle: ADR-19/25/28/30/41 notes, SEC-3/9 check, SEC-17 and agent-principle amendment, new SEC-18, supersede 049 exclusion, panel-width and rail exception                                                                                     | none       | M    | F               |
+| A1  | Shared pure appearance module: Zod schema, WCAG contrast (4.5, 3, 7), derive light, dark and full high-contrast palettes, correction report; update token test per Q5                                                                                   | W1         | M    | O               |
+| D1  | `appearance` jsonb on drafts and versions; publish copies it; append-only tests                                                                                                                                                                         | W1, A1     | M    | O               |
+| D2  | `control.workspace_themes` (tokens, face, corners, logo, source host) plus workspace appearance lock column                                                                                                                                             | W1, A1     | M    | S               |
+| A2  | Draft PUT accepts `appearance` and validates contrast; start-session and serve-step return the pinned version's appearance; OpenAPI                                                                                                                     | D1         | M    | O               |
+| A3  | Workspace themes CRUD, appearance lock, SEC-3 rows, SEC-15 audit, logo route                                                                                                                                                                            | D2         | M    | S               |
+| A4  | Theme derive route with hardened `BrandFetcher` port (SEC-18)                                                                                                                                                                                           | A1, A3, W1 | L    | O, Fable review |
+| A5  | Serve-step `steps` list, current-step question labels, progress mode, cursor back-jump                                                                                                                                                                  | D1         | M    | O               |
+| A6  | Draft edit ops and Undo through the single draft save path, per-edit audit row                                                                                                                                                                          | W1         | L    | O               |
+| G1  | Agent facts: preview selection and layout report, strict schemas, sentinel tests                                                                                                                                                                        | none       | S    | S               |
+| G2  | Action kinds `form.appearance`, `theme.derive` (Confirm), `theme.save`; cards and consequence bands                                                                                                                                                     | A2, A3, A4 | M    | O               |
+| G3  | Builder edit tools (question, step, rule, copy) as draft-scoped edits                                                                                                                                                                                   | A6         | L    | O               |
+| G4  | System prompt and fake-model scripts for the new surface                                                                                                                                                                                                | G2, G3     | M    | S               |
+| U1  | Builder shell: `/forms/[formId]/build` and `/forms/new/build`, two entries (New form screen choice, form menu), lazy new-form creation on the first confirmed step, wizard `returnTo`, own conversation store, mode chrome with Exit and "Edit by hand" | W1         | L    | O               |
+| U2  | Preview pane: devices, WxH, rotate, zoom, polarity and high contrast, Reset answers, layout collector                                                                                                                                                   | U1         | L    | O               |
+| U3  | Inspect mode and selection fact                                                                                                                                                                                                                         | U2, G1     | M    | O               |
+| U4  | Appearance drawer with pure `lib/forms/text-size.ts` rule module (Custom is a state) and locked state                                                                                                                                                   | A2, A1     | L    | O               |
+| U5  | Derive flow: URL input, Confirm card, "Not saved" row, save as workspace theme, correction messaging                                                                                                                                                    | A4, U4, G2 | M    | O               |
+| U6  | Workspace themes and appearance lock on workspace settings                                                                                                                                                                                              | A3         | S    | S               |
+| P1  | Per-form appearance on a page-level carrier; deployment env as default; brand per form; CSP check                                                                                                                                                       | A2         | L    | O               |
+| P2  | Progress modes: side rail, top indicator, none; no-JS links; narrow fold                                                                                                                                                                                | A5         | L    | O               |
+| P3  | Respondent menu with legibility face; keep `POST /appearance`                                                                                                                                                                                           | P1         | M    | O               |
+| P4  | Text-size scale: root multiplier, cap 32 px, reflow at 320 px                                                                                                                                                                                           | P3         | M    | O               |
+| S1  | Design system artifact: TextSize card, Appearance drawer, preview toolbar, rail states                                                                                                                                                                  | W1         | S    | S               |
+| S2  | Docs: `docs/theming.md`, `docs/operations.md`, `docs/deploy-enterprise.md`, `apps/portal/README.md`, `docs/agent-authoring.md`, create-qcms-app templates                                                                                               | W1, A1     | S    | S               |
+| X1  | Vitest with each task: contrast and derivation, fetcher with fake resolver, text-size rule, rail state derivation                                                                                                                                       | with tasks | n/a  | O, S            |
+| X2  | Playwright portal: rail at 1024 and 390, no-JS, respondent menu, reflow at 320, axe in light, dark and high contrast, appearance frozen across publish                                                                                                  | P1 to P4   | M    | O               |
+| X3  | Playwright admin: shell, device switch, inspect, drawer to publish to portal, derive against a local fixture server                                                                                                                                     | U1 to U5   | L    | O               |
+| X4  | SEC-17 sentinel and vocabulary tests over new facts and tools                                                                                                                                                                                           | G1 to G4   | M    | S               |
 
 The old builder screens are not retired (Q1), so there is no retirement task.
 
