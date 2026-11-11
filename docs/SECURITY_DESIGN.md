@@ -144,7 +144,7 @@ A database read alone does not, which is the property §4's "encrypted at rest" 
 040 should see this reasoning rather than inherit a quietly relaxed promise.
 
 **The recorded break-glass: `qcms:reset-2fa` (issue #432, Code Owner decision 2026-09-07).**
-The in-app credential and factor reset by a Site administrator, with session revocation and response-membership suspension, is specified in [`docs/WORKSPACE_ACCESS.md` section 7](WORKSPACE_ACCESS.md#7-accounts); whether this command remains beside it is undecided there.
+The in-app credential and factor reset by a Site administrator, with session revocation and response-membership suspension, is specified in [`docs/WORKSPACE_ACCESS.md` section 7](WORKSPACE_ACCESS.md#7-accounts); this command, with `qcms:create-admin`, remains as the break-glass path for when no Site administrator can sign in ([`docs/WORKSPACE_ACCESS.md` section 8](WORKSPACE_ACCESS.md#8-site-administrators)).
 The paragraph above closes a door, and for a while nothing took its place.
 While the recovery codes were stored as plain JSON, an operator who had lost access could read them out of the database - not a designed recovery path, a consequence of the defect #319 fixed.
 With them encrypted under the same key as the TOTP secret, a lost or changed `QCMS_ADMIN_AUTH_SECRET` or a lost device left an administrator locked out with **no documented way back**, which is a real state and not a hypothetical: task 056 hit it in development.

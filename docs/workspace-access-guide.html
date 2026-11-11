@@ -1,0 +1,1331 @@
+<title>QCMS Workspace Access</title>
+<meta name="claude:viewport-fit-sides" content="cover" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@600&display=swap"
+/>
+<style>
+  /* Layout: a reference manual. Sticky contents column beside one reading column; stacks on phones. */
+  :root {
+    --bg: #fafbfa;
+    --surface: #eff3f2;
+    --fg: #1b2422;
+    --muted: #4a5753;
+    --line: #d3dcd9;
+    --accent: #1d5c6e;
+    --accent-soft: #e0eef1;
+    --note-bg: #fbf5e6;
+    --note-line: #c9a24a;
+    --note-fg: #4d3b0e;
+    --env-bg: #e6ecea;
+    --env-fg: #23413a;
+    --focus: #1d5c6e;
+    --font-body: "IBM Plex Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+    --font-head: "IBM Plex Serif", Georgia, "Times New Roman", serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121817;
+      --surface: #1a2220;
+      --fg: #e3ebe8;
+      --muted: #a9b7b2;
+      --line: #2f3b38;
+      --accent: #84c8da;
+      --accent-soft: #1b3038;
+      --note-bg: #2a2412;
+      --note-line: #9c7d33;
+      --note-fg: #f0dfb3;
+      --env-bg: #24312e;
+      --env-fg: #cfe5de;
+      --focus: #84c8da;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #121817;
+    --surface: #1a2220;
+    --fg: #e3ebe8;
+    --muted: #a9b7b2;
+    --line: #2f3b38;
+    --accent: #84c8da;
+    --accent-soft: #1b3038;
+    --note-bg: #2a2412;
+    --note-line: #9c7d33;
+    --note-fg: #f0dfb3;
+    --env-bg: #24312e;
+    --env-fg: #cfe5de;
+    --focus: #84c8da;
+    color-scheme: dark;
+  }
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-body);
+    font-size: 1rem;
+    line-height: 1.6;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  a {
+    color: var(--accent);
+    text-underline-offset: 2px;
+  }
+  a:focus-visible,
+  main:focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+  .skip {
+    position: absolute;
+    left: -9999px;
+    top: 0;
+  }
+  .skip:focus {
+    left: max(16px, env(safe-area-inset-left, 0px));
+    top: calc(env(safe-area-inset-top, 0px) + 8px);
+    background: var(--bg);
+    padding: 8px 12px;
+    z-index: 20;
+    border: 2px solid var(--focus);
+  }
+  .page {
+    max-width: 1120px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 32px;
+    padding-block: 32px 64px;
+  }
+  @media (min-width: 900px) {
+    .page {
+      grid-template-columns: 240px minmax(0, 1fr);
+      gap: 48px;
+    }
+  }
+  header.top {
+    grid-column: 1 / -1;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 20px;
+  }
+  .eyebrow {
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+    margin: 0;
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-head);
+    text-wrap: balance;
+    line-height: 1.25;
+    font-weight: 600;
+  }
+  h1 {
+    font-size: 2rem;
+    margin: 6px 0 8px;
+  }
+  h2 {
+    font-size: 1.5rem;
+    margin: 0 0 12px;
+    padding-top: 8px;
+  }
+  h3 {
+    font-size: 1.12rem;
+    margin: 28px 0 8px;
+    font-family: var(--font-body);
+    scroll-margin-top: 16px;
+  }
+  .lede {
+    font-size: 1.08rem;
+    color: var(--muted);
+    max-width: 62ch;
+    margin: 0;
+  }
+  nav.toc {
+    font-size: 0.92rem;
+    min-width: 0;
+  }
+  @media (min-width: 900px) {
+    nav.toc {
+      position: sticky;
+      top: calc(env(safe-area-inset-top, 0px) + 24px);
+      align-self: start;
+      max-height: calc(100vh - 48px);
+      overflow-y: auto;
+    }
+  }
+  nav.toc h2 {
+    font-family: var(--font-body);
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  nav.toc ol {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 2px;
+  }
+  nav.toc ol ol {
+    padding-left: 14px;
+    margin: 2px 0 6px;
+    border-left: 1px solid var(--line);
+  }
+  nav.toc a {
+    text-decoration: none;
+    display: block;
+    padding: 3px 6px;
+    border-radius: 4px;
+    color: var(--fg);
+  }
+  nav.toc ol ol a {
+    color: var(--muted);
+  }
+  nav.toc a:hover {
+    background: var(--surface);
+    color: var(--accent);
+  }
+  main {
+    min-width: 0;
+  }
+  main section {
+    padding-bottom: 28px;
+    margin-bottom: 28px;
+    border-bottom: 1px solid var(--line);
+    scroll-margin-top: 16px;
+  }
+  main section:last-child {
+    border-bottom: 0;
+  }
+  p,
+  li {
+    max-width: 68ch;
+  }
+  ol.steps {
+    padding-left: 1.4em;
+    display: grid;
+    gap: 4px;
+  }
+  .meta {
+    font-size: 0.9rem;
+    color: var(--muted);
+    margin: 0 0 6px;
+  }
+  .meta strong {
+    color: var(--fg);
+    font-weight: 600;
+  }
+  .env {
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    background: var(--env-bg);
+    color: var(--env-fg);
+    padding: 1px 6px;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+  .status {
+    background: var(--note-bg);
+    color: var(--note-fg);
+    border-left: 4px solid var(--note-line);
+    padding: 12px 16px;
+    margin: 16px 0 0;
+    max-width: 68ch;
+    border-radius: 0 4px 4px 0;
+  }
+  .unsettled {
+    background: var(--note-bg);
+    color: var(--note-fg);
+    border-left: 3px solid var(--note-line);
+    padding: 8px 12px;
+    font-size: 0.94rem;
+    border-radius: 0 4px 4px 0;
+  }
+  .unsettled strong {
+    font-weight: 600;
+  }
+  .tip {
+    background: var(--accent-soft);
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 0.94rem;
+  }
+  .refused {
+    font-size: 0.94rem;
+  }
+  .refused strong {
+    font-weight: 600;
+  }
+  .table-wrap {
+    overflow-x: auto;
+    margin: 12px 0 16px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+  }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.93rem;
+    min-width: 560px;
+  }
+  caption {
+    text-align: left;
+    padding: 8px 12px;
+    font-size: 0.78rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  th,
+  td {
+    text-align: left;
+    vertical-align: top;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  thead th {
+    background: var(--surface);
+    font-weight: 600;
+    font-size: 0.85rem;
+  }
+  tbody tr:last-child th,
+  tbody tr:last-child td {
+    border-bottom: 0;
+  }
+  tbody th {
+    font-weight: 500;
+  }
+  dl.gloss {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px 24px;
+    margin: 0;
+  }
+  @media (min-width: 640px) {
+    dl.gloss {
+      grid-template-columns: 13rem minmax(0, 1fr);
+    }
+  }
+  dl.gloss dt {
+    font-weight: 600;
+    padding-top: 8px;
+  }
+  dl.gloss dd {
+    margin: 0;
+    padding-top: 8px;
+  }
+  @media (min-width: 640px) {
+    dl.gloss dt,
+    dl.gloss dd {
+      border-top: 1px solid var(--line);
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+</style>
+
+<a class="skip" href="#content">Skip to content</a>
+
+<div class="page">
+  <header class="top">
+    <p class="eyebrow">QCMS admin app &middot; User guide</p>
+    <h1>Workspace access</h1>
+    <p class="lede">
+      Who can see and change forms and responses in QCMS, and how to give, change and take away that
+      access.
+    </p>
+    <p class="status" role="note">
+      This guide describes how workspace access is designed to work. Parts of it are not yet
+      available in the product.
+    </p>
+  </header>
+
+  <nav class="toc" aria-labelledby="toc-heading">
+    <h2 id="toc-heading">Contents</h2>
+    <ol>
+      <li><a href="#how">How access works</a></li>
+      <li><a href="#roles">What each role lets you do</a></li>
+      <li><a href="#starter">Starter groups</a></li>
+      <li>
+        <a href="#everyone">For everyone</a>
+        <ol>
+          <li><a href="#my-access">See your access</a></li>
+          <li><a href="#cant">Find out why you can't do something</a></li>
+          <li><a href="#my-account">Manage your account</a></li>
+          <li><a href="#first-sign-in">Sign in for the first time</a></li>
+        </ol>
+      </li>
+      <li>
+        <a href="#wsadmin">For Workspace administrators</a>
+        <ol>
+          <li><a href="#add-person">Add a person</a></li>
+          <li><a href="#change-access">Change or remove access</a></li>
+          <li><a href="#appoint-wsadmin">Appoint a Workspace administrator</a></li>
+          <li><a href="#groups">Create or change an access group</a></li>
+          <li><a href="#new-env">When a new environment appears</a></li>
+          <li><a href="#second-approval">Turn second approval on or off</a></li>
+          <li><a href="#reconfirm">Re-confirm a suspended membership</a></li>
+          <li><a href="#settings">Rename the workspace</a></li>
+          <li><a href="#ws-audit">Read the workspace audit</a></li>
+          <li><a href="#archive">Archive the workspace</a></li>
+          <li><a href="#move-form">Move a form</a></li>
+          <li><a href="#library">The shared question library</a></li>
+          <li><a href="#leaves">When someone leaves</a></li>
+        </ol>
+      </li>
+      <li>
+        <a href="#siteadmin">For Site administrators</a>
+        <ol>
+          <li><a href="#create-account">Create an account</a></li>
+          <li><a href="#disable">Disable or reactivate an account</a></li>
+          <li><a href="#reset">Reset someone's sign-in</a></li>
+          <li><a href="#appoint-siteadmin">Appoint another Site administrator</a></li>
+          <li><a href="#approvals">Decide approval requests</a></li>
+          <li><a href="#create-ws">Create a workspace</a></li>
+          <li><a href="#site-audit">Read the site audit</a></li>
+        </ol>
+      </li>
+      <li><a href="#publishing">Publishing a form</a></li>
+      <li><a href="#one-person">A one-person site</a></li>
+      <li><a href="#troubleshooting">Why was this refused?</a></li>
+      <li><a href="#glossary">Glossary</a></li>
+    </ol>
+  </nav>
+
+  <main id="content" tabindex="-1">
+    <section id="how" aria-labelledby="how-h">
+      <h2 id="how-h">How access works</h2>
+      <ul>
+        <li>
+          <strong>Your account</strong> is your sign-in for the whole site. On its own, an account
+          lets you do nothing except manage itself.
+        </li>
+        <li>
+          <strong>A workspace</strong> is the only boundary. Forms and questions belong to one
+          workspace. There is no separate access per form: if you can do something to one form in a
+          workspace, you can do it to every form there. A site that needs separate zones uses
+          separate workspaces.
+        </li>
+        <li>
+          <strong>An access group</strong> belongs to one workspace. It has a set of roles (what you
+          can do) and a set of environments (where, such as <span class="env">test</span> or
+          <span class="env">prod</span>). Everyone in the group holds every role in it, in every
+          environment it names, for every form in the workspace.
+        </li>
+        <li>
+          <strong>Groups add up.</strong> If you are in two groups, you can do everything either one
+          allows.
+        </li>
+        <li>
+          <strong>Environments are named one by one.</strong> There is no "all environments" choice.
+          View forms and Edit forms work the same everywhere, so they need no environment. Publish
+          forms, View responses and Erase responses work only in the environments the group names.
+        </li>
+        <li>
+          <strong>Administrators administer.</strong> A Workspace administrator manages one
+          workspace's people, groups, settings and audit. A Site administrator manages accounts,
+          workspaces and the site. Neither role lets you see forms or responses. To do that, an
+          administrator is added to an access group like anyone else.
+        </li>
+        <li>
+          <strong>New forms need no setup.</strong> When a form is created, the workspace's groups
+          apply to it straight away. Creating, publishing or closing a form never changes any group.
+        </li>
+        <li>
+          <strong>The assistant follows your access.</strong> It can only show or do what you could
+          do yourself on the screen.
+        </li>
+        <li>
+          <strong>Changes apply at once.</strong> When access is granted or revoked, or an account
+          is disabled, the person's next action is checked against the new access.
+        </li>
+      </ul>
+    </section>
+
+    <section id="roles" aria-labelledby="roles-h">
+      <h2 id="roles-h">What each role lets you do</h2>
+      <p>
+        Use this table to decide which access group to add someone to. The starter group column
+        assumes the workspace still has its four starter groups as created.
+      </p>
+      <div class="table-wrap">
+        <table>
+          <caption>
+            Roles and where they apply
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">If the person needs to</th>
+              <th scope="col">They need</th>
+              <th scope="col">Environments</th>
+              <th scope="col">Starter group</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">Read forms, questions, versions and publish history</th>
+              <td>View forms (Edit forms and Publish forms can do this too)</td>
+              <td>Everywhere</td>
+              <td>Authors, Publishers</td>
+            </tr>
+            <tr>
+              <th scope="row">Draft and edit forms and questions, preview, pin shared questions</th>
+              <td>Edit forms</td>
+              <td>Everywhere</td>
+              <td>Authors</td>
+            </tr>
+            <tr>
+              <th scope="row">Publish a draft (freezes the next version)</th>
+              <td>Edit forms and Publish forms</td>
+              <td>Each one named</td>
+              <td>Authors (<span class="env">test</span>)</td>
+            </tr>
+            <tr>
+              <th scope="row">Publish an existing version</th>
+              <td>Publish forms</td>
+              <td>Each one named</td>
+              <td>
+                Authors (<span class="env">test</span>), Publishers (<span class="env">prod</span>)
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">Open or close a form, create or revoke links, set up webhooks</th>
+              <td>Publish forms</td>
+              <td>Each one named</td>
+              <td>
+                Authors (<span class="env">test</span>), Publishers (<span class="env">prod</span>)
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">View and export responses</th>
+              <td>View responses</td>
+              <td>Each one named</td>
+              <td>
+                Authors (<span class="env">test</span>), Response viewers (<span class="env"
+                  >prod</span
+                >)
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">Erase responses (without reading them)</th>
+              <td>Erase responses</td>
+              <td>Each one named</td>
+              <td>Response erasers (<span class="env">prod</span>)</td>
+            </tr>
+            <tr>
+              <th scope="row">Move a form to another workspace</th>
+              <td>Edit forms in both workspaces</td>
+              <td>Everywhere</td>
+              <td>Authors, in both</td>
+            </tr>
+            <tr>
+              <th scope="row">Manage a workspace's people, groups, settings, audit and archive</th>
+              <td>Workspace administrator</td>
+              <td>Not a group</td>
+              <td>None</td>
+            </tr>
+            <tr>
+              <th scope="row">Manage accounts, workspaces and Site administrators</th>
+              <td>Site administrator</td>
+              <td>Not a group</td>
+              <td>None</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <ul>
+        <li>
+          Someone with View forms only sees a webhook address with its query part hidden. Edit forms
+          and Publish forms show the whole address.
+        </li>
+        <li>Someone with Erase responses cannot read or export the responses they erase.</li>
+        <li>No administrator ever reads a response because of being an administrator.</li>
+      </ul>
+    </section>
+
+    <section id="starter" aria-labelledby="starter-h">
+      <h2 id="starter-h">Starter groups</h2>
+      <p>
+        Every new workspace starts with four access groups. They are ordinary groups: you can
+        rename, change or delete them.
+      </p>
+      <div class="table-wrap">
+        <table>
+          <caption>
+            The four starter groups
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Group</th>
+              <th scope="col">Roles</th>
+              <th scope="col">Environments</th>
+              <th scope="col">Typical member</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">Authors</th>
+              <td>Edit forms, Publish forms, View responses</td>
+              <td><span class="env">test</span></td>
+              <td>Builds forms and tries them out in test</td>
+            </tr>
+            <tr>
+              <th scope="row">Publishers</th>
+              <td>Publish forms</td>
+              <td><span class="env">prod</span></td>
+              <td>Puts tested versions live and runs them</td>
+            </tr>
+            <tr>
+              <th scope="row">Response viewers</th>
+              <td>View responses</td>
+              <td><span class="env">prod</span></td>
+              <td>Reads and exports real responses</td>
+            </tr>
+            <tr>
+              <th scope="row">Response erasers</th>
+              <td>Erase responses</td>
+              <td><span class="env">prod</span></td>
+              <td>Handles erasure requests</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <ul>
+        <li>Starter groups start empty, except on a <a href="#one-person">one-person site</a>.</li>
+        <li>
+          Someone who builds in <span class="env">test</span> and also publishes to
+          <span class="env">prod</span> belongs to two groups, Authors and Publishers. That keeps
+          production access visible.
+        </li>
+        <li>
+          Responses in <span class="env">test</span> are still personal data. Authors can read them
+          because the group says so, not by default.
+        </li>
+        <li>
+          On a site with more environments than <span class="env">test</span> and
+          <span class="env">prod</span>, such as <span class="env">dev</span>, Authors covers every
+          environment except <span class="env">prod</span>. Publishers, Response viewers and
+          Response erasers cover <span class="env">prod</span>.
+        </li>
+        <li>
+          Starter groups are a starting point, not protected. A Workspace administrator can rename
+          or delete them.
+        </li>
+      </ul>
+    </section>
+
+    <section id="everyone" aria-labelledby="everyone-h">
+      <h2 id="everyone-h">For everyone</h2>
+
+      <h3 id="my-access">See your access</h3>
+      <p class="meta">
+        <strong>Who:</strong> everyone &middot; <strong>Where:</strong> Account menu, My access
+      </p>
+      <ol class="steps">
+        <li>Open the Account menu in the top bar.</li>
+        <li>Choose My access.</li>
+      </ol>
+      <p>
+        You see each action, by environment, with the access group that grants it, or "no group
+        grants this".
+      </p>
+
+      <h3 id="cant">Find out why you can't do something</h3>
+      <p class="meta"><strong>Who:</strong> everyone</p>
+      <ul>
+        <li>
+          Where an action is unavailable on a Forms, Operations or Responses screen, QCMS shows it
+          disabled with a short reason.
+        </li>
+        <li>
+          Check My access. If no group grants the action in that environment, ask a Workspace
+          administrator of that workspace to add you to a group that does.
+        </li>
+        <li>
+          If you have no access to anything yet, your home page says so, names an administrator to
+          ask, and links to My access.
+        </li>
+        <li>You only see the workspaces you hold something in.</li>
+      </ul>
+
+      <h3 id="my-account">Manage your account</h3>
+      <p class="meta">
+        <strong>Who:</strong> everyone, administrators included &middot;
+        <strong>Where:</strong> Account menu, My account
+      </p>
+      <p>
+        Manage your own password, second factor, recovery codes and sessions. Nobody else does this
+        for you. If you are locked out, ask a Site administrator to
+        <a href="#reset">reset your sign-in</a>.
+      </p>
+
+      <h3 id="first-sign-in">Sign in for the first time</h3>
+      <p class="meta">
+        <strong>Who:</strong> a person whose account a Site administrator has just created
+      </p>
+      <ol class="steps">
+        <li>
+          Open the sign-in email QCMS sent to your address and follow its link. The link works once
+          and lasts 72 hours.
+        </li>
+        <li>Set your password.</li>
+        <li>Enrol a second factor. You cannot do anything else until both are done.</li>
+      </ol>
+      <p>
+        Nobody else sees your link or chooses your password. After you sign in, you see whatever
+        access a Workspace administrator has given you, or the no-access home page.
+      </p>
+      <p class="refused">
+        <strong>If refused:</strong> a link that has been used or has expired does not work. Ask a
+        Site administrator to send a new one.
+      </p>
+    </section>
+
+    <section id="wsadmin" aria-labelledby="wsadmin-h">
+      <h2 id="wsadmin-h">For Workspace administrators</h2>
+      <p>
+        You manage one workspace from its Workspace area: Members, Access groups, Settings, Audit
+        and Archive. A Site administrator can do all of this in every workspace too. Being an
+        administrator does not let you see forms or responses; add yourself to a group if you need
+        that.
+      </p>
+
+      <h3 id="add-person">Add a person to the workspace</h3>
+      <p class="meta">
+        <strong>Who:</strong> Workspace administrator, Site administrator &middot;
+        <strong>Where:</strong> Workspace area, Members or Access groups
+      </p>
+      <ol class="steps">
+        <li>
+          Enter the person's exact email address. You cannot browse or search the site's accounts.
+        </li>
+        <li>
+          Choose the access group or groups they need (see
+          <a href="#roles">What each role lets you do</a>).
+        </li>
+        <li>
+          Check the preview: it shows what they gain, in which environments, and whether approval is
+          needed.
+        </li>
+        <li>Confirm with Grant.</li>
+      </ol>
+      <p>
+        The person can use the new access on their next action. The grant is recorded in the
+        workspace audit.
+      </p>
+      <p class="refused">
+        <strong>If refused:</strong> an address that is unknown, disabled, or belongs to an account
+        not yet claimed gets the same general answer for all three. Ask a Site administrator to
+        check or create the account.
+      </p>
+      <p class="tip">
+        Adding yourself to a group that has View responses or Erase responses needs an approver
+        while <a href="#second-approval">second approval</a> is on. With it off, you can do it
+        yourself, and the grant and every later read are recorded in the audit.
+      </p>
+
+      <h3 id="change-access">Change or remove someone's access</h3>
+      <p class="meta">
+        <strong>Who:</strong> Workspace administrator, Site administrator &middot;
+        <strong>Where:</strong> Workspace area, Members (the person's access) or Access groups
+      </p>
+      <ol class="steps">
+        <li>Open the person, or the access group.</li>
+        <li>Grant them another group, or Revoke them from one.</li>
+        <li>Check the preview of what they gain or lose, then confirm.</li>
+      </ol>
+      <p>
+        Revoke always works and takes effect on the person's next action. The only exception is the
+        last Workspace administrator, below.
+      </p>
+
+      <h3 id="appoint-wsadmin">Appoint or remove a Workspace administrator</h3>
+      <p class="meta">
+        <strong>Who:</strong> Workspace administrator, Site administrator &middot;
+        <strong>Where:</strong> Workspace area, Members
+      </p>
+      <p>
+        Workspace administrator is set on the person, not through a group. A workspace must keep at
+        least one active Workspace administrator who has claimed their account. For the last one,
+        Remove or Demote is disabled for everyone, Site administrators included, with the reason and
+        a link to appoint someone else first. Being a Site administrator does not count as being
+        that workspace's administrator.
+      </p>
+
+      <h3 id="groups">Create or change an access group</h3>
+      <p class="meta">
+        <strong>Who:</strong> Workspace administrator, Site administrator &middot;
+        <strong>Where:</strong> Workspace area, Access groups
+      </p>
+      <ol class="steps">
+        <li>Open Access groups, then New access group, or open an existing group.</li>
+        <li>
+          Name it and tick the roles it carries: View forms, Edit forms, Publish forms, View
+          responses, Erase responses.
+        </li>
+        <li>
+          If you ticked Publish forms, View responses or Erase responses, tick each environment it
+          should cover. A group with only View forms or Edit forms shows no environment choice.
+        </li>
+        <li>Check the preview of who gains or loses what, then confirm.</li>
+      </ol>
+      <p>
+        The group applies to every form in the workspace at once. Saving never adds an environment
+        you did not tick. A group never reaches into another workspace.
+      </p>
+      <p>
+        You choose each group's name, and you can rename or delete any group, starter groups
+        included. If no group covers a role or an environment any more, Access groups shows a
+        notice.
+      </p>
+
+      <h3 id="new-env">When a new environment appears</h3>
+      <p class="meta">
+        <strong>Who:</strong> Workspace administrator, Site administrator &middot;
+        <strong>Where:</strong> Workspace area, Access groups
+      </p>
+      <p>
+        A new environment is covered by no group, so nobody can publish, view responses or erase
+        responses there yet. Access groups shows a notice such as "Environment X: no group covers it
+        yet." Open each group that should cover it, tick the environment, and confirm.
+      </p>
+
+      <h3 id="second-approval">Turn second approval on or off</h3>
+      <p class="meta">
+        <strong>Who:</strong> Workspace administrator, Site administrator &middot;
+        <strong>Where:</strong> Workspace area, Settings
+      </p>
+      <p>
+        Second approval is off by default and applies only in <span class="env">prod</span>. While
+        it is on:
+      </p>
+      <ul>
+        <li>
+          The person who froze a version cannot publish it to <span class="env">prod</span>. Someone
+          else with Publish forms for <span class="env">prod</span> does, and is recorded as the
+          approver.
+        </li>
+        <li>
+          A webhook change in <span class="env">prod</span> is held until someone else with Publish
+          forms for <span class="env">prod</span> confirms it.
+        </li>
+        <li>Links and opening or closing a form need no approval.</li>
+        <li>
+          Turning the rule off, and adding yourself to a group with a response role, need an
+          approver: a different Workspace administrator of this workspace, or a Site administrator
+          who is not you.
+        </li>
+        <li>Nobody can approve their own request.</li>
+      </ul>
+      <p>
+        A request to turn the rule off, or to add yourself to a group with a response role, waits
+        for the approver. Workspace administrators find it under Requests on the workspace's Audit
+        screen; Site administrators find it under Approval requests in Site configuration. A request
+        lasts 7 days.
+      </p>
+      <p class="refused">
+        <strong>If refused:</strong> turning it on is refused when nobody else could approve,
+        because there is no second administrator (another Workspace administrator, or a Site
+        administrator) or no second person with Publish forms for <span class="env">prod</span>.
+      </p>
+
+      <h3 id="reconfirm">Re-confirm a suspended membership</h3>
+      <p class="meta">
+        <strong>Who:</strong> Workspace administrator, Site administrator &middot;
+        <strong>Where:</strong> Workspace area, Members
+      </p>
+      <p>
+        After a Site administrator resets someone's sign-in or reactivates their account, that
+        person's places in groups with View responses or Erase responses are suspended in your
+        workspace. Their other access works as normal. Re-confirm each suspended membership you
+        still want. By default, where another administrator exists, the re-confirmation must come
+        from someone other than the person who did the reset or reactivation. A Site administrator
+        can re-confirm too, unless they did the reset or reactivation themselves.
+      </p>
+
+      <h3 id="settings">Rename the workspace</h3>
+      <p class="meta">
+        <strong>Who:</strong> Workspace administrator, Site administrator &middot;
+        <strong>Where:</strong> Workspace area, Settings
+      </p>
+      <p>Change the name. The workspace's identifier in web addresses stays the same.</p>
+
+      <h3 id="ws-audit">Read the workspace audit</h3>
+      <p class="meta">
+        <strong>Who:</strong> Workspace administrator of this workspace, Site administrator &middot;
+        <strong>Where:</strong> Workspace area, Audit
+      </p>
+      <p>
+        The audit records response reads, exports and erasures; every access change (groups,
+        members, administrators, re-confirmations); workspace changes (rename, archive, forms moved
+        in or out, the second approval switch); assistant actions; and site-level acts that affect
+        this workspace, such as a reset of one of its members. Nobody can edit or delete an entry.
+      </p>
+
+      <h3 id="archive">Archive the workspace</h3>
+      <p class="meta">
+        <strong>Who:</strong> Workspace administrator, Site administrator &middot;
+        <strong>Where:</strong> Workspace area, Archive (shown when the site has two or more
+        workspaces)
+      </p>
+      <ol class="steps">
+        <li>
+          Move every form out of the workspace first, including closed and never-published ones.
+        </li>
+        <li>Open Archive and type the workspace name to confirm.</li>
+      </ol>
+      <p>Archiving cannot be undone.</p>
+      <p class="refused">
+        <strong>If refused:</strong> archive is refused while the workspace owns any form, or while
+        it is the shared question library. The reason is shown on the screen.
+      </p>
+
+      <h3 id="move-form">Move a form to another workspace</h3>
+      <p class="meta">
+        <strong>Who:</strong> anyone with Edit forms in both workspaces &middot;
+        <strong>Where:</strong> Forms, the form's Move form screen
+      </p>
+      <ol class="steps">
+        <li>Open the form and choose Move form.</li>
+        <li>Pick the destination workspace.</li>
+        <li>
+          Read the confirmation: it names who gains and who loses access, because the destination's
+          groups will apply.
+        </li>
+        <li>Confirm.</li>
+      </ol>
+      <p>The form's responses move with it. No group changes in either workspace.</p>
+      <p class="refused">
+        <strong>If refused:</strong> you need Edit forms in the destination workspace too. Ask its
+        Workspace administrator.
+      </p>
+      <p>
+        Questions cannot be moved between workspaces. To reuse a question across workspaces, put it
+        in the <a href="#library">shared question library</a>.
+      </p>
+
+      <h3 id="library">The shared question library</h3>
+      <p>
+        A site can mark one workspace as the shared question library; a Site administrator does this
+        in Site configuration. Everyone with Edit forms in any workspace can see and pin its
+        questions, which show a shared tag. Only people with Edit forms in the library workspace
+        itself can change them. Publishing a question freezes a version others can pin; it involves
+        no environment.
+      </p>
+
+      <h3 id="leaves">When someone leaves</h3>
+      <ul>
+        <li>In your workspace, Revoke the person from each group.</li>
+        <li>If they are a Workspace administrator, appoint someone else before removing them.</li>
+        <li>
+          Ask a Site administrator to <a href="#disable">disable their account</a>. Only a Site
+          administrator can do that, and it ends their access in every workspace at once.
+        </li>
+      </ul>
+    </section>
+
+    <section id="siteadmin" aria-labelledby="siteadmin-h">
+      <h2 id="siteadmin-h">For Site administrators</h2>
+      <p>
+        You work from Site configuration: Accounts, Site administrators, Approval requests, Site
+        audit, Workspaces, New workspace and Shared question library. You can also administer every
+        workspace as its Workspace administrator would. Being a Site administrator does not let you
+        read forms or responses; add yourself to a group in a workspace if you need that.
+      </p>
+
+      <h3 id="create-account">Create an account</h3>
+      <p class="meta"><strong>Where:</strong> Site configuration, Accounts</p>
+      <ol class="steps">
+        <li>Enter the person's email address.</li>
+        <li>
+          Confirm. QCMS emails a single-use sign-in link, valid for 72 hours, straight to that
+          address.
+        </li>
+      </ol>
+      <p class="refused">
+        <strong>If refused:</strong> you cannot create accounts until email is set up for the site.
+        Only the very first account, created when QCMS is installed, is made without it.
+      </p>
+      <p>
+        You never see the link or a password. Until the person uses the link, the account is
+        unclaimed: it cannot act, cannot approve anything, and does not count as a workspace's
+        administrator. Creating the account, and any grant made while it is unclaimed, is recorded
+        in the audit. Next, a Workspace administrator adds the person to groups.
+      </p>
+
+      <h3 id="disable">Disable or reactivate an account</h3>
+      <p class="meta"><strong>Where:</strong> Site configuration, Accounts, the account's page</p>
+      <ol class="steps">
+        <li>Open the account. Its page shows what the person holds in every workspace.</li>
+        <li>
+          Choose Disable account. If they are the last Workspace administrator of any workspace, the
+          confirmation lists those workspaces; the disable still goes ahead.
+        </li>
+        <li>Confirm.</li>
+      </ol>
+      <p>
+        Their sessions end immediately, a running export stops, and any assistant action waiting for
+        their confirmation is refused. Their group memberships are kept.
+      </p>
+      <p>
+        <strong>To reactivate</strong>, open the account and reactivate it. The person gets an
+        emailed link to set a new password and enrol a second factor again. Their memberships return
+        at once, except places in groups with View responses or Erase responses, which stay
+        suspended until a Workspace administrator in each workspace
+        <a href="#reconfirm">re-confirms</a> them.
+      </p>
+      <p>
+        <strong>Disabling a Site administrator</strong> is the same Disable account. You re-enter
+        your password and second factor, and where there is more than one Site administrator, a
+        second one must approve it under Approval requests. There is no separate suspend.
+      </p>
+      <p>Accounts cannot be deleted, only disabled, so the audit history keeps its names.</p>
+      <p class="refused">
+        <strong>If refused:</strong> you cannot disable the last active Site administrator.
+        Workspace administrators cannot disable accounts at all.
+      </p>
+
+      <h3 id="reset">Reset someone's sign-in</h3>
+      <p class="meta"><strong>Where:</strong> Site configuration, Accounts, the account's page</p>
+      <ol class="steps">
+        <li>Open the account.</li>
+        <li>Reset its password or its second factor, and confirm.</li>
+      </ol>
+      <p>
+        All of the person's sessions end at the same moment. Their places in groups with View
+        responses or Erase responses are suspended until a Workspace administrator of each workspace
+        re-confirms them; other access keeps working. The reset is recorded in the site audit and in
+        each affected workspace's audit.
+      </p>
+      <p>
+        By default, where another administrator exists, someone other than you does the
+        re-confirmation. On a site with only one administrator this cannot be enforced, and the
+        audit entry is the only check.
+      </p>
+      <p>
+        The person signs in again through an emailed single-use link and sets a new password and
+        second factor, the same way as a new account.
+      </p>
+
+      <h3 id="appoint-siteadmin">Appoint another Site administrator</h3>
+      <p class="meta"><strong>Where:</strong> Site configuration, Site administrators</p>
+      <ol class="steps">
+        <li>Choose the account to promote, or the Site administrator to demote.</li>
+        <li>Confirm with your password and second factor.</li>
+        <li>
+          If there are two or more Site administrators, the change waits as an approval request
+          until another Site administrator approves it.
+        </li>
+      </ol>
+      <p>
+        New accounts are never Site administrators. By default, when you are the only Site
+        administrator, your password and second factor alone are enough to promote a second one, and
+        the last active Site administrator can never be demoted. Every change is recorded in an
+        audit that nobody can edit.
+      </p>
+
+      <h3 id="approvals">Decide approval requests</h3>
+      <p class="meta"><strong>Where:</strong> Site configuration, Approval requests</p>
+      <p>
+        Approve or reject a pending request from another Site administrator, or a workspace request
+        to turn second approval off or to let an administrator add themselves to a group with a
+        response role. You cannot approve your own. A request that nobody decides expires after 7
+        days and can no longer be approved. Requests, approvals, rejections and expiries are all
+        recorded in the site audit.
+      </p>
+
+      <h3 id="create-ws">Create a workspace</h3>
+      <p class="meta"><strong>Where:</strong> Site configuration, New workspace</p>
+      <ol class="steps">
+        <li>Name the workspace.</li>
+        <li>Enter the email address of its first Workspace administrator. It defaults to you.</li>
+        <li>Confirm.</li>
+      </ol>
+      <p>
+        The workspace opens with the four <a href="#starter">starter groups</a>, empty, and a short
+        checklist. The Workspace administrator then adds people to groups. Only Site administrators
+        can create workspaces.
+      </p>
+      <p>
+        To make a workspace the <a href="#library">shared question library</a>, use Shared question
+        library in Site configuration. It appears when the site has two or more workspaces.
+      </p>
+
+      <h3 id="site-audit">Read the site audit</h3>
+      <p class="meta"><strong>Where:</strong> Site configuration, Site audit</p>
+      <p>
+        Records account acts (create, disable, reactivate, reset) and Site administrator acts
+        (promotions, demotions and approval requests). An act that affects a workspace is also
+        copied into that workspace's audit. Nobody can edit or delete an entry.
+      </p>
+    </section>
+
+    <section id="publishing" aria-labelledby="publishing-h">
+      <h2 id="publishing-h">Publishing a form</h2>
+      <p>
+        Publish makes a version live in one environment. The same numbered version moves from
+        <span class="env">test</span> to <span class="env">prod</span>, so what you tested is
+        exactly what goes live.
+      </p>
+
+      <h3 id="publish-test">Publish a draft to test</h3>
+      <p class="meta">
+        <strong>Who:</strong> Edit forms and Publish forms for
+        <span class="env">test</span> (Authors has both) &middot; <strong>Where:</strong> Forms, the
+        form's Publish screen
+      </p>
+      <ol class="steps">
+        <li>Open the form and go to Publish.</li>
+        <li>Choose Publish to <span class="env">test</span>.</li>
+      </ol>
+      <p>
+        The draft is frozen as the next numbered version and goes live in
+        <span class="env">test</span> in one step. Edit forms alone cannot freeze a version.
+      </p>
+
+      <h3 id="publish-prod">Publish the same version to prod</h3>
+      <p class="meta">
+        <strong>Who:</strong> Publish forms for <span class="env">prod</span> (Publishers) &middot;
+        <strong>Where:</strong> Forms, the form's Publish screen
+      </p>
+      <ol class="steps">
+        <li>Open the form and go to Publish.</li>
+        <li>Pick the version already published to <span class="env">test</span>.</li>
+        <li>Choose Publish to <span class="env">prod</span>.</li>
+      </ol>
+      <p>
+        Nothing is frozen or changed; the same version becomes live in
+        <span class="env">prod</span>. <span class="env">prod</span> only accepts a version already
+        published to another environment, so a draft never goes straight to
+        <span class="env">prod</span>. To roll back, publish an earlier version.
+      </p>
+
+      <h3 id="publish-approval">With second approval on</h3>
+      <p>
+        If you froze the version, you cannot publish it to <span class="env">prod</span> yourself.
+        Another person with Publish forms for <span class="env">prod</span> publishes it from the
+        form and is recorded as the approver. There is no separate approvals list for this.
+      </p>
+
+      <h3 id="run-form">Run a live form</h3>
+      <p class="meta">
+        <strong>Who:</strong> Publish forms for that environment &middot;
+        <strong>Where:</strong> the form's Availability, links and webhooks screens
+      </p>
+      <p>
+        Open or close the form, create or revoke links, and set up webhooks. In
+        <span class="env">prod</span> with second approval on, a webhook change waits until another
+        holder of Publish forms for <span class="env">prod</span> confirms it.
+      </p>
+
+      <h3 id="responses">Read or erase responses</h3>
+      <p>
+        View and export responses with View responses for that environment. Erase responses with
+        Erase responses for that environment; you confirm by typing, and you cannot read what you
+        erase. Both are recorded in the workspace audit.
+      </p>
+    </section>
+
+    <section id="one-person" aria-labelledby="one-person-h">
+      <h2 id="one-person-h">A one-person site</h2>
+      <p>
+        When QCMS is first set up, the first account is the Site administrator, the Workspace
+        administrator of the first workspace, and a member of all four starter groups. Second
+        approval is off. One person can build, publish and read responses straight away.
+      </p>
+      <ul>
+        <li>Second approval cannot be turned on until someone else could approve.</li>
+        <li>
+          Rules that need someone other than you, such as re-confirming response access after a
+          reset, cannot be enforced. The audit is the only check.
+        </li>
+      </ul>
+    </section>
+
+    <section id="troubleshooting" aria-labelledby="troubleshooting-h">
+      <h2 id="troubleshooting-h">Why was this refused?</h2>
+      <div class="table-wrap">
+        <table>
+          <caption>
+            Common refusals
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">What happened</th>
+              <th scope="col">Why</th>
+              <th scope="col">What to do</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">I can edit but cannot publish</th>
+              <td>Publishing needs Publish forms for that environment as well as Edit forms.</td>
+              <td>Ask to be added to a group that has Publish forms there.</td>
+            </tr>
+            <tr>
+              <th scope="row">I can publish in test but not prod</th>
+              <td>Your Publish forms group names <span class="env">test</span> only.</td>
+              <td>Ask to join Publishers or another group naming <span class="env">prod</span>.</td>
+            </tr>
+            <tr>
+              <th scope="row">Publishing a draft to prod was refused</th>
+              <td>
+                <span class="env">prod</span> only takes a version already published elsewhere.
+              </td>
+              <td>
+                Publish to <span class="env">test</span> first, then publish that version to
+                <span class="env">prod</span>.
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">I cannot publish my own version to prod</th>
+              <td>Second approval is on and you froze it.</td>
+              <td>
+                Ask another holder of Publish forms for <span class="env">prod</span> to publish it.
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">I am an administrator but cannot see forms or responses</th>
+              <td>Administrator roles grant no form or response access.</td>
+              <td>
+                Add yourself to a group that grants it (with an approver for response roles if
+                second approval is on).
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">Nobody can publish to a new environment</th>
+              <td>New environments are covered by no group.</td>
+              <td>A Workspace administrator ticks it on the right groups.</td>
+            </tr>
+            <tr>
+              <th scope="row">My response access stopped after a reset or reactivation</th>
+              <td>Response memberships are suspended until re-confirmed.</td>
+              <td>Ask a Workspace administrator of that workspace to re-confirm.</td>
+            </tr>
+            <tr>
+              <th scope="row">I cannot remove a Workspace administrator</th>
+              <td>They are the last active one.</td>
+              <td>Appoint someone else first.</td>
+            </tr>
+            <tr>
+              <th scope="row">Archive was refused</th>
+              <td>The workspace still owns forms, or is the shared question library.</td>
+              <td>Move every form out first.</td>
+            </tr>
+            <tr>
+              <th scope="row">Move form was refused</th>
+              <td>You need Edit forms in both workspaces.</td>
+              <td>Ask the destination's Workspace administrator for access.</td>
+            </tr>
+            <tr>
+              <th scope="row">Turning on second approval was refused</th>
+              <td>Nobody else could approve.</td>
+              <td>
+                Make sure there is a second administrator and a second holder of Publish forms for
+                <span class="env">prod</span>.
+              </td>
+            </tr>
+            <tr>
+              <th scope="row">No Site administrator can sign in</th>
+              <td>Every Site administrator is locked out or disabled.</td>
+              <td>The person who runs the server can restore access from the command line.</td>
+            </tr>
+            <tr>
+              <th scope="row">I don't see a workspace</th>
+              <td>You see only workspaces you hold something in.</td>
+              <td>Ask its Workspace administrator to add you.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="glossary" aria-labelledby="glossary-h">
+      <h2 id="glossary-h">Glossary</h2>
+      <dl class="gloss">
+        <dt>Account</dt>
+        <dd>One person's sign-in identity on the site.</dd>
+        <dt>Unclaimed account</dt>
+        <dd>An account whose emailed sign-in link has not been used yet.</dd>
+        <dt>Site administrator</dt>
+        <dd>
+          Administers the whole site: accounts, workspaces, Site administrators and site settings.
+          Reads no data because of the role.
+        </dd>
+        <dt>Workspace administrator</dt>
+        <dd>
+          Administers one workspace: its people, access groups, settings, audit and archive. Reads
+          no data because of the role.
+        </dd>
+        <dt>Workspace</dt>
+        <dd>The only access zone. Owns forms and questions.</dd>
+        <dt>Environment</dt>
+        <dd>
+          A named data plane, such as <span class="env">test</span> or
+          <span class="env">prod</span>, with its own live versions and responses.
+        </dd>
+        <dt>Access group</dt>
+        <dd>
+          A set of roles plus one set of environments, in one workspace, with the people in it.
+        </dd>
+        <dt>People in this group</dt>
+        <dd>The accounts that are members of an access group.</dd>
+        <dt>View forms</dt>
+        <dd>Role: read forms, questions, versions and publish history.</dd>
+        <dt>Edit forms</dt>
+        <dd>Role: draft and edit forms and questions, and preview them.</dd>
+        <dt>Publish forms</dt>
+        <dd>Role: publish to an environment, open and close forms, links, webhooks.</dd>
+        <dt>View responses</dt>
+        <dd>Role: view and export responses.</dd>
+        <dt>Erase responses</dt>
+        <dd>Role: erase responses without reading them.</dd>
+        <dt>Publish</dt>
+        <dd>
+          Make a version live in an environment, freezing the draft first when you publish a draft.
+        </dd>
+        <dt>Version</dt>
+        <dd>
+          A frozen, numbered form. The same version moves from <span class="env">test</span> to
+          <span class="env">prod</span>.
+        </dd>
+        <dt>Second approval</dt>
+        <dd>
+          A workspace setting that requires a second person for named acts in
+          <span class="env">prod</span>.
+        </dd>
+        <dt>Approver</dt>
+        <dd>The second person under second approval.</dd>
+        <dt>Grant, Revoke</dt>
+        <dd>Add a person to, or remove them from, an access group.</dd>
+        <dt>Authors</dt>
+        <dd>
+          Starter group: Edit forms, Publish forms, View responses; <span class="env">test</span>.
+        </dd>
+        <dt>Publishers</dt>
+        <dd>Starter group: Publish forms; <span class="env">prod</span>.</dd>
+        <dt>Response viewers</dt>
+        <dd>Starter group: View responses; <span class="env">prod</span>.</dd>
+        <dt>Response erasers</dt>
+        <dd>Starter group: Erase responses; <span class="env">prod</span>.</dd>
+      </dl>
+    </section>
+  </main>
+</div>

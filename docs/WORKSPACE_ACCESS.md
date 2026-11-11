@@ -1,5 +1,7 @@
 # Workspace access
 
+The user guide for these rules is [`docs/workspace-access-guide.html`](workspace-access-guide.html).
+
 ## 1. Status and authority
 
 - This document is the single source of truth for workspace access in QCMS: accounts, administrators, workspaces, access groups, roles, environments, second approval, audit and the screens that manage them.
@@ -27,6 +29,8 @@
 | Archive refused while any form remains                            | Built        |
 | Assistant tools follow the user's grants (SEC-17)                 | Built        |
 
+- The SEC-3 role table in `docs/SECURITY_DESIGN.md` §3.2 stays as built, because `apps/api/e2e/security/matrix-coverage.e2e.ts` reads it. It changes with the foundation task that changes the roles in code.
+
 ## 2. Glossary
 
 | Term                    | Meaning                                                                                                          | Replaces                                                               |
@@ -39,6 +43,7 @@
 | Environment             | A named data plane such as `test` or `prod`.                                                                     |                                                                        |
 | Access group            | A set of roles plus one environment set, in one workspace, with the people in it.                                | team                                                                   |
 | People in this group    | The accounts that are members of an access group.                                                                | holders                                                                |
+| Members                 | The list label for a workspace's people in the Workspace area.                                                   | People                                                                 |
 | View forms              | Role: read forms, questions, versions and publish history.                                                       | Form viewer, `forms.viewer`                                            |
 | Edit forms              | Role: draft and edit forms and questions, preview.                                                               | Form editor, `forms.editor`                                            |
 | Publish forms           | Role: publish to an environment, open and close, links, webhooks.                                                | Release approver, `forms.approver`, Release forms, Release and operate |
@@ -73,39 +78,40 @@
 
 `yes` means always; `env` means only in an environment in the group's environment set; blank means refused. The Site administrator column applies in every workspace.
 
-| Act                                                                       | View forms   | Edit forms         | Publish forms             | View responses | Erase responses | Workspace administrator | Site administrator |
-| ------------------------------------------------------------------------- | ------------ | ------------------ | ------------------------- | -------------- | --------------- | ----------------------- | ------------------ |
-| Read forms, questions, versions and publish history                       | yes          | yes                | yes                       |                |                 |                         |                    |
-| Read link and endpoint configuration                                      | yes (masked) | yes                | yes                       |                |                 |                         |                    |
-| Draft and edit forms and questions, pin shared questions, preview         |              | yes                |                           |                |                 |                         |                    |
-| Publish a draft to an environment (freezes the next version)              |              | with Publish forms | env, with Edit forms      |                |                 |                         |                    |
-| Publish an existing version to an environment                             |              |                    | env                       |                |                 |                         |                    |
-| Open or close a form                                                      |              |                    | env                       |                |                 |                         |                    |
-| Mint or revoke links                                                      |              |                    | env                       |                |                 |                         |                    |
-| Configure webhook endpoints                                               |              |                    | env                       |                |                 |                         |                    |
-| Approve a `prod` publish or endpoint change under second approval         |              |                    | `prod`, not the requester |                |                 |                         |                    |
-| Discover operational form metadata in an environment                      | yes          | yes                | yes                       | env            | env             |                         |                    |
-| Read the release-workflow configuration                                   | yes          | yes                | yes                       |                |                 |                         |                    |
-| View and export responses                                                 |              |                    |                           | env            |                 |                         |                    |
-| Erase responses                                                           |              |                    |                           |                | env             |                         |                    |
-| Move a form to another workspace                                          |              | in both workspaces |                           |                |                 |                         |                    |
-| See people and access groups                                              |              |                    |                           |                |                 | yes                     | yes                |
-| Grant, Revoke; create, change or delete access groups                     |              |                    |                           |                |                 | yes                     | yes                |
-| Appoint or remove a Workspace administrator                               |              |                    |                           |                |                 | yes                     | yes                |
-| Re-confirm a suspended response membership                                |              |                    |                           |                |                 | yes                     |                    |
-| Workspace settings: rename, second approval                               |              |                    |                           |                |                 | yes                     | yes                |
-| Read the workspace audit                                                  |              |                    |                           |                |                 | yes                     | yes                |
-| Archive the workspace                                                     |              |                    |                           |                |                 | yes                     | yes                |
-| Create a workspace and name its first Workspace administrator             |              |                    |                           |                |                 |                         | yes                |
-| Mark the shared question library                                          |              |                    |                           |                |                 |                         | yes                |
-| Create, disable, reactivate an account; reset its credentials or factor   |              |                    |                           |                |                 |                         | yes                |
-| Browse and search the account directory                                   |              |                    |                           |                |                 |                         | yes                |
-| Promote, demote or suspend a Site administrator; decide approval requests |              |                    |                           |                |                 |                         | yes                |
-| Read the site audit                                                       |              |                    |                           |                |                 |                         | yes                |
-| Release-workflow configuration, environment settings, site-wide queues    |              |                    |                           |                |                 |                         | yes                |
-| Read any response by virtue of the administrator role                     |              |                    |                           |                |                 | never                   | never              |
+| Act                                                                     | View forms   | Edit forms         | Publish forms             | View responses | Erase responses | Workspace administrator | Site administrator |
+| ----------------------------------------------------------------------- | ------------ | ------------------ | ------------------------- | -------------- | --------------- | ----------------------- | ------------------ |
+| Read forms, questions, versions and publish history                     | yes          | yes                | yes                       |                |                 |                         |                    |
+| Read link and endpoint configuration                                    | yes (masked) | yes                | yes                       |                |                 |                         |                    |
+| Draft and edit forms and questions, pin shared questions, preview       |              | yes                |                           |                |                 |                         |                    |
+| Publish a draft to an environment (freezes the next version)            |              | with Publish forms | env, with Edit forms      |                |                 |                         |                    |
+| Publish an existing version to an environment                           |              |                    | env                       |                |                 |                         |                    |
+| Open or close a form                                                    |              |                    | env                       |                |                 |                         |                    |
+| Mint or revoke links                                                    |              |                    | env                       |                |                 |                         |                    |
+| Configure webhook endpoints                                             |              |                    | env                       |                |                 |                         |                    |
+| Approve a `prod` publish or endpoint change under second approval       |              |                    | `prod`, not the requester |                |                 |                         |                    |
+| Discover operational form metadata in an environment                    | yes          | yes                | yes                       | env            | env             |                         |                    |
+| Read the release-workflow configuration                                 | yes          | yes                | yes                       |                |                 |                         |                    |
+| View and export responses                                               |              |                    |                           | env            |                 |                         |                    |
+| Erase responses                                                         |              |                    |                           |                | env             |                         |                    |
+| Move a form to another workspace                                        |              | in both workspaces |                           |                |                 |                         |                    |
+| See people and access groups                                            |              |                    |                           |                |                 | yes                     | yes                |
+| Grant, Revoke; create, change or delete access groups                   |              |                    |                           |                |                 | yes                     | yes                |
+| Appoint or remove a Workspace administrator                             |              |                    |                           |                |                 | yes                     | yes                |
+| Re-confirm a suspended response membership                              |              |                    |                           |                |                 | yes                     | yes                |
+| Workspace settings: rename, second approval                             |              |                    |                           |                |                 | yes                     | yes                |
+| Read the workspace audit                                                |              |                    |                           |                |                 | yes                     | yes                |
+| Archive the workspace                                                   |              |                    |                           |                |                 | yes                     | yes                |
+| Create a workspace and name its first Workspace administrator           |              |                    |                           |                |                 |                         | yes                |
+| Mark the shared question library                                        |              |                    |                           |                |                 |                         | yes                |
+| Create, disable, reactivate an account; reset its credentials or factor |              |                    |                           |                |                 |                         | yes                |
+| Browse and search the account directory                                 |              |                    |                           |                |                 |                         | yes                |
+| Promote or demote a Site administrator; decide approval requests        |              |                    |                           |                |                 |                         | yes                |
+| Read the site audit                                                     |              |                    |                           |                |                 |                         | yes                |
+| Release-workflow configuration, environment settings, site-wide queues  |              |                    |                           |                |                 |                         | yes                |
+| Read any response by virtue of the administrator role                   |              |                    |                           |                |                 | never                   | never              |
 
 - "Masked" is the endpoint URL with its query string masked, done by the API.
+- Re-confirming a suspended membership is refused for the person who performed the reset or reactivation, where another administrator exists (section 7).
 - Every account, administrator or not, manages its own password, second factor, recovery codes and sessions, and reads its own access (My access).
 - The shared question library keeps its design: every workspace's Edit forms holders see and pin its questions; only Edit forms holders in the shared workspace edit them.
 
@@ -113,13 +119,16 @@
 
 Every new workspace is created with four starter groups. They are ordinary groups: renamable, editable and deletable.
 
-| Group            | Roles                                     | Environments |
-| ---------------- | ----------------------------------------- | ------------ |
-| Authors          | Edit forms, Publish forms, View responses | `test`       |
-| Publishers       | Publish forms                             | `prod`       |
-| Response viewers | View responses                            | `prod`       |
-| Response erasers | Erase responses                           | `prod`       |
+| Group            | Roles                                     | Environments                 |
+| ---------------- | ----------------------------------------- | ---------------------------- |
+| Authors          | Edit forms, Publish forms, View responses | Every environment but `prod` |
+| Publishers       | Publish forms                             | `prod`                       |
+| Response viewers | View responses                            | `prod`                       |
+| Response erasers | Erase responses                           | `prod`                       |
 
+- On a site with `test` and `prod`, Authors covers `test`. On a site with more environments, such as `dev`, Authors covers every non-prod environment the site has when the workspace is created.
+- Starter groups are not protected. Administrators name their own groups and may rename or delete any group, starter groups included.
+- When a role or environment is left with no group, for example after a starter group is deleted, Access groups shows the "no group covers this" notice (section 13).
 - A new workspace's starter groups have no people, except on a one-person site.
 - **One-person site**: the first account is Site administrator, Workspace administrator of the first workspace and a member of all four starter groups. Second approval is off.
 - There is no Form creators group and no setting that seeds response access for new editors.
@@ -131,7 +140,7 @@ Every new workspace is created with four starter groups. They are ordinary group
 - **Publishing an existing version** to another environment makes the same version live there. Nothing is frozen or changed. It needs Publish forms for that environment.
 - Edit forms alone cannot freeze a version.
 - The data model keeps frozen, numbered versions: the same version goes from `test` to `prod`, history is kept, and rollback is publishing an earlier version. Code identifiers and API paths such as `releases` may keep their names.
-- Default: `prod` accepts only a version already published to a non-prod environment. A draft is never published straight to `prod`.
+- `prod` accepts only a version already published to a non-prod environment. A draft is never published straight to `prod`. This is a fixed rule: no workspace setting or release-workflow configuration can permit it.
 - Default: questions keep "Publish" with its current meaning, freezing a pinnable version with no environment.
 - The single Publish step is its own task: the form Publish tab, the release-workflow screens, the assistant publish cards and forms-area copy.
 
@@ -145,7 +154,8 @@ Every new workspace is created with four starter groups. They are ordinary group
   - turning the rule off;
   - adding yourself to a group that carries a response role.
 - **Approver for those two acts:** a different Workspace administrator of that workspace, or a Site administrator who is not the requester.
-- **Turning the rule on** is refused in a workspace where nobody else could approve: no second administrator, or no second holder of Publish forms for `prod`.
+- **Workspace approval requests:** each of those two acts creates a stored request that does not take effect until an approver approves it. The request is listed in the Requests row of that workspace's Audit screen for its Workspace administrators, and under Approval requests in Site configuration for Site administrators. A request expires after 7 days and can then no longer be approved.
+- **Turning the rule on** is refused in a workspace where nobody else could approve: no second administrator, or no second holder of Publish forms for `prod`. A Site administrator who is not the requester counts as the second administrator.
 - Approver equals requester is always refused.
 - With the rule off, an administrator may grant themselves response access. The grant and every later read are audited. Turning second approval on is how a workspace requires another person.
 
@@ -154,10 +164,12 @@ Every new workspace is created with four starter groups. They are ordinary group
 ### Creation
 
 - A Site administrator creates an account by email address.
-- The server generates a single-use, expiring sign-in link and emails it straight to that address. No administrator chooses, sees or receives a password or the link.
+- The server generates a single-use sign-in link that expires after 72 hours and emails it straight to that address. No administrator chooses, sees or receives a password or the link.
 - First sign-in forces the person to set a password and enrol a second factor.
 - Until then the account is **unclaimed**. Account creation, and every grant made while the account is unclaimed, writes an audit row.
-- **Dependency: outbound email.** QCMS has no mail transport today. A transport, its configuration, the message template, delivery-failure handling and resend are v1 deliverables.
+- **Account creation is refused until outbound email is configured.** The only exception is the first account, created at install by `qcms:create-admin`.
+- **Dependency: outbound email.** QCMS has no mail transport today. A transport, its configuration, the message template, delivery-failure handling and resend are v1 deliverables. The choice of mail dependency is undecided (section 16).
+- Every emailed sign-in link in this section, for creation, reactivation or after a reset, is single-use and expires after 72 hours.
 
 ### Directory visibility
 
@@ -169,9 +181,10 @@ Every new workspace is created with four starter groups. They are ordinary group
 
 - A Site administrator may reset an account's password or second factor from the Accounts screen.
 - In the same transaction, all of the account's sessions are revoked.
-- The account's memberships of groups carrying a response role are suspended until a Workspace administrator of that workspace re-confirms each one. Other memberships are unaffected.
+- The account's memberships of groups carrying a response role are suspended until a Workspace administrator of that workspace, or a Site administrator, re-confirms each one. Other memberships are unaffected.
 - Default: where another administrator exists, the re-confirmation comes from someone other than the person who performed the reset. On a sole-administrator site this cannot be enforced; the audit row is the only control, and the user guide says so.
 - One site-audit row is written and mirrored to every affected workspace's audit.
+- The person signs in again through an emailed single-use link, then sets a new password and enrols a second factor, as for a new account.
 
 ### Disable
 
@@ -180,11 +193,13 @@ Every new workspace is created with four starter groups. They are ordinary group
 - The confirmation shows what the person holds across all workspaces.
 - If the person is the last Workspace administrator of any workspace, the confirmation lists those workspaces and the disable still proceeds.
 - Disable keeps memberships. Workspace administrators cannot disable an account; they Revoke the person from their own workspace's groups.
+- Disabling an account that is a Site administrator carries the guards of section 8: step-up authentication, and a second Site administrator's approval where more than one exists.
+- Accounts are never deleted. Disable is the only way to end an account, so audit history keeps its names.
 
 ### Reactivation
 
 - The person sets a new password and re-enrols a second factor through an emailed link.
-- Memberships of groups carrying a response role stay suspended until a Workspace administrator of that workspace re-confirms each one. Other memberships return at once.
+- Memberships of groups carrying a response role stay suspended until a Workspace administrator of that workspace, or a Site administrator, re-confirms each one. Other memberships return at once.
 - The reset default above, that someone other than the actor re-confirms, applies here too.
 
 ### Sessions
@@ -197,15 +212,17 @@ Every new workspace is created with four starter groups. They are ordinary group
 ## 8. Site administrators
 
 - Accounts do not default to Site administrator. The first account, created by `qcms:create-admin`, is one. This is a prerequisite for every other rule in this section: today every account defaults to the claim (the `role` additional field in `apps/api/src/features/auth/instance.ts`).
-- Promotion, demotion and suspension of a Site administrator are in-app acts with three guards:
+- Promotion and demotion of a Site administrator, and disabling an account that is a Site administrator, are in-app acts with three guards:
   - step-up authentication, password and second factor, by the acting Site administrator;
   - approval by a second Site administrator where more than one exists;
   - an audit row in a table the application role cannot update or delete.
-- These acts use an approval request at site level: request, approve, reject, expire.
+- Suspending a Site administrator is not a separate act. It is Disable account (section 7) with these guards.
+- These acts use an approval request at site level: request, approve, reject, expire. A pending request expires after 7 days and can then no longer be approved.
+- The requester never approves their own request.
 - Default: with exactly one Site administrator, step-up alone suffices to promote a second.
-- Default: the last active Site administrator can never be demoted, suspended or disabled in the app.
-- Default: a pending request expires.
+- Default: the last active Site administrator can never be demoted or disabled in the app.
 - The Site administrator role does not count toward any workspace's last-administrator guard.
+- **Break-glass:** the command-line tools `qcms:create-admin` and `qcms:reset-2fa` remain, as the recovery path when no Site administrator can sign in. The in-app acts do not replace them, and this document does not change what they do.
 
 ## 9. Workspaces
 
@@ -219,6 +236,7 @@ Every new workspace is created with four starter groups. They are ordinary group
   - Needs Edit forms in both the source and the destination workspace.
   - The confirmation states that the destination's groups will apply and names who gains and who loses access.
   - Responses move with the form.
+- **Questions** have no move screen in v1. The shared question library covers reuse across workspaces.
 - **Shared question library:** at most one workspace is marked shared; a Site administrator marks it. Its screen is a Site administrator rail row at two or more workspaces and hidden at one; question lists show a shared tag.
 - **Workspace list:** every caller sees only the workspaces they hold something in; a Site administrator sees all. This ships first, as its own fix.
 
@@ -244,10 +262,12 @@ Two append-only logs. For both, the application role holds `INSERT` and `SELECT`
 - A site-level act that affects a workspace is mirrored into that workspace's audit.
 - Every one of these acts writes a row:
   - **Accounts:** create, disable, reactivate, credential or factor reset, any grant while unclaimed.
-  - **Site administrators:** promote, demote, suspend; approval request created, approved, rejected, expired.
+  - **Site administrators:** promote, demote, disable; approval request created, approved, rejected, expired.
   - **Workspace administrators:** appoint, remove.
-  - **Access groups:** create, delete, change of roles or environments, member added, member removed, re-confirmation of a suspended membership.
+  - **Access groups:** create, rename, delete, change of roles or environments, member added, member removed, re-confirmation of a suspended membership.
   - **Workspaces:** create, rename, archive, form moved in or out, second-approval switch changed.
+  - **Workspace approval requests** (turning second approval off, self-grant): created, approved, rejected, expired.
+- The stored kinds for these rows, beyond the workspace audit's six existing kinds, are settled in the foundation task (section 16).
   - **Existing rows, unchanged:** response read, export and erasure; `prod` endpoint propose, confirm and withdraw; release-workflow change.
 
 ## 12. Navigation and screens
@@ -256,7 +276,7 @@ The shipped navigation stands: the top bar is app navigation with the workspace 
 
 | Home                   | Screens                                                                                                          | Who                                           |
 | ---------------------- | ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| Workspace area         | Members, Access groups, Settings, Audit, Archive                                                                 | Workspace administrators, Site administrators |
+| Workspace area         | Members, Access groups, Settings, Audit (with Requests), Archive                                                 | Workspace administrators, Site administrators |
 | Site configuration     | Accounts, Site administrators, Approval requests, Site audit, Workspaces, New workspace, Shared question library | Site administrators                           |
 | Account menu (top bar) | My account, My access                                                                                            | Everyone                                      |
 
@@ -275,7 +295,7 @@ Routes are under `apps/admin/app/(shell)/`.
 | Create account                           | Site administrator                          | new (Site configuration)                                         | to be designed  | Not built    |
 | Account detail: holdings, disable, reset | Site administrator                          | new (Site configuration)                                         | to be designed  | Not built    |
 | Site administrators                      | Site administrator                          | new (Site configuration)                                         | to be designed  | Not built    |
-| Approval requests                        | Site administrator                          | new (Site configuration)                                         | to be designed  | Not built    |
+| Approval requests, site and workspace    | Site administrator                          | new (Site configuration)                                         | to be designed  | Not built    |
 | Site audit                               | Site administrator                          | new (Site configuration)                                         | to be designed  | Not built    |
 | Workspaces list                          | Site administrator                          | `workspaces/all/`                                                | to be designed  | Partly built |
 | New workspace                            | Site administrator                          | new (Site configuration)                                         | to be designed  | Not built    |
@@ -287,6 +307,7 @@ Routes are under `apps/admin/app/(shell)/`.
 | Access group detail                      | Workspace administrator, Site administrator | new                                                              | to be designed  | Not built    |
 | Workspace settings                       | Workspace administrator, Site administrator | `workspaces/[workspaceId]/settings/`                             | to be designed  | Partly built |
 | Workspace audit                          | Workspace administrator, Site administrator | `workspaces/[workspaceId]/audit/`, `assistant-actions/`          | to be designed  | Partly built |
+| Workspace requests                       | Workspace administrator, Site administrator | new (Requests row on the workspace Audit screen)                 | to be designed  | Not built    |
 | Archive workspace                        | Workspace administrator, Site administrator | new (rail row at two or more workspaces)                         | to be designed  | Not built    |
 | Forms list                               | Form roles                                  | `forms/`                                                         | to be designed  | Partly built |
 | Create form                              | Edit forms                                  | `forms/new/`                                                     | to be designed  | Built        |
@@ -308,7 +329,7 @@ Each is one reusable design.
 5. **No access yet home:** for an account with no access; names the administrator and links to My access.
 6. **New workspace:** opens with the four starter groups and a short checklist.
 7. **One-person site:** the first account is Site administrator, Workspace administrator and a member of all four starter groups.
-8. **New environment notice** in Access groups: "Environment X: no group covers it yet."
+8. **No group covers this notice** in Access groups: "Environment X: no group covers it yet." The same notice names a role or environment left uncovered after a group is changed or deleted.
 9. **Scale:** search and rail filters (role, environment, status) on people, groups and accounts; results under 300 ms at 1,000 accounts.
 10. **Accessibility:** full checkbox labels, announced errors, keyboard reachable, per `docs/COMPONENT_GUIDELINES.md`.
 
@@ -324,7 +345,7 @@ Each criterion is tested against the real policy code, service or route as its t
 4. An Edit forms holder without Publish forms cannot freeze a version or publish anywhere.
 5. Publishing a draft to `test` succeeds for a person holding Edit forms and Publish forms for `test`, through one group or two.
 6. Publishing a version to `prod` succeeds for a Publish forms holder for `prod` and is refused for one holding Publish forms for `test` only.
-7. Publishing a draft straight to `prod` is refused under the default.
+7. Publishing a draft straight to `prod` is refused, and no workspace setting or release-workflow configuration makes it succeed.
 8. Open, close, link and webhook acts in an environment are refused for a person whose Publish forms groups do not name it.
 9. View responses and Erase responses are refused in an environment the person's groups do not name.
 10. An Erase responses holder cannot read or export a response.
@@ -339,7 +360,7 @@ Each criterion is tested against the real policy code, service or route as its t
 16. A Workspace administrator with no group membership is refused every form, publish and response act in their workspace.
 17. A Site administrator with no group membership is refused every response read, export and erasure in every workspace.
 18. A person who is neither a Workspace administrator nor a Site administrator is refused each administrative act: Grant, Revoke, group create, change and delete, Workspace administrator appoint and remove, settings, audit read, archive.
-19. A person who is not a Site administrator is refused each site act: account create, disable, reactivate, reset, directory browse, Site administrator promote, demote and suspend, approval decisions, site audit read, workspace create, shared library marking.
+19. A person who is not a Site administrator is refused each site act: account create, disable, reactivate, reset, directory browse, Site administrator promote and demote, approval decisions, site audit read, workspace create, shared library marking.
 20. A Workspace administrator of workspace A is refused every administrative act on workspace B's people, groups, settings and audit.
 21. A member of workspace A is refused every form, version and response of workspace B, by id as well as by list.
 22. A group id from workspace B used in a Grant in workspace A is refused.
@@ -354,63 +375,74 @@ Each criterion is tested against the real policy code, service or route as its t
 28. With the rule on, turning it off is not applied until approved by a different Workspace administrator or a Site administrator who is not the requester.
 29. In every approval, approver equals requester is refused.
 30. Turning the rule on is refused where there is no second administrator or no second holder of Publish forms for `prod`.
-31. With the rule off, a self-grant of a response role succeeds and writes an audit row.
+31. Turning the rule on succeeds in a workspace with one Workspace administrator when a Site administrator who is not the requester exists and a second holder of Publish forms for `prod` exists.
+32. A Site administrator who is the requester cannot approve their own workspace request.
+33. A pending workspace request appears in the Requests row of that workspace's Audit screen and under Approval requests in Site configuration.
+34. A workspace request expires after 7 days and can then no longer be approved.
+35. With the rule off, a self-grant of a response role succeeds and writes an audit row.
 
 ### Accounts
 
-32. Account creation emails a single-use, expiring link to the address; no response or screen shows the link or a password to the administrator.
-33. A used or expired link is refused.
-34. First sign-in through the link forces password set and second-factor enrolment before any other act.
-35. An unclaimed account cannot act, does not count toward the last-administrator guard and cannot be an approver.
-36. A grant to an unclaimed account writes an audit row.
-37. A Workspace administrator adding an unknown, a disabled or an unclaimed address gets one identical answer.
-38. A Workspace administrator cannot browse or search the account directory.
-39. A credential or factor reset revokes every session of the account in the same transaction.
-40. After a reset, the account's response-role memberships are suspended until re-confirmed per workspace; other memberships still work.
-41. Under the default, the administrator who performed a reset cannot re-confirm where another administrator exists.
-42. Disable ends every session at once; the next request on an old session is refused.
-43. Disable stops a running export and refuses a pending assistant confirmation.
-44. Disable keeps memberships; reactivation returns non-response memberships at once and keeps response-role memberships suspended until re-confirmed.
-45. Reactivation requires a new password and second-factor re-enrolment through an emailed link.
-46. Disabling the last active Site administrator is refused.
-47. Disabling the last Workspace administrator of a workspace proceeds, and the confirmation lists that workspace.
-48. A Workspace administrator cannot disable an account.
+36. Account creation emails a single-use, expiring link to the address; no response or screen shows the link or a password to the administrator.
+37. Account creation is refused while outbound email is not configured; the first account, created by `qcms:create-admin`, is not.
+38. A used link is refused, and a link is refused 72 hours after it was issued.
+39. First sign-in through the link forces password set and second-factor enrolment before any other act.
+40. An unclaimed account cannot act, does not count toward the last-administrator guard and cannot be an approver.
+41. A grant to an unclaimed account writes an audit row.
+42. A Workspace administrator adding an unknown, a disabled or an unclaimed address gets one identical answer.
+43. A Workspace administrator cannot browse or search the account directory.
+44. A credential or factor reset revokes every session of the account in the same transaction.
+45. After a reset, the account's response-role memberships are suspended until re-confirmed per workspace; other memberships still work.
+46. Under the default, the administrator who performed a reset cannot re-confirm where another administrator exists, a Site administrator included.
+47. A Site administrator who did not perform the reset can re-confirm a suspended membership in any workspace.
+48. After a reset, the person can sign in again only through an emailed single-use link, and must set a new password and enrol a second factor before any other act.
+49. Disable ends every session at once; the next request on an old session is refused.
+50. Disable stops a running export and refuses a pending assistant confirmation.
+51. Disable keeps memberships; reactivation returns non-response memberships at once and keeps response-role memberships suspended until re-confirmed.
+52. Reactivation requires a new password and second-factor re-enrolment through an emailed link.
+53. Disabling the last active Site administrator is refused.
+54. Disabling the last Workspace administrator of a workspace proceeds, and the confirmation lists that workspace.
+55. A Workspace administrator cannot disable an account.
+56. No route or screen deletes an account.
 
 ### Site administrators
 
-49. A new account is not a Site administrator.
-50. Promotion, demotion and suspension require step-up authentication by the actor.
-51. With two or more Site administrators, promotion, demotion and suspension take effect only after a second Site administrator approves; the requester's own approval is refused.
-52. With one Site administrator, step-up alone promotes a second (default).
-53. Demoting or suspending the last active Site administrator is refused (default).
-54. A pending request expires and can then no longer be approved (default).
+57. A new account is not a Site administrator.
+58. Promotion, demotion and disabling a Site administrator require step-up authentication by the actor.
+59. With two or more Site administrators, promotion, demotion and disabling a Site administrator take effect only after a second Site administrator approves; the requester's own approval is refused.
+60. With one Site administrator, step-up alone promotes a second (default).
+61. Demoting or disabling the last active Site administrator is refused (default).
+62. A pending site request expires after 7 days and can then no longer be approved.
+63. `qcms:create-admin` and `qcms:reset-2fa` still restore access when no Site administrator can sign in.
 
 ### Guards
 
-55. Removing or demoting the last active, claimed Workspace administrator is refused for every actor, a Site administrator included.
-56. A disabled or unclaimed Workspace administrator does not satisfy the last-administrator guard.
-57. Two concurrent removals that together would remove the last Workspace administrator leave at least one; one of them is refused.
-58. A Revoke takes effect on the next request with no cache delay.
-59. Every assistant tool offer and every proposed step for a user matches what that user's own screen acts allow.
+64. Removing or demoting the last active, claimed Workspace administrator is refused for every actor, a Site administrator included.
+65. A disabled or unclaimed Workspace administrator does not satisfy the last-administrator guard.
+66. Two concurrent removals that together would remove the last Workspace administrator leave at least one; one of them is refused.
+67. A Revoke takes effect on the next request with no cache delay.
+68. Every assistant tool offer and every proposed step for a user matches what that user's own screen acts allow.
 
 ### Workspaces
 
-60. Only a Site administrator creates a workspace; it is created with the four starter groups and the named first Workspace administrator.
-61. Rename changes the name and never the slug.
-62. Archive is refused while any form remains or while the workspace is the shared library; there is no unarchive.
-63. Move form is refused unless the actor holds Edit forms in both workspaces; after it, the destination's groups apply and the source's do not, and the form's responses move with it.
-64. On a one-person site, the first account is Site administrator, Workspace administrator and a member of all four starter groups.
+69. Only a Site administrator creates a workspace; it is created with the four starter groups and the named first Workspace administrator.
+70. On a site with `dev`, `test` and `prod`, a new workspace's Authors covers `dev` and `test`, and Publishers, Response viewers and Response erasers cover `prod`.
+71. A starter group can be renamed and deleted; after Response erasers is deleted, Access groups shows that no group covers Erase responses in `prod`.
+72. Rename changes the name and never the slug.
+73. Archive is refused while any form remains or while the workspace is the shared library; there is no unarchive.
+74. Move form is refused unless the actor holds Edit forms in both workspaces; after it, the destination's groups apply and the source's do not, and the form's responses move with it.
+75. On a one-person site, the first account is Site administrator, Workspace administrator and a member of all four starter groups.
 
 ### Audit
 
-65. Each act listed in section 11 writes exactly one row in its log, and a site act affecting a workspace also writes a mirrored row there.
-66. The application role cannot update or delete a row in either log.
-67. A Workspace administrator cannot read the site audit or another workspace's audit.
+76. Each act listed in section 11 writes exactly one row in its log, and a site act affecting a workspace also writes a mirrored row there.
+77. The application role cannot update or delete a row in either log.
+78. A Workspace administrator cannot read the site audit or another workspace's audit.
 
 ### Scale and accessibility
 
-68. Search over people, groups and accounts returns in under 300 ms at 1,000 accounts.
-69. New access screens meet `docs/COMPONENT_GUIDELINES.md`.
+79. Search over people, groups and accounts returns in under 300 ms at 1,000 accounts.
+80. New access screens meet `docs/COMPONENT_GUIDELINES.md`.
 
 ## 15. Decision records this document supersedes or amends
 
@@ -435,28 +467,18 @@ Each record below now links here for workspace access. Where earlier text in any
 
 - After a credential reset or a reactivation, re-confirmation of response memberships comes from someone other than the person who did the reset, where another administrator exists.
 - With one Site administrator, step-up alone suffices to promote a second.
-- The last active Site administrator cannot be demoted or suspended.
-- A pending Site administrator approval request expires.
-- `prod` accepts only a version already published to a non-prod environment.
+- The last active Site administrator cannot be demoted or disabled.
 - Questions keep "Publish" with its current meaning.
+
+Request expiry (7 days) and the `prod` rule (section 5) are settled, not defaults.
 
 ### Undecided
 
-- Storage shape of an access group (several roles on one stored group, or one stored group per role) and the fate of the `<environments>.<role>[.<label>]` name grammar.
-- Starter group environments on a site whose environments are not exactly `test` and `prod`, for example with `dev`.
-- Whether suspending a Site administrator is a separate act from Disable account, and whether disabling a Site administrator needs step-up and a second approver.
-- Mechanism and screen for workspace-level approvals (turning second approval off, self-grant): a stored request the approver confirms, or the approver performing the act.
-- Whether a Site administrator counts as the second administrator when turning second approval on, and whether a Site administrator who is not a Workspace administrator there may re-confirm a suspended membership.
-- How a person regains sign-in after a credential reset.
-- Lifetime of the sign-in link and of a pending approval request.
-- Whether `qcms:create-admin` and `qcms:reset-2fa` remain beside the in-app acts.
-- Moving a question between workspaces: the API exists; no screen is ruled.
-- Label of the workspace person list: Members (R5) or People.
-- Account deletion: only disable is ruled.
-- Audit kinds for the new acts, given SEC-15's six closed kinds (Q79), and the site audit's row shape.
-- Whether the no-draft-to-`prod` default is a release-workflow revision (Q85) or fixed.
+- The choice of mail dependency for outbound email. It needs the Code Owner's runtime dependency approval and is brought by the email task.
+- Storage shape of an access group (several roles on one stored group, or one stored group per role) and the fate of the `<environments>.<role>[.<label>]` name grammar. Left to the foundation task and reviewed there.
+- Audit kinds for the new acts beyond the workspace audit's six existing kinds (Q79), and the site audit's row shape. Left to the foundation task and reviewed there.
 
-## 17. Out of scope
+## 17. Out of scope and deferred
 
 - Per-form authorisation of any kind, including form-limited response groups and form-level access screens.
 - Data migration, upgrade paths and backward compatibility.
@@ -467,3 +489,5 @@ Each record below now links here for workspace access. Where earlier text in any
 - A coverage engine, a Form creators group, group picking at form creation and an eligible-editor check.
 - Second approval outside `prod`, and for links or open and close.
 - The seed-new-editors-with-test-responses setting.
+- Moving questions between workspaces is not in v1.
+- Account deletion is not in v1.
