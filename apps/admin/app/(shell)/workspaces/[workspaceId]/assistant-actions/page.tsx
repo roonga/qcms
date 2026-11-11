@@ -6,8 +6,9 @@ import {
   workspaceSectionTitle,
   WorkspaceScreenFrame,
 } from "@/components/membership/workspace-screen";
+import { emailsById, groupTitlesById } from "@/lib/membership/audit-wording";
 import { pageMetadata } from "@/lib/page-title";
-import { readAgentAudit } from "@/lib/server/membership";
+import { listAccessGroups, listMembers, readAgentAudit } from "@/lib/server/membership";
 
 export async function generateMetadata({
   params,
@@ -26,12 +27,22 @@ export default async function WorkspaceAssistantActionsPage({
   const { workspaceId } = await params;
   const screen = await loadWorkspaceScreen(workspaceId);
   if (screen.kind === "denied") return screen.element;
-  const audit = await readAgentAudit(screen.session, workspaceId);
+  // The groups and the members this workspace holds today, so a row's one stored id reads as the
+  // thing it named. Both are the same cell as the audit read, and a failed one leaves the id.
+  const [audit, groups, members] = await Promise.all([
+    readAgentAudit(screen.session, workspaceId),
+    listAccessGroups(screen.session, workspaceId),
+    listMembers(screen.session, workspaceId),
+  ]);
   return (
     <WorkspaceScreenFrame workspaceId={workspaceId} workspace={screen.workspace}>
       <AgentAuditPanel
         audit={audit.ok ? audit.data : undefined}
         message={audit.ok ? undefined : audit.message}
+        names={{
+          groups: groupTitlesById(groups.ok ? groups.data.groups : []),
+          people: emailsById(members.ok ? members.data : []),
+        }}
       />
     </WorkspaceScreenFrame>
   );

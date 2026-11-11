@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { Alert } from "@/components/kit";
 import { DeniedRecovery } from "@/components/shell/denied-recovery";
 import { t } from "@/lib/i18n/en";
-import { workspaceHref } from "@/lib/membership/sections";
+import { workspaceAreaLabel, workspaceHref } from "@/lib/membership/sections";
 import { pageMetadata } from "@/lib/page-title";
 import { listWorkspaces } from "@/lib/server/membership";
 import { navigableCapabilities, shellAccess } from "@/lib/server/shell";
@@ -12,8 +12,9 @@ import { requireAdminSession } from "@/lib/server/session";
 import { currentWorkspaceId } from "@/lib/server/workspace-context";
 import { permitsPath, WORKSPACES_PATH } from "@/lib/shell/modes";
 
+/** Only a caller who manages no workspace ever renders this screen, so the area is singular here. */
 export function generateMetadata(): Metadata {
-  return pageMetadata(t("membership.area.title"));
+  return pageMetadata(t(workspaceAreaLabel(false)));
 }
 
 export default async function WorkspacesPage() {
@@ -29,10 +30,8 @@ export default async function WorkspacesPage() {
   const workspaces = await listWorkspaces(session);
 
   return (
-    <div className="flex min-w-0 flex-col gap-8">
-      <div className="flex flex-col gap-1">
-        <h1 className="sr-only">{t("membership.area.title")}</h1>
-      </div>
+    <div className="flex min-w-0 flex-col gap-4">
+      <h1 className="text-xl font-semibold text-(--color-text)">{t(workspaceAreaLabel(false))}</h1>
 
       {!workspaces.ok && (
         <Alert variant="error">

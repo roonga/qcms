@@ -58,6 +58,17 @@ describe("the breadcrumb", () => {
     ]);
   });
 
+  it("takes the area's own name from the rail, which knows how many workspaces there are", () => {
+    expect(
+      labels(
+        breadcrumbTrail("/workspaces/org_a/members", {
+          workspace: "Default",
+          workspaceArea: "Workspace",
+        }),
+      ),
+    ).toEqual(["Workspace", "Default", "Members"]);
+  });
+
   it("shows an identifier the address carries in the page's own face", () => {
     expect(breadcrumbTrail("/questions/q_age")).toEqual([
       { label: "Questions", href: "/questions" },

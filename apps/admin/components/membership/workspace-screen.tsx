@@ -51,7 +51,10 @@ export async function workspaceSectionTitle(
   });
 }
 
-/** One section screen: which workspace it is about, or why it is about none, then the section itself. */
+/**
+ * One section screen: why it is about no workspace, then the section itself. The breadcrumb and
+ * the switcher already name the workspace, so the frame does not repeat it.
+ */
 export function WorkspaceScreenFrame({
   workspaceId,
   workspace,
@@ -71,12 +74,7 @@ export function WorkspaceScreenFrame({
           </Link>
         </Alert>
       ) : (
-        <>
-          <RememberWorkspace workspaceId={workspaceId} secureCookies={secureCookies()} />
-          <p className="text-sm text-(--color-text-muted)" data-testid="qcms-workspace-context">
-            {t("membership.workspace.context", { name: workspace.name })}
-          </p>
-        </>
+        <RememberWorkspace workspaceId={workspaceId} secureCookies={secureCookies()} />
       )}
       {children}
     </div>
