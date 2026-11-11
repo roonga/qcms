@@ -110,7 +110,7 @@ export function DraftPreview({
       data-testid="qcms-draft-preview"
     >
       <div className="flex flex-col gap-1">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="qcms-help-head">
           <h2 id="qcms-preview-heading" className="text-lg font-semibold text-(--color-text)">
             {t("forms.preview.heading")}
           </h2>
@@ -151,7 +151,7 @@ export function DraftPreview({
           data-testid="qcms-preview-rejected"
           className="flex flex-col gap-2 rounded-md border border-(--color-border-strong) bg-(--color-background-muted) p-4"
         >
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="qcms-help-head">
             <h3
               id="qcms-preview-rejected-heading"
               className="text-base font-semibold text-(--color-text)"

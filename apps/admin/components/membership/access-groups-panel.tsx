@@ -96,7 +96,7 @@ export function AccessGroupsPanel({
   return (
     <section aria-labelledby="qcms-access-groups-heading" className="flex min-w-0 flex-col gap-4">
       <div className="flex min-w-0 flex-col gap-1">
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="qcms-help-head">
           <h1 id="qcms-access-groups-heading" className="text-xl font-semibold text-(--color-text)">
             {t("membership.groups.heading")}
           </h1>

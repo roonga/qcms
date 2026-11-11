@@ -113,7 +113,9 @@ describe("the builder's rules lens", () => {
     const markup = await render();
 
     expect(markup).not.toContain("qcms-rule-action");
-    expect(buttonClasses(markup)).toEqual(["qcms-helptip__button"]);
+    expect(buttonClasses(markup), "the help trigger is the only button").toEqual([
+      "qcms-round qcms-help__button",
+    ]);
   });
 
   it("tags a rule that carries issues, and says nothing about one that does not", async () => {
