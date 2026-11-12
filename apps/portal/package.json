@@ -22,18 +22,18 @@
     "@opentelemetry/sdk-trace-base": "^2.12.0",
     "@roonga/qcms-observability": "workspace:*",
     "@roonga/qcms-ui": "workspace:*",
-    "@vercel/otel": "^2.2.0",
-    "next": "16.4.3",
+    "@vercel/otel": "^2.3.0",
+    "next": "16.4.5",
     "react": "19.3.1",
     "react-dom": "19.3.1",
     "zod": "^4.6.7"
   },
   "devDependencies": {
     "@roonga/qcms-e2e-support": "workspace:*",
-    "@tailwindcss/postcss": "^4.3.3",
+    "@tailwindcss/postcss": "^4.3.5",
     "@types/node": "^24.19.2",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "tailwindcss": "^4.3.3"
+    "tailwindcss": "^4.3.5"
   }
 }
