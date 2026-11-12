@@ -13,7 +13,7 @@ Closes the builder programme: the docs say what shipped, the flows that cross ta
 - Cross-flow e2e: builder create, card-less edits, drawer, publish through the wizard with the diff, return to `/build`, the respondent sees the appearance in the portal; a derived theme saved and applied end to end.
 - Sentinel sweep: the SEC-17 sentinel and vocabulary tests over every fact, tool and kind added by 111, 112 and 117, the derive output included.
 - Each builder required test of `plan/agent-builder-decisions.md` traced to its test, in `plan/work-order-sequence.md`.
-- Ledger rows 106 to 121 closed.
+- Ledger rows 106 to 121 closed. If 119 or 120 slipped (Code Owner, 2026-11-13), their rows stay open and the cross-flow e2e covers what landed.
 
 ## Exit criteria
 

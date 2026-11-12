@@ -126,7 +126,7 @@ The user guide for these rules is [`docs/workspace-access-guide.html`](workspace
 - Every account, administrator or not, manages its own password, second factor, recovery codes and sessions, and reads its own access (My access).
 - The shared question library keeps its design: every workspace's Edit forms holders see and pin its questions; only Edit forms holders in the shared workspace edit them.
 - A form's appearance is part of its draft: editing it is a draft edit (Edit forms) and freezes with the version. While the workspace appearance lock is set, the API refuses every draft save that changes appearance, for every actor and for the assistant (section 9).
-- Setting or clearing the appearance lock is a workspace setting: it needs no second approval, even with the rule on, and writes one `setting` row in the workspace audit. That a Site administrator may set it, as for the other workspace settings, is a proposed default (section 16).
+- Setting or clearing the appearance lock is a workspace setting: it needs no second approval, even with the rule on, and writes one `setting` row in the workspace audit. A Workspace administrator or a Site administrator sets or clears it (section 16).
 - The logo route serves a workspace theme's stored raster logo to anyone, respondents included, without a session. It is not an act in the matrix: it reads no form, version or response and takes no grant (section 9).
 - The rows on workspace themes follow the agent-builder rulings Q10 and Q18 in `plan/agent-builder-decisions.md`.
 
@@ -272,7 +272,7 @@ Every new workspace is created with four starter groups. They are ordinary group
   - Refused when the destination workspace is archived.
   - The confirmation states that the destination's groups will apply, names who gains and who loses access, and says when the move needs an approver and who can approve it.
   - Responses move with the form.
-  - Appearance travels by value (proposed default, section 16): the form's draft and versions keep the appearance they carry, and nothing links the form to a theme of the source. A destination with the appearance lock set takes the form as it is; the lock refuses later appearance edits only, never the move. The confirmation says so.
+  - Appearance travels by value (section 16): the form's draft and versions keep the appearance they carry, and nothing links the form to a theme of the source. A destination with the appearance lock set takes the form as it is; the lock refuses later appearance edits only, never the move. The confirmation says so.
 - **Questions** do not move between workspaces. The built route `POST /admin/questions/{id}/workspace` is removed by the foundation task. The shared question library covers reuse across workspaces.
 - **Shared question library:** at most one workspace is marked shared; a Site administrator marks or unmarks it. Its screen is a Site administrator rail row at two or more workspaces and hidden at one; question lists show a shared tag.
   - Marking or unmarking writes a site audit row, mirrored to that workspace's audit.
@@ -574,17 +574,17 @@ Each record below, except the built-task records, now links here for workspace a
 - Questions keep "Publish" with its current meaning.
 - After a credential or factor reset, the person signs in again through an emailed single-use link; a factor-only reset does not force a new password.
 
-### Proposed defaults awaiting a Code Owner ruling
+### Ruled (Code Owner, 2026-11-13)
 
-- A Site administrator may set or clear the workspace appearance lock, as for the other workspace settings; agent-builder Q18 names the Workspace administrator only. The act needs no second approval.
-- Move form carries the form's appearance by value, and a destination lock refuses later appearance edits only (section 9).
-- The re-check on assistant acts runs on every draft edit request as well as at Confirm (section 10, criterion 91), following agent-builder Q14's card-less draft edits.
+- A Workspace administrator or a Site administrator may set or clear the workspace appearance lock, as for the other workspace settings. This extends agent-builder Q18, which named the Workspace administrator only. The act needs no second approval and writes one `setting` row.
+- Move form carries the form's appearance by value; a destination lock refuses later appearance edits only, never the move; the preview says so (section 9).
+- Assistant acts are rechecked on every draft edit request and at Confirm (section 10, criterion 91), following agent-builder Q14's card-less draft edits.
+- The mail dependency for outbound email is `nodemailer` over SMTP, configured by `QCMS_SMTP_*`, within the `CONTRIBUTING.md` thresholds.
 
 Request expiry (7 days), the `prod` rule with its exception for a site whose only environment is `prod` (section 5) and the held draft publish applying the draft as requested (section 6) are settled, not defaults. That a Site administrator is trusted at site level is an accepted limitation, stated in section 10, not an open item.
 
 ### Undecided
 
-- The choice of mail dependency for outbound email. It needs the Code Owner's runtime dependency approval and is brought by the email task; the proposal is `nodemailer` over SMTP.
 - Storage shape of an access group (several roles on one stored group, or one stored group per role) and the fate of the `<environments>.<role>[.<label>]` name grammar. Left to the foundation task and reviewed there.
 - Audit kinds for the new acts beyond the workspace audit's six existing kinds (Q79), and the site audit's row shape. Left to the foundation task and reviewed there.
 - A workspace's own questions at archive. This document states no rule. As built, questions do not block an archive and stay with the archived workspace, taking no new pin (ADR-41's archive Notes); the earlier "questions are reassigned first" no longer applies, because questions do not move.

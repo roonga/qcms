@@ -5,6 +5,8 @@
 
 ## Context
 
+In this programme by Code Owner ruling (2026-11-13), and 118 must land with the builder: a builder that sets appearance the portal does not show is not shippable.
+
 Respondents see the form's appearance, frozen with the version they started. The deployment environment's theme stays the default when a version carries none. The appearance is applied on a page-level carrier so it covers the whole portal page, not only the step.
 
 ## Deliverables

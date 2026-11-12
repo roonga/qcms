@@ -15,7 +15,7 @@ The routes that read and write appearance, themes and the lock. The lock is the 
   - OpenAPI regenerated.
 - A3:
   - Workspace themes list, read, create, change and delete: Edit forms in that workspace (spec section 3).
-  - Set and clear the appearance lock: Workspace administrator of that workspace or Site administrator; no second approval, even with the rule on; one `setting` row in the workspace audit.
+  - Set and clear the appearance lock: Workspace administrator of that workspace or Site administrator (Code Owner, 2026-11-13); no second approval, even with the rule on; one `setting` row in the workspace audit.
   - Logo upload on a theme: PNG, JPEG or WebP confirmed by magic-number sniff, size-capped, SVG refused.
   - The logo route: served without a session, fixed content type, `X-Content-Type-Options: nosniff`, from the portal's own origin so SEC-9's `img-src` holds. It serves only a raster logo stored on a workspace theme and takes no grant.
 - SEC-3 §3.2 route rows for every new route; `route-policy.ts` rows; agent kinds on these routes stay absent until 117.

@@ -1,15 +1,15 @@
 # 087 - Outbound email
 
-**Stage:** 9 (Phase 4) · **Apps/packages:** `apps/api`, compose files, `create-qcms-app` templates · **Depends on:** the workspace access spec on `main`; the Code Owner's approval of the mail dependency
+**Stage:** 9 (Phase 4) · **Apps/packages:** `apps/api`, compose files, `create-qcms-app` templates · **Depends on:** the workspace access spec on `main`
 **References:** `docs/WORKSPACE_ACCESS.md` section 7 (creation) and section 16 · `CONTRIBUTING.md` (dependency thresholds) · `docs/features/061-forced-password-change.md` · `plan/work-order-sequence.md`
 
 ## Context
 
 QCMS has no mail transport. Account creation, reactivation and reset all send an emailed single-use link, so 090 and 091 wait on this task. It can start early, in parallel with 085.
 
-## Open ruling
+## Ruling
 
-The mail dependency needs the Code Owner's runtime dependency approval. **Proposed: `nodemailer` over SMTP.** The executor brings the risk assessment in the PR and does not merge before the ruling. If the ruling is not in, park with `HANDOFF: AWAITING-HUMAN`.
+**`nodemailer` over SMTP** (Code Owner, 2026-11-13), configured by `QCMS_SMTP_*`. The executor still brings the `CONTRIBUTING.md` dependency risk assessment in the PR.
 
 ## Deliverables
 

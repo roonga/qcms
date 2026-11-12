@@ -1,6 +1,6 @@
 # Work-order sequence: workspace access and the agent builder
 
-Status: proposal for tasks 084 to 121, reserved in `docs/features/README.md`. The rules are in `docs/WORKSPACE_ACCESS.md` (access) and `plan/agent-builder-decisions.md` (builder); this file orders the work and maps criteria to tasks. Where it differs from `plan/workspace-access-implementation.md`, this file holds.
+Status: ruled for tasks 084 to 121 (Code Owner, 2026-11-13), recorded in `docs/features/README.md`. The rules are in `docs/WORKSPACE_ACCESS.md` (access) and `plan/agent-builder-decisions.md` (builder); this file orders the work and maps criteria to tasks. Where it differs from `plan/workspace-access-implementation.md`, this file holds.
 
 ## Legend
 
@@ -25,7 +25,7 @@ Gates:
 | 084  | Workspace quick wins and list scope (Q1)     | spec                        | O      | V, D, M       | no           | no        |
 | 085  | Access roles and group shape                 | spec                        | F      | V, D, B, E, M | no           | 1st       |
 | 086  | Site administrator default, starter groups   | 085                         | F      | V, D, E       | no           | 2nd       |
-| 087  | Outbound email                               | spec, mail ruling           | O      | V, D, E       | no           | no        |
+| 087  | Outbound email                               | spec                        | O      | V, D, E       | no           | no        |
 | 088  | Account state and site audit                 | 086; after 108 in the queue | F      | V, D, E       | no           | 4th       |
 | 089  | Membership guards, Workspace administrators  | 085, 088                    | F      | V, D, E, M    | no           | no        |
 | 090  | Account creation and claim                   | 087, 088, 089               | F      | V, D, B, E, M | no           | 5th       |
@@ -68,21 +68,21 @@ Gates:
 
 A group starts once every dependency in the groups before it has merged. Within a group, tasks run in parallel, each in its own worktree and `QCMS_PORT_SEAT`, subject to the hot-file rule.
 
-| Group | Tasks              | Note                                                                    |
-| ----- | ------------------ | ----------------------------------------------------------------------- |
-| A     | 084, 085, 087, 106 | Independent early starters; 085 alone on `policy.ts`; 087 waits on mail |
-| B     | 086, 094, 104, 107 | 094 and 104 behind their design batches                                 |
-| C     | 097, 108, 113      | 108 is the third migration                                              |
-| D     | 088, 109, 119      | 088 merges after 108                                                    |
-| E     | 089, 110, 111, 118 |                                                                         |
-| F     | 090, 112, 114, 120 |                                                                         |
-| G     | 091, 102, 115      |                                                                         |
-| H     | 092, 098           | 092 is the last migration                                               |
-| I     | 093, 100           |                                                                         |
-| J     | 095, 096, 099      |                                                                         |
-| K     | 101, 116           |                                                                         |
-| L     | 103, 117           |                                                                         |
-| M     | 105, 121           | Closure                                                                 |
+| Group | Tasks              | Note                                                 |
+| ----- | ------------------ | ---------------------------------------------------- |
+| A     | 084, 085, 087, 106 | Independent early starters; 085 alone on `policy.ts` |
+| B     | 086, 094, 104, 107 | 094 and 104 behind their design batches              |
+| C     | 097, 108, 113      | 108 is the third migration                           |
+| D     | 088, 109, 119      | 088 merges after 108                                 |
+| E     | 089, 110, 111, 118 |                                                      |
+| F     | 090, 112, 114, 120 |                                                      |
+| G     | 091, 102, 115      |                                                      |
+| H     | 092, 098           | 092 is the last migration                            |
+| I     | 093, 100           |                                                      |
+| J     | 095, 096, 099      |                                                      |
+| K     | 101, 116           |                                                      |
+| L     | 103, 117           |                                                      |
+| M     | 105, 121           | Closure                                              |
 
 - Critical path (access): 085, 086, 108 (queue), 088, 089, 090, 091, 092, 093, 099, 101, 103, 105.
 - Critical path (builder): 106, 107, 108, 109, 110, 116 (after 099), 117, 121.
@@ -156,16 +156,16 @@ Every criterion of `docs/WORKSPACE_ACCESS.md` section 14 is owned by exactly one
 - 106 to 108 and 111 to 120 own no access criterion; their criteria come from `plan/agent-builder-decisions.md` (Required tests) and are mapped in their own work orders.
 - 117 and 123 need appearance (108, 109) and either 093 or 095, so they sit with 121.
 
-## Open Code Owner rulings
+## Code Owner rulings
 
-All recommendations are proposed, not ruled.
+All seven ruled as recommended (Code Owner, 2026-11-13).
 
-| Ruling                                    | Recommendation                                                                                              | Blocks        |
+| Ruling                                    | Ruled                                                                                                       | Applies to    |
 | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------- | ------------- |
-| Stage and dispatch order for 084 to 121   | Stage 9, "Phase 4; does not gate launch"; dispatch ahead of 038 by explicit direction, as for 064 to 070    | all dispatch  |
-| Portal tasks 118 to 120 in this programme | Yes, at least 118                                                                                           | 118 to 120    |
+| Stage and dispatch order for 084 to 121   | Stage 9, "Phase 4; does not gate launch"; dispatched ahead of 038 by explicit direction, as for 064 to 070  | all dispatch  |
+| Portal tasks 118 to 120 in this programme | Yes; 118 lands with the builder; 119 and 120 may slip                                                       | 118 to 120    |
 | Who sets the workspace appearance lock    | Workspace administrator and Site administrator; no second approval; one `setting` audit row                 | 109, 116      |
 | Move form and appearance                  | Appearance travels by value; a destination lock refuses later edits only; the preview says so               | 095, 121      |
 | Agent re-check wording (F4)               | "Rechecked on every draft edit request and at Confirm", since draft edits carry no card (agent-builder Q14) | 096, 111      |
-| Quick fix Q1 (workspace list)             | Folded into 084                                                                                             | 084           |
+| Quick fix Q1 (workspace list)             | Folded into 084; ships alone if 084 slips                                                                   | 084           |
 | Mail dependency                           | `nodemailer` over SMTP, `QCMS_SMTP_*`, per `CONTRIBUTING.md` thresholds                                     | 087, 090, 091 |

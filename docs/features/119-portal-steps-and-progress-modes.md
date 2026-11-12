@@ -5,6 +5,8 @@
 
 ## Context
 
+In this programme by Code Owner ruling (2026-11-13), but it may slip past the builder's landing without blocking 121's closure of the other tasks.
+
 Serve-step progress is only `{stepIndex, totalVisibleSteps}`. The rail needs an ordered list of every step, with rule-hidden steps shown as "Not needed", and back-jumps to completed steps through the existing cursor. The progress mode is part of the version's appearance (107's schema, 108's column).
 
 ## Deliverables

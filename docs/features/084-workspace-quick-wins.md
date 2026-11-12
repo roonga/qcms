@@ -5,7 +5,7 @@
 
 ## Context
 
-Small API fixes that rest on rulings already recorded and need no new model. This task absorbs the workspace list fix (quick fix Q1), so there is no separate issue branch for it.
+Small API fixes that rest on rulings already recorded and need no new model. This task absorbs the workspace list fix (quick fix Q1; Code Owner, 2026-11-13), so there is no separate issue branch for it. If 084 slips, the Q1 fix ships alone from this work order.
 
 Green field: no data migration, upgrade path or backward compatibility (spec section 1).
 
