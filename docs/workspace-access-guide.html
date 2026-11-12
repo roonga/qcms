@@ -844,7 +844,10 @@
           On a site whose only environment is <span class="env">prod</span>, publishing a draft to
           <span class="env">prod</span> becomes a request. Someone else with Publish forms for
           <span class="env">prod</span> approves it on the form, and only then is the draft frozen
-          as the next version and made live.
+          as the next version and made live. This is approved on the form only: it does not appear
+          under Requests or under Approval requests. The person who asked is recorded as the one who
+          froze the version, so they cannot later publish that version to
+          <span class="env">prod</span>.
         </li>
         <li>
           Every form move out of this workspace needs an approver who is not the mover: a Workspace
@@ -889,10 +892,11 @@
         After a Site administrator resets someone's sign-in or reactivates their account, that
         person's places in groups with View responses or Erase responses are suspended in your
         workspace. Their other access works as normal. Re-confirm each suspended membership you
-        still want. A Site administrator can re-confirm too. By default, where there is an
-        administrator other than both the person who did the reset or reactivation and the person
-        affected, the re-confirmation must come from such an administrator. Where there is none, the
-        person who did the reset or reactivation may re-confirm, and the audit records it.
+        still want. A Site administrator can re-confirm too. By default, where there is an active,
+        claimed administrator other than both the person who did the reset or reactivation and the
+        person affected, the re-confirmation must come from such an administrator. Where there is
+        none, including when the only other administrator is disabled or unclaimed, the person who
+        did the reset or reactivation may re-confirm, and the audit records it.
       </p>
       <p>
         Nobody re-confirms their own membership, whatever their role. Being a Workspace
@@ -1076,9 +1080,9 @@
         is recorded in the site audit and in each affected workspace's audit.
       </p>
       <p>
-        By default, where there is an administrator other than you and the person affected, they do
-        the re-confirmation, not you. Where there is none, you may re-confirm, and the audit records
-        that you did.
+        By default, where there is an active, claimed administrator other than you and the person
+        affected, they do the re-confirmation, not you. Where there is none, you may re-confirm, and
+        the audit records that you did.
       </p>
       <p>
         By default, the person signs in again through an emailed single-use link, then sets a new
@@ -1198,7 +1202,9 @@
         On a site whose only environment is <span class="env">prod</span>, publishing a draft to
         <span class="env">prod</span> creates a request instead. Another person with Publish forms
         for <span class="env">prod</span> approves it on the form; the draft is then frozen as the
-        next version and goes live in one step. A request lasts 7 days.
+        next version and goes live in one step. A request lasts 7 days. It does not appear under
+        Requests or Approval requests, and you are recorded as having frozen that version, so you
+        cannot later publish it to <span class="env">prod</span> yourself.
       </p>
 
       <h3 id="run-form">Run a live form</h3>

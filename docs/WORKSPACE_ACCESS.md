@@ -117,7 +117,7 @@ The user guide for these rules is [`docs/workspace-access-guide.html`](workspace
 - Moving a form needs Edit forms in both workspaces. With second approval off in the source, either the mover is a Workspace administrator of the source or the move waits for one, or a Site administrator, to approve it. With it on, every move waits for an approver other than the mover (section 9).
 - There is no act that moves a question between workspaces. The built route `POST /admin/questions/{id}/workspace` is removed by the foundation task.
 - With second approval on, a Grant or group change that gives the person making it a response role, or a new environment for one, waits for an approver (section 6).
-- Nobody re-confirms their own suspended membership. Re-confirming is also refused for the person who performed the reset or reactivation, where an administrator other than that person and the subject exists (section 7).
+- Nobody re-confirms their own suspended membership. Re-confirming is also refused for the person who performed the reset or reactivation, where an active, claimed administrator other than that person and the subject exists (section 7).
 - Every account, administrator or not, manages its own password, second factor, recovery codes and sessions, and reads its own access (My access).
 - The shared question library keeps its design: every workspace's Edit forms holders see and pin its questions; only Edit forms holders in the shared workspace edit them.
 
@@ -157,7 +157,7 @@ Every new workspace is created with four starter groups. They are ordinary group
 - A per-workspace setting, off by default. It applies in `prod` only.
 - **Covered acts in `prod`:** publishing a version, and changing a webhook endpoint. Links and open or close are not covered.
 - **Publishing a version to `prod`:** refused for the account that froze that version. A different person holding Publish forms for `prod` in that workspace publishes it and is recorded as the approver. This stays inline on the form; there is no separate approvals queue for publish approvals.
-- **Publishing a draft to `prod` on a site whose only environment is `prod`:** creates an approval request and freezes nothing. A different person holding Publish forms for `prod` in that workspace approves it on the form and is recorded as the approver; the draft is then frozen as the next version and made live in `prod` in one act. The request expires after 7 days, like the workspace approval requests below.
+- **Publishing a draft to `prod` on a site whose only environment is `prod`:** creates an approval request and freezes nothing. A different person holding Publish forms for `prod` in that workspace approves it on the form and is recorded as the approver; the draft is then frozen as the next version and made live in `prod` in one act. The requester is recorded as the person who froze the version and the approver as the approver, so the rule above applies to the requester for any later publish of that version to `prod`. The request expires after 7 days, like the workspace approval requests below. It is approved on the form only: it is not a workspace approval request and appears neither in the Requests row of the Audit screen nor under Approval requests in Site configuration. It is audited (section 11).
 - **Endpoint change in `prod`:** one holder of Publish forms for `prod` proposes it; it is held and not live until a different holder of Publish forms for `prod` confirms it.
 - **While the rule is on, two administrative acts need an approver:**
   - turning the rule off;
@@ -197,7 +197,7 @@ Every new workspace is created with four starter groups. They are ordinary group
 - The account's memberships of groups carrying a response role are suspended until a Workspace administrator of that workspace, or a Site administrator, re-confirms each one. Other memberships are unaffected.
 - Nobody re-confirms their own suspended membership, a Workspace administrator or Site administrator included.
 - The Workspace administrator role is a membership flag, not a group, and is not suspended by a reset or a reactivation.
-- Default: where an administrator exists other than both the person who performed the reset and the subject, the re-confirmation comes from such an administrator, never from the person who performed the reset. Where no such administrator exists, the person who performed the reset may re-confirm, and the audit row records that they did; the user guide says so.
+- Default: where an active, claimed administrator exists other than both the person who performed the reset or reactivation and the subject, the re-confirmation comes from such an administrator, never from the person who performed it. Where no such administrator exists, including when the only other administrator is disabled or unclaimed, the person who performed the reset may re-confirm, and the audit row records that they did; the user guide says so.
 - One site-audit row is written and mirrored to every affected workspace's audit.
 - Default: the person signs in again through an emailed single-use link, then sets a new password after a password reset, or enrols a new second factor after a factor reset.
 
@@ -295,7 +295,8 @@ Two append-only logs. For both, the application role holds `INSERT` and `SELECT`
   - **Workspace administrators:** appoint, remove.
   - **Access groups:** create, rename, delete, change of roles or environments, member added, member removed, re-confirmation of a suspended membership.
   - **Workspaces:** create, rename, archive, form moved in or out, second-approval switch changed, marked or unmarked as the shared question library.
-  - **Workspace approval requests** (turning second approval off, self-grant, Move form, a draft publish to `prod` on a site whose only environment is `prod`): created, approved, rejected, expired.
+  - **Workspace approval requests** (turning second approval off, self-grant, Move form): created, approved, rejected, expired.
+  - **Pending draft publish to `prod`** on a site whose only environment is `prod` (approved on the form, not a workspace approval request): requested, approved, rejected, expired.
 - The stored kinds for these rows, beyond the workspace audit's six existing kinds, are settled in the foundation task (section 16).
   - **Existing rows, unchanged:** response read, export and erasure; `prod` endpoint propose, confirm and withdraw; release-workflow change.
 
@@ -410,7 +411,7 @@ Each criterion is tested against the real policy code, service or route as its t
 28. With the rule on, a `prod` endpoint change is held until a different Publish forms holder for `prod` confirms it; the proposer's own confirm is refused.
 29. With the rule on, links and open or close in `prod` need no approval.
 30. With the rule on, the account that froze a version publishes it to a non-prod environment without approval.
-31. On a site whose only environment is `prod`, with the rule on, publishing a draft to `prod` creates an approval request and freezes and publishes nothing. Only when a different holder of Publish forms for `prod` approves it is the draft frozen as the next version and made live in `prod`. The requester's own approval, and an approval by someone without Publish forms for `prod`, are refused.
+31. On a site whose only environment is `prod`, with the rule on, publishing a draft to `prod` creates an approval request and freezes and publishes nothing. Only when a different holder of Publish forms for `prod` approves it is the draft frozen as the next version and made live in `prod`. The requester's own approval, and an approval by someone without Publish forms for `prod`, are refused. On approval the requester is recorded as the person who froze the version and the approver as the approver, and a later publish of that version to `prod` by the requester is refused.
 32. With the rule on, a self-grant into a group carrying a response role is not applied until approved by a different Workspace administrator or a Site administrator who is not the requester.
 33. With the rule on, an administrator who is in a group and edits it to add View responses, or to add an environment to its response role, is held for approval; the same edit by an administrator who is not in the group applies at once.
 34. With the rule on, an administrator who joins a group with no response role and then adds a response role to it is held for approval at that edit.
@@ -442,8 +443,8 @@ Each criterion is tested against the real policy code, service or route as its t
 57. A Workspace administrator cannot browse or search the account directory.
 58. A credential or factor reset revokes every session of the account in the same transaction.
 59. After a reset, the account's response-role memberships are suspended until re-confirmed per workspace; other memberships still work.
-60. Under the default, the administrator who performed a reset or a reactivation cannot re-confirm where an administrator other than them and the subject exists, a Site administrator included.
-61. Under the default, where the only administrators are the person who performed the reset or reactivation and the subject, the person who performed it can re-confirm, and the audit row records that they did.
+60. Under the default, the administrator who performed a reset or a reactivation cannot re-confirm where an active, claimed administrator other than them and the subject exists, a Site administrator included.
+61. Under the default, where the only administrators are the person who performed the reset or reactivation and the subject, or where the only other administrator is disabled or unclaimed, the person who performed it can re-confirm, and the audit row records that they did.
 62. A Site administrator who did not perform the reset can re-confirm a suspended membership in any workspace.
 63. The subject of a suspended membership cannot re-confirm it, as a Workspace administrator or as a Site administrator, whether or not another administrator exists.
 64. After a reset or a reactivation, a Workspace administrator still holds the Workspace administrator role in that workspace.
@@ -493,7 +494,7 @@ Each criterion is tested against the real policy code, service or route as its t
 99. Move form is refused unless the actor holds Edit forms in both workspaces; after it, the destination's groups apply and the source's do not, and the form's responses move with it.
 100.  Move form to an archived workspace is refused.
 101.  The Move form confirmation names who gains and who loses access before it is confirmed.
-102.  With second approval off in the source, a Move form by a person with Edit forms in both workspaces who is not a Workspace administrator of the source is held and not applied until a Workspace administrator of the source or a Site administrator approves it; the mover's own approval, and an approval by a Workspace administrator of the destination only, are refused.
+102.  With second approval off in the source, a Move form by a person with Edit forms in both workspaces who is not a Workspace administrator of the source is held and not applied until a Workspace administrator of the source or a Site administrator approves it, and so is a Move form by a Site administrator who is not a Workspace administrator of the source; the mover's own approval, and an approval by a Workspace administrator of the destination only, are refused.
 103.  With second approval off in the source, a Move form by a Workspace administrator of the source who holds Edit forms in both workspaces applies without approval.
 104.  With second approval on in the source, a Move form by a Workspace administrator of the source who holds Edit forms in both workspaces is held and not applied until a different Workspace administrator of the source or a Site administrator approves it; the mover's own approval is refused.
 105.  With second approval on in the source, a Move form by a Site administrator who holds Edit forms in both workspaces is held, and that Site administrator's own approval is refused; a Workspace administrator of the source or another Site administrator can approve it.
@@ -537,7 +538,7 @@ Each record below, except the built-task records, now links here for workspace a
 
 ### Defaults open to revision
 
-- After a credential reset or a reactivation, re-confirmation of response memberships comes from an administrator other than both the person who did the reset or reactivation and the subject, where one exists; where none exists, the person who did it may re-confirm, and the audit records it.
+- After a credential reset or a reactivation, re-confirmation of response memberships comes from an active, claimed administrator other than both the person who did the reset or reactivation and the subject, where one exists; where none exists, the person who did it may re-confirm, and the audit records it.
 - With one Site administrator, step-up alone suffices to promote a second.
 - The last active Site administrator cannot be demoted.
 - Questions keep "Publish" with its current meaning.
