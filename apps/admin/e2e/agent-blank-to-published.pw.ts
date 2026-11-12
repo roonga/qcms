@@ -97,7 +97,7 @@ test("takes a blank form to a published one in test, through two cards", async (
   await expectServing(page, journeyFormId, "v1");
   await expect(
     page.getByTestId("qcms-released-now").locator(`tr[data-environment="prod"]`),
-  ).toContainText("Nothing released");
+  ).toContainText("None");
 
   expect(auditDelta(before, await auditTally())).toEqual({
     "question.publish": QUESTION_COUNT,
@@ -125,7 +125,7 @@ test("cancels the publish card, then publishes what the editor left in the draft
   await cancel(page);
   await expectAxeClean(page, "cancelled publish plan");
   expect(auditDelta(beforeCancel, await auditTally())).toEqual({});
-  await expectServing(page, formId, "Nothing released");
+  await expectServing(page, formId, "None");
 
   await page.goto(`/forms/${formId}`);
   const beforeEdit = await savedStamp(page);
@@ -176,7 +176,7 @@ test("refuses the publish card after the editor changes the saved draft", async 
   await expectAxeClean(page, "refused publish plan");
 
   expect(auditDelta(before, await auditTally())).toEqual({});
-  await expectServing(page, formId, "Nothing released");
+  await expectServing(page, formId, "None");
 });
 
 // Inside a plan that publishes the form, which is the only shape the pin set decides: a

@@ -65,6 +65,8 @@ export const CreateFormBody = z
     formId: z.string().min(1).openapi({ example: "frm_signup" }),
     slug: z.string().min(1).openapi({ example: "signup" }),
     defaultLocale: z.string().min(1).openapi({ example: "en" }),
+    /** Names the first draft. A stepless draft cannot be saved again, so the name arrives here. */
+    title: z.string().max(200).optional().openapi({ example: "Sign up" }),
     /**
      * Optional on the request, required on the row: omitted it resolves to the single
      * workspace, and is refused when more than one exists.
@@ -283,7 +285,7 @@ export const FormDetailResponse = z
     formId: z.string().openapi({ example: "frm_signup" }),
     slug: z.string().openapi({ example: "signup" }),
     defaultLocale: z.string().openapi({ example: "en" }),
-    status: FormStatus.openapi({ example: "open" }),
+    status: FormAvailability.openapi({ example: "open" }),
     /** The open draft, else the latest published definition as a seed, else null. */
     draft: z.unknown(),
     releasedDefinition: z.unknown(),

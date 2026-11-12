@@ -7,6 +7,7 @@ import { HeadingMarker } from "@/components/agent/heading-marker";
 import { useEnvironmentUnknown } from "@/components/environment-scope";
 import type { FormStatusState } from "@/lib/forms/builder-state";
 import { IDLE_FORM_STATUS } from "@/lib/forms/builder-state";
+import type { FormAvailability } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
 import { unexpected } from "@/lib/ops/unexpected";
 
@@ -22,7 +23,7 @@ export function FormAvailability({
   environment,
 }: {
   readonly slug: string;
-  readonly status: "open" | "closed";
+  readonly status: FormAvailability;
   /** Bound by the page to the environment this screen showed; refused if that has changed. */
   readonly setStatus: (action: "close" | "reopen") => Promise<FormStatusState>;
   /** The environment the operator's Q6 switcher had selected when this screen rendered. */
@@ -62,23 +63,31 @@ export function FormAvailability({
         {t("forms.tab.availability")}
       </h2>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <HeadingMarker control="intake.door">
-          <Button
-            variant="secondary"
-            size="md"
-            isDisabled={isPending || environmentUnknown}
-            onPress={() => {
-              setLifecycle(IDLE_FORM_STATUS);
-              setDialog(status === "open" ? "close" : "reopen");
-            }}
-          >
-            {status === "open"
-              ? t("forms.lifecycle.close", { environment })
-              : t("forms.lifecycle.reopen", { environment })}
-          </Button>
-        </HeadingMarker>
-      </div>
+      {status === "unreleased" ? (
+        // Neither verb has anything to act on here, so the screen says so instead of
+        // offering a button the API would refuse.
+        <p className="text-sm text-(--color-text-muted)" data-testid="qcms-form-not-released">
+          {t("forms.lifecycle.notReleasedHere")}
+        </p>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2">
+          <HeadingMarker control="intake.door">
+            <Button
+              variant="secondary"
+              size="md"
+              isDisabled={isPending || environmentUnknown}
+              onPress={() => {
+                setLifecycle(IDLE_FORM_STATUS);
+                setDialog(status === "open" ? "close" : "reopen");
+              }}
+            >
+              {status === "open"
+                ? t("forms.lifecycle.close", { environment })
+                : t("forms.lifecycle.reopen", { environment })}
+            </Button>
+          </HeadingMarker>
+        </div>
+      )}
 
       {status === "closed" && (
         <p className="text-sm text-(--color-text-muted)" data-testid="qcms-form-closed">

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 
 import { FormPageHeader } from "@/components/forms/form-page-header";
 import { RulesScreen } from "@/components/forms/rules-screen";
@@ -43,8 +43,6 @@ export default async function FormRulesPage({
     return <Alert variant="error">{detail.message}</Alert>;
   }
   const form = detail.data;
-  if (form.workflow?.enabled && !form.workflow.canEdit)
-    redirect(`/forms/${encodeURIComponent(formId)}`);
   const verdict =
     form.draft === null ? undefined : await formVerdict(session, form.formId, form.draft);
 

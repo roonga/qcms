@@ -94,10 +94,12 @@ export function GroupPanel({
       className="flex flex-col gap-4 rounded-md border border-(--color-border) bg-(--color-surface) p-4"
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h1 id="qcms-group-heading" className="text-base font-semibold text-(--color-text)">
-          {t("forms.group.heading", { label: name })}
-        </h1>
-        <HelpTip>{t("forms.group.note")}</HelpTip>
+        <div className="qcms-help-head">
+          <h1 id="qcms-group-heading" className="text-base font-semibold text-(--color-text)">
+            {t("forms.group.heading", { label: name })}
+          </h1>
+          <HelpTip>{t("forms.group.note")}</HelpTip>
+        </div>
         {saveFlash}
       </div>
 

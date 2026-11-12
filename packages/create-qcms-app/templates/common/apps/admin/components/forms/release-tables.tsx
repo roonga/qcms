@@ -14,9 +14,9 @@ function movement(row: ReleaseRecord): string {
   return t("forms.releases.replaced", { replaced: row.replacedVersion });
 }
 
-function intakeLabel(released: ReleaseRecord | undefined): string {
-  if (released === undefined) return "";
-  return t(released.closed ? "forms.versions.intakeClosed" : "forms.versions.intakeOpen");
+function availabilityOf(released: ReleaseRecord | undefined): "open" | "closed" | "unreleased" {
+  if (released === undefined) return "unreleased";
+  return released.closed ? "closed" : "open";
 }
 
 export function EnvironmentSummary({
@@ -47,6 +47,7 @@ export function EnvironmentSummary({
         <tbody>
           {environments.map((name) => {
             const released = current.get(name);
+            const availability = availabilityOf(released);
             return (
               <tr key={name} data-environment={name}>
                 <th scope="row">{name}</th>
@@ -55,9 +56,7 @@ export function EnvironmentSummary({
                     ? t("forms.releases.none")
                     : t("forms.version.value", { version: released.version })}
                 </td>
-                <td data-intake={released?.closed === true ? "closed" : "open"}>
-                  {intakeLabel(released)}
-                </td>
+                <td data-availability={availability}>{t(`forms.status.${availability}`)}</td>
                 <td>{released === undefined ? "" : <OperatorDay iso={released.releasedAt} />}</td>
                 <td className="qcms-cell--drop">{released?.releasedBy ?? ""}</td>
               </tr>

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useState } from "react";
 
+import { HelpDisc } from "@/components/help-tip";
 import { t } from "@/lib/i18n/en";
 
 const COPIED_MS = 2000;
@@ -69,7 +70,7 @@ export function PublicFormLink({
         </a>
         <button
           type="button"
-          className="qcms-copyid"
+          className="qcms-iconbutton qcms-iconbutton--sm qcms-copyid"
           data-readonly-action="copy"
           aria-label={t("forms.publicLink.copy")}
           data-copied={copied ? "" : undefined}
@@ -96,7 +97,7 @@ export function PublicFormLink({
         </button>
         <button
           type="button"
-          className="qcms-help-dot"
+          className="qcms-round qcms-help__button"
           aria-expanded={helpOpen}
           aria-controls={helpId}
           aria-label={t("forms.publicLink.helpLabel")}
@@ -104,7 +105,7 @@ export function PublicFormLink({
             setHelpOpen((open) => !open);
           }}
         >
-          <span aria-hidden="true">{"?"}</span>
+          <HelpDisc />
         </button>
       </div>
       {helpOpen && (

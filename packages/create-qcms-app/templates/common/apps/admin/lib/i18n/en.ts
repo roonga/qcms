@@ -16,6 +16,7 @@ export const messages = {
   /** The narrow-width disclosure's name on an area rail, which carries no title of its own. */
   "rail.menu": "Menu",
   "help.label": "More information",
+  "help.named": "Help: {label}",
   "rail.allQuestions": "All questions",
   "rail.allForms": "All forms",
 
@@ -101,7 +102,6 @@ export const messages = {
   "nav.label": "Primary",
   "nav.questions": "Questions",
   "nav.forms": "Forms",
-  "nav.workspaces": "Workspaces",
   "nav.settings": "Settings",
 
   "nav.operations": "Operations",
@@ -138,7 +138,7 @@ export const messages = {
   "operations.table": "Forms you can operate",
   "operations.column.form": "Form",
   "operations.column.workspace": "Workspace",
-  "operations.column.released": "Released",
+  "operations.column.released": "Version",
   "operations.column.intake": "Availability",
   "operations.column.lastRelease": "Last release",
   "operations.column.submitted": "Submitted",
@@ -148,7 +148,7 @@ export const messages = {
   "operations.intake.open": "Open",
   "operations.intake.closed": "Closed",
   "operations.intake.unreleased": "Not Released",
-  "operations.release.none": "No release",
+  "operations.release.none": "None",
   "operations.loading": "Loading the forms you can operate.",
 
   "operations.environmentUnknown":
@@ -540,7 +540,7 @@ export const messages = {
   "forms.create.submitting": "Creating the form...",
 
   "forms.builder.formId": "Form ID",
-  "forms.builder.status": "Status",
+  "forms.builder.status": "Availability",
   "forms.builder.draftSource.open": "Editing the saved draft.",
   "forms.builder.draftSource.seeded":
     "Started from the newest published version. Nothing is stored until the first save.",
@@ -1141,7 +1141,7 @@ export const messages = {
   "forms.lifecycle.closedNote":
     "This form is closed in {environment}. It is not accepting new responses there; responses already in progress finish normally, and other environments are unaffected.",
   "forms.lifecycle.notReleasedHere":
-    "Nothing is released in this environment, so there is nothing to close there. Release a version first.",
+    "Nothing is released in this environment, so there is nothing to close or reopen there. Release a version first.",
   "forms.lifecycle.alreadyClosedHere":
     "This form is already closed in this environment. Nothing changed, and nothing was recorded.",
   "forms.lifecycle.alreadyOpenHere":
@@ -1155,7 +1155,7 @@ export const messages = {
   "forms.releases.column.releasedBy": "Released by",
   "forms.releases.column.fromEnvironment": "Promoted from",
   "forms.releases.column.approvedBy": "Approved by",
-  "forms.releases.none": "Nothing released",
+  "forms.releases.none": "None",
   "forms.releases.noSource": "Released directly",
   "forms.releases.noApproval": "No approval recorded",
   "forms.releases.historyHeading": "Release history",
@@ -1202,8 +1202,6 @@ export const messages = {
 
   "forms.versions.reviewVersion": "Review version {version}",
   "forms.versions.summaryHeading": "What each environment is serving",
-  "forms.versions.intakeOpen": "Open",
-  "forms.versions.intakeClosed": "Closed",
   "forms.versions.column.intake": "Availability",
   "forms.versions.publishEntry": "Publish…",
 
@@ -1307,7 +1305,7 @@ export const messages = {
     "The published version could not be loaded. Close this confirmation and try again.",
   "forms.workflow.alreadyReleased": "v{version} is already released to {environment}.",
   "forms.workflow.noPublishPermission":
-    "Publishing here requires permission to publish forms and release versions to {environment}.",
+    "Publishing requires permission to publish forms in this workspace.",
   "forms.workflow.noReleasePermission":
     "You do not have permission to release versions to {environment} in this workspace.",
   "forms.workflow.noCandidate":
@@ -1317,9 +1315,6 @@ export const messages = {
     "Publish and verify this version in test, then switch to prod and release the existing version.",
   "forms.workflow.noEditPermission":
     "You do not have permission to edit form drafts in this workspace.",
-  "forms.workflow.editInTest":
-    "Draft changes are shared. Select test in the top navigation to edit and publish them.",
-  "forms.workflow.switchToTest": "Switch to test",
   "forms.workflow.noReleasedVersion":
     "Nothing is released in this environment yet. Select a published version on Versions to review and release it.",
   "forms.workflow.reviewCurrent": "Currently released: v{version}",
@@ -1363,7 +1358,7 @@ export const messages = {
   "forms.history.filter.legend": "Show",
   "forms.history.filter.hidden":
     "{count} versions are hidden because they were never released anywhere.",
-  "forms.history.column.released": "Released",
+  "forms.history.column.released": "Released in",
   "forms.history.releasedIn": "{environments}",
   "forms.history.releasedNowhere": "Nowhere",
   "forms.history.column.version": "Version",
@@ -1949,6 +1944,7 @@ export const messages = {
   "ops.export.emptyNote.json": "A JSON export that matches nothing downloads as an empty list.",
 
   "ops.detail.heading": "Response {sessionId}",
+  "ops.detail.moreActions": "More actions",
   "ops.detail.back": "Back to responses",
   "ops.detail.answers": "Locked answers",
   "ops.detail.answersIntro":
@@ -2264,8 +2260,10 @@ export const messages = {
 
   /** Test response grants are grants on personal data, including real respondents. Access-group names are labels; role and scope fields alone authorize. */
   "membership.area.title": "Workspaces",
+  /** One workspace is the common installation, and the plural promises a choice it does not have. */
+  "membership.area.titleOne": "Workspace",
   "membership.area.noWorkspaces":
-    "You manage no workspace. Your own grants are on the access panel below.",
+    "You manage no workspace. Your own grants are on My access, in the account menu.",
   "membership.area.loadFailed": "The workspaces could not be read: {message}",
   "membership.workspace.notFound": "No such workspace, or you do not manage it.",
   "membership.workspace.allWorkspaces": "All workspaces",
@@ -2274,7 +2272,7 @@ export const messages = {
   "membership.allWorkspaces.column.forms": "Forms",
   "membership.allWorkspaces.column.questions": "Questions",
   "membership.allWorkspaces.archived": "Archived",
-  "membership.workspace.context": "Workspace: {name}",
+  "membership.allWorkspaces.none": "No workspace you can open.",
 
   /** Plain role names, each with one line on what it allows; the wire id never reaches the screen. */
   "membership.role.formsViewer.name": "Form viewer",
@@ -2305,11 +2303,11 @@ export const messages = {
   "membership.members.table": "Members of this workspace and the access groups each holds",
   "membership.audit.table": "The access audit for this workspace, newest first",
   "membership.members.columnEmail": "Account",
-  "membership.members.columnRole": "Member row",
+  "membership.members.columnRole": "Role",
   "membership.members.columnGroups": "Access groups",
   "membership.members.noGroups": "None",
 
-  "membership.members.emptyRole": "Member (grants nothing on its own)",
+  "membership.members.emptyRole": "No access",
   "membership.members.ownerRole": "Workspace owner",
   "membership.members.makeOwner": "Make a workspace owner",
   "membership.members.removeOwner": "Remove workspace owner",
@@ -2318,12 +2316,19 @@ export const messages = {
 
   "membership.groups.heading": "Access groups",
   "membership.groups.intro":
-    "One group is one grant: a role and its scope. Team membership is the grant, so a group with no holders grants nobody anything.",
+    "Holding a group is the grant, so a group nobody holds grants nobody anything.",
   "membership.groups.loadFailed": "The access groups could not be read: {message}",
   "membership.groups.none": "This workspace has no access groups yet.",
   "membership.groups.nameHelp":
-    "A name is written <environments>.<role>[.<label>] and is a label rather than a mechanism: the role and the scope on the group decide what it grants, and a name out of step with them is refused on save. Nothing reads a name to authorise anything.",
-  "membership.groups.derivedName": "Full name {fullName}, in a directory {directoryName}",
+    "A name is written <environments>.<role>[.<label>] and is a label rather than a mechanism: the role and the scope decide what the group grants, and a name out of step with them is refused on save. Nothing reads a name to authorise anything.",
+  "membership.groups.title": "{role}, {environments}, {forms}",
+  "membership.groups.titleAllEnvironments": "all environments",
+  "membership.groups.titleAllForms": "all forms",
+  "membership.groups.titleForms.one": "1 form",
+  "membership.groups.titleForms.other": "{count} forms",
+  "membership.groups.storedName": "Stored name {name}",
+  "membership.groups.derivedName": "Full name {fullName}",
+  "membership.groups.directoryName": "In a directory {directoryName}",
   "membership.groups.columnRole": "Role",
   "membership.groups.columnEnvironments": "Environments",
   "membership.groups.columnForms": "Forms",
@@ -2333,9 +2338,11 @@ export const messages = {
   "membership.groups.createNameMissing": "Choose an environment and the group's name follows.",
   "membership.groups.createRole": "Role",
   "membership.groups.createEnvironments": "Environments",
-  "membership.groups.allEnvironments": "All environments, including any added later",
+  "membership.groups.allEnvironments": "All environments",
+  "membership.groups.allEnvironmentsHelp": "Includes any environment added later.",
   "membership.groups.createForms": "Forms",
-  "membership.groups.allForms": "All forms in this workspace, including any added later",
+  "membership.groups.allForms": "All forms",
+  "membership.groups.allFormsHelp": "Includes any form added to this workspace later.",
   "membership.groups.formSearch": "Search forms by name",
   "membership.groups.noForms": "No form you can read matches.",
   "membership.groups.formsReadable":
@@ -2390,6 +2397,12 @@ export const messages = {
   "membership.audit.columnForm": "Form",
   "membership.audit.columnDetail": "Detail",
   "membership.audit.empty": "-",
+  "membership.audit.kind.read": "Read responses",
+  "membership.audit.kind.export": "Exported responses",
+  "membership.audit.kind.erasure": "Erased responses",
+  "membership.audit.kind.grant": "Granted",
+  "membership.audit.kind.revoke": "Revoked",
+  "membership.audit.kind.setting": "Changed a setting",
   "membership.audit.total": "{total} row(s)",
   /** Audit records must survive account deletion and fall back to account IDs rather than cascading away. */
   "membership.audit.unknownActor": "{actor} (account removed)",
@@ -2401,18 +2414,54 @@ export const messages = {
   "membership.agentAudit.none": "The assistant has confirmed nothing in this workspace yet.",
   "membership.agentAudit.table":
     "The steps the assistant proposed and a person confirmed in this workspace, newest first",
+  /** The row exists because the step committed: a refused, cancelled or failed step writes none. */
+  "membership.agentAudit.confirmedOnly":
+    "Every step here was confirmed by a person and then succeeded. A step that was refused, cancelled or failed records nothing.",
+  "membership.agentAudit.plan.one": "One step, confirmed by {actor}",
+  "membership.agentAudit.plan.other": "Plan of {count} steps, confirmed by {actor}",
   "membership.agentAudit.columnWhen": "Confirmed",
   "membership.agentAudit.columnActor": "Account",
   "membership.agentAudit.columnKind": "Action",
-  "membership.agentAudit.columnStep": "Step",
   "membership.agentAudit.columnScreen": "Screen",
   "membership.agentAudit.columnEnvironment": "Environment",
   "membership.agentAudit.columnForm": "Form",
   "membership.agentAudit.columnDetail": "Detail",
   "membership.agentAudit.empty": "-",
   "membership.agentAudit.total": "{total} step(s)",
-  "membership.agentAudit.step": "{index} of {count}",
   "membership.agentAudit.unknownActor": "{actor} (account removed)",
+  "membership.agentAudit.detail": "{label}: {value}",
+  "membership.agentAudit.removed": "{id} (removed)",
+  "membership.agentAudit.screen.question": "Question details",
+  "membership.agentAudit.act.form.create": "Created a form",
+  "membership.agentAudit.act.apply-draft": "Applied a proposed draft",
+  "membership.agentAudit.act.form.saveDraft": "Saved a form's draft",
+  "membership.agentAudit.act.form.publish": "Published a form version and released it",
+  "membership.agentAudit.act.form.release": "Released a form version",
+  "membership.agentAudit.act.form.settings": "Changed a form's abuse settings",
+  "membership.agentAudit.act.form.close": "Closed a form to new responses",
+  "membership.agentAudit.act.form.reopen": "Reopened a form",
+  "membership.agentAudit.act.link.mint": "Minted respondent links",
+  "membership.agentAudit.act.link.revoke": "Revoked a respondent link",
+  "membership.agentAudit.act.response.erase": "Erased a respondent's data",
+  "membership.agentAudit.act.response.unflag": "Released a withheld submission",
+  "membership.agentAudit.act.response.export": "Exported responses",
+  "membership.agentAudit.act.webhook.create": "Added a delivery endpoint",
+  "membership.agentAudit.act.webhook.rotate": "Rotated an endpoint's signing secret",
+  "membership.agentAudit.act.webhook.retarget": "Pointed an endpoint at another URL",
+  "membership.agentAudit.act.webhook.reactivate": "Put an endpoint back in service",
+  "membership.agentAudit.act.webhook.deactivate": "Stopped delivering to an endpoint",
+  "membership.agentAudit.act.webhook.redeliver": "Redelivered one delivery",
+  "membership.agentAudit.act.question.create": "Created a question",
+  "membership.agentAudit.act.question.saveDraft": "Saved a question's draft",
+  "membership.agentAudit.act.question.publish": "Published a question version",
+  "membership.agentAudit.act.question.deprecate": "Deprecated a question version",
+  "membership.agentAudit.act.question.newVersion": "Opened a new question draft",
+  "membership.agentAudit.act.access.groupCreate": "Created an access group",
+  "membership.agentAudit.act.access.groupRemove": "Removed an access group",
+  "membership.agentAudit.act.access.grant": "Granted an access group",
+  "membership.agentAudit.act.access.revoke": "Revoked an access group",
+  "membership.agentAudit.act.member.role": "Changed a member's role",
+  "membership.agentAudit.act.workspace.settings": "Changed the workspace settings",
 
   "membership.mine.heading": "Your own access",
   "membership.mine.intro":
@@ -2421,7 +2470,7 @@ export const messages = {
   "membership.mine.installationAdmin":
     "You hold the installation-wide claim: settings, accounts, memberships and environments, in every workspace. It grants no response read, export or erasure anywhere.",
   "membership.mine.none": "You hold no grant in any workspace.",
-  "membership.mine.memberOnly": "A member row that grants nothing on its own",
+  "membership.mine.memberOnly": "No access",
   "membership.mine.environments": "Environments: {environments}",
 } as const;
 

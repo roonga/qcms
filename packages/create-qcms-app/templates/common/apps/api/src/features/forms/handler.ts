@@ -56,6 +56,7 @@ import {
   listFormReleases,
   listQuestionVersions,
   getFormEnvironmentState,
+  type FormEnvironmentState,
   type QuestionStatus,
   reopenFormInEnvironment,
   updateFormSettings,
@@ -483,12 +484,14 @@ export function makeCreateFormHandler(deps: Deps): RouteHandler<typeof createFor
     const locale = parseLocaleCode(body.defaultLocale);
     if (!locale.ok) throw fail.invalidLocale();
 
+    const named = body.title?.trim() ?? "";
+
     // Deliberately not publishable: publish re-parses it and rejects until the author
     // saves real content.
     const emptyDraft: FormDefinition = {
       formId,
       defaultLocale: locale.value,
-      title: {},
+      title: named === "" ? {} : { [locale.value]: named },
       steps: [],
       rules: [],
     };
@@ -530,6 +533,12 @@ export function makeCreateFormHandler(deps: Deps): RouteHandler<typeof createFor
   };
 }
 
+/** The list and the detail read share this so a row and the screen it opens cannot disagree. */
+function availabilityOf(state: FormEnvironmentState | undefined): "open" | "closed" | "unreleased" {
+  if (state === undefined) return "unreleased";
+  return state.closed ? "closed" : "open";
+}
+
 export function makeListFormsHandler(deps: Deps): RouteHandler<typeof listFormsRoute, ApiEnv> {
   return async (c) => {
     const { status, search, sort, workspaceId } = c.req.valid("query");
@@ -547,11 +556,8 @@ export function makeListFormsHandler(deps: Deps): RouteHandler<typeof listFormsR
       c.get("requestEnvironment") ?? deps.databases.defaultEnvironment,
     );
     const states = await environmentStatesByForm(deps.databases.control, environment);
-    const statusOf = (formId: FormId): "open" | "closed" | "unreleased" => {
-      const state = states.get(formId);
-      if (state === undefined) return "unreleased";
-      return state.closed ? "closed" : "open";
-    };
+    const statusOf = (formId: FormId): "open" | "closed" | "unreleased" =>
+      availabilityOf(states.get(formId));
 
     // Narrows before the per-row reads below, so a closed-only list of fifty forms does
     // not pay for fifty drafts.
@@ -685,11 +691,10 @@ export function makeGetFormHandler(deps: Deps): RouteHandler<typeof getFormRoute
     const workflow = {
       enabled: workflowEnabled,
       environment,
-      canEdit: allows("form", "write") && !(workflowEnabled && environment === "prod"),
-      canPublish:
-        allows("form", "publish") &&
-        allows("release", "create") &&
-        !(workflowEnabled && environment === "prod"),
+      // Authoring acts on the one shared draft, so the selected environment never gates it, and the
+      // publish wizard decides release:create per destination rather than for the selection.
+      canEdit: allows("form", "write"),
+      canPublish: allows("form", "publish"),
       canRelease: allows("release", "create"),
       eligibleVersions: eligible,
       preferredVersion: preferred?.version ?? eligible[0] ?? null,
@@ -712,7 +717,7 @@ export function makeGetFormHandler(deps: Deps): RouteHandler<typeof getFormRoute
         formId: form.formId,
         slug: form.slug,
         defaultLocale: form.defaultLocale,
-        status: environmentState?.closed === true ? ("closed" as const) : ("open" as const),
+        status: availabilityOf(environmentState),
         draft,
         draftSource,
         releasedDefinition:

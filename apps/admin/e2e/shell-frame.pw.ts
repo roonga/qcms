@@ -125,6 +125,34 @@ test("the collapse animates over 200ms, and not at all under reduced motion", as
   expect(Number.parseFloat(await duration()), "no visible motion").toBeLessThan(0.001);
 });
 
+test("a list screen's page action rides the breadcrumb line rather than a row of its own", async ({
+  page,
+}) => {
+  await signInWithTotp(page, EMAIL, secret);
+  await page.setViewportSize({ width: WIDE, height: 900 });
+  for (const path of ["/questions", "/forms"]) {
+    await page.goto(path);
+    await waitForHydration(page);
+    const measured = await page.evaluate(() => {
+      const box = (selector: string): DOMRect | undefined =>
+        document.querySelector(selector)?.getBoundingClientRect();
+      const line = box(".qcms-crumbs__list");
+      const action = box(".qcms-page-actionbar");
+      const main = box("main#main-content");
+      if (line === undefined || action === undefined || main === undefined) return undefined;
+      return {
+        action: Math.round(action.top),
+        line: Math.round(line.top + line.height / 2),
+        main: Math.round(main.top),
+      };
+    });
+    expect.soft(measured?.action, `${path} rides the crumb line's centre`).toBe(measured?.line);
+    expect
+      .soft(measured?.action, `${path} takes no row of its own`)
+      .toBeLessThan(measured?.main ?? -1);
+  }
+});
+
 test("below the sidebar breakpoint the toggle steps aside and the rail stays a disclosure", async ({
   page,
 }) => {
@@ -159,8 +187,7 @@ test("one top bar: entering Operations moves neither the bar, the rail nor the h
 }) => {
   test.setTimeout(600_000);
   await signInWithTotp(page, EMAIL, secret);
-  // `/workspaces` lands on the current workspace, so the area's own list is the landing here.
-  const areas = ["/questions", "/forms", "/workspaces/all", "/operations"];
+  const areas = ["/questions", "/forms", `/workspaces/${WORKSPACE_ID}/members`, "/operations"];
   for (const one of frameCases()) {
     await page.setViewportSize({ width: one.width, height: 900 });
     await presetEnvironment(page, one.environment);
@@ -196,11 +223,8 @@ const CRUMB_SCREENS: readonly CrumbScreen[] = [
   // The top bar's Operations group names the area, so an Operations trail starts below it.
   { path: `/operations/forms/${FORM_ID}/links`, trail: ["", "Links"], context: true },
   { path: "/webhooks", trail: ["Delivery failures"] },
-  {
-    path: `/workspaces/${WORKSPACE_ID}/members`,
-    trail: ["Workspaces", "", "Members"],
-    context: true,
-  },
+  // One workspace, so the area is singular and the rail offers no way back to a list.
+  { path: `/workspaces/${WORKSPACE_ID}/members`, trail: ["Workspace", "", "Members"] },
   { path: "/settings", trail: ["Settings"] },
 ];
 

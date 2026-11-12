@@ -65,7 +65,10 @@ environment, while these screens are one environment's.
 Availability is where a form is closed to new responses and reopened. Both the reading and the two
 acts are the selected environment's, because the closed state is per form and environment:
 closing production leaves a test run serving, and the confirmation names the environment it
-is about before anything happens.
+is about before anything happens. The reading has three values, Open, Closed and Not Released,
+the same three the Operations table and the Forms list use. A form with nothing released in the
+selected environment reads Not Released and is offered neither verb, because there is nothing
+there to close or reopen.
 
 For Docker, set `QCMS_PORTAL_ENVIRONMENTS=test` in `.env` and recreate the portal
 container to serve test links under `/test/`. The portal serves only prod when this

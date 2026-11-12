@@ -22,18 +22,21 @@ uses the chosen immutable version, even if a newer draft or published version ex
 
 ## Screens and actions
 
-| Selected environment | Surface                                      | Available action                             |
-| -------------------- | -------------------------------------------- | -------------------------------------------- |
-| test                 | Draft builder and preview                    | Publish to test                              |
-| test                 | Existing version history                     | Release an existing version to test          |
-| prod                 | Published version review and release history | Release an eligible existing version to prod |
-| prod                 | Notice that a shared draft exists            | Switch to test to edit the draft             |
+**Amended 2026-11-08 ([Code Owner, #1208](https://github.com/roonga/qcms/issues/1208#issuecomment-6806924670)): the environment selection reaches Operations only.** The
+builder, Rules, Preview and New form load and edit the one shared draft whichever environment is
+selected, and prod replaces none of them with a review state or a prompt to switch. The read-only
+state belongs to a caller without `form: write`.
+
+| Selected environment | Surface                                   | Available action                             |
+| -------------------- | ----------------------------------------- | -------------------------------------------- |
+| any                  | Draft builder, Rules, Preview, New form   | Author the shared draft                      |
+| any                  | Versions, and the publish wizard          | Publish the draft, or release a version      |
+| prod                 | Versions' per-environment release summary | Release an eligible existing version to prod |
 
 - The top switch is the destination for environment-specific actions. Remove the
   target-environment selector from release dialogs. Test exposes no prod release action.
 - Replace the separate form **Publish** and **Publish and release** choices with
-  **Publish to test** in this workflow. Neither draft publishing nor draft editing is
-  offered in the prod view; review there renders a stored published version.
+  **Publish to test** in this workflow.
 - A publish confirmation names both effects: "Create v4 and release it to test."
   Success names the version and environment and offers access to test links.
 - A production confirmation identifies the exact candidate and the version it replaces.

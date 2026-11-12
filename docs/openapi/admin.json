@@ -393,6 +393,11 @@
             "minLength": 1,
             "example": "en"
           },
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "example": "Sign up"
+          },
           "workspaceId": {
             "type": "string",
             "minLength": 1,
@@ -495,7 +500,8 @@
             "type": "string",
             "enum": [
               "open",
-              "closed"
+              "closed",
+              "unreleased"
             ],
             "example": "open"
           },

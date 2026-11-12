@@ -1,7 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 
-import { expect, type Page } from "@playwright/test";
+import { expect, type Locator, type Page } from "@playwright/test";
 
 import { buildEnv, composeApi, MOUNT, openDbHandle } from "../../../api/e2e/support/index.js";
 import { createNullLogger } from "../../../api/src/logger.js";
@@ -13,6 +13,7 @@ import {
 } from "../../../portal/e2e/support/harness-config.js";
 import { readFixtures } from "../../../portal/e2e/support/fixtures.js";
 
+import { openMenu } from "./flow.js";
 import { waitForHydration } from "./hydration.js";
 
 // Seed respondent data through the composed API; the operator journey does not need to repeat portal UI coverage.
@@ -294,6 +295,18 @@ export function openDeliverer(): {
       await closePool();
     },
   };
+}
+
+export const ERASE_ITEM = "Erase respondent data…";
+
+/** The response's erase door: the page header's menu. Absent when the caller holds no erase cell. */
+export function moreActions(page: Page): Locator {
+  return page.getByRole("button", { name: "More actions" });
+}
+
+export async function openEraseDialog(page: Page): Promise<void> {
+  await openMenu(moreActions(page));
+  await page.getByRole("menuitem", { name: ERASE_ITEM }).click();
 }
 
 export async function openResponses(page: Page, formId: string): Promise<void> {

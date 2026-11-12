@@ -77,7 +77,7 @@ test("confirms a publish and then a promotion, each changing what the screen ser
   await expectStepChips(page, ["Done"]);
   await expectAxeClean(page, "done");
 
-  await expectServing(page, aloneFormId, { test: "v1", prod: "Nothing released" });
+  await expectServing(page, aloneFormId, { test: "v1", prod: "None" });
 
   await page.goto(`/forms/${aloneFormId}/publish`);
   await openPanel(page);

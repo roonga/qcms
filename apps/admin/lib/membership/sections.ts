@@ -20,6 +20,11 @@ export type WorkspaceSection = (typeof WORKSPACE_SECTIONS)[number];
 
 export const FIRST_WORKSPACE_SECTION: WorkspaceSection = "members";
 
+/** The area's own name: a plural promises a choice an installation with one workspace does not have. */
+export function workspaceAreaLabel(multiple: boolean): MessageKey {
+  return multiple ? "membership.area.title" : "membership.area.titleOne";
+}
+
 export const WORKSPACE_SECTION_LABELS: Readonly<Record<WorkspaceSection, MessageKey>> = {
   members: "membership.members.heading",
   "access-groups": "membership.groups.heading",

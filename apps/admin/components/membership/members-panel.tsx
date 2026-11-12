@@ -14,11 +14,14 @@ export function MembersPanel({
   workspaceId,
   members,
   message,
+  groups,
   setRole,
 }: {
   readonly workspaceId: string;
   readonly members: readonly WorkspaceMember[] | undefined;
   readonly message: string | undefined;
+  /** Each group's title, by the stored name the member row carries. */
+  readonly groups: ReadonlyMap<string, string>;
   readonly setRole: (
     workspaceId: string,
     userId: string,
@@ -30,7 +33,7 @@ export function MembersPanel({
 
   return (
     <section aria-labelledby="qcms-members-heading" className="flex min-w-0 flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="qcms-help-head">
         <h1 id="qcms-members-heading" className="text-xl font-semibold text-(--color-text)">
           {t("membership.members.heading")}
         </h1>
@@ -77,9 +80,15 @@ export function MembersPanel({
                             : t("membership.members.emptyRole")}
                         </td>
                         <td>
-                          {member.groups.length === 0
-                            ? t("membership.members.noGroups")
-                            : member.groups.join(", ")}
+                          {member.groups.length === 0 ? (
+                            t("membership.members.noGroups")
+                          ) : (
+                            <ul className="flex min-w-0 flex-col gap-1">
+                              {member.groups.map((name) => (
+                                <li key={name}>{groups.get(name) ?? name}</li>
+                              ))}
+                            </ul>
+                          )}
                         </td>
                         <td>
                           <Button

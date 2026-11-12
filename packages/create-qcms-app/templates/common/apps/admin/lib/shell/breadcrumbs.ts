@@ -3,6 +3,7 @@ import {
   ALL_WORKSPACES_SEGMENT,
   WORKSPACE_SECTION_LABELS,
   WORKSPACE_SECTIONS,
+  workspaceAreaLabel,
   workspaceHref,
   type WorkspaceSection,
 } from "../membership/sections.ts";
@@ -19,6 +20,8 @@ export interface Crumb {
 export interface CrumbNames {
   readonly form?: string;
   readonly workspace?: string;
+  /** The Workspaces area's own name, which follows from how many workspaces the caller may open. */
+  readonly workspaceArea?: string;
 }
 
 const FORM_SECTIONS: Readonly<Record<string, MessageKey>> = {
@@ -92,7 +95,10 @@ function operations(rest: readonly string[], names: CrumbNames): Crumb[] {
 }
 
 function workspaces(rest: readonly string[], names: CrumbNames): Crumb[] {
-  const area: Crumb = { label: t("nav.workspaces"), href: "/workspaces" };
+  const area: Crumb = {
+    label: names.workspaceArea ?? t(workspaceAreaLabel(true)),
+    href: "/workspaces",
+  };
   const [workspaceId, section] = rest;
   if (workspaceId === undefined) return [area];
   if (workspaceId === ALL_WORKSPACES_SEGMENT) {

@@ -5,7 +5,7 @@ import { Alert } from "@/components/kit";
 import { FormPageHeader } from "@/components/forms/form-page-header";
 import { FormAvailability } from "@/components/ops/form-availability";
 import { shownEnvironment } from "@/lib/environment";
-import { t, type MessageKey } from "@/lib/i18n/en";
+import { t } from "@/lib/i18n/en";
 import { formSectionName, pageMetadata } from "@/lib/page-title";
 import { resolvedEnvironment } from "@/lib/server/environments";
 import { getForm } from "@/lib/server/forms";
@@ -66,7 +66,7 @@ export default async function FormAvailabilityPage({
         <div className="flex gap-2">
           <dt className="text-(--color-text-muted)">{t("operations.column.intake")}</dt>
           <dd data-testid="qcms-form-availability-reading">
-            {t(availabilityReading(form.status, released))}
+            {t(`operations.intake.${form.status}`)}
           </dd>
         </div>
       </dl>
@@ -80,10 +80,4 @@ export default async function FormAvailabilityPage({
       />
     </div>
   );
-}
-
-/** The table's three readings, so this screen and that row say the same word. */
-function availabilityReading(status: "open" | "closed", released: number | null): MessageKey {
-  if (released === null) return "operations.intake.unreleased";
-  return status === "closed" ? "operations.intake.closed" : "operations.intake.open";
 }

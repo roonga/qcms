@@ -69,13 +69,30 @@ vi.mock("@/components/ops/ops-tags", () => ({
   flagReasonText: (reason: string) => reason,
 }));
 vi.mock("@/components/forms/form-page-header", () => ({
-  FormPageHeader: () => <div data-testid="qcms-form-page-header-stub" />,
+  FormPageHeader: ({ actions }: { actions?: ReactNode }) => (
+    <div data-testid="qcms-form-page-header-stub">{actions}</div>
+  ),
 }));
-/* The real Dialog portals; static rendering a tree containing it produces empty markup. */
+/* The real Dialog and Menu portal; static rendering a tree containing them produces empty markup, and the
+   menu's rows exist only while it is open, so the stub draws each row's text value. */
 vi.mock("@/components/kit", () => ({
   Alert: ({ children }: { children?: ReactNode }) => <div data-testid="qcms-alert">{children}</div>,
   Button: ({ children }: { children?: ReactNode }) => <button type="button">{children}</button>,
   Dialog: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  Menu: ({
+    triggerLabel,
+    items,
+  }: {
+    triggerLabel?: string;
+    items?: readonly { readonly id: string; readonly textValue?: string }[];
+  }) => (
+    <div>
+      <button type="button">{triggerLabel}</button>
+      {items?.map((item) => (
+        <span key={item.id}>{item.textValue}</span>
+      ))}
+    </div>
+  ),
   Select: () => <select aria-label="stub" />,
   TextField: () => <input aria-label="stub" />,
 }));
@@ -134,14 +151,19 @@ describe("the erasure door on one response", () => {
     const html = await render();
 
     expect(html).toContain('data-testid="qcms-response-detail"');
+    expect(html).not.toContain("ops.detail.moreActions");
     expect(html).not.toContain("ops.erase.button");
   });
 
-  it("offers it to a caller holding the erase cell on this form and environment", async () => {
+  it("offers it to a caller holding the erase cell, under the header's own menu", async () => {
     cells = ["response:read", "response:erase", "response:dispose"];
 
     const html = await render();
 
-    expect(html).toContain("ops.erase.button");
+    expect(html).toContain("ops.detail.moreActions");
+    expect(
+      html.indexOf("ops.erase.button"),
+      "the door is the header's, not the body's",
+    ).toBeLessThan(html.indexOf('data-testid="qcms-response-detail"'));
   });
 });

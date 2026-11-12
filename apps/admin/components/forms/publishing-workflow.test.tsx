@@ -28,7 +28,7 @@ const DRAFT = {
 
 describe("environment-bound publishing", () => {
   it("offers one way to publish, and it is the wizard", () => {
-    render(<FormActions formId="frm_intake" workflow={WORKFLOW} environment="test" />);
+    render(<FormActions formId="frm_intake" workflow={WORKFLOW} />);
     // No dialog of its own at all: one entry, and it is a link.
     expect(screen.queryByRole("button", { name: /Publish/u })).toBeNull();
     expect(
@@ -37,18 +37,10 @@ describe("environment-bound publishing", () => {
   });
 
   it("explains missing publishing permission instead of offering the entry", () => {
-    render(
-      <FormActions
-        formId="frm_intake"
-        workflow={{ ...WORKFLOW, canPublish: false }}
-        environment="test"
-      />,
-    );
+    render(<FormActions formId="frm_intake" workflow={{ ...WORKFLOW, canPublish: false }} />);
     // Gated rather than disabled: a caller who may not publish is offered no way to.
     expect(screen.queryByRole("link", { name: t("forms.versions.publishEntry") })).toBeNull();
-    expect(
-      screen.getByText(t("forms.workflow.noPublishPermission", { environment: "test" })),
-    ).toBeTruthy();
+    expect(screen.getByText(t("forms.workflow.noPublishPermission"))).toBeTruthy();
   });
 
   it("locks a test release to test even when production exists", async () => {

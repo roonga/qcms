@@ -73,8 +73,8 @@ function readText(formData: FormData, name: string): string {
   return typeof raw === "string" ? raw : "";
 }
 
-/* The create endpoint accepts identity only; the title seeds the builder draft and is stored by its first
-   autosave. */
+/* The title goes to the create endpoint, which writes the first draft: every screen beside the builder,
+   the rail included, reads the name from the stored draft. */
 export async function createFormAction(
   _previous: CreateFormState,
   formData: FormData,
@@ -88,6 +88,7 @@ export async function createFormAction(
   const created = await createFormIdentity(session, {
     slug,
     defaultLocale,
+    title,
     ...(workspaceId === undefined ? {} : { workspaceId }),
   });
   if (!created.ok) {
@@ -128,7 +129,12 @@ type CreatedForm =
 /* Derive the id from the slug here, so a proposal digest need bind only the slug. */
 async function createFormIdentity(
   session: AdminSession,
-  input: { readonly slug: string; readonly defaultLocale: string; readonly workspaceId?: string },
+  input: {
+    readonly slug: string;
+    readonly defaultLocale: string;
+    readonly title?: string;
+    readonly workspaceId?: string;
+  },
   proposal?: AgentProposalRef,
 ): Promise<CreatedForm> {
   const formId = formIdFromSlug(input.slug);
@@ -154,6 +160,7 @@ async function createFormIdentity(
       formId,
       slug: input.slug,
       defaultLocale: input.defaultLocale,
+      ...(input.title === undefined || input.title === "" ? {} : { title: input.title }),
       ...(input.workspaceId === undefined ? {} : { workspaceId: input.workspaceId }),
     },
     proposal,

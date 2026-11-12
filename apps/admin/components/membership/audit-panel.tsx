@@ -3,6 +3,7 @@ import { EntityId } from "@/components/entity-id";
 import { Alert } from "@/components/kit";
 import { OperatorDateTime } from "@/components/operator-time";
 import { t } from "@/lib/i18n/en";
+import { auditKindLabel } from "@/lib/membership/audit-wording";
 import type { AuditPage } from "@/lib/membership/types";
 
 /* Audit rows must contain acts only, with no answer values, respondent identifiers, or question text. */
@@ -15,7 +16,7 @@ export function AuditPanel({
 }) {
   return (
     <section aria-labelledby="qcms-audit-heading" className="flex min-w-0 flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="qcms-help-head">
         <h1 id="qcms-audit-heading" className="text-xl font-semibold text-(--color-text)">
           {t("membership.audit.heading")}
         </h1>
@@ -58,7 +59,7 @@ export function AuditPanel({
                       <td>
                         {row.actorEmail ?? t("membership.audit.unknownActor", { actor: row.actor })}
                       </td>
-                      <td>{row.kind}</td>
+                      <td>{auditKindLabel(row.kind)}</td>
                       <td>{row.environment ?? t("membership.audit.empty")}</td>
                       <td>
                         {row.formId === null ? (

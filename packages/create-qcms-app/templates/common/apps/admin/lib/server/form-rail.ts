@@ -1,6 +1,6 @@
 import { stepIssueCounts } from "../forms/issues.ts";
 import { textOf } from "../questions/definition.ts";
-import type { DraftStep } from "../forms/types.ts";
+import type { DraftStep, FormAvailability } from "../forms/types.ts";
 
 import { getForm } from "./forms.ts";
 import { formVerdict } from "./form-verdict.ts";
@@ -13,8 +13,8 @@ export interface FormRailData {
   readonly slug: string;
   /** An empty title is an unnamed form, not a missing field; the slug remains its address. */
   readonly title: string;
-  /** Read open/closed from the form, not the draft: a form can close while the draft still exists. */
-  readonly status: "open" | "closed";
+  /** Read availability from the form, not the draft: a form can close while the draft still exists. */
+  readonly status: FormAvailability;
 
   readonly steps: readonly DraftStep[];
   /** Issues per step id. Empty when there is no verdict, never a stand-in for zero. */
@@ -29,8 +29,7 @@ export async function loadFormRail(
   const detail = await getForm(session, formId);
   if (!detail.ok) return null;
   const form = detail.data;
-  const immutable = form.workflow?.enabled === true && !form.workflow.canEdit;
-  const draft = immutable ? (form.releasedDefinition ?? null) : form.draft;
+  const draft = form.draft;
   if (draft === null) {
     return {
       formId: form.formId,
@@ -42,7 +41,7 @@ export async function loadFormRail(
     };
   }
 
-  const verdict = immutable ? undefined : await formVerdict(session, form.formId, draft);
+  const verdict = await formVerdict(session, form.formId, draft);
   return {
     formId: form.formId,
     slug: form.slug,

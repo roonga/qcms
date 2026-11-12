@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { HelpDisc } from "@/components/help-tip";
 import { useOperatorDateTimeFormat } from "@/components/operator-time";
 import { t, type MessageKey } from "@/lib/i18n/en";
 import { formatUtcDateTimeForTests } from "@/lib/i18n/format";
@@ -33,7 +34,7 @@ export function AmbientSaveStatus({
         {/* Keep the help trigger in a stable row so changing save text cannot move it under the pointer. */}
         <button
           type="button"
-          className="qcms-help-dot"
+          className="qcms-round qcms-help__button"
           aria-expanded={modelOpen}
           aria-controls={modelId}
           aria-label={t("forms.save.modelLabel")}
@@ -41,7 +42,7 @@ export function AmbientSaveStatus({
             setModelOpen((wasOpen) => !wasOpen);
           }}
         >
-          <span aria-hidden="true">{"?"}</span>
+          <HelpDisc />
         </button>
       </p>
       {modelOpen && (
