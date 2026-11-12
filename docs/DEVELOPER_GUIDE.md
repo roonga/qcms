@@ -343,6 +343,14 @@ Two traps the `-lc` form has, both silent:
 - **The outer shell expands the command string first.** From Git Bash or PowerShell, `wsl.exe bash -lc '... $(node ...) ...'` is one argument that the caller's own quoting rules reach into, so `$var` and `$(...)` are resolved on the Windows side against variables that do not exist there and bash receives the already-substituted, usually empty, result.
 - **A POSIX path given as an argument is translated.** `wsl.exe bash /tmp/script.sh` has the argument rewritten to a Windows path on the way through, and bash then reports a file it cannot find at a path nobody wrote. Keep POSIX paths inside the script, where nothing translates them.
 
+**Lane habits that follow from the two traps above:**
+
+- Put the logic in a script file and run it with `wsl.exe -- bash -lc 'bash ~/src/<script>.sh'`; the outer string then holds no `$var` or `$(...)` for the Windows side to expand.
+- From Git Bash, set `MSYS_NO_PATHCONV=1` on any `wsl.exe` call that names a POSIX path, or Git Bash rewrites it to a Windows path.
+- Have every gate script print `git rev-parse --short HEAD` first, so the log says which tree it vouches for.
+- `node scripts/agent-scratch.mjs` creates the lane directory as well as printing it.
+- Run the browser gate detached with `QCMS_HARNESS_BUILD=1`, on a seat nothing else holds. Wait in slices and read the wait's exit code from the tool result itself: a trailing `echo $?` after a pipe reports the pipe's code, not the wait's 75.
+
 **`Execution context was destroyed, most likely because of a navigation` in a local browser run is usually the dev server, not the branch.** `next dev` compiles a route on its first visit and swaps the document under the page while it does. It is the first attempt in a cold worktree that sees it, and a retry passes. `QCMS_HARNESS_BUILD=1` serves a production build instead and removes the shape entirely; see "Serving a production build instead of `next dev`" below.
 
 **`gh pr edit --body-file` can fail on this repository with a GraphQL deprecation error about Projects (classic)**, which has nothing to do with the body being written: `gh` asks for project fields in the same query and the API refuses the whole request. Set the body through the REST endpoint instead, which touches no project field:
