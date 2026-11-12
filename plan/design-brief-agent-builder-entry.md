@@ -24,6 +24,7 @@ Design the two entry points and the mode chrome, reusing existing admin patterns
 - No rail and no breadcrumb row. Exit returns to where the user entered (the form or the New form screen). Edit by hand goes to the form.
 - No environment selector: authoring ignores the environment.
 - An existing form edits the open draft only, never a released version.
+- A new form's first step is a Confirm card naming the workspace and the permanent slug (Q15). Later draft edits take no card and offer Undo (Q14).
 - Reuse the Rail, Topbar and Operations group styles and tokens. Add none unless needed, and say so.
 - Keyboard order, focus after Exit, and names that contain their visible text (WCAG 2.5.3).
 
