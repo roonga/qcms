@@ -158,6 +158,7 @@ Every new workspace is created with four starter groups. They are ordinary group
 - **Covered acts in `prod`:** publishing a version, and changing a webhook endpoint. Links and open or close are not covered.
 - **Publishing a version to `prod`:** refused for the account that froze that version. A different person holding Publish forms for `prod` in that workspace publishes it and is recorded as the approver. This stays inline on the form; there is no separate approvals queue for publish approvals.
 - **Publishing a draft to `prod` on a site whose only environment is `prod`:** creates an approval request and freezes nothing. A different person holding Publish forms for `prod` in that workspace approves it on the form and is recorded as the approver; the draft is then frozen as the next version and made live in `prod` in one act. The requester is recorded as the person who froze the version and the approver as the approver, so the rule above applies to the requester for any later publish of that version to `prod`. The request expires after 7 days, like the workspace approval requests below. It is approved on the form only: it is not a workspace approval request and appears neither in the Requests row of the Audit screen nor under Approval requests in Site configuration. It is audited (section 11).
+- **A held draft publish applies the draft as it was when requested.** The request is tied to the draft's content at request time, and the approver is shown exactly that content. If the draft has changed since the request, the approval is refused with "This draft has changed since publishing was requested. Request publishing again." and the requester makes a new request.
 - **Endpoint change in `prod`:** one holder of Publish forms for `prod` proposes it; it is held and not live until a different holder of Publish forms for `prod` confirms it.
 - **While the rule is on, two administrative acts need an approver:**
   - turning the rule off;
@@ -515,6 +516,10 @@ Each criterion is tested against the real policy code, service or route as its t
 114. Search over people, groups and accounts returns in under 300 ms at 1,000 accounts.
 115. New access screens meet `docs/COMPONENT_GUIDELINES.md`.
 
+### Held publish
+
+116. On a site whose only environment is `prod`, with the rule on, approving a held draft publish applies the draft content as it was when requested and shows the approver that content. If the draft changed after the request, the approval is refused and nothing is frozen or published; a new request is needed.
+
 ## 15. Decision records this document supersedes or amends
 
 Each record below, except the built-task records, now links here for workspace access. Where earlier text in any of them still differs, this document holds.
@@ -544,7 +549,7 @@ Each record below, except the built-task records, now links here for workspace a
 - Questions keep "Publish" with its current meaning.
 - After a credential or factor reset, the person signs in again through an emailed single-use link; a factor-only reset does not force a new password.
 
-Request expiry (7 days) and the `prod` rule with its exception for a site whose only environment is `prod` (section 5) are settled, not defaults. That a Site administrator is trusted at site level is an accepted limitation, stated in section 10, not an open item.
+Request expiry (7 days), the `prod` rule with its exception for a site whose only environment is `prod` (section 5) and the held draft publish applying the draft as requested (section 6) are settled, not defaults. That a Site administrator is trusted at site level is an accepted limitation, stated in section 10, not an open item.
 
 ### Undecided
 
@@ -552,7 +557,6 @@ Request expiry (7 days) and the `prod` rule with its exception for a site whose 
 - Storage shape of an access group (several roles on one stored group, or one stored group per role) and the fate of the `<environments>.<role>[.<label>]` name grammar. Left to the foundation task and reviewed there.
 - Audit kinds for the new acts beyond the workspace audit's six existing kinds (Q79), and the site audit's row shape. Left to the foundation task and reviewed there.
 - A workspace's own questions at archive. This document states no rule. As built, questions do not block an archive and stay with the archived workspace, taking no new pin (ADR-41's archive Notes); the earlier "questions are reassigned first" no longer applies, because questions do not move.
-- Whether a pending draft publish to `prod` on a site whose only environment is `prod` publishes the draft as it was when requested or as it is when approved.
 
 ## 17. Out of scope and deferred
 

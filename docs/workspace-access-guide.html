@@ -847,7 +847,9 @@
           as the next version and made live. This is approved on the form only: it does not appear
           under Requests or under Approval requests. The person who asked is recorded as the one who
           froze the version, so they cannot later publish that version to
-          <span class="env">prod</span>.
+          <span class="env">prod</span>. The approver sees the form exactly as it was when
+          publishing was requested. If the form is edited afterwards, the request can no longer be
+          approved and publishing must be requested again.
         </li>
         <li>
           Every form move out of this workspace needs an approver who is not the mover: a Workspace
@@ -1284,6 +1286,11 @@
               <td>
                 Ask another holder of Publish forms for <span class="env">prod</span> to publish it.
               </td>
+            </tr>
+            <tr>
+              <th scope="row">I cannot approve a held publish</th>
+              <td>The form was edited after publishing was requested.</td>
+              <td>The requester asks to publish again, and you approve the new request.</td>
             </tr>
             <tr>
               <th scope="row">I am an administrator but cannot see forms or responses</th>
