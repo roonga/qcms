@@ -52,10 +52,10 @@ Gates:
 | 111  | A6 and G1: edit ops, Undo, route kind, audit | 106, 085, 088               | F      | V, D, M       | no           | no        |
 | 112  | G3 and G4a: builder tools, open-wizard tool  | 111, 094                    | F      | V, D          | no           | no        |
 | 113  | U1: shell, routes, `returnTo`, store         | 106, 085, 094               | O      | V, B          | yes          | no        |
-| 114  | U2 and U3: preview and inspect               | 113, 111                    | O      | V, B          | yes          | no        |
+| 114  | U2 and U3: preview and inspect               | 113, 111, 109               | O      | V, B          | yes          | no        |
 | 115  | U7: create card, card-less edits, Undo, diff | 113, 112                    | O      | V, B          | yes          | no        |
-| 116  | U4 and U6: appearance drawer, themes, lock   | 109, 099                    | O      | V, B          | yes          | no        |
-| 117  | G2, U5 and G4b: theme kinds, derive flow     | 110, 116                    | O      | V, D, B       | yes          | no        |
+| 116  | U4 and U6: appearance drawer, themes, lock   | 109, 099, 113, 114          | O      | V, B          | yes          | no        |
+| 117  | G2, U5 and G4b: theme kinds, derive flow     | 110, 116, 112               | O      | V, D, B       | yes          | no        |
 | 118  | P1: portal per-form appearance, CSP          | 109                         | O      | V, B, E       | yes          | no        |
 | 119  | A5 and P2: steps list, progress modes        | 108                         | O      | V, D, B, E    | yes          | no        |
 | 120  | P3 and P4: respondent menu, text size        | 118                         | O      | V, B          | yes          | no        |
@@ -96,10 +96,12 @@ A group starts once every dependency in the groups before it has merged. Within 
 | `packages/db/migrations/` and `meta/` snapshots           | the migration queue below                  |
 | `apps/admin/lib/i18n/en.ts`                               | every UI task; one UI PR merges at a time  |
 | `apps/api/src/features/agent/actions/`, `grant-filter.ts` | 085, 086, 089, 094, 096, 111, 112, 117     |
+| `agent/system-prompt.ts`, `agent/fake-model.ts`           | 112, 117                                   |
+| `control.access_audit` kinds CHECK                        | 088, 108 (migration queue order)           |
 | Draft PUT handler                                         | 109, 111                                   |
 | `components/membership/workspace-settings-panel.tsx`      | 099, then 116                              |
 | `lib/shell/modes.ts`, `components/admin-nav.tsx`          | 095, 100, 101, 113                         |
-| Serve-step and portal page carrier                        | 118, 119, 120                              |
+| Serve-step and portal page carrier                        | 109, 118, 119, 120                         |
 | `docs/openapi/admin.json`                                 | every route task; the later PR regenerates |
 
 - The later PR regenerates OpenAPI, `meta/` snapshots and template mirrors, and re-runs every gate whose inputs changed.
@@ -122,6 +124,7 @@ Where a later task builds a guard, the earlier task states what happens meanwhil
 | 091 to 092 | Disabling a Site administrator                        | Refused outright                                                                                                                            |
 | 094 to 093 | Prod-only site draft publish with second approval on  | Refused outright, if 094 lands first                                                                                                        |
 | 108 to 109 | Appearance on a draft                                 | Column exists; no route writes it                                                                                                           |
+| 109 to 110 | Theme derive                                          | Absent; themes are saved by hand only                                                                                                       |
 
 ## Criteria to tasks
 
