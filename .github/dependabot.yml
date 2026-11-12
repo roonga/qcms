@@ -36,7 +36,13 @@ updates:
       # Re-enable major updates when that floor moves.
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
+      # Needs @opentelemetry/api 1.10 and splits drizzle-orm into two copies (about 140 type errors); issue #1255.
+      - dependency-name: "@opentelemetry/*"
+      # A major breaks the parse5 pairing and changes computed styles in tests; issue #1256.
+      - dependency-name: "jsdom"
+        update-types: ["version-update:semver-major"]
   # Dependabot refreshes existing digests but does not add the first one or resolve FROM build arguments.
+  # A bump here also needs `pnpm qcms:sync-templates` committed in the same PR.
   - package-ecosystem: docker
     directory: /docker
     schedule:

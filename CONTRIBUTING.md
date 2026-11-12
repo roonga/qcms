@@ -137,6 +137,10 @@ Do not assume popularity - check stars/downloads. Below every threshold: stop, s
 
 **Two things make that failure hard to diagnose from the failure**, which is why it is written down here and beside `apps/admin/components/forms/condition-json-pane.tsx` rather than left to be rediscovered. The error message names types and not versions. And `pnpm exec turbo run typecheck --filter=qcms-admin` **passes** with the split tree while `next build` fails, so the class reaches CI as a build failure and is invisible to the package-scoped typecheck a contributor reaches for first. If it fires, converge the lockfile with `pnpm update -r --depth Infinity @codemirror/view`, then move all six pins together.
 
+**A `docker/` base-image bump needs `pnpm qcms:sync-templates` committed in the same PR**, or `check:templates` fails on the stale `.Dockerfile.tmpl` copies.
+
+**`@opentelemetry/*` and `jsdom` majors are ignored** until their blockers clear: OpenTelemetry needs `@opentelemetry/api` 1.10 and splits `drizzle-orm` into two copies (issue #1255), and a jsdom major breaks the parse5 pairing and changes computed styles (issue #1256).
+
 **A group and an exclusion are two halves of one decision.** A group with no `patterns` matches everything, so a package named in a narrower group must also be excluded from the broad one or the broad one claims it by update level. Both `@codemirror/*` entries exist for that reason, and neither is an `ignore`: an exclusion changes which pull request a bump lands in, never whether it arrives.
 
 ### Adding a `uses:` to a workflow: a third-party action is pinned by commit SHA
