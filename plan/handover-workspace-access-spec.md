@@ -6,7 +6,7 @@ Status: 2026-11-13. Branch `docs/workspace-access-spec`, pushed, head `bf91760a`
 
 | What                                         | Where                                                                                                                              |
 | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| Authoritative model (single source of truth) | `docs/WORKSPACE_ACCESS.md` (sections 1-16; criteria 1-116 in section 14)                                                           |
+| Authoritative model (single source of truth) | `docs/WORKSPACE_ACCESS.md` (sections 1-17; criteria 1-123 in section 14)                                                           |
 | User-guide explainer                         | `docs/workspace-access-guide.html` (also published as an Artifact, version 4)                                                      |
 | Implementation plan                          | `plan/workspace-access-implementation.md` (proposed tasks 084-105, quick fix Q1)                                                   |
 | ADR and security records                     | `docs/adr/core.md`, `docs/SECURITY_DESIGN.md` (link to the spec; as-built wording kept, unbuilt model marked "decided, not built") |

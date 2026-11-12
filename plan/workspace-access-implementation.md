@@ -2,6 +2,8 @@
 
 Status: proposal. The rules are in [`docs/WORKSPACE_ACCESS.md`](../docs/WORKSPACE_ACCESS.md), the single source of truth; this plan only orders the work. Where the two differ, the document holds.
 
+Superseded for sequencing by [`work-order-sequence.md`](work-order-sequence.md) and the work orders `docs/features/084-*.md` to `105-*.md`: 084 absorbs quick fix Q1, gates M and review tiers are corrected, 095 depends on 093, 096 depends on 111 and 112, and the migration queue includes the agent builder's 108. Where this plan differs from them, they hold.
+
 - Baseline: `origin/main` at `c901780b`. The ledger in `docs/features/README.md` ends at 083. Task numbers 084 to 105 below are **proposals**; they bind only when the ledger reserves them.
 - Every admin UI task is gated on its design batch: no dispatch until its screens are on the design canvas and the Code Owner has seen them ([section 12](../docs/WORKSPACE_ACCESS.md#12-navigation-and-screens)).
 - Green field: no data migration, upgrade path or backward compatibility ([section 1](../docs/WORKSPACE_ACCESS.md#1-status-and-authority)). Work orders restate this so reviewers do not read the removal of form scope and old roles as data loss.

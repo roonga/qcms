@@ -7,7 +7,8 @@ The user guide for these rules is [`docs/workspace-access-guide.html`](workspace
 - This document is the single source of truth for workspace access in QCMS: accounts, administrators, workspaces, access groups, roles, environments, second approval, audit and the screens that manage them.
 - Decision records (ADR-41, SEC-1, SEC-3, SEC-15, SEC-17, `plan/environments-and-workspaces.md`, `plan/workspaces-review.md`) link here for anything this document covers. Where one of them disagrees with this document, this document holds; section 15 lists what this document replaced.
 - QCMS is green field for this model: schema changes take the new shape directly, with no data migration, upgrade path or backward compatibility.
-- Tests are written against the real policy code as each task lands. Section 14 lists the cases they must cover.
+- Tests are written against the real policy code as each task lands. Section 14 lists the cases they must cover, and `plan/work-order-sequence.md` names the one task that owns each.
+- The access rules for workspace themes and the appearance lock come from agent-builder rulings Q10 and Q18 (`plan/agent-builder-decisions.md`) and are stated here.
 
 | Area                                                              | Status       |
 | ----------------------------------------------------------------- | ------------ |
@@ -28,6 +29,7 @@ The user guide for these rules is [`docs/workspace-access-guide.html`](workspace
 | Workspace rename, Move form screen, shared library screen         | Not built    |
 | Archive refused while any form remains                            | Built        |
 | Assistant tools follow the user's grants (SEC-17)                 | Built        |
+| Workspace themes and the workspace appearance lock                | Not built    |
 
 - Records that describe what is built (`docs/SECURITY_DESIGN.md`, the operator guides, the built-task notes in ADR-41) keep that description until the code changes, with a line pointing here.
 - The SEC-3 role table in `docs/SECURITY_DESIGN.md` §3.2 stays as built, because `apps/api/e2e/security/matrix-coverage.e2e.ts` reads it. It changes with the foundation task that changes the roles in code.
@@ -95,6 +97,9 @@ The user guide for these rules is [`docs/workspace-access-guide.html`](workspace
 | View and export responses                                               |              |                    |                           | env            |                 |                         |                    |
 | Erase responses                                                         |              |                    |                           |                | env             |                         |                    |
 | Move a form to another workspace                                        |              | in both workspaces |                           |                |                 | approve, in the source  | approve            |
+| Derive a workspace theme from a website (SEC-18)                        |              | yes                |                           |                |                 |                         |                    |
+| Save or change a workspace theme                                        |              | yes                |                           |                |                 |                         |                    |
+| Set or clear the workspace appearance lock                              |              |                    |                           |                |                 | yes                     | yes                |
 | See people and access groups                                            |              |                    |                           |                |                 | yes                     | yes                |
 | Grant, Revoke; create, change or delete access groups                   |              |                    |                           |                |                 | yes                     | yes                |
 | Appoint or remove a Workspace administrator                             |              |                    |                           |                |                 | yes                     | yes                |
@@ -120,6 +125,10 @@ The user guide for these rules is [`docs/workspace-access-guide.html`](workspace
 - Nobody re-confirms their own suspended membership. Re-confirming is also refused for the person who performed the reset or reactivation, where an active, claimed administrator other than that person and the subject exists (section 7).
 - Every account, administrator or not, manages its own password, second factor, recovery codes and sessions, and reads its own access (My access).
 - The shared question library keeps its design: every workspace's Edit forms holders see and pin its questions; only Edit forms holders in the shared workspace edit them.
+- A form's appearance is part of its draft: editing it is a draft edit (Edit forms) and freezes with the version. While the workspace appearance lock is set, the API refuses every draft save that changes appearance, for every actor and for the assistant (section 9).
+- Setting or clearing the appearance lock is a workspace setting: it needs no second approval, even with the rule on, and writes one `setting` row in the workspace audit. That a Site administrator may set it, as for the other workspace settings, is a proposed default (section 16).
+- The logo route serves a workspace theme's stored raster logo to anyone, respondents included, without a session. It is not an act in the matrix: it reads no form, version or response and takes no grant (section 9).
+- The rows on workspace themes follow the agent-builder rulings Q10 and Q18 in `plan/agent-builder-decisions.md`.
 
 ## 4. Starter groups
 
@@ -158,7 +167,7 @@ Every new workspace is created with four starter groups. They are ordinary group
 - **Covered acts in `prod`:** publishing a version, and changing a webhook endpoint. Links and open or close are not covered.
 - **Publishing a version to `prod`:** refused for the account that froze that version. A different person holding Publish forms for `prod` in that workspace publishes it and is recorded as the approver. This stays inline on the form; there is no separate approvals queue for publish approvals.
 - **Publishing a draft to `prod` on a site whose only environment is `prod`:** creates an approval request and freezes nothing. A different person holding Publish forms for `prod` in that workspace approves it on the form and is recorded as the approver; the draft is then frozen as the next version and made live in `prod` in one act. The requester is recorded as the person who froze the version and the approver as the approver, so the rule above applies to the requester for any later publish of that version to `prod`. The request expires after 7 days, like the workspace approval requests below. It is approved on the form only: it is not a workspace approval request and appears neither in the Requests row of the Audit screen nor under Approval requests in Site configuration. It is audited (section 11).
-- **A held draft publish applies the draft as it was when requested.** The request is tied to the draft's content at request time, and the approver is shown exactly that content. If the draft has changed since the request, the approval is refused with "This draft has changed since publishing was requested. Request publishing again." and the requester makes a new request.
+- **A held draft publish applies the draft as it was when requested.** The request is tied to the draft's content at request time, its questions and its appearance alike, and the approver is shown exactly that content. If the draft has changed since the request, an appearance-only change included, the approval is refused with "This draft has changed since publishing was requested. Request publishing again." and the requester makes a new request.
 - **Endpoint change in `prod`:** one holder of Publish forms for `prod` proposes it; it is held and not live until a different holder of Publish forms for `prod` confirms it.
 - **While the rule is on, two administrative acts need an approver:**
   - turning the rule off;
@@ -263,11 +272,15 @@ Every new workspace is created with four starter groups. They are ordinary group
   - Refused when the destination workspace is archived.
   - The confirmation states that the destination's groups will apply, names who gains and who loses access, and says when the move needs an approver and who can approve it.
   - Responses move with the form.
+  - Appearance travels by value (proposed default, section 16): the form's draft and versions keep the appearance they carry, and nothing links the form to a theme of the source. A destination with the appearance lock set takes the form as it is; the lock refuses later appearance edits only, never the move. The confirmation says so.
 - **Questions** do not move between workspaces. The built route `POST /admin/questions/{id}/workspace` is removed by the foundation task. The shared question library covers reuse across workspaces.
 - **Shared question library:** at most one workspace is marked shared; a Site administrator marks or unmarks it. Its screen is a Site administrator rail row at two or more workspaces and hidden at one; question lists show a shared tag.
   - Marking or unmarking writes a site audit row, mirrored to that workspace's audit.
   - The confirmation states who will be able to see its questions: every Edit forms holder in every workspace.
-- **Workspace list:** every caller sees only the workspaces they hold something in; a Site administrator sees all. This ships first, as its own fix.
+- **Workspace list:** every caller sees only the workspaces they hold something in; a Site administrator sees all. This ships first, with the workspace quick wins.
+- **Workspace themes:** a workspace holds named themes (colour tokens, face, corners, an optional logo, the source host of a derive). An Edit forms holder derives one from a website (SEC-18) and saves or changes one; applying a theme to a form is a draft edit.
+  - The **appearance lock** is a workspace setting set or cleared by a Workspace administrator or a Site administrator. While it is set, the draft save path refuses any change to a form's appearance; the refusal is the API's, never only the assistant's.
+  - The **logo route** serves a theme's logo without a session, with a fixed content type, `X-Content-Type-Options: nosniff` and from the same origin, so SEC-9's `img-src` holds. Only a raster logo (PNG, JPEG, WebP) stored on a workspace theme is ever served; SVG is refused at upload.
 
 ## 10. Guards and invariants
 
@@ -275,7 +288,7 @@ Every new workspace is created with four starter groups. They are ordinary group
 - **Disable is the exception:** disabling an account always proceeds (section 7), even when it leaves a workspace with no active Workspace administrator.
 - **Serialised membership writes:** every membership write in a workspace takes a per-workspace lock, so concurrent changes cannot jointly remove the last administrator.
 - **Per-request state:** the disabled flag and every grant are read on each request. No cache may make a revoke or a disable take effect later.
-- **One evaluator:** every assistant read, tool offer and proposed step is decided by the same policy evaluator as the screen act, under the user's own session (SEC-17). A suspended membership, a disabled account and a pending approval are rechecked at Confirm.
+- **One evaluator:** every assistant read, tool offer and proposed step is decided by the same policy evaluator as the screen act, under the user's own session (SEC-17). A suspended membership, a disabled account and a pending approval are rechecked on every draft edit request and at Confirm, because draft edits carry no card (agent-builder Q14).
 - **Groups stay inside their workspace:** a group grants nothing on another workspace's forms, groups or audit.
 - **Revoke always succeeds** except where the last-administrator guard applies. Nothing about form coverage blocks a revoke.
 - **A Site administrator is trusted at site level.** A Site administrator who creates a second account and uses it can defeat second approval, and only the audit catches it. This is an accepted limitation: the audit is the check on what a Site administrator does.
@@ -295,7 +308,8 @@ Two append-only logs. For both, the application role holds `INSERT` and `SELECT`
   - **Site administrators:** promote, demote, disable; approval request created, approved, rejected, expired.
   - **Workspace administrators:** appoint, remove.
   - **Access groups:** create, rename, delete, change of roles or environments, member added, member removed, re-confirmation of a suspended membership.
-  - **Workspaces:** create, rename, archive, form moved in or out, second-approval switch changed, marked or unmarked as the shared question library.
+  - **Workspaces:** create, rename, archive, form moved in or out, second-approval switch changed, appearance lock set or cleared (one `setting` row), marked or unmarked as the shared question library.
+  - **Workspace themes:** each theme derive fetch, one row (SEC-18).
   - **Workspace approval requests** (turning second approval off, self-grant, Move form): created, approved, rejected, expired.
   - **Pending draft publish to `prod`** on a site whose only environment is `prod` (approved on the form, not a workspace approval request): requested, approved, rejected, expired.
 - The stored kinds for these rows, beyond the workspace audit's six existing kinds, are settled in the foundation task (section 16).
@@ -342,6 +356,7 @@ Routes are under `apps/admin/app/(shell)/`. Artboards are boards on the design c
 | New access group                                                                                | Workspace administrator, Site administrator                                    | new (level-2 rail row under Access groups)                       | Screens-C, NewGroup-Closed, FormSelect-Card, Phone-B | Partly built |
 | Access group detail                                                                             | Workspace administrator, Site administrator                                    | new                                                              | Screens-B                                            | Not built    |
 | Workspace settings: rename, second approval, warning when nobody else could approve             | Workspace administrator, Site administrator                                    | `workspaces/[workspaceId]/settings/`                             | Screens-C, Phone-B                                   | Partly built |
+| Workspace themes: list, derive, save; appearance lock                                           | Edit forms (themes); Workspace administrator, Site administrator (lock)        | `workspaces/[workspaceId]/settings/`                             | Agent builder canvas, to be confirmed                | Not built    |
 | Workspace audit                                                                                 | Workspace administrator, Site administrator                                    | `workspaces/[workspaceId]/audit/`, `assistant-actions/`          | Screens-D, Phone-B                                   | Partly built |
 | Workspace requests                                                                              | Workspace administrator, Site administrator                                    | new (Requests row on the workspace Audit screen)                 | Screens-D                                            | Not built    |
 | Archive workspace                                                                               | Workspace administrator, Site administrator                                    | new (rail row at two or more workspaces)                         | Screens-F, Phone-C                                   | Not built    |
@@ -359,7 +374,7 @@ Routes are under `apps/admin/app/(shell)/`. Artboards are boards on the design c
 Each is one reusable design.
 
 1. **Access explanation:** rows of action by environment, each naming the granting group or "no group grants this". Used on My access and on a person's page.
-2. **Preview before confirming:** who gains or loses what, in which environments, and whether approval is needed and from whom. The confirm button names the act. Move form says when the move needs an approver and who can approve it; marking the shared question library states who will be able to see its questions.
+2. **Preview before confirming:** who gains or loses what, in which environments, and whether approval is needed and from whom. The confirm button names the act. Move form says when the move needs an approver and who can approve it, and that the form's appearance moves with it as it is; marking the shared question library states who will be able to see its questions.
 3. **Confirmation levels:** plain confirm for reversible changes; typed name for irreversible ones (erase responses, archive workspace).
 4. **Last-administrator controls:** Remove or Demote is disabled with the reason and a link to appoint someone else.
 5. **No access yet home:** for an account with no access; names the administrator and links to My access.
@@ -481,7 +496,7 @@ Each criterion is tested against the real policy code, service or route as its t
 88. Two concurrent removals that together would remove the last Workspace administrator leave at least one; one of them is refused.
 89. A Revoke takes effect on the next request with no cache delay.
 90. Every assistant tool offer and every proposed step for a user matches what that user's own screen acts allow.
-91. At assistant Confirm, a step is refused when the account is disabled or the membership it needs was suspended after the step was proposed, and a step whose act needs an approver is not applied until approved.
+91. At assistant Confirm, and on every assistant draft edit request (draft edits carry no card), a step is refused when the account is disabled or the membership it needs was suspended after the step was proposed, and a step whose act needs an approver is not applied until approved.
 
 ### Workspaces
 
@@ -519,6 +534,16 @@ Each criterion is tested against the real policy code, service or route as its t
 ### Held publish
 
 116. On a site whose only environment is `prod`, with the rule on, approving a held draft publish applies the draft content as it was when requested and shows the approver that content. If the draft changed after the request, the approval is refused and nothing is frozen or published; a new request is needed.
+117. On a site whose only environment is `prod`, with the rule on, a change to the draft's appearance alone after a draft publish was requested makes the approval refused, as a change to its questions does.
+
+### Workspace themes
+
+118. Saving or changing a workspace theme succeeds for an Edit forms holder in that workspace and is refused for a View forms holder, for an Edit forms holder of another workspace, and for a Workspace administrator or Site administrator without Edit forms.
+119. Deriving a workspace theme succeeds for an Edit forms holder in that workspace and is refused for everyone else, each fetch writing one audit row.
+120. Setting or clearing the appearance lock succeeds for a Workspace administrator of that workspace and for a Site administrator, is refused for every other actor, an Edit forms holder included, needs no approver with second approval on, and writes exactly one `setting` row in the workspace audit.
+121. While the appearance lock is set, a draft save that changes appearance is refused by the API for every actor and for the assistant, and a draft save that changes no appearance succeeds.
+122. The logo route serves only a raster logo stored on a workspace theme, without a session, with a fixed content type and `X-Content-Type-Options: nosniff`; an SVG upload is refused.
+123. A Move form carries the form's appearance by value: after the move the draft and versions keep it, a lock set in the destination refuses later appearance edits and not the move, and the Move form confirmation says so.
 
 ## 15. Decision records this document supersedes or amends
 
@@ -549,11 +574,17 @@ Each record below, except the built-task records, now links here for workspace a
 - Questions keep "Publish" with its current meaning.
 - After a credential or factor reset, the person signs in again through an emailed single-use link; a factor-only reset does not force a new password.
 
+### Proposed defaults awaiting a Code Owner ruling
+
+- A Site administrator may set or clear the workspace appearance lock, as for the other workspace settings; agent-builder Q18 names the Workspace administrator only. The act needs no second approval.
+- Move form carries the form's appearance by value, and a destination lock refuses later appearance edits only (section 9).
+- The re-check on assistant acts runs on every draft edit request as well as at Confirm (section 10, criterion 91), following agent-builder Q14's card-less draft edits.
+
 Request expiry (7 days), the `prod` rule with its exception for a site whose only environment is `prod` (section 5) and the held draft publish applying the draft as requested (section 6) are settled, not defaults. That a Site administrator is trusted at site level is an accepted limitation, stated in section 10, not an open item.
 
 ### Undecided
 
-- The choice of mail dependency for outbound email. It needs the Code Owner's runtime dependency approval and is brought by the email task.
+- The choice of mail dependency for outbound email. It needs the Code Owner's runtime dependency approval and is brought by the email task; the proposal is `nodemailer` over SMTP.
 - Storage shape of an access group (several roles on one stored group, or one stored group per role) and the fate of the `<environments>.<role>[.<label>]` name grammar. Left to the foundation task and reviewed there.
 - Audit kinds for the new acts beyond the workspace audit's six existing kinds (Q79), and the site audit's row shape. Left to the foundation task and reviewed there.
 - A workspace's own questions at archive. This document states no rule. As built, questions do not block an archive and stay with the archived workspace, taking no new pin (ADR-41's archive Notes); the earlier "questions are reassigned first" no longer applies, because questions do not move.
