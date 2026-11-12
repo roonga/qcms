@@ -532,8 +532,8 @@
             <tr>
               <th scope="row">Move a form to another workspace</th>
               <td>
-                Edit forms in both workspaces, and a Workspace administrator of the workspace the
-                form is leaving to do it or approve it
+                Edit forms in both workspaces, and an approver when the move is held (see
+                <a href="#move-form">Move a form</a>)
               </td>
               <td>Everywhere</td>
               <td>Authors, in both</td>
@@ -626,6 +626,10 @@
           <span class="env">prod</span>, such as <span class="env">dev</span>, Authors covers every
           environment except <span class="env">prod</span>. Publishers, Response viewers and
           Response erasers cover <span class="env">prod</span>.
+        </li>
+        <li>
+          On a site whose only environment is <span class="env">prod</span>, Authors has Edit forms
+          only. Publishing and reading responses there come from Publishers and Response viewers.
         </li>
         <li>
           Starter groups are a starting point, not protected. A Workspace administrator can rename
@@ -786,7 +790,8 @@
         </li>
         <li>
           If you ticked Publish forms, View responses or Erase responses, tick each environment it
-          should cover. A group with only View forms or Edit forms shows no environment choice.
+          should cover. Such a group must cover at least one environment. A group with only View
+          forms or Edit forms shows no environment choice.
         </li>
         <li>Check the preview of who gains or loses what, then confirm.</li>
       </ol>
@@ -835,6 +840,17 @@
           A webhook change in <span class="env">prod</span> is held until someone else with Publish
           forms for <span class="env">prod</span> confirms it.
         </li>
+        <li>
+          On a site whose only environment is <span class="env">prod</span>, publishing a draft to
+          <span class="env">prod</span> becomes a request. Someone else with Publish forms for
+          <span class="env">prod</span> approves it on the form, and only then is the draft frozen
+          as the next version and made live.
+        </li>
+        <li>
+          Every form move out of this workspace needs an approver who is not the mover: a Workspace
+          administrator of this workspace or a Site administrator. This applies to Workspace
+          administrators and Site administrators too.
+        </li>
         <li>Links and opening or closing a form need no approval.</li>
         <li>
           Turning the rule off, and giving yourself a response role or a new environment for one,
@@ -842,6 +858,11 @@
           administrator who is not you. A Site administrator who is not you can always approve.
         </li>
         <li>Nobody can approve their own request.</li>
+        <li>
+          When a request is approved, QCMS checks again that the person who asked can still do what
+          they asked. If they no longer can, for example because they lost Edit forms in a workspace
+          a form is moving to, the approval is refused.
+        </li>
       </ul>
       <p>
         If second approval is on and nobody else could approve any more, for example because the
@@ -868,9 +889,10 @@
         After a Site administrator resets someone's sign-in or reactivates their account, that
         person's places in groups with View responses or Erase responses are suspended in your
         workspace. Their other access works as normal. Re-confirm each suspended membership you
-        still want. By default, where another administrator exists, the re-confirmation must come
-        from someone other than the person who did the reset or reactivation. A Site administrator
-        can re-confirm too, unless they did the reset or reactivation themselves.
+        still want. A Site administrator can re-confirm too. By default, where there is an
+        administrator other than both the person who did the reset or reactivation and the person
+        affected, the re-confirmation must come from such an administrator. Where there is none, the
+        person who did the reset or reactivation may re-confirm, and the audit records it.
       </p>
       <p>
         Nobody re-confirms their own membership, whatever their role. Being a Workspace
@@ -916,9 +938,8 @@
 
       <h3 id="move-form">Move a form to another workspace</h3>
       <p class="meta">
-        <strong>Who:</strong> anyone with Edit forms in both workspaces, done or approved by a
-        Workspace administrator of the workspace the form is leaving &middot;
-        <strong>Where:</strong> Forms, the form's Move form screen
+        <strong>Who:</strong> anyone with Edit forms in both workspaces, with an approver when the
+        move is held &middot; <strong>Where:</strong> Forms, the form's Move form screen
       </p>
       <ol class="steps">
         <li>Open the form and choose Move form.</li>
@@ -930,9 +951,12 @@
         <li>Confirm.</li>
       </ol>
       <p>
-        If you are not a Workspace administrator of the workspace the form is leaving, the move
-        waits until one of them approves it. The form's responses move with it. No group changes in
-        either workspace.
+        With second approval off in the workspace the form is leaving, a move by one of its
+        Workspace administrators happens at once. Anyone else's move waits until one of them, or a
+        Site administrator, approves it. With second approval on, every move waits for an approver
+        other than you, even if you are a Workspace administrator or a Site administrator. A Site
+        administrator can approve someone else's move, never their own. The form's responses move
+        with it. No group changes in either workspace.
       </p>
       <p class="refused">
         <strong>If refused:</strong> you need Edit forms in the destination workspace too. Ask its
@@ -1052,9 +1076,9 @@
         is recorded in the site audit and in each affected workspace's audit.
       </p>
       <p>
-        By default, where another administrator exists, someone other than you does the
-        re-confirmation. On a site with only one administrator this cannot be enforced, and the
-        audit entry is the only check.
+        By default, where there is an administrator other than you and the person affected, they do
+        the re-confirmation, not you. Where there is none, you may re-confirm, and the audit records
+        that you did.
       </p>
       <p>
         By default, the person signs in again through an emailed single-use link, then sets a new
@@ -1087,9 +1111,9 @@
       <p>
         Approve or reject a pending request from another Site administrator, or a workspace request
         to turn second approval off, to let an administrator give themselves response access, or to
-        move a form out of a workspace. You cannot approve your own. A request that nobody decides
-        expires after 7 days and can no longer be approved. Requests, approvals, rejections and
-        expiries are all recorded in the site audit.
+        move a form out of a workspace. You cannot approve your own, including a form move you made
+        yourself. A request that nobody decides expires after 7 days and can no longer be approved.
+        Requests, approvals, rejections and expiries are all recorded in the site audit.
       </p>
 
       <h3 id="create-ws">Create a workspace</h3>
@@ -1160,7 +1184,8 @@
       </p>
       <p>
         On a site whose only environment is <span class="env">prod</span>, there is nowhere else to
-        publish first, so a draft can be published straight to <span class="env">prod</span>.
+        publish first, so a draft can be published straight to <span class="env">prod</span>. This
+        needs Edit forms and Publish forms for <span class="env">prod</span>.
       </p>
 
       <h3 id="publish-approval">With second approval on</h3>
@@ -1168,6 +1193,12 @@
         If you froze the version, you cannot publish it to <span class="env">prod</span> yourself.
         Another person with Publish forms for <span class="env">prod</span> publishes it from the
         form and is recorded as the approver. There is no separate approvals list for this.
+      </p>
+      <p>
+        On a site whose only environment is <span class="env">prod</span>, publishing a draft to
+        <span class="env">prod</span> creates a request instead. Another person with Publish forms
+        for <span class="env">prod</span> approves it on the form; the draft is then frozen as the
+        next version and goes live in one step. A request lasts 7 days.
       </p>
 
       <h3 id="run-form">Run a live form</h3>
@@ -1199,8 +1230,8 @@
       <ul>
         <li>Second approval cannot be turned on until someone else could approve.</li>
         <li>
-          Rules that need someone other than you, such as re-confirming response access after a
-          reset, cannot be enforced. The audit is the only check.
+          Where nobody but you could re-confirm response access after a reset you did, you
+          re-confirm it yourself, and the audit records it.
         </li>
       </ul>
     </section>
@@ -1287,9 +1318,13 @@
             <tr>
               <th scope="row">My form move is waiting</th>
               <td>
-                A Workspace administrator of the workspace the form is leaving must approve it.
+                It needs an approver: you are not a Workspace administrator of the workspace the
+                form is leaving, or second approval is on there.
               </td>
-              <td>Ask one of them to approve the request.</td>
+              <td>
+                Ask a Workspace administrator of that workspace, or a Site administrator, other than
+                you to approve it.
+              </td>
             </tr>
             <tr>
               <th scope="row">Turning on second approval was refused</th>
@@ -1375,6 +1410,7 @@
         <dt>Authors</dt>
         <dd>
           Starter group: Edit forms, Publish forms, View responses; every environment but
+          <span class="env">prod</span>. Edit forms only on a site whose only environment is
           <span class="env">prod</span>.
         </dd>
         <dt>Publishers</dt>
