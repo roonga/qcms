@@ -141,12 +141,14 @@ async function as(token: string, method: string, path: string, body?: unknown): 
   });
 }
 
-async function listedIds(token: string): Promise<string[]> {
+async function listedRows(token: string): Promise<Record<string, unknown>[]> {
   const res = await as(token, "GET", "/workspaces");
   expect(res.status, await res.clone().text()).toBe(200);
-  return ((await res.json()) as { workspaces: { workspaceId: string }[] }).workspaces.map(
-    (row) => row.workspaceId,
-  );
+  return ((await res.json()) as { workspaces: Record<string, unknown>[] }).workspaces;
+}
+
+async function listedIds(token: string): Promise<string[]> {
+  return (await listedRows(token)).map((row) => row["workspaceId"] as string);
 }
 
 describe("the workspace list narrowed to the caller's own", () => {
@@ -174,6 +176,59 @@ describe("the workspace list narrowed to the caller's own", () => {
     const every = (await listWorkspaces(testDb.db)).map((row) => row.id);
     expect([...ids].sort()).toEqual([...every].sort());
     expect(ids).toContain(elsewhere);
+  });
+
+  it("lists a workspace a grant holder administers nothing in (criterion 26)", async () => {
+    const mine = await createWorkspace("list-holder-mine");
+    const theirs = await createWorkspace("list-holder-theirs");
+    const holder = await seedAdminSession(testDb.db, {
+      label: "list-holder",
+      claim: false,
+      workspaceId: mine,
+      owner: false,
+      grants: ["responses.viewer"],
+    });
+
+    const ids = await listedIds(holder.token);
+    expect(ids).toEqual([mine]);
+    expect(ids).not.toContain(theirs);
+  });
+
+  it("gives a caller who administers nothing there the identity alone (criterion 26)", async () => {
+    const mine = await createWorkspace("list-reduced-mine");
+    const holder = await seedAdminSession(testDb.db, {
+      label: "list-reduced",
+      claim: false,
+      workspaceId: mine,
+      owner: false,
+      grants: ["forms.viewer"],
+    });
+    const administrator = await seedAdminSession(testDb.db, {
+      label: "list-reduced-admin",
+      claim: false,
+      workspaceId: mine,
+      grants: [],
+    });
+
+    const reduced = await listedRows(holder.token);
+    expect(reduced).toEqual([
+      { workspaceId: mine, name: expect.any(String), slug: expect.any(String), archivedAt: null },
+    ]);
+
+    const full = (await listedRows(administrator.token))[0] as Record<string, unknown>;
+    expect(full["isShared"]).toBe(false);
+    expect(full["requireSecondApprover"]).toBe(false);
+    expect(full["forms"]).toBe(0);
+    expect(full["questions"]).toBe(0);
+  });
+
+  it("refuses the list to an account holding nothing anywhere", async () => {
+    const nobody = await seedAdminSession(testDb.db, {
+      label: "list-nobody",
+      claim: false,
+      membership: false,
+    });
+    expect((await as(nobody.token, "GET", "/workspaces")).status).toBe(403);
   });
 });
 
