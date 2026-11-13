@@ -607,13 +607,17 @@ A per-message `cards` wins, then `--cards`, then the file's own `cards`, then `l
 `leave` is the default on purpose: a run that was not asked to act confirms nothing.
 `confirm` fills a card's typed-confirmation box from the card's own hint before pressing Confirm, so an irreversible step still gets the exact value the screen demands rather than a bypass.
 
+**A directive goes to the card waiting for confirmation, never to whichever card is first on the page.**
+A turn can leave a settled card on screen beside a new one, so the run picks the earliest card whose state is `proposed`, presses that card's own buttons and waits for that card to settle.
+Each turn records what happened as `cardAction`: `confirmed`, `declined`, `left waiting` for a `leave` directive, `nothing to confirm` when no card was waiting, and `no card` when the turn produced none.
+
 **The output goes under this lane's scratch directory** (`node scripts/agent-scratch.mjs <name>`, issues #396 and #602), one directory per run, replaced on each run:
 
-- `transcript.json` - the whole conversation: each turn's message and reply, the assistant's thinking blocks and its own step timeline, then the plan card's title, state, steps, step arguments, notes and advisory issues.
+- `transcript.json` - the whole conversation: each turn's message and reply, the assistant's thinking blocks and its own step timeline, then `cards`, every plan card the turn showed, each with its `index` on the page, its state, and its steps, step arguments, notes and advisory issues. `cardIndex` names the card the directive acted on, and `card` repeats that one so a reader written against a single card still works.
 - `turn-NN.png` - a full-page capture after each turn, plus `failure.png` if the run dies.
 - `secrets.json`, owner-only - one-time values, see below.
 
-**A failed plan step carries the reason the page gives**, which is the half an agent otherwise cannot see: the step's own note and its advisory issues are copied into the transcript, and the run exits non-zero with each of them printed to stderr as `turn N, plan step M "title": reason`.
+**A failed plan step carries the reason the page gives**, which is the half an agent otherwise cannot see: the step's own note and its advisory issues are copied into the transcript, and the run exits non-zero with each of them printed to stderr as `turn N, plan step M "title": reason`, or `turn N, card K plan step M "title": reason` when the turn showed more than one card.
 A panel-level error and a failed step in the assistant's own timeline exit non-zero the same way.
 A clean run exits 0.
 Anything the run could watch go wrong exits 1 with the text on stderr: a refused sign-in, a panel error, a failed step.

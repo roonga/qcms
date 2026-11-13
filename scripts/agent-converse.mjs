@@ -16,6 +16,7 @@ import { generate } from "otplib";
 
 import { cardHasSettled, isHydrated, readPanel } from "./agent-converse-page.mjs";
 import {
+  cardAwaitingConfirmation,
   createSecretVault,
   parseArgs,
   parseScriptFile,
@@ -142,57 +143,61 @@ async function waitForReply(page, timeoutMs) {
 
 /**
  * @param {import("@playwright/test").Page} page
+ * @param {number} index
  * @param {number} timeoutMs
  */
-async function waitForCardToSettle(page, timeoutMs) {
-  await page.waitForFunction(cardHasSettled, undefined, { timeout: timeoutMs });
+async function waitForCardToSettle(page, index, timeoutMs) {
+  await page.waitForFunction(cardHasSettled, index, { timeout: timeoutMs });
   await page.waitForTimeout(SETTLE_MS);
 }
 
 /**
  * @param {import("@playwright/test").Page} page
  * @param {string} directive
- * @param {{ state: string | null; typedHint: string | null } | null} card
+ * @param {ReturnType<typeof readPanel>["cards"]} cards
  * @param {number} timeoutMs
- * @returns {Promise<string>}
+ * @returns {Promise<{ action: string; index: number | null }>}
  */
-async function applyDirective(page, directive, card, timeoutMs) {
-  if (card === null) return "no card";
-  if (directive === "leave" || card.state !== "proposed") return "left as proposed";
-  const shown = page.locator(".qcms-acard");
+async function applyDirective(page, directive, cards, timeoutMs) {
+  if (cards.length === 0) return { action: "no card", index: null };
+  const target = /** @type {ReturnType<typeof readPanel>["cards"][number] | undefined} */ (
+    cardAwaitingConfirmation(cards)
+  );
+  if (target === undefined) return { action: "nothing to confirm", index: null };
+  if (directive === "leave") return { action: "left waiting", index: target.index };
+  const shown = page.locator(".qcms-acard").nth(target.index);
 
   if (directive === "decline") {
     await shown.getByRole("button", { name: "Cancel" }).click();
-    await waitForCardToSettle(page, timeoutMs);
-    return "declined";
+    await waitForCardToSettle(page, target.index, timeoutMs);
+    return { action: "declined", index: target.index };
   }
 
-  if (card.typedHint !== null) {
-    const required = typedConfirmationValue(card.typedHint);
+  if (target.typedHint !== null) {
+    const required = typedConfirmationValue(target.typedHint);
     if (required === undefined) {
       throw new Error(
-        `this card asks for a typed confirmation this run cannot read: ${card.typedHint}`,
+        `this card asks for a typed confirmation this run cannot read: ${target.typedHint}`,
       );
     }
     await fillStable(shown.locator(".qcms-acard__typed input"), required);
   }
   await shown.getByRole("button", { name: /^Confirm/u }).click();
-  await waitForCardToSettle(page, timeoutMs);
-  return "confirmed";
+  await waitForCardToSettle(page, target.index, timeoutMs);
+  return { action: "confirmed", index: target.index };
 }
 
 /**
- * @param {ReturnType<typeof readPanel>["card"]} card
+ * @param {ReturnType<typeof readPanel>["cards"]} cards
  * @param {ReturnType<typeof createSecretVault>} vault
  * @param {number} turn
  */
-function recordCard(card, vault, turn) {
-  if (card === null) return null;
-  return {
+function recordCards(cards, vault, turn) {
+  return cards.map((card) => ({
     ...card,
     result: redactAddresses(card.result, vault, `turn ${String(turn)} result`),
     steps: card.steps.map((step, index) => {
-      const where = `turn ${String(turn)} step ${String(index + 1)}`;
+      const where = `turn ${String(turn)} card ${String(card.index + 1)} step ${String(index + 1)}`;
       const { revealed, ...rest } = step;
       return {
         ...rest,
@@ -204,7 +209,7 @@ function recordCard(card, vault, turn) {
             : { secret: true, ref: vault.hide(`${where} one-time value`, revealed) },
       };
     }),
-  };
+  }));
 }
 
 /**
@@ -237,7 +242,12 @@ async function converse(page, run, target, vault) {
     await waitForReply(page, run.timeoutMs);
 
     const before = await page.evaluate(readPanel);
-    const action = await applyDirective(page, message.cards, before.card, run.timeoutMs);
+    const { action, index: acted } = await applyDirective(
+      page,
+      message.cards,
+      before.cards,
+      run.timeoutMs,
+    );
     const panel =
       action === "confirmed" || action === "declined" ? await page.evaluate(readPanel) : before;
 
@@ -245,17 +255,20 @@ async function converse(page, run, target, vault) {
     await page.screenshot({ path: join(target, shot), fullPage: true });
 
     const reply = panel.turns.filter((turn) => turn.role === "assistant").at(-1);
+    const cards = recordCards(panel.cards, vault, at);
     turns.push({
       turn: at,
       directive: message.cards,
       cardAction: action,
+      cardIndex: acted,
       screen: run.screen,
       context: panel.context,
       user: message.text,
       reply: redactAddresses(reply?.text ?? null, vault, `turn ${String(at)} reply`),
       thinking: reply?.thinking ?? [],
       replySteps: reply?.steps ?? [],
-      card: recordCard(panel.card, vault, at),
+      cards,
+      card: cards.find((entry) => entry.index === acted) ?? cards[0] ?? null,
       panelError: panel.panelError,
       screenshot: shot,
     });

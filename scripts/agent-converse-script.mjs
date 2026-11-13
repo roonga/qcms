@@ -243,6 +243,44 @@ export function typedConfirmationValue(hint) {
 }
 
 /**
+ * A turn records every card the page showed. `card` is the one the directive acted on, kept so a
+ * reader written against a single card still works; `scripts/agent-review/checks.mjs` reads both.
+ *
+ * @param {Record<string, unknown>} turn
+ * @returns {Record<string, unknown>[]}
+ */
+export function cardsOf(turn) {
+  const many = turn["cards"];
+  if (Array.isArray(many)) {
+    return many.filter((card) => card !== null && typeof card === "object");
+  }
+  const one = turn["card"];
+  return one === null || typeof one !== "object"
+    ? []
+    : [/** @type {Record<string, unknown>} */ (one)];
+}
+
+/**
+ * @param {Record<string, unknown>} card
+ * @param {readonly Record<string, unknown>[]} cards
+ * @returns {number}
+ */
+function cardIndex(card, cards) {
+  return typeof card["index"] === "number" ? card["index"] + 1 : cards.indexOf(card) + 1;
+}
+
+/**
+ * Only a card still waiting can be confirmed or declined, so a directive goes to that one rather
+ * than to whichever card happens to be first in the page.
+ *
+ * @param {readonly Record<string, unknown>[]} cards
+ * @returns {Record<string, unknown> | undefined}
+ */
+export function cardAwaitingConfirmation(cards) {
+  return cards.find((card) => card["state"] === "proposed");
+}
+
+/**
  * @param {Record<string, unknown>} step
  * @param {Record<string, unknown>} card
  * @returns {string}
@@ -289,18 +327,19 @@ export function runErrors(transcript) {
       });
     }
 
-    const card = turn["card"];
-    if (card === null || typeof card !== "object") continue;
-    const view = /** @type {Record<string, unknown>} */ (card);
-    const steps = Array.isArray(view["steps"]) ? view["steps"] : [];
-    for (const [position, entry] of steps.entries()) {
-      const step = /** @type {Record<string, unknown>} */ (entry);
-      if (step["state"] !== "failed") continue;
-      errors.push({
-        turn: at,
-        where: `plan step ${String(position + 1)} "${String(step["title"] ?? view["title"])}"`,
-        text: stepFailureText(step, view),
-      });
+    const cards = cardsOf(turn);
+    for (const view of cards) {
+      const steps = Array.isArray(view["steps"]) ? view["steps"] : [];
+      const which = cards.length > 1 ? `card ${String(cardIndex(view, cards))} ` : "";
+      for (const [position, entry] of steps.entries()) {
+        const step = /** @type {Record<string, unknown>} */ (entry);
+        if (step["state"] !== "failed") continue;
+        errors.push({
+          turn: at,
+          where: `${which}plan step ${String(position + 1)} "${String(step["title"] ?? view["title"])}"`,
+          text: stepFailureText(step, view),
+        });
+      }
     }
   }
   return errors;

@@ -6,10 +6,11 @@ export function isHydrated(attribute) {
   return document.documentElement.hasAttribute(attribute);
 }
 
-export function cardHasSettled() {
-  const state = document
-    .querySelector(".qcms-acard__head .qcms-acard__state")
-    ?.getAttribute("data-s");
+/** @param {number} index */
+export function cardHasSettled(index) {
+  const card = document.querySelectorAll(".qcms-acard")[index];
+  if (card === undefined) return true;
+  const state = card.querySelector(".qcms-acard__head .qcms-acard__state")?.getAttribute("data-s");
   return state !== "running" && state !== "proposed";
 }
 
@@ -59,8 +60,27 @@ export function readPanel() {
     revealed: text(step.querySelector(".qcms-acard__reveal code")),
   });
 
-  const card = document.querySelector(".qcms-acard");
-  const head = card?.querySelector(".qcms-acard__head .qcms-acard__state");
+  /**
+   * `index` is the card's position among the cards on the page, which is what every later
+   * step addresses it by.
+   *
+   * @param {Element} card
+   * @param {number} index
+   */
+  const planCard = (card, index) => {
+    const head = card.querySelector(".qcms-acard__head .qcms-acard__state");
+    return {
+      index,
+      title: text(card.querySelector(".qcms-acard__title")),
+      state: head?.getAttribute("data-s") ?? null,
+      stateLabel: text(head),
+      irreversible: text(card.querySelector('.qcms-acard__band[data-kind="irreversible"]')),
+      reason: text(card.querySelector(".qcms-acard__reason q")),
+      typedHint: text(card.querySelector(".qcms-acard__typed .qcms-field__hint")),
+      result: text(card.querySelector(".qcms-acard__result")),
+      steps: [...card.querySelectorAll(".qcms-acard__step")].map((step) => planStep(step)),
+    };
+  };
 
   return {
     context: text(document.querySelector('[data-testid="qcms-assistant-context"]')),
@@ -71,18 +91,8 @@ export function readPanel() {
           ? [{ role: "user", text: text(turn), thinking: [], steps: [] }]
           : assistantTurn(turn),
     ),
-    card:
-      card === null
-        ? null
-        : {
-            title: text(card.querySelector(".qcms-acard__title")),
-            state: head?.getAttribute("data-s") ?? null,
-            stateLabel: text(head),
-            irreversible: text(card.querySelector('.qcms-acard__band[data-kind="irreversible"]')),
-            reason: text(card.querySelector(".qcms-acard__reason q")),
-            typedHint: text(card.querySelector(".qcms-acard__typed .qcms-field__hint")),
-            result: text(card.querySelector(".qcms-acard__result")),
-            steps: [...card.querySelectorAll(".qcms-acard__step")].map((step) => planStep(step)),
-          },
+    cards: [...document.querySelectorAll(".qcms-acard")].map((card, index) =>
+      planCard(card, index),
+    ),
   };
 }

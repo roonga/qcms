@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   asDirective,
+  cardAwaitingConfirmation,
+  cardsOf,
   createSecretVault,
   DEFAULT_BASE_URL,
   DEFAULT_SCREEN,
@@ -326,5 +328,71 @@ describe("runErrors", () => {
         (error) => error.turn,
       ),
     ).toEqual([2]);
+  });
+
+  it("reads a failure on the second of two cards in one turn", () => {
+    expect(
+      runErrors({
+        turns: [
+          {
+            cards: [
+              { index: 0, title: "Save the draft", steps: [{ state: "done" }] },
+              {
+                index: 1,
+                title: "Publish frm_x",
+                steps: [
+                  { state: "failed", title: "Publish to prod", notes: ["Nothing to publish."] },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+    ).toEqual([
+      { turn: 1, where: 'card 2 plan step 1 "Publish to prod"', text: "Nothing to publish." },
+    ]);
+  });
+
+  it("names the card only when a turn showed more than one", () => {
+    const one = { index: 0, title: "Publish frm_x", steps: [{ state: "failed" }] };
+    expect(runErrors({ turns: [{ cards: [one] }] })[0]?.where).toBe('plan step 1 "Publish frm_x"');
+  });
+});
+
+describe("cardsOf", () => {
+  it("prefers the cards array and drops anything that is not a card", () => {
+    const first = { index: 0 };
+    expect(cardsOf({ cards: [first, null, "no"], card: { index: 9 } })).toEqual([first]);
+  });
+
+  it("falls back to the single card field, and to nothing at all", () => {
+    expect(cardsOf({ card: { index: 0 } })).toEqual([{ index: 0 }]);
+    expect(cardsOf({ card: null })).toEqual([]);
+    expect(cardsOf({})).toEqual([]);
+  });
+});
+
+describe("cardAwaitingConfirmation", () => {
+  it("picks the waiting card rather than the first one on the page", () => {
+    expect(
+      cardAwaitingConfirmation([
+        { index: 0, state: "done" },
+        { index: 1, state: "proposed" },
+      ]),
+    ).toEqual({ index: 1, state: "proposed" });
+  });
+
+  it("takes the earliest of several waiting cards", () => {
+    expect(
+      cardAwaitingConfirmation([
+        { index: 0, state: "proposed" },
+        { index: 1, state: "proposed" },
+      ])?.["index"],
+    ).toBe(0);
+  });
+
+  it("gives nothing when no card is waiting", () => {
+    expect(cardAwaitingConfirmation([{ index: 0, state: "running" }])).toBeUndefined();
+    expect(cardAwaitingConfirmation([])).toBeUndefined();
   });
 });
