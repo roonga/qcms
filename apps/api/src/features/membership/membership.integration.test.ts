@@ -1058,3 +1058,158 @@ describe("the agent audit is read exactly as the access audit is (SEC-17)", () =
     expect((await res.json()) as ErrorBody).toMatchObject({ error: { code: "INVALID_QUERY" } });
   });
 });
+
+describe("adding an account the caller cannot add gets one answer (section 7, directory visibility)", () => {
+  async function answer(
+    token: string,
+    teamId: string,
+    body: { email: string } | { userId: string },
+  ): Promise<{ status: number; text: string }> {
+    const res = await as(
+      token,
+      "POST",
+      `/workspaces/${SEED_WORKSPACE_ID}/access-groups/${teamId}/holders`,
+      body,
+    );
+    return { status: res.status, text: await res.text() };
+  }
+
+  it("is identical in status and body for an unknown and an existing account, on both paths", async () => {
+    const teamId = await createGroup({
+      name: "prod.forms.viewer.generic",
+      role: "forms.viewer",
+      environments: ["prod"],
+      forms: ["all"],
+      label: "generic",
+    });
+    const workspaceOwner = await seedAdminSession(testDb.db, {
+      label: "generic-owner",
+      claim: false,
+      grants: [],
+    });
+    const elsewhere = await seedAdminSession(testDb.db, {
+      label: "generic-elsewhere",
+      claim: false,
+      membership: false,
+    });
+
+    const unknownEmail = await answer(workspaceOwner.token, teamId, {
+      email: "nobody.at.all@qcms.invalid",
+    });
+    const unknownId = await answer(workspaceOwner.token, teamId, { userId: "au_never_existed" });
+    const existingOther = await answer(workspaceOwner.token, teamId, {
+      userId: elsewhere.userId,
+    });
+
+    expect(unknownEmail.status).toBe(404);
+    expect(JSON.parse(unknownEmail.text)).toMatchObject({
+      error: { code: "ACCOUNT_NOT_ADDABLE" },
+    });
+    expect(unknownId).toEqual(unknownEmail);
+    expect(existingOther).toEqual(unknownEmail);
+    expect(unknownEmail.text).not.toContain("nobody.at.all");
+    expect(existingOther.text).not.toContain(elsewhere.userId);
+
+    const claimUnknownEmail = await answer(ownerToken, teamId, {
+      email: "nobody.at.all@qcms.invalid",
+    });
+    const claimUnknownId = await answer(ownerToken, teamId, { userId: "au_never_existed" });
+    expect(claimUnknownEmail).toEqual(unknownEmail);
+    expect(claimUnknownId).toEqual(unknownEmail);
+    expect(
+      (await listWorkspaceMembers(testDb.db, SEED_WORKSPACE_ID)).some(
+        (member) => member.userId === elsewhere.userId,
+      ),
+    ).toBe(false);
+  });
+
+  it("still adds an existing account by its exact address", async () => {
+    const teamId = await createGroup({
+      name: "prod.forms.viewer.exact",
+      role: "forms.viewer",
+      environments: ["prod"],
+      forms: ["all"],
+      label: "exact",
+    });
+    const workspaceOwner = await seedAdminSession(testDb.db, {
+      label: "exact-owner",
+      claim: false,
+      grants: [],
+    });
+    const newcomer = await seedAdminSession(testDb.db, {
+      label: "exact-newcomer",
+      claim: false,
+      membership: false,
+    });
+    const res = await answer(workspaceOwner.token, teamId, {
+      email: `exact-newcomer.${newcomer.userId}@admin.test`,
+    });
+    expect(res.status, res.text).toBe(201);
+  });
+});
+
+describe("an archived workspace refuses every grant and allows every revoke (criterion 98)", () => {
+  it("refuses a grant, a new group and a settings change, and allows a revoke", async () => {
+    const created = await send("POST", "/workspaces", { name: "Ending", slug: "ending-grants" });
+    const workspaceId = ((await created.json()) as { workspace: { workspaceId: string } })
+      .workspace.workspaceId;
+    const groupsPath = `/workspaces/${workspaceId}/access-groups`;
+    const group = await send("POST", groupsPath, {
+      name: "all.forms.viewer",
+      role: "forms.viewer",
+      environments: ["all"],
+      forms: ["all"],
+    });
+    const teamId = ((await group.json()) as GroupBody).group.teamId;
+    const spare = await send("POST", groupsPath, {
+      name: "all.forms.editor",
+      role: "forms.editor",
+      environments: ["all"],
+      forms: ["all"],
+    });
+    const spareId = ((await spare.json()) as GroupBody).group.teamId;
+    const holder = await seedAdminSession(testDb.db, {
+      label: "ending-holder",
+      claim: false,
+      membership: false,
+    });
+    const granted = await send("POST", `${groupsPath}/${teamId}/holders`, {
+      userId: holder.userId,
+    });
+    expect(granted.status, await granted.clone().text()).toBe(201);
+    const latecomer = await seedAdminSession(testDb.db, {
+      label: "ending-latecomer",
+      claim: false,
+      membership: false,
+    });
+
+    expect((await send("POST", `/workspaces/${workspaceId}/archive`)).status).toBe(200);
+
+    const refusals = [
+      await send("POST", `${groupsPath}/${spareId}/holders`, { userId: latecomer.userId }),
+      await send("POST", groupsPath, {
+        name: "all.forms.approver",
+        role: "forms.approver",
+        environments: ["all"],
+        forms: ["all"],
+      }),
+      await send("PUT", `${groupsPath}/${teamId}`, {
+        name: "all.forms.viewer",
+        environments: ["all"],
+        forms: ["all"],
+      }),
+      await send("PUT", `/workspaces/${workspaceId}/settings`, { requireSecondApprover: true }),
+    ];
+    for (const refused of refusals) {
+      expect(refused.status).toBe(409);
+      expect((await refused.json()) as ErrorBody).toMatchObject({
+        error: { code: "WORKSPACE_ARCHIVED" },
+      });
+    }
+
+    const revoked = await send("DELETE", `${groupsPath}/${teamId}/holders/${holder.userId}`);
+    expect(revoked.status, await revoked.clone().text()).toBe(204);
+    const removed = await send("DELETE", `${groupsPath}/${spareId}`);
+    expect(removed.status, await removed.clone().text()).toBe(204);
+  });
+});

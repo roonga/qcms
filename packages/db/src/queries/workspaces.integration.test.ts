@@ -32,6 +32,7 @@ import {
   moveFormToWorkspace,
   moveQuestionToWorkspace,
   publishQuestionVersion,
+  renameWorkspace,
   setWorkspaceShared,
 } from "./index.js";
 
@@ -356,5 +357,22 @@ describe("the seeded workspace", () => {
     expect(all).toContain(workspaceId);
     expect(active).toContain(SEED_WORKSPACE_ID);
     expect(active).not.toContain(workspaceId);
+  });
+});
+
+describe("renaming a workspace", () => {
+  it("changes the name and never the slug", async () => {
+    const workspaceId = await makeWorkspace("rename-me");
+    const renamed = await renameWorkspace(testDb.db, workspaceId, "Renamed workspace");
+    expect(renamed?.name).toBe("Renamed workspace");
+    expect(renamed?.slug).toBe("rename-me");
+    expect((await getWorkspace(testDb.db, workspaceId))?.slug).toBe("rename-me");
+  });
+
+  it("matches no archived workspace", async () => {
+    const workspaceId = await makeWorkspace("rename-archived");
+    await archiveWorkspace(testDb.db, workspaceId, new Date());
+    expect(await renameWorkspace(testDb.db, workspaceId, "Too late")).toBeUndefined();
+    expect((await getWorkspace(testDb.db, workspaceId))?.name).toBe("rename-archived");
   });
 });

@@ -106,6 +106,20 @@ export async function setWorkspaceShared(
   return row;
 }
 
+/** Rename an unarchived workspace. The slug is left alone: it is the workspace's stable address. */
+export async function renameWorkspace(
+  exec: Executor,
+  workspaceId: string,
+  name: string,
+): Promise<WorkspaceRow | undefined> {
+  const [row] = await exec
+    .update(authOrganization)
+    .set({ name })
+    .where(and(eq(authOrganization.id, workspaceId), isNull(authOrganization.archivedAt)))
+    .returning(workspaceColumns);
+  return row;
+}
+
 /**
  * Archive a workspace: stamp `archivedAt` and change nothing else, so archiving is not a third whole-session
  * delete path beside ADR-17's two. The caller refuses first, through {@link findArchiveBlockers}. There is no

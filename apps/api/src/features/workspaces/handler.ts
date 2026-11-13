@@ -11,7 +11,9 @@ import {
   moveFormToWorkspace,
   moveQuestionToWorkspace,
   readSeedNewEditorsWithTestData,
+  renameWorkspace,
   setWorkspaceShared,
+  writeAccessAuditRow,
 } from "@roonga/qcms-db";
 import type { ArchiveBlockers, WorkspaceRow } from "@roonga/qcms-db";
 
@@ -22,13 +24,14 @@ import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
 import { adminAuthFor } from "../auth/route.js";
-import { requireOpenWorkspace, requireWorkspace } from "./resolve.js";
+import { requireOpenWorkspace, requireWorkspace, workspaceFail } from "./resolve.js";
 import type {
   archiveWorkspaceRoute,
   createWorkspaceRoute,
   listWorkspacesRoute,
   moveFormRoute,
   moveQuestionRoute,
+  renameWorkspaceRoute,
   setSharedWorkspaceRoute,
 } from "./route.js";
 
@@ -134,10 +137,41 @@ export function makeListWorkspacesHandler(
   return async (c) => {
     // Archived workspaces are in the list: one is archived and never deleted (Q15), and
     // one that still owns questions is what a reader needs to see.
-    const rows = await listWorkspaces(deps.databases.control);
+    const held = c.get("grantContext")?.workspaceIds ?? [];
+    const rows = (await listWorkspaces(deps.databases.control)).filter((row) =>
+      held.includes(row.id),
+    );
     const workspaces = [];
     for (const row of rows) workspaces.push(await workspaceView(deps, row));
     return c.json({ workspaces }, 200);
+  };
+}
+
+export function makeRenameWorkspaceHandler(
+  deps: Deps,
+): RouteHandler<typeof renameWorkspaceRoute, ApiEnv> {
+  return async (c) => {
+    const workspaceId = c.req.valid("param").id;
+    const { name } = c.req.valid("json");
+    const principal = c.get("adminPrincipal");
+    if (principal === undefined) throw fail.noPrincipal();
+    const workspace = await requireOpenWorkspace(deps.databases.control, workspaceId);
+
+    const renamed = await deps.databases.control.transaction(async (tx) => {
+      const row = await renameWorkspace(tx, workspaceId, name);
+      // `renameWorkspace` matches only an unarchived row, so this is an archive that
+      // landed after the pre-read.
+      if (row === undefined) throw workspaceFail.archived();
+      await writeAccessAuditRow(tx, {
+        actor: principal.userId,
+        workspaceId,
+        kind: "setting",
+        detail: `setting=name from=${JSON.stringify(workspace.name)} to=${JSON.stringify(name)}`,
+        occurredAt: deps.clock.now(),
+      });
+      return row;
+    });
+    return c.json({ workspace: await workspaceView(deps, renamed) }, 200);
   };
 }
 
