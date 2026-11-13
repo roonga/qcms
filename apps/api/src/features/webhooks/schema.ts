@@ -38,8 +38,8 @@ export const WebhookSummary = z
     url: z.string().openapi({
       description:
         "The endpoint URL. A caller holding only forms.viewer sees the query string " +
-        "replaced by (hidden); forms.editor and above see the whole URL. Do not put " +
-        "credentials in an endpoint URL: use the signing secret.",
+        "replaced by (hidden); a forms.editor or a forms.publisher sees the whole URL. " +
+        "Do not put credentials in an endpoint URL: use the signing secret.",
       example: "https://consumer.example.com/qcms-hook",
     }),
     active: z.boolean().openapi({ example: true }),
@@ -94,7 +94,7 @@ export const EndpointProposalParams = z.object({
 });
 
 // The rule is two distinct accounts, not two roles: one person may hold both
-// `forms.editor` and `forms.approver`. A null `appliedAt` means not live, because the
+// `forms.editor` and `forms.publisher`. A null `appliedAt` means not live, because the
 // proposal and the endpoint commit on different pools.
 export const EndpointProposal = z
   .object({

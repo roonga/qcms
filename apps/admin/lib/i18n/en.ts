@@ -1680,7 +1680,7 @@ export const messages = {
     "The file is built from the responses these filters match and downloads in your browser.",
   "agent.card.response.export.handOff":
     "Confirm opens the export dialog with these filters. You press Export, and no part of the file is returned to the assistant.",
-  "agent.card.access.groupCreate.title": "Create the access group {name} with the role {role}",
+  "agent.card.access.groupCreate.title": "Create the access group {name} with the roles {roles}",
   "agent.card.access.groupCreate.consequence":
     "The group exists but grants nobody anything yet. Holding the group is the grant, so nobody's access changes until somebody is added to it.",
   "agent.card.access.groupRemove.title": "Remove the access group {teamId}",

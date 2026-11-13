@@ -142,11 +142,8 @@ interface GroupBody {
   group: {
     teamId: string;
     name: string;
-    fullName: string;
-    directoryName: string;
-    role: string;
+    roles: string[];
     environments: string[];
-    forms: string[];
     externalGroupId: string | null;
     holders: { userId: string; email: string }[];
   };
@@ -154,10 +151,8 @@ interface GroupBody {
 
 async function createGroup(body: {
   name: string;
-  role: string;
+  roles: string[];
   environments: string[];
-  forms: string[];
-  label?: string;
 }): Promise<string> {
   const res = await send("POST", `/workspaces/${SEED_WORKSPACE_ID}/access-groups`, body);
   expect(res.status, await res.clone().text()).toBe(201);
@@ -177,10 +172,10 @@ describe("the membership list and the capability endpoint (criterion 7, Q35)", (
     };
     const owner = body.members.find((member) => member.userId === ownerId);
     expect(owner?.role).toBe("forms.owner");
-    expect(owner?.groups).toContain("all.responses.viewer");
+    expect(owner?.groups).toContain("Every environment: responses.viewer");
     const editor = body.members.find((member) => member.userId === editorId);
     expect(editor?.role).toBe("member");
-    expect(editor?.groups).toEqual(["all.forms.editor"]);
+    expect(editor?.groups).toEqual(["Every environment: forms.editor"]);
   });
 
   it("refuses the membership list to a grant holder who is not an owner", async () => {
@@ -198,13 +193,15 @@ describe("the membership list and the capability endpoint (criterion 7, Q35)", (
       workspaces: {
         workspaceId: string;
         memberRole: string | null;
-        grants: { name: string; role: string }[];
+        grants: { name: string; roles: string[]; environments: string[] }[];
         environments: string[];
       }[];
     };
     expect(body.userId).toBe(editorId);
     const workspace = body.workspaces.find((w) => w.workspaceId === SEED_WORKSPACE_ID);
-    expect(workspace?.grants.map((grant) => grant.role)).toEqual(["forms.editor"]);
+    expect(workspace?.grants.flatMap((grant) => grant.roles)).toEqual(["forms.editor"]);
+    // Edit forms applies in every environment, so its group names none.
+    expect(workspace?.grants.map((grant) => grant.environments)).toEqual([[]]);
     expect(workspace?.memberRole).toBe("member");
     expect(workspace?.environments).toEqual(["test", "prod", "dev"]);
     expect(JSON.stringify(body)).not.toContain(ownerId);
@@ -224,10 +221,9 @@ describe("the membership list and the capability endpoint (criterion 7, Q35)", (
 describe("every grant holder carries a `member` row with the empty role (criterion 17)", () => {
   it("writes one when a grant is created for somebody with none", async () => {
     const teamId = await createGroup({
-      name: "prod.responses.eraser",
-      role: "responses.eraser",
+      name: "Response erasers",
+      roles: ["responses.eraser"],
       environments: ["prod"],
-      forms: ["all"],
     });
     const outsider = await seedAdminSession(testDb.db, {
       label: "outsider",
@@ -269,19 +265,17 @@ describe("every grant holder carries a `member` row with the empty role (criteri
   });
 });
 
-describe("access-group names (criteria 12 and 13, Q37 and Q42)", () => {
+describe("access-group names and the role set (criteria 12 and 13)", () => {
   it("refuses a duplicate stored name in one workspace and accepts it in another", async () => {
     await createGroup({
-      name: "test.responses.viewer",
-      role: "responses.viewer",
+      name: "Response viewers",
+      roles: ["responses.viewer"],
       environments: ["test"],
-      forms: ["all"],
     });
     const again = await send("POST", `/workspaces/${SEED_WORKSPACE_ID}/access-groups`, {
-      name: "test.responses.viewer",
-      role: "responses.viewer",
+      name: "Response viewers",
+      roles: ["responses.viewer"],
       environments: ["test"],
-      forms: ["all"],
     });
     expect(again.status).toBe(409);
     expect((await again.json()) as ErrorBody).toMatchObject({
@@ -293,32 +287,19 @@ describe("access-group names (criteria 12 and 13, Q37 and Q42)", () => {
     const otherId = ((await other.json()) as { workspace: { workspaceId: string } }).workspace
       .workspaceId;
     const accepted = await send("POST", `/workspaces/${otherId}/access-groups`, {
-      name: "test.responses.viewer",
-      role: "responses.viewer",
+      name: "Response viewers",
+      roles: ["responses.viewer"],
       environments: ["test"],
-      forms: ["all"],
     });
     expect(accepted.status, await accepted.clone().text()).toBe(201);
   });
 
-  it("refuses a combined set out of the environments table's order, naming the one spelling", async () => {
-    // The live order is `test`, `prod`, `dev`, so `test-dev` is the one spelling.
-    const refused = await send("POST", `/workspaces/${SEED_WORKSPACE_ID}/access-groups`, {
-      name: "dev-test.responses.viewer",
-      role: "responses.viewer",
-      environments: ["dev", "test"],
-      forms: ["all"],
-    });
-    expect(refused.status).toBe(400);
-    const body = (await refused.json()) as ErrorBody;
-    expect(body.error.code).toBe("ACCESS_GROUP_SCOPE_INVALID");
-    expect(body.error.message).toContain("test-dev");
-
+  it("stores a combined set in the environments table's order, whatever order it was sent in", async () => {
+    // The live order is `test`, `prod`, `dev`.
     const accepted = await send("POST", `/workspaces/${SEED_WORKSPACE_ID}/access-groups`, {
-      name: "test-dev.responses.viewer",
-      role: "responses.viewer",
-      environments: ["test", "dev"],
-      forms: ["all"],
+      name: "Out of order",
+      roles: ["responses.viewer"],
+      environments: ["dev", "test"],
     });
     expect(accepted.status, await accepted.clone().text()).toBe(201);
     expect(((await accepted.json()) as GroupBody).group.environments).toEqual(["test", "dev"]);
@@ -326,10 +307,9 @@ describe("access-group names (criteria 12 and 13, Q37 and Q42)", () => {
 
   it("refuses an environment the live set does not hold", async () => {
     const res = await send("POST", `/workspaces/${SEED_WORKSPACE_ID}/access-groups`, {
-      name: "staging.responses.viewer",
-      role: "responses.viewer",
+      name: "Staging viewers",
+      roles: ["responses.viewer"],
       environments: ["staging"],
-      forms: ["all"],
     });
     expect(res.status).toBe(400);
     expect((await res.json()) as ErrorBody).toMatchObject({
@@ -337,45 +317,91 @@ describe("access-group names (criteria 12 and 13, Q37 and Q42)", () => {
     });
   });
 
-  it("refuses a name out of step with the team's role or scope (criterion 13)", async () => {
-    const res = await send("POST", `/workspaces/${SEED_WORKSPACE_ID}/access-groups`, {
-      name: "prod.forms.editor",
-      role: "responses.viewer",
-      environments: ["prod"],
-      forms: ["all"],
-    });
-    expect(res.status).toBe(400);
-    const body = (await res.json()) as ErrorBody;
-    expect(body.error.code).toBe("ACCESS_GROUP_NAME_INVALID");
-    expect(body.error.message).toContain("prod.responses.viewer");
+  it("refuses a role no access group carries", async () => {
+    for (const role of ["forms.approver", "forms.owner", "forms.superuser"]) {
+      const res = await send("POST", `/workspaces/${SEED_WORKSPACE_ID}/access-groups`, {
+        name: `Group for ${role}`,
+        roles: [role],
+        environments: ["prod"],
+      });
+      expect(res.status, role).toBe(400);
+    }
   });
 
-  it("derives the full name and the directory name and stores neither", async () => {
+  it("refuses a group that names forms, because a group has no form scope", async () => {
+    const res = await send("POST", `/workspaces/${SEED_WORKSPACE_ID}/access-groups`, {
+      name: "Scoped to one form",
+      roles: ["responses.viewer"],
+      environments: ["prod"],
+      forms: ["frm_claims"],
+    });
+    expect(res.status).toBe(400);
+    expect(await res.text()).toContain("forms");
+  });
+
+  it("refuses an environment role with no environment, and a forms role with one", async () => {
+    for (const role of ["forms.publisher", "responses.viewer", "responses.eraser"]) {
+      const res = await send("POST", `/workspaces/${SEED_WORKSPACE_ID}/access-groups`, {
+        name: `No environment for ${role}`,
+        roles: [role],
+        environments: [],
+      });
+      expect(res.status, role).toBe(400);
+      expect((await res.json()) as ErrorBody).toMatchObject({
+        error: { code: "ACCESS_GROUP_SCOPE_INVALID" },
+      });
+    }
+    for (const role of ["forms.viewer", "forms.editor"]) {
+      const res = await send("POST", `/workspaces/${SEED_WORKSPACE_ID}/access-groups`, {
+        name: `An environment for ${role}`,
+        roles: [role],
+        environments: ["prod"],
+      });
+      expect(res.status, role).toBe(400);
+      expect((await res.json()) as ErrorBody).toMatchObject({
+        error: { code: "ACCESS_GROUP_SCOPE_INVALID" },
+      });
+    }
+  });
+
+  it("serves a group as its own name, roles and environments and nothing derived", async () => {
     const res = await send("GET", `/workspaces/${SEED_WORKSPACE_ID}/access-groups`);
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
-      groups: { name: string; fullName: string; directoryName: string }[];
-      scopeNote: string;
+      workspaceId: string;
+      groups: Record<string, unknown>[];
     };
-    const group = body.groups.find((g) => g.name === "test.responses.viewer");
-    expect(group?.fullName).toBe("default.test.responses.viewer");
-    expect(group?.directoryName).toBe("qcms.default.test.responses.viewer");
+    expect(body.workspaceId).toBe(SEED_WORKSPACE_ID);
+    expect(body).not.toHaveProperty("scopeNote");
+    const group = body.groups.find((g) => g["name"] === "Response viewers");
+    expect(group).toBeDefined();
+    expect(Object.keys(group ?? {}).sort()).toEqual([
+      "environments",
+      "externalGroupId",
+      "holders",
+      "name",
+      "roles",
+      "teamId",
+    ]);
+
     const stored = await testDb.db
       .select({ name: authTeam.name })
       .from(authTeam)
-      .where(eq(authTeam.name, "test.responses.viewer"));
-    expect(stored[0]?.name).toBe("test.responses.viewer");
-    expect(body.scopeNote).toContain("dev and test in effect");
+      .where(eq(authTeam.name, "Response viewers"));
+    expect(stored[0]?.name).toBe("Response viewers");
   });
 
-  it("leaves the permission unchanged when a name is made wrong through the database (criterion 13)", async () => {
+  it("fails closed on a role name that reaches the row but no declared role", async () => {
     const teamId = await createGroup({
-      name: "prod.forms.approver",
-      role: "forms.approver",
+      name: "Mislabelled",
+      roles: ["responses.viewer"],
       environments: ["prod"],
-      forms: ["all"],
     });
-    const subject = await seedAdminSession(testDb.db, { label: "mislabelled", membership: false });
+    const subject = await seedAdminSession(testDb.db, {
+      label: "mislabelled",
+      membership: false,
+      claim: false,
+    });
     expect(
       (
         await send("POST", `/workspaces/${SEED_WORKSPACE_ID}/access-groups/${teamId}/holders`, {
@@ -384,31 +410,28 @@ describe("access-group names (criteria 12 and 13, Q37 and Q42)", () => {
       ).status,
     ).toBe(201);
 
-    const before = await as(subject.token, "GET", "/me/access");
-    const beforeBody = (await before.json()) as {
-      workspaces: { grants: { role: string; environments: string[] }[] }[];
+    const before = (await (await as(subject.token, "GET", "/me/access")).json()) as {
+      capabilities: Record<string, boolean>;
     };
-    const held = beforeBody.workspaces[0]?.grants.find((g) => g.role === "forms.approver");
-    expect(held?.environments).toEqual(["prod"]);
+    expect(before.capabilities["operations"]).toBe(true);
 
     await testDb.db
       .update(authTeam)
-      .set({ name: "all.responses.eraser.wrong" })
+      .set({ roles: ["forms.superuser"] })
       .where(eq(authTeam.id, teamId));
 
-    const after = await as(subject.token, "GET", "/me/access");
-    const afterBody = (await after.json()) as {
-      workspaces: { grants: { name: string; role: string; environments: string[] }[] }[];
+    const after = (await (await as(subject.token, "GET", "/me/access")).json()) as {
+      capabilities: Record<string, boolean>;
+      workspaces: { grants: { roles: string[] }[] }[];
     };
-    const stillHeld = afterBody.workspaces[0]?.grants.find((g) => g.role === "forms.approver");
-    expect(stillHeld?.role).toBe("forms.approver");
-    expect(stillHeld?.environments).toEqual(["prod"]);
-    expect(stillHeld?.name).toBe("all.responses.eraser.wrong");
+    expect(after.workspaces[0]?.grants.flatMap((grant) => grant.roles)).toEqual([
+      "forms.superuser",
+    ]);
+    expect(Object.values(after.capabilities).every((held) => held === false)).toBe(true);
 
-    // Put back, so the suite's other cases read a workspace whose names are in step.
     await testDb.db
       .update(authTeam)
-      .set({ name: "prod.forms.approver" })
+      .set({ roles: ["responses.viewer"] })
       .where(eq(authTeam.id, teamId));
   });
 });
@@ -455,8 +478,8 @@ describe("the two Q39 fields behave as declared (criterion 15)", () => {
   });
 });
 
-describe("the seed setting, its audit row and what it grants (criterion 22, Q57)", () => {
-  it("defaults off, so onboarding an editor creates nothing beside the editor grant", async () => {
+describe("the workspace settings body is the one switch (criterion 22)", () => {
+  it("onboarding an editor creates nothing beside the editor grant", async () => {
     const workspace = await send("POST", "/workspaces", { name: "Seed off", slug: "seed-off" });
     const workspaceId = ((await workspace.json()) as { workspace: { workspaceId: string } })
       .workspace.workspaceId;
@@ -464,10 +487,9 @@ describe("the seed setting, its audit row and what it grants (criterion 22, Q57)
     expect(settings.status).toBe(200);
 
     const editorGroup = await send("POST", `/workspaces/${workspaceId}/access-groups`, {
-      name: "all.forms.editor",
-      role: "forms.editor",
-      environments: ["all"],
-      forms: ["all"],
+      name: "Authors",
+      roles: ["forms.editor"],
+      environments: [],
     });
     const teamId = ((await editorGroup.json()) as GroupBody).group.teamId;
     const subject = await seedAdminSession(testDb.db, { label: "newedit", membership: false });
@@ -480,7 +502,7 @@ describe("the seed setting, its audit row and what it grants (criterion 22, Q57)
     ).toBe(201);
 
     const groups = await listAccessGroups(testDb.db, workspaceId);
-    expect(groups.map((group) => group.name)).toEqual(["all.forms.editor"]);
+    expect(groups.map((group) => group.name)).toEqual(["Authors"]);
   });
 
   it("writes a `setting` row with the name and the new value, and no environment or form", async () => {
@@ -489,11 +511,12 @@ describe("the seed setting, its audit row and what it grants (criterion 22, Q57)
       .workspace.workspaceId;
 
     const turnedOn = await send("PUT", `/workspaces/${workspaceId}/settings`, {
-      seedNewEditorsWithTestData: true,
+      requireSecondApprover: true,
     });
     expect(turnedOn.status, await turnedOn.clone().text()).toBe(200);
-    expect((await turnedOn.json()) as { seedNewEditorsWithTestData: boolean }).toMatchObject({
-      seedNewEditorsWithTestData: true,
+    expect((await turnedOn.json()) as Record<string, unknown>).toEqual({
+      workspaceId,
+      requireSecondApprover: true,
     });
 
     const audit = await send("GET", `/workspaces/${workspaceId}/audit?kind=setting`);
@@ -506,46 +529,25 @@ describe("the seed setting, its audit row and what it grants (criterion 22, Q57)
     const row = rows[0] as { environment: null; formId: null; detail: string };
     expect(row.environment).toBeNull();
     expect(row.formId).toBeNull();
-    expect(row.detail).toContain("setting=seedNewEditorsWithTestData");
+    expect(row.detail).toContain("setting=requireSecondApprover");
     expect(row.detail).toContain("value=true");
   });
 
-  it("then grants a new editor a `responses.viewer` on the non-prod environments it has", async () => {
-    const workspace = await send("POST", "/workspaces", { name: "Seeded", slug: "seeded-grant" });
+  it("refuses a body that omits the switch or names the removed seed setting", async () => {
+    const workspace = await send("POST", "/workspaces", { name: "Strict", slug: "strict-settings" });
     const workspaceId = ((await workspace.json()) as { workspace: { workspaceId: string } })
       .workspace.workspaceId;
-    expect(
-      (
-        await send("PUT", `/workspaces/${workspaceId}/settings`, {
-          seedNewEditorsWithTestData: true,
-        })
-      ).status,
-    ).toBe(200);
 
-    const editorGroup = await send("POST", `/workspaces/${workspaceId}/access-groups`, {
-      name: "all.forms.editor",
-      role: "forms.editor",
-      environments: ["all"],
-      forms: ["all"],
-    });
-    const teamId = ((await editorGroup.json()) as GroupBody).group.teamId;
-    const subject = await seedAdminSession(testDb.db, { label: "seeded", membership: false });
-    expect(
-      (
-        await send("POST", `/workspaces/${workspaceId}/access-groups/${teamId}/holders`, {
-          userId: subject.userId,
-        })
-      ).status,
-    ).toBe(201);
+    for (const body of [{}, { seedNewEditorsWithTestData: true }]) {
+      const res = await send("PUT", `/workspaces/${workspaceId}/settings`, body);
+      expect(res.status, JSON.stringify(body)).toBe(400);
+    }
+  });
 
-    const groups = await listAccessGroups(testDb.db, workspaceId);
-    const seeded = groups.find((group) => group.role === "responses.viewer");
-    expect(seeded?.name).toBe("test-dev.responses.viewer");
-    expect([...(seeded?.environments ?? [])]).toEqual(["test", "dev"]);
-
-    const audit = await send("GET", `/workspaces/${workspaceId}/audit?kind=grant`);
-    const rows = ((await audit.json()) as { rows: { detail: string }[] }).rows;
-    expect(rows.some((row) => row.detail.includes("seeded=seedNewEditorsWithTestData"))).toBe(true);
+  it("leaves the removed seed setting out of the workspace list", async () => {
+    const res = await send("GET", "/workspaces");
+    expect(res.status).toBe(200);
+    expect(await res.text()).not.toContain("seedNewEditorsWithTestData");
   });
 });
 
@@ -553,11 +555,9 @@ describe("every grant and every revoke writes a SEC-15 row (criterion 19, Q56)",
   it("counts one row per grant and one per revoke, and none without", async () => {
     const before = await auditCounts();
     const teamId = await createGroup({
-      name: "prod.responses.viewer.claims",
-      role: "responses.viewer",
+      name: "Claims response viewers",
+      roles: ["responses.viewer"],
       environments: ["prod"],
-      forms: ["frm_claims"],
-      label: "claims",
     });
     // A group with no holders grants nobody anything, so there is nothing to record yet.
     expect((await auditCounts()).grant ?? 0).toBe(before.grant ?? 0);
@@ -575,26 +575,22 @@ describe("every grant and every revoke writes a SEC-15 row (criterion 19, Q56)",
     expect((await auditCounts()).revoke ?? 0).toBe((before.revoke ?? 0) + 1);
   });
 
-  it("names the environment on a grant scoped to one and leaves it empty on `all` (Q61)", async () => {
+  it("names the environment on a group naming one and leaves it empty otherwise (Q61)", async () => {
     const subject = await seedAdminSession(testDb.db, { label: "q61", membership: false });
 
     const scoped = await createGroup({
-      name: "prod.responses.eraser.q61",
-      role: "responses.eraser",
+      name: "Erasers q61",
+      roles: ["responses.eraser"],
       environments: ["prod"],
-      forms: ["all"],
-      label: "q61",
     });
     await send("POST", `/workspaces/${SEED_WORKSPACE_ID}/access-groups/${scoped}/holders`, {
       userId: subject.userId,
     });
 
     const wide = await createGroup({
-      name: "all.forms.viewer.q61",
-      role: "forms.viewer",
-      environments: ["all"],
-      forms: ["all"],
-      label: "q61",
+      name: "Viewers q61",
+      roles: ["forms.viewer"],
+      environments: [],
     });
     await send("POST", `/workspaces/${SEED_WORKSPACE_ID}/access-groups/${wide}/holders`, {
       userId: subject.userId,
@@ -606,21 +602,19 @@ describe("every grant and every revoke writes a SEC-15 row (criterion 19, Q56)",
         rows: { environment: string | null; formId: string | null; detail: string }[];
       }
     ).rows;
-    const narrow = rows.find((row) => row.detail.includes("prod.responses.eraser.q61"));
+    const narrow = rows.find((row) => row.detail.includes("group=Erasers q61"));
     expect(narrow?.environment).toBe("prod");
     expect(narrow?.detail).toContain("environments=prod");
-    const all = rows.find((row) => row.detail.includes("all.forms.viewer.q61"));
-    expect(all?.environment).toBeNull();
-    expect(all?.detail).toContain("environments=all");
+    const everywhere = rows.find((row) => row.detail.includes("group=Viewers q61"));
+    expect(everywhere?.environment).toBeNull();
+    expect(everywhere?.detail).toContain("environments=");
   });
 
   it("writes one revoke row per holder when a whole group is removed", async () => {
     const teamId = await createGroup({
-      name: "test.forms.viewer.cascade",
-      role: "forms.viewer",
-      environments: ["test"],
-      forms: ["all"],
-      label: "cascade",
+      name: "Cascade viewers",
+      roles: ["forms.viewer"],
+      environments: [],
     });
     const a = await seedAdminSession(testDb.db, { label: "casc1", membership: false });
     const b = await seedAdminSession(testDb.db, { label: "casc2", membership: false });
@@ -674,11 +668,9 @@ describe("every grant and every revoke writes a SEC-15 row (criterion 19, Q56)",
 describe("the self-grant rule (criteria 20 and 21, Q56)", () => {
   it("allows and audits a self-grant with the switch off", async () => {
     const teamId = await createGroup({
-      name: "test.responses.viewer.self",
-      role: "responses.viewer",
+      name: "Self viewers",
+      roles: ["responses.viewer"],
       environments: ["test"],
-      forms: ["all"],
-      label: "self",
     });
     const before = (await auditCounts()).grant ?? 0;
     const res = await send(
@@ -700,10 +692,9 @@ describe("the self-grant rule (criteria 20 and 21, Q56)", () => {
     ).toBe(200);
 
     const group = await send("POST", `/workspaces/${workspaceId}/access-groups`, {
-      name: "prod.responses.viewer",
-      role: "responses.viewer",
+      name: "Response viewers",
+      roles: ["responses.viewer"],
       environments: ["prod"],
-      forms: ["all"],
     });
     const teamId = ((await group.json()) as GroupBody).group.teamId;
 
@@ -736,16 +727,99 @@ describe("the self-grant rule (criteria 20 and 21, Q56)", () => {
       .workspace.workspaceId;
     await setRequireSecondApprover(testDb.db, workspaceId, true);
     const group = await send("POST", `/workspaces/${workspaceId}/access-groups`, {
-      name: "all.forms.editor",
-      role: "forms.editor",
-      environments: ["all"],
-      forms: ["all"],
+      name: "Authors",
+      roles: ["forms.editor"],
+      environments: [],
     });
     const teamId = ((await group.json()) as GroupBody).group.teamId;
     const res = await send("POST", `/workspaces/${workspaceId}/access-groups/${teamId}/holders`, {
       userId: ownerId,
     });
     expect(res.status, await res.clone().text()).toBe(201);
+  });
+
+  it("refuses the group edit that adds a response role to a group the actor is in", async () => {
+    const workspace = await send("POST", "/workspaces", {
+      name: "Self edit role",
+      slug: "self-edit-role",
+    });
+    const workspaceId = ((await workspace.json()) as { workspace: { workspaceId: string } })
+      .workspace.workspaceId;
+    const group = await send("POST", `/workspaces/${workspaceId}/access-groups`, {
+      name: "Authors",
+      roles: ["forms.editor"],
+      environments: [],
+    });
+    const teamId = ((await group.json()) as GroupBody).group.teamId;
+    expect(
+      (
+        await send("POST", `/workspaces/${workspaceId}/access-groups/${teamId}/holders`, {
+          userId: ownerId,
+        })
+      ).status,
+    ).toBe(201);
+    await setRequireSecondApprover(testDb.db, workspaceId, true);
+
+    const refused = await send("PUT", `/workspaces/${workspaceId}/access-groups/${teamId}`, {
+      name: "Authors",
+      roles: ["forms.editor", "responses.viewer"],
+      environments: ["prod"],
+    });
+    expect(refused.status).toBe(409);
+    expect((await refused.json()) as ErrorBody).toMatchObject({
+      error: { code: "SELF_GRANT_REFUSED" },
+    });
+
+    // The same edit by an administrator who does not hold the group applies at once.
+    await seedGrants(testDb.db, { userId: secondOwnerId, workspaceId, grants: [] });
+    const applied = await as(
+      secondOwnerToken,
+      "PUT",
+      `/workspaces/${workspaceId}/access-groups/${teamId}`,
+      { name: "Authors", roles: ["forms.editor", "responses.viewer"], environments: ["prod"] },
+    );
+    expect(applied.status, await applied.clone().text()).toBe(200);
+  });
+
+  it("refuses the group edit that adds `prod` to a response group the actor is in", async () => {
+    const workspace = await send("POST", "/workspaces", {
+      name: "Self edit environment",
+      slug: "self-edit-environment",
+    });
+    const workspaceId = ((await workspace.json()) as { workspace: { workspaceId: string } })
+      .workspace.workspaceId;
+    const group = await send("POST", `/workspaces/${workspaceId}/access-groups`, {
+      name: "Response viewers",
+      roles: ["responses.viewer"],
+      environments: ["test"],
+    });
+    const teamId = ((await group.json()) as GroupBody).group.teamId;
+    expect(
+      (
+        await send("POST", `/workspaces/${workspaceId}/access-groups/${teamId}/holders`, {
+          userId: ownerId,
+        })
+      ).status,
+    ).toBe(201);
+    await setRequireSecondApprover(testDb.db, workspaceId, true);
+
+    const refused = await send("PUT", `/workspaces/${workspaceId}/access-groups/${teamId}`, {
+      name: "Response viewers",
+      roles: ["responses.viewer"],
+      environments: ["test", "prod"],
+    });
+    expect(refused.status).toBe(409);
+    expect((await refused.json()) as ErrorBody).toMatchObject({
+      error: { code: "SELF_GRANT_REFUSED" },
+    });
+
+    // A rename that widens nothing is not a self-grant.
+    const renamed = await send("PUT", `/workspaces/${workspaceId}/access-groups/${teamId}`, {
+      name: "Response readers",
+      roles: ["responses.viewer"],
+      environments: ["test"],
+    });
+    expect(renamed.status, await renamed.clone().text()).toBe(200);
   });
 
   it("applies the same rule to the installation administrator", async () => {
@@ -789,52 +863,59 @@ describe("the plugin's before-hooks refuse one rule at a time (criterion 14)", (
     return auth().api.createTeam({ body } as unknown as TeamBody);
   }
 
-  it("refuses a name out of step with the fields", async () => {
+  it("refuses a name with a leading or trailing space", async () => {
     await expect(
       createTeamThroughPlugin({
-        name: "prod.forms.editor",
+        name: " Response viewers",
         organizationId: SEED_WORKSPACE_ID,
-        role: "responses.viewer",
+        roles: ["responses.viewer"],
         environments: ["prod"],
-        forms: ["all"],
       }),
-    ).rejects.toThrow(/out of step|GRANT_WRITE_REFUSED|name/i);
+    ).rejects.toThrow(/space|GRANT_WRITE_REFUSED/i);
   });
 
-  it("refuses an environment in the scope that does not exist", async () => {
+  it("refuses an environment in the set that does not exist", async () => {
     await expect(
       createTeamThroughPlugin({
-        name: "staging.responses.viewer",
+        name: "Staging viewers",
         organizationId: SEED_WORKSPACE_ID,
-        role: "responses.viewer",
+        roles: ["responses.viewer"],
         environments: ["staging"],
-        forms: ["all"],
       }),
     ).rejects.toThrow(/no such environment|GRANT_WRITE_REFUSED/i);
   });
 
-  it("refuses a role outside the six", async () => {
+  it("refuses a role outside the five", async () => {
     await expect(
       createTeamThroughPlugin({
-        name: "prod.forms.superuser",
+        name: "Superusers",
         organizationId: SEED_WORKSPACE_ID,
-        role: "forms.superuser",
+        roles: ["forms.superuser"],
         environments: ["prod"],
-        forms: ["all"],
       }),
-    ).rejects.toThrow(/six roles|GRANT_WRITE_REFUSED/i);
+    ).rejects.toThrow(/no such role|GRANT_WRITE_REFUSED/i);
   });
 
   it("refuses `forms.owner` written as a team, which is a non-team target", async () => {
     await expect(
       createTeamThroughPlugin({
-        name: "all.forms.owner",
+        name: "Owners",
         organizationId: SEED_WORKSPACE_ID,
-        role: "forms.owner",
-        environments: ["all"],
-        forms: ["all"],
+        roles: ["forms.owner"],
+        environments: [],
       }),
-    ).rejects.toThrow(/member row|GRANT_WRITE_REFUSED/i);
+    ).rejects.toThrow(/no such role|GRANT_WRITE_REFUSED/i);
+  });
+
+  it("refuses an environment role with no environment", async () => {
+    await expect(
+      createTeamThroughPlugin({
+        name: "Publishers with no environment",
+        organizationId: SEED_WORKSPACE_ID,
+        roles: ["forms.publisher"],
+        environments: [],
+      }),
+    ).rejects.toThrow(/at least one environment|GRANT_WRITE_REFUSED/i);
   });
 
   it("refuses an `externalGroupId` at the hook, for a value that reaches one (Q39)", async () => {
@@ -844,10 +925,9 @@ describe("the plugin's before-hooks refuse one rule at a time (criterion 14)", (
     await expect(
       hooks.beforeCreateTeam({
         team: {
-          name: "test.forms.viewer.external",
-          role: "forms.viewer",
-          environments: ["test"],
-          forms: ["all"],
+          name: "External viewers",
+          roles: ["forms.viewer"],
+          environments: [],
           externalGroupId: "CN=qcms-home",
         },
         organization: { id: SEED_WORKSPACE_ID },
@@ -857,10 +937,9 @@ describe("the plugin's before-hooks refuse one rule at a time (criterion 14)", (
     await expect(
       hooks.beforeUpdateTeam({
         team: {
-          name: "test.forms.viewer",
-          role: "forms.viewer",
-          environments: ["test"],
-          forms: ["all"],
+          name: "External viewers",
+          roles: ["forms.viewer"],
+          environments: [],
         },
         updates: { externalGroupId: "CN=qcms-home" },
         organization: { id: SEED_WORKSPACE_ID },
@@ -870,24 +949,22 @@ describe("the plugin's before-hooks refuse one rule at a time (criterion 14)", (
 
   it("drops an `externalGroupId` sent to a plugin endpoint before any hook sees it (Q39)", async () => {
     await createTeamThroughPlugin({
-      name: "test.forms.viewer.hooked",
+      name: "Hooked viewers",
       organizationId: SEED_WORKSPACE_ID,
-      role: "forms.viewer",
-      environments: ["test"],
-      forms: ["all"],
-      label: "hooked",
+      roles: ["forms.viewer"],
+      environments: [],
       externalGroupId: "CN=qcms-home",
     });
     const written = (await listAccessGroups(testDb.db, SEED_WORKSPACE_ID)).find(
-      (group) => group.name === "test.forms.viewer.hooked",
+      (group) => group.name === "Hooked viewers",
     );
     expect(written).toBeDefined();
     expect(written?.externalGroupId).toBeNull();
   });
 
-  it("refuses a scope that is missing altogether, which is a team that is not a grant", async () => {
+  it("refuses a role set that is missing altogether, which is a team that is not a grant", async () => {
     await expect(
-      createTeamThroughPlugin({ name: "all.forms.viewer", organizationId: SEED_WORKSPACE_ID }),
+      createTeamThroughPlugin({ name: "Nameless", organizationId: SEED_WORKSPACE_ID }),
     ).rejects.toThrow(/role|GRANT_WRITE_REFUSED/i);
   });
 
@@ -898,11 +975,10 @@ describe("the plugin's before-hooks refuse one rule at a time (criterion 14)", (
     expect((await send("POST", `/workspaces/${workspaceId}/archive`)).status).toBe(200);
     await expect(
       createTeamThroughPlugin({
-        name: "prod.forms.viewer",
+        name: "Viewers",
         organizationId: workspaceId,
-        role: "forms.viewer",
-        environments: ["prod"],
-        forms: ["all"],
+        roles: ["forms.viewer"],
+        environments: [],
       }),
     ).rejects.toThrow(/archived|GRANT_WRITE_REFUSED/i);
   });
@@ -1076,11 +1152,9 @@ describe("adding an account the caller cannot add gets one answer (section 7, di
 
   it("is identical in status and body for an unknown and an existing account, on both paths", async () => {
     const teamId = await createGroup({
-      name: "prod.forms.viewer.generic",
-      role: "forms.viewer",
-      environments: ["prod"],
-      forms: ["all"],
-      label: "generic",
+      name: "Generic viewers",
+      roles: ["forms.viewer"],
+      environments: [],
     });
     const workspaceOwner = await seedAdminSession(testDb.db, {
       label: "generic-owner",
@@ -1125,11 +1199,9 @@ describe("adding an account the caller cannot add gets one answer (section 7, di
 
   it("still adds an existing account by its exact address", async () => {
     const teamId = await createGroup({
-      name: "prod.forms.viewer.exact",
-      role: "forms.viewer",
-      environments: ["prod"],
-      forms: ["all"],
-      label: "exact",
+      name: "Exact viewers",
+      roles: ["forms.viewer"],
+      environments: [],
     });
     const workspaceOwner = await seedAdminSession(testDb.db, {
       label: "exact-owner",
@@ -1155,17 +1227,15 @@ describe("writes on an archived workspace", () => {
       .workspaceId;
     const groupsPath = `/workspaces/${workspaceId}/access-groups`;
     const group = await send("POST", groupsPath, {
-      name: "all.forms.viewer",
-      role: "forms.viewer",
-      environments: ["all"],
-      forms: ["all"],
+      name: "Viewers",
+      roles: ["forms.viewer"],
+      environments: [],
     });
     const teamId = ((await group.json()) as GroupBody).group.teamId;
     const spare = await send("POST", groupsPath, {
-      name: "all.forms.editor",
-      role: "forms.editor",
-      environments: ["all"],
-      forms: ["all"],
+      name: "Authors",
+      roles: ["forms.editor"],
+      environments: [],
     });
     const spareId = ((await spare.json()) as GroupBody).group.teamId;
     const holder = await seedAdminSession(testDb.db, {
@@ -1188,15 +1258,14 @@ describe("writes on an archived workspace", () => {
     const refusals = [
       await send("POST", `${groupsPath}/${spareId}/holders`, { userId: latecomer.userId }),
       await send("POST", groupsPath, {
-        name: "all.forms.approver",
-        role: "forms.approver",
-        environments: ["all"],
-        forms: ["all"],
+        name: "Publishers",
+        roles: ["forms.publisher"],
+        environments: ["prod"],
       }),
       await send("PUT", `${groupsPath}/${teamId}`, {
-        name: "all.forms.viewer",
-        environments: ["all"],
-        forms: ["all"],
+        name: "Viewers",
+        roles: ["forms.viewer"],
+        environments: [],
       }),
       await send("PUT", `/workspaces/${workspaceId}/settings`, { requireSecondApprover: true }),
     ];
@@ -1211,5 +1280,60 @@ describe("writes on an archived workspace", () => {
     expect(revoked.status, await revoked.clone().text()).toBe(204);
     const removed = await send("DELETE", `${groupsPath}/${spareId}`);
     expect(removed.status, await removed.clone().text()).toBe(204);
+  });
+});
+
+// Last in the file: it adds an environment to the live set, which every case above reads.
+describe("an environment added after the groups were written (criterion 14)", () => {
+  it("is covered by no group that names its own environments", async () => {
+    const created = await send("POST", "/workspaces", { name: "Later", slug: "later-environment" });
+    const workspaceId = ((await created.json()) as { workspace: { workspaceId: string } }).workspace
+      .workspaceId;
+    const groupsPath = `/workspaces/${workspaceId}/access-groups`;
+
+    const responses = await send("POST", groupsPath, {
+      name: "Response viewers",
+      roles: ["responses.viewer"],
+      environments: ["test", "prod", "dev"],
+    });
+    const responsesTeamId = ((await responses.json()) as GroupBody).group.teamId;
+    const authors = await send("POST", groupsPath, {
+      name: "Authors",
+      roles: ["forms.editor"],
+      environments: [],
+    });
+    const authorsTeamId = ((await authors.json()) as GroupBody).group.teamId;
+
+    const holder = await seedAdminSession(testDb.db, {
+      label: "later-holder",
+      claim: false,
+      membership: false,
+    });
+    for (const teamId of [responsesTeamId, authorsTeamId]) {
+      expect(
+        (await send("POST", `${groupsPath}/${teamId}/holders`, { userId: holder.userId })).status,
+      ).toBe(201);
+    }
+
+    await createEnvironment(testDb.db, { name: "sandbox" });
+
+    const body = (await (await as(holder.token, "GET", "/me/access")).json()) as {
+      workspaces: {
+        workspaceId: string;
+        grants: { name: string; environments: string[] }[];
+      }[];
+    };
+    const workspace = body.workspaces.find((row) => row.workspaceId === workspaceId);
+    const named = workspace?.grants.find((grant) => grant.name === "Response viewers");
+    expect(named?.environments).toEqual(["test", "prod", "dev"]);
+
+    // Edit forms ignores the set, so the group that names none does cover the newcomer.
+    const everywhere = workspace?.grants.find((grant) => grant.name === "Authors");
+    expect(everywhere?.environments).toEqual([]);
+
+    const stored = await listAccessGroups(testDb.db, workspaceId);
+    expect(stored.find((group) => group.name === "Response viewers")?.environments).not.toContain(
+      "sandbox",
+    );
   });
 });

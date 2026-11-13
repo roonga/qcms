@@ -13,6 +13,7 @@ import {
   insertFormVersion,
   listAccessAudit,
   listWorkspaces,
+  setRequireSecondApprover,
 } from "@roonga/qcms-db";
 import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
 import { FormId } from "@roonga/qcms-core";
@@ -537,8 +538,8 @@ describe("the owning workspace of something new (criterion 1)", () => {
   });
 });
 
-describe("moving a question (Q14)", () => {
-  it("is one update on the identity row and answers 404 for an id that is not there", async () => {
+describe("moving a question (criterion 107)", () => {
+  it("has no route at all, so the router answers 404 and the question stays put", async () => {
     const from = await createWorkspace("question-move-from");
     const to = await createWorkspace("question-move-to");
     const questionId = QuestionId.parse("q_route_move");
@@ -553,13 +554,46 @@ describe("moving a question (Q14)", () => {
     ).toBe(201);
 
     const moved = await send("POST", `/questions/${questionId}/workspace`, { workspaceId: to });
-    expect(moved.status).toBe(200);
-    expect((await getQuestion(testDb.db, questionId))?.workspaceId).toBe(to);
+    expect(moved.status).toBe(404);
+    expect((await getQuestion(testDb.db, questionId))?.workspaceId).toBe(from);
+  });
+});
 
-    const missing = await send("POST", "/questions/q_never_created/workspace", {
-      workspaceId: to,
+describe("the interim Move form rules (work order 085)", () => {
+  it("refuses a mover with no Edit forms in the destination", async () => {
+    const source = await createWorkspace("move-source");
+    const destination = await createWorkspace("move-destination");
+    const formId = await seedForm("move_no_destination", source);
+
+    const mover = await seedAdminSession(testDb.db, {
+      label: "move-no-destination",
+      claim: false,
+      owner: true,
+      workspaceId: source,
+      grants: ["forms.editor"],
     });
-    expect(missing.status).toBe(404);
+
+    const refused = await as(mover.token, "POST", `/forms/${formId}/workspace`, {
+      workspaceId: destination,
+    });
+    expect(refused.status).toBe(403);
+    expect((await getForm(testDb.db, formId))?.workspaceId).toBe(source);
+  });
+
+  it("refuses the move outright while the source requires a second approver", async () => {
+    const source = await createWorkspace("move-held-source");
+    const destination = await createWorkspace("move-held-destination");
+    const formId = await seedForm("move_held", source);
+    await setRequireSecondApprover(testDb.db, source, true);
+
+    const moved = await send("POST", `/forms/${formId}/workspace`, { workspaceId: destination });
+    expect(moved.status).toBe(409);
+    expect(((await moved.json()) as ErrorBody).error.code).toBe("MOVE_NEEDS_APPROVAL");
+    expect((await getForm(testDb.db, formId))?.workspaceId).toBe(source);
+
+    await setRequireSecondApprover(testDb.db, source, false);
+    const applied = await send("POST", `/forms/${formId}/workspace`, { workspaceId: destination });
+    expect(applied.status, await applied.clone().text()).toBe(200);
   });
 });
 

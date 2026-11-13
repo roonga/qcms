@@ -53,6 +53,21 @@ export const OPERATIONAL_CELLS: readonly {
 ];
 
 /**
+ * The cells any one of which means the caller holds something in a workspace, which is
+ * what puts that workspace on their list. The union is one cell per access role plus the
+ * administrator's own, so a role added to the matrix is a row somebody adds here too.
+ */
+export const WORKSPACE_LIST_CELLS: readonly {
+  readonly resource: Resource;
+  readonly action: string;
+}[] = [
+  { resource: "workspace", action: "read" },
+  { resource: "form", action: "read" },
+  { resource: "response", action: "read" },
+  { resource: "response", action: "erase" },
+];
+
+/**
  * The cells any one of which admits an agent turn about a screen. A turn reads what its
  * screen reads, so the union is the screens' own first cells; which one a given screen
  * needs is checked by that screen's context builder.
@@ -113,11 +128,14 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
   },
 
   {
+    // Every grant holder sees the workspaces they hold something in, not administrators
+    // alone; the handler reduces the row for a caller who holds no `workspace: read` there.
     method: "GET",
     path: "/admin/workspaces",
     resource: "workspace",
     action: "read",
     workspace: "caller",
+    anyOf: WORKSPACE_LIST_CELLS,
   },
   {
     method: "PUT",

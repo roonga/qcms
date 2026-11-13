@@ -66,11 +66,16 @@ export const listWorkspaces: (
         workspaceId: str(row["workspaceId"]),
         name: str(row["name"]),
         slug: str(row["slug"]),
-        isShared: bool(row["isShared"]),
-        requireSecondApprover: bool(row["requireSecondApprover"]),
         archivedAt: strOrNull(row["archivedAt"]),
-        forms: num(row["forms"]),
-        questions: num(row["questions"]),
+        // Absent where the caller administers nothing in that workspace, so read as
+        // undefined rather than coerced to a value nobody sent.
+        isShared: typeof row["isShared"] === "boolean" ? row["isShared"] : undefined,
+        requireSecondApprover:
+          typeof row["requireSecondApprover"] === "boolean"
+            ? row["requireSecondApprover"]
+            : undefined,
+        forms: typeof row["forms"] === "number" ? row["forms"] : undefined,
+        questions: typeof row["questions"] === "number" ? row["questions"] : undefined,
       })),
     };
   },

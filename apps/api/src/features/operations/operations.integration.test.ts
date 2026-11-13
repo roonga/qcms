@@ -80,9 +80,9 @@ interface Persona {
 }
 
 let viewer: Persona;
-let testEditor: Persona;
-let prodApprover: Persona;
-let oneFormViewer: Persona;
+let testPublisher: Persona;
+let prodPublisher: Persona;
+let prodResponseViewer: Persona;
 let eraser: Persona;
 let workspaceOwner: Persona;
 let installationAdmin: Persona;
@@ -111,15 +111,14 @@ function databases(): Databases {
 }
 
 /**
- * Seed one account with scoped access groups. `seedGrants` seeds `all` scopes only, and
- * the scopes are the point of half these personas.
+ * Seed one account with its own access groups. `seedGrants` seeds one group per role over
+ * every environment, and the environment sets are the point of half these personas.
  */
 async function persona(
   label: string,
   grants: readonly {
-    readonly role: string;
+    readonly roles: readonly string[];
     readonly environments: readonly string[];
-    readonly forms: readonly string[];
     readonly workspaceId?: string;
   }[],
   options: { readonly owner?: boolean; readonly claim?: boolean } = {},
@@ -132,15 +131,15 @@ async function persona(
     owner: options.owner ?? false,
     claim: options.claim ?? false,
   });
+  let index = 0;
   for (const grant of grants) {
     const workspaceId = grant.workspaceId ?? SEED_WORKSPACE_ID;
     await ensureWorkspaceMember(control, workspaceId, seeded.userId);
     const group = await createAccessGroup(control, {
       workspaceId,
-      name: `${label}.${grant.environments.join("-")}.${grant.role}`,
-      role: grant.role,
+      name: `${label} ${String(++index)}`,
+      roles: [...grant.roles],
       environments: [...grant.environments],
-      forms: [...grant.forms],
     });
     await addAccessGroupHolder(control, group.teamId, seeded.userId);
   }
@@ -271,20 +270,19 @@ beforeAll(async () => {
   await seedInProgress("prod", FORM_CLAIMS, "p3");
   await seedSubmitted("test", FORM_CLAIMS, "t1");
 
-  viewer = await persona("opsviewer", [
-    { role: "forms.viewer", environments: ["all"], forms: ["all"] },
+  viewer = await persona("opsviewer", [{ roles: ["forms.viewer"], environments: [] }]);
+  testPublisher = await persona("opstestpublisher", [
+    { roles: ["forms.editor"], environments: [] },
+    { roles: ["forms.publisher"], environments: ["test"] },
   ]);
-  testEditor = await persona("opstesteditor", [
-    { role: "forms.editor", environments: ["test"], forms: ["all"] },
+  prodPublisher = await persona("opsprodpublisher", [
+    { roles: ["forms.publisher"], environments: ["prod"] },
   ]);
-  prodApprover = await persona("opsprodapprover", [
-    { role: "forms.approver", environments: ["prod"], forms: ["all"] },
-  ]);
-  oneFormViewer = await persona("opsoneform", [
-    { role: "responses.viewer", environments: ["prod"], forms: [FORM_CLAIMS] },
+  prodResponseViewer = await persona("opsprodresponses", [
+    { roles: ["responses.viewer"], environments: ["prod"] },
   ]);
   eraser = await persona("opseraser", [
-    { role: "responses.eraser", environments: ["all"], forms: ["all"] },
+    { roles: ["responses.eraser"], environments: [...LIVE_SET] },
   ]);
   workspaceOwner = await persona("opsowner", [], { owner: true });
   installationAdmin = await seedAdminSession(control, {
@@ -292,11 +290,10 @@ beforeAll(async () => {
     membership: false,
   });
   combined = await persona("opscombined", [
-    { role: "forms.viewer", environments: ["all"], forms: ["all"] },
+    { roles: ["forms.viewer"], environments: [] },
     {
-      role: "responses.viewer",
-      environments: ["all"],
-      forms: ["all"],
+      roles: ["responses.viewer"],
+      environments: [...LIVE_SET],
       workspaceId: OTHER_WORKSPACE,
     },
   ]);
@@ -307,18 +304,18 @@ beforeAll(async () => {
     claim: false,
   });
   revoked = await persona("opsrevoked", [
-    { role: "responses.viewer", environments: ["all"], forms: ["all"] },
+    { roles: ["responses.viewer"], environments: [...LIVE_SET] },
   ]);
 
   unicodeViewer = await persona("opsunicode", [
-    { role: "forms.viewer", environments: ["all"], forms: ["all"], workspaceId: UNICODE_WORKSPACE },
+    { roles: ["forms.viewer"], environments: [], workspaceId: UNICODE_WORKSPACE },
   ]);
 
   everyPersona = [
     ["forms viewer", viewer],
-    ["test-only editor", testEditor],
-    ["prod-only approver", prodApprover],
-    ["one-form response viewer", oneFormViewer],
+    ["test-only publisher", testPublisher],
+    ["prod-only publisher", prodPublisher],
+    ["prod response viewer", prodResponseViewer],
     ["eraser without viewer", eraser],
     ["workspace-only owner", workspaceOwner],
     ["installation administrator", installationAdmin],
@@ -454,49 +451,50 @@ describe("operations discovery: which rows each persona is served", () => {
     ).toEqual(["ops-claims", "ops-permits"]);
   });
 
-  it("gives a test-only editor its writes in test and none of them in prod", async () => {
-    const inTest = await operations(testEditor.token, "environment=test");
+  it("gives a test-only publisher its writes in test and none of them in prod", async () => {
+    const inTest = await operations(testPublisher.token, "environment=test");
     const claimsInTest = inTest.body.forms.find((row) => row.slug === "ops-claims");
     expect(claimsInTest?.capabilities).toContain("release:create");
     expect(claimsInTest?.capabilities).toContain("link:mint");
-    const inProd = await operations(testEditor.token, "environment=prod");
+    const inProd = await operations(testPublisher.token, "environment=prod");
     const claimsInProd = inProd.body.forms.find((row) => row.slug === "ops-claims");
     // The row is still served, since `form: read` is workspace-wide, and every production
-    // write is absent: the matrix's split rather than the scope.
+    // write is absent: the environment set its publisher group names.
     expect(claimsInProd?.release).not.toBeNull();
     expect(claimsInProd?.capabilities).toEqual(VIEWER_READS);
   });
 
-  it("gives a prod-only approver its writes in prod and none in test", async () => {
-    const inProd = await operations(prodApprover.token, "environment=prod");
+  it("gives a prod-only publisher its writes in prod and none in test", async () => {
+    const inProd = await operations(prodPublisher.token, "environment=prod");
     const claims = inProd.body.forms.find((row) => row.slug === "ops-claims");
     expect(claims?.capabilities).toContain("release:create");
     expect(claims?.capabilities).toContain("webhook:configure");
     // No response cell from an authoring role, in any environment.
     expect(claims?.capabilities).not.toContain("response:read");
     expect(claims?.counts).toBeNull();
-    const inTest = await operations(prodApprover.token, "environment=test");
+    const inTest = await operations(prodPublisher.token, "environment=test");
     expect(inTest.body.forms.find((row) => row.slug === "ops-claims")?.capabilities).toEqual(
       VIEWER_READS,
     );
   });
 
-  it("restricts a one-form response viewer to that form, that environment, and no versions", async () => {
-    const inProd = await operations(oneFormViewer.token, "environment=prod");
-    expect(inProd.body.forms.map((row) => row.slug)).toEqual(["ops-claims"]);
+  it("restricts a prod response viewer to that environment, and to no versions", async () => {
+    const inProd = await operations(prodResponseViewer.token, "environment=prod");
+    // Every form in the workspace: the role reaches the workspace, never one form.
+    expect(inProd.body.forms.map((row) => row.slug)).toEqual(["ops-claims", "ops-permits"]);
     const claims = inProd.body.forms[0];
     expect(claims?.counts).toEqual({ submitted: 2, inProgress: 1 });
 
     expect(claims?.release).toBeNull();
     expect(claims?.lastReleaseAt).toBeNull();
     expect(claims?.hasRelease).toBe(true);
-    // The response reads it holds on this form, and no control-plane read of any kind.
+    // The response reads it holds, and no control-plane read of any kind.
     expect(claims?.capabilities).toEqual(["response:read", "response:export"]);
     expect(JSON.stringify(inProd.body)).not.toContain("hasDraft");
     expect(JSON.stringify(inProd.body)).not.toContain("latestVersion");
 
     // In `test`, where it holds nothing: an empty page rather than a refusal.
-    const inTest = await operations(oneFormViewer.token, "environment=test");
+    const inTest = await operations(prodResponseViewer.token, "environment=test");
     expect(inTest.status).toBe(200);
     expect(inTest.body.forms).toEqual([]);
     expect(inTest.body.total).toBe(0);
@@ -556,7 +554,7 @@ describe("operations discovery: which rows each persona is served", () => {
   it("stops serving rows the moment a grant is revoked", async () => {
     expect(await slugsFor(revoked.token)).toEqual(["ops-claims", "ops-permits"]);
     const groups = await listAccessGroups(control, SEED_WORKSPACE_ID);
-    const group = groups.find((row) => row.name.startsWith("opsrevoked."));
+    const group = groups.find((row) => row.name.startsWith("opsrevoked "));
     expect(group).toBeDefined();
     await removeAccessGroupHolder(control, group!.teamId, revoked.userId);
     const res = await app.request("/admin/operations/forms?environment=prod", {
@@ -739,8 +737,11 @@ describe("operations discovery: bounds, filters and pagination", () => {
   });
 
   it("sorts on counts without showing a count the caller may not see", async () => {
-    const { body } = await operations(oneFormViewer.token, "environment=prod&sort=submitted-desc");
-    expect(body.forms.map((row) => row.slug)).toEqual(["ops-claims"]);
+    const { body } = await operations(
+      prodResponseViewer.token,
+      "environment=prod&sort=submitted-desc",
+    );
+    expect(body.forms.map((row) => row.slug)).toEqual(["ops-claims", "ops-permits"]);
     // A caller who may count nothing still gets a total order and no counts.
     const viewerSorted = await operations(viewer.token, "environment=prod&sort=submitted-desc");
     expect(viewerSorted.body.forms.map((row) => row.slug)).toEqual(["ops-claims", "ops-permits"]);
@@ -749,7 +750,7 @@ describe("operations discovery: bounds, filters and pagination", () => {
 
   it("writes no access-audit row for a count", async () => {
     const before = await auditCount();
-    await operations(oneFormViewer.token, "environment=prod");
+    await operations(prodResponseViewer.token, "environment=prod");
     expect(await auditCount()).toBe(before);
   });
 });
@@ -853,28 +854,28 @@ describe("the candidate review", () => {
   }
 
   it("names only the targets the caller may release into", async () => {
-    const editor = await review(testEditor.token, FORM_CLAIMS, {
+    const publisher = await review(testPublisher.token, FORM_CLAIMS, {
       kind: "version",
       version: 1,
     });
-    expect(editor.status).toBe(200);
-    expect(editor.body.targets.map((target) => target.environment)).toEqual(["test"]);
-    expect(editor.body.workflowRevision).toBeNull();
-    expect(editor.body.workflowSource).toBe("default");
+    expect(publisher.status).toBe(200);
+    expect(publisher.body.targets.map((target) => target.environment)).toEqual(["test"]);
+    expect(publisher.body.workflowRevision).toBeNull();
+    expect(publisher.body.workflowSource).toBe("default");
 
-    const approver = await review(prodApprover.token, FORM_CLAIMS, {
+    const inProd = await review(prodPublisher.token, FORM_CLAIMS, {
       kind: "version",
       version: 1,
     });
-    expect(approver.body.targets.map((target) => target.environment)).toEqual(["prod"]);
+    expect(inProd.body.targets.map((target) => target.environment)).toEqual(["prod"]);
   });
 
   it("reports what is serving, the evidence that satisfied prod, and the rollback case", async () => {
-    const approver = await review(prodApprover.token, FORM_CLAIMS, {
+    const publisher = await review(prodPublisher.token, FORM_CLAIMS, {
       kind: "version",
       version: 1,
     });
-    const prod = approver.body.targets[0];
+    const prod = publisher.body.targets[0];
     expect(prod?.environment).toBe("prod");
     expect(prod?.currentVersion).toBe(1);
     expect(prod?.protected).toBe(true);
@@ -892,13 +893,13 @@ describe("the candidate review", () => {
       compilerVersion: "1.0.0",
       a2uiSpecVersion: "1.0.0",
       semanticsVersion: "1.0.0",
-      publishedBy: prodApprover.userId,
+      publishedBy: prodPublisher.userId,
     });
-    const approver = await review(prodApprover.token, FORM_CLAIMS, {
+    const publisher = await review(prodPublisher.token, FORM_CLAIMS, {
       kind: "version",
       version: 2,
     });
-    const prod = approver.body.targets[0];
+    const prod = publisher.body.targets[0];
     expect(prod?.evidence).toEqual([]);
     expect(prod?.blockers.map((blocker) => blocker.code)).toEqual(["TEST_RELEASE_REQUIRED"]);
     // The default revision's rule names `test` alone: a prior release in `prod` itself is
@@ -909,11 +910,11 @@ describe("the candidate review", () => {
   it("reports the two-person rule, and refuses the author before the commit does", async () => {
     await setRequireSecondApprover(control, SEED_WORKSPACE_ID, true);
     try {
-      const approver = await review(prodApprover.token, FORM_CLAIMS, {
+      const publisher = await review(prodPublisher.token, FORM_CLAIMS, {
         kind: "version",
         version: 2,
       });
-      const prod = approver.body.targets[0];
+      const prod = publisher.body.targets[0];
       expect(prod?.twoPerson.applies).toBe(true);
       // Version 2 was published by this account in the case above.
       expect(prod?.twoPerson.refusedAsAuthor).toBe(true);
@@ -926,7 +927,7 @@ describe("the candidate review", () => {
   it("refuses a caller holding no release read on the form", async () => {
     const res = await app.request(`/admin/forms/${FORM_CLAIMS}/release-review`, {
       method: "POST",
-      headers: headers(oneFormViewer.token),
+      headers: headers(prodResponseViewer.token),
       body: JSON.stringify({ source: { kind: "version", version: 1 } }),
     });
     expect(res.status).toBe(403);
@@ -935,7 +936,7 @@ describe("the candidate review", () => {
   it("writes nothing at all", async () => {
     const before = await auditCount();
     const releasesBefore = await listFormReleases(control, FORM_CLAIMS);
-    await review(prodApprover.token, FORM_CLAIMS, { kind: "version", version: 1 });
+    await review(prodPublisher.token, FORM_CLAIMS, { kind: "version", version: 1 });
     expect(await auditCount()).toBe(before);
     expect((await listFormReleases(control, FORM_CLAIMS)).length).toBe(releasesBefore.length);
   });

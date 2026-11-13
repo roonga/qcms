@@ -13,8 +13,8 @@ function access(workspaces: MyAccess["workspaces"]): MyAccess {
   };
 }
 
-function grant(role: string) {
-  return { name: `all.${role}`, role, environments: ["all"], forms: ["all"] };
+function grant(name: string, roles: readonly string[], environments: readonly string[] = []) {
+  return { name, roles, environments };
 }
 
 function workspace(grants: ReturnType<typeof grant>[]) {
@@ -31,13 +31,31 @@ function workspace(grants: ReturnType<typeof grant>[]) {
 
 describe("holdsEraserGrantAnywhere", () => {
   it("is true when an eraser grant is held in any workspace", () => {
-    expect(holdsEraserGrantAnywhere(access([workspace([grant(RESPONSES_ERASER_ROLE)])]))).toBe(
-      true,
-    );
+    expect(
+      holdsEraserGrantAnywhere(
+        access([workspace([grant("Response erasers", [RESPONSES_ERASER_ROLE], ["prod"])])]),
+      ),
+    ).toBe(true);
+  });
+
+  it("is true when the eraser role sits beside others in one group", () => {
+    expect(
+      holdsEraserGrantAnywhere(
+        access([
+          workspace([
+            grant("Operators", ["responses.viewer", RESPONSES_ERASER_ROLE], ["test", "prod"]),
+          ]),
+        ]),
+      ),
+    ).toBe(true);
   });
 
   it("is false for a responses.viewer, which is the caller the 403 was for", () => {
-    expect(holdsEraserGrantAnywhere(access([workspace([grant("responses.viewer")])]))).toBe(false);
+    expect(
+      holdsEraserGrantAnywhere(
+        access([workspace([grant("Response viewers", ["responses.viewer"], ["prod"])])]),
+      ),
+    ).toBe(false);
   });
 
   it("is false for a caller with no grants at all", () => {
@@ -49,8 +67,12 @@ describe("holdsEraserGrantAnywhere", () => {
     expect(
       holdsEraserGrantAnywhere(
         access([
-          workspace([grant("forms.editor")]),
-          { ...workspace([grant(RESPONSES_ERASER_ROLE)]), workspaceId: "org_2", slug: "vehicle" },
+          workspace([grant("Authors", ["forms.editor"])]),
+          {
+            ...workspace([grant("Response erasers", [RESPONSES_ERASER_ROLE], ["prod"])]),
+            workspaceId: "org_2",
+            slug: "vehicle",
+          },
         ]),
       ),
     ).toBe(true);

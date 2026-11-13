@@ -46,7 +46,7 @@ export const proposalFailures = {
       "PROPOSER_CANNOT_CONFIRM",
       403,
       "You proposed this change, so you cannot confirm it. A different account holding " +
-        "forms.approver with prod in scope has to.",
+        "forms.publisher in prod has to.",
     ),
   notPending: (): ApiError =>
     new ApiError(

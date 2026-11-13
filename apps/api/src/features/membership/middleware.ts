@@ -454,20 +454,18 @@ async function decideInOneWorkspace(
   };
 }
 
-// Asks whether any grant declares `webhook: configure` rather than reading
-// `decision.role`: that field is whichever grant allowed the read first, so masking would
-// vary with database row order.
+// Asks what the grants declare rather than reading `decision.role`: that field is
+// whichever grant allowed the read first, so masking would vary with database row order.
+// Edit forms and Publish forms see the whole URL; View forms alone sees it masked.
 function endpointUrlVisibility(
   policy: RoutePolicy,
   resolved: ResolvedMembership,
 ): { endpointUrl?: "whole" | "masked" } {
   if (policy.resource !== "webhook" || policy.action !== "read") return {};
-  const mayConfigure = holdsStatement(
-    { memberRole: resolved.memberRole, grants: resolved.grants },
-    "webhook",
-    "configure",
-  );
-  return { endpointUrl: mayConfigure ? "whole" : "masked" };
+  const held = { memberRole: resolved.memberRole, grants: resolved.grants };
+  const whole =
+    holdsStatement(held, "webhook", "configure") || holdsStatement(held, "form", "write");
+  return { endpointUrl: whole ? "whole" : "masked" };
 }
 
 async function claimContext(

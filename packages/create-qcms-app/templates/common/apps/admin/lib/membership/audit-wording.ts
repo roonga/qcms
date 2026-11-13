@@ -7,7 +7,7 @@
 import type { AgentScreen } from "../agent/screens.ts";
 import { t, tPlural, type MessageKey } from "../i18n/en.ts";
 
-import { groupTitle } from "./access-group-form.ts";
+import { groupScope } from "./access-group-form.ts";
 import type { AgentAuditRow } from "./types.ts";
 
 const AUDIT_KINDS: Readonly<Record<string, MessageKey>> = {
@@ -177,12 +177,11 @@ export interface AgentStepDetail {
 export function groupTitlesById(
   groups: readonly {
     readonly teamId: string;
-    readonly role: string;
+    readonly roles: readonly string[];
     readonly environments: readonly string[];
-    readonly forms: readonly string[];
   }[],
 ): ReadonlyMap<string, string> {
-  return new Map(groups.map((group) => [group.teamId, groupTitle(group)]));
+  return new Map(groups.map((group) => [group.teamId, groupScope(group)]));
 }
 
 export function emailsById(

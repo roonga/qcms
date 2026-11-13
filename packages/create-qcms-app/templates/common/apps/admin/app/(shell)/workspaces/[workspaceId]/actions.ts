@@ -29,10 +29,8 @@ export async function createAccessGroupAction(
   workspaceId: string,
   body: {
     readonly name: string;
-    readonly role: string;
+    readonly roles: readonly string[];
     readonly environments: readonly string[];
-    readonly forms: readonly string[];
-    readonly label?: string;
   },
   proposal?: AgentProposalRef,
 ): Promise<MembershipActionState> {
@@ -50,7 +48,6 @@ export async function createAccessGroupAction(
     message: t("membership.groups.created", { name: result.data.name }),
     teamId: result.data.teamId,
     name: result.data.name,
-    role: result.data.role,
   };
 }
 
@@ -137,11 +134,7 @@ export async function setMemberRoleAction(
 
 export async function saveWorkspaceSettingsAction(
   workspaceId: string,
-  // Omit settings the card did not show rather than changing them to defaults nobody confirmed.
-  next: {
-    readonly requireSecondApprover?: boolean;
-    readonly seedNewEditorsWithTestData?: boolean;
-  },
+  next: { readonly requireSecondApprover: boolean },
   proposal?: AgentProposalRef,
 ): Promise<MembershipActionState> {
   const session = await requireAdminSession();
@@ -157,6 +150,5 @@ export async function saveWorkspaceSettingsAction(
     status: "done",
     message: t("membership.settings.saved"),
     requireSecondApprover: result.data.requireSecondApprover,
-    seedNewEditorsWithTestData: result.data.seedNewEditorsWithTestData,
   };
 }

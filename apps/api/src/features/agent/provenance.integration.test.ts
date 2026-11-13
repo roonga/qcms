@@ -679,12 +679,11 @@ describe("a reference in a plan whose first step runs on the screen itself", () 
       offered: offeredActionKinds({
         memberRole: undefined,
         grants: [
-          { role: "forms.editor", environments: ["all"], forms: ["all"] },
-          { role: "forms.approver", environments: ["all"], forms: ["all"] },
+          { roles: ["forms.editor"], environments: [] },
+          { roles: ["forms.publisher"], environments: ["test", "prod"] },
         ],
         environments: ["test", "prod"],
         current: "prod",
-        formId: FORM_ID,
         // apply-draft is the builder's own, so the offer needs the builder's screen.
         screen: "/forms/[formId]",
       }),
@@ -1383,10 +1382,9 @@ describe("a mint proposed in the shape the model may produce runs end to end", (
       current: "prod",
       offered: offeredActionKinds({
         memberRole: undefined,
-        grants: [{ role: "forms.approver", environments: ["all"], forms: ["all"] }],
+        grants: [{ roles: ["forms.publisher"], environments: ["prod"] }],
         environments: ["prod"],
         current: "prod",
-        formId: FORM_ID,
       }),
       requireSecondApprover: false,
       productionEnvironment: "prod",
@@ -1470,7 +1468,7 @@ describe("every D0 kind's route is the one its descriptor names", () => {
  */
 describe("a workspace administration step is audited and never widened", () => {
   const GROUP_LABEL = "agentit";
-  const GROUP_NAME = `test.responses.viewer.${GROUP_LABEL}`;
+  const GROUP_NAME = `Response viewers ${GROUP_LABEL}`;
 
   async function groupToken(
     environment: string,
@@ -1483,10 +1481,8 @@ describe("a workspace administration step is audited and never widened", () => {
           {
             workspaceId: SEED_WORKSPACE_ID,
             name: GROUP_NAME,
-            role: "responses.viewer",
-            label: GROUP_LABEL,
+            roles: ["responses.viewer"],
             environments: ["test"],
-            forms: ["all"],
           },
           environment,
         ),
@@ -1496,10 +1492,8 @@ describe("a workspace administration step is audited and never widened", () => {
 
   const createBody = {
     name: GROUP_NAME,
-    role: "responses.viewer",
-    label: GROUP_LABEL,
+    roles: ["responses.viewer"],
     environments: ["test"],
-    forms: ["all"],
   } as const;
 
   it("records one row for a confirmed group create, keyed to the switcher's environment", async () => {
@@ -1525,7 +1519,7 @@ describe("a workspace administration step is audited and never widened", () => {
       caller: owner,
       path: `/workspaces/${SEED_WORKSPACE_ID}/access-groups`,
       environment: "prod",
-      body: { ...createBody, name: `${GROUP_NAME}2`, label: `${GROUP_LABEL}2` },
+      body: { ...createBody, name: `${GROUP_NAME}2` },
       proposal: { token, step: 0 },
     });
     expect(res.status).toBe(403);
@@ -1542,16 +1536,14 @@ describe("a workspace administration step is audited and never widened", () => {
           {
             workspaceId: SEED_WORKSPACE_ID,
             name: `${GROUP_NAME}3`,
-            role: "responses.viewer",
-            label: `${GROUP_LABEL}3`,
+            roles: ["responses.viewer"],
             environments: ["test"],
-            forms: ["all"],
           },
           "test",
         ),
       ],
     });
-    const body = { ...createBody, name: `${GROUP_NAME}3`, label: `${GROUP_LABEL}3` };
+    const body = { ...createBody, name: `${GROUP_NAME}3` };
     const withToken = await send({
       caller: viewer,
       path: `/workspaces/${SEED_WORKSPACE_ID}/access-groups`,

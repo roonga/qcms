@@ -1,6 +1,6 @@
-// Specification: section 6 of `plan/environments-and-workspaces.md`. `forms.` and `responses.` roles are
-// separate families and neither implies the other (ADR-41). Conditions live in grant scope;
-// `dynamicAccessControl` stays unused (no mixed-family roles).
+// Specification: `docs/WORKSPACE_ACCESS.md` section 3. A grant is an access group: a set of
+// roles and one environment set. Roles are additive across groups, and the environment set
+// governs the environment-scoped acts alone; `dynamicAccessControl` stays unused.
 
 import { createAccessControl } from "better-auth/plugins/access";
 import { defaultStatements } from "better-auth/plugins/organization/access";
@@ -41,7 +41,7 @@ export type Action = (typeof ACTIONS)[Resource][number];
 
 // `defaultStatements` is spread in so the plugin's own resources are in the vocabulary
 // and no QCMS role declares them: a plugin endpoint checking `member: ["create"]` finds
-// no holder, `forms.owner` included.
+// no holder, the Workspace administrator role included.
 export const accessControl = createAccessControl({
   ...defaultStatements,
   ...ACTIONS,
@@ -55,29 +55,29 @@ const formsViewer = accessControl.newRole({
   webhook: ["read"],
 });
 
-// Deliberately reaches no response in any environment, whatever its environment scope.
+// Drafts and previews and nothing else in an environment: freezing a version is the
+// publisher's cell, and this role deliberately reaches no response.
 const formsEditor = accessControl.newRole({
   question: ["read", "write"],
-  form: ["read", "write", "publish", "preview", "close"],
-  release: ["read", "create"],
-  link: ["read", "mint", "revoke"],
-  webhook: ["read", "configure"],
+  form: ["read", "write", "preview"],
+  release: ["read"],
+  link: ["read"],
+  webhook: ["read"],
 });
 
-// The only role holding environment-scoped writes in `prod`. It deliberately does not
-// draft, edit, publish or preview: a role that both authored and approved would defeat
-// the two-person rule.
-const formsApprover = accessControl.newRole({
+// The only role holding environment-scoped control-plane acts. `form: publish` is here and
+// not on the editor, so freezing a version always takes a publisher as well as an editor.
+const formsPublisher = accessControl.newRole({
   question: ["read"],
-  form: ["read", "close"],
+  form: ["read", "publish", "close"],
   release: ["read", "create"],
   link: ["read", "mint", "revoke"],
   webhook: ["read", "configure"],
 });
 
 // Administers a workspace and touches nothing inside it: no form, release, link, webhook
-// or response row. An owner who should author needs a `forms.editor` grant of its own.
-const formsOwner = accessControl.newRole({
+// or response row. An administrator who should author needs a group grant of its own.
+const workspaceAdministrator = accessControl.newRole({
   membership: ["read", "write"],
   workspace: ["read", "update", "archive"],
   audit: ["read"],
@@ -104,8 +104,8 @@ const emptyStatements = Object.fromEntries(
 export const roles = {
   "forms.viewer": formsViewer,
   "forms.editor": formsEditor,
-  "forms.approver": formsApprover,
-  "forms.owner": formsOwner,
+  "forms.publisher": formsPublisher,
+  "forms.owner": workspaceAdministrator,
   "responses.viewer": responsesViewer,
   "responses.eraser": responsesEraser,
   admin: accessControl.newRole(emptyStatements),
@@ -113,16 +113,18 @@ export const roles = {
   owner: accessControl.newRole(emptyStatements),
 } as const;
 
-// Narrowed to `authorize` because the nine roles' `statements` have nine shapes, which
-// would make the lookup below unassignable.
+// Narrowed to `authorize` because the declared roles' `statements` have different shapes,
+// which would make the lookup below unassignable.
 interface DeclaredRole {
   authorize(request: Record<string, readonly string[]>): { readonly success: boolean };
 }
 
+// The five access-group roles and the Workspace administrator, which is the member row's
+// flag rather than a group's role.
 export const ROLE_NAMES = [
   "forms.viewer",
   "forms.editor",
-  "forms.approver",
+  "forms.publisher",
   "forms.owner",
   "responses.viewer",
   "responses.eraser",
@@ -136,8 +138,8 @@ export const EMPTY_ROLE_NAMES = ["admin", "member", "owner"] as const;
 // different rule that happens to land on the same word.
 export const PRODUCTION_ENVIRONMENT = "prod";
 
-// Only writes and data-plane reads. Authoring, publishing, preview and configuration
-// reads are workspace-wide, so they are deliberately absent.
+// Only writes and data-plane reads. Authoring, publishing a version, preview and
+// configuration reads are workspace-wide, so they are deliberately absent.
 const ENVIRONMENT_SCOPED: readonly `${Resource}:${string}`[] = [
   "form:close",
   "release:create",
@@ -150,37 +152,14 @@ const ENVIRONMENT_SCOPED: readonly `${Resource}:${string}`[] = [
   "response:dispose",
 ];
 
-// The data family only: authoring roles stay workspace-wide.
-const FORM_SCOPED: readonly `${Resource}:${string}`[] = [
-  "response:read",
-  "response:export",
-  "response:erase",
-  "response:dispose",
-];
-
-// The control plane, which is the family the production split governs.
-const FORMS_FAMILY_RESOURCES: readonly Resource[] = [
-  "question",
-  "form",
-  "release",
-  "link",
-  "webhook",
-];
-
 export function isEnvironmentScoped(resource: Resource, action: string): boolean {
   return ENVIRONMENT_SCOPED.includes(`${resource}:${action}`);
 }
 
-export function isFormScoped(resource: Resource, action: string): boolean {
-  return FORM_SCOPED.includes(`${resource}:${action}`);
-}
-
 export interface HeldGrant {
-  readonly role: string;
-  // `["all"]`, or one or more environment names.
+  readonly roles: readonly string[];
+  // The group's environment set, empty where every role in it ignores one.
   readonly environments: readonly string[];
-  // `["all"]`, or one or more form ids.
-  readonly forms: readonly string[];
   readonly name?: string;
 }
 
@@ -188,7 +167,6 @@ export interface AccessRequest {
   readonly resource: Resource;
   readonly action: string;
   readonly environment?: string | undefined;
-  readonly formId?: string | undefined;
 }
 
 export interface AccessDecision {
@@ -199,52 +177,31 @@ export interface AccessDecision {
   readonly reason?: string;
 }
 
-const SCOPE_ALL = "all";
-
-function scopeAllows(scope: readonly string[], value: string | undefined): boolean {
-  if (scope.length === 1 && scope[0] === SCOPE_ALL) return true;
-  return value !== undefined && scope.includes(value);
-}
-
-// The step order matters: a statement that does not cover the act is refused before any
-// scope is read, so a grant's scope can never widen what its role is.
-function grantAllows(grant: HeldGrant, request: AccessRequest): boolean {
+// The step order matters: a role that does not cover the act is passed over before any
+// environment is read, so a group's environment set can never widen what its roles are.
+function roleAllows(
+  grant: HeldGrant,
+  roleName: string,
+  request: AccessRequest,
+): boolean {
   // The role name comes off a database row, so an undeclared name grants nothing, which
   // is the fail-closed direction.
   const declared: Readonly<Record<string, DeclaredRole | undefined>> = roles;
-  const role = declared[grant.role];
+  const role = declared[roleName];
   if (role === undefined) return false;
 
   // `authorize`, not the plugin's HTTP `hasPermission`, which needs a signed cookie this
   // API does not hold.
-  const verdict = role.authorize({ [request.resource]: [request.action] });
-  if (!verdict.success) return false;
+  if (!role.authorize({ [request.resource]: [request.action] }).success) return false;
 
   if (isEnvironmentScoped(request.resource, request.action)) {
     if (request.environment === undefined) return false;
-    if (!scopeAllows(grant.environments, request.environment)) return false;
+    if (!grant.environments.includes(request.environment)) return false;
   }
-  if (isFormScoped(request.resource, request.action)) {
-    if (request.formId === undefined) return false;
-    if (!scopeAllows(grant.forms, request.formId)) return false;
-  }
-
-  // The production split: a control-plane write in `prod` belongs to a `forms.approver`,
-  // so a `forms.editor` with `prod` in scope is still refused it. The data family has no
-  // such split.
-  if (
-    request.environment === PRODUCTION_ENVIRONMENT &&
-    isEnvironmentScoped(request.resource, request.action) &&
-    FORMS_FAMILY_RESOURCES.includes(request.resource) &&
-    grant.role !== "forms.approver"
-  ) {
-    return false;
-  }
-
   return true;
 }
 
-// Each act is judged against whichever single grant covers it, never against a rank
+// Each act is judged against whichever single role covers it, never against a rank
 // computed across grants.
 export function decideAccess(input: {
   readonly memberRole: string | undefined;
@@ -253,18 +210,20 @@ export function decideAccess(input: {
 }): AccessDecision {
   const held: HeldGrant[] = [...input.grants];
   if (input.memberRole !== undefined) {
-    // `all` scope widens nothing here: `forms.owner` has no environment or form
-    // dimension and the empty `member` role grants nothing.
-    held.unshift({ role: input.memberRole, environments: [SCOPE_ALL], forms: [SCOPE_ALL] });
+    // The administrator role has no environment dimension and the empty `member` role
+    // grants nothing, so an empty environment set loses neither.
+    held.unshift({ roles: [input.memberRole], environments: [] });
   }
 
   for (const grant of held) {
-    if (grantAllows(grant, input.request)) {
-      return {
-        allowed: true,
-        role: grant.role,
-        ...(grant.name === undefined ? {} : { name: grant.name }),
-      };
+    for (const roleName of grant.roles) {
+      if (roleAllows(grant, roleName, input.request)) {
+        return {
+          allowed: true,
+          role: roleName,
+          ...(grant.name === undefined ? {} : { name: grant.name }),
+        };
+      }
     }
   }
 
@@ -276,16 +235,15 @@ export function decideAccess(input: {
 function refusalReason(request: AccessRequest): string {
   const where =
     request.environment === undefined ? "" : ` in the ${request.environment} environment`;
-  const which = request.formId === undefined ? "" : ` for this form`;
   return (
-    `This needs a grant carrying ${request.resource}: ${request.action}${where}${which} ` +
+    `This needs a grant carrying ${request.resource}: ${request.action}${where} ` +
     "in the workspace that owns it. Your own grants are at GET /admin/me/access."
   );
 }
 
 // Authorises nothing: it only decides how much of an already-authorised read's answer a
-// caller is shown. Scopes and the production split are ignored on purpose, since they
-// govern writes and the reads in question are workspace-wide.
+// caller is shown. The environment set is ignored on purpose, since it governs writes and
+// the reads in question are workspace-wide.
 export function holdsStatement(
   input: {
     readonly memberRole: string | undefined;
@@ -297,13 +255,13 @@ export function holdsStatement(
   const declared: Readonly<Record<string, DeclaredRole | undefined>> = roles;
   const names = [
     ...(input.memberRole === undefined ? [] : [input.memberRole]),
-    ...input.grants.map((grant) => grant.role),
+    ...input.grants.flatMap((grant) => [...grant.roles]),
   ];
   return names.some((name) => declared[name]?.authorize({ [resource]: [action] }).success === true);
 }
 
-// Statements only: a caller that needs the scope or the production split asks
-// `decideAccess` with an environment instead.
+// Statements only: a caller that needs the environment set asks `decideAccess` with an
+// environment instead.
 export function rolesHolding(resource: Resource, action: string): readonly RoleName[] {
   return ROLE_NAMES.filter((name) => roles[name].authorize({ [resource]: [action] }).success);
 }

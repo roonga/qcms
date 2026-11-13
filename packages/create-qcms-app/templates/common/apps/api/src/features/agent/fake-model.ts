@@ -702,7 +702,7 @@ function fakeGroupLabel(prompt: readonly PromptMessage[]): string {
 }
 
 function fakeGroupName(prompt: readonly PromptMessage[]): string {
-  return `test.responses.viewer.${fakeGroupLabel(prompt)}`;
+  return `Response viewers ${fakeGroupLabel(prompt)}`;
 }
 
 /** The administration screen's own facts, which name a workspace rather than a form. */
@@ -721,7 +721,7 @@ function factWorkspaceId(prompt: readonly PromptMessage[]): string {
  */
 function factGroupId(prompt: readonly PromptMessage[]): string {
   const rows = workspaceFacts(prompt)["accessGroups"];
-  const suffix = `.${fakeGroupLabel(prompt)}`;
+  const suffix = ` ${fakeGroupLabel(prompt)}`;
   if (Array.isArray(rows)) {
     for (const entry of rows) {
       if (typeof entry !== "object" || entry === null) continue;
@@ -857,10 +857,8 @@ function groupCreateStep(prompt: readonly PromptMessage[]): Record<string, unkno
     args: {
       workspaceId: factWorkspaceId(prompt),
       name: fakeGroupName(prompt),
-      role: "responses.viewer",
-      label: fakeGroupLabel(prompt),
+      roles: ["responses.viewer"],
       environments: ["test"],
-      forms: ["all"],
     },
   };
 }

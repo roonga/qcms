@@ -7,8 +7,6 @@ import { t } from "@/lib/i18n/en";
 import { HeadingMarker } from "@/components/agent/heading-marker";
 import type { MembershipActionState, WorkspaceSettings } from "@/lib/membership/types";
 
-/* Show the personal-data warning before the setting changes: test responses can contain real respondents'
-   data too. */
 export function WorkspaceSettingsPanel({
   settings,
   save,
@@ -16,14 +14,10 @@ export function WorkspaceSettingsPanel({
   readonly settings: WorkspaceSettings;
   readonly save: (
     workspaceId: string,
-    next: {
-      readonly requireSecondApprover: boolean;
-      readonly seedNewEditorsWithTestData: boolean;
-    },
+    next: { readonly requireSecondApprover: boolean },
   ) => Promise<MembershipActionState>;
 }) {
   const [twoPerson, setTwoPerson] = useState(settings.requireSecondApprover);
-  const [seed, setSeed] = useState(settings.seedNewEditorsWithTestData);
   const [state, setState] = useState<MembershipActionState>({ status: "idle" });
   const [pending, startTransition] = useTransition();
 
@@ -55,23 +49,13 @@ export function WorkspaceSettingsPanel({
         </div>
       </HeadingMarker>
 
-      <div className="flex flex-col gap-2">
-        <Checkbox label={t("membership.settings.seed")} isSelected={seed} onChange={setSeed} />
-        <p id="qcms-seed-help" className="text-xs text-(--color-text-muted)">
-          {t("membership.settings.seedHelp")}
-        </p>
-      </div>
-
       <div>
         <Button
           isDisabled={pending}
           onPress={() => {
             startTransition(async () => {
               setState(
-                await save(settings.workspaceId, {
-                  requireSecondApprover: twoPerson,
-                  seedNewEditorsWithTestData: seed,
-                }),
+                await save(settings.workspaceId, { requireSecondApprover: twoPerson }),
               );
             });
           }}

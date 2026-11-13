@@ -346,15 +346,6 @@ export const SURFACES: readonly Surface[] = [
     body: { workspaceId: "org_probe_target" },
     anonymousReachable: false,
   },
-  {
-    name: "POST /admin/questions/{id}/workspace",
-    row: "authoring",
-    group: "admin",
-    method: "POST",
-    path: (ctx) => `/admin/questions/${ctx.questionId}/workspace`,
-    body: { workspaceId: "org_probe_target" },
-    anonymousReachable: false,
-  },
   // `GET /admin/me/access` needs no grant: it is the answer to what the caller holds, and
   // the one route the grant middleware exempts (Q35).
   {
@@ -400,11 +391,9 @@ export const SURFACES: readonly Surface[] = [
     method: "POST",
     path: (ctx) => `/admin/workspaces/${ctx.workspaceId}/access-groups`,
     body: {
-      name: "prod.responses.viewer.probe",
-      role: "responses.viewer",
+      name: "Response viewers probe",
+      roles: ["responses.viewer"],
       environments: ["prod"],
-      forms: ["all"],
-      label: "probe",
     },
     anonymousReachable: false,
   },
@@ -414,7 +403,7 @@ export const SURFACES: readonly Surface[] = [
     group: "admin",
     method: "PUT",
     path: (ctx) => `/admin/workspaces/${ctx.workspaceId}/access-groups/${ctx.teamId}`,
-    body: { name: "all.responses.viewer", environments: ["all"], forms: ["all"] },
+    body: { name: "Response viewers", roles: ["responses.viewer"], environments: ["prod"] },
     anonymousReachable: false,
   },
   {
@@ -449,7 +438,7 @@ export const SURFACES: readonly Surface[] = [
     group: "admin",
     method: "PUT",
     path: (ctx) => `/admin/workspaces/${ctx.workspaceId}/settings`,
-    body: { seedNewEditorsWithTestData: false },
+    body: { requireSecondApprover: false },
     anonymousReachable: false,
   },
   {

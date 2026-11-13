@@ -28,8 +28,8 @@ export const twoPersonFailures = {
       "APPROVER_IS_AUTHOR",
       403,
       `This workspace requires a second approver for production, and you published ` +
-        `version ${version}. A different account holding forms.approver with prod in scope ` +
-        `has to release it.`,
+        `version ${version}. A different account holding forms.publisher in prod has to ` +
+        `release it.`,
     ),
   // A version with no recorded publisher is refused rather than allowed: with one of the
   // two accounts unknown, "a different account released it" cannot be claimed.

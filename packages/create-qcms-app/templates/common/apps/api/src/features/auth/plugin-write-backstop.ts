@@ -5,11 +5,11 @@
 
 import {
   EMPTY_MEMBER_ROLE,
-  isAccessRole,
-  isTeamRole,
+  OWNER_MEMBER_ROLE,
   listEnvironmentNames,
   refuseAccessGroupName,
-  refuseEnvironmentScope,
+  refuseAccessGroupRoles,
+  refuseEnvironmentSet,
 } from "@roonga/qcms-db";
 import type { Executor } from "@roonga/qcms-db";
 import { APIError } from "better-auth/api";
@@ -19,8 +19,8 @@ function refuse(rule: string, detail: string): never {
   throw new APIError("FORBIDDEN", {
     code: "GRANT_WRITE_REFUSED",
     message:
-      `${detail} Grants are written only through the QCMS membership endpoints ` +
-      `(ADR-41, Q45), which carry the validation and the SEC-15 audit row. ` +
+      `${detail} Grants are written only through the QCMS membership endpoints, ` +
+      `which carry the validation and the SEC-15 audit row. ` +
       `Refused by the ${rule} rule.`,
   });
 }
@@ -30,34 +30,22 @@ function readScope(value: unknown): readonly string[] | undefined {
   return value.every((entry) => typeof entry === "string") ? value : undefined;
 }
 
-function refuseRole(role: unknown, where: "team" | "member"): void {
-  if (typeof role !== "string") refuse("role", `A ${where} needs a role.`);
-  if (where === "member") {
-    // `forms.owner` is allowed because the plugin's own `createOrganization` writes it.
-    if (role === EMPTY_MEMBER_ROLE || role === "forms.owner") return;
-    refuse(
-      "role",
-      `"${role}" is not a role a member row carries: a member row is \`forms.owner\` or the empty \`${EMPTY_MEMBER_ROLE}\` role.`,
-    );
-  }
-  if (!isAccessRole(role)) {
-    refuse("role", `"${role}" is not one of the six roles ADR-41 declares.`);
-  }
-  if (!isTeamRole(role)) {
-    // A team carrying a non-team role would be a grant nothing reads.
-    refuse(
-      "non-team target",
-      `"${role}" is not carried by an access group: it is the member row's role.`,
-    );
-  }
+function refuseMemberRole(role: unknown): void {
+  if (typeof role !== "string") refuse("role", "A member needs a role.");
+  // The Workspace administrator flag is allowed because the plugin's own
+  // `createOrganization` writes it.
+  if (role === EMPTY_MEMBER_ROLE || role === OWNER_MEMBER_ROLE) return;
+  refuse(
+    "role",
+    `"${role}" is not a role a member row carries: a member row is \`${OWNER_MEMBER_ROLE}\` or the empty \`${EMPTY_MEMBER_ROLE}\` role.`,
+  );
 }
 
 interface TeamPayload {
   readonly name?: unknown;
   readonly organizationId?: unknown;
-  readonly role?: unknown;
+  readonly roles?: unknown;
   readonly environments?: unknown;
-  readonly forms?: unknown;
   readonly externalGroupId?: unknown;
 }
 
@@ -85,38 +73,26 @@ async function refuseTeamWrite(
     refuse("archived workspace", "That workspace is archived, so nothing new is created in it.");
   }
 
-  refuseRole(team.role, "team");
+  const groupRoles = readScope(team.roles);
+  if (groupRoles === undefined) {
+    refuse("role", "An access group needs a set of roles.");
+  }
+  const rolesRefusal = refuseAccessGroupRoles(groupRoles);
+  if (rolesRefusal !== undefined) refuse("role", `${rolesRefusal}.`);
 
   const environments = readScope(team.environments);
   if (environments === undefined) {
-    refuse("scope", "An access group needs an environment scope: `all`, or a set of names.");
-  }
-  const forms = readScope(team.forms);
-  if (forms === undefined) {
-    refuse("scope", "An access group needs a form scope: `all`, or a list of form ids.");
+    refuse("scope", "An access group needs an environment set, empty or a set of names.");
   }
 
   // Read the live set from the table, not a constant: an operator can create environments.
   const live = await listEnvironmentNames(exec);
-  const scopeRefusal = refuseEnvironmentScope(environments, live);
-  if (scopeRefusal !== undefined) refuse("scope", `${scopeRefusal}.`);
+  const setRefusal = refuseEnvironmentSet(environments, groupRoles, live);
+  if (setRefusal !== undefined) refuse("scope", `${setRefusal}.`);
 
-  // The fields are authoritative and the name only labels them, so a mismatch is invalid
-  // input rather than a permission question (Q37 rule 1).
   if (typeof team.name !== "string") refuse("name", "An access group needs a name.");
-  const nameRefusal = refuseAccessGroupName(
-    team.name,
-    { role: team.role as string, environments, ...labelOf(team.name) },
-    live,
-  );
+  const nameRefusal = refuseAccessGroupName(team.name);
   if (nameRefusal !== undefined) refuse("name", `${nameRefusal}.`);
-}
-
-/** The only place a group name is parsed, and it is not on an authorisation path (Q37 rule 2). */
-function labelOf(name: string): { readonly label?: string } {
-  const segments = name.split(".");
-  if (segments.length <= 3) return {};
-  return { label: segments.slice(3).join(".") };
 }
 
 /** Loose payload types: the vendor's hook payloads are `Record<string, any>`. */
@@ -155,7 +131,7 @@ export function pluginWriteBackstop(exec: Executor): {
       if (organization.archivedAt !== undefined && organization.archivedAt !== null) {
         refuse("archived workspace", "That workspace is archived, so nobody is added to it.");
       }
-      refuseRole(member.role, "member");
+      refuseMemberRole(member.role);
       return Promise.resolve();
     },
   };

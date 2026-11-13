@@ -626,7 +626,7 @@ export function makeErasureScopeHandler(
         decideAccess({
           memberRole: resolved.memberRole,
           grants: resolved.grants,
-          request: { resource: "response", action: "erase", environment, formId },
+          request: { resource: "response", action: "erase", environment },
         }).allowed;
       if (!allowed) continue;
       const presence = await findSubjectPresence(

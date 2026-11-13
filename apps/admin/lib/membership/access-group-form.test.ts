@@ -1,27 +1,25 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  ALL,
-  formOptions,
+  ENVIRONMENT_ROLES,
   GROUP_ROLES,
   grantCandidates,
-  groupNameFor,
-  isChosen,
+  groupScope,
+  groupTitlesByName,
+  needsEnvironments,
   orderedEnvironments,
   roleDescription,
   roleName,
-  scopeLabel,
-  scopeOf,
-  toggleAll,
+  setOf,
   toggleOne,
 } from "./access-group-form.ts";
 
 describe("role names", () => {
-  it("gives every group role and the owner a plain name and a one-line description", () => {
+  it("gives every group role and the administrator a plain name and a one-line description", () => {
     expect(GROUP_ROLES.map(roleName)).toEqual([
       "Form viewer",
       "Form editor",
-      "Release approver",
+      "Form publisher",
       "Response viewer",
       "Response eraser",
     ]);
@@ -32,51 +30,67 @@ describe("role names", () => {
     }
   });
 
+  it("carries no approver role and keeps the administrator off the group list", () => {
+    expect(GROUP_ROLES).not.toContain("forms.approver");
+    expect(GROUP_ROLES).not.toContain("forms.owner");
+  });
+
   it("shows an unfamiliar wire role as it arrived rather than hiding it", () => {
     expect(roleName("forms.future")).toBe("forms.future");
     expect(roleDescription("forms.future")).toBeUndefined();
   });
 });
 
-describe("a scope choice", () => {
-  it("starts at all and sends the wire's own word for it", () => {
-    expect(scopeOf(ALL, ["dev", "test"])).toEqual(["all"]);
+describe("which roles name environments", () => {
+  it("asks for none while the group only reads or edits forms", () => {
+    expect(needsEnvironments([])).toBe(false);
+    expect(needsEnvironments(["forms.viewer"])).toBe(false);
+    expect(needsEnvironments(["forms.viewer", "forms.editor"])).toBe(false);
   });
 
-  it("clears to nothing chosen when all is unticked, which sends nothing", () => {
-    const none = toggleAll(ALL, false);
-    expect(scopeOf(none, ["dev", "test"])).toEqual([]);
+  it("asks for one as soon as any environment role is carried", () => {
+    for (const role of ENVIRONMENT_ROLES) {
+      expect(needsEnvironments([role]), role).toBe(true);
+    }
+    expect(needsEnvironments(["forms.editor", "responses.eraser"])).toBe(true);
   });
 
-  it("sends picks in the given order whatever order they were ticked in", () => {
-    let choice = toggleOne(ALL, "prod", true);
-    choice = toggleOne(choice, "dev", true);
-    expect(scopeOf(choice, ["dev", "test", "prod"])).toEqual(["dev", "prod"]);
-    expect(isChosen(choice, "prod")).toBe(true);
-    choice = toggleOne(choice, "prod", false);
-    expect(scopeOf(choice, ["dev", "test", "prod"])).toEqual(["dev"]);
-  });
-
-  it("returns to all when all is ticked again, dropping the picks", () => {
-    const some = toggleOne(ALL, "dev", true);
-    expect(toggleAll(some, true)).toEqual(ALL);
-    expect(toggleAll(some, false)).toBe(some);
+  it("asks for none for a role the screen does not know", () => {
+    expect(needsEnvironments(["forms.future"])).toBe(false);
   });
 });
 
-describe("the group's name", () => {
-  it("is spelled the way the API checks it, label optional", () => {
-    expect(groupNameFor("responses.viewer", ["all"], "")).toBe("all.responses.viewer");
-    expect(groupNameFor("forms.editor", ["dev", "test"], " claims ")).toBe(
-      "dev-test.forms.editor.claims",
-    );
+describe("ticking a box", () => {
+  it("adds a pick, drops it again, and leaves the others alone", () => {
+    const one = toggleOne([], "prod", true);
+    expect(one).toEqual(["prod"]);
+    const two = toggleOne(one, "dev", true);
+    expect(two).toEqual(["prod", "dev"]);
+    expect(toggleOne(two, "prod", false)).toEqual(["dev"]);
   });
 
-  it("is absent until an environment is chosen", () => {
-    expect(groupNameFor("forms.viewer", [], "x")).toBeUndefined();
+  it("keeps one entry per value however often it is ticked on", () => {
+    expect(toggleOne(toggleOne(["dev"], "dev", true), "dev", true)).toEqual(["dev"]);
   });
 
-  it("orders environments by the installation's position", () => {
+  it("unticking something never picked changes nothing", () => {
+    expect(toggleOne(["dev"], "prod", false)).toEqual(["dev"]);
+  });
+});
+
+describe("the wire set", () => {
+  it("sends picks in the installation's order whatever order they were ticked in", () => {
+    let chosen = toggleOne([], "prod", true);
+    chosen = toggleOne(chosen, "dev", true);
+    expect(setOf(chosen, ["dev", "test", "prod"])).toEqual(["dev", "prod"]);
+  });
+
+  it("is empty when nothing is ticked, and drops a value the installation does not have", () => {
+    expect(setOf([], ["dev", "test"])).toEqual([]);
+    expect(setOf(["dev", "gone"], ["dev", "test"])).toEqual(["dev"]);
+  });
+
+  it("orders environments by the installation's position, by name where they tie", () => {
     expect(
       orderedEnvironments([
         { name: "prod", position: 3 },
@@ -84,36 +98,42 @@ describe("the group's name", () => {
         { name: "test", position: 2 },
       ]),
     ).toEqual(["dev", "test", "prod"]);
+    expect(
+      orderedEnvironments([
+        { name: "staging", position: 1 },
+        { name: "dev", position: 1 },
+      ]),
+    ).toEqual(["dev", "staging"]);
   });
 });
 
-describe("the forms picker", () => {
-  const forms = [
-    { formId: "frm_a", name: "claims" },
-    { formId: "frm_b", name: "vehicle-check" },
-    { formId: "frm_c", name: "signup" },
-  ];
-
-  it("searches by name, case-insensitively, and never by pasted id", () => {
-    expect(formOptions(forms, "VEHICLE", ALL).map((form) => form.formId)).toEqual(["frm_b"]);
-    expect(formOptions(forms, "frm_a", ALL)).toEqual([]);
-    expect(formOptions(forms, "  ", ALL)).toHaveLength(3);
-  });
-
-  it("keeps a chosen form in the list while the search hides its neighbours", () => {
-    const choice = toggleOne(ALL, "frm_c", true);
-    expect(formOptions(forms, "claims", choice).map((form) => form.formId)).toEqual([
-      "frm_a",
-      "frm_c",
-    ]);
-  });
-
-  it("reads a stored scope back by name where known, and all as the catalog word", () => {
-    const names = new Map(forms.map((form) => [form.formId, form.name]));
-    expect(scopeLabel(["all"], "membership.groups.scopeAll")).toBe("All");
+describe("a group in words", () => {
+  it("reads as its roles and the environments it names", () => {
+    expect(groupScope({ roles: ["responses.viewer"], environments: ["test"] })).toBe(
+      "Response viewer, in test",
+    );
     expect(
-      scopeLabel(["frm_a", "frm_x"], "membership.groups.scopeAll", (id) => names.get(id) ?? id),
-    ).toBe("claims, frm_x");
+      groupScope({
+        roles: ["forms.publisher", "responses.eraser"],
+        environments: ["test", "prod"],
+      }),
+    ).toBe("Form publisher, Response eraser, in test, prod");
+  });
+
+  it("names every environment when the group's roles ignore the set", () => {
+    expect(groupScope({ roles: ["forms.editor"], environments: [] })).toBe(
+      "Form editor, in every environment",
+    );
+  });
+
+  it("reads a member row's group name back as that group's scope", () => {
+    const titles = groupTitlesByName([
+      { name: "Authors", roles: ["forms.editor"], environments: [] },
+      { name: "Publishers", roles: ["forms.publisher"], environments: ["prod"] },
+    ]);
+    expect(titles.get("Authors")).toBe("Form editor, in every environment");
+    expect(titles.get("Publishers")).toBe("Form publisher, in prod");
+    expect(titles.get("Gone")).toBeUndefined();
   });
 });
 

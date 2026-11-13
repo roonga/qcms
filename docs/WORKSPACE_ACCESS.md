@@ -14,8 +14,8 @@ The user guide for these rules is [`docs/workspace-access-guide.html`](workspace
 | ----------------------------------------------------------------- | ------------ |
 | Workspaces, forms and questions owned by one workspace            | Built        |
 | Environment scope enforced in the API per route                   | Built        |
-| Access groups with several roles and one explicit environment set | Not built    |
-| Five roles, View forms to Erase responses                         | Not built    |
+| Access groups with several roles and one explicit environment set | Built        |
+| Five roles, View forms to Erase responses                         | Built        |
 | Workspace administrator as a direct membership flag               | Partly built |
 | Site administrator as an explicit, non-default role               | Not built    |
 | One user-facing Publish step                                      | Not built    |
@@ -25,15 +25,15 @@ The user guide for these rules is [`docs/workspace-access-guide.html`](workspace
 | Site administrator appointment with approval requests             | Not built    |
 | Workspace audit (SEC-15)                                          | Built        |
 | Site audit and mirroring                                          | Not built    |
-| Workspace list narrowed to the caller's own                       | Partly built |
+| Workspace list narrowed to the caller's own                       | Built        |
 | Workspace rename, Move form screen, shared library screen         | Partly built |
 | Archive refused while any form remains                            | Built        |
 | Assistant tools follow the user's grants (SEC-17)                 | Built        |
 | Workspace themes and the workspace appearance lock                | Not built    |
 
-- The workspace list is narrowed, but the route still admits only administrators and the installation claim holder; 085 opens it to every grant holder (criterion 26).
+- The workspace list admits every grant holder and returns only the workspaces the caller holds something in. A caller who holds no `workspace: read` there is given the workspace's identity alone, with no setting and no counts (criterion 26).
 - Records that describe what is built (`docs/SECURITY_DESIGN.md`, the operator guides, the built-task notes in ADR-41) keep that description until the code changes, with a line pointing here.
-- The SEC-3 role table in `docs/SECURITY_DESIGN.md` §3.2 stays as built, because `apps/api/e2e/security/matrix-coverage.e2e.ts` reads it. It changes with the foundation task that changes the roles in code.
+- The SEC-3 role table in `docs/SECURITY_DESIGN.md` §3.2 carries the policy code, because `apps/api/e2e/security/matrix-coverage.e2e.ts` reads it. It changes with the roles in code.
 
 ## 2. Glossary
 
@@ -577,6 +577,13 @@ Each record below, except the built-task records, now links here for workspace a
 - Questions keep "Publish" with its current meaning.
 - After a credential or factor reset, the person signs in again through an emailed single-use link; a factor-only reset does not force a new password.
 
+### Ruled in the foundation task (085)
+
+- **Group storage shape: several roles on one stored group.** One `control.team` row per group, with `roles text[]` and `environments text[]`. One row per role was refused because a starter group such as Authors carries three roles over one environment set, and the group is the unit an administrator renames, deletes, grants and reads in the audit; a per-role row would make that unit a synthetic aggregate with no stable id.
+- **The `<environments>.<role>[.<label>]` name grammar is withdrawn.** A group's name is a label an administrator chooses, unique within its workspace, never parsed and never on an authorisation path. The grammar encoded exactly the two things the model dropped, one role and `all`, and a derived name over a role set reads worse than the words the starter groups already use. `parseAccessGroupName`, `accessGroupNameFor`, the label pattern and the derived directory name go with it; `accessGroupFullName` stays, for the one message that names a group across workspaces.
+- **The environment set is required exactly where a role reads it.** A group carrying Publish forms, View responses or Erase responses names at least one environment; a group carrying only View forms or Edit forms names none, and saving one with an environment set is refused rather than stored and ignored.
+- **Reduced workspace list for a non-administrator (criterion 26).** `GET /admin/workspaces` admits every grant holder and returns the workspaces the caller holds something in. Where the caller holds `workspace: read` there the row carries the shared-library flag, the second-approval setting and the form and question counts; otherwise it carries the workspace's identity alone, because those three are administration and the list is now read by people who administer nothing.
+
 ### Ruled (Code Owner, 2026-11-13)
 
 - A Workspace administrator or a Site administrator may set or clear the workspace appearance lock, as for the other workspace settings. This extends agent-builder Q18, which named the Workspace administrator only. The act needs no second approval and writes one `setting` row.
@@ -588,7 +595,6 @@ Request expiry (7 days), the `prod` rule with its exception for a site whose onl
 
 ### Undecided
 
-- Storage shape of an access group (several roles on one stored group, or one stored group per role) and the fate of the `<environments>.<role>[.<label>]` name grammar. Left to the foundation task and reviewed there.
 - Audit kinds for the new acts beyond the workspace audit's six existing kinds (Q79), and the site audit's row shape. Left to the foundation task and reviewed there.
 - A workspace's own questions at archive. This document states no rule. As built, questions do not block an archive and stay with the archived workspace, taking no new pin (ADR-41's archive Notes); the earlier "questions are reassigned first" no longer applies, because questions do not move.
 

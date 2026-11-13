@@ -13,9 +13,7 @@ import {
 import type { AgentAuditRow } from "./types.ts";
 
 const NAMES: AgentAuditNames = {
-  groups: groupTitlesById([
-    { teamId: "tm_1", role: "forms.editor", environments: ["all"], forms: ["all"] },
-  ]),
+  groups: groupTitlesById([{ teamId: "tm_1", roles: ["forms.editor"], environments: [] }]),
   people: emailsById([{ userId: "usr_2", email: "held@qcms.test" }]),
 };
 
@@ -60,7 +58,7 @@ describe("audit wording", () => {
   it("labels the one detail a kind records and resolves the group or person it names", () => {
     expect(agentStepDetail("access.grant", "tm_1", NAMES)).toEqual({
       label: "Access group",
-      value: "Form editor, all environments, all forms",
+      value: "Form editor, in every environment",
     });
     expect(agentStepDetail("access.revoke", "usr_2", NAMES)).toEqual({
       label: "Person",

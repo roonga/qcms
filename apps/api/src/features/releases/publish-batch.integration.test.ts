@@ -62,10 +62,10 @@ interface Persona {
   readonly userId: string;
 }
 
-let editorTest: Persona;
-let approverProd: Persona;
-let secondApprover: Persona;
-let publisher: Persona;
+let testAuthor: Persona;
+let prodPublisher: Persona;
+let secondProdPublisher: Persona;
+let prodAuthor: Persona;
 let claim: Persona;
 let otherWorkspaceEditor: Persona;
 let revocable: Persona;
@@ -89,7 +89,7 @@ function databases(): Databases {
 }
 
 interface GrantSpec {
-  readonly role: string;
+  readonly roles: readonly string[];
   readonly environments: readonly string[];
   readonly workspaceId?: string;
 }
@@ -106,15 +106,15 @@ async function persona(
     claim: options.claim ?? false,
   });
   const groupIds: string[] = [];
+  let index = 0;
   for (const grant of grants) {
     const workspaceId = grant.workspaceId ?? SEED_WORKSPACE_ID;
     await ensureWorkspaceMember(control, workspaceId, seeded.userId);
     const group = await createAccessGroup(control, {
       workspaceId,
-      name: `${label}.${grant.environments.join("-")}.${grant.role}`,
-      role: grant.role,
+      name: `${label} ${String(++index)}`,
+      roles: [...grant.roles],
       environments: [...grant.environments],
-      forms: ["all"],
     });
     await addAccessGroupHolder(control, group.teamId, seeded.userId);
     groupIds.push(group.teamId);
@@ -272,19 +272,27 @@ beforeAll(async () => {
     .values({ id: OTHER_WORKSPACE, name: "batch-other", slug: "batch-other" })
     .onConflictDoNothing({ target: authOrganization.id });
 
-  editorTest = await persona("bEditor", [{ role: "forms.editor", environments: ["test"] }]);
-  approverProd = await persona("bApprover", [{ role: "forms.approver", environments: ["prod"] }]);
-  secondApprover = await persona("bSecond", [{ role: "forms.approver", environments: ["prod"] }]);
-  publisher = await persona("bPublisher", [
-    { role: "forms.editor", environments: ["test"] },
-    { role: "forms.approver", environments: ["prod"] },
+  testAuthor = await persona("bEditor", [
+    { roles: ["forms.editor"], environments: [] },
+    { roles: ["forms.publisher"], environments: ["test"] },
+  ]);
+  prodPublisher = await persona("bApprover", [
+    { roles: ["forms.publisher"], environments: ["prod"] },
+  ]);
+  secondProdPublisher = await persona("bSecond", [
+    { roles: ["forms.publisher"], environments: ["prod"] },
+  ]);
+  prodAuthor = await persona("bPublisher", [
+    { roles: ["forms.editor"], environments: [] },
+    { roles: ["forms.publisher"], environments: [...LIVE_SET] },
   ]);
   claim = await seedAdminSession(control, { label: "bClaim", membership: false });
   otherWorkspaceEditor = await persona("bOther", [
-    { role: "forms.editor", environments: ["all"], workspaceId: OTHER_WORKSPACE },
+    { roles: ["forms.editor"], environments: [], workspaceId: OTHER_WORKSPACE },
+    { roles: ["forms.publisher"], environments: [...LIVE_SET], workspaceId: OTHER_WORKSPACE },
   ]);
   const revoking = await persona("bRevocable", [
-    { role: "forms.approver", environments: ["prod"] },
+    { roles: ["forms.publisher"], environments: ["prod"] },
   ]);
   revocable = revoking;
   revocableGroupId = revoking.groupIds[0]!;
@@ -311,7 +319,7 @@ afterAll(async () => {
 describe("the release-workflow configuration", () => {
   it("reports the derived default with no revision written, and no role sees it change", async () => {
     await clearWorkflow();
-    const read = await call(editorTest.token, "GET", "/release-workflow");
+    const read = await call(testAuthor.token, "GET", "/release-workflow");
     expect(read.status).toBe(200);
     expect(read.body.revision).toBeNull();
     expect(read.body.source).toBe("default");
@@ -333,7 +341,7 @@ describe("the release-workflow configuration", () => {
 
   it("refuses the write to every grant and admits the installation claim alone", async () => {
     await clearWorkflow();
-    for (const who of [editorTest, approverProd, publisher, otherWorkspaceEditor]) {
+    for (const who of [testAuthor, prodPublisher, prodAuthor, otherWorkspaceEditor]) {
       const refused = await call(who.token, "PUT", "/release-workflow", {
         expectedRevision: null,
         rules: [],
@@ -438,7 +446,7 @@ describe("the release-workflow configuration", () => {
         (refused.body as { error: { details: { environment: string } } }).error.details.environment,
       ).toBe(one.environment);
     }
-    const read = await call(editorTest.token, "GET", "/release-workflow");
+    const read = await call(testAuthor.token, "GET", "/release-workflow");
     expect(read.body.revision).toBeNull();
   });
 
@@ -470,7 +478,7 @@ describe("the release-workflow configuration", () => {
     const loser = first.status === 409 ? first : second;
     expect(codeOf(loser.body)).toBe("WORKFLOW_REVISION_STALE");
 
-    const read = await call(editorTest.token, "GET", "/release-workflow");
+    const read = await call(testAuthor.token, "GET", "/release-workflow");
     expect(read.body.revision).toBe(1);
     await clearWorkflow();
   });
@@ -523,7 +531,7 @@ describe("the release-workflow configuration", () => {
 });
 
 describe("every destination is authorised on its own", () => {
-  it("refuses a test-scoped editor the production half of a crafted batch", async () => {
+  it("refuses a publisher scoped to test the production half of a crafted batch", async () => {
     const formId = await seedForm(1);
     await insertFormRelease(control, {
       formId,
@@ -531,7 +539,7 @@ describe("every destination is authorised on its own", () => {
       version: 1,
       releasedBy: "au_seed",
     });
-    const refused = await call(editorTest.token, "POST", `/forms/${formId}/release-batch`, {
+    const refused = await call(testAuthor.token, "POST", `/forms/${formId}/release-batch`, {
       idempotencyKey: KEYS(),
       expectedWorkflowRevision: null,
       source: { kind: "version", version: 1 },
@@ -547,7 +555,7 @@ describe("every destination is authorised on its own", () => {
     expect(await releasedEvents("prod", formId)).toBe(0);
   });
 
-  it("refuses the same editor a direct production release and a single-target batch", async () => {
+  it("refuses the same account a direct production release and a single-target batch", async () => {
     const formId = await seedForm(1);
     await insertFormRelease(control, {
       formId,
@@ -555,12 +563,12 @@ describe("every destination is authorised on its own", () => {
       version: 1,
       releasedBy: "au_seed",
     });
-    const direct = await call(editorTest.token, "POST", `/forms/${formId}/releases`, {
+    const direct = await call(testAuthor.token, "POST", `/forms/${formId}/releases`, {
       environment: "prod",
       version: 1,
     });
     expect(direct.status).toBe(403);
-    const batch = await call(editorTest.token, "POST", `/forms/${formId}/release-batch`, {
+    const batch = await call(testAuthor.token, "POST", `/forms/${formId}/release-batch`, {
       idempotencyKey: KEYS(),
       expectedWorkflowRevision: null,
       source: { kind: "version", version: 1 },
@@ -570,11 +578,11 @@ describe("every destination is authorised on its own", () => {
     expect(await listFormReleases(control, formId, "prod")).toEqual([]);
   });
 
-  it("refuses an approver the publish half, draft and all", async () => {
+  it("refuses a publisher without Edit forms the publish half, draft and all", async () => {
     const formId = await seedForm(0);
-    const revision = await saveDraft(editorTest.token, formId);
+    const revision = await saveDraft(testAuthor.token, formId);
     for (const environment of ["prod", "test"]) {
-      const refused = await call(approverProd.token, "POST", `/forms/${formId}/publish-batch`, {
+      const refused = await call(prodPublisher.token, "POST", `/forms/${formId}/publish-batch`, {
         idempotencyKey: KEYS(),
         expectedWorkflowRevision: null,
         source: { kind: "draft", draftRevision: revision },
@@ -583,7 +591,7 @@ describe("every destination is authorised on its own", () => {
       expect(refused.status).toBe(403);
     }
     // Nor the version-without-releasing case, which is `form: publish` by itself.
-    const alone = await call(approverProd.token, "POST", `/forms/${formId}/publish-batch`, {
+    const alone = await call(prodPublisher.token, "POST", `/forms/${formId}/publish-batch`, {
       idempotencyKey: KEYS(),
       expectedWorkflowRevision: null,
       source: { kind: "draft", draftRevision: revision },
@@ -596,8 +604,8 @@ describe("every destination is authorised on its own", () => {
 
   it("publishes a version without releasing it when no destination is named", async () => {
     const formId = await seedForm(0);
-    const revision = await saveDraft(editorTest.token, formId);
-    const done = await call(editorTest.token, "POST", `/forms/${formId}/publish-batch`, {
+    const revision = await saveDraft(testAuthor.token, formId);
+    const done = await call(testAuthor.token, "POST", `/forms/${formId}/publish-batch`, {
       idempotencyKey: KEYS(),
       expectedWorkflowRevision: null,
       source: { kind: "draft", draftRevision: revision },
@@ -613,7 +621,7 @@ describe("every destination is authorised on its own", () => {
 
   it("refuses an empty destination list on a batch whose only cell is environment-scoped", async () => {
     const formId = await seedForm(1);
-    const refused = await call(approverProd.token, "POST", `/forms/${formId}/release-batch`, {
+    const refused = await call(prodPublisher.token, "POST", `/forms/${formId}/release-batch`, {
       idempotencyKey: KEYS(),
       expectedWorkflowRevision: null,
       source: { kind: "version", version: 1 },
@@ -668,14 +676,14 @@ describe("the second-person rule holds through the batch", () => {
   it("refuses the publishing account and records the second one otherwise", async () => {
     await setRequireSecondApprover(control, SEED_WORKSPACE_ID, true);
     try {
-      const formId = await seedForm(1, { publishedBy: approverProd.userId });
+      const formId = await seedForm(1, { publishedBy: prodPublisher.userId });
       await insertFormRelease(control, {
         formId,
         environment: "test",
         version: 1,
         releasedBy: "au_seed",
       });
-      const self = await call(approverProd.token, "POST", `/forms/${formId}/release-batch`, {
+      const self = await call(prodPublisher.token, "POST", `/forms/${formId}/release-batch`, {
         idempotencyKey: KEYS(),
         expectedWorkflowRevision: null,
         source: { kind: "version", version: 1 },
@@ -685,7 +693,7 @@ describe("the second-person rule holds through the batch", () => {
       expect(codeOf(self.body)).toBe("APPROVER_IS_AUTHOR");
       expect(await listFormReleases(control, formId, "prod")).toEqual([]);
 
-      const second = await call(secondApprover.token, "POST", `/forms/${formId}/release-batch`, {
+      const second = await call(secondProdPublisher.token, "POST", `/forms/${formId}/release-batch`, {
         idempotencyKey: KEYS(),
         expectedWorkflowRevision: null,
         source: { kind: "version", version: 1 },
@@ -693,7 +701,7 @@ describe("the second-person rule holds through the batch", () => {
       });
       expect(second.status).toBe(200);
       expect((second.body.releases as { approvedBy: string }[])[0]?.approvedBy).toBe(
-        secondApprover.userId,
+        secondProdPublisher.userId,
       );
     } finally {
       await setRequireSecondApprover(control, SEED_WORKSPACE_ID, false);
@@ -720,8 +728,8 @@ describe("the second-person rule holds through the batch", () => {
         ).status,
       ).toBe(200);
       const formId = await seedForm(0);
-      const revision = await saveDraft(publisher.token, formId);
-      const refused = await call(publisher.token, "POST", `/forms/${formId}/publish-batch`, {
+      const revision = await saveDraft(prodAuthor.token, formId);
+      const refused = await call(prodAuthor.token, "POST", `/forms/${formId}/publish-batch`, {
         idempotencyKey: KEYS(),
         expectedWorkflowRevision: 1,
         source: { kind: "draft", draftRevision: revision },
@@ -742,8 +750,8 @@ describe("the second-person rule holds through the batch", () => {
     await setRequireSecondApprover(control, SEED_WORKSPACE_ID, true);
     try {
       const formId = await seedForm(0);
-      await saveDraft(publisher.token, formId);
-      const review = await call(publisher.token, "POST", `/forms/${formId}/release-review`, {
+      await saveDraft(prodAuthor.token, formId);
+      const review = await call(prodAuthor.token, "POST", `/forms/${formId}/release-review`, {
         source: { kind: "draft" },
       });
       expect(review.status).toBe(200);
@@ -785,8 +793,8 @@ describe("one confirmation is one transaction", () => {
     ).toBe(200);
     try {
       const formId = await seedForm(0);
-      const revision = await saveDraft(publisher.token, formId);
-      const done = await call(publisher.token, "POST", `/forms/${formId}/publish-batch`, {
+      const revision = await saveDraft(prodAuthor.token, formId);
+      const done = await call(prodAuthor.token, "POST", `/forms/${formId}/publish-batch`, {
         idempotencyKey: KEYS(),
         expectedWorkflowRevision: 1,
         source: { kind: "draft", draftRevision: revision },
@@ -827,7 +835,7 @@ describe("one confirmation is one transaction", () => {
     ).toBe(200);
     try {
       const formId = await seedForm(1);
-      const refused = await call(publisher.token, "POST", `/forms/${formId}/release-batch`, {
+      const refused = await call(prodAuthor.token, "POST", `/forms/${formId}/release-batch`, {
         idempotencyKey: KEYS(),
         expectedWorkflowRevision: 1,
         source: { kind: "version", version: 1 },
@@ -849,7 +857,7 @@ describe("one confirmation is one transaction", () => {
     await clearWorkflow();
     const formId = await seedForm(1);
     const refusedAfter = async (): Promise<{ status: number; body: Record<string, unknown> }> =>
-      call(editorTest.token, "POST", `/forms/${formId}/release-batch`, {
+      call(testAuthor.token, "POST", `/forms/${formId}/release-batch`, {
         idempotencyKey: KEYS(),
         expectedWorkflowRevision: null,
         source: { kind: "version", version: 1 },
@@ -878,9 +886,9 @@ describe("one confirmation is one transaction", () => {
 
   it("refuses a draft saved between the review and the confirmation", async () => {
     const formId = await seedForm(0);
-    const revision = await saveDraft(editorTest.token, formId);
-    await saveDraft(editorTest.token, formId);
-    const refused = await call(editorTest.token, "POST", `/forms/${formId}/publish-batch`, {
+    const revision = await saveDraft(testAuthor.token, formId);
+    await saveDraft(testAuthor.token, formId);
+    const refused = await call(testAuthor.token, "POST", `/forms/${formId}/publish-batch`, {
       idempotencyKey: KEYS(),
       expectedWorkflowRevision: null,
       source: { kind: "draft", draftRevision: revision },
@@ -900,7 +908,7 @@ describe("one confirmation is one transaction", () => {
       version: 1,
       releasedBy: "au_seed",
     });
-    const review = await call(editorTest.token, "POST", `/forms/${formId}/release-review`, {
+    const review = await call(testAuthor.token, "POST", `/forms/${formId}/release-review`, {
       source: { kind: "version", version: 2 },
     });
     const target = (review.body.targets as { environment: string; currentSequence: number }[]).find(
@@ -910,12 +918,12 @@ describe("one confirmation is one transaction", () => {
     // A close appends a row, so the sequence the review reported is no longer the newest.
     expect(
       (
-        await call(editorTest.token, "POST", `/forms/${formId}/close`, {
+        await call(testAuthor.token, "POST", `/forms/${formId}/close`, {
           environment: "test",
         })
       ).status,
     ).toBe(200);
-    const refused = await call(editorTest.token, "POST", `/forms/${formId}/release-batch`, {
+    const refused = await call(testAuthor.token, "POST", `/forms/${formId}/release-batch`, {
       idempotencyKey: KEYS(),
       expectedWorkflowRevision: null,
       source: { kind: "version", version: 2 },
@@ -929,7 +937,7 @@ describe("one confirmation is one transaction", () => {
     expect((await listFormReleases(control, formId, "test")).length).toBe(2);
 
     // And the same confirmation carrying the new sequence succeeds without reopening it.
-    const done = await call(editorTest.token, "POST", `/forms/${formId}/release-batch`, {
+    const done = await call(testAuthor.token, "POST", `/forms/${formId}/release-batch`, {
       idempotencyKey: KEYS(),
       expectedWorkflowRevision: null,
       source: { kind: "version", version: 2 },
@@ -941,7 +949,7 @@ describe("one confirmation is one transaction", () => {
 
   it("refuses a production candidate with no prior release, writing nothing", async () => {
     const formId = await seedForm(1);
-    const refused = await call(approverProd.token, "POST", `/forms/${formId}/release-batch`, {
+    const refused = await call(prodPublisher.token, "POST", `/forms/${formId}/release-batch`, {
       idempotencyKey: KEYS(),
       expectedWorkflowRevision: null,
       source: { kind: "version", version: 1 },
@@ -971,14 +979,14 @@ describe("one confirmation is one transaction", () => {
     ).toBe(200);
     try {
       const formId = await seedForm(1);
-      const refused = await call(approverProd.token, "POST", `/forms/${formId}/release-batch`, {
+      const refused = await call(prodPublisher.token, "POST", `/forms/${formId}/release-batch`, {
         idempotencyKey: KEYS(),
         expectedWorkflowRevision: 1,
         source: { kind: "version", version: 1 },
         targets: [{ environment: "prod", expectedSequence: null }],
       });
       expect(codeOf(refused.body)).toBe("PRIOR_RELEASE_REQUIRED");
-      const review = await call(approverProd.token, "POST", `/forms/${formId}/release-review`, {
+      const review = await call(prodPublisher.token, "POST", `/forms/${formId}/release-review`, {
         source: { kind: "version", version: 1 },
       });
       expect(review.body.workflowSource).toBe("configured");
@@ -1015,8 +1023,8 @@ describe("one confirmation is one transaction", () => {
     ).toBe(200);
     try {
       const formId = await seedForm(0);
-      await saveDraft(editorTest.token, formId);
-      const refused = await call(editorTest.token, "POST", `/forms/${formId}/publish-and-release`, {
+      await saveDraft(testAuthor.token, formId);
+      const refused = await call(testAuthor.token, "POST", `/forms/${formId}/publish-and-release`, {
         environment: "test",
       });
       expect(refused.status).toBe(409);
@@ -1026,7 +1034,7 @@ describe("one confirmation is one transaction", () => {
       expect(await getDraft(control, formId)).toBeDefined();
       expect(await releasedEvents("test", formId)).toBe(0);
 
-      const batch = await call(editorTest.token, "POST", `/forms/${formId}/publish-batch`, {
+      const batch = await call(testAuthor.token, "POST", `/forms/${formId}/publish-batch`, {
         idempotencyKey: KEYS(),
         expectedWorkflowRevision: 1,
         source: { kind: "draft", draftRevision: (await getDraft(control, formId))!.revision },
@@ -1058,8 +1066,8 @@ describe("one confirmation is one transaction", () => {
     ).toBe(200);
     try {
       const formId = await seedForm(0);
-      await saveDraft(editorTest.token, formId);
-      const done = await call(editorTest.token, "POST", `/forms/${formId}/publish-and-release`, {
+      await saveDraft(testAuthor.token, formId);
+      const done = await call(testAuthor.token, "POST", `/forms/${formId}/publish-and-release`, {
         environment: "test",
       });
       expect(done.status).toBe(200);
@@ -1072,7 +1080,7 @@ describe("one confirmation is one transaction", () => {
 
   it("rolls the whole act back when the outbox write fails", async () => {
     const formId = await seedForm(0);
-    const revision = await saveDraft(editorTest.token, formId);
+    const revision = await saveDraft(testAuthor.token, formId);
     await testDb.client.query(
       `create function data_test.refuse_outbox() returns trigger as $$
         begin raise exception 'outbox refused'; end; $$ language plpgsql`,
@@ -1082,7 +1090,7 @@ describe("one confirmation is one transaction", () => {
          for each row execute function data_test.refuse_outbox()`,
     );
     try {
-      const failed = await call(editorTest.token, "POST", `/forms/${formId}/publish-batch`, {
+      const failed = await call(testAuthor.token, "POST", `/forms/${formId}/publish-batch`, {
         idempotencyKey: KEYS(),
         expectedWorkflowRevision: null,
         source: { kind: "draft", draftRevision: revision },
@@ -1108,14 +1116,14 @@ describe("one confirmation is one transaction", () => {
       version: 1,
       releasedBy: "au_seed",
     });
-    const already = await call(editorTest.token, "POST", `/forms/${formId}/release-batch`, {
+    const already = await call(testAuthor.token, "POST", `/forms/${formId}/release-batch`, {
       idempotencyKey: KEYS(),
       expectedWorkflowRevision: null,
       source: { kind: "version", version: 1 },
       targets: [{ environment: "test", expectedSequence: 1 }],
     });
     expect(codeOf(already.body)).toBe("ALREADY_RELEASED");
-    const twice = await call(editorTest.token, "POST", `/forms/${formId}/release-batch`, {
+    const twice = await call(testAuthor.token, "POST", `/forms/${formId}/release-batch`, {
       idempotencyKey: KEYS(),
       expectedWorkflowRevision: null,
       source: { kind: "version", version: 1 },
@@ -1131,7 +1139,7 @@ describe("one confirmation is one transaction", () => {
 describe("idempotency and result lookup", () => {
   it("replays the stored result rather than creating a second version or event", async () => {
     const formId = await seedForm(0);
-    const revision = await saveDraft(editorTest.token, formId);
+    const revision = await saveDraft(testAuthor.token, formId);
     const key = KEYS();
     const body = {
       idempotencyKey: key,
@@ -1139,10 +1147,10 @@ describe("idempotency and result lookup", () => {
       source: { kind: "draft", draftRevision: revision },
       targets: [{ environment: "test", expectedSequence: null }],
     };
-    const first = await call(editorTest.token, "POST", `/forms/${formId}/publish-batch`, body);
+    const first = await call(testAuthor.token, "POST", `/forms/${formId}/publish-batch`, body);
     expect(first.status).toBe(200);
     expect(first.body.replayed).toBe(false);
-    const again = await call(editorTest.token, "POST", `/forms/${formId}/publish-batch`, body);
+    const again = await call(testAuthor.token, "POST", `/forms/${formId}/publish-batch`, body);
     expect(again.status).toBe(200);
     expect(again.body.replayed).toBe(true);
     expect(again.body.version).toBe(first.body.version);
@@ -1151,7 +1159,7 @@ describe("idempotency and result lookup", () => {
     expect(await releasedEvents("test", formId)).toBe(1);
     expect((await listFormReleases(control, formId, "test")).length).toBe(1);
 
-    const looked = await call(editorTest.token, "GET", `/forms/${formId}/release-batches/${key}`);
+    const looked = await call(testAuthor.token, "GET", `/forms/${formId}/release-batches/${key}`);
     expect(looked.status).toBe(200);
     expect(looked.body.version).toBe(first.body.version);
     // The recorded shape, not a reconstruction: a client that lost its answer cannot tell a
@@ -1163,7 +1171,7 @@ describe("idempotency and result lookup", () => {
   it("records a release of an existing version as having frozen nothing", async () => {
     const formId = await seedForm(1);
     const key = KEYS();
-    const released = await call(editorTest.token, "POST", `/forms/${formId}/release-batch`, {
+    const released = await call(testAuthor.token, "POST", `/forms/${formId}/release-batch`, {
       idempotencyKey: key,
       expectedWorkflowRevision: null,
       source: { kind: "version", version: 1 },
@@ -1171,21 +1179,21 @@ describe("idempotency and result lookup", () => {
     });
     expect(released.status).toBe(200);
     expect(released.body.froze).toBe(false);
-    const looked = await call(editorTest.token, "GET", `/forms/${formId}/release-batches/${key}`);
+    const looked = await call(testAuthor.token, "GET", `/forms/${formId}/release-batches/${key}`);
     expect(looked.body.froze).toBe(false);
   });
 
   it("refuses the same key for a different intent, and keeps the first result", async () => {
     const formId = await seedForm(2);
     const key = KEYS();
-    const first = await call(editorTest.token, "POST", `/forms/${formId}/release-batch`, {
+    const first = await call(testAuthor.token, "POST", `/forms/${formId}/release-batch`, {
       idempotencyKey: key,
       expectedWorkflowRevision: null,
       source: { kind: "version", version: 1 },
       targets: [{ environment: "test", expectedSequence: null }],
     });
     expect(first.status).toBe(200);
-    const changed = await call(editorTest.token, "POST", `/forms/${formId}/release-batch`, {
+    const changed = await call(testAuthor.token, "POST", `/forms/${formId}/release-batch`, {
       idempotencyKey: key,
       expectedWorkflowRevision: null,
       source: { kind: "version", version: 2 },
@@ -1199,7 +1207,7 @@ describe("idempotency and result lookup", () => {
   it("stores no result for a refusal, so the same key may be retried", async () => {
     const formId = await seedForm(1);
     const key = KEYS();
-    const refused = await call(approverProd.token, "POST", `/forms/${formId}/release-batch`, {
+    const refused = await call(prodPublisher.token, "POST", `/forms/${formId}/release-batch`, {
       idempotencyKey: key,
       expectedWorkflowRevision: null,
       source: { kind: "version", version: 1 },
@@ -1207,7 +1215,7 @@ describe("idempotency and result lookup", () => {
     });
     expect(refused.status).toBe(409);
     expect(
-      (await call(approverProd.token, "GET", `/forms/${formId}/release-batches/${key}`)).status,
+      (await call(prodPublisher.token, "GET", `/forms/${formId}/release-batches/${key}`)).status,
     ).toBe(404);
     await insertFormRelease(control, {
       formId,
@@ -1215,7 +1223,7 @@ describe("idempotency and result lookup", () => {
       version: 1,
       releasedBy: "au_seed",
     });
-    const retried = await call(approverProd.token, "POST", `/forms/${formId}/release-batch`, {
+    const retried = await call(prodPublisher.token, "POST", `/forms/${formId}/release-batch`, {
       idempotencyKey: key,
       expectedWorkflowRevision: null,
       source: { kind: "version", version: 1 },
@@ -1229,7 +1237,7 @@ describe("idempotency and result lookup", () => {
     const key = KEYS();
     expect(
       (
-        await call(editorTest.token, "POST", `/forms/${formId}/release-batch`, {
+        await call(testAuthor.token, "POST", `/forms/${formId}/release-batch`, {
           idempotencyKey: key,
           expectedWorkflowRevision: null,
           source: { kind: "version", version: 1 },
@@ -1239,7 +1247,7 @@ describe("idempotency and result lookup", () => {
     ).toBe(200);
 
     expect(
-      (await call(publisher.token, "GET", `/forms/${formId}/release-batches/${key}`)).status,
+      (await call(prodAuthor.token, "GET", `/forms/${formId}/release-batches/${key}`)).status,
     ).toBe(404);
   });
 
@@ -1248,7 +1256,7 @@ describe("idempotency and result lookup", () => {
     const key = KEYS();
     expect(
       (
-        await call(editorTest.token, "POST", `/forms/${formId}/release-batch`, {
+        await call(testAuthor.token, "POST", `/forms/${formId}/release-batch`, {
           idempotencyKey: key,
           expectedWorkflowRevision: null,
           source: { kind: "version", version: 1 },
@@ -1259,12 +1267,12 @@ describe("idempotency and result lookup", () => {
     const kept = await purgeExpiredReleaseBatches(control, new Date(0));
     expect(kept.purgedCount).toBe(0);
     expect(
-      (await call(editorTest.token, "GET", `/forms/${formId}/release-batches/${key}`)).status,
+      (await call(testAuthor.token, "GET", `/forms/${formId}/release-batches/${key}`)).status,
     ).toBe(200);
     const swept = await purgeExpiredReleaseBatches(control, new Date(Date.now() + 86_400_000));
     expect(swept.purgedCount).toBeGreaterThan(0);
     expect(
-      (await call(editorTest.token, "GET", `/forms/${formId}/release-batches/${key}`)).status,
+      (await call(testAuthor.token, "GET", `/forms/${formId}/release-batches/${key}`)).status,
     ).toBe(404);
   });
 });

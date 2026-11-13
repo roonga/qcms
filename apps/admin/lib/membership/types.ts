@@ -6,11 +6,12 @@ export interface WorkspaceListItem {
   readonly workspaceId: string;
   readonly name: string;
   readonly slug: string;
-  readonly isShared: boolean;
-  readonly requireSecondApprover: boolean;
   readonly archivedAt: string | null;
-  readonly forms: number;
-  readonly questions: number;
+  /** Administration, so absent where the caller holds no `workspace: read` there. */
+  readonly isShared: boolean | undefined;
+  readonly requireSecondApprover: boolean | undefined;
+  readonly forms: number | undefined;
+  readonly questions: number | undefined;
 }
 
 export interface WorkspaceMember {

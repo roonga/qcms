@@ -4,7 +4,6 @@ import {
   countWorkspaceContents,
   findArchiveBlockers,
   getForm,
-  getQuestion,
   getWorkspace,
   getWorkspaceBySlug,
   listWorkspaces,
@@ -22,6 +21,7 @@ import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
 import { adminAuthFor } from "../auth/route.js";
+import { holdsStatement } from "../membership/policy.js";
 import { decideInWorkspace, holdsInstallationClaim } from "../membership/resolver.js";
 import { requireOpenWorkspace, requireWorkspace, workspaceFail } from "./resolve.js";
 import type {
@@ -112,27 +112,33 @@ function isVendorSlugRefusal(err: unknown): boolean {
   return (err as { status?: unknown }).status === "BAD_REQUEST";
 }
 
-async function workspaceView(
-  deps: Deps,
-  row: WorkspaceRow,
-): Promise<{
+interface WorkspaceViewRow {
   workspaceId: string;
   name: string;
   slug: string;
-  isShared: boolean;
-  requireSecondApprover: boolean;
   archivedAt: string | null;
-  forms: number;
-  questions: number;
-}> {
-  const contents = await countWorkspaceContents(deps.databases.control, row.id);
+  isShared?: boolean;
+  requireSecondApprover?: boolean;
+  forms?: number;
+  questions?: number;
+}
+
+/** Identity alone, which is what a caller holding no `workspace: read` there is shown. */
+function workspaceIdentity(row: WorkspaceRow): WorkspaceViewRow {
   return {
     workspaceId: row.id,
     name: row.name,
     slug: row.slug,
+    archivedAt: row.archivedAt === null ? null : row.archivedAt.toISOString(),
+  };
+}
+
+async function workspaceView(deps: Deps, row: WorkspaceRow): Promise<WorkspaceViewRow> {
+  const contents = await countWorkspaceContents(deps.databases.control, row.id);
+  return {
+    ...workspaceIdentity(row),
     isShared: row.isShared,
     requireSecondApprover: row.requireSecondApprover,
-    archivedAt: row.archivedAt === null ? null : row.archivedAt.toISOString(),
     forms: contents.forms,
     questions: contents.questions,
   };
@@ -144,12 +150,28 @@ export function makeListWorkspacesHandler(
   return async (c) => {
     // Archived workspaces are in the list: one is archived and never deleted (Q15), and
     // one that still owns questions is what a reader needs to see.
-    const held = c.get("grantContext")?.workspaceIds ?? [];
+    const grant = c.get("grantContext");
+    const held = grant?.workspaceIds ?? [];
+    const administers = new Set(
+      (grant?.memberships ?? [])
+        .filter((membership) =>
+          holdsStatement(
+            { memberRole: membership.memberRole, grants: membership.grants },
+            "workspace",
+            "read",
+          ),
+        )
+        .map((membership) => membership.workspaceId),
+    );
     const rows = (await listWorkspaces(deps.databases.control)).filter((row) =>
       held.includes(row.id),
     );
     const workspaces = [];
-    for (const row of rows) workspaces.push(await workspaceView(deps, row));
+    for (const row of rows) {
+      workspaces.push(
+        administers.has(row.id) ? await workspaceView(deps, row) : workspaceIdentity(row),
+      );
+    }
     return c.json({ workspaces }, 200);
   };
 }
@@ -278,12 +300,8 @@ export function makeArchiveWorkspaceHandler(
 
 /**
  * One `UPDATE` on the identity row: the slug is unique installation-wide, so an ownership
- * change re-points no public address. Existing pins are not re-checked - whether the next
- * draft may keep them is the publish rule's answer, from the state at that time.
- *
- * The route row carries the source half, Edit forms plus Workspace administrator there.
- * The destination's own Edit forms cell is checked here, because one row names one
- * workspace.
+ * change re-points no public address. The route row carries the source half; the
+ * destination's own Edit forms cell is checked here, because one row names one workspace.
  */
 export function makeMoveFormHandler(deps: Deps): RouteHandler<typeof moveFormRoute, ApiEnv> {
   return async (c) => {

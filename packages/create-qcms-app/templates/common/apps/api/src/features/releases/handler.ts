@@ -13,7 +13,6 @@ import {
   getReleasedVersion,
   getWorkspace,
   insertReleaseWorkflowRevision,
-  isScopeAll,
   latestReleaseWorkflowRevision,
   listActiveWorkspaces,
   listEnvironmentNames,
@@ -326,7 +325,7 @@ export function makeReleaseReviewHandler(
           decideAccess({
             memberRole: membership.memberRole,
             grants: membership.grants,
-            request: { resource: "release", action: "create", environment, formId },
+            request: { resource: "release", action: "create", environment },
           }).allowed,
       )
       .map((environment) =>
@@ -512,7 +511,8 @@ async function heldEnvironments(
   ]);
   const held = new Set<string>();
   for (const grant of grants) {
-    if (isScopeAll(grant.environments)) for (const name of live) held.add(name);
+    // An empty set is a group whose roles ignore one, so it reaches every environment.
+    if (grant.environments.length === 0) for (const name of live) held.add(name);
     else for (const name of grant.environments) held.add(name);
   }
   return held;

@@ -955,9 +955,8 @@ function readWorkspacePort(input: ScreenBuildInput): ReadWorkspacePort {
       accessGroups: groups.slice(0, FACT_ROW_LIMIT).map((group) => ({
         groupId: group.teamId,
         name: group.name,
-        role: group.role,
+        roles: [...group.roles],
         environments: [...group.environments],
-        forms: [...group.forms],
       })),
     };
   };

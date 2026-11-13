@@ -37,7 +37,10 @@ export default async function WorkspaceSettingsPage({
         </h1>
       ) : (
         <WorkspaceSettingsPanel
-          settings={{ workspaceId, requireSecondApprover: workspace.requireSecondApprover }}
+          settings={{
+            workspaceId,
+            requireSecondApprover: workspace.requireSecondApprover === true,
+          }}
           save={saveWorkspaceSettingsAction}
         />
       )}

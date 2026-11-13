@@ -6,13 +6,12 @@ export interface WorkspaceListItem {
   readonly workspaceId: string;
   readonly name: string;
   readonly slug: string;
-  readonly isShared: boolean;
-  readonly requireSecondApprover: boolean;
-  /** Read the actual personal-data seeding setting; a guessed false would misrepresent an existing choice. */
-  readonly seedNewEditorsWithTestData: boolean;
   readonly archivedAt: string | null;
-  readonly forms: number;
-  readonly questions: number;
+  /** Administration, so absent where the caller holds no `workspace: read` there. */
+  readonly isShared: boolean | undefined;
+  readonly requireSecondApprover: boolean | undefined;
+  readonly forms: number | undefined;
+  readonly questions: number | undefined;
 }
 
 export interface WorkspaceMember {
@@ -28,13 +27,8 @@ export interface AccessGroup {
   readonly teamId: string;
 
   readonly name: string;
-
-  readonly fullName: string;
-
-  readonly directoryName: string;
-  readonly role: string;
+  readonly roles: readonly string[];
   readonly environments: readonly string[];
-  readonly forms: readonly string[];
   readonly externalGroupId: string | null;
   readonly holders: readonly { readonly userId: string; readonly email: string }[];
 }
@@ -42,14 +36,11 @@ export interface AccessGroup {
 export interface AccessGroupList {
   readonly workspaceId: string;
   readonly groups: readonly AccessGroup[];
-  /** The API explains scope because it owns the permission matrix; an editor all grant excludes production actions. */
-  readonly scopeNote: string;
 }
 
 export interface WorkspaceSettings {
   readonly workspaceId: string;
   readonly requireSecondApprover: boolean;
-  readonly seedNewEditorsWithTestData: boolean;
 }
 
 export interface AuditRow {
@@ -99,9 +90,8 @@ export interface AgentAuditPage {
 
 export interface HeldGrant {
   readonly name: string;
-  readonly role: string;
+  readonly roles: readonly string[];
   readonly environments: readonly string[];
-  readonly forms: readonly string[];
 }
 
 export interface MyAccessWorkspace {
@@ -128,7 +118,7 @@ export const RESPONSES_ERASER_ROLE = "responses.eraser";
 /** Skip cross-environment offers for callers with no eraser grant anywhere. This is only a fetch optimization; the API narrows the actual form offer. */
 export function holdsEraserGrantAnywhere(access: MyAccess): boolean {
   return access.workspaces.some((workspace) =>
-    workspace.grants.some((grant) => grant.role === RESPONSES_ERASER_ROLE),
+    workspace.grants.some((grant) => grant.roles.includes(RESPONSES_ERASER_ROLE)),
   );
 }
 
@@ -143,6 +133,5 @@ export type MembershipActionState =
       readonly role?: string;
       readonly userId?: string;
       readonly requireSecondApprover?: boolean;
-      readonly seedNewEditorsWithTestData?: boolean;
     }
   | { readonly status: "error"; readonly message: string };

@@ -66,12 +66,16 @@ export const listWorkspaces: (
         workspaceId: str(row["workspaceId"]),
         name: str(row["name"]),
         slug: str(row["slug"]),
-        isShared: bool(row["isShared"]),
-        requireSecondApprover: bool(row["requireSecondApprover"]),
-        seedNewEditorsWithTestData: bool(row["seedNewEditorsWithTestData"]),
         archivedAt: strOrNull(row["archivedAt"]),
-        forms: num(row["forms"]),
-        questions: num(row["questions"]),
+        // Absent where the caller administers nothing in that workspace, so read as
+        // undefined rather than coerced to a value nobody sent.
+        isShared: typeof row["isShared"] === "boolean" ? row["isShared"] : undefined,
+        requireSecondApprover:
+          typeof row["requireSecondApprover"] === "boolean"
+            ? row["requireSecondApprover"]
+            : undefined,
+        forms: typeof row["forms"] === "number" ? row["forms"] : undefined,
+        questions: typeof row["questions"] === "number" ? row["questions"] : undefined,
       })),
     };
   },
@@ -101,11 +105,8 @@ function parseGroup(row: Record<string, unknown>): AccessGroup {
   return {
     teamId: str(row["teamId"]),
     name: str(row["name"]),
-    fullName: str(row["fullName"]),
-    directoryName: str(row["directoryName"]),
-    role: str(row["role"]),
+    roles: strings(row["roles"]),
     environments: strings(row["environments"]),
-    forms: strings(row["forms"]),
     externalGroupId: strOrNull(row["externalGroupId"]),
     holders: rows(row["holders"]).map((holder) => ({
       userId: str(holder["userId"]),
@@ -118,18 +119,11 @@ export async function listAccessGroups(
   session: AdminSession,
   workspaceId: string,
 ): Promise<ApiResult<AccessGroupList>> {
-  const result = await readResult<{ groups?: unknown; scopeNote?: unknown }>(
+  const result = await readResult<{ groups?: unknown }>(
     await adminApiFetch(session, `/workspaces/${encodeURIComponent(workspaceId)}/access-groups`),
   );
   if (!result.ok) return result;
-  return {
-    ok: true,
-    data: {
-      workspaceId,
-      groups: rows(result.data.groups).map(parseGroup),
-      scopeNote: str(result.data.scopeNote),
-    },
-  };
+  return { ok: true, data: { workspaceId, groups: rows(result.data.groups).map(parseGroup) } };
 }
 
 export async function createAccessGroup(
@@ -137,10 +131,8 @@ export async function createAccessGroup(
   workspaceId: string,
   body: {
     readonly name: string;
-    readonly role: string;
+    readonly roles: readonly string[];
     readonly environments: readonly string[];
-    readonly forms: readonly string[];
-    readonly label?: string;
   },
   proposal?: AgentProposalRef,
 ): Promise<ApiResult<AccessGroup>> {
@@ -237,16 +229,12 @@ export async function setMemberRole(
 export async function setWorkspaceSettings(
   session: AdminSession,
   workspaceId: string,
-  body: {
-    readonly requireSecondApprover?: boolean;
-    readonly seedNewEditorsWithTestData?: boolean;
-  },
+  body: { readonly requireSecondApprover: boolean },
   proposal?: AgentProposalRef,
 ): Promise<ApiResult<WorkspaceSettings>> {
   const result = await readResult<{
     workspaceId?: unknown;
     requireSecondApprover?: unknown;
-    seedNewEditorsWithTestData?: unknown;
   }>(
     await adminApiFetch(session, `/workspaces/${encodeURIComponent(workspaceId)}/settings`, {
       method: "PUT",
@@ -260,7 +248,6 @@ export async function setWorkspaceSettings(
     data: {
       workspaceId: str(result.data.workspaceId),
       requireSecondApprover: bool(result.data.requireSecondApprover),
-      seedNewEditorsWithTestData: bool(result.data.seedNewEditorsWithTestData),
     },
   };
 }
@@ -382,9 +369,8 @@ export const readMyAccess: (session: AdminSession) => Promise<ApiResult<MyAccess
           memberRole: strOrNull(row["memberRole"]),
           grants: rows(row["grants"]).map((grant) => ({
             name: str(grant["name"]),
-            role: str(grant["role"]),
+            roles: strings(grant["roles"]),
             environments: strings(grant["environments"]),
-            forms: strings(grant["forms"]),
           })),
           environments: strings(row["environments"]),
         })),

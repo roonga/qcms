@@ -22,6 +22,7 @@ import {
   insertFormVersion,
   insertFormRelease,
   insertSecureLink,
+  listFormReleases,
   listFormVersions,
   publishQuestionVersion,
   setRequireSecondApprover,
@@ -468,13 +469,13 @@ describe("the release history (criteria 4 and 7)", () => {
 });
 
 describe("refusals", () => {
+  // No group names an environment the deployment does not serve, and there is no value
+  // meaning every environment, so the gate refuses before the handler reads the name.
   it("refuses a release into an environment this deployment does not serve", async () => {
     const { formId } = await seedForm("unknownenv", 1);
     const res = await post(`/forms/${formId}/releases`, { environment: "staging", version: 1 });
-    expect(res.status).toBe(400);
-    expect(((await res.json()) as { error: { code: string } }).error.code).toBe(
-      "UNKNOWN_ENVIRONMENT",
-    );
+    expect(res.status).toBe(403);
+    expect(await listFormReleases(control, formId, "staging")).toEqual([]);
   });
 
   it("refuses a promotion whose source is the environment it releases to", async () => {
@@ -667,7 +668,7 @@ describe("publish and release in one act (finding 2's combined action)", () => {
     });
 
     const res = await post(`/forms/${formId}/publish-and-release`, { environment: "staging" });
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(403);
 
     const detail = await get(`/forms/${formId}`);
     const form = (await detail.json()) as { versions: unknown[]; draft: unknown };

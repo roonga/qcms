@@ -21,14 +21,13 @@ export interface RoutePolicy {
   // would let a `test` caller act on `prod`. `query` is an explicit query parameter, and
   // `targets` evaluates the cell once per destination the body names.
   readonly environmentFrom?: "body" | "switcher" | "query" | "targets";
-  // A second cell the route also requires, evaluated against the same workspace and
-  // environment before any handler runs, so neither half can be forgotten.
-  readonly also?: { readonly resource: Resource; readonly action: string };
+  // Further cells the route also requires, each evaluated against the same workspace
+  // and environment before any handler runs, so no half can be forgotten.
+  readonly also?: readonly { readonly resource: Resource; readonly action: string }[];
   // Cells the route admits any one of, the primary included. The middleware admits a
   // caller holding one of them as a statement somewhere; the scopes cannot be judged
   // there, so the handler decides per form, cell and environment.
   readonly anyOf?: readonly { readonly resource: Resource; readonly action: string }[];
-  readonly namesForm?: true;
   // No role reaches the route: a caller holding every grant in the installation is still
   // refused.
   readonly installationOnly?: true;
@@ -51,6 +50,21 @@ export const OPERATIONAL_CELLS: readonly {
   { resource: "response", action: "read" },
   { resource: "response", action: "erase" },
   { resource: "response", action: "dispose" },
+];
+
+/**
+ * The cells any one of which means the caller holds something in a workspace, which is
+ * what puts that workspace on their list. The union is one cell per access role plus the
+ * administrator's own, so a role added to the matrix is a row somebody adds here too.
+ */
+export const WORKSPACE_LIST_CELLS: readonly {
+  readonly resource: Resource;
+  readonly action: string;
+}[] = [
+  { resource: "workspace", action: "read" },
+  { resource: "form", action: "read" },
+  { resource: "response", action: "read" },
+  { resource: "response", action: "erase" },
 ];
 
 /**
@@ -114,11 +128,14 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
   },
 
   {
+    // Every grant holder sees the workspaces they hold something in, not administrators
+    // alone; the handler reduces the row for a caller who holds no `workspace: read` there.
     method: "GET",
     path: "/admin/workspaces",
     resource: "workspace",
     action: "read",
     workspace: "caller",
+    anyOf: WORKSPACE_LIST_CELLS,
   },
   {
     method: "PUT",
@@ -282,14 +299,6 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     action: "write",
     workspace: "question",
   },
-  {
-    // This row names the **source** workspace; the handler checks the target separately.
-    method: "POST",
-    path: "/admin/questions/{id}/workspace",
-    resource: "workspace",
-    action: "update",
-    workspace: "question",
-  },
 
   {
     method: "GET",
@@ -335,7 +344,7 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     resource: "form",
     action: "write",
     workspace: "form",
-    also: { resource: "question", action: "write" },
+    also: [{ resource: "question", action: "write" }],
   },
   {
     method: "POST",
@@ -374,36 +383,43 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     workspace: "form",
   },
   {
-    // Publishing releases a version nowhere, so it names no environment and an author
-    // needs one grant rather than one per environment.
+    // Freezing a version releases it nowhere, so it names no environment. Both cells:
+    // Edit forms alone cannot freeze a version, and neither can Publish forms alone.
     method: "POST",
     path: "/admin/forms/{id}/publish",
     resource: "form",
     action: "publish",
     workspace: "form",
+    also: [{ resource: "form", action: "write" }],
   },
   {
-    // Two acts: without the `also` release half, a `forms.editor` scoped to `test`
-    // reaches a production release through this route.
+    // Three cells: freeze, draft and release. Without the release half a publisher for
+    // `test` would reach `prod` through this route.
     method: "POST",
     path: "/admin/forms/{id}/publish-and-release",
     resource: "form",
     action: "publish",
     workspace: "form",
-    also: { resource: "release", action: "create" },
+    also: [
+      { resource: "form", action: "write" },
+      { resource: "release", action: "create" },
+    ],
     namesEnvironment: true,
     environmentFrom: "body",
   },
   {
-    // One snapshot and several destinations: `form: publish` for the version, and
+    // One snapshot and several destinations: the freeze and draft cells once, and
     // `release: create` evaluated once per listed target. An empty list is the
-    // "create a version without releasing" case and needs the publish cell alone.
+    // "freeze a version without releasing" case and needs the freeze cells alone.
     method: "POST",
     path: "/admin/forms/{id}/publish-batch",
     resource: "form",
     action: "publish",
     workspace: "form",
-    also: { resource: "release", action: "create" },
+    also: [
+      { resource: "form", action: "write" },
+      { resource: "release", action: "create" },
+    ],
     namesEnvironment: true,
     environmentFrom: "targets",
   },
@@ -471,11 +487,14 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     environmentFrom: "body",
   },
   {
+    // Edit forms in the source and a Workspace administrator of it. The destination's
+    // own Edit forms cell is the handler's, since this row names one workspace.
     method: "POST",
     path: "/admin/forms/{id}/workspace",
-    resource: "workspace",
-    action: "update",
+    resource: "form",
+    action: "write",
     workspace: "form",
+    also: [{ resource: "workspace", action: "update" }],
   },
 
   {
@@ -618,7 +637,6 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     workspace: "form",
     namesEnvironment: true,
     environmentFrom: "switcher",
-    namesForm: true,
     audit: "read",
   },
   {
@@ -629,7 +647,6 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     workspace: "form",
     namesEnvironment: true,
     environmentFrom: "switcher",
-    namesForm: true,
     audit: "read",
   },
   {
@@ -640,7 +657,6 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     workspace: "form",
     namesEnvironment: true,
     environmentFrom: "switcher",
-    namesForm: true,
     audit: "export",
   },
   {
@@ -651,7 +667,6 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     workspace: "form",
     namesEnvironment: true,
     environmentFrom: "switcher",
-    namesForm: true,
     audit: "erasure",
   },
   {
@@ -664,7 +679,6 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     workspace: "form",
     namesEnvironment: true,
     environmentFrom: "switcher",
-    namesForm: true,
   },
   {
     // A disposition on response data rather than a read, so it is the eraser's row.
@@ -675,7 +689,6 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     workspace: "form",
     namesEnvironment: true,
     environmentFrom: "switcher",
-    namesForm: true,
   },
   {
     // The tombstone list carries no answer content, so installation-wide operator state
