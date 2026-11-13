@@ -300,8 +300,8 @@ describe("a scaffolded QCMS deployment", () => {
     );
     expect(submitted["ok"]).toBe(true);
 
-    // 5a. `create-admin` seeds no `responses.*` grant (ADR-41, Q29), so grant one
-    //     explicitly; a self-grant is allowed and audited by default (Q13, Q56).
+    // 5a. `create-admin` seeds no response role, so grant one explicitly; a self-grant is
+    //     allowed and audited while the second-approver switch is off.
     const workspaces = (await json(
       `${API}/admin/workspaces`,
       { headers: adminHeaders() },
@@ -316,10 +316,9 @@ describe("a scaffolded QCMS deployment", () => {
         method: "POST",
         headers: adminHeaders(),
         body: JSON.stringify({
-          name: "all.responses.viewer",
-          role: "responses.viewer",
-          environments: ["all"],
-          forms: ["all"],
+          name: "Response viewers",
+          roles: ["responses.viewer"],
+          environments: ["test", "prod"],
         }),
       },
       [201],
