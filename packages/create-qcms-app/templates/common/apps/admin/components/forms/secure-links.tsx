@@ -8,7 +8,7 @@ import { Alert, Button, Checkbox, DatePicker, Dialog, NumberField } from "@/comp
 import { LinkStateTag } from "@/components/forms/link-state-tag";
 import type { MintLinksState, RevokeLinkState } from "@/lib/forms/builder-state";
 import { IDLE_MINT, IDLE_REVOKE } from "@/lib/forms/builder-state";
-import { isRevocable, mintedLinksCsv, mintedLinksFilename } from "@/lib/forms/links";
+import { downloadMintedLinks, isRevocable } from "@/lib/forms/links";
 import type { MintedLink, SecureLink } from "@/lib/forms/types";
 import type { ReadState } from "@/lib/read-state";
 import { focusPostAction } from "@/lib/ops/post-action-focus";
@@ -17,9 +17,6 @@ import { OperatorDateTime } from "@/components/operator-time";
 import { t, tPlural } from "@/lib/i18n/en";
 import { HeadingMarker } from "@/components/agent/heading-marker";
 import { unexpected } from "@/lib/ops/unexpected";
-
-/* Delay object-URL revocation so the browser has time to start the download. */
-const REVOKE_DELAY_MS = 60_000;
 
 /* Minted URLs cannot be recovered: the API stores link state without tokens. Keep the one-time copy/export
    panel separate from history. */
@@ -310,18 +307,7 @@ function MintedPanel({
   useEffect(() => focusPostAction(heading.current), []);
 
   const download = useCallback(() => {
-    // Build the CSV locally from minted URLs; sending bearer credentials back through the server adds exposure
-    // without new data.
-    const blob = new Blob([mintedLinksCsv(links)], { type: "text/csv;charset=utf-8" });
-    const href = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = href;
-    anchor.download = mintedLinksFilename(formId);
-    anchor.click();
-    // Revoke the object URL on a later task so the download can begin after click.
-    setTimeout(() => {
-      URL.revokeObjectURL(href);
-    }, REVOKE_DELAY_MS);
+    downloadMintedLinks(formId, links);
   }, [links, formId]);
 
   return (

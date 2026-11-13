@@ -37,6 +37,9 @@ export interface ActionCardProps {
   readonly onOpenScreen?: () => void;
   readonly focusOnArrival?: boolean;
   readonly remainingMs?: number;
+  readonly onDismissReveal?: (index: number) => void;
+  /** A card kept on screen only for the reveal nobody has dismissed: it reports its result no second time. */
+  readonly held?: boolean;
 }
 
 export function ActionCard(props: ActionCardProps): React.ReactElement {
@@ -84,7 +87,13 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
 
   return (
     <>
-      <article className="qcms-acard" id={base} aria-labelledby={titleId} onKeyDown={onKeyDown}>
+      <article
+        className="qcms-acard"
+        id={base}
+        aria-labelledby={titleId}
+        onKeyDown={onKeyDown}
+        {...(props.held === true ? { "data-held": "true" } : {})}
+      >
         <header className="qcms-acard__head">
           <h2 className="qcms-acard__title" id={titleId} tabIndex={-1} ref={headingRef}>
             {multi
@@ -116,6 +125,7 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
               names={names}
               steps={proposal.steps}
               idBase={base}
+              onDismissReveal={props.onDismissReveal}
             />
           ))}
         </ol>
@@ -131,7 +141,7 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
           onTyped={setTyped}
           required={required}
           idBase={base}
-          reportsResult={!open}
+          reportsResult={!open && props.held !== true}
           onConfirm={props.onConfirm}
           onCancel={props.onCancel}
           onStop={props.onStop}
@@ -163,6 +173,7 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
           onTyped={setTyped}
           required={required}
           idBase={`${base}-dialog`}
+          onDismissReveal={props.onDismissReveal}
           onConfirm={props.onConfirm}
           onCancel={props.onCancel}
           onStop={props.onStop}

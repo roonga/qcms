@@ -74,6 +74,7 @@ export const FAKE_SCRIPTS = [
 
   "propose-form-create",
   "propose-link-mint",
+  "propose-link-mint-batch",
   "propose-link-revoke",
   "propose-question-create",
   "propose-question-save-draft",
@@ -802,6 +803,9 @@ function firstId(rows: unknown, member: string, fallback: string): string {
   return fallback;
 }
 
+/** The largest batch `link.mint` accepts, so a spec can drive the card at its widest. */
+const MAX_MINT_BATCH = 100;
+
 function mintStep(formId: string, count = 2): Record<string, unknown> {
   return {
     kind: "link.mint",
@@ -1063,6 +1067,7 @@ const SINGLE_ACTIONS: Readonly<
   "propose-form-create": (prompt) => createFormStep(prompt),
   "propose-question-create": (prompt) => createQuestionStep(prompt),
   "propose-link-mint": (prompt) => mintStep(factFormId(prompt), 2),
+  "propose-link-mint-batch": (prompt) => mintStep(factFormId(prompt), MAX_MINT_BATCH),
   "propose-link-revoke": (prompt) => revokeStep(factFormId(prompt), factActiveLinkId(prompt)),
   "propose-question-save-draft": (prompt) => {
     const questionId = factQuestionId(prompt);

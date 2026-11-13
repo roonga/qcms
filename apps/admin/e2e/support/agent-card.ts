@@ -17,8 +17,21 @@ export function panel(page: Page): Locator {
   return page.getByTestId("qcms-assistant-panel");
 }
 
+// A card kept on screen only for a reveal nobody has dismissed is not the card under test.
 export function card(page: Page): Locator {
-  return page.locator(".qcms-acard");
+  return page.locator(".qcms-acard:not([data-held])");
+}
+
+export function heldCard(page: Page): Locator {
+  return page.locator(".qcms-acard[data-held]");
+}
+
+export function revealList(scope: Locator): Locator {
+  return scope.getByTestId("qcms-acard-reveal-list");
+}
+
+export function revealedAddresses(scope: Locator): Promise<string[]> {
+  return revealList(scope).locator("code").allInnerTexts();
 }
 
 export function cardChip(page: Page): Locator {

@@ -26,8 +26,10 @@ import { screenIdentity, type ResolvedScreen } from "@/lib/agent/screens";
 import {
   actionResultTurn,
   cancelCard,
+  dismissReveal,
   expireCard,
   firstPendingStep,
+  holdsReveal,
   initialCard,
   requestStop,
   showsMarker,
@@ -69,6 +71,24 @@ function continuesAfterAccept(plan: AgentProposal): boolean {
 
 function ranCleanly(settled: AgentCardView): boolean {
   return settled.steps.length > 0 && settled.steps.every((step) => step.state === "done");
+}
+
+interface OneCard {
+  readonly proposal: AgentProposal;
+  readonly card: AgentCardView;
+}
+
+/* `held` are settled cards kept on screen for a reveal alone, because a one-time value the next
+   proposal swept away could not be shown again. */
+interface CardsView {
+  readonly open: OneCard | undefined;
+  readonly held: readonly OneCard[];
+}
+
+const NO_CARDS: CardsView = { open: undefined, held: [] };
+
+function noop(): void {
+  return undefined;
 }
 
 import {
@@ -140,9 +160,10 @@ function ScreenConversation({
   const [shown, setShown] = useState<readonly ShownTurn[]>(() => restored(conversation.turns));
   const [live, setLive] = useState<AssistantTurnView | undefined>(undefined);
   const [failure, setFailure] = useState<AssistError | undefined>(undefined);
-  const [proposal, setProposal] = useState<AgentProposal | undefined>(undefined);
   const [reason, setReason] = useState("");
-  const [card, setCard] = useState<AgentCardView | undefined>(undefined);
+  const [cards, setCards] = useState<CardsView>(NO_CARDS);
+  const proposal = cards.open?.proposal;
+  const card = cards.open?.card;
   const abortRef = useRef<AbortController | null>(null);
   const stoppedRef = useRef(false);
   const windowRef = useRef<ProposalWindow>({ startedAt: 0, totalMs: 0 });
@@ -170,8 +191,39 @@ function ScreenConversation({
     });
   }, [card, cardId, proposal, publish]);
 
+  const showCard = useCallback((next: AgentCardView) => {
+    setCards((current) =>
+      current.open === undefined ? current : { ...current, open: { ...current.open, card: next } },
+    );
+  }, []);
+
+  const dismissOpenReveal = useCallback((index: number) => {
+    setCards((current) =>
+      current.open === undefined
+        ? current
+        : { ...current, open: { ...current.open, card: dismissReveal(current.open.card, index) } },
+    );
+  }, []);
+
+  const dismissHeldReveal = useCallback((proposalId: string, index: number) => {
+    setCards((current) => ({
+      ...current,
+      held: current.held
+        .map((entry) =>
+          entry.proposal.proposalId === proposalId
+            ? { ...entry, card: dismissReveal(entry.card, index) }
+            : entry,
+        )
+        .filter((entry) => holdsReveal(entry.card)),
+    }));
+  }, []);
+
   const onExpire = useCallback(() => {
-    setCard((current) => (current === undefined ? current : expireCard(current)));
+    setCards((current) =>
+      current.open === undefined
+        ? current
+        : { ...current, open: { ...current.open, card: expireCard(current.open.card) } },
+    );
   }, []);
   const waiting = card?.state === "proposed";
   useExpiryTick(windowRef.current, waiting, onExpire);
@@ -200,7 +252,7 @@ function ScreenConversation({
   );
 
   const settle = (plan: AgentProposal, settled: AgentCardView): void => {
-    setCard(settled);
+    showCard(settled);
     const turn = actionResultTurn(plan, settled);
     if (turn !== undefined) conversation.append([turn]);
   };
@@ -209,12 +261,12 @@ function ScreenConversation({
     // Subscribe before running: the accept's own save is the event being awaited.
     const saved = continuesAfterAccept(plan) ? nextDraftSaved() : undefined;
     const started = startRun(from);
-    setCard(started);
+    showCard(started);
     const settled = await runPlan({
       proposal: plan,
       card: started,
       runStep: runStepAction,
-      onChange: setCard,
+      onChange: showCard,
       onHandOff: (step, _index, args) => {
         const control = step.card.headingControl;
         if (control === undefined || requestHandOff === undefined) return;
@@ -252,10 +304,17 @@ function ScreenConversation({
 
   const absorb = (event: AssistEvent): void => {
     if (event.type === "action" || event.type === "plan") {
-      setProposal(event.proposal);
-      windowRef.current = startedWindow(event.proposal);
+      const arriving = event.proposal;
+      windowRef.current = startedWindow(arriving);
       boundTo.current = { where, environment };
-      setCard(initialCard(event.proposal));
+      // A reveal cannot be produced again, so the card holding one stays until the person says otherwise.
+      setCards((current) => ({
+        held:
+          current.open !== undefined && holdsReveal(current.open.card)
+            ? [...current.held, current.open]
+            : current.held,
+        open: { proposal: arriving, card: initialCard(arriving) },
+      }));
       onAnnounce(t("agent.launcher.toReview"));
       return;
     }
@@ -392,6 +451,27 @@ function ScreenConversation({
             </div>
           </li>
         )}
+        {cards.held.map((entry) => (
+          <li
+            key={`held-${entry.proposal.proposalId}`}
+            className="qcms-assistant__turn"
+            data-role="assistant"
+          >
+            <ActionCard
+              id={`${cardId}-held-${entry.proposal.proposalId}`}
+              proposal={entry.proposal}
+              card={entry.card}
+              held
+              remainingMs={0}
+              onConfirm={noop}
+              onCancel={noop}
+              onStop={noop}
+              onDismissReveal={(index) => {
+                dismissHeldReveal(entry.proposal.proposalId, index);
+              }}
+            />
+          </li>
+        ))}
         {proposal !== undefined && card !== undefined && (
           <li className="qcms-assistant__turn" data-role="assistant">
             <ActionCard
@@ -402,7 +482,8 @@ function ScreenConversation({
               remainingMs={remainingWindowMs(windowRef.current, monotonicNow())}
               onConfirm={() => void confirmCard(proposal, card)}
               onCancel={() => settle(proposal, cancelCard(card, new Date().toISOString()))}
-              onStop={() => setCard(requestStop(card))}
+              onStop={() => showCard(requestStop(card))}
+              onDismissReveal={dismissOpenReveal}
             />
           </li>
         )}
