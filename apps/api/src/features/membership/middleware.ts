@@ -350,18 +350,21 @@ async function decideOverTargets(
     if (!decision.allowed) throw fail.refused(decision.reason ?? "Refused");
   };
 
-  const primaryScoped = isEnvironmentScoped(policy.resource, policy.action);
-  // A row whose only cell is environment-scoped authorises nothing with no destination
-  // named, so an empty list is a refusal rather than a pass to the validator.
-  if (primaryScoped && targets.length === 0) throw fail.noTargets();
-  if (!primaryScoped) decide({ resource: policy.resource, action: policy.action });
-
   const cells = [
-    ...(primaryScoped ? [{ resource: policy.resource, action: policy.action }] : []),
-    ...(policy.also === undefined ? [] : [policy.also]),
+    { resource: policy.resource, action: policy.action },
+    ...(policy.also ?? []),
   ];
+  const scoped = cells.filter((cell) => isEnvironmentScoped(cell.resource, cell.action));
+  const free = cells.filter((cell) => !isEnvironmentScoped(cell.resource, cell.action));
+
+  // A row whose primary cell is environment-scoped authorises nothing with no destination
+  // named, so an empty list is a refusal rather than a pass to the validator.
+  if (isEnvironmentScoped(policy.resource, policy.action) && targets.length === 0) {
+    throw fail.noTargets();
+  }
+  for (const cell of free) decide({ resource: cell.resource, action: cell.action });
   for (const environment of targets) {
-    for (const cell of cells) {
+    for (const cell of scoped) {
       decide({ resource: cell.resource, action: cell.action, environment });
     }
   }
@@ -418,28 +421,26 @@ async function decideInOneWorkspace(
     readonly environment?: string;
   },
 ): Promise<GrantContext> {
-  const { policy, path, workspaceId, request, environment } = input;
-  const formId = policy.namesForm === true ? segment(policy.path, path, "id") : undefined;
+  const { policy, workspaceId, request, environment } = input;
   const resolved: ResolvedMembership = await resolveGrants(deps.databases.control, {
     userId: input.userId,
     workspaceId,
     claim: input.claim,
   });
-  const scoped = { ...request, ...(formId === undefined ? {} : { formId }) };
   const decision = decideAccess({
     memberRole: resolved.memberRole,
     grants: resolved.grants,
-    request: scoped,
+    request,
   });
   if (!decision.allowed) throw fail.refused(decision.reason ?? "Refused");
 
-  // Both cells are evaluated before any handler runs, against the same workspace and
-  // environment, so neither half can be skipped.
-  if (policy.also !== undefined) {
+  // Every cell is evaluated before any handler runs, against the same workspace and
+  // environment, so no half can be skipped.
+  for (const cell of policy.also ?? []) {
     const second = decideAccess({
       memberRole: resolved.memberRole,
       grants: resolved.grants,
-      request: { ...scoped, resource: policy.also.resource, action: policy.also.action },
+      request: { ...request, resource: cell.resource, action: cell.action },
     });
     if (!second.allowed) throw fail.refused(second.reason ?? "Refused");
   }

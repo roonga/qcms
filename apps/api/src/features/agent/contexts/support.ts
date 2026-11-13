@@ -15,7 +15,6 @@ import { ApiError } from "../../../errors.js";
 import {
   decideAccess,
   isEnvironmentScoped,
-  isFormScoped,
   type AccessRequest,
   type Resource,
 } from "../../membership/policy.js";
@@ -152,15 +151,11 @@ function requestFor(args: {
   readonly resource: Resource;
   readonly action: string;
   readonly environment: string;
-  readonly formId?: string;
 }): AccessRequest {
   return {
     resource: args.resource,
     action: args.action,
     ...(isEnvironmentScoped(args.resource, args.action) ? { environment: args.environment } : {}),
-    ...(isFormScoped(args.resource, args.action) && args.formId !== undefined
-      ? { formId: args.formId }
-      : {}),
   };
 }
 
@@ -216,17 +211,6 @@ export async function workspacesHoldingOrNone(
   return workspacesAllowing(resolved, requestFor({ ...args, environment: input.environment }));
 }
 
-/**
- * The form ids a membership can answer a form-scoped cell for: whatever its grants name,
- * plus the wildcard a workspace-wide grant carries. A form-scoped cell asked with no form
- * id is refused outright by the policy, so eligibility has to ask about some form.
- */
-function candidateForms(membership: ResolvedMembership): readonly string[] {
-  const ids = new Set<string>(["all"]);
-  for (const grant of membership.grants) for (const id of grant.forms) ids.add(id);
-  return [...ids];
-}
-
 /** The caller's grants in every workspace they hold one in, resolved once per turn. */
 export async function callerWorkspaces(
   input: ScreenBuildInput,
@@ -247,19 +231,7 @@ export function holdsCellIn(
   environment: string,
   args: { readonly resource: Resource; readonly action: string },
 ): boolean {
-  if (!isFormScoped(args.resource, args.action)) {
-    return workspacesAllowing(resolved, requestFor({ ...args, environment })).length > 0;
-  }
-  return resolved.some((membership) =>
-    candidateForms(membership).some(
-      (formId) =>
-        decideAccess({
-          memberRole: membership.memberRole,
-          grants: membership.grants,
-          request: requestFor({ ...args, environment, formId }),
-        }).allowed,
-    ),
-  );
+  return workspacesAllowing(resolved, requestFor({ ...args, environment })).length > 0;
 }
 
 export async function holdsCellAnywhere(

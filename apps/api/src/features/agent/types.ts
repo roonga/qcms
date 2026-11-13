@@ -449,9 +449,8 @@ export interface WorkspaceReport {
   readonly accessGroups: readonly {
     readonly groupId: string;
     readonly name: string;
-    readonly role: string;
+    readonly roles: readonly string[];
     readonly environments: readonly string[];
-    readonly forms: readonly string[];
   }[];
 }
 

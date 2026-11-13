@@ -380,12 +380,7 @@ async function buildOperations(input: ScreenBuildInput): Promise<z.infer<typeof 
     const decision = decideAccess({
       memberRole: resolved.memberRole,
       grants: resolved.grants,
-      request: {
-        resource: "response",
-        action: "read",
-        environment: input.environment,
-        formId: form.formId,
-      },
+      request: { resource: "response", action: "read", environment: input.environment },
     });
     if (decision.allowed) readable.push(form.formId);
   }
@@ -434,12 +429,7 @@ async function buildResponsePicker(
     const decision = decideAccess({
       memberRole: resolved.memberRole,
       grants: resolved.grants,
-      request: {
-        resource: "response",
-        action: "read",
-        environment: input.environment,
-        formId: form.formId,
-      },
+      request: { resource: "response", action: "read", environment: input.environment },
     });
     if (decision.allowed) allowed.push(form);
     if (allowed.length >= FACT_ROW_LIMIT) break;

@@ -19,13 +19,12 @@ export function holdsInstallationClaim(role: string | undefined): boolean {
   return role === INSTALLATION_CLAIM;
 }
 
-// The installation claim is modelled as a `forms.owner` grant in whichever workspace is
-// asked about, so one code path judges every caller. That role's silence about `response`
-// is what keeps a claim holder out of response data.
+// The installation claim is modelled as a Workspace administrator grant in whichever
+// workspace is asked about, so one code path judges every caller. That role's silence
+// about `response` is what keeps a claim holder out of response data.
 const CLAIM_GRANT: HeldGrant = {
-  role: "forms.owner",
-  environments: ["all"],
-  forms: ["all"],
+  roles: ["forms.owner"],
+  environments: [],
 };
 
 export type { ResolvedMembership } from "./context.js";
@@ -40,9 +39,8 @@ export async function resolveGrants(
 ): Promise<ResolvedMembership> {
   const membership = await resolveMembership(exec, input.userId, input.workspaceId);
   const grants: HeldGrant[] = membership.grants.map((grant) => ({
-    role: grant.role,
+    roles: grant.roles,
     environments: grant.environments,
-    forms: grant.forms,
     name: grant.name,
   }));
   if (input.claim) grants.push(CLAIM_GRANT);
@@ -89,9 +87,8 @@ export async function resolveCallerWorkspaces(
   for (const membership of memberships) slot(membership.workspaceId).memberRole = membership.role;
   for (const grant of teamGrants) {
     slot(grant.workspaceId).grants.push({
-      role: grant.role,
+      roles: grant.roles,
       environments: grant.environments,
-      forms: grant.forms,
       name: grant.name,
     });
   }

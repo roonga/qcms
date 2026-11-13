@@ -51,7 +51,6 @@ export const WorkspaceView = z
     /** At most one workspace is the installation's shared question library. */
     isShared: z.boolean(),
     requireSecondApprover: z.boolean(),
-    seedNewEditorsWithTestData: z.boolean(),
     archivedAt: z.iso.datetime().nullable(),
     /** What it owns, so a list can say why an archive would be refused. */
     forms: z.number().int().nonnegative().openapi({ example: 2 }),

@@ -1,12 +1,10 @@
 import type { RouteHandler } from "@hono/zod-openapi";
 import {
-  accessGroupDirectoryName,
-  accessGroupFullName,
   addAccessGroupHolder,
+  carriesResponsesRole,
   countWorkspaceOwners,
   createAccessGroup,
   deleteAccessGroup,
-  EDITOR_ALL_SCOPE_NOTE,
   ensureWorkspaceMember,
   findUserByEmail,
   findUsersByIds,
@@ -15,7 +13,6 @@ import {
   holdsAccessGroup,
   isAccessGroupNameTaken,
   isResponsesRole,
-  isScopeAll,
   listAccessAudit,
   listAccessGroupHolders,
   listAccessGroups,
@@ -24,16 +21,15 @@ import {
   listGrantsForUser,
   listMemberWorkspacesForUser,
   listWorkspaceMembers,
-  normaliseEnvironmentScope,
-  readSeedNewEditorsWithTestData,
+  normaliseEnvironmentSet,
   refuseAccessGroupName,
-  refuseEnvironmentScope,
+  refuseAccessGroupRoles,
+  refuseEnvironmentSet,
   removeAccessGroupHolder,
   resolveMembership,
   setMemberRole,
   setRequireSecondApprover,
-  setSeedNewEditorsWithTestData,
-  updateAccessGroupScope,
+  updateAccessGroup,
   writeAccessAuditRow,
   type AccessGroupRow,
   type Executor,
@@ -86,6 +82,8 @@ const fail = {
   invalidName: (reason: string): ApiError => new ApiError("ACCESS_GROUP_NAME_INVALID", 400, reason),
   invalidScope: (reason: string): ApiError =>
     new ApiError("ACCESS_GROUP_SCOPE_INVALID", 400, reason),
+  invalidRoles: (reason: string): ApiError =>
+    new ApiError("ACCESS_GROUP_ROLES_INVALID", 400, reason),
   // One answer for every account the caller may not add, so the refusal never says
   // whether an account exists.
   cannotAdd: (): ApiError =>
@@ -114,11 +112,10 @@ const fail = {
     new ApiError(
       "SELF_GRANT_REFUSED",
       409,
-      "This workspace requires a second approver, so you cannot grant yourself a " +
-        "responses role: a second `forms.owner`, or the installation administrator, has " +
-        "to make this grant. That is the same switch that governs the two-person rule " +
-        "for a production release, and a grant on response data is a grant on personal " +
-        "data.",
+      "This workspace requires a second approver, so you cannot give yourself a response " +
+        "role, or a new environment for one: another workspace administrator, or the " +
+        "installation administrator, has to make this change. A grant on response data " +
+        "is a grant on personal data.",
     ),
   noPrincipal: (): ApiError => new ApiError("unauthorized", 401, "Admin authentication required"),
 } as const;
@@ -139,35 +136,22 @@ async function workspaceOf(deps: Deps, id: string): Promise<WorkspaceRow> {
   return workspace;
 }
 
-// Empty unless the act names exactly one; a wider scope is not lost, it moves to the
-// audit row's `detail`.
-function scopeColumns(group: {
-  readonly environments: readonly string[];
-  readonly forms: readonly string[];
-}): { environment?: string; formId?: string } {
-  const environment =
-    group.environments.length === 1 && !isScopeAll(group.environments)
-      ? group.environments[0]
-      : undefined;
-  const formId = group.forms.length === 1 && !isScopeAll(group.forms) ? group.forms[0] : undefined;
-  return {
-    ...(environment === undefined ? {} : { environment }),
-    ...(formId === undefined ? {} : { formId }),
-  };
+// Empty unless the group names exactly one environment; a wider set is not lost, it moves
+// to the audit row's `detail`.
+function scopeColumns(group: { readonly environments: readonly string[] }): {
+  environment?: string;
+} {
+  const environment = group.environments.length === 1 ? group.environments[0] : undefined;
+  return environment === undefined ? {} : { environment };
 }
 
 function scopeDetail(
-  group: {
-    readonly role: string;
-    readonly environments: readonly string[];
-    readonly forms: readonly string[];
-  },
+  group: { readonly roles: readonly string[]; readonly environments: readonly string[] },
   extra?: string,
 ): string {
   const parts = [
-    `role=${group.role}`,
+    `roles=${group.roles.join(",")}`,
     `environments=${group.environments.join(",")}`,
-    `forms=${group.forms.join(",")}`,
   ];
   if (extra !== undefined) parts.push(extra);
   return parts.join(" ");
@@ -175,16 +159,12 @@ function scopeDetail(
 
 async function groupView(
   exec: Executor,
-  workspace: WorkspaceRow,
   group: AccessGroupRow,
 ): Promise<{
   teamId: string;
   name: string;
-  fullName: string;
-  directoryName: string;
-  role: string;
+  roles: string[];
   environments: string[];
-  forms: string[];
   externalGroupId: string | null;
   holders: { userId: string; email: string }[];
 }> {
@@ -192,12 +172,8 @@ async function groupView(
   return {
     teamId: group.teamId,
     name: group.name,
-    // Derived on every read and stored nowhere, so a slug rename changes display only.
-    fullName: accessGroupFullName(workspace.slug, group.name),
-    directoryName: accessGroupDirectoryName(workspace.slug, group.name),
-    role: group.role,
+    roles: [...group.roles],
     environments: [...group.environments],
-    forms: [...group.forms],
     externalGroupId: group.externalGroupId,
     holders: holders.map((holder) => ({ userId: holder.userId, email: holder.email })),
   };
@@ -207,37 +183,41 @@ async function validateGroup(
   exec: Executor,
   input: {
     readonly name: string;
-    readonly role: string;
+    readonly roles: readonly string[];
     readonly environments: readonly string[];
-    readonly forms: readonly string[];
-    readonly label?: string | undefined;
   },
-): Promise<{ readonly environments: readonly string[]; readonly forms: readonly string[] }> {
-  const live = await listEnvironmentNames(exec);
-
-  const scopeRefusal = refuseEnvironmentScope(input.environments, live);
-  if (scopeRefusal !== undefined) throw fail.invalidScope(scopeRefusal);
-
-  if (input.forms.includes("all") && input.forms.length > 1) {
-    throw fail.invalidScope("`all` is the whole set, so it cannot be combined with a form id");
-  }
-
-  // Normalised here and the name's own ordering refused below, so `dev-test` is the one
-  // spelling and `test-dev` is never a second grant.
-  const environments = normaliseEnvironmentScope(input.environments, live);
-
-  const nameRefusal = refuseAccessGroupName(
-    input.name,
-    {
-      role: input.role,
-      environments: input.environments,
-      ...(input.label === undefined ? {} : { label: input.label }),
-    },
-    live,
-  );
+): Promise<{ readonly roles: readonly string[]; readonly environments: readonly string[] }> {
+  const nameRefusal = refuseAccessGroupName(input.name);
   if (nameRefusal !== undefined) throw fail.invalidName(nameRefusal);
 
-  return { environments, forms: input.forms };
+  const rolesRefusal = refuseAccessGroupRoles(input.roles);
+  if (rolesRefusal !== undefined) throw fail.invalidRoles(rolesRefusal);
+
+  const live = await listEnvironmentNames(exec);
+  const setRefusal = refuseEnvironmentSet(input.environments, input.roles, live);
+  if (setRefusal !== undefined) throw fail.invalidScope(setRefusal);
+
+  // Stored in the live set's order, so two spellings of the same set compare equal.
+  return { roles: input.roles, environments: normaliseEnvironmentSet(input.environments, live) };
+}
+
+/**
+ * Why this change is a self-grant the second-approver rule refuses, or `undefined`. Until
+ * the approval request lands it is an outright refusal, as the work order's interim says.
+ */
+function refuseSelfGrant(input: {
+  readonly actorHolds: boolean;
+  readonly requireSecondApprover: boolean;
+  readonly before: { readonly roles: readonly string[]; readonly environments: readonly string[] };
+  readonly after: { readonly roles: readonly string[]; readonly environments: readonly string[] };
+}): boolean {
+  if (!input.actorHolds || !input.requireSecondApprover) return false;
+  const gainedResponseRole = input.after.roles.some(
+    (role) => isResponsesRole(role) && !input.before.roles.includes(role),
+  );
+  if (gainedResponseRole) return true;
+  if (!carriesResponsesRole(input.after.roles)) return false;
+  return input.after.environments.some((name) => !input.before.environments.includes(name));
 }
 
 // Grant-exempt, and safe to be: it names no person, so no shape of this request asks
@@ -260,7 +240,7 @@ export function makeMyAccessHandler(deps: Deps): RouteHandler<typeof myAccessRou
         name: string;
         archived: boolean;
         memberRole: string | null;
-        grants: { name: string; role: string; environments: string[]; forms: string[] }[];
+        grants: { name: string; roles: string[]; environments: string[] }[];
       }
     >();
 
@@ -285,9 +265,8 @@ export function makeMyAccessHandler(deps: Deps): RouteHandler<typeof myAccessRou
       };
       slot.grants.push({
         name: grant.name,
-        role: grant.role,
+        roles: [...grant.roles],
         environments: [...grant.environments],
-        forms: [...grant.forms],
       });
       byWorkspace.set(grant.workspaceId, slot);
     }
@@ -341,15 +320,15 @@ async function areasFor(
   };
 }
 
-// `all` is expanded here rather than returned as a token, so a client is not a second
-// place the live environment set is read.
+// A group whose roles all ignore the environment set applies everywhere, and the whole
+// live set is expanded here rather than left to a client to work out.
 function environmentsHeld(
   grants: readonly { readonly environments: readonly string[] }[],
   live: readonly string[],
 ): string[] {
   const held = new Set<string>();
   for (const grant of grants) {
-    if (isScopeAll(grant.environments)) {
+    if (grant.environments.length === 0) {
       for (const name of live) held.add(name);
     } else {
       for (const name of grant.environments) held.add(name);
@@ -428,7 +407,7 @@ export function makeSetMemberRoleHandler(
         actor: actor.userId,
         workspaceId,
         kind: role === "forms.owner" ? "grant" : "revoke",
-        detail: `role=${role} subject=${userId} environments=all forms=all`,
+        detail: `memberRole=${role} subject=${userId}`,
         occurredAt: deps.clock.now(),
       });
       await writeAgentStep(tx, site, userId, deps.clock.now());
@@ -443,13 +422,13 @@ export function makeListAccessGroupsHandler(
 ): RouteHandler<typeof listAccessGroupsRoute, ApiEnv> {
   return async (c) => {
     const workspaceId = c.req.valid("param").id;
-    const workspace = await workspaceOf(deps, workspaceId);
+    await workspaceOf(deps, workspaceId);
     const groups = await listAccessGroups(deps.databases.control, workspaceId);
     const views = [];
     for (const group of groups) {
-      views.push(await groupView(deps.databases.control, workspace, group));
+      views.push(await groupView(deps.databases.control, group));
     }
-    return c.json({ workspaceId, groups: views, scopeNote: EDITOR_ALL_SCOPE_NOTE }, 200);
+    return c.json({ workspaceId, groups: views }, 200);
   };
 }
 
@@ -465,7 +444,7 @@ export function makeCreateAccessGroupHandler(
     if (workspace.archivedAt !== null) throw fail.archived();
 
     const exec = deps.databases.control;
-    const scope = await validateGroup(exec, body);
+    const checked = await validateGroup(exec, body);
 
     // Enforced here because the auth plugin does not enforce uniqueness on team names.
     if (await isAccessGroupNameTaken(exec, workspaceId, body.name)) {
@@ -477,19 +456,19 @@ export function makeCreateAccessGroupHandler(
       const created = await createAccessGroup(tx, {
         workspaceId,
         name: body.name,
-        role: body.role,
-        environments: scope.environments,
-        forms: scope.forms,
+        roles: checked.roles,
+        environments: checked.environments,
       });
       await writeAgentStep(tx, site, created.teamId, deps.clock.now());
       return created;
     });
-    return c.json({ group: await groupView(exec, workspace, group) }, 201);
+    return c.json({ group: await groupView(exec, group) }, 201);
   };
 }
 
-// The role is not changeable, so the body carries none. A re-scope writes one `grant` row
-// per holder, so "who made this possible" stays answerable per person.
+// A change writes one `grant` row per holder, so "who made this possible" stays
+// answerable per person. The self-grant check is here too: editing a group you are in is
+// one of the ways to give yourself response access.
 export function makeUpdateAccessGroupHandler(
   deps: Deps,
 ): RouteHandler<typeof updateAccessGroupRoute, ApiEnv> {
@@ -504,16 +483,27 @@ export function makeUpdateAccessGroupHandler(
     const existing = await getAccessGroup(exec, teamId);
     if (existing === undefined || existing.workspaceId !== workspaceId) throw fail.groupNotFound();
 
-    const scope = await validateGroup(exec, { ...body, role: existing.role });
+    const checked = await validateGroup(exec, body);
     if (await isAccessGroupNameTaken(exec, workspaceId, body.name, teamId)) {
       throw fail.nameTaken(body.name);
     }
 
+    if (
+      refuseSelfGrant({
+        actorHolds: await holdsAccessGroup(exec, teamId, actor.userId),
+        requireSecondApprover: workspace.requireSecondApprover,
+        before: existing,
+        after: checked,
+      })
+    ) {
+      throw fail.selfGrant();
+    }
+
     const updated = await exec.transaction(async (tx) => {
-      const row = await updateAccessGroupScope(tx, teamId, {
+      const row = await updateAccessGroup(tx, teamId, {
         name: body.name,
-        environments: scope.environments,
-        forms: scope.forms,
+        roles: checked.roles,
+        environments: checked.environments,
         updatedAt: deps.clock.now(),
       });
       if (row === undefined) throw fail.groupNotFound();
@@ -524,14 +514,14 @@ export function makeUpdateAccessGroupHandler(
           workspaceId,
           kind: "grant",
           ...scopeColumns(row),
-          detail: scopeDetail(row, `subject=${holder.userId} rescoped=${existing.name}`),
+          detail: scopeDetail(row, `subject=${holder.userId} changed=${existing.name}`),
           occurredAt: deps.clock.now(),
         });
       }
       return row;
     });
 
-    return c.json({ group: await groupView(exec, workspace, updated) }, 200);
+    return c.json({ group: await groupView(exec, updated) }, 200);
   };
 }
 
@@ -600,11 +590,11 @@ export function makeAddHolderHandler(deps: Deps): RouteHandler<typeof addHolderR
       throw fail.cannotAdd();
     }
 
-    // The test is "is this account granting itself a responses role", so the installation
+    // The test is "is this account giving itself a response role", so the installation
     // claim is not a way around the rule.
     if (
       subject.userId === actor.userId &&
-      isResponsesRole(group.role) &&
+      carriesResponsesRole(group.roles) &&
       workspace.requireSecondApprover
     ) {
       throw fail.selfGrant();
@@ -623,70 +613,11 @@ export function makeAddHolderHandler(deps: Deps): RouteHandler<typeof addHolderR
         detail: scopeDetail(group, `subject=${subject.userId} group=${group.name}`),
         occurredAt: deps.clock.now(),
       });
-      await seedTestDataGrant(tx, {
-        workspaceId,
-        role: group.role,
-        subjectId: subject.userId,
-        actorId: actor.userId,
-        at: deps.clock.now(),
-      });
       await writeAgentStep(tx, site, teamId, deps.clock.now());
     });
 
-    return c.json({ group: await groupView(exec, workspace, group) }, 201);
+    return c.json({ group: await groupView(exec, group) }, 201);
   };
-}
-
-// Driven by `seedNewEditorsWithTestData` (off by default). An ordinary revocable grant, so
-// an editor sees dev and test responses only by explicit grant, audited as personal data.
-// Scoped to the `dev` and `test` that exist, since a grant naming an absent one is refused.
-async function seedTestDataGrant(
-  exec: Executor,
-  input: {
-    readonly workspaceId: string;
-    readonly role: string;
-    readonly subjectId: string;
-    readonly actorId: string;
-    readonly at: Date;
-  },
-): Promise<void> {
-  if (input.role !== "forms.editor") return;
-  if ((await readSeedNewEditorsWithTestData(exec, input.workspaceId)) !== true) return;
-
-  const live = await listEnvironmentNames(exec);
-  const scope = normaliseEnvironmentScope(
-    live.filter((name) => name === "dev" || name === "test"),
-    live,
-  );
-  if (scope.length === 0) return;
-
-  const name = `${scope.join("-")}.responses.viewer`;
-  const existing = (await listAccessGroups(exec, input.workspaceId)).find(
-    (group) => group.name === name,
-  );
-  const group =
-    existing ??
-    (await createAccessGroup(exec, {
-      workspaceId: input.workspaceId,
-      name,
-      role: "responses.viewer",
-      environments: scope,
-      forms: ["all"],
-    }));
-
-  if (await holdsAccessGroup(exec, group.teamId, input.subjectId)) return;
-  await addAccessGroupHolder(exec, group.teamId, input.subjectId);
-  await writeAccessAuditRow(exec, {
-    actor: input.actorId,
-    workspaceId: input.workspaceId,
-    kind: "grant",
-    ...scopeColumns(group),
-    detail: scopeDetail(
-      group,
-      `subject=${input.subjectId} group=${group.name} seeded=seedNewEditorsWithTestData`,
-    ),
-    occurredAt: input.at,
-  });
 }
 
 export function makeRemoveHolderHandler(
@@ -718,8 +649,8 @@ export function makeRemoveHolderHandler(
   };
 }
 
-// Both switches are audited, because turning either off is the act somebody would want
-// to find afterwards. A write that changes nothing writes no row.
+// Turning the switch off is the act somebody would want to find afterwards, so it is
+// audited. A write that changes nothing writes no row.
 export function makeWorkspaceSettingsHandler(
   deps: Deps,
 ): RouteHandler<typeof workspaceSettingsRoute, ApiEnv> {
@@ -730,51 +661,26 @@ export function makeWorkspaceSettingsHandler(
     const workspace = await requireOpenWorkspace(deps.databases.control, workspaceId);
 
     const site = agentStepSite(c);
-    const result = await deps.databases.control.transaction(async (tx) => {
-      let requireSecondApprover = workspace.requireSecondApprover;
-      let seedNewEditors = (await readSeedNewEditorsWithTestData(tx, workspaceId)) ?? false;
-
-      if (
-        body.seedNewEditorsWithTestData !== undefined &&
-        body.seedNewEditorsWithTestData !== seedNewEditors
-      ) {
-        const value = await setSeedNewEditorsWithTestData(
-          tx,
-          workspaceId,
-          body.seedNewEditorsWithTestData,
-        );
-        if (value === undefined) throw fail.notFound();
-        seedNewEditors = value;
-        await writeAccessAuditRow(tx, {
-          actor: actor.userId,
-          workspaceId,
-          kind: "setting",
-          detail: `setting=seedNewEditorsWithTestData value=${String(value)}`,
-          occurredAt: deps.clock.now(),
-        });
+    const requireSecondApprover = await deps.databases.control.transaction(async (tx) => {
+      if (body.requireSecondApprover === workspace.requireSecondApprover) {
+        await writeAgentStep(tx, site, workspaceId, deps.clock.now());
+        return workspace.requireSecondApprover;
       }
 
-      if (
-        body.requireSecondApprover !== undefined &&
-        body.requireSecondApprover !== requireSecondApprover
-      ) {
-        const value = await setRequireSecondApprover(tx, workspaceId, body.requireSecondApprover);
-        if (value === undefined) throw fail.notFound();
-        requireSecondApprover = value;
-        await writeAccessAuditRow(tx, {
-          actor: actor.userId,
-          workspaceId,
-          kind: "setting",
-          detail: `setting=requireSecondApprover value=${String(value)}`,
-          occurredAt: deps.clock.now(),
-        });
-      }
-
+      const value = await setRequireSecondApprover(tx, workspaceId, body.requireSecondApprover);
+      if (value === undefined) throw fail.notFound();
+      await writeAccessAuditRow(tx, {
+        actor: actor.userId,
+        workspaceId,
+        kind: "setting",
+        detail: `setting=requireSecondApprover value=${String(value)}`,
+        occurredAt: deps.clock.now(),
+      });
       await writeAgentStep(tx, site, workspaceId, deps.clock.now());
-      return { requireSecondApprover, seedNewEditorsWithTestData: seedNewEditors };
+      return value;
     });
 
-    return c.json({ workspaceId, ...result }, 200);
+    return c.json({ workspaceId, requireSecondApprover }, 200);
   };
 }
 

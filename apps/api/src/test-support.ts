@@ -7,7 +7,9 @@ import {
   createAccessGroup,
   ensureWorkspaceMember,
   listAccessGroups,
+  listEnvironmentNames,
   listWorkspaces,
+  needsEnvironments,
   setMemberRole,
 } from "@roonga/qcms-db";
 
@@ -215,7 +217,7 @@ export const NO_CLAIM_ROLE = "staff";
 export const DEFAULT_SEEDED_GRANTS: readonly string[] = [
   "forms.viewer",
   "forms.editor",
-  "forms.approver",
+  "forms.publisher",
   "responses.viewer",
   "responses.eraser",
 ];
@@ -249,9 +251,10 @@ export async function seedGrants(
     await setMemberRole(exec, workspaceId, options.userId, "forms.owner");
   }
 
+  const live = await listEnvironmentNames(exec);
   const teamIds: Record<string, string> = {};
   for (const role of options.grants ?? DEFAULT_SEEDED_GRANTS) {
-    const name = `all.${role}`;
+    const name = `Every environment: ${role}`;
     const existing = (await listAccessGroups(exec, workspaceId)).find(
       (group) => group.name === name,
     );
@@ -260,9 +263,8 @@ export async function seedGrants(
       (await createAccessGroup(exec, {
         workspaceId,
         name,
-        role,
-        environments: ["all"],
-        forms: ["all"],
+        roles: [role],
+        environments: needsEnvironments([role]) ? live : [],
       }));
     await addAccessGroupHolder(exec, group.teamId, options.userId);
     teamIds[role] = group.teamId;

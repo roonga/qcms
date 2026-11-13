@@ -108,7 +108,6 @@ export const authOrganization = controlSchema.table(
     isShared: boolean("isShared").notNull().default(false),
     requireSecondApprover: boolean("requireSecondApprover").notNull().default(false),
     archivedAt: timestamp("archivedAt"),
-    seedNewEditorsWithTestData: boolean("seedNewEditorsWithTestData").notNull().default(false),
   },
   (t) => [
     /** At most one shared workspace per installation: one true value, not one row. */
@@ -149,12 +148,12 @@ export const authInvitation = controlSchema.table("invitation", {
 });
 
 /**
- * An access group: one grant. `role`, `environments` and `forms` carry no default on
+ * An access group: a set of roles and one environment set. Neither carries a default on
  * purpose, because a default would be a grant nobody wrote.
  */
 export const authTeam = controlSchema.table("team", {
   id: text("id").primaryKey(),
-  /** The stored access-group name, `<environments>.<plane>.<role>[.<label>]`. */
+  /** The administrator's own label for the group, unique within the workspace. */
   name: text("name").notNull(),
   memberCount: integer("memberCount").notNull().default(0),
   organizationId: text("organizationId")
@@ -162,11 +161,9 @@ export const authTeam = controlSchema.table("team", {
     .references(() => authOrganization.id, { onDelete: "cascade" }),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
   updatedAt: timestamp("updatedAt"),
-  role: text("role").notNull(),
-
+  roles: text("roles").array().notNull(),
+  /** Empty only where every role in the group ignores the environment set. */
   environments: text("environments").array().notNull(),
-  /** A list of form ids, or the single element `all`. */
-  forms: text("forms").array().notNull(),
   /** Written only by the directory sync path, `input: false`. */
   externalGroupId: text("externalGroupId").unique(),
 });

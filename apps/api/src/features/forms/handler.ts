@@ -678,7 +678,7 @@ export function makeGetFormHandler(deps: Deps): RouteHandler<typeof getFormRoute
       membership !== undefined &&
       decideAccess({
         ...membership,
-        request: { resource, action, environment, formId },
+        request: { resource, action, environment },
       }).allowed;
     const releases = await listFormReleases(deps.databases.control, formId);
     const eligible =
