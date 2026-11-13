@@ -603,8 +603,10 @@ test("gives the panel one scroll container and holds the page still behind it", 
   await expect(panel(page)).toHaveAttribute("data-mode", "sheet");
   await expectOneScroller(page, "the sheet");
 
+  // A programmatic scroll still moves a viewport whose overflow is hidden; only a gesture is blocked.
+  await page.mouse.move(350, 350);
+  await page.mouse.wheel(0, 1200);
   const fit = await page.evaluate(() => {
-    window.scrollTo(0, 4000);
     const box = document.getElementById("qcms-assistant-panel")?.getBoundingClientRect();
     const bar = document.querySelector("header.qcms-topbar")?.getBoundingClientRect();
     const composer = document
