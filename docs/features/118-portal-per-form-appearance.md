@@ -11,7 +11,8 @@ Respondents see the form's appearance, frozen with the version they started. The
 
 ## Deliverables
 
-- Per-form appearance from start-session and serve-step (109) applied on a page-level carrier in the portal layout: tokens, face, corners, density, the high-contrast palettes of that theme, the brand mark (logo through 109's route) per form.
+- Per-form appearance from start-session and serve-step (109) applied on a page-level carrier in the portal layout: tokens, face, corners, density, the high-contrast palettes of that theme, the brand mark per form: the logo the version carries by value, through 109's route.
+- The appearance and logo come from the version only, never from a workspace theme, so a later theme change or delete leaves what respondents see unchanged.
 - Deployment environment theme as default; respondent choices (display mode, high contrast) still apply over the form's appearance.
 - CSP check: no inline style outside the existing nonce rules; the logo stays same-origin (`img-src 'self'`).
 - Strings in `apps/portal/lib/i18n/en.ts`.
@@ -24,7 +25,7 @@ Spec criteria owned: none.
 
 ## Required tests
 
-- Playwright portal (X2): a form with its own appearance renders it; a form with none renders the environment default; appearance frozen across publish (start, publish a new appearance, continue: unchanged; new session: new); axe in light, dark and high contrast; no-JS render keeps the appearance; CSP nonce test still green.
+- Playwright portal (X2): a form with its own appearance renders it; a form with none renders the environment default; appearance frozen across publish (start, publish a new appearance, continue: unchanged; new session: new); a theme changed or deleted after publish leaves the portal's appearance and logo unchanged; axe in light, dark and high contrast; no-JS render keeps the appearance; CSP nonce test still green.
 - Vitest: carrier resolution order (respondent choice over form over environment).
 
 ## Files and areas

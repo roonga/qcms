@@ -47,7 +47,7 @@ Spec criteria owned: **16, 48, 99, 100, 101, 102, 103, 104, 105, 106, 109**. Thi
 
 ## Migration
 
-None. Uses 092's table.
+None. Uses 092's table and its `payload` column for the destination workspace.
 
 ## Gates
 

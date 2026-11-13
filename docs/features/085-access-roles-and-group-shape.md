@@ -5,7 +5,7 @@
 
 ## Context
 
-The foundation task. It replaces the six roles, form scope and `all` with five roles and one explicit environment set per access group (spec section 3). It touches `policy.ts`, `route-policy.ts` and every fixture, so it **runs alone on `policy.ts`**: no other PR on `policy.ts` or `route-policy.ts` is open while it is.
+The foundation task. It replaces the six roles, form scope and `all` with five roles and one explicit environment set per access group (spec section 3). It touches `policy.ts`, `route-policy.ts` and every fixture, so it **runs alone on `policy.ts`**: no other PR on `policy.ts` or `route-policy.ts` is open while it is. It starts on those files only after 084, which adds `route-policy.ts` rows, has merged.
 
 Green field: the removal of form scope, old roles and the seed setting is not data loss; there is no migration path (spec section 1).
 
@@ -26,7 +26,7 @@ Green field: the removal of form scope, old roles and the seed setting is not da
 ## Interim behaviour until later tasks land
 
 - **Move form (until 095):** `POST /admin/forms/{id}/workspace` needs Edit forms in both workspaces and a Workspace administrator of the source, and is refused outright while second approval is on in the source. No move is held; 095 adds the held request.
-- **Self-grant (until 093):** with second approval on, a self-grant of a response role is refused outright, as built today, on the new roles. With it off, it applies and is audited.
+- **Self-grant (until 093):** with second approval on, any Grant or group edit that gives the actor a response role or a new environment for one is refused outright, including editing a group the actor is in. As built, only adding a holder is checked; the group edit route (`apps/api/src/features/membership/handler.ts`, group PUT) has no check, so this task adds it. With the rule off, it applies and is audited.
 - **Turning second approval off (until 093):** applies at once for a Workspace administrator or the installation claim holder and writes its `setting` row, as built. 093 makes it a held request.
 
 ## Exit criteria
@@ -47,7 +47,7 @@ Spec criteria owned: **2, 3, 4, 6, 9, 10, 11, 12, 13, 14, 17, 19, 24, 107, 108**
 - An environment added later is covered by no group.
 - A group can no longer name forms; a group carrying Publish forms, View responses or Erase responses with no environment is refused on save.
 - The question-move route no longer exists.
-- The interim move and self-grant refusals above.
+- The interim move and self-grant refusals above, including a member adding a response role or `prod` to their own group with the rule on.
 
 ## Files and areas
 

@@ -9,7 +9,8 @@ The approval-request table both scopes use, step-up authentication, and the Site
 
 ## Deliverables
 
-- `control.approval_requests`: scope (site or workspace), kind, target, requester, decider, status, `expires_at` at 7 days; the decider is never the requester. Modelled on `endpoint-proposals.ts`.
+- `control.approval_requests`: scope (site or workspace), kind, target, requester, decider, status, `expires_at` at 7 days; the decider is never the requester. Modelled on `packages/db/src/schema/control/endpoint-proposals.ts` and `packages/db/src/queries/endpoint-proposals.ts`.
+  - A `payload` jsonb column holding what a request binds at request time, validated per kind: the group's roles and environments for a self-grant (093), the draft revision and content hash for a prod-only draft publish (093), the destination workspace for Move form (095). This is the last access migration, so every column 093 and 095 need is added here.
 - Request, approve, reject and expire; expiry swept on the existing interval.
 - Step-up: password and second factor, bound to the session, valid 5 minutes.
 - Promote and demote a Site administrator, and disable an account that is one (replacing 091's interim refusal), with the guards and defaults of spec section 8.
@@ -27,6 +28,7 @@ Spec criteria owned: **22, 76, 77, 78, 79, 80, 81, 82, 83, 84**. This task owns 
 
 - Promote without step-up is refused; step-up from another session is refused.
 - The requester approving their own request is refused.
+- A request whose `payload` fails its kind's schema is refused on write.
 - A request is refused after 7 days.
 - Demoting or disabling the last active Site administrator is refused.
 - Disabling a Site administrator without a second approval, where two or more others exist, is refused.

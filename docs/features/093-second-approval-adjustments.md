@@ -44,7 +44,7 @@ Spec criteria owned: **27 to 44, 46, 47, 49, 116**. This task owns those and no 
 
 ## Migration
 
-None. Uses 092's table.
+None. Uses 092's table and its `payload` column for the bound roles, environments, draft revision and hash.
 
 ## Gates
 

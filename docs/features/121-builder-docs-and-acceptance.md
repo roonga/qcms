@@ -1,6 +1,6 @@
 # 121 - Builder docs and acceptance
 
-**Stage:** 9 (Phase 4) · **Apps/packages:** docs, `apps/api` e2e, `apps/admin` e2e, `apps/portal` e2e, `create-qcms-app` templates · **Depends on:** 106 to 120; for criteria 117 and 123 also 093 and 095
+**Stage:** 9 (Phase 4) · **Apps/packages:** docs, `apps/api` e2e, `apps/admin` e2e, `apps/portal` e2e, `create-qcms-app` templates · **Depends on:** 093, 095, 106 to 120 (093 and 095 for criteria 117 and 123)
 **References:** `plan/agent-builder-decisions.md` (S2, X2, X3, X4) · `docs/WORKSPACE_ACCESS.md` section 14 (criteria 117, 123) · `plan/work-order-sequence.md` (criteria to tasks)
 
 ## Context

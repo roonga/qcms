@@ -16,7 +16,7 @@ Gates:
 
 - Review: F Fable (security-sensitive or hard), O Opus, S Sonnet. Every task gets a Sonnet delta re-review after a fix or rebase.
 - DG: design gate. The task is not dispatched until its screens are on the design canvas and the Code Owner has seen them.
-- Every task: template mirrors via `packages/create-qcms-app/sync-templates.mjs`, `pnpm openapi:generate` when routes change, the dead-key check, logs under `node scripts/agent-scratch.mjs <name>`, and a PR listing the suites run and skipped. Tests ship in the task that owns the criterion.
+- Every task: template mirrors via `packages/create-qcms-app/scripts/sync-templates.mjs`, `pnpm openapi:generate` when routes change, the dead-key check, logs under `node scripts/agent-scratch.mjs <name>`, and a PR listing the suites run and skipped. Tests ship in the task that owns the criterion.
 
 ## Combined task table
 
@@ -55,11 +55,11 @@ Gates:
 | 114  | U2 and U3: preview and inspect               | 113, 111, 109               | O      | V, B          | yes          | no        |
 | 115  | U7: create card, card-less edits, Undo, diff | 113, 112                    | O      | V, B          | yes          | no        |
 | 116  | U4 and U6: appearance drawer, themes, lock   | 109, 099, 113, 114          | O      | V, B          | yes          | no        |
-| 117  | G2, U5 and G4b: theme kinds, derive flow     | 110, 116, 112               | O      | V, D, B       | yes          | no        |
+| 117  | G2, U5 and G4b: theme kinds, derive flow     | 110, 116, 112               | F      | V, D, B       | yes          | no        |
 | 118  | P1: portal per-form appearance, CSP          | 109                         | O      | V, B, E       | yes          | no        |
 | 119  | A5 and P2: steps list, progress modes        | 108                         | O      | V, D, B, E    | yes          | no        |
 | 120  | P3 and P4: respondent menu, text size        | 118                         | O      | V, B          | yes          | no        |
-| 121  | S2: docs, cross-flow e2e, sentinel, closure  | 106 to 120                  | O      | V, D, B, E, M | no           | no        |
+| 121  | S2: docs, cross-flow e2e, sentinel, closure  | 093, 095, 106 to 120        | O      | V, D, B, E, M | no           | no        |
 
 - "spec" is `docs/WORKSPACE_ACCESS.md` on `main`. 106 also needs the theme rows of that spec (section 3), which this branch adds.
 - Each of 085, 086, 089 and 094 fixes the agent kinds on the routes it changes; 096 audits every kind afterwards, the builder's included.
@@ -68,21 +68,21 @@ Gates:
 
 A group starts once every dependency in the groups before it has merged. Within a group, tasks run in parallel, each in its own worktree and `QCMS_PORT_SEAT`, subject to the hot-file rule.
 
-| Group | Tasks              | Note                                                 |
-| ----- | ------------------ | ---------------------------------------------------- |
-| A     | 084, 085, 087, 106 | Independent early starters; 085 alone on `policy.ts` |
-| B     | 086, 094, 104, 107 | 094 and 104 behind their design batches              |
-| C     | 097, 108, 113      | 108 is the third migration                           |
-| D     | 088, 109, 119      | 088 merges after 108                                 |
-| E     | 089, 110, 111, 118 |                                                      |
-| F     | 090, 112, 114, 120 |                                                      |
-| G     | 091, 102, 115      |                                                      |
-| H     | 092, 098           | 092 is the last migration                            |
-| I     | 093, 100           |                                                      |
-| J     | 095, 096, 099      |                                                      |
-| K     | 101, 116           |                                                      |
-| L     | 103, 117           |                                                      |
-| M     | 105, 121           | Closure                                              |
+| Group | Tasks              | Note                                                                                                                 |
+| ----- | ------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| A     | 084, 085, 087, 106 | Independent early starters; 084 merges before 085 starts on `policy.ts` or `route-policy.ts`, then 085 alone on both |
+| B     | 086, 094, 104, 107 | 094 and 104 behind their design batches                                                                              |
+| C     | 097, 108, 113      | 108 is the third migration                                                                                           |
+| D     | 088, 109, 119      | 088 merges after 108                                                                                                 |
+| E     | 089, 110, 111, 118 |                                                                                                                      |
+| F     | 090, 112, 114, 120 |                                                                                                                      |
+| G     | 091, 102, 115      |                                                                                                                      |
+| H     | 092, 098           | 092 is the last migration                                                                                            |
+| I     | 093, 100           |                                                                                                                      |
+| J     | 095, 096, 099      |                                                                                                                      |
+| K     | 101, 116           |                                                                                                                      |
+| L     | 103, 117           |                                                                                                                      |
+| M     | 105, 121           | Closure                                                                                                              |
 
 - Critical path (access): 085, 086, 108 (queue), 088, 089, 090, 091, 092, 093, 099, 101, 103, 105.
 - Critical path (builder): 106, 107, 108, 109, 110, 116 (after 099), 117, 121.
@@ -90,19 +90,19 @@ A group starts once every dependency in the groups before it has merged. Within 
 
 ## Hot files: one open PR at a time
 
-| File or area                                              | Tasks                                      |
-| --------------------------------------------------------- | ------------------------------------------ |
-| `membership/policy.ts`, `membership/route-policy.ts`      | 085 alone; then one open PR at a time      |
-| `packages/db/migrations/` and `meta/` snapshots           | the migration queue below                  |
-| `apps/admin/lib/i18n/en.ts`                               | every UI task; one UI PR merges at a time  |
-| `apps/api/src/features/agent/actions/`, `grant-filter.ts` | 085, 086, 089, 094, 096, 111, 112, 117     |
-| `agent/system-prompt.ts`, `agent/fake-model.ts`           | 112, 117                                   |
-| `control.access_audit` kinds CHECK                        | 088, 108 (migration queue order)           |
-| Draft PUT handler                                         | 109, 111                                   |
-| `components/membership/workspace-settings-panel.tsx`      | 099, then 116                              |
-| `lib/shell/modes.ts`, `components/admin-nav.tsx`          | 095, 100, 101, 113                         |
-| Serve-step and portal page carrier                        | 109, 118, 119, 120                         |
-| `docs/openapi/admin.json`                                 | every route task; the later PR regenerates |
+| File or area                                              | Tasks                                                 |
+| --------------------------------------------------------- | ----------------------------------------------------- |
+| `membership/policy.ts`, `membership/route-policy.ts`      | 084 first; then 085 alone; then one open PR at a time |
+| `packages/db/migrations/` and `meta/` snapshots           | the migration queue below                             |
+| `apps/admin/lib/i18n/en.ts`                               | every UI task; one UI PR merges at a time             |
+| `apps/api/src/features/agent/actions/`, `grant-filter.ts` | 085, 086, 089, 094, 096, 111, 112, 117                |
+| `agent/system-prompt.ts`, `agent/fake-model.ts`           | 112, 117                                              |
+| `control.access_audit` kinds CHECK                        | 088, 108 (migration queue order)                      |
+| Draft PUT handler                                         | 109, 111                                              |
+| `components/membership/workspace-settings-panel.tsx`      | 099, then 116                                         |
+| `lib/shell/modes.ts`, `components/admin-nav.tsx`          | 095, 100, 101, 113                                    |
+| Serve-step and portal page carrier                        | 109, 118, 119, 120                                    |
+| `docs/openapi/admin.json`                                 | every route task; the later PR regenerates            |
 
 - The later PR regenerates OpenAPI, `meta/` snapshots and template mirrors, and re-runs every gate whose inputs changed.
 - Hard stop when a branch is behind `main`.
@@ -115,16 +115,16 @@ Merge order is fixed: **085, 086, 108, 088, 090, 092**. The migrations on `main`
 
 Where a later task builds a guard, the earlier task states what happens meanwhile.
 
-| Window     | Act                                                   | Interim                                                                                                                                     |
-| ---------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| 085 to 095 | Move form                                             | Needs Edit forms in both workspaces and a Workspace administrator of the source; refused outright while second approval is on in the source |
-| 085 to 093 | Self-grant of a response role with second approval on | Refused outright, as built                                                                                                                  |
-| 085 to 093 | Turning second approval off                           | Applies at once for an administrator, audited, as built (not a refusal)                                                                     |
-| 086 to 088 | Unclaimed first Workspace administrator               | Cannot arise: no unclaimed account exists before 090; 088 adds the refusal                                                                  |
-| 091 to 092 | Disabling a Site administrator                        | Refused outright                                                                                                                            |
-| 094 to 093 | Prod-only site draft publish with second approval on  | Refused outright, if 094 lands first                                                                                                        |
-| 108 to 109 | Appearance on a draft                                 | Column exists; no route writes it                                                                                                           |
-| 109 to 110 | Theme derive                                          | Absent; themes are saved by hand only                                                                                                       |
+| Window     | Act                                                   | Interim                                                                                                                                                            |
+| ---------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 085 to 095 | Move form                                             | Needs Edit forms in both workspaces and a Workspace administrator of the source; refused outright while second approval is on in the source                        |
+| 085 to 093 | Self-grant of a response role with second approval on | Any Grant or group edit giving the actor a response role or a new environment for one is refused outright; 085 adds the group-edit check the built group PUT lacks |
+| 085 to 093 | Turning second approval off                           | Applies at once for an administrator, audited, as built (not a refusal)                                                                                            |
+| 086 to 088 | Unclaimed first Workspace administrator               | Cannot arise: no unclaimed account exists before 090; 088 adds the refusal                                                                                         |
+| 091 to 092 | Disabling a Site administrator                        | Refused outright                                                                                                                                                   |
+| 094 to 093 | Prod-only site draft publish with second approval on  | Refused outright, if 094 lands first                                                                                                                               |
+| 108 to 109 | Appearance on a draft                                 | Column exists; no route writes it                                                                                                                                  |
+| 109 to 110 | Theme derive                                          | Absent; themes are saved by hand only                                                                                                                              |
 
 ## Criteria to tasks
 
@@ -148,7 +148,7 @@ Every criterion of `docs/WORKSPACE_ACCESS.md` section 14 is owned by exactly one
 | 101  | 45                                                         |
 | 103  | 115                                                        |
 | 105  | 1, 85, 111, 114                                            |
-| 109  | 118, 120, 121, 122                                         |
+| 109  | 118, 120, 121, 122, 124                                    |
 | 110  | 119                                                        |
 | 121  | 117, 123                                                   |
 

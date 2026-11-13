@@ -10,7 +10,7 @@ One pure module every later builder task uses: the API validates with it (109, 1
 ## Deliverables
 
 - `packages/core/src/appearance.ts`, exported from the package index:
-  - The Zod `Appearance` schema: theme reference or inline tokens, registry face (or System), corners, density, admin text-size base (16 to 24 px, Q9), progress mode (side rail, top indicator, none; read by 119), page-background tint. Strict: unknown keys refused.
+  - The Zod `Appearance` schema: inline colour tokens with no theme reference, since a theme is copied by value (spec section 9), a logo reference into 108's immutable logo storage, registry face (or System), corners, density, admin text-size base (16 to 24 px, Q9), progress mode (side rail, top indicator, none; read by 119), page-background tint. Strict: unknown keys refused.
   - WCAG contrast: relative luminance and ratio, with thresholds 4.5 (text), 3 (non-text and large text) and 7 (high contrast).
   - Derivation from a seed (colours and face): a light palette, a dark palette and a full high-contrast palette per polarity at 7:1 (Q5), every text-on-page pair checked, the page tint included or the tint dropped (review finding).
   - A correction report: which tokens were moved to pass and from what to what, as data for 116 and 117 to word.

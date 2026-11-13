@@ -7,6 +7,8 @@
 
 Small API fixes that rest on rulings already recorded and need no new model. This task absorbs the workspace list fix (quick fix Q1; Code Owner, 2026-11-13), so there is no separate issue branch for it. If 084 slips, the Q1 fix ships alone from this work order.
 
+084 touches `route-policy.ts`, so it merges before 085 starts on `policy.ts` or `route-policy.ts`; 085 then runs alone on both.
+
 Green field: no data migration, upgrade path or backward compatibility (spec section 1).
 
 ## Deliverables
@@ -32,7 +34,7 @@ Spec criteria owned: **26, 97, 98**. This task owns those and no others.
 
 ## Files and areas
 
-`apps/api/src/features/workspaces/{handler,route,schema}.ts`, `apps/api/src/features/membership/handler.ts`, the switcher test in `apps/admin`, `docs/openapi/admin.json`, `apps/api/e2e/security/` (M).
+`apps/api/src/features/workspaces/{handler,route,schema}.ts`, `apps/api/src/features/membership/{handler,route-policy}.ts` (the rename row and the narrowed list), the switcher test in `apps/admin`, `docs/openapi/admin.json`, `apps/api/e2e/security/` (M).
 
 ## Migration
 

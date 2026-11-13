@@ -127,7 +127,7 @@ The user guide for these rules is [`docs/workspace-access-guide.html`](workspace
 - The shared question library keeps its design: every workspace's Edit forms holders see and pin its questions; only Edit forms holders in the shared workspace edit them.
 - A form's appearance is part of its draft: editing it is a draft edit (Edit forms) and freezes with the version. While the workspace appearance lock is set, the API refuses every draft save that changes appearance, for every actor and for the assistant (section 9).
 - Setting or clearing the appearance lock is a workspace setting: it needs no second approval, even with the rule on, and writes one `setting` row in the workspace audit. A Workspace administrator or a Site administrator sets or clears it (section 16).
-- The logo route serves a workspace theme's stored raster logo to anyone, respondents included, without a session. It is not an act in the matrix: it reads no form, version or response and takes no grant (section 9).
+- The logo route serves a stored raster logo, a workspace theme's or the copy a draft or version carries, to anyone, respondents included, without a session. It is not an act in the matrix: it reads no form, version or response and takes no grant (section 9).
 - The rows on workspace themes follow the agent-builder rulings Q10 and Q18 in `plan/agent-builder-decisions.md`.
 
 ## 4. Starter groups
@@ -191,7 +191,7 @@ Every new workspace is created with four starter groups. They are ordinary group
 - First sign-in forces the person to set a password and enrol a second factor.
 - Until then the account is **unclaimed**. Account creation, and every grant made while the account is unclaimed, writes an audit row.
 - **Account creation is refused until outbound email is configured.** The only exception is the first account, created at install by `qcms:create-admin`.
-- **Dependency: outbound email.** QCMS has no mail transport today. A transport, its configuration, the message template, delivery-failure handling and resend are v1 deliverables. The choice of mail dependency is undecided (section 16).
+- **Dependency: outbound email.** QCMS has no mail transport today. A transport, its configuration, the message template, delivery-failure handling and resend are v1 deliverables.
 - Every emailed sign-in link in this section, for creation, reactivation or after a reset, is single-use and expires after 72 hours.
 
 ### Directory visibility
@@ -272,15 +272,16 @@ Every new workspace is created with four starter groups. They are ordinary group
   - Refused when the destination workspace is archived.
   - The confirmation states that the destination's groups will apply, names who gains and who loses access, and says when the move needs an approver and who can approve it.
   - Responses move with the form.
-  - Appearance travels by value (section 16): the form's draft and versions keep the appearance they carry, and nothing links the form to a theme of the source. A destination with the appearance lock set takes the form as it is; the lock refuses later appearance edits only, never the move. The confirmation says so.
+  - Appearance travels by value (section 16): the form's draft and versions keep the appearance they carry, and nothing links the form to any theme (Workspace themes, below). A destination with the appearance lock set takes the form as it is; the lock refuses later appearance edits only, never the move. The confirmation says so.
 - **Questions** do not move between workspaces. The built route `POST /admin/questions/{id}/workspace` is removed by the foundation task. The shared question library covers reuse across workspaces.
 - **Shared question library:** at most one workspace is marked shared; a Site administrator marks or unmarks it. Its screen is a Site administrator rail row at two or more workspaces and hidden at one; question lists show a shared tag.
   - Marking or unmarking writes a site audit row, mirrored to that workspace's audit.
   - The confirmation states who will be able to see its questions: every Edit forms holder in every workspace.
 - **Workspace list:** every caller sees only the workspaces they hold something in; a Site administrator sees all. This ships first, with the workspace quick wins.
 - **Workspace themes:** a workspace holds named themes (colour tokens, face, corners, an optional logo, the source host of a derive). An Edit forms holder derives one from a website (SEC-18) and saves or changes one; applying a theme to a form is a draft edit.
+  - Applying a theme **copies** its appearance, logo included, into the draft by value, and publishing copies the draft's appearance into the version. The logo is held in immutable storage, so a version's logo is frozen with it. Nothing links a form to a theme: changing or deleting a theme alters no draft, locked or not, and no version.
   - The **appearance lock** is a workspace setting set or cleared by a Workspace administrator or a Site administrator. While it is set, the draft save path refuses any change to a form's appearance; the refusal is the API's, never only the assistant's.
-  - The **logo route** serves a theme's logo without a session, with a fixed content type, `X-Content-Type-Options: nosniff` and from the same origin, so SEC-9's `img-src` holds. Only a raster logo (PNG, JPEG, WebP) stored on a workspace theme is ever served; SVG is refused at upload.
+  - The **logo route** serves a theme's logo without a session, with a fixed content type, `X-Content-Type-Options: nosniff` and from the same origin, so SEC-9's `img-src` holds. Only a raster logo (PNG, JPEG, WebP) held in QCMS's immutable logo storage, for a workspace theme, a draft or a version, is ever served; SVG is refused at upload.
 
 ## 10. Guards and invariants
 
@@ -542,8 +543,9 @@ Each criterion is tested against the real policy code, service or route as its t
 119. Deriving a workspace theme succeeds for an Edit forms holder in that workspace and is refused for everyone else, each fetch writing one audit row.
 120. Setting or clearing the appearance lock succeeds for a Workspace administrator of that workspace and for a Site administrator, is refused for every other actor, an Edit forms holder included, needs no approver with second approval on, and writes exactly one `setting` row in the workspace audit.
 121. While the appearance lock is set, a draft save that changes appearance is refused by the API for every actor and for the assistant, and a draft save that changes no appearance succeeds.
-122. The logo route serves only a raster logo stored on a workspace theme, without a session, with a fixed content type and `X-Content-Type-Options: nosniff`; an SVG upload is refused.
+122. The logo route serves only a raster logo held in QCMS's immutable logo storage for a workspace theme, a draft or a version, without a session, with a fixed content type and `X-Content-Type-Options: nosniff`; an SVG upload is refused.
 123. A Move form carries the form's appearance by value: after the move the draft and versions keep it, a lock set in the destination refuses later appearance edits and not the move, and the Move form confirmation says so.
+124. Applying a workspace theme copies its appearance, logo included, into the draft by value, and a publish copies it into the version; changing or deleting the theme afterwards changes no draft, locked or not, and no version, and the logo route still serves the logo each carries.
 
 ## 15. Decision records this document supersedes or amends
 

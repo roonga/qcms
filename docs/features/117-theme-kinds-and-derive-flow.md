@@ -41,7 +41,7 @@ V, D, B (`plan/work-order-sequence.md`, Gates).
 
 ## Review
 
-Opus first round; Sonnet delta.
+Fable first round (an outbound fetch behind a Confirm card, and model-facing derive output under SEC-17 and SEC-18); Sonnet delta.
 
 ## Design gate
 
