@@ -155,21 +155,23 @@ export function makeRenameWorkspaceHandler(
     const { name } = c.req.valid("json");
     const principal = c.get("adminPrincipal");
     if (principal === undefined) throw fail.noPrincipal();
-    const workspace = await requireOpenWorkspace(deps.databases.control, workspaceId);
+    await requireOpenWorkspace(deps.databases.control, workspaceId);
 
     const renamed = await deps.databases.control.transaction(async (tx) => {
-      const row = await renameWorkspace(tx, workspaceId, name);
+      const result = await renameWorkspace(tx, workspaceId, name);
       // `renameWorkspace` matches only an unarchived row, so this is an archive that
       // landed after the pre-read.
-      if (row === undefined) throw workspaceFail.archived();
-      await writeAccessAuditRow(tx, {
-        actor: principal.userId,
-        workspaceId,
-        kind: "setting",
-        detail: `setting=name from=${JSON.stringify(workspace.name)} to=${JSON.stringify(name)}`,
-        occurredAt: deps.clock.now(),
-      });
-      return row;
+      if (result === undefined) throw workspaceFail.archived();
+      if (result.previousName !== name) {
+        await writeAccessAuditRow(tx, {
+          actor: principal.userId,
+          workspaceId,
+          kind: "setting",
+          detail: `setting=name from=${JSON.stringify(result.previousName)} to=${JSON.stringify(name)}`,
+          occurredAt: deps.clock.now(),
+        });
+      }
+      return result.workspace;
     });
     return c.json({ workspace: await workspaceView(deps, renamed) }, 200);
   };
