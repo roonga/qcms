@@ -96,7 +96,7 @@ describe("rule 1: the admin writes the card", () => {
     renderCard(plan, initialCard(plan), { reason: HOSTILE_REASON });
 
     expect(
-      screen.getByRole("heading", { name: "Create 20 respondent links for this form" }),
+      screen.getByRole("heading", { name: "Create 20 test links for this form" }),
     ).toBeTruthy();
     expect(screen.getByText(/Each link lets one person open and answer this form/u)).toBeTruthy();
   });
@@ -121,7 +121,7 @@ describe("rule 2: every step and every argument, in run order, in full", () => {
     const rows = screen.getAllByRole("listitem");
     expect(rows).toHaveLength(2);
     expect(rows[0]?.textContent).toContain("1. Release version 3 of this form to prod");
-    expect(rows[1]?.textContent).toContain("2. Create 20 respondent links for this form");
+    expect(rows[1]?.textContent).toContain("2. Create 20 test links for this form");
   });
 
   it("shows every argument of a step, with nothing collapsed", () => {
@@ -183,11 +183,12 @@ describe("a card names its subject rather than its ids", () => {
     },
   });
 
-  it("titles each step by the form the plan makes", () => {
+  it("heads a plan with what it is for and how many steps it takes", () => {
     const plan = proposal([CREATE, SAVE]);
-    const { container } = renderCard(plan, initialCard(plan));
-    const rows = container.querySelectorAll(".qcms-acard__what");
-    expect(rows[0]?.textContent).toContain("Create the Patient onboarding form");
+    renderCard(plan, initialCard(plan));
+    expect(
+      screen.getByRole("heading", { name: "Create the Patient onboarding form: 2 steps" }),
+    ).toBeTruthy();
   });
 
   it("puts the id behind a closed disclosure once a title stands in for it", () => {

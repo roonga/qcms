@@ -75,7 +75,7 @@ describe("the card's dialog", () => {
   it("titles a single-step dialog with the step, and does not repeat it inside", () => {
     open([step()]);
     const dialog = screen.getByTestId("qcms-acard-dialog");
-    const titles = screen.getAllByText(/Create 2 respondent links/);
+    const titles = screen.getAllByText(/Create 2 test links/);
     // One in the dialog's own title, and none repeated on the step row below it.
     expect(dialog.querySelectorAll(".qcms-acard__what")).toHaveLength(0);
     expect(titles.length).toBeGreaterThan(0);

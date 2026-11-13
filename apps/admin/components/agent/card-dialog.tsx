@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { Button, Dialog } from "@/components/kit";
-import { stepTitle, type PlanNames } from "@/lib/agent/card-copy";
+import { planTitleSubject, stepTitle, type PlanNames } from "@/lib/agent/card-copy";
 import {
   headingChip,
   runningLine,
@@ -63,7 +63,9 @@ export function AgentCardDialog(props: AgentCardDialogProps): React.ReactElement
   const first = steps[0];
   const title =
     wizard || first === undefined
-      ? tPlural("agent.card.planTitle.one", "agent.card.planTitle.other", steps.length)
+      ? tPlural("agent.card.planTitle.one", "agent.card.planTitle.other", steps.length, {
+          subject: planTitleSubject(steps, reported, names),
+        })
       : stepTitle(first, reported, steps, names);
   const onReview = page >= reviewPage;
   const shown = steps[page];

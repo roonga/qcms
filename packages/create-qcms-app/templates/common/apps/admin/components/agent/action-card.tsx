@@ -7,6 +7,7 @@ import {
   isTypedConfirmed,
   minutesLeft,
   planNames,
+  planTitleSubject,
   stepTitle,
   typedConfirmation,
 } from "@/lib/agent/card-copy";
@@ -103,6 +104,7 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
                   "agent.card.planTitle.one",
                   "agent.card.planTitle.other",
                   proposal.steps.length,
+                  { subject: planTitleSubject(proposal.steps, reported, names) },
                 )
               : stepTitle(proposal.steps[0] as AgentPlanStep, reported, proposal.steps, names)}
           </h2>

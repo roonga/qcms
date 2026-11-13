@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AgentPlanStep } from "../forms/assist-stream.ts";
 
-import { planNames, stepArguments, stepTitle } from "./card-copy.ts";
+import { planNames, planTitleSubject, stepArguments, stepTitle } from "./card-copy.ts";
 
 function step(overrides: Partial<AgentPlanStep> = {}): AgentPlanStep {
   return {
@@ -79,6 +79,11 @@ describe("a card names what it acts on", () => {
     );
   });
 
+  it("gives the whole plan the subject of the form it creates", () => {
+    const { steps, names } = plan([CREATE_FORM, SAVE_DRAFT, MINT]);
+    expect(planTitleSubject(steps, {}, names)).toBe("Create the Patient onboarding form");
+  });
+
   it("keeps the id of a named argument for support, out of the line itself", () => {
     const { names } = plan([MINT], BUILDER_KNOWS);
     const line = stepArguments(MINT, {}, names).find((entry) => entry.name === "formId");
@@ -91,5 +96,18 @@ describe("a card names what it acts on", () => {
     const line = stepArguments(MINT, {}, names).find((entry) => entry.name === "formId");
     expect(line?.value).toBe("frm_patient_onboarding");
     expect(line?.id).toBeUndefined();
+  });
+});
+
+describe("a counted title agrees with its count", () => {
+  it("reads as one link for one link", () => {
+    const { steps, names } = plan([MINT], BUILDER_KNOWS);
+    expect(stepTitle(MINT, {}, steps, names)).toBe("Create 1 test link for this form");
+  });
+
+  it("reads as several links for several", () => {
+    const many = step({ ...MINT, args: { ...MINT.args, count: 3 } });
+    const { steps, names } = plan([many], BUILDER_KNOWS);
+    expect(stepTitle(many, {}, steps, names)).toBe("Create 3 test links for this form");
   });
 });

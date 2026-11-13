@@ -1599,8 +1599,8 @@ export const messages = {
     "{question} is a new question, added to the library by step {step} of this plan and not published yet. Publish it from the question library before you publish this form.",
 
   /** Action-card consequences must mirror ordinary dialog consequences and come only from registered catalog templates, never model prose. */
-  "agent.card.planTitle.one": "1 step",
-  "agent.card.planTitle.other": "Plan · {count} steps",
+  "agent.card.planTitle.one": "{subject}: 1 step",
+  "agent.card.planTitle.other": "{subject}: {count} steps",
   "agent.card.stepsLabel": "The steps this plan runs, in order",
   /** A step naming no title of its own still has to read as a sentence about something. */
   "agent.card.subject.form": "this form",
@@ -1670,7 +1670,9 @@ export const messages = {
   "agent.card.webhook.redeliver.title": "Redeliver {deliveryId}",
   "agent.card.webhook.redeliver.consequence":
     "The delivery is reset to due-now and the worker attempts it again.",
-  "agent.card.link.mint.title": "Create {count} respondent links for this form",
+  "agent.card.link.mint.title": "Create test links for this form",
+  "agent.card.link.mint.title.one": "Create 1 test link for this form",
+  "agent.card.link.mint.title.other": "Create {count} test links for this form",
   "agent.card.link.mint.consequence":
     "Each link lets one person open and answer this form. The web addresses are shown to you once, on this card, and cannot be read again.",
   "agent.card.response.erase.title": "Erase the respondent data for {sessionId}",

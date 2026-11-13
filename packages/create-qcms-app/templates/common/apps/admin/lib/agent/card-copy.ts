@@ -1,6 +1,6 @@
 import type { AgentPlanStep } from "../forms/assist-stream.ts";
 import { PROD_ENVIRONMENT } from "../environment.ts";
-import { t, type MessageKey } from "../i18n/en.ts";
+import { t, tPlural, type MessageKey } from "../i18n/en.ts";
 
 import type { ReportedResults, StepResultFields } from "./plan-state.ts";
 import { adminPageHref } from "./screens.ts";
@@ -322,13 +322,36 @@ function titleParams(
   return params;
 }
 
+/** Title templates whose subject is counted, so the card reads "1 test link" rather than "1 links". */
+const PLURAL_TITLES: Readonly<Record<string, readonly [MessageKey, MessageKey]>> = {
+  "agent.card.link.mint.title": [
+    "agent.card.link.mint.title.one",
+    "agent.card.link.mint.title.other",
+  ],
+};
+
 export function stepTitle(
   step: AgentPlanStep,
   reported: ReportedResults = {},
   steps: readonly AgentPlanStep[] = [],
   names: PlanNames = EMPTY_NAMES,
 ): string {
-  return t(step.card.titleKey as MessageKey, titleParams(step, reported, steps, names));
+  const params = titleParams(step, reported, steps, names);
+  const plural = PLURAL_TITLES[step.card.titleKey];
+  const count = step.args["count"];
+  return plural !== undefined && typeof count === "number"
+    ? tPlural(plural[0], plural[1], count, params)
+    : t(step.card.titleKey as MessageKey, params);
+}
+
+/** The subject of a whole plan: the form it creates, or whatever its first step is about. */
+export function planTitleSubject(
+  steps: readonly AgentPlanStep[],
+  reported: ReportedResults,
+  names: PlanNames,
+): string {
+  const leading = steps.find((step) => step.kind === "form.create") ?? steps[0];
+  return leading === undefined ? "" : stepTitle(leading, reported, steps, names);
 }
 
 export function stepConsequences(step: AgentPlanStep): readonly string[] {
