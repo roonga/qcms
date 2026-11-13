@@ -96,7 +96,7 @@ describe("rule 1: the admin writes the card", () => {
     renderCard(plan, initialCard(plan), { reason: HOSTILE_REASON });
 
     expect(
-      screen.getByRole("heading", { name: "Mint 20 respondent links for frm_quote" }),
+      screen.getByRole("heading", { name: "Create 20 respondent links for this form" }),
     ).toBeTruthy();
     expect(screen.getByText(/Each link opens this form for one respondent/u)).toBeTruthy();
   });
@@ -121,7 +121,7 @@ describe("rule 2: every step and every argument, in run order, in full", () => {
     const rows = screen.getAllByRole("listitem");
     expect(rows).toHaveLength(2);
     expect(rows[0]?.textContent).toContain("1. Release version 3 of frm_quote to prod");
-    expect(rows[1]?.textContent).toContain("2. Mint 20 respondent links for frm_quote");
+    expect(rows[1]?.textContent).toContain("2. Create 20 respondent links for this form");
   });
 
   it("shows every argument of a step, with nothing collapsed", () => {

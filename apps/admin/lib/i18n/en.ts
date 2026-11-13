@@ -1607,13 +1607,13 @@ export const messages = {
 
   "agent.card.question.create.title": "Create the question {slug} in the library",
   "agent.card.question.create.consequence":
-    "The question and its draft v1 are created. Its id is minted once and never changes. No form serves it until the version is published and a form's draft pins it.",
+    "The question and its draft v1 are created. Its id is set once and never changes. No form serves it until the version is published and a form's draft pins it.",
   "agent.card.question.saveDraft.title": "Save draft v{version} of {questionId}",
   "agent.card.question.saveDraft.consequence":
     "The draft's definition is replaced by the one on this card. A published or deprecated version is refused instead: published content never changes.",
   "agent.card.question.publish.title": "Publish v{version} of {questionId}",
   "agent.card.question.publish.consequence":
-    "This version's content is frozen for good and becomes pinnable. A form's draft that pins it stops reporting an unpublished pin.",
+    "This version's content is frozen for good and becomes pinnable. A form's draft that pins it stops reporting a version that is not published yet.",
   "agent.card.question.deprecate.title": "Deprecate v{version} of {questionId}",
   "agent.card.question.deprecate.consequence":
     "No new form draft can pin this version. Every form already pinned to it keeps serving it, untouched.",
@@ -1622,7 +1622,7 @@ export const messages = {
     "A new draft is seeded from the latest version. Nothing published changes, and no form moves to it until a draft pins it.",
   "agent.card.form.create.title": "Create the form {slug}",
   "agent.card.form.create.consequence":
-    "The form and an empty first draft are created. Its id is minted from the slug once and never changes, and no respondent can reach it until it is published and released.",
+    "The form and an empty first draft are created. Its id is taken from the slug once and never changes, and no respondent can reach it until it is published and released.",
   "agent.card.form.publish.title":
     "Publish {formId} as a new version and release it to {environment}",
   "agent.card.form.publish.consequence":
@@ -1667,7 +1667,7 @@ export const messages = {
   "agent.card.webhook.redeliver.title": "Redeliver {deliveryId}",
   "agent.card.webhook.redeliver.consequence":
     "The delivery is reset to due-now and the worker attempts it again.",
-  "agent.card.link.mint.title": "Mint {count} respondent links for {formId}",
+  "agent.card.link.mint.title": "Create {count} respondent links for this form",
   "agent.card.link.mint.consequence":
     "Each link opens this form for one respondent. The URLs are shown to you once and cannot be read again.",
   "agent.card.response.erase.title": "Erase the respondent data for {sessionId}",
