@@ -155,7 +155,7 @@ refuses while the workspace owns any form at all or is the shared library, and t
 allows a form to pin its own workspace's questions or the shared workspace's and refuses
 everything else (`apps/api/src/features/workspaces/rules.ts`). A replacement has to satisfy
 those; it does not have to re-derive them. The team rows, the six roles, the scope and the
-statement evaluation are still ahead, with task 069.
+statement evaluation are built by task 069.
 
 **One write path is worth naming, because a replacement will want to short-cut it.** A
 workspace is created by calling the library's server-side `createOrganization`, never by
@@ -170,6 +170,10 @@ decisions recorded in ADR-41, and the permissions matrix in
 `plan/environments-and-workspaces.md` is the specification a replacement would have to
 satisfy. So the work is a data migration and a re-implementation of one evaluation
 function, against a written specification, rather than a redesign.
+
+This page describes what is built. The decided workspace access model, which a later
+replacement would satisfy instead, is [`docs/WORKSPACE_ACCESS.md`](WORKSPACE_ACCESS.md) and
+is not built yet; its [status table](WORKSPACE_ACCESS.md#1-status-and-authority) says what is.
 
 ## What a swap must not change
 

@@ -6,6 +6,8 @@ This document is the working record behind them: the architecture, the screen in
 **All four phases are launch scope and on the launch gate** (section 1.2).
 Sections rewritten after the rulings keep a one-line note of what was recommended before, so a later reader can see what was weighed.
 
+Workspace access (roles, environment sets, administrators, second approval) is specified in [`docs/WORKSPACE_ACCESS.md`](../docs/WORKSPACE_ACCESS.md), which supersedes the role names and rules below wherever they differ. That model is not built yet; its [status table](../docs/WORKSPACE_ACCESS.md#1-status-and-authority) says what is.
+
 Every claim about current code cites `path:line` at `1cd3bdf7`.
 Vendor behaviour is cited from the installed package types (`ai` 7.0.136, `@ai-sdk/anthropic` 4.0.78, `@ai-sdk/openai` 4.0.91, `@ai-sdk/google` 4.0.93, `@ai-sdk/provider` 4.0.26) and from the AI SDK's Anthropic provider page (ai-sdk.dev, "Anthropic", sections "Reasoning", "Thinking Display" and "Thinking Updates", read 2026-10-19).
 

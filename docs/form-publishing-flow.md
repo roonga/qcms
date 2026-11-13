@@ -49,8 +49,11 @@ the form is open in both environments. Draft editing belongs to no environment, 
 Operations selector never decides where a draft is released.
 
 Planned, not shipped (agent builder task U1, `plan/agent-builder-decisions.md`): the wizard
-will accept a `returnTo` limited to the agent build screen and go back there when the
-operator leaves it.
+will accept a `returnTo` the server validates against `/forms/<id>/build` only and go back
+there when the operator leaves it. The builder's agent may open the wizard for a Publish
+forms holder, with no card since the wizard is the confirmation, and never publishes
+itself (Q16); the wizard shows the cumulative agent diff since the last human-reviewed
+revision (Q14).
 
 After a release, the Operations table is where a released form is operated, and it is the
 only place those screens live. Its environment is the Operations header's own selector, and

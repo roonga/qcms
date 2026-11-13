@@ -2,6 +2,8 @@
 
 Status: implemented. Updated 2026-10-26.
 
+Workspace access (roles, environment sets, administrators, second approval) is specified in [`docs/WORKSPACE_ACCESS.md`](../docs/WORKSPACE_ACCESS.md), which supersedes the role names and rules below wherever they differ. That model is not built yet; its [status table](../docs/WORKSPACE_ACCESS.md#1-status-and-authority) says what is.
+
 This amends the form-authoring UX in [the environments plan](environments-and-workspaces.md)
 for deployments serving both `test` and `prod`. It keeps one shared draft and one
 immutable version history. Prod-only deployments are outside this change.

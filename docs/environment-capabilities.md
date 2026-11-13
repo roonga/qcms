@@ -39,6 +39,10 @@ It records server capabilities, and the table below stays accurate for them.
 
 ## What a user can do
 
+This section records the roles as built. The decided workspace access model is
+[`docs/WORKSPACE_ACCESS.md`](WORKSPACE_ACCESS.md) and is not built yet; its
+[status table](WORKSPACE_ACCESS.md#1-status-and-authority) says what is.
+
 Every administrative capability below also requires workspace membership and the
 relevant role. Respondent entry instead requires a valid secure link or permitted
 public access. Environment access alone grants no administrative action. A person
