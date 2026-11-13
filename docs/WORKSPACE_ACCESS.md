@@ -25,8 +25,8 @@ The user guide for these rules is [`docs/workspace-access-guide.html`](workspace
 | Site administrator appointment with approval requests             | Not built    |
 | Workspace audit (SEC-15)                                          | Built        |
 | Site audit and mirroring                                          | Not built    |
-| Workspace list narrowed to the caller's own                       | Not built    |
-| Workspace rename, Move form screen, shared library screen         | Not built    |
+| Workspace list narrowed to the caller's own                       | Built        |
+| Workspace rename, Move form screen, shared library screen         | Partly built |
 | Archive refused while any form remains                            | Built        |
 | Assistant tools follow the user's grants (SEC-17)                 | Built        |
 | Workspace themes and the workspace appearance lock                | Not built    |

@@ -12,14 +12,15 @@ and behind nothing else.
 
 ## Routes
 
-| Method | Path                        | Scope             | Notes                                                                                            |
-| ------ | --------------------------- | ----------------- | ------------------------------------------------------------------------------------------------ |
-| `GET`  | `/workspaces`               | `forms:read`      | Every workspace with what it owns, oldest first, archived ones included.                         |
-| `POST` | `/workspaces`               | `forms:write`     | The one path by which a workspace comes into existence. The caller becomes its `forms.owner`.    |
-| `PUT`  | `/workspaces/{id}/shared`   | `forms:write`     | Mark this workspace as the installation's shared question library, or unmark it. At most one is. |
-| `POST` | `/workspaces/{id}/archive`  | `forms:write`     | Archive it. Refused while it owns any form or is the shared library. There is no unarchive.      |
-| `POST` | `/forms/{id}/workspace`     | `forms:write`     | Move a form. One `UPDATE` on the identity row.                                                   |
-| `POST` | `/questions/{id}/workspace` | `questions:write` | Move a question (Q14). One `UPDATE` on the identity row, touching no version.                    |
+| Method | Path                        | Scope             | Notes                                                                                             |
+| ------ | --------------------------- | ----------------- | ------------------------------------------------------------------------------------------------- |
+| `GET`  | `/workspaces`               | `forms:read`      | The workspaces the caller administers (every one for the claim), oldest first, archived included. |
+| `PUT`  | `/workspaces/{id}/name`     | `forms:write`     | Rename it. The slug never changes; one `setting` audit row. Refused once archived.                |
+| `POST` | `/workspaces`               | `forms:write`     | The one path by which a workspace comes into existence. The caller becomes its `forms.owner`.     |
+| `PUT`  | `/workspaces/{id}/shared`   | `forms:write`     | Mark this workspace as the installation's shared question library, or unmark it. At most one is.  |
+| `POST` | `/workspaces/{id}/archive`  | `forms:write`     | Archive it. Refused while it owns any form or is the shared library. There is no unarchive.       |
+| `POST` | `/forms/{id}/workspace`     | `forms:write`     | Move a form. One `UPDATE` on the identity row.                                                    |
+| `POST` | `/questions/{id}/workspace` | `questions:write` | Move a question (Q14). One `UPDATE` on the identity row, touching no version.                     |
 
 The two **move** routes are addressed under the form and question collections and are
 registered here, because what they change is ownership and because they share this slice's
