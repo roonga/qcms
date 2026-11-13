@@ -200,12 +200,11 @@ function RevealBlock({
                 <Button
                   variant="secondary"
                   size="sm"
-                  aria-label={t("agent.card.reveal.copyLabel", { number: at + 1 })}
                   onPress={() => {
                     copy(link.url);
                   }}
                 >
-                  {t("agent.card.reveal.copy")}
+                  {t("agent.card.reveal.copy", { number: at + 1 })}
                 </Button>
               </li>
             ))}

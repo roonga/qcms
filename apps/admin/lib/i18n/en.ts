@@ -1777,9 +1777,8 @@ export const messages = {
   "agent.card.reveal.links.other": "{count} addresses, shown once",
   "agent.card.reveal.links.note":
     "Copy or download these now. The server keeps a link's state, never its address, so they cannot be shown again.",
-  "agent.card.reveal.copy": "Copy",
-  /** Name the row, never the address: this label is read aloud and a bearer address must not be. */
-  "agent.card.reveal.copyLabel": "Copy address {number}",
+  /** Number the control, never name the address: this label is read aloud and a bearer address must not be. */
+  "agent.card.reveal.copy": "Copy {number}",
   "agent.card.reveal.csv": "Download all as CSV",
   "agent.card.reveal.dismiss": "Hide",
   "agent.card.reveal.dismissHint.one":
