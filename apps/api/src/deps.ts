@@ -2,6 +2,7 @@ import type { Clock } from "./clock.js";
 import type { Databases } from "./environments.js";
 import type { Config, Flags } from "./config.js";
 import type { DraftAssistant } from "./features/agent/types.js";
+import type { Mailer } from "./features/email/mailer.js";
 import type { ChallengeVerifier } from "./features/responses/challenge.js";
 import type { Logger } from "./logger.js";
 import type { RateLimitStore } from "./rate-limit.js";
@@ -19,5 +20,7 @@ export interface Deps {
   /** Null verifier when the provider is `none`, so it passes every solution. */
   readonly challenge: ChallengeVerifier;
   readonly draftAssistant: DraftAssistant;
+  /** `configured` is false, and every send refused, until `QCMS_SMTP_*` is set. */
+  readonly mailer: Mailer;
   readonly flags: Flags;
 }
