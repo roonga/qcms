@@ -577,7 +577,8 @@ On a stack where `QCMS_ADMIN_2FA` is `required`, add `QCMS_AGENT_CONVERSE_TOTP` 
 **On a fresh stack the account is still holding its provisional password**, and the admin sends it to the forced password change before any screen.
 The run completes that change itself when `QCMS_AGENT_CONVERSE_NEW_PASSWORD` names the password the account should take, and is refused by name when it does not.
 It is an environment variable and not a flag for the same reason the first password is: `argv` is world-readable through `/proc`.
-Set both for the first run, then drop `QCMS_AGENT_CONVERSE_NEW_PASSWORD` and put the chosen password in `QCMS_AGENT_CONVERSE_PASSWORD`:
+Set both for the first run, then drop `QCMS_AGENT_CONVERSE_NEW_PASSWORD` and put the chosen password in `QCMS_AGENT_CONVERSE_PASSWORD`.
+The change is the first gate and 2FA enrollment is the second, so on a stack where `QCMS_ADMIN_2FA` is `required` the run stops after the change and says to enroll the account in a browser; enrollment is a credential this harness will not mint for you.
 
 ```sh
 read -rs -p 'provisional password: ' QCMS_AGENT_CONVERSE_PASSWORD; echo

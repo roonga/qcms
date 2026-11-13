@@ -144,6 +144,15 @@ async function firstSignIn(page, run, credentials) {
   if (landed.startsWith("/sign-in")) {
     throw new Error("the admin refused the new password; it may be too short or compromised");
   }
+  // The change is the first gate and enrollment is the second, so a fresh account on a
+  // stack that requires a factor still has one step this run will not take for it.
+  if (landed.startsWith("/two-factor/enroll")) {
+    throw new Error(
+      "the password is changed, and this account has no second factor yet: enroll it in a " +
+        "browser and put its secret in QCMS_AGENT_CONVERSE_TOTP, or run against a stack with " +
+        "QCMS_ADMIN_2FA=optional",
+    );
+  }
 }
 
 /**
