@@ -3345,14 +3345,14 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
 .qcms-assistant[data-mode="dock"] {
   position: sticky;
   align-self: start;
-  inset-block-start: var(--admin-topbar-measured, var(--admin-topbar-h));
-  block-size: calc(100dvh - var(--admin-topbar-measured, var(--admin-topbar-h)));
+  inset-block-start: var(--admin-topbar-layout-h, var(--admin-topbar-h));
+  block-size: calc(100dvh - var(--admin-topbar-layout-h, var(--admin-topbar-h)));
 }
 .qcms-assistant__conversation {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   min-block-size: 0;
-  block-size: 100%;
 }
 .qcms-shell-body:has(> .qcms-assistant[data-mode="dock"]:not([hidden])) {
   display: grid;
@@ -3383,11 +3383,16 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
 .qcms-assistant[data-mode="expanded"],
 .qcms-assistant[data-mode="sheet"] {
   position: fixed;
-  inset-block-start: var(--admin-topbar-measured, var(--admin-topbar-h));
+  inset-block-start: var(--admin-topbar-layout-h, var(--admin-topbar-h));
   inset-block-end: 0;
   inset-inline: 0;
   z-index: 40;
   inline-size: auto;
+}
+/* A modal panel covers the viewport, so the page behind it must not scroll under it. */
+:root:has(.qcms-assistant[data-mode="expanded"]:not([hidden])),
+:root:has(.qcms-assistant[data-mode="sheet"]:not([hidden])) {
+  overflow: hidden;
 }
 .qcms-assistant__edge {
   align-self: stretch;
@@ -3417,10 +3422,13 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
 .qcms-assistant__body {
   padding: 0.75rem;
 }
+/* The conversation is the panel's one scroll container; a second one here would stack scrollbars. */
 .qcms-assistant__body {
+  display: flex;
   flex: 1 1 auto;
+  flex-direction: column;
   min-block-size: 0;
-  overflow-y: auto;
+  overflow: hidden;
 }
 .qcms-assistant__widths {
   display: flex;
@@ -3457,6 +3465,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
 }
 .qcms-assistant__composer {
   display: flex;
+  flex: none;
   flex-direction: column;
   gap: 0.5rem;
   padding-block-start: 0.75rem;

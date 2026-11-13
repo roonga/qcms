@@ -528,6 +528,80 @@ test("keeps the dock the height of the viewport, with the composer inside it", a
   expect(geometry.composerBottom).toBeGreaterThan(0);
 });
 
+// Two nested scroll containers put two scrollbars side by side; the conversation owns the only one.
+async function panelScrollers(page: Page): Promise<readonly string[]> {
+  return page.evaluate(() => {
+    const root = document.getElementById("qcms-assistant-panel");
+    if (root === null) return [];
+    return [root, ...root.querySelectorAll("*")]
+      .filter((node): node is HTMLElement => node instanceof HTMLElement)
+      .filter((node) => {
+        const style = window.getComputedStyle(node);
+        const scrolls = /auto|scroll/u.test(`${style.overflowY} ${style.overflowX}`);
+        return (
+          scrolls &&
+          (node.scrollHeight > node.clientHeight + 1 || node.scrollWidth > node.clientWidth + 1)
+        );
+      })
+      .map((node) => node.dataset["testid"] ?? node.className);
+  });
+}
+
+async function expectOneScroller(page: Page, where: string): Promise<void> {
+  const scrollers = await panelScrollers(page);
+  expect(
+    scrollers.filter((name) => name !== "qcms-assistant-turns"),
+    `${where} should scroll in the conversation alone`,
+  ).toEqual([]);
+}
+
+test("gives the panel one scroll container and holds the page still behind it", async ({
+  page,
+}) => {
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.setViewportSize({ width: WIDE, height: 700 });
+  await page.goto(`/forms/${FORM_ID}`);
+  await chooseEnvironment(page, "test");
+  await open(page);
+  await expect(panel(page)).toHaveAttribute("data-mode", "dock");
+  await expectOneScroller(page, "the dock");
+
+  await page.getByTestId("qcms-assistant-expand").click();
+  await expect(panel(page)).toHaveAttribute("data-mode", "expanded");
+  await expectOneScroller(page, "the expanded panel");
+
+  await page.setViewportSize({ width: 700, height: 700 });
+  await expect(panel(page)).toHaveAttribute("data-mode", "sheet");
+  await expectOneScroller(page, "the sheet");
+
+  const fit = await page.evaluate(() => {
+    window.scrollTo(0, 4000);
+    const box = document.getElementById("qcms-assistant-panel")?.getBoundingClientRect();
+    const bar = document.querySelector("header.qcms-topbar")?.getBoundingClientRect();
+    const composer = document
+      .querySelector('[data-testid="qcms-assistant-composer"]')
+      ?.getBoundingClientRect();
+    return {
+      scrolled: Math.round(window.scrollY),
+      top: Math.round(box?.top ?? 0),
+      bottom: Math.round(box?.bottom ?? 0),
+      barBottom: Math.round(bar?.bottom ?? 0),
+      composerBottom: Math.round(composer?.bottom ?? 0),
+      viewport: window.innerHeight,
+    };
+  });
+  expect(fit.scrolled, "the page behind the sheet does not scroll").toBe(0);
+  expect(
+    Math.abs(fit.top - fit.barBottom),
+    "the sheet starts under the top bar",
+  ).toBeLessThanOrEqual(1);
+  expect(fit.bottom, "the sheet reaches the foot of the viewport").toBe(fit.viewport);
+  expect(fit.composerBottom, "the composer sits at the sheet's foot").toBeGreaterThan(
+    fit.viewport - 120,
+  );
+  expect(fit.composerBottom).toBeLessThanOrEqual(fit.viewport);
+});
+
 test("runs no animation on open, close or expand under reduced motion (exit criterion 5)", async ({
   page,
 }) => {
