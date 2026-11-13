@@ -14,6 +14,9 @@ export interface StepArgumentLine {
 
   readonly mono: boolean;
 
+  /** The id this line replaced with a title, kept for support behind a disclosure. */
+  readonly id: string | undefined;
+
   readonly fromStep: number | undefined;
 }
 
@@ -128,50 +131,173 @@ function vocabularyText(name: string, raw: unknown): string | undefined {
     : t("ops.erase.reason.unknown", { reason: raw });
 }
 
+/** The arguments a card names by title; their ids are support detail rather than the subject. */
+const NAMED_ID_ARGUMENTS: ReadonlySet<string> = new Set(["formId", "questionId", "workspaceId"]);
+
+/** The arguments whose title the plan can work out for itself. */
+const TITLED_ID_ARGUMENTS: readonly string[] = ["formId", "questionId"];
+
 export function stepArguments(
   step: AgentPlanStep,
   reported: ReportedResults = {},
-  /** Workspace names the proposal carried, so a card names one rather than showing its id. */
-  workspaces: ReadonlyMap<string, string> = new Map(),
+  names: PlanNames = EMPTY_NAMES,
 ): readonly StepArgumentLine[] {
-  const names = Object.keys(step.args)
+  const ordered = Object.keys(step.args)
     .filter((name) => name !== ENVIRONMENT_ARGUMENT)
     .sort((left, right) => orderOf(left) - orderOf(right) || (left < right ? -1 : 1));
 
-  return names.map((name) => {
+  return ordered.map((name) => {
     const raw = step.args[name];
     const reference = asReference(raw);
     const resolved =
       reference === undefined ? undefined : reported[reference.fromStep]?.[reference.field];
     const value = referenceText(raw, reference, resolved, name);
-    const named = name === "workspaceId" ? workspaces.get(value) : undefined;
+    const named = NAMED_ID_ARGUMENTS.has(name) ? names.byId.get(value) : undefined;
     return {
       name,
       label: argumentLabel(name),
       value: named ?? value,
       mono: named === undefined && MONO_ARGUMENTS.has(name),
+      id: named === undefined ? undefined : value,
       ...(reference === undefined ? { fromStep: undefined } : { fromStep: reference.fromStep }),
     };
   });
 }
 
+/** Titles the plan can supply for itself: what a step is about, and what each id stands for. */
+export interface PlanNames {
+  readonly byId: ReadonlyMap<string, string>;
+  readonly byStep: ReadonlyMap<number, string>;
+}
+
+const EMPTY_NAMES: PlanNames = { byId: new Map(), byStep: new Map() };
+
+const SUBJECT_FIELDS: readonly string[] = ["title", "label"];
+
+/** A label or title may be authored per locale; any one of them names the thing better than an id. */
+export function displayText(value: unknown): string | undefined {
+  if (typeof value === "string") return value.trim() === "" ? undefined : value.trim();
+  if (typeof value !== "object" || value === null) return undefined;
+  for (const text of Object.values(value as Record<string, unknown>)) {
+    if (typeof text === "string" && text.trim() !== "") return text.trim();
+  }
+  return undefined;
+}
+
+function textField(value: unknown, field: string): string | undefined {
+  if (typeof value !== "object" || value === null) return undefined;
+  return displayText((value as Record<string, unknown>)[field]);
+}
+
+/** A step's own subject: the title of the form draft it carries, or the label of its question. */
+function stepSubject(step: AgentPlanStep): string | undefined {
+  for (const field of SUBJECT_FIELDS) {
+    const found =
+      textField(step.args["definition"], field) ?? textField(step.draft?.definition, field);
+    if (found !== undefined) return found;
+  }
+  return undefined;
+}
+
+function literalId(raw: unknown): string | undefined {
+  return typeof raw === "string" && raw !== "" ? raw : undefined;
+}
+
 /**
- * The name the referenced step will mint, which is the slug that step was asked for. A title
- * reads better as the thing being made than as "step 1's formId", and the slug is the
- * referencing step's own plan rather than anything resolved at run time.
+ * A plan carries the titles of what it makes: the draft it saves names the form an earlier step
+ * creates, and a question definition names the question. Collected here so no card shows an id
+ * where the plan itself knows a title.
+ */
+export function planNames(
+  proposal: {
+    readonly steps: readonly AgentPlanStep[];
+    readonly workspaces?: readonly { readonly workspaceId: string; readonly name: string }[];
+  },
+  /** Titles the screen already knows, such as the draft open in the builder. */
+  known: ReadonlyMap<string, string> = new Map(),
+): PlanNames {
+  const byId = new Map(known);
+  for (const entry of proposal.workspaces ?? []) byId.set(entry.workspaceId, entry.name);
+
+  const byStep = new Map<number, string>();
+  for (const [index, step] of proposal.steps.entries()) {
+    const subject = stepSubject(step);
+    if (subject !== undefined) byStep.set(index, subject);
+  }
+
+  for (const [index, subject] of byStep) {
+    const step = proposal.steps[index];
+    if (step !== undefined) recordSubject(step, subject, byId, byStep);
+  }
+
+  return { byId, byStep };
+}
+
+/** What this step calls its form or its question, and what it calls the step that makes one. */
+function recordSubject(
+  step: AgentPlanStep,
+  subject: string,
+  byId: Map<string, string>,
+  byStep: Map<number, string>,
+): void {
+  for (const name of TITLED_ID_ARGUMENTS) {
+    const raw = step.args[name];
+    const id = literalId(raw);
+    if (id !== undefined) byId.set(id, subject);
+    const reference = asReference(raw);
+    if (reference !== undefined && !byStep.has(reference.fromStep))
+      byStep.set(reference.fromStep, subject);
+  }
+}
+
+/**
+ * The name the referenced step will produce. A title reads better as the thing being made than as
+ * "step 1's formId", and the plan's own titles outrank the address it was asked for.
  */
 function plannedName(
   reference: StepReference,
   steps: readonly AgentPlanStep[],
+  names: PlanNames,
 ): string | undefined {
   const slug = steps[reference.fromStep]?.args["slug"];
-  return typeof slug === "string" && slug !== "" ? slug : undefined;
+  return (
+    names.byStep.get(reference.fromStep) ??
+    (typeof slug === "string" && slug !== "" ? slug : undefined)
+  );
 }
+
+/** The title to call a form or a question by on this step, never its id. */
+function subjectName(
+  step: AgentPlanStep,
+  index: number,
+  argument: string,
+  names: PlanNames,
+  reported: ReportedResults,
+): string | undefined {
+  const raw = step.args[argument];
+  const id = literalId(raw);
+  if (id !== undefined) return names.byId.get(id);
+  const reference = asReference(raw);
+  if (reference !== undefined) {
+    const planned = names.byStep.get(reference.fromStep);
+    if (planned !== undefined) return planned;
+    const resolved = reported[reference.fromStep]?.[reference.field];
+    const found = literalId(resolved);
+    if (found !== undefined) return names.byId.get(found);
+  }
+  return names.byStep.get(index);
+}
+
+const SUBJECTS: readonly (readonly [string, string, MessageKey])[] = [
+  ["form", "formId", "agent.card.subject.form"],
+  ["question", "questionId", "agent.card.subject.question"],
+];
 
 function titleParams(
   step: AgentPlanStep,
   reported: ReportedResults,
   steps: readonly AgentPlanStep[],
+  names: PlanNames,
 ): Record<string, string> {
   const params: Record<string, string> = { environment: step.environment };
   for (const line of stepArguments(step, reported)) {
@@ -182,25 +308,27 @@ function titleParams(
     params[line.name] =
       reference === undefined || resolved !== undefined
         ? line.value
-        : (plannedName(reference, steps) ??
+        : (plannedName(reference, steps, names) ??
           t("agent.card.fromStepShort", { field: reference.field, step: reference.fromStep + 1 }));
   }
-  return params;
-}
 
-/** The proposal's own workspace names, keyed by id. */
-export function workspaceNames(proposal: {
-  readonly workspaces?: readonly { readonly workspaceId: string; readonly name: string }[];
-}): ReadonlyMap<string, string> {
-  return new Map((proposal.workspaces ?? []).map((entry) => [entry.workspaceId, entry.name]));
+  const index = steps.indexOf(step);
+  const address = step.args["slug"];
+  for (const [param, argument, fallback] of SUBJECTS) {
+    params[param] =
+      subjectName(step, index, argument, names, reported) ??
+      (typeof address === "string" && address !== "" ? address : t(fallback));
+  }
+  return params;
 }
 
 export function stepTitle(
   step: AgentPlanStep,
   reported: ReportedResults = {},
   steps: readonly AgentPlanStep[] = [],
+  names: PlanNames = EMPTY_NAMES,
 ): string {
-  return t(step.card.titleKey as MessageKey, titleParams(step, reported, steps));
+  return t(step.card.titleKey as MessageKey, titleParams(step, reported, steps, names));
 }
 
 export function stepConsequences(step: AgentPlanStep): readonly string[] {

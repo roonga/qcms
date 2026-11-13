@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { Button, Dialog } from "@/components/kit";
-import { stepTitle, workspaceNames } from "@/lib/agent/card-copy";
+import { stepTitle, type PlanNames } from "@/lib/agent/card-copy";
 import {
   headingChip,
   runningLine,
@@ -18,6 +18,7 @@ import { CardFooter, IrreversibleBand, ReasonBlock, reportedResults, StepItem } 
 export interface AgentCardDialogProps {
   readonly proposal: AgentProposal;
   readonly card: AgentCardView;
+  readonly names: PlanNames;
   readonly reason: string | undefined;
   readonly minutes: number;
   readonly confirmable: boolean;
@@ -35,7 +36,7 @@ export interface AgentCardDialogProps {
 
 /** The plan's own pages, then one review page: Confirm lives on the review page alone. */
 export function AgentCardDialog(props: AgentCardDialogProps): React.ReactElement {
-  const { card, proposal } = props;
+  const { card, names, proposal } = props;
   const steps = proposal.steps;
   const wizard = steps.length > 1;
   const reviewPage = steps.length;
@@ -44,7 +45,6 @@ export function AgentCardDialog(props: AgentCardDialogProps): React.ReactElement
   const paged = useRef(false);
 
   const reported = reportedResults(card);
-  const names = workspaceNames(proposal);
   const chips = showsStepChips(card);
   const chip = headingChip(card);
   const live = runningLine(card);
@@ -64,7 +64,7 @@ export function AgentCardDialog(props: AgentCardDialogProps): React.ReactElement
   const title =
     wizard || first === undefined
       ? tPlural("agent.card.planTitle.one", "agent.card.planTitle.other", steps.length)
-      : stepTitle(first, reported, steps);
+      : stepTitle(first, reported, steps, names);
   const onReview = page >= reviewPage;
   const shown = steps[page];
   const reviewLabel = t("agent.card.wizard.reviewTitle", { count: steps.length });

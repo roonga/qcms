@@ -6,9 +6,9 @@ import type { AgentPlanStep, AgentProposal } from "@/lib/forms/assist-stream";
 import {
   isTypedConfirmed,
   minutesLeft,
+  planNames,
   stepTitle,
   typedConfirmation,
-  workspaceNames,
 } from "@/lib/agent/card-copy";
 import {
   canConfirm,
@@ -40,6 +40,8 @@ export interface ActionCardProps {
   readonly onDismissReveal?: (index: number) => void;
   /** A card kept on screen only for the reveal nobody has dismissed: it reports its result no second time. */
   readonly held?: boolean;
+  /** Titles the screen knows for ids the proposal only names. */
+  readonly names?: ReadonlyMap<string, string> | undefined;
 }
 
 export function ActionCard(props: ActionCardProps): React.ReactElement {
@@ -76,7 +78,7 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
   const confirmable = canConfirm(card) && isTypedConfirmed(typed, required);
   const live = runningLine(card);
   const minutes = minutesLeft(remainingMs);
-  const names = workspaceNames(proposal);
+  const names = planNames(proposal, props.names);
 
   function onKeyDown(event: KeyboardEvent<HTMLElement>): void {
     if (event.key !== "Escape") return;
@@ -102,7 +104,7 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
                   "agent.card.planTitle.other",
                   proposal.steps.length,
                 )
-              : stepTitle(proposal.steps[0] as AgentPlanStep, reported, proposal.steps)}
+              : stepTitle(proposal.steps[0] as AgentPlanStep, reported, proposal.steps, names)}
           </h2>
           <span className="qcms-acard__state" data-s={card.state}>
             {t(chip.key, chip.params)}
@@ -166,6 +168,7 @@ export function ActionCard(props: ActionCardProps): React.ReactElement {
         <AgentCardDialog
           proposal={proposal}
           card={card}
+          names={names}
           reason={props.reason}
           minutes={minutes}
           confirmable={confirmable}

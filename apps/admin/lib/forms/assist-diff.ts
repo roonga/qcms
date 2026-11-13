@@ -110,14 +110,30 @@ function pinKey(stepId: string, questionId: string): string {
   return `${stepId}\u0000${questionId}`;
 }
 
-function parseQuestionTypes(raw: unknown): ReadonlyMap<string, string> {
-  const types = new Map<string, string>();
+/** What a proposed question is called and what it is, as far as the proposal says. */
+interface ProposedFacts {
+  readonly type: string | undefined;
+  readonly label: string | undefined;
+}
+
+function parseQuestionTypes(raw: unknown): ReadonlyMap<string, ProposedFacts> {
+  const types = new Map<string, ProposedFacts>();
   for (const entry of objects(raw)) {
     const questionId = entry["questionId"];
     const type = entry["type"];
-    if (typeof questionId === "string" && typeof type === "string") types.set(questionId, type);
+    const label = entry["label"];
+    if (typeof questionId !== "string") continue;
+    types.set(questionId, {
+      type: typeof type === "string" ? type : undefined,
+      label: typeof label === "string" ? label : localeText(label),
+    });
   }
   return types;
+}
+
+function localeText(raw: unknown): string | undefined {
+  const found = textOf(readLocalizedText(raw), "");
+  return found === "" ? undefined : found;
 }
 
 function textOf(text: Readonly<Record<string, string>>, locale: string): string {
@@ -173,7 +189,7 @@ function flattenPins(steps: readonly DraftStep[]): readonly DraftPin[] {
 function questionDiff(
   currentSteps: readonly DraftStep[],
   proposedSteps: readonly DraftStep[],
-  questionTypes: ReadonlyMap<string, string>,
+  questionTypes: ReadonlyMap<string, ProposedFacts>,
 ): DiffEntry[] {
   const currentPins = new Map(flattenPins(currentSteps).map((pin) => [pin.questionId, pin]));
   const entries: DiffEntry[] = [];
@@ -187,11 +203,13 @@ function questionDiff(
 function questionDiffEntry(
   pin: DraftPin,
   existing: DraftPin | undefined,
-  questionTypes: ReadonlyMap<string, string>,
+  questionTypes: ReadonlyMap<string, ProposedFacts>,
 ): DiffEntry | undefined {
   if (existing !== undefined && existing.version === pin.version) return undefined;
-  const type = questionTypes.get(pin.questionId);
-  const label = type === undefined ? pin.questionId : `${pin.questionId} (${type})`;
+  const proposed = questionTypes.get(pin.questionId);
+  const type = proposed?.type;
+  const named = proposed?.label ?? pin.questionId;
+  const label = type === undefined ? named : `${named} (${type})`;
   return {
     kind: "question",
     change: existing === undefined ? "added" : "changed",

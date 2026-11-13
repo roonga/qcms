@@ -1583,7 +1583,7 @@ export const messages = {
   "forms.assist.kind.question": "Question",
   "forms.assist.kind.rule": "Rule",
   "forms.assist.newQuestionPending":
-    "New question {questionId}. Accepting creates it as an unpublished draft in the question library. Publish it there before you publish this form.",
+    "{question} is a new question. Accepting adds it to the question library, not published yet. Publish it there before you publish this form.",
   "forms.assist.definition.question": "Question",
   "forms.assist.definition.questionId": "Id",
   "forms.assist.definition.type": "Type",
@@ -1596,55 +1596,58 @@ export const messages = {
   "forms.assist.definition.other": "Other fields",
   "forms.assist.definition.raw": "Show the whole definition",
   "forms.assist.newQuestionFromStep":
-    "New question {questionId}, created by step {step} of this plan as an unpublished draft version. Publish it from the question library before you publish this form.",
+    "{question} is a new question, added to the library by step {step} of this plan and not published yet. Publish it from the question library before you publish this form.",
 
   /** Action-card consequences must mirror ordinary dialog consequences and come only from registered catalog templates, never model prose. */
   "agent.card.planTitle.one": "1 step",
   "agent.card.planTitle.other": "Plan · {count} steps",
   "agent.card.stepsLabel": "The steps this plan runs, in order",
+  /** A step naming no title of its own still has to read as a sentence about something. */
+  "agent.card.subject.form": "this form",
+  "agent.card.subject.question": "this question",
 
   "agent.card.reasonLabel": "Reason",
 
-  "agent.card.question.create.title": "Create the question {slug} in the library",
+  "agent.card.question.create.title": "Add the question {question} to the library",
   "agent.card.question.create.consequence":
-    "The question and its draft v1 are created. Its id is set once and never changes. No form serves it until the version is published and a form's draft pins it.",
-  "agent.card.question.saveDraft.title": "Save draft v{version} of {questionId}",
+    "Adds the question to the library as version 1, not published yet. No form shows it to anyone until you publish that version and a form uses it.",
+  "agent.card.question.saveDraft.title": "Save version {version} of the question {question}",
   "agent.card.question.saveDraft.consequence":
-    "The draft's definition is replaced by the one on this card. A published or deprecated version is refused instead: published content never changes.",
-  "agent.card.question.publish.title": "Publish v{version} of {questionId}",
+    "Replaces what this version says with the wording on this card. It works only while that version is not published yet: a published version never changes, so the save is refused instead.",
+  "agent.card.question.publish.title": "Publish version {version} of the question {question}",
   "agent.card.question.publish.consequence":
-    "This version's content is frozen for good and becomes pinnable. A form's draft that pins it stops reporting a version that is not published yet.",
-  "agent.card.question.deprecate.title": "Deprecate v{version} of {questionId}",
+    "Freezes this version's wording for good, so a form can use it. A form that already uses it stops reporting that the question is not published yet.",
+  "agent.card.question.deprecate.title": "Deprecate version {version} of the question {question}",
   "agent.card.question.deprecate.consequence":
-    "No new form draft can pin this version. Every form already pinned to it keeps serving it, untouched.",
-  "agent.card.question.newVersion.title": "Open a new draft version of {questionId}",
+    "No form can start using this version. Every form already using it keeps working, untouched.",
+  "agent.card.question.newVersion.title": "Start a new version of the question {question}",
   "agent.card.question.newVersion.consequence":
-    "A new draft is seeded from the latest version. Nothing published changes, and no form moves to it until a draft pins it.",
-  "agent.card.form.create.title": "Create the form {slug}",
+    "Starts a new version, copied from the latest one and not published yet. Nothing published changes, and no form moves to it until a form uses it.",
+  "agent.card.form.create.title": "Create the {form} form",
   "agent.card.form.create.consequence":
-    "The form and an empty first draft are created. Its id is taken from the slug once and never changes, and no respondent can reach it until it is published and released.",
+    "Creates the form and its first empty draft. The address below is fixed when the form is created and cannot be changed afterwards. Nobody can answer the form until you publish it and release it.",
   "agent.card.form.publish.title":
-    "Publish {formId} as a new version and release it to {environment}",
+    "Publish {form} as a new version and release it to {environment}",
   "agent.card.form.publish.consequence":
-    "The working draft becomes an immutable version, and that version is released to {environment} in the same act. Respondents starting from now get it there.",
-  "agent.card.form.release.title": "Release version {version} of {formId} to {environment}",
+    "Freezes the working draft as a version that never changes, and releases that version to {environment} in the same step. Anyone starting from now gets it there.",
+  "agent.card.form.release.title": "Release version {version} of {form} to {environment}",
   "agent.card.form.release.consequence":
-    "Respondents starting from now get this version in {environment}.",
-  "agent.card.apply-draft.title": "Apply the proposed draft to {formId}",
+    "Anyone starting from now gets this version in {environment}.",
+  "agent.card.apply-draft.title": "Put the proposed changes into the {form} draft",
   "agent.card.apply-draft.consequence":
-    "The working draft is replaced by the one below. It publishes nothing and releases nothing: respondents see no change until this form is published.",
+    "Replaces the working draft with the one below. It publishes nothing and releases nothing: nobody answering the form sees a change until you publish it.",
   "agent.card.apply-draft.provenance":
-    "The draft is marked as carrying agent-assisted changes, and keeps that mark until it is published.",
-  "agent.card.form.saveDraft.title": "Save the draft of {formId}",
+    "The draft is marked as carrying assistant-written changes, and keeps that mark until it is published.",
+  "agent.card.form.saveDraft.title": "Save the draft of {form}",
   "agent.card.form.saveDraft.consequence":
-    "The form's working draft is replaced by the one below, through the same save the builder uses. It publishes nothing and releases nothing: respondents see no change until this form is published.",
-  "agent.card.form.settings.title": "Change the form settings of {formId}",
+    "Replaces the form's working draft with the one below, through the same save the builder uses. It publishes nothing and releases nothing: nobody answering the form sees a change until you publish it.",
+  "agent.card.form.settings.title": "Change the settings of {form}",
   "agent.card.form.settings.consequence":
-    "Abuse controls for this form. They apply the next time it is published.",
-  "agent.card.form.close.title": "Close {formId} to new responses in {environment}",
+    "Abuse controls for this form. They take effect the next time it is published.",
+  "agent.card.form.close.title": "Close {form} to new responses in {environment}",
   "agent.card.form.close.consequence":
-    "No one can start a new response to this form in {environment} after it closes. Every other environment is unaffected: a test run keeps going if one is under way. Responses already in progress here keep going too and finish on the version they started on; their answers are unaffected.",
-  "agent.card.form.reopen.title": "Reopen {formId} in {environment}",
+    "Nobody can start answering this form in {environment} after it closes. Every other environment is unaffected: a test run keeps going if one is under way. Responses already in progress here keep going too and finish on the version they started on; their answers are unaffected.",
+  "agent.card.form.reopen.title": "Reopen {form} in {environment}",
   "agent.card.form.reopen.consequence":
     "New responses can start in {environment} again, on the version released there.",
   "agent.card.webhook.create.title": "Add a delivery endpoint at {url}",
@@ -1669,7 +1672,7 @@ export const messages = {
     "The delivery is reset to due-now and the worker attempts it again.",
   "agent.card.link.mint.title": "Create {count} respondent links for this form",
   "agent.card.link.mint.consequence":
-    "Each link opens this form for one respondent. The URLs are shown to you once and cannot be read again.",
+    "Each link lets one person open and answer this form. The web addresses are shown to you once, on this card, and cannot be read again.",
   "agent.card.response.erase.title": "Erase the respondent data for {sessionId}",
   "agent.card.response.erase.consequence":
     "The answers and the submission are deleted. There is no undo, no archive and no restore.",
@@ -1712,15 +1715,17 @@ export const messages = {
   "agent.card.fromStepShort": "step {step}'s {field}",
 
   "agent.card.openCreated": "Open what this created",
+  /** Ids are support detail, not the subject of a sentence; the card names its subject by title. */
+  "agent.card.ids": "Identifiers",
   "agent.card.arg.formId": "Form",
-  "agent.card.arg.slug": "Slug",
+  "agent.card.arg.slug": "Address",
   "agent.card.arg.questionId": "Question",
   "agent.card.arg.definition": "Definition",
-  "agent.card.arg.defaultLocale": "Authoring locale",
+  "agent.card.arg.defaultLocale": "Language you write in",
   "agent.card.arg.label": "Label",
   "agent.card.arg.count": "How many",
   "agent.card.arg.expiresAt": "Stops working",
-  "agent.card.arg.oneTime": "One respondent each",
+  "agent.card.arg.oneTime": "One person each",
   "agent.card.arg.version": "Version",
   "agent.card.arg.environment": "Environment",
   "agent.card.arg.fromEnvironment": "Promoted from",

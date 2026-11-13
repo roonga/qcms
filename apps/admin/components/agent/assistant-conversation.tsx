@@ -46,7 +46,7 @@ import {
   type ProposalWindow,
 } from "@/lib/agent/proposal-window";
 import { runPlan } from "@/lib/agent/runner";
-import { stepTitle } from "@/lib/agent/card-copy";
+import { displayText, planNames, stepTitle } from "@/lib/agent/card-copy";
 import { useProposalSeam } from "@/lib/agent/waiting";
 import { errorForResponse, messageForError, type AssistError } from "@/lib/forms/assist-errors";
 import { readAssistEvents, type AgentProposal, type AssistEvent } from "@/lib/forms/assist-stream";
@@ -57,6 +57,15 @@ import { runStepAction } from "./step-actions";
 /* Room for the card's own flattener to cut on a word boundary: a hard cut here would strand a
    half word no later pass could repair. The card quotes REASON_CHARS of what this keeps. */
 const REASON_SOURCE_CHARS = 4 * REASON_CHARS;
+
+/* The builder holds the open draft's title, so a card about that form can name it. */
+function builderNames(
+  builder: BuilderAssistSnapshot | undefined,
+): ReadonlyMap<string, string> | undefined {
+  const draft = builder?.draft;
+  const title = draft === undefined ? undefined : displayText(draft.title);
+  return draft === undefined || title === undefined ? undefined : new Map([[draft.formId, title]]);
+}
 
 function handOffFields(args: Readonly<Record<string, unknown>>): Readonly<Record<string, string>> {
   const fields: Record<string, string> = {};
@@ -188,7 +197,7 @@ function ScreenConversation({
     const control = step.card.headingControl;
     publish({
       cardId,
-      summary: stepTitle(step, {}),
+      summary: stepTitle(step, {}, proposal.steps, planNames(proposal)),
       ...(control === undefined ? {} : { control }),
     });
   }, [card, cardId, proposal, publish]);
@@ -487,6 +496,7 @@ function ScreenConversation({
               id={cardId}
               proposal={proposal}
               card={card}
+              names={builderNames(builder)}
               reason={reason}
               remainingMs={remainingWindowMs(windowRef.current, monotonicNow())}
               onConfirm={() => void confirmCard(proposal, card)}

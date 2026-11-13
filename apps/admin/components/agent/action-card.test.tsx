@@ -98,7 +98,7 @@ describe("rule 1: the admin writes the card", () => {
     expect(
       screen.getByRole("heading", { name: "Create 20 respondent links for this form" }),
     ).toBeTruthy();
-    expect(screen.getByText(/Each link opens this form for one respondent/u)).toBeTruthy();
+    expect(screen.getByText(/Each link lets one person open and answer this form/u)).toBeTruthy();
   });
 
   it("renders the model's words once, quoted, and nowhere else", () => {
@@ -120,7 +120,7 @@ describe("rule 2: every step and every argument, in run order, in full", () => {
     renderCard(plan, initialCard(plan));
     const rows = screen.getAllByRole("listitem");
     expect(rows).toHaveLength(2);
-    expect(rows[0]?.textContent).toContain("1. Release version 3 of frm_quote to prod");
+    expect(rows[0]?.textContent).toContain("1. Release version 3 of this form to prod");
     expect(rows[1]?.textContent).toContain("2. Create 20 respondent links for this form");
   });
 
@@ -157,6 +157,51 @@ describe("rule 2: every step and every argument, in run order, in full", () => {
     expect((rows[1] as HTMLElement).querySelector(".qcms-acard__what")?.textContent).toContain(
       "step 1's version",
     );
+  });
+});
+
+describe("a card names its subject rather than its ids", () => {
+  const CREATE = step({
+    kind: "form.create",
+    screen: "/forms",
+    args: { slug: "patient-onboarding", defaultLocale: "en" },
+    card: {
+      titleKey: "agent.card.form.create.title",
+      consequenceKeys: ["agent.card.form.create.consequence"],
+    },
+  });
+  const SAVE = step({
+    kind: "form.saveDraft",
+    screen: "/forms/[formId]",
+    args: {
+      formId: { fromStep: 0, field: "formId" },
+      definition: { title: { en: "Patient onboarding" }, steps: [] },
+    },
+    card: {
+      titleKey: "agent.card.form.saveDraft.title",
+      consequenceKeys: ["agent.card.form.saveDraft.consequence"],
+    },
+  });
+
+  it("titles each step by the form the plan makes", () => {
+    const plan = proposal([CREATE, SAVE]);
+    const { container } = renderCard(plan, initialCard(plan));
+    const rows = container.querySelectorAll(".qcms-acard__what");
+    expect(rows[0]?.textContent).toContain("Create the Patient onboarding form");
+  });
+
+  it("puts the id behind a closed disclosure once a title stands in for it", () => {
+    const plan = proposal([step()]);
+    const { container } = renderCard(plan, initialCard(plan), {
+      names: new Map([["frm_quote", "Vehicle quote"]]),
+    });
+    const args = container.querySelector(".qcms-acard__args")?.textContent ?? "";
+    expect(args).toContain("Vehicle quote");
+    expect(args).not.toContain("frm_quote");
+
+    const ids = container.querySelector<HTMLDetailsElement>("[data-testid='qcms-acard-ids']");
+    expect(ids?.open).toBe(false);
+    expect(ids?.textContent).toContain("frm_quote");
   });
 });
 

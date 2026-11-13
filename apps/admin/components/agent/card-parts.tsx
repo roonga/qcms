@@ -14,6 +14,8 @@ import {
   stepArguments,
   stepConsequences,
   stepTitle,
+  type PlanNames,
+  type StepArgumentLine,
 } from "@/lib/agent/card-copy";
 import { plainQuote, REASON_CHARS } from "@/lib/agent/reason";
 import {
@@ -267,7 +269,7 @@ export interface StepItemProps {
   readonly reported: ReportedResults;
   readonly chips: boolean;
   readonly numbered: boolean;
-  readonly names?: ReadonlyMap<string, string>;
+  readonly names?: PlanNames;
   /** The whole plan, so a title can name what an earlier step will make. */
   readonly steps?: readonly AgentPlanStep[];
   /** A single-step dialog titles itself with the step, so the step does not repeat it. */
@@ -295,13 +297,17 @@ export function StepItem({
   // A form draft is already shown as a diff and two advisory lists; a question definition
   // gets its own field-by-field rendering rather than one line of JSON.
   const readable = QUESTION_DEFINITION_KINDS.includes(step.kind);
+  const lines = stepArguments(step, reported, names)
+    // A definition shown field by field, or as a diff and two advisory lists, is not
+    // also shown as a line of JSON.
+    .filter((line) => line.name !== DEFINITION_ARGUMENT || !(readable || step.draft !== undefined));
   return (
     <li className="qcms-acard__step" data-s={state}>
       {stepIcon(state)}
       {titled ? (
         <span className="qcms-acard__what">
           {numbered ? `${String(index + 1)}. ` : ""}
-          {stepTitle(step, reported, steps)}
+          {stepTitle(step, reported, steps, names)}
         </span>
       ) : null}
       {chips ? (
@@ -313,22 +319,13 @@ export function StepItem({
       )}
       <p className="qcms-acard__args">
         {step.card.hideEnvironment === true ? null : <EnvironmentLine step={step} />}
-        {stepArguments(step, reported, names)
-          // A definition shown field by field, or as a diff and two advisory lists, is not
-          // also shown as a line of JSON.
-          .filter(
-            (line) => line.name !== DEFINITION_ARGUMENT || !(readable || step.draft !== undefined),
-          )
-          .map((line) => (
-            <span key={line.name}>
-              {line.label} {line.mono ? <code>{line.value}</code> : <span>{line.value}</span>}
-            </span>
-          ))}
+        {lines.map(argumentLine)}
         {stepConsequences(step).map((sentence) => (
           <span key={sentence}>{sentence}</span>
         ))}
         {step.handOff ? <span>{t("agent.card.handOffHint")}</span> : null}
       </p>
+      <IdentifierDetail lines={lines} />
       {readable ? <DefinitionDetail definition={step.args[DEFINITION_ARGUMENT]} /> : null}
       {step.draft === undefined ? null : (
         <ApplyDraftDetail draft={step.draft} id={`${idBase}-${String(index)}`} />
@@ -362,6 +359,36 @@ export function StepItem({
         />
       )}
     </li>
+  );
+}
+
+function argumentLine(line: StepArgumentLine): React.ReactElement {
+  return (
+    <span key={line.name}>
+      {line.label} {line.mono ? <code>{line.value}</code> : <span>{line.value}</span>}
+    </span>
+  );
+}
+
+/* The card names its subject by title; the id behind that title stays reachable for support. */
+function IdentifierDetail({
+  lines,
+}: {
+  readonly lines: readonly StepArgumentLine[];
+}): React.ReactElement | null {
+  const ids = lines.filter((line) => line.id !== undefined);
+  if (ids.length === 0) return null;
+  return (
+    <details className="qcms-acard__ids" data-testid="qcms-acard-ids">
+      <summary>{t("agent.card.ids")}</summary>
+      <p className="qcms-acard__args">
+        {ids.map((line) => (
+          <span key={line.name}>
+            {line.label} <code>{line.id}</code>
+          </span>
+        ))}
+      </p>
+    </details>
   );
 }
 
