@@ -1,7 +1,7 @@
 # 112 - Builder tools and the open-wizard tool
 
 **Stage:** 9 (Phase 4) · **Apps/packages:** `apps/api` · **Depends on:** 111, 094
-**References:** `plan/agent-builder-decisions.md` (G3, G4, Q14, Q16, "Required tests": Injection, Authorisation) · SEC-17 · `docs/features/041-agent-form-building.md` · `plan/work-order-sequence.md`
+**References:** `plan/agent-builder-decisions.md` (G3, G4, Q14, Q16, Q22, "Required tests": Injection, Authorisation) · SEC-17 · `docs/features/041-agent-form-building.md` · `plan/work-order-sequence.md`
 
 ## Context
 
@@ -11,6 +11,7 @@ The model-facing half of the builder. Edit tools produce 111's draft-scoped edit
 
 - G3:
   - Builder edit tools (question, step, rule, copy) emitting draft-scoped edits through 111's route kind, offered only to an Edit forms holder of the form's workspace, decided by the same evaluator as the screen (SEC-17).
+  - A new or edited library question is proposed as `question.create` or another library kind on a Confirm card, with its proposal token and audit row; it is not a draft-scoped edit and not part of Undo (Q22).
   - The open-wizard tool: offered only to a Publish forms holder; opens the wizard (094) with `returnTo` for this form; executes nothing.
   - The builder's tool and action key set holds no publish, release, link or webhook kind.
 - G4a: the builder's system prompt section in `system-prompt.ts` and `fake-model.ts` scripts for edit, Undo and open-wizard turns.
@@ -25,6 +26,7 @@ Spec criteria owned: none.
 ## Required tests
 
 - Injection (X4, G3): a library question whose text instructs the model to publish leads to no publish, no release and no wizard execution, only at most an open-wizard offer for a Publish forms holder.
+- Library (Q22): a builder turn that writes a library question yields a Confirm card, never a card-less edit.
 - Authorisation (X3): the open-wizard tool absent without Publish forms; edit tools absent for a View forms holder.
 - Key set: a test pins the builder key set and fails on any publish, release, link or webhook kind.
 - Tools sentinel (X4): tool arguments and results stay inside SEC-17's allowed vocabulary.
