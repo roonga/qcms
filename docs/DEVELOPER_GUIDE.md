@@ -626,6 +626,46 @@ Nothing prints a secret to stdout, and the sign-in password is never written any
 
 `scripts/agent-converse.mjs` drives the browser, `scripts/agent-converse-page.mjs` holds the single in-page read of the panel, and `scripts/agent-converse-script.mjs` is the pure half - the script format, the directive precedence, redaction and the error roll-up - which `scripts/agent-converse-script.test.ts` covers under `pnpm verify` without a browser or a model key.
 
+## Reviewing the assistant against scenarios: `scripts/agent-review/`
+
+**A transcript on its own says what happened, not whether it was any good.**
+`pnpm agent:converse` records a conversation; `scripts/agent-review/` says which conversations are worth having, what a good one looks like, and which faults a machine can find without a reviewer.
+It is on demand and never a gate: a run spends a real model key on the API and real tokens on the reviewers.
+Only the Vitest half runs under `pnpm verify`, over committed fixture transcripts, with no stack and no key.
+
+The pieces, all under `scripts/agent-review/`:
+
+- `scenarios/*.json` - one conversation each, in the script format `pnpm agent:converse --script` already takes, with four fields it ignores and this does: a plain-words `goal`, a `seed` block saying what the run starts from, a `budget` in turns, and an `expect` block holding the end state and what the reply has to do. Seven of them, drawn from one real failed session: building a form, publishing it and getting a test link, asking why a step stopped, asking who did what, an ambiguous request, a request that belongs to another person, and a change to a rule on a form already published.
+- `rubric.md` - what a reviewer judges a transcript against: voice, the leading sentence, plans, honesty, safety, round trips, end state, and a section on card layout, status markers, spacing, focus and accessibility read from the screenshots. A line marked **auto** has a check behind it, so a reviewer confirms a finding rather than hunting for it.
+- `terms.mjs` - the words the assistant may never say and the branded id patterns, in one place. It restates the prompt's own `AVOID_WORDS` rather than importing it, because `apps/api` publishes `dist` and no tooling script may reach into it; `terms.test.ts` fails when the two drift apart.
+- `checks.mjs` - the deterministic half, and a command line.
+- `end-state.mjs` - reads the forms, versions, links and rules a run left behind, from the API.
+
+```sh
+# One scenario, against an admin that already has a model key on its API.
+pnpm agent:converse --script scripts/agent-review/scenarios/02-publish-and-test-link.json
+
+# What it left behind, then the checks over the transcript and that end state.
+node scripts/agent-review/end-state.mjs --environment test --out "$(node scripts/agent-scratch.mjs end-state.json)"
+node scripts/agent-review/checks.mjs \
+  scripts/agent-review/scenarios/02-publish-and-test-link.json \
+  "$(node scripts/agent-scratch.mjs agent-review-02-publish-and-test-link)/transcript.json" \
+  "$(node scripts/agent-scratch.mjs end-state.json)"
+```
+
+Exit 0 is a pass, 1 has findings, 2 is a usage or credential problem.
+`end-state.mjs` needs `QCMS_INTERNAL_TOKEN` and an admin session token in `QCMS_AGENT_REVIEW_SESSION`, because the API takes both headers and there is no API key; `QCMS_INTERNAL_TOKEN` has to be exported **before** the stack starts, since `scripts/dev-stack.mjs` generates a random one otherwise and writes it nowhere.
+
+**What the checks find**, each one a thing the real session got wrong: a builder word or an identifier in anything the person reads; more turns than the scenario's budget; a plan proposing work a finished plan already did, and, as a warning rather than a finding, a plan that looks like a second one put up while another waits (a transcript records one card per turn, so a card still on screen and a fresh one reading the same cannot be told apart without the screenshots); a step that did not run and a reply that does not say so; a reply claiming an act of its own, because the assistant proposes and the person confirms; a one-time value written into the transcript instead of held back; and the end state, read from the API rather than from the reply, with exact counts so a duplicate link fails even when the goal was reached.
+
+**What they cannot find** is the rest of the rubric, which is why there are reviewers.
+`.claude/skills/review-assistant/` runs the scenarios, applies the checks, and dispatches one report-only reviewer per scenario with the transcript, the screenshots and the rubric.
+The Code Owner approves every change that comes out of it to the assistant prompt, to a tool description, or to anything in `docs/adr` and `docs/agent-principle.md`.
+
+**Resetting between scenarios is a new database, not an endpoint.**
+There is no reset route and no truncate, so a scenario whose `seed.reset` is `fresh` starts from a new dev database and the admin account steps; one whose reset is `after:<id>` runs on what that scenario left behind, in order, in one lane.
+Every scenario's data is invented, and none of it is a real person's.
+
 ## The browser suite's gates, and measuring them
 
 **Before any of this: the gate needs OS libraries, not just the downloaded browsers** (issue #249). `pnpm exec playwright install chromium` fetches the binaries; on a bare Linux or WSL host it does not install the shared libraries they link against, and the resulting failure looks nothing like a missing package. It fails **every** test in the suite, identically, before any assertion, with `Error: browserType.launch: Target page, context or browser has been closed` - which reads as a harness bug or a resource problem. It is neither, and `playwright install` reports nothing wrong, because the binaries really are present: it is normally only `chrome-headless-shell` that is short of dependencies, while the full `chrome` beside it resolves everything, so every hand check says the browsers are installed. The Playwright config now runs `ldd` over both binaries before the first launch and refuses with the missing library names (`apps/portal/e2e/support/browser-libs.ts`), so the diagnosis arrives in a second rather than six minutes in. Two ways out, and the first is the one to take on a host you control:

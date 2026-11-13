@@ -1,0 +1,44 @@
+{
+  "id": "change-a-published-rule",
+  "name": "agent-review-07-change-a-published-rule",
+  "goal": "Change when a question is asked, on a form that is already out on test.",
+  "mode": "scripted",
+  "screen": "/forms",
+  "cards": "confirm",
+  "messages": [
+    {
+      "text": "On the Larkmead new patient sign-up, only ask for the reason for the visit when the patient says they have not been to us before. It is already out on test, so put the change there too.",
+      "cards": "confirm"
+    }
+  ],
+  "seed": {
+    "reset": "after:publish-and-test-link",
+    "requires": "The form released to test at version 1, with the reason for the visit always asked.",
+    "fixtures": "Fake clinic data only."
+  },
+  "budget": { "turns": 1 },
+  "expect": {
+    "endState": [
+      { "check": "ruleCount", "title": "Larkmead new patient sign-up", "min": 1 },
+      { "check": "released", "title": "Larkmead new patient sign-up", "environment": "test" },
+      {
+        "check": "notReleased",
+        "title": "Larkmead new patient sign-up",
+        "environment": "production"
+      },
+      {
+        "check": "linkCount",
+        "title": "Larkmead new patient sign-up",
+        "environment": "test",
+        "exactly": 1
+      }
+    ],
+    "assistantMust": [
+      "say that what is already out on test does not change, and that this makes a new version",
+      "state the rule back in the clinic's own words before proposing it",
+      "put the change and the release on as few plans as the rules allow",
+      "not revoke or replace the existing link without being asked"
+    ]
+  },
+  "notes": "One plan covers this, so one turn is the budget; a clarifying question spends it and leaves the end state unmet, which is the finding. Published versions are immutable (R1). The person asked for an outcome, not a mechanism, so the reply explains the new version in one sentence rather than teaching the model."
+}
