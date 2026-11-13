@@ -335,8 +335,9 @@ QCMS_SESSION_KEYS=
 # (optional, default starttls)
 # QCMS_SMTP_SECURITY=
 
-# Connection, greeting and socket timeout for the relay. A send that exceeds
-# it fails as undeliverable.
+# Per-phase limit for the relay: connecting, waiting for the greeting, and
+# socket inactivity. It does not cap total send time; a phase that exceeds it
+# fails the send as undeliverable.
 # (optional, default 10000)
 # QCMS_SMTP_TIMEOUT_MS=
 

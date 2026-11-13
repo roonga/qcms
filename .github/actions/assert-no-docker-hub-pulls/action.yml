@@ -17,6 +17,7 @@ runs:
 
         echo "Testcontainers configuration this job ran with:"
         echo "  QCMS_TEST_POSTGRES_IMAGE=${QCMS_TEST_POSTGRES_IMAGE:-<unset>}"
+        echo "  QCMS_TEST_MAILPIT_IMAGE=${QCMS_TEST_MAILPIT_IMAGE:-<unset>}"
         echo "  TESTCONTAINERS_RYUK_DISABLED=${TESTCONTAINERS_RYUK_DISABLED:-<unset>}"
 
         if [ -z "${QCMS_DOCKER_IMAGE_SNAPSHOT:-}" ] || [ ! -f "${QCMS_DOCKER_IMAGE_SNAPSHOT}" ]; then

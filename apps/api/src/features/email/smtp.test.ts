@@ -46,7 +46,35 @@ describe("SMTP mailer", () => {
 
     expect(mailer.configured).toBe(true);
     await expect(mailer.send(message)).resolves.toEqual({ ok: true });
-    expect(sent).toEqual([{ ...message, from: "QCMS <no-reply@example.test>" }]);
+    expect(sent).toEqual([
+      { ...message, from: "QCMS <no-reply@example.test>", to: { name: "", address: ADDRESS } },
+    ]);
+  });
+
+  it.each([
+    ["a comma list", `${ADDRESS}, other@example.test`],
+    ["a semicolon list", `${ADDRESS}; other@example.test`],
+    ["a CRLF Bcc header", `${ADDRESS}\r\nBcc: other@example.test`],
+    ["a bare LF Bcc header", `${ADDRESS}\nBcc: other@example.test`],
+    ["a display-name form", `Someone <${ADDRESS}>`],
+    ["a group", `team: ${ADDRESS}, other@example.test;`],
+    ["an empty value", ""],
+  ])("refuses %s as undeliverable without touching the relay", async (_label, to) => {
+    const { logger, lines } = recordingLogger();
+    let calls = 0;
+    const mailer = createSmtpMailer(mailConfig(), logger, () => ({
+      sendMail: () => {
+        calls += 1;
+        return Promise.resolve({});
+      },
+    }));
+
+    await expect(
+      mailer.send({ ...signInLinkMessage(ADDRESS, "reset", LINK), to }),
+    ).resolves.toEqual({ ok: false, failure: "undeliverable" });
+    expect(calls).toBe(0);
+    expect(lines).toEqual([expect.objectContaining({ code: "ERECIPIENT" })]);
+    expect(JSON.stringify(lines)).not.toContain("other@example.test");
   });
 
   it("reports a refused recipient and a dead relay identically", async () => {

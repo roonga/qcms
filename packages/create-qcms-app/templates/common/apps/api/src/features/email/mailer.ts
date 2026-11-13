@@ -1,4 +1,5 @@
 export interface MailMessage {
+  /** Exactly one bare address; a list, display name or line break is refused as undeliverable. */
   readonly to: string;
   readonly subject: string;
   readonly text: string;

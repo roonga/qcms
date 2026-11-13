@@ -587,4 +587,21 @@ describe("outbound mail plumbing (task 087)", () => {
       QCMS_SMTP_ALLOW_INSECURE: "true",
     });
   });
+
+  it("names one Mailpit tag in the overlay, the API e2e default, the CI pre-pull and the mirror", () => {
+    const read = (path: string) => readFileSync(join(REPOSITORY_ROOT, path), "utf8");
+    const tags = [
+      /QCMS_MAILPIT_IMAGE:-axllent\/mailpit:([^}\s]+)\}/.exec(read("docker-compose.e2e.yml")),
+      /"axllent\/mailpit:([^"]+)"/.exec(read("apps/api/e2e/support/mailpit.ts")),
+      /mailpit-tag:[\s\S]*?default: "([^"]+)"/.exec(
+        read(".github/actions/test-postgres-image/action.yml"),
+      ),
+      /qcms\/mailpit:([^"\s]+)"/.exec(read(".github/workflows/mirror-test-images.yml")),
+      /docker\.io\/axllent\/mailpit:([^@\s]+)@sha256:[0-9a-f]{64}/.exec(
+        read(".github/workflows/mirror-test-images.yml"),
+      ),
+    ].map((match) => match?.[1]);
+    expect(new Set(tags)).toEqual(new Set([tags[0]]));
+    expect(tags[0]).toMatch(/^v\d+\.\d+\.\d+$/);
+  });
 });

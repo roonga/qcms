@@ -6,8 +6,10 @@ import { unconfiguredMailer, type Mailer, type MailMessage } from "./mailer.js";
 
 type ConfiguredMail = Extract<MailConfig, { configured: true }>;
 
-interface OutgoingMail extends MailMessage {
+interface OutgoingMail extends Omit<MailMessage, "to"> {
   readonly from: string;
+  /** An object, never a string, so nodemailer cannot read the value as an address list. */
+  readonly to: { readonly name: string; readonly address: string };
 }
 
 /** The slice of a nodemailer transporter the mailer uses, so tests can stand in for SMTP. */
@@ -41,6 +43,9 @@ export const createNodemailerTransport: SmtpTransportFactory = (smtp) =>
 
 const ERROR_CODE = /^E[A-Z]{2,20}$/;
 
+/** One bare address and nothing else: no list separator, display name, group or line break. */
+const SINGLE_ADDRESS = /^[^\s@,;:<>()[\]"\\]+@[^\s@,;:<>()[\]"\\]+$/;
+
 /** Only nodemailer's own error class is logged: its message can quote the recipient or the server's reply. */
 function errorCode(error: unknown): string {
   const code: unknown =
@@ -57,8 +62,16 @@ export function createSmtpMailer(
   return {
     configured: true,
     async send(message) {
+      if (!SINGLE_ADDRESS.test(message.to)) {
+        logger.warn("outbound mail send failed", { code: "ERECIPIENT" });
+        return { ok: false, failure: "undeliverable" };
+      }
       try {
-        await transport.sendMail({ ...message, from: mail.from });
+        await transport.sendMail({
+          ...message,
+          from: mail.from,
+          to: { name: "", address: message.to },
+        });
         return { ok: true };
       } catch (error: unknown) {
         logger.warn("outbound mail send failed", { code: errorCode(error) });

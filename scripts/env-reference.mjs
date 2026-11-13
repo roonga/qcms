@@ -581,7 +581,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "10000",
     description:
-      "Connection, greeting and socket timeout for the relay. A send that exceeds it fails as undeliverable.",
+      "Per-phase limit for the relay: connecting, waiting for the greeting, and socket inactivity. It does not cap total send time; a phase that exceeds it fails the send as undeliverable.",
   },
   {
     name: "OTEL_EXPORTER_OTLP_ENDPOINT",
