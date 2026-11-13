@@ -49,10 +49,12 @@ describe("adminLink", () => {
     );
   });
 
-  it.each(["https://evil.example.test/claim", "//evil.example.test/claim", "/\\evil.example.test/claim", "claim"])(
-    "refuses %s, which is not a path on the admin origin",
-    (path) => {
-      expect(() => adminLink("https://admin.example.test", path)).toThrow();
-    },
-  );
+  it.each([
+    "https://evil.example.test/claim",
+    "//evil.example.test/claim",
+    "/\\evil.example.test/claim",
+    "claim",
+  ])("refuses %s, which is not a path on the admin origin", (path) => {
+    expect(() => adminLink("https://admin.example.test", path)).toThrow();
+  });
 });

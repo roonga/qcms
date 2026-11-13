@@ -5,6 +5,7 @@ import { systemClock } from "./clock.js";
 import { logSignInThrottleState, warnIfBreachCheckDisabled } from "./features/auth/instance.js";
 import { adminAuthFor } from "./features/auth/route.js";
 import { selectDraftAssistant } from "./features/agent/assistant.js";
+import { selectMailer } from "./features/email/smtp.js";
 import { selectChallengeVerifier } from "./features/responses/challenge.js";
 import { appGroups } from "./registrars.js";
 import { loadConfig, turnstileSiteKeyDeprecationWarning } from "./config.js";
@@ -69,6 +70,7 @@ export function main(telemetry: Telemetry): void {
     rateLimitStore: new InMemoryRateLimitStore(systemClock),
     challenge: selectChallengeVerifier(config, logger),
     draftAssistant: selectDraftAssistant(config, logger),
+    mailer: selectMailer(config, logger),
     flags: config.flags,
   };
 

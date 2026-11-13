@@ -25,7 +25,9 @@ export const createNodemailerTransport: SmtpTransportFactory = (smtp) =>
       secure: smtp.security === "tls",
       requireTLS: smtp.security === "starttls",
       ignoreTLS: smtp.security === "none",
-      ...(smtp.auth !== undefined ? { auth: { user: smtp.auth.user, pass: smtp.auth.password } } : {}),
+      ...(smtp.auth !== undefined
+        ? { auth: { user: smtp.auth.user, pass: smtp.auth.password } }
+        : {}),
       tls: { minVersion: "TLSv1.2" },
       connectionTimeout: smtp.timeoutMs,
       greetingTimeout: smtp.timeoutMs,

@@ -11,7 +11,8 @@ export interface MailMessage {
  */
 export type MailFailure = "not-configured" | "undeliverable";
 
-export type MailResult = { readonly ok: true } | { readonly ok: false; readonly failure: MailFailure };
+export type MailResult =
+  { readonly ok: true } | { readonly ok: false; readonly failure: MailFailure };
 
 export interface Mailer {
   /** The check account creation and reactivation read before promising an emailed link. */

@@ -106,6 +106,7 @@ const ROOT_PROVIDED_DEV_DEPENDENCIES = ["typescript"];
 
 const HARNESS_DEV_DEPENDENCIES = new Set([
   "@testcontainers/postgresql",
+  "testcontainers",
   "@seriousme/openapi-schema-validator",
   "otplib",
   // Private workspace package whose tests are dropped; keeping it would stamp an unresolvable `workspace:*`.

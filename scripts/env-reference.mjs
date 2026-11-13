@@ -521,6 +521,69 @@ export const ENV_REFERENCE = [
     description: "Agent turns one administrator may request per window.",
   },
   {
+    name: "QCMS_SMTP_HOST",
+    process: "api",
+    requirement: "optional",
+    fallback: "",
+    description:
+      "Outbound mail relay. Unset leaves mail unconfigured, which features that email a sign-in link read before acting. Mail is configured only where `admin` is mounted, since every link points at `QCMS_ADMIN_BASE_URL`. See Outbound email in `docs/DEVELOPER_GUIDE.md`.",
+  },
+  {
+    name: "QCMS_SMTP_PORT",
+    process: "api",
+    requirement: "optional",
+    fallback: "587, 465 for tls, 25 for none",
+    description: "Relay port.",
+  },
+  {
+    name: "QCMS_SMTP_SECURITY",
+    process: "api",
+    requirement: "optional",
+    fallback: "starttls",
+    description:
+      "`starttls` requires the STARTTLS upgrade and refuses a relay that does not offer it; `tls` is implicit TLS. Certificates are always verified. `none` is plaintext and refused at boot unless `QCMS_SMTP_ALLOW_INSECURE=true`.",
+  },
+  {
+    name: "QCMS_SMTP_ALLOW_INSECURE",
+    process: "api",
+    requirement: "optional",
+    fallback: "false",
+    description:
+      "Development opt-in that admits `QCMS_SMTP_SECURITY=none` for a local relay such as Mailpit. Never set it in a deployment: links would cross the network unencrypted. Credentials are refused over plaintext even with it set.",
+  },
+  {
+    name: "QCMS_SMTP_USER",
+    process: "api",
+    requirement: "conditional",
+    fallback: "",
+    description: "Relay user name; set together with `QCMS_SMTP_PASSWORD`, or neither.",
+  },
+  {
+    name: "QCMS_SMTP_PASSWORD",
+    process: "api",
+    requirement: "conditional",
+    fallback: "",
+    secret: true,
+    description:
+      "Relay password; set together with `QCMS_SMTP_USER`. Never logged or echoed in boot errors; example-file placeholders refuse boot.",
+  },
+  {
+    name: "QCMS_SMTP_FROM",
+    process: "api",
+    requirement: "conditional",
+    fallback: "",
+    description:
+      "Sender, required when `QCMS_SMTP_HOST` is set: an address or `Name <address>` on one line.",
+  },
+  {
+    name: "QCMS_SMTP_TIMEOUT_MS",
+    process: "api",
+    requirement: "optional",
+    fallback: "10000",
+    description:
+      "Connection, greeting and socket timeout for the relay. A send that exceeds it fails as undeliverable.",
+  },
+  {
     name: "OTEL_EXPORTER_OTLP_ENDPOINT",
     process: "api",
     requirement: "optional",

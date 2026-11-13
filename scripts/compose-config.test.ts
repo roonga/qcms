@@ -549,3 +549,42 @@ describe("agent-authoring plumbing (task 041, ADR-25, issue #1063)", () => {
     expect(service(unset, "admin").environment?.QCMS_FLAG_AGENT_AUTHORING).toBe("");
   });
 });
+
+describe("outbound mail plumbing (task 087)", () => {
+  const smtpVars = [
+    "QCMS_SMTP_HOST",
+    "QCMS_SMTP_PORT",
+    "QCMS_SMTP_SECURITY",
+    "QCMS_SMTP_ALLOW_INSECURE",
+    "QCMS_SMTP_USER",
+    "QCMS_SMTP_PASSWORD",
+    "QCMS_SMTP_FROM",
+    "QCMS_SMTP_TIMEOUT_MS",
+  ];
+
+  it("forwards every relay setting to the api alone, empty by default", () => {
+    const unset = composeConfig({
+      files: ["docker-compose.yml"],
+      env: Object.fromEntries(smtpVars.map((name) => [name, ""])),
+    });
+    for (const name of smtpVars) {
+      expect(service(unset, "api").environment?.[name], `${name} must default to empty`).toBe("");
+      for (const other of ["admin", "portal", "migrate"]) {
+        expect(
+          service(unset, other).environment,
+          `${other} must not forward ${name}`,
+        ).not.toHaveProperty(name);
+      }
+    }
+  });
+
+  it("points the e2e stack at an unpublished Mailpit relay", () => {
+    const e2e = composeConfig({ files: ["docker-compose.yml", "docker-compose.e2e.yml"] });
+    expect(publishedPorts(e2e, "mailpit")).toEqual([]);
+    expect(service(e2e, "api").environment).toMatchObject({
+      QCMS_SMTP_HOST: "mailpit",
+      QCMS_SMTP_SECURITY: "none",
+      QCMS_SMTP_ALLOW_INSECURE: "true",
+    });
+  });
+});

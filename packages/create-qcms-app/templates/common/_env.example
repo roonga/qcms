@@ -301,3 +301,45 @@ QCMS_PORTAL_BASE_URL=
 # first-signs-all-verify rotation model as QCMS_LINK_KEYS.
 # (required, secret)
 QCMS_SESSION_KEYS=
+
+# Development opt-in that admits QCMS_SMTP_SECURITY=none for a local relay
+# such as Mailpit. Never set it in a deployment: links would cross the network
+# unencrypted. Credentials are refused over plaintext even with it set.
+# (optional, default false)
+# QCMS_SMTP_ALLOW_INSECURE=
+
+# Sender, required when QCMS_SMTP_HOST is set: an address or Name <address> on
+# one line.
+# (conditional)
+# QCMS_SMTP_FROM=
+
+# Outbound mail relay. Unset leaves mail unconfigured, which features that
+# email a sign-in link read before acting. Mail is configured only where admin
+# is mounted, since every link points at QCMS_ADMIN_BASE_URL. See Outbound
+# email in docs/DEVELOPER_GUIDE.md.
+# (optional)
+# QCMS_SMTP_HOST=
+
+# Relay password; set together with QCMS_SMTP_USER. Never logged or echoed in
+# boot errors; example-file placeholders refuse boot.
+# (conditional, secret)
+# QCMS_SMTP_PASSWORD=
+
+# Relay port.
+# (optional, default 587, 465 for tls, 25 for none)
+# QCMS_SMTP_PORT=
+
+# starttls requires the STARTTLS upgrade and refuses a relay that does not
+# offer it; tls is implicit TLS. Certificates are always verified. none is
+# plaintext and refused at boot unless QCMS_SMTP_ALLOW_INSECURE=true.
+# (optional, default starttls)
+# QCMS_SMTP_SECURITY=
+
+# Connection, greeting and socket timeout for the relay. A send that exceeds
+# it fails as undeliverable.
+# (optional, default 10000)
+# QCMS_SMTP_TIMEOUT_MS=
+
+# Relay user name; set together with QCMS_SMTP_PASSWORD, or neither.
+# (conditional)
+# QCMS_SMTP_USER=
