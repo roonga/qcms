@@ -3817,9 +3817,43 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   margin: var(--space-2) 0 0;
   font-size: 13px;
 }
+.qcms-acard__reveal p {
+  margin: 0;
+}
 .qcms-acard__reveal code {
   font-family: var(--font-mono);
   overflow-wrap: anywhere;
+}
+/* Bound the list so a batch of a hundred addresses scrolls inside the card rather than lengthening
+   the panel into a second scrollbar. */
+.qcms-acard__reveal-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2);
+  max-block-size: 16rem;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-background-muted);
+}
+.qcms-acard__reveal-list:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+.qcms-acard__reveal-list > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+.qcms-acard__reveal-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 .qcms-acard__band {
   margin: 0;

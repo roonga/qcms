@@ -25,6 +25,7 @@ export interface AgentCardDialogProps {
   readonly onTyped: (value: string) => void;
   readonly required: string | undefined;
   readonly idBase: string;
+  readonly onDismissReveal?: ((index: number) => void) | undefined;
   readonly onConfirm: () => void;
   readonly onCancel: () => void;
   readonly onStop: () => void;
@@ -108,6 +109,7 @@ export function AgentCardDialog(props: AgentCardDialogProps): React.ReactElement
                   names={names}
                   steps={steps}
                   idBase={props.idBase}
+                  onDismissReveal={props.onDismissReveal}
                 />
               ))}
             </ol>
@@ -140,6 +142,7 @@ export function AgentCardDialog(props: AgentCardDialogProps): React.ReactElement
                 names={names}
                 steps={steps}
                 idBase={props.idBase}
+                onDismissReveal={props.onDismissReveal}
               />
             </ol>
           </div>

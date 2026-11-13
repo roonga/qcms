@@ -1773,6 +1773,19 @@ export const messages = {
   "agent.card.band.irreversible":
     "This cannot be undone. Nothing here is archived and nothing can be restored.",
   "agent.card.revealOnce": "Shown once, here only:",
+  "agent.card.reveal.links.one": "1 address, shown once",
+  "agent.card.reveal.links.other": "{count} addresses, shown once",
+  "agent.card.reveal.links.note":
+    "Copy or download these now. The server keeps a link's state, never its address, so they cannot be shown again.",
+  "agent.card.reveal.copy": "Copy",
+  /** Name the row, never the address: this label is read aloud and a bearer address must not be. */
+  "agent.card.reveal.copyLabel": "Copy address {number}",
+  "agent.card.reveal.csv": "Download all as CSV",
+  "agent.card.reveal.dismiss": "Hide",
+  "agent.card.reveal.dismissHint.one":
+    "Hiding this clears it from the card, and it cannot be shown again.",
+  "agent.card.reveal.dismissHint.other":
+    "Hiding these clears them from the card, and they cannot be shown again.",
   "agent.card.typed.label": "Type the session id to confirm",
   "agent.card.typed.hint": "Type {value} exactly.",
   "agent.card.confirm": "Confirm",

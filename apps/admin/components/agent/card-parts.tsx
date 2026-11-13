@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { AssistMark } from "@/components/forms/assist-mark";
 import { Button } from "@/components/kit";
 import type { AgentPlanStep } from "@/lib/forms/assist-stream";
+import { copyMintedUrl, downloadMintedLinks } from "@/lib/forms/links";
 import {
   createdHref,
   hasIrreversibleStep,
@@ -22,6 +23,7 @@ import {
   type AgentStepState,
   type AgentStepView,
   type ReportedResults,
+  type StepReveal,
 } from "@/lib/agent/plan-state";
 import { t, tPlural } from "@/lib/i18n/en";
 
@@ -139,6 +141,126 @@ function EnvironmentLine({ step }: { readonly step: AgentPlanStep }): React.Reac
   );
 }
 
+/* A bearer address is written on the screen, never into an announcement: the live region below carries
+   the outcome of a copy in words and nothing else. */
+function RevealBlock({
+  reveal,
+  formId,
+  idBase,
+  index,
+  onDismiss,
+}: {
+  readonly reveal: StepReveal;
+  readonly formId: string;
+  readonly idBase: string;
+  readonly index: number;
+  readonly onDismiss: (() => void) | undefined;
+}): React.ReactElement {
+  const [note, setNote] = useState("");
+  const base = `${idBase}-${String(index)}-reveal`;
+  const secret = typeof reveal === "string" ? reveal : undefined;
+  const links = typeof reveal === "string" ? [] : reveal;
+
+  const copy = useCallback((url: string) => {
+    void copyMintedUrl(url).then(
+      (key) => {
+        setNote(t(key));
+      },
+      () => {
+        setNote(t("forms.links.copyFailed"));
+      },
+    );
+  }, []);
+
+  return (
+    <div
+      className="qcms-acard__reveal"
+      role="group"
+      aria-labelledby={`${base}-title`}
+      data-testid="qcms-acard-reveal"
+    >
+      <p className="qcms-acard__label" id={`${base}-title`}>
+        {secret === undefined
+          ? tPlural("agent.card.reveal.links.one", "agent.card.reveal.links.other", links.length)
+          : t("agent.card.revealOnce")}
+      </p>
+
+      {secret === undefined ? (
+        <>
+          <p>{t("agent.card.reveal.links.note")}</p>
+          <ul
+            className="qcms-acard__reveal-list"
+            aria-labelledby={`${base}-title`}
+            data-testid="qcms-acard-reveal-list"
+            tabIndex={0}
+          >
+            {links.map((link, at) => (
+              <li key={link.linkId}>
+                <code className="qcms-link-url">{link.url}</code>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  aria-label={t("agent.card.reveal.copyLabel", { number: at + 1 })}
+                  onPress={() => {
+                    copy(link.url);
+                  }}
+                >
+                  {t("agent.card.reveal.copy")}
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : (
+        <code>{secret}</code>
+      )}
+
+      <div className="qcms-acard__reveal-controls">
+        {secret !== undefined ? null : (
+          <Button
+            variant="secondary"
+            size="sm"
+            onPress={() => {
+              downloadMintedLinks(formId, links);
+            }}
+          >
+            {t("agent.card.reveal.csv")}
+          </Button>
+        )}
+        {onDismiss === undefined ? null : (
+          <Button variant="ghost" size="sm" onPress={onDismiss}>
+            {t("agent.card.reveal.dismiss")}
+          </Button>
+        )}
+      </div>
+
+      {onDismiss === undefined ? null : (
+        <p>
+          {tPlural(
+            "agent.card.reveal.dismissHint.one",
+            "agent.card.reveal.dismissHint.other",
+            secret === undefined ? links.length : 1,
+          )}
+        </p>
+      )}
+
+      <p aria-live="polite" data-testid="qcms-acard-reveal-note">
+        {note}
+      </p>
+    </div>
+  );
+}
+
+function dismissHandler(
+  onDismissReveal: ((index: number) => void) | undefined,
+  index: number,
+): (() => void) | undefined {
+  if (onDismissReveal === undefined) return undefined;
+  return () => {
+    onDismissReveal(index);
+  };
+}
+
 export interface StepItemProps {
   readonly step: AgentPlanStep;
   readonly index: number;
@@ -152,6 +274,7 @@ export interface StepItemProps {
   /** A single-step dialog titles itself with the step, so the step does not repeat it. */
   readonly titled?: boolean;
   readonly idBase: string;
+  readonly onDismissReveal?: ((index: number) => void) | undefined;
 }
 
 export function StepItem({
@@ -165,6 +288,7 @@ export function StepItem({
   names,
   steps,
   idBase,
+  onDismissReveal,
 }: StepItemProps): React.ReactElement {
   const state = view?.state ?? "proposed";
   const word = t(STEP_STATE_WORDS[state]);
@@ -230,10 +354,13 @@ export function StepItem({
         </p>
       )}
       {view?.revealed === undefined ? null : (
-        <p className="qcms-acard__reveal">
-          <span>{t("agent.card.revealOnce")}</span>
-          <code>{view.revealed}</code>
-        </p>
+        <RevealBlock
+          reveal={view.revealed}
+          formId={typeof step.args["formId"] === "string" ? step.args["formId"] : ""}
+          idBase={idBase}
+          index={index}
+          onDismiss={dismissHandler(onDismissReveal, index)}
+        />
       )}
     </li>
   );

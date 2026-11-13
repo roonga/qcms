@@ -1,6 +1,7 @@
 import type { MessageKey } from "../i18n/en.ts";
 
 import type { AgentPlanStep, AgentProposal } from "../forms/assist-stream.ts";
+import type { MintedLink } from "../forms/types.ts";
 
 /** Confirmation, execution and replay decisions must not depend on model prose. */
 
@@ -22,6 +23,10 @@ export type ScalarField = string | number | boolean;
 
 export type StepResultFields = Readonly<Record<string, ScalarField>>;
 
+/* A one-time value for the person at the screen: a single secret, or the addresses one mint produced.
+   It is held beside the result fields so no reveal can reach the allowlisted replay. */
+export type StepReveal = string | readonly MintedLink[];
+
 export type ReportedResults = Readonly<Record<number, StepResultFields>>;
 
 /* The server's own refusal detail for a failed step: an authoring-boundary issue, never respondent data,
@@ -41,7 +46,7 @@ export interface AgentStepView {
 
   readonly result?: StepResultFields;
   /** One-time secrets stay on the card and never enter action-result history. */
-  readonly revealed?: string;
+  readonly revealed?: StepReveal;
 }
 
 export interface AgentCardView {
@@ -64,7 +69,7 @@ export interface AgentStepResult {
 
   readonly result?: Readonly<Record<string, unknown>>;
   /** A one-time reveal for the card alone, never for the next turn. */
-  readonly revealed?: string;
+  readonly revealed?: StepReveal;
 }
 
 const SHARED_CARD_STATES: readonly AgentCardState[] = ["proposed", "cancelled", "expired"];
@@ -217,6 +222,24 @@ export function expireCard(card: AgentCardView): AgentCardView {
     card.steps.map(() => ({ state: "expired" as const })),
     { state: "expired" },
   );
+}
+
+export function holdsReveal(card: AgentCardView): boolean {
+  return card.steps.some((step) => step.revealed !== undefined);
+}
+
+/* A reveal cannot be produced twice, so only the person may clear it: no proposal, run or reload
+   decides when they have finished with it. */
+export function dismissReveal(card: AgentCardView, index: number): AgentCardView {
+  const step = card.steps[index];
+  if (step === undefined || step.revealed === undefined) return card;
+  const cleared: AgentStepView = {
+    state: step.state,
+    ...(step.message === undefined ? {} : { message: step.message }),
+    ...(step.issues === undefined ? {} : { issues: step.issues }),
+    ...(step.result === undefined ? {} : { result: step.result }),
+  };
+  return { ...card, steps: replace(card.steps, index, cleared) };
 }
 
 export function ranCount(card: AgentCardView): number {
