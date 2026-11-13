@@ -217,6 +217,36 @@ export const ALLOWED = [
     value: 3000,
     why: "the generated copy of docker/portal.Dockerfile: the Next.js server's own in-container port, dialled by the HEALTHCHECK and written as the image's `PORT`.",
   },
+  {
+    file: "apps/api/e2e/support/mailpit.ts",
+    value: 1025,
+    why: "Mailpit's own in-container SMTP port. Testcontainers maps it to an ephemeral host port Docker picks, never a QCMS allocation.",
+  },
+  {
+    file: "apps/api/e2e/support/mailpit.ts",
+    value: 8025,
+    why: "Mailpit's own in-container HTTP API port, mapped to an ephemeral host port like the SMTP one.",
+  },
+  {
+    file: "docker-compose.e2e.yml",
+    value: 1025,
+    why: "Mailpit's own SMTP port, dialled by the API across the Compose network. Never published.",
+  },
+  {
+    file: "apps/api/src/features/email/mail-config.test.ts",
+    value: 587,
+    why: "the IANA mail submission port, asserted as the STARTTLS default. A relay's port, never bound by QCMS.",
+  },
+  {
+    file: "apps/api/src/features/email/mail-config.test.ts",
+    value: 2525,
+    why: "an arbitrary relay port, fixture data for the explicit-port override. Nothing dials it.",
+  },
+  {
+    file: "apps/api/src/features/email/smtp.test.ts",
+    value: 587,
+    why: "the IANA mail submission port, asserted in the nodemailer transport options. Nothing dials it.",
+  },
 ];
 
 export function sanctionedPorts() {
