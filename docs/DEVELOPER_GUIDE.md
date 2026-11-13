@@ -549,6 +549,83 @@ The API sends mail through one SMTP relay, using `nodemailer`. Account creation,
 - **Full stack:** `pnpm up:e2e` adds `docker-compose.e2e.yml`, a Mailpit relay on the Compose network with no published port, and points the API at it.
 - **Trying it locally:** run a Mailpit container yourself, publishing its SMTP and web ports on loopback, then start the API with `QCMS_SMTP_HOST=localhost`, `QCMS_SMTP_PORT` set to the published SMTP port, `QCMS_SMTP_SECURITY=none`, `QCMS_SMTP_ALLOW_INSECURE=true` and a `QCMS_SMTP_FROM`. Those are Mailpit's ports on a container you run, not a QCMS allocation (`docs/PORTS.md`).
 
+## Driving the authoring assistant from a script: `pnpm agent:converse`
+
+**An agent cannot read the assistant panel, and asking a person to paste a transcript back is not a development loop.**
+`pnpm agent:converse` signs in to a running admin, opens the assistant on a screen you name, sends a scripted list of messages, applies a per-message decision to each plan card, and writes a machine-readable transcript with screenshots beside it.
+It is a development tool, not a gate: it needs a real model key on the API (`QCMS_AGENT_API_KEY`, `QCMS_AGENT_MODEL`) and it is deliberately absent from CI.
+
+It drives whatever admin is already listening, so start one first: the composed stack from `pnpm dev:up`, or a `next dev` admin pointed at that stack's API.
+
+```sh
+# Credentials come from the environment only. Never put them in a flag (argv is
+# world-readable through /proc) or in a file in the checkout.
+read -rs -p 'admin password: ' QCMS_AGENT_CONVERSE_PASSWORD; echo
+export QCMS_AGENT_CONVERSE_EMAIL=dev@qcms.test QCMS_AGENT_CONVERSE_PASSWORD
+
+# One read-only question against a form's assistant, confirming nothing.
+pnpm agent:converse --form frm_sample_library --ask "what is in this form?"
+
+# A scripted conversation, with a decision per message.
+pnpm agent:converse --script scripts/agent-converse.example.json
+```
+
+`QCMS_ADMIN_EMAIL` and `QCMS_ADMIN_PASSWORD` are read as a fallback, so a shell already set up for `create-admin` needs nothing further.
+On a stack where `QCMS_ADMIN_2FA` is `required`, add `QCMS_AGENT_CONVERSE_TOTP` with the account's TOTP secret; with `optional` it is not needed.
+An account still holding a provisional password is refused by name rather than hung on, because the first password change has to happen in a browser.
+
+The flags, all optional:
+
+| Flag                      | What it does                                                                                                                |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `--base-url <url>`        | Which admin to drive. Defaults to `QCMS_AGENT_CONVERSE_BASE_URL`, then `QCMS_ADMIN_BASE_URL`, then `http://localhost:7040`. |
+| `--form <formId>`         | Opens that form's builder, so the assistant answers about the form.                                                         |
+| `--screen <path>`         | Any other admin route, for the library-level assistant. Defaults to `/questions`.                                           |
+| `--ask <text>`            | One user message. Repeatable; replaces a script file's messages.                                                            |
+| `--cards <directive>`     | `confirm`, `decline` or `leave`. After an `--ask` it binds to that message; before any `--ask` it is the run's default.     |
+| `--script <file>`         | A JSON file of messages, each with its own directive.                                                                       |
+| `--name <name>`           | The run directory's name under the lane scratch. Defaults to `agent-converse`.                                              |
+| `--timeout <ms>`          | Per-reply budget. Defaults to 180000, which a cold `next dev` route can need.                                               |
+| `--headed`, `--keep-open` | Watch it run, and leave the browser up afterwards.                                                                          |
+
+A script file is the only way to give a different decision to each message.
+`scripts/agent-converse.example.json` is the shape:
+
+```json
+{
+  "formId": "frm_sample_library",
+  "cards": "leave",
+  "messages": [
+    { "text": "what is in this form?" },
+    { "text": "rename the first step to About you", "cards": "confirm" },
+    { "text": "now delete every question in it", "cards": "decline" }
+  ]
+}
+```
+
+A per-message `cards` wins, then `--cards`, then the file's own `cards`, then `leave`.
+`leave` is the default on purpose: a run that was not asked to act confirms nothing.
+`confirm` fills a card's typed-confirmation box from the card's own hint before pressing Confirm, so an irreversible step still gets the exact value the screen demands rather than a bypass.
+
+**The output goes under this lane's scratch directory** (`node scripts/agent-scratch.mjs <name>`, issues #396 and #602), one directory per run, replaced on each run:
+
+- `transcript.json` - the whole conversation: each turn's message and reply, the assistant's thinking blocks and its own step timeline, then the plan card's title, state, steps, step arguments, notes and advisory issues.
+- `turn-NN.png` - a full-page capture after each turn, plus `failure.png` if the run dies.
+- `secrets.json`, owner-only - one-time values, see below.
+
+**A failed plan step carries the reason the page gives**, which is the half an agent otherwise cannot see: the step's own note and its advisory issues are copied into the transcript, and the run exits non-zero with each of them printed to stderr as `turn N, plan step M "title": reason`.
+A panel-level error and a failed step in the assistant's own timeline exit non-zero the same way.
+A clean run exits 0.
+Anything the run could watch go wrong exits 1 with the text on stderr: a refused sign-in, a panel error, a failed step.
+A usage or credential problem that never opens a browser exits 2.
+
+**One-time values never enter the transcript.**
+A card's "Shown once, here only" block is a credential (a webhook signing secret, for one), and a minted link address is its own credential, so both are replaced by a `secret-N` reference and written to `secrets.json` with mode `0600` in the run directory.
+The transcript records `{ "secret": true, "ref": "secret-1" }` in place of the value and says how many were held back.
+Nothing prints a secret to stdout, and the sign-in password is never written anywhere.
+
+`scripts/agent-converse.mjs` drives the browser, `scripts/agent-converse-page.mjs` holds the single in-page read of the panel, and `scripts/agent-converse-script.mjs` is the pure half - the script format, the directive precedence, redaction and the error roll-up - which `scripts/agent-converse-script.test.ts` covers under `pnpm verify` without a browser or a model key.
+
 ## The browser suite's gates, and measuring them
 
 **Before any of this: the gate needs OS libraries, not just the downloaded browsers** (issue #249). `pnpm exec playwright install chromium` fetches the binaries; on a bare Linux or WSL host it does not install the shared libraries they link against, and the resulting failure looks nothing like a missing package. It fails **every** test in the suite, identically, before any assertion, with `Error: browserType.launch: Target page, context or browser has been closed` - which reads as a harness bug or a resource problem. It is neither, and `playwright install` reports nothing wrong, because the binaries really are present: it is normally only `chrome-headless-shell` that is short of dependencies, while the full `chrome` beside it resolves everything, so every hand check says the browsers are installed. The Playwright config now runs `ldd` over both binaries before the first launch and refuses with the missing library names (`apps/portal/e2e/support/browser-libs.ts`), so the diagnosis arrives in a second rather than six minutes in. Two ways out, and the first is the one to take on a host you control:
