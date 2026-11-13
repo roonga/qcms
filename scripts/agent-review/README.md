@@ -31,7 +31,7 @@ A run keeps `eval-status.json` beside those files, in the same lane scratch dire
 ```sh
 status="$(node scripts/agent-scratch.mjs eval-status.json --fresh)"
 node scripts/agent-review/eval-status.mjs init "$status" '{ "runId": "eval-2026-01-01",
-  "stack": { "adminUrl": "http://localhost:7340" },
+  "stack": { "adminUrl": "http://localhost:7040" },
   "scenarios": [{ "id": "publish-and-test-link", "title": "Publish and a test link", "budget": 3 }] }'
 node scripts/agent-review/eval-status.mjs set "$status" publish-and-test-link '{ "state": "running" }'
 ```

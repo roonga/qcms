@@ -14,7 +14,7 @@ Review the admin authoring assistant against `scripts/agent-review/scenarios/` a
    ```sh
    status="$(node scripts/agent-scratch.mjs eval-status.json --fresh)"
    node scripts/agent-review/eval-status.mjs init "$status" '{
-     "runId": "eval-2026-01-01", "stack": { "adminUrl": "http://localhost:7340", "headSha": "abcdef1" },
+     "runId": "eval-2026-01-01", "stack": { "adminUrl": "http://localhost:7040", "headSha": "abcdef1" },
      "scenarios": [{ "id": "new-patient-form", "title": "A new patient form", "budget": 2 }] }'
    ```
 

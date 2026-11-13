@@ -694,7 +694,7 @@ Every scenario's data is invented, and none of it is a real person's.
 ```sh
 status="$(node scripts/agent-scratch.mjs eval-status.json --fresh)"
 node scripts/agent-review/eval-status.mjs init "$status" '{ "runId": "eval-2026-01-01",
-  "stack": { "adminUrl": "http://localhost:7340", "headSha": "abcdef1" },
+  "stack": { "adminUrl": "http://localhost:7040", "headSha": "abcdef1" },
   "scenarios": [{ "id": "publish-and-test-link", "title": "Publish and a test link", "budget": 3 }] }'
 node scripts/agent-review/eval-status.mjs set "$status" publish-and-test-link '{ "state": "run", "turns": 3 }'
 node scripts/agent-review/eval-status.mjs check "$status"
