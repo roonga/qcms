@@ -20,6 +20,16 @@ export const DEFAULT_TIMEOUT_MS = 180_000;
 /** The selection cookie the admin reads; see `apps/admin/lib/environment.ts`. */
 export const ENVIRONMENT_COOKIE = "qcms-environment";
 
+/**
+ * Playwright takes a `url`, or a `domain` and `path` pair, and refuses a cookie carrying both.
+ *
+ * @param {{ baseUrl: string; environment: string }} run
+ * @returns {{ name: string; value: string; url: string; sameSite: "Lax" }}
+ */
+export function environmentCookie(run) {
+  return { name: ENVIRONMENT_COOKIE, value: run.environment, url: run.baseUrl, sameSite: "Lax" };
+}
+
 /** The admin's own wire vocabulary: anything else would fall back to prod without saying so. */
 const ENVIRONMENT_NAME = /^[a-z][a-z0-9]*$/u;
 

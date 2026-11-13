@@ -18,7 +18,7 @@ import { cardHasSettled, isHydrated, readPanel } from "./agent-converse-page.mjs
 import {
   cardAwaitingConfirmation,
   createSecretVault,
-  ENVIRONMENT_COOKIE,
+  environmentCookie,
   parseArgs,
   parseScriptFile,
   redactAddresses,
@@ -155,15 +155,7 @@ async function firstSignIn(page, run, credentials) {
  */
 async function chooseEnvironment(context, run) {
   if (run.environment === undefined) return;
-  await context.addCookies([
-    {
-      name: ENVIRONMENT_COOKIE,
-      value: run.environment,
-      url: run.baseUrl,
-      path: "/",
-      sameSite: "Lax",
-    },
-  ]);
+  await context.addCookies([environmentCookie({ ...run, environment: run.environment })]);
 }
 
 /**

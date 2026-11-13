@@ -11,6 +11,8 @@ import {
   createSecretVault,
   DEFAULT_BASE_URL,
   DEFAULT_SCREEN,
+  ENVIRONMENT_COOKIE,
+  environmentCookie,
   parseArgs,
   parseScriptFile,
   redactAddresses,
@@ -93,6 +95,18 @@ describe("asEnvironment", () => {
   it("names the field when it refuses, rather than falling back to prod", () => {
     expect(() => asEnvironment("2nd", "messages[0]")).toThrow(/messages\[0\].*lowercase/su);
     expect(() => asEnvironment(undefined, "x")).toThrow(/lowercase/u);
+  });
+
+  it("builds the selection cookie with a url and no path, which is what Playwright takes", () => {
+    const cookie = environmentCookie({ baseUrl: "http://localhost:7340", environment: "test" });
+
+    expect(cookie).toEqual({
+      name: ENVIRONMENT_COOKIE,
+      value: "test",
+      url: "http://localhost:7340",
+      sameSite: "Lax",
+    });
+    expect(cookie).not.toHaveProperty("path");
   });
 });
 
