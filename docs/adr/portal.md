@@ -14,7 +14,7 @@
 
 ### ADR-28 - Explicit portal navigation
 
-**Status:** implemented; amended 2026-08-31 (issue #725) and 2026-09-29 (the cursor indexes step views, built by task 076).
+**Status:** implemented; amended 2026-08-31 (issue #725) and 2026-09-29 (the cursor indexes step views, built by task 076); amended 2026-11-08 (the step rail, decided, not built).
 
 **Decision.** Continue advances only after current-step validation, Back returns to the previous visible step and is hidden on the first step, and Submit appears only on the last visible step. Answering never changes the rendered step by itself.
 
@@ -36,13 +36,28 @@ Nothing else in this decision moves. Continue advances one **view**, Back return
 
 **And the view list is derived from the roster, so answering cannot shorten it.** A live instance contributes a view whether or not a rule has hidden some of its members, which is what makes "answering never moves the rendered page by itself" hold for the cursor as an index: a list an answer could shorten would renumber the pages ahead of the respondent. Task 071 left that edge and one other - that only the **first** `perInstanceStep` group in a step paginates it - to this task, and both are kept, with the reasons recorded in `stepViews` in `packages/core/src/evaluate-rules.ts`.
 
+**Amendment - a step rail, and Back-jumps through the cursor (Code Owner, 2026-11-08, agent-builder Q8 in `plan/agent-builder-decisions.md`). Decided, not built; tasks 119 and 120.**
+
+- **The rail names every step**, in form order, each as completed, current or ahead. A step a rule hides is listed as **"Not needed"**, the one word used for it everywhere, rather than dropped, so the list does not renumber as the respondent answers.
+- **A completed step is a link back** through the existing cursor: the jump is a cursor position the server already computes, as Back is, and it carries no step id the server has to trust. **A jump forward is refused**, whatever the request names, so Continue's current-step validation stays the only way ahead.
+- **Nothing above moves.** Continue, Back and Submit keep their contract, and answering still never changes the rendered page by itself: a step turning "Not needed" changes the rail's label, not the page served. The no-JS path renders the completed steps as plain links.
+- **The serve-step response gains an ordered `steps` list** with each step's label and state, because `progress: {stepIndex, totalVisibleSteps}` cannot name a step. The rail is one of the progress modes (side rail, top indicator, none); the narrow layout folds it.
+
 ### ADR-30 - Portal theming
 
-**Status:** implemented.
+**Status:** implemented; amended 2026-11-08 (per-form appearance, per-theme high contrast, respondent controls and text size, decided, not built).
 
 **Decision.** Launch includes predefined deployment themes, brand configuration, a four-group token contract (color, typography, spacing, radius), and respondent choices for mode, font, and density. High contrast is a shared mode layer rather than a per-theme palette. The admin editor for creating and saving named custom themes is Phase 4 (task 049).
 
 **Note.** Deployment configuration also selects a corners preset and defaults for mode, font, density, and the offered font list (`QCMS_PORTAL_*`); the decision text names only the respondent-facing half.
+
+**Amendment - per-form appearance, per-theme high contrast, the respondent controls and text size (Code Owner, 2026-11-08, agent-builder Q4, Q5, Q6 and Q9 in `plan/agent-builder-decisions.md`). Decided, not built; tasks 107 to 109 and 118 to 120.**
+
+- **Appearance lives on drafts and versions, outside `FormDefinition` (Q4).** `form_drafts` and `form_versions` each carry a nullable `appearance` jsonb. It travels in the draft save's own body, so there is one revision counter and one agent-assisted mark, and publish copies it into the version, where it is frozen with the rest of the version (ADR-07). A session renders the appearance of the version it is pinned to, so a respondent mid-session keeps what they started with. A null appearance means the deployment configuration above, which stays the default. This supersedes the "per-form theming" exclusion in `docs/features/049-admin-theme-editor.md`.
+- **Every theme ships its own high-contrast palettes (Q5).** This replaces the Decision's "High contrast is a shared mode layer rather than a per-theme palette": a shipped palette and a derived workspace theme each carry full high-contrast palettes at 7:1, rather than a shared layer contributing a deep accent. The token test that limits `.hc` to four accent tokens changes with it (task 107).
+- **The respondent controls are display mode, high contrast, text size and a legibility face (Q6).** The face override offers System, Atkinson Hyperlegible, OpenDyslexic and Lexend. **Density leaves the respondent's choices**: it is admin-only. `POST /appearance` stays as the no-JS path for these choices.
+- **Text size compounds (Q9).** The author's base size, 16 to 24 px, is multiplied by the respondent's scale, 100, 125, 150 or 200 percent, and the product is capped at 32 px. Reflow is proven at 320 CSS px.
+- **Faces stay in the registry (Q11).** A derived or chosen face maps to a registry face or to System; a new face is its own registry change.
 
 ### ADR-31 - Answer commitment
 

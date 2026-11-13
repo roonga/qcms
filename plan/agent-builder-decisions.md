@@ -1,6 +1,6 @@
 # Agent builder: rulings and work plan
 
-Status: Code Owner rulings recorded 2026-11-08 (Q1 to Q13) and 2026-11-13 (Q14 to Q21, with the security-review fixes). Nothing built. Source: the "QCMS Agent Builder" Design canvas and an independent review against `origin/main` (ff3952e7).
+Status: Code Owner rulings recorded 2026-11-08 (Q1 to Q13) and 2026-11-13 (Q14 to Q21, with the security-review fixes). W1 is written into the decision records (task 106): ADR-19, ADR-25, ADR-28, ADR-30, ADR-41, `docs/agent-principle.md`, SEC-3, SEC-9, SEC-15, SEC-17 and the new SEC-18. S1, the design system mirror, waits on the Code Owner's publish. Nothing else built. Source: the "QCMS Agent Builder" Design canvas and an independent review against `origin/main` (ff3952e7).
 
 ## Rulings
 
