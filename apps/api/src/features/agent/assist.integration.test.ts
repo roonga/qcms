@@ -990,11 +990,9 @@ describe("a reduced-grant caller over HTTP", () => {
       expect(res.status).toBe(200);
       const events = await readEvents(res);
       expect(events.some((event) => event.type === "text")).toBe(true);
-      // The one error is the script withholding a proposal, so nothing the screen read was
+      // An answered turn that proposes nothing is clean, so nothing the screen read was
       // refused for this caller.
-      expect(events.flatMap((event) => (event.type === "error" ? [event.code] : []))).toEqual([
-        "NO_PROPOSAL",
-      ]);
+      expect(events.flatMap((event) => (event.type === "error" ? [event.code] : []))).toEqual([]);
       // The facts the screen built reached the provider, so this is a turn with a context
       // rather than one that answered from nothing.
       expect(JSON.stringify(providerCalls)).toContain(FORM_ID);

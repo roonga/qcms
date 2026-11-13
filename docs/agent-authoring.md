@@ -75,7 +75,7 @@ Any OpenAI-protocol server works the same way (Ollama, vLLM, LM Studio, llama.cp
    ollama pull llama3.1
    ```
 
-   Tool calling is not optional here. The assistant works by calling tools (search the library, propose a draft, validate it); a model that cannot emit tool calls will produce no proposal at all, and you will see the "assistant did not propose a draft" state every time. Check your model's card before blaming the integration.
+   Tool calling is not optional here. The assistant works by calling tools (search the library, propose a draft, validate it); a model that cannot emit tool calls answers in prose and never puts a card up, on every turn, with no error to tell you why. Check your model's card before blaming the integration.
 
 2. Point QCMS at it. Ollama serves an OpenAI-compatible API on port 11434:
 
@@ -99,7 +99,7 @@ Expect a local model to be slower and less reliable at producing a valid `FormDe
 
 LM Studio is the same `openai-compatible` provider as everything above, and its server needs no key. What is different is not QCMS, it is the network: LM Studio runs as a Windows application, and the thing configuring QCMS is usually not Windows.
 
-1. **Load a model that really does function calling.** The assist loop is entirely tool-driven: the model searches the question library, proposes questions, proposes the draft and asks for validation, all as tool calls. A model that emits prose instead of a tool call produces no proposal, so you see the "assistant did not propose a draft" state on every turn and it looks like the feature is broken. It is not. Use a recent instruct model in the 14B class or above whose card claims function calling, and check the claim rather than the size: a small model with tool support beats a large one without it here, because the loop has no prose path to fall back on.
+1. **Load a model that really does function calling.** The assist loop is entirely tool-driven: the model searches the question library, proposes questions, proposes the draft and asks for validation, all as tool calls. A model that emits prose instead of a tool call answers every turn and proposes nothing, which reads as a chatty assistant rather than a broken one. The turn log is where it shows: `steps` stays at one and no tool is ever called. Use a recent instruct model in the 14B class or above whose card claims function calling, and check the claim rather than the size: a small model with tool support beats a large one without it here, because the loop has no prose path to fall back on.
 
 2. **Start the server and turn on Serve on Local Network.** LM Studio's developer server binds `127.0.0.1` by default, which is reachable only from Windows itself. WSL2 in its default NAT mode is a different machine to that socket, and so is a container: from either one, `127.0.0.1:1234` is your own loopback and nothing answers. The toggle rebinds the listener to `0.0.0.0`. Windows will raise a firewall prompt the first time; allow it for private networks, or the rebind changes nothing you can observe.
 
@@ -250,7 +250,8 @@ Before this behaviour existed, accepting such a proposal stored a draft pinning 
   - The admin never learns the setting. The panel shows a Thinking disclosure because reasoning events arrived, so flipping the variable needs an API restart and nothing else.
 - **Rate limited per admin principal** on the assist endpoint. The panel shows the retry-after.
 - **Closing the panel or the tab aborts the upstream call** rather than leaving it running.
-- Failure states are shown explicitly rather than silently: provider unreachable or misconfigured, rate limited, the model refused, the model ran out of output room, the model proposed nothing, the draft changed underneath the conversation, and an attempted tool call refused.
+- Failure states are shown explicitly rather than silently: provider unreachable or misconfigured, rate limited, the model refused, the model ran out of output room, the draft changed underneath the conversation, and an attempted tool call refused.
+- **A question is not a failure.** A turn that answered and proposed nothing ends clean, with no error under the reply: asking what is in a form, who did what, or why a step stopped is most of what the assistant is for. The panel says the assistant left nothing to confirm only when the turn also left nothing to read, or when it staged a draft and never put the card up, which throws that work away.
 - **A tool call the model got wrong is not a failed turn.**
   Models malform a call and correct themselves on the next step, and a smaller local model does it on most real turns.
   The loop hands the failure back as that call's result and carries on, so a turn that recovered still ends with its proposal.

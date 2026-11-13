@@ -1837,7 +1837,7 @@ export const messages = {
     "The model provider refused this request, and trying again will not help. Check the provider account and the assistant settings for this deployment.",
 
   "forms.assist.error.NO_PROPOSAL":
-    "This reply has no proposal, so there is nothing to accept. To get one, describe a change to this form's steps, questions or rules.",
+    "The assistant left you nothing to confirm and nothing to read. Try describing what you want changed.",
   "forms.assist.error.REFUSED": "The assistant declined that request. {message}",
   "forms.assist.error.LENGTH":
     "The assistant's reply was cut off before it could finish. Try again.",

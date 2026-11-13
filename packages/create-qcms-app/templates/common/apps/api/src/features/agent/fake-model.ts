@@ -39,6 +39,7 @@ export const FAKE_SCRIPTS = [
   "tool-error-recovered",
   "propose-questions",
   "no-proposal",
+  "silent",
   "length",
   "step-limit",
   "narrate-then-tools",
@@ -1359,6 +1360,7 @@ function planStep(
   if (script === "no-proposal") {
     return [...textParts("I need more detail before I can propose anything."), finishPart("stop")];
   }
+  if (script === "silent") return [finishPart("stop")];
   if (script === "length") {
     return [...textParts("Here is the start of a form"), finishPart("length")];
   }

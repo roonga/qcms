@@ -378,11 +378,20 @@ function* flushProposals(state: ProposalState): Generator<AssistEvent> {
   }
 }
 
+function answered(outcome: RunOutcome): boolean {
+  return outcome.textSegments.some((segment) => segment.text.trim() !== "");
+}
+
 /**
- * `tool-calls` as the last finish reason is what separates a step-exhausted turn from
- * one where the model simply never answered; they look identical otherwise.
+ * A question is not a failure, so an answered turn that proposed nothing is clean. What
+ * stays an error is a turn cut off before it could finish, and one that left no card and
+ * either no words or staged work it never put up.
  */
-function emptyTurnError(outcome: RunOutcome, maxSteps: number): AssistEvent {
+function emptyTurnError(
+  outcome: RunOutcome,
+  maxSteps: number,
+  staged: boolean,
+): AssistEvent | undefined {
   if (outcome.finishReason === "length") {
     return {
       type: "error",
@@ -390,6 +399,7 @@ function emptyTurnError(outcome: RunOutcome, maxSteps: number): AssistEvent {
       message: "The model ran out of output room before proposing a draft. Try a smaller request.",
     };
   }
+  // `tool-calls` separates a step-exhausted turn from one that simply never answered.
   if (outcome.steps >= maxSteps && outcome.finishReason === "tool-calls") {
     return {
       type: "error",
@@ -402,10 +412,11 @@ function emptyTurnError(outcome: RunOutcome, maxSteps: number): AssistEvent {
         "(docs/operations.md).",
     };
   }
+  if (!staged && answered(outcome)) return undefined;
   return {
     type: "error",
     code: "NO_PROPOSAL",
-    message: "The assistant did not propose a draft. Try describing the form differently.",
+    message: "The assistant left nothing to confirm. Try describing the change differently.",
   };
 }
 
@@ -481,8 +492,11 @@ function* finishTurn(args: {
 
   // A proposed draft is not itself a proposal: it reaches the user as the apply-draft
   // card, which the model proposes like any other action. A turn that recorded a draft and
-  // proposed no card proposed nothing.
-  if (state.actionProposals.length === 0) yield emptyTurnError(outcome, ctx.maxSteps);
+  // proposed no card proposed nothing, and the staged work is thrown away with the turn.
+  if (state.actionProposals.length > 0) return;
+  const staged = state.proposedDraft !== undefined || state.newQuestions.length > 0;
+  const error = emptyTurnError(outcome, ctx.maxSteps, staged);
+  if (error !== undefined) yield error;
 }
 
 /** Only reachable by a composition error, since nothing mounts the routes when off. */
