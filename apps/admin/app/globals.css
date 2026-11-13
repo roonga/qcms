@@ -3498,14 +3498,20 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   outline-offset: 2px;
 }
 .qcms-acard__state {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
-  padding: 2px 6px;
+  min-block-size: 20px;
+  padding: 2px 8px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background-color: var(--color-background-muted);
   color: var(--color-text-muted);
   font-size: 12px;
+  line-height: 16px;
   font-weight: 600;
+  text-align: center;
   white-space: nowrap;
 }
 .qcms-acard__state[data-s="running"] {
@@ -3536,11 +3542,17 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
 }
 .qcms-acard__step {
   display: grid;
-  grid-template-columns: 20px 1fr auto;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
   column-gap: var(--space-3);
   row-gap: var(--space-1);
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-4);
   border-block-end: 1px solid var(--color-border);
+}
+/* Anything a step adds belongs in the text column; without this a new child is auto-placed
+   into the 20px icon track and reads as a squeezed sliver. */
+.qcms-acard__step > * {
+  grid-column: 2 / -1;
+  min-inline-size: 0;
 }
 .qcms-acard__icon {
   grid-column: 1;
@@ -3647,12 +3659,22 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
 }
 .qcms-acard__deflist {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 2px;
   margin: 0;
 }
 .qcms-acard__deflist dd {
+  display: grid;
+  grid-template-columns: minmax(0, 9rem) minmax(0, 1fr);
+  column-gap: var(--space-3);
+  align-items: baseline;
   margin: 0;
+}
+.qcms-acard__deflist dd > * {
+  min-inline-size: 0;
+  overflow-wrap: break-word;
+}
+.qcms-acard__deflist dd > code {
   overflow-wrap: anywhere;
 }
 .qcms-acard__deflist dt:not(:first-child) {
