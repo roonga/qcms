@@ -87,37 +87,27 @@ export function stepIcon(state: AgentStepState): React.ReactElement {
     case "not-run":
       return (
         <svg {...common} focusable="false">
-          <circle
-            cx="9"
-            cy="9"
-            r="7"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeDasharray="3 3"
-            fill="none"
-          />
-          <path d="M5.5 9h7" stroke="currentColor" strokeWidth="2" />
+          <path d="M4 9h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
         </svg>
       );
     case "cancelled":
       return (
         <svg {...common} focusable="false">
-          <circle cx="9" cy="9" r="7" stroke="currentColor" strokeWidth="2" fill="none" />
-          <path d="M4.5 13.5l9-9" stroke="currentColor" strokeWidth="2" />
+          <path d="M4.5 13.5l9-9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
         </svg>
       );
     case "expired":
       return (
         <svg {...common} focusable="false">
-          <circle cx="9" cy="9" r="7" stroke="currentColor" strokeWidth="2" fill="none" />
-          <path d="M9 5v5" stroke="currentColor" strokeWidth="2" />
-          <circle cx="9" cy="12.5" r="1" fill="currentColor" />
+          <path d="M9 4v6.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          <circle cx="9" cy="13.5" r="1.2" fill="currentColor" />
         </svg>
       );
+    // An outlined circle beside a step reads as a radio button nobody can pick.
     default:
       return (
         <svg {...common} focusable="false">
-          <circle cx="9" cy="9" r="7" stroke="currentColor" strokeWidth="2" fill="none" />
+          <circle cx="9" cy="9" r="3.5" fill="currentColor" />
         </svg>
       );
   }
