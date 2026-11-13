@@ -121,6 +121,14 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     workspace: "caller",
   },
   {
+    method: "PUT",
+    path: "/admin/workspaces/{id}/name",
+    resource: "workspace",
+    action: "update",
+    workspace: "path",
+    audit: "setting",
+  },
+  {
     method: "POST",
     path: "/admin/workspaces/{id}/archive",
     resource: "workspace",

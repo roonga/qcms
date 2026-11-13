@@ -13,15 +13,15 @@ Green field: no data migration, upgrade path or backward compatibility (spec sec
 
 ## Deliverables
 
-- **Workspace list (Q1):** `GET /admin/workspaces` returns only the workspaces in the caller's `grantContext.workspaceIds`; a caller holding the installation claim (the Site administrator after 086) gets all. The workspace switcher reads the same list.
+- **Workspace list (Q1):** `GET /admin/workspaces` returns only the workspaces in the caller's `grantContext.workspaceIds`; a caller holding the installation claim (the Site administrator after 086) gets all. The workspace switcher reads the same list. The route still admits only administrators and the claim holder; 085 opens it to editors and viewers (Code Owner, 2026-11-14).
 - **Rename:** a rename route on the workspace that changes the name only, never the slug, and writes one audit row. Refused for anyone who is not an administrator of that workspace or the installation claim holder.
 - **Generic add-member answer:** an unknown account gets the same status and body as an existing account the caller cannot add, on both the `email` and `userId` paths. 090 extends the same answer to disabled and unclaimed accounts.
-- **Archived workspace writes:** `requireOpenWorkspace` on group delete, member remove and settings, so an archived workspace refuses every grant and still allows a revoke.
+- **Archived workspace writes:** `requireOpenWorkspace` on settings and grants, so an archived workspace refuses a settings change or a grant. Revokes (group delete and holder removal) stay allowed on an archived workspace.
 - OpenAPI regenerated; template mirrors synced.
 
 ## Exit criteria
 
-Spec criteria owned: **26, 97, 98**. This task owns those and no others.
+Spec criteria owned: **97, 98**. This task owns those and no others. It narrows the workspace list for the callers the route admits today; 085 owns criterion 26.
 
 - Criterion 98 is built behaviour (archive refusal); this task adds the regression test on the route as it stands after the `requireOpenWorkspace` change.
 

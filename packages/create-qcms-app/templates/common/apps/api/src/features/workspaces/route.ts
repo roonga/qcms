@@ -9,12 +9,14 @@ import {
   makeListWorkspacesHandler,
   makeMoveFormHandler,
   makeMoveQuestionHandler,
+  makeRenameWorkspaceHandler,
   makeSetSharedWorkspaceHandler,
 } from "./handler.js";
 import {
   CreateWorkspaceBody,
   MoveToWorkspaceBody,
   MovedResponse,
+  RenameWorkspaceBody,
   SharedWorkspaceBody,
   WorkspaceIdParam,
   WorkspaceListResponse,
@@ -26,10 +28,11 @@ const tags = ["workspaces"];
 export const listWorkspacesRoute = createRoute({
   method: "get",
   path: "/workspaces",
-  summary: "Every workspace, with what it owns (admin)",
+  summary: "The caller's workspaces, with what each owns (admin)",
   description:
-    "Oldest first, archived workspaces included: a workspace is archived and never " +
-    "deleted, and one that still owns questions is what a reader needs to see.",
+    "Only the workspaces the caller administers; the installation administrator gets " +
+    "every one. Oldest first, archived workspaces included: a workspace is archived and " +
+    "never deleted, and one that still owns questions is what a reader needs to see.",
   tags,
   request: {},
   responses: {
@@ -57,6 +60,26 @@ export const createWorkspaceRoute = createRoute({
       content: { "application/json": { schema: WorkspaceResponse } },
     },
     ...errorResponses(400, 401, 409),
+  },
+  ...withScopes("forms:write"),
+});
+
+export const renameWorkspaceRoute = createRoute({
+  method: "put",
+  path: "/workspaces/{id}/name",
+  summary: "Rename a workspace (admin)",
+  description:
+    "Changes the name only; the slug never changes. One audit row records the old and " +
+    "the new name. Refused on an archived workspace, and for anyone who is not an " +
+    "administrator of that workspace or the installation administrator.",
+  tags,
+  request: { params: WorkspaceIdParam, body: jsonBody(RenameWorkspaceBody) },
+  responses: {
+    200: {
+      description: "The workspace as it now stands",
+      content: { "application/json": { schema: WorkspaceResponse } },
+    },
+    ...errorResponses(400, 401, 403, 404, 409),
   },
   ...withScopes("forms:write"),
 });
@@ -146,6 +169,7 @@ export const moveQuestionRoute = createRoute({
 export const registerWorkspaces: SliceRegistrar = (group, deps: Deps): void => {
   group.openapi(listWorkspacesRoute, makeListWorkspacesHandler(deps));
   group.openapi(createWorkspaceRoute, makeCreateWorkspaceHandler(deps));
+  group.openapi(renameWorkspaceRoute, makeRenameWorkspaceHandler(deps));
   group.openapi(setSharedWorkspaceRoute, makeSetSharedWorkspaceHandler(deps));
   group.openapi(archiveWorkspaceRoute, makeArchiveWorkspaceHandler(deps));
   group.openapi(moveFormRoute, makeMoveFormHandler(deps));
