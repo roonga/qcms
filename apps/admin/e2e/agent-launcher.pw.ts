@@ -555,6 +555,33 @@ async function expectOneScroller(page: Page, where: string): Promise<void> {
   ).toEqual([]);
 }
 
+async function expectComposerRingShown(page: Page, where: string): Promise<void> {
+  await composer(page).focus();
+  const ring = await page.evaluate(() => {
+    const area = document.querySelector('[data-testid="qcms-assistant-composer"]');
+    const panel = document.getElementById("qcms-assistant-panel");
+    if (!(area instanceof HTMLElement) || panel === null) return undefined;
+    const style = window.getComputedStyle(area);
+    const reach = Number.parseFloat(style.outlineWidth) + Number.parseFloat(style.outlineOffset);
+    const box = area.getBoundingClientRect();
+    const within = panel.getBoundingClientRect();
+    return {
+      width: Number.parseFloat(style.outlineWidth),
+      style: style.outlineStyle,
+      inside:
+        box.left - reach >= within.left - 1 &&
+        box.right + reach <= within.right + 1 &&
+        box.top - reach >= within.top - 1 &&
+        box.bottom + reach <= within.bottom + 1,
+    };
+  });
+  expect(ring?.style, `the composer shows a focus ring in ${where}`).not.toBe("none");
+  expect(ring?.width ?? 0, `the ${where} focus ring is thick enough to see`).toBeGreaterThanOrEqual(
+    2,
+  );
+  expect(ring?.inside, `the ${where} focus ring is not clipped by the panel`).toBe(true);
+}
+
 test("gives the panel one scroll container and holds the page still behind it", async ({
   page,
 }) => {
@@ -565,10 +592,12 @@ test("gives the panel one scroll container and holds the page still behind it", 
   await open(page);
   await expect(panel(page)).toHaveAttribute("data-mode", "dock");
   await expectOneScroller(page, "the dock");
+  await expectComposerRingShown(page, "the dock");
 
   await page.getByTestId("qcms-assistant-expand").click();
   await expect(panel(page)).toHaveAttribute("data-mode", "expanded");
   await expectOneScroller(page, "the expanded panel");
+  await expectComposerRingShown(page, "the expanded panel");
 
   await page.setViewportSize({ width: 700, height: 700 });
   await expect(panel(page)).toHaveAttribute("data-mode", "sheet");

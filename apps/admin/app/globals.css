@@ -3478,6 +3478,11 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   background-color: var(--color-surface);
   color: inherit;
 }
+.qcms-assistant__composer textarea:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+  border-color: var(--color-focus-ring);
+}
 
 .qcms-acard {
   display: flex;
