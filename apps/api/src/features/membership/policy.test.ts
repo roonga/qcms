@@ -12,22 +12,21 @@ import {
   decideAccess,
   holdsStatement,
   isEnvironmentScoped,
-  isFormScoped,
   roles,
   rolesHolding,
 } from "./policy.js";
 
-const WHOLE_SCOPE = { environments: ["all"], forms: ["all"] } as const;
+const EVERY_ENVIRONMENT = ["dev", "test", "prod"] as const;
 
 function holding(role: RoleName): Parameters<typeof decideAccess>[0]["grants"] {
-  return [{ role, ...WHOLE_SCOPE }];
+  return [{ roles: [role], environments: [...EVERY_ENVIRONMENT] }];
 }
 
 function allows(
   role: RoleName,
   resource: Resource,
   action: string,
-  options: { readonly environment?: string; readonly formId?: string } = {},
+  options: { readonly environment?: string } = {},
 ): boolean {
   return decideAccess({
     memberRole: undefined,
@@ -37,7 +36,7 @@ function allows(
 }
 
 // Written out rather than derived from `rolesHolding`, which would make the assertions
-// compare the statements against themselves.
+// compare the statements against themselves. This is section 3's role-by-act table.
 const MATRIX: readonly {
   readonly resource: Resource;
   readonly action: Action;
@@ -46,29 +45,29 @@ const MATRIX: readonly {
   {
     resource: "question",
     action: "read",
-    roles: ["forms.viewer", "forms.editor", "forms.approver"],
+    roles: ["forms.viewer", "forms.editor", "forms.publisher"],
   },
-  { resource: "form", action: "read", roles: ["forms.viewer", "forms.editor", "forms.approver"] },
+  { resource: "form", action: "read", roles: ["forms.viewer", "forms.editor", "forms.publisher"] },
   {
     resource: "release",
     action: "read",
-    roles: ["forms.viewer", "forms.editor", "forms.approver"],
+    roles: ["forms.viewer", "forms.editor", "forms.publisher"],
   },
-  { resource: "link", action: "read", roles: ["forms.viewer", "forms.editor", "forms.approver"] },
+  { resource: "link", action: "read", roles: ["forms.viewer", "forms.editor", "forms.publisher"] },
   {
     resource: "webhook",
     action: "read",
-    roles: ["forms.viewer", "forms.editor", "forms.approver"],
+    roles: ["forms.viewer", "forms.editor", "forms.publisher"],
   },
   { resource: "question", action: "write", roles: ["forms.editor"] },
   { resource: "form", action: "write", roles: ["forms.editor"] },
   { resource: "form", action: "preview", roles: ["forms.editor"] },
-  { resource: "form", action: "publish", roles: ["forms.editor"] },
-  { resource: "release", action: "create", roles: ["forms.editor", "forms.approver"] },
-  { resource: "form", action: "close", roles: ["forms.editor", "forms.approver"] },
-  { resource: "link", action: "mint", roles: ["forms.editor", "forms.approver"] },
-  { resource: "link", action: "revoke", roles: ["forms.editor", "forms.approver"] },
-  { resource: "webhook", action: "configure", roles: ["forms.editor", "forms.approver"] },
+  { resource: "form", action: "publish", roles: ["forms.publisher"] },
+  { resource: "release", action: "create", roles: ["forms.publisher"] },
+  { resource: "form", action: "close", roles: ["forms.publisher"] },
+  { resource: "link", action: "mint", roles: ["forms.publisher"] },
+  { resource: "link", action: "revoke", roles: ["forms.publisher"] },
+  { resource: "webhook", action: "configure", roles: ["forms.publisher"] },
   { resource: "response", action: "read", roles: ["responses.viewer"] },
   { resource: "response", action: "export", roles: ["responses.viewer"] },
   { resource: "response", action: "erase", roles: ["responses.eraser"] },
@@ -97,13 +96,7 @@ describe("the matrix is walked in both directions (criterion 1)", () => {
     ),
   )("%s matches the matrix", (_label, role, row) => {
     const expected = row.roles.includes(role);
-    // `test`, not `prod`: the production split is a case of its own below.
-    const options = isEnvironmentScoped(row.resource, row.action)
-      ? {
-          environment: "test",
-          ...(isFormScoped(row.resource, row.action) ? { formId: "frm_x" } : {}),
-        }
-      : {};
+    const options = isEnvironmentScoped(row.resource, row.action) ? { environment: "test" } : {};
     expect(allows(role, row.resource, row.action, options)).toBe(expected);
   });
 
@@ -112,42 +105,42 @@ describe("the matrix is walked in both directions (criterion 1)", () => {
       expect([...rolesHolding(row.resource, row.action)].sort()).toEqual([...row.roles].sort());
     }
   });
+
+  it("holds no role the earlier model carried", () => {
+    expect(Object.keys(roles)).not.toContain("forms.approver");
+  });
 });
 
-describe("the two families imply nothing about each other (criterion 2, Q27)", () => {
-  it("gives a `forms.editor` with `prod` in scope no response in any environment", () => {
-    for (const environment of ["dev", "test", "prod"]) {
+describe("the two families imply nothing about each other (criterion 2)", () => {
+  it("gives a `forms.editor` naming every environment no response anywhere", () => {
+    for (const environment of EVERY_ENVIRONMENT) {
       for (const action of ["read", "export", "erase"]) {
         expect(
-          decideAccess({
-            memberRole: undefined,
-            grants: [{ role: "forms.editor", environments: ["prod"], forms: ["all"] }],
-            request: { resource: "response", action, environment, formId: "frm_x" },
-          }).allowed,
+          allows("forms.editor", "response", action, { environment }),
           `forms.editor reached response:${action} in ${environment}`,
         ).toBe(false);
       }
     }
   });
 
-  it("gives a `forms.owner` no response read without a `responses.viewer` grant", () => {
-    const owner = decideAccess({
+  it("gives a Workspace administrator no response read without a group grant (criterion 19)", () => {
+    const administrator = decideAccess({
       memberRole: "forms.owner",
       grants: [],
-      request: { resource: "response", action: "read", environment: "prod", formId: "frm_x" },
+      request: { resource: "response", action: "read", environment: "prod" },
     });
-    expect(owner.allowed).toBe(false);
+    expect(administrator.allowed).toBe(false);
 
     const withGrant = decideAccess({
       memberRole: "forms.owner",
-      grants: [{ role: "responses.viewer", environments: ["prod"], forms: ["all"] }],
-      request: { resource: "response", action: "read", environment: "prod", formId: "frm_x" },
+      grants: [{ roles: ["responses.viewer"], environments: ["prod"] }],
+      request: { resource: "response", action: "read", environment: "prod" },
     });
     expect(withGrant.allowed).toBe(true);
     expect(withGrant.role).toBe("responses.viewer");
   });
 
-  it("gives a `forms.owner` nothing on a form, release, link, webhook or response", () => {
+  it("gives a Workspace administrator nothing on a form, release, link, webhook or response", () => {
     for (const resource of [
       "form",
       "release",
@@ -157,15 +150,13 @@ describe("the two families imply nothing about each other (criterion 2, Q27)", (
       "question",
     ] as const) {
       for (const action of ACTIONS[resource] as readonly string[]) {
-        expect(
-          allows("forms.owner", resource, action, { environment: "test", formId: "frm_x" }),
-        ).toBe(false);
+        expect(allows("forms.owner", resource, action, { environment: "test" })).toBe(false);
       }
     }
   });
 });
 
-describe("a data role holds no authoring right, and `forms.viewer` holds none at all (criterion 3)", () => {
+describe("View forms and Erase responses reach no read they should not (criteria 2, 11)", () => {
   it("refuses a `responses.viewer` every authoring act", () => {
     for (const [resource, action] of [
       ["form", "write"],
@@ -179,18 +170,12 @@ describe("a data role holds no authoring right, and `forms.viewer` holds none at
   });
 
   it("refuses a `responses.eraser` a read and an export", () => {
-    expect(
-      allows("responses.eraser", "response", "read", { environment: "test", formId: "f" }),
-    ).toBe(false);
-    expect(
-      allows("responses.eraser", "response", "export", { environment: "test", formId: "f" }),
-    ).toBe(false);
-    expect(
-      allows("responses.eraser", "response", "erase", { environment: "test", formId: "f" }),
-    ).toBe(true);
+    expect(allows("responses.eraser", "response", "read", { environment: "test" })).toBe(false);
+    expect(allows("responses.eraser", "response", "export", { environment: "test" })).toBe(false);
+    expect(allows("responses.eraser", "response", "erase", { environment: "test" })).toBe(true);
   });
 
-  it("refuses a `forms.viewer` every write and every response", () => {
+  it("refuses a `forms.viewer` every write, publish, link, webhook and response", () => {
     for (const [resource, action] of [
       ["form", "write"],
       ["form", "publish"],
@@ -201,16 +186,14 @@ describe("a data role holds no authoring right, and `forms.viewer` holds none at
       ["webhook", "configure"],
       ["response", "read"],
     ] as const) {
-      expect(
-        allows("forms.viewer", resource, action, { environment: "test", formId: "frm_x" }),
-      ).toBe(false);
+      expect(allows("forms.viewer", resource, action, { environment: "test" })).toBe(false);
     }
   });
 });
 
-describe("the scope narrows both dimensions (criterion 4, Q25 and Q28)", () => {
-  it("refuses an environment-scoped act outside the grant's environments", () => {
-    const grants = [{ role: "forms.editor" as const, environments: ["test"], forms: ["all"] }];
+describe("the environment set governs the environment-scoped acts (criteria 9, 10, 12, 14)", () => {
+  it("refuses a publisher an environment its groups do not name", () => {
+    const grants = [{ roles: ["forms.publisher"], environments: ["test"] }];
     const ask = (environment: string): boolean =>
       decideAccess({
         memberRole: undefined,
@@ -219,20 +202,21 @@ describe("the scope narrows both dimensions (criterion 4, Q25 and Q28)", () => {
       }).allowed;
     expect(ask("test")).toBe(true);
     expect(ask("dev")).toBe(false);
+    expect(ask("prod")).toBe(false);
   });
 
-  it("refuses the responses of a form not on a data grant's form list", () => {
-    const grants = [
-      { role: "responses.viewer" as const, environments: ["prod"], forms: ["frm_claims"] },
-    ];
-    const ask = (formId: string): boolean =>
+  it("refuses a response role an environment its groups do not name", () => {
+    const grants = [{ roles: ["responses.viewer", "responses.eraser"], environments: ["prod"] }];
+    const ask = (action: string, environment: string): boolean =>
       decideAccess({
         memberRole: undefined,
         grants,
-        request: { resource: "response", action: "read", environment: "prod", formId },
+        request: { resource: "response", action, environment },
       }).allowed;
-    expect(ask("frm_claims")).toBe(true);
-    expect(ask("frm_other")).toBe(false);
+    expect(ask("read", "prod")).toBe(true);
+    expect(ask("erase", "prod")).toBe(true);
+    expect(ask("read", "test")).toBe(false);
+    expect(ask("erase", "test")).toBe(false);
   });
 
   it("refuses an environment-scoped act that names no environment at all", () => {
@@ -240,78 +224,108 @@ describe("the scope narrows both dimensions (criterion 4, Q25 and Q28)", () => {
       decideAccess({
         memberRole: undefined,
         grants: holding("responses.viewer"),
-        request: { resource: "response", action: "read", formId: "frm_x" },
+        request: { resource: "response", action: "read" },
       }).allowed,
     ).toBe(false);
   });
 
-  it("reads `all` as the whole of a dimension and nothing less", () => {
-    expect(
-      allows("responses.viewer", "response", "read", { environment: "dev", formId: "any" }),
-    ).toBe(true);
-  });
-});
-
-describe("the production split is the matrix and not a scope (Q30, Q33)", () => {
-  it("refuses a `forms.editor` a production write even with `prod` in scope", () => {
-    for (const [resource, action] of [
-      ["release", "create"],
-      ["form", "close"],
-      ["link", "mint"],
-      ["link", "revoke"],
-      ["webhook", "configure"],
-    ] as const) {
-      const grants = [{ role: "forms.editor" as const, environments: ["all"], forms: ["all"] }];
-      const decision = decideAccess({
-        memberRole: undefined,
-        grants,
-        request: { resource, action, environment: PRODUCTION_ENVIRONMENT },
-      });
-      expect(decision.allowed, `forms.editor reached ${resource}:${action} in prod`).toBe(false);
+  it("gives a View forms or Edit forms group the same in every environment (criterion 12)", () => {
+    const grants = [{ roles: ["forms.viewer", "forms.editor"], environments: [] }];
+    for (const environment of EVERY_ENVIRONMENT) {
+      expect(
+        decideAccess({
+          memberRole: undefined,
+          grants,
+          request: { resource: "form", action: "write", environment },
+        }).allowed,
+      ).toBe(true);
     }
   });
 
-  it("allows a `forms.approver` holding `prod`, and refuses one that does not", () => {
-    const ask = (environments: readonly string[]): boolean =>
-      decideAccess({
-        memberRole: undefined,
-        grants: [{ role: "forms.approver", environments, forms: ["all"] }],
-        request: { resource: "release", action: "create", environment: PRODUCTION_ENVIRONMENT },
-      }).allowed;
-    expect(ask(["prod"])).toBe(true);
-    expect(ask(["all"])).toBe(true);
-    expect(ask(["test"])).toBe(false);
+  it("covers a newly added environment with no group (criterion 14)", () => {
+    const grants = [
+      { roles: ["forms.publisher", "responses.viewer"], environments: [...EVERY_ENVIRONMENT] },
+    ];
+    for (const [resource, action] of [
+      ["release", "create"],
+      ["link", "mint"],
+      ["response", "read"],
+    ] as const) {
+      expect(
+        decideAccess({
+          memberRole: undefined,
+          grants,
+          request: { resource, action, environment: "staging" },
+        }).allowed,
+        `${resource}:${action} reached a new environment`,
+      ).toBe(false);
+    }
   });
 
-  it("leaves the data family unsplit: a `responses.viewer` with `prod` reads prod", () => {
+  it("has no value meaning every environment", () => {
     expect(
       decideAccess({
         memberRole: undefined,
-        grants: [{ role: "responses.viewer", environments: ["prod"], forms: ["all"] }],
-        request: {
-          resource: "response",
-          action: "read",
-          environment: PRODUCTION_ENVIRONMENT,
-          formId: "frm_x",
-        },
+        grants: [{ roles: ["responses.viewer"], environments: ["all"] }],
+        request: { resource: "response", action: "read", environment: "prod" },
       }).allowed,
-    ).toBe(true);
+    ).toBe(false);
   });
 });
 
-describe("a caller with no grant reaches nothing (criterion 5, finding G)", () => {
-  it("refuses every act for a caller with no member row and no team", () => {
+describe("publishing takes both roles (criteria 4, 6)", () => {
+  it("gives Edit forms alone no `form: publish` and no `release: create`", () => {
+    const grants = [{ roles: ["forms.editor"], environments: [] }];
+    expect(
+      decideAccess({
+        memberRole: undefined,
+        grants,
+        request: { resource: "form", action: "publish" },
+      }).allowed,
+    ).toBe(false);
+    expect(
+      decideAccess({
+        memberRole: undefined,
+        grants,
+        request: { resource: "release", action: "create", environment: "test" },
+      }).allowed,
+    ).toBe(false);
+  });
+
+  it("gives Publish forms alone no `form: write`", () => {
+    expect(
+      decideAccess({
+        memberRole: undefined,
+        grants: [{ roles: ["forms.publisher"], environments: ["test"] }],
+        request: { resource: "form", action: "write" },
+      }).allowed,
+    ).toBe(false);
+  });
+
+  it("refuses a publisher for `test` the `prod` release, through one group or two", () => {
+    const grants = [
+      { roles: ["forms.editor"], environments: [] },
+      { roles: ["forms.publisher"], environments: ["test"] },
+    ];
+    const ask = (environment: string): boolean =>
+      decideAccess({
+        memberRole: undefined,
+        grants,
+        request: { resource: "release", action: "create", environment },
+      }).allowed;
+    expect(ask("test")).toBe(true);
+    expect(ask(PRODUCTION_ENVIRONMENT)).toBe(false);
+  });
+});
+
+describe("a caller with no grant reaches nothing", () => {
+  it("refuses every act for a caller with no member row and no group", () => {
     for (const row of MATRIX) {
       expect(
         decideAccess({
           memberRole: undefined,
           grants: [],
-          request: {
-            resource: row.resource,
-            action: row.action,
-            environment: "test",
-            formId: "frm_x",
-          },
+          request: { resource: row.resource, action: row.action, environment: "test" },
         }).allowed,
       ).toBe(false);
     }
@@ -323,22 +337,27 @@ describe("a caller with no grant reaches nothing (criterion 5, finding G)", () =
         decideAccess({
           memberRole: "member",
           grants: [],
-          request: {
-            resource: row.resource,
-            action: row.action,
-            environment: "test",
-            formId: "frm_x",
-          },
+          request: { resource: row.resource, action: row.action, environment: "test" },
         }).allowed,
       ).toBe(false);
     }
+  });
+
+  it("fails closed on a role name no configuration declares", () => {
+    expect(
+      decideAccess({
+        memberRole: undefined,
+        grants: [{ roles: ["forms.approver"], environments: ["prod"] }],
+        request: { resource: "release", action: "create", environment: "prod" },
+      }).allowed,
+    ).toBe(false);
   });
 
   it("carries a refusal that names the grant needed and nobody else's grant", () => {
     const decision = decideAccess({
       memberRole: undefined,
       grants: [],
-      request: { resource: "response", action: "read", environment: "prod", formId: "frm_x" },
+      request: { resource: "response", action: "read", environment: "prod" },
     });
     expect(decision.reason).toContain("response: read");
     expect(decision.reason).toContain("prod");
@@ -347,15 +366,15 @@ describe("a caller with no grant reaches nothing (criterion 5, finding G)", () =
   });
 });
 
-describe("the configuration guards the policy itself carries (criterion 9)", () => {
-  it("declares the six roles and the three empty ones, and nothing else", () => {
+describe("the configuration guards the policy itself carries", () => {
+  it("declares the five group roles, the administrator and the three empty ones", () => {
     expect([...ROLE_NAMES]).toHaveLength(6);
     expect(Object.keys(roles).sort()).toEqual([...ROLE_NAMES, ...EMPTY_ROLE_NAMES].sort());
   });
 
   it("gives every overridden plugin role an empty statement set", () => {
-    // `owner` is overridden too: `creatorRole` is `forms.owner`, so a row still carrying
-    // the plugin's own `owner` would otherwise hold the library's full statements.
+    // `owner` is overridden too: `creatorRole` is the administrator role, so a row still
+    // carrying the plugin's own `owner` would otherwise hold the library's full statements.
     for (const name of EMPTY_ROLE_NAMES) {
       for (const resource of RESOURCES) {
         for (const action of ACTIONS[resource] as readonly string[]) {
@@ -365,7 +384,7 @@ describe("the configuration guards the policy itself carries (criterion 9)", () 
     }
   });
 
-  it("gives no QCMS role any statement on the plugin's own resources (Q45)", () => {
+  it("gives no QCMS role any statement on the plugin's own resources", () => {
     for (const name of ROLE_NAMES) {
       for (const resource of ["organization", "member", "invitation", "team", "ac"]) {
         for (const action of ["create", "update", "delete", "read", "cancel"]) {
@@ -379,29 +398,19 @@ describe("the configuration guards the policy itself carries (criterion 9)", () 
   });
 });
 
-describe("a grant holder with several grants is judged per act, not by rank", () => {
-  it("lets an editor in test and an approver in prod do each act with the right grant", () => {
+describe("roles are additive across groups and judged per act", () => {
+  it("lets an editor everywhere and a publisher in prod do each act with the right group", () => {
     const grants = [
-      {
-        role: "forms.editor" as const,
-        environments: ["test"],
-        forms: ["all"],
-        name: "test.forms.editor",
-      },
-      {
-        role: "forms.approver" as const,
-        environments: ["prod"],
-        forms: ["all"],
-        name: "prod.forms.approver",
-      },
+      { roles: ["forms.editor"], environments: [], name: "Authors" },
+      { roles: ["forms.publisher"], environments: ["prod"], name: "Publishers" },
     ];
-    const test = decideAccess({
+    const draft = decideAccess({
       memberRole: undefined,
       grants,
-      request: { resource: "release", action: "create", environment: "test" },
+      request: { resource: "form", action: "write" },
     });
-    expect(test.allowed).toBe(true);
-    expect(test.name).toBe("test.forms.editor");
+    expect(draft.allowed).toBe(true);
+    expect(draft.name).toBe("Authors");
 
     const prod = decideAccess({
       memberRole: undefined,
@@ -409,21 +418,33 @@ describe("a grant holder with several grants is judged per act, not by rank", ()
       request: { resource: "release", action: "create", environment: "prod" },
     });
     expect(prod.allowed).toBe(true);
-    expect(prod.name).toBe("prod.forms.approver");
+    expect(prod.name).toBe("Publishers");
+  });
 
-    expect(
-      decideAccess({
-        memberRole: undefined,
-        grants: [grants[1] as (typeof grants)[number]],
-        request: { resource: "form", action: "write" },
-      }).allowed,
-    ).toBe(false);
+  it("reads every role in one group, not only its first", () => {
+    const grants = [
+      { roles: ["forms.editor", "forms.publisher", "responses.viewer"], environments: ["test"] },
+    ];
+    for (const [resource, action] of [
+      ["form", "write"],
+      ["release", "create"],
+      ["response", "read"],
+    ] as const) {
+      expect(
+        decideAccess({
+          memberRole: undefined,
+          grants,
+          request: { resource, action, environment: "test" },
+        }).allowed,
+        `${resource}:${action}`,
+      ).toBe(true);
+    }
   });
 });
 
-describe("holdsStatement, the capability Q58's masking reads", () => {
-  function grant(role: string, environments: readonly string[] = ["all"]) {
-    return { role, environments, forms: ["all"] as readonly string[] };
+describe("holdsStatement, which the endpoint masking reads (criterion 3)", () => {
+  function grant(role: string, environments: readonly string[] = ["test", "prod"]) {
+    return { roles: [role], environments };
   }
 
   it("is false for a `forms.viewer`, which is the whole of what masks it", () => {
@@ -436,21 +457,20 @@ describe("holdsStatement, the capability Q58's masking reads", () => {
     ).toBe(false);
   });
 
-  it("is true for a `forms.editor` and for a `forms.approver`", () => {
-    for (const role of ["forms.editor", "forms.approver"]) {
-      expect(
-        holdsStatement({ memberRole: undefined, grants: [grant(role)] }, "webhook", "configure"),
-        role,
-      ).toBe(true);
-    }
-  });
-
-  it("ignores the environment scope, which is the one judgement in it", () => {
-    // An editor scoped to `test` already reads every environment's endpoint configuration,
-    // so masking per environment would invent a meaning the matrix does not give the read.
+  it("is true for a `forms.publisher`", () => {
     expect(
       holdsStatement(
-        { memberRole: undefined, grants: [grant("forms.editor", ["test"])] },
+        { memberRole: undefined, grants: [grant("forms.publisher")] },
+        "webhook",
+        "configure",
+      ),
+    ).toBe(true);
+  });
+
+  it("ignores the environment set, which is the one judgement in it", () => {
+    expect(
+      holdsStatement(
+        { memberRole: undefined, grants: [grant("forms.publisher", ["test"])] },
         "webhook",
         "configure",
       ),
@@ -470,7 +490,7 @@ describe("holdsStatement, the capability Q58's masking reads", () => {
     );
   });
 
-  it("reads the member row's role as well as the team grants", () => {
+  it("reads the member row's role as well as the group grants", () => {
     expect(holdsStatement({ memberRole: "forms.owner", grants: [] }, "membership", "write")).toBe(
       true,
     );

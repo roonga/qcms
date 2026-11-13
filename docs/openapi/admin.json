@@ -2300,9 +2300,6 @@
           "requireSecondApprover": {
             "type": "boolean"
           },
-          "seedNewEditorsWithTestData": {
-            "type": "boolean"
-          },
           "archivedAt": {
             "type": "string",
             "nullable": true,
@@ -2325,7 +2322,6 @@
           "slug",
           "isShared",
           "requireSecondApprover",
-          "seedNewEditorsWithTestData",
           "archivedAt",
           "forms",
           "questions"
@@ -2485,16 +2481,13 @@
                       "name": {
                         "type": "string"
                       },
-                      "role": {
-                        "type": "string"
-                      },
-                      "environments": {
+                      "roles": {
                         "type": "array",
                         "items": {
                           "type": "string"
                         }
                       },
-                      "forms": {
+                      "environments": {
                         "type": "array",
                         "items": {
                           "type": "string"
@@ -2503,9 +2496,8 @@
                     },
                     "required": [
                       "name",
-                      "role",
-                      "environments",
-                      "forms"
+                      "roles",
+                      "environments"
                     ]
                   }
                 },
@@ -2629,22 +2621,13 @@
                 "name": {
                   "type": "string"
                 },
-                "fullName": {
-                  "type": "string"
-                },
-                "directoryName": {
-                  "type": "string"
-                },
-                "role": {
-                  "type": "string"
-                },
-                "environments": {
+                "roles": {
                   "type": "array",
                   "items": {
                     "type": "string"
                   }
                 },
-                "forms": {
+                "environments": {
                   "type": "array",
                   "items": {
                     "type": "string"
@@ -2676,24 +2659,17 @@
               "required": [
                 "teamId",
                 "name",
-                "fullName",
-                "directoryName",
-                "role",
+                "roles",
                 "environments",
-                "forms",
                 "externalGroupId",
                 "holders"
               ]
             }
-          },
-          "scopeNote": {
-            "type": "string"
           }
         },
         "required": [
           "workspaceId",
-          "groups",
-          "scopeNote"
+          "groups"
         ]
       },
       "AccessGroupResponse": {
@@ -2708,22 +2684,13 @@
               "name": {
                 "type": "string"
               },
-              "fullName": {
-                "type": "string"
-              },
-              "directoryName": {
-                "type": "string"
-              },
-              "role": {
-                "type": "string"
-              },
-              "environments": {
+              "roles": {
                 "type": "array",
                 "items": {
                   "type": "string"
                 }
               },
-              "forms": {
+              "environments": {
                 "type": "array",
                 "items": {
                   "type": "string"
@@ -2755,11 +2722,8 @@
             "required": [
               "teamId",
               "name",
-              "fullName",
-              "directoryName",
-              "role",
+              "roles",
               "environments",
-              "forms",
               "externalGroupId",
               "holders"
             ]
@@ -2774,20 +2738,27 @@
         "properties": {
           "name": {
             "type": "string",
-            "minLength": 3,
+            "minLength": 1,
             "maxLength": 120,
-            "example": "test.responses.viewer"
+            "example": "Response viewers"
           },
-          "role": {
-            "type": "string",
-            "enum": [
-              "forms.viewer",
-              "forms.editor",
-              "forms.approver",
-              "responses.viewer",
-              "responses.eraser"
-            ],
-            "example": "responses.viewer"
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "forms.viewer",
+                "forms.editor",
+                "forms.publisher",
+                "responses.viewer",
+                "responses.eraser"
+              ]
+            },
+            "minItems": 1,
+            "maxItems": 5,
+            "example": [
+              "responses.viewer"
+            ]
           },
           "environments": {
             "type": "array",
@@ -2796,38 +2767,16 @@
               "maxLength": 53,
               "pattern": "^[a-z][a-z0-9]*$"
             },
-            "minItems": 1,
             "maxItems": 32,
             "example": [
               "test"
             ]
-          },
-          "forms": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 64
-            },
-            "minItems": 1,
-            "maxItems": 256,
-            "example": [
-              "all"
-            ]
-          },
-          "label": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 48,
-            "pattern": "^[a-z0-9][a-z0-9-]*$",
-            "example": "claims"
           }
         },
         "required": [
           "name",
-          "role",
-          "environments",
-          "forms"
+          "roles",
+          "environments"
         ],
         "additionalProperties": false
       },
@@ -2836,9 +2785,27 @@
         "properties": {
           "name": {
             "type": "string",
-            "minLength": 3,
+            "minLength": 1,
             "maxLength": 120,
-            "example": "test-dev.responses.viewer"
+            "example": "Response viewers"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "forms.viewer",
+                "forms.editor",
+                "forms.publisher",
+                "responses.viewer",
+                "responses.eraser"
+              ]
+            },
+            "minItems": 1,
+            "maxItems": 5,
+            "example": [
+              "responses.viewer"
+            ]
           },
           "environments": {
             "type": "array",
@@ -2847,37 +2814,16 @@
               "maxLength": 53,
               "pattern": "^[a-z][a-z0-9]*$"
             },
-            "minItems": 1,
             "maxItems": 32,
             "example": [
               "test"
             ]
-          },
-          "forms": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 64
-            },
-            "minItems": 1,
-            "maxItems": 256,
-            "example": [
-              "all"
-            ]
-          },
-          "label": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 48,
-            "pattern": "^[a-z0-9][a-z0-9-]*$",
-            "example": "claims"
           }
         },
         "required": [
           "name",
-          "environments",
-          "forms"
+          "roles",
+          "environments"
         ],
         "additionalProperties": false
       },
@@ -2907,15 +2853,11 @@
           },
           "requireSecondApprover": {
             "type": "boolean"
-          },
-          "seedNewEditorsWithTestData": {
-            "type": "boolean"
           }
         },
         "required": [
           "workspaceId",
-          "requireSecondApprover",
-          "seedNewEditorsWithTestData"
+          "requireSecondApprover"
         ]
       },
       "WorkspaceSettingsBody": {
@@ -2923,11 +2865,11 @@
         "properties": {
           "requireSecondApprover": {
             "type": "boolean"
-          },
-          "seedNewEditorsWithTestData": {
-            "type": "boolean"
           }
         },
+        "required": [
+          "requireSecondApprover"
+        ],
         "additionalProperties": false
       },
       "AuditListResponse": {
@@ -7538,95 +7480,6 @@
         "responses": {
           "200": {
             "description": "The form and the workspace that owns it now",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MovedResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid credentials",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "Conflict",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/admin/questions/{id}/workspace": {
-      "post": {
-        "summary": "Move a question to another workspace (admin)",
-        "description": "One update on the identity row, touching no version: a form elsewhere that already pins one of its versions keeps serving it and keeps that pin in its next draft, while a new pin from another workspace is refused at publish.",
-        "tags": [
-          "workspaces"
-        ],
-        "security": [
-          {
-            "MachineToken": [
-              "questions:write"
-            ]
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "example": "org_default_workspace"
-            },
-            "required": true,
-            "name": "id",
-            "in": "path"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/MoveToWorkspaceBody"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "The question and the workspace that owns it now",
             "content": {
               "application/json": {
                 "schema": {

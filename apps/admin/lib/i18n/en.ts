@@ -1697,7 +1697,7 @@ export const messages = {
     "An owner looks after this workspace: its access groups, its members and its settings. Removing the last owner is refused.",
   "agent.card.workspace.settings.title": "Change this workspace's settings",
   "agent.card.workspace.settings.consequence":
-    "These two switches decide whether a production release and a responses self-grant need a second account, and whether a new editor is granted the dev and test response data.",
+    "This switch decides whether a production release, a production endpoint change and a response self-grant need a second account.",
   "agent.card.link.revoke.title": "Revoke link {linkId}",
   "agent.card.link.revoke.consequence":
     "The link stops working from now on. A session already in progress is unaffected.",
@@ -1740,10 +1740,10 @@ export const messages = {
   "agent.card.arg.email": "Address",
   "agent.card.arg.name": "Name",
   "agent.card.arg.role": "Role",
+  "agent.card.arg.roles": "Roles",
   "agent.card.arg.environments": "Environments",
   "agent.card.arg.forms": "Forms",
   "agent.card.arg.requireSecondApprover": "Require a second approver",
-  "agent.card.arg.seedNewEditorsWithTestData": "Seed a new editor with dev and test data",
   "agent.card.arg.unset": "The deployment's own setting",
   "agent.card.arg.yes": "Yes",
   "agent.card.arg.no": "No",
