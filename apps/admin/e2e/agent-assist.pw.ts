@@ -457,7 +457,7 @@ test("accepting a proposal creates its new question as an unpublished library dr
 
   const proposalValidation = page.getByTestId("qcms-acard-issues");
   await expect(proposalValidation).toContainText(
-    `New question ${proposedId}. Accepting creates it as an unpublished draft`,
+    "Preferred name is a new question. Accepting adds it to the question library, not published yet.",
     { timeout: 30_000 },
   );
   await expect(proposalValidation).not.toContainText("Pin it, or change the reference");
