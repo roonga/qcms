@@ -173,22 +173,36 @@ describe("every row names an action the policy declares", () => {
     }
   });
 
-  it("names an environment exactly when one of its cells is environment-scoped", () => {
+  it("names an environment exactly when a cell it decides is environment-scoped", () => {
+    // An `anyOf` union is admitted as statements, never judged against an environment, so
+    // it is deliberately not part of this test: the handler narrows per environment.
     for (const row of ROUTE_POLICIES) {
-      const cells = [
-        { resource: row.resource, action: row.action },
-        ...(row.also ?? []),
-        ...(row.anyOf ?? []),
-      ];
+      const cells = [{ resource: row.resource, action: row.action }, ...(row.also ?? [])];
       const scoped = cells.some((cell) => isEnvironmentScoped(cell.resource, cell.action));
-      expect(row.namesEnvironment === true, `${row.method} ${row.path}`).toBe(scoped);
+      const decidesPerEnvironment = row.anyOf !== undefined && row.environmentFrom !== undefined;
+      expect(row.namesEnvironment === true, `${row.method} ${row.path}`).toBe(
+        scoped || decidesPerEnvironment,
+      );
     }
   });
 
-  it("gives the operations and agent rows their cell unions, and no other row an `anyOf`", () => {
+  it("puts every grant holder on the workspace list and names no environment (criterion 26)", () => {
+    const list = policyForRequest("GET", "/admin/workspaces");
+    expect(list?.workspace).toBe("caller");
+    expect(list?.namesEnvironment).toBeUndefined();
+    expect(list?.anyOf?.map((cell) => `${cell.resource}:${cell.action}`)).toEqual([
+      "workspace:read",
+      "form:read",
+      "response:read",
+      "response:erase",
+    ]);
+  });
+
+  it("gives the list, operations and agent rows their cell unions, and no other row an `anyOf`", () => {
     const withAnyOf = ROUTE_POLICIES.filter((row) => row.anyOf !== undefined);
     expect([...withAnyOf.map((row) => `${row.method} ${row.path}`)].sort()).toEqual([
       "GET /admin/operations/forms",
+      "GET /admin/workspaces",
       "POST /admin/assist",
     ]);
     // The agent row serves every screen, so its union is the screens' own first cells and

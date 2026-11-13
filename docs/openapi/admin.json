@@ -2294,16 +2294,16 @@
             "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
             "example": "home-insurance"
           },
+          "archivedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
           "isShared": {
             "type": "boolean"
           },
           "requireSecondApprover": {
             "type": "boolean"
-          },
-          "archivedAt": {
-            "type": "string",
-            "nullable": true,
-            "format": "date-time"
           },
           "forms": {
             "type": "integer",
@@ -2320,11 +2320,7 @@
           "workspaceId",
           "name",
           "slug",
-          "isShared",
-          "requireSecondApprover",
-          "archivedAt",
-          "forms",
-          "questions"
+          "archivedAt"
         ]
       },
       "WorkspaceResponse": {
@@ -3387,7 +3383,7 @@
           },
           "url": {
             "type": "string",
-            "description": "The endpoint URL. A caller holding only forms.viewer sees the query string replaced by (hidden); forms.editor and above see the whole URL. Do not put credentials in an endpoint URL: use the signing secret.",
+            "description": "The endpoint URL. A caller holding only forms.viewer sees the query string replaced by (hidden); a forms.editor or a forms.publisher sees the whole URL. Do not put credentials in an endpoint URL: use the signing secret.",
             "example": "https://consumer.example.com/qcms-hook"
           },
           "active": {
