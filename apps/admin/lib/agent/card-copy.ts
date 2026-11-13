@@ -76,6 +76,8 @@ const MONO_ARGUMENTS: ReadonlySet<string> = new Set([
 
 const ENVIRONMENT_ARGUMENT = "environment";
 
+const LOCALE_ARGUMENT = "defaultLocale";
+
 export interface StepReference {
   readonly fromStep: number;
   readonly field: string;
@@ -152,16 +154,32 @@ export function stepArguments(
     const resolved =
       reference === undefined ? undefined : reported[reference.fromStep]?.[reference.field];
     const value = referenceText(raw, reference, resolved, name);
-    const named = NAMED_ID_ARGUMENTS.has(name) ? names.byId.get(value) : undefined;
+    const named = displayName(name, value, names);
     return {
       name,
       label: argumentLabel(name),
       value: named ?? value,
       mono: named === undefined && MONO_ARGUMENTS.has(name),
-      id: named === undefined ? undefined : value,
+      id: named === undefined || !NAMED_ID_ARGUMENTS.has(name) ? undefined : value,
       ...(reference === undefined ? { fromStep: undefined } : { fromStep: reference.fromStep }),
     };
   });
+}
+
+function displayName(name: string, value: string, names: PlanNames): string | undefined {
+  if (NAMED_ID_ARGUMENTS.has(name)) return names.byId.get(value);
+  return name === LOCALE_ARGUMENT ? localeName(value) : undefined;
+}
+
+/** The language's own name, so a card says English rather than the tag an API argument carries. */
+function localeName(tag: string): string | undefined {
+  try {
+    const name = new Intl.DisplayNames(["en"], { type: "language" }).of(tag);
+    return name === tag ? undefined : name;
+  } catch {
+    // A tag the platform cannot parse is shown exactly as the step named it.
+    return undefined;
+  }
 }
 
 /** Titles the plan can supply for itself: what a step is about, and what each id stands for. */

@@ -91,6 +91,15 @@ describe("a card names what it acts on", () => {
     expect(line?.id).toBe("frm_patient_onboarding");
   });
 
+  it("says which language a form is authored in by its name", () => {
+    const { names } = plan([CREATE_FORM]);
+    const line = stepArguments(CREATE_FORM, {}, names).find(
+      (entry) => entry.name === "defaultLocale",
+    );
+    expect(line?.value).toBe("English");
+    expect(line?.id).toBeUndefined();
+  });
+
   it("leaves an id the plan cannot name in the line itself", () => {
     const { names } = plan([MINT]);
     const line = stepArguments(MINT, {}, names).find((entry) => entry.name === "formId");
