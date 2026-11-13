@@ -106,18 +106,28 @@ export async function setWorkspaceShared(
   return row;
 }
 
-/** Rename an unarchived workspace. The slug is left alone: it is the workspace's stable address. */
+/**
+ * Rename an unarchived workspace and return it with the name it had. The slug is left alone: it is the
+ * workspace's stable address. The row is locked first, so run it in a transaction for an exact `previousName`.
+ */
 export async function renameWorkspace(
   exec: Executor,
   workspaceId: string,
   name: string,
-): Promise<WorkspaceRow | undefined> {
-  const [row] = await exec
+): Promise<{ readonly workspace: WorkspaceRow; readonly previousName: string } | undefined> {
+  const [current] = await exec
+    .select({ name: authOrganization.name })
+    .from(authOrganization)
+    .where(and(eq(authOrganization.id, workspaceId), isNull(authOrganization.archivedAt)))
+    .for("update");
+  if (current === undefined) return undefined;
+  const [workspace] = await exec
     .update(authOrganization)
     .set({ name })
-    .where(and(eq(authOrganization.id, workspaceId), isNull(authOrganization.archivedAt)))
+    .where(eq(authOrganization.id, workspaceId))
     .returning(workspaceColumns);
-  return row;
+  if (workspace === undefined) return undefined;
+  return { workspace, previousName: current.name };
 }
 
 /**

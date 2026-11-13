@@ -364,8 +364,9 @@ describe("renaming a workspace", () => {
   it("changes the name and never the slug", async () => {
     const workspaceId = await makeWorkspace("rename-me");
     const renamed = await renameWorkspace(testDb.db, workspaceId, "Renamed workspace");
-    expect(renamed?.name).toBe("Renamed workspace");
-    expect(renamed?.slug).toBe("rename-me");
+    expect(renamed?.workspace.name).toBe("Renamed workspace");
+    expect(renamed?.workspace.slug).toBe("rename-me");
+    expect(renamed?.previousName).toBe("rename-me");
     expect((await getWorkspace(testDb.db, workspaceId))?.slug).toBe("rename-me");
   });
 

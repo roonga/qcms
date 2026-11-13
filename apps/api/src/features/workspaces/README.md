@@ -15,7 +15,7 @@ and behind nothing else.
 | Method | Path                        | Scope             | Notes                                                                                             |
 | ------ | --------------------------- | ----------------- | ------------------------------------------------------------------------------------------------- |
 | `GET`  | `/workspaces`               | `forms:read`      | The workspaces the caller administers (every one for the claim), oldest first, archived included. |
-| `PUT`  | `/workspaces/{id}/name`     | `forms:write`     | Rename it. The slug never changes; one `setting` audit row. Refused once archived.                |
+| `PUT`  | `/workspaces/{id}/name`     | `forms:write`     | Rename it. The slug never changes; one `setting` audit row on a change. Refused once archived.    |
 | `POST` | `/workspaces`               | `forms:write`     | The one path by which a workspace comes into existence. The caller becomes its `forms.owner`.     |
 | `PUT`  | `/workspaces/{id}/shared`   | `forms:write`     | Mark this workspace as the installation's shared question library, or unmark it. At most one is.  |
 | `POST` | `/workspaces/{id}/archive`  | `forms:write`     | Archive it. Refused while it owns any form or is the shared library. There is no unarchive.       |

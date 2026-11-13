@@ -1148,7 +1148,7 @@ describe("adding an account the caller cannot add gets one answer (section 7, di
   });
 });
 
-describe("an archived workspace refuses every grant and allows every revoke (criterion 98)", () => {
+describe("writes on an archived workspace", () => {
   it("refuses a grant, a new group and a settings change, and allows a revoke", async () => {
     const created = await send("POST", "/workspaces", { name: "Ending", slug: "ending-grants" });
     const workspaceId = ((await created.json()) as { workspace: { workspaceId: string } }).workspace

@@ -11,6 +11,7 @@ import {
   getWorkspace,
   insertFormRelease,
   insertFormVersion,
+  listAccessAudit,
   listWorkspaces,
 } from "@roonga/qcms-db";
 import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
@@ -147,7 +148,7 @@ async function listedIds(token: string): Promise<string[]> {
   );
 }
 
-describe("the workspace list (criterion 26)", () => {
+describe("the workspace list narrowed to the caller's own", () => {
   it("lists only the workspaces the caller administers", async () => {
     const mine = await createWorkspace("list-mine");
     const theirs = await createWorkspace("list-theirs");
@@ -191,6 +192,20 @@ describe("renaming a workspace (criterion 97)", () => {
     expect(row?.name).toBe("Claims team");
     const after = await countAccessAuditByKind(testDb.db, workspaceId);
     expect((after["setting"] ?? 0) - (before["setting"] ?? 0)).toBe(1);
+    const { rows } = await listAccessAudit(testDb.db, workspaceId, { kind: "setting", limit: 1 });
+    expect(rows[0]?.detail).toBe('setting=name from="rename-slug-kept" to="Claims team"');
+  });
+
+  it("writes no audit row when the name is unchanged", async () => {
+    const workspaceId = await createWorkspace("rename-same");
+    const before = await countAccessAuditByKind(testDb.db, workspaceId);
+
+    const res = await send("PUT", `/workspaces/${workspaceId}/name`, { name: "rename-same" });
+    expect(res.status, await res.clone().text()).toBe(200);
+    expect(((await res.json()) as { workspace: { name: string } }).workspace.name).toBe(
+      "rename-same",
+    );
+    expect(await countAccessAuditByKind(testDb.db, workspaceId)).toEqual(before);
   });
 
   it("refuses a body that names a slug", async () => {
