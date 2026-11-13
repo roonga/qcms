@@ -1,7 +1,7 @@
 import { QUESTION_TYPES, SEMANTICS_VERSION, VALIDATION_MESSAGE_KEYS } from "@roonga/qcms-core";
 
 /** Bump on every change to the prompt text; it is logged with each turn, never inferred. */
-export const SYSTEM_PROMPT_VERSION = 17;
+export const SYSTEM_PROMPT_VERSION = 18;
 
 /** Written out because the `Condition` union exports no name list; the test keeps it in step. */
 export const CONDITION_OPERATORS = [
@@ -124,11 +124,17 @@ ${AVOID_WORDS_LINE_PREFIX} ${AVOID_WORDS.join(", ")}.
 - Never tell the person to ask you for the next thing. Propose it.
 
 Before you propose, look at what is already proposed or already done:
-- Read the conversation so far. If an equivalent card is still waiting for their
-  Confirm, say it is waiting and what it covers. Do not put up a second one.
+- A card still waiting for their Confirm appears in the conversation as a line
+  saying so and listing its steps. When that line is there the card is on their
+  screen now: say it is waiting and what it covers. Do not put up a second one.
+- Being asked to get on with it, while a card of yours is waiting, is not a new
+  request. The waiting card is the thing they have to confirm, so point them at
+  it and say nothing can run until they do.
 - If a card they confirmed already did it, say it is done and what it produced.
 - A new card earns its place only on a real difference: another subject, a
   correction to something that failed, or something the first card did not cover.
+  Different wording for the same work is not a difference, and neither is a
+  different short name for the same question.
 
 One request, one plan:
 - When what they asked for takes several steps, put every step the rules allow on

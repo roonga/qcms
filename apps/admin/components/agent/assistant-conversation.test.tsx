@@ -234,6 +234,96 @@ describe("a card's waiting window", () => {
   });
 });
 
+describe("the card a turn is sent with", () => {
+  const PROPOSAL = {
+    proposalId: "prp_waiting",
+    token: "tok",
+    steps: [
+      {
+        kind: "form.publish",
+        screen: "/forms/[formId]",
+        args: { formId: "frm_quote" },
+        environment: "test",
+        card: {
+          titleKey: "agent.card.form.publish.title",
+          consequenceKeys: ["agent.card.form.publish.consequence"],
+        },
+        resultAllowlist: ["version"],
+      },
+    ],
+    proposedAt: "2026-07-20T00:00:00.000Z",
+    expiresAt: "2026-07-20T00:10:00.000Z",
+    formId: "frm_quote",
+    currentEnvironment: "test",
+  };
+
+  async function ask(fetchMock: ReturnType<typeof vi.fn>, text: string): Promise<void> {
+    const calls = fetchMock.mock.calls.length;
+    const composer = screen.getByTestId("qcms-assistant-composer");
+    fireEvent.change(composer, { target: { value: text } });
+    fireEvent.keyDown(composer, { key: "Enter" });
+    await vi.waitFor(() => {
+      expect(fetchMock.mock.calls.length).toBeGreaterThan(calls);
+    });
+  }
+
+  function bodyOf(fetchMock: ReturnType<typeof vi.fn>, call: number): { conversation: unknown[] } {
+    const init = fetchMock.mock.calls[call]?.[1] as { body: string };
+    return JSON.parse(init.body) as { conversation: unknown[] };
+  }
+
+  it("names the card still waiting, by its step kinds, on the next turn", async () => {
+    const event = { type: "action", proposal: PROPOSAL };
+    const body = `event: action\ndata: ${JSON.stringify(event)}\n\n`;
+    const fetchMock = vi.fn<(input: unknown, init?: unknown) => Promise<Response>>(() =>
+      Promise.resolve(
+        new Response(body, { status: 200, headers: { "content-type": "text/event-stream" } }),
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    mount(true);
+
+    await ask(fetchMock, "publish the draft");
+    await vi.waitFor(() => {
+      expect(screen.getByRole("button", { name: t("agent.card.confirm") })).toBeTruthy();
+    });
+    // The turn that produced the card knew of none before it.
+    expect(bodyOf(fetchMock, 0).conversation.some((turn) => isProposal(turn))).toBe(false);
+
+    await ask(fetchMock, "go on then");
+    expect(bodyOf(fetchMock, 1).conversation.at(-1)).toEqual({
+      role: "proposal",
+      proposalId: "prp_waiting",
+      steps: [{ kind: "form.publish" }],
+    });
+  });
+
+  it("says nothing about a card the person has already cancelled", async () => {
+    const event = { type: "action", proposal: PROPOSAL };
+    const body = `event: action\ndata: ${JSON.stringify(event)}\n\n`;
+    const fetchMock = vi.fn<(input: unknown, init?: unknown) => Promise<Response>>(() =>
+      Promise.resolve(
+        new Response(body, { status: 200, headers: { "content-type": "text/event-stream" } }),
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    mount(true);
+
+    await ask(fetchMock, "publish the draft");
+    await vi.waitFor(() => {
+      expect(screen.getByRole("button", { name: t("agent.card.confirm") })).toBeTruthy();
+    });
+    fireEvent.click(screen.getByRole("button", { name: t("agent.card.cancel") }));
+
+    await ask(fetchMock, "what about now");
+    expect(bodyOf(fetchMock, 1).conversation.some((turn) => isProposal(turn))).toBe(false);
+  });
+});
+
+function isProposal(turn: unknown): boolean {
+  return (turn as { role?: unknown } | null)?.role === "proposal";
+}
+
 describe("a waiting card's screen and environment", () => {
   const PROPOSAL = {
     proposalId: "prp_bound",

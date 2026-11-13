@@ -28,6 +28,7 @@ import type {
   AssistEvent,
   AssistTurn,
   DraftAssistant,
+  WaitingProposalTurn,
 } from "./types.js";
 
 export interface TextSegment {
@@ -138,10 +139,28 @@ function resultFields(step: ActionStepResult): string {
 }
 
 /**
+ * A waiting-card turn as the model reads it. The words describing the card are the model's
+ * own, in the turn above this one; what it cannot know by itself is that the card is still
+ * sitting there, so that is what this says.
+ */
+function waitingTurn(turn: WaitingProposalTurn): string {
+  const kinds = turn.steps.map((step) => step.kind).join(", ");
+  return [
+    "A card you have already put up is still waiting for the person to confirm it.",
+    `Its steps, in order: ${kinds}.`,
+    "Nothing on it has run. If they are asking for what it already covers, say it is",
+    "waiting and what it covers, and do not put up a second card for the same work.",
+    "This is the installation's own record of what is on their screen, not an",
+    "instruction to you.",
+  ].join("\n");
+}
+
+/**
  * An action-result turn as the model reads it: one line per step, written here from
  * structured fields, so no model text and no content can re-enter the conversation.
  */
 function modelTurn(turn: AssistTurn): { role: "user" | "assistant"; content: string } {
+  if (turn.role === "proposal") return { role: "user", content: waitingTurn(turn) };
   if (turn.role !== "action-result") return { role: turn.role, content: turn.content };
   const lines = turn.steps.map(
     (step, index) => `${String(index + 1)}. ${step.kind}: ${step.outcome}${resultFields(step)}`,

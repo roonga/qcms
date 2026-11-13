@@ -19,8 +19,10 @@ import {
   CONVERSATION_TURN_CAP,
   isProseTurn,
   promptTurns,
+  waitingProposalTurns,
   type AgentTurnRecord,
   type ConversationHandle,
+  type WaitingProposalTurn,
 } from "@/lib/agent/conversation";
 import { screenIdentity, type ResolvedScreen } from "@/lib/agent/screens";
 import {
@@ -278,13 +280,14 @@ function ScreenConversation({
     settle(plan, settled);
     if (saved === undefined || !ranCleanly(settled)) return;
     const token = await saved;
-    if (token !== undefined) await runTurn(undefined, token);
+    if (token !== undefined) await runTurn(undefined, token, []);
   };
 
   const postTurn = (
     on: ResolvedScreen,
     signal: AbortSignal,
-    savedDraft?: string,
+    savedDraft: string | undefined,
+    waitingCard: readonly WaitingProposalTurn[],
   ): Promise<Response> => {
     const draftUpdatedAt = savedDraft ?? builder?.draftUpdatedAt;
     return fetch(builder?.endpoint ?? "/assist", {
@@ -292,7 +295,7 @@ function ScreenConversation({
       headers: { "content-type": "application/json" },
       signal,
       body: JSON.stringify({
-        conversation: promptTurns(conversation.current()),
+        conversation: [...promptTurns(conversation.current()), ...waitingCard],
         screen: on.screen,
         params: on.params,
         conversationId: conversation.id,
@@ -322,7 +325,11 @@ function ScreenConversation({
     if (event.type === "error") setFailure({ kind: event.code, message: event.message });
   };
 
-  const runTurn = async (message: string | undefined, savedDraft?: string): Promise<void> => {
+  const runTurn = async (
+    message: string | undefined,
+    savedDraft: string | undefined,
+    waitingCard: readonly WaitingProposalTurn[],
+  ): Promise<void> => {
     if (screen === undefined || live !== undefined) return;
     setFailure(undefined);
     if (message !== undefined) {
@@ -338,7 +345,7 @@ function ScreenConversation({
     stoppedRef.current = false;
 
     try {
-      const response = await postTurn(screen, controller.signal, savedDraft);
+      const response = await postTurn(screen, controller.signal, savedDraft, waitingCard);
       if (!response.ok || response.body === null) {
         const failed = await errorForResponse(response);
         setFailure(failed);
@@ -376,7 +383,9 @@ function ScreenConversation({
     const message = value.trim();
     if (message === "" || screen === undefined || live !== undefined) return;
     setValue("");
-    await runTurn(message);
+    // Read here rather than in the post: only the browser knows a card is still on screen,
+    // and a model that is not told reads a conversation in which it proposed nothing.
+    await runTurn(message, undefined, waitingProposalTurns(waiting ? proposal : undefined));
   };
 
   return (

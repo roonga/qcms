@@ -54,7 +54,7 @@ import {
   type ScreenParams,
 } from "./contexts/support.js";
 import { isFormSubtreeScreen, isScreenId, SCREENS, type ScreenId } from "./screens.js";
-import { actionResultRefusal, type ConversationTurnBody } from "./schema.js";
+import { conversationRefusal, type ConversationTurnBody } from "./schema.js";
 import type { acceptProposalRoute, assistRoute, screenAssistRoute } from "./route.js";
 import type { AgentContext, AssistEvent, AssistTurn, LibraryEntry } from "./types.js";
 
@@ -497,7 +497,7 @@ export function makeAssistHandler(deps: Deps): RouteHandler<typeof assistRoute, 
     const formId: FormId = parsedId.value;
 
     const body = c.req.valid("json");
-    requireAllowedResults(body.conversation);
+    requireAllowedTurns(body.conversation);
 
     // Falls back to the latest published version, as the builder's own read does;
     // without it a freshly published form would 404 while the builder shows a draft.
@@ -558,8 +558,8 @@ function sseHeaders(): Record<string, string> {
   };
 }
 
-function requireAllowedResults(conversation: readonly ConversationTurnBody[]): void {
-  const refusal = actionResultRefusal(conversation);
+function requireAllowedTurns(conversation: readonly ConversationTurnBody[]): void {
+  const refusal = conversationRefusal(conversation);
   if (refusal !== undefined) throw fail.resultNotAllowlisted(refusal);
 }
 
@@ -588,7 +588,7 @@ export function makeScreenAssistHandler(
 ): RouteHandler<typeof screenAssistRoute, ApiEnv> {
   return async (c) => {
     const body = c.req.valid("json");
-    requireAllowedResults(body.conversation);
+    requireAllowedTurns(body.conversation);
     const screen = requireScreen(body.screen);
 
     const controller = new AbortController();

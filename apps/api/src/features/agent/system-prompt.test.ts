@@ -59,7 +59,9 @@ const VOICE_RULES: readonly { readonly rule: string; readonly phrases: readonly 
     rule: "look for a waiting or confirmed card before proposing another",
     phrases: [
       "Before you propose, look at what is already proposed",
+      "appears in the conversation as a line",
       "Do not put up a second one",
+      "is not a new\n  request",
       "already did it, say it is done",
     ],
   },

@@ -1320,11 +1320,24 @@ const STATEFUL_PLANNERS: Readonly<
   "blank-to-published": planBlankToPublishedStep,
 };
 
+/** The line the context builder writes for a card the person has not acted on. */
+const WAITING_CARD_LINE = "still waiting for the person to confirm it";
+
+/**
+ * Every proposing script obeys the prompt's waiting-card rule, so a scenario that leaves a
+ * card unconfirmed exercises the rule rather than one script's own good manners.
+ */
 function planStep(
   prompt: readonly PromptMessage[],
   script: FakeScript,
   offered: readonly string[],
 ): StreamPart[] {
+  if (userText(prompt).includes(WAITING_CARD_LINE)) {
+    return [
+      ...textParts("That card is still waiting for your Confirm. Nothing on it has run yet."),
+      finishPart("stop"),
+    ];
+  }
   const rogueTool = ROGUE_TOOLS[script];
   if (rogueTool !== undefined) {
     // The input phase is scripted too: a `tool-input-start` outside the allowlist must show nothing.

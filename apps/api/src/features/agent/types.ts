@@ -27,7 +27,18 @@ export interface ActionResultTurn {
   readonly steps: readonly ActionStepResult[];
 }
 
-export type AssistTurn = AssistTextTurn | ActionResultTurn;
+/**
+ * A card the person has been shown and has not acted on. The browser is the only holder of
+ * that fact, because no proposal is stored between turns, so without this turn the model
+ * reads a conversation in which it never proposed anything and proposes the same card again.
+ */
+export interface WaitingProposalTurn {
+  readonly role: "proposal";
+  readonly proposalId: string;
+  readonly steps: readonly { readonly kind: string }[];
+}
+
+export type AssistTurn = AssistTextTurn | ActionResultTurn | WaitingProposalTurn;
 
 /** Definition only: no response counts, no respondent data, no answer values. */
 export interface LibraryEntry {
