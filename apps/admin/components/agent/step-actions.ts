@@ -211,17 +211,14 @@ const MEMBERSHIP_RUNNERS: Readonly<Record<string, StepRunner>> = {
       text(args["workspaceId"]),
       {
         name: text(args["name"]),
-        role: text(args["role"]),
-        ...(typeof args["label"] === "string" ? { label: args["label"] } : {}),
+        roles: strings(args["roles"]),
         environments: strings(args["environments"]),
-        forms: strings(args["forms"]),
       },
       proposalRef(agentProposal, tokenStep),
     );
     return membershipOutcome(state, {
       teamId: state.status === "done" ? text(state.teamId) : "",
       name: text(args["name"]),
-      role: text(args["role"]),
     });
   },
   "access.groupRemove": async ({ tokenStep, args, agentProposal }) => {
@@ -272,22 +269,11 @@ const MEMBERSHIP_RUNNERS: Readonly<Record<string, StepRunner>> = {
   "workspace.settings": async ({ tokenStep, args, agentProposal }) => {
     const state = await saveWorkspaceSettingsAction(
       text(args["workspaceId"]),
-      // Send only settings the card showed; defaults would change unconfirmed values and invalidate the reviewed
-      // digest.
-      {
-        ...(typeof args["requireSecondApprover"] === "boolean"
-          ? { requireSecondApprover: args["requireSecondApprover"] }
-          : {}),
-        ...(typeof args["seedNewEditorsWithTestData"] === "boolean"
-          ? { seedNewEditorsWithTestData: args["seedNewEditorsWithTestData"] }
-          : {}),
-      },
+      { requireSecondApprover: args["requireSecondApprover"] === true },
       proposalRef(agentProposal, tokenStep),
     );
     return membershipOutcome(state, {
       requireSecondApprover: state.status === "done" && state.requireSecondApprover === true,
-      seedNewEditorsWithTestData:
-        state.status === "done" && state.seedNewEditorsWithTestData === true,
     });
   },
 };
