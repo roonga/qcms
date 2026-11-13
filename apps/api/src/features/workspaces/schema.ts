@@ -24,6 +24,13 @@ export const CreateWorkspaceBody = z
   })
   .openapi("CreateWorkspaceBody");
 
+/** No slug field: a rename never moves the workspace's address. */
+export const RenameWorkspaceBody = z
+  .strictObject({
+    name: z.string().trim().min(1).max(120).openapi({ example: "Home insurance" }),
+  })
+  .openapi("RenameWorkspaceBody");
+
 export const SharedWorkspaceBody = z
   .strictObject({
     shared: z.boolean().openapi({ example: true }),

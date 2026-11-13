@@ -320,6 +320,15 @@ export const SURFACES: readonly Surface[] = [
     anonymousReachable: false,
   },
   {
+    name: "PUT /admin/workspaces/{id}/name",
+    row: "authoring",
+    group: "admin",
+    method: "PUT",
+    path: (ctx) => `/admin/workspaces/${ctx.workspaceId}/name`,
+    body: { name: "Probe" },
+    anonymousReachable: false,
+  },
+  {
     name: "POST /admin/workspaces/{id}/archive",
     row: "authoring",
     group: "admin",

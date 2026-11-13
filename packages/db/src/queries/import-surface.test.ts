@@ -45,6 +45,7 @@ describe("query helper import surface", () => {
     "getWorkspaceBySlug",
     "getSharedWorkspace",
     "setWorkspaceShared",
+    "renameWorkspace",
     "archiveWorkspace",
     "findArchiveBlockers",
     "countWorkspaceContents",

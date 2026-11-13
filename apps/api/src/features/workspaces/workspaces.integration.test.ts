@@ -4,11 +4,14 @@ import type { FormDefinition } from "@roonga/qcms-core";
 import {
   SEED_WORKSPACE_ID,
   closeFormInEnvironment,
+  countAccessAuditByKind,
   createForm,
   getForm,
   getQuestion,
+  getWorkspace,
   insertFormRelease,
   insertFormVersion,
+  listAccessAudit,
   listWorkspaces,
 } from "@roonga/qcms-db";
 import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
@@ -128,6 +131,140 @@ async function seedForm(label: string, workspaceId: string): Promise<FormId> {
   });
   return formId;
 }
+
+async function as(token: string, method: string, path: string, body?: unknown): Promise<Response> {
+  return app.request(`/admin${path}`, {
+    method,
+    headers: { ...authHeaders(), [ADMIN_SESSION_HEADER]: token },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+}
+
+async function listedIds(token: string): Promise<string[]> {
+  const res = await as(token, "GET", "/workspaces");
+  expect(res.status, await res.clone().text()).toBe(200);
+  return ((await res.json()) as { workspaces: { workspaceId: string }[] }).workspaces.map(
+    (row) => row.workspaceId,
+  );
+}
+
+describe("the workspace list narrowed to the caller's own", () => {
+  it("lists only the workspaces the caller administers", async () => {
+    const mine = await createWorkspace("list-mine");
+    const theirs = await createWorkspace("list-theirs");
+    const owner = await seedAdminSession(testDb.db, {
+      label: "list-owner",
+      claim: false,
+      workspaceId: mine,
+      grants: [],
+    });
+
+    const ids = await listedIds(owner.token);
+    expect(ids).toContain(mine);
+    expect(ids).not.toContain(theirs);
+    expect(ids).not.toContain(SEED_WORKSPACE_ID);
+  });
+
+  it("gives the installation administrator every workspace", async () => {
+    const elsewhere = await createWorkspace("list-elsewhere");
+    const claimOnly = await seedAdminSession(testDb.db, { label: "list-claim", membership: false });
+
+    const ids = await listedIds(claimOnly.token);
+    const every = (await listWorkspaces(testDb.db)).map((row) => row.id);
+    expect([...ids].sort()).toEqual([...every].sort());
+    expect(ids).toContain(elsewhere);
+  });
+});
+
+describe("renaming a workspace (criterion 97)", () => {
+  it("changes the name, never the slug, and writes one audit row", async () => {
+    const workspaceId = await createWorkspace("rename-slug-kept");
+    const before = await countAccessAuditByKind(testDb.db, workspaceId);
+
+    const res = await send("PUT", `/workspaces/${workspaceId}/name`, { name: "Claims team" });
+    expect(res.status, await res.clone().text()).toBe(200);
+    const body = (await res.json()) as WorkspaceBody & { workspace: { name: string } };
+    expect(body.workspace.name).toBe("Claims team");
+    expect(body.workspace.slug).toBe("rename-slug-kept");
+
+    const row = await getWorkspace(testDb.db, workspaceId);
+    expect(row?.slug).toBe("rename-slug-kept");
+    expect(row?.name).toBe("Claims team");
+    const after = await countAccessAuditByKind(testDb.db, workspaceId);
+    expect((after["setting"] ?? 0) - (before["setting"] ?? 0)).toBe(1);
+    const { rows } = await listAccessAudit(testDb.db, workspaceId, { kind: "setting", limit: 1 });
+    expect(rows[0]?.detail).toBe('setting=name from="rename-slug-kept" to="Claims team"');
+  });
+
+  it("writes no audit row when the name is unchanged", async () => {
+    const workspaceId = await createWorkspace("rename-same");
+    const before = await countAccessAuditByKind(testDb.db, workspaceId);
+
+    const res = await send("PUT", `/workspaces/${workspaceId}/name`, { name: "rename-same" });
+    expect(res.status, await res.clone().text()).toBe(200);
+    expect(((await res.json()) as { workspace: { name: string } }).workspace.name).toBe(
+      "rename-same",
+    );
+    expect(await countAccessAuditByKind(testDb.db, workspaceId)).toEqual(before);
+  });
+
+  it("refuses a body that names a slug", async () => {
+    const workspaceId = await createWorkspace("rename-no-slug");
+    const res = await send("PUT", `/workspaces/${workspaceId}/name`, {
+      name: "Moved",
+      slug: "moved",
+    });
+    expect(res.status).toBe(400);
+    expect((await getWorkspace(testDb.db, workspaceId))?.slug).toBe("rename-no-slug");
+  });
+
+  it("refuses a caller who is not an administrator of that workspace", async () => {
+    const workspaceId = await createWorkspace("rename-guarded");
+    const editor = await seedAdminSession(testDb.db, {
+      label: "rename-editor",
+      claim: false,
+      owner: false,
+      workspaceId,
+      grants: ["forms.editor"],
+    });
+    const otherOwner = await seedAdminSession(testDb.db, {
+      label: "rename-other-owner",
+      claim: false,
+      grants: [],
+    });
+
+    for (const token of [editor.token, otherOwner.token]) {
+      const res = await as(token, "PUT", `/workspaces/${workspaceId}/name`, { name: "Taken over" });
+      expect(res.status).toBe(403);
+    }
+    expect((await getWorkspace(testDb.db, workspaceId))?.name).toBe("rename-guarded");
+  });
+
+  it("lets an administrator of that workspace rename it without the installation claim", async () => {
+    const workspaceId = await createWorkspace("rename-by-owner");
+    const owner = await seedAdminSession(testDb.db, {
+      label: "rename-owner",
+      claim: false,
+      workspaceId,
+      grants: [],
+    });
+    const res = await as(owner.token, "PUT", `/workspaces/${workspaceId}/name`, {
+      name: "Owner named",
+    });
+    expect(res.status, await res.clone().text()).toBe(200);
+  });
+
+  it("refuses an archived workspace and writes no audit row", async () => {
+    const workspaceId = await createWorkspace("rename-archived-api");
+    expect((await send("POST", `/workspaces/${workspaceId}/archive`)).status).toBe(200);
+    const before = await countAccessAuditByKind(testDb.db, workspaceId);
+
+    const res = await send("PUT", `/workspaces/${workspaceId}/name`, { name: "Too late" });
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as ErrorBody).error.code).toBe("WORKSPACE_ARCHIVED");
+    expect(await countAccessAuditByKind(testDb.db, workspaceId)).toEqual(before);
+  });
+});
 
 describe("creating a workspace", () => {
   it("writes the organisation row and the owner's member row, with the switch off", async () => {
