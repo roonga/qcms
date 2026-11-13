@@ -350,10 +350,7 @@ async function decideOverTargets(
     if (!decision.allowed) throw fail.refused(decision.reason ?? "Refused");
   };
 
-  const cells = [
-    { resource: policy.resource, action: policy.action },
-    ...(policy.also ?? []),
-  ];
+  const cells = [{ resource: policy.resource, action: policy.action }, ...(policy.also ?? [])];
   const scoped = cells.filter((cell) => isEnvironmentScoped(cell.resource, cell.action));
   const free = cells.filter((cell) => !isEnvironmentScoped(cell.resource, cell.action));
 

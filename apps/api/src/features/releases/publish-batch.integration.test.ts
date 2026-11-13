@@ -693,12 +693,17 @@ describe("the second-person rule holds through the batch", () => {
       expect(codeOf(self.body)).toBe("APPROVER_IS_AUTHOR");
       expect(await listFormReleases(control, formId, "prod")).toEqual([]);
 
-      const second = await call(secondProdPublisher.token, "POST", `/forms/${formId}/release-batch`, {
-        idempotencyKey: KEYS(),
-        expectedWorkflowRevision: null,
-        source: { kind: "version", version: 1 },
-        targets: [{ environment: "prod", expectedSequence: null }],
-      });
+      const second = await call(
+        secondProdPublisher.token,
+        "POST",
+        `/forms/${formId}/release-batch`,
+        {
+          idempotencyKey: KEYS(),
+          expectedWorkflowRevision: null,
+          source: { kind: "version", version: 1 },
+          targets: [{ environment: "prod", expectedSequence: null }],
+        },
+      );
       expect(second.status).toBe(200);
       expect((second.body.releases as { approvedBy: string }[])[0]?.approvedBy).toBe(
         secondProdPublisher.userId,

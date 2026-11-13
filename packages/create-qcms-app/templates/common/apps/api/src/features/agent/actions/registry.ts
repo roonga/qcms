@@ -89,7 +89,7 @@ export function actionKind(name: string): ActionKindDef | undefined {
  */
 export function actsInOneEnvironment(def: ActionKindDef): boolean {
   if (def.environmentFrom === "argument") return true;
-  return [def.cell, ...(def.alsoCell === undefined ? [] : [def.alsoCell])].some((cell) =>
+  return [def.cell, ...(def.alsoCells ?? [])].some((cell) =>
     isEnvironmentScoped(cell.resource, cell.action),
   );
 }

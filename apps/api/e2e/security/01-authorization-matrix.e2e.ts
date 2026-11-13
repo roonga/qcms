@@ -698,11 +698,9 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
     expect(
       (await get(token, `/admin/forms/${ctx.formId}/export?format=csv&version=1`)).status,
     ).toBe(403);
-    const erase = await post(
-      token,
-      `/admin/forms/${ctx.formId}/responses/${ctx.sessionId}/erase`,
-      { reason: "probe" },
-    );
+    const erase = await post(token, `/admin/forms/${ctx.formId}/responses/${ctx.sessionId}/erase`, {
+      reason: "probe",
+    });
     expect(erase.status).toBe(403);
     expect((await get(token, `/admin/forms/${ctx.formId}`)).status).toBe(403);
     expect((await get(token, `/admin/workspaces/${ctx.workspaceId}/members`)).status).toBe(200);
@@ -1250,11 +1248,14 @@ describe("the publisher's environments and the masked endpoint URL (criterion 9)
 
   it("refuses a `forms.editor` an endpoint change in any environment", async () => {
     for (const environment of ["prod", "test"]) {
-      const change = await all.app.request(`/admin/forms/${ctx.formId}/webhooks/${queryWebhookId}`, {
-        method: "PUT",
-        headers: headersFor(editor, environment, true),
-        body: JSON.stringify({ url: "https://attacker.example/exfiltrate" }),
-      });
+      const change = await all.app.request(
+        `/admin/forms/${ctx.formId}/webhooks/${queryWebhookId}`,
+        {
+          method: "PUT",
+          headers: headersFor(editor, environment, true),
+          body: JSON.stringify({ url: "https://attacker.example/exfiltrate" }),
+        },
+      );
       expect(change.status, environment).toBe(403);
       expectNoPayload(await change.text());
     }

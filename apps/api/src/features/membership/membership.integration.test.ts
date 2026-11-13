@@ -534,7 +534,10 @@ describe("the workspace settings body is the one switch (criterion 22)", () => {
   });
 
   it("refuses a body that omits the switch or names the removed seed setting", async () => {
-    const workspace = await send("POST", "/workspaces", { name: "Strict", slug: "strict-settings" });
+    const workspace = await send("POST", "/workspaces", {
+      name: "Strict",
+      slug: "strict-settings",
+    });
     const workspaceId = ((await workspace.json()) as { workspace: { workspaceId: string } })
       .workspace.workspaceId;
 

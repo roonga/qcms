@@ -54,9 +54,7 @@ export function WorkspaceSettingsPanel({
           isDisabled={pending}
           onPress={() => {
             startTransition(async () => {
-              setState(
-                await save(settings.workspaceId, { requireSecondApprover: twoPerson }),
-              );
+              setState(await save(settings.workspaceId, { requireSecondApprover: twoPerson }));
             });
           }}
         >

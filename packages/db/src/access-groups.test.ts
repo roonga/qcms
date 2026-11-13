@@ -83,7 +83,9 @@ describe("the environment set", () => {
 
   it("requires none for a group carrying only View forms or Edit forms", () => {
     expect(refuseEnvironmentSet([], ["forms.viewer", "forms.editor"], LIVE)).toBeUndefined();
-    expect(refuseEnvironmentSet(["prod"], ["forms.editor"], LIVE)).toContain("names no environment");
+    expect(refuseEnvironmentSet(["prod"], ["forms.editor"], LIVE)).toContain(
+      "names no environment",
+    );
   });
 
   it("refuses an environment that does not exist", () => {
@@ -97,7 +99,9 @@ describe("the environment set", () => {
   });
 
   it("has no value meaning every environment", () => {
-    expect(refuseEnvironmentSet(["all"], ["forms.publisher"], LIVE)).toContain("no such environment");
+    expect(refuseEnvironmentSet(["all"], ["forms.publisher"], LIVE)).toContain(
+      "no such environment",
+    );
   });
 
   it("stores a set in the environments table's order, whichever order it arrived in", () => {

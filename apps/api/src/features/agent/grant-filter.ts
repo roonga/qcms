@@ -33,7 +33,7 @@ export interface GrantFilterInput {
 }
 
 function holds(input: GrantFilterInput, def: ActionKindDef, environment: string): boolean {
-  for (const cell of [def.cell, ...(def.alsoCell === undefined ? [] : [def.alsoCell])]) {
+  for (const cell of [def.cell, ...(def.alsoCells ?? [])]) {
     const allowed = decideAccess({
       memberRole: input.memberRole,
       grants: input.grants,

@@ -149,10 +149,7 @@ function scopeDetail(
   group: { readonly roles: readonly string[]; readonly environments: readonly string[] },
   extra?: string,
 ): string {
-  const parts = [
-    `roles=${group.roles.join(",")}`,
-    `environments=${group.environments.join(",")}`,
-  ];
+  const parts = [`roles=${group.roles.join(",")}`, `environments=${group.environments.join(",")}`];
   if (extra !== undefined) parts.push(extra);
   return parts.join(" ");
 }

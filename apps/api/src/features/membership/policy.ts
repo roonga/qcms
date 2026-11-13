@@ -179,11 +179,7 @@ export interface AccessDecision {
 
 // The step order matters: a role that does not cover the act is passed over before any
 // environment is read, so a group's environment set can never widen what its roles are.
-function roleAllows(
-  grant: HeldGrant,
-  roleName: string,
-  request: AccessRequest,
-): boolean {
+function roleAllows(grant: HeldGrant, roleName: string, request: AccessRequest): boolean {
   // The role name comes off a database row, so an undeclared name grants nothing, which
   // is the fail-closed direction.
   const declared: Readonly<Record<string, DeclaredRole | undefined>> = roles;
