@@ -495,6 +495,7 @@ Four things worth knowing before you go looking for something that is missing:
 - **The home dashboard is repository-provisioned.** Its **Service** selector filters `qcms-admin`, `qcms-portal` and `qcms-api`; paste an `x-request-id` into **Request ID** to isolate one BFF-to-API call. Expand a row and follow `trace_id` to Tempo. The dashboard definition is copied into a thin local LGTM wrapper image rather than bind-mounted, so it works when a dev container drives the host Docker daemon (ADR-29). It is read-only in Grafana: edit `docker/grafana/qcms-observability.json` and rebuild instead of making a change that disappears with the container.
 - **Logs are intentionally concise.** Exported records contain only approved operational fields such as route template, method, status, duration, request id and opaque error id. They never contain request bodies, answers, direct identifiers, headers, cookies, query strings, exception messages or stacks (SEC-13). Use the trace link or copy `requestId` to follow one request across services.
 - **The first request after a cold start may not appear.** `lgtm` takes tens of seconds to come up and ships no healthcheck, so the apps start before the collector is listening and the earliest spans exhaust their retry budget. Make a second request.
+- **A cold first `pnpm dev:up` can fail once on `lgtm` and succeed on the next run.** The first one builds `qcms-lgtm:local` and starts a container that holds Grafana, Loki, Tempo, Prometheus and a collector, and `up --detach --build --wait` gives up before all of that is running. Nothing is wrong: run `pnpm dev:up` again, which reuses the built image and comes up. There is no `start_period` to lengthen, because the service declares no healthcheck at all and the apps depend on it as `service_started`.
 - **Nothing persists.** The overlay declares no volumes, so a restart of `lgtm` empties the dashboard. That is the trade that makes `down` leave nothing behind.
 
 **The database viewer is the only credentialed database client in the repo**, and it is scoped accordingly. It does not use `QCMS_DB_PASSWORD`: the overlay creates a `qcms_ro` role granted PostgreSQL's predefined `pg_read_all_data` (reads on every table, including ones a future migration adds) and nothing else, with `default_transaction_read_only` set on the role, and runs pgweb with `--readonly` on top. A write is refused by the database, not by the client. After task 056 the API is otherwise the only process in the stack holding a database credential (ADR-35), which is why this one is worth the paragraph.
@@ -572,21 +573,33 @@ pnpm agent:converse --script scripts/agent-converse.example.json
 
 `QCMS_ADMIN_EMAIL` and `QCMS_ADMIN_PASSWORD` are read as a fallback, so a shell already set up for `create-admin` needs nothing further.
 On a stack where `QCMS_ADMIN_2FA` is `required`, add `QCMS_AGENT_CONVERSE_TOTP` with the account's TOTP secret; with `optional` it is not needed.
-An account still holding a provisional password is refused by name rather than hung on, because the first password change has to happen in a browser.
+
+**On a fresh stack the account is still holding its provisional password**, and the admin sends it to the forced password change before any screen.
+The run completes that change itself when `QCMS_AGENT_CONVERSE_NEW_PASSWORD` names the password the account should take, and is refused by name when it does not.
+It is an environment variable and not a flag for the same reason the first password is: `argv` is world-readable through `/proc`.
+Set both for the first run, then drop `QCMS_AGENT_CONVERSE_NEW_PASSWORD` and put the chosen password in `QCMS_AGENT_CONVERSE_PASSWORD`:
+
+```sh
+read -rs -p 'provisional password: ' QCMS_AGENT_CONVERSE_PASSWORD; echo
+read -rs -p 'password to set: ' QCMS_AGENT_CONVERSE_NEW_PASSWORD; echo
+export QCMS_AGENT_CONVERSE_PASSWORD QCMS_AGENT_CONVERSE_NEW_PASSWORD
+pnpm agent:converse --ask "what can you see"
+```
 
 The flags, all optional:
 
-| Flag                      | What it does                                                                                                                |
-| ------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `--base-url <url>`        | Which admin to drive. Defaults to `QCMS_AGENT_CONVERSE_BASE_URL`, then `QCMS_ADMIN_BASE_URL`, then `http://localhost:7040`. |
-| `--form <formId>`         | Opens that form's builder, so the assistant answers about the form.                                                         |
-| `--screen <path>`         | Any other admin route, for the library-level assistant. Defaults to `/questions`.                                           |
-| `--ask <text>`            | One user message. Repeatable; replaces a script file's messages.                                                            |
-| `--cards <directive>`     | `confirm`, `decline` or `leave`. After an `--ask` it binds to that message; before any `--ask` it is the run's default.     |
-| `--script <file>`         | A JSON file of messages, each with its own directive.                                                                       |
-| `--name <name>`           | The run directory's name under the lane scratch. Defaults to `agent-converse`.                                              |
-| `--timeout <ms>`          | Per-reply budget. Defaults to 180000, which a cold `next dev` route can need.                                               |
-| `--headed`, `--keep-open` | Watch it run, and leave the browser up afterwards.                                                                          |
+| Flag                      | What it does                                                                                                                                                         |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--base-url <url>`        | Which admin to drive. Defaults to `QCMS_AGENT_CONVERSE_BASE_URL`, then `QCMS_ADMIN_BASE_URL`, then `http://localhost:7040`.                                          |
+| `--form <formId>`         | Opens that form's builder, so the assistant answers about the form.                                                                                                  |
+| `--screen <path>`         | Any other admin route, for the library-level assistant. Defaults to `/questions`.                                                                                    |
+| `--ask <text>`            | One user message. Repeatable; replaces a script file's messages.                                                                                                     |
+| `--cards <directive>`     | `confirm`, `decline` or `leave`. After an `--ask` it binds to that message; before any `--ask` it is the run's default.                                              |
+| `--script <file>`         | A JSON file of messages, each with its own directive.                                                                                                                |
+| `--name <name>`           | The run directory's name under the lane scratch. Defaults to `agent-converse`.                                                                                       |
+| `--environment <name>`    | Sets the environment switcher's cookie after sign-in, so operational cards act there. Defaults to `QCMS_AGENT_CONVERSE_ENVIRONMENT`, then the admin's own selection. |
+| `--timeout <ms>`          | Per-reply budget. Defaults to 180000, which a cold `next dev` route can need.                                                                                        |
+| `--headed`, `--keep-open` | Watch it run, and leave the browser up afterwards.                                                                                                                   |
 
 A script file is the only way to give a different decision to each message.
 `scripts/agent-converse.example.json` is the shape:
@@ -603,6 +616,10 @@ A script file is the only way to give a different decision to each message.
 }
 ```
 
+A script file takes `environment` beside `formId` and `cards`, and `--environment` wins over it.
+**It is the only way to reach an operational card**: a test link, a webhook or the open and closed state belongs to one environment, and the switcher's cookie is what names it.
+The name is checked against the admin's own vocabulary (lowercase, starting with a letter) so a typo is refused rather than silently falling back to prod, and the API still decides what the account may reach.
+
 A per-message `cards` wins, then `--cards`, then the file's own `cards`, then `leave`.
 `leave` is the default on purpose: a run that was not asked to act confirms nothing.
 `confirm` fills a card's typed-confirmation box from the card's own hint before pressing Confirm, so an irreversible step still gets the exact value the screen demands rather than a bypass.
@@ -610,6 +627,7 @@ A per-message `cards` wins, then `--cards`, then the file's own `cards`, then `l
 **A directive goes to the card waiting for confirmation, never to whichever card is first on the page.**
 A turn can leave a settled card on screen beside a new one, so the run picks the earliest card whose state is `proposed`, presses that card's own buttons and waits for that card to settle.
 Each turn records what happened as `cardAction`: `confirmed`, `declined`, `left waiting` for a `leave` directive, `nothing to confirm` when no card was waiting, and `no card` when the turn produced none.
+**`no card` is not a failure and never has been one here**: a question is answered without proposing anything, and since the API stopped reporting an answered turn as an error there is nothing under the reply for the roll-up to pick up either.
 
 **The output goes under this lane's scratch directory** (`node scripts/agent-scratch.mjs <name>`, issues #396 and #602), one directory per run, replaced on each run:
 

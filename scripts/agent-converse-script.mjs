@@ -17,6 +17,24 @@ export const DEFAULT_RUN_NAME = "agent-converse";
 
 export const DEFAULT_TIMEOUT_MS = 180_000;
 
+/** The selection cookie the admin reads; see `apps/admin/lib/environment.ts`. */
+export const ENVIRONMENT_COOKIE = "qcms-environment";
+
+/** The admin's own wire vocabulary: anything else would fall back to prod without saying so. */
+const ENVIRONMENT_NAME = /^[a-z][a-z0-9]*$/u;
+
+/**
+ * @param {unknown} value
+ * @param {string} where
+ * @returns {string}
+ */
+export function asEnvironment(value, where) {
+  if (typeof value === "string" && ENVIRONMENT_NAME.test(value)) return value;
+  throw new Error(
+    `${where}: environment must be a lowercase name like test or prod, got ${JSON.stringify(value)}`,
+  );
+}
+
 /** A minted link carries its own opaque address, so it leaves the transcript the way a revealed secret does. */
 const LINK_ADDRESS =
   /https?:\/\/[A-Za-z0-9.:-]+(?:\/[A-Za-z0-9._~-]+)*\/[A-Za-z0-9_-]{16,}\/?(?![A-Za-z0-9_-])/g;
@@ -38,8 +56,8 @@ export function asDirective(value, where) {
  *
  * @param {readonly string[]} args
  * @returns {{ baseUrl?: string; screen?: string; formId?: string; scriptFile?: string; name?: string;
- *   timeoutMs?: number; headed: boolean; keepOpen: boolean; defaultCards?: string;
- *   asks: { text: string; cards?: string }[] }}
+ *   timeoutMs?: number; environment?: string; headed: boolean; keepOpen: boolean;
+ *   defaultCards?: string; asks: { text: string; cards?: string }[] }}
  */
 export function parseArgs(args) {
   /** @type {{ text: string; cards?: string }[]} */
@@ -62,6 +80,7 @@ export function parseArgs(args) {
     else if (arg === "--form") parsed["formId"] = value(arg);
     else if (arg === "--script") parsed["scriptFile"] = value(arg);
     else if (arg === "--name") parsed["name"] = value(arg);
+    else if (arg === "--environment") parsed["environment"] = asEnvironment(value(arg), arg);
     else if (arg === "--headed") parsed["headed"] = true;
     else if (arg === "--keep-open") parsed["keepOpen"] = true;
     else if (arg === "--ask") asks.push({ text: value(arg) });
@@ -85,7 +104,7 @@ export function parseArgs(args) {
  * @param {string} source
  * @param {string} where
  * @returns {{ baseUrl?: string; screen?: string; formId?: string; name?: string; timeoutMs?: number;
- *   cards?: string; messages: { text: string; cards?: string }[] }}
+ *   environment?: string; cards?: string; messages: { text: string; cards?: string }[] }}
  */
 export function parseScriptFile(source, where) {
   /** @type {unknown} */
@@ -126,6 +145,9 @@ export function parseScriptFile(source, where) {
     ...str("formId"),
     ...str("name"),
     ...(typeof record["timeoutMs"] === "number" ? { timeoutMs: record["timeoutMs"] } : {}),
+    ...(record["environment"] === undefined
+      ? {}
+      : { environment: asEnvironment(record["environment"], `${where}: environment`) }),
     ...(record["cards"] === undefined
       ? {}
       : { cards: asDirective(record["cards"], `${where}: cards`) }),
@@ -152,7 +174,7 @@ function screenOf(source, where) {
  * @param {{ cli: ReturnType<typeof parseArgs>; file?: ReturnType<typeof parseScriptFile>;
  *   environment?: Readonly<Record<string, string | undefined>> }} options
  * @returns {{ baseUrl: string; screen: string; name: string; timeoutMs: number; headed: boolean;
- *   keepOpen: boolean; messages: { text: string; cards: string }[] }}
+ *   keepOpen: boolean; environment?: string; messages: { text: string; cards: string }[] }}
  */
 export function resolveRun({ cli, file, environment = {} }) {
   const configured =
@@ -162,6 +184,14 @@ export function resolveRun({ cli, file, environment = {} }) {
     screenOf(cli, "the command line") ??
     (file === undefined ? undefined : screenOf(file, "the script file")) ??
     DEFAULT_SCREEN;
+
+  const configuredEnvironment = environment["QCMS_AGENT_CONVERSE_ENVIRONMENT"];
+  const chosen =
+    cli.environment ??
+    file?.environment ??
+    (configuredEnvironment === undefined || configuredEnvironment.trim() === ""
+      ? undefined
+      : asEnvironment(configuredEnvironment.trim(), "QCMS_AGENT_CONVERSE_ENVIRONMENT"));
 
   const fallback = cli.defaultCards ?? file?.cards ?? DEFAULT_DIRECTIVE;
   const scripted = cli.asks.length > 0 ? cli.asks : (file?.messages ?? []);
@@ -176,13 +206,14 @@ export function resolveRun({ cli, file, environment = {} }) {
     timeoutMs: cli.timeoutMs ?? file?.timeoutMs ?? DEFAULT_TIMEOUT_MS,
     headed: cli.headed,
     keepOpen: cli.keepOpen,
+    ...(chosen === undefined ? {} : { environment: chosen }),
     messages: scripted.map((message) => ({ text: message.text, cards: message.cards ?? fallback })),
   };
 }
 
 /**
  * @param {Readonly<Record<string, string | undefined>>} environment
- * @returns {{ email: string; password: string; totpSecret?: string }}
+ * @returns {{ email: string; password: string; totpSecret?: string; newPassword?: string }}
  */
 export function resolveCredentials(environment) {
   const email = environment["QCMS_AGENT_CONVERSE_EMAIL"] ?? environment["QCMS_ADMIN_EMAIL"];
@@ -195,9 +226,11 @@ export function resolveCredentials(environment) {
     );
   }
   const totp = environment["QCMS_AGENT_CONVERSE_TOTP"];
+  const fresh = environment["QCMS_AGENT_CONVERSE_NEW_PASSWORD"];
   return {
     email: email.trim(),
     password,
+    ...(fresh === undefined || fresh === "" ? {} : { newPassword: fresh }),
     ...(totp === undefined || totp.trim() === "" ? {} : { totpSecret: totp.trim() }),
   };
 }

@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   asDirective,
+  asEnvironment,
   cardAwaitingConfirmation,
   cardsOf,
   createSecretVault,
@@ -75,6 +76,23 @@ describe("parseArgs", () => {
     expect(() => parseArgs(["--nope"])).toThrow(/unknown option: --nope/u);
     expect(() => parseArgs(["--ask"])).toThrow(/--ask requires a value/u);
     expect(() => parseArgs(["--timeout", "soon"])).toThrow(/positive number of milliseconds/u);
+  });
+
+  it("reads an environment name and refuses one the admin would not keep", () => {
+    expect(parseArgs(["--environment", "test"]).environment).toBe("test");
+    expect(() => parseArgs(["--environment", "Prod"])).toThrow(/lowercase name/u);
+  });
+});
+
+describe("asEnvironment", () => {
+  it("takes the admin's own wire vocabulary", () => {
+    expect(asEnvironment("prod", "x")).toBe("prod");
+    expect(asEnvironment("uat2", "x")).toBe("uat2");
+  });
+
+  it("names the field when it refuses, rather than falling back to prod", () => {
+    expect(() => asEnvironment("2nd", "messages[0]")).toThrow(/messages\[0\].*lowercase/su);
+    expect(() => asEnvironment(undefined, "x")).toThrow(/lowercase/u);
   });
 });
 
@@ -164,6 +182,31 @@ describe("resolveRun", () => {
     ]);
   });
 
+  it("takes an environment from the flag, then the file, then the environment", () => {
+    const file = parseScriptFile(
+      JSON.stringify({ environment: "staging", messages: ["a"] }),
+      "s.json",
+    );
+    expect(run(["--environment", "test", "--ask", "q"]).environment).toBe("test");
+    expect(run([], file).environment).toBe("staging");
+    expect(
+      resolveRun({
+        cli: parseArgs(["--ask", "q"]),
+        environment: { QCMS_AGENT_CONVERSE_ENVIRONMENT: "dev" },
+      }).environment,
+    ).toBe("dev");
+  });
+
+  it("names no environment when nothing does, so the admin keeps its own selection", () => {
+    expect(run(["--ask", "q"]).environment).toBeUndefined();
+    expect(
+      resolveRun({
+        cli: parseArgs(["--ask", "q"]),
+        environment: { QCMS_AGENT_CONVERSE_ENVIRONMENT: "  " },
+      }).environment,
+    ).toBeUndefined();
+  });
+
   it("refuses an empty run and two competing screens", () => {
     expect(() => run([])).toThrow(/--ask <text>, or --script <file>/u);
     expect(() => run(["--ask", "q", "--form", "frm_x", "--screen", "/questions"])).toThrow(
@@ -192,6 +235,16 @@ describe("resolveCredentials", () => {
         QCMS_AGENT_CONVERSE_TOTP: "",
       }),
     ).toEqual({ email: "b@admin.test", password: "p" });
+  });
+
+  it("carries the password a forced first change should set", () => {
+    expect(
+      resolveCredentials({
+        QCMS_ADMIN_EMAIL: "b@admin.test",
+        QCMS_ADMIN_PASSWORD: "provisional",
+        QCMS_AGENT_CONVERSE_NEW_PASSWORD: "chosen",
+      }),
+    ).toEqual({ email: "b@admin.test", password: "provisional", newPassword: "chosen" });
   });
 
   it("names every variable it looked at when none is set", () => {
@@ -250,6 +303,22 @@ describe("runErrors", () => {
         turns: [{ user: "what is in this form?", panelError: null, replySteps: [], card: null }],
       }),
     ).toEqual([]);
+  });
+
+  it("passes a turn that produced no card, and still fails one the panel refused", () => {
+    const turn = (panelError: string | null) => ({
+      user: "what is in this form?",
+      cardAction: "no card",
+      cardIndex: null,
+      panelError,
+      replySteps: [],
+      cards: [],
+      card: null,
+    });
+    expect(runErrors({ turns: [turn(null)] })).toEqual([]);
+    expect(runErrors({ turns: [turn("The assistant is not available.")] })).toEqual([
+      { turn: 1, where: "panel", text: "The assistant is not available." },
+    ]);
   });
 
   it("reports the panel's own error text", () => {

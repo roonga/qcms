@@ -18,6 +18,7 @@ import { cardHasSettled, isHydrated, readPanel } from "./agent-converse-page.mjs
 import {
   cardAwaitingConfirmation,
   createSecretVault,
+  ENVIRONMENT_COOKIE,
   parseArgs,
   parseScriptFile,
   redactAddresses,
@@ -87,10 +88,8 @@ async function signIn(page, run, credentials) {
     );
   }
   if (landed.startsWith("/change-password")) {
-    throw new Error(
-      "this account still holds a provisional password: finish the first sign-in in a browser, " +
-        "then put the new password in QCMS_AGENT_CONVERSE_PASSWORD",
-    );
+    await firstSignIn(page, run, credentials);
+    return;
   }
   if (!landed.startsWith("/two-factor")) return;
   if (credentials.totpSecret === undefined) {
@@ -107,6 +106,63 @@ async function signIn(page, run, credentials) {
   await Promise.all([
     page.waitForURL((url) => !url.pathname.startsWith("/two-factor"), { timeout: run.timeoutMs }),
     page.getByRole("button", { name: "Verify" }).click(),
+  ]);
+  // The forced change can sit behind the second factor as well as in front of it.
+  if (new URL(page.url()).pathname.startsWith("/change-password")) {
+    await firstSignIn(page, run, credentials);
+  }
+}
+
+/**
+ * The forced first password change, which a fresh stack puts every provisioned account
+ * through. It needs a second password rather than a flag, so the new one comes from the
+ * environment like the first, and a run without it is refused by name rather than hung on.
+ *
+ * @param {import("@playwright/test").Page} page
+ * @param {{ timeoutMs: number }} run
+ * @param {{ password: string; newPassword?: string }} credentials
+ */
+async function firstSignIn(page, run, credentials) {
+  if (credentials.newPassword === undefined) {
+    throw new Error(
+      "this account still holds a provisional password: set " +
+        "QCMS_AGENT_CONVERSE_NEW_PASSWORD to the password it should take, and put that same " +
+        "password in QCMS_AGENT_CONVERSE_PASSWORD afterwards",
+    );
+  }
+  await hydrated(page, run.timeoutMs);
+  await fillStable(page.getByLabel("Temporary password"), credentials.password);
+  await fillStable(page.getByLabel("New password", { exact: true }), credentials.newPassword);
+  await fillStable(page.getByLabel("Confirm new password"), credentials.newPassword);
+  await Promise.all([
+    page.waitForURL((url) => !url.pathname.startsWith("/change-password"), {
+      timeout: run.timeoutMs,
+    }),
+    page.getByRole("button", { name: "Change password" }).click(),
+  ]);
+  const landed = new URL(page.url()).pathname;
+  if (landed.startsWith("/sign-in")) {
+    throw new Error("the admin refused the new password; it may be too short or compromised");
+  }
+}
+
+/**
+ * The switcher's own cookie, set before the first navigation so a turn's operational cards
+ * act in the environment the run names. The API still decides what this account may reach.
+ *
+ * @param {import("@playwright/test").BrowserContext} context
+ * @param {{ baseUrl: string; environment?: string }} run
+ */
+async function chooseEnvironment(context, run) {
+  if (run.environment === undefined) return;
+  await context.addCookies([
+    {
+      name: ENVIRONMENT_COOKIE,
+      value: run.environment,
+      url: run.baseUrl,
+      path: "/",
+      sameSite: "Lax",
+    },
   ]);
 }
 
@@ -307,6 +363,7 @@ export async function main(args, environment, directory) {
   page.setDefaultTimeout(run.timeoutMs);
   try {
     await signIn(page, run, credentials);
+    await chooseEnvironment(context, run);
     await openAssistant(page, run);
     turns = await converse(page, run, target, vault);
   } catch (error) {
@@ -327,6 +384,7 @@ export async function main(args, environment, directory) {
     finishedAt: new Date().toISOString(),
     baseUrl: run.baseUrl,
     screen: run.screen,
+    ...(run.environment === undefined ? {} : { environment: run.environment }),
     account: credentials.email,
     directory: target,
     secretsFile: writeSecrets(target, vault),
