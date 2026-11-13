@@ -297,13 +297,20 @@ test("returns focus and the dock state from Escape in all three modes (exit crit
   await expect(panel(page), "Escape does not close the dock").toBeVisible();
   await expect(page.locator("main#main-content")).toBeFocused();
 
-  await page.getByTestId("qcms-assistant-expand").click();
+  const expand = page.getByTestId("qcms-assistant-expand");
+  await expect(expand).toHaveAttribute("aria-label", "Expand the assistant");
+  await expand.click();
   await expect(panel(page)).toHaveAttribute("data-mode", "expanded");
   await expect(panel(page)).toHaveRole("dialog");
-  await expect(page.getByTestId("qcms-assistant-expand")).toHaveAttribute("aria-pressed", "true");
+  await expect(expand).toHaveAttribute("aria-pressed", "true");
+  await expect(expand, "the toggle names the action it now offers").toHaveAttribute(
+    "aria-label",
+    "Collapse the assistant",
+  );
   await expect(page.locator("main#main-content")).toHaveAttribute("inert", "");
-  await page.getByTestId("qcms-assistant-expand").press("Escape");
+  await expand.press("Escape");
   await expect(panel(page)).toHaveAttribute("data-mode", "dock");
+  await expect(expand).toHaveAttribute("aria-label", "Expand the assistant");
   await expect(page.locator("main#main-content")).not.toHaveAttribute("inert", "");
 
   await page.setViewportSize({ width: 390, height: 844 });

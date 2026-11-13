@@ -1495,6 +1495,7 @@ export const messages = {
   "agent.new": "New conversation",
   "agent.new.announce": "Started a new conversation.",
   "agent.expand": "Expand the assistant",
+  "agent.collapse": "Collapse the assistant",
   "agent.help": "Assistant help",
   "agent.help.shortcut": "Alt+Shift+A opens or focuses the assistant.",
   "agent.close": "Close the assistant",
