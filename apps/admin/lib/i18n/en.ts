@@ -1538,6 +1538,8 @@ export const messages = {
   "agent.empty": "Ask about this screen. The assistant explains what is here and takes you to it.",
   "agent.composer": "Ask the assistant",
   "agent.conversationLabel": "Conversation with the assistant",
+  "agent.speaker.you": "You",
+  "agent.speaker.assistant": "Assistant",
   "agent.send": "Send",
   "agent.stop": "Stop",
   "agent.announce.working": "The assistant is working.",

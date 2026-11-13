@@ -338,7 +338,12 @@ function ScreenConversation({
         {shown.map((turn, index) =>
           turn.role === "user" ? (
             <li key={`user-${String(index)}`} className="qcms-assistant__turn" data-role="user">
-              <AssistMarkdown text={turn.content} />
+              <div className="qcms-assistant__said">
+                <p className="qcms-assistant__speaker">{t("agent.speaker.you")}</p>
+                <div className="qcms-assistant__bubble">
+                  <AssistMarkdown text={turn.content} />
+                </div>
+              </div>
             </li>
           ) : (
             <li
@@ -348,6 +353,7 @@ function ScreenConversation({
             >
               <AssistMark size={20} />
               <div className="qcms-assistant__segments">
+                <p className="qcms-assistant__speaker">{t("agent.speaker.assistant")}</p>
                 {turn.view.segments.map((segment, at) => (
                   <Segment key={`${segment.kind}:${String(at)}`} segment={segment} />
                 ))}
@@ -364,6 +370,7 @@ function ScreenConversation({
           >
             <AssistMark size={20} working />
             <div className="qcms-assistant__segments">
+              <p className="qcms-assistant__speaker">{t("agent.speaker.assistant")}</p>
               {live.segments.length === 0 ? (
                 <p>
                   {t("forms.assist.working")}

@@ -99,6 +99,35 @@ describe("the assistant conversation's route", () => {
     expect(screen.getByTestId("qcms-assistant-trimmed").textContent).toBe(t("agent.trimmed"));
   });
 
+  it("names the speaker on every turn, and gives the reader's words their own bubble", () => {
+    render(
+      <AssistantConversation
+        screen={SCREEN}
+        environment="test"
+        conversation={{
+          ...CONVERSATION,
+          turns: [
+            { role: "user", content: "what can you see" },
+            { role: "assistant", content: "This screen lists your forms." },
+          ],
+        }}
+        builder={snapshot(false)}
+        composerRef={{ current: null }}
+        onWorkingChange={() => undefined}
+        onAnnounce={() => undefined}
+      />,
+    );
+    const turns = screen.getAllByRole("listitem");
+    expect(turns[0]?.querySelector(".qcms-assistant__speaker")?.textContent).toBe(
+      t("agent.speaker.you"),
+    );
+    expect(turns[0]?.querySelector(".qcms-assistant__bubble")).toBeTruthy();
+    expect(turns[1]?.querySelector(".qcms-assistant__speaker")?.textContent).toBe(
+      t("agent.speaker.assistant"),
+    );
+    expect(turns[1]?.querySelector(".qcms-assistant__bubble")).toBeNull();
+  });
+
   it("posts a reader's turn to the screen route", async () => {
     const fetchMock = sent();
     mount(false);

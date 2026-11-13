@@ -3456,6 +3456,30 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
 .qcms-assistant__turn[data-role="user"] {
   justify-content: flex-end;
 }
+.qcms-assistant__said {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-inline-size: 85%;
+  min-inline-size: 0;
+}
+.qcms-assistant__speaker {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+.qcms-assistant__turn[data-role="user"] .qcms-assistant__speaker {
+  text-align: end;
+}
+.qcms-assistant__bubble {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background-color: var(--color-background-muted);
+}
 .qcms-assistant__segments {
   display: flex;
   flex: 1;
