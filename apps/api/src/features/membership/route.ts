@@ -184,7 +184,8 @@ export const deleteAccessGroupRoute = createRoute({
     "The holders' rows go with it. They are read first and one revoke row is written " +
     "per holder, in the same transaction as the removal, which is why no removal may " +
     "originate at the organisation plugin's own endpoint: its cascade runs below any " +
-    "hook and would leave the removals invisible.",
+    "hook and would leave the removals invisible. Allowed on an archived workspace, " +
+    "since removing a group is a revoke.",
   tags,
   request: { params: AccessGroupParams },
   responses: {
@@ -204,7 +205,11 @@ export const addHolderRoute = createRoute({
     "the organisation plugin's own team queries assume a team member is a member of " +
     "the workspace. A self-grant of a responses role is refused while the workspace " +
     "requires a second approver, and then a second owner or the installation " +
-    "administrator makes the grant; with that switch off it is allowed and audited.",
+    "administrator makes the grant; with that switch off it is allowed and audited. " +
+    "An unknown account gets one generic 404, `ACCOUNT_NOT_ADDABLE`, on both the " +
+    "`email` and the `userId` path, and so does an account named by `userId` that is " +
+    "not yet in this workspace unless the caller is the installation administrator: " +
+    "anybody else adds a newcomer by exact address. Refused on an archived workspace.",
   tags,
   request: { params: AccessGroupParams, body: jsonBody(AddHolderBody) },
   responses: {
@@ -221,7 +226,9 @@ export const removeHolderRoute = createRoute({
   method: "delete",
   path: "/workspaces/{id}/access-groups/{teamId}/holders/{userId}",
   summary: "Revoke an access group from somebody (admin)",
-  description: "One grant row and one access-audit revoke row, in the same transaction.",
+  description:
+    "One grant row and one access-audit revoke row, in the same transaction. Allowed on " +
+    "an archived workspace, which refuses every grant but never a revoke.",
   tags,
   request: { params: AccessGroupHolderParams },
   responses: {
@@ -242,7 +249,8 @@ export const workspaceSettingsRoute = createRoute({
     "two-person posture. The seed switch decides whether a new editor is also granted " +
     "a responses viewer role on dev and test, and a grant on test responses is a grant " +
     "on personal data, because a test run can involve real respondents. Turning either " +
-    "on or off writes an access-audit row of kind `setting`.",
+    "on or off writes an access-audit row of kind `setting`. Refused on an archived " +
+    "workspace.",
   tags,
   request: { params: WorkspaceIdParam, body: jsonBody(WorkspaceSettingsBody) },
   responses: {
@@ -250,7 +258,7 @@ export const workspaceSettingsRoute = createRoute({
       description: "The settings as they now stand",
       content: { "application/json": { schema: WorkspaceSettingsResponse } },
     },
-    ...errorResponses(400, 401, 403, 404),
+    ...errorResponses(400, 401, 403, 404, 409),
   },
   ...withScopes("forms:write"),
 });

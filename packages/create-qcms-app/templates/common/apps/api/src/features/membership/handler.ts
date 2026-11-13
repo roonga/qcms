@@ -29,6 +29,7 @@ import {
   refuseAccessGroupName,
   refuseEnvironmentScope,
   removeAccessGroupHolder,
+  resolveMembership,
   setMemberRole,
   setRequireSecondApprover,
   setSeedNewEditorsWithTestData,
@@ -43,6 +44,7 @@ import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
 import { agentStepSite, writeAgentStep } from "../agent/audit.js";
+import { requireOpenWorkspace } from "../workspaces/resolve.js";
 import { holdsStatement, type Resource } from "./policy.js";
 import { holdsInstallationClaim, resolveCallerWorkspaces } from "./resolver.js";
 import { OPERATIONAL_CELLS } from "./route-policy.js";
@@ -84,7 +86,14 @@ const fail = {
   invalidName: (reason: string): ApiError => new ApiError("ACCESS_GROUP_NAME_INVALID", 400, reason),
   invalidScope: (reason: string): ApiError =>
     new ApiError("ACCESS_GROUP_SCOPE_INVALID", 400, reason),
-  userNotFound: (): ApiError => new ApiError("USER_NOT_FOUND", 404, "No such account"),
+  // One answer for every account the caller may not add, so the refusal never says
+  // whether an account exists.
+  cannotAdd: (): ApiError =>
+    new ApiError(
+      "ACCOUNT_NOT_ADDABLE",
+      404,
+      "No account that can be added here matches. Check the address with the person, or ask the installation administrator.",
+    ),
   notAMember: (): ApiError =>
     new ApiError(
       "NOT_A_MEMBER",
@@ -580,7 +589,16 @@ export function makeAddHolderHandler(deps: Deps): RouteHandler<typeof addHolderR
       body.userId !== undefined
         ? (await findUsersByIds(exec, [body.userId]))[0]
         : await findUserByEmail(exec, body.email as string);
-    if (subject === undefined) throw fail.userNotFound();
+    if (subject === undefined) throw fail.cannotAdd();
+    // Only the installation administrator browses the account directory; anybody else
+    // adds a newcomer by exact address, so an id must already belong to this workspace.
+    if (
+      body.userId !== undefined &&
+      !holdsInstallationClaim(actor.role) &&
+      (await resolveMembership(exec, subject.userId, workspaceId)).memberRole === undefined
+    ) {
+      throw fail.cannotAdd();
+    }
 
     // The test is "is this account granting itself a responses role", so the installation
     // claim is not a way around the rule.
@@ -709,7 +727,7 @@ export function makeWorkspaceSettingsHandler(
     const workspaceId = c.req.valid("param").id;
     const body = c.req.valid("json");
     const actor = principalOf(c);
-    const workspace = await workspaceOf(deps, workspaceId);
+    const workspace = await requireOpenWorkspace(deps.databases.control, workspaceId);
 
     const site = agentStepSite(c);
     const result = await deps.databases.control.transaction(async (tx) => {

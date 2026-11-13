@@ -19,6 +19,7 @@ Green field: the removal of form scope, old roles and the seed setting is not da
 - Admin screens: removal only. The seed switch, the form-scope picker and the `all` environment option go. The existing group form keeps saving one role with an explicit environment set until 098.
 - `two-person.ts` messages and the role it checks, on the new roles.
 - Remove the question-move route `POST /admin/questions/{id}/workspace`: handler, route-policy row, OpenAPI.
+- **Workspace list (criterion 26):** open `GET /admin/workspaces` to any grant holder, editors and viewers included, still narrowed to the workspaces the caller holds something in. Decide here whether a non-administrator gets a reduced view (name and slug only) and record it in the PR (Code Owner, 2026-11-14).
 - Bootstrap, `seedGrants`, e2e support and template mirrors on the new shape.
 - Update the SEC-3 §3.2 role table with the policy code, since `matrix-coverage.e2e.ts` reads it.
 - **Agent kinds:** `grant-filter.ts` drops form-id widening, and every agent action kind on a route this task changes is offered and executed on the new matrix. 096 audits parity across all kinds afterwards.
@@ -31,7 +32,7 @@ Green field: the removal of form scope, old roles and the seed setting is not da
 
 ## Exit criteria
 
-Spec criteria owned: **2, 3, 4, 6, 9, 10, 11, 12, 13, 14, 17, 19, 24, 107, 108**. This task owns those and no others.
+Spec criteria owned: **2, 3, 4, 6, 9, 10, 11, 12, 13, 14, 17, 19, 24, 26, 107, 108**. This task owns those and no others.
 
 - No `forms.approver`, `all`, form scope or seed setting remains in code, schema, fixtures or templates.
 - The Access groups screen still creates and lists groups.
@@ -47,6 +48,7 @@ Spec criteria owned: **2, 3, 4, 6, 9, 10, 11, 12, 13, 14, 17, 19, 24, 107, 108**
 - An environment added later is covered by no group.
 - A group can no longer name forms; a group carrying Publish forms, View responses or Erase responses with no environment is refused on save.
 - The question-move route no longer exists.
+- An editor or viewer in A lists A and not B; a non-administrator never sees fields the reduced view leaves out, if 085 adopts it.
 - The interim move and self-grant refusals above, including a member adding a response role or `prod` to their own group with the rule on.
 
 ## Files and areas

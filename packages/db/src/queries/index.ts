@@ -73,6 +73,7 @@ export {
   getWorkspaceBySlug,
   getSharedWorkspace,
   setWorkspaceShared,
+  renameWorkspace,
   archiveWorkspace,
   findArchiveBlockers,
   countWorkspaceContents,

@@ -25,12 +25,13 @@ The user guide for these rules is [`docs/workspace-access-guide.html`](workspace
 | Site administrator appointment with approval requests             | Not built    |
 | Workspace audit (SEC-15)                                          | Built        |
 | Site audit and mirroring                                          | Not built    |
-| Workspace list narrowed to the caller's own                       | Not built    |
-| Workspace rename, Move form screen, shared library screen         | Not built    |
+| Workspace list narrowed to the caller's own                       | Partly built |
+| Workspace rename, Move form screen, shared library screen         | Partly built |
 | Archive refused while any form remains                            | Built        |
 | Assistant tools follow the user's grants (SEC-17)                 | Built        |
 | Workspace themes and the workspace appearance lock                | Not built    |
 
+- The workspace list is narrowed, but the route still admits only administrators and the installation claim holder; 085 opens it to every grant holder (criterion 26).
 - Records that describe what is built (`docs/SECURITY_DESIGN.md`, the operator guides, the built-task notes in ADR-41) keep that description until the code changes, with a line pointing here.
 - The SEC-3 role table in `docs/SECURITY_DESIGN.md` §3.2 stays as built, because `apps/api/e2e/security/matrix-coverage.e2e.ts` reads it. It changes with the foundation task that changes the roles in code.
 

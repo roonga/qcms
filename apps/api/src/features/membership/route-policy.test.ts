@@ -337,6 +337,17 @@ describe("the audit column and the response routes agree (criterion 8)", () => {
     const row = policyForRequest("PUT", "/admin/workspaces/org_x/settings");
     expect(row?.audit).toBe("setting");
   });
+
+  it("gives the rename route the workspace administrator's cell, in the named workspace (criterion 97)", () => {
+    const row = policyForRequest("PUT", "/admin/workspaces/org_x/name");
+    expect(row).toMatchObject({
+      resource: "workspace",
+      action: "update",
+      workspace: "path",
+      audit: "setting",
+    });
+    expect(row?.installationOnly).toBeUndefined();
+  });
 });
 
 describe("matching a request to a row", () => {

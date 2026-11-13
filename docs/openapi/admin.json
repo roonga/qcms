@@ -2365,6 +2365,21 @@
         ],
         "additionalProperties": false
       },
+      "RenameWorkspaceBody": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "example": "Home insurance"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false
+      },
       "SharedWorkspaceBody": {
         "type": "object",
         "properties": {
@@ -7126,8 +7141,8 @@
     },
     "/admin/workspaces": {
       "get": {
-        "summary": "Every workspace, with what it owns (admin)",
-        "description": "Oldest first, archived workspaces included: a workspace is archived and never deleted, and one that still owns questions is what a reader needs to see.",
+        "summary": "The caller's workspaces, with what each owns (admin)",
+        "description": "Only the workspaces the caller administers; the installation administrator gets every one. Oldest first, archived workspaces included: a workspace is archived and never deleted, and one that still owns questions is what a reader needs to see.",
         "tags": [
           "workspaces"
         ],
@@ -7207,6 +7222,105 @@
           },
           "401": {
             "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/workspaces/{id}/name": {
+      "put": {
+        "summary": "Rename a workspace (admin)",
+        "description": "Changes the name only; the slug never changes. One audit row records the old and the new name. Refused on an archived workspace, and for anyone who is not an administrator of that workspace or the installation administrator.",
+        "tags": [
+          "workspaces"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "org_default_workspace"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameWorkspaceBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The workspace as it now stands",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -8054,7 +8168,7 @@
       },
       "delete": {
         "summary": "Remove an access group and every grant it carried (admin)",
-        "description": "The holders' rows go with it. They are read first and one revoke row is written per holder, in the same transaction as the removal, which is why no removal may originate at the organisation plugin's own endpoint: its cascade runs below any hook and would leave the removals invisible.",
+        "description": "The holders' rows go with it. They are read first and one revoke row is written per holder, in the same transaction as the removal, which is why no removal may originate at the organisation plugin's own endpoint: its cascade runs below any hook and would leave the removals invisible. Allowed on an archived workspace, since removing a group is a revoke.",
         "tags": [
           "membership"
         ],
@@ -8125,7 +8239,7 @@
     "/admin/workspaces/{id}/access-groups/{teamId}/holders": {
       "post": {
         "summary": "Grant an access group to somebody (admin)",
-        "description": "Team membership is the grant, so this is where a grant is written. The holder gets a workspace member row carrying the empty role if they have none, because the organisation plugin's own team queries assume a team member is a member of the workspace. A self-grant of a responses role is refused while the workspace requires a second approver, and then a second owner or the installation administrator makes the grant; with that switch off it is allowed and audited.",
+        "description": "Team membership is the grant, so this is where a grant is written. The holder gets a workspace member row carrying the empty role if they have none, because the organisation plugin's own team queries assume a team member is a member of the workspace. A self-grant of a responses role is refused while the workspace requires a second approver, and then a second owner or the installation administrator makes the grant; with that switch off it is allowed and audited. An unknown account gets one generic 404, `ACCOUNT_NOT_ADDABLE`, on both the `email` and the `userId` path, and so does an account named by `userId` that is not yet in this workspace unless the caller is the installation administrator: anybody else adds a newcomer by exact address. Refused on an archived workspace.",
         "tags": [
           "membership"
         ],
@@ -8233,7 +8347,7 @@
     "/admin/workspaces/{id}/access-groups/{teamId}/holders/{userId}": {
       "delete": {
         "summary": "Revoke an access group from somebody (admin)",
-        "description": "One grant row and one access-audit revoke row, in the same transaction.",
+        "description": "One grant row and one access-audit revoke row, in the same transaction. Allowed on an archived workspace, which refuses every grant but never a revoke.",
         "tags": [
           "membership"
         ],
@@ -8313,7 +8427,7 @@
     "/admin/workspaces/{id}/settings": {
       "put": {
         "summary": "The workspace's two switches: the second approver and the test-data seed (admin)",
-        "description": "Both default off. The second-approver switch governs the two-person rule for a production release and a production endpoint change, and the self-grant rule for a responses role, so an installation turns on one thing and gets the whole two-person posture. The seed switch decides whether a new editor is also granted a responses viewer role on dev and test, and a grant on test responses is a grant on personal data, because a test run can involve real respondents. Turning either on or off writes an access-audit row of kind `setting`.",
+        "description": "Both default off. The second-approver switch governs the two-person rule for a production release and a production endpoint change, and the self-grant rule for a responses role, so an installation turns on one thing and gets the whole two-person posture. The seed switch decides whether a new editor is also granted a responses viewer role on dev and test, and a grant on test responses is a grant on personal data, because a test run can involve real respondents. Turning either on or off writes an access-audit row of kind `setting`. Refused on an archived workspace.",
         "tags": [
           "membership"
         ],
@@ -8388,6 +8502,16 @@
           },
           "404": {
             "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
             "content": {
               "application/json": {
                 "schema": {

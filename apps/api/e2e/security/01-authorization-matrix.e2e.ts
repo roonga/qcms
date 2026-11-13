@@ -18,6 +18,7 @@ import {
   ensureWorkspaceMember,
   getReleasedVersion,
   getWebhook,
+  getWorkspace,
   insertFormVersion,
   listAccessAudit,
   setRequireSecondApprover,
@@ -873,6 +874,60 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
     for (const form of homeForms) {
       expect(form.workspaceId, `${form.formId} names its owning workspace`).toBe(SEED_WORKSPACE_ID);
     }
+  });
+
+  it("lists only the caller's own workspaces, and every one to the claim (criterion 26)", async () => {
+    const other = await createWorkspaceWithViewer("probe-list-other");
+    const listed = async (token: string): Promise<string[]> => {
+      const res = await get(token, "/admin/workspaces");
+      expect(res.status).toBe(200);
+      return ((await res.json()) as { workspaces: { workspaceId: string }[] }).workspaces.map(
+        (row) => row.workspaceId,
+      );
+    };
+
+    const owner = await accountHolding("probe-list-owner", [], { owner: true });
+    const ownerSees = await listed(owner);
+    expect(ownerSees).toContain(ctx.workspaceId);
+    expect(ownerSees).not.toContain(other.workspaceId);
+
+    const claimOnly = await seedAdminSession(testDb.db, {
+      label: "probe-list-claim",
+      membership: false,
+    });
+    const claimSees = await listed(claimOnly.token);
+    expect(claimSees).toContain(ctx.workspaceId);
+    expect(claimSees).toContain(other.workspaceId);
+  });
+
+  it("refuses a rename to anyone but that workspace's administrators and the claim (criterion 97)", async () => {
+    const put = async (token: string, workspaceId: string, name: string): Promise<Response> =>
+      all.app.request(`/admin/workspaces/${workspaceId}/name`, {
+        method: "PUT",
+        headers: { "content-type": "application/json", ...headersFor(token) },
+        body: JSON.stringify({ name }),
+      });
+    const other = await createWorkspaceWithViewer("probe-rename-other");
+    const before = (await getWorkspace(testDb.db, other.workspaceId))?.name;
+
+    const editor = await accountHolding("probe-rename-editor", ["forms.editor"]);
+    const homeOwner = await accountHolding("probe-rename-owner", [], { owner: true });
+    for (const token of [editor, other.token, homeOwner]) {
+      const res = await put(token, other.workspaceId, "Taken over");
+      expect(res.status).toBe(403);
+      expectNoPayload(await res.text());
+    }
+    expect((await getWorkspace(testDb.db, other.workspaceId))?.name).toBe(before);
+
+    const claimOnly = await seedAdminSession(testDb.db, {
+      label: "probe-rename-claim",
+      membership: false,
+    });
+    const renamed = await put(claimOnly.token, other.workspaceId, "Renamed by the claim");
+    expect(renamed.status).toBe(200);
+    const row = await getWorkspace(testDb.db, other.workspaceId);
+    expect(row?.name).toBe("Renamed by the claim");
+    expect(row?.slug).toBe("probe-rename-other");
   });
 });
 
