@@ -893,7 +893,7 @@ function parseSmtpSecurity(env: Env, issues: string[]): SmtpSecurity {
   return known;
 }
 
-/** Every issue names a variable, never the value: the password and the relay are both deployment secrets. */
+/** Every issue names a variable, never a value, so the relay password cannot reach a boot error. */
 function parseMail(
   env: Env,
   adminMounted: boolean,
