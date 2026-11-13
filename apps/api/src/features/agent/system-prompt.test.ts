@@ -7,7 +7,92 @@ import {
   VALIDATION_MESSAGE_KEYS,
 } from "@roonga/qcms-core";
 
-import { buildSystemPrompt, CONDITION_OPERATORS, SYSTEM_PROMPT_VERSION } from "./system-prompt.js";
+import {
+  AVOID_WORDS,
+  AVOID_WORDS_LINE_PREFIX,
+  buildSystemPrompt,
+  CONDITION_OPERATORS,
+  CONTRACTS_HEADING,
+  SYSTEM_PROMPT_VERSION,
+} from "./system-prompt.js";
+
+/**
+ * Independent of {@link AVOID_WORDS} on purpose: the prompt's own list is checked against
+ * this one, so widening the source list cannot silently widen what the guidance may say.
+ */
+const FORBIDDEN_TERMS = [
+  "frm_",
+  "q_",
+  "stp_",
+  "rul_",
+  "opt_",
+  "grp_",
+  "lnk_",
+  "slug",
+  "unpinned",
+  "minted",
+  "BFF",
+  "draft v1",
+  "halts",
+  "operational",
+] as const;
+
+const VOICE_RULES: readonly { readonly rule: string; readonly phrases: readonly string[] }[] = [
+  {
+    rule: "name things by their titles, in the person's own words",
+    phrases: [
+      "the Phone number question",
+      "not published yet, so the form can't",
+      "belong in your tool calls, never in a\n  sentence",
+      "gloss it the",
+    ],
+  },
+  {
+    rule: "lead with who did what, before any correction",
+    phrases: [
+      "Lead with who did what",
+      "because you confirmed two\n  cards",
+      "Lead with the result",
+    ],
+  },
+  {
+    rule: "look for a waiting or confirmed card before proposing another",
+    phrases: [
+      "Before you propose, look at what is already proposed",
+      "Do not put up a second one",
+      "already did it, say it is done",
+    ],
+  },
+  {
+    rule: "cover the outcome on one card, or say up front what has to wait",
+    phrases: [
+      "One request, one plan",
+      "put every step the rules allow on\n  ONE card",
+      "why it has to wait",
+      "Never tell the person to ask you for the next thing",
+    ],
+  },
+  {
+    rule: "say plainly that a failed step's reason is on the card, not in the turn",
+    phrases: [
+      "you are told only which step failed",
+      "the reason is on the card beside it",
+      "Never guess at a",
+    ],
+  },
+  {
+    rule: "say a test link's address is shown once and never reaches it",
+    phrases: ["shown once, on the card", "You never see that address", "cancels the old link"],
+  },
+];
+
+/** The guidance the person is spoken to through, without the one line that lists the words. */
+function guidanceText(prompt: string): string {
+  return (prompt.split(CONTRACTS_HEADING)[0] ?? "")
+    .split("\n")
+    .filter((line) => !line.startsWith(AVOID_WORDS_LINE_PREFIX))
+    .join("\n");
+}
 
 /**
  * Typed as `Record<Condition["op"], unknown>` on purpose: the kernel's union has no
@@ -127,14 +212,41 @@ describe("the draft assistant system prompt", () => {
     expect(prompt).toContain("no placeholder field");
   });
 
-  it("describes the blank-to-published journey as two cards, publishing nothing on its own", () => {
+  it("describes the blank-to-published journey as several cards, publishing nothing on its own", () => {
     const prompt = buildSystemPrompt();
-    expect(prompt).toContain("two cards and not one");
+    expect(prompt).toContain("takes more than one card");
     expect(prompt).toContain("apply-draft ALONE");
     expect(prompt).toContain("unpublishedPins");
     expect(prompt).toContain("read from the SAVED draft");
     expect(prompt).toContain("The form publish comes last");
     expect(prompt).toContain("Never propose a production release");
+  });
+
+  it("keeps builder terms out of the guidance the person is spoken to through", () => {
+    const guidance = guidanceText(buildSystemPrompt()).toLowerCase();
+    for (const term of FORBIDDEN_TERMS) {
+      expect(guidance, `the guidance uses the builder term ${term}`).not.toContain(
+        term.toLowerCase(),
+      );
+    }
+  });
+
+  it("names each forbidden term on the one line that may carry it", () => {
+    const line = buildSystemPrompt()
+      .split("\n")
+      .find((candidate) => candidate.startsWith(AVOID_WORDS_LINE_PREFIX));
+    expect(line).toBeDefined();
+    for (const term of FORBIDDEN_TERMS) {
+      expect(line).toContain(term);
+    }
+    expect([...AVOID_WORDS].sort()).toEqual([...FORBIDDEN_TERMS].sort());
+  });
+
+  it.each(VOICE_RULES)("tells the assistant to $rule", ({ phrases }) => {
+    const prompt = buildSystemPrompt();
+    for (const phrase of phrases) {
+      expect(prompt).toContain(phrase);
+    }
   });
 
   it("is deterministic, so an upstream cache of it is worth having", () => {

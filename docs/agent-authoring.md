@@ -202,6 +202,8 @@ The prompt lives at `apps/api/src/features/agent/system-prompt.ts`, is committed
 
 It is assembled from the kernel's own exports where the kernel exposes a list (question types, the semantics version), and a test asserts that every rule operator the prompt names parses and that no operator the kernel accepts is missing.
 
+**The prompt is also the assistant's voice.** Its first half is guidance, written in the words a form builder uses, and the kernel contracts in its second half are the vocabulary of tool calls rather than of sentences. The guidance names the terms the assistant may never write to you - raw ids, the short-name argument, pins and the rest - and a test holds the guidance itself to that same list, so the prompt reads as an example of what it asks for.
+
 ---
 
 ## 6. How a turn actually runs
