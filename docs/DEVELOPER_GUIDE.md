@@ -662,6 +662,7 @@ The pieces, all under `scripts/agent-review/`:
 - `terms.mjs` - the words the assistant may never say and the branded id patterns, in one place. It restates the prompt's own `AVOID_WORDS` rather than importing it, because `apps/api` publishes `dist` and no tooling script may reach into it; `terms.test.ts` fails when the two drift apart.
 - `checks.mjs` - the deterministic half, and a command line.
 - `end-state.mjs` - reads the forms, versions, links and rules a run left behind, from the API.
+- `eval-status.mjs` - the run's own status file, written as it goes so a monitor can follow it.
 
 ```sh
 # One scenario, against an admin that already has a model key on its API.
@@ -687,6 +688,22 @@ The Code Owner approves every change that comes out of it to the assistant promp
 **Resetting between scenarios is a new database, not an endpoint.**
 There is no reset route and no truncate, so a scenario whose `seed.reset` is `fresh` starts from a new dev database and the admin account steps; one whose reset is `after:<id>` runs on what that scenario left behind, in order, in one lane.
 Every scenario's data is invented, and none of it is a real person's.
+
+**A run says where it has got to while it is still going**, in `eval-status.json` beside the transcripts, so watching it does not mean reading a half-written transcript or waiting for the report:
+
+```sh
+status="$(node scripts/agent-scratch.mjs eval-status.json --fresh)"
+node scripts/agent-review/eval-status.mjs init "$status" '{ "runId": "eval-2026-01-01",
+  "stack": { "adminUrl": "http://localhost:7340", "headSha": "abcdef1" },
+  "scenarios": [{ "id": "publish-and-test-link", "title": "Publish and a test link", "budget": 3 }] }'
+node scripts/agent-review/eval-status.mjs set "$status" publish-and-test-link '{ "state": "run", "turns": 3 }'
+node scripts/agent-review/eval-status.mjs check "$status"
+```
+
+Each scenario carries its state (`queued`, `running`, `run`, `checked`, `reviewing`, `reviewed`, `not-run`), the turns it took against its budget, the checks' exit code with one short line per finding, and the reviewer's verdict with its findings by kind.
+The file is replaced whole through a rename on every write, so a reader polling it never catches half of one, and the shape is validated before it lands: a run that cannot describe itself in that shape fails rather than writing something a reader cannot parse.
+It carries no credential, no address and no transcript text beyond a check's own short message, which is what makes it safe to leave open on a screen.
+`eval-status.test.ts` covers it under `pnpm verify`.
 
 ## The browser suite's gates, and measuring them
 
