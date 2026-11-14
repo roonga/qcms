@@ -15,7 +15,7 @@ Green field: no data migration (spec section 1).
 - `POST /admin/workspaces` is Site administrator only, takes the first Workspace administrator by address (default the caller), and creates the workspace and the four starter groups in one transaction, audited.
 - Starter groups per spec section 4: Authors covers every non-prod environment the site has, or carries Edit forms only with no environment on a site whose only environment is `prod`; Publishers, Response viewers and Response erasers cover `prod`.
 - First-run bootstrap: the first account is Site administrator, Workspace administrator of the first workspace and a member of all four starter groups; second approval off. This replaces the `all.*` seed.
-- **Agent kinds:** the workspace-create kind takes the first administrator and runs on the new rule.
+- **Agent kinds:** deferred to 096. No workspace-create kind exists yet, and `plan/workspace-access-implementation.md` (096 row, line 89) gives that kind and its first administrator to 096.
 - Fixtures and template mirrors.
 
 ## Interim behaviour until later tasks land

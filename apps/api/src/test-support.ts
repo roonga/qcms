@@ -1,6 +1,7 @@
 // Every secret here is synthetic and generated in-test: no real secret enters a fixture.
 
 import {
+  SITE_ADMINISTRATOR_ROLE,
   addAccessGroupHolder,
   authSession,
   authUser,
@@ -168,10 +169,7 @@ export async function seedAdminSession(
     readonly owner?: boolean;
     readonly workspaceId?: string;
     readonly membership?: boolean;
-    /**
-     * `false` writes a role that is not `admin`, which is the only thing "no claim" means: the permission check
-     * is an equality on that one value.
-     */
+    /** `false` seeds an account that is not a Site administrator, as every new account is. */
     readonly claim?: boolean;
   } = {},
 ): Promise<{ token: string; userId: string }> {
@@ -190,7 +188,7 @@ export async function seedAdminSession(
     updatedAt: at,
     twoFactorEnabled: options.twoFactorEnabled ?? true,
     mustChangePassword: options.mustChangePassword ?? false,
-    ...(options.claim === false ? { role: NO_CLAIM_ROLE } : {}),
+    role: options.claim === false ? null : SITE_ADMINISTRATOR_ROLE,
   });
   await exec.insert(authSession).values({
     id: `ss_${synthSecret().slice(0, 16)}`,
@@ -211,12 +209,6 @@ export async function seedAdminSession(
   }
   return { token, userId };
 }
-
-/**
- * The claim is an equality on `admin`, so any other value means no claim and this
- * particular word is arbitrary.
- */
-export const NO_CLAIM_ROLE = "staff";
 
 export const DEFAULT_SEEDED_GRANTS: readonly string[] = [
   "forms.viewer",

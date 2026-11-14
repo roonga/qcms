@@ -16,6 +16,7 @@ import {
   COMPOSE_FILES,
   SUBCOMMANDS,
   SUPPLIED_VARIABLES,
+  bannerOptionsFor,
   devStackBannerLines,
   devStackEnvironmentOverrides,
   missingVariables,
@@ -302,6 +303,18 @@ describe("devStackBannerLines", () => {
     expect(created).toContain("qcms-local-stack");
   });
 
+  it("prints no credential when an existing account was promoted, and says its password applies", () => {
+    const promoted = devStackBannerLines({
+      ports,
+      project: localStackProjectName(0),
+      credentials: { email: "dev@qcms.test", password: "dev-secret-value" },
+      inContainer: false,
+      promoted: true,
+    }).join("\n");
+    expect(promoted).not.toContain("dev-secret-value");
+    expect(promoted).toContain("existing password");
+  });
+
   it("prints the credential this run created", () => {
     expect(created).toContain("dev@qcms.test");
     expect(created).toContain("dev-secret-value");
@@ -335,6 +348,28 @@ describe("devStackBannerLines", () => {
 
   it("always says how to stop it", () => {
     expect(created).toContain("pnpm dev:down");
+  });
+});
+
+describe("bannerOptionsFor", () => {
+  const credentials = { email: "dev@qcms.test", password: "dev-secret-value" };
+
+  it("returns the credentials for a created account", () => {
+    expect(bannerOptionsFor("created", credentials)).toEqual({ credentials, promoted: false });
+  });
+
+  it("returns no credentials and promoted for a promoted account", () => {
+    expect(bannerOptionsFor("promoted", credentials)).toEqual({
+      credentials: undefined,
+      promoted: true,
+    });
+  });
+
+  it("returns no credentials and not promoted for any other outcome", () => {
+    expect(bannerOptionsFor("skipped", credentials)).toEqual({
+      credentials: undefined,
+      promoted: false,
+    });
   });
 });
 

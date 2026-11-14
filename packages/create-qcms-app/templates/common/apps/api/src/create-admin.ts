@@ -68,6 +68,16 @@ async function main(): Promise<number> {
     return EXIT_REFUSED;
   }
 
+  if (result.promoted) {
+    process.stdout.write(
+      `Promoted the existing account for ${result.email} to Site administrator.
+` +
+        `This account owns the workspace "${result.workspaceSlug}".
+`,
+    );
+    return EXIT_OK;
+  }
+
   // The order printed here is the one `apps/admin/lib/server/session.ts` enforces.
   process.stdout.write(
     `Created the first admin account for ${result.email}.\n` +

@@ -16,7 +16,7 @@ and behind nothing else.
 | ------ | -------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `GET`  | `/workspaces`              | `forms:read`  | The workspaces the caller holds any grant in, oldest first, archived included. Where the caller is not a Workspace administrator the row is name, slug and archive date. |
 | `PUT`  | `/workspaces/{id}/name`    | `forms:write` | Rename it. The slug never changes; one `setting` audit row on a change. Refused once archived.                                                                           |
-| `POST` | `/workspaces`              | `forms:write` | The one path by which a workspace comes into existence. The caller becomes its `forms.owner`.                                                                            |
+| `POST` | `/workspaces`              | `forms:write` | Site administrator only. Creates the workspace, its first Workspace administrator (named by address, the caller by default) and the four starter groups, audited.        |
 | `PUT`  | `/workspaces/{id}/shared`  | `forms:write` | Mark this workspace as the installation's shared question library, or unmark it. At most one is.                                                                         |
 | `POST` | `/workspaces/{id}/archive` | `forms:write` | Archive it. Refused while it owns any form or is the shared library. There is no unarchive.                                                                              |
 | `POST` | `/forms/{id}/workspace`    | `forms:write` | Move a form. Edit forms in both workspaces and a Workspace administrator of the source; refused while the source requires a second approver. One `UPDATE`.               |
@@ -34,13 +34,18 @@ screens arrive with 069, where the permissions matrix that governs them is built
 Q32 put the workspace on the organisation plugin's `organization` row rather than on a
 `workspaces` table of QCMS's own, so:
 
-- **Creation goes through the library**, server-side `createOrganization` with an explicit
-  `userId` (`handler.ts`). That call writes the organisation row **and** the `member` row
-  carrying `forms.owner` in one act, so a workspace never exists without an owner. The
-  plugin's own HTTP endpoints are unreachable - the auth mount's allowlist names none of
-  them, so all 35 answer 404 - and `allowUserToCreateOrganization: false` refuses every
-  session-bound call to the one this slice uses. That is Q45: grants and membership are
-  written through QCMS endpoints and nowhere else.
+- **Creation is one control-pool transaction** (`create.ts`): the organisation row, the
+  `member` row carrying `forms.owner` for the first Workspace administrator, the four
+  starter groups of `docs/WORKSPACE_ACCESS.md` section 4 with nobody in them, and one
+  `grant` audit row for the appointment. A workspace never exists without a Workspace
+  administrator or its starter groups. The plugin's own HTTP endpoints are unreachable -
+  the auth mount's allowlist names none of them, so all 35 answer 404 - and
+  `allowUserToCreateOrganization: false` refuses every session-bound call. That is Q45:
+  grants and membership are written through QCMS endpoints and nowhere else.
+- **Starter groups follow the site's environments** (`starterGroups` in `@roonga/qcms-db`):
+  Authors carries Edit forms, Publish forms and View responses over every environment but
+  `prod`, or Edit forms alone with no environment on a site whose only environment is
+  `prod`; Publishers, Response viewers and Response erasers cover `prod`.
 - **The three QCMS fields are read and written here**, through `@roonga/qcms-db`:
   `isShared`, `requireSecondApprover` and `archivedAt`, declared to the plugin as typed
   additional fields with `input: false` (Q39). `requireSecondApprover` is written by
@@ -102,9 +107,10 @@ group from the moment it exists. The picker that will make the field ordinary is
 
 ## The first workspace
 
-`pnpm qcms:create-admin` seeds it (`features/auth/bootstrap.ts`), through the same
-server-side `createOrganization`, attributed to the account it creates, with the two-person
-switch off (Q13). A fixture path that has no auth instance and no account - the test
+`pnpm qcms:create-admin` seeds it (`features/auth/bootstrap.ts`) for a one-person site: the
+account it creates is made a Site administrator, then the workspace is created through the
+same `create.ts` path and that account is added to all four starter groups, each grant
+audited, with second approval off. A fixture path that has no auth instance and no account - the test
 harness, `pnpm dev:seed`, `scripts/dev-stack.mjs` - uses `ensureSeedWorkspace` instead,
 which adopts the workspace an installation already has rather than adding a second beside
 it.

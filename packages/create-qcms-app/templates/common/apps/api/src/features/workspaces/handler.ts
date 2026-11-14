@@ -3,6 +3,7 @@ import {
   archiveWorkspace,
   countWorkspaceContents,
   findArchiveBlockers,
+  findUserByEmail,
   getForm,
   getWorkspace,
   getWorkspaceBySlug,
@@ -15,14 +16,13 @@ import {
 import type { ArchiveBlockers, WorkspaceRow } from "@roonga/qcms-db";
 
 import { parseFormId } from "@roonga/qcms-core";
-import { isAPIError } from "better-auth/api";
 
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
-import { adminAuthFor } from "../auth/route.js";
 import { holdsStatement } from "../membership/policy.js";
 import { decideInWorkspace, holdsInstallationClaim } from "../membership/resolver.js";
+import { createWorkspaceWithStarterGroups } from "./create.js";
 import { requireOpenWorkspace, requireWorkspace, workspaceFail } from "./resolve.js";
 import type {
   archiveWorkspaceRoute,
@@ -47,6 +47,12 @@ function archiveRefusal(blockers: ArchiveBlockers): string {
 const fail = {
   slugTaken: (slug: string): ApiError =>
     new ApiError("WORKSPACE_SLUG_TAKEN", 409, `A workspace already uses the slug "${slug}"`),
+  firstAdministratorUnknown: (): ApiError =>
+    new ApiError(
+      "FIRST_ADMINISTRATOR_NOT_FOUND",
+      422,
+      "No account has that address. The first Workspace administrator must be an existing account.",
+    ),
   noPrincipal: (): ApiError =>
     new ApiError(
       "ADMIN_REQUIRED",
@@ -104,12 +110,6 @@ function isUniqueViolation(err: unknown): boolean {
   const codeOf = (e: unknown): string | undefined =>
     typeof e === "object" && e !== null ? (e as { code?: string }).code : undefined;
   return codeOf(err) === "23505" || codeOf((err as { cause?: unknown }).cause) === "23505";
-}
-
-/** The vendor omits body.code for slug collisions, so this refusal must be matched by status. */
-function isVendorSlugRefusal(err: unknown): boolean {
-  if (!isAPIError(err)) return false;
-  return (err as { status?: unknown }).status === "BAD_REQUEST";
 }
 
 interface WorkspaceViewRow {
@@ -207,9 +207,8 @@ export function makeRenameWorkspaceHandler(
 }
 
 /**
- * Goes through better-auth's `createOrganization` rather than inserting the row, because
- * that writes the owner `member` row in the same act: a workspace never exists without an
- * owner.
+ * The route row admits a Site administrator only. The workspace, its first Workspace
+ * administrator, the four starter groups and the audit row are one transaction.
  */
 export function makeCreateWorkspaceHandler(
   deps: Deps,
@@ -218,29 +217,38 @@ export function makeCreateWorkspaceHandler(
     const body = c.req.valid("json");
     const principal = c.get("adminPrincipal");
     if (principal === undefined) throw fail.noPrincipal();
+    const exec = deps.databases.control;
 
-    const existing = await getWorkspaceBySlug(deps.databases.control, body.slug);
+    const existing = await getWorkspaceBySlug(exec, body.slug);
     if (existing !== undefined) throw fail.slugTaken(body.slug);
 
-    let created: { id: string };
-    try {
-      created = await adminAuthFor(deps).api.createOrganization({
-        body: { name: body.name, slug: body.slug, userId: principal.userId },
-      });
-    } catch (err: unknown) {
-      // Two ways to lose the slug race, one answer: the plugin's own check and the unique
-      // index underneath it. Neither is a 500.
-      if (isUniqueViolation(err) || isVendorSlugRefusal(err)) throw fail.slugTaken(body.slug);
-      throw err;
+    let firstAdministratorId = principal.userId;
+    if (body.firstAdministratorEmail !== undefined) {
+      const named = await findUserByEmail(exec, body.firstAdministratorEmail);
+      if (named === undefined) throw fail.firstAdministratorUnknown();
+      firstAdministratorId = named.userId;
     }
 
-    const row = await getWorkspace(deps.databases.control, created.id);
-    // Written on this connection moments ago, so its absence is not a 404: it would mean
-    // the library wrote somewhere this handler cannot read.
-    if (row === undefined) {
-      throw new ApiError("WORKSPACE_NOT_READABLE", 500, "The workspace was created but not found");
+    let created: WorkspaceRow;
+    try {
+      created = await exec.transaction(
+        async (tx) =>
+          (
+            await createWorkspaceWithStarterGroups(tx, {
+              name: body.name,
+              slug: body.slug,
+              firstAdministratorId,
+              actor: principal.userId,
+              occurredAt: deps.clock.now(),
+            })
+          ).workspace,
+      );
+    } catch (err: unknown) {
+      // The pre-read cannot close the race for the slug; the unique index does.
+      if (isUniqueViolation(err)) throw fail.slugTaken(body.slug);
+      throw err;
     }
-    return c.json({ workspace: await workspaceView(deps, row) }, 201);
+    return c.json({ workspace: await workspaceView(deps, created) }, 201);
   };
 }
 

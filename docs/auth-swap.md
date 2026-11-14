@@ -17,8 +17,8 @@ still the three seams, and a fourth has joined them.
 **Half of that fourth seam is now built** (task 068). The plugin is configured, the
 `organization` row **is** a workspace with `isShared`, `requireSecondApprover` and
 `archivedAt` as typed additional fields, `control.forms` and `control.questions` each
-carry a non-null reference to it, and the first-run bootstrap creates one through the
-library's own server-side `createOrganization`. **The roles, the teams and the grants
+carry a non-null reference to it, and the first-run bootstrap creates one by inserting the
+row and its owner's `member` row in one transaction (task 086). **The roles, the teams and the grants
 arrive with task 069**, so what a swap has to carry today is the workspace row, its three
 fields, the owner's `member` row and those two foreign keys - and the rest of seam 4 joins
 it when 069 lands.
@@ -125,8 +125,8 @@ account. Under an IdP the first admin is whoever the IdP says, so the command be
 unnecessary - but it must not simply be deleted while the better-auth path still exists in
 any supported composition.
 
-**It also seeds the installation's first workspace** (task 068), through the server-side
-`createOrganization` with an explicit `userId`, which writes the organisation row and the
+**It also seeds the installation's first workspace** (task 068), through the same
+transactional insert `POST /admin/workspaces` uses, which writes the organisation row and the
 `member` row carrying `forms.owner` in one act. A swap has to keep that: a form and a
 question each reference a workspace with a non-null foreign key, so an installation with
 no workspace is one in which nothing can be authored. Whatever replaces the library has to
@@ -158,11 +158,15 @@ those; it does not have to re-derive them. The team rows, the six roles, the sco
 statement evaluation are built by task 069.
 
 **One write path is worth naming, because a replacement will want to short-cut it.** A
-workspace is created by calling the library's server-side `createOrganization`, never by
-inserting the row: that call is what writes the owner's `member` row in the same act, and
-the plugin's own HTTP endpoints are refused for everyone (Q45), so there is exactly one
-door. Whatever replaces the library needs one door with the same property, or a workspace
-will eventually exist with no owner.
+workspace is created by `createWorkspaceWithStarterGroups`
+(`apps/api/src/features/workspaces/create.ts`), which inserts the organisation row, the first
+Workspace administrator's `member` row, the four starter groups and the audit row in one
+transaction (Code Owner, 2026-11-15). The library's `createOrganization` is not called: the
+plugin's `beforeAddMember` hook never sees that first member row, so the transaction applies
+the same check (`refuseMemberAdd` in `apps/api/src/features/auth/plugin-write-backstop.ts`)
+itself. The plugin's own HTTP endpoints are refused for everyone (Q45), so there is exactly
+one door. Whatever replaces the library needs one door with the same property, or a
+workspace will eventually exist with no owner.
 
 What does **not** move is the model. The two role families, the environment and form scopes,
 the administer-only installation claim, the two-person switch and the access audit are QCMS

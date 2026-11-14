@@ -15,7 +15,8 @@ export interface AdminSessionRow {
   readonly createdAt: Date;
   readonly userId: string;
   readonly email: string;
-  readonly role: string;
+  /** {@link SITE_ADMINISTRATOR_ROLE} for a Site administrator, otherwise `null`. */
+  readonly role: string | null;
   readonly twoFactorEnabled: boolean;
   /** The API must refuse a session holding a provisional credential. */
   readonly mustChangePassword: boolean;
@@ -69,6 +70,26 @@ export async function clearMustChangePassword(exec: Executor, userId: string): P
     .update(authUser)
     .set({ mustChangePassword: false, updatedAt: new Date() })
     .where(eq(authUser.id, userId));
+}
+
+/** The `user.role` value of a Site administrator; an account holds nothing by default. */
+export const SITE_ADMINISTRATOR_ROLE = "admin";
+
+/** Make an account a Site administrator. Only the first-run bootstrap calls this today. */
+export async function makeSiteAdministrator(exec: Executor, userId: string): Promise<void> {
+  await exec
+    .update(authUser)
+    .set({ role: SITE_ADMINISTRATOR_ROLE, updatedAt: new Date() })
+    .where(eq(authUser.id, userId));
+}
+
+/** How many accounts are Site administrators. */
+export async function countSiteAdministrators(exec: Executor): Promise<number> {
+  const [row] = await exec
+    .select({ total: count() })
+    .from(authUser)
+    .where(eq(authUser.role, SITE_ADMINISTRATOR_ROLE));
+  return row?.total ?? 0;
 }
 
 /**

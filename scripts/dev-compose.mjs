@@ -304,9 +304,16 @@ export function devStackEnvironmentOverrides({ ports, adminAuthSecret }) {
  * @param {string} options.project
  * @param {{ email: string; password: string } | undefined} options.credentials
  * @param {boolean} options.inContainer
+ * @param {boolean} [options.promoted]
  * @returns {string[]}
  */
-export function devStackBannerLines({ ports, project, credentials, inContainer }) {
+export function devStackBannerLines({
+  ports,
+  project,
+  credentials,
+  inContainer,
+  promoted = false,
+}) {
   const url = (/** @type {number} */ port) => `http://localhost:${String(port)}`;
   const lines = [
     "",
@@ -320,10 +327,16 @@ export function devStackBannerLines({ ports, project, credentials, inContainer }
     "",
   ];
 
-  if (credentials === undefined) {
+  if (promoted) {
+    lines.push(
+      "  An existing account was promoted to Site administrator. Its existing password",
+      "  applies; none was generated. To start over, run pnpm dev:down and then pnpm dev:up.",
+      "",
+    );
+  } else if (credentials === undefined) {
     lines.push(
       "  This stack already had an administrator, so none was created (SEC-1: the",
-      "  bootstrap command only runs against an empty admin table, and that refusal",
+      "  bootstrap command only runs on a deployment with no Site administrator, and that refusal",
       "  is correct). Sign in with the credential from when it was created, or run",
       "  pnpm dev:down and then pnpm dev:up for a fresh database and a fresh account.",
       "",
@@ -456,6 +469,18 @@ export function teardownPlaceholders(required, fileValues, environment) {
   return filled;
 }
 
+/**
+ * @param {string} outcome
+ * @param {{ email: string; password: string }} credentials
+ * @returns {{ credentials: { email: string; password: string } | undefined; promoted: boolean }}
+ */
+export function bannerOptionsFor(outcome, credentials) {
+  return {
+    credentials: outcome === "created" ? credentials : undefined,
+    promoted: outcome === "promoted",
+  };
+}
+
 export function up() {
   const envFile = envFileState();
   preflight(envFile);
@@ -483,7 +508,7 @@ export function up() {
     devStackBannerLines({
       ports,
       project,
-      credentials: outcome === "created" ? credentials : undefined,
+      ...bannerOptionsFor(outcome, credentials),
       inContainer: isInDockerContainer(),
     }).join("\n") + "\n",
   );

@@ -17,7 +17,8 @@ The user guide for these rules is [`docs/workspace-access-guide.html`](workspace
 | Access groups with several roles and one explicit environment set | Built        |
 | Five roles, View forms to Erase responses                         | Built        |
 | Workspace administrator as a direct membership flag               | Partly built |
-| Site administrator as an explicit, non-default role               | Not built    |
+| Site administrator as an explicit, non-default role               | Built        |
+| Four starter groups on every new workspace                        | Built        |
 | One user-facing Publish step                                      | Not built    |
 | Second approval for `prod` publish and endpoint changes           | Built        |
 | Second approval for turning the rule off and for self-grant       | Partly built |
@@ -239,7 +240,7 @@ Every new workspace is created with four starter groups. They are ordinary group
 
 ## 8. Site administrators
 
-- Accounts do not default to Site administrator. The first account, created by `qcms:create-admin`, is one. This is a prerequisite for every other rule in this section: today every account defaults to the claim (the `role` additional field in `apps/api/src/features/auth/instance.ts`).
+- Accounts do not default to Site administrator. The first account, created by `qcms:create-admin`, is one. This is a prerequisite for every other rule in this section.
 - Promotion and demotion of a Site administrator, and disabling an account that is a Site administrator, are in-app acts with three guards:
   - step-up authentication, password and second factor, by the acting Site administrator;
   - approval by a second Site administrator where more than one exists, never the target, with the two-administrator case below;
@@ -590,6 +591,11 @@ Each record below, except the built-task records, now links here for workspace a
 - Move form carries the form's appearance by value; a destination lock refuses later appearance edits only, never the move; the preview says so (section 9).
 - Assistant acts are rechecked on every draft edit request and at Confirm (section 10, criterion 91), following agent-builder Q14's card-less draft edits.
 - The mail dependency for outbound email is `nodemailer` over SMTP, configured by `QCMS_SMTP_*`, within the `CONTRIBUTING.md` thresholds.
+
+### Ruled (Code Owner, 2026-11-15)
+
+- **Bootstrap recovery: a re-run promotes.** Where no Site administrator exists and exactly one account exists, a `qcms:create-admin` re-run whose `QCMS_ADMIN_EMAIL` names that account promotes it to Site administrator, seeds the first workspace and writes an audit row, in one transaction. Where a Site administrator exists, the re-run is refused as before. This covers a first run that created its account and stopped before promoting it.
+- **Workspace creation keeps the direct insert in one transaction.** The workspace row, the first Workspace administrator's member row, the starter groups and the audit row are inserted by QCMS in one transaction rather than through the library's `createOrganization`. The checks the library's `beforeAddMember` hook applies to a member row run inside that transaction too, from the same code (`docs/auth-swap.md`).
 
 Request expiry (7 days), the `prod` rule with its exception for a site whose only environment is `prod` (section 5) and the held draft publish applying the draft as requested (section 6) are settled, not defaults. That a Site administrator is trusted at site level is an accepted limitation, stated in section 10, not an open item.
 

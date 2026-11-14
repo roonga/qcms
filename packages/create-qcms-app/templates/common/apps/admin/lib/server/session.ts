@@ -13,7 +13,7 @@ export interface AdminSession {
   readonly email: string;
   readonly name: string;
 
-  readonly role: string;
+  readonly role: string | null;
 
   readonly twoFactorEnabled: boolean;
   /** This flag marks the provisioning credential; the API remains authoritative on every admin route. */
@@ -44,7 +44,7 @@ export const currentAdminSession: () => Promise<AdminSession | undefined> = cach
       userId: result.user.id,
       email: result.user.email,
       name: result.user.name,
-      role: result.user.role ?? "admin",
+      role: result.user.role ?? null,
       twoFactorEnabled: result.user.twoFactorEnabled === true,
       /** Absent flags avoid redirect loops for unmarked accounts; the API enforces the column on every admin route. */
       mustChangePassword: result.user.mustChangePassword === true,

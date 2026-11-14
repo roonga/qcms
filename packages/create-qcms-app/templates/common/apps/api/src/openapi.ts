@@ -6,8 +6,8 @@ import type { GrantContext } from "./features/membership/context.js";
 /** Scope metadata is reserved for /api/v1 and enforces nothing at launch. */
 export interface AdminPrincipal {
   readonly userId: string;
-  /** Nothing branches on it: authorization at launch is "authenticated admin". */
-  readonly role: string;
+  /** `admin` for a Site administrator, otherwise `null`. */
+  readonly role: string | null;
   readonly scopes: readonly Scope[];
 }
 

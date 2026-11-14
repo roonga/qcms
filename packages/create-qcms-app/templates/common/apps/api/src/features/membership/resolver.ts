@@ -2,6 +2,7 @@
 // defect on the respondent path cannot read a grant row.
 
 import {
+  SITE_ADMINISTRATOR_ROLE,
   listGrantsForUser,
   listMemberWorkspacesForUser,
   listWorkspaces,
@@ -13,9 +14,9 @@ import type { ResolvedMembership } from "./context.js";
 import { type AccessDecision, type AccessRequest, type HeldGrant, decideAccess } from "./policy.js";
 
 // The better-auth field is declared `input: false`, so no request body can set it.
-export const INSTALLATION_CLAIM = "admin";
+export const INSTALLATION_CLAIM = SITE_ADMINISTRATOR_ROLE;
 
-export function holdsInstallationClaim(role: string | undefined): boolean {
+export function holdsInstallationClaim(role: string | null | undefined): boolean {
   return role === INSTALLATION_CLAIM;
 }
 
