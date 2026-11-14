@@ -177,6 +177,7 @@ function ScreenConversation({
   const [failure, setFailure] = useState<AssistError | undefined>(undefined);
   const [reason, setReason] = useState("");
   const [cards, setCards] = useState<CardsView>(NO_CARDS);
+  const cardsRef = useRef<CardsView>(NO_CARDS);
   const proposal = cards.open?.proposal;
   const card = cards.open?.card;
   const abortRef = useRef<AbortController | null>(null);
@@ -216,40 +217,61 @@ function ScreenConversation({
     });
   }, [card, cardId, proposal, publish]);
 
-  const showCard = useCallback((next: AgentCardView) => {
-    setCards((current) =>
-      current.open === undefined ? current : { ...current, open: { ...current.open, card: next } },
-    );
+  /* An arriving proposal settles the card it replaces, so that decision reads the cards as the running
+     stream left them: the render a turn started in still holds the card from before it. */
+  const changeCards = useCallback((next: (current: CardsView) => CardsView): void => {
+    cardsRef.current = next(cardsRef.current);
+    setCards(cardsRef.current);
   }, []);
 
-  const dismissOpenReveal = useCallback((index: number) => {
-    setCards((current) =>
-      current.open === undefined
-        ? current
-        : { ...current, open: { ...current.open, card: dismissReveal(current.open.card, index) } },
-    );
-  }, []);
+  const showCard = useCallback(
+    (next: AgentCardView) => {
+      changeCards((current) =>
+        current.open === undefined
+          ? current
+          : { ...current, open: { ...current.open, card: next } },
+      );
+    },
+    [changeCards],
+  );
 
-  const dismissHeldReveal = useCallback((proposalId: string, index: number) => {
-    setCards((current) => ({
-      ...current,
-      held: current.held
-        .map((entry) =>
-          entry.proposal.proposalId === proposalId
-            ? { ...entry, card: dismissReveal(entry.card, index) }
-            : entry,
-        )
-        .filter((entry) => holdsReveal(entry.card)),
-    }));
-  }, []);
+  const dismissOpenReveal = useCallback(
+    (index: number) => {
+      changeCards((current) =>
+        current.open === undefined
+          ? current
+          : {
+              ...current,
+              open: { ...current.open, card: dismissReveal(current.open.card, index) },
+            },
+      );
+    },
+    [changeCards],
+  );
+
+  const dismissHeldReveal = useCallback(
+    (proposalId: string, index: number) => {
+      changeCards((current) => ({
+        ...current,
+        held: current.held
+          .map((entry) =>
+            entry.proposal.proposalId === proposalId
+              ? { ...entry, card: dismissReveal(entry.card, index) }
+              : entry,
+          )
+          .filter((entry) => holdsReveal(entry.card)),
+      }));
+    },
+    [changeCards],
+  );
 
   const onExpire = useCallback(() => {
-    setCards((current) =>
+    changeCards((current) =>
       current.open === undefined
         ? current
         : { ...current, open: { ...current.open, card: expireCard(current.open.card) } },
     );
-  }, []);
+  }, [changeCards]);
   const waiting = card?.state === "proposed";
   useExpiryTick(windowRef.current, waiting, onExpire);
 
@@ -276,10 +298,14 @@ function ScreenConversation({
     [],
   );
 
-  const settle = (plan: AgentProposal, settled: AgentCardView): void => {
-    showCard(settled);
+  const record = (plan: AgentProposal, settled: AgentCardView): void => {
     const turn = actionResultTurn(plan, settled);
     if (turn !== undefined) conversation.append([turn]);
+  };
+
+  const settle = (plan: AgentProposal, settled: AgentCardView): void => {
+    showCard(settled);
+    record(plan, settled);
   };
 
   const confirmCard = async (plan: AgentProposal, from: AgentCardView): Promise<void> => {
@@ -333,14 +359,22 @@ function ScreenConversation({
       const arriving = event.proposal;
       windowRef.current = startedWindow(arriving);
       boundTo.current = { where, environment };
+      const replaced = cardsRef.current.open;
+      // A card still waiting cannot be confirmed once this one takes its place, which is a cancellation
+      // and is recorded as one rather than left as a card that disappeared.
+      const abandoned =
+        replaced !== undefined && replaced.card.state === "proposed"
+          ? cancelCard(replaced.card, new Date().toISOString())
+          : undefined;
       // A reveal cannot be produced again, so the card holding one stays until the person says otherwise.
-      setCards((current) => ({
+      changeCards((current) => ({
         held:
           current.open !== undefined && holdsReveal(current.open.card)
             ? [...current.held, current.open]
             : current.held,
         open: { proposal: arriving, card: initialCard(arriving) },
       }));
+      if (replaced !== undefined && abandoned !== undefined) record(replaced.proposal, abandoned);
       onAnnounce(t("agent.launcher.toReview"));
       return;
     }

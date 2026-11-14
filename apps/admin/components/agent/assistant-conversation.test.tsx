@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { BuilderAssistSnapshot } from "@/lib/agent/builder-assist-bridge";
-import type { ConversationHandle } from "@/lib/agent/conversation";
+import type { AgentTurnRecord, ConversationHandle } from "@/lib/agent/conversation";
 import type { DraftForm } from "@/lib/forms/types";
 import type { ResolvedScreen } from "@/lib/agent/screens";
 import { t } from "@/lib/i18n/en";
@@ -416,5 +416,125 @@ describe("a waiting card's screen and environment", () => {
     expect(
       screen.getByRole("button", { name: t("agent.card.confirm") }).hasAttribute("disabled"),
     ).toBe(false);
+  });
+});
+
+describe("a waiting card nobody answered", () => {
+  const WAITING = {
+    proposalId: "prp_first",
+    token: "tok",
+    steps: [
+      {
+        kind: "form.publish",
+        screen: "/forms/[formId]",
+        args: { formId: "frm_quote" },
+        environment: "test",
+        card: {
+          titleKey: "agent.card.form.publish.title",
+          consequenceKeys: ["agent.card.form.publish.consequence"],
+        },
+        resultAllowlist: ["version"],
+      },
+    ],
+    proposedAt: "2026-07-20T00:00:00.000Z",
+    expiresAt: "2026-07-20T00:10:00.000Z",
+    formId: "frm_quote",
+    currentEnvironment: "test",
+  };
+
+  function stream(proposalId: string): Response {
+    const event = JSON.stringify({
+      type: "action",
+      proposal: { ...WAITING, proposalId },
+    });
+    return new Response(`event: action\ndata: ${event}\n\n`, {
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+    });
+  }
+
+  let recorded: AgentTurnRecord[] = [];
+
+  function mountRecording(): ReturnType<typeof vi.fn> {
+    recorded = [];
+    const fetchMock = vi.fn<(input: unknown, init?: unknown) => Promise<Response>>();
+    vi.stubGlobal("fetch", fetchMock);
+    render(
+      <AssistantConversation
+        screen={SCREEN}
+        environment="test"
+        conversation={{
+          ...CONVERSATION,
+          append: (next) => {
+            recorded = [...recorded, ...next];
+          },
+        }}
+        builder={snapshot(true)}
+        composerRef={{ current: null }}
+        onWorkingChange={() => undefined}
+        onAnnounce={() => undefined}
+      />,
+    );
+    return fetchMock;
+  }
+
+  async function propose(
+    fetchMock: ReturnType<typeof vi.fn>,
+    proposalId: string,
+    text: string,
+  ): Promise<void> {
+    const calls = fetchMock.mock.calls.length;
+    fetchMock.mockResolvedValueOnce(stream(proposalId));
+    const composer = screen.getByTestId("qcms-assistant-composer");
+    fireEvent.change(composer, { target: { value: text } });
+    fireEvent.keyDown(composer, { key: "Enter" });
+    // The next turn is only sent once this one has ended, which the restored Send control says.
+    await vi.waitFor(() => {
+      expect(fetchMock.mock.calls.length).toBeGreaterThan(calls);
+      expect(screen.getByTestId("qcms-assistant-send")).toBeTruthy();
+      expect(screen.getAllByRole("button", { name: t("agent.card.confirm") }).length).toBe(1);
+    });
+  }
+
+  function settlements(): readonly AgentTurnRecord[] {
+    return recorded.filter((turn) => turn.role === "action-result");
+  }
+
+  it("is cancelled in the record when the person cancels it", async () => {
+    const fetchMock = mountRecording();
+    await propose(fetchMock, "prp_first", "publish the draft");
+
+    fireEvent.click(screen.getByRole("button", { name: t("agent.card.cancel") }));
+
+    expect(settlements()).toEqual([
+      {
+        role: "action-result",
+        proposalId: "prp_first",
+        steps: [{ kind: "form.publish", outcome: "cancelled" }],
+      },
+    ]);
+  });
+
+  it("is cancelled in the same way when the next proposal takes its place", async () => {
+    const fetchMock = mountRecording();
+    await propose(fetchMock, "prp_first", "publish the draft");
+    await propose(fetchMock, "prp_second", "no, publish it this way");
+
+    expect(settlements()).toEqual([
+      {
+        role: "action-result",
+        proposalId: "prp_first",
+        steps: [{ kind: "form.publish", outcome: "cancelled" }],
+      },
+    ]);
+  });
+
+  it("leaves the card that ran alone when the next proposal arrives", async () => {
+    const fetchMock = mountRecording();
+    await propose(fetchMock, "prp_first", "publish the draft");
+    fireEvent.click(screen.getByRole("button", { name: t("agent.card.cancel") }));
+    await propose(fetchMock, "prp_second", "try again");
+
+    expect(settlements()).toHaveLength(1);
   });
 });
