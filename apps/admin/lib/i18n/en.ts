@@ -1421,6 +1421,7 @@ export const messages = {
   "forms.links.mintedAnnounce.other":
     "{count} secure links minted. They are listed below and cannot be shown again.",
   "forms.links.copy": "Copy link",
+  "forms.links.copyNumbered": "Copy link {number}",
   "forms.publicLink.heading": "Public form link",
   "forms.publicLink.copy": "Copy link",
   "forms.publicLink.opensNewTab": "(opens in a new tab)",

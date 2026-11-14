@@ -331,7 +331,7 @@ function MintedPanel({
         </p>
       )}
       <ul className="flex flex-col gap-2">
-        {links.map((link) => (
+        {links.map((link, at) => (
           <li key={link.linkId} className="flex flex-wrap items-center gap-2">
             <code className="qcms-link-url">{link.url}</code>
             <Button
@@ -341,7 +341,10 @@ function MintedPanel({
                 onCopy(link.url);
               }}
             >
-              {t("forms.links.copy")}
+              <span className="qcms-visually-hidden">
+                {t("forms.links.copyNumbered", { number: at + 1 })}
+              </span>
+              <span aria-hidden="true">{t("forms.links.copy")}</span>
             </Button>
           </li>
         ))}
