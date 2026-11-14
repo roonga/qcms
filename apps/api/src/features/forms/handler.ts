@@ -74,10 +74,10 @@ import type { ApiEnv } from "../../openapi.js";
 import { recordRelease } from "../releases/release.js";
 import { commitReleaseBatch, intentHashOf, storedResult } from "../releases/batch.js";
 import {
+  productionFloorApplies,
   productionVersions,
   readWorkflow,
   requireDraftEligible,
-  usesTestWorkflow,
 } from "../releases/workflow.js";
 import { resolveGrants, holdsInstallationClaim } from "../membership/resolver.js";
 import { decideAccess } from "../membership/policy.js";
@@ -664,7 +664,7 @@ export function makeGetFormHandler(deps: Deps): RouteHandler<typeof getFormRoute
     );
 
     const environment = c.get("requestEnvironment") ?? deps.databases.defaultEnvironment;
-    const workflowEnabled = usesTestWorkflow(deps.databases.names);
+    const workflowEnabled = productionFloorApplies(deps.databases.names);
     const principal = c.get("adminPrincipal");
     const membership =
       principal === undefined
@@ -685,8 +685,8 @@ export function makeGetFormHandler(deps: Deps): RouteHandler<typeof getFormRoute
       workflowEnabled && environment === "prod"
         ? [...productionVersions(releases)]
         : versions.map((v) => v.version);
-    const preferred = releases.find(
-      (r) => r.environment === (workflowEnabled && environment === "prod" ? "test" : environment),
+    const preferred = releases.find((r) =>
+      workflowEnabled && environment === "prod" ? r.environment !== "prod" : r.environment === environment,
     );
     const workflow = {
       enabled: workflowEnabled,
