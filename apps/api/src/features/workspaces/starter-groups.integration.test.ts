@@ -11,6 +11,7 @@ import {
 } from "@roonga/qcms-db";
 import type { AccessGroupRow } from "@roonga/qcms-db";
 import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
+import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../../app.js";
@@ -205,6 +206,50 @@ describe("a Site administrator with no group membership reads no response (crite
           expect(decision.allowed, `${workspaceId} ${environment} ${action}`).toBe(false);
         }
       }
+    }
+  });
+});
+
+describe("workspace creation is one transaction", () => {
+  async function counts(): Promise<Record<string, number>> {
+    const totals: Record<string, number> = {};
+    for (const table of ["organization", "member", "team", "access_audit"]) {
+      const result = await testDb.db.execute(
+        sql.raw(`select count(*)::int as total from control."${table}"`),
+      );
+      totals[table] = Number((result.rows[0] as { total: number }).total);
+    }
+    return totals;
+  }
+
+  it("leaves no workspace, member, group or audit row when its last step fails", async () => {
+    // The audit row is the last write, so failing it proves every earlier one rolls back.
+    await testDb.db.execute(
+      sql.raw(`
+        create function control.fail_atomic_audit() returns trigger language plpgsql as $$
+        begin
+          if exists (select 1 from control.organization where id = new.workspace_id and slug = 'atomic-fail') then
+            raise exception 'forced failure inside the workspace-create transaction';
+          end if;
+          return new;
+        end $$;
+        create trigger fail_atomic_audit before insert on control.access_audit
+          for each row execute function control.fail_atomic_audit();
+      `),
+    );
+    try {
+      const before = await counts();
+      const res = await createWorkspace(siteAdmin.token, { name: "Atomic", slug: "atomic-fail" });
+      expect(res.status).toBe(500);
+      expect(await getWorkspaceBySlug(testDb.db, "atomic-fail")).toBeUndefined();
+      expect(await counts()).toEqual(before);
+    } finally {
+      await testDb.db.execute(
+        sql.raw(`
+          drop trigger fail_atomic_audit on control.access_audit;
+          drop function control.fail_atomic_audit();
+        `),
+      );
     }
   });
 });

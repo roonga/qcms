@@ -592,6 +592,11 @@ Each record below, except the built-task records, now links here for workspace a
 - Assistant acts are rechecked on every draft edit request and at Confirm (section 10, criterion 91), following agent-builder Q14's card-less draft edits.
 - The mail dependency for outbound email is `nodemailer` over SMTP, configured by `QCMS_SMTP_*`, within the `CONTRIBUTING.md` thresholds.
 
+### Ruled (Code Owner, 2026-11-15)
+
+- **Bootstrap recovery: a re-run promotes.** Where no Site administrator exists and exactly one account exists, a `qcms:create-admin` re-run whose `QCMS_ADMIN_EMAIL` names that account promotes it to Site administrator, seeds the first workspace and writes an audit row, in one transaction. Where a Site administrator exists, the re-run is refused as before. This covers a first run that created its account and stopped before promoting it.
+- **Workspace creation keeps the direct insert in one transaction.** The workspace row, the first Workspace administrator's member row, the starter groups and the audit row are inserted by QCMS in one transaction rather than through the library's `createOrganization`. The checks the library's `beforeAddMember` hook applies to a member row run inside that transaction too, from the same code (`docs/auth-swap.md`).
+
 Request expiry (7 days), the `prod` rule with its exception for a site whose only environment is `prod` (section 5) and the held draft publish applying the draft as requested (section 6) are settled, not defaults. That a Site administrator is trusted at site level is an accepted limitation, stated in section 10, not an open item.
 
 ### Undecided

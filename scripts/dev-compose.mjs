@@ -323,7 +323,7 @@ export function devStackBannerLines({ ports, project, credentials, inContainer }
   if (credentials === undefined) {
     lines.push(
       "  This stack already had an administrator, so none was created (SEC-1: the",
-      "  bootstrap command only runs against an empty admin table, and that refusal",
+      "  bootstrap command only runs on a deployment with no Site administrator, and that refusal",
       "  is correct). Sign in with the credential from when it was created, or run",
       "  pnpm dev:down and then pnpm dev:up for a fresh database and a fresh account.",
       "",

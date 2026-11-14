@@ -2,7 +2,12 @@ export type { Executor } from "./executor.js";
 
 export { type AdminSessionRow, getAdminSessionByToken, countAdminUsers } from "./auth.js";
 
-export { SITE_ADMINISTRATOR_ROLE, clearMustChangePassword, makeSiteAdministrator } from "./auth.js";
+export {
+  SITE_ADMINISTRATOR_ROLE,
+  clearMustChangePassword,
+  countSiteAdministrators,
+  makeSiteAdministrator,
+} from "./auth.js";
 
 export {
   type AdminIdentityRow,

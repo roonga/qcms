@@ -15,7 +15,7 @@ import { DOCKER, REPOSITORY_ROOT } from "./docker.mjs";
  * `apps/api/src/features/auth/bootstrap.ts`, since exit 1 covers all three refusal
  * kinds. Matching on the status alone would read a rejected password as a skip.
  */
-const ALREADY_BOOTSTRAPPED = /refusing: this deployment already has \d+ admin account/i;
+const ALREADY_BOOTSTRAPPED = /refusing: this deployment already has \d+ site administrator/i;
 
 /**
  * The prefix is required because base64url may begin with `-`, and a credential a

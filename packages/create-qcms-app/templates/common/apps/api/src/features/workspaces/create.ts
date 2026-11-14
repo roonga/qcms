@@ -8,6 +8,8 @@ import {
 } from "@roonga/qcms-db";
 import type { AccessGroupRow, Executor, WorkspaceRow } from "@roonga/qcms-db";
 
+import { refuseMemberAdd } from "../auth/plugin-write-backstop.js";
+
 /** Create the four starter groups in a workspace, with no people in them. */
 export async function createStarterGroups(
   tx: Executor,
@@ -48,6 +50,7 @@ export async function createWorkspaceWithStarterGroups(
     slug: input.slug,
     firstAdministratorId: input.firstAdministratorId,
   });
+  refuseMemberAdd({ role: OWNER_MEMBER_ROLE }, workspace);
   const groups = await createStarterGroups(tx, workspace.id);
   const parts = [
     `memberRole=${OWNER_MEMBER_ROLE}`,

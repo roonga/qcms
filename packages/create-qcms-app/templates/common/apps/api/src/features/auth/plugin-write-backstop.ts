@@ -32,8 +32,7 @@ function readScope(value: unknown): readonly string[] | undefined {
 
 function refuseMemberRole(role: unknown): void {
   if (typeof role !== "string") refuse("role", "A member needs a role.");
-  // The Workspace administrator flag is allowed because the plugin's own
-  // `createOrganization` writes it.
+  // The Workspace administrator flag is allowed because a workspace's first member row carries it.
   if (role === EMPTY_MEMBER_ROLE || role === OWNER_MEMBER_ROLE) return;
   refuse(
     "role",
@@ -95,6 +94,20 @@ async function refuseTeamWrite(
   if (nameRefusal !== undefined) refuse("name", `${nameRefusal}.`);
 }
 
+/**
+ * What a new member row must satisfy, shared by `beforeAddMember` and the transaction that
+ * writes a new workspace's first member row, which the plugin never sees.
+ */
+export function refuseMemberAdd(
+  member: { readonly role?: unknown },
+  organization: { readonly archivedAt?: unknown },
+): void {
+  if (organization.archivedAt !== undefined && organization.archivedAt !== null) {
+    refuse("archived workspace", "That workspace is archived, so nobody is added to it.");
+  }
+  refuseMemberRole(member.role);
+}
+
 /** Loose payload types: the vendor's hook payloads are `Record<string, any>`. */
 export function pluginWriteBackstop(exec: Executor): {
   beforeCreateTeam: (data: {
@@ -128,10 +141,7 @@ export function pluginWriteBackstop(exec: Executor): {
       await refuseTeamWrite(exec, team, organization);
     },
     beforeAddMember: ({ member, organization }) => {
-      if (organization.archivedAt !== undefined && organization.archivedAt !== null) {
-        refuse("archived workspace", "That workspace is archived, so nobody is added to it.");
-      }
-      refuseMemberRole(member.role);
+      refuseMemberAdd(member, organization);
       return Promise.resolve();
     },
   };

@@ -385,9 +385,8 @@ export function createAdminAuth(input: AdminAuthInput) {
           allowRemovingAllTeams: true,
         },
         organizationHooks: pluginWriteBackstop(input.db),
-        // A workspace is an operator act, not a sign-in side effect (ADR-41). A server-side
-        // `createOrganization` with an explicit `userId` is unaffected, so the bootstrap can seed one:
-        // `dist/plugins/organization/routes/crud-org.mjs:57` <!-- expect: const isSystemAction = !session && ctx.body.userId -->
+        // A workspace is an operator act, not a sign-in side effect (ADR-41). QCMS inserts the
+        // row and its first member row itself, in one transaction (`features/workspaces/create.ts`).
         allowUserToCreateOrganization: false,
         // A workspace is archived, never deleted (Q15).
         disableOrganizationDeletion: true,

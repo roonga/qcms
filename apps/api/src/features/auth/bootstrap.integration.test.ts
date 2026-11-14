@@ -1,6 +1,7 @@
 import {
   authUser,
   countAdminUsers,
+  countSiteAdministrators,
   listAccessAudit,
   listAccessGroupHolders,
   listAccessGroups,
@@ -157,5 +158,96 @@ describe("createInitialAdmin against an empty database", () => {
     const message = describeRefusal({ kind: "weak-password", minLength: 12 });
     expect(message).toContain("QCMS_ADMIN_PASSWORD");
     expect(message).not.toContain(PASSWORD);
+  });
+});
+
+describe("createInitialAdmin re-run after a first run that never promoted its account", () => {
+  let recoveryDb: TestDb;
+  let recoveryAuth: AdminAuth;
+  const ORPHAN = "orphan.admin@example.test";
+
+  beforeAll(async () => {
+    recoveryDb = await startTestDb({ seedWorkspace: false });
+    const config = loadAdminAuthConfig(
+      validEnv({
+        DATABASE_URL: recoveryDb.connectionUri,
+        QCMS_ADMIN_BASE_URL: "http://localhost:7040",
+      }),
+    );
+    recoveryAuth = createAdminAuth({ db: recoveryDb.db, adminAuth: config.adminAuth });
+    // The state a first run leaves when it dies between creating the account and promoting it.
+    await recoveryAuth.api.signUpEmail({
+      body: { email: ORPHAN, password: PASSWORD, name: "Orphan" },
+    });
+  }, CONTAINER_BOOT_TIMEOUT_MS);
+
+  afterAll(async () => {
+    await recoveryDb?.teardown();
+  }, CONTAINER_BOOT_TIMEOUT_MS);
+
+  it("refuses a re-run whose address names no existing account, and promotes nobody", async () => {
+    const other = await createInitialAdmin(recoveryAuth, recoveryDb.db, {
+      email: "someone.else@example.test",
+      password: PASSWORD,
+    });
+    expect(other.ok === false && other.refusal.kind).toBe("no-account-to-promote");
+    expect(await countSiteAdministrators(recoveryDb.db)).toBe(0);
+    expect(await countAdminUsers(recoveryDb.db)).toBe(1);
+  });
+
+  it("promotes the one account, seeds the first workspace and audits the promotion", async () => {
+    const result = await createInitialAdmin(recoveryAuth, recoveryDb.db, {
+      email: ORPHAN.toUpperCase(),
+      password: PASSWORD,
+    });
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    expect(result.ok === true && result.promoted).toBe(true);
+    expect(await countAdminUsers(recoveryDb.db)).toBe(1);
+
+    const [account] = await recoveryDb.db.select().from(authUser);
+    expect(account?.role).toBe("admin");
+    const [workspace] = await listWorkspaces(recoveryDb.db);
+    const membership = await resolveMembership(
+      recoveryDb.db,
+      account?.id ?? "",
+      workspace?.id ?? "",
+    );
+    expect(membership.memberRole).toBe("forms.owner");
+    expect(await listAccessGroups(recoveryDb.db, workspace?.id ?? "")).toHaveLength(4);
+
+    const { rows } = await listAccessAudit(recoveryDb.db, workspace?.id ?? "", { kind: "grant" });
+    const promotion = rows.filter((row) => row.detail?.includes("siteRole=admin"));
+    expect(promotion).toHaveLength(1);
+    expect(promotion[0]?.actor).toBe(account?.id);
+    expect(promotion[0]?.detail).toContain(SEED_AUDIT_DETAIL_PREFIX);
+  });
+
+  it("refuses a further re-run now that a Site administrator exists", async () => {
+    const again = await createInitialAdmin(recoveryAuth, recoveryDb.db, {
+      email: ORPHAN,
+      password: PASSWORD,
+    });
+    expect(again.ok === false && again.refusal.kind).toBe("already-bootstrapped");
+    expect(again.ok === false && describeRefusal(again.refusal)).toContain("Site administrator");
+    expect(await listWorkspaces(recoveryDb.db)).toHaveLength(1);
+  });
+
+  it("refuses with two accounts and no Site administrator, since it cannot tell which to promote", async () => {
+    await recoveryDb.db.update(authUser).set({ role: null });
+    await recoveryAuth.api.signUpEmail({
+      body: { email: "second.orphan@example.test", password: PASSWORD, name: "Second" },
+    });
+    const refused = await createInitialAdmin(recoveryAuth, recoveryDb.db, {
+      email: ORPHAN,
+      password: PASSWORD,
+    });
+    expect(refused.ok === false && refused.refusal.kind).toBe("no-account-to-promote");
+    expect(await countSiteAdministrators(recoveryDb.db)).toBe(0);
+  });
+
+  it("tells the operator to re-run after a failed promotion, never to call the API", () => {
+    const message = describeRefusal({ kind: "promotion-failed", email: ORPHAN, detail: "boom" });
+    expect(message).toContain("Re-run this command");
+    expect(message).not.toContain("POST /admin/workspaces");
   });
 });

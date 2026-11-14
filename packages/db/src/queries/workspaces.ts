@@ -270,7 +270,7 @@ export const SEED_WORKSPACE_SLUG = "default";
 
 /**
  * The installation's first workspace as a fixture: the existing one, or a new one if none. Idempotent. Not
- * the product's bootstrap path (`createOrganization` also writes the `member` row); it adopts an existing
+ * the product's bootstrap path (`insertWorkspace` also writes the `member` row); it adopts an existing
  * workspace because with two, a create omitting `workspaceId` is refused as ambiguous.
  */
 export async function ensureSeedWorkspace(exec: Executor): Promise<string> {

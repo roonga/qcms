@@ -130,6 +130,7 @@ describe("query helper import surface", () => {
     "getAdminSessionByToken",
     "countAdminUsers",
     "makeSiteAdministrator",
+    "countSiteAdministrators",
     "clearMustChangePassword",
     "findAdminsByEmail",
     "findAdminById",

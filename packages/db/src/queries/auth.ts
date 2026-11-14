@@ -83,6 +83,15 @@ export async function makeSiteAdministrator(exec: Executor, userId: string): Pro
     .where(eq(authUser.id, userId));
 }
 
+/** How many accounts are Site administrators. */
+export async function countSiteAdministrators(exec: Executor): Promise<number> {
+  const [row] = await exec
+    .select({ total: count() })
+    .from(authUser)
+    .where(eq(authUser.role, SITE_ADMINISTRATOR_ROLE));
+  return row?.total ?? 0;
+}
+
 /**
  * How many admin accounts exist. `0` is the only state `create-admin` accepts, which is
  * what closes self-registration.

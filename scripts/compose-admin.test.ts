@@ -9,7 +9,7 @@ import { buildAdminExec, classifyBootstrap, generatePassword } from "./compose-a
  */
 const REFUSALS = {
   alreadyBootstrapped:
-    "Refusing: this deployment already has 1 admin account(s). The bootstrap command only runs against an empty admin table.",
+    "Refusing: this deployment already has 1 Site administrator(s). The bootstrap command only runs on a deployment with none.",
   invalidEmail: "Refusing: QCMS_ADMIN_EMAIL is not a valid email address.",
   weakPassword: "Refusing: QCMS_ADMIN_PASSWORD must be at least 12 characters.",
 };
@@ -29,7 +29,7 @@ describe("classifyBootstrap", () => {
     expect(
       classifyBootstrap({
         status: 1,
-        stderr: REFUSALS.alreadyBootstrapped.replace("1 admin", "14 admin"),
+        stderr: REFUSALS.alreadyBootstrapped.replace("1 Site", "14 Site"),
       }),
     ).toBe("already-bootstrapped");
   });
