@@ -138,8 +138,9 @@ export const EMPTY_ROLE_NAMES = ["admin", "member", "owner"] as const;
 // different rule that happens to land on the same word.
 export const PRODUCTION_ENVIRONMENT = "prod";
 
-// Only writes and data-plane reads. Authoring, publishing a version, preview and
-// configuration reads are workspace-wide, so they are deliberately absent.
+// Only writes and data-plane reads for every role. Authoring, publishing a version and
+// preview are workspace-wide, so they are deliberately absent; per-role read scoping is
+// `ENVIRONMENT_SCOPED_READS`.
 const ENVIRONMENT_SCOPED: readonly `${Resource}:${string}`[] = [
   "form:close",
   "release:create",

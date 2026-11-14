@@ -16,6 +16,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "../../app.js";
 import type { Deps } from "../../deps.js";
 import { registerGrantCheck } from "../membership/middleware.js";
+import { registerOutboxOps } from "../outbox/route.js";
 import { ADMIN_SESSION_HEADER, registerAdminAuth } from "../../middleware/admin-auth.js";
 import {
   REQUEST_ENVIRONMENT_HEADER,
@@ -540,6 +541,7 @@ describe("a publisher reads endpoint configuration only in its group's environme
           registerRequestEnvironment,
           registerGrantCheck,
           registerWebhooks,
+          registerOutboxOps,
         ],
       },
     });
