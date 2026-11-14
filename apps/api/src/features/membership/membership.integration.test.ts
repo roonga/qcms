@@ -376,7 +376,7 @@ describe("access-group names and the role set (criteria 12 and 13)", () => {
     };
     expect(body.workspaceId).toBe(SEED_WORKSPACE_ID);
     expect(body).not.toHaveProperty("scopeNote");
-    const group = body.groups.find((g) => g["name"] === "Response viewers");
+    const group = body.groups.find((g) => g["name"] === "Readers");
     expect(group).toBeDefined();
     expect(Object.keys(group ?? {}).sort()).toEqual([
       "environments",
@@ -390,8 +390,8 @@ describe("access-group names and the role set (criteria 12 and 13)", () => {
     const stored = await testDb.db
       .select({ name: authTeam.name })
       .from(authTeam)
-      .where(eq(authTeam.name, "Response viewers"));
-    expect(stored[0]?.name).toBe("Response viewers");
+      .where(eq(authTeam.name, "Readers"));
+    expect(stored[0]?.name).toBe("Readers");
   });
 
   it("fails closed on a role name that reaches the row but no declared role", async () => {
