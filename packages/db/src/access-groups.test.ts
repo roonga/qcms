@@ -13,6 +13,7 @@ import {
   refuseAccessGroupName,
   refuseAccessGroupRoles,
   refuseEnvironmentSet,
+  starterGroups,
 } from "./access-groups.js";
 
 /** `control.environments` order, deliberately not alphabetical. */
@@ -137,4 +138,49 @@ describe("the full name is derived and never stored", () => {
     expect(accessGroupFullName("hr", "Publishers")).toBe("hr.Publishers");
     expect(accessGroupFullName("people", "Publishers")).toBe("people.Publishers");
   });
+});
+
+describe("the starter groups", () => {
+  const byName = (live: readonly string[]) =>
+    Object.fromEntries(starterGroups(live).map((group) => [group.name, group]));
+
+  it("are the four groups of the spec, in its order", () => {
+    expect(starterGroups(["test", "prod"]).map((group) => group.name)).toEqual([
+      "Authors",
+      "Publishers",
+      "Response viewers",
+      "Response erasers",
+    ]);
+  });
+
+  it("give Authors every non-prod environment, dev and test on a three-environment site", () => {
+    const groups = byName(LIVE);
+    expect(groups.Authors?.roles).toEqual(["forms.editor", "forms.publisher", "responses.viewer"]);
+    expect([...(groups.Authors?.environments ?? [])].sort()).toEqual(["dev", "test"]);
+    expect(groups.Publishers).toEqual({
+      name: "Publishers",
+      roles: ["forms.publisher"],
+      environments: ["prod"],
+    });
+    expect(groups["Response viewers"]?.environments).toEqual(["prod"]);
+    expect(groups["Response viewers"]?.roles).toEqual(["responses.viewer"]);
+    expect(groups["Response erasers"]?.environments).toEqual(["prod"]);
+    expect(groups["Response erasers"]?.roles).toEqual(["responses.eraser"]);
+  });
+
+  it("give Authors Edit forms only and no environment on a prod-only site", () => {
+    const groups = byName(["prod"]);
+    expect(groups.Authors).toEqual({ name: "Authors", roles: ["forms.editor"], environments: [] });
+  });
+
+  it.each([[["prod"]], [["test", "prod"]], [LIVE]])(
+    "pass the group rules on %j, so none carries an environment role with an empty set",
+    (live) => {
+      for (const group of starterGroups(live)) {
+        expect(refuseAccessGroupName(group.name)).toBeUndefined();
+        expect(refuseAccessGroupRoles(group.roles)).toBeUndefined();
+        expect(refuseEnvironmentSet(group.environments, group.roles, live)).toBeUndefined();
+      }
+    },
+  );
 });

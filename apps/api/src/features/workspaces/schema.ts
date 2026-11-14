@@ -13,14 +13,12 @@ const WorkspaceSlug = z
   .regex(WORKSPACE_SLUG_PATTERN)
   .openapi({ example: "home-insurance" });
 
-/**
- * No owner field: taking the creator from the session rather than the body is what stops
- * a caller attributing a workspace to somebody else.
- */
 export const CreateWorkspaceBody = z
   .strictObject({
     name: z.string().min(1).max(120).openapi({ example: "Home insurance" }),
     slug: WorkspaceSlug,
+    /** The first Workspace administrator's address; the caller when absent. */
+    firstAdministratorEmail: z.email().optional().openapi({ example: "ada@example.test" }),
   })
   .openapi("CreateWorkspaceBody");
 

@@ -10,7 +10,7 @@ import { controlSchema } from "../schemas.js";
  * a column of ours either carries a default or is nullable.
  */
 
-/** An administrator account. */
+/** An account. */
 export const authUser = controlSchema.table("user", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
@@ -20,8 +20,11 @@ export const authUser = controlSchema.table("user", {
   createdAt: timestamp("createdAt").notNull().defaultNow(),
   updatedAt: timestamp("updatedAt").notNull().defaultNow(),
   twoFactorEnabled: boolean("twoFactorEnabled"),
-  /** Declare this authorization claim with input: false so no request body can set it. */
-  role: text("role").notNull().default("admin"),
+  /**
+   * `admin` marks a Site administrator; `null` holds nothing. No default, because
+   * a default would make every new account one. Declared `input: false` so no request body can set it.
+   */
+  role: text("role"),
   /**
    * Whether this account still holds the provisional credential `qcms:create-admin` set. Cleared only by a
    * successful password change.

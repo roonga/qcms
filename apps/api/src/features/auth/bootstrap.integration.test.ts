@@ -6,19 +6,16 @@ import {
   listAccessGroups,
   listEnvironmentNames,
   listWorkspaces,
+  resolveMembership,
+  starterGroups,
 } from "@roonga/qcms-db";
 import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { validEnv } from "../../test-support.js";
 import { loadAdminAuthConfig } from "../../config.js";
-import {
-  SEEDED_FIRST_ADMIN_ROLES,
-  SEED_ACCESS_GROUP_NAME,
-  SEED_AUDIT_DETAIL_PREFIX,
-  createInitialAdmin,
-  describeRefusal,
-} from "./bootstrap.js";
+import { SEED_AUDIT_DETAIL_PREFIX, createInitialAdmin, describeRefusal } from "./bootstrap.js";
 import { createAdminAuth, type AdminAuth } from "./instance.js";
 
 /** Generated rather than literal so no credential-shaped string is ever committed here. */
@@ -98,37 +95,62 @@ describe("createInitialAdmin against an empty database", () => {
     expect(await countAdminUsers(testDb.db)).toBe(1);
   });
 
-  it("seeds one group carrying the authoring family, with no responses role", async () => {
+  it("makes the first account a one-person site: Site administrator, Workspace administrator, in all four starter groups (criterion 110)", async () => {
+    const [account] = await testDb.db.select().from(authUser);
+    expect(account?.role).toBe("admin");
+
     const [workspace] = await listWorkspaces(testDb.db);
     expect(workspace).toBeDefined();
-    const groups = await listAccessGroups(testDb.db, workspace?.id ?? "");
+    expect(workspace?.requireSecondApprover).toBe(false);
+    const membership = await resolveMembership(testDb.db, account?.id ?? "", workspace?.id ?? "");
+    expect(membership.memberRole).toBe("forms.owner");
+
     const live = await listEnvironmentNames(testDb.db);
-
-    expect(groups.map((group) => group.name)).toEqual([SEED_ACCESS_GROUP_NAME]);
-    const group = groups[0];
-    expect([...(group?.roles ?? [])].sort()).toEqual([...SEEDED_FIRST_ADMIN_ROLES].sort());
-    expect((group?.roles ?? []).some((role) => role.startsWith("responses."))).toBe(false);
-    expect(group?.environments).toEqual(live);
-
-    const holders = await listAccessGroupHolders(testDb.db, group?.teamId ?? "");
-    expect(holders.map((holder) => holder.email)).toEqual([EMAIL]);
+    const groups = await listAccessGroups(testDb.db, workspace?.id ?? "");
+    const expected = starterGroups(live);
+    expect(groups.map((group) => group.name).sort()).toEqual(
+      expected.map((group) => group.name).sort(),
+    );
+    for (const want of expected) {
+      const group = groups.find((row) => row.name === want.name);
+      expect(group?.roles).toEqual(want.roles);
+      expect(group?.environments).toEqual(want.environments);
+      const holders = await listAccessGroupHolders(testDb.db, group?.teamId ?? "");
+      expect(holders.map((holder) => holder.email)).toEqual([EMAIL]);
+    }
   });
 
-  it("audits the seeded grant as the created account, naming the command (Q56)", async () => {
+  it("audits the appointment and every seeded grant as the created account, naming the command (Q56)", async () => {
     const [workspace] = await listWorkspaces(testDb.db);
     const { rows } = await listAccessAudit(testDb.db, workspace?.id ?? "", { kind: "grant" });
     const [account] = await testDb.db.select().from(authUser);
-    const live = await listEnvironmentNames(testDb.db);
 
-    expect(rows).toHaveLength(1);
-    const row = rows[0];
-    expect(row?.actor).toBe(account?.id);
-    expect(row?.detail).toContain(SEED_AUDIT_DETAIL_PREFIX);
-    expect(row?.detail).toContain(`group=${SEED_ACCESS_GROUP_NAME}`);
-    expect(row?.detail).toContain(`roles=${SEEDED_FIRST_ADMIN_ROLES.join(",")}`);
-    expect(row?.detail).toContain(`environments=${live.join(",")}`);
-    expect(row?.environment ?? null).toBeNull();
-    expect(row?.formId ?? null).toBeNull();
+    expect(rows).toHaveLength(5);
+    for (const row of rows) {
+      expect(row.actor).toBe(account?.id);
+      expect(row.detail).toContain(SEED_AUDIT_DETAIL_PREFIX);
+      expect(row.environment ?? null).toBeNull();
+      expect(row.formId ?? null).toBeNull();
+    }
+    expect(rows.filter((row) => row.detail?.includes("memberRole=forms.owner"))).toHaveLength(1);
+    for (const name of ["Authors", "Publishers", "Response viewers", "Response erasers"]) {
+      expect(rows.filter((row) => row.detail?.includes(`group=${name} `))).toHaveLength(1);
+    }
+  });
+
+  it("gives a new account nothing: not a Site administrator, no workspace, no group (criterion 75)", async () => {
+    const signedUp = await auth.api.signUpEmail({
+      body: { email: "new.account@example.test", password: PASSWORD, name: "New Account" },
+    });
+    const userId = signedUp.user.id;
+    const [row] = await testDb.db.select().from(authUser).where(eq(authUser.id, userId));
+    expect(row?.role ?? null).toBeNull();
+
+    for (const workspace of await listWorkspaces(testDb.db)) {
+      const membership = await resolveMembership(testDb.db, userId, workspace.id);
+      expect(membership.memberRole).toBeUndefined();
+      expect(membership.grants).toEqual([]);
+    }
   });
 
   it("explains a refusal without echoing any credential (SEC-8)", () => {

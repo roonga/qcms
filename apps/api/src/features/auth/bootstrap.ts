@@ -1,14 +1,18 @@
 import {
+  OWNER_MEMBER_ROLE,
   SEED_WORKSPACE_NAME,
   SEED_WORKSPACE_SLUG,
   addAccessGroupHolder,
   countAdminUsers,
-  createAccessGroup,
-  listEnvironmentNames,
+  ensureWorkspaceMember,
   listWorkspaces,
+  makeSiteAdministrator,
+  setMemberRole,
   writeAccessAuditRow,
 } from "@roonga/qcms-db";
-import type { Executor } from "@roonga/qcms-db";
+import type { AccessGroupRow, Executor } from "@roonga/qcms-db";
+
+import { createStarterGroups, createWorkspaceWithStarterGroups } from "../workspaces/create.js";
 
 import type { AdminAuth } from "./instance.js";
 import {
@@ -94,7 +98,10 @@ export async function createInitialAdmin(
   }
 
   try {
-    const workspace = await seedFirstWorkspace(auth, exec, body.user.id);
+    // Before the seed and outside its transaction, so a failed seed still leaves a Site
+    // administrator who can create the workspace through the API.
+    await makeSiteAdministrator(exec, body.user.id);
+    const workspace = await exec.transaction((tx) => seedFirstWorkspace(tx, body.user.id));
     return {
       ok: true,
       userId: body.user.id,
@@ -115,55 +122,54 @@ export async function createInitialAdmin(
 }
 
 /**
- * better-auth treats `createOrganization` with no session and an explicit `userId` as a
- * system action, which is what gets the seed past `allowUserToCreateOrganization: false`.
+ * The one-person site: the first account is Workspace administrator of the first workspace
+ * and a member of all four starter groups. An existing workspace, which only a fixture
+ * leaves behind, is adopted rather than duplicated.
  */
 async function seedFirstWorkspace(
-  auth: AdminAuth,
-  exec: Executor,
+  tx: Executor,
   userId: string,
 ): Promise<{ id: string; slug: string }> {
-  const existing = await listWorkspaces(exec);
-  const first = existing[0];
-  if (first !== undefined) return { id: first.id, slug: first.slug };
-
-  const created = await auth.api.createOrganization({
-    body: { name: SEED_WORKSPACE_NAME, slug: SEED_WORKSPACE_SLUG, userId },
-  });
-  await seedFirstAdminGrants(exec, created.id, userId);
-  return { id: created.id, slug: created.slug };
-}
-
-/** Every grant write shares a transaction with its audit row, seeded grants included. */
-async function seedFirstAdminGrants(
-  exec: Executor,
-  workspaceId: string,
-  userId: string,
-): Promise<void> {
-  const environments = await listEnvironmentNames(exec);
-  const group = await createAccessGroup(exec, {
-    workspaceId,
-    name: SEED_ACCESS_GROUP_NAME,
-    roles: [...SEEDED_FIRST_ADMIN_ROLES],
-    environments,
-  });
-  await addAccessGroupHolder(exec, group.teamId, userId);
-  await writeAccessAuditRow(exec, {
-    actor: userId,
-    workspaceId,
-    kind: "grant",
-    detail:
-      `${SEED_AUDIT_DETAIL_PREFIX} group=${SEED_ACCESS_GROUP_NAME} ` +
-      `roles=${SEEDED_FIRST_ADMIN_ROLES.join(",")} environments=${environments.join(",")}`,
-  });
+  const first = (await listWorkspaces(tx))[0];
+  let workspace: { id: string; slug: string };
+  let groups: readonly AccessGroupRow[];
+  if (first === undefined) {
+    const created = await createWorkspaceWithStarterGroups(tx, {
+      name: SEED_WORKSPACE_NAME,
+      slug: SEED_WORKSPACE_SLUG,
+      firstAdministratorId: userId,
+      actor: userId,
+      auditPrefix: SEED_AUDIT_DETAIL_PREFIX,
+    });
+    workspace = created.workspace;
+    groups = created.groups;
+  } else {
+    workspace = first;
+    await ensureWorkspaceMember(tx, first.id, userId);
+    await setMemberRole(tx, first.id, userId, OWNER_MEMBER_ROLE);
+    await writeAccessAuditRow(tx, {
+      actor: userId,
+      workspaceId: first.id,
+      kind: "grant",
+      detail: `${SEED_AUDIT_DETAIL_PREFIX} memberRole=${OWNER_MEMBER_ROLE} subject=${userId}`,
+    });
+    groups = await createStarterGroups(tx, first.id);
+  }
+  for (const group of groups) {
+    await addAccessGroupHolder(tx, group.teamId, userId);
+    await writeAccessAuditRow(tx, {
+      actor: userId,
+      workspaceId: workspace.id,
+      kind: "grant",
+      detail:
+        `${SEED_AUDIT_DETAIL_PREFIX} subject=${userId} group=${group.name} ` +
+        `roles=${group.roles.join(",")} environments=${group.environments.join(",")}`,
+    });
+  }
+  return { id: workspace.id, slug: workspace.slug };
 }
 
 export const SEED_AUDIT_DETAIL_PREFIX = "seeded by qcms:create-admin";
-
-export const SEED_ACCESS_GROUP_NAME = "Authors";
-
-/** No response role: reading response data stays a deliberate, audited act. */
-export const SEEDED_FIRST_ADMIN_ROLES: readonly string[] = ["forms.editor", "forms.publisher"];
 
 /** Must stay value-free: the printed line carries no credential. */
 export function describeRefusal(refusal: BootstrapRefusal): string {

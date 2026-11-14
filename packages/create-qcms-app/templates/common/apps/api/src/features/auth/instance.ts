@@ -296,7 +296,8 @@ export function createAdminAuth(input: AdminAuthInput) {
     },
     user: {
       additionalFields: {
-        role: { type: "string", required: false, defaultValue: "admin", input: false },
+        // No default: an account holds nothing until it is made a Site administrator.
+        role: { type: "string", required: false, input: false },
         // The vendor drops undeclared fields from session output.
         mustChangePassword: {
           type: "boolean",

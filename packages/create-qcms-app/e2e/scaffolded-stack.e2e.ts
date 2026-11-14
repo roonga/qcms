@@ -300,8 +300,8 @@ describe("a scaffolded QCMS deployment", () => {
     );
     expect(submitted["ok"]).toBe(true);
 
-    // 5a. `create-admin` seeds no response role, so grant one explicitly; a self-grant is
-    //     allowed and audited while the second-approver switch is off.
+    // 5a. `create-admin` makes the first account a member of all four starter groups, so
+    //     Response viewers already grants it the read.
     const workspaces = (await json(
       `${API}/admin/workspaces`,
       { headers: adminHeaders() },
@@ -310,27 +310,17 @@ describe("a scaffolded QCMS deployment", () => {
     const workspaceId = workspaces.workspaces?.[0]?.workspaceId;
     expect(typeof workspaceId).toBe("string");
 
-    const group = (await json(
+    const groups = (await json(
       `${API}/admin/workspaces/${String(workspaceId)}/access-groups`,
-      {
-        method: "POST",
-        headers: adminHeaders(),
-        body: JSON.stringify({
-          name: "Response viewers",
-          roles: ["responses.viewer"],
-          environments: ["test", "prod"],
-        }),
-      },
-      [201],
-    )) as { group?: { teamId?: string } };
-    const teamId = group.group?.teamId;
-    expect(typeof teamId).toBe("string");
-
-    await json(
-      `${API}/admin/workspaces/${String(workspaceId)}/access-groups/${String(teamId)}/holders`,
-      { method: "POST", headers: adminHeaders(), body: JSON.stringify({ email: ADMIN_EMAIL }) },
-      [201],
-    );
+      { headers: adminHeaders() },
+      [200],
+    )) as { groups?: { name?: string }[] };
+    expect((groups.groups ?? []).map((row) => row.name).sort()).toEqual([
+      "Authors",
+      "Publishers",
+      "Response erasers",
+      "Response viewers",
+    ]);
 
     const responses = await json(
       `${API}/admin/forms/${FORM_ID}/responses`,

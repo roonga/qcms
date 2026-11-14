@@ -2,12 +2,13 @@ import { and, asc, eq, isNull, sql } from "drizzle-orm";
 
 import type { FormId } from "@roonga/qcms-core";
 
-import { authOrganization, formReleases, forms, questions } from "../schema/index.js";
+import { authMember, authOrganization, formReleases, forms, questions } from "../schema/index.js";
 import type { Executor } from "./executor.js";
+import { OWNER_MEMBER_ROLE } from "./grants.js";
 
-// A workspace is better-auth's `organization` row, created through `auth.api.createOrganization`, which also
-// writes the `member` row carrying `forms.owner`. Only `isShared`, `requireSecondApprover` and
-// `archivedAt` are QCMS's to write, except in {@link ensureSeedWorkspace}.
+// A workspace is better-auth's `organization` row, created by {@link insertWorkspace} with its first
+// Workspace administrator's `member` row. Afterwards only `name`, `isShared`, `requireSecondApprover` and
+// `archivedAt` are QCMS's to write.
 
 /** A workspace, as QCMS reads better-auth's `organization` row. */
 export interface WorkspaceRow {
@@ -230,6 +231,37 @@ export async function countWorkspaceContents(
     forms: Number(formCount?.total ?? 0),
     questions: Number(questionCount?.total ?? 0),
   };
+}
+
+/**
+ * Insert a workspace and its first Workspace administrator's member row. The caller runs it in the
+ * transaction that also creates the starter groups and writes the audit row; a taken slug is the
+ * unique index's violation.
+ */
+export async function insertWorkspace(
+  exec: Executor,
+  input: {
+    readonly name: string;
+    readonly slug: string;
+    readonly firstAdministratorId: string;
+  },
+): Promise<WorkspaceRow> {
+  const [row] = await exec
+    .insert(authOrganization)
+    .values({
+      id: `org_${crypto.randomUUID().replaceAll("-", "")}`,
+      name: input.name,
+      slug: input.slug,
+    })
+    .returning(workspaceColumns);
+  if (row === undefined) throw new Error("the workspace insert returned no row");
+  await exec.insert(authMember).values({
+    id: `mbr_${crypto.randomUUID().replaceAll("-", "")}`,
+    organizationId: row.id,
+    userId: input.firstAdministratorId,
+    role: OWNER_MEMBER_ROLE,
+  });
+  return row;
 }
 
 export const SEED_WORKSPACE_ID = "org_default_workspace";

@@ -17,7 +17,8 @@ The user guide for these rules is [`docs/workspace-access-guide.html`](workspace
 | Access groups with several roles and one explicit environment set | Built        |
 | Five roles, View forms to Erase responses                         | Built        |
 | Workspace administrator as a direct membership flag               | Partly built |
-| Site administrator as an explicit, non-default role               | Not built    |
+| Site administrator as an explicit, non-default role               | Built        |
+| Four starter groups on every new workspace                        | Built        |
 | One user-facing Publish step                                      | Not built    |
 | Second approval for `prod` publish and endpoint changes           | Built        |
 | Second approval for turning the rule off and for self-grant       | Partly built |
@@ -239,7 +240,7 @@ Every new workspace is created with four starter groups. They are ordinary group
 
 ## 8. Site administrators
 
-- Accounts do not default to Site administrator. The first account, created by `qcms:create-admin`, is one. This is a prerequisite for every other rule in this section: today every account defaults to the claim (the `role` additional field in `apps/api/src/features/auth/instance.ts`).
+- Accounts do not default to Site administrator. The first account, created by `qcms:create-admin`, is one. This is a prerequisite for every other rule in this section.
 - Promotion and demotion of a Site administrator, and disabling an account that is a Site administrator, are in-app acts with three guards:
   - step-up authentication, password and second factor, by the acting Site administrator;
   - approval by a second Site administrator where more than one exists, never the target, with the two-administrator case below;

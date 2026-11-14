@@ -2349,6 +2349,11 @@
             "maxLength": 48,
             "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
             "example": "home-insurance"
+          },
+          "firstAdministratorEmail": {
+            "type": "string",
+            "format": "email",
+            "example": "ada@example.test"
           }
         },
         "required": [
@@ -7115,8 +7120,8 @@
         }
       },
       "post": {
-        "summary": "Create a workspace (admin)",
-        "description": "The account making the request becomes the workspace's owner. Slugs are unique installation-wide.",
+        "summary": "Create a workspace (Site administrator)",
+        "description": "Site administrator only. Names the first Workspace administrator by address, the caller when absent; that account must exist. Creates the workspace, that membership and the four starter groups (Authors, Publishers, Response viewers, Response erasers) in one transaction, with one audit row. Slugs are unique site-wide.",
         "tags": [
           "workspaces"
         ],
@@ -7168,8 +7173,28 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
           "409": {
             "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable entity",
             "content": {
               "application/json": {
                 "schema": {

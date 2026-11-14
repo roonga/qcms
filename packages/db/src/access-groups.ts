@@ -120,6 +120,38 @@ export function refuseAccessGroupName(name: string): string | undefined {
   return undefined;
 }
 
+/** One of the groups every new workspace is created with. */
+export interface StarterGroup {
+  readonly name: string;
+  readonly roles: readonly AccessRole[];
+  readonly environments: readonly string[];
+}
+
+const PRODUCTION = "prod";
+
+/**
+ * The four starter groups for a site with these environments (`docs/WORKSPACE_ACCESS.md`
+ * section 4). On a site whose only environment is `prod`, Authors carries Edit forms only,
+ * because a group carrying Publish forms or View responses must name an environment.
+ */
+export function starterGroups(liveEnvironments: readonly string[]): readonly StarterGroup[] {
+  const nonProd = liveEnvironments.filter((name) => name !== PRODUCTION);
+  const authors: StarterGroup =
+    nonProd.length > 0
+      ? {
+          name: "Authors",
+          roles: ["forms.editor", "forms.publisher", "responses.viewer"],
+          environments: nonProd,
+        }
+      : { name: "Authors", roles: ["forms.editor"], environments: [] };
+  return [
+    authors,
+    { name: "Publishers", roles: ["forms.publisher"], environments: [PRODUCTION] },
+    { name: "Response viewers", roles: ["responses.viewer"], environments: [PRODUCTION] },
+    { name: "Response erasers", roles: ["responses.eraser"], environments: [PRODUCTION] },
+  ];
+}
+
 /** Derived, never stored. */
 export function accessGroupFullName(workspaceSlug: string, storedName: string): string {
   return `${workspaceSlug}.${storedName}`;

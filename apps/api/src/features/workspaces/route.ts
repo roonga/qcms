@@ -47,10 +47,12 @@ export const listWorkspacesRoute = createRoute({
 export const createWorkspaceRoute = createRoute({
   method: "post",
   path: "/workspaces",
-  summary: "Create a workspace (admin)",
+  summary: "Create a workspace (Site administrator)",
   description:
-    "The account making the request becomes the workspace's owner. Slugs are unique " +
-    "installation-wide.",
+    "Site administrator only. Names the first Workspace administrator by address, the " +
+    "caller when absent; that account must exist. Creates the workspace, that membership " +
+    "and the four starter groups (Authors, Publishers, Response viewers, Response erasers) " +
+    "in one transaction, with one audit row. Slugs are unique site-wide.",
   tags,
   request: { body: jsonBody(CreateWorkspaceBody) },
   responses: {
@@ -58,7 +60,7 @@ export const createWorkspaceRoute = createRoute({
       description: "The workspace just created",
       content: { "application/json": { schema: WorkspaceResponse } },
     },
-    ...errorResponses(400, 401, 409),
+    ...errorResponses(400, 401, 403, 409, 422),
   },
   ...withScopes("forms:write"),
 });
