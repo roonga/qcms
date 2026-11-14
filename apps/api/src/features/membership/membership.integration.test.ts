@@ -6,6 +6,7 @@ import {
   authTeam,
   countAccessAuditByKind,
   createEnvironment,
+  listAccessGroupHolders,
   listAccessGroups,
   listWorkspaceMembers,
   setRequireSecondApprover,
@@ -163,6 +164,8 @@ async function auditCounts(): Promise<Readonly<Record<string, number>>> {
   return countAccessAuditByKind(testDb.db, SEED_WORKSPACE_ID);
 }
 
+const STARTER_GROUP_NAMES = ["Authors", "Publishers", "Response viewers", "Response erasers"];
+
 describe("the membership list and the capability endpoint (criterion 7, Q35)", () => {
   it("serves the membership list to an owner, with the groups each member holds", async () => {
     const res = await send("GET", `/workspaces/${SEED_WORKSPACE_ID}/members`);
@@ -268,12 +271,12 @@ describe("every grant holder carries a `member` row with the empty role (criteri
 describe("access-group names and the role set (criteria 12 and 13)", () => {
   it("refuses a duplicate stored name in one workspace and accepts it in another", async () => {
     await createGroup({
-      name: "Response viewers",
+      name: "Readers",
       roles: ["responses.viewer"],
       environments: ["test"],
     });
     const again = await send("POST", `/workspaces/${SEED_WORKSPACE_ID}/access-groups`, {
-      name: "Response viewers",
+      name: "Readers",
       roles: ["responses.viewer"],
       environments: ["test"],
     });
@@ -287,7 +290,7 @@ describe("access-group names and the role set (criteria 12 and 13)", () => {
     const otherId = ((await other.json()) as { workspace: { workspaceId: string } }).workspace
       .workspaceId;
     const accepted = await send("POST", `/workspaces/${otherId}/access-groups`, {
-      name: "Response viewers",
+      name: "Readers",
       roles: ["responses.viewer"],
       environments: ["test"],
     });
@@ -487,7 +490,7 @@ describe("the workspace settings body is the one switch (criterion 22)", () => {
     expect(settings.status).toBe(200);
 
     const editorGroup = await send("POST", `/workspaces/${workspaceId}/access-groups`, {
-      name: "Authors",
+      name: "Editors",
       roles: ["forms.editor"],
       environments: [],
     });
@@ -502,7 +505,9 @@ describe("the workspace settings body is the one switch (criterion 22)", () => {
     ).toBe(201);
 
     const groups = await listAccessGroups(testDb.db, workspaceId);
-    expect(groups.map((group) => group.name)).toEqual(["Authors"]);
+    expect(groups.map((group) => group.name).sort()).toEqual(
+      [...STARTER_GROUP_NAMES, "Editors"].sort(),
+    );
   });
 
   it("writes a `setting` row with the name and the new value, and no environment or form", async () => {
@@ -695,7 +700,7 @@ describe("the self-grant rule (criteria 20 and 21, Q56)", () => {
     ).toBe(200);
 
     const group = await send("POST", `/workspaces/${workspaceId}/access-groups`, {
-      name: "Response viewers",
+      name: "Readers",
       roles: ["responses.viewer"],
       environments: ["prod"],
     });
@@ -730,7 +735,7 @@ describe("the self-grant rule (criteria 20 and 21, Q56)", () => {
       .workspace.workspaceId;
     await setRequireSecondApprover(testDb.db, workspaceId, true);
     const group = await send("POST", `/workspaces/${workspaceId}/access-groups`, {
-      name: "Authors",
+      name: "Builders",
       roles: ["forms.editor"],
       environments: [],
     });
@@ -749,7 +754,7 @@ describe("the self-grant rule (criteria 20 and 21, Q56)", () => {
     const workspaceId = ((await workspace.json()) as { workspace: { workspaceId: string } })
       .workspace.workspaceId;
     const group = await send("POST", `/workspaces/${workspaceId}/access-groups`, {
-      name: "Authors",
+      name: "Builders",
       roles: ["forms.editor"],
       environments: [],
     });
@@ -764,7 +769,7 @@ describe("the self-grant rule (criteria 20 and 21, Q56)", () => {
     await setRequireSecondApprover(testDb.db, workspaceId, true);
 
     const refused = await send("PUT", `/workspaces/${workspaceId}/access-groups/${teamId}`, {
-      name: "Authors",
+      name: "Builders",
       roles: ["forms.editor", "responses.viewer"],
       environments: ["prod"],
     });
@@ -779,7 +784,7 @@ describe("the self-grant rule (criteria 20 and 21, Q56)", () => {
       secondOwnerToken,
       "PUT",
       `/workspaces/${workspaceId}/access-groups/${teamId}`,
-      { name: "Authors", roles: ["forms.editor", "responses.viewer"], environments: ["prod"] },
+      { name: "Builders", roles: ["forms.editor", "responses.viewer"], environments: ["prod"] },
     );
     expect(applied.status, await applied.clone().text()).toBe(200);
   });
@@ -792,7 +797,7 @@ describe("the self-grant rule (criteria 20 and 21, Q56)", () => {
     const workspaceId = ((await workspace.json()) as { workspace: { workspaceId: string } })
       .workspace.workspaceId;
     const group = await send("POST", `/workspaces/${workspaceId}/access-groups`, {
-      name: "Response viewers",
+      name: "Readers",
       roles: ["responses.viewer"],
       environments: ["test"],
     });
@@ -807,7 +812,7 @@ describe("the self-grant rule (criteria 20 and 21, Q56)", () => {
     await setRequireSecondApprover(testDb.db, workspaceId, true);
 
     const refused = await send("PUT", `/workspaces/${workspaceId}/access-groups/${teamId}`, {
-      name: "Response viewers",
+      name: "Readers",
       roles: ["responses.viewer"],
       environments: ["test", "prod"],
     });
@@ -1007,12 +1012,15 @@ describe("the configuration guards hold against the running instance (criterion 
     });
   });
 
-  it("creates no default team when a workspace is created", async () => {
+  it("creates no default team beside the four starter groups, and puts nobody in them", async () => {
     const workspace = await send("POST", "/workspaces", { name: "No team", slug: "no-default" });
     const workspaceId = ((await workspace.json()) as { workspace: { workspaceId: string } })
       .workspace.workspaceId;
-    // A team is a grant, so a default team would be a grant nobody wrote.
-    expect(await listAccessGroups(testDb.db, workspaceId)).toEqual([]);
+    const groups = await listAccessGroups(testDb.db, workspaceId);
+    expect(groups.map((group) => group.name).sort()).toEqual([...STARTER_GROUP_NAMES].sort());
+    for (const group of groups) {
+      expect(await listAccessGroupHolders(testDb.db, group.teamId)).toEqual([]);
+    }
   });
 
   it("never sets `activeOrganizationId` on a session", async () => {
@@ -1236,7 +1244,7 @@ describe("writes on an archived workspace", () => {
     });
     const teamId = ((await group.json()) as GroupBody).group.teamId;
     const spare = await send("POST", groupsPath, {
-      name: "Authors",
+      name: "Spare editors",
       roles: ["forms.editor"],
       environments: [],
     });
@@ -1295,13 +1303,13 @@ describe("an environment added after the groups were written (criterion 14)", ()
     const groupsPath = `/workspaces/${workspaceId}/access-groups`;
 
     const responses = await send("POST", groupsPath, {
-      name: "Response viewers",
+      name: "Readers",
       roles: ["responses.viewer"],
       environments: ["test", "prod", "dev"],
     });
     const responsesTeamId = ((await responses.json()) as GroupBody).group.teamId;
     const authors = await send("POST", groupsPath, {
-      name: "Authors",
+      name: "Builders",
       roles: ["forms.editor"],
       environments: [],
     });
@@ -1327,16 +1335,14 @@ describe("an environment added after the groups were written (criterion 14)", ()
       }[];
     };
     const workspace = body.workspaces.find((row) => row.workspaceId === workspaceId);
-    const named = workspace?.grants.find((grant) => grant.name === "Response viewers");
+    const named = workspace?.grants.find((grant) => grant.name === "Readers");
     expect(named?.environments).toEqual(["test", "prod", "dev"]);
 
     // Edit forms ignores the set, so the group that names none does cover the newcomer.
-    const everywhere = workspace?.grants.find((grant) => grant.name === "Authors");
+    const everywhere = workspace?.grants.find((grant) => grant.name === "Builders");
     expect(everywhere?.environments).toEqual([]);
 
     const stored = await listAccessGroups(testDb.db, workspaceId);
-    expect(stored.find((group) => group.name === "Response viewers")?.environments).not.toContain(
-      "sandbox",
-    );
+    expect(stored.find((group) => group.name === "Readers")?.environments).not.toContain("sandbox");
   });
 });
