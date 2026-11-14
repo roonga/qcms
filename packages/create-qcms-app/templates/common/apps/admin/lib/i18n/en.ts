@@ -442,7 +442,7 @@ export const messages = {
   "questions.detail.created": "Created",
 
   "questions.detail.deprecatedNote":
-    "This version is deprecated: no new form can pin it. Forms that already pin it keep working exactly as they are, and no answer already collected changes.",
+    "This version is deprecated: no form can start using it. Forms that already use it keep working exactly as they are, and no answer already collected changes.",
 
   "questions.rail.digestOne": "{count} version, v{version} published",
   "questions.rail.digest": "{count} versions, v{version} published",
@@ -459,15 +459,15 @@ export const messages = {
   "questions.action.cancel": "Cancel",
   "questions.confirm.publishTitle": "Publish version {version}?",
   "questions.confirm.publishBody":
-    "Publishing freezes this version's content for good and makes it pinnable by a form. To change anything afterwards you create version {next}, which leaves every form pinned to this one untouched.",
+    "Publishing freezes this version's content for good, so a form can use it. To change anything afterwards you create version {next}, which leaves every form already using this one untouched.",
   "questions.confirm.publishConfirm": "Publish",
   "questions.confirm.newVersionTitle": "Create version {next}?",
   "questions.confirm.newVersionBody":
-    "Version {next} starts as a draft copied from version {version}. Published versions never change, so forms pinned to them are unaffected until someone pins the new one.",
+    "Version {next} starts as a draft copied from version {version}. Published versions never change, so forms using them are unaffected until someone moves a form to the new one.",
   "questions.confirm.newVersionConfirm": "Create draft",
   "questions.confirm.deprecateTitle": "Deprecate version {version}?",
   "questions.confirm.deprecateBody":
-    "Deprecating blocks new pins. Forms already pinned to this version keep working exactly as they are, no collected answer changes, and nothing is deleted: a question is retired, never removed (R6).",
+    "Deprecating stops any form starting to use this version. Forms already using it keep working exactly as they are, no collected answer changes, and nothing is deleted: a question is retired, never removed (R6).",
   "questions.confirm.deprecateConfirm": "Deprecate",
 
   "questions.error.invalidId": "That is not a valid question ID.",
