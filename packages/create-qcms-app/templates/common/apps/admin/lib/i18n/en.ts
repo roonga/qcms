@@ -1673,6 +1673,9 @@ export const messages = {
   "agent.card.link.mint.title": "Create test links for this form",
   "agent.card.link.mint.title.one": "Create 1 test link for this form",
   "agent.card.link.mint.title.other": "Create {count} test links for this form",
+  "agent.card.link.mint.title.prod": "Create respondent links for this form",
+  "agent.card.link.mint.title.prod.one": "Create 1 respondent link for this form",
+  "agent.card.link.mint.title.prod.other": "Create {count} respondent links for this form",
   "agent.card.link.mint.consequence":
     "Each link lets one person open and answer this form. The web addresses are shown to you once, on this card, and cannot be read again.",
   "agent.card.response.erase.title": "Erase the respondent data for {sessionId}",

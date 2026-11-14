@@ -346,6 +346,16 @@ const PLURAL_TITLES: Readonly<Record<string, readonly [MessageKey, MessageKey]>>
     "agent.card.link.mint.title.one",
     "agent.card.link.mint.title.other",
   ],
+  "agent.card.link.mint.title.prod": [
+    "agent.card.link.mint.title.prod.one",
+    "agent.card.link.mint.title.prod.other",
+  ],
+};
+
+/* A link minted outside production is for trying a form out; one minted in production is for the people
+   answering it. Which environment that is stays on the step's own environment line. */
+const PRODUCTION_TITLES: Readonly<Record<string, MessageKey>> = {
+  "agent.card.link.mint.title": "agent.card.link.mint.title.prod",
 };
 
 export function stepTitle(
@@ -355,11 +365,14 @@ export function stepTitle(
   names: PlanNames = EMPTY_NAMES,
 ): string {
   const params = titleParams(step, reported, steps, names);
-  const plural = PLURAL_TITLES[step.card.titleKey];
+  const key =
+    (isProductionStep(step) ? PRODUCTION_TITLES[step.card.titleKey] : undefined) ??
+    step.card.titleKey;
+  const plural = PLURAL_TITLES[key];
   const count = step.args["count"];
   return plural !== undefined && typeof count === "number"
     ? tPlural(plural[0], plural[1], count, params)
-    : t(step.card.titleKey as MessageKey, params);
+    : t(key as MessageKey, params);
 }
 
 /** The subject of a whole plan: the form it creates, or whatever its first step is about. */

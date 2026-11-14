@@ -120,3 +120,38 @@ describe("a counted title agrees with its count", () => {
     expect(stepTitle(many, {}, steps, names)).toBe("Create 3 test links for this form");
   });
 });
+
+describe("what a minted link is called", () => {
+  function mint(count: number, environment: string): AgentPlanStep {
+    return step({ ...MINT, args: { ...MINT.args, count }, environment });
+  }
+
+  it("is a test link in every environment that is not production", () => {
+    for (const environment of ["dev", "test", "staging"]) {
+      const one = mint(1, environment);
+      const many = mint(4, environment);
+      expect(stepTitle(one, {}, [one], plan([one]).names)).toBe("Create 1 test link for this form");
+      expect(stepTitle(many, {}, [many], plan([many]).names)).toBe(
+        "Create 4 test links for this form",
+      );
+    }
+  });
+
+  it("is a respondent link in production, in both plural forms", () => {
+    const one = mint(1, "prod");
+    const many = mint(4, "prod");
+    expect(stepTitle(one, {}, [one], plan([one]).names)).toBe(
+      "Create 1 respondent link for this form",
+    );
+    expect(stepTitle(many, {}, [many], plan([many]).names)).toBe(
+      "Create 4 respondent links for this form",
+    );
+  });
+
+  it("names no environment in the title, which the card carries on its own line", () => {
+    for (const environment of ["staging", "prod"]) {
+      const one = mint(1, environment);
+      expect(stepTitle(one, {}, [one], plan([one]).names)).not.toContain(environment);
+    }
+  });
+});
