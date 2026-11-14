@@ -20,12 +20,12 @@ process has no admin group, so these paths 404 (ADR-09).
 | `PUT /admin/forms/:id/webhooks/:webhookId`                     | Update `url` / `active`, or rotate the secret. Rotation is explicit (`rotateSecret: true` or an explicit `secret`) and the new secret is shown once; a plain update never re-reveals it.                                       |
 | `DELETE /admin/forms/:id/webhooks/:webhookId`                  | **Soft-deactivate**: sets `active = false`, stamps `deactivated_at`; the row is retained so delivery history survives.                                                                                                         |
 | `GET /admin/forms/:id/webhooks/proposals`                      | List the endpoint changes waiting for a second approver, in the switcher's environment. A caller holding only `forms.viewer` sees a proposed URL's query string replaced by `(hidden)`, exactly as on the endpoint list (Q58). |
-| `POST /admin/forms/:id/webhooks/proposals/:proposalId/confirm` | Apply a waiting change. **Refused for the account that proposed it**, and refused for anybody not holding `forms.approver` with this environment in scope.                                                                     |
+| `POST /admin/forms/:id/webhooks/proposals/:proposalId/confirm` | Apply a waiting change. **Refused for the account that proposed it**, and refused for anybody not holding `forms.publisher` with this environment in scope.                                                                    |
 | `DELETE /admin/forms/:id/webhooks/proposals/:proposalId`       | Withdraw a waiting change, applying it to nothing. Either account may withdraw it.                                                                                                                                             |
 
 Multiple webhooks per form are allowed; 025 delivers to every `active` one. Every route
 above acts in **one environment**, chosen by the administrator's environment switcher, and
-a `prod` change is a `forms.approver`'s - see
+a `prod` change is a `forms.publisher`'s - see
 [The endpoint URL](#the-endpoint-url-not-a-secret-and-not-a-place-for-a-credential).
 
 The role names on this page are the ones the API enforces today. The decided model, in
@@ -39,7 +39,7 @@ A workspace carries one switch, `requireSecondApprover`, **off by default**. Wit
 three configure routes above answer **`202`** in `prod` instead of applying the change: the
 body carries `pending: true` and the proposal, the live endpoint row is untouched, and the
 deliverer goes on posting to the URL that was already agreed. The proposed URL receives
-nothing at all until a **different** `forms.approver` holding `prod` in scope confirms it.
+nothing at all until a **different** `forms.publisher` holding `prod` in scope confirms it.
 
 Three things an API consumer should build for:
 
@@ -134,7 +134,7 @@ treats it as one.
 never fire a production endpoint" is a property of the layout rather than a filter anybody
 has to remember. Two consequences follow. Endpoint configuration is authored **once per
 environment** and a promotion does not carry it. And configuring a **`prod`** endpoint is a
-`forms.approver`'s act with `prod` in scope (Q30, ADR-41), because an editor who can point
+`forms.publisher`'s act with `prod` in scope (Q30, ADR-41), because an editor who can point
 a production webhook at any URL can route production personal data out of the deployment;
 the same change in `dev` or `test` stays an editor's. SEC-14's per-environment egress
 allowlist is the network backstop underneath both.
