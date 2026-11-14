@@ -5,9 +5,16 @@ import type { FormListItem } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
 import { textOf } from "@/lib/questions/definition";
 
+import { FormRowMenu } from "./form-row-menu";
 import { PublishedCell } from "./published-cell";
 
-export function FormsTable({ rows }: { readonly rows: readonly FormListItem[] }) {
+export function FormsTable({
+  rows,
+  canOperate,
+}: {
+  readonly rows: readonly FormListItem[];
+  readonly canOperate: boolean;
+}) {
   return (
     <div className="qcms-table qcms-table--forms">
       <table data-testid="qcms-forms-table">
@@ -22,6 +29,9 @@ export function FormsTable({ rows }: { readonly rows: readonly FormListItem[] })
             <th scope="col">{t("forms.column.draft")}</th>
             <th scope="col" className="qcms-cell--num">
               {t("forms.column.version")}
+            </th>
+            <th scope="col" className="qcms-cell--actions">
+              <span className="qcms-visually-hidden">{t("forms.column.actions")}</span>
             </th>
           </tr>
         </thead>
@@ -57,6 +67,9 @@ export function FormsTable({ rows }: { readonly rows: readonly FormListItem[] })
                 <td>{form.hasDraft ? t("forms.draft.present") : t("forms.draft.none")}</td>
                 <td className="qcms-cell--num">
                   <PublishedCell form={form} />
+                </td>
+                <td className="qcms-cell--actions">
+                  <FormRowMenu formId={form.formId} name={name} canOperate={canOperate} />
                 </td>
               </tr>
             );

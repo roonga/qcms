@@ -50,6 +50,10 @@ vi.mock("@/lib/server/forms", () => ({
   listForms: () => Promise.resolve(formsResult),
   listAllForms: () => Promise.resolve(formsResult),
 }));
+vi.mock("@/lib/server/shell", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  shellAccess: () => Promise.resolve({ status: "unknown" }),
+}));
 vi.mock("@/lib/server/questions", () => ({
   listQuestions: () => Promise.resolve(questionsResult),
 }));

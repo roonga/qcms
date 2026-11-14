@@ -93,15 +93,15 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (614 files common to both shapes)
+### Scaffolded paths (615 files common to both shapes)
 
 | Path                                                                            | Files |
 | ------------------------------------------------------------------------------- | ----- |
 | `(project root)`                                                                | 8     |
-| `apps/`                                                                         | 603   |
-| `apps/admin/`                                                                   | 387   |
-| `apps/admin/app/`                                                               | 102   |
-| `apps/admin/app/(shell)/`                                                       | 78    |
+| `apps/`                                                                         | 604   |
+| `apps/admin/`                                                                   | 388   |
+| `apps/admin/app/`                                                               | 103   |
+| `apps/admin/app/(shell)/`                                                       | 79    |
 | `apps/admin/app/(shell)/@rail/`                                                 | 34    |
 | `apps/admin/app/(shell)/@rail/forms/`                                           | 9     |
 | `apps/admin/app/(shell)/@rail/forms/[formId]/`                                  | 7     |
@@ -138,7 +138,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/(shell)/@rail/workspaces/[workspaceId]/settings/`               | 1     |
 | `apps/admin/app/(shell)/@rail/workspaces/all/`                                  | 1     |
 | `apps/admin/app/(shell)/assist/`                                                | 1     |
-| `apps/admin/app/(shell)/forms/`                                                 | 13    |
+| `apps/admin/app/(shell)/forms/`                                                 | 14    |
 | `apps/admin/app/(shell)/forms/[formId]/`                                        | 7     |
 | `apps/admin/app/(shell)/forms/[formId]/assist/`                                 | 1     |
 | `apps/admin/app/(shell)/forms/[formId]/preview/`                                | 1     |
@@ -298,7 +298,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (614)</summary>
+<summary>Every scaffolded file (615)</summary>
 
 ```
 .dockerignore
@@ -349,6 +349,7 @@ apps/admin/app/(shell)/forms/[formId]/rules/page.tsx
 apps/admin/app/(shell)/forms/[formId]/versions/[version]/page.tsx
 apps/admin/app/(shell)/forms/[formId]/versions/page.tsx
 apps/admin/app/(shell)/forms/actions.ts
+apps/admin/app/(shell)/forms/form-row-menu.tsx
 apps/admin/app/(shell)/forms/forms-table.tsx
 apps/admin/app/(shell)/forms/new/create-form.tsx
 apps/admin/app/(shell)/forms/new/page.tsx

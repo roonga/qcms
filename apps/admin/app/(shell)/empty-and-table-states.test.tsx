@@ -105,6 +105,10 @@ vi.mock("@/lib/server/forms", () => ({
   listAllForms: () => Promise.resolve(formsResult),
   getForm: () => Promise.resolve(formDetailResult),
 }));
+vi.mock("@/lib/server/shell", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  shellAccess: () => Promise.resolve({ status: "unknown" }),
+}));
 vi.mock("@/lib/server/webhook-ops", () => ({
   listDeadLetters: () => Promise.resolve(deadLettersResult),
 }));

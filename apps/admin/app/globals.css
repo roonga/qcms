@@ -898,6 +898,18 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
+/* Hold the trailing actions column to the trigger's own width so every row's trigger lines up
+   whatever the cells before it contain. */
+.qcms-table .qcms-cell--actions {
+  inline-size: 44px;
+  padding-inline: var(--space-2);
+  text-align: end;
+}
+.qcms-rowmenu-trigger svg {
+  inline-size: 16px;
+  block-size: 16px;
+}
+
 /* A row names its subject first and carries the address and the id copy below it, so the
    table loses a column rather than gaining a line of identifiers. */
 .qcms-rowlead {

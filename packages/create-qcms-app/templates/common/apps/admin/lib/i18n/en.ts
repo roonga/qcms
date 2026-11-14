@@ -495,11 +495,14 @@ export const messages = {
   "forms.table.label": "Form library",
   /** Built from the painted name so speech input can activate the text the operator sees. */
   "forms.open": "Open form {name}",
+  /** Name the row's own form: a column of triggers is otherwise a column of identical names. */
+  "forms.rowActions": "Actions for form {name}",
   "forms.column.form": "Form",
   "forms.column.locale": "Locale",
   "forms.column.status": "Availability",
   "forms.column.draft": "Draft",
   "forms.column.version": "Published",
+  "forms.column.actions": "Row actions",
   "forms.status.open": "Open",
   "forms.status.closed": "Closed",
   "forms.status.unreleased": "Not Released",

@@ -113,8 +113,8 @@ function questionsMarkup(): string {
   return renderToStaticMarkup(<QuestionsTable rows={QUESTIONS} />);
 }
 
-function formsMarkup(): string {
-  return renderToStaticMarkup(<FormsTable rows={FORMS} />);
+function formsMarkup(canOperate = true): string {
+  return renderToStaticMarkup(<FormsTable rows={FORMS} canOperate={canOperate} />);
 }
 
 function historyMarkup(): string {
@@ -201,6 +201,21 @@ describe("the form library table", () => {
     const markup = formsMarkup();
     expect(markup).not.toContain("Form ID");
     expect(markup).toContain('<th scope="col">Form</th>');
+  });
+
+  it("ends each row with a menu trigger named for that row's form", () => {
+    const cells = formsMarkup().split('<td class="qcms-cell--actions">').slice(1);
+    expect(cells).toHaveLength(FORMS.length);
+    for (const cell of cells) expect(cell).toContain('aria-haspopup="true"');
+    expect(cells[0]).toContain('aria-label="Actions for form Alpha form"');
+    expect(cells[1]).toContain('aria-label="Actions for form bare-form"');
+  });
+
+  it("names the actions column for a screen reader without painting a heading", () => {
+    const markup = formsMarkup();
+    expect(markup).toContain(
+      '<th scope="col" class="qcms-cell--actions"><span class="qcms-visually-hidden">Row actions</span></th>',
+    );
   });
 
   it("is a plain table, not a react-aria grid whose row is the control", () => {
