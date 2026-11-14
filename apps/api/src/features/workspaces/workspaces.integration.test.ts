@@ -211,9 +211,15 @@ describe("the workspace list narrowed to the caller's own", () => {
     });
 
     const reduced = await listedRows(holder.token);
-    expect(reduced).toEqual([
-      { workspaceId: mine, name: expect.any(String), slug: expect.any(String), archivedAt: null },
+    expect(reduced).toHaveLength(1);
+    expect(Object.keys(reduced[0] ?? {}).sort()).toEqual([
+      "archivedAt",
+      "name",
+      "slug",
+      "workspaceId",
     ]);
+    expect(reduced[0]?.["workspaceId"]).toBe(mine);
+    expect(reduced[0]?.["archivedAt"]).toBeNull();
 
     const full = (await listedRows(administrator.token))[0] as Record<string, unknown>;
     expect(full["isShared"]).toBe(false);
