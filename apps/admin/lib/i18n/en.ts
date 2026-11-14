@@ -1309,7 +1309,7 @@ export const messages = {
   "forms.workflow.noPublishPermission":
     "Publishing a draft needs Edit forms and Publish forms in this workspace.",
   "forms.workflow.noReleasePermission":
-    "Needs Publish forms in {environment}. Publishers gives it; ask a Workspace administrator.",
+    "Needs Publish forms in {environment}. The Publishers group carries it; ask an owner of this workspace.",
   "forms.workflow.noCandidate":
     "No version can go to {environment} yet. Publish a version to a non-prod environment first.",
   "forms.workflow.reviewVersion": "Review v{version}",
