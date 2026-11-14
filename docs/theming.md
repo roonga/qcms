@@ -3,7 +3,7 @@
 **Status:** implements ADR-30's launch tier in full (tasks 051 + 052 + 053), with
 the scope carrier added by task 060 (ADR-38).
 **Owns:** the four-group token contract, the four predefined themes, the corner
-presets, the single High-contrast mode layer, the three density levels,
+presets, each theme's high-contrast palettes, the three density levels,
 per-deployment selection, the brand mark, the declarative self-hosted font registry
 with its curation config, the shared font fallback tails (issue #27), and the
 respondent mode / font / density controls with their persistence.
@@ -97,9 +97,9 @@ the other two.
 
 The default theme lives in the bare anchor blocks, so setting `data-theme` is
 enough to switch and removing it restores the default. The `.hc` blocks are
-emitted **after** every light/dark block: that source order is load-bearing,
-because the anchor plus `.hc` and the anchor plus `[data-theme="x"]` are both
-specificity (0,1,0) + (0,1,0) = (0,2,0).
+emitted after every light/dark block, but no palette depends on that order: each
+theme's `.hc` and `.dark.hc` blocks declare every colour token, so they outweigh
+its light and dark blocks by specificity alone.
 
 **`:is()`, never `:where()`.** They differ by exactly the property that makes the
 carrier safe. `:root` is (0,1,0), `[data-qcms-theme-scope]` is (0,1,0), and `:is()`
@@ -478,8 +478,8 @@ carried by hue alone.
 
 ### Measured contrast
 
-`theme-tokens.test.ts` recomputes every critical pair from `theme.css` with the
-WCAG 2.2 sRGB relative-luminance formula, so these numbers cannot drift from the
+`theme-tokens.test.ts` resolves `theme.css` and runs the appearance module's
+contrast check on every theme and mode, so these numbers cannot drift from the
 shipped values. Targets: 4.5:1 body text and 3:1 UI in Light and Dark, **7:1 body
 text** in High-contrast. The worst pair in each combination:
 
@@ -498,33 +498,53 @@ text** in High-contrast. The worst pair in each combination:
 | plum / dark    | 6.34:1 (text-muted / surface) | 4.5    | 3.33:1 (border-strong / surface)    | 3      |
 | plum / hc      | 9.75:1 (danger-fg / danger)   | 7      | 9.26:1 (focus-ring / background)    | 3      |
 
-## High-contrast is ONE mode layer, not a palette per theme
+## Every theme ships its own high-contrast palettes
 
-This is the part that is easiest to get wrong. High-contrast is **not** a third
-palette authored per theme. It is a single, theme-agnostic layer:
+High-contrast is a palette per theme and polarity (ADR-30 as amended by agent-builder
+Q5): each theme declares a full **light high-contrast** palette (`.hc`) and a full
+**dark high-contrast** palette (`.dark.hc`), every colour token in each, with body
+text at 7:1. The default theme's are the bare anchor blocks; an alternate theme's
+are `[data-theme="x"].hc` and `[data-theme="x"].dark.hc`.
 
-- **Token values** (the `.hc` block in `theme.css`): pure `#000` text and borders on
-  `#fff` surfaces, one muted text, the fixed AAA semantic colours, one universal
-  focus ring `#0a3ea8`.
+- **Token values:** the shipped themes keep the values they resolved to before
+  the change: pure `#000` text and borders on `#fff`, or the reverse, the AAA
+  semantic colours, and each theme's own deep accent.
 - **CSS treatment** (`[data-qcms-theme-scope].hc` in `theme-components.css`): 2px borders at
   `--color-border-strong` on every control edge, flat surfaces (every Tailwind
   shadow utility neutralized), a 3px focus outline, separators at full contrast,
   and `color-scheme: light` (High-contrast is a distinct choice, not Dark).
-- **A theme contributes only its accent**: `--color-primary` plus hover / active /
-  foreground, via a four-token `[data-theme="x"].hc` block on the anchor. Links and primary
-  UI pick it up, so each theme keeps a whisper of brand.
 
-| Theme  | HC accent                           | primary-fg / primary |
-| ------ | ----------------------------------- | -------------------- |
-| slate  | `#0b453d` (in the base `.hc` block) | 10.86:1              |
-| harbor | `#0a3a8a`                           | 10.57:1              |
-| sand   | `#7a3717`                           | 8.80:1               |
-| plum   | `#54148f`                           | 11.20:1              |
+| Theme  | HC accent | Dark HC accent |
+| ------ | --------- | -------------- |
+| slate  | `#0b453d` | `#7fe0d0`      |
+| harbor | `#0a3a8a` | `#8ab4ff`      |
+| sand   | `#7a3717` | `#f0a675`      |
+| plum   | `#54148f` | `#cfa3f5`      |
 
-**A new theme gets High-contrast for free** by adding one AAA-safe accent block.
-`theme-tokens.test.ts` enforces the shape: every theme must resolve to the
-identical HC palette apart from those four accent tokens, and an alternate theme's
-`.hc` block may not declare anything else.
+**A new theme adds both high-contrast palettes in full.** `theme-tokens.test.ts`
+asserts that every theme's two high-contrast blocks declare every colour token,
+that each resolves from its own block, and that every palette passes the
+appearance module's contrast check below.
+
+## The appearance module
+
+`packages/core/src/appearance.ts` (`@roonga/qcms-core`) is the only contrast and
+palette-derivation code in the repository. It has no DOM, I/O or React, so the
+API, the admin and the portal share it.
+
+- **`Appearance`**: a form's appearance by value, outside `FormDefinition`: the
+  four palettes inline (no theme reference), a logo key, a registry face, corners,
+  density, the admin text-size base (16 to 24 px), the progress mode (side rail,
+  top indicator, none) and the page tint. Unknown keys are refused.
+- **Contrast:** WCAG 2.2 relative luminance and ratio, thresholds 4.5 (text), 3
+  (non-text and large text) and 7 (high-contrast text). `checkPalette` measures
+  every pair in `CONTRAST_PAIRS` against the page background and surfaces.
+- **Derivation:** `deriveAppearance` turns a seed (brand colours and a face) into
+  light, dark and both high-contrast palettes that pass the check, and reports
+  each token it moved, from what to what. A page tint is kept only when every pair
+  still passes on the tinted page; otherwise it is dropped for that palette and
+  reported, and no colour moves for it.
+- **Faces:** a face outside the font registry maps to a registry face or System.
 
 ## The automatic contrast baseline: `prefers-contrast` and `forced-colors`
 
@@ -539,7 +559,7 @@ The three doors do not overlap, and it is worth being exact about which is which
 
 | Signal                   | Who set it             | What changes                                            |
 | ------------------------ | ---------------------- | ------------------------------------------------------- |
-| `.hc` mode               | respondent or operator | the whole QCMS palette, to the shared HC layer          |
+| `.hc` mode               | respondent or operator | the whole QCMS palette, to the theme's HC palette       |
 | `prefers-contrast: more` | the OS                 | edges and focus rings only, inside the current palette  |
 | `forced-colors: active`  | the OS                 | the palette is the USER's; QCMS keeps shapes and states |
 

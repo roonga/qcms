@@ -260,7 +260,7 @@ function normalizeFamily(family: string): string {
 }
 
 const FACE_BY_NAME = new Map<string, AppearanceFace>(
-  APPEARANCE_FACES.flatMap((face) =>
+  APPEARANCE_FACES.flatMap((face): [string, AppearanceFace][] =>
     face.family === null
       ? [[face.key, face.key]]
       : [
@@ -414,9 +414,9 @@ const LIGHT_PAGE_MIN_LUMINANCE = 0.4;
 const DARK_PAGE_MAX_LUMINANCE = 0.05;
 const TINT = { light: 0.08, dark: 0.12 } as const;
 
-function suitsPolarity(color: string, dark: boolean): boolean {
-  const luminance = relativeLuminance(color);
-  return dark ? luminance <= 0.18 : luminance > 0.18;
+/** Whether a seed colour reads as dark, so belongs to the light palettes as ink. */
+function isDarkColor(color: string): boolean {
+  return contrastRatio(color, WHITE) >= contrastRatio(color, BLACK);
 }
 
 interface Draft {
@@ -575,7 +575,7 @@ function derivePalette(
   fixFill(draft, "danger", STATUS[kind].danger, ink);
 
   draft.palette.border = mix(draft.palette.surface, ink, high ? 0.4 : 0.15);
-  fixForeground(draft, "border-strong", high ? ink : mix(draft.palette.surface, ink, 0.45), ink);
+  fixForeground(draft, "border-strong", high ? ink : mix(draft.palette.surface, ink, 0.55), ink);
   fixForeground(draft, "focus-ring", draft.palette.primary, ink);
 
   let tintDropped = false;
@@ -589,7 +589,10 @@ function derivePalette(
   }
 
   const palette = AppearancePalette.parse(draft.palette);
-  return { palette, corrections: draft.corrections, tintDropped };
+  const corrections = draft.corrections
+    .map((entry) => ({ ...entry, to: palette[entry.token] }))
+    .filter((entry) => entry.to !== entry.from);
+  return { palette, corrections, tintDropped };
 }
 
 /** Light, dark and both high-contrast palettes from a seed, each passing `checkPalette`, with what moved. */
@@ -607,9 +610,9 @@ export function deriveAppearance(seed: AppearanceSeed): DerivedAppearance {
       primary,
       secondary,
       text:
-        parsed.text !== undefined && suitsPolarity(parsed.text, !dark) ? parsed.text : undefined,
+        parsed.text !== undefined && isDarkColor(parsed.text) !== dark ? parsed.text : undefined,
       background:
-        parsed.background !== undefined && suitsPolarity(parsed.background, dark)
+        parsed.background !== undefined && isDarkColor(parsed.background) === dark
           ? parsed.background
           : undefined,
     };
