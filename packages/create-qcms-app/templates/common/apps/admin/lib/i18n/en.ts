@@ -1213,7 +1213,8 @@ export const messages = {
   "forms.publish.step.review": "Review and confirm",
   "forms.publish.step.announce": "Step: {step}",
   "forms.publish.source.draft": "The shared draft",
-  "forms.publish.source.draftHint": "Freezes the draft as the next version and makes it live, in one act.",
+  "forms.publish.source.draftHint":
+    "Freezes the draft as the next version and makes it live, in one act.",
   "forms.publish.source.version": "An existing version",
   "forms.publish.source.versionLabel": "Version to publish",
   "forms.publish.source.noDraft": "There is no saved draft to publish.",
@@ -1221,8 +1222,7 @@ export const messages = {
   "forms.publish.source.publishedBy": "Frozen by {publisher}.",
   "forms.publish.destinations.hint":
     "Only the environments you may publish this form to are listed.",
-  "forms.publish.destinations.none":
-    "You hold Publish forms for this form in no environment.",
+  "forms.publish.destinations.none": "You hold Publish forms for this form in no environment.",
   "forms.publish.destinations.publishOnly": "Freeze the draft without making it live",
   "forms.publish.destinations.publishOnlyHint":
     "Freezes the draft as the next version and makes it live nowhere. Another person can publish that version afterwards.",
@@ -1622,8 +1622,7 @@ export const messages = {
   "agent.card.form.create.title": "Create the form {slug}",
   "agent.card.form.create.consequence":
     "The form and an empty first draft are created. Its id is minted from the slug once and never changes, and no respondent can reach it until it is published to an environment.",
-  "agent.card.form.publish.title":
-    "Publish the draft of {formId} to {environment}",
+  "agent.card.form.publish.title": "Publish the draft of {formId} to {environment}",
   "agent.card.form.publish.consequence":
     "The working draft is frozen as the next version and goes live in {environment}, in one act. Respondents starting from now get it there.",
   "agent.card.form.release.title": "Publish version {version} of {formId} to {environment}",
