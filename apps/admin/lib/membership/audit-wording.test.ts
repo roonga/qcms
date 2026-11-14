@@ -45,7 +45,7 @@ describe("audit wording", () => {
 
   it("says each assistant act in words and leaves an unfamiliar kind as it arrived", () => {
     expect(agentActLabel("access.groupCreate")).toBe("Created an access group");
-    expect(agentActLabel("link.mint")).toBe("Minted respondent links");
+    expect(agentActLabel("link.mint")).toBe("Created respondent links");
     expect(agentActLabel("something.new")).toBe("something.new");
   });
 

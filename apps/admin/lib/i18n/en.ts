@@ -2446,7 +2446,7 @@ export const messages = {
   "membership.agentAudit.act.form.settings": "Changed a form's abuse settings",
   "membership.agentAudit.act.form.close": "Closed a form to new responses",
   "membership.agentAudit.act.form.reopen": "Reopened a form",
-  "membership.agentAudit.act.link.mint": "Minted respondent links",
+  "membership.agentAudit.act.link.mint": "Created respondent links",
   "membership.agentAudit.act.link.revoke": "Revoked a respondent link",
   "membership.agentAudit.act.response.erase": "Erased a respondent's data",
   "membership.agentAudit.act.response.unflag": "Released a withheld submission",

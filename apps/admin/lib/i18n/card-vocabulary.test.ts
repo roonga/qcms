@@ -23,7 +23,11 @@ const BUILDER_WORDS: readonly string[] = [
   "BFF",
 ];
 
-const CARD_PREFIXES: readonly string[] = ["agent.card.", "forms.assist."];
+const CARD_PREFIXES: readonly string[] = [
+  "agent.card.",
+  "forms.assist.",
+  "membership.agentAudit.act.",
+];
 
 function cardCopy(): readonly (readonly [string, string])[] {
   return Object.entries(messages).filter(([key]) =>
