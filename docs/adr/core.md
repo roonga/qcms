@@ -560,6 +560,13 @@ Two halves of the shared workspace's asymmetry were not equally reachable, and t
 
 **There is no unarchive, and the absence is deliberate rather than an omission.** An archive is terminal: it is the end of a workspace's working life, reached only once its forms have left it, and nothing in this record asks for a way back. If task 069's membership screens turn out to need one, that is the point to revisit it, as a decision with a reason rather than a gap somebody fills in passing.
 
+**Note - workspace themes and the appearance lock are in this decision's scope (Code Owner, 2026-11-08 and 2026-11-13, agent-builder Q10 and Q18 in `plan/agent-builder-decisions.md`). Decided, not built; tasks 108, 109, 110, 116 and 117.** The rules are [`docs/WORKSPACE_ACCESS.md` sections 3 and 9](../WORKSPACE_ACCESS.md#9-workspaces), and this note only places them in the workspace's scope:
+
+- **A workspace holds named themes** (colour tokens, face, corners, an optional logo, the source host of a derive). Deriving one from a website (SEC-18) and saving or changing one are Edit forms acts in that workspace. Applying a theme to a form is a draft edit and copies the appearance by value; nothing links a form to a theme, so changing or deleting a theme alters no draft and no version.
+- **The appearance lock is a workspace setting**, beside second approval: a Workspace administrator or a Site administrator sets or clears it, with no second approval, and each change writes one `setting` row (SEC-15). While it is set, the API's draft save path refuses every change to a form's appearance, for every actor and for the assistant; the refusal is the API's, never only the assistant's.
+- **A Move form carries appearance by value.** A destination with the lock set takes the form as it is, and the lock refuses later appearance edits, never the move.
+- **The logo route is not an act.** It serves a stored raster logo without a session, reads no form, version or response, and takes no grant (SEC-9 keeps `img-src` same-origin).
+
 **Note.** Nothing in this decision changes the respondent side. Respondent authorization stays structural: a session token authorizes exactly one session and there is no respondent-facing enumeration of anything (SEC-3). A respondent never learns a workspace exists.
 
 ## Deployment and operations

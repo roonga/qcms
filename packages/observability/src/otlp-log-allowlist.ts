@@ -21,6 +21,7 @@ const SAFE_EVENTS = new Set([
   "origin.belt.refused",
   "outbox delivery pass",
   "outbox delivery pass failed",
+  "outbound mail send failed",
   "outbox payload answers redacted",
   "release confirmation results purged",
   "request",

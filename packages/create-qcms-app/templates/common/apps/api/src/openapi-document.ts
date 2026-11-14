@@ -6,6 +6,7 @@ import { systemClock } from "./clock.js";
 import { loadConfig } from "./config.js";
 import type { Deps } from "./deps.js";
 import { unavailableDraftAssistant } from "./features/agent/assistant.js";
+import { unconfiguredMailer } from "./features/email/mailer.js";
 import { nullChallengeVerifier } from "./features/responses/challenge.js";
 import { createNullLogger } from "./logger.js";
 import { InMemoryRateLimitStore } from "./rate-limit.js";
@@ -69,6 +70,7 @@ function codegenDeps(): Deps {
     // Agent flag off, so the flag-gated assist route stays out of the published documents,
     // matching a default deployment.
     draftAssistant: unavailableDraftAssistant,
+    mailer: unconfiguredMailer,
     flags: config.flags,
   };
 }

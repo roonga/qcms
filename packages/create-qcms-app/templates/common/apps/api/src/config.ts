@@ -251,7 +251,33 @@ export interface Config {
         /** Drops every reasoning part under `off`, even one a provider emits unasked. */
         readonly thinking: AgentThinking;
       };
+  /**
+   * Unconfigured unless `QCMS_SMTP_HOST` is set and the admin surface is mounted, since every
+   * message carries an admin link. The SMTP password exists only in the configured arm.
+   */
+  readonly mail: MailConfig;
 }
+
+export const SMTP_SECURITY = ["starttls", "tls", "none"] as const;
+
+/** `starttls` requires the upgrade; `tls` is implicit TLS; `none` is a development relay only. */
+export type SmtpSecurity = (typeof SMTP_SECURITY)[number];
+
+export type MailConfig =
+  | { readonly configured: false }
+  | {
+      readonly configured: true;
+      readonly smtp: {
+        readonly host: string;
+        readonly port: number;
+        readonly security: SmtpSecurity;
+        readonly auth: { readonly user: string; readonly password: string } | undefined;
+        readonly timeoutMs: number;
+      };
+      readonly from: string;
+      /** The admin app's public origin, which every emailed link points at. */
+      readonly linkBaseUrl: string;
+    };
 
 export const AGENT_THINKING = ["off", "summary"] as const;
 
@@ -805,6 +831,7 @@ function parseAgent(env: Env, flags: Flags, issues: string[]): Config["agent"] {
 }
 
 const DEFAULTS = {
+  smtpTimeoutMs: 10_000,
   anonymousSessionMs: 24 * 60 * 60 * 1000,
   // From @roonga/qcms-db, where the window's rationale lives with the sweep.
   deliveryResponseSnippetMs: DEFAULT_RESPONSE_SNIPPET_RETENTION_MS,
@@ -831,6 +858,99 @@ const DEFAULTS = {
   antiAbuseMinSubmitMs: 0,
   antiAbuseHoneypotField: HONEYPOT_FIELD_NAME,
 } as const;
+
+const SMTP_SETTINGS = [
+  "QCMS_SMTP_PORT",
+  "QCMS_SMTP_SECURITY",
+  "QCMS_SMTP_ALLOW_INSECURE",
+  "QCMS_SMTP_USER",
+  "QCMS_SMTP_PASSWORD",
+  "QCMS_SMTP_FROM",
+  "QCMS_SMTP_TIMEOUT_MS",
+] as const;
+
+const SMTP_DEFAULT_PORT: Readonly<Record<SmtpSecurity, number>> = {
+  starttls: 587,
+  tls: 465,
+  none: 25,
+};
+
+/** A bare address or `Name <address>`, with no line break that could open a second header. */
+const MAIL_FROM_PATTERN = /^(?:[^<>\r\n]*<[^\s@<>]+@[^\s@<>]+>|[^\s@<>]+@[^\s@<>]+)$/;
+
+function isSet(value: string | undefined): value is string {
+  return value !== undefined && value.trim() !== "";
+}
+
+function parseSmtpSecurity(env: Env, issues: string[]): SmtpSecurity {
+  const raw = env.QCMS_SMTP_SECURITY;
+  if (!isSet(raw)) return "starttls";
+  const known = SMTP_SECURITY.find((candidate) => candidate === raw.trim().toLowerCase());
+  if (known === undefined) {
+    issues.push(`QCMS_SMTP_SECURITY must be one of: ${SMTP_SECURITY.join(", ")}`);
+    return "starttls";
+  }
+  return known;
+}
+
+/** Every issue names a variable, never a value, so the relay password cannot reach a boot error. */
+function parseMail(
+  env: Env,
+  adminMounted: boolean,
+  adminBaseUrl: string,
+  issues: string[],
+): MailConfig {
+  const host = env.QCMS_SMTP_HOST;
+  if (!isSet(host)) {
+    const stray = SMTP_SETTINGS.filter((name) => isSet(env[name]));
+    if (stray.length > 0) {
+      issues.push(`QCMS_SMTP_HOST is required when ${stray.join(", ")} is set`);
+    }
+    return { configured: false };
+  }
+
+  const security = parseSmtpSecurity(env, issues);
+  const allowInsecure = parseBool(env, "QCMS_SMTP_ALLOW_INSECURE", false, issues);
+  if (security === "none" && !allowInsecure) {
+    issues.push(
+      "QCMS_SMTP_SECURITY=none sends mail and its sign-in links unencrypted and is refused " +
+        "outside development; use starttls or tls, or set QCMS_SMTP_ALLOW_INSECURE=true for a local relay",
+    );
+  }
+
+  const port = parseInt_(env, "QCMS_SMTP_PORT", SMTP_DEFAULT_PORT[security], 1, issues);
+  if (port > 65_535) issues.push("QCMS_SMTP_PORT must be at most 65535");
+
+  const user = env.QCMS_SMTP_USER;
+  const password = env.QCMS_SMTP_PASSWORD;
+  let auth: { user: string; password: string } | undefined;
+  if (isSet(user) !== isSet(password)) {
+    issues.push("QCMS_SMTP_USER and QCMS_SMTP_PASSWORD must be set together");
+  } else if (isSet(user) && isSet(password)) {
+    if (security === "none") {
+      issues.push("QCMS_SMTP_USER and QCMS_SMTP_PASSWORD are refused with QCMS_SMTP_SECURITY=none");
+    }
+    rejectPlaceholders("QCMS_SMTP_PASSWORD", [password], issues);
+    auth = { user: user.trim(), password };
+  }
+
+  const from = env.QCMS_SMTP_FROM;
+  if (!isSet(from)) {
+    issues.push("QCMS_SMTP_FROM is required when QCMS_SMTP_HOST is set");
+  } else if (!MAIL_FROM_PATTERN.test(from.trim())) {
+    issues.push("QCMS_SMTP_FROM must be an address or `Name <address>` on one line");
+  }
+
+  const timeoutMs = parseInt_(env, "QCMS_SMTP_TIMEOUT_MS", DEFAULTS.smtpTimeoutMs, 1_000, issues);
+
+  if (!adminMounted) return { configured: false };
+  return {
+    configured: true,
+    smtp: { host: host.trim(), port, security, auth, timeoutMs },
+    from: from?.trim() ?? "",
+    linkBaseUrl: adminBaseUrl,
+  };
+}
 
 function parseRateClass(
   env: Env,
@@ -947,6 +1067,8 @@ export function loadConfig(env: Env): Config {
   const flags = parseFlags(env, issues);
   const challenge = parseChallenge(env, flags, issues);
   const agent = parseAgent(env, flags, issues);
+  const adminAuth = mount.admin ? parseAdminAuth(env, issues) : UNMOUNTED_ADMIN_AUTH;
+  const mail = parseMail(env, mount.admin, adminAuth.baseUrl, issues);
 
   const config: Config = {
     databaseUrl,
@@ -1052,7 +1174,7 @@ export function loadConfig(env: Env): Config {
         issues,
       ),
     },
-    adminAuth: mount.admin ? parseAdminAuth(env, issues) : UNMOUNTED_ADMIN_AUTH,
+    adminAuth,
     readiness: {
       dbTimeoutMs: parseInt_(env, "QCMS_READY_DB_TIMEOUT_MS", DEFAULTS.readyDbTimeoutMs, 1, issues),
     },
@@ -1074,6 +1196,7 @@ export function loadConfig(env: Env): Config {
     flags,
     challenge,
     agent,
+    mail,
   };
 
   if (issues.length > 0) {

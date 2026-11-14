@@ -25,3 +25,5 @@ Launch ships predefined themes, per-deployment selection, and respondent appeara
 ## Out of scope (binding)
 
 Per-form theming; font-manifest editing (the registry stays config); HC palette editing; theme import/export; multi-tenant theme libraries (single-tenant per ADR-20).
+
+**Superseded in part (Code Owner, 2026-11-08 and 2026-11-13).** The per-form theming exclusion is superseded by agent-builder Q4 in `plan/agent-builder-decisions.md` (appearance on drafts and versions, ADR-30 as amended) and by workspace themes (tasks 108 to 110, 116 and 117). The "HC interaction per ADR-30" deliverable above, an accent-only contribution, is superseded by Q5: every theme ships its own high-contrast palettes.

@@ -49,7 +49,17 @@ export function pnpmInvocation({
   return { command: execPath, prefix: [] };
 }
 
-const compose = ["compose", "--project-name", project, "--env-file", ".env.compose.example"];
+/** The e2e overlay adds a local Mailpit relay, so the stack boots with outbound mail configured. */
+export const COMPOSE_FILES = ["docker-compose.yml", "docker-compose.e2e.yml"];
+
+const compose = [
+  "compose",
+  "--project-name",
+  project,
+  "--env-file",
+  ".env.compose.example",
+  ...COMPOSE_FILES.flatMap((file) => ["--file", file]),
+];
 export const credentialsPath = join(root, ".e2e-full-stack-credentials.json");
 const portalPort = harnessPort("portal");
 const adminPort = harnessPort("admin");
