@@ -156,6 +156,20 @@ export function isEnvironmentScoped(resource: Resource, action: string): boolean
   return ENVIRONMENT_SCOPED.includes(`${resource}:${action}`);
 }
 
+// Publish forms reads configuration and operational state only in its group's environments,
+// so these cells follow the set whenever the request names an environment. A request
+// naming none, such as the version list or the release history, stays workspace-wide.
+const ENVIRONMENT_SCOPED_READS: Readonly<Record<string, readonly `${Resource}:${string}`[]>> = {
+  "forms.publisher": ["form:read", "release:read", "link:read", "webhook:read"],
+};
+
+// Link and endpoint rows are one environment's own data, so every read of them names it.
+const ONE_ENVIRONMENT_READS: readonly `${Resource}:${string}`[] = ["link:read", "webhook:read"];
+
+export function readsOneEnvironment(resource: Resource, action: string): boolean {
+  return ONE_ENVIRONMENT_READS.includes(`${resource}:${action}`);
+}
+
 export interface HeldGrant {
   readonly roles: readonly string[];
   // The group's environment set, empty where every role in it ignores one.
@@ -193,6 +207,13 @@ function roleAllows(grant: HeldGrant, roleName: string, request: AccessRequest):
   if (isEnvironmentScoped(request.resource, request.action)) {
     if (request.environment === undefined) return false;
     if (!grant.environments.includes(request.environment)) return false;
+  } else if (
+    request.environment !== undefined &&
+    ENVIRONMENT_SCOPED_READS[roleName]?.includes(`${request.resource}:${request.action}`) ===
+      true &&
+    !grant.environments.includes(request.environment)
+  ) {
+    return false;
   }
   return true;
 }
@@ -237,9 +258,24 @@ function refusalReason(request: AccessRequest): string {
   );
 }
 
-// Authorises nothing: it only decides how much of an already-authorised read's answer a
-// caller is shown. The environment set is ignored on purpose, since it governs writes and
-// the reads in question are workspace-wide.
+/**
+ * How much of an endpoint URL a caller already admitted to read it is shown: whole for Edit
+ * forms, and for Publish forms in an environment its group names; masked otherwise.
+ */
+export function endpointUrlShown(
+  input: { readonly memberRole: string | undefined; readonly grants: readonly HeldGrant[] },
+  environment: string | undefined,
+): "whole" | "masked" {
+  const allows = (resource: Resource, action: string): boolean =>
+    decideAccess({
+      ...input,
+      request: { resource, action, ...(environment === undefined ? {} : { environment }) },
+    }).allowed;
+  return allows("form", "write") || allows("webhook", "configure") ? "whole" : "masked";
+}
+
+// Authorises nothing and ignores the environment set: a caller that needs the set asks
+// `decideAccess` with an environment instead.
 export function holdsStatement(
   input: {
     readonly memberRole: string | undefined;

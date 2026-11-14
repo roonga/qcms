@@ -1,7 +1,9 @@
 import { FormId } from "@roonga/qcms-core";
 import {
   SEED_WORKSPACE_ID,
+  addAccessGroupHolder,
   confirmEndpointProposal,
+  createAccessGroup,
   createForm,
   getEndpointProposal,
   getWebhook,
@@ -15,6 +17,10 @@ import { createApp } from "../../app.js";
 import type { Deps } from "../../deps.js";
 import { registerGrantCheck } from "../membership/middleware.js";
 import { ADMIN_SESSION_HEADER, registerAdminAuth } from "../../middleware/admin-auth.js";
+import {
+  REQUEST_ENVIRONMENT_HEADER,
+  registerRequestEnvironment,
+} from "../../middleware/request-environment.js";
 import { internalTokenFor, makeDeps, seedAdminSession, validEnv } from "../../test-support.js";
 import { decryptWebhookSecret } from "./crypto.js";
 import { registerWebhooks } from "./route.js";
@@ -520,5 +526,65 @@ describe("the pending `prod` endpoint change (task 070, Q30, Q51)", () => {
       // A `forms.owner` reads the audit and is never shown an unmasked endpoint URL.
       expect(row.detail ?? "").not.toContain("agreed-consumer.example");
     }
+  });
+});
+
+describe("a publisher reads endpoint configuration only in its group's environments", () => {
+  const PROD_URL = "https://consumer.example.com/scoped?token=abc";
+
+  it("refuses a test publisher prod, and masks prod for one who also views forms", async () => {
+    const scopedApp = createApp(makeDeps({ db: testDb.db, env: baseEnv }), ADMIN_ONLY, {
+      groups: {
+        admin: [
+          registerAdminAuth,
+          registerRequestEnvironment,
+          registerGrantCheck,
+          registerWebhooks,
+        ],
+      },
+    });
+    const created = await req(app, `/forms/${FORM_ID}/webhooks`, "POST", { url: PROD_URL });
+    expect(created.status, await created.clone().text()).toBe(201);
+
+    const persona = async (label: string, viewer: boolean): Promise<string> => {
+      const seeded = await seedAdminSession(testDb.db, {
+        label,
+        claim: false,
+        owner: false,
+        grants: viewer ? ["forms.viewer"] : [],
+      });
+      const group = await createAccessGroup(testDb.db, {
+        workspaceId: SEED_WORKSPACE_ID,
+        name: `${label} publishers`,
+        roles: ["forms.publisher"],
+        environments: ["test"],
+      });
+      await addAccessGroupHolder(testDb.db, group.teamId, seeded.userId);
+      return seeded.token;
+    };
+    const read = async (token: string, path: string, environment: string): Promise<Response> =>
+      scopedApp.request(`/admin/forms/${FORM_ID}${path}`, {
+        headers: {
+          ...headers(),
+          [ADMIN_SESSION_HEADER]: token,
+          [REQUEST_ENVIRONMENT_HEADER]: environment,
+        },
+      });
+
+    const publisher = await persona("webhooks-test-publisher", false);
+    for (const path of ["/webhooks", "/webhooks/proposals", "/deliveries"]) {
+      const inTest = await read(publisher, path, "test");
+      expect(inTest.status, `${path} in test: ${await inTest.clone().text()}`).toBe(200);
+      expect((await read(publisher, path, "prod")).status, `${path} in prod`).toBe(403);
+    }
+
+    const both = await persona("webhooks-viewer-test-publisher", true);
+    const inProd = await read(both, "/webhooks", "prod");
+    expect(inProd.status).toBe(200);
+    const urls = ((await inProd.json()) as { webhooks: { url: string }[] }).webhooks.map(
+      (row) => row.url,
+    );
+    expect(urls).toContain("https://consumer.example.com/scoped?(hidden)");
+    expect(urls).not.toContain(PROD_URL);
   });
 });

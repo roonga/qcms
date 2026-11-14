@@ -13,7 +13,7 @@ import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
 import { resolveWorkspaceForNewObject } from "../workspaces/resolve.js";
 import type { AccessRequest } from "./policy.js";
-import { decideAccess, holdsStatement, isEnvironmentScoped } from "./policy.js";
+import { decideAccess, endpointUrlShown, holdsStatement, isEnvironmentScoped } from "./policy.js";
 import {
   type ResolvedMembership,
   holdsInstallationClaim,
@@ -447,22 +447,19 @@ async function decideInOneWorkspace(
     workspaceId,
     ...(environment === undefined ? {} : { environment }),
     ...(decision.role === undefined ? {} : { role: decision.role }),
-    ...endpointUrlVisibility(policy, resolved),
+    ...endpointUrlVisibility(policy, resolved, environment),
   };
 }
 
 // Asks what the grants declare rather than reading `decision.role`: that field is
 // whichever grant allowed the read first, so masking would vary with database row order.
-// Edit forms and Publish forms see the whole URL; View forms alone sees it masked.
 function endpointUrlVisibility(
   policy: RoutePolicy,
   resolved: ResolvedMembership,
+  environment: string | undefined,
 ): { endpointUrl?: "whole" | "masked" } {
   if (policy.resource !== "webhook" || policy.action !== "read") return {};
-  const held = { memberRole: resolved.memberRole, grants: resolved.grants };
-  const whole =
-    holdsStatement(held, "webhook", "configure") || holdsStatement(held, "form", "write");
-  return { endpointUrl: whole ? "whole" : "masked" };
+  return { endpointUrl: endpointUrlShown(resolved, environment) };
 }
 
 async function claimContext(

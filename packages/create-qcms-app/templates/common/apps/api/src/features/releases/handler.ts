@@ -30,7 +30,11 @@ import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
 import { agentStepSite, writeAgentStep } from "../agent/audit.js";
 import { decideAccess, PRODUCTION_ENVIRONMENT } from "../membership/policy.js";
-import { holdsInstallationClaim, resolveGrants } from "../membership/resolver.js";
+import {
+  holdsInstallationClaim,
+  resolveCallerWorkspaces,
+  resolveGrants,
+} from "../membership/resolver.js";
 import { approvalForRelease } from "../membership/two-person.js";
 import { commitReleaseBatch, intentHashOf, type BatchResult } from "./batch.js";
 import { recordRelease } from "./release.js";
@@ -577,10 +581,26 @@ export function makeReleaseWorkflowReadHandler(
   deps: Deps,
 ): RouteHandler<typeof releaseWorkflowReadRoute, ApiEnv> {
   return async (c) => {
-    const rows = await servedEnvironments(deps);
+    const principal = c.get("adminPrincipal");
+    if (principal === undefined) throw fail.noPrincipal();
+    const served = await servedEnvironments(deps);
     const workflow = await readWorkflow(
       deps.databases.control,
-      rows.map((row) => row.name),
+      served.map((row) => row.name),
+    );
+    const memberships = await resolveCallerWorkspaces(deps.databases.control, {
+      userId: principal.userId,
+      claim: holdsInstallationClaim(principal.role),
+    });
+    const rows = served.filter((row) =>
+      memberships.some(
+        (membership) =>
+          decideAccess({
+            memberRole: membership.memberRole,
+            grants: membership.grants,
+            request: { resource: "release", action: "read", environment: row.name },
+          }).allowed,
+      ),
     );
     return c.json(workflowBody(workflow, rows), 200);
   };

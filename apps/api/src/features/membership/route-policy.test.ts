@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { ACTIONS, isEnvironmentScoped } from "./policy.js";
+import { ACTIONS, isEnvironmentScoped, readsOneEnvironment } from "./policy.js";
 import {
   AGENT_SCREEN_CELLS,
   GRANT_EXEMPT_ROUTES,
@@ -173,12 +173,16 @@ describe("every row names an action the policy declares", () => {
     }
   });
 
-  it("names an environment exactly when a cell it decides is environment-scoped", () => {
+  it("names an environment exactly when a cell it decides is environment-scoped or one environment's rows", () => {
     // An `anyOf` union is admitted as statements, never judged against an environment, so
     // it is deliberately not part of this test: the handler narrows per environment.
     for (const row of ROUTE_POLICIES) {
       const cells = [{ resource: row.resource, action: row.action }, ...(row.also ?? [])];
-      const scoped = cells.some((cell) => isEnvironmentScoped(cell.resource, cell.action));
+      const scoped = cells.some(
+        (cell) =>
+          isEnvironmentScoped(cell.resource, cell.action) ||
+          (row.installationOnly !== true && readsOneEnvironment(cell.resource, cell.action)),
+      );
       const decidesPerEnvironment = row.anyOf !== undefined && row.environmentFrom !== undefined;
       expect(row.namesEnvironment === true, `${row.method} ${row.path}`).toBe(
         scoped || decidesPerEnvironment,

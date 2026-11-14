@@ -15,6 +15,7 @@ import { ApiError } from "../../../errors.js";
 import {
   decideAccess,
   isEnvironmentScoped,
+  readsOneEnvironment,
   type AccessRequest,
   type Resource,
 } from "../../membership/policy.js";
@@ -155,7 +156,10 @@ function requestFor(args: {
   return {
     resource: args.resource,
     action: args.action,
-    ...(isEnvironmentScoped(args.resource, args.action) ? { environment: args.environment } : {}),
+    ...(isEnvironmentScoped(args.resource, args.action) ||
+    readsOneEnvironment(args.resource, args.action)
+      ? { environment: args.environment }
+      : {}),
   };
 }
 

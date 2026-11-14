@@ -10,6 +10,7 @@ import {
   type Resource,
   type RoleName,
   decideAccess,
+  endpointUrlShown,
   holdsStatement,
   isEnvironmentScoped,
   roles,
@@ -203,6 +204,65 @@ describe("the environment set governs the environment-scoped acts (criteria 9, 1
     expect(ask("test")).toBe(true);
     expect(ask("dev")).toBe(false);
     expect(ask("prod")).toBe(false);
+  });
+
+  it("gives a publisher its configuration reads only in its environments, and history everywhere", () => {
+    const grants = [{ roles: ["forms.publisher"], environments: ["test"] }];
+    const ask = (resource: Resource, action: string, environment?: string): boolean =>
+      decideAccess({
+        memberRole: undefined,
+        grants,
+        request: { resource, action, ...(environment === undefined ? {} : { environment }) },
+      }).allowed;
+    for (const [resource, action] of [
+      ["link", "read"],
+      ["webhook", "read"],
+      ["release", "read"],
+      ["form", "read"],
+    ] as const) {
+      expect(ask(resource, action, "test"), `${resource}:${action} in test`).toBe(true);
+      expect(ask(resource, action, "prod"), `${resource}:${action} in prod`).toBe(false);
+    }
+    expect(ask("form", "read")).toBe(true);
+    expect(ask("release", "read")).toBe(true);
+  });
+
+  it("leaves View forms and Edit forms reading configuration in every environment", () => {
+    for (const role of ["forms.viewer", "forms.editor"] as const) {
+      const grants = [{ roles: [role], environments: [] }];
+      for (const [resource, action] of [
+        ["link", "read"],
+        ["webhook", "read"],
+        ["release", "read"],
+        ["form", "read"],
+      ] as const) {
+        expect(
+          decideAccess({
+            memberRole: undefined,
+            grants,
+            request: { resource, action, environment: "prod" },
+          }).allowed,
+          `${role} ${resource}:${action}`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("shows a publisher the whole endpoint URL only in its environments", () => {
+    const publisher = {
+      memberRole: undefined,
+      grants: [
+        { roles: ["forms.viewer"], environments: [] },
+        { roles: ["forms.publisher"], environments: ["test"] },
+      ],
+    };
+    expect(endpointUrlShown(publisher, "test")).toBe("whole");
+    expect(endpointUrlShown(publisher, "prod")).toBe("masked");
+    const editor = {
+      memberRole: undefined,
+      grants: [{ roles: ["forms.editor"], environments: [] }],
+    };
+    expect(endpointUrlShown(editor, "prod")).toBe("whole");
   });
 
   it("refuses a response role an environment its groups do not name", () => {

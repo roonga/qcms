@@ -503,6 +503,8 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     resource: "link",
     action: "read",
     workspace: "form",
+    namesEnvironment: true,
+    environmentFrom: "switcher",
   },
   {
     method: "POST",
@@ -529,6 +531,8 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     resource: "webhook",
     action: "read",
     workspace: "form",
+    namesEnvironment: true,
+    environmentFrom: "switcher",
   },
   {
     method: "POST",
@@ -558,13 +562,13 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     environmentFrom: "switcher",
   },
   {
-    // A configuration read, so workspace-wide and naming no environment; the handler
-    // still reads the switcher to choose which environment's pending list to show.
     method: "GET",
     path: "/admin/forms/{id}/webhooks/proposals",
     resource: "webhook",
     action: "read",
     workspace: "form",
+    namesEnvironment: true,
+    environmentFrom: "switcher",
   },
   {
     // The handler must compare the proposal's own environment against the switcher's: a
@@ -595,6 +599,8 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     resource: "webhook",
     action: "read",
     workspace: "form",
+    namesEnvironment: true,
+    environmentFrom: "switcher",
   },
   {
     method: "POST",

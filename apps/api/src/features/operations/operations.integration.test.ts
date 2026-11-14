@@ -458,8 +458,8 @@ describe("operations discovery: which rows each persona is served", () => {
     expect(claimsInTest?.capabilities).toContain("link:mint");
     const inProd = await operations(testPublisher.token, "environment=prod");
     const claimsInProd = inProd.body.forms.find((row) => row.slug === "ops-claims");
-    // The row is still served, since `form: read` is workspace-wide, and every production
-    // write is absent: the environment set its publisher group names.
+    // Served through the Edit forms group, which reads everywhere; every production write
+    // is absent, since the publisher group names `test` alone.
     expect(claimsInProd?.release).not.toBeNull();
     expect(claimsInProd?.capabilities).toEqual(VIEWER_READS);
   });
@@ -473,9 +473,20 @@ describe("operations discovery: which rows each persona is served", () => {
     expect(claims?.capabilities).not.toContain("response:read");
     expect(claims?.counts).toBeNull();
     const inTest = await operations(prodPublisher.token, "environment=test");
-    expect(inTest.body.forms.find((row) => row.slug === "ops-claims")?.capabilities).toEqual(
-      VIEWER_READS,
-    );
+    expect(inTest.status).toBe(200);
+    expect(inTest.body.forms).toEqual([]);
+  });
+
+  it("reports the release workflow to a publisher only for the environments its group names", async () => {
+    const names = async (token: string): Promise<string[]> => {
+      const res = await app.request("/admin/release-workflow", { headers: headers(token) });
+      expect(res.status, await res.clone().text()).toBe(200);
+      return ((await res.json()) as { environments: { name: string }[] }).environments.map(
+        (row) => row.name,
+      );
+    };
+    expect(await names(prodPublisher.token)).toEqual(["prod"]);
+    expect((await names(viewer.token)).sort()).toEqual([...LIVE_SET].sort());
   });
 
   it("restricts a prod response viewer to that environment, and to no versions", async () => {

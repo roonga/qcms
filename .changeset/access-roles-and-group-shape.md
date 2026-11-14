@@ -31,6 +31,10 @@ What an adopter should know.
 - Freezing a version takes `forms.editor` **and** `forms.publisher`: `POST /forms/{id}/publish`,
   `/publish-and-release` and `/publish-batch` each require both cells, and the publisher's
   environment set decides which destinations a release reaches.
+- A `forms.publisher` reads link and endpoint configuration, operational form metadata and
+  the release-workflow rules only in the environments its group names. View forms and Edit
+  forms still read them everywhere, and the version list and release history stay
+  workspace-wide for every forms role.
 - `POST /admin/questions/{id}/workspace` is removed: questions do not move between
   workspaces, and the shared question library covers reuse.
 - `PUT /admin/workspaces/{id}/settings` now takes `{ requireSecondApprover }` alone, and the

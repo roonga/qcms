@@ -117,7 +117,9 @@ delivery dashboard, and it is in an egress rule somebody has written.
 
 **What a `forms.viewer` sees is the URL with its query string masked.** A caller holding
 only that role reads the scheme, the host and the path, with the query replaced by
-`(hidden)`; a `forms.editor` and above sees the whole URL. The **API** does the masking, in
+`(hidden)`; a `forms.editor` sees the whole URL, and so does a `forms.publisher` in an
+environment its group names. A publisher reads no endpoint, proposal or delivery in any
+other environment unless another role grants it. The **API** does the masking, in
 the response it returns, so a second client of the same route - a script, another front
 end, a curl - sees the same thing as the shipped admin. The same rule covers the delivery
 dashboard's copy of the URL, because that is the same stored value reaching the same role by

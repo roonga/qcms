@@ -1,6 +1,8 @@
 import { FormId, importCompactTokenKey, verifySecureLink } from "@roonga/qcms-core";
 import {
   SEED_WORKSPACE_ID,
+  addAccessGroupHolder,
+  createAccessGroup,
   createForm,
   insertFormRelease,
   insertFormVersion,
@@ -25,7 +27,10 @@ import {
   synthSecret,
   validEnv,
 } from "../../test-support.js";
-import { registerRequestEnvironment } from "../../middleware/request-environment.js";
+import {
+  REQUEST_ENVIRONMENT_HEADER,
+  registerRequestEnvironment,
+} from "../../middleware/request-environment.js";
 import { registerLinkEntry } from "../responses/start-session/route.js";
 import { MAX_LINK_BATCH } from "./schema.js";
 import { registerLinks } from "./route.js";
@@ -304,6 +309,36 @@ describe("secure-link minting → 018 verification loop (exit criterion 1)", () 
       body: JSON.stringify({ expiresAt: FUTURE }),
     });
     expect(res.status).toBe(401);
+  });
+});
+
+describe("a publisher reads links only in its group's environments", () => {
+  it("lists links in test and is refused in prod", async () => {
+    const publisher = await seedAdminSession(testDb.db, {
+      label: "links-test-publisher",
+      claim: false,
+      owner: false,
+      grants: [],
+    });
+    const group = await createAccessGroup(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
+      name: "Links test publishers",
+      roles: ["forms.publisher"],
+      environments: ["test"],
+    });
+    await addAccessGroupHolder(testDb.db, group.teamId, publisher.userId);
+
+    const list = async (environment: string): Promise<Response> =>
+      app.request(`/admin/forms/${FORM_ID}/links`, {
+        headers: {
+          ...adminHeaders(),
+          [ADMIN_SESSION_HEADER]: publisher.token,
+          [REQUEST_ENVIRONMENT_HEADER]: environment,
+        },
+      });
+    const inTest = await list("test");
+    expect(inTest.status, await inTest.clone().text()).toBe(200);
+    expect((await list("prod")).status).toBe(403);
   });
 });
 

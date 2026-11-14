@@ -1353,6 +1353,20 @@ describe("the publisher's environments and the masked endpoint URL (criterion 9)
     }
   });
 
+  it("refuses a `test` publisher every `prod` configuration read, and serves `test`", async () => {
+    for (const path of ["links", "webhooks", "webhooks/proposals", "deliveries"]) {
+      const refused = await all.app.request(`/admin/forms/${ctx.formId}/${path}`, {
+        headers: headersFor(testPublisher, "prod"),
+      });
+      expect(refused.status, `${path} in prod`).toBe(403);
+      expectNoPayload(await refused.text());
+      const served = await all.app.request(`/admin/forms/${ctx.formId}/${path}`, {
+        headers: headersFor(testPublisher, "test"),
+      });
+      expect(served.status, `${path} in test`).toBe(200);
+    }
+  });
+
   it("masks the delivery dashboard's copy of the same URL for a `forms.viewer` (Q58)", async () => {
     // The delivery list is `webhook: read` like the endpoint list, so it masks the same way.
     const res = await all.app.request(`/admin/forms/${ctx.formId}/deliveries`, {
