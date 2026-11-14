@@ -135,12 +135,33 @@ function missing(ids: readonly string[], from: readonly string[]): readonly stri
   return ids.filter((id) => !held.has(id)).slice(0, FACT_ROW_LIMIT);
 }
 
-function structuralDiff(args: {
+/** A side given as `undefined` does not exist; `reads.test.ts` holds that apart from an empty one. */
+export function structuralDiff(args: {
   readonly from: string;
   readonly to: string;
   readonly before: unknown;
   readonly after: unknown;
 }): FormVersionDiff {
+  const fromFound = args.before !== undefined;
+  const toFound = args.after !== undefined;
+  // A form with no draft at all would otherwise diff as one whose every question was removed.
+  if (!fromFound || !toFound) {
+    return {
+      from: args.from,
+      to: args.to,
+      fromFound,
+      toFound,
+      outcome: "unavailable",
+      identical: null,
+      stepsAdded: null,
+      stepsRemoved: null,
+      questionsAdded: null,
+      questionsRemoved: null,
+      questionsRepinned: null,
+      ruleCountFrom: fromFound ? ruleCountOf(args.before) : null,
+      ruleCountTo: toFound ? ruleCountOf(args.after) : null,
+    };
+  }
   const beforePins = pinsOf(args.before);
   const afterPins = pinsOf(args.after);
   const beforeIds = beforePins.map((pin) => pin.questionId);
@@ -164,9 +185,10 @@ function structuralDiff(args: {
   return {
     from: args.from,
     to: args.to,
-    fromFound: args.before !== undefined,
-    toFound: args.after !== undefined,
-    identical: JSON.stringify(args.before ?? null) === JSON.stringify(args.after ?? null),
+    fromFound,
+    toFound,
+    outcome: "compared",
+    identical: JSON.stringify(args.before) === JSON.stringify(args.after),
     stepsAdded,
     stepsRemoved,
     questionsAdded,

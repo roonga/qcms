@@ -58,6 +58,7 @@ const READS: readonly {
       to: "draft",
       fromFound: true,
       toFound: true,
+      outcome: "compared",
       identical: false,
       stepsAdded: ["stp_b"],
       stepsRemoved: [],

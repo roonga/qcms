@@ -422,20 +422,24 @@ const Outputs = {
     to: z.string(),
     fromFound: z.boolean(),
     toFound: z.boolean(),
-    identical: z.boolean(),
-    stepsAdded: z.array(z.string()),
-    stepsRemoved: z.array(z.string()),
-    questionsAdded: z.array(z.string()),
-    questionsRemoved: z.array(z.string()),
-    questionsRepinned: z.array(
-      z.strictObject({
-        questionId: z.string(),
-        from: z.number().int(),
-        to: z.number().int(),
-      }),
-    ),
-    ruleCountFrom: z.number().int(),
-    ruleCountTo: z.number().int(),
+    // Typed rather than left to the counts, so a side that does not exist cannot read as empty.
+    outcome: z.enum(["compared", "unavailable"]),
+    identical: z.boolean().nullable(),
+    stepsAdded: z.array(z.string()).nullable(),
+    stepsRemoved: z.array(z.string()).nullable(),
+    questionsAdded: z.array(z.string()).nullable(),
+    questionsRemoved: z.array(z.string()).nullable(),
+    questionsRepinned: z
+      .array(
+        z.strictObject({
+          questionId: z.string(),
+          from: z.number().int(),
+          to: z.number().int(),
+        }),
+      )
+      .nullable(),
+    ruleCountFrom: z.number().int().nullable(),
+    ruleCountTo: z.number().int().nullable(),
   }),
   count_links: z.strictObject({
     environment: z.string(),
@@ -940,8 +944,11 @@ export const TOOLS: Readonly<Record<AgentToolName, AgentToolDef>> = Object.freez
   diff_form_versions: {
     description:
       "Compare two published versions of a form, or one of them against its working " +
-      "draft (null), and report which steps, pinned questions and rules differ. Structure " +
-      "only: no authored text and no response data.",
+      "draft (null), and report which steps, pinned questions and rules differ. A side " +
+      "that does not exist is MISSING, not empty: `outcome` is then `unavailable`, " +
+      "`fromFound` or `toFound` says which side is absent, and every comparison field is " +
+      "null. A form with no working draft comes back that way, so never read it as a draft " +
+      "that has been emptied. Structure only: no authored text and no response data.",
     inputSchema: DiffFormVersionsInput,
     outputSchema: Outputs.diff_form_versions,
     cell: FORM_READ,

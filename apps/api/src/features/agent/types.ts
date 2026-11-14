@@ -158,18 +158,22 @@ export interface FormVersionDiff {
   readonly to: string;
   readonly fromFound: boolean;
   readonly toFound: boolean;
-  readonly identical: boolean;
-  readonly stepsAdded: readonly string[];
-  readonly stepsRemoved: readonly string[];
-  readonly questionsAdded: readonly string[];
-  readonly questionsRemoved: readonly string[];
-  readonly questionsRepinned: readonly {
-    readonly questionId: string;
-    readonly from: number;
-    readonly to: number;
-  }[];
-  readonly ruleCountFrom: number;
-  readonly ruleCountTo: number;
+  /** Typed rather than left to the counts, so a side that does not exist cannot read as an empty one. */
+  readonly outcome: "compared" | "unavailable";
+  readonly identical: boolean | null;
+  readonly stepsAdded: readonly string[] | null;
+  readonly stepsRemoved: readonly string[] | null;
+  readonly questionsAdded: readonly string[] | null;
+  readonly questionsRemoved: readonly string[] | null;
+  readonly questionsRepinned:
+    | readonly {
+        readonly questionId: string;
+        readonly from: number;
+        readonly to: number;
+      }[]
+    | null;
+  readonly ruleCountFrom: number | null;
+  readonly ruleCountTo: number | null;
 }
 
 /** `null` names the working draft on either side, which is what the versions screen diffs against. */
