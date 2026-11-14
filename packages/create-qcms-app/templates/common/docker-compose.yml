@@ -199,6 +199,15 @@ services:
       QCMS_AGENT_THINKING: ${QCMS_AGENT_THINKING:-}
       QCMS_RL_AGENT_ASSIST_WINDOW_MS: ${QCMS_RL_AGENT_ASSIST_WINDOW_MS:-}
       QCMS_RL_AGENT_ASSIST_MAX: ${QCMS_RL_AGENT_ASSIST_MAX:-}
+      # Outbound mail relay, API only. An empty host leaves mail unconfigured.
+      QCMS_SMTP_HOST: ${QCMS_SMTP_HOST:-}
+      QCMS_SMTP_PORT: ${QCMS_SMTP_PORT:-}
+      QCMS_SMTP_SECURITY: ${QCMS_SMTP_SECURITY:-}
+      QCMS_SMTP_ALLOW_INSECURE: ${QCMS_SMTP_ALLOW_INSECURE:-}
+      QCMS_SMTP_USER: ${QCMS_SMTP_USER:-}
+      QCMS_SMTP_PASSWORD: ${QCMS_SMTP_PASSWORD:-}
+      QCMS_SMTP_FROM: ${QCMS_SMTP_FROM:-}
+      QCMS_SMTP_TIMEOUT_MS: ${QCMS_SMTP_TIMEOUT_MS:-}
     depends_on:
       migrate:
         condition: service_completed_successfully

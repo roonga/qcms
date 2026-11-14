@@ -248,6 +248,7 @@ describe("appManifest", () => {
   it("drops the harness devDependencies", () => {
     const api = appManifest("api", versions) as { devDependencies: Record<string, string> };
     expect(api.devDependencies).not.toHaveProperty("@testcontainers/postgresql");
+    expect(api.devDependencies).not.toHaveProperty("testcontainers");
     expect(api.devDependencies).toHaveProperty("@types/node");
   });
 });

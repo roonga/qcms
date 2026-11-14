@@ -117,6 +117,8 @@ jobs:
 
       - uses: ./.github/actions/test-postgres-image
         if: env.PLAN_ONLY != 'true'
+        with:
+          mailpit: "true"
 
       - run: pnpm test
         if: env.PLAN_ONLY != 'true'
@@ -253,6 +255,8 @@ jobs:
 
       - uses: ./.github/actions/test-postgres-image
         if: env.PLAN_ONLY != 'true'
+        with:
+          mailpit: "true"
 
       - run: pnpm --filter qcms-api exec vitest run --root ../.. --project qcms-api-e2e
         if: env.PLAN_ONLY != 'true'

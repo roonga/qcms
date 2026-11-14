@@ -88,9 +88,11 @@ jobs:
         if: env.PLAN_ONLY != 'true'
         run: pnpm exec playwright install --with-deps chromium
 
-      # Compose consumes the resolved test image as QCMS_POSTGRES_IMAGE.
+      # Compose consumes the resolved test images as QCMS_POSTGRES_IMAGE and QCMS_MAILPIT_IMAGE.
       - uses: ./.github/actions/test-postgres-image
         if: env.PLAN_ONLY != 'true'
+        with:
+          mailpit: "true"
 
       # Compose uses the daemon image store, so pre-pulling covers both bases and BuildKit frontends.
       - uses: ./.github/actions/prepull-base-images
@@ -101,6 +103,7 @@ jobs:
         if: env.PLAN_ONLY != 'true'
         env:
           QCMS_POSTGRES_IMAGE: ${{ env.QCMS_TEST_POSTGRES_IMAGE }}
+          QCMS_MAILPIT_IMAGE: ${{ env.QCMS_TEST_MAILPIT_IMAGE }}
         run: pnpm docker:up
 
       - name: Run full-stack E2E browser flow
@@ -111,6 +114,7 @@ jobs:
         if: ${{ always() && env.PLAN_ONLY != 'true' }}
         env:
           QCMS_POSTGRES_IMAGE: ${{ env.QCMS_TEST_POSTGRES_IMAGE }}
+          QCMS_MAILPIT_IMAGE: ${{ env.QCMS_TEST_MAILPIT_IMAGE }}
         run: pnpm docker:down
 
       - name: Upload E2E report

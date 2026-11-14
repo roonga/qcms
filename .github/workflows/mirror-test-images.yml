@@ -37,10 +37,22 @@ jobs:
             --tag "ghcr.io/${owner}/qcms/postgres:16-alpine" \
             docker.io/library/postgres:16-alpine
 
-      - name: Show the mirrored manifest
+      # Pinned by digest: Mailpit is a third-party image, so a moved tag must not reach the mirror unreviewed.
+      - name: Copy axllent/mailpit:v1.33.1 to GHCR
+        env:
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          owner="$(printf '%s' "${REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          docker buildx imagetools create \
+            --tag "ghcr.io/${owner}/qcms/mailpit:v1.33.1" \
+            docker.io/axllent/mailpit:v1.33.1@sha256:aef2aacc11f075ec0fb6874275ee4a421e688e11a96ebb296134d1735c7761ce
+
+      - name: Show the mirrored manifests
         env:
           REPOSITORY_OWNER: ${{ github.repository_owner }}
         run: |
           set -euo pipefail
           owner="$(printf '%s' "${REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
           docker buildx imagetools inspect "ghcr.io/${owner}/qcms/postgres:16-alpine"
+          docker buildx imagetools inspect "ghcr.io/${owner}/qcms/mailpit:v1.33.1"
