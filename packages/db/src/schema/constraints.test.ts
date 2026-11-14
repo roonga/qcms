@@ -160,10 +160,10 @@ describe("the access audit's kind CHECK carries the derive fetch (spec section 1
 });
 
 /**
- * 108 is the builder's only migration, so the columns 111 writes an edit and an Undo row
- * with are confirmed here rather than added later.
+ * The builder ships one migration, so the columns an edit row and an Undo row need are
+ * confirmed here rather than added by a later one.
  */
-describe("agent_actions holds a draft edit and an Undo in its current columns (111)", () => {
+describe("agent_actions holds a draft edit and an Undo in its current columns", () => {
   async function agentRow(proposalId: string, kind: string): Promise<void> {
     await testDb.client.query(
       `insert into agent_actions

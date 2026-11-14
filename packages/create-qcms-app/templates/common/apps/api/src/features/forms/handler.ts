@@ -6,6 +6,7 @@ import {
   answerKey,
   type AnswerMap,
   type AnswerValue,
+  type Appearance,
   compileDraft,
   countBounds,
   type DraftInput,
@@ -1413,7 +1414,12 @@ export function makeUpdateFormSettingsHandler(
 async function freezeDraft(
   deps: Deps,
   formId: FormId,
-): Promise<{ snapshot: FrozenSnapshot; compiled: CompiledForm; draftRevision: number }> {
+): Promise<{
+  snapshot: FrozenSnapshot;
+  compiled: CompiledForm;
+  draftRevision: number;
+  appearance: Appearance | null;
+}> {
   const form = await getForm(deps.databases.control, formId);
   if (form === undefined) throw fail.formNotFound();
 
@@ -1429,17 +1435,23 @@ async function freezeDraft(
 
   // Projected once: the stored copy is served forever and the serve path never recompiles
   // (ADR-18).
-  return { snapshot, compiled: compileForm(snapshot, {}), draftRevision: draft.revision };
+  return {
+    snapshot,
+    compiled: compileForm(snapshot, {}),
+    draftRevision: draft.revision,
+    appearance: draft.appearance,
+  };
 }
 
 /**
  * `publishedBy` is the account the two-person rule compares against, and is frozen here
- * because `form_versions` is append-only and no later write can fill it in.
+ * because `form_versions` is append-only and no later write can fill it in. The draft's
+ * appearance is copied in the same statement, so a later draft edit cannot reach it.
  */
 async function writeVersion(
   tx: Executor,
   formId: FormId,
-  frozen: { snapshot: FrozenSnapshot; compiled: CompiledForm },
+  frozen: { snapshot: FrozenSnapshot; compiled: CompiledForm; appearance: Appearance | null },
   publishedAt: Date,
   publishedBy: string,
 ): Promise<FormVersionRow> {
@@ -1450,6 +1462,7 @@ async function writeVersion(
     compilerVersion: frozen.compiled.compilerVersion,
     a2uiSpecVersion: frozen.compiled.a2uiSpecVersion,
     semanticsVersion: String(frozen.snapshot.semanticsVersion),
+    appearance: frozen.appearance,
     publishedAt,
     publishedBy,
   });
