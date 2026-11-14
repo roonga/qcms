@@ -97,9 +97,10 @@ the other two.
 
 The default theme lives in the bare anchor blocks, so setting `data-theme` is
 enough to switch and removing it restores the default. The `.hc` blocks are
-emitted after every light/dark block, but no palette depends on that order: each
-theme's `.hc` and `.dark.hc` blocks declare every colour token, so they outweigh
-its light and dark blocks by specificity alone.
+emitted after every light/dark block, but no palette depends on that order: a
+theme's `.hc` and `.dark` blocks tie at (0,3,0), and only `.dark.hc` (0,4,0)
+outranks them. `.dark.hc` declares every colour token, so the result does not
+depend on the order of the other two.
 
 **`:is()`, never `:where()`.** They differ by exactly the property that makes the
 carrier safe. `:root` is (0,1,0), `[data-qcms-theme-scope]` is (0,1,0), and `:is()`
@@ -483,20 +484,24 @@ contrast check on every theme and mode, so these numbers cannot drift from the
 shipped values. Targets: 4.5:1 body text and 3:1 UI in Light and Dark, **7:1 body
 text** in High-contrast. The worst pair in each combination:
 
-| Theme / mode   | Worst text pair               | Target | Worst UI pair                       | Target |
-| -------------- | ----------------------------- | ------ | ----------------------------------- | ------ |
-| slate / light  | 5.91:1 (danger-fg / danger)   | 4.5    | 3.26:1 (border-strong / background) | 3      |
-| slate / dark   | 6.78:1 (text-muted / surface) | 4.5    | 3.33:1 (border-strong / surface)    | 3      |
-| slate / hc     | 9.75:1 (danger-fg / danger)   | 7      | 9.26:1 (focus-ring / background)    | 3      |
-| harbor / light | 5.91:1 (danger-fg / danger)   | 4.5    | 3.74:1 (border-strong / background) | 3      |
-| harbor / dark  | 6.72:1 (text-muted / surface) | 4.5    | 3.25:1 (border-strong / surface)    | 3      |
-| harbor / hc    | 9.75:1 (danger-fg / danger)   | 7      | 9.26:1 (focus-ring / background)    | 3      |
-| sand / light   | 5.73:1 (primary-fg / primary) | 4.5    | 3.55:1 (border-strong / background) | 3      |
-| sand / dark    | 7.02:1 (primary-fg / primary) | 4.5    | 3.26:1 (border-strong / surface)    | 3      |
-| sand / hc      | 8.80:1 (primary-fg / primary) | 7      | 8.80:1 (primary / surface)          | 3      |
-| plum / light   | 5.91:1 (danger-fg / danger)   | 4.5    | 3.88:1 (border-strong / background) | 3      |
-| plum / dark    | 6.34:1 (text-muted / surface) | 4.5    | 3.33:1 (border-strong / surface)    | 3      |
-| plum / hc      | 9.75:1 (danger-fg / danger)   | 7      | 9.26:1 (focus-ring / background)    | 3      |
+| Theme / mode     | Worst text pair                | Target | Worst UI pair                       | Target |
+| ---------------- | ------------------------------ | ------ | ----------------------------------- | ------ |
+| slate / light    | 5.91:1 (danger-fg / danger)    | 4.5    | 3.26:1 (border-strong / background) | 3      |
+| slate / dark     | 6.78:1 (text-muted / surface)  | 4.5    | 3.33:1 (border-strong / surface)    | 3      |
+| slate / hc       | 9.75:1 (danger-fg / danger)    | 7      | 9.26:1 (focus-ring / background)    | 3      |
+| slate / dark hc  | 10.66:1 (danger-fg / danger)   | 7      | 10.05:1 (focus-ring / background)   | 3      |
+| harbor / light   | 5.91:1 (danger-fg / danger)    | 4.5    | 3.74:1 (border-strong / background) | 3      |
+| harbor / dark    | 6.72:1 (text-muted / surface)  | 4.5    | 3.25:1 (border-strong / surface)    | 3      |
+| harbor / hc      | 9.75:1 (danger-fg / danger)    | 7      | 9.26:1 (focus-ring / background)    | 3      |
+| harbor / dark hc | 10.05:1 (primary-fg / primary) | 7      | 10.05:1 (focus-ring / background)   | 3      |
+| sand / light     | 5.73:1 (primary-fg / primary)  | 4.5    | 3.55:1 (border-strong / background) | 3      |
+| sand / dark      | 7.02:1 (primary-fg / primary)  | 4.5    | 3.26:1 (border-strong / surface)    | 3      |
+| sand / hc        | 8.80:1 (primary-fg / primary)  | 7      | 8.80:1 (primary / surface)          | 3      |
+| sand / dark hc   | 10.42:1 (primary-fg / primary) | 7      | 10.05:1 (focus-ring / background)   | 3      |
+| plum / light     | 5.91:1 (danger-fg / danger)    | 4.5    | 3.88:1 (border-strong / background) | 3      |
+| plum / dark      | 6.34:1 (text-muted / surface)  | 4.5    | 3.33:1 (border-strong / surface)    | 3      |
+| plum / hc        | 9.75:1 (danger-fg / danger)    | 7      | 9.26:1 (focus-ring / background)    | 3      |
+| plum / dark hc   | 10.21:1 (primary-fg / primary) | 7      | 10.05:1 (focus-ring / background)   | 3      |
 
 ## Every theme ships its own high-contrast palettes
 

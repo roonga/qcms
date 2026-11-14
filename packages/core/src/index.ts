@@ -268,7 +268,6 @@ export {
   parseAppearance,
   relativeLuminance,
   contrastRatio,
-  meetsContrast,
   requiredRatio,
   type ContrastPair,
   type ContrastFailure,
