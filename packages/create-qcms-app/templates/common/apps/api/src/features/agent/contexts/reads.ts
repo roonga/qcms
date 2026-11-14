@@ -794,29 +794,40 @@ function memberOf(definition: unknown, name: string): string | null {
   return typeof value === "string" ? value : null;
 }
 
-function questionDiff(
+/** A side given as `undefined` does not exist; `reads.test.ts` holds that apart from an unchanged one. */
+export function questionDiff(
   questionId: string,
   asked: { readonly from: number; readonly to: number },
   before: { readonly status: string; readonly definition: unknown } | undefined,
   after: { readonly status: string; readonly definition: unknown } | undefined,
 ): QuestionVersionDiff {
-  const left = (before?.definition ?? {}) as Record<string, unknown>;
-  const right = (after?.definition ?? {}) as Record<string, unknown>;
+  const fromFound = before !== undefined;
+  const toFound = after !== undefined;
+  const sides = {
+    questionId,
+    from: asked.from,
+    to: asked.to,
+    fromFound,
+    toFound,
+    statusFrom: before?.status ?? null,
+    statusTo: after?.status ?? null,
+    typeFrom: memberOf(before?.definition, "type"),
+    typeTo: memberOf(after?.definition, "type"),
+  };
+  // A version that was never written would otherwise diff as one with nothing changed.
+  if (!fromFound || !toFound) {
+    return { ...sides, outcome: "unavailable", identical: null, changedFields: null };
+  }
+  const left = (before.definition ?? {}) as Record<string, unknown>;
+  const right = (after.definition ?? {}) as Record<string, unknown>;
   const names = [...new Set([...Object.keys(left), ...Object.keys(right)])].sort();
   const changedFields = names.filter(
     (name) => JSON.stringify(left[name] ?? null) !== JSON.stringify(right[name] ?? null),
   );
   return {
-    questionId,
-    from: asked.from,
-    to: asked.to,
-    fromFound: before !== undefined,
-    toFound: after !== undefined,
-    identical: before !== undefined && after !== undefined && changedFields.length === 0,
-    statusFrom: before?.status ?? null,
-    statusTo: after?.status ?? null,
-    typeFrom: memberOf(before?.definition, "type"),
-    typeTo: memberOf(after?.definition, "type"),
+    ...sides,
+    outcome: "compared",
+    identical: changedFields.length === 0,
     changedFields: changedFields.slice(0, FACT_ROW_LIMIT),
   };
 }

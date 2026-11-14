@@ -580,13 +580,15 @@ const Outputs = {
     to: z.number().int(),
     fromFound: z.boolean(),
     toFound: z.boolean(),
-    identical: z.boolean(),
+    // Typed rather than left to the field list, so a version that does not exist cannot read as identical.
+    outcome: z.enum(["compared", "unavailable"]),
+    identical: z.boolean().nullable(),
     statusFrom: z.string().nullable(),
     statusTo: z.string().nullable(),
     typeFrom: z.string().nullable(),
     typeTo: z.string().nullable(),
     // Member names, never their content: a label's text is not what a diff is for.
-    changedFields: z.array(z.string()),
+    changedFields: z.array(z.string()).nullable(),
   }),
   search_forms: z.strictObject({
     environment: z.string(),
@@ -1033,7 +1035,11 @@ export const TOOLS: Readonly<Record<AgentToolName, AgentToolDef>> = Object.freez
   diff_question_versions: {
     description:
       "Compare two versions of a question and report which members of the definition " +
-      "differ, by name. The names only, never their content.",
+      "differ, by name. The names only, never their content. A version that does not " +
+      "exist is MISSING, not identical and not unchanged: `outcome` is then " +
+      "`unavailable`, `fromFound` or `toFound` says which side is absent, and `identical` " +
+      "and `changedFields` are null. An empty `changedFields` means the two versions were " +
+      "compared and nothing differs, which only ever happens when both sides exist.",
     inputSchema: DiffQuestionVersionsInput,
     outputSchema: Outputs.diff_question_versions,
     cell: QUESTION_READ,

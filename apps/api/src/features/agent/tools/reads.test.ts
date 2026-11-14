@@ -141,6 +141,7 @@ const READS: readonly {
       to: 2,
       fromFound: true,
       toFound: true,
+      outcome: "compared",
       identical: false,
       statusFrom: "published",
       statusTo: "draft",

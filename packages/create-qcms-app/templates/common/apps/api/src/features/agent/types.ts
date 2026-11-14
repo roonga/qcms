@@ -308,12 +308,14 @@ export interface QuestionVersionDiff {
   readonly to: number;
   readonly fromFound: boolean;
   readonly toFound: boolean;
-  readonly identical: boolean;
+  /** Typed rather than left to the field list, so a version that does not exist cannot read as identical. */
+  readonly outcome: "compared" | "unavailable";
+  readonly identical: boolean | null;
   readonly statusFrom: string | null;
   readonly statusTo: string | null;
   readonly typeFrom: string | null;
   readonly typeTo: string | null;
-  readonly changedFields: readonly string[];
+  readonly changedFields: readonly string[] | null;
 }
 
 export type DiffQuestionVersionsPort = (input: {

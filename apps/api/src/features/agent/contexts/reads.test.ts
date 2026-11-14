@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { structuralDiff } from "./reads.js";
+import { questionDiff, structuralDiff } from "./reads.js";
 
 const VERSION_ONE = {
   formId: "frm_clinic",
@@ -81,5 +81,62 @@ describe("the structural diff behind diff_form_versions", () => {
 
     expect(diff.identical).toBe(true);
     expect(diff.outcome).toBe("compared");
+  });
+});
+
+describe("the member diff behind diff_question_versions", () => {
+  const PUBLISHED = {
+    status: "published",
+    definition: { type: "shortText", label: { en: "Name" }, constraints: { maxLength: 60 } },
+  };
+
+  it("reports a version that was never written as missing, not as an unchanged one", () => {
+    const diff = questionDiff("q_name", { from: 1, to: 4 }, PUBLISHED, undefined);
+
+    expect(diff.outcome).toBe("unavailable");
+    expect(diff.toFound).toBe(false);
+    expect(diff.fromFound).toBe(true);
+    expect(diff.identical).toBeNull();
+    expect(diff.changedFields).toBeNull();
+    expect(diff.statusTo).toBeNull();
+    expect(diff.typeTo).toBeNull();
+    expect(diff.statusFrom).toBe("published");
+    expect(diff.typeFrom).toBe("shortText");
+  });
+
+  it("says the same of a from side that is not there", () => {
+    const diff = questionDiff("q_name", { from: 9, to: 1 }, undefined, PUBLISHED);
+
+    expect(diff.outcome).toBe("unavailable");
+    expect(diff.fromFound).toBe(false);
+    expect(diff.identical).toBeNull();
+    expect(diff.changedFields).toBeNull();
+    expect(diff.statusFrom).toBeNull();
+    expect(diff.statusTo).toBe("published");
+  });
+
+  it("tells two versions that genuinely do not differ apart from one that is missing", () => {
+    const diff = questionDiff("q_name", { from: 1, to: 2 }, PUBLISHED, {
+      status: "draft",
+      definition: { ...PUBLISHED.definition },
+    });
+
+    expect(diff.outcome).toBe("compared");
+    expect(diff.identical).toBe(true);
+    expect(diff.changedFields).toEqual([]);
+    expect(diff.statusTo).toBe("draft");
+  });
+
+  it("names the members that differ when both versions exist", () => {
+    const diff = questionDiff("q_name", { from: 1, to: 2 }, PUBLISHED, {
+      status: "draft",
+      definition: { type: "longText", label: { en: "Name" }, constraints: { maxLength: 200 } },
+    });
+
+    expect(diff.outcome).toBe("compared");
+    expect(diff.identical).toBe(false);
+    expect(diff.changedFields).toEqual(["constraints", "type"]);
+    expect(diff.typeFrom).toBe("shortText");
+    expect(diff.typeTo).toBe("longText");
   });
 });
