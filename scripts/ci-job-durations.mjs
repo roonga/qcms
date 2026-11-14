@@ -173,7 +173,7 @@ export function parseArgs(args) {
  * @returns {string}
  */
 function gh(args) {
-  return execFileSync("gh", args, { encoding: "utf8", maxBuffer: 32 * 1024 * 1024 });
+  return execFileSync("gh", args, { encoding: "utf8", maxBuffer: 32 * 1024 * 1024, windowsHide: true });
 }
 
 /**

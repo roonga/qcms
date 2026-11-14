@@ -177,6 +177,7 @@ function ensureBuilt() {
     cwd: REPO_ROOT,
     stdio: "inherit",
     shell: IS_WINDOWS,
+    windowsHide: true,
   });
   if (res.status !== 0) fail("pnpm build failed");
 }
@@ -189,6 +190,7 @@ function composeUp() {
     cwd: REPO_ROOT,
     stdio: "inherit",
     shell: IS_WINDOWS,
+    windowsHide: true,
     env: {
       ...process.env,
       // A shared project name makes two seats one stack: `up -d` would move seat 0's
@@ -306,6 +308,7 @@ export function startChild(name, command, args, env) {
     cwd: REPO_ROOT,
     env: { ...process.env, ...env },
     shell: IS_WINDOWS,
+    windowsHide: true,
   });
   children.push({ name, child });
   const prefix = (line) => process.stdout.write(`[${name}] ${line}`);
@@ -515,7 +518,7 @@ export function reapChildTree(child) {
 
   if (IS_WINDOWS) {
     // /T because a plain kill leaves the grandchild tree orphaned.
-    spawnSync("taskkill", ["/pid", String(child.pid), "/T", "/F"], { stdio: "ignore" });
+    spawnSync("taskkill", ["/pid", String(child.pid), "/T", "/F"], { stdio: "ignore", windowsHide: true });
     return [child.pid];
   }
 

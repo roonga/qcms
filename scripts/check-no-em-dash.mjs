@@ -31,7 +31,7 @@ function tracked() {
   const out = execFileSync(
     GIT,
     ["ls-files", "-z", ...GLOBS, VENDORED_SOURCE_PATHSPEC, ":!plan/**"],
-    { encoding: "utf8" },
+    { encoding: "utf8", windowsHide: true },
   );
   return out.split("\0").filter((p) => p !== "");
 }

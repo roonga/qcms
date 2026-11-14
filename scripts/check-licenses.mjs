@@ -43,6 +43,7 @@ function isAllowed(license) {
 const raw = execSync("pnpm licenses list --prod --json", {
   encoding: "utf8",
   maxBuffer: 32 * 1024 * 1024,
+  windowsHide: true,
 });
 /** @type {Record<string, Array<{name:string}>>} */
 const byLicense = JSON.parse(raw);

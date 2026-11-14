@@ -33,7 +33,7 @@ export function primaryCheckout(from) {
   const common = execFileSync(
     "git",
     ["-C", from, "rev-parse", "--path-format=absolute", "--git-common-dir"],
-    { encoding: "utf8" },
+    { encoding: "utf8", windowsHide: true },
   ).trim();
   return dirname(common);
 }
@@ -45,6 +45,7 @@ export function primaryCheckout(from) {
 export function readRegistry(repoRoot) {
   const output = execFileSync("git", ["-C", repoRoot, "worktree", "list", "--porcelain"], {
     encoding: "utf8",
+    windowsHide: true,
   });
   const registered = new Set();
   const missing = [];
@@ -134,6 +135,7 @@ export function classify({ name, path, registered, minAgeMs, now }) {
     status = execFileSync("git", ["-C", path, "status", "--porcelain"], {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
+      windowsHide: true,
     });
   } catch {
     // Nothing can speak for this tree, so it counts as unreachable and is removable only
@@ -183,7 +185,7 @@ export function scan({ repoRoot, root, minAgeHours, now = Date.now() }) {
  */
 export function sizeKb(directory) {
   try {
-    const output = execFileSync("du", ["-sk", directory], { encoding: "utf8" });
+    const output = execFileSync("du", ["-sk", directory], { encoding: "utf8", windowsHide: true });
     const value = Number.parseInt(output.split(/\s+/)[0], 10);
     return Number.isNaN(value) ? undefined : value;
   } catch {
@@ -297,7 +299,7 @@ export function main(args, repoRoot) {
       `  ${String(missing.length)} registration(s) point at a missing directory: ${missing.join(", ")}`,
     );
     if (options.apply) {
-      execFileSync("git", ["-C", repoRoot, "worktree", "prune"], { stdio: "inherit" });
+      execFileSync("git", ["-C", repoRoot, "worktree", "prune"], { stdio: "inherit", windowsHide: true });
       console.log("  ran `git worktree prune` for those.");
     }
   }

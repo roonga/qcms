@@ -357,6 +357,7 @@ function spawnAttempt(command, args) {
       stdio: ["inherit", "pipe", "pipe"],
       env: stdout.isTTY ? { ...env, FORCE_COLOR: env.FORCE_COLOR ?? "1" } : env,
       shell: plan.shell,
+      windowsHide: true,
     };
     // Argv is omitted in the shell case, so DEP0190 never fires.
     const child = plan.shell

@@ -97,7 +97,7 @@ export function parseNameStatus(raw) {
 const DEFAULT_BRANCH = process.env.DEFAULT_BRANCH ?? "main";
 
 function git(args) {
-  return execFileSync("git", args, { encoding: "utf8" }).trim();
+  return execFileSync("git", args, { encoding: "utf8", windowsHide: true }).trim();
 }
 
 function tryGit(args) {
@@ -114,7 +114,7 @@ function tryGit(args) {
  */
 function fileAt(revision, filePath) {
   try {
-    return execFileSync("git", ["show", `${revision}:${filePath}`], { encoding: "utf8" });
+    return execFileSync("git", ["show", `${revision}:${filePath}`], { encoding: "utf8", windowsHide: true });
   } catch {
     return undefined;
   }

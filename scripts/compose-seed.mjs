@@ -66,6 +66,7 @@ export function seedFixtures({ compose, databaseUrl, environment, mode = "seed" 
     cwd: REPOSITORY_ROOT,
     env: run.environment,
     encoding: "utf8",
+    windowsHide: true,
   });
   if (result.error) throw result.error;
   process.stdout.write(result.stdout ?? "");

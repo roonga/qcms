@@ -93,6 +93,7 @@ export function createFirstAdmin({ compose, credentials, environment }) {
     cwd: REPOSITORY_ROOT,
     env: exec.environment,
     encoding: "utf8",
+    windowsHide: true,
   });
   if (result.error) throw result.error;
   const stdout = result.stdout ?? "";

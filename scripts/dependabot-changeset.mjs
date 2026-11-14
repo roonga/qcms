@@ -69,7 +69,7 @@ const DEPENDENCY_FIELDS = [
 const CONTRACT_FIELD = "peerDependencies";
 
 function git(args, cwd) {
-  return execFileSync("git", args, { encoding: "utf8", cwd });
+  return execFileSync("git", args, { encoding: "utf8", cwd, windowsHide: true });
 }
 
 function tryGit(args, cwd) {

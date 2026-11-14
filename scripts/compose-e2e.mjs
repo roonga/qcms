@@ -131,7 +131,7 @@ class CommandFailed extends Error {
  * `runComplete()`'s `finally { down(); }` and strand the containers and volume.
  */
 function run(command, args, environment = process.env) {
-  const result = spawnSync(command, args, { cwd: root, env: environment, stdio: "inherit" });
+  const result = spawnSync(command, args, { cwd: root, env: environment, stdio: "inherit", windowsHide: true });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new CommandFailed(command, result.status ?? 1);
 }
@@ -142,7 +142,7 @@ function run(command, args, environment = process.env) {
  * @returns {string}
  */
 function capture(command, args) {
-  const result = spawnSync(command, args, { cwd: root, env: e2eEnvironment, encoding: "utf8" });
+  const result = spawnSync(command, args, { cwd: root, env: e2eEnvironment, encoding: "utf8", windowsHide: true });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new CommandFailed(command, result.status ?? 1);
   return result.stdout.trim();
@@ -319,6 +319,7 @@ function connectContainerToNetwork(network, containerId) {
     cwd: root,
     env: e2eEnvironment,
     encoding: "utf8",
+    windowsHide: true,
   });
   if (result.error) return { failure: result.error.message };
   if (result.status !== 0) return { failure: (result.stderr ?? "").trim() };
@@ -359,6 +360,7 @@ async function startLoopbackForwarding() {
     {
       cwd: root,
       env: e2eEnvironment,
+      windowsHide: true,
       // stdin stays open for the run: its close is how the forwarder notices this process
       // died without getting to run any teardown.
       stdio: ["pipe", "pipe", "inherit"],
@@ -411,7 +413,7 @@ function stopLoopbackForwarding() {
   const network = joinedNetwork ?? `${project}_default`;
   const self = selfContainerId();
   if (self !== undefined) {
-    spawnSync(docker, ["network", "disconnect", network, self], { cwd: root, stdio: "ignore" });
+    spawnSync(docker, ["network", "disconnect", network, self], { cwd: root, stdio: "ignore", windowsHide: true });
   }
   joinedNetwork = undefined;
 }

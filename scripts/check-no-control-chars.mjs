@@ -18,7 +18,7 @@ const ALLOWED = new Set([0x09, 0x0a, 0x0d]);
 const DISALLOWED = /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/;
 
 function tracked() {
-  const out = execFileSync(GIT, ["ls-files", "-z", ...SOURCE_GLOBS], { encoding: "utf8" });
+  const out = execFileSync(GIT, ["ls-files", "-z", ...SOURCE_GLOBS], { encoding: "utf8", windowsHide: true });
   return out.split("\0").filter((p) => p !== "");
 }
 
