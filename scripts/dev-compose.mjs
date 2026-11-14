@@ -307,7 +307,13 @@ export function devStackEnvironmentOverrides({ ports, adminAuthSecret }) {
  * @param {boolean} [options.promoted]
  * @returns {string[]}
  */
-export function devStackBannerLines({ ports, project, credentials, inContainer, promoted = false }) {
+export function devStackBannerLines({
+  ports,
+  project,
+  credentials,
+  inContainer,
+  promoted = false,
+}) {
   const url = (/** @type {number} */ port) => `http://localhost:${String(port)}`;
   const lines = [
     "",
