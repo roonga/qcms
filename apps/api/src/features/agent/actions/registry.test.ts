@@ -110,6 +110,43 @@ describe("the result allowlist, per kind (criterion 8)", () => {
     expect(actionKind("form.release")?.references).toEqual(["version"]);
   });
 
+  it("runs both publish kinds on a batch route, which carries the review's expectations", () => {
+    expect(actionKind("form.publish")?.route?.path).toBe("/admin/forms/{id}/publish-batch");
+    expect(actionKind("form.release")?.route?.path).toBe("/admin/forms/{id}/release-batch");
+  });
+
+  it("reads `form.release`'s arguments out of a batch body", () => {
+    expect(
+      actionKind("form.release")?.recomputeArgs({
+        path: "/admin/forms/{id}/release-batch",
+        method: "POST",
+        params: { id: "frm_a" },
+        body: {
+          idempotencyKey: "6f9619ff-8b86-d011-b42d-00c04fc964ff",
+          expectedWorkflowRevision: null,
+          source: { kind: "version", version: 4 },
+          targets: [{ environment: "prod", expectedSequence: 2, fromEnvironment: "test" }],
+        },
+        environment: "prod",
+      }),
+    ).toEqual({ formId: "frm_a", version: 4, environment: "prod", fromEnvironment: "test" });
+  });
+
+  it("reports no destination for a batch body naming several, which provenance then refuses", () => {
+    expect(
+      actionKind("form.release")?.recomputeArgs({
+        path: "/admin/forms/{id}/release-batch",
+        method: "POST",
+        params: { id: "frm_a" },
+        body: {
+          source: { kind: "version", version: 4 },
+          targets: [{ environment: "test" }, { environment: "prod" }],
+        },
+        environment: "prod",
+      }),
+    ).toEqual({ formId: "frm_a", version: 4, environment: undefined });
+  });
+
   it("names no referenceable field on a kind whose result nothing can stand in for", () => {
     for (const kind of ["form.settings", "form.close", "form.reopen"]) {
       expect(actionKind(kind)?.references, kind).toEqual([]);

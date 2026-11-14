@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { Alert } from "@/components/kit";
 import { FormPageHeader } from "@/components/forms/form-page-header";
 import { PublishWizard } from "@/components/forms/publish-wizard";
+import { canFreezeDraft } from "@/lib/forms/publish";
 import { t } from "@/lib/i18n/en";
 import { formSectionName, pageMetadata } from "@/lib/page-title";
 import { secureCookies } from "@/lib/server/config";
@@ -55,7 +56,7 @@ export default async function FormPublishPage({
         versions={form.versions.map((version) => version.version)}
         // A seeded draft is only an unstored starting point; only an open draft can be frozen.
         hasDraft={form.draftSource === "open"}
-        canPublishDraft={form.workflow?.canPublish !== false}
+        canPublishDraft={canFreezeDraft(form.workflow)}
         draft={form.draft}
         agentAssisted={form.draftAgentAssisted}
         review={reviewReleaseAction.bind(null, form.formId)}

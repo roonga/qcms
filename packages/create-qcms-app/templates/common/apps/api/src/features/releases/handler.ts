@@ -39,13 +39,13 @@ import { approvalForRelease } from "../membership/two-person.js";
 import { commitReleaseBatch, intentHashOf, type BatchResult } from "./batch.js";
 import { recordRelease } from "./release.js";
 import {
+  enforcedRules,
   evidenceFor,
   isRollback,
   prerequisiteCode,
   readWorkflow,
   requireReleaseCandidate,
   ruleFor,
-  withProductionFloor,
   type EffectiveWorkflow,
 } from "./workflow.js";
 import type {
@@ -622,10 +622,8 @@ export function makeReleaseWorkflowWriteHandler(
 
     const exec = deps.databases.control;
     const rows = await servedEnvironments(deps);
-    validateWorkflowRules(
-      body.rules,
-      rows.map((row) => row.name),
-    );
+    const served = rows.map((row) => row.name);
+    validateWorkflowRules(body.rules, served);
 
     // The read and the insert leave a window: two writers can both read the same newest
     // revision and race for the next number. The primary key is the backstop, and its
@@ -651,7 +649,7 @@ export function makeReleaseWorkflowWriteHandler(
             kind: "setting",
             detail:
               `setting=releaseWorkflow value=revision ${String(revision.revision)}; ` +
-              ruleSummary(body.rules),
+              ruleSummary(enforcedRules(body.rules, served)),
             occurredAt: deps.clock.now(),
           });
         }
@@ -661,15 +659,15 @@ export function makeReleaseWorkflowWriteHandler(
       throw error;
     }
 
-    const workflow = await readWorkflow(
-      exec,
-      rows.map((row) => row.name),
-    );
+    const workflow = await readWorkflow(exec, served);
     return c.json(workflowBody(workflow, rows), 200);
   };
 }
 
-/** A compact summary for the audit detail. It carries no URL, no secret and no content. */
+/**
+ * A compact summary for the audit detail, over the rules **as enforced**: the row an owner
+ * reads after a refusal has to say what was in force. It carries no URL, secret or content.
+ */
 function ruleSummary(rules: readonly RuleInput[]): string {
   if (rules.length === 0) return "rules=none";
   return rules
@@ -714,19 +712,7 @@ function validateWorkflowRules(rules: readonly RuleInput[], served: readonly str
       }
     }
   }
-  const cycle = findCycle(
-    served.map((environment) =>
-      withProductionFloor(
-        rules.find((rule) => rule.environment === environment) ?? {
-          environment,
-          requiresPriorReleaseIn: [],
-          allowsDraftPublish: true,
-          allowsInBatch: true,
-        },
-        served,
-      ),
-    ),
-  );
+  const cycle = findCycle(enforcedRules(rules, served));
   if (cycle !== undefined) {
     throw fail.workflowRuleInvalid(cycle, "is on a cycle, so no version could ever reach it");
   }
@@ -784,6 +770,7 @@ export function makeReleaseBatchHandler(
       formId,
       workspaceId: c.get("grantContext")?.workspaceId ?? form.workspaceId,
       principalId: principal.userId,
+      agent: agentStepSite(c),
       idempotencyKey: body.idempotencyKey,
       intentHash: await intentHashOf(body),
       expectedWorkflowRevision: body.expectedWorkflowRevision,

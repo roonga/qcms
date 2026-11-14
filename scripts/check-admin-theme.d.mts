@@ -22,4 +22,6 @@ export declare function findLiteralColours(text: string): ColourHit[];
 
 export declare function catalogValues(source: string): CatalogValue[];
 
+export declare function namesThisApp(text: string): boolean;
+
 export declare function checkAdminTheme(): string[];

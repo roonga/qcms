@@ -4,7 +4,6 @@ import {
   confirmPublishAction,
   createFormForCardAction,
   mintLinksAction,
-  releaseVersionAction,
   reviewReleaseAction,
   revokeLinkAction,
   saveDraftAction as saveFormDraftAction,
@@ -193,6 +192,44 @@ const publishStep: StepRunner = async ({ step, tokenStep, args, agentProposal })
     outcome: "done",
     result: { version: state.version, environment: step.environment },
   };
+};
+
+/* The wizard's own path for an existing version, so the card is refused on a stale review
+   with no write, exactly as the screen is. */
+const releaseStep: StepRunner = async ({ step, tokenStep, args, agentProposal }) => {
+  const formId = text(args["formId"]);
+  const version = whole(args["version"]);
+  if (version === undefined) {
+    return { outcome: "failed", message: t("agent.card.note.unresolvedReference") };
+  }
+  const review = await reviewReleaseAction(formId, { kind: "version", version });
+  if (!review.ok) return { outcome: "failed", message: t("agent.card.note.noVersionToPublish") };
+  const target = review.data.targets.find((entry) => entry.environment === step.environment);
+  if (review.data.source.kind !== "version" || target === undefined) {
+    return { outcome: "failed", message: t("agent.card.note.noVersionToPublish") };
+  }
+  const state = await confirmPublishAction(
+    formId,
+    {
+      idempotencyKey: crypto.randomUUID(),
+      expectedWorkflowRevision: review.data.workflowRevision,
+      source: { kind: "version", version },
+      targets: [
+        {
+          environment: step.environment,
+          expectedSequence: target.currentSequence,
+          ...(typeof args["fromEnvironment"] === "string"
+            ? { fromEnvironment: args["fromEnvironment"] }
+            : {}),
+        },
+      ],
+    },
+    proposalRef(agentProposal, tokenStep),
+  );
+  if (state.status !== "done" || state.version === undefined) {
+    return { outcome: "failed", message: text(state.message) };
+  }
+  return { outcome: "done", result: { version: state.version, environment: step.environment } };
 };
 
 function membershipOutcome(
@@ -446,31 +483,7 @@ const RUNNERS: Readonly<Record<string, StepRunner>> = {
   },
   "form.close": intakeRunner("close"),
   "form.reopen": intakeRunner("reopen"),
-  "form.release": async ({ step, tokenStep, args, agentProposal, currentEnvironment }) => {
-    const version = whole(args["version"]);
-    if (version === undefined) {
-      return { outcome: "failed", message: t("agent.card.note.unresolvedReference") };
-    }
-    const state = await releaseVersionAction(
-      text(args["formId"]),
-      currentEnvironment,
-      {
-        version,
-        environment: step.environment,
-        ...(typeof args["fromEnvironment"] === "string"
-          ? { fromEnvironment: args["fromEnvironment"] }
-          : {}),
-      },
-      proposalRef(agentProposal, tokenStep),
-    );
-    if (state.status !== "released" || state.version === undefined) {
-      return { outcome: "failed", message: text(state.message) };
-    }
-    return {
-      outcome: "done",
-      result: { version: state.version, environment: state.environment ?? step.environment },
-    };
-  },
+  "form.release": releaseStep,
   "response.erase": async ({ step, tokenStep, args, agentProposal }) => {
     const reason = text(args["reason"]);
     if (!isErasureReason(reason)) {

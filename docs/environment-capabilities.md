@@ -85,17 +85,18 @@ requires its own grant; installation administration is not a response-data bypas
 - Environment names are configurable. `dev`, `test`, `stg` and `prod` are an example
   deployment, not four mandatory environments. Current authorization treats `stg`
   like other non-production environments; there is no special staging approver role.
-- When both `test` and `prod` exist, a production candidate must have a prior
-  release in test, or a prior production release for rollback. An unreleased draft
-  cannot be a production candidate.
+- Where `prod` is served beside any non-production environment, a production
+  candidate must have a prior release in one of them, or a prior production release
+  for rollback. An unreleased draft cannot be a production candidate. This floor is
+  fixed: no workflow revision lifts it.
 - A test release records availability, not a successful manual test or approval.
   There is no separate persisted test-pass gate in this workflow.
 - Prerequisites are an installation-wide, versioned release-workflow configuration,
   written by the installation administrator alone and read by every `forms.` role. No
-  revision is seeded, so a deployment that configures none keeps the test-before-prod
-  rule above and no other ordering.
-- In a deployment containing both test and prod, direct combined publication and
-  release to prod is refused. Production releases use an existing eligible version.
+  revision is seeded, so a deployment that configures none keeps the production floor
+  above and no other ordering. A revision is read with the floor applied over it.
+- Where `prod` is served beside any non-production environment, publishing a draft
+  straight to prod is refused. Production releases use an existing eligible version.
 - A prod-only deployment can publish and release directly when the caller has both
   editor and prod approver permissions and the second-person rule is off. Separate
   publication and release remain possible.

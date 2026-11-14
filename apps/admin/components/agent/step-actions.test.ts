@@ -18,7 +18,6 @@ vi.mock("@/app/(shell)/forms/actions", () => ({
     reviewReleaseAction(...args),
   createFormForCardAction: vi.fn(),
   mintLinksAction: vi.fn(),
-  releaseVersionAction: vi.fn(),
   revokeLinkAction: vi.fn(),
   setFormStatusAction: vi.fn(),
   updateSettingsAction: vi.fn(),
@@ -162,5 +161,98 @@ describe("a plan of apply-draft then form.publish", () => {
     });
 
     expect(seen).toEqual([undefined, "tok"]);
+  });
+});
+
+describe("a form.release step", () => {
+  const RELEASE: AgentPlanStep = {
+    kind: "form.release",
+    screen: "/forms/[formId]/publish",
+    args: { formId: "frm_quote", version: 3, environment: "prod" },
+    environment: "prod",
+    handOff: false,
+    local: false,
+    card: { titleKey: "agent.card.form.release.title", consequenceKeys: [] },
+    resultAllowlist: ["version", "environment"],
+  };
+  const RELEASE_PLAN: AgentProposal = {
+    proposalId: "prp_release",
+    token: "tok",
+    steps: [RELEASE],
+    proposedAt: PROPOSED_AT,
+    expiresAt: "2026-07-20T00:10:00.000Z",
+    formId: "frm_quote",
+    currentEnvironment: "test",
+  };
+
+  function reviewOfVersion(sequence: number | null): unknown {
+    return {
+      ok: true,
+      data: {
+        source: { kind: "version", version: 3, publishedBy: "usr_other" },
+        workflowRevision: 2,
+        workflowSource: "configured",
+        targets: [
+          {
+            environment: "prod",
+            currentVersion: 2,
+            currentSequence: sequence,
+            closed: false,
+            evidence: [],
+            blockers: [],
+            twoPerson: { applies: true, refusedAsAuthor: false },
+            protected: true,
+          },
+        ],
+      },
+    };
+  }
+
+  it("confirms on the wizard's batch route, carrying both expectations", async () => {
+    const { runStepAction } = await import("./step-actions");
+    reviewReleaseAction.mockResolvedValue(reviewOfVersion(11));
+    confirmPublishAction.mockResolvedValue({ status: "done", version: 3, froze: false });
+
+    const card = await runPlan({
+      proposal: RELEASE_PLAN,
+      card: startRun(initialCard(RELEASE_PLAN)),
+      runStep: runStepAction,
+      now: () => NOW,
+      windowLeftMs: () => WINDOW_LEFT,
+    });
+
+    expect(card.state).toBe("done");
+    expect(reviewReleaseAction).toHaveBeenCalledWith("frm_quote", { kind: "version", version: 3 });
+    const [, request, proposal] = confirmPublishAction.mock.calls[0] as readonly unknown[];
+    expect(proposal).toEqual({ agentProposal: "tok", step: 0 });
+    expect(request).toMatchObject({
+      expectedWorkflowRevision: 2,
+      source: { kind: "version", version: 3 },
+      targets: [{ environment: "prod", expectedSequence: 11 }],
+    });
+  });
+
+  it("fails the step when the review no longer offers that destination", async () => {
+    const { runStepAction } = await import("./step-actions");
+    reviewReleaseAction.mockResolvedValue({
+      ok: true,
+      data: {
+        source: { kind: "version", version: 3, publishedBy: null },
+        workflowRevision: 2,
+        workflowSource: "configured",
+        targets: [],
+      },
+    });
+
+    const card = await runPlan({
+      proposal: RELEASE_PLAN,
+      card: startRun(initialCard(RELEASE_PLAN)),
+      runStep: runStepAction,
+      now: () => NOW,
+      windowLeftMs: () => WINDOW_LEFT,
+    });
+
+    expect(card.steps[0]?.state).toBe("failed");
+    expect(confirmPublishAction).not.toHaveBeenCalled();
   });
 });

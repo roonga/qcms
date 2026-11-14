@@ -72,14 +72,26 @@ export function withProductionFloor(rule: WorkflowRule, served: readonly string[
 }
 
 /**
+ * What a rule set enforces: one rule per served environment with the floor applied. A
+ * served environment the set writes no row for constrains nothing beyond the floor.
+ */
+export function enforcedRules(
+  rules: readonly WorkflowRule[],
+  served: readonly string[],
+): WorkflowRule[] {
+  const byName = new Map(rules.map((rule) => [rule.environment, rule]));
+  return served.map((environment) =>
+    withProductionFloor({ environment, ...(byName.get(environment) ?? UNCONSTRAINED) }, served),
+  );
+}
+
+/**
  * The deployment's behaviour with no revision written, stated as data: the `prod` floor
  * and nothing else. A prior release in the destination itself is the rollback exception
  * rather than a rule.
  */
 export function defaultWorkflowRules(served: readonly string[]): WorkflowRule[] {
-  return served.map((environment) =>
-    withProductionFloor({ environment, ...UNCONSTRAINED }, served),
-  );
+  return enforcedRules([], served);
 }
 
 /**
@@ -101,13 +113,10 @@ export function effectiveWorkflow(
   if (configured === undefined) {
     return { revision: null, source: "default", rules: defaultWorkflowRules(served) };
   }
-  const byName = new Map(configured.rules.map((rule) => [rule.environment, rule]));
   return {
     revision: configured.revision,
     source: "configured",
-    rules: served.map((environment) =>
-      withProductionFloor({ environment, ...(byName.get(environment) ?? UNCONSTRAINED) }, served),
-    ),
+    rules: enforcedRules(configured.rules, served),
   };
 }
 

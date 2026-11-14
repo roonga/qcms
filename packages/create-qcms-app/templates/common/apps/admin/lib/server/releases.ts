@@ -109,6 +109,7 @@ export async function releaseBatch(
   session: AdminSession,
   formId: string,
   request: BatchRequest & { readonly version: number },
+  proposal?: AgentProposalRef,
 ): Promise<ApiResult<BatchOutcome>> {
   return readBatch(
     await readResult(
@@ -120,6 +121,7 @@ export async function releaseBatch(
           source: { kind: "version", version: request.version },
           targets: request.targets,
         },
+        headers: proposalHeaders(proposal),
       }),
     ),
   );

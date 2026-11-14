@@ -140,7 +140,7 @@ export const messages = {
   "operations.column.workspace": "Workspace",
   "operations.column.released": "Version",
   "operations.column.intake": "Availability",
-  "operations.column.lastRelease": "Last release",
+  "operations.column.lastRelease": "Last published",
   "operations.column.submitted": "Submitted",
   "operations.column.inProgress": "In progress",
   "operations.context.named": "{context} for {form}",
@@ -167,8 +167,8 @@ export const messages = {
   "operations.filter.sort": "Sort",
   "operations.filter.sort.slug-asc": "Identifier A to Z",
   "operations.filter.sort.slug-desc": "Identifier Z to A",
-  "operations.filter.sort.released-desc": "Released, newest first",
-  "operations.filter.sort.released-asc": "Released, oldest first",
+  "operations.filter.sort.released-desc": "Published, newest first",
+  "operations.filter.sort.released-asc": "Published, oldest first",
   "operations.filter.sort.submitted-desc": "Submitted, most first",
   "operations.filter.sort.submitted-asc": "Submitted, fewest first",
   "operations.pagination": "Pages",
@@ -1241,11 +1241,15 @@ export const messages = {
   "forms.publish.workflow.configured": "Publishing workflow revision {revision}.",
   "forms.publish.blocked.priorRelease":
     "Not yet: this version has to be live in {environments} first.",
-  "forms.publish.blocked.draftNotAllowed":
+  "forms.publish.blocked.draftNotAllowedProd":
     "A draft is never published straight to {environment}. Publish it to a non-prod environment first, then publish that version here.",
+  "forms.publish.blocked.draftNotAllowed":
+    "The publishing workflow does not let a draft go straight to {environment}. Publish it to another environment first, then publish that version here.",
   "forms.publish.blocked.alreadyReleased": "Already live here.",
   "forms.publish.blocked.approverIsAuthor":
     "You froze this version, so another person with Publish forms in {environment} publishes it.",
+  "forms.publish.blocked.approverIsAuthorDraft":
+    "You would be this version's author, so another person with Publish forms in {environment} publishes it.",
   "forms.publish.blocked.approverUnknownAuthor":
     "Who froze this version was not recorded, so second approval cannot be checked against it.",
   "forms.publish.blocked.other": "Not eligible here: {code}.",
@@ -1309,7 +1313,7 @@ export const messages = {
   "forms.workflow.noPublishPermission":
     "Publishing a draft needs Edit forms and Publish forms in this workspace.",
   "forms.workflow.noReleasePermission":
-    "Needs Publish forms in {environment}. The Publishers group carries it; ask an owner of this workspace.",
+    "Needs Publish forms in {environment}. The Publishers group carries it; ask a Workspace administrator.",
   "forms.workflow.noCandidate":
     "No version can go to {environment} yet. Publish a version to a non-prod environment first.",
   "forms.workflow.reviewVersion": "Review v{version}",
@@ -1698,7 +1702,7 @@ export const messages = {
     "An owner looks after this workspace: its access groups, its members and its settings. Removing the last owner is refused.",
   "agent.card.workspace.settings.title": "Change this workspace's settings",
   "agent.card.workspace.settings.consequence":
-    "This switch decides whether a production release, a production endpoint change and a response self-grant need a second account.",
+    "This switch decides whether a production publish, a production endpoint change and a response self-grant need a second account.",
   "agent.card.link.revoke.title": "Revoke link {linkId}",
   "agent.card.link.revoke.consequence":
     "The link stops working from now on. A session already in progress is unaffected.",
@@ -1721,7 +1725,7 @@ export const messages = {
   "agent.card.arg.oneTime": "One respondent each",
   "agent.card.arg.version": "Version",
   "agent.card.arg.environment": "Environment",
-  "agent.card.arg.fromEnvironment": "Promoted from",
+  "agent.card.arg.fromEnvironment": "Published from",
   "agent.card.arg.linkId": "Link",
   "agent.card.arg.url": "URL",
   "agent.card.arg.active": "Delivering",
@@ -1809,6 +1813,8 @@ export const messages = {
   "agent.card.note.unknownRole": "That is not a role this workspace's member rows can carry.",
   "agent.card.note.noDraftToPublish":
     "There is no draft to publish into that environment any more. Read the form again and ask for a fresh proposal.",
+  "agent.card.note.noVersionToPublish":
+    "That version cannot be published into that environment any more. Read the form again and ask for a fresh proposal.",
 
   /** The marker links to the existing card and must never become another Confirm action. */
   "agent.marker.text": "proposed · Review",
@@ -2357,7 +2363,7 @@ export const messages = {
   "membership.settings.heading": "Workspace settings",
   "membership.settings.twoPerson": "Require a second approver for production",
   "membership.settings.twoPersonHelp":
-    "One switch, three effects. A release to production is refused for the account that published the version; a production endpoint change takes a second approver's confirmation; and nobody can give themselves a response role, or a new environment for one - a second workspace owner, or the holder of the installation-wide claim, has to make that change. Off by default, because an installation with one account cannot satisfy the rule at all.",
+    "One switch, three effects. A publish to production is refused for the account that froze the version; a production endpoint change takes a second approver's confirmation; and nobody can give themselves a response role, or a new environment for one - a second workspace owner, or the holder of the installation-wide claim, has to make that change. Off by default, because an installation with one account cannot satisfy the rule at all.",
   "membership.settings.save": "Save settings",
   "membership.settings.saved": "The settings were saved, and the change is on the access audit.",
   "membership.settings.saveFailed": "The settings were not saved: {message}",
@@ -2412,8 +2418,8 @@ export const messages = {
   "membership.agentAudit.act.form.create": "Created a form",
   "membership.agentAudit.act.apply-draft": "Applied a proposed draft",
   "membership.agentAudit.act.form.saveDraft": "Saved a form's draft",
-  "membership.agentAudit.act.form.publish": "Published a form version and released it",
-  "membership.agentAudit.act.form.release": "Released a form version",
+  "membership.agentAudit.act.form.publish": "Published a form's draft to an environment",
+  "membership.agentAudit.act.form.release": "Published an existing version to an environment",
   "membership.agentAudit.act.form.settings": "Changed a form's abuse settings",
   "membership.agentAudit.act.form.close": "Closed a form to new responses",
   "membership.agentAudit.act.form.reopen": "Reopened a form",

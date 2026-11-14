@@ -217,10 +217,85 @@ describe("the fixed prod floor", () => {
 
     const blocker = await screen.findByTestId("qcms-publish-blocker");
     expect(blocker.dataset["code"]).toBe("TEST_RELEASE_REQUIRED");
+    // Any one of them satisfies the rule, so the sentence offers them as alternatives.
     expect(blocker.textContent).toBe(
-      t("forms.publish.blocked.priorRelease", { environments: "test, staging" }),
+      t("forms.publish.blocked.priorRelease", { environments: "test or staging" }),
     );
     expect(screen.getByRole("checkbox", { name: "prod" }).hasAttribute("disabled")).toBe(true);
+  });
+});
+
+describe("a refusal says which rule refused it", () => {
+  async function blockerFor(review: ReleaseReview): Promise<HTMLElement> {
+    const fromDraft = review.source.kind === "draft";
+    const user = userEvent.setup();
+    render(
+      <PublishWizard
+        formId="frm_intake"
+        versions={[2, 1]}
+        hasDraft={fromDraft}
+        canPublishDraft={fromDraft}
+        draft={null}
+        review={() => Promise.resolve({ ok: true, data: review })}
+        confirm={() => Promise.resolve({ status: "idle" })}
+        lookup={() => Promise.resolve({ status: "idle" })}
+        secureCookies={false}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: t("forms.publish.next") }));
+    return screen.findByTestId("qcms-publish-blocker");
+  }
+
+  const DRAFT_SOURCE = { kind: "draft", draftRevision: 3 } as const;
+  const DRAFT_BLOCKED = [{ code: "DRAFT_PUBLISH_NOT_ALLOWED", requiresAnyOf: [] }];
+  const AUTHOR_BLOCKED = [{ code: "APPROVER_IS_AUTHOR", requiresAnyOf: [] }];
+
+  it("states the fixed floor where production refuses a draft", async () => {
+    const blocker = await blockerFor({
+      source: DRAFT_SOURCE,
+      workflowRevision: null,
+      workflowSource: "default",
+      targets: [{ ...PROD_TARGET, blockers: DRAFT_BLOCKED }],
+    });
+    expect(blocker.textContent).toBe(
+      t("forms.publish.blocked.draftNotAllowedProd", { environment: "prod" }),
+    );
+  });
+
+  it("names the configured rule where a non-production environment refuses one", async () => {
+    const blocker = await blockerFor({
+      source: DRAFT_SOURCE,
+      workflowRevision: 2,
+      workflowSource: "configured",
+      targets: [
+        { ...PROD_TARGET, environment: "staging", protected: false, blockers: DRAFT_BLOCKED },
+      ],
+    });
+    expect(blocker.textContent).toBe(
+      t("forms.publish.blocked.draftNotAllowed", { environment: "staging" }),
+    );
+  });
+
+  it("does not tell a draft author they froze a version that does not exist yet", async () => {
+    const blocker = await blockerFor({
+      source: DRAFT_SOURCE,
+      workflowRevision: null,
+      workflowSource: "default",
+      targets: [{ ...PROD_TARGET, blockers: AUTHOR_BLOCKED }],
+    });
+    expect(blocker.textContent).toBe(
+      t("forms.publish.blocked.approverIsAuthorDraft", { environment: "prod" }),
+    );
+  });
+
+  it("keeps the frozen wording when the source is an existing version", async () => {
+    const blocker = await blockerFor({
+      ...PROD_ONLY,
+      targets: [{ ...PROD_TARGET, blockers: AUTHOR_BLOCKED }],
+    });
+    expect(blocker.textContent).toBe(
+      t("forms.publish.blocked.approverIsAuthor", { environment: "prod" }),
+    );
   });
 });
 

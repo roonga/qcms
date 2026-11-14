@@ -43,19 +43,29 @@ function stepName(step: Step): string {
   return t("forms.publish.step.review");
 }
 
-function blockerSentence(blocker: ReleaseBlockerRecord, environment: string): string {
+function blockerSentence(
+  blocker: ReleaseBlockerRecord,
+  target: ReviewTarget,
+  isDraft: boolean,
+): string {
+  const environment = target.environment;
   switch (blocker.code) {
     case "TEST_RELEASE_REQUIRED":
     case "PRIOR_RELEASE_REQUIRED":
+      // Any one of them satisfies the rule, so they are joined as alternatives.
       return t("forms.publish.blocked.priorRelease", {
-        environments: blocker.requiresAnyOf.join(", "),
+        environments: blocker.requiresAnyOf.join(" or "),
       });
     case "DRAFT_PUBLISH_NOT_ALLOWED":
-      return t("forms.publish.blocked.draftNotAllowed", { environment });
+      return target.protected
+        ? t("forms.publish.blocked.draftNotAllowedProd", { environment })
+        : t("forms.publish.blocked.draftNotAllowed", { environment });
     case "ALREADY_RELEASED":
       return t("forms.publish.blocked.alreadyReleased");
     case "APPROVER_IS_AUTHOR":
-      return t("forms.publish.blocked.approverIsAuthor", { environment });
+      return isDraft
+        ? t("forms.publish.blocked.approverIsAuthorDraft", { environment })
+        : t("forms.publish.blocked.approverIsAuthor", { environment });
     case "APPROVER_UNKNOWN_AUTHOR":
       return t("forms.publish.blocked.approverUnknownAuthor");
     default:
@@ -604,7 +614,7 @@ export function PublishWizard({
                     data-testid="qcms-publish-blocker"
                     data-code={blocker.code}
                   >
-                    {blockerSentence(blocker, target.environment)}
+                    {blockerSentence(blocker, target, review.source.kind === "draft")}
                   </span>
                 ))}
               </div>

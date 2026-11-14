@@ -19,7 +19,7 @@ The user guide for these rules is [`docs/workspace-access-guide.html`](workspace
 | Workspace administrator as a direct membership flag               | Partly built |
 | Site administrator as an explicit, non-default role               | Built        |
 | Four starter groups on every new workspace                        | Built        |
-| One user-facing Publish step                                      | Not built    |
+| One user-facing Publish step                                      | Built        |
 | Second approval for `prod` publish and endpoint changes           | Built        |
 | Second approval for turning the rule off and for self-grant       | Partly built |
 | Account creation, disable, reactivation and reset in the app      | Not built    |

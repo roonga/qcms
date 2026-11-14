@@ -171,7 +171,13 @@ The refusal code follows the source: `TEST_RELEASE_REQUIRED` on the default revi
 is what the existing release dialog reads, and `PRIOR_RELEASE_REQUIRED` once a revision is
 written. The write validates every name against the served set, refuses a destination that
 requires a prior release in itself, refuses a duplicate row and refuses a cycle, and it
-creates, renames and drops no environment: that stays the operator command's.
+creates, renames and drops no environment: that stays the operator command's. Its
+access-audit row summarises the rules **as enforced** (`enforcedRules`, floor included),
+because that is what an owner reading a refusal needs; the revision row keeps the rules as
+written.
+
+A revision written before the floor can leave two environments waiting on each other once
+it is read with the floor in place. Writing a new revision clears it.
 
 ## One confirmation is one transaction (Q89)
 
@@ -205,6 +211,11 @@ Authorisation is the route's rather than the handler's: `environmentFrom: "targe
 the middleware evaluate the cell once per listed environment and refuse on the first
 failure, naming only that environment. A `publish-batch` with no destination is "create a
 version without releasing it" and is authorised by `form: publish` alone.
+
+Both assistant kinds run here: `form.publish` on `publish-batch` and `form.release` on
+`release-batch`, so a card is refused on a stale review exactly as the wizard is. Each
+confirmation writes its agent step row inside this transaction, so a refused destination
+leaves no row for a later step to reference.
 
 ## Non-prod-to-production workflow
 

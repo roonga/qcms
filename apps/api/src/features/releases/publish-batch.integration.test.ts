@@ -532,6 +532,29 @@ describe("the release-workflow configuration", () => {
     await clearWorkflow();
   });
 
+  it("records the rules as enforced, so a revision leaving prod open still audits the floor", async () => {
+    await clearWorkflow();
+    const before = await listAccessAudit(control, SEED_WORKSPACE_ID, { kind: "setting" });
+    const written = await call(claim.token, "PUT", "/release-workflow", {
+      expectedRevision: null,
+      rules: [
+        {
+          environment: "prod",
+          requiresPriorReleaseIn: [],
+          allowsDraftPublish: true,
+          allowsInBatch: true,
+        },
+      ],
+    });
+    expect(written.status).toBe(200);
+    const after = await listAccessAudit(control, SEED_WORKSPACE_ID, { kind: "setting" });
+    const added = after.rows.filter((row) => !before.rows.some((old) => old.id === row.id));
+    expect(added).toHaveLength(1);
+    expect(added[0]?.detail).toContain("prod:after=test");
+    expect(added[0]?.detail).toContain("draft=false");
+    await clearWorkflow();
+  });
+
   it("is append-only at the database, so a rule change cannot rewrite history", async () => {
     await clearWorkflow();
     expect(
