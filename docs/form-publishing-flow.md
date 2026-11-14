@@ -40,9 +40,11 @@ confirmation and then releases into every destination or into none of them. It l
 only the environments the operator may release this form into, and says why an
 environment it cannot use is not eligible.
 
-In the test/prod workflow, production offers existing versions previously released to
-test, plus previously deployed production versions for rollback. A draft cannot be
-published straight into production. The review step shows what freezes and, per
+Where the site has a non-prod environment, production offers existing versions previously
+released to any non-prod environment, plus previously deployed production versions for
+rollback. A draft cannot be published straight into production, and this is a fixed floor
+that no release-workflow configuration lifts. On a site whose only environment is
+production, a draft publishes to production. The review step shows what freezes and, per
 destination, the version that environment serves now and the version it will serve. A
 test release does not itself prove that manual testing passed. The diagram assumes
 the form is open in both environments. Draft editing belongs to no environment, so the

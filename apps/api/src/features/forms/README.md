@@ -188,7 +188,8 @@ member. `features/workspaces/README.md` is that slice's own page.
 The admin publishes and releases through one wizard, backed by `POST
 /forms/{id}/publish-batch` and `POST /forms/{id}/release-batch`. Production exposes
 stored-version review and release of an eligible existing version, with draft authoring in
-test. A draft published straight into prod is refused with `TEST_RELEASE_REQUIRED`; the
+a non-prod environment. Where one is served, a draft published straight into prod is
+refused under every workflow configuration (`TEST_RELEASE_REQUIRED` by default); the
 library-only publish API and the older combined publish-and-release endpoint remain
 available to integrations. The release slice documents eligibility and rollback.
 
