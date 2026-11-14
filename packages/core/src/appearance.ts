@@ -533,9 +533,8 @@ function derivePalette(
     corrections: [],
   };
 
-  const pageProposal = high
-    ? extreme
-    : (seed.background ?? (dark ? mix(BLACK, seed.primary, 0.06) : mix(WHITE, seed.primary, 0.02)));
+  const defaultPage = dark ? mix(BLACK, seed.primary, 0.06) : mix(WHITE, seed.primary, 0.02);
+  const pageProposal = high ? extreme : (seed.background ?? defaultPage);
   const pageFits = (color: string): boolean =>
     dark
       ? relativeLuminance(color) <= DARK_PAGE_MAX_LUMINANCE
@@ -544,7 +543,8 @@ function derivePalette(
 
   const surfaces = (page: string): void => {
     draft.palette.background = page;
-    draft.palette.surface = high ? extreme : dark ? mix(page, WHITE, 0.05) : WHITE;
+    const plainSurface = dark ? mix(page, WHITE, 0.05) : WHITE;
+    draft.palette.surface = high ? extreme : plainSurface;
     draft.palette["background-muted"] = mix(page, ink, dark ? 0.03 : 0.05);
     draft.palette["surface-hover"] = mix(draft.palette.surface, ink, dark ? 0.09 : 0.04);
     draft.palette["ghost-hover"] = mix(draft.palette.surface, ink, dark ? 0.09 : 0.05);
@@ -556,9 +556,8 @@ function derivePalette(
     draft.palette[token as AppearanceColorToken] = value;
   }
 
-  const textProposal = high
-    ? ink
-    : (seed.text ?? (dark ? mix(WHITE, seed.primary, 0.08) : mix(BLACK, seed.primary, 0.15)));
+  const defaultText = dark ? mix(WHITE, seed.primary, 0.08) : mix(BLACK, seed.primary, 0.15);
+  const textProposal = high ? ink : (seed.text ?? defaultText);
   fixForeground(draft, "text", textProposal, ink);
   fixForeground(
     draft,
