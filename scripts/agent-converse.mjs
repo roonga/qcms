@@ -60,6 +60,19 @@ async function fillStable(field, value) {
 }
 
 /**
+ * A required field's label carries an `aria-hidden` marker, so its label text is not its
+ * accessible name and an exact label match never lands. Match the accessible name instead,
+ * the way `apps/admin/e2e` already does.
+ *
+ * @param {import("@playwright/test").Page} page
+ * @param {string} name
+ * @returns {import("@playwright/test").Locator}
+ */
+function namedField(page, name) {
+  return page.getByRole("textbox", { name, exact: true });
+}
+
+/**
  * @param {import("@playwright/test").Page} page
  * @param {{ baseUrl: string; timeoutMs: number }} run
  * @param {{ email: string; password: string; totpSecret?: string }} credentials
@@ -131,9 +144,9 @@ async function firstSignIn(page, run, credentials) {
     );
   }
   await hydrated(page, run.timeoutMs);
-  await fillStable(page.getByLabel("Temporary password"), credentials.password);
-  await fillStable(page.getByLabel("New password", { exact: true }), credentials.newPassword);
-  await fillStable(page.getByLabel("Confirm new password"), credentials.newPassword);
+  await fillStable(namedField(page, "Temporary password"), credentials.password);
+  await fillStable(namedField(page, "New password"), credentials.newPassword);
+  await fillStable(namedField(page, "Confirm new password"), credentials.newPassword);
   await Promise.all([
     page.waitForURL((url) => !url.pathname.startsWith("/change-password"), {
       timeout: run.timeoutMs,
