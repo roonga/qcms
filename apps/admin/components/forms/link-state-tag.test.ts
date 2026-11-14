@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { contrastRatio } from "@roonga/qcms-core";
 import { describe, expect, it } from "vitest";
 
 import type { LinkState } from "@/lib/forms/types";
@@ -53,24 +54,13 @@ function colorIn(mode: (typeof MODES)[number]["selector"], token: string): strin
   return value as string;
 }
 
-function luminance(hex: string): number {
-  const channels = [1, 3, 5].map((at) => Number.parseInt(hex.slice(at, at + 2), 16) / 255);
-  const linear = channels.map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
-  return 0.2126 * (linear[0] ?? 0) + 0.7152 * (linear[1] ?? 0) + 0.0722 * (linear[2] ?? 0);
-}
-
-function contrast(a: string, b: string): number {
-  const [lighter, darker] = [luminance(a), luminance(b)].sort((x, y) => y - x);
-  return ((lighter ?? 0) + 0.05) / ((darker ?? 0) + 0.05);
-}
-
 describe("the four secure-link state tints have contrast evidence in all three modes", () => {
   const cases = MODES.flatMap((mode) => STATES.map((state) => ({ mode, state })));
 
   it.each(cases)("$state reads against its own tint in $mode.name", ({ mode, state }) => {
     const foreground = colorIn(mode.selector, tokenFor(state, "color"));
     const background = colorIn(mode.selector, tokenFor(state, "background-color"));
-    const ratio = contrast(foreground, background);
+    const ratio = contrastRatio(foreground, background);
 
     expect(
       ratio,
@@ -82,7 +72,7 @@ describe("the four secure-link state tints have contrast evidence in all three m
     // Measure the universal strong border in high contrast; it overrides the state tint's declared border.
     const border = colorIn(":root.hc", "--color-border-strong");
     const background = colorIn(":root.hc", tokenFor(state, "background-color"));
-    const ratio = contrast(border, background);
+    const ratio = contrastRatio(border, background);
 
     expect(
       ratio,

@@ -4,6 +4,8 @@ Design deliverable for managed theming (issue #26) and the respondent mode switc
 
 Four brand-neutral themes. **Light and Dark are per-theme palettes; High-contrast is a single shared, theme-agnostic mode-layer** (documented once below) - a theme contributes only its accent to HC. Every colour value below is defined in `tokens.css`; every contrast ratio is computed from those exact values with the WCAG 2.2 relative-luminance formula (sRGB, `(L1+0.05)/(L2+0.05)`) by `build.py`, so the numbers cannot drift from the tokens.
 
+> **Superseded for High-contrast (agent-builder Q5, task 107).** Each shipped theme now carries its own full light and dark high-contrast palettes in `packages/ui/src/theme.css`, with the values below (the shared layer plus that theme's accent) written out per theme. `@roonga/qcms-core`'s appearance module is the contrast check; this bundle's `build.py` is no longer the source of truth for HC.
+
 ## Targets
 
 | Mode          | Body text     | Large / secondary text | UI / borders / focus |
