@@ -5,3 +5,4 @@ export * from "./harness.js";
 export * from "./seed.js";
 export * from "./clients.js";
 export * from "./webhooks.js";
+export * from "./mailpit.js";

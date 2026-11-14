@@ -1,0 +1,16 @@
+# Full-stack e2e overlay only: a throwaway relay that accepts plaintext SMTP and publishes no port.
+services:
+  mailpit:
+    image: ${QCMS_MAILPIT_IMAGE:-axllent/mailpit:v1.33.1}
+    restart: "no"
+
+  api:
+    environment:
+      QCMS_SMTP_HOST: mailpit
+      QCMS_SMTP_PORT: "1025"
+      QCMS_SMTP_SECURITY: none
+      QCMS_SMTP_ALLOW_INSECURE: "true"
+      QCMS_SMTP_FROM: QCMS <no-reply@qcms.test>
+    depends_on:
+      mailpit:
+        condition: service_healthy

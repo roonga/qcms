@@ -3,14 +3,23 @@ description: >
   Make a Testcontainers job independent of Docker Hub. Pre-pulls the Postgres
   image the @roonga/qcms-db harness boots (from the GHCR mirror when available) and
   exports QCMS_TEST_POSTGRES_IMAGE (issue #74), and disables the Ryuk reaper,
-  which was the last image still pulled from Docker Hub (issue #150). Every job
-  that runs Testcontainers must use this.
+  which was the last image still pulled from Docker Hub (issue #150). With
+  `mailpit: "true"` it also pre-pulls the Mailpit relay and exports
+  QCMS_TEST_MAILPIT_IMAGE. Every job that runs Testcontainers must use this.
 
 inputs:
   tag:
     description: Image tag to resolve. Must stay on the Postgres major the migrations target.
     required: false
     default: "16-alpine"
+  mailpit:
+    description: Also resolve the Mailpit image the API e2e suite and the e2e Compose overlay boot.
+    required: false
+    default: "false"
+  mailpit-tag:
+    description: Mailpit tag to resolve. Must match apps/api/e2e/support/mailpit.ts and docker-compose.e2e.yml.
+    required: false
+    default: "v1.33.1"
 
 runs:
   using: composite
@@ -54,6 +63,40 @@ runs:
         done
 
         echo "::error title=Test Postgres image unavailable::Neither ${mirror} nor ${upstream} could be pulled. This is a container-registry failure, not a test failure."
+        exit 1
+
+    - name: Resolve and pre-pull the test Mailpit image
+      if: inputs.mailpit == 'true'
+      shell: bash
+      env:
+        IMAGE_TAG: ${{ inputs.mailpit-tag }}
+        REPOSITORY_OWNER: ${{ github.repository_owner }}
+      run: |
+        set -euo pipefail
+
+        upstream="axllent/mailpit:${IMAGE_TAG}"
+        owner="$(printf '%s' "${REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+        mirror="ghcr.io/${owner}/qcms/mailpit:${IMAGE_TAG}"
+
+        if docker pull --quiet "${mirror}"; then
+          echo "QCMS_TEST_MAILPIT_IMAGE=${mirror}" >> "${GITHUB_ENV}"
+          echo "Using the GHCR mirror: ${mirror}"
+          exit 0
+        fi
+
+        echo "::warning title=Test Mailpit mirror unavailable::Could not pull ${mirror}; falling back to Docker Hub (${upstream}). Check that the mirror workflow has run and that the package is public."
+
+        for attempt in 1 2 3; do
+          if docker pull --quiet "${upstream}"; then
+            echo "QCMS_TEST_MAILPIT_IMAGE=${upstream}" >> "${GITHUB_ENV}"
+            echo "Using Docker Hub: ${upstream}"
+            exit 0
+          fi
+          echo "Docker Hub pull attempt ${attempt} of 3 failed."
+          sleep $((attempt * 10))
+        done
+
+        echo "::error title=Test Mailpit image unavailable::Neither ${mirror} nor ${upstream} could be pulled. This is a container-registry failure, not a test failure."
         exit 1
 
     # Snapshot after pre-pulling so the assertion measures only test-time registry access.
