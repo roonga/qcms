@@ -2,6 +2,7 @@ import { applyMigrations, CONTAINER_BOOT_TIMEOUT_MS } from "@roonga/qcms-db/test
 import {
   ACCESS_AUDIT_TABLE,
   AGENT_ACTIONS_TABLE,
+  APPEARANCE_LOGOS_TABLE,
   CONTROL_FORBIDDEN_TABLES,
   CONTROL_READ_TABLES,
   DATA_PLANE_ENUM_TYPES,
@@ -35,6 +36,9 @@ const HOME_PROD_REPORTING_ROLE = workspaceReportingRoleName("prod", HOME_WORKSPA
 const DML = ["SELECT", "INSERT", "UPDATE", "DELETE"] as const;
 
 const AUDIT_TABLES: readonly string[] = [ACCESS_AUDIT_TABLE, AGENT_ACTIONS_TABLE];
+
+/** The audits plus the logo store: every table no application role may rewrite. */
+const APPEND_ONLY_TABLES: readonly string[] = [...AUDIT_TABLES, APPEARANCE_LOGOS_TABLE];
 
 // Each planner probe needs a session of its own: `pg_temp` is per session, and a notice
 // listener on a shared client would collect another case's notices.
@@ -293,17 +297,17 @@ describe("the migration role is the only role that owns anything", () => {
 });
 
 describe("qcms_app_control: the control plane, and one grant in each data plane", () => {
-  it("holds DML on every control-plane table except the audits", async () => {
+  it("holds DML on every control-plane table except the append-only ones", async () => {
     const held = await tablePrivileges("control", CONTROL_ROLE);
     // Absent entirely rather than present with fewer privileges: the revoke takes all four.
     expect(held["two_factor_resets"]).toBeUndefined();
-    // No `UPDATE` and no `DELETE` on either audit, so this role can add a row and change none.
-    for (const audit of AUDIT_TABLES) {
-      expect([...(held[audit] ?? [])].sort(), audit).toEqual(["INSERT", "SELECT"]);
+    // No `UPDATE` and no `DELETE`, so this role can add a row there and change none.
+    for (const table of APPEND_ONLY_TABLES) {
+      expect([...(held[table] ?? [])].sort(), table).toEqual(["INSERT", "SELECT"]);
     }
     expect([...(held[ENDPOINT_PROPOSALS_TABLE] ?? [])].sort()).toEqual([...DML].sort());
     for (const [table, privileges] of Object.entries(held)) {
-      if (AUDIT_TABLES.includes(table)) continue;
+      if (APPEND_ONLY_TABLES.includes(table)) continue;
       expect([...privileges].sort(), `control.${table}`).toEqual([...DML].sort());
     }
     expect(Object.keys(held).length).toBeGreaterThan(10);
@@ -524,7 +528,7 @@ describe.each(ENVIRONMENTS)(
     it("holds exactly the named SELECT list on `control`, one UPDATE and one INSERT", async () => {
       const held = await tablePrivileges("control", role);
       const expectedReads = CONTROL_READ_TABLES;
-      expect(expectedReads).toHaveLength(6);
+      expect(expectedReads).toHaveLength(7);
       // The two audits carry no read: this role holds `INSERT` alone on each, so it can
       // neither read, change nor remove a row it wrote.
       expect(Object.keys(held).sort()).toEqual([...expectedReads, ...AUDIT_TABLES].sort());
