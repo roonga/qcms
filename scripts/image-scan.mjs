@@ -360,6 +360,7 @@ function capitalise(word) {
 export function runScanner(scanner, sbomPath, reportPath) {
   execFileSync(scanner, [`sbom:${sbomPath}`, "--output", "json", "--file", reportPath], {
     stdio: ["ignore", "inherit", "inherit"],
+    windowsHide: true,
   });
   return JSON.parse(readFileSync(reportPath, "utf8"));
 }

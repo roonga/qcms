@@ -52,6 +52,7 @@ export function runProcess(command, args, environment = process.env) {
     cwd: REPOSITORY_ROOT,
     env: environment,
     stdio: "inherit",
+    windowsHide: true,
   });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new CommandFailed(command, result.status ?? 1);
@@ -68,6 +69,7 @@ export function captureProcess(command, args, environment = process.env) {
     cwd: REPOSITORY_ROOT,
     env: environment,
     encoding: "utf8",
+    windowsHide: true,
     maxBuffer: 64 * 1024 * 1024,
   });
   if (result.error) throw result.error;

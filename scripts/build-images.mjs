@@ -44,11 +44,13 @@ export function imageVersion(env = process.env) {
   const sha = execFileSync("git", ["rev-parse", "--short", "HEAD"], {
     cwd: REPOSITORY_ROOT,
     encoding: "utf8",
+    windowsHide: true,
   }).trim();
   const dirty =
     execFileSync("git", ["status", "--porcelain"], {
       cwd: REPOSITORY_ROOT,
       encoding: "utf8",
+      windowsHide: true,
     }).trim() !== "";
   return `${pkg.version}+${sha}${dirty ? ".dirty" : ""}`;
 }
