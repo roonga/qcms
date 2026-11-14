@@ -97,7 +97,7 @@ test("confirms a mint and a revoke alone, changing the screen and recording each
   expect(addresses, "the card shows every address the mint produced").toHaveLength(2);
   expectAddressShape(addresses);
 
-  await card(page).getByRole("button", { name: "Copy 1", exact: true }).click();
+  await card(page).getByRole("button", { name: "Copy link 1", exact: true }).click();
   // A refused clipboard is as acceptable an outcome as a successful one, and says so either way.
   await expect(card(page).getByTestId("qcms-acard-reveal-note")).toHaveText(
     /copied to the clipboard|could not be copied/u,
@@ -200,7 +200,7 @@ test("shows a full batch on the card, and one of its addresses starts a session"
   const addresses = await revealedAddresses(card(page));
   expect(addresses, "the card lists every address, with no threshold").toHaveLength(100);
   expectAddressShape(addresses);
-  await expect(card(page).getByRole("button", { name: /^Copy \d+$/u })).toHaveCount(100);
+  await expect(card(page).getByRole("button", { name: /^Copy link \d+$/u })).toHaveCount(100);
 
   await page.setViewportSize({ width: 360, height: 760 });
   const layout = await revealList(card(page)).evaluate((list) => ({

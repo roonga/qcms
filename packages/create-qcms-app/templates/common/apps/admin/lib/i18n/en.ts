@@ -1785,7 +1785,8 @@ export const messages = {
   "agent.card.reveal.links.note":
     "Copy or download these now. The server keeps a link's state, never its address, so they cannot be shown again.",
   /** Number the control, never name the address: this label is read aloud and a bearer address must not be. */
-  "agent.card.reveal.copy": "Copy {number}",
+  "agent.card.reveal.copy": "Copy link",
+  "agent.card.reveal.copyNumbered": "Copy link {number}",
   "agent.card.reveal.csv": "Download all as CSV",
   "agent.card.reveal.dismiss": "Hide",
   "agent.card.reveal.dismissHint.one":

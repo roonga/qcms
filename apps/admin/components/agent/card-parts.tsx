@@ -206,7 +206,10 @@ function RevealBlock({
                     copy(link.url);
                   }}
                 >
-                  {t("agent.card.reveal.copy", { number: at + 1 })}
+                  <span className="qcms-visually-hidden">
+                    {t("agent.card.reveal.copyNumbered", { number: at + 1 })}
+                  </span>
+                  <span aria-hidden="true">{t("agent.card.reveal.copy")}</span>
                 </Button>
               </li>
             ))}

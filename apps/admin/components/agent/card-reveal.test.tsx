@@ -128,13 +128,20 @@ describe("the addresses one mint produced", () => {
     expect(list.tabIndex).toBe(0);
   });
 
-  it("names each copy control by its position, never by the address it would copy", () => {
+  it("reads as Copy link, and names its position to assistive technology alone", () => {
     renderReveal(minted(2));
-    const buttons = within(screen.getByTestId("qcms-acard-reveal-list")).getAllByRole("button");
-    expect(buttons.map((button) => button.textContent)).toEqual([
-      t("agent.card.reveal.copy", { number: 1 }),
-      t("agent.card.reveal.copy", { number: 2 }),
-    ]);
+    const list = screen.getByTestId("qcms-acard-reveal-list");
+    const buttons = within(list).getAllByRole("button");
+    expect(
+      buttons.map((button) => button.querySelector("[aria-hidden='true']")?.textContent),
+    ).toEqual([t("agent.card.reveal.copy"), t("agent.card.reveal.copy")]);
+    for (const number of [1, 2]) {
+      expect(
+        within(list).getByRole("button", {
+          name: t("agent.card.reveal.copyNumbered", { number }),
+        }),
+      ).toBeTruthy();
+    }
     for (const button of buttons) {
       expect(button.textContent ?? "").not.toContain("token-");
     }
@@ -147,7 +154,7 @@ describe("the addresses one mint produced", () => {
     renderReveal(minted(2));
 
     await user.click(
-      screen.getByRole("button", { name: t("agent.card.reveal.copy", { number: 2 }) }),
+      screen.getByRole("button", { name: t("agent.card.reveal.copyNumbered", { number: 2 }) }),
     );
 
     const note = await screen.findByTestId("qcms-acard-reveal-note");
@@ -163,7 +170,7 @@ describe("the addresses one mint produced", () => {
     renderReveal(minted(1));
 
     await user.click(
-      screen.getByRole("button", { name: t("agent.card.reveal.copy", { number: 1 }) }),
+      screen.getByRole("button", { name: t("agent.card.reveal.copyNumbered", { number: 1 }) }),
     );
 
     expect((await screen.findByTestId("qcms-acard-reveal-note")).textContent).toBe(
