@@ -1250,6 +1250,7 @@ function sourceFiles(roots) {
   const listed = execFileSync("git", ["ls-files", "-z", ...roots], {
     cwd: REPOSITORY_ROOT,
     encoding: "utf8",
+    windowsHide: true,
   });
   return listed
     .split("\0")

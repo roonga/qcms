@@ -58,6 +58,7 @@ function refResolves(ref) {
   try {
     execFileSync("git", ["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], {
       encoding: "utf8",
+      windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"],
     });
     return true;
@@ -75,6 +76,7 @@ function main() {
   /** @type {import("node:child_process").SpawnSyncOptionsWithStringEncoding} */
   const options = {
     encoding: "utf8",
+    windowsHide: true,
     stdio: ["ignore", "pipe", "pipe"],
     shell: invocation.shell,
   };

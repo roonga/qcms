@@ -321,7 +321,7 @@ export function filesInScope() {
   const listed = execFileSync(
     GIT,
     ["ls-files", "-z", "--cached", "--others", "--exclude-standard"],
-    { cwd: REPO_ROOT, encoding: "utf8", maxBuffer: 32 * 1024 * 1024 },
+    { cwd: REPO_ROOT, encoding: "utf8", maxBuffer: 32 * 1024 * 1024, windowsHide: true },
   );
   const files = listed
     .split("\0")
