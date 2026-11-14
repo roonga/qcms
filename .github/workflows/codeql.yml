@@ -5,6 +5,14 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+    paths-ignore:
+      - ".claude/**"
+      - "plan/**"
+      - "CLAUDE.md"
+      - "PROJECT_INSTRUCTIONS.md"
+      - "CONTRIBUTING.md"
+      - "docs/**/*.md"
+      - "!docs/SECURITY_DESIGN.md"
   schedule:
     # Scan unchanged code against newly published queries.
     - cron: "0 3 * * 1"

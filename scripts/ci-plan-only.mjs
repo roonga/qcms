@@ -102,7 +102,7 @@ export function isAdminOnly(files) {
  * @returns {string}
  */
 function git(args, cwd) {
-  return execFileSync(GIT, [...args], { encoding: "utf8", cwd });
+  return execFileSync(GIT, [...args], { encoding: "utf8", cwd, windowsHide: true });
 }
 
 /**

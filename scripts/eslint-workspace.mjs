@@ -97,6 +97,7 @@ export function run(args, fromDir = process.cwd()) {
   const result = spawnSync(process.execPath, [eslintBin(), ...rewriteArgs(args, fromDir)], {
     cwd: WORKSPACE_ROOT,
     stdio: "inherit",
+    windowsHide: true,
   });
   if (result.error) {
     console.error(`eslint-workspace: could not start ESLint - ${result.error.message}`);

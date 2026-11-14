@@ -1,10 +1,15 @@
-// Reads `theme.css` and computes the WCAG 2.2 contrast ratio of every critical pair, so a palette edit that drops
-// a pair below target fails here. Targets: AA in Light and Dark (4.5:1 text, 3:1 UI); AAA in both High-contrast
-// polarities (7:1 text, 3:1 UI).
+// Resolves `theme.css` per theme and mode and runs the core appearance module's contrast check on the result, so a
+// palette edit that drops a pair below target fails here.
 
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import {
+  APPEARANCE_COLOR_TOKENS,
+  checkPalette,
+  type AppearancePalette,
+  type PaletteKind,
+} from "@roonga/qcms-core";
 import { describe, expect, it } from "vitest";
 
 const THEME_CSS = readFileSync(join(import.meta.dirname, "theme.css"), "utf8");
@@ -258,53 +263,20 @@ function resolve(theme: Theme, mode: Mode): Readonly<Record<string, string>> {
   return resolveFrom(BLOCKS, theme, mode);
 }
 
-function luminance(hex: string): number {
-  const value = hex.trim().replace("#", "");
-  expect(value, `token value ${hex} is not a 6-digit hex colour`).toMatch(/^[0-9a-f]{6}$/iu);
-  const channels = [0, 2, 4].map((offset) => {
-    const srgb = Number.parseInt(value.slice(offset, offset + 2), 16) / 255;
-    return srgb <= 0.040_45 ? srgb / 12.92 : ((srgb + 0.055) / 1.055) ** 2.4;
-  });
-  return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
-}
-
-/** Rounded down to 2dp, so a reported number never flatters. */
-function contrast(foreground: string, background: string): number {
-  const [lighter, darker] = [luminance(foreground), luminance(background)].sort((a, b) => b - a);
-  return Math.floor(((lighter + 0.05) / (darker + 0.05)) * 100) / 100;
-}
-
-const TEXT_PAIRS = [
-  ["--color-text", "--color-background", "text / background"],
-  ["--color-text", "--color-surface", "text / surface"],
-  ["--color-text-muted", "--color-background", "text-muted / background"],
-  ["--color-text-muted", "--color-surface", "text-muted / surface"],
-  ["--color-primary-foreground", "--color-primary", "primary-fg / primary"],
-  ["--color-secondary-foreground", "--color-secondary", "secondary-fg / secondary"],
-  ["--color-danger-foreground", "--color-danger", "danger-fg / danger"],
-  ["--color-danger-fg", "--color-danger-subtle", "danger-fg / danger-subtle"],
-  ["--color-info-fg", "--color-info-subtle", "info-fg / info-subtle"],
-  ["--color-success-fg", "--color-success-subtle", "success-fg / success-subtle"],
-  ["--color-warning-fg", "--color-warning-subtle", "warning-fg / warning-subtle"],
-] as const;
-
-const UI_PAIRS = [
-  ["--color-border-strong", "--color-surface", "border-strong / surface"],
-  ["--color-border-strong", "--color-background", "border-strong / background"],
-  ["--color-focus-ring", "--color-background", "focus-ring / background"],
-  ["--color-focus-ring", "--color-surface", "focus-ring / surface"],
-  ["--color-primary", "--color-surface", "primary / surface (link + primary UI)"],
-] as const;
-
 const MODES: readonly Mode[] = ["light", "dark", "hc", "dark-hc"];
 const HIGH_CONTRAST_MODES: readonly Mode[] = ["hc", "dark-hc"];
-const TEXT_TARGET: Readonly<Record<Mode, number>> = {
-  light: 4.5,
-  dark: 4.5,
-  hc: 7,
-  "dark-hc": 7,
+const PALETTE_KIND: Readonly<Record<Mode, PaletteKind>> = {
+  light: "light",
+  dark: "dark",
+  hc: "lightHighContrast",
+  "dark-hc": "darkHighContrast",
 };
-const UI_TARGET = 3;
+
+function paletteOf(tokens: Readonly<Record<string, string>>): AppearancePalette {
+  return Object.fromEntries(
+    APPEARANCE_COLOR_TOKENS.map((token) => [token, tokens[`--color-${token}`] ?? ""]),
+  ) as AppearancePalette;
+}
 
 describe("the scope carrier and the specificity model it is measured with", () => {
   it("anchors every rule in the sheet on the scope carrier", () => {
@@ -338,32 +310,7 @@ describe("the scope carrier and the specificity model it is measured with", () =
     }
   });
 
-  // Only source order separates these two. Non-zero here and the ordering guarantee
-  // below would be decided by specificity instead, and the sheet's own note wrong.
-  it("leaves the shared .hc layer exactly as specific as a theme's light block", () => {
-    const shared = specificityOf(`${SCOPE_ANCHOR}.hc`);
-    const themed = specificityOf(`${SCOPE_ANCHOR}[data-theme="harbor"]`);
-    expect(compareSpecificity(shared, themed)).toBe(0);
-    expect(compareSpecificity(specificityOf(SCOPE_ANCHOR), shared)).toBeLessThan(0);
-  });
-
-  // The tie the two-axis model rests on: a theme's light-HC accent reaches the dark field
-  // only because it is emitted after the shared `.dark.hc` block at the same weight.
-  // Decided by specificity instead, the dark field would flatten to slate's accent.
-  it("leaves shared .dark.hc exactly as specific as a per-theme .hc accent", () => {
-    const shared = specificityOf(`${SCOPE_ANCHOR}.dark.hc`);
-    const accent = specificityOf(`${SCOPE_ANCHOR}[data-theme="harbor"].hc`);
-    expect(compareSpecificity(shared, accent)).toBe(0);
-    expect(
-      compareSpecificity(specificityOf(`${SCOPE_ANCHOR}[data-theme="harbor"].dark.hc`), shared),
-    ).toBeGreaterThan(0);
-  });
-
-  /**
-   * The order itself, as six groups rather than as a comment. Ties inside the colour
-   * layer are resolved by source order, so an edit that appends a block in the wrong
-   * place is valid CSS that certifies the wrong pairs.
-   */
+  /** The sheet's layout, as six groups rather than as a comment. */
   it("emits the colour layer in the six fixed groups, in order", () => {
     const group = (block: Block): number => {
       if (block.mode === null) return block.theme === null ? 0 : 1;
@@ -383,19 +330,13 @@ describe("the scope carrier and the specificity model it is measured with", () =
     expect(new Set(groups)).toStrictEqual(new Set([0, 1, 2, 3, 4, 5]));
   });
 
-  /**
-   * A sheet that is valid CSS, declares identical values, and is wrong. From the
-   * top-level rules only, because the claim is about the colour layer's source order
-   * and flattening the media block would make it say something the real sheet does not.
-   */
-  function misordered(): readonly Block[] {
+  /** From the top-level rules only, because the claim is about the colour layer's source order. */
+  function sharedHighContrastFirst(): readonly Block[] {
     const sheet = BLOCKS.filter((block) => block.media === null);
     const isShared = (block: Block): boolean =>
       block.theme === null && block.mode !== null && HIGH_CONTRAST_MODES.includes(block.mode);
-    const hc = sheet.filter((block) => isShared(block));
-    const rest = sheet.filter((block) => !isShared(block));
     return parseBlocks(
-      [...hc, ...rest]
+      [...sheet.filter(isShared), ...sheet.filter((block) => !isShared(block))]
         .map(
           (block) =>
             `${block.selector} {${Object.entries(block.tokens)
@@ -406,116 +347,60 @@ describe("the scope carrier and the specificity model it is measured with", () =
     );
   }
 
-  it("resolves a deliberately mis-ordered sheet to the wrong palette", () => {
-    expect(resolve("harbor", "hc")["--color-text"]).toBe("#000000");
-
-    const broken = misordered();
-    const brokenHc = resolveFrom(broken, "harbor", "hc");
-    expect(brokenHc["--color-text"]).not.toBe("#000000");
-    expect(brokenHc["--color-text"]).toBe(resolveFrom(broken, "harbor", "light")["--color-text"]);
-    expect(brokenHc["--color-background"]).not.toBe(
-      resolveFrom(broken, "slate", "hc")["--color-background"],
-    );
+  it("resolves every theme and mode identically whatever the order of the shared HC blocks", () => {
+    const reordered = sharedHighContrastFirst();
+    for (const theme of THEMES) {
+      for (const mode of MODES) {
+        expect(resolveFrom(reordered, theme, mode), `${theme}/${mode}`).toStrictEqual(
+          resolve(theme, mode),
+        );
+      }
+    }
   });
 });
 
-describe("colour group: every critical pair meets its WCAG 2.2 target", () => {
+describe("colour group: every shipped palette passes the appearance module's contrast check", () => {
   for (const theme of THEMES) {
     for (const mode of MODES) {
       it(`${theme} / ${mode}`, () => {
-        const tokens = resolve(theme, mode);
-        for (const [fg, bg, label] of TEXT_PAIRS) {
-          const ratio = contrast(tokens[fg], tokens[bg]);
-          expect(
-            ratio,
-            `${theme}/${mode} ${label} (${tokens[fg]} on ${tokens[bg]}) = ${ratio}:1, needs ${TEXT_TARGET[mode]}:1`,
-          ).toBeGreaterThanOrEqual(TEXT_TARGET[mode]);
-        }
-        for (const [fg, bg, label] of UI_PAIRS) {
-          const ratio = contrast(tokens[fg], tokens[bg]);
-          expect(
-            ratio,
-            `${theme}/${mode} ${label} (${tokens[fg]} on ${tokens[bg]}) = ${ratio}:1, needs ${UI_TARGET}:1`,
-          ).toBeGreaterThanOrEqual(UI_TARGET);
-        }
+        const failures = checkPalette(paletteOf(resolve(theme, mode)), PALETTE_KIND[mode]).map(
+          (failure) =>
+            `${failure.foreground} / ${failure.background} = ${failure.ratio.toFixed(2)}:1, needs ${String(failure.required)}:1`,
+        );
+        expect(failures, `${theme}/${mode}`).toStrictEqual([]);
       });
     }
   }
 });
 
-describe("High-contrast is one mode layer, not a palette per theme", () => {
-  const ACCENT = new Set([
-    "--color-primary",
-    "--color-primary-hover",
-    "--color-primary-active",
-    "--color-primary-foreground",
-  ]);
+describe("every theme ships its own high-contrast palettes", () => {
+  const COLOR_TOKENS = APPEARANCE_COLOR_TOKENS.map((token) => `--color-${token}`);
 
-  it.each(HIGH_CONTRAST_MODES)(
-    "every theme resolves to the identical %s palette apart from its accent",
-    (mode) => {
-      const slate = resolve("slate", mode);
-      for (const theme of THEMES.filter((candidate) => candidate !== "slate")) {
-        const other = resolve(theme, mode);
-        for (const token of Object.keys(slate).filter((name) => name.startsWith("--color-"))) {
-          if (ACCENT.has(token)) continue;
-          expect(
-            other[token],
-            `${theme}/${mode} diverges from the shared HC layer at ${token}`,
-          ).toBe(slate[token]);
-        }
+  function ownBlock(theme: Theme, mode: Mode): Block | undefined {
+    const owner = theme === "slate" ? null : theme;
+    return BLOCKS.find(
+      (block) => block.theme === owner && block.mode === mode && block.media === null,
+    );
+  }
+
+  it.each(THEMES.flatMap((theme) => HIGH_CONTRAST_MODES.map((mode) => [theme, mode] as const)))(
+    "%s declares a full %s palette in its own block",
+    (theme, mode) => {
+      const block = ownBlock(theme, mode);
+      expect(block, `${theme} has no ${mode} block`).toBeDefined();
+      for (const token of [...COLOR_TOKENS, "--color-ghost", "--color-overlay"]) {
+        expect(block?.tokens[token], `${theme}/${mode} does not set ${token}`).toBeDefined();
       }
     },
   );
 
-  it("an alternate theme's HC block contributes ONLY accent tokens, on either field", () => {
-    for (const block of BLOCKS.filter(
-      (candidate) => candidate.mode !== null && HIGH_CONTRAST_MODES.includes(candidate.mode),
-    )) {
-      if (block.theme === null) continue;
-      for (const token of Object.keys(block.tokens)) {
-        expect(
-          ACCENT.has(token),
-          `${block.theme}/${block.mode ?? ""} overrides ${token}, which is not an accent`,
-        ).toBe(true);
-      }
-    }
-  });
-
-  it("the HC layers are theme-agnostic: black on white, then white on black", () => {
-    const hc = resolve("slate", "hc");
-    expect(hc["--color-text"]).toBe("#000000");
-    expect(hc["--color-surface"]).toBe("#ffffff");
-    expect(hc["--color-background"]).toBe("#ffffff");
-    expect(hc["--color-border-strong"]).toBe("#000000");
-
-    const dark = resolve("slate", "dark-hc");
-    expect(dark["--color-text"]).toBe("#ffffff");
-    expect(dark["--color-surface"]).toBe("#000000");
-    expect(dark["--color-background"]).toBe("#000000");
-    expect(dark["--color-border-strong"]).toBe("#ffffff");
-  });
-
-  it("gives a theme a dark-HC accent exactly when its light-HC accent misses on that field", () => {
-    const target = TEXT_TARGET["dark-hc"];
-    const field = resolve("slate", "dark-hc")["--color-background"];
+  it.each(HIGH_CONTRAST_MODES)("resolves each theme's %s palette from its own block", (mode) => {
     for (const theme of THEMES) {
-      const lightAccent = resolve(theme, "hc")["--color-primary"];
-      const darkAccent = resolve(theme, "dark-hc")["--color-primary"];
-      const owns = BLOCKS.some(
-        (block) => block.theme === theme && block.mode === "dark-hc" && block.media === null,
-      );
-      if (contrast(lightAccent, field) < target) {
-        expect(darkAccent, `${theme}'s light-HC accent misses on the dark field`).not.toBe(
-          lightAccent,
-        );
-      } else {
-        expect(owns, `${theme} gets the dark field for free and owes no accent`).toBe(false);
+      const block = ownBlock(theme, mode);
+      const resolved = resolve(theme, mode);
+      for (const token of COLOR_TOKENS) {
+        expect(resolved[token], `${theme}/${mode} ${token}`).toBe(block?.tokens[token]);
       }
-      expect(
-        contrast(darkAccent, field),
-        `${theme}'s dark-HC accent ${darkAccent} on ${field}`,
-      ).toBeGreaterThanOrEqual(target);
     }
   });
 });

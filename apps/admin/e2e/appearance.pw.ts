@@ -1,4 +1,5 @@
 import type { Locator, Page } from "@playwright/test";
+import { contrastRatio, relativeLuminance } from "@roonga/qcms-core";
 import { settleTransitions } from "@roonga/qcms-e2e-support/animations";
 
 import { expect, test } from "../../portal/e2e/support/gates.js";
@@ -51,22 +52,22 @@ async function token(page: Page, name: string): Promise<string> {
   }, name);
 }
 
-function luminance(rgb: string): number {
-  const parts =
+/** Computed colours arrive as `rgb()`; the core module measures hex. */
+function hexOf(rgb: string): string {
+  const channels =
     rgb
       .match(/\d+(?:\.\d+)?/gu)
       ?.slice(0, 3)
       .map(Number) ?? [];
-  const channels = parts.map((value) => {
-    const s = value / 255;
-    return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
-  });
-  return 0.2126 * (channels[0] ?? 0) + 0.7152 * (channels[1] ?? 0) + 0.0722 * (channels[2] ?? 0);
+  return `#${channels.map((value) => Math.round(value).toString(16).padStart(2, "0")).join("")}`;
+}
+
+function luminance(rgb: string): number {
+  return relativeLuminance(hexOf(rgb));
 }
 
 function ratio(a: string, b: string): number {
-  const ordered = [luminance(a), luminance(b)].sort((x, y) => y - x);
-  return ((ordered[0] ?? 0) + 0.05) / ((ordered[1] ?? 0) + 0.05);
+  return contrastRatio(hexOf(a), hexOf(b));
 }
 
 async function computed(locator: Locator, property: string): Promise<string> {

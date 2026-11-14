@@ -37,6 +37,7 @@ export function trackedFilesUnder(root, options = {}) {
       cwd: root,
       encoding: "utf8",
       maxBuffer: MAX_BUFFER,
+      windowsHide: true,
     },
   );
 

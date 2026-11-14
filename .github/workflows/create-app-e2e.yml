@@ -5,6 +5,14 @@ on:
   push:
     branches: [main]
   pull_request:
+    paths-ignore:
+      - ".claude/**"
+      - "plan/**"
+      - "CLAUDE.md"
+      - "PROJECT_INSTRUCTIONS.md"
+      - "CONTRIBUTING.md"
+      - "docs/**/*.md"
+      - "!docs/SECURITY_DESIGN.md"
   workflow_dispatch:
 
 concurrency:
