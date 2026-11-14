@@ -102,6 +102,10 @@ function noop(): void {
   return undefined;
 }
 
+/* Fractional line heights leave a pixel or two at the foot of a list that is scrolled all the way
+   down, so "at the bottom" is a band rather than an equality. */
+const BOTTOM_SLACK_PX = 16;
+
 import {
   applyTurnEvent,
   EMPTY_TURN,
@@ -182,6 +186,16 @@ function ScreenConversation({
   const publish = seam?.publish;
   const requestHandOff = seam?.requestHandOff;
   const cardId = useId();
+  const turnsRef = useRef<HTMLOListElement>(null);
+  const followsNewest = useRef(true);
+
+  // A reader who has scrolled back through the conversation keeps their place; everyone else is held
+  // at the newest turn as it streams, which is otherwise written below the fold.
+  useEffect(() => {
+    const list = turnsRef.current;
+    if (list === null || !followsNewest.current) return;
+    list.scrollTop = list.scrollHeight;
+  }, [cards, live, shown]);
 
   useEffect(() => {
     if (publish === undefined) return;
@@ -392,6 +406,7 @@ function ScreenConversation({
     const message = value.trim();
     if (message === "" || screen === undefined || live !== undefined) return;
     setValue("");
+    followsNewest.current = true;
     // Read here rather than in the post: only the browser knows a card is still on screen,
     // and a model that is not told reads a conversation in which it proposed nothing.
     await runTurn(message, undefined, waitingProposalTurns(waiting ? proposal : undefined));
@@ -411,6 +426,12 @@ function ScreenConversation({
         data-testid="qcms-assistant-turns"
         tabIndex={0}
         aria-label={t("agent.conversationLabel")}
+        ref={turnsRef}
+        onScroll={(event) => {
+          const list = event.currentTarget;
+          followsNewest.current =
+            list.scrollHeight - list.scrollTop - list.clientHeight <= BOTTOM_SLACK_PX;
+        }}
       >
         {shown.map((turn, index) =>
           turn.role === "user" ? (
