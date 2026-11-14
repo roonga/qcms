@@ -408,7 +408,7 @@ export async function main(args, environment, directory) {
     turns,
   };
   const transcriptFile = join(target, "transcript.json");
-  writeFileSync(transcriptFile, `${JSON.stringify(transcript, null, 2)}\n`);
+  writeFileSync(transcriptFile, `${JSON.stringify(transcript, null, 2)}\n`, { mode: 0o600 });
 
   stdout.write(`agent-converse: ${String(turns.length)} turn(s) on ${run.screen}\n`);
   stdout.write(`agent-converse: transcript ${transcriptFile}\n`);
