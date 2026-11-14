@@ -86,6 +86,25 @@ const VOICE_RULES: readonly { readonly rule: string; readonly phrases: readonly 
     rule: "say a test link's address is shown once and never reaches it",
     phrases: ["shown once, on the card", "You never see that address", "cancels the old link"],
   },
+  {
+    rule: "open with the result rather than the method",
+    phrases: [
+      "Open with the result",
+      "not how you are about to find it",
+      "never answer the same question twice",
+      "skip the announcement altogether",
+    ],
+  },
+  {
+    rule: "answer why it stopped from the conversation rather than inventing a cause",
+    phrases: [
+      "the answer is already in\nthis conversation",
+      "use what you said THEN",
+      "cannot see your own reasoning after the fact",
+      "a cause you cannot point at in this conversation is a guess",
+      "Do not run the same lookups again",
+    ],
+  },
 ];
 
 /** The guidance the person is spoken to through, without the one line that lists the words. */

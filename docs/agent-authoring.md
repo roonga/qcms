@@ -204,6 +204,11 @@ It is assembled from the kernel's own exports where the kernel exposes a list (q
 
 **The prompt is also the assistant's voice.** Its first half is guidance, written in the words a form builder uses, and the kernel contracts in its second half are the vocabulary of tool calls rather than of sentences. The guidance names the terms the assistant may never write to you - raw ids, the short-name argument, pins and the rest - and a test holds the guidance itself to that same list, so the prompt reads as an example of what it asks for.
 
+**Two of those rules are about honesty rather than wording**, and both came out of a scenario run where the assistant got them wrong:
+
+- **It opens with the result.** The first sentence is what it did or found, never how it is about to find out. Where it has to look before it can answer, that sentence names what it is looking for once, and the answer follows rather than repeating it.
+- **"Why did you stop?" is answered from the conversation.** The reason it gave at the time is the reason now, in the same words. It cannot see its own reasoning after the fact and it cannot see what an earlier turn showed it, so neither may be offered as a cause: a cause it cannot point at in the conversation is a guess, and it says it does not know instead.
+
 ---
 
 ## 6. How a turn actually runs
