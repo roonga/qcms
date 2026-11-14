@@ -28,12 +28,17 @@ export function generatePassword(prefix) {
   return `${prefix}${randomBytes(24).toString("base64url")}`;
 }
 
+const PROMOTED = /^Promoted the existing account for /m;
+
 /**
- * @param {{ status: number; stderr: string }} result
- * @returns {"created" | "already-bootstrapped" | "failed"}
+ * A promoted account keeps its own password, so the credentials a caller generated do
+ * not open it.
+ *
+ * @param {{ status: number; stdout?: string; stderr: string }} result
+ * @returns {"created" | "promoted" | "already-bootstrapped" | "failed"}
  */
-export function classifyBootstrap({ status, stderr }) {
-  if (status === 0) return "created";
+export function classifyBootstrap({ status, stdout = "", stderr }) {
+  if (status === 0) return PROMOTED.test(stdout) ? "promoted" : "created";
   if (ALREADY_BOOTSTRAPPED.test(stderr)) return "already-bootstrapped";
   return "failed";
 }
@@ -80,7 +85,7 @@ export function buildAdminExec({ compose, credentials, environment }) {
  * @param {readonly string[]} options.compose
  * @param {{ email: string; password: string }} options.credentials
  * @param {NodeJS.ProcessEnv} options.environment
- * @returns {"created" | "already-bootstrapped"}
+ * @returns {"created" | "promoted" | "already-bootstrapped"}
  */
 export function createFirstAdmin({ compose, credentials, environment }) {
   const exec = buildAdminExec({ compose, credentials, environment });
@@ -95,7 +100,7 @@ export function createFirstAdmin({ compose, credentials, environment }) {
   process.stdout.write(stdout);
   process.stderr.write(stderr);
 
-  const outcome = classifyBootstrap({ status: result.status ?? 1, stderr });
+  const outcome = classifyBootstrap({ status: result.status ?? 1, stdout, stderr });
   if (outcome === "failed")
     throw new Error(
       `create-admin exited with status ${String(result.status ?? 1)} in the api container; ` +

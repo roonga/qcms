@@ -302,6 +302,19 @@ describe("devStackBannerLines", () => {
     expect(created).toContain("qcms-local-stack");
   });
 
+  it("prints no credential when an existing account was promoted, and says its password applies", () => {
+    const promoted = devStackBannerLines({
+      ports,
+      project: localStackProjectName(0),
+      credentials: { email: "dev@qcms.test", password: "dev-secret-value" },
+      inContainer: false,
+      promoted: true,
+    }).join("
+");
+    expect(promoted).not.toContain("dev-secret-value");
+    expect(promoted).toContain("existing password");
+  });
+
   it("prints the credential this run created", () => {
     expect(created).toContain("dev@qcms.test");
     expect(created).toContain("dev-secret-value");

@@ -304,9 +304,10 @@ export function devStackEnvironmentOverrides({ ports, adminAuthSecret }) {
  * @param {string} options.project
  * @param {{ email: string; password: string } | undefined} options.credentials
  * @param {boolean} options.inContainer
+ * @param {boolean} [options.promoted]
  * @returns {string[]}
  */
-export function devStackBannerLines({ ports, project, credentials, inContainer }) {
+export function devStackBannerLines({ ports, project, credentials, inContainer, promoted = false }) {
   const url = (/** @type {number} */ port) => `http://localhost:${String(port)}`;
   const lines = [
     "",
@@ -320,7 +321,13 @@ export function devStackBannerLines({ ports, project, credentials, inContainer }
     "",
   ];
 
-  if (credentials === undefined) {
+  if (promoted) {
+    lines.push(
+      "  An existing account was promoted to Site administrator. Its existing password",
+      "  applies; none was generated. To start over, run pnpm dev:down and then pnpm dev:up.",
+      "",
+    );
+  } else if (credentials === undefined) {
     lines.push(
       "  This stack already had an administrator, so none was created (SEC-1: the",
       "  bootstrap command only runs on a deployment with no Site administrator, and that refusal",

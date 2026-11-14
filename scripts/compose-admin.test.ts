@@ -19,6 +19,19 @@ describe("classifyBootstrap", () => {
     expect(classifyBootstrap({ status: 0, stderr: "" })).toBe("created");
   });
 
+  it("reads a promoted existing account apart from a created one, since its password is unchanged", () => {
+    expect(
+      classifyBootstrap({
+        status: 0,
+        stdout:
+          'Promoted the existing account for dev@qcms.test to Site administrator.
+This account owns the workspace "main".
+',
+        stderr: "",
+      }),
+    ).toBe("promoted");
+  });
+
   it("reads the already-bootstrapped refusal as a skip, which is what makes dev:up re-runnable", () => {
     expect(classifyBootstrap({ status: 1, stderr: REFUSALS.alreadyBootstrapped })).toBe(
       "already-bootstrapped",
