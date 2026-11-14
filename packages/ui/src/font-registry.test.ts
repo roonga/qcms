@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
+import { APPEARANCE_FACES, SYSTEM_FACE } from "@roonga/qcms-core";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -378,5 +379,14 @@ describe("tabular figures are token-driven (task 052 deliverable)", () => {
     expect(rule).toContain("[data-qcms-theme-scope]");
     expect(rule).toContain("[data-qcms-field]");
     expect(rule).toContain('[role="spinbutton"]');
+  });
+});
+
+describe("the core appearance module's face list", () => {
+  it("names exactly the registry's faces, in order", () => {
+    expect(APPEARANCE_FACES.map((face) => ({ key: face.key, family: face.family }))).toStrictEqual(
+      FONT_REGISTRY.map((entry) => ({ key: entry.key, family: entry.family })),
+    );
+    expect(SYSTEM_FACE).toBe(SYSTEM_FONT_KEY);
   });
 });

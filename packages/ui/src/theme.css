@@ -435,9 +435,9 @@
 }
 
 /*
- * Polarity x contrast in six groups whose SOURCE ORDER is load-bearing: light, dark, shared `.hc` (0,2,0, so it
- * wins on order over a theme's light block), shared `.dark.hc` (0,3,0, tied with a per-theme `.hc` accent, which
- * therefore carries into the dark field), per-theme `.hc`, per-theme `.dark.hc` (0,4,0). The test asserts it.
+ * Every theme carries its own full high-contrast palettes at 7:1 text, light and dark; the default theme's are the
+ * bare anchor `.hc` and `.dark.hc` blocks. A theme's `.hc` and `.dark.hc` blocks declare every colour token, so
+ * no palette depends on source order or on another theme's values.
  */
 
 :is(:root, [data-qcms-theme-scope]).hc {
@@ -523,6 +523,38 @@
   --color-primary-hover: #052e73;
   --color-primary-active: #03235c;
   --color-primary-foreground: #ffffff;
+  --color-secondary: #1c2433;
+  --color-secondary-hover: #19202e;
+  --color-secondary-active: #161d29;
+  --color-secondary-foreground: #ffffff;
+  --color-danger: #8a0f0a;
+  --color-danger-hover: #7c0e09;
+  --color-danger-active: #6e0c08;
+  --color-danger-foreground: #ffffff;
+  --color-danger-subtle: #ffecea;
+  --color-danger-fg: #6b0b07;
+  --color-ghost: transparent;
+  --color-ghost-hover: #eceef1;
+  --color-ghost-active: #dfe2e7;
+  --color-info: #0a3ea8;
+  --color-info-subtle: #e6efff;
+  --color-info-fg: #08337d;
+  --color-success: #0a5c30;
+  --color-success-subtle: #e2f4e9;
+  --color-success-fg: #064023;
+  --color-warning: #5a3b00;
+  --color-warning-subtle: #fbf0d6;
+  --color-warning-fg: #4a3000;
+  --color-text: #000000;
+  --color-text-muted: #22262e;
+  --color-border: #5a616e;
+  --color-border-strong: #000000;
+  --color-background: #ffffff;
+  --color-background-muted: #f2f3f5;
+  --color-surface: #ffffff;
+  --color-surface-hover: #eceef1;
+  --color-focus-ring: #0a3ea8;
+  --color-overlay: rgb(0 0 0 / 0.7);
 }
 
 :is(:root, [data-qcms-theme-scope])[data-theme="sand"].hc {
@@ -530,6 +562,38 @@
   --color-primary-hover: #642c10;
   --color-primary-active: #4f2109;
   --color-primary-foreground: #ffffff;
+  --color-secondary: #1c2433;
+  --color-secondary-hover: #19202e;
+  --color-secondary-active: #161d29;
+  --color-secondary-foreground: #ffffff;
+  --color-danger: #8a0f0a;
+  --color-danger-hover: #7c0e09;
+  --color-danger-active: #6e0c08;
+  --color-danger-foreground: #ffffff;
+  --color-danger-subtle: #ffecea;
+  --color-danger-fg: #6b0b07;
+  --color-ghost: transparent;
+  --color-ghost-hover: #eceef1;
+  --color-ghost-active: #dfe2e7;
+  --color-info: #0a3ea8;
+  --color-info-subtle: #e6efff;
+  --color-info-fg: #08337d;
+  --color-success: #0a5c30;
+  --color-success-subtle: #e2f4e9;
+  --color-success-fg: #064023;
+  --color-warning: #5a3b00;
+  --color-warning-subtle: #fbf0d6;
+  --color-warning-fg: #4a3000;
+  --color-text: #000000;
+  --color-text-muted: #22262e;
+  --color-border: #5a616e;
+  --color-border-strong: #000000;
+  --color-background: #ffffff;
+  --color-background-muted: #f2f3f5;
+  --color-surface: #ffffff;
+  --color-surface-hover: #eceef1;
+  --color-focus-ring: #0a3ea8;
+  --color-overlay: rgb(0 0 0 / 0.7);
 }
 
 :is(:root, [data-qcms-theme-scope])[data-theme="plum"].hc {
@@ -537,15 +601,77 @@
   --color-primary-hover: #450f77;
   --color-primary-active: #360a5f;
   --color-primary-foreground: #ffffff;
+  --color-secondary: #1c2433;
+  --color-secondary-hover: #19202e;
+  --color-secondary-active: #161d29;
+  --color-secondary-foreground: #ffffff;
+  --color-danger: #8a0f0a;
+  --color-danger-hover: #7c0e09;
+  --color-danger-active: #6e0c08;
+  --color-danger-foreground: #ffffff;
+  --color-danger-subtle: #ffecea;
+  --color-danger-fg: #6b0b07;
+  --color-ghost: transparent;
+  --color-ghost-hover: #eceef1;
+  --color-ghost-active: #dfe2e7;
+  --color-info: #0a3ea8;
+  --color-info-subtle: #e6efff;
+  --color-info-fg: #08337d;
+  --color-success: #0a5c30;
+  --color-success-subtle: #e2f4e9;
+  --color-success-fg: #064023;
+  --color-warning: #5a3b00;
+  --color-warning-subtle: #fbf0d6;
+  --color-warning-fg: #4a3000;
+  --color-text: #000000;
+  --color-text-muted: #22262e;
+  --color-border: #5a616e;
+  --color-border-strong: #000000;
+  --color-background: #ffffff;
+  --color-background-muted: #f2f3f5;
+  --color-surface: #ffffff;
+  --color-surface-hover: #eceef1;
+  --color-focus-ring: #0a3ea8;
+  --color-overlay: rgb(0 0 0 / 0.7);
 }
-
-/* Light-HC accents miss contrast on dark fields; each alternate needs a dark-HC override. */
 
 :is(:root, [data-qcms-theme-scope])[data-theme="harbor"].dark.hc {
   --color-primary: #8ab4ff;
   --color-primary-hover: #9dc0ff;
   --color-primary-active: #aecbff;
   --color-primary-foreground: #000000;
+  --color-secondary: #cfd5e0;
+  --color-secondary-hover: #e2e6ee;
+  --color-secondary-active: #f2f4f8;
+  --color-secondary-foreground: #000000;
+  --color-danger: #ff9ea2;
+  --color-danger-hover: #ffb0b3;
+  --color-danger-active: #ffc2c4;
+  --color-danger-foreground: #000000;
+  --color-danger-subtle: #1f0a0a;
+  --color-danger-fg: #ffc2c4;
+  --color-ghost: transparent;
+  --color-ghost-hover: #16181c;
+  --color-ghost-active: #22262c;
+  --color-info: #8ab4ff;
+  --color-info-subtle: #0a1024;
+  --color-info-fg: #b9ccff;
+  --color-success: #5ee39f;
+  --color-success-subtle: #04160c;
+  --color-success-fg: #9ceabf;
+  --color-warning: #ffcc66;
+  --color-warning-subtle: #171003;
+  --color-warning-fg: #ffd98a;
+  --color-text: #ffffff;
+  --color-text-muted: #d6dae2;
+  --color-border: #9aa2b1;
+  --color-border-strong: #ffffff;
+  --color-background: #000000;
+  --color-background-muted: #0b0d11;
+  --color-surface: #000000;
+  --color-surface-hover: #16181c;
+  --color-focus-ring: #8ab4ff;
+  --color-overlay: rgb(0 0 0 / 0.8);
 }
 
 :is(:root, [data-qcms-theme-scope])[data-theme="sand"].dark.hc {
@@ -553,6 +679,38 @@
   --color-primary-hover: #f3b389;
   --color-primary-active: #f5bf9c;
   --color-primary-foreground: #000000;
+  --color-secondary: #cfd5e0;
+  --color-secondary-hover: #e2e6ee;
+  --color-secondary-active: #f2f4f8;
+  --color-secondary-foreground: #000000;
+  --color-danger: #ff9ea2;
+  --color-danger-hover: #ffb0b3;
+  --color-danger-active: #ffc2c4;
+  --color-danger-foreground: #000000;
+  --color-danger-subtle: #1f0a0a;
+  --color-danger-fg: #ffc2c4;
+  --color-ghost: transparent;
+  --color-ghost-hover: #16181c;
+  --color-ghost-active: #22262c;
+  --color-info: #8ab4ff;
+  --color-info-subtle: #0a1024;
+  --color-info-fg: #b9ccff;
+  --color-success: #5ee39f;
+  --color-success-subtle: #04160c;
+  --color-success-fg: #9ceabf;
+  --color-warning: #ffcc66;
+  --color-warning-subtle: #171003;
+  --color-warning-fg: #ffd98a;
+  --color-text: #ffffff;
+  --color-text-muted: #d6dae2;
+  --color-border: #9aa2b1;
+  --color-border-strong: #ffffff;
+  --color-background: #000000;
+  --color-background-muted: #0b0d11;
+  --color-surface: #000000;
+  --color-surface-hover: #16181c;
+  --color-focus-ring: #8ab4ff;
+  --color-overlay: rgb(0 0 0 / 0.8);
 }
 
 :is(:root, [data-qcms-theme-scope])[data-theme="plum"].dark.hc {
@@ -560,4 +718,36 @@
   --color-primary-hover: #d6b0f7;
   --color-primary-active: #ddbcf8;
   --color-primary-foreground: #000000;
+  --color-secondary: #cfd5e0;
+  --color-secondary-hover: #e2e6ee;
+  --color-secondary-active: #f2f4f8;
+  --color-secondary-foreground: #000000;
+  --color-danger: #ff9ea2;
+  --color-danger-hover: #ffb0b3;
+  --color-danger-active: #ffc2c4;
+  --color-danger-foreground: #000000;
+  --color-danger-subtle: #1f0a0a;
+  --color-danger-fg: #ffc2c4;
+  --color-ghost: transparent;
+  --color-ghost-hover: #16181c;
+  --color-ghost-active: #22262c;
+  --color-info: #8ab4ff;
+  --color-info-subtle: #0a1024;
+  --color-info-fg: #b9ccff;
+  --color-success: #5ee39f;
+  --color-success-subtle: #04160c;
+  --color-success-fg: #9ceabf;
+  --color-warning: #ffcc66;
+  --color-warning-subtle: #171003;
+  --color-warning-fg: #ffd98a;
+  --color-text: #ffffff;
+  --color-text-muted: #d6dae2;
+  --color-border: #9aa2b1;
+  --color-border-strong: #ffffff;
+  --color-background: #000000;
+  --color-background-muted: #0b0d11;
+  --color-surface: #000000;
+  --color-surface-hover: #16181c;
+  --color-focus-ring: #8ab4ff;
+  --color-overlay: rgb(0 0 0 / 0.8);
 }
