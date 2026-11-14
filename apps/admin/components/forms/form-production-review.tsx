@@ -30,7 +30,7 @@ export async function FormProductionReview({
       <FormPageHeader
         formId={form.formId}
         section="builder"
-        status={form.status}
+        form={form}
         heading={{ id: "qcms-published-form-heading", text: t("forms.workflow.publishedForm") }}
       />
       <Alert variant="info">{t("forms.workflow.noEditPermission")}</Alert>

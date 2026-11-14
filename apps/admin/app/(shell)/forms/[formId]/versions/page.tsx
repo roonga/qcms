@@ -59,7 +59,7 @@ export default async function FormVersionsPage({
       <FormPageHeader
         formId={form.formId}
         section="versions"
-        status={form.status}
+        form={form}
         help={t("forms.history.intro")}
       />
       {!history.ok && <Alert variant="error">{history.message}</Alert>}

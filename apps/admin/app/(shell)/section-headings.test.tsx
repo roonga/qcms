@@ -9,6 +9,18 @@ const { messages } = await import("../../lib/i18n/en.ts");
 
 const SLUG = "Life insurance";
 
+const FORM = {
+  slug: "life-insurance",
+  status: "open",
+  draft: {
+    formId: "frm_alpha",
+    defaultLocale: "en",
+    title: { en: SLUG },
+    steps: [],
+    rules: [],
+  },
+} as const;
+
 const SECTIONS = [
   ["rules", "Rules"],
   ["preview", "Preview"],
@@ -42,7 +54,7 @@ function headingText(markup: string): string {
 describe("the section routes name their section in the h1 (issue 679)", () => {
   it.each(SECTIONS)("the %s section is headed '%s', and not the form's name", (section, name) => {
     const markup = renderToStaticMarkup(
-      <FormPageHeader formId="frm_alpha" section={section} status="open" />,
+      <FormPageHeader formId="frm_alpha" section={section} form={FORM} />,
     );
 
     expect(headingText(markup)).toBe(name);
@@ -52,7 +64,7 @@ describe("the section routes name their section in the h1 (issue 679)", () => {
   it("gives the sections a different heading each, which was the defect", () => {
     const headings = SECTIONS.map(([section]) =>
       headingText(
-        renderToStaticMarkup(<FormPageHeader formId="frm_alpha" section={section} status="open" />),
+        renderToStaticMarkup(<FormPageHeader formId="frm_alpha" section={section} form={FORM} />),
       ),
     );
 
@@ -61,7 +73,7 @@ describe("the section routes name their section in the h1 (issue 679)", () => {
 
   it.each(SECTIONS)("names the %s section without a trail above it", (section, name) => {
     const markup = renderToStaticMarkup(
-      <FormPageHeader formId="frm_alpha" section={section} status="open" />,
+      <FormPageHeader formId="frm_alpha" section={section} form={FORM} />,
     );
 
     expect(markup.slice(0, markup.indexOf("<h1")), "nothing leads the heading").not.toContain(name);
@@ -81,7 +93,7 @@ describe("the section routes name their section in the h1 (issue 679)", () => {
       <FormPageHeader
         formId="frm_alpha"
         section="versions"
-        status="open"
+        form={FORM}
         heading={{ id: "version-heading", text: "Version 3" }}
       />,
     );
@@ -97,7 +109,7 @@ describe("the header's availability line", () => {
     ["unreleased", "Not Released"],
   ] as const)("labels %s as Availability, reading '%s'", (status, reading) => {
     const markup = renderToStaticMarkup(
-      <FormPageHeader formId="frm_alpha" section="versions" status={status} />,
+      <FormPageHeader formId="frm_alpha" section="versions" form={{ ...FORM, status }} />,
     );
 
     expect(markup).toContain("Availability");

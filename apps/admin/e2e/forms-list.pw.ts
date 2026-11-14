@@ -40,13 +40,14 @@ async function openLibrary(page: Page, extra = ""): Promise<void> {
   await expect(page.getByRole("heading", { name: "Forms", level: 1 })).toBeVisible();
 }
 
+// A row leads with the form's title, so the address comes off the row rather than out of the
+// cell's own text.
 async function listedSlugs(page: Page): Promise<string[]> {
-  const cells = page.getByRole("rowheader");
-  return (await cells.allInnerTexts()).map((text) => text.trim());
+  const rows = page.locator("table[data-testid='qcms-forms-table'] tbody tr");
+  return rows.evaluateAll((elements) =>
+    elements.map((row) => row.getAttribute("data-form-slug") ?? ""),
+  );
 }
-
-// POST creates an empty title; a builder title reaches storage only through a persistable draft's autosave.
-// These fixtures test identity slugs without constructing published questions just to save titles.
 
 test("creates the library this spec reads, and closes one of its forms", async ({ page }) => {
   test.setTimeout(300_000);
@@ -72,6 +73,21 @@ test("creates the library this spec reads, and closes one of its forms", async (
 
   await openLibrary(page);
   expect(await listedSlugs(page)).toEqual([ALPHA, BRAVO, CHARLIE]);
+});
+
+test("names each row by its title, with the address under it and the id to copy", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await openLibrary(page);
+
+  await expect(page.getByRole("columnheader", { name: "Form ID" })).toHaveCount(0);
+
+  const row = page.locator(`tr[data-form-slug="${ALPHA}"]`);
+  await expect(row.getByRole("link", { name: "Open form Alpha zebra" })).toBeVisible();
+  await expect(row.locator(".qcms-rowlead__address")).toHaveText(ALPHA);
+  await expect(row.getByRole("button", { name: /^Copy form id frm_/u })).toBeVisible();
 });
 
 test("searches the library from the toolbar, and puts the term in the URL", async ({ page }) => {

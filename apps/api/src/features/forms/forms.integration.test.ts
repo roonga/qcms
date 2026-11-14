@@ -15,6 +15,7 @@ import {
   createQuestion,
   createQuestionVersion,
   createSession,
+  deleteDraft,
   deprecateQuestionVersion,
   getDraft,
   getSession,
@@ -1624,6 +1625,39 @@ describe("GET /admin/forms - search, status filter and sort", () => {
 
   it("searches the slug", async () => {
     expect(await slugs("search=lst-alpha")).toEqual(["lst-alpha"]);
+  });
+
+  it("carries each row's title, from the draft or the published version behind it", async () => {
+    const res = await listGet(`/forms?${SCOPE}`);
+    expect(res.status).toBe(200);
+    const { forms } = (await res.json()) as { forms: { slug: string; title: unknown }[] };
+    // Alpha's draft is gone with its publish, so its title comes from version 1; charlie
+    // has never published and still has its draft.
+    expect(forms.map((form) => [form.slug, form.title])).toEqual([
+      ["lst-alpha", { en: "Alpha zebra" }],
+      ["lst-bravo", { en: "Bravo quokka" }],
+      ["lst-charlie", { en: "Charlie zebra" }],
+    ]);
+  });
+
+  it("says null for a form with neither a draft nor a published version", async () => {
+    // Outside this block's own slug prefix, so the filter and sort assertions above keep
+    // counting three rows.
+    expect(
+      (
+        await listPost("/forms", {
+          formId: "frm_bare_row",
+          slug: "bare-row",
+          defaultLocale: "en",
+        })
+      ).status,
+    ).toBe(201);
+    await deleteDraft(testDb.db, FormId.parse("frm_bare_row"));
+
+    const res = await listGet("/forms?search=bare-row");
+    expect(res.status).toBe(200);
+    const { forms } = (await res.json()) as { forms: { slug: string; title: unknown }[] };
+    expect(forms).toEqual([expect.objectContaining({ slug: "bare-row", title: null })]);
   });
 
   it("searches any locale of the form title, case-insensitively", async () => {

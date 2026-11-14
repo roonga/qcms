@@ -50,6 +50,18 @@ const FORMS: readonly FormListItem[] = [
     hasDraft: true,
     latestVersion: 2,
     publishedAt: "2026-08-01T10:00:00.000Z",
+    title: { en: "Alpha form" },
+  },
+  {
+    formId: "frm_bare",
+    slug: "bare-form",
+    defaultLocale: "en",
+    status: "open",
+    workspaceId: "org_default_workspace",
+    hasDraft: false,
+    latestVersion: null,
+    publishedAt: null,
+    title: null,
   },
 ];
 
@@ -167,8 +179,28 @@ describe("the form library table", () => {
     expect(cell).toMatch(/<a\b/);
   });
 
-  it("names the destination on the anchor", () => {
-    expect(formsMarkup()).toContain('aria-label="Open form alpha-form"');
+  it("names the destination on the anchor, from the text the row paints", () => {
+    expect(formsMarkup()).toContain('aria-label="Open form Alpha form"');
+    expect(formsMarkup()).toContain('aria-label="Open form bare-form"');
+  });
+
+  it("leads with the title, keeps the address below it and offers the id to copy", () => {
+    const cell = rowHeaderCell(formsMarkup(), "alpha-form");
+    expect(cell).toContain("Alpha form");
+    expect(cell).toContain('<span class="qcms-rowlead__address">alpha-form</span>');
+    expect(cell).toContain('aria-label="Copy form id frm_alpha"');
+  });
+
+  it("leads an untitled form with its address, and never repeats it below", () => {
+    const cell = rowHeaderCell(formsMarkup(), "bare-form");
+    expect(cell).not.toContain("qcms-rowlead__address");
+    expect(cell).toContain('aria-label="Copy form id frm_bare"');
+  });
+
+  it("has no column of its own for the id", () => {
+    const markup = formsMarkup();
+    expect(markup).not.toContain("Form ID");
+    expect(markup).toContain('<th scope="col">Form</th>');
   });
 
   it("is a plain table, not a react-aria grid whose row is the control", () => {

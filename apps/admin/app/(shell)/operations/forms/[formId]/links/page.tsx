@@ -53,7 +53,7 @@ export default async function FormLinksPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <FormPageHeader formId={form.formId} section="links" status={form.status} />
+      <FormPageHeader formId={form.formId} section="links" form={form} />
       {/* The public /f/{slug} address serves production only; non-production access uses secure links. */}
       {/* An unknown environment cannot support either address panel's claim about its destination. */}
       {publicLink !== undefined && shown !== undefined && !isNonProd(shown) && (

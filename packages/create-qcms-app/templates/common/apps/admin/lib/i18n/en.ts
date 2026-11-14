@@ -493,9 +493,9 @@ export const messages = {
   "forms.new": "New form",
 
   "forms.table.label": "Form library",
-  "forms.open": "Open form {slug}",
-  "forms.column.formId": "Form ID",
-  "forms.column.slug": "Slug",
+  /** Built from the painted name so speech input can activate the text the operator sees. */
+  "forms.open": "Open form {name}",
+  "forms.column.form": "Form",
   "forms.column.locale": "Locale",
   "forms.column.status": "Availability",
   "forms.column.draft": "Draft",
@@ -539,7 +539,6 @@ export const messages = {
   "forms.create.submit": "Create form",
   "forms.create.submitting": "Creating the form...",
 
-  "forms.builder.formId": "Form ID",
   "forms.builder.status": "Availability",
   "forms.builder.draftSource.open": "Editing the saved draft.",
   "forms.builder.draftSource.seeded":

@@ -215,6 +215,9 @@ all (ADR-09), so these paths 404, never 403.
 
 ## Notes / follow-ups
 
+- Each row's `title` comes from those same two reads: the draft's, else the latest
+  published version's, else `null`. The search already read it, so naming a form in a list
+  costs no extra query.
 - `GET /admin/forms` reads each row's draft + latest version (one read per row).
   Fine at launch admin scale; a denormalized status column is a Phase-4
   optimization (R7), not a launch need. The **status** is not one of those per-row

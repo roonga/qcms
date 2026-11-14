@@ -898,6 +898,30 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
+/* A row names its subject first and carries the address and the id copy below it, so the
+   table loses a column rather than gaining a line of identifiers. */
+.qcms-rowlead {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  align-items: flex-start;
+}
+.qcms-rowlead__name {
+  font-weight: 500;
+}
+.qcms-rowlead__sub {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-inline-size: 0;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+.qcms-rowlead__address {
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
 /* Mark compact-width drops on cells, not positional selectors; the Version column must remain visible. */
 .qcms-cell--drop {
   display: none;
@@ -3966,6 +3990,18 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
+}
+
+.qcms-form-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  overflow-wrap: anywhere;
+}
+.qcms-form-meta > span:not(:first-child)::before {
+  content: "\00b7";
+  padding-inline-end: var(--space-2);
 }
 
 /* Where the breadcrumb row shares the line, the page action sits on it instead of taking a row of its own:

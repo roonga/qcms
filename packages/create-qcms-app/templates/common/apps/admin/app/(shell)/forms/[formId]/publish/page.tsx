@@ -47,7 +47,7 @@ export default async function FormPublishPage({
       <FormPageHeader
         formId={form.formId}
         section="publish"
-        status={form.status}
+        form={form}
         help={t("forms.publish.intro")}
       />
       <PublishWizard

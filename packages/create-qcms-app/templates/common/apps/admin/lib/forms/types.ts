@@ -149,6 +149,8 @@ export interface FormListItem {
   readonly hasDraft: boolean;
   readonly latestVersion: number | null;
   readonly publishedAt: string | null;
+  /** The open draft's title, else the latest published version's; null when the form has neither. */
+  readonly title: LocalizedText | null;
 }
 
 export interface FormVersionSummary {
