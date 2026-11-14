@@ -41,7 +41,7 @@ export function primaryCheckout(from) {
   const common = execFileSync(
     "git",
     ["-C", from, "rev-parse", "--path-format=absolute", "--git-common-dir"],
-    { encoding: "utf8" },
+    { encoding: "utf8", windowsHide: true },
   ).trim();
   return dirname(common);
 }

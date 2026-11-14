@@ -48,6 +48,7 @@ export function resolveLane(directory, environment) {
   const git = (args) =>
     execFileSync("git", ["-C", directory, ...args], {
       encoding: "utf8",
+      windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"],
     }).trim();
 

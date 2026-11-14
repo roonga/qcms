@@ -301,7 +301,10 @@ const PATTERNS = [
 
 /** @returns {string[]} */
 function tracked() {
-  const out = execFileSync(GIT, ["ls-files", "-z", ...GLOBS, ...EXCLUDES], { encoding: "utf8" });
+  const out = execFileSync(GIT, ["ls-files", "-z", ...GLOBS, ...EXCLUDES], {
+    encoding: "utf8",
+    windowsHide: true,
+  });
   return out.split("\0").filter((path) => path !== "");
 }
 

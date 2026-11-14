@@ -29,7 +29,7 @@ The Code Owner decides ADR changes, scope changes, explicit human gates, destruc
 ## Repository rules
 
 - Use **QCMS** in prose, titles, and UI. Use lowercase `qcms` only for repository, directory, and package identifiers.
-- The published npm scope is **`@roonga`**, and package names keep a `qcms-` prefix inside it: `@roonga/qcms-core`, `@roonga/qcms-db`, `@roonga/qcms-ui`, `@roonga/qcms-a2ui-compiler`, `@roonga/qcms-csv`, `@roonga/qcms-observability`. The scaffolding CLI stays unscoped as `create-qcms-app`; the private apps stay `qcms-api`, `qcms-portal`, `qcms-admin`. The repository is still `qcms`, the images are still `ghcr.io/roonga/qcms-*`, and the `QCMS_` environment prefix and branded ID prefixes are unchanged. Only the registry identifier moved. The `@qcms.test` and `@qcms.invalid` email domains in fixtures are product identifiers, not registry names, and do not move.
+- The published npm scope is **`@roonga`**, and package names keep a `qcms-` prefix inside it: `@roonga/qcms-core`, `@roonga/qcms-db`, `@roonga/qcms-ui`, `@roonga/qcms-a2ui-compiler`, `@roonga/qcms-csv`, `@roonga/qcms-observability`. The scaffolding CLI is unscoped as `create-qcms-app`; the private apps are `qcms-api`, `qcms-portal`, `qcms-admin`. The scope applies to registry names only: the repository is `qcms`, the images are `ghcr.io/roonga/qcms-*`, and the `QCMS_` environment prefix and branded ID prefixes carry no scope. The `@qcms.test` and `@qcms.invalid` email domains in fixtures are product identifiers, not registry names.
 - Do not use Unicode em dashes. Use punctuation or a spaced hyphen.
 - Refer to the human owner as **Code Owner** in committed content. Legal attribution in `LICENSE` and the README is exempt.
 - Use repo-relative paths in committed content. Do not commit personal names, machine-specific paths, real secrets, or AI attribution trailers.
@@ -73,15 +73,3 @@ Code Owner, 2026-10-24; the full rules are "Code comments" and "Written text" in
 - Squash-merge through GitHub and serialize merges. Never force-push `main` or create a local squash on `main`.
 
 The detailed orchestration lives in `.claude/skills/`; the operator guide is `docs/DEVELOPER_GUIDE.md`.
-
-<!-- rtk-instructions v2 -->
-
-# Command output
-
-Command output here is condensed to save tokens, keeping every signal and
-dropping costly noise. Treat it as the complete result: run commands
-normally, and batch related commands into one call to avoid extra turns.
-Truncated results state their recovery path in their own output. Re-run a
-command as `rtk bypass <cmd>` only when its result is unusable: empty when
-output was clearly expected, contradicting its exit code, or garbled.
-<!-- /rtk-instructions -->
