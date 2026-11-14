@@ -75,7 +75,7 @@ Any OpenAI-protocol server works the same way (Ollama, vLLM, LM Studio, llama.cp
    ollama pull llama3.1
    ```
 
-   Tool calling is not optional here. The assistant works by calling tools (search the library, propose a draft, validate it); a model that cannot emit tool calls will produce no proposal at all, and you will see the "assistant did not propose a draft" state every time. Check your model's card before blaming the integration.
+   Tool calling is not optional here. The assistant works by calling tools (search the library, propose a draft, validate it); a model that cannot emit tool calls answers in prose and never puts a card up, on every turn, with no error to tell you why. Check your model's card before blaming the integration.
 
 2. Point QCMS at it. Ollama serves an OpenAI-compatible API on port 11434:
 
@@ -99,7 +99,7 @@ Expect a local model to be slower and less reliable at producing a valid `FormDe
 
 LM Studio is the same `openai-compatible` provider as everything above, and its server needs no key. What is different is not QCMS, it is the network: LM Studio runs as a Windows application, and the thing configuring QCMS is usually not Windows.
 
-1. **Load a model that really does function calling.** The assist loop is entirely tool-driven: the model searches the question library, proposes questions, proposes the draft and asks for validation, all as tool calls. A model that emits prose instead of a tool call produces no proposal, so you see the "assistant did not propose a draft" state on every turn and it looks like the feature is broken. It is not. Use a recent instruct model in the 14B class or above whose card claims function calling, and check the claim rather than the size: a small model with tool support beats a large one without it here, because the loop has no prose path to fall back on.
+1. **Load a model that really does function calling.** The assist loop is entirely tool-driven: the model searches the question library, proposes questions, proposes the draft and asks for validation, all as tool calls. A model that emits prose instead of a tool call answers every turn and proposes nothing, which reads as a chatty assistant rather than a broken one. The turn log is where it shows: `steps` stays at one and no tool is ever called. Use a recent instruct model in the 14B class or above whose card claims function calling, and check the claim rather than the size: a small model with tool support beats a large one without it here, because the loop has no prose path to fall back on.
 
 2. **Start the server and turn on Serve on Local Network.** LM Studio's developer server binds `127.0.0.1` by default, which is reachable only from Windows itself. WSL2 in its default NAT mode is a different machine to that socket, and so is a container: from either one, `127.0.0.1:1234` is your own loopback and nothing answers. The toggle rebinds the listener to `0.0.0.0`. Windows will raise a firewall prompt the first time; allow it for private networks, or the rebind changes nothing you can observe.
 
@@ -202,6 +202,13 @@ The prompt lives at `apps/api/src/features/agent/system-prompt.ts`, is committed
 
 It is assembled from the kernel's own exports where the kernel exposes a list (question types, the semantics version), and a test asserts that every rule operator the prompt names parses and that no operator the kernel accepts is missing.
 
+**The prompt is also the assistant's voice.** Its first half is guidance, written in the words a form builder uses, and the kernel contracts in its second half are the vocabulary of tool calls rather than of sentences. The guidance names the terms the assistant may never write to you - raw ids, the short-name argument, pins and the rest - and a test holds the guidance itself to that same list, so the prompt reads as an example of what it asks for.
+
+**Two of those rules are about honesty rather than wording**, and both came out of a scenario run where the assistant got them wrong:
+
+- **It opens with the result.** The first sentence is what it did or found, never how it is about to find out. Where it has to look before it can answer, that sentence names what it is looking for once, and the answer follows rather than repeating it.
+- **"Why did you stop?" is answered from the conversation.** The reason it gave at the time is the reason now, in the same words. It cannot see its own reasoning after the fact and it cannot see what an earlier turn showed it, so neither may be offered as a cause: a cause it cannot point at in the conversation is a guess, and it says it does not know instead.
+
 ---
 
 ## 6. How a turn actually runs
@@ -248,7 +255,8 @@ Before this behaviour existed, accepting such a proposal stored a draft pinning 
   - The admin never learns the setting. The panel shows a Thinking disclosure because reasoning events arrived, so flipping the variable needs an API restart and nothing else.
 - **Rate limited per admin principal** on the assist endpoint. The panel shows the retry-after.
 - **Closing the panel or the tab aborts the upstream call** rather than leaving it running.
-- Failure states are shown explicitly rather than silently: provider unreachable or misconfigured, rate limited, the model refused, the model ran out of output room, the model proposed nothing, the draft changed underneath the conversation, and an attempted tool call refused.
+- Failure states are shown explicitly rather than silently: provider unreachable or misconfigured, rate limited, the model refused, the model ran out of output room, the draft changed underneath the conversation, and an attempted tool call refused.
+- **A question is not a failure.** A turn that answered and proposed nothing ends clean, with no error under the reply: asking what is in a form, who did what, or why a step stopped is most of what the assistant is for. The panel says the assistant left nothing to confirm only when the turn also left nothing to read, or when it staged a draft and never put the card up, which throws that work away.
 - **A tool call the model got wrong is not a failed turn.**
   Models malform a call and correct themselves on the next step, and a smaller local model does it on most real turns.
   The loop hands the failure back as that call's result and carries on, so a turn that recovered still ends with its proposal.
@@ -265,7 +273,7 @@ Before this behaviour existed, accepting such a proposal stored a draft pinning 
 
 The conversation is the memory. Nothing is stored server-side between turns, and there is no cross-session memory (deliberately out of scope for 041).
 
-**One conversation for the whole app** (Code Owner, 2026-11-02). It follows you between screens: walking from the question library to a form's builder to Workspaces keeps the same dialogue, and the panel's context chip says which screen the next turn will use. **The history is the dialogue alone** - what you typed, what the assistant replied, and each confirmed card's own report. Each turn's screen facts are rebuilt by the API for the screen you are on when you send it, and an earlier screen's raw facts are dropped rather than carried, so moving on tells the model nothing about the screen you left.
+**One conversation for the whole app** (Code Owner, 2026-11-02). It follows you between screens: walking from the question library to a form's builder to Workspaces keeps the same dialogue, and the panel's context chip says which screen the next turn will use. **The history is the dialogue alone** - what you typed, what the assistant replied, and each confirmed card's own report. One more line goes with it when a card is sitting on your screen unconfirmed: the step kinds it covers, and that nothing on it has run. It is derived from the card rather than kept in the history, so it stops being sent the moment you confirm, cancel or leave it, and it carries no arguments: what the card covers is in the assistant's own words above it. Without it the assistant reads a conversation in which it proposed nothing, and proposes the same work a second time. Each turn's screen facts are rebuilt by the API for the screen you are on when you send it, and an earlier screen's raw facts are dropped rather than carried, so moving on tells the model nothing about the screen you left.
 
 **It ends on sign-out, or on New conversation in the panel header**, which starts a fresh one on the screen you are on. Past the conversation's length cap the oldest turns drop, and the panel says so.
 

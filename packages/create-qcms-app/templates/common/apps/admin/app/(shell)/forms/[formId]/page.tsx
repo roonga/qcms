@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { Alert } from "@/components/kit";
+import { CopyEntityId } from "@/components/copy-entity-id";
 import { FormProductionReview } from "@/components/forms/form-production-review";
 import { FormActions } from "@/components/forms/form-actions";
 import { CONCURRENT_NOTICE_COOKIE, isConcurrentNoticeDismissed } from "@/lib/builder-notice";
@@ -98,8 +99,9 @@ export default async function FormBuilderPage({
         )}
         formMeta={
           <p className="text-sm text-(--color-text-muted)">
-            {form.formId} · {form.defaultLocale} · {t(`forms.status.${form.status}`)}{" "}
-            <HelpTip>{t(`forms.builder.draftSource.${form.draftSource}`)}</HelpTip>
+            {form.slug} · {form.defaultLocale} · {t(`forms.status.${form.status}`)}{" "}
+            <HelpTip>{t(`forms.builder.draftSource.${form.draftSource}`)}</HelpTip>{" "}
+            <CopyEntityId kind="form" value={form.formId} display={form.formId} />
           </p>
         }
         formActions={<FormActions workflow={form.workflow} formId={form.formId} />}

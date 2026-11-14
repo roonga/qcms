@@ -1,0 +1,58 @@
+{
+  "id": "publish-and-test-link",
+  "name": "agent-review-02-publish-and-test-link",
+  "goal": "Put the new questions and the form out on test, and get back one link that can be tried.",
+  "mode": "scripted",
+  "brief": "You want to try the form yourself before any patient sees it. You are impatient and you ask again when nothing seems to have happened.",
+  "screen": "/forms",
+  "cards": "confirm",
+  "messages": [
+    {
+      "text": "Put the Larkmead new patient sign-up and its questions out on test, and give me a link I can open to try it myself.",
+      "cards": "leave"
+    },
+    {
+      "text": "Did that go through? I still need a link I can open.",
+      "cards": "confirm"
+    },
+    {
+      "text": "Good. Now the link, please.",
+      "cards": "confirm"
+    }
+  ],
+  "seed": {
+    "reset": "after:new-patient-form",
+    "requires": "The form from scenario 1, unpublished, with no link on it.",
+    "fixtures": "Fake clinic data only."
+  },
+  "budget": {
+    "turns": 3
+  },
+  "expect": {
+    "endState": [
+      {
+        "check": "released",
+        "title": "Larkmead new patient sign-up",
+        "environment": "test"
+      },
+      {
+        "check": "linkCount",
+        "title": "Larkmead new patient sign-up",
+        "environment": "test",
+        "exactly": 1
+      },
+      {
+        "check": "notReleased",
+        "title": "Larkmead new patient sign-up",
+        "environment": "production"
+      }
+    ],
+    "assistantMust": [
+      "put everything publishing allows on one plan rather than one step per round trip",
+      "say up front that the link has to wait for the release, and why",
+      "point at the plan that is already waiting when the person asks again, and not put up a second one",
+      "say before the address appears that it is shown once and that it cannot read it back"
+    ]
+  },
+  "notes": "This reproduces the failed session: the first ask is deliberately left waiting, the person asks again, and a second link must not be minted. Two plans are expected rather than one, because a plan may not mix authoring steps with steps acting on an environment's operational state (docs/agent-principle.md). Two turns is the floor without the deliberate repeat, three with it; the session this came from took five."
+}

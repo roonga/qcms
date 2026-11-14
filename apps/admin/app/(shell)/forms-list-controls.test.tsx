@@ -42,6 +42,10 @@ vi.mock("@/lib/server/session", () => ({
   requireAdminSession: () => Promise.resolve(SESSION),
 }));
 vi.mock("@/lib/server/forms", () => ({ listForms }));
+vi.mock("@/lib/server/shell", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  shellAccess: () => Promise.resolve({ status: "unknown" }),
+}));
 vi.mock("@/lib/i18n/en", async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return {

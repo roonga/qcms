@@ -569,34 +569,29 @@ export function makeListFormsHandler(deps: Deps): RouteHandler<typeof listFormsR
       const draft = await getDraft(deps.databases.control, row.formId);
       const latest = await getLatestPublishedVersion(deps.databases.control, row.formId);
       assembled.push({
-        row: {
-          formId: row.formId,
-          slug: row.slug,
-          workspaceId: row.workspaceId,
-          defaultLocale: row.defaultLocale,
-          status: statusOf(row.formId),
-          hasDraft: draft !== undefined,
-          latestVersion: latest === undefined ? null : latest.version,
-          publishedAt: latest === undefined ? null : latest.publishedAt.toISOString(),
-        },
-        // Beside the row rather than in it: the title is read for the search only, and
-        // the response carries no title field.
-        title: titleOf(draft?.definition ?? latest?.definition),
+        formId: row.formId,
+        slug: row.slug,
+        workspaceId: row.workspaceId,
+        defaultLocale: row.defaultLocale,
+        status: statusOf(row.formId),
+        hasDraft: draft !== undefined,
+        latestVersion: latest === undefined ? null : latest.version,
+        publishedAt: latest === undefined ? null : latest.publishedAt.toISOString(),
+        // The draft title wins over the published one: an unpublished rename is both what
+        // the author searches for and what the list should call the form.
+        title: titleOf(draft?.definition ?? latest?.definition) ?? null,
       });
     }
 
-    // The draft title wins over the published one: an unpublished rename is still what
-    // the author is looking for.
     const needle = search?.trim().toLowerCase();
     const matched =
       needle === undefined || needle === ""
         ? assembled
         : assembled.filter(
-            (entry) =>
-              entry.row.slug.toLowerCase().includes(needle) || titleMatches(entry.title, needle),
+            (form) => form.slug.toLowerCase().includes(needle) || titleMatches(form.title, needle),
           );
 
-    return c.json({ forms: sortForms(matched, sort ?? "slug-asc").map((entry) => entry.row) }, 200);
+    return c.json({ forms: sortForms(matched, sort ?? "slug-asc") }, 200);
   };
 }
 
@@ -612,7 +607,8 @@ function titleMatches(title: unknown, needle: string): boolean {
 }
 
 interface Orderable {
-  readonly row: { readonly slug: string; readonly publishedAt: string | null };
+  readonly slug: string;
+  readonly publishedAt: string | null;
 }
 
 /**
@@ -620,10 +616,10 @@ interface Orderable {
  * directions. Every comparison falls back to the slug, so the order is total.
  */
 function sortForms<T extends Orderable>(rows: readonly T[], sort: SortKey): T[] {
-  const bySlug = (a: T, b: T): number => a.row.slug.localeCompare(b.row.slug);
+  const bySlug = (a: T, b: T): number => a.slug.localeCompare(b.slug);
   const byPublished = (a: T, b: T, newestFirst: boolean): number => {
-    const left = a.row.publishedAt;
-    const right = b.row.publishedAt;
+    const left = a.publishedAt;
+    const right = b.publishedAt;
     if (left === null || right === null) {
       if (left === right) return bySlug(a, b);
       return left === null ? 1 : -1;

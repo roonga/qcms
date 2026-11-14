@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   ActionResultTurnBody,
   ActionStepResultBody,
-  actionResultRefusal,
+  conversationRefusal,
   stepResultRefusal,
   type ActionStepResult,
   type ConversationTurnBody,
@@ -90,8 +90,17 @@ describe("the conversation the route checks", () => {
         steps: [{ kind: "link.mint", outcome: "done", result }],
       },
     ];
-    expect(actionResultRefusal(turn({ count: 2 }))).toBeUndefined();
-    expect(actionResultRefusal(turn({ version: 3 }))).toContain("version");
+    expect(conversationRefusal(turn({ count: 2 }))).toBeUndefined();
+    expect(conversationRefusal(turn({ version: 3 }))).toContain("version");
+  });
+
+  it("passes a waiting card and refuses one naming a kind that does not exist", () => {
+    const waiting = (kind: string): ConversationTurnBody[] => [
+      { role: "user", content: "hi" },
+      { role: "proposal", proposalId: "prp_abc", steps: [{ kind }] },
+    ];
+    expect(conversationRefusal(waiting("form.publish"))).toBeUndefined();
+    expect(conversationRefusal(waiting("form.obliterate"))).toContain("form.obliterate");
   });
 });
 

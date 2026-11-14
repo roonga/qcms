@@ -385,17 +385,24 @@ describe("draft assistant tool loop (fake provider)", () => {
     expect(events.filter((e) => e.type === "action")).toHaveLength(0);
   });
 
-  it("reports NO_PROPOSAL when the turn ends without one", async () => {
-    const { ctx } = contextFor("#qcms-fake:no-proposal hello");
+  it("reports NO_PROPOSAL when the turn left no card and no words", async () => {
+    const { ctx } = contextFor("#qcms-fake:silent hello");
     const events = await collect(ctx);
     expect(events.find((e) => e.type === "error")).toMatchObject({ code: "NO_PROPOSAL" });
+  });
+
+  it("ends an answered turn cleanly when it proposes nothing", async () => {
+    const { ctx } = contextFor("#qcms-fake:no-proposal what is in this form?");
+    const events = await collect(ctx);
+    expect(events.filter((e) => e.type === "error")).toEqual([]);
+    expect(events.some((e) => e.type === "text")).toBe(true);
   });
 });
 
 const ERROR_SCENARIOS: readonly (readonly [string, string])[] = [
   ["provider-error", "PROVIDER_ERROR"],
   ["provider-rejected", "PROVIDER_REJECTED"],
-  ["no-proposal", "NO_PROPOSAL"],
+  ["silent", "NO_PROPOSAL"],
   ["refusal", "REFUSED"],
   ["length", "LENGTH"],
   ["step-limit", "STEP_LIMIT"],
@@ -430,7 +437,7 @@ describe("assist error codes are all reachable", () => {
 
   it("distinguishes step exhaustion from a model that simply did not answer", async () => {
     const exhausted = await collect(contextFor("#qcms-fake:step-limit go", { maxSteps: 3 }).ctx);
-    const silent = await collect(contextFor("#qcms-fake:no-proposal go", { maxSteps: 3 }).ctx);
+    const silent = await collect(contextFor("#qcms-fake:silent go", { maxSteps: 3 }).ctx);
 
     const codeOf = (events: AssistEvent[]): string | undefined => {
       const error = events.find((e) => e.type === "error");
@@ -639,6 +646,52 @@ describe("prompt framing", () => {
       tools: ["project_draft"],
     };
   }
+
+  it("tells the model a card is still waiting, and only its step kinds", () => {
+    const { ctx } = contextFor("publish it to test and give me the test link");
+    const messages = toModelMessages(
+      builderTurnContext({
+        ...ctx,
+        conversation: [
+          { role: "user", content: "create the Patient onboarding form" },
+          { role: "assistant", content: "Here is the plan." },
+          {
+            role: "proposal",
+            proposalId: "prp_waiting",
+            steps: [{ kind: "form.create" }, { kind: "form.saveDraft" }],
+          },
+          ...ctx.conversation,
+        ],
+      }),
+    );
+    const sent = JSON.stringify(messages);
+    expect(sent).toContain("still waiting for the person to confirm it");
+    expect(sent).toContain("form.create, form.saveDraft");
+    expect(sent).toContain("do not put up a second card for the same work");
+    // The id is the panel's own bookkeeping and tells the model nothing.
+    expect(sent).not.toContain("prp_waiting");
+  });
+
+  it("puts up no second card when one is already waiting", async () => {
+    const { ctx } = contextFor("publish it to test and give me the test link");
+    const events = await collect({
+      ...ctx,
+      conversation: [
+        { role: "user", content: "#qcms-fake:plan-three create the Patient onboarding form" },
+        { role: "assistant", content: "Here is the plan." },
+        {
+          role: "proposal",
+          proposalId: "prp_waiting",
+          steps: [{ kind: "form.create" }, { kind: "form.saveDraft" }],
+        },
+        ...ctx.conversation,
+      ],
+    });
+
+    expect(events.filter((e) => e.type === "action" || e.type === "plan")).toEqual([]);
+    expect(events.filter((e) => e.type === "error")).toEqual([]);
+    expect(events.some((e) => e.type === "text")).toBe(true);
+  });
 
   it("asks for changes only on a screen that offers a propose verb", () => {
     const builder = toModelMessages(builderTurnContext(contextFor("add a step").ctx));

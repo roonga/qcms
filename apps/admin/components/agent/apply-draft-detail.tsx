@@ -1,6 +1,7 @@
 "use client";
 
 import { useBuilderAssist } from "@/lib/agent/builder-assist-bridge";
+import { displayText } from "@/lib/agent/card-copy";
 import {
   isPendingNewQuestionPin,
   pendingNewQuestionPins,
@@ -27,6 +28,7 @@ export function ApplyDraftDetail({
     current === undefined ? undefined : proposalDiff(current, draft.definition, draft.newQuestions);
   const pendingPins = pendingNewQuestionPins(draft.definition, draft.newQuestions);
   const createdBy = new Map((draft.createdBy ?? []).map((entry) => [entry.questionId, entry.step]));
+  const titles = newQuestionTitles(draft.newQuestions);
 
   return (
     <div className="qcms-acard__draft" data-testid="qcms-acard-draft">
@@ -68,6 +70,7 @@ export function ApplyDraftDetail({
                     current={current}
                     pendingPins={pendingPins}
                     createdBy={createdBy}
+                    titles={titles}
                   />
                 </li>
               ))}
@@ -90,6 +93,7 @@ export function ApplyDraftDetail({
                   current={current}
                   pendingPins={pendingPins}
                   createdBy={createdBy}
+                  titles={titles}
                 />
               </li>
             ))}
@@ -100,25 +104,41 @@ export function ApplyDraftDetail({
   );
 }
 
+/* A proposed question is named by the label the operator is about to confirm, not by its id. */
+function newQuestionTitles(newQuestions: readonly unknown[]): ReadonlyMap<string, string> {
+  const titles = new Map<string, string>();
+  for (const entry of newQuestions) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const fields = entry as Record<string, unknown>;
+    const questionId = fields["questionId"];
+    const label = displayText(fields["label"]);
+    if (typeof questionId === "string" && label !== undefined) titles.set(questionId, label);
+  }
+  return titles;
+}
+
 function DraftIssue({
   issue,
   current,
   pendingPins,
   createdBy,
+  titles,
 }: {
   readonly issue: FormIssue;
   readonly current: DraftForm | undefined;
   readonly pendingPins: ReadonlySet<string>;
   readonly createdBy: ReadonlyMap<string, number>;
+  readonly titles: ReadonlyMap<string, string>;
 }) {
   const questionId = issue.path?.question;
   if (questionId !== undefined && isPendingNewQuestionPin(issue, pendingPins)) {
     const step = createdBy.get(questionId);
+    const question = titles.get(questionId) ?? questionId;
     return (
       <span data-issue-code={issue.code} data-new-question={questionId}>
         {step === undefined
-          ? t("forms.assist.newQuestionPending", { questionId })
-          : t("forms.assist.newQuestionFromStep", { questionId, step: step + 1 })}
+          ? t("forms.assist.newQuestionPending", { question })
+          : t("forms.assist.newQuestionFromStep", { question, step: step + 1 })}
       </span>
     );
   }

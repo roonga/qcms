@@ -68,11 +68,7 @@ export default async function FormResponsesPage({
   );
 
   const header = (
-    <FormPageHeader
-      formId={formId}
-      section="responses"
-      {...(form === undefined ? {} : { status: form.status })}
-    />
+    <FormPageHeader formId={formId} section="responses" {...(form === undefined ? {} : { form })} />
   );
 
   const ignoredNotice = ignored.length > 0 && (

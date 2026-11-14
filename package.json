@@ -41,6 +41,7 @@
     "qcms:environment": "pnpm --filter @roonga/qcms-db... build && node packages/db/dist/environment-cli.js",
     "devcontainer": "bash scripts/devcontainer.sh",
     "claude": "bash scripts/claude-session.sh",
+    "agent:converse": "node scripts/agent-converse.mjs",
     "agent-loop:status": "node scripts/agent-loop-status.mjs",
     "worktrees:prune": "node scripts/prune-worktrees.mjs",
     "tmp:prune": "node scripts/prune-tmp.mjs",

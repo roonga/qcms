@@ -495,6 +495,7 @@ Four things worth knowing before you go looking for something that is missing:
 - **The home dashboard is repository-provisioned.** Its **Service** selector filters `qcms-admin`, `qcms-portal` and `qcms-api`; paste an `x-request-id` into **Request ID** to isolate one BFF-to-API call. Expand a row and follow `trace_id` to Tempo. The dashboard definition is copied into a thin local LGTM wrapper image rather than bind-mounted, so it works when a dev container drives the host Docker daemon (ADR-29). It is read-only in Grafana: edit `docker/grafana/qcms-observability.json` and rebuild instead of making a change that disappears with the container.
 - **Logs are intentionally concise.** Exported records contain only approved operational fields such as route template, method, status, duration, request id and opaque error id. They never contain request bodies, answers, direct identifiers, headers, cookies, query strings, exception messages or stacks (SEC-13). Use the trace link or copy `requestId` to follow one request across services.
 - **The first request after a cold start may not appear.** `lgtm` takes tens of seconds to come up and ships no healthcheck, so the apps start before the collector is listening and the earliest spans exhaust their retry budget. Make a second request.
+- **A cold first `pnpm dev:up` can fail once on `lgtm` and succeed on the next run.** The first one builds `qcms-lgtm:local` and starts a container that holds Grafana, Loki, Tempo, Prometheus and a collector, and `up --detach --build --wait` gives up before all of that is running. Nothing is wrong: run `pnpm dev:up` again, which reuses the built image and comes up. There is no `start_period` to lengthen, because the service declares no healthcheck at all and the apps depend on it as `service_started`.
 - **Nothing persists.** The overlay declares no volumes, so a restart of `lgtm` empties the dashboard. That is the trade that makes `down` leave nothing behind.
 
 **The database viewer is the only credentialed database client in the repo**, and it is scoped accordingly. It does not use `QCMS_DB_PASSWORD`: the overlay creates a `qcms_ro` role granted PostgreSQL's predefined `pg_read_all_data` (reads on every table, including ones a future migration adds) and nothing else, with `default_transaction_read_only` set on the role, and runs pgweb with `--readonly` on top. A write is refused by the database, not by the client. After task 056 the API is otherwise the only process in the stack holding a database credential (ADR-35), which is why this one is worth the paragraph.
@@ -548,6 +549,162 @@ The API sends mail through one SMTP relay, using `nodemailer`. Account creation,
 - **Tests:** `apps/api/src/features/email/*.test.ts` cover configuration, templates and failure handling against a stand-in transport. `apps/api/e2e/06-outbound-mail.e2e.ts` sends through a real Mailpit container (`startMailpit()` in `apps/api/e2e/support/mailpit.ts`, which reads messages back over Mailpit's HTTP API), and also proves a `starttls` mailer will not send through a relay that offers no STARTTLS. `QCMS_TEST_MAILPIT_IMAGE` points the helper at a mirror.
 - **Full stack:** `pnpm up:e2e` adds `docker-compose.e2e.yml`, a Mailpit relay on the Compose network with no published port, and points the API at it.
 - **Trying it locally:** run a Mailpit container yourself, publishing its SMTP and web ports on loopback, then start the API with `QCMS_SMTP_HOST=localhost`, `QCMS_SMTP_PORT` set to the published SMTP port, `QCMS_SMTP_SECURITY=none`, `QCMS_SMTP_ALLOW_INSECURE=true` and a `QCMS_SMTP_FROM`. Those are Mailpit's ports on a container you run, not a QCMS allocation (`docs/PORTS.md`).
+
+## Driving the authoring assistant from a script: `pnpm agent:converse`
+
+**An agent cannot read the assistant panel, and asking a person to paste a transcript back is not a development loop.**
+`pnpm agent:converse` signs in to a running admin, opens the assistant on a screen you name, sends a scripted list of messages, applies a per-message decision to each plan card, and writes a machine-readable transcript with screenshots beside it.
+It is a development tool, not a gate: it needs a real model key on the API (`QCMS_AGENT_API_KEY`, `QCMS_AGENT_MODEL`) and it is deliberately absent from CI.
+
+It drives whatever admin is already listening, so start one first: the composed stack from `pnpm dev:up`, or a `next dev` admin pointed at that stack's API.
+
+```sh
+# Credentials come from the environment only. Never put them in a flag (argv is
+# world-readable through /proc) or in a file in the checkout.
+read -rs -p 'admin password: ' QCMS_AGENT_CONVERSE_PASSWORD; echo
+export QCMS_AGENT_CONVERSE_EMAIL=dev@qcms.test QCMS_AGENT_CONVERSE_PASSWORD
+
+# One read-only question against a form's assistant, confirming nothing.
+pnpm agent:converse --form frm_sample_library --ask "what is in this form?"
+
+# A scripted conversation, with a decision per message.
+pnpm agent:converse --script scripts/agent-converse.example.json
+```
+
+`QCMS_ADMIN_EMAIL` and `QCMS_ADMIN_PASSWORD` are read as a fallback, so a shell already set up for `create-admin` needs nothing further.
+On a stack where `QCMS_ADMIN_2FA` is `required`, add `QCMS_AGENT_CONVERSE_TOTP` with the account's TOTP secret; with `optional` it is not needed.
+
+**On a fresh stack the account is still holding its provisional password**, and the admin sends it to the forced password change before any screen.
+The run completes that change itself when `QCMS_AGENT_CONVERSE_NEW_PASSWORD` names the password the account should take, and is refused by name when it does not.
+It is an environment variable and not a flag for the same reason the first password is: `argv` is world-readable through `/proc`.
+Set both for the first run, then drop `QCMS_AGENT_CONVERSE_NEW_PASSWORD` and put the chosen password in `QCMS_AGENT_CONVERSE_PASSWORD`.
+The change is the first gate and 2FA enrollment is the second, so on a stack where `QCMS_ADMIN_2FA` is `required` the run stops after the change and says to enroll the account in a browser; enrollment is a credential this harness will not mint for you.
+
+```sh
+read -rs -p 'provisional password: ' QCMS_AGENT_CONVERSE_PASSWORD; echo
+read -rs -p 'password to set: ' QCMS_AGENT_CONVERSE_NEW_PASSWORD; echo
+export QCMS_AGENT_CONVERSE_PASSWORD QCMS_AGENT_CONVERSE_NEW_PASSWORD
+pnpm agent:converse --ask "what can you see"
+```
+
+The flags, all optional:
+
+| Flag                      | What it does                                                                                                                                                         |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--base-url <url>`        | Which admin to drive. Defaults to `QCMS_AGENT_CONVERSE_BASE_URL`, then `QCMS_ADMIN_BASE_URL`, then `http://localhost:7040`.                                          |
+| `--form <formId>`         | Opens that form's builder, so the assistant answers about the form.                                                                                                  |
+| `--screen <path>`         | Any other admin route, for the library-level assistant. Defaults to `/questions`.                                                                                    |
+| `--ask <text>`            | One user message. Repeatable; replaces a script file's messages.                                                                                                     |
+| `--cards <directive>`     | `confirm`, `decline` or `leave`. After an `--ask` it binds to that message; before any `--ask` it is the run's default.                                              |
+| `--script <file>`         | A JSON file of messages, each with its own directive.                                                                                                                |
+| `--name <name>`           | The run directory's name under the lane scratch. Defaults to `agent-converse`.                                                                                       |
+| `--environment <name>`    | Sets the environment switcher's cookie after sign-in, so operational cards act there. Defaults to `QCMS_AGENT_CONVERSE_ENVIRONMENT`, then the admin's own selection. |
+| `--timeout <ms>`          | Per-reply budget. Defaults to 180000, which a cold `next dev` route can need.                                                                                        |
+| `--headed`, `--keep-open` | Watch it run, and leave the browser up afterwards.                                                                                                                   |
+
+A script file is the only way to give a different decision to each message.
+`scripts/agent-converse.example.json` is the shape:
+
+```json
+{
+  "formId": "frm_sample_library",
+  "cards": "leave",
+  "messages": [
+    { "text": "what is in this form?" },
+    { "text": "rename the first step to About you", "cards": "confirm" },
+    { "text": "now delete every question in it", "cards": "decline" }
+  ]
+}
+```
+
+A script file takes `environment` beside `formId` and `cards`, and `--environment` wins over it.
+**It is the only way to reach an operational card**: a test link, a webhook or the open and closed state belongs to one environment, and the switcher's cookie is what names it.
+The name is checked against the admin's own vocabulary (lowercase, starting with a letter) so a typo is refused rather than silently falling back to prod, and the API still decides what the account may reach.
+
+A per-message `cards` wins, then `--cards`, then the file's own `cards`, then `leave`.
+`leave` is the default on purpose: a run that was not asked to act confirms nothing.
+`confirm` fills a card's typed-confirmation box from the card's own hint before pressing Confirm, so an irreversible step still gets the exact value the screen demands rather than a bypass.
+
+**A directive goes to the card waiting for confirmation, never to whichever card is first on the page.**
+A turn can leave a settled card on screen beside a new one, so the run picks the earliest card whose state is `proposed`, presses that card's own buttons and waits for that card to settle.
+Each turn records what happened as `cardAction`: `confirmed`, `declined`, `left waiting` for a `leave` directive, `nothing to confirm` when no card was waiting, and `no card` when the turn produced none.
+**`no card` is not a failure and never has been one here**: a question is answered without proposing anything, and since the API stopped reporting an answered turn as an error there is nothing under the reply for the roll-up to pick up either.
+
+**The output goes under this lane's scratch directory** (`node scripts/agent-scratch.mjs <name>`, issues #396 and #602), one directory per run, replaced on each run:
+
+- `transcript.json` - the whole conversation: each turn's message and reply, the assistant's thinking blocks and its own step timeline, then `cards`, every plan card the turn showed, each with its `index` on the page, its state, and its steps, step arguments, notes and advisory issues. `cardIndex` names the card the directive acted on, and `card` repeats that one so a reader written against a single card still works.
+- `turn-NN.png` - a full-page capture after each turn, plus `failure.png` if the run dies.
+- `secrets.json`, owner-only - one-time values, see below.
+
+**A failed plan step carries the reason the page gives**, which is the half an agent otherwise cannot see: the step's own note and its advisory issues are copied into the transcript, and the run exits non-zero with each of them printed to stderr as `turn N, plan step M "title": reason`, or `turn N, card K plan step M "title": reason` when the turn showed more than one card.
+A panel-level error and a failed step in the assistant's own timeline exit non-zero the same way.
+A clean run exits 0.
+Anything the run could watch go wrong exits 1 with the text on stderr: a refused sign-in, a panel error, a failed step.
+A usage or credential problem that never opens a browser exits 2.
+
+**One-time values never enter the transcript.**
+A card's "Shown once, here only" block is a credential (a webhook signing secret, for one), and a minted link address is its own credential, so both are replaced by a `secret-N` reference and written to `secrets.json` with mode `0600` in the run directory.
+The transcript records `{ "secret": true, "ref": "secret-1" }` in place of the value and says how many were held back.
+Nothing prints a secret to stdout, and the sign-in password is never written anywhere.
+
+`scripts/agent-converse.mjs` drives the browser, `scripts/agent-converse-page.mjs` holds the single in-page read of the panel, and `scripts/agent-converse-script.mjs` is the pure half - the script format, the directive precedence, redaction and the error roll-up - which `scripts/agent-converse-script.test.ts` covers under `pnpm verify` without a browser or a model key.
+
+## Reviewing the assistant against scenarios: `scripts/agent-review/`
+
+**A transcript on its own says what happened, not whether it was any good.**
+`pnpm agent:converse` records a conversation; `scripts/agent-review/` says which conversations are worth having, what a good one looks like, and which faults a machine can find without a reviewer.
+It is on demand and never a gate: a run spends a real model key on the API and real tokens on the reviewers.
+Only the Vitest half runs under `pnpm verify`, over committed fixture transcripts, with no stack and no key.
+
+The pieces, all under `scripts/agent-review/`:
+
+- `scenarios/*.json` - one conversation each, in the script format `pnpm agent:converse --script` already takes, with four fields it ignores and this does: a plain-words `goal`, a `seed` block saying what the run starts from, a `budget` in turns, and an `expect` block holding the end state and what the reply has to do. Seven of them, drawn from one real failed session: building a form, publishing it and getting a test link, asking why a step stopped, asking who did what, an ambiguous request, a request that belongs to another person, and a change to a rule on a form already published.
+- `rubric.md` - what a reviewer judges a transcript against: voice, the leading sentence, plans, honesty, safety, round trips, end state, and a section on card layout, status markers, spacing, focus and accessibility read from the screenshots. A line marked **auto** has a check behind it, so a reviewer confirms a finding rather than hunting for it.
+- `terms.mjs` - the words the assistant may never say and the branded id patterns, in one place. It restates the prompt's own `AVOID_WORDS` rather than importing it, because `apps/api` publishes `dist` and no tooling script may reach into it; `terms.test.ts` fails when the two drift apart.
+- `checks.mjs` - the deterministic half, and a command line.
+- `end-state.mjs` - reads the forms, versions, links and rules a run left behind, from the API.
+- `eval-status.mjs` - the run's own status file, written as it goes so a monitor can follow it.
+
+```sh
+# One scenario, against an admin that already has a model key on its API.
+pnpm agent:converse --script scripts/agent-review/scenarios/02-publish-and-test-link.json
+
+# What it left behind, then the checks over the transcript and that end state.
+node scripts/agent-review/end-state.mjs --environment test --out "$(node scripts/agent-scratch.mjs end-state.json)"
+node scripts/agent-review/checks.mjs \
+  scripts/agent-review/scenarios/02-publish-and-test-link.json \
+  "$(node scripts/agent-scratch.mjs agent-review-02-publish-and-test-link)/transcript.json" \
+  "$(node scripts/agent-scratch.mjs end-state.json)"
+```
+
+Exit 0 is a pass, 1 has findings, 2 is a usage or credential problem.
+`end-state.mjs` needs `QCMS_INTERNAL_TOKEN` and an admin session token in `QCMS_AGENT_REVIEW_SESSION`, because the API takes both headers and there is no API key; `QCMS_INTERNAL_TOKEN` has to be exported **before** the stack starts, since `scripts/dev-stack.mjs` generates a random one otherwise and writes it nowhere.
+
+**What the checks find**, each one a thing the real session got wrong: a builder word or an identifier in anything the person reads - the plan card's own titles, details, notes and advisory issues as well as the reply, with an identifier in a title reported as its own finding, since the card's `reason` is the reply copied back and is read once; a reply that contradicts its own cards, which is a claim the work landed in a turn where a step did not run or before any step ran at all, a card denied while the transcript shows it still waiting, or a card said to be waiting in a turn that produced none (a turn that confirmed or declined records the states after that act, so a reply written while a card really was waiting is never read as a contradiction); more turns than the scenario's budget; a plan proposing work a finished plan already did, and, as a warning rather than a finding, a plan that looks like a second one put up while another waits (a transcript records one card per turn, so a card still on screen and a fresh one reading the same cannot be told apart without the screenshots); a step that did not run and a reply that does not say so; a reply claiming an act of its own, because the assistant proposes and the person confirms; a one-time value written into the transcript instead of held back; and the end state, read from the API rather than from the reply, with exact counts so a duplicate link fails even when the goal was reached.
+
+**What they cannot find** is the rest of the rubric, which is why there are reviewers.
+`.claude/skills/review-assistant/` runs the scenarios, applies the checks, and dispatches one report-only reviewer per scenario with the transcript, the screenshots and the rubric.
+The Code Owner approves every change that comes out of it to the assistant prompt, to a tool description, or to anything in `docs/adr` and `docs/agent-principle.md`.
+
+**Resetting between scenarios is a new database, not an endpoint.**
+There is no reset route and no truncate, so a scenario whose `seed.reset` is `fresh` starts from a new dev database and the admin account steps; one whose reset is `after:<id>` runs on what that scenario left behind, in order, in one lane.
+Every scenario's data is invented, and none of it is a real person's.
+
+**A run says where it has got to while it is still going**, in `eval-status.json` beside the transcripts, so watching it does not mean reading a half-written transcript or waiting for the report:
+
+```sh
+status="$(node scripts/agent-scratch.mjs eval-status.json --fresh)"
+node scripts/agent-review/eval-status.mjs init "$status" '{ "runId": "eval-2026-01-01",
+  "stack": { "adminUrl": "http://localhost:7040", "headSha": "abcdef1" },
+  "scenarios": [{ "id": "publish-and-test-link", "title": "Publish and a test link", "budget": 3 }] }'
+node scripts/agent-review/eval-status.mjs set "$status" publish-and-test-link '{ "state": "run", "turns": 3 }'
+node scripts/agent-review/eval-status.mjs check "$status"
+```
+
+Each scenario carries its state (`queued`, `running`, `run`, `checked`, `reviewing`, `reviewed`, `not-run`), the turns it took against its budget, the checks' exit code with one short line per finding, and the reviewer's verdict with its findings by kind.
+The file is replaced whole through a rename on every write, so a reader polling it never catches half of one, and the shape is validated before it lands: a run that cannot describe itself in that shape fails rather than writing something a reader cannot parse.
+It carries no credential, no address and no transcript text beyond a check's own short message, which is what makes it safe to leave open on a screen.
+`eval-status.test.ts` covers it under `pnpm verify`.
 
 ## The browser suite's gates, and measuring them
 

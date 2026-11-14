@@ -34,3 +34,31 @@ export function mintedLinksFilename(formId: string): string {
   const safe = formId.replaceAll(/[^a-zA-Z0-9_-]/g, "-");
   return `${safe}-links.csv`;
 }
+
+/* Delay object-URL revocation so the browser has time to start the download. */
+const REVOKE_DELAY_MS = 60_000;
+
+/** Build the CSV in the browser: sending bearer URLs back to a server would widen their exposure. */
+export function downloadMintedLinks(formId: string, links: readonly MintedLink[]): void {
+  const blob = new Blob([mintedLinksCsv(links)], { type: "text/csv;charset=utf-8" });
+  const href = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = href;
+  anchor.download = mintedLinksFilename(formId);
+  anchor.click();
+  setTimeout(() => {
+    URL.revokeObjectURL(href);
+  }, REVOKE_DELAY_MS);
+}
+
+/** Report the outcome in words; a bearer address is never put where it could be announced. */
+export async function copyMintedUrl(url: string): Promise<MessageKey> {
+  try {
+    // clipboard may be absent in an insecure context despite lib.dom types, and that access throws
+    // synchronously.
+    await navigator.clipboard.writeText(url);
+    return "forms.links.copied";
+  } catch {
+    return "forms.links.copyFailed";
+  }
+}

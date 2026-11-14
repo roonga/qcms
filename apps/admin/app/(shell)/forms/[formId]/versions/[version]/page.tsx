@@ -52,7 +52,7 @@ export default async function FormVersionPage({
       <FormPageHeader
         formId={form.formId}
         section="versions"
-        status={form.status}
+        form={form}
         heading={{
           id: VERSION_HEADING_ID,
           text: t("forms.history.versionHeading", { version: requested }),

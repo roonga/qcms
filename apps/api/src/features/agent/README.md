@@ -268,7 +268,7 @@ draft that references that run's own fixtures and actually publishes.
 A script is selected by a `#qcms-fake:<script>` directive in a user turn:
 `default`, `rogue-publish`, `rogue-erase`, `rogue-webhook`, `rogue-responses`,
 `refusal`, `provider-error`, `provider-rejected`, `tool-then-provider-error`,
-`tool-error-recovered`, `propose-questions`, `no-proposal`, `length`,
+`tool-error-recovered`, `propose-questions`, `no-proposal`, `silent`, `length`,
 `step-limit`, `narrate-then-tools`, `reasoning`, `read-all`, D0's action
 scripts: `plan-three`, `plan-fails-at-2`, `plan-two-envs`, `plan-pending-at-1`,
 `two-proposals`, `plan-26-steps`, `unknown-tool`, `injection-follow`,

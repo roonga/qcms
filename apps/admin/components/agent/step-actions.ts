@@ -601,6 +601,7 @@ const RUNNERS: Readonly<Record<string, StepRunner>> = {
         expiresAt: text(links[0]?.expiresAt),
         environment: step.environment,
       },
+      ...(links.length === 0 ? {} : { revealed: links }),
     };
   },
   ...MEMBERSHIP_RUNNERS,

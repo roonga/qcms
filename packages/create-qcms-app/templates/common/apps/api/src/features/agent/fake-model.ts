@@ -39,6 +39,7 @@ export const FAKE_SCRIPTS = [
   "tool-error-recovered",
   "propose-questions",
   "no-proposal",
+  "silent",
   "length",
   "step-limit",
   "narrate-then-tools",
@@ -74,6 +75,7 @@ export const FAKE_SCRIPTS = [
 
   "propose-form-create",
   "propose-link-mint",
+  "propose-link-mint-batch",
   "propose-link-revoke",
   "propose-question-create",
   "propose-question-save-draft",
@@ -802,6 +804,9 @@ function firstId(rows: unknown, member: string, fallback: string): string {
   return fallback;
 }
 
+/** The largest batch `link.mint` accepts, so a spec can drive the card at its widest. */
+const MAX_MINT_BATCH = 100;
+
 function mintStep(formId: string, count = 2): Record<string, unknown> {
   return {
     kind: "link.mint",
@@ -1063,6 +1068,7 @@ const SINGLE_ACTIONS: Readonly<
   "propose-form-create": (prompt) => createFormStep(prompt),
   "propose-question-create": (prompt) => createQuestionStep(prompt),
   "propose-link-mint": (prompt) => mintStep(factFormId(prompt), 2),
+  "propose-link-mint-batch": (prompt) => mintStep(factFormId(prompt), MAX_MINT_BATCH),
   "propose-link-revoke": (prompt) => revokeStep(factFormId(prompt), factActiveLinkId(prompt)),
   "propose-question-save-draft": (prompt) => {
     const questionId = factQuestionId(prompt);
@@ -1314,11 +1320,24 @@ const STATEFUL_PLANNERS: Readonly<
   "blank-to-published": planBlankToPublishedStep,
 };
 
+/** The line the context builder writes for a card the person has not acted on. */
+const WAITING_CARD_LINE = "still waiting for the person to confirm it";
+
+/**
+ * Every proposing script obeys the prompt's waiting-card rule, so a scenario that leaves a
+ * card unconfirmed exercises the rule rather than one script's own good manners.
+ */
 function planStep(
   prompt: readonly PromptMessage[],
   script: FakeScript,
   offered: readonly string[],
 ): StreamPart[] {
+  if (userText(prompt).includes(WAITING_CARD_LINE)) {
+    return [
+      ...textParts("That card is still waiting for your Confirm. Nothing on it has run yet."),
+      finishPart("stop"),
+    ];
+  }
   const rogueTool = ROGUE_TOOLS[script];
   if (rogueTool !== undefined) {
     // The input phase is scripted too: a `tool-input-start` outside the allowlist must show nothing.
@@ -1354,6 +1373,7 @@ function planStep(
   if (script === "no-proposal") {
     return [...textParts("I need more detail before I can propose anything."), finishPart("stop")];
   }
+  if (script === "silent") return [finishPart("stop")];
   if (script === "length") {
     return [...textParts("Here is the start of a form"), finishPart("length")];
   }

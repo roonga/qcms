@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useRef, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { AssistMark } from "@/components/forms/assist-mark";
 import { Button } from "@/components/kit";
 import type { AgentPlanStep } from "@/lib/forms/assist-stream";
+import { copyMintedUrl, downloadMintedLinks } from "@/lib/forms/links";
 import {
   createdHref,
   hasIrreversibleStep,
@@ -13,7 +14,10 @@ import {
   stepArguments,
   stepConsequences,
   stepTitle,
+  type PlanNames,
+  type StepArgumentLine,
 } from "@/lib/agent/card-copy";
+import { focusPostAction } from "@/lib/ops/post-action-focus";
 import { plainQuote, REASON_CHARS } from "@/lib/agent/reason";
 import {
   resultLine,
@@ -22,6 +26,7 @@ import {
   type AgentStepState,
   type AgentStepView,
   type ReportedResults,
+  type StepReveal,
 } from "@/lib/agent/plan-state";
 import { t, tPlural } from "@/lib/i18n/en";
 
@@ -87,37 +92,27 @@ export function stepIcon(state: AgentStepState): React.ReactElement {
     case "not-run":
       return (
         <svg {...common} focusable="false">
-          <circle
-            cx="9"
-            cy="9"
-            r="7"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeDasharray="3 3"
-            fill="none"
-          />
-          <path d="M5.5 9h7" stroke="currentColor" strokeWidth="2" />
+          <path d="M4 9h10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
         </svg>
       );
     case "cancelled":
       return (
         <svg {...common} focusable="false">
-          <circle cx="9" cy="9" r="7" stroke="currentColor" strokeWidth="2" fill="none" />
-          <path d="M4.5 13.5l9-9" stroke="currentColor" strokeWidth="2" />
+          <path d="M4.5 13.5l9-9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
         </svg>
       );
     case "expired":
       return (
         <svg {...common} focusable="false">
-          <circle cx="9" cy="9" r="7" stroke="currentColor" strokeWidth="2" fill="none" />
-          <path d="M9 5v5" stroke="currentColor" strokeWidth="2" />
-          <circle cx="9" cy="12.5" r="1" fill="currentColor" />
+          <path d="M9 4v6.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          <circle cx="9" cy="13.5" r="1.2" fill="currentColor" />
         </svg>
       );
+    // An outlined circle beside a step reads as a radio button nobody can pick.
     default:
       return (
         <svg {...common} focusable="false">
-          <circle cx="9" cy="9" r="7" stroke="currentColor" strokeWidth="2" fill="none" />
+          <circle cx="9" cy="9" r="3.5" fill="currentColor" />
         </svg>
       );
   }
@@ -149,6 +144,177 @@ function EnvironmentLine({ step }: { readonly step: AgentPlanStep }): React.Reac
   );
 }
 
+/* A bearer address is written on the screen, never into an announcement: the live region below carries
+   the outcome of a copy in words and nothing else. */
+function RevealBlock({
+  reveal,
+  formId,
+  idBase,
+  index,
+  onDismiss,
+}: {
+  readonly reveal: StepReveal;
+  readonly formId: string;
+  readonly idBase: string;
+  readonly index: number;
+  readonly onDismiss: (() => void) | undefined;
+}): React.ReactElement {
+  const [note, setNote] = useState("");
+  const [asking, setAsking] = useState(false);
+  const asked = useRef(false);
+  const hideRef = useRef<HTMLSpanElement>(null);
+  const keepRef = useRef<HTMLSpanElement>(null);
+  const base = `${idBase}-${String(index)}-reveal`;
+  const secret = typeof reveal === "string" ? reveal : undefined;
+  const links = typeof reveal === "string" ? [] : reveal;
+  const count = secret === undefined ? links.length : 1;
+
+  // The question takes focus on its keeping answer, so the answer that cannot be undone is never the
+  // one a second keypress lands on.
+  useEffect(() => {
+    if (asking) {
+      asked.current = true;
+      return focusPostAction(keepRef.current?.querySelector("button") ?? null);
+    }
+    if (!asked.current) return undefined;
+    asked.current = false;
+    return focusPostAction(hideRef.current?.querySelector("button") ?? null);
+  }, [asking]);
+
+  const copy = useCallback((url: string) => {
+    void copyMintedUrl(url).then(
+      (key) => {
+        setNote(t(key));
+      },
+      () => {
+        setNote(t("forms.links.copyFailed"));
+      },
+    );
+  }, []);
+
+  return (
+    <div
+      className="qcms-acard__reveal"
+      role="group"
+      aria-labelledby={`${base}-title`}
+      data-testid="qcms-acard-reveal"
+    >
+      <p className="qcms-acard__label" id={`${base}-title`}>
+        {secret === undefined
+          ? tPlural("agent.card.reveal.links.one", "agent.card.reveal.links.other", links.length)
+          : t("agent.card.revealOnce")}
+      </p>
+
+      {secret === undefined ? (
+        <>
+          <p>{t("agent.card.reveal.links.note")}</p>
+          <ul
+            className="qcms-acard__reveal-list"
+            aria-labelledby={`${base}-title`}
+            data-testid="qcms-acard-reveal-list"
+            tabIndex={0}
+          >
+            {links.map((link, at) => (
+              <li key={link.linkId}>
+                <code className="qcms-link-url">{link.url}</code>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onPress={() => {
+                    copy(link.url);
+                  }}
+                >
+                  <span className="qcms-visually-hidden">
+                    {t("agent.card.reveal.copyNumbered", { number: at + 1 })}
+                  </span>
+                  <span aria-hidden="true">{t("agent.card.reveal.copy")}</span>
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : (
+        <code>{secret}</code>
+      )}
+
+      {!asking ? null : (
+        <p className="qcms-acard__label" data-testid="qcms-acard-reveal-ask">
+          {tPlural("agent.card.reveal.dismissAsk.one", "agent.card.reveal.dismissAsk.other", count)}
+        </p>
+      )}
+
+      <div className="qcms-acard__reveal-controls">
+        {secret !== undefined ? null : (
+          <Button
+            variant="secondary"
+            size="sm"
+            onPress={() => {
+              downloadMintedLinks(formId, links);
+            }}
+          >
+            {t("agent.card.reveal.csv")}
+          </Button>
+        )}
+        {onDismiss === undefined || asking ? null : (
+          <span ref={hideRef}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onPress={() => {
+                setAsking(true);
+              }}
+            >
+              {t("agent.card.reveal.dismiss")}
+            </Button>
+          </span>
+        )}
+        {onDismiss === undefined || !asking ? null : (
+          <>
+            <span ref={keepRef}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onPress={() => {
+                  setAsking(false);
+                }}
+              >
+                {t("agent.card.reveal.dismissKeep")}
+              </Button>
+            </span>
+            <Button variant="danger" size="sm" onPress={onDismiss}>
+              {t("agent.card.reveal.dismissFinal")}
+            </Button>
+          </>
+        )}
+      </div>
+
+      {onDismiss === undefined || asking ? null : (
+        <p>
+          {tPlural(
+            "agent.card.reveal.dismissHint.one",
+            "agent.card.reveal.dismissHint.other",
+            count,
+          )}
+        </p>
+      )}
+
+      <p aria-live="polite" data-testid="qcms-acard-reveal-note">
+        {note}
+      </p>
+    </div>
+  );
+}
+
+function dismissHandler(
+  onDismissReveal: ((index: number) => void) | undefined,
+  index: number,
+): (() => void) | undefined {
+  if (onDismissReveal === undefined) return undefined;
+  return () => {
+    onDismissReveal(index);
+  };
+}
+
 export interface StepItemProps {
   readonly step: AgentPlanStep;
   readonly index: number;
@@ -156,12 +322,13 @@ export interface StepItemProps {
   readonly reported: ReportedResults;
   readonly chips: boolean;
   readonly numbered: boolean;
-  readonly names?: ReadonlyMap<string, string>;
+  readonly names?: PlanNames;
   /** The whole plan, so a title can name what an earlier step will make. */
   readonly steps?: readonly AgentPlanStep[];
   /** A single-step dialog titles itself with the step, so the step does not repeat it. */
   readonly titled?: boolean;
   readonly idBase: string;
+  readonly onDismissReveal?: ((index: number) => void) | undefined;
 }
 
 export function StepItem({
@@ -175,6 +342,7 @@ export function StepItem({
   names,
   steps,
   idBase,
+  onDismissReveal,
 }: StepItemProps): React.ReactElement {
   const state = view?.state ?? "proposed";
   const word = t(STEP_STATE_WORDS[state]);
@@ -182,13 +350,17 @@ export function StepItem({
   // A form draft is already shown as a diff and two advisory lists; a question definition
   // gets its own field-by-field rendering rather than one line of JSON.
   const readable = QUESTION_DEFINITION_KINDS.includes(step.kind);
+  const lines = stepArguments(step, reported, names)
+    // A definition shown field by field, or as a diff and two advisory lists, is not
+    // also shown as a line of JSON.
+    .filter((line) => line.name !== DEFINITION_ARGUMENT || !(readable || step.draft !== undefined));
   return (
     <li className="qcms-acard__step" data-s={state}>
       {stepIcon(state)}
       {titled ? (
         <span className="qcms-acard__what">
           {numbered ? `${String(index + 1)}. ` : ""}
-          {stepTitle(step, reported, steps)}
+          {stepTitle(step, reported, steps, names)}
         </span>
       ) : null}
       {chips ? (
@@ -200,22 +372,13 @@ export function StepItem({
       )}
       <p className="qcms-acard__args">
         {step.card.hideEnvironment === true ? null : <EnvironmentLine step={step} />}
-        {stepArguments(step, reported, names)
-          // A definition shown field by field, or as a diff and two advisory lists, is not
-          // also shown as a line of JSON.
-          .filter(
-            (line) => line.name !== DEFINITION_ARGUMENT || !(readable || step.draft !== undefined),
-          )
-          .map((line) => (
-            <span key={line.name}>
-              {line.label} {line.mono ? <code>{line.value}</code> : <span>{line.value}</span>}
-            </span>
-          ))}
+        {lines.map(argumentLine)}
         {stepConsequences(step).map((sentence) => (
           <span key={sentence}>{sentence}</span>
         ))}
         {step.handOff ? <span>{t("agent.card.handOffHint")}</span> : null}
       </p>
+      <IdentifierDetail lines={lines} />
       {readable ? <DefinitionDetail definition={step.args[DEFINITION_ARGUMENT]} /> : null}
       {step.draft === undefined ? null : (
         <ApplyDraftDetail draft={step.draft} id={`${idBase}-${String(index)}`} />
@@ -240,12 +403,45 @@ export function StepItem({
         </p>
       )}
       {view?.revealed === undefined ? null : (
-        <p className="qcms-acard__reveal">
-          <span>{t("agent.card.revealOnce")}</span>
-          <code>{view.revealed}</code>
-        </p>
+        <RevealBlock
+          reveal={view.revealed}
+          formId={typeof step.args["formId"] === "string" ? step.args["formId"] : ""}
+          idBase={idBase}
+          index={index}
+          onDismiss={dismissHandler(onDismissReveal, index)}
+        />
       )}
     </li>
+  );
+}
+
+function argumentLine(line: StepArgumentLine): React.ReactElement {
+  return (
+    <span key={line.name}>
+      {line.label} {line.mono ? <code>{line.value}</code> : <span>{line.value}</span>}
+    </span>
+  );
+}
+
+/* The card names its subject by title; the id behind that title stays reachable for support. */
+function IdentifierDetail({
+  lines,
+}: {
+  readonly lines: readonly StepArgumentLine[];
+}): React.ReactElement | null {
+  const ids = lines.filter((line) => line.id !== undefined);
+  if (ids.length === 0) return null;
+  return (
+    <details className="qcms-acard__ids" data-testid="qcms-acard-ids">
+      <summary>{t("agent.card.ids")}</summary>
+      <p className="qcms-acard__args">
+        {ids.map((line) => (
+          <span key={line.name}>
+            {line.label} <code>{line.id}</code>
+          </span>
+        ))}
+      </p>
+    </details>
   );
 }
 

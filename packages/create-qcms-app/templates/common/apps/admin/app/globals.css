@@ -898,6 +898,42 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
+/* Hold the trailing actions column to the trigger's own width so every row's trigger lines up
+   whatever the cells before it contain. */
+.qcms-table .qcms-cell--actions {
+  inline-size: 44px;
+  padding-inline: var(--space-2);
+  text-align: end;
+}
+.qcms-rowmenu-trigger svg {
+  inline-size: 16px;
+  block-size: 16px;
+}
+
+/* A row names its subject first and carries the address and the id copy below it, so the
+   table loses a column rather than gaining a line of identifiers. */
+.qcms-rowlead {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  align-items: flex-start;
+}
+.qcms-rowlead__name {
+  font-weight: 500;
+}
+.qcms-rowlead__sub {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-inline-size: 0;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+.qcms-rowlead__address {
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
 /* Mark compact-width drops on cells, not positional selectors; the Version column must remain visible. */
 .qcms-cell--drop {
   display: none;
@@ -2856,6 +2892,16 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   background-color: var(--color-ghost-hover);
   color: var(--color-text);
 }
+.qcms-assist-iconbtn__button:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+  background-color: var(--color-ghost-hover);
+  color: var(--color-text);
+}
+.qcms-assist-iconbtn__button[aria-pressed="true"]:not(:disabled) {
+  background-color: var(--color-secondary);
+  color: var(--color-text);
+}
 .qcms-assist-iconbtn__button:disabled {
   cursor: default;
   opacity: 0.45;
@@ -2874,15 +2920,26 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   z-index: 20;
   padding-block-start: 4px;
 }
+/* The panel it sits in can be 320px wide, so the box wraps inside a cap rather than running off the edge. */
 .qcms-assist-iconbtn__bubble {
   display: block;
-  padding: 0.25rem 0.5rem;
-  border-radius: var(--radius-sm);
-  background-color: var(--color-text);
-  color: var(--color-background);
-  font-size: 0.75rem;
-  line-height: 1.3;
-  white-space: nowrap;
+  max-inline-size: 15rem;
+  inline-size: max-content;
+  padding: var(--space-1-5) var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  box-shadow:
+    0 2px 4px hsl(var(--shadow-color) / 0.1),
+    0 12px 24px -12px hsl(var(--shadow-color) / 0.4);
+  font-size: 12px;
+  line-height: 16px;
+  text-align: start;
+}
+:root.hc .qcms-assist-iconbtn__bubble {
+  border-width: 2px;
+  box-shadow: none;
 }
 
 .qcms-assist-md {
@@ -3345,14 +3402,14 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
 .qcms-assistant[data-mode="dock"] {
   position: sticky;
   align-self: start;
-  inset-block-start: var(--admin-topbar-measured, var(--admin-topbar-h));
-  block-size: calc(100dvh - var(--admin-topbar-measured, var(--admin-topbar-h)));
+  inset-block-start: var(--admin-topbar-layout-h, var(--admin-topbar-h));
+  block-size: calc(100dvh - var(--admin-topbar-layout-h, var(--admin-topbar-h)));
 }
 .qcms-assistant__conversation {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
   min-block-size: 0;
-  block-size: 100%;
 }
 .qcms-shell-body:has(> .qcms-assistant[data-mode="dock"]:not([hidden])) {
   display: grid;
@@ -3383,11 +3440,16 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
 .qcms-assistant[data-mode="expanded"],
 .qcms-assistant[data-mode="sheet"] {
   position: fixed;
-  inset-block-start: var(--admin-topbar-measured, var(--admin-topbar-h));
+  inset-block-start: var(--admin-topbar-layout-h, var(--admin-topbar-h));
   inset-block-end: 0;
   inset-inline: 0;
   z-index: 40;
   inline-size: auto;
+}
+/* A modal panel covers the viewport, so the page behind it must not scroll under it. */
+:root:has(.qcms-assistant[data-mode="expanded"]:not([hidden])),
+:root:has(.qcms-assistant[data-mode="sheet"]:not([hidden])) {
+  overflow: hidden;
 }
 .qcms-assistant__edge {
   align-self: stretch;
@@ -3417,10 +3479,13 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
 .qcms-assistant__body {
   padding: 0.75rem;
 }
+/* The conversation is the panel's one scroll container; a second one here would stack scrollbars. */
 .qcms-assistant__body {
+  display: flex;
   flex: 1 1 auto;
+  flex-direction: column;
   min-block-size: 0;
-  overflow-y: auto;
+  overflow: hidden;
 }
 .qcms-assistant__widths {
   display: flex;
@@ -3448,6 +3513,30 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
 .qcms-assistant__turn[data-role="user"] {
   justify-content: flex-end;
 }
+.qcms-assistant__said {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-inline-size: 85%;
+  min-inline-size: 0;
+}
+.qcms-assistant__speaker {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+.qcms-assistant__turn[data-role="user"] .qcms-assistant__speaker {
+  text-align: end;
+}
+.qcms-assistant__bubble {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background-color: var(--color-background-muted);
+}
 .qcms-assistant__segments {
   display: flex;
   flex: 1;
@@ -3457,6 +3546,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
 }
 .qcms-assistant__composer {
   display: flex;
+  flex: none;
   flex-direction: column;
   gap: 0.5rem;
   padding-block-start: 0.75rem;
@@ -3468,6 +3558,11 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   padding: 0.5rem;
   background-color: var(--color-surface);
   color: inherit;
+}
+.qcms-assistant__composer textarea:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+  border-color: var(--color-focus-ring);
 }
 
 .qcms-acard {
@@ -3498,14 +3593,20 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   outline-offset: 2px;
 }
 .qcms-acard__state {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
-  padding: 2px 6px;
+  min-block-size: 20px;
+  padding: 2px 8px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background-color: var(--color-background-muted);
   color: var(--color-text-muted);
   font-size: 12px;
+  line-height: 16px;
   font-weight: 600;
+  text-align: center;
   white-space: nowrap;
 }
 .qcms-acard__state[data-s="running"] {
@@ -3536,11 +3637,17 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
 }
 .qcms-acard__step {
   display: grid;
-  grid-template-columns: 20px 1fr auto;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
   column-gap: var(--space-3);
   row-gap: var(--space-1);
-  padding: var(--space-3) var(--space-4);
+  padding: var(--space-4);
   border-block-end: 1px solid var(--color-border);
+}
+/* Anything a step adds belongs in the text column; without this a new child is auto-placed
+   into the 20px icon track and reads as a squeezed sliver. */
+.qcms-acard__step > * {
+  grid-column: 2 / -1;
+  min-inline-size: 0;
 }
 .qcms-acard__icon {
   grid-column: 1;
@@ -3645,14 +3752,37 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   margin-block-start: var(--space-2);
   font-size: 13px;
 }
+.qcms-acard__ids {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--color-text-muted);
+}
+.qcms-acard__ids summary {
+  min-block-size: 24px;
+  cursor: pointer;
+}
+.qcms-acard__ids summary:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
 .qcms-acard__deflist {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 2px;
   margin: 0;
 }
 .qcms-acard__deflist dd {
+  display: grid;
+  grid-template-columns: minmax(0, 9rem) minmax(0, 1fr);
+  column-gap: var(--space-3);
+  align-items: baseline;
   margin: 0;
+}
+.qcms-acard__deflist dd > * {
+  min-inline-size: 0;
+  overflow-wrap: break-word;
+}
+.qcms-acard__deflist dd > code {
   overflow-wrap: anywhere;
 }
 .qcms-acard__deflist dt:not(:first-child) {
@@ -3736,9 +3866,43 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   margin: var(--space-2) 0 0;
   font-size: 13px;
 }
+.qcms-acard__reveal p {
+  margin: 0;
+}
 .qcms-acard__reveal code {
   font-family: var(--font-mono);
   overflow-wrap: anywhere;
+}
+/* Bound the list so a batch of a hundred addresses scrolls inside the card rather than lengthening
+   the panel into a second scrollbar. */
+.qcms-acard__reveal-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2);
+  max-block-size: 16rem;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-background-muted);
+}
+.qcms-acard__reveal-list:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+.qcms-acard__reveal-list > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+.qcms-acard__reveal-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
 }
 .qcms-acard__band {
   margin: 0;
@@ -3838,6 +4002,18 @@ div:has(> [role="dialog"] [data-qcms-dialog="card"]) {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
+}
+
+.qcms-form-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  overflow-wrap: anywhere;
+}
+.qcms-form-meta > span:not(:first-child)::before {
+  content: "\00b7";
+  padding-inline-end: var(--space-2);
 }
 
 /* Where the breadcrumb row shares the line, the page action sits on it instead of taking a row of its own:

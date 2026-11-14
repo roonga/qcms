@@ -1,0 +1,40 @@
+{
+  "id": "new-patient-form",
+  "name": "agent-review-01-new-patient-form",
+  "goal": "A small clinic wants a form that signs a new patient up: who they are, how to reach them, and why they are coming in.",
+  "mode": "simulated",
+  "brief": "You run Larkmead Clinic, a two-room practice. You have never built a form before and you do not know what the product calls anything. You want to sign new patients up before they arrive: their name, date of birth, a phone number, whether they have been to the clinic before, and the reason for the visit. You care that the phone number is required and that the reason for the visit is a few sentences, not a single line. Answer a clarifying question in the same plain words you asked in. Do not use product vocabulary. Stop once the form exists with those questions on it, even if you are told a further step is coming.",
+  "screen": "/forms",
+  "cards": "confirm",
+  "messages": [
+    {
+      "text": "I run a small clinic and I need a form for signing up a new patient before they come in. Call it Larkmead new patient sign-up. I want their name, their date of birth, a phone number, whether they have been to us before, and a few sentences on the reason for the visit.",
+      "cards": "confirm"
+    }
+  ],
+  "seed": {
+    "reset": "fresh",
+    "requires": "A dev database with no form titled Larkmead new patient sign-up.",
+    "fixtures": "All data is invented: Larkmead Clinic is not a real practice and no scenario sends a real person's details."
+  },
+  "budget": { "turns": 2 },
+  "expect": {
+    "endState": [
+      { "check": "formCount", "titleContains": "larkmead new patient sign-up", "exactly": 1 },
+      { "check": "questionCount", "title": "Larkmead new patient sign-up", "min": 5 },
+      { "check": "notReleased", "title": "Larkmead new patient sign-up", "environment": "test" },
+      {
+        "check": "notReleased",
+        "title": "Larkmead new patient sign-up",
+        "environment": "production"
+      }
+    ],
+    "assistantMust": [
+      "put the questions and the form on one plan, not one plan per question",
+      "name the questions by their titles, in the clinic's own words",
+      "say what it did not do, if anything had to wait",
+      "publish nothing, and say in one sentence that the publish is a second card it will propose next"
+    ]
+  },
+  "notes": "One clarifying question is within budget. Two in a row on the same point is not. Naming the publish card as the next one is right and expected: the prompt has the assistant propose each card itself rather than wait to be asked. Publishing anything here, or asking the person to come back for it, is the failure."
+}

@@ -26,9 +26,11 @@ export {
   CONVERSATION_TURN_CAP,
   isProseTurn,
   promptTurns,
+  waitingProposalTurns,
   type AgentProseTurn,
   type AgentTurnRecord,
   type PromptTurn,
+  type WaitingProposalTurn,
 } from "./conversation-state";
 
 /**

@@ -258,6 +258,8 @@ export const FormListItem = z
     hasDraft: z.boolean().openapi({ example: true }),
     latestVersion: z.number().int().positive().nullable().openapi({ example: 2 }),
     publishedAt: z.iso.datetime().nullable(),
+    /** The open draft's title, else the latest published one's, so a list can name a form. */
+    title: z.unknown(),
   })
   .openapi("FormListItem");
 

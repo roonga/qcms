@@ -17,8 +17,27 @@ export function panel(page: Page): Locator {
   return page.getByTestId("qcms-assistant-panel");
 }
 
+// A card kept on screen only for a reveal nobody has dismissed is not the card under test.
 export function card(page: Page): Locator {
-  return page.locator(".qcms-acard");
+  return page.locator(".qcms-acard:not([data-held])");
+}
+
+export function heldCard(page: Page): Locator {
+  return page.locator(".qcms-acard[data-held]");
+}
+
+export function revealList(scope: Locator): Locator {
+  return scope.getByTestId("qcms-acard-reveal-list");
+}
+
+export function revealedAddresses(scope: Locator): Promise<string[]> {
+  return revealList(scope).locator("code").allInnerTexts();
+}
+
+/** Hiding a reveal asks first, because nothing can show it again; the answer to that question clears it. */
+export async function hideReveal(scope: Locator): Promise<void> {
+  await scope.getByRole("button", { name: "Hide", exact: true }).click();
+  await scope.getByRole("button", { name: "Hide for good", exact: true }).click();
 }
 
 export function cardChip(page: Page): Locator {
@@ -90,6 +109,36 @@ export async function expectWaitingStepStates(page: Page, word: string): Promise
 
 export async function expectStepChips(page: Page, words: readonly string[]): Promise<void> {
   await expect(stepChips(page)).toHaveText([...words]);
+}
+
+async function layout(locator: Locator): Promise<{ x: number; width: number }> {
+  const found = await locator.boundingBox();
+  expect(found, "the element should be laid out").not.toBeNull();
+  return { x: found?.x ?? 0, width: found?.width ?? 0 };
+}
+
+// A step detail auto-placed into the icon track renders as a sliver at the card's left edge.
+export async function expectStepDetailsFillStep(page: Page): Promise<void> {
+  const steps = cardSteps(page);
+  let checked = 0;
+  for (let index = 0; index < (await steps.count()); index += 1) {
+    const step = steps.nth(index);
+    const detail = step.locator(".qcms-acard__definition");
+    if ((await detail.count()) === 0) continue;
+    const detailBox = await layout(detail);
+    const titleBox = await layout(step.locator(".qcms-acard__what"));
+    const stepBox = await layout(step);
+    expect(
+      Math.abs(detailBox.x - titleBox.x),
+      `step ${String(index + 1)} detail should start under the step text`,
+    ).toBeLessThanOrEqual(1);
+    expect(
+      detailBox.width,
+      `step ${String(index + 1)} detail should use the step's width`,
+    ).toBeGreaterThan(stepBox.width * 0.6);
+    checked += 1;
+  }
+  expect(checked, "the card should show at least one step detail").toBeGreaterThan(0);
 }
 
 async function auditedKinds(): Promise<readonly string[]> {

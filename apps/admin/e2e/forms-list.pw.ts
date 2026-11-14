@@ -40,13 +40,35 @@ async function openLibrary(page: Page, extra = ""): Promise<void> {
   await expect(page.getByRole("heading", { name: "Forms", level: 1 })).toBeVisible();
 }
 
+// A row leads with the form's title, so the address comes off the row rather than out of the
+// cell's own text.
 async function listedSlugs(page: Page): Promise<string[]> {
-  const cells = page.getByRole("rowheader");
-  return (await cells.allInnerTexts()).map((text) => text.trim());
+  const rows = page.locator("table[data-testid='qcms-forms-table'] tbody tr");
+  return rows.evaluateAll((elements) =>
+    elements.map((row) => row.getAttribute("data-form-slug") ?? ""),
+  );
 }
 
-// POST creates an empty title; a builder title reaches storage only through a persistable draft's autosave.
-// These fixtures test identity slugs without constructing published questions just to save titles.
+function rowMenuTrigger(page: Page, name: string) {
+  return page.getByRole("button", { name: `Actions for form ${name}` });
+}
+
+function rowMenu(page: Page, name: string) {
+  return page.getByRole("menu", { name: `Actions for form ${name}` });
+}
+
+async function openRowMenu(page: Page, name: string): Promise<void> {
+  const trigger = rowMenuTrigger(page, name);
+  await trigger.click();
+  await expect(trigger).toHaveAttribute("aria-expanded", "true");
+  await expect(rowMenu(page, name)).toBeVisible();
+}
+
+async function formIdOf(page: Page, slug: string): Promise<string> {
+  const id = await page.locator(`tr[data-form-slug="${slug}"]`).getAttribute("data-form-id");
+  expect(id, `a listed row for ${slug}`).toBeTruthy();
+  return id ?? "";
+}
 
 test("creates the library this spec reads, and closes one of its forms", async ({ page }) => {
   test.setTimeout(300_000);
@@ -73,6 +95,90 @@ test("creates the library this spec reads, and closes one of its forms", async (
   await openLibrary(page);
   expect(await listedSlugs(page)).toEqual([ALPHA, BRAVO, CHARLIE]);
 });
+
+test("names each row by its title, with the address under it and the id to copy", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await openLibrary(page);
+
+  await expect(page.getByRole("columnheader", { name: "Form ID" })).toHaveCount(0);
+
+  const row = page.locator(`tr[data-form-slug="${ALPHA}"]`);
+  await expect(row.getByRole("link", { name: "Open form Alpha zebra" })).toBeVisible();
+  await expect(row.locator(".qcms-rowlead__address")).toHaveText(ALPHA);
+  await expect(row.getByRole("button", { name: /^Copy form id frm_/u })).toBeVisible();
+});
+
+test("ends each row with a menu of that form's own screens", async ({ page }) => {
+  test.setTimeout(120_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await openLibrary(page);
+
+  const formId = await formIdOf(page, ALPHA);
+  await openRowMenu(page, "Alpha zebra");
+
+  const menu = rowMenu(page, "Alpha zebra");
+  await expect(menu.getByRole("menuitem")).toHaveCount(3);
+  await expect(menu.getByRole("menuitem", { name: "Form details" })).toHaveAttribute(
+    "href",
+    `/forms/${formId}`,
+  );
+  await expect(menu.getByRole("menuitem", { name: "Preview" })).toHaveAttribute(
+    "href",
+    `/forms/${formId}/preview`,
+  );
+  await expect(menu.getByRole("menuitem", { name: "Links" })).toHaveAttribute(
+    "href",
+    `/operations/forms/${formId}/links`,
+  );
+});
+
+test("opens, walks and closes that menu from the keyboard alone", async ({ page }) => {
+  test.setTimeout(120_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await openLibrary(page);
+
+  const formId = await formIdOf(page, ALPHA);
+  const trigger = rowMenuTrigger(page, "Alpha zebra");
+
+  await trigger.focus();
+  await page.keyboard.press("Enter");
+  const menu = rowMenu(page, "Alpha zebra");
+  await expect(menu).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await expect(menu).toBeHidden();
+  await expect(trigger).toBeFocused();
+
+  await page.keyboard.press("Enter");
+  await expect(menu.getByRole("menuitem", { name: "Form details" })).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(menu.getByRole("menuitem", { name: "Preview" })).toBeFocused();
+  await page.keyboard.press("Enter");
+
+  await expect(page).toHaveURL(new RegExp(`/forms/${formId}/preview$`));
+});
+
+for (const width of [320, 390]) {
+  test(`the row menu opens inside a ${String(width)}px viewport`, async ({ page }) => {
+    test.setTimeout(120_000);
+    await signInWithTotp(page, EMAIL, totpSecret);
+    await page.setViewportSize({ width, height: 900 });
+    await openLibrary(page);
+
+    await openRowMenu(page, "Alpha zebra");
+    await expect(
+      rowMenu(page, "Alpha zebra").getByRole("menuitem", { name: "Links" }),
+    ).toBeVisible();
+
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+      `an open row menu fits ${String(width)} (SC 1.4.10)`,
+    ).toBeLessThanOrEqual(width);
+  });
+}
 
 test("searches the library from the toolbar, and puts the term in the URL", async ({ page }) => {
   test.setTimeout(120_000);

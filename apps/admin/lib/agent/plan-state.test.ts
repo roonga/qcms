@@ -6,9 +6,11 @@ import {
   actionResultTurn,
   cancelCard,
   canConfirm,
+  dismissReveal,
   expireCard,
   firstPendingStep,
   headingChip,
+  holdsReveal,
   initialCard,
   liveLine,
   proposalWindowMs,
@@ -247,5 +249,54 @@ describe("the `action-result` turn (criterion 8)", () => {
   it("is withheld while the card is still waiting or running", () => {
     expect(actionResultTurn(THREE, initialCard(THREE))).toBeUndefined();
     expect(actionResultTurn(THREE, startRun(initialCard(THREE)))).toBeUndefined();
+  });
+});
+
+describe("a reveal the card is holding", () => {
+  const ONE = proposal([step()]);
+  const LINKS = [
+    {
+      linkId: "lnk_a",
+      environment: "test",
+      url: "https://forms.example.test/l/aaa",
+      expiresAt: "2026-11-30T23:59:59.000Z",
+    },
+  ];
+
+  function settled(revealed: string | typeof LINKS): AgentCardView {
+    return settleStep(
+      startRun(initialCard(ONE)),
+      0,
+      ONE.steps[0] as AgentPlanStep,
+      { outcome: "done", result: { count: 1 }, revealed },
+      PROPOSED_AT,
+    );
+  }
+
+  it("carries a list of addresses as readily as a single secret", () => {
+    expect(settled(LINKS).steps[0]?.revealed).toEqual(LINKS);
+    expect(settled("whsec_abc").steps[0]?.revealed).toBe("whsec_abc");
+  });
+
+  it("is what marks the card as one nothing else may sweep away", () => {
+    expect(holdsReveal(settled(LINKS))).toBe(true);
+    expect(holdsReveal(initialCard(ONE))).toBe(false);
+  });
+
+  it("goes when the person dismisses it, and the rest of the step stays", () => {
+    const cleared = dismissReveal(settled(LINKS), 0);
+    expect(cleared.steps[0]?.revealed).toBeUndefined();
+    expect(cleared.steps[0]?.state).toBe("done");
+    expect(cleared.steps[0]?.result).toEqual({ count: 1 });
+    expect(holdsReveal(cleared)).toBe(false);
+  });
+
+  it("is untouched by a dismissal of some other step", () => {
+    const card = settled(LINKS);
+    expect(dismissReveal(card, 1)).toBe(card);
+  });
+
+  it("never reaches the turn the next prompt replays", () => {
+    expect(JSON.stringify(actionResultTurn(ONE, settled(LINKS)))).not.toContain("forms.example");
   });
 });

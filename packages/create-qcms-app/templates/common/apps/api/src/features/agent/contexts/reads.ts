@@ -135,12 +135,33 @@ function missing(ids: readonly string[], from: readonly string[]): readonly stri
   return ids.filter((id) => !held.has(id)).slice(0, FACT_ROW_LIMIT);
 }
 
-function structuralDiff(args: {
+/** A side given as `undefined` does not exist; `reads.test.ts` holds that apart from an empty one. */
+export function structuralDiff(args: {
   readonly from: string;
   readonly to: string;
   readonly before: unknown;
   readonly after: unknown;
 }): FormVersionDiff {
+  const fromFound = args.before !== undefined;
+  const toFound = args.after !== undefined;
+  // A form with no draft at all would otherwise diff as one whose every question was removed.
+  if (!fromFound || !toFound) {
+    return {
+      from: args.from,
+      to: args.to,
+      fromFound,
+      toFound,
+      outcome: "unavailable",
+      identical: null,
+      stepsAdded: null,
+      stepsRemoved: null,
+      questionsAdded: null,
+      questionsRemoved: null,
+      questionsRepinned: null,
+      ruleCountFrom: fromFound ? ruleCountOf(args.before) : null,
+      ruleCountTo: toFound ? ruleCountOf(args.after) : null,
+    };
+  }
   const beforePins = pinsOf(args.before);
   const afterPins = pinsOf(args.after);
   const beforeIds = beforePins.map((pin) => pin.questionId);
@@ -164,9 +185,10 @@ function structuralDiff(args: {
   return {
     from: args.from,
     to: args.to,
-    fromFound: args.before !== undefined,
-    toFound: args.after !== undefined,
-    identical: JSON.stringify(args.before ?? null) === JSON.stringify(args.after ?? null),
+    fromFound,
+    toFound,
+    outcome: "compared",
+    identical: JSON.stringify(args.before) === JSON.stringify(args.after),
     stepsAdded,
     stepsRemoved,
     questionsAdded,
@@ -772,29 +794,40 @@ function memberOf(definition: unknown, name: string): string | null {
   return typeof value === "string" ? value : null;
 }
 
-function questionDiff(
+/** A side given as `undefined` does not exist; `reads.test.ts` holds that apart from an unchanged one. */
+export function questionDiff(
   questionId: string,
   asked: { readonly from: number; readonly to: number },
   before: { readonly status: string; readonly definition: unknown } | undefined,
   after: { readonly status: string; readonly definition: unknown } | undefined,
 ): QuestionVersionDiff {
-  const left = (before?.definition ?? {}) as Record<string, unknown>;
-  const right = (after?.definition ?? {}) as Record<string, unknown>;
+  const fromFound = before !== undefined;
+  const toFound = after !== undefined;
+  const sides = {
+    questionId,
+    from: asked.from,
+    to: asked.to,
+    fromFound,
+    toFound,
+    statusFrom: before?.status ?? null,
+    statusTo: after?.status ?? null,
+    typeFrom: memberOf(before?.definition, "type"),
+    typeTo: memberOf(after?.definition, "type"),
+  };
+  // A version that was never written would otherwise diff as one with nothing changed.
+  if (!fromFound || !toFound) {
+    return { ...sides, outcome: "unavailable", identical: null, changedFields: null };
+  }
+  const left = (before.definition ?? {}) as Record<string, unknown>;
+  const right = (after.definition ?? {}) as Record<string, unknown>;
   const names = [...new Set([...Object.keys(left), ...Object.keys(right)])].sort();
   const changedFields = names.filter(
     (name) => JSON.stringify(left[name] ?? null) !== JSON.stringify(right[name] ?? null),
   );
   return {
-    questionId,
-    from: asked.from,
-    to: asked.to,
-    fromFound: before !== undefined,
-    toFound: after !== undefined,
-    identical: before !== undefined && after !== undefined && changedFields.length === 0,
-    statusFrom: before?.status ?? null,
-    statusTo: after?.status ?? null,
-    typeFrom: memberOf(before?.definition, "type"),
-    typeTo: memberOf(after?.definition, "type"),
+    ...sides,
+    outcome: "compared",
+    identical: changedFields.length === 0,
     changedFields: changedFields.slice(0, FACT_ROW_LIMIT),
   };
 }

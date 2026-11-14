@@ -136,7 +136,7 @@ describe("the version read failing (issue 614)", () => {
     expect.soft(html).toContain("forms.history.versionHeading(7)");
     expect.soft(html).toContain("forms.history.backToHistory");
     expect.soft(html).toContain('href="/forms/frm_one/versions"');
-    expect.soft(html).toContain("forms.builder.formId");
+    expect.soft(html).toContain("ids.copy.form(frm_one)");
     expect.soft(html).toContain("forms.status.open");
   });
 

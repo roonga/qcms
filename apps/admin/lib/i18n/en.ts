@@ -442,7 +442,7 @@ export const messages = {
   "questions.detail.created": "Created",
 
   "questions.detail.deprecatedNote":
-    "This version is deprecated: no new form can pin it. Forms that already pin it keep working exactly as they are, and no answer already collected changes.",
+    "This version is deprecated: no form can start using it. Forms that already use it keep working exactly as they are, and no answer already collected changes.",
 
   "questions.rail.digestOne": "{count} version, v{version} published",
   "questions.rail.digest": "{count} versions, v{version} published",
@@ -459,15 +459,15 @@ export const messages = {
   "questions.action.cancel": "Cancel",
   "questions.confirm.publishTitle": "Publish version {version}?",
   "questions.confirm.publishBody":
-    "Publishing freezes this version's content for good and makes it pinnable by a form. To change anything afterwards you create version {next}, which leaves every form pinned to this one untouched.",
+    "Publishing freezes this version's content for good, so a form can use it. To change anything afterwards you create version {next}, which leaves every form already using this one untouched.",
   "questions.confirm.publishConfirm": "Publish",
   "questions.confirm.newVersionTitle": "Create version {next}?",
   "questions.confirm.newVersionBody":
-    "Version {next} starts as a draft copied from version {version}. Published versions never change, so forms pinned to them are unaffected until someone pins the new one.",
+    "Version {next} starts as a draft copied from version {version}. Published versions never change, so forms using them are unaffected until someone moves a form to the new one.",
   "questions.confirm.newVersionConfirm": "Create draft",
   "questions.confirm.deprecateTitle": "Deprecate version {version}?",
   "questions.confirm.deprecateBody":
-    "Deprecating blocks new pins. Forms already pinned to this version keep working exactly as they are, no collected answer changes, and nothing is deleted: a question is retired, never removed (R6).",
+    "Deprecating stops any form starting to use this version. Forms already using it keep working exactly as they are, no collected answer changes, and nothing is deleted: a question is retired, never removed (R6).",
   "questions.confirm.deprecateConfirm": "Deprecate",
 
   "questions.error.invalidId": "That is not a valid question ID.",
@@ -493,13 +493,16 @@ export const messages = {
   "forms.new": "New form",
 
   "forms.table.label": "Form library",
-  "forms.open": "Open form {slug}",
-  "forms.column.formId": "Form ID",
-  "forms.column.slug": "Slug",
+  /** Built from the painted name so speech input can activate the text the operator sees. */
+  "forms.open": "Open form {name}",
+  /** Name the row's own form: a column of triggers is otherwise a column of identical names. */
+  "forms.rowActions": "Actions for form {name}",
+  "forms.column.form": "Form",
   "forms.column.locale": "Locale",
   "forms.column.status": "Availability",
   "forms.column.draft": "Draft",
   "forms.column.version": "Published",
+  "forms.column.actions": "Row actions",
   "forms.status.open": "Open",
   "forms.status.closed": "Closed",
   "forms.status.unreleased": "Not Released",
@@ -539,7 +542,6 @@ export const messages = {
   "forms.create.submit": "Create form",
   "forms.create.submitting": "Creating the form...",
 
-  "forms.builder.formId": "Form ID",
   "forms.builder.status": "Availability",
   "forms.builder.draftSource.open": "Editing the saved draft.",
   "forms.builder.draftSource.seeded":
@@ -1418,9 +1420,10 @@ export const messages = {
     "1 secure link minted. It is listed below and cannot be shown again.",
   "forms.links.mintedAnnounce.other":
     "{count} secure links minted. They are listed below and cannot be shown again.",
-  "forms.links.copy": "Copy URL",
+  "forms.links.copy": "Copy link",
+  "forms.links.copyNumbered": "Copy link {number}",
   "forms.publicLink.heading": "Public form link",
-  "forms.publicLink.copy": "Copy",
+  "forms.publicLink.copy": "Copy link",
   "forms.publicLink.opensNewTab": "(opens in a new tab)",
   "forms.publicLink.helpLabel": "What is this link?",
 
@@ -1495,6 +1498,7 @@ export const messages = {
   "agent.new": "New conversation",
   "agent.new.announce": "Started a new conversation.",
   "agent.expand": "Expand the assistant",
+  "agent.collapse": "Collapse the assistant",
   "agent.help": "Assistant help",
   "agent.help.shortcut": "Alt+Shift+A opens or focuses the assistant.",
   "agent.close": "Close the assistant",
@@ -1537,6 +1541,8 @@ export const messages = {
   "agent.empty": "Ask about this screen. The assistant explains what is here and takes you to it.",
   "agent.composer": "Ask the assistant",
   "agent.conversationLabel": "Conversation with the assistant",
+  "agent.speaker.you": "You",
+  "agent.speaker.assistant": "Assistant",
   "agent.send": "Send",
   "agent.stop": "Stop",
   "agent.announce.working": "The assistant is working.",
@@ -1580,7 +1586,7 @@ export const messages = {
   "forms.assist.kind.question": "Question",
   "forms.assist.kind.rule": "Rule",
   "forms.assist.newQuestionPending":
-    "New question {questionId}. Accepting creates it as an unpublished draft in the question library. Publish it there before you publish this form.",
+    "{question} is a new question. Accepting adds it to the question library, not published yet. Publish it there before you publish this form.",
   "forms.assist.definition.question": "Question",
   "forms.assist.definition.questionId": "Id",
   "forms.assist.definition.type": "Type",
@@ -1593,55 +1599,58 @@ export const messages = {
   "forms.assist.definition.other": "Other fields",
   "forms.assist.definition.raw": "Show the whole definition",
   "forms.assist.newQuestionFromStep":
-    "New question {questionId}, created by step {step} of this plan as an unpublished draft version. Publish it from the question library before you publish this form.",
+    "{question} is a new question, added to the library by step {step} of this plan and not published yet. Publish it from the question library before you publish this form.",
 
   /** Action-card consequences must mirror ordinary dialog consequences and come only from registered catalog templates, never model prose. */
-  "agent.card.planTitle.one": "1 step",
-  "agent.card.planTitle.other": "Plan · {count} steps",
+  "agent.card.planTitle.one": "{subject}: 1 step",
+  "agent.card.planTitle.other": "{subject}: {count} steps",
   "agent.card.stepsLabel": "The steps this plan runs, in order",
+  /** A step naming no title of its own still has to read as a sentence about something. */
+  "agent.card.subject.form": "this form",
+  "agent.card.subject.question": "this question",
 
   "agent.card.reasonLabel": "Reason",
 
-  "agent.card.question.create.title": "Create the question {slug} in the library",
+  "agent.card.question.create.title": "Add the question {question} to the library",
   "agent.card.question.create.consequence":
-    "The question and its draft v1 are created. Its id is minted once and never changes. No form serves it until the version is published and a form's draft pins it.",
-  "agent.card.question.saveDraft.title": "Save draft v{version} of {questionId}",
+    "Adds the question to the library as version 1, not published yet. No form shows it to anyone until you publish that version and a form uses it.",
+  "agent.card.question.saveDraft.title": "Save version {version} of the question {question}",
   "agent.card.question.saveDraft.consequence":
-    "The draft's definition is replaced by the one on this card. A published or deprecated version is refused instead: published content never changes.",
-  "agent.card.question.publish.title": "Publish v{version} of {questionId}",
+    "Replaces what this version says with the wording on this card. It works only while that version is not published yet: a published version never changes, so the save is refused instead.",
+  "agent.card.question.publish.title": "Publish version {version} of the question {question}",
   "agent.card.question.publish.consequence":
-    "This version's content is frozen for good and becomes pinnable. A form's draft that pins it stops reporting an unpublished pin.",
-  "agent.card.question.deprecate.title": "Deprecate v{version} of {questionId}",
+    "Freezes this version's wording for good, so a form can use it. A form that already uses it stops reporting that the question is not published yet.",
+  "agent.card.question.deprecate.title": "Deprecate version {version} of the question {question}",
   "agent.card.question.deprecate.consequence":
-    "No new form draft can pin this version. Every form already pinned to it keeps serving it, untouched.",
-  "agent.card.question.newVersion.title": "Open a new draft version of {questionId}",
+    "No form can start using this version. Every form already using it keeps working, untouched.",
+  "agent.card.question.newVersion.title": "Start a new version of the question {question}",
   "agent.card.question.newVersion.consequence":
-    "A new draft is seeded from the latest version. Nothing published changes, and no form moves to it until a draft pins it.",
-  "agent.card.form.create.title": "Create the form {slug}",
+    "Starts a new version, copied from the latest one and not published yet. Nothing published changes, and no form moves to it until a form uses it.",
+  "agent.card.form.create.title": "Create the {form} form",
   "agent.card.form.create.consequence":
-    "The form and an empty first draft are created. Its id is minted from the slug once and never changes, and no respondent can reach it until it is published and released.",
+    "Creates the form and its first empty draft. The address below is fixed when the form is created and cannot be changed afterwards. Nobody can answer the form until you publish it and release it.",
   "agent.card.form.publish.title":
-    "Publish {formId} as a new version and release it to {environment}",
+    "Publish {form} as a new version and release it to {environment}",
   "agent.card.form.publish.consequence":
-    "The working draft becomes an immutable version, and that version is released to {environment} in the same act. Respondents starting from now get it there.",
-  "agent.card.form.release.title": "Release version {version} of {formId} to {environment}",
+    "Freezes the working draft as a version that never changes, and releases that version to {environment} in the same step. Anyone starting from now gets it there.",
+  "agent.card.form.release.title": "Release version {version} of {form} to {environment}",
   "agent.card.form.release.consequence":
-    "Respondents starting from now get this version in {environment}.",
-  "agent.card.apply-draft.title": "Apply the proposed draft to {formId}",
+    "Anyone starting from now gets this version in {environment}.",
+  "agent.card.apply-draft.title": "Put the proposed changes into the {form} draft",
   "agent.card.apply-draft.consequence":
-    "The working draft is replaced by the one below. It publishes nothing and releases nothing: respondents see no change until this form is published.",
+    "Replaces the working draft with the one below. It publishes nothing and releases nothing: nobody answering the form sees a change until you publish it.",
   "agent.card.apply-draft.provenance":
-    "The draft is marked as carrying agent-assisted changes, and keeps that mark until it is published.",
-  "agent.card.form.saveDraft.title": "Save the draft of {formId}",
+    "The draft is marked as carrying assistant-written changes, and keeps that mark until it is published.",
+  "agent.card.form.saveDraft.title": "Save the draft of {form}",
   "agent.card.form.saveDraft.consequence":
-    "The form's working draft is replaced by the one below, through the same save the builder uses. It publishes nothing and releases nothing: respondents see no change until this form is published.",
-  "agent.card.form.settings.title": "Change the form settings of {formId}",
+    "Replaces the form's working draft with the one below, through the same save the builder uses. It publishes nothing and releases nothing: nobody answering the form sees a change until you publish it.",
+  "agent.card.form.settings.title": "Change the settings of {form}",
   "agent.card.form.settings.consequence":
-    "Abuse controls for this form. They apply the next time it is published.",
-  "agent.card.form.close.title": "Close {formId} to new responses in {environment}",
+    "Abuse controls for this form. They take effect the next time it is published.",
+  "agent.card.form.close.title": "Close {form} to new responses in {environment}",
   "agent.card.form.close.consequence":
-    "No one can start a new response to this form in {environment} after it closes. Every other environment is unaffected: a test run keeps going if one is under way. Responses already in progress here keep going too and finish on the version they started on; their answers are unaffected.",
-  "agent.card.form.reopen.title": "Reopen {formId} in {environment}",
+    "Nobody can start answering this form in {environment} after it closes. Every other environment is unaffected: a test run keeps going if one is under way. Responses already in progress here keep going too and finish on the version they started on; their answers are unaffected.",
+  "agent.card.form.reopen.title": "Reopen {form} in {environment}",
   "agent.card.form.reopen.consequence":
     "New responses can start in {environment} again, on the version released there.",
   "agent.card.webhook.create.title": "Add a delivery endpoint at {url}",
@@ -1664,9 +1673,14 @@ export const messages = {
   "agent.card.webhook.redeliver.title": "Redeliver {deliveryId}",
   "agent.card.webhook.redeliver.consequence":
     "The delivery is reset to due-now and the worker attempts it again.",
-  "agent.card.link.mint.title": "Mint {count} respondent links for {formId}",
+  "agent.card.link.mint.title": "Create test links for this form",
+  "agent.card.link.mint.title.one": "Create 1 test link for this form",
+  "agent.card.link.mint.title.other": "Create {count} test links for this form",
+  "agent.card.link.mint.title.prod": "Create respondent links for this form",
+  "agent.card.link.mint.title.prod.one": "Create 1 respondent link for this form",
+  "agent.card.link.mint.title.prod.other": "Create {count} respondent links for this form",
   "agent.card.link.mint.consequence":
-    "Each link opens this form for one respondent. The URLs are shown to you once and cannot be read again.",
+    "Each link lets one person open and answer this form. The web addresses are shown to you once, on this card, and cannot be read again.",
   "agent.card.response.erase.title": "Erase the respondent data for {sessionId}",
   "agent.card.response.erase.consequence":
     "The answers and the submission are deleted. There is no undo, no archive and no restore.",
@@ -1709,15 +1723,17 @@ export const messages = {
   "agent.card.fromStepShort": "step {step}'s {field}",
 
   "agent.card.openCreated": "Open what this created",
+  /** Ids are support detail, not the subject of a sentence; the card names its subject by title. */
+  "agent.card.ids": "Identifiers",
   "agent.card.arg.formId": "Form",
-  "agent.card.arg.slug": "Slug",
+  "agent.card.arg.slug": "Address",
   "agent.card.arg.questionId": "Question",
   "agent.card.arg.definition": "Definition",
-  "agent.card.arg.defaultLocale": "Authoring locale",
+  "agent.card.arg.defaultLocale": "Language you write in",
   "agent.card.arg.label": "Label",
   "agent.card.arg.count": "How many",
   "agent.card.arg.expiresAt": "Stops working",
-  "agent.card.arg.oneTime": "One respondent each",
+  "agent.card.arg.oneTime": "One person each",
   "agent.card.arg.version": "Version",
   "agent.card.arg.environment": "Environment",
   "agent.card.arg.fromEnvironment": "Promoted from",
@@ -1770,6 +1786,23 @@ export const messages = {
   "agent.card.band.irreversible":
     "This cannot be undone. Nothing here is archived and nothing can be restored.",
   "agent.card.revealOnce": "Shown once, here only:",
+  "agent.card.reveal.links.one": "1 address, shown once",
+  "agent.card.reveal.links.other": "{count} addresses, shown once",
+  "agent.card.reveal.links.note":
+    "Copy or download these now. The server keeps a link's state, never its address, so they cannot be shown again.",
+  /** Number the control, never name the address: this label is read aloud and a bearer address must not be. */
+  "agent.card.reveal.copy": "Copy link",
+  "agent.card.reveal.copyNumbered": "Copy link {number}",
+  "agent.card.reveal.csv": "Download all as CSV",
+  "agent.card.reveal.dismiss": "Hide",
+  "agent.card.reveal.dismissHint.one":
+    "Hiding this clears it from the card, and it cannot be shown again.",
+  "agent.card.reveal.dismissHint.other":
+    "Hiding these clears them from the card, and they cannot be shown again.",
+  "agent.card.reveal.dismissAsk.one": "Hide this? It cannot be shown again.",
+  "agent.card.reveal.dismissAsk.other": "Hide these? They cannot be shown again.",
+  "agent.card.reveal.dismissKeep": "Keep showing",
+  "agent.card.reveal.dismissFinal": "Hide for good",
   "agent.card.typed.label": "Type the session id to confirm",
   "agent.card.typed.hint": "Type {value} exactly.",
   "agent.card.confirm": "Confirm",
@@ -1822,7 +1855,7 @@ export const messages = {
     "The model provider refused this request, and trying again will not help. Check the provider account and the assistant settings for this deployment.",
 
   "forms.assist.error.NO_PROPOSAL":
-    "This reply has no proposal, so there is nothing to accept. To get one, describe a change to this form's steps, questions or rules.",
+    "The assistant left you nothing to confirm and nothing to read. Try describing what you want changed.",
   "forms.assist.error.REFUSED": "The assistant declined that request. {message}",
   "forms.assist.error.LENGTH":
     "The assistant's reply was cut off before it could finish. Try again.",
@@ -2416,7 +2449,7 @@ export const messages = {
   "membership.agentAudit.act.form.settings": "Changed a form's abuse settings",
   "membership.agentAudit.act.form.close": "Closed a form to new responses",
   "membership.agentAudit.act.form.reopen": "Reopened a form",
-  "membership.agentAudit.act.link.mint": "Minted respondent links",
+  "membership.agentAudit.act.link.mint": "Created respondent links",
   "membership.agentAudit.act.link.revoke": "Revoked a respondent link",
   "membership.agentAudit.act.response.erase": "Erased a respondent's data",
   "membership.agentAudit.act.response.unflag": "Released a withheld submission",

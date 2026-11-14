@@ -19,15 +19,19 @@ import {
   CONVERSATION_TURN_CAP,
   isProseTurn,
   promptTurns,
+  waitingProposalTurns,
   type AgentTurnRecord,
   type ConversationHandle,
+  type WaitingProposalTurn,
 } from "@/lib/agent/conversation";
 import { screenIdentity, type ResolvedScreen } from "@/lib/agent/screens";
 import {
   actionResultTurn,
   cancelCard,
+  dismissReveal,
   expireCard,
   firstPendingStep,
+  holdsReveal,
   initialCard,
   requestStop,
   showsMarker,
@@ -42,7 +46,7 @@ import {
   type ProposalWindow,
 } from "@/lib/agent/proposal-window";
 import { runPlan } from "@/lib/agent/runner";
-import { stepTitle } from "@/lib/agent/card-copy";
+import { displayText, planNames, stepTitle } from "@/lib/agent/card-copy";
 import { useProposalSeam } from "@/lib/agent/waiting";
 import { errorForResponse, messageForError, type AssistError } from "@/lib/forms/assist-errors";
 import { readAssistEvents, type AgentProposal, type AssistEvent } from "@/lib/forms/assist-stream";
@@ -53,6 +57,15 @@ import { runStepAction } from "./step-actions";
 /* Room for the card's own flattener to cut on a word boundary: a hard cut here would strand a
    half word no later pass could repair. The card quotes REASON_CHARS of what this keeps. */
 const REASON_SOURCE_CHARS = 4 * REASON_CHARS;
+
+/* The builder holds the open draft's title, so a card about that form can name it. */
+function builderNames(
+  builder: BuilderAssistSnapshot | undefined,
+): ReadonlyMap<string, string> | undefined {
+  const draft = builder?.draft;
+  const title = draft === undefined ? undefined : displayText(draft.title);
+  return draft === undefined || title === undefined ? undefined : new Map([[draft.formId, title]]);
+}
 
 function handOffFields(args: Readonly<Record<string, unknown>>): Readonly<Record<string, string>> {
   const fields: Record<string, string> = {};
@@ -70,6 +83,28 @@ function continuesAfterAccept(plan: AgentProposal): boolean {
 function ranCleanly(settled: AgentCardView): boolean {
   return settled.steps.length > 0 && settled.steps.every((step) => step.state === "done");
 }
+
+interface OneCard {
+  readonly proposal: AgentProposal;
+  readonly card: AgentCardView;
+}
+
+/* `held` are settled cards kept on screen for a reveal alone, because a one-time value the next
+   proposal swept away could not be shown again. */
+interface CardsView {
+  readonly open: OneCard | undefined;
+  readonly held: readonly OneCard[];
+}
+
+const NO_CARDS: CardsView = { open: undefined, held: [] };
+
+function noop(): void {
+  return undefined;
+}
+
+/* Fractional line heights leave a pixel or two at the foot of a list that is scrolled all the way
+   down, so "at the bottom" is a band rather than an equality. */
+const BOTTOM_SLACK_PX = 16;
 
 import {
   applyTurnEvent,
@@ -140,9 +175,11 @@ function ScreenConversation({
   const [shown, setShown] = useState<readonly ShownTurn[]>(() => restored(conversation.turns));
   const [live, setLive] = useState<AssistantTurnView | undefined>(undefined);
   const [failure, setFailure] = useState<AssistError | undefined>(undefined);
-  const [proposal, setProposal] = useState<AgentProposal | undefined>(undefined);
   const [reason, setReason] = useState("");
-  const [card, setCard] = useState<AgentCardView | undefined>(undefined);
+  const [cards, setCards] = useState<CardsView>(NO_CARDS);
+  const cardsRef = useRef<CardsView>(NO_CARDS);
+  const proposal = cards.open?.proposal;
+  const card = cards.open?.card;
   const abortRef = useRef<AbortController | null>(null);
   const stoppedRef = useRef(false);
   const windowRef = useRef<ProposalWindow>({ startedAt: 0, totalMs: 0 });
@@ -150,6 +187,16 @@ function ScreenConversation({
   const publish = seam?.publish;
   const requestHandOff = seam?.requestHandOff;
   const cardId = useId();
+  const turnsRef = useRef<HTMLOListElement>(null);
+  const followsNewest = useRef(true);
+
+  // A reader who has scrolled back through the conversation keeps their place; everyone else is held
+  // at the newest turn as it streams, which is otherwise written below the fold.
+  useEffect(() => {
+    const list = turnsRef.current;
+    if (list === null || !followsNewest.current) return;
+    list.scrollTop = list.scrollHeight;
+  }, [cards, live, shown]);
 
   useEffect(() => {
     if (publish === undefined) return;
@@ -165,14 +212,66 @@ function ScreenConversation({
     const control = step.card.headingControl;
     publish({
       cardId,
-      summary: stepTitle(step, {}),
+      summary: stepTitle(step, {}, proposal.steps, planNames(proposal)),
       ...(control === undefined ? {} : { control }),
     });
   }, [card, cardId, proposal, publish]);
 
-  const onExpire = useCallback(() => {
-    setCard((current) => (current === undefined ? current : expireCard(current)));
+  /* An arriving proposal settles the card it replaces, so that decision reads the cards as the running
+     stream left them: the render a turn started in still holds the card from before it. */
+  const changeCards = useCallback((next: (current: CardsView) => CardsView): void => {
+    cardsRef.current = next(cardsRef.current);
+    setCards(cardsRef.current);
   }, []);
+
+  const showCard = useCallback(
+    (next: AgentCardView) => {
+      changeCards((current) =>
+        current.open === undefined
+          ? current
+          : { ...current, open: { ...current.open, card: next } },
+      );
+    },
+    [changeCards],
+  );
+
+  const dismissOpenReveal = useCallback(
+    (index: number) => {
+      changeCards((current) =>
+        current.open === undefined
+          ? current
+          : {
+              ...current,
+              open: { ...current.open, card: dismissReveal(current.open.card, index) },
+            },
+      );
+    },
+    [changeCards],
+  );
+
+  const dismissHeldReveal = useCallback(
+    (proposalId: string, index: number) => {
+      changeCards((current) => ({
+        ...current,
+        held: current.held
+          .map((entry) =>
+            entry.proposal.proposalId === proposalId
+              ? { ...entry, card: dismissReveal(entry.card, index) }
+              : entry,
+          )
+          .filter((entry) => holdsReveal(entry.card)),
+      }));
+    },
+    [changeCards],
+  );
+
+  const onExpire = useCallback(() => {
+    changeCards((current) =>
+      current.open === undefined
+        ? current
+        : { ...current, open: { ...current.open, card: expireCard(current.open.card) } },
+    );
+  }, [changeCards]);
   const waiting = card?.state === "proposed";
   useExpiryTick(windowRef.current, waiting, onExpire);
 
@@ -199,22 +298,26 @@ function ScreenConversation({
     [],
   );
 
-  const settle = (plan: AgentProposal, settled: AgentCardView): void => {
-    setCard(settled);
+  const record = (plan: AgentProposal, settled: AgentCardView): void => {
     const turn = actionResultTurn(plan, settled);
     if (turn !== undefined) conversation.append([turn]);
+  };
+
+  const settle = (plan: AgentProposal, settled: AgentCardView): void => {
+    showCard(settled);
+    record(plan, settled);
   };
 
   const confirmCard = async (plan: AgentProposal, from: AgentCardView): Promise<void> => {
     // Subscribe before running: the accept's own save is the event being awaited.
     const saved = continuesAfterAccept(plan) ? nextDraftSaved() : undefined;
     const started = startRun(from);
-    setCard(started);
+    showCard(started);
     const settled = await runPlan({
       proposal: plan,
       card: started,
       runStep: runStepAction,
-      onChange: setCard,
+      onChange: showCard,
       onHandOff: (step, _index, args) => {
         const control = step.card.headingControl;
         if (control === undefined || requestHandOff === undefined) return;
@@ -226,13 +329,14 @@ function ScreenConversation({
     settle(plan, settled);
     if (saved === undefined || !ranCleanly(settled)) return;
     const token = await saved;
-    if (token !== undefined) await runTurn(undefined, token);
+    if (token !== undefined) await runTurn(undefined, token, []);
   };
 
   const postTurn = (
     on: ResolvedScreen,
     signal: AbortSignal,
-    savedDraft?: string,
+    savedDraft: string | undefined,
+    waitingCard: readonly WaitingProposalTurn[],
   ): Promise<Response> => {
     const draftUpdatedAt = savedDraft ?? builder?.draftUpdatedAt;
     return fetch(builder?.endpoint ?? "/assist", {
@@ -240,7 +344,7 @@ function ScreenConversation({
       headers: { "content-type": "application/json" },
       signal,
       body: JSON.stringify({
-        conversation: promptTurns(conversation.current()),
+        conversation: [...promptTurns(conversation.current()), ...waitingCard],
         screen: on.screen,
         params: on.params,
         conversationId: conversation.id,
@@ -252,10 +356,25 @@ function ScreenConversation({
 
   const absorb = (event: AssistEvent): void => {
     if (event.type === "action" || event.type === "plan") {
-      setProposal(event.proposal);
-      windowRef.current = startedWindow(event.proposal);
+      const arriving = event.proposal;
+      windowRef.current = startedWindow(arriving);
       boundTo.current = { where, environment };
-      setCard(initialCard(event.proposal));
+      const replaced = cardsRef.current.open;
+      // A card still waiting cannot be confirmed once this one takes its place, which is a cancellation
+      // and is recorded as one rather than left as a card that disappeared.
+      const abandoned =
+        replaced !== undefined && replaced.card.state === "proposed"
+          ? cancelCard(replaced.card, new Date().toISOString())
+          : undefined;
+      // A reveal cannot be produced again, so the card holding one stays until the person says otherwise.
+      changeCards((current) => ({
+        held:
+          current.open !== undefined && holdsReveal(current.open.card)
+            ? [...current.held, current.open]
+            : current.held,
+        open: { proposal: arriving, card: initialCard(arriving) },
+      }));
+      if (replaced !== undefined && abandoned !== undefined) record(replaced.proposal, abandoned);
       onAnnounce(t("agent.launcher.toReview"));
       return;
     }
@@ -263,7 +382,11 @@ function ScreenConversation({
     if (event.type === "error") setFailure({ kind: event.code, message: event.message });
   };
 
-  const runTurn = async (message: string | undefined, savedDraft?: string): Promise<void> => {
+  const runTurn = async (
+    message: string | undefined,
+    savedDraft: string | undefined,
+    waitingCard: readonly WaitingProposalTurn[],
+  ): Promise<void> => {
     if (screen === undefined || live !== undefined) return;
     setFailure(undefined);
     if (message !== undefined) {
@@ -279,7 +402,7 @@ function ScreenConversation({
     stoppedRef.current = false;
 
     try {
-      const response = await postTurn(screen, controller.signal, savedDraft);
+      const response = await postTurn(screen, controller.signal, savedDraft, waitingCard);
       if (!response.ok || response.body === null) {
         const failed = await errorForResponse(response);
         setFailure(failed);
@@ -317,7 +440,10 @@ function ScreenConversation({
     const message = value.trim();
     if (message === "" || screen === undefined || live !== undefined) return;
     setValue("");
-    await runTurn(message);
+    followsNewest.current = true;
+    // Read here rather than in the post: only the browser knows a card is still on screen,
+    // and a model that is not told reads a conversation in which it proposed nothing.
+    await runTurn(message, undefined, waitingProposalTurns(waiting ? proposal : undefined));
   };
 
   return (
@@ -334,11 +460,22 @@ function ScreenConversation({
         data-testid="qcms-assistant-turns"
         tabIndex={0}
         aria-label={t("agent.conversationLabel")}
+        ref={turnsRef}
+        onScroll={(event) => {
+          const list = event.currentTarget;
+          followsNewest.current =
+            list.scrollHeight - list.scrollTop - list.clientHeight <= BOTTOM_SLACK_PX;
+        }}
       >
         {shown.map((turn, index) =>
           turn.role === "user" ? (
             <li key={`user-${String(index)}`} className="qcms-assistant__turn" data-role="user">
-              <AssistMarkdown text={turn.content} />
+              <div className="qcms-assistant__said">
+                <p className="qcms-assistant__speaker">{t("agent.speaker.you")}</p>
+                <div className="qcms-assistant__bubble">
+                  <AssistMarkdown text={turn.content} />
+                </div>
+              </div>
             </li>
           ) : (
             <li
@@ -348,6 +485,7 @@ function ScreenConversation({
             >
               <AssistMark size={20} />
               <div className="qcms-assistant__segments">
+                <p className="qcms-assistant__speaker">{t("agent.speaker.assistant")}</p>
                 {turn.view.segments.map((segment, at) => (
                   <Segment key={`${segment.kind}:${String(at)}`} segment={segment} />
                 ))}
@@ -364,6 +502,7 @@ function ScreenConversation({
           >
             <AssistMark size={20} working />
             <div className="qcms-assistant__segments">
+              <p className="qcms-assistant__speaker">{t("agent.speaker.assistant")}</p>
               {live.segments.length === 0 ? (
                 <p>
                   {t("forms.assist.working")}
@@ -385,17 +524,40 @@ function ScreenConversation({
             </div>
           </li>
         )}
+        {cards.held.map((entry) => (
+          <li
+            key={`held-${entry.proposal.proposalId}`}
+            className="qcms-assistant__turn"
+            data-role="assistant"
+          >
+            <ActionCard
+              id={`${cardId}-held-${entry.proposal.proposalId}`}
+              proposal={entry.proposal}
+              card={entry.card}
+              held
+              remainingMs={0}
+              onConfirm={noop}
+              onCancel={noop}
+              onStop={noop}
+              onDismissReveal={(index) => {
+                dismissHeldReveal(entry.proposal.proposalId, index);
+              }}
+            />
+          </li>
+        ))}
         {proposal !== undefined && card !== undefined && (
           <li className="qcms-assistant__turn" data-role="assistant">
             <ActionCard
               id={cardId}
               proposal={proposal}
               card={card}
+              names={builderNames(builder)}
               reason={reason}
               remainingMs={remainingWindowMs(windowRef.current, monotonicNow())}
               onConfirm={() => void confirmCard(proposal, card)}
               onCancel={() => settle(proposal, cancelCard(card, new Date().toISOString()))}
-              onStop={() => setCard(requestStop(card))}
+              onStop={() => showCard(requestStop(card))}
+              onDismissReveal={dismissOpenReveal}
             />
           </li>
         )}

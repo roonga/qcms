@@ -11,6 +11,7 @@ import {
   createdLink,
   expectAxeClean,
   expectStepChips,
+  expectStepDetailsFillStep,
   expectWaitingStepStates,
   openPanel,
   propose,
@@ -106,6 +107,7 @@ test("confirms two creates inside one plan", async ({ page }) => {
 
   const before = await auditTally();
   await propose(page, "plan-questions-create", `add two #qcms-fake-new:${PLANNED}`);
+  await expectStepDetailsFillStep(page);
   await confirm(page, /^Done\. All 2 steps ran/u);
   await expectStepChips(page, ["Done", "Done"]);
   await expectAxeClean(page, "done plan");

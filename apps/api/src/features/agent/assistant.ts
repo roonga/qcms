@@ -28,6 +28,7 @@ import type {
   AssistEvent,
   AssistTurn,
   DraftAssistant,
+  WaitingProposalTurn,
 } from "./types.js";
 
 export interface TextSegment {
@@ -138,10 +139,28 @@ function resultFields(step: ActionStepResult): string {
 }
 
 /**
+ * A waiting-card turn as the model reads it. The words describing the card are the model's
+ * own, in the turn above this one; what it cannot know by itself is that the card is still
+ * sitting there, so that is what this says.
+ */
+function waitingTurn(turn: WaitingProposalTurn): string {
+  const kinds = turn.steps.map((step) => step.kind).join(", ");
+  return [
+    "A card you have already put up is still waiting for the person to confirm it.",
+    `Its steps, in order: ${kinds}.`,
+    "Nothing on it has run. If they are asking for what it already covers, say it is",
+    "waiting and what it covers, and do not put up a second card for the same work.",
+    "This is the installation's own record of what is on their screen, not an",
+    "instruction to you.",
+  ].join("\n");
+}
+
+/**
  * An action-result turn as the model reads it: one line per step, written here from
  * structured fields, so no model text and no content can re-enter the conversation.
  */
 function modelTurn(turn: AssistTurn): { role: "user" | "assistant"; content: string } {
+  if (turn.role === "proposal") return { role: "user", content: waitingTurn(turn) };
   if (turn.role !== "action-result") return { role: turn.role, content: turn.content };
   const lines = turn.steps.map(
     (step, index) => `${String(index + 1)}. ${step.kind}: ${step.outcome}${resultFields(step)}`,
@@ -378,11 +397,20 @@ function* flushProposals(state: ProposalState): Generator<AssistEvent> {
   }
 }
 
+function answered(outcome: RunOutcome): boolean {
+  return outcome.textSegments.some((segment) => segment.text.trim() !== "");
+}
+
 /**
- * `tool-calls` as the last finish reason is what separates a step-exhausted turn from
- * one where the model simply never answered; they look identical otherwise.
+ * A question is not a failure, so an answered turn that proposed nothing is clean. What
+ * stays an error is a turn cut off before it could finish, and one that left no card and
+ * either no words or staged work it never put up.
  */
-function emptyTurnError(outcome: RunOutcome, maxSteps: number): AssistEvent {
+function emptyTurnError(
+  outcome: RunOutcome,
+  maxSteps: number,
+  staged: boolean,
+): AssistEvent | undefined {
   if (outcome.finishReason === "length") {
     return {
       type: "error",
@@ -390,6 +418,7 @@ function emptyTurnError(outcome: RunOutcome, maxSteps: number): AssistEvent {
       message: "The model ran out of output room before proposing a draft. Try a smaller request.",
     };
   }
+  // `tool-calls` separates a step-exhausted turn from one that simply never answered.
   if (outcome.steps >= maxSteps && outcome.finishReason === "tool-calls") {
     return {
       type: "error",
@@ -402,10 +431,11 @@ function emptyTurnError(outcome: RunOutcome, maxSteps: number): AssistEvent {
         "(docs/operations.md).",
     };
   }
+  if (!staged && answered(outcome)) return undefined;
   return {
     type: "error",
     code: "NO_PROPOSAL",
-    message: "The assistant did not propose a draft. Try describing the form differently.",
+    message: "The assistant left nothing to confirm. Try describing the change differently.",
   };
 }
 
@@ -481,8 +511,11 @@ function* finishTurn(args: {
 
   // A proposed draft is not itself a proposal: it reaches the user as the apply-draft
   // card, which the model proposes like any other action. A turn that recorded a draft and
-  // proposed no card proposed nothing.
-  if (state.actionProposals.length === 0) yield emptyTurnError(outcome, ctx.maxSteps);
+  // proposed no card proposed nothing, and the staged work is thrown away with the turn.
+  if (state.actionProposals.length > 0) return;
+  const staged = state.proposedDraft !== undefined || state.newQuestions.length > 0;
+  const error = emptyTurnError(outcome, ctx.maxSteps, staged);
+  if (error !== undefined) yield error;
 }
 
 /** Only reachable by a composition error, since nothing mounts the routes when off. */

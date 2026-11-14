@@ -48,7 +48,7 @@ export default async function FormRulesPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <FormPageHeader formId={form.formId} section="rules" status={form.status} />
+      <FormPageHeader formId={form.formId} section="rules" form={form} />
 
       {!library.ok && (
         <Alert variant="warning">

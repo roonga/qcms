@@ -6,6 +6,7 @@ import {
   atSubject,
   parseConversation,
   promptTurns,
+  waitingProposalTurns,
   serializeConversation,
   startConversation,
   type AgentTurnRecord,
@@ -94,6 +95,31 @@ describe("the history a turn replays", () => {
         steps: [{ kind: "form.publish", outcome: "done" }],
       },
     ]);
+  });
+});
+
+describe("the card a turn says is waiting", () => {
+  it("carries the step kinds and nothing the card displays", () => {
+    expect(
+      waitingProposalTurns({
+        proposalId: "prp_1",
+        steps: [
+          { kind: "form.create", title: { en: "Patient onboarding" } },
+          { kind: "form.saveDraft" },
+        ] as unknown as readonly { readonly kind: string }[],
+      }),
+    ).toEqual([
+      {
+        role: "proposal",
+        proposalId: "prp_1",
+        steps: [{ kind: "form.create" }, { kind: "form.saveDraft" }],
+      },
+    ]);
+  });
+
+  it("says nothing when no card is waiting", () => {
+    expect(waitingProposalTurns(undefined)).toEqual([]);
+    expect(waitingProposalTurns({ proposalId: "prp_1", steps: [] })).toEqual([]);
   });
 });
 
