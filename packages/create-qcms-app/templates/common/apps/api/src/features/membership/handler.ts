@@ -198,10 +198,7 @@ async function validateGroup(
   return { roles: input.roles, environments: normaliseEnvironmentSet(input.environments, live) };
 }
 
-/**
- * Why this change is a self-grant the second-approver rule refuses, or `undefined`. Until
- * the approval request lands it is an outright refusal, as the work order's interim says.
- */
+/** Whether the second-approver rule refuses this change as a self-grant. */
 function refuseSelfGrant(input: {
   readonly actorHolds: boolean;
   readonly requireSecondApprover: boolean;
