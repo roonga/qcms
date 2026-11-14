@@ -24,9 +24,7 @@ describe("classifyBootstrap", () => {
       classifyBootstrap({
         status: 0,
         stdout:
-          'Promoted the existing account for dev@qcms.test to Site administrator.
-This account owns the workspace "main".
-',
+          'Promoted the existing account for dev@qcms.test to Site administrator.\nThis account owns the workspace "main".\n',
         stderr: "",
       }),
     ).toBe("promoted");

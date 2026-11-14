@@ -309,8 +309,7 @@ describe("devStackBannerLines", () => {
       credentials: { email: "dev@qcms.test", password: "dev-secret-value" },
       inContainer: false,
       promoted: true,
-    }).join("
-");
+    }).join("\n");
     expect(promoted).not.toContain("dev-secret-value");
     expect(promoted).toContain("existing password");
   });
