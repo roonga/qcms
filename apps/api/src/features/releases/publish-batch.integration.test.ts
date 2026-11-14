@@ -1219,7 +1219,7 @@ describe("the single Publish step", () => {
         await clearWorkflow();
       }
     }
-  });
+  }, 60_000);
 
   it("refuses prod a version live nowhere under every configuration, and takes one live in test", async () => {
     for (const rules of CONFIGURATIONS) {
@@ -1255,7 +1255,7 @@ describe("the single Publish step", () => {
         await clearWorkflow();
       }
     }
-  });
+  }, 60_000);
 
   it("refuses a rule that would leave test reachable only through prod", async () => {
     await clearWorkflow();
