@@ -10,13 +10,15 @@ import { buildProposal, MAX_PLAN_STEPS, type ProposeInput, type ProposedStep } f
 const APP_KEY = "test-app-key-0123456789abcdefghijklmn";
 const issuedAt = new Date("2026-10-31T09:00:00.000Z");
 
-const APPROVER: HeldGrant = { role: "forms.approver", environments: ["all"], forms: ["all"] };
-const EDITOR: HeldGrant = { role: "forms.editor", environments: ["all"], forms: ["all"] };
-const VIEWER: HeldGrant = { role: "forms.viewer", environments: ["all"], forms: ["all"] };
+const PUBLISHER: HeldGrant = { roles: ["forms.publisher"], environments: ["test", "prod"] };
+const PUBLISHER_TEST: HeldGrant = { roles: ["forms.publisher"], environments: ["test"] };
+const EDITOR: HeldGrant = { roles: ["forms.editor"], environments: [] };
+const VIEWER: HeldGrant = { roles: ["forms.viewer"], environments: [] };
 
 function propose(args: {
   readonly steps: readonly ProposedStep[];
   readonly grants?: readonly HeldGrant[];
+  readonly memberRole?: string;
   readonly current?: string;
   readonly requireSecondApprover?: boolean;
   readonly proposalsThisTurn?: number;
@@ -29,7 +31,7 @@ function propose(args: {
   /** The builder by default, which is the one screen that may run a local kind. */
   readonly screen?: string;
 }) {
-  const grants = args.grants ?? [EDITOR, APPROVER];
+  const grants = args.grants ?? [EDITOR, PUBLISHER];
   return buildProposal({
     steps: args.steps,
     ...(args.savedDraft === undefined ? {} : { savedDraft: args.savedDraft }),
@@ -42,11 +44,10 @@ function propose(args: {
     appKey: APP_KEY,
     current: args.current ?? "test",
     offered: offeredActionKinds({
-      memberRole: undefined,
+      memberRole: args.memberRole,
       grants,
       environments: ["test", "prod"],
       current: args.current ?? "test",
-      formId: "frm_a",
       screen: args.screen ?? "/forms/[formId]",
     }),
     screen: args.screen ?? "/forms/[formId]",
@@ -135,8 +136,18 @@ describe("buildProposal: the grant filter behind it (criterion 3)", () => {
     expect(outcome.reason).toContain("Explain and navigate");
   });
 
-  it("refuses a production release step proposed by an editor, split and all", async () => {
+  it("refuses a release step proposed by an editor holding no publisher group", async () => {
     const outcome = await propose({ steps: [releaseTo("prod", 3)], grants: [EDITOR] });
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toContain("Explain and navigate");
+  });
+
+  it("refuses a production release for a publisher whose groups name `test` alone", async () => {
+    const outcome = await propose({
+      steps: [releaseTo("prod", 3)],
+      grants: [EDITOR, PUBLISHER_TEST],
+    });
     expect(outcome.ok).toBe(false);
     if (outcome.ok) return;
     expect(outcome.reason).toContain("prod");
@@ -154,7 +165,7 @@ describe("buildProposal: the token it mints (criterion 1)", () => {
   it("binds the ordered steps, each with its own environment", async () => {
     const outcome = await propose({
       steps: [releaseTo("test", 3), releaseTo("prod", 3)],
-      grants: [APPROVER],
+      grants: [PUBLISHER],
     });
     expect(outcome.ok).toBe(true);
     if (!outcome.ok) return;
@@ -168,7 +179,7 @@ describe("buildProposal: the token it mints (criterion 1)", () => {
   });
 
   it("takes a switcher kind's environment from the turn's switcher, not its arguments", async () => {
-    const outcome = await propose({ steps: [mint], current: "prod", grants: [APPROVER] });
+    const outcome = await propose({ steps: [mint], current: "prod", grants: [PUBLISHER] });
     expect(outcome.ok).toBe(true);
     if (!outcome.ok) return;
     expect(outcome.proposal.steps[0]?.environment).toBe("prod");
@@ -219,7 +230,7 @@ describe("buildProposal: never weaker than the screen (criterion 9)", () => {
   it("refuses a publish-then-release-to-prod plan while the second approver switch is on", async () => {
     const outcome = await propose({
       steps: [publish, releaseTo("prod", { fromStep: 0, field: "version" })],
-      grants: [EDITOR, APPROVER],
+      grants: [EDITOR, PUBLISHER],
       requireSecondApprover: true,
     });
     expect(outcome.ok).toBe(false);
@@ -230,7 +241,7 @@ describe("buildProposal: never weaker than the screen (criterion 9)", () => {
   it("offers the same plan with the switch off", async () => {
     const outcome = await propose({
       steps: [publish, releaseTo("prod", { fromStep: 0, field: "version" })],
-      grants: [EDITOR, APPROVER],
+      grants: [EDITOR, PUBLISHER],
       requireSecondApprover: false,
     });
     expect(outcome.ok).toBe(true);
@@ -239,7 +250,7 @@ describe("buildProposal: never weaker than the screen (criterion 9)", () => {
   it("refuses a publish straight into production while the switch is on", async () => {
     const outcome = await propose({
       steps: [{ kind: "form.publish", args: { formId: "frm_a", environment: "prod" } }],
-      grants: [EDITOR, APPROVER],
+      grants: [EDITOR, PUBLISHER],
       requireSecondApprover: true,
     });
     expect(outcome.ok).toBe(false);
@@ -1016,7 +1027,8 @@ describe("buildProposal: one Confirm covers one context", () => {
           args: { workspaceId: "wsp_a", requireSecondApprover: true },
         },
       ],
-      grants: [EDITOR, APPROVER, { role: "forms.owner", environments: ["all"], forms: ["all"] }],
+      grants: [EDITOR, PUBLISHER],
+      memberRole: "forms.owner",
     });
     expect(outcome.ok).toBe(true);
   });

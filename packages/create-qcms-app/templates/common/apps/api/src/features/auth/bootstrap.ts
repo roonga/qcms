@@ -4,6 +4,7 @@ import {
   addAccessGroupHolder,
   countAdminUsers,
   createAccessGroup,
+  listEnvironmentNames,
   listWorkspaces,
   writeAccessAuditRow,
 } from "@roonga/qcms-db";
@@ -139,29 +140,30 @@ async function seedFirstAdminGrants(
   workspaceId: string,
   userId: string,
 ): Promise<void> {
-  for (const role of SEEDED_FIRST_ADMIN_ROLES) {
-    const name = `all.${role}`;
-    const group = await createAccessGroup(exec, {
-      workspaceId,
-      name,
-      role,
-      environments: ["all"],
-      forms: ["all"],
-    });
-    await addAccessGroupHolder(exec, group.teamId, userId);
-    await writeAccessAuditRow(exec, {
-      actor: userId,
-      workspaceId,
-      kind: "grant",
-      detail: `${SEED_AUDIT_DETAIL_PREFIX} group=${name} role=${role} environments=all forms=all`,
-    });
-  }
+  const environments = await listEnvironmentNames(exec);
+  const group = await createAccessGroup(exec, {
+    workspaceId,
+    name: SEED_ACCESS_GROUP_NAME,
+    roles: [...SEEDED_FIRST_ADMIN_ROLES],
+    environments,
+  });
+  await addAccessGroupHolder(exec, group.teamId, userId);
+  await writeAccessAuditRow(exec, {
+    actor: userId,
+    workspaceId,
+    kind: "grant",
+    detail:
+      `${SEED_AUDIT_DETAIL_PREFIX} group=${SEED_ACCESS_GROUP_NAME} ` +
+      `roles=${SEEDED_FIRST_ADMIN_ROLES.join(",")} environments=${environments.join(",")}`,
+  });
 }
 
 export const SEED_AUDIT_DETAIL_PREFIX = "seeded by qcms:create-admin";
 
-/** No `responses.*` grant: reading response data stays a deliberate, audited act (Q29). */
-export const SEEDED_FIRST_ADMIN_ROLES: readonly string[] = ["forms.editor", "forms.approver"];
+export const SEED_ACCESS_GROUP_NAME = "Authors";
+
+/** No response role: reading response data stays a deliberate, audited act. */
+export const SEEDED_FIRST_ADMIN_ROLES: readonly string[] = ["forms.editor", "forms.publisher"];
 
 /** Must stay value-free: the printed line carries no credential. */
 export function describeRefusal(refusal: BootstrapRefusal): string {

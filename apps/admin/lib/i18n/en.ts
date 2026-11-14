@@ -1680,7 +1680,7 @@ export const messages = {
     "The file is built from the responses these filters match and downloads in your browser.",
   "agent.card.response.export.handOff":
     "Confirm opens the export dialog with these filters. You press Export, and no part of the file is returned to the assistant.",
-  "agent.card.access.groupCreate.title": "Create the access group {name} with the role {role}",
+  "agent.card.access.groupCreate.title": "Create the access group {name} with the roles {roles}",
   "agent.card.access.groupCreate.consequence":
     "The group exists but grants nobody anything yet. Holding the group is the grant, so nobody's access changes until somebody is added to it.",
   "agent.card.access.groupRemove.title": "Remove the access group {teamId}",
@@ -1697,7 +1697,7 @@ export const messages = {
     "An owner looks after this workspace: its access groups, its members and its settings. Removing the last owner is refused.",
   "agent.card.workspace.settings.title": "Change this workspace's settings",
   "agent.card.workspace.settings.consequence":
-    "These two switches decide whether a production release and a responses self-grant need a second account, and whether a new editor is granted the dev and test response data.",
+    "This switch decides whether a production release, a production endpoint change and a response self-grant need a second account.",
   "agent.card.link.revoke.title": "Revoke link {linkId}",
   "agent.card.link.revoke.consequence":
     "The link stops working from now on. A session already in progress is unaffected.",
@@ -1740,10 +1740,10 @@ export const messages = {
   "agent.card.arg.email": "Address",
   "agent.card.arg.name": "Name",
   "agent.card.arg.role": "Role",
+  "agent.card.arg.roles": "Roles",
   "agent.card.arg.environments": "Environments",
   "agent.card.arg.forms": "Forms",
   "agent.card.arg.requireSecondApprover": "Require a second approver",
-  "agent.card.arg.seedNewEditorsWithTestData": "Seed a new editor with dev and test data",
   "agent.card.arg.unset": "The deployment's own setting",
   "agent.card.arg.yes": "Yes",
   "agent.card.arg.no": "No",
@@ -2280,19 +2280,19 @@ export const messages = {
     "Reads the workspace's questions, forms, releases, links and webhook settings. Changes nothing.",
   "membership.role.formsEditor.name": "Form editor",
   "membership.role.formsEditor.description":
-    "Authors, previews and publishes forms, and releases, links and webhooks outside production.",
-  "membership.role.formsApprover.name": "Release approver",
-  "membership.role.formsApprover.description":
-    "Releases versions, closes and reopens forms, and changes links and webhooks, production included. Edits no draft.",
+    "Drafts and edits forms and questions, and previews them. Publishes nothing on its own.",
+  "membership.role.formsPublisher.name": "Form publisher",
+  "membership.role.formsPublisher.description":
+    "Publishes to the group's environments, closes and reopens forms, and changes links and webhooks there.",
   "membership.role.formsOwner.name": "Workspace owner",
   "membership.role.formsOwner.description":
     "Manages this workspace's members, access groups, settings and access audit.",
   "membership.role.responsesViewer.name": "Response viewer",
   "membership.role.responsesViewer.description":
-    "Reads and exports responses in the chosen environments and forms.",
+    "Reads and exports responses in the group's environments.",
   "membership.role.responsesEraser.name": "Response eraser",
   "membership.role.responsesEraser.description":
-    "Erases responses and clears their flags in the chosen environments and forms. Reads none.",
+    "Erases responses and clears their flags in the group's environments. Reads none.",
 
   "membership.members.heading": "Members",
   "membership.members.intro":
@@ -2319,39 +2319,19 @@ export const messages = {
     "Holding a group is the grant, so a group nobody holds grants nobody anything.",
   "membership.groups.loadFailed": "The access groups could not be read: {message}",
   "membership.groups.none": "This workspace has no access groups yet.",
-  "membership.groups.nameHelp":
-    "A name is written <environments>.<role>[.<label>] and is a label rather than a mechanism: the role and the scope decide what the group grants, and a name out of step with them is refused on save. Nothing reads a name to authorise anything.",
-  "membership.groups.title": "{role}, {environments}, {forms}",
-  "membership.groups.titleAllEnvironments": "all environments",
-  "membership.groups.titleAllForms": "all forms",
-  "membership.groups.titleForms.one": "1 form",
-  "membership.groups.titleForms.other": "{count} forms",
-  "membership.groups.storedName": "Stored name {name}",
-  "membership.groups.derivedName": "Full name {fullName}",
-  "membership.groups.directoryName": "In a directory {directoryName}",
-  "membership.groups.columnRole": "Role",
+  "membership.groups.scope": "{roles}, in {environments}",
+  "membership.groups.everyEnvironment": "every environment",
+  "membership.groups.columnRoles": "Roles",
   "membership.groups.columnEnvironments": "Environments",
-  "membership.groups.columnForms": "Forms",
   "membership.groups.columnHolders": "Holders",
   "membership.groups.create": "Create an access group",
-  "membership.groups.createName": "The group will be named {name}.",
-  "membership.groups.createNameMissing": "Choose an environment and the group's name follows.",
+  "membership.groups.createName": "Name",
   "membership.groups.createRole": "Role",
   "membership.groups.createEnvironments": "Environments",
-  "membership.groups.allEnvironments": "All environments",
-  "membership.groups.allEnvironmentsHelp": "Includes any environment added later.",
-  "membership.groups.createForms": "Forms",
-  "membership.groups.allForms": "All forms",
-  "membership.groups.allFormsHelp": "Includes any form added to this workspace later.",
-  "membership.groups.formSearch": "Search forms by name",
-  "membership.groups.noForms": "No form you can read matches.",
-  "membership.groups.formsReadable":
-    "Only forms you can read are offered. A group over forms you cannot read is scoped to all forms, or made by someone who can read them.",
-  "membership.groups.scopeAll": "All",
-  "membership.groups.advanced": "Advanced",
-  "membership.groups.directoryHelp":
-    "A directory group links to an access group by the directory name shown on each group under Advanced. The directory sync writes that link; nothing on this screen does.",
-  "membership.groups.createLabel": "Label (optional)",
+  "membership.groups.environmentsHelp":
+    "Name every environment this group applies in. There is no value meaning all of them, so an environment added later is covered by no group until somebody adds it to one.",
+  "membership.groups.noEnvironmentPicker":
+    "A form viewer and a form editor apply in every environment, so this group names none.",
   "membership.groups.createSubmit": "Create group",
   "membership.groups.created":
     "The access group {name} was created. It grants nobody anything until somebody holds it.",
@@ -2376,11 +2356,7 @@ export const messages = {
   "membership.settings.heading": "Workspace settings",
   "membership.settings.twoPerson": "Require a second approver for production",
   "membership.settings.twoPersonHelp":
-    "One switch, three effects. A release to production is refused for the account that published the version; a production endpoint change takes a second approver's confirmation; and nobody can grant themselves a responses role - a second workspace owner, or the holder of the installation-wide claim, has to make that grant. Off by default, because an installation with one account cannot satisfy the rule at all.",
-  "membership.settings.seed": "Seed a new editor with dev and test response access",
-
-  "membership.settings.seedHelp":
-    "A grant on test responses is a grant on personal data, because a test run can involve real respondents. With this on, onboarding a forms.editor also grants them a responses.viewer role on dev and test - an ordinary access group you can see in the list above and revoke. Off by default, and turning it on is written to the access audit.",
+    "One switch, three effects. A release to production is refused for the account that published the version; a production endpoint change takes a second approver's confirmation; and nobody can give themselves a response role, or a new environment for one - a second workspace owner, or the holder of the installation-wide claim, has to make that change. Off by default, because an installation with one account cannot satisfy the rule at all.",
   "membership.settings.save": "Save settings",
   "membership.settings.saved": "The settings were saved, and the change is on the access audit.",
   "membership.settings.saveFailed": "The settings were not saved: {message}",

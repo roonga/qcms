@@ -403,24 +403,15 @@ export function createAdminAuth(input: AdminAuthInput) {
                 input: false,
               },
               archivedAt: { type: "date", required: false, input: false },
-              // Defaults off: a grant on `test` responses is a grant on personal data,
-              // since a test run can involve real respondents (Q57).
-              seedNewEditorsWithTestData: {
-                type: "boolean",
-                required: false,
-                defaultValue: false,
-                input: false,
-              },
             },
           },
           team: {
-            // These three fields ARE the grant, so they are required with no default; the
+            // These two fields ARE the grant, so they are required with no default; the
             // matching columns are `NOT NULL` with no default, and the library's startup
             // schema check makes a `NOT NULL` column it never writes fatal.
             additionalFields: {
-              role: { type: "string", required: true },
+              roles: { type: "string[]", required: true },
               environments: { type: "string[]", required: true },
-              forms: { type: "string[]", required: true },
               // Written only by the directory sync path; declared now so the column
               // predates it rather than arriving as a migration against a live deployment.
               externalGroupId: { type: "string", required: false, input: false },

@@ -75,8 +75,8 @@ export interface ActionKindDef {
    */
   readonly route?: ActionRoute;
   readonly cell: { readonly resource: Resource; readonly action: string };
-  /** A second cell the route also requires, as its policy row declares it. */
-  readonly alsoCell?: { readonly resource: Resource; readonly action: string };
+  /** The further cells the route also requires, as its policy row declares them. */
+  readonly alsoCells?: readonly { readonly resource: Resource; readonly action: string }[];
   readonly environmentFrom: ActionEnvironmentSource;
   /**
    * The name of the argument carrying the environment, when `environmentFrom` is

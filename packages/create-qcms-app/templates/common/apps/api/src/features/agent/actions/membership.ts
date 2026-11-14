@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { ActionKindDef, ActionRequestFacts } from "./types.js";
 
 /**
- * D8's workspace administration. ADR-41's self-grant rule and the two-person rule are the
+ * D8's workspace administration. The self-grant rule and the two-person rule are the
  * route's own, so a grant to the proposing account is refused there exactly as it is for a
  * press on the screen; nothing here softens either.
  */
@@ -17,27 +17,21 @@ const CreateGroupArgs = z.strictObject({
   name: z
     .string()
     .min(1)
-    .max(200)
-    .describe(
-      "The group's name, unique within the workspace. The API refuses a name out of step " +
-        'with the role, the environments and the label: it reads "<environments>.<role>" ' +
-        'with ".<label>" after it when a label is given.',
-    ),
-  role: z.string().min(1).max(100).describe("The role every holder of this group is granted."),
-  label: z
-    .string()
+    .max(120)
+    .describe("The group's name, unique within the workspace. It is a label, not a rule."),
+  roles: z
+    .array(z.string().min(1).max(100))
     .min(1)
-    .max(100)
-    .optional()
-    .describe("A suffix that tells two groups of the same role and scope apart."),
+    .max(5)
+    .describe("Every role each holder of this group is granted."),
   environments: z
     .array(z.string().min(1).max(53))
     .max(50)
-    .describe('The environments the grant covers, or ["all"].'),
-  forms: z
-    .array(z.string().min(1).max(200))
-    .max(200)
-    .describe('The forms the grant covers, or ["all"].'),
+    .describe(
+      "The environments the group applies in. There is no value meaning all of them. " +
+        "Empty only where every role in the group is forms.viewer or forms.editor, which " +
+        "apply in every environment.",
+    ),
 });
 
 const GroupArgs = z.strictObject({
@@ -67,12 +61,7 @@ const WorkspaceSettingsArgs = z.strictObject({
   workspaceId: WorkspaceArg,
   requireSecondApprover: z
     .boolean()
-    .optional()
-    .describe("Whether a production release and a responses self-grant need a second account."),
-  seedNewEditorsWithTestData: z
-    .boolean()
-    .optional()
-    .describe("Whether a new editor is granted the dev and test response data."),
+    .describe("Whether a production release and a response self-grant need a second account."),
 });
 
 function bodyMember(facts: ActionRequestFacts, name: string): unknown {
@@ -91,13 +80,11 @@ export const createAccessGroup: ActionKindDef = {
   recomputeArgs: (facts) => ({
     workspaceId: facts.params.id ?? "",
     name: bodyMember(facts, "name"),
-    role: bodyMember(facts, "role"),
-    ...(bodyMember(facts, "label") === undefined ? {} : { label: bodyMember(facts, "label") }),
+    roles: bodyMember(facts, "roles"),
     environments: bodyMember(facts, "environments"),
-    forms: bodyMember(facts, "forms"),
   }),
   references: ["teamId"],
-  resultAllowlist: ["teamId", "name", "role"],
+  resultAllowlist: ["teamId", "name"],
   card: {
     titleKey: "agent.card.access.groupCreate.title",
     consequenceKeys: ["agent.card.access.groupCreate.consequence"],
@@ -151,7 +138,7 @@ export const grantAccessGroup: ActionKindDef = {
     headingControl: "membership.grant",
   },
   description:
-    "Grant an access group to one person, by address. A self-grant of a responses role is " +
+    "Grant an access group to one person, by address. A self-grant of a response role is " +
     "refused while the workspace requires a second approver.",
 };
 
@@ -210,22 +197,16 @@ export const saveWorkspaceSettings: ActionKindDef = {
   args: WorkspaceSettingsArgs,
   recomputeArgs: (facts) => ({
     workspaceId: facts.params.id ?? "",
-    ...(bodyMember(facts, "requireSecondApprover") === undefined
-      ? {}
-      : { requireSecondApprover: bodyMember(facts, "requireSecondApprover") }),
-    ...(bodyMember(facts, "seedNewEditorsWithTestData") === undefined
-      ? {}
-      : { seedNewEditorsWithTestData: bodyMember(facts, "seedNewEditorsWithTestData") }),
+    requireSecondApprover: bodyMember(facts, "requireSecondApprover"),
   }),
   references: [],
-  resultAllowlist: ["requireSecondApprover", "seedNewEditorsWithTestData"],
+  resultAllowlist: ["requireSecondApprover"],
   card: {
     titleKey: "agent.card.workspace.settings.title",
     consequenceKeys: ["agent.card.workspace.settings.consequence"],
     headingControl: "membership.workspaceSettings",
   },
   description:
-    "Change the workspace's two switches: whether a production release and a responses " +
-    "self-grant need a second account, and whether a new editor is seeded with the dev " +
-    "and test response data.",
+    "Change the workspace's second-approver switch: whether a production release and a " +
+    "response self-grant need a second account.",
 };

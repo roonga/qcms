@@ -8,21 +8,16 @@ import { AccessGroupsPanel } from "./access-groups-panel";
 
 const DONE: MembershipActionState = { status: "done", message: "ok" };
 
-/** The group's plain title, which the stored name no longer stands in for. */
-const TITLE = "Release approver, test, 1 form";
+const GROUP_NAME = "Response viewers";
 
 const LIST: AccessGroupList = {
   workspaceId: "ws_1",
-  scopeNote: "",
   groups: [
     {
       teamId: "tm_1",
-      name: "test.forms.approver",
-      fullName: "ws.test.forms.approver",
-      directoryName: "qcms.ws.test.forms.approver",
-      role: "forms.approver",
+      name: GROUP_NAME,
+      roles: ["responses.viewer"],
       environments: ["test"],
-      forms: ["frm_a"],
       externalGroupId: null,
       holders: [{ userId: "u1", email: "held@qcms.test" }],
     },
@@ -35,10 +30,6 @@ function renderPanel(create = vi.fn(() => Promise.resolve(DONE))) {
       list={LIST}
       message={undefined}
       environments={["dev", "test", "prod"]}
-      forms={[
-        { formId: "frm_a", name: "claims" },
-        { formId: "frm_b", name: "signup" },
-      ]}
       members={[
         { userId: "u1", email: "held@qcms.test", name: "Held" },
         { userId: "u2", email: "free@qcms.test", name: "Free" },
@@ -52,57 +43,89 @@ function renderPanel(create = vi.fn(() => Promise.resolve(DONE))) {
   return create;
 }
 
+/* React Aria paints the role list in a popover, which is overlay layout and belongs in Playwright
+   (ADR-23); the select it keeps for form submission carries the same options. */
+function chooseRole(user: ReturnType<typeof userEvent.setup>, name: string): Promise<void> {
+  const option = screen.getByRole("option", { name, hidden: true });
+  const field = option.closest("select");
+  if (field === null) throw new Error(`the role ${name} is on no select`);
+  return user.selectOptions(field, option);
+}
+
 describe("the access-group form", () => {
-  it("types no environment, form or account: every scope is a picker", () => {
+  it("types no environment or account: every pick is a control", () => {
     renderPanel();
     const textboxes = screen.getAllByRole("textbox").map((box) => box.getAttribute("type"));
     expect(screen.queryByLabelText(/one id per line/iu)).toBeNull();
     expect(screen.queryByLabelText("Account address")).toBeNull();
-    expect(screen.getByRole("textbox", { name: "Search forms by name" })).toBeTruthy();
     expect(textboxes).not.toContain("email");
-    for (const environment of ["dev", "test", "prod"]) {
-      expect(screen.getByRole("checkbox", { name: environment })).toBeTruthy();
-    }
+    expect(screen.getByRole("textbox", { name: "Name" })).toBeTruthy();
   });
 
-  it("titles a group by its role and scope, with the stored name under Advanced", () => {
+  it("names a group by its own label and says its roles and environments in words", () => {
     renderPanel();
-    const row = screen.getByText(TITLE).closest("li");
+    const row = screen.getByText(GROUP_NAME).closest("li");
     expect(row).not.toBeNull();
     const scope = within(row as HTMLElement);
-    expect(scope.queryByText("forms.approver")).toBeNull();
-    expect(scope.getByText("claims")).toBeTruthy();
-    const advanced = scope.getByText("Advanced").closest("details");
-    expect(advanced?.textContent).toContain("Stored name test.forms.approver");
-    expect(advanced?.textContent).toContain("Full name ws.test.forms.approver");
-    expect(advanced?.textContent).toContain("In a directory qcms.ws.test.forms.approver");
+    expect(scope.getByText("Response viewer, in test")).toBeTruthy();
+    expect(scope.queryByText("responses.viewer")).toBeNull();
+    expect(scope.getByText("Response viewer")).toBeTruthy();
   });
 
   it("offers only members who do not hold the group yet", () => {
     renderPanel();
-    const row = screen.getByText(TITLE).closest("li") as HTMLElement;
+    const row = screen.getByText(GROUP_NAME).closest("li") as HTMLElement;
     const options = within(row).getAllByRole("option", { hidden: true });
     expect(
       options.map((option) => option.textContent?.trim()).filter((text) => text !== ""),
     ).toEqual(["free@qcms.test"]);
   });
 
-  it("creates with the derived name and the picked scopes, in the installation's order", async () => {
+  it("offers no environment picker while the chosen role applies everywhere", () => {
+    renderPanel();
+    expect(screen.getByTestId("qcms-group-no-environments")).toBeTruthy();
+    expect(screen.queryByRole("checkbox", { name: "test" })).toBeNull();
+  });
+
+  it("asks for environments as soon as the chosen role needs them", async () => {
+    const user = userEvent.setup();
+    renderPanel();
+    await chooseRole(user, "Form publisher");
+    for (const environment of ["dev", "test", "prod"]) {
+      expect(screen.getByRole("checkbox", { name: environment })).toBeTruthy();
+    }
+    expect(screen.queryByTestId("qcms-group-no-environments")).toBeNull();
+  });
+
+  it("creates with the typed name and the ticked environments, in the installation's order", async () => {
     const user = userEvent.setup();
     const create = renderPanel();
-    await user.click(screen.getByRole("checkbox", { name: /All environments/u }));
+    await user.type(screen.getByRole("textbox", { name: "Name" }), "  Publishers  ");
+    await chooseRole(user, "Form publisher");
     await user.click(screen.getByRole("checkbox", { name: "prod" }));
     await user.click(screen.getByRole("checkbox", { name: "dev" }));
-    await user.click(screen.getByRole("checkbox", { name: /All forms/u }));
-    await user.click(screen.getByRole("checkbox", { name: "signup" }));
-    expect(screen.getByTestId("qcms-group-name").textContent).toContain("dev-prod.forms.viewer");
 
     await user.click(screen.getByRole("button", { name: "Create group" }));
     expect(create).toHaveBeenCalledWith("ws_1", {
-      name: "dev-prod.forms.viewer",
-      role: "forms.viewer",
+      name: "Publishers",
+      roles: ["forms.publisher"],
       environments: ["dev", "prod"],
-      forms: ["frm_b"],
     });
+  });
+
+  it("holds the create back until the group has a name and, where needed, an environment", async () => {
+    const user = userEvent.setup();
+    renderPanel();
+    const submit = screen.getByRole("button", { name: "Create group" });
+    expect(submit.hasAttribute("disabled")).toBe(true);
+
+    await user.type(screen.getByRole("textbox", { name: "Name" }), "Authors");
+    expect(submit.hasAttribute("disabled")).toBe(false);
+
+    await chooseRole(user, "Response eraser");
+    expect(submit.hasAttribute("disabled")).toBe(true);
+
+    await user.click(screen.getByRole("checkbox", { name: "prod" }));
+    expect(submit.hasAttribute("disabled")).toBe(false);
   });
 });

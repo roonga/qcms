@@ -81,6 +81,7 @@ export {
 } from "./workspaces.js";
 
 export {
+  type AccessGroupHolderRow,
   type AccessGroupRow,
   type EnvironmentNamingGroup,
   type HeldGrant,
@@ -100,7 +101,6 @@ export {
   getAccessGroup,
   holdsAccessGroup,
   isAccessGroupNameTaken,
-  isScopeAll,
   listAccessGroupHolders,
   listAccessGroups,
   listEnvironmentNames,
@@ -108,13 +108,11 @@ export {
   listGroupsNamingEnvironment,
   listMemberWorkspacesForUser,
   listWorkspaceMembers,
-  readSeedNewEditorsWithTestData,
   removeAccessGroupHolder,
   resolveMembership,
   setMemberRole,
   setRequireSecondApprover,
-  setSeedNewEditorsWithTestData,
-  updateAccessGroupScope,
+  updateAccessGroup,
 } from "./grants.js";
 
 export {

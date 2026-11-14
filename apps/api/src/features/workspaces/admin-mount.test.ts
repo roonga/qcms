@@ -25,7 +25,6 @@ const ROUTES: readonly [string, string][] = [
   ["PUT", "/admin/workspaces/org_x/shared"],
   ["POST", "/admin/workspaces/org_x/archive"],
   ["POST", "/admin/forms/frm_x/workspace"],
-  ["POST", "/admin/questions/q_x/workspace"],
 ];
 
 describe("workspaces admin auth seam", () => {

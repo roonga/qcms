@@ -262,7 +262,7 @@ function authorise(input: {
     decideAccess({
       memberRole: membership.memberRole,
       grants: membership.grants,
-      request: { resource, action, environment, formId: row.formId },
+      request: { resource, action, environment },
     }).allowed;
 
   const mayReadForm = allows("form", "read");

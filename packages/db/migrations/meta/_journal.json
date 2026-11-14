@@ -57,6 +57,13 @@
       "when": 1793410989439,
       "tag": "0007_agent_actions",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794609693347,
+      "tag": "0008_access_roles_and_group_shape",
+      "breakpoints": true
     }
   ]
 }

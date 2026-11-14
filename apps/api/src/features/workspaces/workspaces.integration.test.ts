@@ -13,6 +13,7 @@ import {
   insertFormVersion,
   listAccessAudit,
   listWorkspaces,
+  setRequireSecondApprover,
 } from "@roonga/qcms-db";
 import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
 import { FormId } from "@roonga/qcms-core";
@@ -140,12 +141,14 @@ async function as(token: string, method: string, path: string, body?: unknown): 
   });
 }
 
-async function listedIds(token: string): Promise<string[]> {
+async function listedRows(token: string): Promise<Record<string, unknown>[]> {
   const res = await as(token, "GET", "/workspaces");
   expect(res.status, await res.clone().text()).toBe(200);
-  return ((await res.json()) as { workspaces: { workspaceId: string }[] }).workspaces.map(
-    (row) => row.workspaceId,
-  );
+  return ((await res.json()) as { workspaces: Record<string, unknown>[] }).workspaces;
+}
+
+async function listedIds(token: string): Promise<string[]> {
+  return (await listedRows(token)).map((row) => row["workspaceId"] as string);
 }
 
 describe("the workspace list narrowed to the caller's own", () => {
@@ -173,6 +176,65 @@ describe("the workspace list narrowed to the caller's own", () => {
     const every = (await listWorkspaces(testDb.db)).map((row) => row.id);
     expect([...ids].sort()).toEqual([...every].sort());
     expect(ids).toContain(elsewhere);
+  });
+
+  it("lists a workspace a grant holder administers nothing in (criterion 26)", async () => {
+    const mine = await createWorkspace("list-holder-mine");
+    const theirs = await createWorkspace("list-holder-theirs");
+    const holder = await seedAdminSession(testDb.db, {
+      label: "list-holder",
+      claim: false,
+      workspaceId: mine,
+      owner: false,
+      grants: ["responses.viewer"],
+    });
+
+    const ids = await listedIds(holder.token);
+    expect(ids).toEqual([mine]);
+    expect(ids).not.toContain(theirs);
+  });
+
+  it("gives a caller who administers nothing there the identity alone (criterion 26)", async () => {
+    const mine = await createWorkspace("list-reduced-mine");
+    const holder = await seedAdminSession(testDb.db, {
+      label: "list-reduced",
+      claim: false,
+      workspaceId: mine,
+      owner: false,
+      grants: ["forms.viewer"],
+    });
+    const administrator = await seedAdminSession(testDb.db, {
+      label: "list-reduced-admin",
+      claim: false,
+      workspaceId: mine,
+      grants: [],
+    });
+
+    const reduced = await listedRows(holder.token);
+    expect(reduced).toHaveLength(1);
+    expect(Object.keys(reduced[0] ?? {}).sort()).toEqual([
+      "archivedAt",
+      "name",
+      "slug",
+      "workspaceId",
+    ]);
+    expect(reduced[0]?.["workspaceId"]).toBe(mine);
+    expect(reduced[0]?.["archivedAt"]).toBeNull();
+
+    const full = (await listedRows(administrator.token))[0] as Record<string, unknown>;
+    expect(full["isShared"]).toBe(false);
+    expect(full["requireSecondApprover"]).toBe(false);
+    expect(full["forms"]).toBe(0);
+    expect(full["questions"]).toBe(0);
+  });
+
+  it("refuses the list to an account holding nothing anywhere", async () => {
+    const nobody = await seedAdminSession(testDb.db, {
+      label: "list-nobody",
+      claim: false,
+      membership: false,
+    });
+    expect((await as(nobody.token, "GET", "/workspaces")).status).toBe(403);
   });
 });
 
@@ -537,8 +599,8 @@ describe("the owning workspace of something new (criterion 1)", () => {
   });
 });
 
-describe("moving a question (Q14)", () => {
-  it("is one update on the identity row and answers 404 for an id that is not there", async () => {
+describe("moving a question (criterion 107)", () => {
+  it("has no route at all, so the router answers 404 and the question stays put", async () => {
     const from = await createWorkspace("question-move-from");
     const to = await createWorkspace("question-move-to");
     const questionId = QuestionId.parse("q_route_move");
@@ -553,13 +615,120 @@ describe("moving a question (Q14)", () => {
     ).toBe(201);
 
     const moved = await send("POST", `/questions/${questionId}/workspace`, { workspaceId: to });
-    expect(moved.status).toBe(200);
-    expect((await getQuestion(testDb.db, questionId))?.workspaceId).toBe(to);
+    expect(moved.status).toBe(404);
+    expect((await getQuestion(testDb.db, questionId))?.workspaceId).toBe(from);
+  });
+});
 
-    const missing = await send("POST", "/questions/q_never_created/workspace", {
-      workspaceId: to,
+describe("a shared library question (criterion 108)", () => {
+  it("refuses an Edit forms holder of another workspace editing it", async () => {
+    const library = await createWorkspace("c108-library");
+    const other = await createWorkspace("c108-other");
+    const questionId = QuestionId.parse("q_c108_shared");
+    expect(
+      (
+        await send("POST", "/questions", {
+          slug: "q-c108-shared",
+          workspaceId: library,
+          definition: definitionFor(questionId),
+        })
+      ).status,
+    ).toBe(201);
+    expect((await send("PUT", `/workspaces/${library}/shared`, { shared: true })).status).toBe(200);
+
+    try {
+      const editor = await seedAdminSession(testDb.db, {
+        label: "c108-foreign-editor",
+        claim: false,
+        owner: false,
+        workspaceId: other,
+        grants: ["forms.editor"],
+      });
+
+      const edited = await as(editor.token, "PUT", `/questions/${questionId}/versions/1`, {
+        definition: definitionFor(questionId),
+      });
+      expect(edited.status).toBe(403);
+      const appended = await as(editor.token, "POST", `/questions/${questionId}/versions`);
+      expect(appended.status).toBe(403);
+
+      const own = await send("PUT", `/questions/${questionId}/versions/1`, {
+        definition: definitionFor(questionId),
+      });
+      expect(own.status, await own.clone().text()).toBe(200);
+    } finally {
+      await send("PUT", `/workspaces/${library}/shared`, { shared: false });
+    }
+  });
+});
+
+describe("the interim Move form rules (work order 085)", () => {
+  it("refuses a mover with no Edit forms in the destination", async () => {
+    const source = await createWorkspace("move-source");
+    const destination = await createWorkspace("move-destination");
+    const formId = await seedForm("move_no_destination", source);
+
+    const mover = await seedAdminSession(testDb.db, {
+      label: "move-no-destination",
+      claim: false,
+      owner: true,
+      workspaceId: source,
+      grants: ["forms.editor"],
     });
-    expect(missing.status).toBe(404);
+
+    const refused = await as(mover.token, "POST", `/forms/${formId}/workspace`, {
+      workspaceId: destination,
+    });
+    expect(refused.status).toBe(403);
+    expect((await getForm(testDb.db, formId))?.workspaceId).toBe(source);
+  });
+
+  it("refuses a mover with Edit forms in both who is not a Workspace administrator of the source", async () => {
+    const source = await createWorkspace("move-not-admin-source");
+    const destination = await createWorkspace("move-not-admin-destination");
+    const formId = await seedForm("move_not_admin", source);
+
+    const mover = await seedAdminSession(testDb.db, {
+      label: "move-not-admin",
+      claim: false,
+      owner: false,
+      workspaceId: source,
+      grants: ["forms.editor"],
+    });
+    await seedGrants(testDb.db, {
+      userId: mover.userId,
+      workspaceId: destination,
+      grants: ["forms.editor"],
+    });
+
+    const refused = await as(mover.token, "POST", `/forms/${formId}/workspace`, {
+      workspaceId: destination,
+    });
+    expect(refused.status).toBe(403);
+    expect((await getForm(testDb.db, formId))?.workspaceId).toBe(source);
+
+    await seedGrants(testDb.db, { userId: mover.userId, workspaceId: source, grants: [] });
+    const applied = await as(mover.token, "POST", `/forms/${formId}/workspace`, {
+      workspaceId: destination,
+    });
+    expect(applied.status, await applied.clone().text()).toBe(200);
+    expect((await getForm(testDb.db, formId))?.workspaceId).toBe(destination);
+  });
+
+  it("refuses the move outright while the source requires a second approver", async () => {
+    const source = await createWorkspace("move-held-source");
+    const destination = await createWorkspace("move-held-destination");
+    const formId = await seedForm("move_held", source);
+    await setRequireSecondApprover(testDb.db, source, true);
+
+    const moved = await send("POST", `/forms/${formId}/workspace`, { workspaceId: destination });
+    expect(moved.status).toBe(409);
+    expect(((await moved.json()) as ErrorBody).error.code).toBe("MOVE_NEEDS_APPROVAL");
+    expect((await getForm(testDb.db, formId))?.workspaceId).toBe(source);
+
+    await setRequireSecondApprover(testDb.db, source, false);
+    const applied = await send("POST", `/forms/${formId}/workspace`, { workspaceId: destination });
+    expect(applied.status, await applied.clone().text()).toBe(200);
   });
 });
 

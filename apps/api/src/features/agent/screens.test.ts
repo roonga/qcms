@@ -278,7 +278,7 @@ describe("the environment line a card shows is derived, not listed", () => {
   it("names the publish by its argument, which is why it keeps its line", () => {
     const publish = actionKind("form.publish");
     expect(publish?.environmentFrom).toBe("argument");
-    // Its own cell is not environment-scoped; `alsoCell` and the argument are.
+    // Its own cell is not environment-scoped; one of `alsoCells` and the argument are.
     expect(actsInOneEnvironment(publish as NonNullable<typeof publish>)).toBe(true);
   });
 });

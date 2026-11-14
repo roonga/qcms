@@ -63,9 +63,9 @@ async function grantedHolder(page: Page, label: string): Promise<string> {
 }
 
 // Scope to this group: new accounts also hold standing workspace groups independently of these
-// grants. The stored name lives under Advanced, so the row carries it as an attribute.
+// grants. The run's label is what the proposal names the group by, whatever else the name carries.
 function groupRow(page: Page, label: string): Locator {
-  return groups(page).locator(`[data-group-name="test.responses.viewer.${label}"]`).first();
+  return groups(page).locator(`[data-group-name*="${label}"]`).first();
 }
 
 function twoPerson(page: Page): Locator {
@@ -140,7 +140,7 @@ test("creates no group when the card is cancelled", async ({ page }) => {
   await expectAxeClean(page, "cancelled");
 
   expect(auditDelta(before, await auditTally())).toEqual({});
-  await expect(groups(page)).not.toContainText(`test.responses.viewer.${CANCELLED}`);
+  await expect(groups(page)).not.toContainText(CANCELLED);
 });
 
 test("confirms a group's whole life inside one plan, each step naming what the first made", async ({

@@ -8,7 +8,6 @@ import {
   makeCreateWorkspaceHandler,
   makeListWorkspacesHandler,
   makeMoveFormHandler,
-  makeMoveQuestionHandler,
   makeRenameWorkspaceHandler,
   makeSetSharedWorkspaceHandler,
 } from "./handler.js";
@@ -146,26 +145,6 @@ export const moveFormRoute = createRoute({
   ...withScopes("forms:write"),
 });
 
-export const moveQuestionRoute = createRoute({
-  method: "post",
-  path: "/questions/{id}/workspace",
-  summary: "Move a question to another workspace (admin)",
-  description:
-    "One update on the identity row, touching no version: a form elsewhere that already " +
-    "pins one of its versions keeps serving it and keeps that pin in its next draft, " +
-    "while a new pin from another workspace is refused at publish.",
-  tags,
-  request: { params: WorkspaceIdParam, body: jsonBody(MoveToWorkspaceBody) },
-  responses: {
-    200: {
-      description: "The question and the workspace that owns it now",
-      content: { "application/json": { schema: MovedResponse } },
-    },
-    ...errorResponses(400, 401, 404, 409),
-  },
-  ...withScopes("questions:write"),
-});
-
 export const registerWorkspaces: SliceRegistrar = (group, deps: Deps): void => {
   group.openapi(listWorkspacesRoute, makeListWorkspacesHandler(deps));
   group.openapi(createWorkspaceRoute, makeCreateWorkspaceHandler(deps));
@@ -173,5 +152,4 @@ export const registerWorkspaces: SliceRegistrar = (group, deps: Deps): void => {
   group.openapi(setSharedWorkspaceRoute, makeSetSharedWorkspaceHandler(deps));
   group.openapi(archiveWorkspaceRoute, makeArchiveWorkspaceHandler(deps));
   group.openapi(moveFormRoute, makeMoveFormHandler(deps));
-  group.openapi(moveQuestionRoute, makeMoveQuestionHandler(deps));
 };

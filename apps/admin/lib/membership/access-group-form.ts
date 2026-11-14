@@ -1,15 +1,22 @@
-import { t, tPlural, type MessageKey } from "../i18n/en.ts";
+import { t, type MessageKey } from "../i18n/en.ts";
 
-/** The roles an access group can carry. `forms.owner` belongs to the member row, never to a group. */
+/** The roles an access group can carry. Workspace administrator is the member row's flag. */
 export const GROUP_ROLES = [
   "forms.viewer",
   "forms.editor",
-  "forms.approver",
+  "forms.publisher",
   "responses.viewer",
   "responses.eraser",
 ] as const;
 
 export type GroupRole = (typeof GROUP_ROLES)[number];
+
+/** The roles whose acts apply only in the group's environments. */
+export const ENVIRONMENT_ROLES: readonly string[] = [
+  "forms.publisher",
+  "responses.viewer",
+  "responses.eraser",
+];
 
 const ROLE_KEYS: Readonly<Record<string, { name: MessageKey; description: MessageKey }>> = {
   "forms.viewer": {
@@ -20,9 +27,9 @@ const ROLE_KEYS: Readonly<Record<string, { name: MessageKey; description: Messag
     name: "membership.role.formsEditor.name",
     description: "membership.role.formsEditor.description",
   },
-  "forms.approver": {
-    name: "membership.role.formsApprover.name",
-    description: "membership.role.formsApprover.description",
+  "forms.publisher": {
+    name: "membership.role.formsPublisher.name",
+    description: "membership.role.formsPublisher.description",
   },
   "forms.owner": {
     name: "membership.role.formsOwner.name",
@@ -50,30 +57,23 @@ export function roleDescription(role: string): string | undefined {
   return keys === undefined ? undefined : t(keys.description);
 }
 
-export type ScopeChoice =
-  { readonly kind: "all" } | { readonly kind: "some"; readonly chosen: readonly string[] };
-
-export const ALL: ScopeChoice = { kind: "all" };
-
-export function toggleAll(choice: ScopeChoice, on: boolean): ScopeChoice {
-  if (on) return ALL;
-  return choice.kind === "all" ? { kind: "some", chosen: [] } : choice;
+/** Whether this set of roles has to name at least one environment. */
+export function needsEnvironments(roles: readonly string[]): boolean {
+  return roles.some((role) => ENVIRONMENT_ROLES.includes(role));
 }
 
-export function toggleOne(choice: ScopeChoice, value: string, on: boolean): ScopeChoice {
-  const chosen = choice.kind === "all" ? [] : choice.chosen;
+export function toggleOne(
+  chosen: readonly string[],
+  value: string,
+  on: boolean,
+): readonly string[] {
   const without = chosen.filter((entry) => entry !== value);
-  return { kind: "some", chosen: on ? [...without, value] : without };
+  return on ? [...without, value] : without;
 }
 
-export function isChosen(choice: ScopeChoice, value: string): boolean {
-  return choice.kind === "some" && choice.chosen.includes(value);
-}
-
-/** The wire scope, ordered as `ordered` is; an empty choice sends nothing, which the API refuses. */
-export function scopeOf(choice: ScopeChoice, ordered: readonly string[]): readonly string[] {
-  if (choice.kind === "all") return ["all"];
-  return ordered.filter((entry) => choice.chosen.includes(entry));
+/** The wire set, ordered as `ordered` is, so two spellings of one set look the same. */
+export function setOf(chosen: readonly string[], ordered: readonly string[]): readonly string[] {
+  return ordered.filter((entry) => chosen.includes(entry));
 }
 
 export interface EnvironmentEntry {
@@ -81,43 +81,11 @@ export interface EnvironmentEntry {
   readonly position: number;
 }
 
-/** Environment names in the installation's own order, which is the order a group's name spells them in. */
+/** Environment names in the installation's own order. */
 export function orderedEnvironments(environments: readonly EnvironmentEntry[]): readonly string[] {
   return [...environments]
     .sort((a, b) => a.position - b.position || a.name.localeCompare(b.name))
     .map((entry) => entry.name);
-}
-
-/**
- * The name the API expects for these fields, `<environments>.<role>[.<label>]`. The API
- * still refuses a name out of step; deriving it here only spares the author typing it.
- */
-export function groupNameFor(
-  role: string,
-  environments: readonly string[],
-  label: string,
-): string | undefined {
-  if (environments.length === 0) return undefined;
-  const trimmed = label.trim();
-  return [environments.join("-"), role, ...(trimmed === "" ? [] : [trimmed])].join(".");
-}
-
-export interface NamedForm {
-  readonly formId: string;
-  readonly name: string;
-}
-
-/** Forms matching the search by name, chosen ones always kept so a narrowed list never hides a pick. */
-export function formOptions(
-  forms: readonly NamedForm[],
-  search: string,
-  choice: ScopeChoice,
-): readonly NamedForm[] {
-  const needle = search.trim().toLowerCase();
-  return forms.filter(
-    (form) =>
-      needle === "" || form.name.toLowerCase().includes(needle) || isChosen(choice, form.formId),
-  );
 }
 
 export interface GrantCandidate {
@@ -135,47 +103,25 @@ export function grantCandidates(
   return members.filter((member) => !holding.has(member.userId));
 }
 
-/** The wire word for an unbounded scope, which also covers whatever is added later. */
-export function isAllScope(scope: readonly string[]): boolean {
-  return scope.length === 1 && scope[0] === "all";
-}
-
-/** A scope as the group's row reads it: `all` as the catalog's word, names where known. */
-export function scopeLabel(
-  scope: readonly string[],
-  allKey: MessageKey,
-  nameOf: (value: string) => string = (value) => value,
-): string {
-  if (isAllScope(scope)) return t(allKey);
-  return scope.map(nameOf).join(", ");
-}
-
-export interface ScopedRole {
-  readonly role: string;
+export interface ScopedRoles {
+  readonly roles: readonly string[];
   readonly environments: readonly string[];
-  readonly forms: readonly string[];
 }
 
-/** A group's title in plain words: its role and its scope. The stored name stays under Advanced. */
-export function groupTitle(group: ScopedRole): string {
-  return t("membership.groups.title", {
-    role: roleName(group.role),
-    environments: isAllScope(group.environments)
-      ? t("membership.groups.titleAllEnvironments")
-      : group.environments.join(", "),
-    forms: isAllScope(group.forms)
-      ? t("membership.groups.titleAllForms")
-      : tPlural(
-          "membership.groups.titleForms.one",
-          "membership.groups.titleForms.other",
-          group.forms.length,
-        ),
+/** A group's roles and environments in plain words. */
+export function groupScope(group: ScopedRoles): string {
+  return t("membership.groups.scope", {
+    roles: group.roles.map(roleName).join(", "),
+    environments:
+      group.environments.length === 0
+        ? t("membership.groups.everyEnvironment")
+        : group.environments.join(", "),
   });
 }
 
-/** Each group's title, by the stored name a member row carries. */
+/** Each group's roles and environments, by the name a member row carries. */
 export function groupTitlesByName(
-  groups: readonly (ScopedRole & { readonly name: string })[],
+  groups: readonly (ScopedRoles & { readonly name: string })[],
 ): ReadonlyMap<string, string> {
-  return new Map(groups.map((group) => [group.name, groupTitle(group)]));
+  return new Map(groups.map((group) => [group.name, groupScope(group)]));
 }

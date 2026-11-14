@@ -9,7 +9,6 @@ import {
 import { pageMetadata } from "@/lib/page-title";
 import { orderedEnvironments } from "@/lib/membership/access-group-form";
 import { listEnvironments } from "@/lib/server/environments";
-import { listAllForms } from "@/lib/server/forms";
 import { listAccessGroups, listMembers } from "@/lib/server/membership";
 
 import {
@@ -36,13 +35,10 @@ export default async function WorkspaceAccessGroupsPage({
   const { workspaceId } = await params;
   const screen = await loadWorkspaceScreen(workspaceId);
   if (screen.kind === "denied") return screen.element;
-  const [groups, members, environments, forms] = await Promise.all([
+  const [groups, members, environments] = await Promise.all([
     listAccessGroups(screen.session, workspaceId),
     listMembers(screen.session, workspaceId),
     listEnvironments(screen.session),
-    // The caller's own form read, narrowed to this workspace: a group scopes only forms
-    // it owns, and a form the caller cannot read is never offered by name.
-    listAllForms(screen.session, workspaceId),
   ]);
 
   return (
@@ -51,13 +47,6 @@ export default async function WorkspaceAccessGroupsPage({
         list={groups.ok ? groups.data : undefined}
         message={groups.ok ? undefined : groups.message}
         environments={environments.ok ? orderedEnvironments(environments.data) : []}
-        forms={
-          forms.ok
-            ? forms.data
-                .filter((form) => form.workspaceId === workspaceId)
-                .map((form) => ({ formId: form.formId, name: form.slug }))
-            : []
-        }
         members={
           members.ok
             ? members.data.map((member) => ({

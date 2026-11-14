@@ -1,9 +1,9 @@
 import { z } from "@hono/zod-openapi";
 
-import { ACCESS_AUDIT_KINDS, ACCESS_GROUP_LABEL_PATTERN, TEAM_ROLES } from "@roonga/qcms-db";
+import { ACCESS_AUDIT_KINDS, ACCESS_GROUPS_MAX_ROLES, ACCESS_ROLES } from "@roonga/qcms-db";
 
-// No `externalGroupId` on a request body (the directory sync join key; `z.strictObject`
-// refuses it) and no role on an access-group update (it would change what holders get).
+// No `externalGroupId` on a request body: it is the directory sync join key, and
+// `z.strictObject` refuses it.
 
 export const WorkspaceIdParam = z.object({
   id: z.string().openapi({ param: { name: "id", in: "path" }, example: "org_default_workspace" }),
@@ -21,54 +21,40 @@ export const WorkspaceMemberParams = WorkspaceIdParam.extend({
   userId: z.string().openapi({ param: { name: "userId", in: "path" }, example: "usr_0a1b2c" }),
 });
 
-const TeamRole = z
-  .enum(TEAM_ROLES as unknown as [string, ...string[]])
-  .openapi({ example: "responses.viewer" });
+const AccessGroupRoles = z
+  .array(z.enum(ACCESS_ROLES as unknown as [string, ...string[]]))
+  .min(1)
+  .max(ACCESS_GROUPS_MAX_ROLES)
+  .openapi({ example: ["responses.viewer"] });
 
-// Shape only. The names are checked against the live `control.environments` set by the
-// handler, since a schema cannot read a table.
-const EnvironmentScope = z
+// Shape only, and empty where every role in the group ignores it. The names are checked
+// against the live `control.environments` set by the handler, since a schema cannot read
+// a table.
+const EnvironmentSet = z
   .array(
     z
       .string()
       .regex(/^[a-z][a-z0-9]*$/)
       .max(53),
   )
-  .min(1)
   .max(32)
   .openapi({ example: ["test"] });
 
-const FormScope = z
-  .array(z.string().min(1).max(64))
-  .min(1)
-  .max(256)
-  .openapi({ example: ["all"] });
+const AccessGroupName = z.string().min(1).max(120).openapi({ example: "Response viewers" });
 
-const GroupLabel = z
-  .string()
-  .min(1)
-  .max(48)
-  .regex(ACCESS_GROUP_LABEL_PATTERN)
-  .openapi({ example: "claims" });
-
-// The role and scope fields are authoritative and the name is only a label: it is sent by
-// the caller and refused when out of step, never derived silently.
 export const CreateAccessGroupBody = z
   .strictObject({
-    name: z.string().min(3).max(120).openapi({ example: "test.responses.viewer" }),
-    role: TeamRole,
-    environments: EnvironmentScope,
-    forms: FormScope,
-    label: GroupLabel.optional(),
+    name: AccessGroupName,
+    roles: AccessGroupRoles,
+    environments: EnvironmentSet,
   })
   .openapi("CreateAccessGroupBody");
 
 export const UpdateAccessGroupBody = z
   .strictObject({
-    name: z.string().min(3).max(120).openapi({ example: "test-dev.responses.viewer" }),
-    environments: EnvironmentScope,
-    forms: FormScope,
-    label: GroupLabel.optional(),
+    name: AccessGroupName,
+    roles: AccessGroupRoles,
+    environments: EnvironmentSet,
   })
   .openapi("UpdateAccessGroupBody");
 
@@ -85,50 +71,29 @@ export const AddHolderBody = z
   )
   .openapi("AddHolderBody");
 
-// Two values and no third: `forms.owner`, and the empty `member` name, which grants
-// nothing and exists only to make a team grant expressible.
+// Two values and no third: the Workspace administrator flag, and the empty `member`
+// name, which grants nothing and exists only to make a group grant expressible.
 export const SetMemberRoleBody = z
   .strictObject({
     role: z.enum(["forms.owner", "member"]).openapi({ example: "forms.owner" }),
   })
   .openapi("SetMemberRoleBody");
 
-// Both switches default off and both are optional, so a caller changes one without
-// restating the other. A body naming neither is refused rather than writing an audit row
-// for a no-op.
 export const WorkspaceSettingsBody = z
-  .strictObject({
-    requireSecondApprover: z.boolean().optional(),
-    seedNewEditorsWithTestData: z.boolean().optional(),
-  })
-  .refine(
-    (body) =>
-      body.requireSecondApprover !== undefined || body.seedNewEditorsWithTestData !== undefined,
-    "Name at least one setting to change",
-  )
+  .strictObject({ requireSecondApprover: z.boolean() })
   .openapi("WorkspaceSettingsBody");
 
 const AccessGroupView = z.object({
   teamId: z.string(),
   name: z.string(),
-  // `fullName` and `directoryName` are derived on read and never stored, so renaming a
-  // workspace slug changes display only.
-  fullName: z.string(),
-  directoryName: z.string(),
-  role: z.string(),
+  roles: z.array(z.string()),
   environments: z.array(z.string()),
-  forms: z.array(z.string()),
   externalGroupId: z.string().nullable(),
   holders: z.array(z.object({ userId: z.string(), email: z.string() })),
 });
 
 export const AccessGroupListResponse = z
-  .object({
-    workspaceId: z.string(),
-    groups: z.array(AccessGroupView),
-    // Served by the API so the statement about the matrix lives where it is enforced.
-    scopeNote: z.string(),
-  })
+  .object({ workspaceId: z.string(), groups: z.array(AccessGroupView) })
   .openapi("AccessGroupListResponse");
 
 export const AccessGroupResponse = z
@@ -155,11 +120,7 @@ export const WorkspaceMemberResponse = z
   .openapi("WorkspaceMemberResponse");
 
 export const WorkspaceSettingsResponse = z
-  .object({
-    workspaceId: z.string(),
-    requireSecondApprover: z.boolean(),
-    seedNewEditorsWithTestData: z.boolean(),
-  })
+  .object({ workspaceId: z.string(), requireSecondApprover: z.boolean() })
   .openapi("WorkspaceSettingsResponse");
 
 // The caller's own grants and nobody else's, which is why the route takes no parameter
@@ -175,7 +136,7 @@ export const MyAccessResponse = z
       // Any one of the operational cells anywhere. False for a `forms.owner` alone and
       // for the installation claim alone, neither of which reaches a form cell.
       operations: z.boolean(),
-      // `workspace: read`, which is an owner's and the claim's.
+      // `workspace: read`, which is a Workspace administrator's and the claim's.
       workspaces: z.boolean(),
       // The installation claim alone.
       siteConfiguration: z.boolean(),
@@ -192,13 +153,12 @@ export const MyAccessResponse = z
         grants: z.array(
           z.object({
             name: z.string(),
-            role: z.string(),
+            roles: z.array(z.string()),
             environments: z.array(z.string()),
-            forms: z.array(z.string()),
           }),
         ),
-        // Only the environments the caller holds in some grant: this is what the
-        // environment switcher offers.
+        // The environments the caller's groups name, plus every environment where a
+        // group of theirs ignores the set: this is what the environment switcher offers.
         environments: z.array(z.string()),
       }),
     ),

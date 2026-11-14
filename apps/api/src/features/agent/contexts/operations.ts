@@ -15,8 +15,9 @@ import {
 } from "@roonga/qcms-db";
 import type { FormId } from "@roonga/qcms-core";
 
-import { decideAccess, holdsStatement } from "../../membership/policy.js";
+import { decideAccess, endpointUrlShown, holdsStatement } from "../../membership/policy.js";
 import { resolveCallerWorkspaces } from "../../membership/resolver.js";
+import { OPERATIONAL_CELLS } from "../../membership/route-policy.js";
 import { endpointUrlFor } from "../../webhooks/mask.js";
 import {
   FACT_ROW_LIMIT,
@@ -284,13 +285,7 @@ async function buildFormWebhooks(
     action: "read",
   });
 
-  const visibility = holdsStatement(
-    { memberRole: resolved.memberRole, grants: resolved.grants },
-    "webhook",
-    "configure",
-  )
-    ? "whole"
-    : "masked";
+  const visibility = endpointUrlShown(resolved, input.environment);
   // An endpoint and its deliveries are the environment's own data, as the webhooks route
   // reads them: from the control plane they are another environment's rows, or none.
   const { exec } = input.deps.databases.forRequest(input.environment);
@@ -365,7 +360,21 @@ async function operationalWorkspaces(input: ScreenBuildInput): Promise<readonly 
 async function buildOperations(input: ScreenBuildInput): Promise<z.infer<typeof operationsFacts>> {
   const workspaceIds = await operationalWorkspaces(input);
   const exec = input.deps.databases.control;
-  const forms = (await listForms(exec, { workspaceIds })).slice(0, FACT_ROW_LIMIT);
+  // The same per-form, per-environment decision the operations route makes.
+  const forms = [];
+  for (const form of await listForms(exec, { workspaceIds })) {
+    const resolved = await membershipIn(input, form.workspaceId);
+    const discoverable = OPERATIONAL_CELLS.some(
+      (cell) =>
+        decideAccess({
+          memberRole: resolved.memberRole,
+          grants: resolved.grants,
+          request: { ...cell, environment: input.environment },
+        }).allowed,
+    );
+    if (discoverable) forms.push(form);
+    if (forms.length >= FACT_ROW_LIMIT) break;
+  }
   const ids = forms.map((form) => form.formId);
   const [titles, states] = await Promise.all([
     publishedTitlesByForm(exec, ids),
@@ -380,12 +389,7 @@ async function buildOperations(input: ScreenBuildInput): Promise<z.infer<typeof 
     const decision = decideAccess({
       memberRole: resolved.memberRole,
       grants: resolved.grants,
-      request: {
-        resource: "response",
-        action: "read",
-        environment: input.environment,
-        formId: form.formId,
-      },
+      request: { resource: "response", action: "read", environment: input.environment },
     });
     if (decision.allowed) readable.push(form.formId);
   }
@@ -434,12 +438,7 @@ async function buildResponsePicker(
     const decision = decideAccess({
       memberRole: resolved.memberRole,
       grants: resolved.grants,
-      request: {
-        resource: "response",
-        action: "read",
-        environment: input.environment,
-        formId: form.formId,
-      },
+      request: { resource: "response", action: "read", environment: input.environment },
     });
     if (decision.allowed) allowed.push(form);
     if (allowed.length >= FACT_ROW_LIMIT) break;

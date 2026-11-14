@@ -28,9 +28,8 @@ import {
 
 const GrantFact = z.strictObject({
   workspaceId: z.string(),
-  role: z.string(),
+  roles: z.array(z.string()),
   environments: z.array(z.string()),
-  forms: z.array(z.string()),
   name: z.string().nullable(),
 });
 
@@ -56,9 +55,8 @@ async function ownGrants(input: ScreenBuildInput): Promise<z.infer<typeof GrantF
   return resolved.flatMap((membership) =>
     membership.grants.slice(0, FACT_ROW_LIMIT).map((grant) => ({
       workspaceId: membership.workspaceId,
-      role: grant.role,
+      roles: [...grant.roles],
       environments: [...grant.environments],
-      forms: [...grant.forms],
       name: grant.name ?? null,
     })),
   );
@@ -119,9 +117,8 @@ export const workspaceDetailFacts = z.strictObject({
     z.strictObject({
       groupId: z.string(),
       name: z.string(),
-      role: z.string(),
+      roles: z.array(z.string()),
       environments: z.array(z.string()),
-      forms: z.array(z.string()),
     }),
   ),
   accessAudit: z.array(
@@ -166,9 +163,8 @@ async function buildWorkspaceDetail(
     accessGroups: groups.slice(0, FACT_ROW_LIMIT).map((group) => ({
       groupId: group.teamId,
       name: group.name,
-      role: group.role,
+      roles: [...group.roles],
       environments: [...group.environments],
-      forms: [...group.forms],
     })),
     accessAudit: audit.rows.slice(0, FACT_ROW_LIMIT).map((row) => ({
       kind: row.kind,

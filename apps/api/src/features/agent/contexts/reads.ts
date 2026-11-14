@@ -26,7 +26,7 @@ import type { FormId } from "@roonga/qcms-core";
 
 import { ApiError } from "../../../errors.js";
 import { previewConditionFlow, projectDraftFlow, validateDraft } from "../../forms/handler.js";
-import { holdsStatement } from "../../membership/policy.js";
+import { endpointUrlShown } from "../../membership/policy.js";
 import { resolveCallerWorkspaces, workspacesAllowing } from "../../membership/resolver.js";
 import { endpointUrlFor } from "../../webhooks/mask.js";
 import { unpublishedDraftPins } from "../draft-pins.js";
@@ -626,13 +626,7 @@ async function webhooksOf(
     resource: "webhook",
     action: "read",
   });
-  const visibility = holdsStatement(
-    { memberRole: resolved.memberRole, grants: resolved.grants },
-    "webhook",
-    "configure",
-  )
-    ? "whole"
-    : "masked";
+  const visibility = endpointUrlShown(resolved, input.environment);
   // An endpoint and its deliveries are the environment's own data, as the webhooks route
   // reads them.
   const { exec } = input.deps.databases.forRequest(input.environment);
@@ -955,9 +949,8 @@ function readWorkspacePort(input: ScreenBuildInput): ReadWorkspacePort {
       accessGroups: groups.slice(0, FACT_ROW_LIMIT).map((group) => ({
         groupId: group.teamId,
         name: group.name,
-        role: group.role,
+        roles: [...group.roles],
         environments: [...group.environments],
-        forms: [...group.forms],
       })),
     };
   };

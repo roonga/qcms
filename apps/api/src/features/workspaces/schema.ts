@@ -48,14 +48,16 @@ export const WorkspaceView = z
     workspaceId: z.string().openapi({ example: "org_default_workspace" }),
     name: z.string().openapi({ example: "Default workspace" }),
     slug: WorkspaceSlug,
-    /** At most one workspace is the installation's shared question library. */
-    isShared: z.boolean(),
-    requireSecondApprover: z.boolean(),
-    seedNewEditorsWithTestData: z.boolean(),
     archivedAt: z.iso.datetime().nullable(),
-    /** What it owns, so a list can say why an archive would be refused. */
-    forms: z.number().int().nonnegative().openapi({ example: 2 }),
-    questions: z.number().int().nonnegative().openapi({ example: 17 }),
+    /**
+     * Administration, so present only for a caller holding `workspace: read` there. At
+     * most one workspace is the installation's shared question library, and the counts say
+     * why an archive would be refused.
+     */
+    isShared: z.boolean().optional(),
+    requireSecondApprover: z.boolean().optional(),
+    forms: z.number().int().nonnegative().optional().openapi({ example: 2 }),
+    questions: z.number().int().nonnegative().optional().openapi({ example: 17 }),
   })
   .openapi("WorkspaceView");
 

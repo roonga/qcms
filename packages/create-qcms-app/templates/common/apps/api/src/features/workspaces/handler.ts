@@ -4,33 +4,31 @@ import {
   countWorkspaceContents,
   findArchiveBlockers,
   getForm,
-  getQuestion,
   getWorkspace,
   getWorkspaceBySlug,
   listWorkspaces,
   moveFormToWorkspace,
-  moveQuestionToWorkspace,
-  readSeedNewEditorsWithTestData,
   renameWorkspace,
   setWorkspaceShared,
   writeAccessAuditRow,
 } from "@roonga/qcms-db";
 import type { ArchiveBlockers, WorkspaceRow } from "@roonga/qcms-db";
 
-import { parseFormId, parseQuestionId } from "@roonga/qcms-core";
+import { parseFormId } from "@roonga/qcms-core";
 import { isAPIError } from "better-auth/api";
 
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
 import { adminAuthFor } from "../auth/route.js";
+import { holdsStatement } from "../membership/policy.js";
+import { decideInWorkspace, holdsInstallationClaim } from "../membership/resolver.js";
 import { requireOpenWorkspace, requireWorkspace, workspaceFail } from "./resolve.js";
 import type {
   archiveWorkspaceRoute,
   createWorkspaceRoute,
   listWorkspacesRoute,
   moveFormRoute,
-  moveQuestionRoute,
   renameWorkspaceRoute,
   setSharedWorkspaceRoute,
 } from "./route.js";
@@ -81,10 +79,25 @@ const fail = {
   alreadyArchived: (): ApiError =>
     new ApiError("WORKSPACE_ARCHIVED", 409, "That workspace is already archived"),
   invalidFormId: (): ApiError => new ApiError("INVALID_FORM_ID", 400, "Malformed form id"),
-  invalidQuestionId: (): ApiError =>
-    new ApiError("INVALID_QUESTION_ID", 400, "Malformed question id"),
   formNotFound: (): ApiError => new ApiError("FORM_NOT_FOUND", 404, "No such form"),
-  questionNotFound: (): ApiError => new ApiError("QUESTION_NOT_FOUND", 404, "No such question"),
+  /** The destination half of the move, which the route row cannot name. */
+  notInDestination: (): ApiError =>
+    new ApiError(
+      "FORBIDDEN",
+      403,
+      "Moving a form needs Edit forms in the destination workspace as well as the source.",
+    ),
+  /**
+   * Until the move becomes a held approval request, second approval in the source refuses
+   * it outright rather than applying it with nobody to approve.
+   */
+  moveNeedsApproval: (): ApiError =>
+    new ApiError(
+      "MOVE_NEEDS_APPROVAL",
+      409,
+      "The source workspace requires a second approver, and a held move is not built yet. " +
+        "Turn the setting off to move this form, or move it before turning it on.",
+    ),
 } as const;
 
 function isUniqueViolation(err: unknown): boolean {
@@ -99,33 +112,33 @@ function isVendorSlugRefusal(err: unknown): boolean {
   return (err as { status?: unknown }).status === "BAD_REQUEST";
 }
 
-async function workspaceView(
-  deps: Deps,
-  row: WorkspaceRow,
-): Promise<{
+interface WorkspaceViewRow {
   workspaceId: string;
   name: string;
   slug: string;
-  isShared: boolean;
-  requireSecondApprover: boolean;
-  seedNewEditorsWithTestData: boolean;
   archivedAt: string | null;
-  forms: number;
-  questions: number;
-}> {
-  const contents = await countWorkspaceContents(deps.databases.control, row.id);
+  isShared?: boolean;
+  requireSecondApprover?: boolean;
+  forms?: number;
+  questions?: number;
+}
+
+/** Identity alone, which is what a caller holding no `workspace: read` there is shown. */
+function workspaceIdentity(row: WorkspaceRow): WorkspaceViewRow {
   return {
     workspaceId: row.id,
     name: row.name,
     slug: row.slug,
+    archivedAt: row.archivedAt === null ? null : row.archivedAt.toISOString(),
+  };
+}
+
+async function workspaceView(deps: Deps, row: WorkspaceRow): Promise<WorkspaceViewRow> {
+  const contents = await countWorkspaceContents(deps.databases.control, row.id);
+  return {
+    ...workspaceIdentity(row),
     isShared: row.isShared,
     requireSecondApprover: row.requireSecondApprover,
-    // On the list because the screen that writes it has to open on the value it has: a
-    // panel that guessed `false` would present a statement about personal data as though
-    // nobody had chosen it.
-    seedNewEditorsWithTestData:
-      (await readSeedNewEditorsWithTestData(deps.databases.control, row.id)) ?? false,
-    archivedAt: row.archivedAt === null ? null : row.archivedAt.toISOString(),
     forms: contents.forms,
     questions: contents.questions,
   };
@@ -137,12 +150,28 @@ export function makeListWorkspacesHandler(
   return async (c) => {
     // Archived workspaces are in the list: one is archived and never deleted (Q15), and
     // one that still owns questions is what a reader needs to see.
-    const held = c.get("grantContext")?.workspaceIds ?? [];
+    const grant = c.get("grantContext");
+    const held = grant?.workspaceIds ?? [];
+    const administers = new Set(
+      (grant?.memberships ?? [])
+        .filter((membership) =>
+          holdsStatement(
+            { memberRole: membership.memberRole, grants: membership.grants },
+            "workspace",
+            "read",
+          ),
+        )
+        .map((membership) => membership.workspaceId),
+    );
     const rows = (await listWorkspaces(deps.databases.control)).filter((row) =>
       held.includes(row.id),
     );
     const workspaces = [];
-    for (const row of rows) workspaces.push(await workspaceView(deps, row));
+    for (const row of rows) {
+      workspaces.push(
+        administers.has(row.id) ? await workspaceView(deps, row) : workspaceIdentity(row),
+      );
+    }
     return c.json({ workspaces }, 200);
   };
 }
@@ -271,13 +300,15 @@ export function makeArchiveWorkspaceHandler(
 
 /**
  * One `UPDATE` on the identity row: the slug is unique installation-wide, so an ownership
- * change re-points no public address. Existing pins are not re-checked - whether the next
- * draft may keep them is the publish rule's answer, from the state at that time.
+ * change re-points no public address. The route row carries the source half; the
+ * destination's own Edit forms cell is checked here, because one row names one workspace.
  */
 export function makeMoveFormHandler(deps: Deps): RouteHandler<typeof moveFormRoute, ApiEnv> {
   return async (c) => {
     const parsed = parseFormId(c.req.valid("param").id);
     if (!parsed.ok) throw fail.invalidFormId();
+    const principal = c.get("adminPrincipal");
+    if (principal === undefined) throw fail.noPrincipal();
     const target = await requireOpenWorkspace(
       deps.databases.control,
       c.req.valid("json").workspaceId,
@@ -286,32 +317,19 @@ export function makeMoveFormHandler(deps: Deps): RouteHandler<typeof moveFormRou
     const form = await getForm(deps.databases.control, parsed.value);
     if (form === undefined) throw fail.formNotFound();
 
+    const source = await getWorkspace(deps.databases.control, form.workspaceId);
+    if (source?.requireSecondApprover === true) throw fail.moveNeedsApproval();
+
+    const inDestination = await decideInWorkspace(deps.databases.control, {
+      userId: principal.userId,
+      workspaceId: target.id,
+      claim: holdsInstallationClaim(principal.role),
+      request: { resource: "form", action: "write" },
+    });
+    if (!inDestination.allowed) throw fail.notInDestination();
+
     const moved = await moveFormToWorkspace(deps.databases.control, parsed.value, target.id);
     if (moved === undefined) throw fail.formNotFound();
     return c.json({ id: moved.formId, workspaceId: moved.workspaceId }, 200);
-  };
-}
-
-/**
- * No version is touched, so a form elsewhere that already pins one keeps serving it and
- * keeps that pin in its next draft. Only a new cross-workspace pin is refused.
- */
-export function makeMoveQuestionHandler(
-  deps: Deps,
-): RouteHandler<typeof moveQuestionRoute, ApiEnv> {
-  return async (c) => {
-    const parsed = parseQuestionId(c.req.valid("param").id);
-    if (!parsed.ok) throw fail.invalidQuestionId();
-    const target = await requireOpenWorkspace(
-      deps.databases.control,
-      c.req.valid("json").workspaceId,
-    );
-
-    const question = await getQuestion(deps.databases.control, parsed.value);
-    if (question === undefined) throw fail.questionNotFound();
-
-    const moved = await moveQuestionToWorkspace(deps.databases.control, parsed.value, target.id);
-    if (moved === undefined) throw fail.questionNotFound();
-    return c.json({ id: moved.questionId, workspaceId: moved.workspaceId }, 200);
   };
 }

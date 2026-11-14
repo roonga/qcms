@@ -267,7 +267,6 @@ function actionPorts(args: {
         grants: membership.grants,
         environments: args.deps.databases.names,
         current: args.build.environment,
-        formId: args.build.params.formId,
         screen: args.screen,
       }),
     ),

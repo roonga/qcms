@@ -13,7 +13,7 @@ import {
   deleteAccessGroup,
   getAccessGroup,
   listAccessGroups,
-  updateAccessGroupScope,
+  updateAccessGroup,
 } from "../queries/grants.js";
 
 import { WORKSPACE_REPORTING_ROLE_PREFIX } from "../schema/schemas.js";
@@ -290,15 +290,14 @@ describe(
       await createEnvironment(testDb.db, { name: "scratch" });
       const group = await createAccessGroup(testDb.db, {
         workspaceId: SEED_WORKSPACE_ID,
-        name: "scratch.responses.viewer",
-        role: "responses.viewer",
+        name: "Scratch response viewers",
+        roles: ["responses.viewer"],
         environments: ["scratch"],
-        forms: ["all"],
       });
 
       const refusal = await dropEnvironment(testDb.db, "scratch");
-      expect(refusal?.accessGroups).toEqual(["default.scratch.responses.viewer"]);
-      expect(refusal?.reason).toContain("default.scratch.responses.viewer");
+      expect(refusal?.accessGroups).toEqual(["default.Scratch response viewers"]);
+      expect(refusal?.reason).toContain("default.Scratch response viewers");
       expect(refusal?.reason).toContain("Remove or re-scope");
       expect(refusal?.sessionCount).toBe(0);
       expect(refusal?.openForms).toEqual([]);
@@ -308,7 +307,7 @@ describe(
 
     it("succeeds once the group is removed", async () => {
       const groups = await listAccessGroups(testDb.db, SEED_WORKSPACE_ID);
-      const naming = groups.find((group) => group.name === "scratch.responses.viewer");
+      const naming = groups.find((group) => group.name === "Scratch response viewers");
       expect(naming).toBeDefined();
       await deleteAccessGroup(testDb.db, (naming as { teamId: string }).teamId);
       expect(await dropEnvironment(testDb.db, "scratch")).toBeUndefined();
@@ -318,30 +317,28 @@ describe(
       await createEnvironment(testDb.db, { name: "scratchtwo" });
       const group = await createAccessGroup(testDb.db, {
         workspaceId: SEED_WORKSPACE_ID,
-        name: "scratchtwo.responses.eraser",
-        role: "responses.eraser",
+        name: "Scratch two erasers",
+        roles: ["responses.eraser"],
         environments: ["scratchtwo"],
-        forms: ["all"],
       });
       expect((await dropEnvironment(testDb.db, "scratchtwo"))?.accessGroups).toHaveLength(1);
 
-      await updateAccessGroupScope(testDb.db, group.teamId, {
-        name: "prod.responses.eraser",
+      await updateAccessGroup(testDb.db, group.teamId, {
+        name: "Production erasers",
+        roles: ["responses.eraser"],
         environments: ["prod"],
-        forms: ["all"],
         updatedAt: new Date("2026-10-17T00:00:00.000Z"),
       });
       expect(await dropEnvironment(testDb.db, "scratchtwo")).toBeUndefined();
     });
 
-    it("does not block on a group scoped to `all`, which names no environment", async () => {
+    it("does not block on a group whose roles name no environment", async () => {
       await createEnvironment(testDb.db, { name: "scratchthree" });
       await createAccessGroup(testDb.db, {
         workspaceId: SEED_WORKSPACE_ID,
-        name: "all.forms.viewer",
-        role: "forms.viewer",
-        environments: ["all"],
-        forms: ["all"],
+        name: "Readers",
+        roles: ["forms.viewer"],
+        environments: [],
       });
       expect(await dropEnvironment(testDb.db, "scratchthree")).toBeUndefined();
     });

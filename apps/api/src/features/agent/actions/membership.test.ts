@@ -82,31 +82,38 @@ describe("D8's action kinds", () => {
 
   it("recomputes a group create from the body the card displayed", () => {
     const body = {
-      name: "test.responses.viewer.ops",
-      role: "responses.viewer",
-      label: "ops",
+      name: "Response viewers",
+      roles: ["responses.viewer"],
       environments: ["test"],
-      forms: ["all"],
     };
     expect(createAccessGroup.recomputeArgs(factsFor(createAccessGroup, body))).toEqual({
       workspaceId: "wsp_a",
-      name: "test.responses.viewer.ops",
-      role: "responses.viewer",
-      label: "ops",
+      name: "Response viewers",
+      roles: ["responses.viewer"],
       environments: ["test"],
-      forms: ["all"],
     });
     expect(
       createAccessGroup.recomputeArgs(
-        factsFor(createAccessGroup, { ...body, label: undefined, name: "test.responses.viewer" }),
+        factsFor(createAccessGroup, { name: "Authors", roles: ["forms.editor"], environments: [] }),
       ),
     ).toEqual({
       workspaceId: "wsp_a",
-      name: "test.responses.viewer",
-      role: "responses.viewer",
-      environments: ["test"],
-      forms: ["all"],
+      name: "Authors",
+      roles: ["forms.editor"],
+      environments: [],
     });
+  });
+
+  it("refuses a group create that names forms, which the group shape no longer has", () => {
+    expect(
+      createAccessGroup.args.safeParse({
+        workspaceId: "wsp_a",
+        name: "Response viewers",
+        roles: ["responses.viewer"],
+        environments: ["test"],
+        forms: ["all"],
+      }).success,
+    ).toBe(false);
   });
 
   it("recomputes the path-only kinds from the path alone", () => {
@@ -132,17 +139,18 @@ describe("D8's action kinds", () => {
     });
   });
 
-  it("omits a workspace switch the request left alone, so the digest covers what was shown", () => {
+  it("recomputes the one workspace switch the request carries", () => {
     expect(
       saveWorkspaceSettings.recomputeArgs(
         factsFor(saveWorkspaceSettings, { requireSecondApprover: true }),
       ),
     ).toEqual({ workspaceId: "wsp_a", requireSecondApprover: true });
     expect(
-      saveWorkspaceSettings.recomputeArgs(
-        factsFor(saveWorkspaceSettings, { seedNewEditorsWithTestData: false }),
-      ),
-    ).toEqual({ workspaceId: "wsp_a", seedNewEditorsWithTestData: false });
+      saveWorkspaceSettings.args.safeParse({
+        workspaceId: "wsp_a",
+        seedNewEditorsWithTestData: false,
+      }).success,
+    ).toBe(false);
   });
 
   it("refuses an argument set with an unknown member or a role outside the two", () => {

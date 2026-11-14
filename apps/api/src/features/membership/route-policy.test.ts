@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { ACTIONS, isEnvironmentScoped, isFormScoped } from "./policy.js";
+import { ACTIONS, isEnvironmentScoped, readsOneEnvironment } from "./policy.js";
 import {
   AGENT_SCREEN_CELLS,
   GRANT_EXEMPT_ROUTES,
@@ -81,7 +81,7 @@ describe("the route table and the mounted admin surface stay in step", () => {
     const accept = policyForRequest("POST", "/admin/forms/frm_x/draft/assist/accept");
     expect(accept?.resource).toBe("form");
     expect(accept?.action).toBe("write");
-    expect(accept?.also).toEqual({ resource: "question", action: "write" });
+    expect(accept?.also).toEqual([{ resource: "question", action: "write" }]);
     expect(accept?.namesEnvironment).toBeUndefined();
   });
 
@@ -173,22 +173,40 @@ describe("every row names an action the policy declares", () => {
     }
   });
 
-  it("names an environment exactly when one of its cells is environment-scoped", () => {
+  it("names an environment exactly when a cell it decides is environment-scoped or one environment's rows", () => {
+    // An `anyOf` union is admitted as statements, never judged against an environment, so
+    // it is deliberately not part of this test: the handler narrows per environment.
     for (const row of ROUTE_POLICIES) {
-      const cells = [
-        { resource: row.resource, action: row.action },
-        ...(row.also === undefined ? [] : [row.also]),
-        ...(row.anyOf ?? []),
-      ];
-      const scoped = cells.some((cell) => isEnvironmentScoped(cell.resource, cell.action));
-      expect(row.namesEnvironment === true, `${row.method} ${row.path}`).toBe(scoped);
+      const cells = [{ resource: row.resource, action: row.action }, ...(row.also ?? [])];
+      const scoped = cells.some(
+        (cell) =>
+          isEnvironmentScoped(cell.resource, cell.action) ||
+          (row.installationOnly !== true && readsOneEnvironment(cell.resource, cell.action)),
+      );
+      const decidesPerEnvironment = row.anyOf !== undefined && row.environmentFrom !== undefined;
+      expect(row.namesEnvironment === true, `${row.method} ${row.path}`).toBe(
+        scoped || decidesPerEnvironment,
+      );
     }
   });
 
-  it("gives the operations and agent rows their cell unions, and no other row an `anyOf`", () => {
+  it("puts every grant holder on the workspace list and names no environment (criterion 26)", () => {
+    const list = policyForRequest("GET", "/admin/workspaces");
+    expect(list?.workspace).toBe("caller");
+    expect(list?.namesEnvironment).toBeUndefined();
+    expect(list?.anyOf?.map((cell) => `${cell.resource}:${cell.action}`)).toEqual([
+      "workspace:read",
+      "form:read",
+      "response:read",
+      "response:erase",
+    ]);
+  });
+
+  it("gives the list, operations and agent rows their cell unions, and no other row an `anyOf`", () => {
     const withAnyOf = ROUTE_POLICIES.filter((row) => row.anyOf !== undefined);
     expect([...withAnyOf.map((row) => `${row.method} ${row.path}`)].sort()).toEqual([
       "GET /admin/operations/forms",
+      "GET /admin/workspaces",
       "POST /admin/assist",
     ]);
     // The agent row serves every screen, so its union is the screens' own first cells and
@@ -245,7 +263,10 @@ describe("every row names an action the policy declares", () => {
     const publish = policyForRequest("POST", "/admin/forms/frm_x/publish-batch");
     expect(publish?.resource).toBe("form");
     expect(publish?.action).toBe("publish");
-    expect(publish?.also).toEqual({ resource: "release", action: "create" });
+    expect(publish?.also).toEqual([
+      { resource: "form", action: "write" },
+      { resource: "release", action: "create" },
+    ]);
   });
 
   it("keeps the release-workflow write out of every grant's reach and its read in three", () => {
@@ -277,25 +298,41 @@ describe("every row names an action the policy declares", () => {
     ]);
   });
 
-  it("gives `publish-and-release` both of its cells, and names every row that has two", () => {
+  it("names every row that takes more than one cell, and spells out the publish rows", () => {
     const withSecond = ROUTE_POLICIES.filter((row) => row.also !== undefined);
     expect([...withSecond.map((row) => `${row.method} ${row.path}`)].sort()).toEqual([
       "POST /admin/forms/{id}/draft/assist/accept",
+      "POST /admin/forms/{id}/publish",
       "POST /admin/forms/{id}/publish-and-release",
       "POST /admin/forms/{id}/publish-batch",
+      "POST /admin/forms/{id}/workspace",
     ]);
     const combined = policyForRequest("POST", "/admin/forms/frm_x/publish-and-release");
     expect(combined?.resource).toBe("form");
     expect(combined?.action).toBe("publish");
-    expect(combined?.also).toEqual({ resource: "release", action: "create" });
+    expect(combined?.also).toEqual([
+      { resource: "form", action: "write" },
+      { resource: "release", action: "create" },
+    ]);
     expect(combined?.environmentFrom).toBe("body");
   });
 
-  it("agrees with the policy about which acts name a form", () => {
-    for (const row of ROUTE_POLICIES) {
-      const scoped = isFormScoped(row.resource, row.action);
-      expect(row.namesForm === true, `${row.method} ${row.path}`).toBe(scoped);
-    }
+  it("takes Edit forms as well as Publish forms to freeze a version (criterion 4)", () => {
+    const freeze = policyForRequest("POST", "/admin/forms/frm_x/publish");
+    expect(freeze?.resource).toBe("form");
+    expect(freeze?.action).toBe("publish");
+    expect(freeze?.also).toEqual([{ resource: "form", action: "write" }]);
+  });
+
+  it("no longer moves a question between workspaces (criterion 107)", () => {
+    expect(policyForRequest("POST", "/admin/questions/q_x/workspace")).toBeUndefined();
+  });
+
+  it("takes Edit forms and a Workspace administrator to move a form", () => {
+    const move = policyForRequest("POST", "/admin/forms/frm_x/workspace");
+    expect(move?.resource).toBe("form");
+    expect(move?.action).toBe("write");
+    expect(move?.also).toEqual([{ resource: "workspace", action: "update" }]);
   });
 });
 

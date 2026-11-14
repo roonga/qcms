@@ -13,10 +13,8 @@ const MEMBER = uniqueAdminEmail("membership069member");
 
 const WORKSPACE_ID = "org_default_workspace";
 
-const LABEL = `pick${Date.now().toString(36)}`;
-
-/** A seeded form of the default workspace, picked by name rather than as All forms. */
-const FORM_SLUG = "kitchen-sink";
+/** A group name is unique within its workspace, so each run names its own. */
+const GROUP_NAME = `Response viewers ${Date.now().toString(36)}`;
 
 let totpSecret = "";
 
@@ -101,44 +99,23 @@ test("one workspace draws no switcher, keeps the name in the crumb and has no li
   await expect(page).toHaveURL(new RegExp(`/workspaces/${WORKSPACE_ID}/members$`));
 });
 
-test("the naming grammar is behind Advanced, not a paragraph under the heading", async ({
+test("the environment picker appears only for a role whose acts are bound to one", async ({
   page,
 }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto(`/workspaces/${WORKSPACE_ID}/access-groups`);
+  await waitForHydration(page);
 
   const create = page.getByTestId("qcms-access-group-create");
-  await expect(
-    create.getByText("is a label rather than a mechanism", { exact: false }),
-  ).toBeHidden();
-  await create.getByText("Advanced", { exact: true }).click();
-  await expect(
-    create.getByText("is a label rather than a mechanism", { exact: false }),
-  ).toBeVisible();
-  await expect(
-    create.getByText("Nothing reads a name to authorise anything", { exact: false }),
-  ).toBeVisible();
-});
+  await expect(create.getByRole("textbox", { name: "Name", exact: true })).toBeVisible();
 
-test("the seed setting's help text says a grant on test responses is a grant on personal data", async ({
-  page,
-}) => {
-  await signInWithTotp(page, EMAIL, totpSecret);
-  await page.goto(`/workspaces/${WORKSPACE_ID}/settings`);
+  await chooseOption(create, "Role", "Form viewer");
+  await expect(create.getByTestId("qcms-group-no-environments")).toBeVisible();
+  await expect(create.getByRole("checkbox", { name: "test", exact: true })).toHaveCount(0);
 
-  const seed = page.getByLabel("Seed a new editor with dev and test response access");
-  await expect(seed).toBeVisible();
-  await expect(seed).not.toBeChecked();
-  await expect(
-    page.getByText("A grant on test responses is a grant on personal data", { exact: false }),
-  ).toBeVisible();
-  await expect(
-    page.getByText("because a test run can involve real respondents", { exact: false }),
-  ).toBeVisible();
-
-  await expect(
-    page.getByText("turning it on is written to the access audit", { exact: false }),
-  ).toBeVisible();
+  await chooseOption(create, "Role", "Form publisher");
+  await expect(create.getByTestId("qcms-group-no-environments")).toHaveCount(0);
+  await expect(create.getByRole("checkbox", { name: "test", exact: true })).toBeVisible();
 });
 
 test("the two-person switch states all three of its effects", async ({ page }) => {
@@ -152,7 +129,7 @@ test("the two-person switch states all three of its effects", async ({ page }) =
   for (const effect of [
     "A release to production is refused for the account that published the version",
     "a production endpoint change takes a second approver's confirmation",
-    "nobody can grant themselves a responses role",
+    "nobody can give themselves a response role",
   ]) {
     await expect(page.getByText(effect, { exact: false })).toBeVisible();
   }
@@ -167,6 +144,7 @@ test("an access group is created with the pickers, granted to a member and taken
   await waitForHydration(page);
 
   const create = page.getByTestId("qcms-access-group-create");
+  await create.getByRole("textbox", { name: "Name", exact: true }).fill(GROUP_NAME);
   await chooseOption(create, "Role", "Response viewer");
   await expect(create.getByText("Reads and exports responses", { exact: false })).toBeVisible();
   await expect(create.getByText("responses.viewer", { exact: true })).toHaveCount(0);
@@ -178,52 +156,36 @@ test("an access group is created with the pickers, granted to a member and taken
       checked: on,
     });
   };
-  const allEnvironments = "All environments";
-  const allForms = "All forms";
 
-  await tick(allEnvironments, false);
+  // A response role names its environments, so the group cannot be saved until one is ticked.
   await expect(create.getByRole("button", { name: "Create group" })).toBeDisabled();
   await tick("test", true);
 
-  await expect(create.getByRole("checkbox", { name: allForms, exact: true })).toBeChecked();
-  await expect(create.getByRole("textbox", { name: "Search forms by name" })).toBeVisible();
-  await tick(allForms, false);
-  await expect(create.getByRole("button", { name: "Create group" })).toBeDisabled();
-  await create.getByRole("textbox", { name: "Search forms by name" }).fill("KITCHEN");
-  await expect(create.getByRole("checkbox", { name: "repeat-tour", exact: true })).toHaveCount(0);
-  await tick(FORM_SLUG, true);
-
-  await create.getByText("Advanced", { exact: true }).click();
-  await create.getByRole("textbox", { name: "Label (optional)" }).fill(LABEL);
-  const name = `test.responses.viewer.${LABEL}`;
-  await expect(page.getByTestId("qcms-group-name")).toContainText(name);
-
   await create.getByRole("button", { name: "Create group" }).click();
-  await expect(page.getByText(`The access group ${name} was created`)).toBeVisible();
+  await expect(page.getByText(`The access group ${GROUP_NAME} was created`)).toBeVisible();
 
-  // The stored name lives under Advanced, so the row is found by it rather than titled by it.
   const row = page
     .getByRole("region", { name: "Access groups" })
-    .locator(`[data-group-name="${name}"]`)
+    .locator(`[data-group-name="${GROUP_NAME}"]`)
     .first();
-  await expect(row.locator("p").first()).toHaveText("Response viewer, test, 1 form");
-  await expect(row).toContainText(FORM_SLUG);
+  await expect(row.locator("p").first()).toHaveText(GROUP_NAME);
+  await expect(row).toContainText("Response viewer, in test");
   await expect(row).toContainText("Nobody");
   await expect(row.getByRole("textbox", { name: "Account address" })).toHaveCount(0);
 
   await chooseOption(row, "Member", MEMBER);
   await row.getByRole("button", { name: "Grant", exact: true }).click();
-  await expect(page.getByText(`${MEMBER} now holds ${name}.`)).toBeVisible();
+  await expect(page.getByText(`${MEMBER} now holds ${GROUP_NAME}.`)).toBeVisible();
   await expect(row).toContainText(MEMBER);
 
-  // Members names the group by its role and its scope, so two groups of one role are told apart.
+  // Members reads a group by its roles and environments, so two groups of one name are told apart.
   await page.goto(`/workspaces/${WORKSPACE_ID}/members`);
   await expect(
     page
       .getByRole("table", { name: /members/iu })
       .getByRole("row")
       .filter({ hasText: MEMBER }),
-  ).toContainText("Response viewer, test, 1 form");
+  ).toContainText("Response viewer, in test");
   await page.goto(`/workspaces/${WORKSPACE_ID}/access-groups`);
   await waitForHydration(page);
 

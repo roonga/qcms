@@ -49,7 +49,10 @@ export const publishForm: ActionKindDef = {
   // the dialog it mirrors.
   route: { method: "POST", path: "/admin/forms/{id}/publish-batch" },
   cell: { resource: "form", action: "publish" },
-  alsoCell: { resource: "release", action: "create" },
+  alsoCells: [
+    { resource: "form", action: "write" },
+    { resource: "release", action: "create" },
+  ],
   environmentFrom: "argument",
   environmentArgument: "environment",
   args: PublishArgs,

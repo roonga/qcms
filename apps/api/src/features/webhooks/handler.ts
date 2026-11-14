@@ -429,9 +429,7 @@ export function makeDeactivateWebhookHandler(
   };
 }
 
-// Gated as an endpoint read, which is workspace-wide and environment-agnostic in the
-// matrix (Q39); only the write actions are environment-scoped. The switcher decides which
-// environment's pending list is shown.
+// The switcher decides which environment's pending list is shown.
 export function makeListEndpointProposalsHandler(
   deps: Deps,
 ): RouteHandler<typeof listEndpointProposalsRoute, ApiEnv> {

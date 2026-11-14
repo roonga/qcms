@@ -633,47 +633,30 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
     readonly userId: string;
     readonly workspaceId: string;
     readonly name: string;
-    readonly role: string;
+    readonly roles: readonly string[];
     readonly environments: readonly string[];
-    readonly forms: readonly string[];
   }): Promise<string> {
     const group = await createAccessGroup(testDb.db, {
       workspaceId: input.workspaceId,
       name: input.name,
-      role: input.role,
+      roles: input.roles,
       environments: input.environments,
-      forms: input.forms,
     });
     await ensureWorkspaceMember(testDb.db, input.workspaceId, input.userId);
     await addAccessGroupHolder(testDb.db, group.teamId, input.userId);
     return group.teamId;
   }
 
-  async function createScopedApproverGroup(
+  async function createScopedPublisherGroup(
     userId: string,
     environments: readonly string[],
   ): Promise<string> {
     return createScopedGroup({
       userId,
       workspaceId: SEED_WORKSPACE_ID,
-      name: `${environments.join("-")}.forms.approver.probe`,
-      role: "forms.approver",
+      name: `Publishers ${environments.join("-")} ${userId}`,
+      roles: ["forms.publisher"],
       environments,
-      forms: ["all"],
-    });
-  }
-
-  async function createFormScopedViewerGroup(
-    userId: string,
-    forms: readonly string[],
-  ): Promise<string> {
-    return createScopedGroup({
-      userId,
-      workspaceId: SEED_WORKSPACE_ID,
-      name: "all.responses.viewer.officer",
-      role: "responses.viewer",
-      environments: ["all"],
-      forms,
     });
   }
 
@@ -690,10 +673,9 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
     await createScopedGroup({
       userId: account.userId,
       workspaceId,
-      name: "all.forms.viewer",
-      role: "forms.viewer",
-      environments: ["all"],
-      forms: ["all"],
+      name: "Viewers",
+      roles: ["forms.viewer"],
+      environments: [],
     });
     return { token: account.token, workspaceId };
   }
@@ -710,9 +692,16 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
     expect((await get(token, `/admin/forms/${ctx.formId}`)).status).toBe(200);
   });
 
-  it("gives a `forms.owner` no response and no form at all (criterion 2, Q27)", async () => {
+  it("gives a `forms.owner` no response read, export or erase and no form (criterion 19)", async () => {
     const token = await accountHolding("probe-owner", [], { owner: true });
     expect((await get(token, `/admin/forms/${ctx.formId}/responses`)).status).toBe(403);
+    expect(
+      (await get(token, `/admin/forms/${ctx.formId}/export?format=csv&version=1`)).status,
+    ).toBe(403);
+    const erase = await post(token, `/admin/forms/${ctx.formId}/responses/${ctx.sessionId}/erase`, {
+      reason: "probe",
+    });
+    expect(erase.status).toBe(403);
     expect((await get(token, `/admin/forms/${ctx.formId}`)).status).toBe(403);
     expect((await get(token, `/admin/workspaces/${ctx.workspaceId}/members`)).status).toBe(200);
   });
@@ -748,6 +737,43 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
     expect((await get(token, `/admin/forms/${ctx.formId}/responses`)).status).toBe(403);
   });
 
+  it("denies a `forms.viewer` and a `forms.editor` publish, links and webhooks (criterion 9)", async () => {
+    for (const role of ["forms.viewer", "forms.editor"]) {
+      const token = await accountHolding(`probe-no-publish-${role}`, [role]);
+      const refusals = [
+        await post(token, `/admin/forms/${ctx.formId}/publish`, {}),
+        await post(token, `/admin/forms/${ctx.formId}/releases`, {
+          environment: "test",
+          version: 1,
+        }),
+        await post(token, `/admin/forms/${ctx.formId}/links`, {
+          environment: "test",
+          expiresAt: "2099-01-01T00:00:00.000Z",
+        }),
+        await post(token, `/admin/forms/${ctx.formId}/webhooks`, {
+          url: "https://consumer.example/denied",
+        }),
+      ];
+      for (const refused of refusals) {
+        expect(refused.status, role).toBe(403);
+        expectNoPayload(await refused.text());
+      }
+    }
+  });
+
+  it("refuses a `forms.publisher` without `forms.editor` a draft publish (criterion 4)", async () => {
+    const publisher = await seedAdminSession(testDb.db, {
+      label: "probe-publish-only",
+      claim: false,
+      owner: false,
+      grants: [],
+    });
+    await createScopedPublisherGroup(publisher.userId, ["test", "prod"]);
+    const refused = await post(publisher.token, `/admin/forms/${ctx.formId}/publish`, {});
+    expect(refused.status).toBe(403);
+    expectNoPayload(await refused.text());
+  });
+
   it("refuses an environment-scoped act outside the grant's environments (criterion 4)", async () => {
     // The release route names its environment in the body, so this is the one act whose
     // environment does not come from the switcher.
@@ -755,10 +781,11 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
       label: "probe-test-only",
       claim: false,
       owner: false,
-      // No default grants: the seeded `all`-scoped set would make the refusal untestable.
+      // No default grants: the seeded set covers every environment, which would make the
+      // refusal untestable.
       grants: [],
     });
-    const narrow = await createScopedApproverGroup(scoped.userId, ["test"]);
+    const narrow = await createScopedPublisherGroup(scoped.userId, ["test"]);
     expect(narrow).toBeDefined();
 
     const toProd = await post(scoped.token, `/admin/forms/${ctx.formId}/releases`, {
@@ -775,19 +802,51 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
     expect(toTest.status).not.toBe(403);
   });
 
-  it("refuses the responses of a form outside a data grant's form list (criterion 4, Q28)", async () => {
-    const officer = await seedAdminSession(testDb.db, {
-      label: "probe-officer",
+  it("refuses an editor with Publish forms in `test` alone a `prod` publish (criterion 6)", async () => {
+    const scoped = await seedAdminSession(testDb.db, {
+      label: "probe-editor-test-publish",
       claim: false,
       owner: false,
-      grants: [],
+      grants: ["forms.editor"],
     });
-    await createFormScopedViewerGroup(officer.userId, [otherFormId]);
+    await createScopedPublisherGroup(scoped.userId, ["test"]);
 
-    expect((await get(officer.token, `/admin/forms/${otherFormId}/responses`)).status).toBe(200);
-    const elsewhere = await get(officer.token, `/admin/forms/${ctx.formId}/responses`);
-    expect(elsewhere.status).toBe(403);
-    expectNoPayload(await elsewhere.text());
+    const toProd = await post(scoped.token, `/admin/forms/${ctx.formId}/publish-and-release`, {
+      environment: "prod",
+    });
+    expect(toProd.status).toBe(403);
+    expectNoPayload(await toProd.text());
+  });
+
+  it("refuses a holder in one workspace every act in another (criterion 24)", async () => {
+    const other = await createWorkspaceWithViewer("probe-cross-workspace");
+    const elsewhereFormId = "frm_probe_cross";
+    await createForm(testDb.db, {
+      workspaceId: other.workspaceId,
+      formId: FormId.parse(elsewhereFormId),
+      slug: "probe-cross",
+      defaultLocale: "en",
+    });
+
+    // Everything this account holds, it holds in the seeded workspace alone.
+    const home = await accountHolding("probe-cross-home", [
+      "forms.editor",
+      "forms.publisher",
+      "responses.viewer",
+      "responses.eraser",
+    ]);
+    const refusals = [
+      await get(home, `/admin/forms/${elsewhereFormId}`),
+      await get(home, `/admin/forms/${elsewhereFormId}/responses`),
+      await get(home, `/admin/forms/${elsewhereFormId}/links`),
+      await post(home, `/admin/forms/${elsewhereFormId}/publish`, {}),
+      await get(home, `/admin/workspaces/${other.workspaceId}/members`),
+      await get(home, `/admin/workspaces/${other.workspaceId}/access-groups`),
+    ];
+    for (const refused of refusals) {
+      expect(refused.status).toBe(403);
+      expectNoPayload(await refused.text());
+    }
   });
 
   it("gives the installation claim administration and no response anywhere (criterion 5, Q29)", async () => {
@@ -950,9 +1009,9 @@ function environmentHeaders(
  * object was changed.
  */
 describe("the environment a request is authorised for is the environment it acts in", () => {
-  let testEditor = "";
+  let testAuthor = "";
   /**
-   * Unflag is `response: dispose`, which no `forms.editor` holds anywhere, so only an
+   * Unflag is `response: dispose`, which no authoring role holds anywhere, so only an
    * eraser scoped to `test` makes that row a bypass probe.
    */
   let testEraser = "";
@@ -962,22 +1021,21 @@ describe("the environment a request is authorised for is the environment it acts
   const headersFor = environmentHeaders;
 
   beforeAll(async () => {
-    const editor = await seedAdminSession(testDb.db, {
+    const author = await seedAdminSession(testDb.db, {
       label: "forged-body-editor",
       claim: false,
       owner: false,
       grants: [],
     });
-    testEditor = editor.token;
+    testAuthor = author.token;
     const group = await createAccessGroup(testDb.db, {
       workspaceId: SEED_WORKSPACE_ID,
-      name: "test.forms.editor.forged",
-      role: "forms.editor",
+      name: "Authors forged",
+      roles: ["forms.editor", "forms.publisher"],
       environments: ["test"],
-      forms: ["all"],
     });
-    await ensureWorkspaceMember(testDb.db, SEED_WORKSPACE_ID, editor.userId);
-    await addAccessGroupHolder(testDb.db, group.teamId, editor.userId);
+    await ensureWorkspaceMember(testDb.db, SEED_WORKSPACE_ID, author.userId);
+    await addAccessGroupHolder(testDb.db, group.teamId, author.userId);
 
     const eraser = await seedAdminSession(testDb.db, {
       label: "forged-body-eraser",
@@ -988,10 +1046,9 @@ describe("the environment a request is authorised for is the environment it acts
     testEraser = eraser.token;
     const eraserGroup = await createAccessGroup(testDb.db, {
       workspaceId: SEED_WORKSPACE_ID,
-      name: "test.responses.eraser.forged",
-      role: "responses.eraser",
+      name: "Erasers forged",
+      roles: ["responses.eraser"],
       environments: ["test"],
-      forms: ["all"],
     });
     await ensureWorkspaceMember(testDb.db, SEED_WORKSPACE_ID, eraser.userId);
     await addAccessGroupHolder(testDb.db, eraserGroup.teamId, eraser.userId);
@@ -1037,19 +1094,19 @@ describe("the environment a request is authorised for is the environment it acts
       "link revoke",
       "POST",
       (): string => `/admin/forms/${ctx.formId}/links/${prodLinkId}/revoke`,
-      (): string => testEditor,
+      (): string => testAuthor,
     ],
     [
       "webhook delete",
       "DELETE",
       (): string => `/admin/forms/${ctx.formId}/webhooks/${prodWebhookId}`,
-      (): string => testEditor,
+      (): string => testAuthor,
     ],
     [
       "redeliver",
       "POST",
       (): string => `/admin/forms/${ctx.formId}/deliveries/${ctx.deliveryId}/redeliver`,
-      (): string => testEditor,
+      (): string => testAuthor,
     ],
     [
       "unflag",
@@ -1058,7 +1115,7 @@ describe("the environment a request is authorised for is the environment it acts
       (): string => testEraser,
     ],
   ])(
-    "%s refuses a test-scoped holder whether or not the body forges an environment (B1)",
+    "%s refuses a holder scoped to test whether or not the body forges an environment (B1)",
     async (_label, method, path, token) => {
       const plain = await all.app.request(path(), {
         method,
@@ -1082,31 +1139,31 @@ describe("the environment a request is authorised for is the environment it acts
   );
 
   it("leaves the production link and webhook exactly as they were (B1's effect)", async () => {
-    expect(await prodLinkIsActive(), "the prod link was revoked by a test-scoped editor").toBe(
+    expect(await prodLinkIsActive(), "the prod link was revoked by a holder scoped to test").toBe(
       true,
     );
     expect(
       await prodWebhookIsActive(),
-      "the prod webhook was deactivated by a test-scoped editor",
+      "the prod webhook was deactivated by a holder scoped to test",
     ).toBe(true);
   });
 
-  it("refuses a test-scoped editor `publish-and-release` into prod (B2)", async () => {
+  it("refuses a publisher scoped to test `publish-and-release` into prod (B2)", async () => {
     // The refusal has to be the gate's 403 rather than the handler's 409: a 409 means the
     // request reached a handler that would have released to production.
     const refused = await all.app.request(`/admin/forms/${ctx.formId}/publish-and-release`, {
       method: "POST",
-      headers: headersFor(testEditor, "test", true),
+      headers: headersFor(testAuthor, "test", true),
       body: JSON.stringify({ environment: "prod" }),
     });
     expect(refused.status, await refused.clone().text()).toBe(403);
     expect(await refused.text()).toContain("release: create");
   });
 
-  it("allows the same route to `test`, where that editor does hold the release half", async () => {
+  it("allows the same route to `test`, where that account does hold the release half", async () => {
     const allowed = await all.app.request(`/admin/forms/${ctx.formId}/publish-and-release`, {
       method: "POST",
-      headers: headersFor(testEditor, "test", true),
+      headers: headersFor(testAuthor, "test", true),
       body: JSON.stringify({ environment: "test" }),
     });
     expect(allowed.status).not.toBe(403);
@@ -1117,7 +1174,7 @@ describe("the environment a request is authorised for is the environment it acts
     // than falling back to the switcher the handler is not going to use.
     const empty = await all.app.request(`/admin/forms/${ctx.formId}/publish-and-release`, {
       method: "POST",
-      headers: headersFor(testEditor, "test", true),
+      headers: headersFor(testAuthor, "test", true),
       body: JSON.stringify({}),
     });
     expect(empty.status).toBe(400);
@@ -1125,9 +1182,10 @@ describe("the environment a request is authorised for is the environment it acts
 });
 
 /** Assert masking on API response bytes; rendering-only masking would still transmit the credential. */
-describe("the production split and the masked endpoint URL (criterion 8)", () => {
-  let allEditor = "";
-  let prodApprover = "";
+describe("the publisher's environments and the masked endpoint URL (criterion 9)", () => {
+  let editor = "";
+  let prodPublisher = "";
+  let testPublisher = "";
   let viewer = "";
   let queryWebhookId = "";
 
@@ -1137,23 +1195,22 @@ describe("the production split and the masked endpoint URL (criterion 8)", () =>
 
   async function accountWith(
     label: string,
-    role: string,
+    roles: readonly string[],
     environments: readonly string[],
   ): Promise<string> {
     const account = await seedAdminSession(testDb.db, {
       label,
       claim: false,
       owner: false,
-      // No default grants: the seeded `all`-scoped set would make every refusal below
-      // untestable.
+      // No default grants: the seeded set covers every environment, which would make every
+      // refusal below untestable.
       grants: [],
     });
     const group = await createAccessGroup(testDb.db, {
       workspaceId: SEED_WORKSPACE_ID,
-      name: `${environments.join("-")}.${role}.${label}`,
-      role,
+      name: `${label} ${roles.join("-")}`,
+      roles,
       environments,
-      forms: ["all"],
     });
     await ensureWorkspaceMember(testDb.db, SEED_WORKSPACE_ID, account.userId);
     await addAccessGroupHolder(testDb.db, group.teamId, account.userId);
@@ -1161,11 +1218,11 @@ describe("the production split and the masked endpoint URL (criterion 8)", () =>
   }
 
   beforeAll(async () => {
-    // `all` in both dimensions, so the refusals below are about the role rather than the
-    // scope: an editor holding `prod` in scope is still refused a production change.
-    allEditor = await accountWith("prod-split-editor", "forms.editor", ["all"]);
-    prodApprover = await accountWith("prod-split-approver", "forms.approver", ["prod"]);
-    viewer = await accountWith("prod-split-viewer", "forms.viewer", ["all"]);
+    // Edit forms and View forms name no environment, because neither reads one.
+    editor = await accountWith("prod-split-editor", ["forms.editor"], []);
+    prodPublisher = await accountWith("prod-split-publisher", ["forms.publisher"], ["prod"]);
+    testPublisher = await accountWith("test-split-publisher", ["forms.publisher"], ["test"]);
+    viewer = await accountWith("prod-split-viewer", ["forms.viewer"], []);
 
     // Created by the fully credentialed administrator, so its existence owes nothing to
     // the rules under test.
@@ -1189,80 +1246,94 @@ describe("the production split and the masked endpoint URL (criterion 8)", () =>
     return ((await res.json()) as { webhooks: { webhookId: string; url: string }[] }).webhooks;
   }
 
-  it("refuses a `forms.editor` a prod endpoint change, scope or no scope (Q30)", async () => {
-    const change = await all.app.request(`/admin/forms/${ctx.formId}/webhooks/${queryWebhookId}`, {
-      method: "PUT",
-      headers: headersFor(allEditor, "prod", true),
-      body: JSON.stringify({ url: "https://attacker.example/exfiltrate" }),
-    });
-    expect(change.status).toBe(403);
-    expectNoPayload(await change.text());
+  it("refuses a `forms.editor` an endpoint change in any environment", async () => {
+    for (const environment of ["prod", "test"]) {
+      const change = await all.app.request(
+        `/admin/forms/${ctx.formId}/webhooks/${queryWebhookId}`,
+        {
+          method: "PUT",
+          headers: headersFor(editor, environment, true),
+          body: JSON.stringify({ url: "https://attacker.example/exfiltrate" }),
+        },
+      );
+      expect(change.status, environment).toBe(403);
+      expectNoPayload(await change.text());
+    }
 
-    // The effect, not only the status: an editor who can point a production webhook at any
-    // URL can route production personal data out of the deployment.
+    // The effect, not only the status: an account that can point a production webhook at
+    // any URL can route production personal data out of the deployment.
     const after = await listEndpoints(adminToken, "prod");
     expect(after.find((row) => row.webhookId === queryWebhookId)?.url).toBe(WHOLE_URL);
   });
 
-  it("leaves a `test` endpoint change an editor's (Q30's narrowing)", async () => {
+  it("leaves a `test` endpoint change to the publisher whose group names `test`", async () => {
     const change = await all.app.request(`/admin/forms/${ctx.formId}/webhooks`, {
       method: "POST",
-      headers: headersFor(allEditor, "test", true),
+      headers: headersFor(testPublisher, "test", true),
       body: JSON.stringify({ url: "https://test-consumer.example/hook" }),
     });
     // The exact status rather than `not.toBe(403)`, which a 500 would also satisfy.
     expect(change.status).toBe(201);
+
+    const inProd = await all.app.request(`/admin/forms/${ctx.formId}/webhooks`, {
+      method: "POST",
+      headers: headersFor(testPublisher, "prod", true),
+      body: JSON.stringify({ url: "https://test-consumer.example/hook-prod" }),
+    });
+    expect(inProd.status).toBe(403);
   });
 
-  it("allows a `forms.approver` holding prod the same prod endpoint change", async () => {
+  it("allows a publisher holding prod the same prod endpoint change", async () => {
     const change = await all.app.request(`/admin/forms/${ctx.formId}/webhooks`, {
       method: "POST",
-      headers: headersFor(prodApprover, "prod", true),
+      headers: headersFor(prodPublisher, "prod", true),
       body: JSON.stringify({ url: "https://approved-consumer.example/hook" }),
     });
     expect(change.status).toBe(201);
   });
 
-  it("refuses a `forms.editor` a prod link mint and allows the approver (Q30)", async () => {
+  it("refuses a `forms.editor` a link mint and allows the publisher of that environment", async () => {
     const body = { environment: "prod", expiresAt: "2099-01-01T00:00:00.000Z" };
-    const refused = await all.app.request(`/admin/forms/${ctx.formId}/links`, {
-      method: "POST",
-      headers: headersFor(allEditor, "prod", true),
-      body: JSON.stringify(body),
-    });
-    expect(refused.status).toBe(403);
-    expectNoPayload(await refused.text());
+    for (const environment of ["prod", "test"]) {
+      const refused = await all.app.request(`/admin/forms/${ctx.formId}/links`, {
+        method: "POST",
+        headers: headersFor(editor, environment, true),
+        body: JSON.stringify({ ...body, environment }),
+      });
+      expect(refused.status, environment).toBe(403);
+      expectNoPayload(await refused.text());
+    }
 
     const allowed = await all.app.request(`/admin/forms/${ctx.formId}/links`, {
       method: "POST",
-      headers: headersFor(prodApprover, "prod", true),
+      headers: headersFor(prodPublisher, "prod", true),
       body: JSON.stringify(body),
     });
     expect(allowed.status).toBe(201);
 
     const inTest = await all.app.request(`/admin/forms/${ctx.formId}/links`, {
       method: "POST",
-      headers: headersFor(allEditor, "test", true),
+      headers: headersFor(testPublisher, "test", true),
       body: JSON.stringify({ ...body, environment: "test" }),
     });
     expect(inTest.status).not.toBe(403);
   });
 
-  it("refuses a `forms.editor` closing and reopening prod, and allows the approver (Q33)", async () => {
+  it("refuses a `forms.editor` closing and reopening prod, and allows the publisher (Q33)", async () => {
     for (const action of ["close", "reopen"]) {
       const refused = await all.app.request(`/admin/forms/${ctx.formId}/${action}`, {
         method: "POST",
-        headers: headersFor(allEditor, "prod", true),
+        headers: headersFor(editor, "prod", true),
         body: JSON.stringify({ environment: "prod" }),
       });
       expect(refused.status, `${action} in prod as an editor`).toBe(403);
 
       const allowed = await all.app.request(`/admin/forms/${ctx.formId}/${action}`, {
         method: "POST",
-        headers: headersFor(prodApprover, "prod", true),
+        headers: headersFor(prodPublisher, "prod", true),
         body: JSON.stringify({ environment: "prod" }),
       });
-      expect(allowed.status, `${action} in prod as an approver`).not.toBe(403);
+      expect(allowed.status, `${action} in prod as a publisher`).not.toBe(403);
     }
   });
 
@@ -1275,9 +1346,25 @@ describe("the production split and the masked endpoint URL (criterion 8)", () =>
     expect(row?.url).not.toContain("not-a-real-credential");
   });
 
-  it("returns the whole URL to a `forms.editor` (Q58)", async () => {
-    const rows = await listEndpoints(allEditor, "prod");
-    expect(rows.find((entry) => entry.webhookId === queryWebhookId)?.url).toBe(WHOLE_URL);
+  it("returns the whole URL to a `forms.publisher` and an editor (criterion 3)", async () => {
+    for (const token of [prodPublisher, editor]) {
+      const rows = await listEndpoints(token, "prod");
+      expect(rows.find((entry) => entry.webhookId === queryWebhookId)?.url).toBe(WHOLE_URL);
+    }
+  });
+
+  it("refuses a `test` publisher every `prod` configuration read, and serves `test`", async () => {
+    for (const path of ["links", "webhooks", "webhooks/proposals", "deliveries"]) {
+      const refused = await all.app.request(`/admin/forms/${ctx.formId}/${path}`, {
+        headers: headersFor(testPublisher, "prod"),
+      });
+      expect(refused.status, `${path} in prod`).toBe(403);
+      expectNoPayload(await refused.text());
+      const served = await all.app.request(`/admin/forms/${ctx.formId}/${path}`, {
+        headers: headersFor(testPublisher, "test"),
+      });
+      expect(served.status, `${path} in test`).toBe(200);
+    }
   });
 
   it("masks the delivery dashboard's copy of the same URL for a `forms.viewer` (Q58)", async () => {
@@ -1302,7 +1389,7 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
   const ORIGINAL_URL = "https://agreed-consumer.example/hook";
   const PROPOSED_URL = "https://second-consumer.example/hook";
 
-  /** The account that published version 1, and a `forms.approver` holding `prod`. */
+  /** The account that published version 1, and a `forms.publisher` holding `prod`. */
   let author = { token: "", userId: "" };
   let second = { token: "", userId: "" };
   let foreignApprover = "";
@@ -1315,7 +1402,7 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
 
   async function approverAccount(
     label: string,
-    role: string,
+    roles: readonly string[],
     environments: readonly string[],
     workspaceId: string = SEED_WORKSPACE_ID,
   ): Promise<{ token: string; userId: string }> {
@@ -1327,10 +1414,9 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
     });
     const group = await createAccessGroup(testDb.db, {
       workspaceId,
-      name: `${environments.join("-")}.${role}.${label}`,
-      role,
+      name: `${label} ${roles.join("-")}`,
+      roles,
       environments,
-      forms: ["all"],
     });
     await ensureWorkspaceMember(testDb.db, workspaceId, account.userId);
     await addAccessGroupHolder(testDb.db, group.teamId, account.userId);
@@ -1385,12 +1471,12 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
   }
 
   beforeAll(async () => {
-    // `all` in both dimensions for the two approvers: one scoped to `prod` alone would be
-    // refused a `test` release by the scope before the account comparison was reached.
-    author = await approverAccount("two-person-author", "forms.approver", ["all"]);
-    second = await approverAccount("two-person-second", "forms.approver", ["all"]);
-    testApprover = (await approverAccount("two-person-test", "forms.approver", ["test"])).token;
-    viewer = (await approverAccount("two-person-viewer", "forms.viewer", ["all"])).token;
+    // Every environment for the two approvers: one naming `prod` alone would be refused a
+    // `test` release by the environment set before the account comparison was reached.
+    author = await approverAccount("two-person-author", ["forms.publisher"], ["test", "prod"]);
+    second = await approverAccount("two-person-second", ["forms.publisher"], ["test", "prod"]);
+    testApprover = (await approverAccount("two-person-test", ["forms.publisher"], ["test"])).token;
+    viewer = (await approverAccount("two-person-viewer", ["forms.viewer"], [])).token;
 
     const ownerAccount = await seedAdminSession(testDb.db, {
       label: "two-person-owner",
@@ -1419,7 +1505,7 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
       })
       .returning({ id: authOrganization.id });
     foreignApprover = (
-      await approverAccount("two-person-foreign", "forms.approver", ["prod"], foreign!.id)
+      await approverAccount("two-person-foreign", ["forms.publisher"], ["prod"], foreign!.id)
     ).token;
 
     await createForm(testDb.db, {
@@ -1525,8 +1611,8 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
     const before = await releasedVersion("prod");
     for (const [label, token] of [
       ["an approver from another workspace", foreignApprover],
-      ["an approver without prod in scope", testApprover],
-      ["a forms.owner with no approver grant", owner],
+      ["a publisher whose groups do not name prod", testApprover],
+      ["a forms.owner with no publisher grant", owner],
       ["a forms.viewer", viewer],
     ] as const) {
       const refused = await release(token, 3, "prod");
@@ -1584,8 +1670,8 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
     // that the proposal exists either.
     for (const [label, token] of [
       ["an approver from another workspace", foreignApprover],
-      ["an approver without prod in scope", testApprover],
-      ["a forms.owner with no approver grant", owner],
+      ["a publisher whose groups do not name prod", testApprover],
+      ["a forms.owner with no publisher grant", owner],
       ["a forms.viewer", viewer],
       ["the installation claim", claimOnly],
     ] as const) {

@@ -17,28 +17,23 @@ import type { Executor } from "./executor.js";
 /** A role whose statements are empty: a row carrying it grants nothing. */
 export const EMPTY_MEMBER_ROLE = "member";
 
-/** The one `member` role that is a grant: the workspace owner. */
+/** The one `member` role that is a grant: the Workspace administrator. */
 export const OWNER_MEMBER_ROLE = "forms.owner";
-
-/** The scope token meaning "every environment" or "every form". */
-const SCOPE_ALL = "all";
 
 function mintId(prefix: string): string {
   return `${prefix}_${crypto.randomUUID().replaceAll("-", "")}`;
 }
 
-/** One access group: a team row, which is one grant with its scope. */
+/** One access group: a team row carrying a set of roles and one environment set. */
 export interface AccessGroupRow {
   readonly teamId: string;
   readonly workspaceId: string;
-  /** The stored name, `<environments>.<plane>.<role>[.<label>]`. */
+  /** The administrator's own label, unique within the workspace. */
   readonly name: string;
-  /** Any role but `forms.owner`, which is the member row's. */
-  readonly role: string;
-  /** `["all"]`, or one or more environment names. */
+  /** One or more of the five access roles. */
+  readonly roles: readonly string[];
+  /** Empty only where every role in the group ignores the environment set. */
   readonly environments: readonly string[];
-  /** `["all"]`, or one or more form ids. */
-  readonly forms: readonly string[];
   /** The external directory join key, written only by the group sync path. */
   readonly externalGroupId: string | null;
   readonly createdAt: Date;
@@ -48,9 +43,8 @@ const groupColumns = {
   teamId: authTeam.id,
   workspaceId: authTeam.organizationId,
   name: authTeam.name,
-  role: authTeam.role,
+  roles: authTeam.roles,
   environments: authTeam.environments,
-  forms: authTeam.forms,
   externalGroupId: authTeam.externalGroupId,
   createdAt: authTeam.createdAt,
 } as const;
@@ -219,22 +213,28 @@ export async function isAccessGroupNameTaken(
   return rows.some((row) => row.id !== exceptTeamId);
 }
 
+/** One holder of an access group. */
+export interface AccessGroupHolderRow {
+  readonly userId: string;
+  readonly email: string;
+  readonly name: string;
+  readonly createdAt: Date;
+}
+
 /** Who holds one access group's grant. */
 export async function listAccessGroupHolders(
   exec: Executor,
   teamId: string,
-): Promise<readonly WorkspaceMemberRow[]> {
+): Promise<readonly AccessGroupHolderRow[]> {
   return exec
     .select({
       userId: authTeamMember.userId,
       email: authUser.email,
       name: authUser.name,
-      role: authTeam.role,
       createdAt: authTeamMember.createdAt,
     })
     .from(authTeamMember)
     .innerJoin(authUser, eq(authUser.id, authTeamMember.userId))
-    .innerJoin(authTeam, eq(authTeam.id, authTeamMember.teamId))
     .where(eq(authTeamMember.teamId, teamId))
     .orderBy(asc(authUser.email));
 }
@@ -243,9 +243,8 @@ export async function listAccessGroupHolders(
 export interface NewAccessGroup {
   readonly workspaceId: string;
   readonly name: string;
-  readonly role: string;
+  readonly roles: readonly string[];
   readonly environments: readonly string[];
-  readonly forms: readonly string[];
 }
 
 /**
@@ -262,9 +261,8 @@ export async function createAccessGroup(
       id: mintId("tm"),
       name: group.name,
       organizationId: group.workspaceId,
-      role: group.role,
+      roles: [...group.roles],
       environments: [...group.environments],
-      forms: [...group.forms],
     })
     .returning(groupColumns);
   const created = rows[0];
@@ -273,16 +271,16 @@ export async function createAccessGroup(
 }
 
 /**
- * Re-scope or rename one access group. The role is deliberately not changeable: moving
- * one would change what every holder holds without an audited act.
+ * Rename one access group or change its roles and environments. The caller writes one
+ * audit row per holder, since every holder's grant changes with it.
  */
-export async function updateAccessGroupScope(
+export async function updateAccessGroup(
   exec: Executor,
   teamId: string,
   update: {
     readonly name: string;
+    readonly roles: readonly string[];
     readonly environments: readonly string[];
-    readonly forms: readonly string[];
     readonly updatedAt: Date;
   },
 ): Promise<AccessGroupRow | undefined> {
@@ -290,8 +288,8 @@ export async function updateAccessGroupScope(
     .update(authTeam)
     .set({
       name: update.name,
+      roles: [...update.roles],
       environments: [...update.environments],
-      forms: [...update.forms],
       updatedAt: update.updatedAt,
     })
     .where(eq(authTeam.id, teamId))
@@ -355,7 +353,7 @@ export async function setMemberRole(
   return rows[0]?.role;
 }
 
-/** How many `forms.owner` rows a workspace has. The last-owner guard's read. */
+/** How many Workspace administrator member rows a workspace has. */
 export async function countWorkspaceOwners(exec: Executor, workspaceId: string): Promise<number> {
   const rows = await exec
     .select({ total: sql<number>`count(*)::int` })
@@ -423,11 +421,8 @@ export interface EnvironmentNamingGroup {
 }
 
 /**
- * Every access group whose environment scope names this environment. The drop command
+ * Every access group whose environment set names this environment. The drop command
  * must refuse while any group does, and never re-scope a grant itself.
- *
- * A group scoped to `all` is not a match: dropping an environment narrows what `all`
- * means rather than silencing the grant.
  */
 export async function listGroupsNamingEnvironment(
   exec: Executor,
@@ -455,23 +450,6 @@ export async function listEnvironmentNames(exec: Executor): Promise<readonly str
 }
 
 /**
- * Turn the per-workspace seed setting on or off, the setting's one write path. The caller must write the
- * audit `setting` row in the same transaction.
- */
-export async function setSeedNewEditorsWithTestData(
-  exec: Executor,
-  workspaceId: string,
-  value: boolean,
-): Promise<boolean | undefined> {
-  const rows = await exec
-    .update(authOrganization)
-    .set({ seedNewEditorsWithTestData: value })
-    .where(eq(authOrganization.id, workspaceId))
-    .returning({ value: authOrganization.seedNewEditorsWithTestData });
-  return rows[0]?.value;
-}
-
-/**
  * Turn the per-workspace two-person switch on or off; it covers `prod` releases, `prod` endpoint changes and
  * the self-grant rule alike. The caller must write the audit `setting` row in the same transaction.
  */
@@ -485,19 +463,6 @@ export async function setRequireSecondApprover(
     .set({ requireSecondApprover: value })
     .where(eq(authOrganization.id, workspaceId))
     .returning({ value: authOrganization.requireSecondApprover });
-  return rows[0]?.value;
-}
-
-/** Whether a workspace's seed setting is on. */
-export async function readSeedNewEditorsWithTestData(
-  exec: Executor,
-  workspaceId: string,
-): Promise<boolean | undefined> {
-  const rows = await exec
-    .select({ value: authOrganization.seedNewEditorsWithTestData })
-    .from(authOrganization)
-    .where(eq(authOrganization.id, workspaceId))
-    .limit(1);
   return rows[0]?.value;
 }
 
@@ -524,9 +489,4 @@ export async function findUsersByIds(
     .select({ userId: authUser.id, email: authUser.email })
     .from(authUser)
     .where(inArray(authUser.id, [...userIds]));
-}
-
-/** Whether a scope is the whole set. */
-export function isScopeAll(scope: readonly string[]): boolean {
-  return scope.length === 1 && scope[0] === SCOPE_ALL;
 }

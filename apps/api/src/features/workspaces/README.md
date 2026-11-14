@@ -12,20 +12,19 @@ and behind nothing else.
 
 ## Routes
 
-| Method | Path                        | Scope             | Notes                                                                                             |
-| ------ | --------------------------- | ----------------- | ------------------------------------------------------------------------------------------------- |
-| `GET`  | `/workspaces`               | `forms:read`      | The workspaces the caller administers (every one for the claim), oldest first, archived included. |
-| `PUT`  | `/workspaces/{id}/name`     | `forms:write`     | Rename it. The slug never changes; one `setting` audit row on a change. Refused once archived.    |
-| `POST` | `/workspaces`               | `forms:write`     | The one path by which a workspace comes into existence. The caller becomes its `forms.owner`.     |
-| `PUT`  | `/workspaces/{id}/shared`   | `forms:write`     | Mark this workspace as the installation's shared question library, or unmark it. At most one is.  |
-| `POST` | `/workspaces/{id}/archive`  | `forms:write`     | Archive it. Refused while it owns any form or is the shared library. There is no unarchive.       |
-| `POST` | `/forms/{id}/workspace`     | `forms:write`     | Move a form. One `UPDATE` on the identity row.                                                    |
-| `POST` | `/questions/{id}/workspace` | `questions:write` | Move a question (Q14). One `UPDATE` on the identity row, touching no version.                     |
+| Method | Path                       | Scope         | Notes                                                                                                                                                                    |
+| ------ | -------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `GET`  | `/workspaces`              | `forms:read`  | The workspaces the caller holds any grant in, oldest first, archived included. Where the caller is not a Workspace administrator the row is name, slug and archive date. |
+| `PUT`  | `/workspaces/{id}/name`    | `forms:write` | Rename it. The slug never changes; one `setting` audit row on a change. Refused once archived.                                                                           |
+| `POST` | `/workspaces`              | `forms:write` | The one path by which a workspace comes into existence. The caller becomes its `forms.owner`.                                                                            |
+| `PUT`  | `/workspaces/{id}/shared`  | `forms:write` | Mark this workspace as the installation's shared question library, or unmark it. At most one is.                                                                         |
+| `POST` | `/workspaces/{id}/archive` | `forms:write` | Archive it. Refused while it owns any form or is the shared library. There is no unarchive.                                                                              |
+| `POST` | `/forms/{id}/workspace`    | `forms:write` | Move a form. Edit forms in both workspaces and a Workspace administrator of the source; refused while the source requires a second approver. One `UPDATE`.               |
 
-The two **move** routes are addressed under the form and question collections and are
-registered here, because what they change is ownership and because they share this slice's
-"the target exists and is not archived" rule and its reason for existing: archiving is the
-last step, so a workspace's forms leave first.
+The **move** route is addressed under the form collection and registered here, because what
+it changes is ownership and because it shares this slice's "the target exists and is not
+archived" rule and its reason for existing: archiving is the last step, so a workspace's
+forms leave first. A question is not moved (criterion 107).
 
 **There is no screen.** The plan's 068 section has none, and the workspace and membership
 screens arrive with 069, where the permissions matrix that governs them is built.

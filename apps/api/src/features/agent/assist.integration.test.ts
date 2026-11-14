@@ -1,7 +1,10 @@
-import { parseQuestionDefinition, QuestionId, stepQuestionRefs } from "@roonga/qcms-core";
+import { FormId, parseQuestionDefinition, QuestionId, stepQuestionRefs } from "@roonga/qcms-core";
 import {
   SEED_WORKSPACE_ID,
+  addAccessGroupHolder,
   authOrganization,
+  createAccessGroup,
+  createForm,
   createQuestion,
   createQuestionVersion,
   getDraft,
@@ -16,6 +19,10 @@ import { createApp } from "../../app.js";
 import type { Deps } from "../../deps.js";
 import { registerGrantCheck } from "../membership/middleware.js";
 import { ADMIN_SESSION_HEADER, registerAdminAuth } from "../../middleware/admin-auth.js";
+import {
+  REQUEST_ENVIRONMENT_HEADER,
+  registerRequestEnvironment,
+} from "../../middleware/request-environment.js";
 import {
   internalTokenFor,
   makeDeps,
@@ -1113,5 +1120,117 @@ describe("a reduced-grant caller over HTTP", () => {
       conversationId: "cnv_viewer_dead",
     });
     expect(res.status).toBe(403);
+  });
+});
+
+describe("a publisher's contexts follow its group's environments", () => {
+  const FORM_ID = "frm_envscoped";
+  const ENDPOINT = "https://scoped.example.test/hook?t=abc";
+  let scopedApp: ReturnType<typeof createApp>;
+  let publisher: { token: string; userId: string };
+  let viewerPublisher: { token: string; userId: string };
+
+  async function testPublisher(
+    label: string,
+    viewer: boolean,
+  ): Promise<{ token: string; userId: string }> {
+    const seeded = await seedAdminSession(testDb.db, {
+      label,
+      claim: false,
+      owner: false,
+      grants: viewer ? ["forms.viewer"] : [],
+    });
+    const group = await createAccessGroup(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
+      name: `${label} publishers`,
+      roles: ["forms.publisher"],
+      environments: ["test"],
+    });
+    await addAccessGroupHolder(testDb.db, group.teamId, seeded.userId);
+    return seeded;
+  }
+
+  beforeAll(async () => {
+    scopedApp = createApp(deps, ADMIN_ONLY, {
+      groups: {
+        admin: [
+          registerAdminAuth,
+          registerRequestEnvironment,
+          registerGrantCheck,
+          registerForms,
+          registerFormsAssist,
+        ],
+      },
+    });
+    await createForm(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
+      formId: FormId.parse(FORM_ID),
+      slug: "envscoped",
+      defaultLocale: "en",
+    });
+    await testDb.client.query(
+      `insert into webhooks (webhook_id, form_id, url, secret_encrypted, active)
+       values ('whk_env_scoped', $1, $2, 'enc', true)`,
+      [FORM_ID, ENDPOINT],
+    );
+    publisher = await testPublisher("assist-test-publisher", false);
+    viewerPublisher = await testPublisher("assist-viewer-test-publisher", true);
+  }, BOOT_TIMEOUT);
+
+  async function turn(
+    caller: { token: string; userId: string },
+    environment: string,
+    screen: string,
+  ): Promise<{ status: number; sent: string }> {
+    await deps.rateLimitStore.reset(`rl:agent-assist:${caller.userId}`);
+    const before = providerCalls.length;
+    const res = await scopedApp.request("/admin/assist", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-qcms-internal-token": internalToken,
+        [ADMIN_SESSION_HEADER]: caller.token,
+        [REQUEST_ENVIRONMENT_HEADER]: environment,
+      },
+      body: JSON.stringify({
+        conversation: [{ role: "user", content: "what can you see here" }],
+        screen,
+        params: screen.includes("[formId]") ? { formId: FORM_ID } : {},
+        conversationId: `cnv_env_${environment}`,
+      }),
+    });
+    if (res.status === 200) await readEvents(res);
+    return { status: res.status, sent: JSON.stringify(providerCalls.slice(before)) };
+  }
+
+  it("refuses a test publisher the link and webhook contexts in prod, and builds them in test", async () => {
+    for (const screen of [
+      "/operations/forms/[formId]/links",
+      "/operations/forms/[formId]/webhooks",
+    ]) {
+      expect((await turn(publisher, "prod", screen)).status, `${screen} in prod`).toBe(403);
+      expect((await turn(publisher, "test", screen)).status, `${screen} in test`).toBe(200);
+    }
+  });
+
+  it("gives a test publisher no form in the prod operations context", async () => {
+    const inProd = await turn(publisher, "prod", "/operations");
+    expect(inProd.status).toBe(200);
+    expect(inProd.sent).not.toContain(FORM_ID);
+
+    const inTest = await turn(publisher, "test", "/operations");
+    expect(inTest.status).toBe(200);
+    expect(inTest.sent).toContain(FORM_ID);
+  });
+
+  it("masks the endpoint URL in prod for a viewer who publishes in test, and shows it in test", async () => {
+    const inProd = await turn(viewerPublisher, "prod", "/operations/forms/[formId]/webhooks");
+    expect(inProd.status).toBe(200);
+    expect(inProd.sent).toContain("https://scoped.example.test/hook?(hidden)");
+    expect(inProd.sent).not.toContain("t=abc");
+
+    const inTest = await turn(viewerPublisher, "test", "/operations/forms/[formId]/webhooks");
+    expect(inTest.status).toBe(200);
+    expect(inTest.sent).toContain("t=abc");
   });
 });
