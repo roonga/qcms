@@ -299,7 +299,10 @@ export function main(args, repoRoot) {
       `  ${String(missing.length)} registration(s) point at a missing directory: ${missing.join(", ")}`,
     );
     if (options.apply) {
-      execFileSync("git", ["-C", repoRoot, "worktree", "prune"], { stdio: "inherit", windowsHide: true });
+      execFileSync("git", ["-C", repoRoot, "worktree", "prune"], {
+        stdio: "inherit",
+        windowsHide: true,
+      });
       console.log("  ran `git worktree prune` for those.");
     }
   }

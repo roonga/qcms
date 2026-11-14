@@ -114,7 +114,10 @@ function tryGit(args) {
  */
 function fileAt(revision, filePath) {
   try {
-    return execFileSync("git", ["show", `${revision}:${filePath}`], { encoding: "utf8", windowsHide: true });
+    return execFileSync("git", ["show", `${revision}:${filePath}`], {
+      encoding: "utf8",
+      windowsHide: true,
+    });
   } catch {
     return undefined;
   }

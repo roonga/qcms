@@ -131,7 +131,12 @@ class CommandFailed extends Error {
  * `runComplete()`'s `finally { down(); }` and strand the containers and volume.
  */
 function run(command, args, environment = process.env) {
-  const result = spawnSync(command, args, { cwd: root, env: environment, stdio: "inherit", windowsHide: true });
+  const result = spawnSync(command, args, {
+    cwd: root,
+    env: environment,
+    stdio: "inherit",
+    windowsHide: true,
+  });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new CommandFailed(command, result.status ?? 1);
 }
@@ -142,7 +147,12 @@ function run(command, args, environment = process.env) {
  * @returns {string}
  */
 function capture(command, args) {
-  const result = spawnSync(command, args, { cwd: root, env: e2eEnvironment, encoding: "utf8", windowsHide: true });
+  const result = spawnSync(command, args, {
+    cwd: root,
+    env: e2eEnvironment,
+    encoding: "utf8",
+    windowsHide: true,
+  });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new CommandFailed(command, result.status ?? 1);
   return result.stdout.trim();
@@ -413,7 +423,11 @@ function stopLoopbackForwarding() {
   const network = joinedNetwork ?? `${project}_default`;
   const self = selfContainerId();
   if (self !== undefined) {
-    spawnSync(docker, ["network", "disconnect", network, self], { cwd: root, stdio: "ignore", windowsHide: true });
+    spawnSync(docker, ["network", "disconnect", network, self], {
+      cwd: root,
+      stdio: "ignore",
+      windowsHide: true,
+    });
   }
   joinedNetwork = undefined;
 }

@@ -518,7 +518,10 @@ export function reapChildTree(child) {
 
   if (IS_WINDOWS) {
     // /T because a plain kill leaves the grandchild tree orphaned.
-    spawnSync("taskkill", ["/pid", String(child.pid), "/T", "/F"], { stdio: "ignore", windowsHide: true });
+    spawnSync("taskkill", ["/pid", String(child.pid), "/T", "/F"], {
+      stdio: "ignore",
+      windowsHide: true,
+    });
     return [child.pid];
   }
 
