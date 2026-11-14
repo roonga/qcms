@@ -170,9 +170,9 @@ test("releases a published version to an environment and records it (task 065)",
   await expect(now.locator('tr[data-environment="prod"]')).toContainText("None");
   await expect(now.locator('tr[data-environment="test"]')).toContainText("v1");
   await expect(now.locator('tr[data-environment="prod"] td[data-availability]')).toHaveText(
-    "Not Released",
+    "Not live",
   );
-  await expect(page.getByText("Availability: Not Released")).toBeVisible();
+  await expect(page.getByText("Availability: Not live")).toBeVisible();
 
   await page.getByTestId("qcms-publish-entry").click();
   await page.waitForURL(`**/forms/${formId}/publish`);
@@ -192,7 +192,7 @@ test("releases a published version to an environment and records it (task 065)",
   await expect(history).not.toContainText(ISO_TIMESTAMP);
 
   const versions = page.getByRole("table", { name: "Published versions" });
-  await expect(versions.getByRole("columnheader", { name: "Released in" })).toBeVisible();
+  await expect(versions.getByRole("columnheader", { name: "Published to" })).toBeVisible();
   await expect(versions.locator('tr[data-form-version="1"]')).toContainText("prod");
   await expect(versions.locator('tr[data-form-version="1"] td[data-available-in]')).toContainText(
     "prod",
@@ -200,7 +200,7 @@ test("releases a published version to an environment and records it (task 065)",
 
   const filter = page.getByTestId("qcms-history-filter");
   await expect(filter.getByRole("radio", { name: "Every version" })).toBeChecked();
-  await filter.getByRole("radio", { name: "Released anywhere" }).check();
+  await filter.getByRole("radio", { name: "Published somewhere" }).check();
   await expect(versions.locator('tr[data-form-version="1"]')).toBeVisible();
 });
 

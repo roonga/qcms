@@ -70,11 +70,15 @@ let claim: Persona;
 let otherWorkspaceEditor: Persona;
 let revocable: Persona;
 let revocableGroupId: string;
+let oneGroupAuthor: Persona;
+let testPublisherOnly: Persona;
+let prodOnlyAuthor: Persona;
+let prodOnlyApp: ReturnType<typeof createApp>;
 
-function databases(): Databases {
+function databases(names: readonly string[] = LIVE_SET): Databases {
   return {
     control,
-    names: [...LIVE_SET],
+    names: [...names],
     defaultEnvironment: "prod",
     for: (environment: string) => {
       const found = executors.get(environment);
@@ -200,8 +204,9 @@ async function call(
   method: "GET" | "POST" | "PUT",
   path: string,
   body?: unknown,
+  on: ReturnType<typeof createApp> = app,
 ): Promise<{ status: number; body: Record<string, unknown> }> {
-  const res = await app.request(`/admin${path}`, {
+  const res = await on.request(`/admin${path}`, {
     method,
     headers: headers(token),
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
@@ -297,19 +302,36 @@ beforeAll(async () => {
   revocable = revoking;
   revocableGroupId = revoking.groupIds[0]!;
 
+  oneGroupAuthor = await persona("bOneGroup", [
+    { roles: ["forms.editor", "forms.publisher"], environments: ["test"] },
+  ]);
+  testPublisherOnly = await persona("bTestPublisher", [
+    { roles: ["forms.publisher"], environments: ["test"] },
+  ]);
+  prodOnlyAuthor = await persona("bProdOnly", [
+    { roles: ["forms.editor"], environments: [] },
+    { roles: ["forms.publisher"], environments: ["prod"] },
+  ]);
+
+  const groups = {
+    admin: [
+      registerAdminAuth,
+      registerRequestEnvironment,
+      registerGrantCheck,
+      registerForms,
+      registerReleases,
+    ],
+  };
   const deps: Deps = makeDeps({ databases: databases(), env: validEnv() });
   internalToken = internalTokenFor(deps.config);
-  app = createApp(deps, MOUNTED, {
-    groups: {
-      admin: [
-        registerAdminAuth,
-        registerRequestEnvironment,
-        registerGrantCheck,
-        registerForms,
-        registerReleases,
-      ],
-    },
-  });
+  app = createApp(deps, MOUNTED, { groups });
+  // A site whose only environment is prod: the same database, with this process serving
+  // prod alone, which is what the floor reads.
+  prodOnlyApp = createApp(
+    makeDeps({ databases: databases(["prod"]), config: deps.config }),
+    MOUNTED,
+    { groups },
+  );
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
 afterAll(async () => {
@@ -713,43 +735,6 @@ describe("the second-person rule holds through the batch", () => {
     }
   });
 
-  it("refuses a combined publish into a gated production destination even when the workflow allows one", async () => {
-    await clearWorkflow();
-    await setRequireSecondApprover(control, SEED_WORKSPACE_ID, true);
-    try {
-      expect(
-        (
-          await call(claim.token, "PUT", "/release-workflow", {
-            expectedRevision: null,
-            rules: [
-              {
-                environment: "prod",
-                requiresPriorReleaseIn: [],
-                allowsDraftPublish: true,
-                allowsInBatch: true,
-              },
-            ],
-          })
-        ).status,
-      ).toBe(200);
-      const formId = await seedForm(0);
-      const revision = await saveDraft(prodAuthor.token, formId);
-      const refused = await call(prodAuthor.token, "POST", `/forms/${formId}/publish-batch`, {
-        idempotencyKey: KEYS(),
-        expectedWorkflowRevision: 1,
-        source: { kind: "draft", draftRevision: revision },
-        targets: [{ environment: "prod", expectedSequence: null }],
-      });
-      expect(refused.status).toBe(403);
-      expect(codeOf(refused.body)).toBe("APPROVER_IS_AUTHOR");
-      expect(await listFormVersions(control, formId)).toEqual([]);
-      expect(await getDraft(control, formId)).toBeDefined();
-    } finally {
-      await setRequireSecondApprover(control, SEED_WORKSPACE_ID, false);
-      await clearWorkflow();
-    }
-  });
-
   it("reports that refusal in the review, before anything is confirmed", async () => {
     await clearWorkflow();
     await setRequireSecondApprover(control, SEED_WORKSPACE_ID, true);
@@ -779,46 +764,36 @@ describe("the second-person rule holds through the batch", () => {
 });
 
 describe("one confirmation is one transaction", () => {
-  it("freezes one snapshot and releases it into every destination", async () => {
-    await clearWorkflow();
-    expect(
-      (
-        await call(claim.token, "PUT", "/release-workflow", {
-          expectedRevision: null,
-          rules: [
-            {
-              environment: "prod",
-              requiresPriorReleaseIn: [],
-              allowsDraftPublish: true,
-              allowsInBatch: true,
-            },
-          ],
-        })
-      ).status,
-    ).toBe(200);
-    try {
-      const formId = await seedForm(0);
-      const revision = await saveDraft(prodAuthor.token, formId);
-      const done = await call(prodAuthor.token, "POST", `/forms/${formId}/publish-batch`, {
-        idempotencyKey: KEYS(),
-        expectedWorkflowRevision: 1,
-        source: { kind: "draft", draftRevision: revision },
-        targets: [
-          { environment: "test", expectedSequence: null },
-          { environment: "prod", expectedSequence: null },
-        ],
-      });
-      expect(done.status).toBe(200);
+  it("freezes one snapshot, and writes nothing when prod is named beside test", async () => {
+    const formId = await seedForm(0);
+    const revision = await saveDraft(prodAuthor.token, formId);
+    const refused = await call(prodAuthor.token, "POST", `/forms/${formId}/publish-batch`, {
+      idempotencyKey: KEYS(),
+      expectedWorkflowRevision: null,
+      source: { kind: "draft", draftRevision: revision },
+      targets: [
+        { environment: "test", expectedSequence: null },
+        { environment: "prod", expectedSequence: null },
+      ],
+    });
+    expect(refused.status).toBe(409);
+    expect(codeOf(refused.body)).toBe("TEST_RELEASE_REQUIRED");
+    expect(await listFormVersions(control, formId)).toEqual([]);
+    expect(await releasedEvents("test", formId)).toBe(0);
 
-      expect(await listFormVersions(control, formId)).toHaveLength(1);
-      expect(done.body.version).toBe(1);
-      expect((done.body.releases as unknown[]).length).toBe(2);
-      expect(await getDraft(control, formId)).toBeUndefined();
-      expect(await releasedEvents("test", formId)).toBe(1);
-      expect(await releasedEvents("prod", formId)).toBe(1);
-    } finally {
-      await clearWorkflow();
-    }
+    const done = await call(prodAuthor.token, "POST", `/forms/${formId}/publish-batch`, {
+      idempotencyKey: KEYS(),
+      expectedWorkflowRevision: null,
+      source: { kind: "draft", draftRevision: revision },
+      targets: [{ environment: "test", expectedSequence: null }],
+    });
+    expect(done.status).toBe(200);
+    expect(await listFormVersions(control, formId)).toHaveLength(1);
+    expect(done.body.version).toBe(1);
+    expect(done.body.froze).toBe(true);
+    expect(await getDraft(control, formId)).toBeUndefined();
+    expect(await releasedEvents("test", formId)).toBe(1);
+    expect(await releasedEvents("prod", formId)).toBe(0);
   });
 
   it("writes nothing when a destination the workflow keeps out of a batch is named", async () => {
@@ -1008,9 +983,8 @@ describe("one confirmation is one transaction", () => {
 
   it("applies the same draft rule to the older publish-and-release route", async () => {
     await clearWorkflow();
-    // `test` may take a combined publish but needs a prior `prod` release of that version,
-    // which a version frozen in the same act cannot have. The older single-destination
-    // route must not be a way round that.
+    // `test` refuses a combined publish. The older single-destination route must not be a
+    // way round that.
     expect(
       (
         await call(claim.token, "PUT", "/release-workflow", {
@@ -1018,8 +992,8 @@ describe("one confirmation is one transaction", () => {
           rules: [
             {
               environment: "test",
-              requiresPriorReleaseIn: ["prod"],
-              allowsDraftPublish: true,
+              requiresPriorReleaseIn: [],
+              allowsDraftPublish: false,
               allowsInBatch: true,
             },
           ],
@@ -1033,7 +1007,7 @@ describe("one confirmation is one transaction", () => {
         environment: "test",
       });
       expect(refused.status).toBe(409);
-      expect(codeOf(refused.body)).toBe("PRIOR_RELEASE_REQUIRED");
+      expect(codeOf(refused.body)).toBe("DRAFT_PUBLISH_NOT_ALLOWED");
       expect(await listFormVersions(control, formId)).toEqual([]);
       expect(await listFormReleases(control, formId)).toEqual([]);
       expect(await getDraft(control, formId)).toBeDefined();
@@ -1045,7 +1019,7 @@ describe("one confirmation is one transaction", () => {
         source: { kind: "draft", draftRevision: (await getDraft(control, formId))!.revision },
         targets: [{ environment: "test", expectedSequence: null }],
       });
-      expect(codeOf(batch.body)).toBe("PRIOR_RELEASE_REQUIRED");
+      expect(codeOf(batch.body)).toBe("DRAFT_PUBLISH_NOT_ALLOWED");
       expect(await listFormVersions(control, formId)).toEqual([]);
     } finally {
       await clearWorkflow();
@@ -1138,6 +1112,309 @@ describe("one confirmation is one transaction", () => {
       ],
     });
     expect(codeOf(twice.body)).toBe("DUPLICATE_TARGET");
+  });
+});
+
+/** Every prod rule a revision could hold here, the ones that try to lift the floor included. */
+const PROD_RULES = [[], ["test"]].flatMap((requiresPriorReleaseIn) =>
+  [true, false].flatMap((allowsDraftPublish) =>
+    [true, false].map((allowsInBatch) => ({
+      environment: "prod",
+      requiresPriorReleaseIn,
+      allowsDraftPublish,
+      allowsInBatch,
+    })),
+  ),
+);
+
+const CONFIGURATIONS: (readonly unknown[] | undefined)[] = [
+  undefined,
+  [],
+  ...PROD_RULES.map((rule) => [rule]),
+];
+
+async function configure(rules: readonly unknown[] | undefined): Promise<number | null> {
+  await clearWorkflow();
+  if (rules === undefined) return null;
+  const written = await call(claim.token, "PUT", "/release-workflow", {
+    expectedRevision: null,
+    rules,
+  });
+  expect(written.status, JSON.stringify(written.body)).toBe(200);
+  return 1;
+}
+
+describe("the single Publish step", () => {
+  it("publishes a draft to test for Edit forms and Publish forms there, through one group or two (criterion 5)", async () => {
+    for (const who of [testAuthor, oneGroupAuthor]) {
+      const formId = await seedForm(0);
+      const revision = await saveDraft(who.token, formId);
+      const done = await call(who.token, "POST", `/forms/${formId}/publish-batch`, {
+        idempotencyKey: KEYS(),
+        expectedWorkflowRevision: null,
+        source: { kind: "draft", draftRevision: revision },
+        targets: [{ environment: "test", expectedSequence: null }],
+      });
+      expect(done.status, JSON.stringify(done.body)).toBe(200);
+      expect(done.body.froze).toBe(true);
+      expect((await listFormReleases(control, formId, "test"))[0]?.version).toBe(1);
+    }
+  });
+
+  it("refuses a Publish-only holder a draft, freezing nothing", async () => {
+    const formId = await seedForm(0);
+    const revision = await saveDraft(testAuthor.token, formId);
+    const refused = await call(testPublisherOnly.token, "POST", `/forms/${formId}/publish-batch`, {
+      idempotencyKey: KEYS(),
+      expectedWorkflowRevision: null,
+      source: { kind: "draft", draftRevision: revision },
+      targets: [{ environment: "test", expectedSequence: null }],
+    });
+    expect(refused.status).toBe(403);
+    expect(await listFormVersions(control, formId)).toEqual([]);
+    expect(await getDraft(control, formId)).toBeDefined();
+  });
+
+  it("refuses a draft straight to prod under every workflow configuration (criterion 7)", async () => {
+    for (const rules of CONFIGURATIONS) {
+      const label = JSON.stringify(rules);
+      const expectedWorkflowRevision = await configure(rules);
+      try {
+        const read = await call(testAuthor.token, "GET", "/release-workflow");
+        const prodRule = (read.body.environments as { name: string }[]).find(
+          (row) => row.name === "prod",
+        );
+        expect(prodRule, label).toMatchObject({ allowsDraftPublish: false });
+
+        const formId = await seedForm(0);
+        const revision = await saveDraft(prodAuthor.token, formId);
+        const review = await call(prodAuthor.token, "POST", `/forms/${formId}/release-review`, {
+          source: { kind: "draft" },
+        });
+        const prod = (review.body.targets as { environment: string; blockers: unknown[] }[]).find(
+          (target) => target.environment === "prod",
+        );
+        expect(prod?.blockers.length, label).toBeGreaterThan(0);
+
+        const batch = await call(prodAuthor.token, "POST", `/forms/${formId}/publish-batch`, {
+          idempotencyKey: KEYS(),
+          expectedWorkflowRevision,
+          source: { kind: "draft", draftRevision: revision },
+          targets: [{ environment: "prod", expectedSequence: null }],
+        });
+        expect(batch.status, label).toBe(409);
+        const single = await call(
+          prodAuthor.token,
+          "POST",
+          `/forms/${formId}/publish-and-release`,
+          { environment: "prod" },
+        );
+        expect(single.status, label).toBe(409);
+
+        expect(await listFormVersions(control, formId), label).toEqual([]);
+        expect(await listFormReleases(control, formId), label).toEqual([]);
+        expect(await getDraft(control, formId), label).toBeDefined();
+        expect(await releasedEvents("prod", formId), label).toBe(0);
+      } finally {
+        await clearWorkflow();
+      }
+    }
+  }, 60_000);
+
+  it("refuses prod a version live nowhere under every configuration, and takes one live in test", async () => {
+    for (const rules of CONFIGURATIONS) {
+      const label = JSON.stringify(rules);
+      const expectedWorkflowRevision = await configure(rules);
+      try {
+        const formId = await seedForm(1);
+        const release = {
+          expectedWorkflowRevision,
+          source: { kind: "version", version: 1 },
+          targets: [{ environment: "prod", expectedSequence: null }],
+        };
+        const refused = await call(prodPublisher.token, "POST", `/forms/${formId}/release-batch`, {
+          idempotencyKey: KEYS(),
+          ...release,
+        });
+        expect(refused.status, label).toBe(409);
+        expect(await listFormReleases(control, formId), label).toEqual([]);
+
+        await insertFormRelease(control, {
+          formId,
+          environment: "test",
+          version: 1,
+          releasedBy: "au_seed",
+        });
+        const done = await call(prodPublisher.token, "POST", `/forms/${formId}/release-batch`, {
+          idempotencyKey: KEYS(),
+          ...release,
+        });
+        expect(done.status, label).toBe(200);
+        expect(done.body.froze, label).toBe(false);
+      } finally {
+        await clearWorkflow();
+      }
+    }
+  }, 60_000);
+
+  it("refuses a rule that would leave test reachable only through prod", async () => {
+    await clearWorkflow();
+    const refused = await call(claim.token, "PUT", "/release-workflow", {
+      expectedRevision: null,
+      rules: [
+        {
+          environment: "test",
+          requiresPriorReleaseIn: ["prod"],
+          allowsDraftPublish: true,
+          allowsInBatch: true,
+        },
+      ],
+    });
+    expect(codeOf(refused.body)).toBe("WORKFLOW_RULE_INVALID");
+    expect((await call(testAuthor.token, "GET", "/release-workflow")).body.revision).toBeNull();
+  });
+
+  it("publishes an earlier version again as a rollback, freezing nothing (criterion 18)", async () => {
+    const cases = [
+      { who: testPublisherOnly, environment: "test" },
+      { who: prodPublisher, environment: "prod" },
+    ];
+    for (const { who, environment } of cases) {
+      const formId = await seedForm(2);
+      for (const version of [1, 2]) {
+        if (environment === "prod") {
+          await insertFormRelease(control, {
+            formId,
+            environment: "test",
+            version,
+            releasedBy: "au_seed",
+          });
+        }
+        await insertFormRelease(control, { formId, environment, version, releasedBy: "au_seed" });
+      }
+      const current = (await listFormReleases(control, formId, environment))[0]!;
+      const done = await call(who.token, "POST", `/forms/${formId}/release-batch`, {
+        idempotencyKey: KEYS(),
+        expectedWorkflowRevision: null,
+        source: { kind: "version", version: 1 },
+        targets: [{ environment, expectedSequence: current.sequence }],
+      });
+      expect(done.status, JSON.stringify(done.body)).toBe(200);
+      expect(done.body.froze).toBe(false);
+      expect((done.body.releases as { rollback: boolean }[])[0]?.rollback).toBe(true);
+      expect(await listFormVersions(control, formId)).toHaveLength(2);
+      expect((await listFormReleases(control, formId, environment))[0]?.version).toBe(1);
+    }
+  });
+});
+
+describe("a site whose only environment is prod", () => {
+  it("publishes a draft to prod at once with second approval off (criterion 8)", async () => {
+    await clearWorkflow();
+    const formId = await seedForm(0);
+    const revision = await saveDraft(prodOnlyAuthor.token, formId);
+    const review = await call(
+      prodOnlyAuthor.token,
+      "POST",
+      `/forms/${formId}/release-review`,
+      { source: { kind: "draft" } },
+      prodOnlyApp,
+    );
+    expect(review.status).toBe(200);
+    expect(review.body.targets).toEqual([
+      expect.objectContaining({ environment: "prod", blockers: [] }),
+    ]);
+    const done = await call(
+      prodOnlyAuthor.token,
+      "POST",
+      `/forms/${formId}/publish-batch`,
+      {
+        idempotencyKey: KEYS(),
+        expectedWorkflowRevision: null,
+        source: { kind: "draft", draftRevision: revision },
+        targets: [{ environment: "prod", expectedSequence: null }],
+      },
+      prodOnlyApp,
+    );
+    expect(done.status, JSON.stringify(done.body)).toBe(200);
+    expect(done.body.froze).toBe(true);
+    expect((await listFormReleases(control, formId, "prod"))[0]?.version).toBe(1);
+    expect(await releasedEvents("prod", formId)).toBe(1);
+
+    await saveDraft(prodOnlyAuthor.token, formId);
+    const single = await call(
+      prodOnlyAuthor.token,
+      "POST",
+      `/forms/${formId}/publish-and-release`,
+      { environment: "prod" },
+      prodOnlyApp,
+    );
+    expect(single.status, JSON.stringify(single.body)).toBe(200);
+    expect((await listFormReleases(control, formId, "prod"))[0]?.version).toBe(2);
+  });
+
+  it("still refuses a Publish-only holder a draft", async () => {
+    const formId = await seedForm(0);
+    const revision = await saveDraft(prodOnlyAuthor.token, formId);
+    const refused = await call(
+      prodPublisher.token,
+      "POST",
+      `/forms/${formId}/publish-batch`,
+      {
+        idempotencyKey: KEYS(),
+        expectedWorkflowRevision: null,
+        source: { kind: "draft", draftRevision: revision },
+        targets: [{ environment: "prod", expectedSequence: null }],
+      },
+      prodOnlyApp,
+    );
+    expect(refused.status).toBe(403);
+    expect(await listFormVersions(control, formId)).toEqual([]);
+  });
+
+  it("refuses a draft publish to prod outright while second approval is on, freezing nothing", async () => {
+    await clearWorkflow();
+    await setRequireSecondApprover(control, SEED_WORKSPACE_ID, true);
+    try {
+      const formId = await seedForm(0);
+      const revision = await saveDraft(prodOnlyAuthor.token, formId);
+      const review = await call(
+        prodOnlyAuthor.token,
+        "POST",
+        `/forms/${formId}/release-review`,
+        { source: { kind: "draft" } },
+        prodOnlyApp,
+      );
+      const prod = (review.body.targets as { blockers: { code: string }[] }[])[0];
+      expect(prod?.blockers.map((blocker) => blocker.code)).toEqual(["APPROVER_IS_AUTHOR"]);
+      const attempts = [
+        {
+          path: "publish-batch",
+          body: {
+            idempotencyKey: KEYS(),
+            expectedWorkflowRevision: null,
+            source: { kind: "draft", draftRevision: revision },
+            targets: [{ environment: "prod", expectedSequence: null }],
+          },
+        },
+        { path: "publish-and-release", body: { environment: "prod" } },
+      ];
+      for (const { path, body } of attempts) {
+        const refused = await call(
+          prodOnlyAuthor.token,
+          "POST",
+          `/forms/${formId}/${path}`,
+          body,
+          prodOnlyApp,
+        );
+        expect(refused.status, path).toBe(403);
+        expect(codeOf(refused.body), path).toBe("APPROVER_IS_AUTHOR");
+      }
+      expect(await listFormVersions(control, formId)).toEqual([]);
+      expect(await getDraft(control, formId)).toBeDefined();
+    } finally {
+      await setRequireSecondApprover(control, SEED_WORKSPACE_ID, false);
+    }
   });
 });
 

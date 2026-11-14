@@ -91,9 +91,8 @@ because "released version 4 after version 7" is the shape an incident review rea
 
 - **No copy of a version, in any form.** Promotion is a record; a copy would break R1, R6
   and ADR-18 at once.
-- **Ordering is the configured workflow's** (ADR-40's amendment of 2026-10-29). With no
-  revision written and both test and prod served, a production candidate needs prior test
-  or prod release history. Prod-only deployments still permit a direct release.
+- **Ordering is the configured workflow's** (ADR-40's amendment of 2026-10-29), over the
+  fixed `prod` floor below. Prod-only deployments still permit a direct release.
 - **No approval rule.** `approvedBy` exists from this task and is written by task 070's
   two-person rule for `prod` (Q51). Nothing here enforces who may fill it.
 - **No membership check.** The workspace role and its environment scope arrive with tasks
@@ -142,7 +141,15 @@ Installation-wide, versioned rule rows in `control.release_workflow_revisions` a
 read by every `forms.` role. **No row is seeded**: with no revision, `readWorkflow` answers
 `defaultWorkflowRules`, which is the derived behaviour of the section below stated as data,
 and reports `source: "default"`. An environment a configured revision wrote no row for
-constrains nothing.
+constrains nothing but the floor.
+
+**The fixed `prod` floor** (`docs/WORKSPACE_ACCESS.md` section 5). Where `prod` is served
+beside at least one non-prod environment, `withProductionFloor` sets `prod`'s
+`allowsDraftPublish` to false and, when the configured rule names no prerequisite, requires
+a prior release in any served non-prod environment. A configured prerequisite stays, since
+every name it may hold is non-prod. It is applied when the revision is read, so no stored
+revision can lift it, and the write judges acyclicity with it in place. On a prod-only site
+it does not apply and a draft publishes to `prod`.
 
 Three rules per destination, and one exception that is not a rule:
 
@@ -152,8 +159,8 @@ Three rules per destination, and one exception that is not a rule:
 - **The rollback exception.** A version with any prior release row in the destination itself
   is eligible there whatever the prerequisites say, because moving back to what that
   environment already served is a rollback rather than a promotion. That is why the default
-  revision's `prod` rule names `test` alone and the historical prod candidate still
-  releases: the rule and the exception together are exactly the earlier behaviour.
+  revision's `prod` rule names the non-prod environments alone and the historical prod
+  candidate still releases.
 - **The two-person rule is not an evidence rule.** `approvalForRelease` runs for every
   production destination, rollback included, and no rule here can switch it off.
 - `allowsDraftPublish` and `allowsInBatch` govern the combined publish and the multi-target
@@ -199,22 +206,25 @@ the middleware evaluate the cell once per listed environment and refuse on the f
 failure, naming only that environment. A `publish-batch` with no destination is "create a
 version without releasing it" and is authorised by `form: publish` alone.
 
-## Test-to-production workflow
+## Non-prod-to-production workflow
 
-This section describes the **default revision**: what runs until a deployment writes one.
+This section describes the **default revision**: the floor alone, what runs until a
+deployment writes one.
 
 The admin's top switch fixes the release target; the release dialog selects a version,
 not another environment. Its server action confirms the environment shown before
 forwarding. `GET /forms/{id}` returns API-derived action capabilities, eligible version
 numbers, the preferred candidate, the current release and its immutable definition.
 
-When both test and prod are served, `POST /forms/{id}/releases` rejects a prod candidate
-without historical test or prod releases with `409 TEST_RELEASE_REQUIRED`. Historical
-prod releases keep legacy rollback available. Moving test to a later version does not
-invalidate an earlier candidate. This rule follows permission and second-person checks.
-A recorded test release does not assert that manual testing passed.
+Where a non-prod environment is served, `POST /forms/{id}/releases` rejects a prod
+candidate with no release in any non-prod environment and none in prod with
+`409 TEST_RELEASE_REQUIRED`; the code keeps its name and the details name the environments
+that would satisfy it. Historical prod releases keep rollback available. Moving a non-prod
+environment to a later version does not invalidate an earlier candidate. This rule follows
+permission and second-person checks. A recorded release does not assert that manual
+testing passed.
 
-`POST /forms/{id}/publish-and-release` remains atomic, but targets test in the normal
-workflow. Direct publication into prod is refused in a test/prod deployment. In prod,
-the admin reviews stored content and releases an existing version; it never republishes
-the shared draft. Prod-only deployments retain the original behavior.
+`POST /forms/{id}/publish-and-release` remains atomic and applies the same floor: a draft
+is never published straight into prod where a non-prod environment exists. On a prod-only
+site a draft publishes to prod; with second approval on that is refused outright until
+task 093 makes it a held request.

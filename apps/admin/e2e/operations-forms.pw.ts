@@ -47,7 +47,7 @@ test("lists the forms this caller operates, separating unreleased from closed", 
   await expect(table.getByRole("row").filter({ hasText: BETA })).toHaveCount(1);
   const alpha = table.getByRole("row").filter({ hasText: ALPHA });
   await expect(alpha.locator('td[data-released="false"]')).toHaveText("None");
-  await expect(alpha.locator('td[data-availability="unreleased"]')).toHaveText("Not Released");
+  await expect(alpha.locator('td[data-availability="unreleased"]')).toHaveText("Not live");
 });
 
 test("a filter narrows the rows below it and changes nothing above them", async ({ page }) => {
@@ -152,8 +152,8 @@ test("the addresses the operational screens had still arrive, with their query",
   await expect(page).toHaveURL(new RegExp(`/operations/forms/${formId}/availability$`, "u"));
 
   // Nothing is released here, so the screen reads the row's third word and offers no verb.
-  await expect(page.getByTestId("qcms-form-availability-reading")).toHaveText("Not Released");
-  await expect(page.getByText("Availability: Not Released")).toBeVisible();
+  await expect(page.getByTestId("qcms-form-availability-reading")).toHaveText("Not live");
+  await expect(page.getByText("Availability: Not live")).toBeVisible();
   await expect(page.getByTestId("qcms-form-not-released")).toBeVisible();
   await expect(page.getByRole("button", { name: /^Close to new responses/u })).toHaveCount(0);
 });

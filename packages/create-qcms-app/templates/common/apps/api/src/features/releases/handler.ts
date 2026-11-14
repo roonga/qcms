@@ -45,6 +45,7 @@ import {
   readWorkflow,
   requireReleaseCandidate,
   ruleFor,
+  withProductionFloor,
   type EffectiveWorkflow,
 } from "./workflow.js";
 import type {
@@ -682,9 +683,9 @@ function ruleSummary(rules: readonly RuleInput[]): string {
 }
 
 /**
- * Every name served, no destination requiring itself, no duplicate row and no cycle.
- * Rollback is the ruled exception rather than a rule, so a self-reference is a defect in
- * the configuration and not a way to express one.
+ * Every name served, no self-reference, no duplicate row and no cycle once the fixed
+ * `prod` floor is in place. Rollback is the ruled exception, so a self-reference is a
+ * defect in the configuration rather than a way to express one.
  */
 function validateWorkflowRules(rules: readonly RuleInput[], served: readonly string[]): void {
   const seen = new Set<string>();
@@ -713,7 +714,19 @@ function validateWorkflowRules(rules: readonly RuleInput[], served: readonly str
       }
     }
   }
-  const cycle = findCycle(rules);
+  const cycle = findCycle(
+    served.map((environment) =>
+      withProductionFloor(
+        rules.find((rule) => rule.environment === environment) ?? {
+          environment,
+          requiresPriorReleaseIn: [],
+          allowsDraftPublish: true,
+          allowsInBatch: true,
+        },
+        served,
+      ),
+    ),
+  );
   if (cycle !== undefined) {
     throw fail.workflowRuleInvalid(cycle, "is on a cycle, so no version could ever reach it");
   }

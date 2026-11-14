@@ -39,8 +39,9 @@ export const releaseVersionRoute = createRoute({
     "Writes one release record and copies nothing: the form id and the version number " +
     "are the published ones. Releasing an earlier version than the one it replaces is a " +
     "rollback and is the same act. A release never re-pins a session already open. " +
-    "When test and prod are served, production requires prior test or prod release history; " +
-    "otherwise the request is refused with TEST_RELEASE_REQUIRED.",
+    "Where a non-prod environment is served, prod accepts only a version with a prior " +
+    "release in a non-prod environment or in prod itself; no workflow revision lifts this. " +
+    "Under the default revision the refusal keeps the TEST_RELEASE_REQUIRED code.",
   tags,
   request: { params: FormIdParam, body: jsonBody(ReleaseVersionBody) },
   responses: {
@@ -80,9 +81,9 @@ export const releaseReviewRoute = createRoute({
     "closed there, the committed release rows that satisfy the target's prerequisite, the " +
     "blockers that remain, and whether the two-person rule applies and would refuse this " +
     "account as the version's author. Until a release-workflow revision is configured " +
-    "the review reports `workflowSource: default`, which is this deployment's derived " +
-    "test and prod behaviour, and a missing production prerequisite keeps the " +
-    "TEST_RELEASE_REQUIRED code. A version with a prior release in the target itself is " +
+    "the review reports `workflowSource: default`, which is the fixed prod floor alone, " +
+    "and a missing production prerequisite keeps the TEST_RELEASE_REQUIRED code. Every " +
+    "revision has the floor applied over it. A version with a prior release in the target itself is " +
     "a rollback and is eligible there regardless of prerequisites; the two-person rule " +
     "still applies to it. The review is a report rather than a reservation: the " +
     "confirmation rechecks every expectation in its own transaction.",
@@ -184,7 +185,8 @@ export const releaseWorkflowReadRoute = createRoute({
     "deployment's derived behaviour, which is what runs until an installation " +
     "administrator writes one. `protected` is true for the production environment alone " +
     "and is read-only: it reports the role split and the workspace second-approver " +
-    "switch, which this configuration cannot alter whatever its rules say.",
+    "switch, which this configuration cannot alter whatever its rules say. The rules " +
+    "reported are the ones enforced, with the fixed prod floor applied.",
   tags,
   request: {},
   responses: {
@@ -207,7 +209,8 @@ export const releaseWorkflowWriteRoute = createRoute({
     "release refused under an earlier revision stays explainable. Every environment " +
     "named must be served, no destination may require a prior release in itself " +
     "(releasing a version it already served is a rollback and is eligible anyway), and " +
-    "the prerequisite graph must be acyclic. It creates, renames and deletes no " +
+    "the prerequisite graph, judged with the fixed prod floor in place, must be acyclic. " +
+    "A rule that would lift the floor is accepted and the floor still applies. It creates, renames and deletes no " +
     "environment: that stays the operator command's. `expectedRevision` is `null` while " +
     "none is configured. Each write lands as an access-audit `setting` row.",
   tags,

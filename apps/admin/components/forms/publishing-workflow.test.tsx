@@ -36,11 +36,46 @@ describe("environment-bound publishing", () => {
     ).toBe("/forms/frm_intake/publish");
   });
 
-  it("explains missing publishing permission instead of offering the entry", () => {
-    render(<FormActions formId="frm_intake" workflow={{ ...WORKFLOW, canPublish: false }} />);
-    // Gated rather than disabled: a caller who may not publish is offered no way to.
+  it("disables Publish with a reason for an Edit forms holder who may not publish", () => {
+    render(
+      <FormActions
+        formId="frm_intake"
+        workflow={{ ...WORKFLOW, canEdit: true, canPublish: false }}
+      />,
+    );
+    // Disabled and explained, not hidden: the absence of a control explains nothing.
     expect(screen.queryByRole("link", { name: t("forms.versions.publishEntry") })).toBeNull();
-    expect(screen.getByText(t("forms.workflow.noPublishPermission"))).toBeTruthy();
+    const entry = screen.getByRole("button", { name: t("forms.versions.publishEntry") });
+    expect(entry.hasAttribute("disabled") || entry.getAttribute("aria-disabled") === "true").toBe(
+      true,
+    );
+    expect(screen.getByTestId("qcms-publish-denied").textContent).toBe(
+      t("forms.workflow.noPublishPermission"),
+    );
+  });
+
+  it("disables the wizard's draft source with the same reason", () => {
+    render(
+      <PublishWizard
+        formId="frm_intake"
+        versions={[1]}
+        hasDraft
+        canPublishDraft={false}
+        draft={DRAFT}
+        review={() => Promise.resolve({ ok: false })}
+        confirm={() => Promise.resolve({ status: "idle" })}
+        lookup={() => Promise.resolve({ status: "idle" })}
+        secureCookies={false}
+      />,
+    );
+    expect(
+      screen
+        .getByRole("radio", { name: new RegExp(t("forms.publish.source.draft"), "u") })
+        .hasAttribute("disabled"),
+    ).toBe(true);
+    expect(screen.getByTestId("qcms-publish-draft-denied").textContent).toBe(
+      t("forms.workflow.noPublishPermission"),
+    );
   });
 
   it("locks a test release to test even when production exists", async () => {
@@ -60,8 +95,8 @@ describe("environment-bound publishing", () => {
     await user.click(screen.getByRole("button", { name: t("forms.releases.action") }));
     const dialog = await screen.findByRole("alertdialog");
     expect(within(dialog).queryByRole("button", { name: /Environment$/u })).toBeNull();
-    expect(within(dialog).queryByRole("button", { name: "Release v2 to prod" })).toBeNull();
-    expect(within(dialog).getByRole("button", { name: "Release v2 to test" })).toBeTruthy();
+    expect(within(dialog).queryByRole("button", { name: "Publish v2 to prod" })).toBeNull();
+    expect(within(dialog).getByRole("button", { name: "Publish v2 to test" })).toBeTruthy();
   });
 
   it("promotes the preferred tested version, excluding a newer untested version", async () => {
@@ -89,11 +124,11 @@ describe("environment-bound publishing", () => {
     expect(within(dialog).getByTestId("qcms-release-replacement").textContent).toContain(
       "v2 will replace v1 in prod.",
     );
-    await user.click(within(dialog).getByRole("button", { name: /Version to release$/u }));
+    await user.click(within(dialog).getByRole("button", { name: /Version to publish$/u }));
     expect(screen.queryByRole("option", { name: "v3" })).toBeNull();
     await user.click(screen.getByRole("option", { name: "v2" }));
-    await user.click(within(dialog).getByRole("button", { name: "Release v2 to prod" }));
-    await screen.findByText("v2 is now released to prod.");
+    await user.click(within(dialog).getByRole("button", { name: "Publish v2 to prod" }));
+    await screen.findByText("v2 is now live in prod.");
     expect(release).toHaveBeenCalledWith({ version: 2 });
   });
 });
@@ -126,7 +161,7 @@ describe("release confirmations across environment changes", () => {
     expect(release).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: t("forms.releases.action") }));
     const dialog = await screen.findByRole("alertdialog");
-    expect(within(dialog).getByRole("button", { name: "Release v2 to prod" })).toBeTruthy();
+    expect(within(dialog).getByRole("button", { name: "Publish v2 to prod" })).toBeTruthy();
   });
 
   it("does not offer to publish an unchanged seed as another version", () => {
