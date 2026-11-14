@@ -136,8 +136,8 @@ has to remember. Two consequences follow. Endpoint configuration is authored **o
 environment** and a promotion does not carry it. And configuring a **`prod`** endpoint is a
 `forms.publisher`'s act with `prod` in scope (Q30, ADR-41), because an editor who can point
 a production webhook at any URL can route production personal data out of the deployment;
-the same change in `dev` or `test` stays an editor's. SEC-14's per-environment egress
-allowlist is the network backstop underneath both.
+the same change in `dev` or `test` is a publisher's with that environment in the group.
+SEC-14's per-environment egress allowlist is the network backstop underneath both.
 
 ## SSRF guardrail (SEC-6)
 

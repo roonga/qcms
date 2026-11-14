@@ -620,6 +620,48 @@ describe("moving a question (criterion 107)", () => {
   });
 });
 
+describe("a shared library question (criterion 108)", () => {
+  it("refuses an Edit forms holder of another workspace editing it", async () => {
+    const library = await createWorkspace("c108-library");
+    const other = await createWorkspace("c108-other");
+    const questionId = QuestionId.parse("q_c108_shared");
+    expect(
+      (
+        await send("POST", "/questions", {
+          slug: "q-c108-shared",
+          workspaceId: library,
+          definition: definitionFor(questionId),
+        })
+      ).status,
+    ).toBe(201);
+    expect((await send("PUT", `/workspaces/${library}/shared`, { shared: true })).status).toBe(200);
+
+    try {
+      const editor = await seedAdminSession(testDb.db, {
+        label: "c108-foreign-editor",
+        claim: false,
+        owner: false,
+        workspaceId: other,
+        grants: ["forms.editor"],
+      });
+
+      const edited = await as(editor.token, "PUT", `/questions/${questionId}/versions/1`, {
+        definition: definitionFor(questionId),
+      });
+      expect(edited.status).toBe(403);
+      const appended = await as(editor.token, "POST", `/questions/${questionId}/versions`);
+      expect(appended.status).toBe(403);
+
+      const own = await send("PUT", `/questions/${questionId}/versions/1`, {
+        definition: definitionFor(questionId),
+      });
+      expect(own.status, await own.clone().text()).toBe(200);
+    } finally {
+      await send("PUT", `/workspaces/${library}/shared`, { shared: false });
+    }
+  });
+});
+
 describe("the interim Move form rules (work order 085)", () => {
   it("refuses a mover with no Edit forms in the destination", async () => {
     const source = await createWorkspace("move-source");
@@ -639,6 +681,38 @@ describe("the interim Move form rules (work order 085)", () => {
     });
     expect(refused.status).toBe(403);
     expect((await getForm(testDb.db, formId))?.workspaceId).toBe(source);
+  });
+
+  it("refuses a mover with Edit forms in both who is not a Workspace administrator of the source", async () => {
+    const source = await createWorkspace("move-not-admin-source");
+    const destination = await createWorkspace("move-not-admin-destination");
+    const formId = await seedForm("move_not_admin", source);
+
+    const mover = await seedAdminSession(testDb.db, {
+      label: "move-not-admin",
+      claim: false,
+      owner: false,
+      workspaceId: source,
+      grants: ["forms.editor"],
+    });
+    await seedGrants(testDb.db, {
+      userId: mover.userId,
+      workspaceId: destination,
+      grants: ["forms.editor"],
+    });
+
+    const refused = await as(mover.token, "POST", `/forms/${formId}/workspace`, {
+      workspaceId: destination,
+    });
+    expect(refused.status).toBe(403);
+    expect((await getForm(testDb.db, formId))?.workspaceId).toBe(source);
+
+    await seedGrants(testDb.db, { userId: mover.userId, workspaceId: source, grants: [] });
+    const applied = await as(mover.token, "POST", `/forms/${formId}/workspace`, {
+      workspaceId: destination,
+    });
+    expect(applied.status, await applied.clone().text()).toBe(200);
+    expect((await getForm(testDb.db, formId))?.workspaceId).toBe(destination);
   });
 
   it("refuses the move outright while the source requires a second approver", async () => {

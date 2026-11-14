@@ -449,7 +449,7 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     environmentFrom: "body",
   },
   {
-    // Every destination authorised on its own: an editor scoped to `test` cannot reach
+    // Every destination authorised on its own: a publisher scoped to `test` cannot reach
     // `prod` by naming both in one crafted batch.
     method: "POST",
     path: "/admin/forms/{id}/release-batch",
@@ -569,7 +569,7 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
   {
     // The handler must compare the proposal's own environment against the switcher's: a
     // `prod` proposal confirmed under a `test` switcher would be authorised against
-    // `test`, where a `forms.editor` suffices.
+    // `test`, where a `test` publisher suffices.
     method: "POST",
     path: "/admin/forms/{id}/webhooks/proposals/{proposalId}/confirm",
     resource: "webhook",
