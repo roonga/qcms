@@ -1123,7 +1123,7 @@ describe("a reduced-grant caller over HTTP", () => {
 });
 
 describe("a publisher's contexts follow its group's environments", () => {
-  const FORM_ID = "frm_env_scoped";
+  const FORM_ID = "frm_envscoped";
   const ENDPOINT = "https://scoped.example.test/hook?t=abc";
   let scopedApp: ReturnType<typeof createApp>;
   let publisher: { token: string; userId: string };
