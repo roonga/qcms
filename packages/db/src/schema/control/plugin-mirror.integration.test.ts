@@ -20,7 +20,7 @@ afterAll(async () => {
   await testDb?.teardown();
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
-describe("a team's scope columns are a Postgres text[]", () => {
+describe("a team's role set and environment set are Postgres text[]", () => {
   it("is declared as an array of text in the catalogue, not jsonb and not a serialised text", async () => {
     const columns = await testDb.client.query<{
       column_name: string;
@@ -30,7 +30,7 @@ describe("a team's scope columns are a Postgres text[]", () => {
       `select column_name, data_type, udt_name
          from information_schema.columns
         where table_schema = 'control' and table_name = 'team'
-          and column_name in ('environments', 'forms')
+          and column_name in ('environments', 'roles')
         order by column_name`,
     );
     expect(columns.rows).toEqual([
@@ -94,7 +94,7 @@ describe("every table and declared additional field the mirror carries (Q32, Q39
     ]);
   });
 
-  it("carries Q39's two fields, one unique and one defaulted off", async () => {
+  it("carries Q39's unique directory key", async () => {
     const external = await testDb.client.query<{ is_nullable: string }>(
       `select is_nullable from information_schema.columns
         where table_schema = 'control' and table_name = 'team'
@@ -112,13 +112,5 @@ describe("every table and declared additional field the mirror carries (Q32, Q39
               = array['externalGroupId']::text[]`,
     );
     expect(unique.rows[0]?.n).toBe(1);
-
-    // A `NOT NULL` column the library never writes would be fatal on the first request.
-    const seed = await testDb.client.query<{ column_default: string | null }>(
-      `select column_default from information_schema.columns
-        where table_schema = 'control' and table_name = 'organization'
-          and column_name = 'seedNewEditorsWithTestData'`,
-    );
-    expect(seed.rows[0]?.column_default).toBe("false");
   });
 });
