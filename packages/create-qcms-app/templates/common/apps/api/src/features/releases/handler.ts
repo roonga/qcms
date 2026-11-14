@@ -683,10 +683,9 @@ function ruleSummary(rules: readonly RuleInput[]): string {
 }
 
 /**
- * Every name served, no destination requiring itself, no duplicate row and no cycle,
- * judged with the fixed `prod` floor in place since that is what will be enforced.
- * Rollback is the ruled exception rather than a rule, so a self-reference is a defect in
- * the configuration and not a way to express one.
+ * Every name served, no self-reference, no duplicate row and no cycle once the fixed
+ * `prod` floor is in place. Rollback is the ruled exception, so a self-reference is a
+ * defect in the configuration rather than a way to express one.
  */
 function validateWorkflowRules(rules: readonly RuleInput[], served: readonly string[]): void {
   const seen = new Set<string>();
