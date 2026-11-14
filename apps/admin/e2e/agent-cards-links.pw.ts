@@ -121,6 +121,7 @@ test("confirms a mint and a revoke alone, changing the screen and recording each
   await expect(heldCard(page).getByTestId("qcms-acard-reveal-ask")).toHaveText(
     "Hide these? They cannot be shown again.",
   );
+  await expectAxeClean(page, "asked whether to hide the addresses");
   await heldCard(page).getByRole("button", { name: "Keep showing", exact: true }).click();
   expect(
     await revealedAddresses(heldCard(page)),
