@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import { boolean, check, integer, jsonb, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
 
 import type { CompiledForm } from "@roonga/qcms-a2ui-compiler";
-import type { FormDefinition, FormId } from "@roonga/qcms-core";
+import type { Appearance, FormDefinition, FormId } from "@roonga/qcms-core";
 
 import { authOrganization } from "./auth.js";
 
@@ -35,6 +35,12 @@ export const formDrafts = controlSchema.table("form_drafts", {
     .primaryKey()
     .references(() => forms.formId),
   definition: jsonb("definition").$type<FormDefinition>().notNull(),
+  /**
+   * Held by value and outside `FormDefinition`, so the golden corpus is untouched: colour
+   * tokens inline and a logo key, never a reference to a theme. Null is "the deployment
+   * default".
+   */
+  appearance: jsonb("appearance").$type<Appearance>(),
   /** Provenance shown on the publish confirmation, not a permission. */
   agentAssisted: boolean("agent_assisted").notNull().default(false),
   /**
@@ -60,6 +66,8 @@ export const formVersions = controlSchema.table(
       .references(() => forms.formId),
     version: integer("version").notNull(),
     definition: jsonb("definition").$type<FormDefinition>().notNull(),
+    /** Copied from the draft at publish and frozen with the version by the reject-update trigger. */
+    appearance: jsonb("appearance").$type<Appearance>(),
     compiled: jsonb("compiled").$type<CompiledForm>().notNull(),
     compilerVersion: text("compiler_version").notNull(),
     a2uiSpecVersion: text("a2ui_spec_version").notNull(),

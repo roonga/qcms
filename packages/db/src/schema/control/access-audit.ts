@@ -17,6 +17,8 @@ export const ACCESS_AUDIT_KINDS = [
   "grant",
   "revoke",
   "setting",
+  /** One row per theme derive fetch (SEC-18). The appearance lock uses `setting`. */
+  "derive",
 ] as const;
 
 /** One of {@link ACCESS_AUDIT_KINDS}. */
@@ -52,7 +54,7 @@ export const accessAudit = controlSchema.table(
   (t) => [
     check(
       ACCESS_AUDIT_KIND_CHECK,
-      sql`${t.kind} in ('read', 'export', 'erasure', 'grant', 'revoke', 'setting')`,
+      sql`${t.kind} in ('read', 'export', 'erasure', 'grant', 'revoke', 'setting', 'derive')`,
     ),
   ],
 );

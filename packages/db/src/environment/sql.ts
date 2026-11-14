@@ -20,6 +20,7 @@ import {
 import { sqlLiteral as literal } from "../sql-literal.js";
 import { ACCESS_AUDIT_TABLE } from "../schema/control/access-audit.js";
 import { AGENT_ACTIONS_TABLE } from "../schema/control/agent-actions.js";
+import { APPEARANCE_LOGOS_TABLE } from "../schema/control/workspace-themes.js";
 import {
   APPLICATION_ROLE_PREFIX,
   CONTROL_ROLE,
@@ -413,12 +414,25 @@ export function grantAgentActionsStatements(): string[] {
   return appendOnlyAuditGrantStatements(AGENT_ACTIONS_TABLE);
 }
 
+/**
+ * The logo store is append-only like the audits, and readable by an environment role
+ * because the logo route answers an unauthenticated respondent off the serving pool.
+ */
+export function grantAppearanceLogosStatements(): string[] {
+  const table = `${quote(CONTROL_SCHEMA)}.${quote(APPEARANCE_LOGOS_TABLE)}`;
+  return [
+    guardedOnRole(CONTROL_ROLE, [`GRANT SELECT, INSERT ON ${table} TO ${quote(CONTROL_ROLE)}`]),
+    grantControlReadToEnvironmentRolesStatement(APPEARANCE_LOGOS_TABLE),
+    revokeTableWritesStatement(APPEARANCE_LOGOS_TABLE),
+  ];
+}
+
 function appendOnlyAuditGrantStatements(auditTable: string): string[] {
   const table = `${quote(CONTROL_SCHEMA)}.${quote(auditTable)}`;
   return [
     guardedOnRole(CONTROL_ROLE, [`GRANT SELECT, INSERT ON ${table} TO ${quote(CONTROL_ROLE)}`]),
     grantAuditInsertToEnvironmentRolesStatement(auditTable),
-    revokeAuditWritesStatement(auditTable),
+    revokeTableWritesStatement(auditTable),
   ];
 }
 
@@ -441,7 +455,7 @@ $$;`;
 }
 
 // Against the role prefix, so a role an operator creates later is covered too.
-function revokeAuditWritesStatement(auditTable: string): string {
+function revokeTableWritesStatement(auditTable: string): string {
   return `DO $$
 DECLARE application_role text;
 BEGIN
@@ -490,6 +504,7 @@ export const CONTROL_READ_TABLES: readonly string[] = [
   "secure_links",
   "environments",
   "form_releases",
+  APPEARANCE_LOGOS_TABLE,
 ];
 
 /**
@@ -497,7 +512,10 @@ export const CONTROL_READ_TABLES: readonly string[] = [
  * because {@link grantEnvironmentStatements} runs both before and after the migration that
  * creates them. Not a list of tables an environment role lacks `SELECT` on.
  */
-export const CONTROL_READ_TABLES_GUARDED_ON_EXISTENCE: readonly string[] = ["form_releases"];
+export const CONTROL_READ_TABLES_GUARDED_ON_EXISTENCE: readonly string[] = [
+  "form_releases",
+  APPEARANCE_LOGOS_TABLE,
+];
 
 /**
  * The identity, session, membership and grant tables an environment role must hold no

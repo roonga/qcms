@@ -6,6 +6,7 @@ import {
 import {
   ACCESS_AUDIT_TABLE,
   AGENT_ACTIONS_TABLE,
+  APPEARANCE_LOGOS_TABLE,
   CONTROL_FORBIDDEN_TABLES,
   CONTROL_READ_TABLES,
   DATA_PLANE_TABLE_NAMES,
@@ -49,6 +50,9 @@ const QCMS_SCHEMAS = [
 const DML = ["SELECT", "INSERT", "UPDATE", "DELETE"] as const;
 
 const AUDIT_TABLES: readonly string[] = [ACCESS_AUDIT_TABLE, AGENT_ACTIONS_TABLE];
+
+/** The audits plus the logo store: every table no application role may rewrite. */
+const APPEND_ONLY_TABLES: readonly string[] = [...AUDIT_TABLES, APPEARANCE_LOGOS_TABLE];
 
 /** Not `/tmp`: the `postgres` user's own directory in a container this test alone owns. */
 const DUMP_PATH = "/var/lib/postgresql/qcms-restore-regrant.sql";
@@ -384,14 +388,14 @@ describe("after the restore and the re-grant", () => {
 });
 
 describe("the projections of that map, named so a failure says which claim broke", () => {
-  it("gives the control role DML on `control` with the audits carved out", async () => {
+  it("gives the control role DML on `control` with the append-only tables carved out", async () => {
     const held = await tablePrivileges("control", CONTROL_ROLE);
     expect(held["two_factor_resets"]).toBeUndefined();
-    for (const audit of AUDIT_TABLES) {
-      expect([...(held[audit] ?? [])].sort(), audit).toEqual(["INSERT", "SELECT"]);
+    for (const table of APPEND_ONLY_TABLES) {
+      expect([...(held[table] ?? [])].sort(), table).toEqual(["INSERT", "SELECT"]);
     }
     for (const [table, privileges] of Object.entries(held)) {
-      if (AUDIT_TABLES.includes(table)) continue;
+      if (APPEND_ONLY_TABLES.includes(table)) continue;
       expect([...privileges].sort(), `control.${table}`).toEqual([...DML].sort());
     }
     expect(Object.keys(held).length).toBeGreaterThan(10);
@@ -466,10 +470,10 @@ describe("the projections of that map, named so a failure says which claim broke
   });
 
   it.each(ENVIRONMENTS)(
-    "gives qcms_app_%s exactly the six-table read list, one UPDATE and the audits' INSERT",
+    "gives qcms_app_%s exactly the seven-table read list, one UPDATE and the audits' INSERT",
     async (environment) => {
       const held = await tablePrivileges("control", ENVIRONMENT_ROLES[environment]);
-      expect(CONTROL_READ_TABLES).toHaveLength(6);
+      expect(CONTROL_READ_TABLES).toHaveLength(7);
       expect(Object.keys(held).sort()).toEqual([...CONTROL_READ_TABLES, ...AUDIT_TABLES].sort());
       for (const table of CONTROL_READ_TABLES) {
         const expected = table === "secure_links" ? ["SELECT", "UPDATE"] : ["SELECT"];
@@ -521,9 +525,9 @@ describe("the projections of that map, named so a failure says which claim broke
   );
 
   it.each([CONTROL_ROLE, ...Object.values(ENVIRONMENT_ROLES), UNSHIPPED_ROLE])(
-    "leaves %s no UPDATE and no DELETE on either audit, the restore re-grant included",
+    "leaves %s no UPDATE and no DELETE on the audits or the logo store, the re-grant included",
     async (role) => {
-      for (const audit of AUDIT_TABLES) {
+      for (const audit of APPEND_ONLY_TABLES) {
         for (const privilege of ["UPDATE", "DELETE"]) {
           const res = await owner.query<{ has: boolean }>(
             `select has_table_privilege($1, $2, $3) as has`,

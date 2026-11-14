@@ -873,6 +873,15 @@ $$;
 DO $$
 BEGIN
 	IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'qcms_app_test')
+		AND EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'control' AND tablename = 'appearance_logos') THEN
+		EXECUTE 'GRANT SELECT ON "control"."appearance_logos" TO "qcms_app_test"';
+	END IF;
+END
+$$;
+--> statement-breakpoint
+DO $$
+BEGIN
+	IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'qcms_app_test')
 		AND EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'control' AND tablename = 'access_audit') THEN
 		EXECUTE 'GRANT INSERT ON "control"."access_audit" TO "qcms_app_test"';
 	END IF;
@@ -934,6 +943,15 @@ BEGIN
 	IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'qcms_app_prod')
 		AND EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'control' AND tablename = 'form_releases') THEN
 		EXECUTE 'GRANT SELECT ON "control"."form_releases" TO "qcms_app_prod"';
+	END IF;
+END
+$$;
+--> statement-breakpoint
+DO $$
+BEGIN
+	IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'qcms_app_prod')
+		AND EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'control' AND tablename = 'appearance_logos') THEN
+		EXECUTE 'GRANT SELECT ON "control"."appearance_logos" TO "qcms_app_prod"';
 	END IF;
 END
 $$;

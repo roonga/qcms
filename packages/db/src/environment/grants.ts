@@ -12,6 +12,10 @@ import {
   RELEASE_WORKFLOW_REVISIONS_TABLE,
   RELEASE_WORKFLOW_RULES_TABLE,
 } from "../schema/control/release-workflow.js";
+import {
+  APPEARANCE_LOGOS_TABLE,
+  WORKSPACE_THEMES_TABLE,
+} from "../schema/control/workspace-themes.js";
 import { CONTROL_ROLE, CONTROL_SCHEMA } from "../schema/schemas.js";
 
 import {
@@ -21,6 +25,7 @@ import {
 import {
   grantAccessAuditStatements,
   grantAgentActionsStatements,
+  grantAppearanceLogosStatements,
   grantControlTableStatements,
   grantEnvironmentStatements,
   revokeMigrateOnlyStatement,
@@ -181,6 +186,18 @@ export const GRANT_SOURCES: readonly GrantSource[] = [
     scope: "installation",
     inMigrationTree: true,
     statements: grantAgentActionsStatements,
+  },
+  {
+    name: `${CONTROL_SCHEMA}.${APPEARANCE_LOGOS_TABLE} (migration 0010)`,
+    scope: "installation",
+    inMigrationTree: true,
+    statements: grantAppearanceLogosStatements,
+  },
+  {
+    name: `${CONTROL_SCHEMA}.${WORKSPACE_THEMES_TABLE} (migration 0010)`,
+    scope: "installation",
+    inMigrationTree: true,
+    statements: () => grantControlTableStatements(WORKSPACE_THEMES_TABLE),
   },
   {
     name: "control.two_factor_resets is migrate-only (baseline, last)",

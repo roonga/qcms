@@ -220,4 +220,74 @@ describe("form_versions are immutable (R1, I1)", () => {
       ),
     ).rejects.toThrow(/immutable/i);
   });
+
+  it("rejects an UPDATE of the frozen appearance (D1, ADR-07)", async () => {
+    const formId = "frm_versions_appearance";
+    await seedForm(formId);
+    await expect(
+      testDb.client.query(`update form_versions set appearance = '{}'::jsonb where form_id = $1`, [
+        formId,
+      ]),
+    ).rejects.toThrow(/immutable/i);
+  });
+});
+
+describe("stored logos are immutable, so a theme never moves one (D2)", () => {
+  const KEY = "a".repeat(64);
+  const OTHER_KEY = "b".repeat(64);
+
+  async function storeLogo(key: string): Promise<void> {
+    await testDb.client.query(
+      `insert into appearance_logos (key, content_type, bytes)
+       values ($1, 'image/png', $2)`,
+      [key, Buffer.from("png-bytes")],
+    );
+  }
+
+  it("rejects an UPDATE of the bytes the key names", async () => {
+    await storeLogo(KEY);
+    await expect(
+      testDb.client.query(`update appearance_logos set bytes = $1 where key = $2`, [
+        Buffer.from("other"),
+        KEY,
+      ]),
+    ).rejects.toThrow(/immutable/i);
+  });
+
+  it("rejects a DELETE, with no sanctioned door beside it", async () => {
+    await expect(
+      testDb.client.query(`delete from appearance_logos where key = $1`, [KEY]),
+    ).rejects.toThrow(/immutable/i);
+  });
+
+  it("leaves the logo a version carries when the theme that introduced it is deleted", async () => {
+    const formId = "frm_theme_logo";
+    await storeLogo(OTHER_KEY);
+    await testDb.client.query(
+      `insert into forms (form_id, slug, workspace_id, default_locale) values ($1, $2, $3, 'en')`,
+      [formId, `${formId}-slug`, SEED_WORKSPACE_ID],
+    );
+    await testDb.client.query(
+      `insert into form_versions
+         (form_id, version, definition, appearance, compiled, compiler_version, a2ui_spec_version, semantics_version)
+       values ($1, 1, '{}'::jsonb, $2::jsonb, '{}'::jsonb, '0.0.0', '0.0.0', '0.0.0')`,
+      [formId, JSON.stringify({ logo: OTHER_KEY })],
+    );
+    await testDb.client.query(
+      `insert into workspace_themes (workspace_id, name, palettes, face, corners, logo_key)
+       values ($1, 'House', '{}'::jsonb, 'system', 'subtle', $2)`,
+      [SEED_WORKSPACE_ID, OTHER_KEY],
+    );
+
+    const removed = await testDb.client.query(
+      `delete from workspace_themes where workspace_id = $1 and name = 'House'`,
+      [SEED_WORKSPACE_ID],
+    );
+    expect(removed.rowCount).toBe(1);
+
+    const survived = await testDb.client.query(`select 1 from appearance_logos where key = $1`, [
+      OTHER_KEY,
+    ]);
+    expect(survived.rowCount).toBe(1);
+  });
 });

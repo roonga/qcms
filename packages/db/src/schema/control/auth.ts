@@ -110,6 +110,11 @@ export const authOrganization = controlSchema.table(
     metadata: text("metadata"),
     isShared: boolean("isShared").notNull().default(false),
     requireSecondApprover: boolean("requireSecondApprover").notNull().default(false),
+    /**
+     * While set, the draft save path refuses any change to a form's appearance (Q10). It
+     * refuses edits only: a form moved in keeps the appearance it carries.
+     */
+    appearanceLocked: boolean("appearanceLocked").notNull().default(false),
     archivedAt: timestamp("archivedAt"),
   },
   (t) => [

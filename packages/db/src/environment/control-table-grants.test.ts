@@ -11,10 +11,19 @@ import {
   RELEASE_WORKFLOW_REVISIONS_TABLE,
   RELEASE_WORKFLOW_RULES_TABLE,
 } from "../schema/control/release-workflow.js";
+import { APPEARANCE_CORNERS } from "@roonga/qcms-core";
+
+import {
+  APPEARANCE_LOGOS_TABLE,
+  LOGO_CONTENT_TYPES,
+  LOGO_MAX_BYTES,
+  WORKSPACE_THEMES_TABLE,
+} from "../schema/control/workspace-themes.js";
 import {
   CONTROL_READ_TABLES,
   grantAccessAuditStatements,
   grantAgentActionsStatements,
+  grantAppearanceLogosStatements,
   grantControlTableStatements,
   grantEnvironmentStatements,
 } from "./sql.js";
@@ -41,6 +50,10 @@ const WORKFLOW_MIGRATION = fileURLToPath(
 
 const AGENT_MIGRATION = fileURLToPath(
   new URL("../../migrations/0007_agent_actions.sql", import.meta.url),
+);
+
+const APPEARANCE_MIGRATION = fileURLToPath(
+  new URL("../../migrations/0010_appearance_and_workspace_themes.sql", import.meta.url),
 );
 
 describe("the `form_releases` grants", () => {
@@ -222,5 +235,76 @@ describe("the SEC-17 agent audit's grants (Q12)", () => {
       `GRANT INSERT ON "control"."${AGENT_ACTIONS_TABLE}" TO "qcms_app_staging"`,
     );
     expect(later).not.toContain(`GRANT SELECT ON "control"."${AGENT_ACTIONS_TABLE}"`);
+  });
+});
+
+describe("the appearance tables' grants (D1, D2)", () => {
+  const sql = readFileSync(APPEARANCE_MIGRATION, "utf8");
+
+  it("are exactly the statements the generators emit, verbatim", () => {
+    const statements = [
+      ...grantAppearanceLogosStatements(),
+      ...grantControlTableStatements(WORKSPACE_THEMES_TABLE),
+    ];
+    expect(statements).toHaveLength(4);
+    for (const statement of statements) expect(sql).toContain(statement);
+  });
+
+  it("leaves the logo store append-only: SELECT and INSERT, never UPDATE or DELETE", () => {
+    expect(sql).toContain(
+      `GRANT SELECT, INSERT ON "control"."${APPEARANCE_LOGOS_TABLE}" TO "qcms_app_control"`,
+    );
+    expect(sql).not.toContain(
+      `GRANT SELECT, INSERT, UPDATE, DELETE ON "control"."${APPEARANCE_LOGOS_TABLE}"`,
+    );
+    expect(sql).toContain("WHERE rolname LIKE 'qcms\\_app%'");
+    expect(sql).toContain(
+      `REVOKE UPDATE, DELETE ON TABLE control.${APPEARANCE_LOGOS_TABLE} FROM %I`,
+    );
+  });
+
+  it("gives every environment role SELECT on the logo store and nothing on the themes", () => {
+    expect(CONTROL_READ_TABLES).toContain(APPEARANCE_LOGOS_TABLE);
+    expect(CONTROL_READ_TABLES).not.toContain(WORKSPACE_THEMES_TABLE);
+    expect(sql).toContain(`GRANT SELECT ON "control"."${APPEARANCE_LOGOS_TABLE}" TO %I`);
+    expect(sql).not.toContain(`ON "control"."${WORKSPACE_THEMES_TABLE}" TO %I`);
+    const later = grantEnvironmentStatements("staging").join("\n");
+    expect(later).toContain(
+      `GRANT SELECT ON "control"."${APPEARANCE_LOGOS_TABLE}" TO "qcms_app_staging"`,
+    );
+    expect(later).toContain(`tablename = '${APPEARANCE_LOGOS_TABLE}'`);
+    expect(later).not.toContain(WORKSPACE_THEMES_TABLE);
+  });
+
+  it("adds the appearance columns and the workspace lock the draft save path reads", () => {
+    expect(sql).toContain('ALTER TABLE "control"."form_drafts" ADD COLUMN "appearance" jsonb');
+    expect(sql).toContain('ALTER TABLE "control"."form_versions" ADD COLUMN "appearance" jsonb');
+    expect(sql).toContain(
+      'ALTER TABLE "control"."organization" ADD COLUMN "appearanceLocked" boolean DEFAULT false NOT NULL',
+    );
+  });
+
+  it("holds the logo store immutable against every role, not only the application ones", () => {
+    expect(sql).toContain(`CREATE TRIGGER "${APPEARANCE_LOGOS_TABLE}_reject_update"`);
+    expect(sql).toContain(`CREATE TRIGGER "${APPEARANCE_LOGOS_TABLE}_reject_delete"`);
+    // The themes are editable and deletable; it is the logo bytes a draft or a version
+    // carries that may not move under them.
+    expect(sql).not.toContain(`CREATE TRIGGER "${WORKSPACE_THEMES_TABLE}_reject_delete"`);
+  });
+
+  it("pins the hand-written SQL literals to the constants the application reads", () => {
+    const list = (values: readonly string[]): string =>
+      values.map((value) => `'${value}'`).join(", ");
+    expect(sql).toContain(`in (${list(APPEARANCE_CORNERS)})`);
+    expect(sql).toContain(`in (${list(LOGO_CONTENT_TYPES)})`);
+    expect(sql).toContain(`octet_length("control"."${APPEARANCE_LOGOS_TABLE}"."bytes") <= ${LOGO_MAX_BYTES}`);
+  });
+
+  it("needs no trigger on the appearance column: `form_versions` refuses every UPDATE", () => {
+    const versions = readFileSync(
+      fileURLToPath(new URL("../../migrations/0000_environments_baseline.sql", import.meta.url)),
+      "utf8",
+    );
+    expect(versions).toContain('CREATE TRIGGER "form_versions_reject_update"');
   });
 });
