@@ -469,6 +469,18 @@ export function teardownPlaceholders(required, fileValues, environment) {
   return filled;
 }
 
+/**
+ * @param {string} outcome
+ * @param {{ email: string; password: string }} credentials
+ * @returns {{ credentials: { email: string; password: string } | undefined; promoted: boolean }}
+ */
+export function bannerOptionsFor(outcome, credentials) {
+  return {
+    credentials: outcome === "created" ? credentials : undefined,
+    promoted: outcome === "promoted",
+  };
+}
+
 export function up() {
   const envFile = envFileState();
   preflight(envFile);
@@ -496,7 +508,7 @@ export function up() {
     devStackBannerLines({
       ports,
       project,
-      credentials: outcome === "created" ? credentials : undefined,
+      ...bannerOptionsFor(outcome, credentials),
       inContainer: isInDockerContainer(),
     }).join("\n") + "\n",
   );

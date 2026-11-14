@@ -16,6 +16,7 @@ import {
   COMPOSE_FILES,
   SUBCOMMANDS,
   SUPPLIED_VARIABLES,
+  bannerOptionsFor,
   devStackBannerLines,
   devStackEnvironmentOverrides,
   missingVariables,
@@ -347,6 +348,28 @@ describe("devStackBannerLines", () => {
 
   it("always says how to stop it", () => {
     expect(created).toContain("pnpm dev:down");
+  });
+});
+
+describe("bannerOptionsFor", () => {
+  const credentials = { email: "dev@qcms.test", password: "dev-secret-value" };
+
+  it("returns the credentials for a created account", () => {
+    expect(bannerOptionsFor("created", credentials)).toEqual({ credentials, promoted: false });
+  });
+
+  it("returns no credentials and promoted for a promoted account", () => {
+    expect(bannerOptionsFor("promoted", credentials)).toEqual({
+      credentials: undefined,
+      promoted: true,
+    });
+  });
+
+  it("returns no credentials and not promoted for any other outcome", () => {
+    expect(bannerOptionsFor("skipped", credentials)).toEqual({
+      credentials: undefined,
+      promoted: false,
+    });
   });
 });
 
