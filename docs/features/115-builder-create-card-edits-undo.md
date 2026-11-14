@@ -1,7 +1,7 @@
 # 115 - Builder create card, card-less edits, Undo and the wizard diff
 
 **Stage:** 9 (Phase 4) · **Apps/packages:** `apps/admin`, `apps/api` (create kind) · **Depends on:** 113, 112; the create card, edit and Undo states on the Agent Builder design canvas seen by the Code Owner
-**References:** `plan/agent-builder-decisions.md` (U7, Q13, Q14, Q15, Q16, "Required tests": Authorisation) · SEC-17 · `docs/form-publishing-flow.md` · `plan/work-order-sequence.md`
+**References:** `plan/agent-builder-decisions.md` (U7, Q13, Q14, Q15, Q16, Q22, "Required tests": Authorisation) · SEC-17 · `docs/form-publishing-flow.md` · `plan/work-order-sequence.md`
 
 ## Context
 
@@ -10,7 +10,7 @@ The builder's write experience. Creating a form is the one Confirm card (the slu
 ## Deliverables
 
 - Form creation from `/forms/new/build`: a Confirm card showing the workspace and the slug; needs Edit forms in that workspace; the form and its first draft are created at Confirm, never when the builder opens; until then Share preview and Publish are off. After Confirm the route becomes `/forms/<id>/build`.
-- Draft edits applied as 111's token-bound edits, browser-executed, with no per-edit card; each edit shows in the conversation with an Undo control.
+- Draft edits applied as 111's token-bound edits, browser-executed, with no per-edit card; each edit shows in the conversation with an Undo control. A new or edited library question is a Confirm card with no Undo control (Q22).
 - Undo for the latest edit and earlier ones in reverse order, through 111's Undo route.
 - The publish wizard shows the cumulative agent diff since the last human-reviewed revision (111's read) when entered from the builder or when the draft carries agent edits.
 - Strings in `apps/admin/lib/i18n/en.ts`.
