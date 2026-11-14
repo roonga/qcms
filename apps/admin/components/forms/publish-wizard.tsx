@@ -492,6 +492,11 @@ export function PublishWizard({
                       ? t("forms.publish.source.draftHint")
                       : t("forms.publish.source.noDraft")}
                   </span>
+                  {hasDraft && !canPublishDraft && (
+                    <span className="text-sm" data-testid="qcms-publish-draft-denied">
+                      {t("forms.workflow.noPublishPermission")}
+                    </span>
+                  )}
                 </span>
               </RadioButton>
             </RadioField>
@@ -553,6 +558,11 @@ export function PublishWizard({
               : t("forms.publish.workflow.default")}
           </p>
           {targets.length === 0 && <p>{t("forms.publish.destinations.none")}</p>}
+          {targets.some((target) => target.protected) && (
+            <p className="text-sm text-(--color-text-muted)" data-testid="qcms-publish-prod-floor">
+              {t("forms.publish.destinations.prodFloor")}
+            </p>
+          )}
           {targets.map((target) => {
             const eligible = isTargetEligible(target);
             return (

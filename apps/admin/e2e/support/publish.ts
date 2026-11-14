@@ -46,7 +46,7 @@ export async function releaseThroughWizard(
 
   const result = page.getByTestId("qcms-publish-result");
   await expect(result).toBeVisible({ timeout: 30_000 });
-  await expect(result).toContainText(`Version ${String(input.version)} is released.`);
+  await expect(result).toContainText(`Version ${String(input.version)} is live.`);
   await expect(result.locator(`li[data-environment="${input.environment}"]`)).toBeVisible();
 }
 
@@ -73,7 +73,7 @@ export async function refuseDraftThroughWizard(
   // Keep the navigable work list outside the live region so it is not announced as one flat interruption.
   const status = page.getByTestId("qcms-publish-status");
   await expect(status).toHaveAttribute("aria-live", "polite");
-  await expect(status).toContainText("Nothing was published or released");
+  await expect(status).toContainText("Nothing was published");
   await expect(status.getByTestId("qcms-publish-rejected")).toHaveCount(0);
 }
 

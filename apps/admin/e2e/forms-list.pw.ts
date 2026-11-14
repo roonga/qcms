@@ -124,7 +124,7 @@ test("reopens a filtered library from its URL alone, controls and all", async ({
   await expect(field(page, "Search")).toHaveValue(SCOPE);
 
   await expect(toolbar.getByRole("button", { name: /Availability$/ })).toContainText(
-    "Not Released",
+    "Not live",
   );
   await expect(toolbar.getByRole("button", { name: /Sort by$/ })).toContainText("Slug (Z to A)");
 });

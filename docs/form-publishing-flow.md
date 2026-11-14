@@ -32,13 +32,15 @@ flowchart TD
 - Existing sessions finish on the version they started with. Rollback means
   releasing a previously published version to production.
 
-Publishing and releasing both run through the publish wizard at
-`/forms/{formId}/publish`, reached from the Publish entry on the form's Versions
+Publishing a draft and publishing an existing version both run through the publish wizard
+at `/forms/{formId}/publish`, reached from the Publish entry on the form's Versions
 screen. The wizard takes a source (the shared draft, or an existing version), the
-destinations to release into, and one confirmation; it writes nothing before that
-confirmation and then releases into every destination or into none of them. It lists
-only the environments the operator may release this form into, and says why an
-environment it cannot use is not eligible.
+destinations, and one confirmation; it writes nothing before that confirmation and then
+publishes to every destination or to none of them. It lists only the environments the
+operator may publish this form to, and says why an environment it cannot use is not
+eligible. The screens call this one act Publish and never Release: `release` stays an API
+path, a record name and a code, not a word the forms UI shows. An operator who holds Edit
+forms but not Publish forms sees the Publish entry disabled with the reason beside it.
 
 Where the site has a non-prod environment, production offers existing versions previously
 released to any non-prod environment, plus previously deployed production versions for
@@ -77,9 +79,9 @@ environment, while these screens are one environment's.
 Availability is where a form is closed to new responses and reopened. Both the reading and the two
 acts are the selected environment's, because the closed state is per form and environment:
 closing production leaves a test run serving, and the confirmation names the environment it
-is about before anything happens. The reading has three values, Open, Closed and Not Released,
-the same three the Operations table and the Forms list use. A form with nothing released in the
-selected environment reads Not Released and is offered neither verb, because there is nothing
+is about before anything happens. The reading has three values, Open, Closed and Not live,
+the same three the Operations table and the Forms list use. A form with nothing live in the
+selected environment reads Not live and is offered neither verb, because there is nothing
 there to close or reopen.
 
 For Docker, set `QCMS_PORTAL_ENVIRONMENTS=test` in `.env` and recreate the portal

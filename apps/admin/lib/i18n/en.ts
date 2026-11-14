@@ -147,7 +147,7 @@ export const messages = {
 
   "operations.intake.open": "Open",
   "operations.intake.closed": "Closed",
-  "operations.intake.unreleased": "Not Released",
+  "operations.intake.unreleased": "Not live",
   "operations.release.none": "None",
   "operations.loading": "Loading the forms you can operate.",
 
@@ -502,7 +502,7 @@ export const messages = {
   "forms.column.version": "Published",
   "forms.status.open": "Open",
   "forms.status.closed": "Closed",
-  "forms.status.unreleased": "Not Released",
+  "forms.status.unreleased": "Not live",
   "forms.draft.present": "Unpublished draft",
   "forms.draft.none": "No draft",
   "forms.version.none": "Never published",
@@ -1086,9 +1086,9 @@ export const messages = {
   "forms.error.unknown": "The request failed ({code}).",
 
   "forms.error.approverIsAuthor":
-    "You published this version, so you cannot release it to production. This workspace requires an approver other than the version's author: ask another approver to release it.",
+    "You froze this version, so another person with Publish forms in prod publishes it.",
   "forms.error.approverUnknownAuthor":
-    "This version was published before the deployment recorded publishing accounts, so the second-approver rule cannot be checked against it. Publish a new version and release that one.",
+    "Who froze this version was not recorded, so second approval cannot be checked against it. Publish the draft again and use that version.",
   "forms.error.unknownCreate": "The form could not be created. Try again.",
   "forms.error.listFailed": "The form library could not be loaded. {message}",
   "forms.error.libraryFailed": "The question library could not be loaded. {message}",
@@ -1132,7 +1132,7 @@ export const messages = {
     "No one can start a new response to this form in {environment} after it closes. Every other environment is unaffected: a test run keeps going if one is under way. Responses already in progress here keep going too and finish on the version they started on; their answers are unaffected.",
   "forms.lifecycle.reopenTitle": "Reopen {slug} in {environment}?",
   "forms.lifecycle.reopenBody":
-    "New responses can start in {environment} again, on the version released there.",
+    "New responses can start in {environment} again, on the version live there.",
   "forms.lifecycle.confirmClose": "Close it in {environment}",
   "forms.lifecycle.confirmReopen": "Reopen it in {environment}",
   "forms.lifecycle.cancel": "Cancel",
@@ -1141,62 +1141,62 @@ export const messages = {
   "forms.lifecycle.closedNote":
     "This form is closed in {environment}. It is not accepting new responses there; responses already in progress finish normally, and other environments are unaffected.",
   "forms.lifecycle.notReleasedHere":
-    "Nothing is released in this environment, so there is nothing to close or reopen there. Release a version first.",
+    "Nothing is live in this environment, so there is nothing to close or reopen there. Publish a version here first.",
   "forms.lifecycle.alreadyClosedHere":
     "This form is already closed in this environment. Nothing changed, and nothing was recorded.",
   "forms.lifecycle.alreadyOpenHere":
     "This form is already open in this environment. Nothing changed, and nothing was recorded.",
 
-  "forms.releases.currentHeading": "Released now",
-  "forms.releases.currentTable": "The version released to each environment",
+  "forms.releases.currentHeading": "Live now",
+  "forms.releases.currentTable": "The version live in each environment",
   "forms.releases.column.environment": "Environment",
   "forms.releases.column.version": "Version",
-  "forms.releases.column.releasedAt": "Released",
-  "forms.releases.column.releasedBy": "Released by",
-  "forms.releases.column.fromEnvironment": "Promoted from",
+  "forms.releases.column.releasedAt": "Published",
+  "forms.releases.column.releasedBy": "Published by",
+  "forms.releases.column.fromEnvironment": "Published from",
   "forms.releases.column.approvedBy": "Approved by",
   "forms.releases.none": "None",
-  "forms.releases.noSource": "Released directly",
+  "forms.releases.noSource": "Published directly",
   "forms.releases.noApproval": "No approval recorded",
-  "forms.releases.historyHeading": "Release history",
-  "forms.releases.historyTable": "Every release of this form",
-  "forms.releases.emptyTitle": "Not released anywhere",
+  "forms.releases.historyHeading": "Publish history",
+  "forms.releases.historyTable": "Every publish of this form",
+  "forms.releases.emptyTitle": "Not live anywhere",
   "forms.releases.empty":
-    "This form has never been released. Publishing a version does not serve it: release it to an environment to put it in front of respondents.",
+    "This form is not live anywhere yet. Publish it to an environment to put it in front of respondents.",
   "forms.releases.notPublished":
-    "There is nothing to release yet: publish a version first, and it becomes releasable.",
+    "There is no frozen version yet. Publish the draft, and that version can then go to another environment.",
 
   "forms.releases.rollback": "Rollback",
   "forms.releases.rollbackFrom": "Rolled back from v{replaced}",
   "forms.releases.replaced": "Replaced v{replaced}",
-  "forms.releases.first": "First release here",
-  "forms.releases.action": "Release a version…",
-  "forms.releases.dialogTitle": "Release v{version} to {environment}?",
+  "forms.releases.first": "First here",
+  "forms.releases.action": "Publish a version…",
+  "forms.releases.dialogTitle": "Publish v{version} to {environment}?",
   "forms.releases.dialogBody":
-    "This becomes the version new sessions in {environment} start on. Sessions already under way stay on the version they pinned, and every earlier release stays in the history.",
+    "Respondents starting in {environment} from now get this version. Sessions already under way stay on the version they pinned, and every earlier publish stays in the history.",
   "forms.releases.rollbackWarning":
     "This is a rollback: {environment} is on v{current}, and v{version} is older.",
-  /** The production rule compares two accounts: publisher and releaser, not job titles. */
+  /** Second approval compares two accounts, not job titles. */
   "forms.releases.twoPersonSelf":
-    "You published v{version}, so you cannot release it to {environment}. This workspace requires an approver other than the version's author: ask another approver to release it.",
+    "You froze v{version}, so another person with Publish forms in {environment} publishes it.",
   "forms.releases.twoPersonSecond":
-    "This workspace requires a second approver for {environment}. You did not publish this version, so you can release it, and your account is recorded as the approval.",
+    "Second approval is on for {environment}. You did not freeze this version, so you can publish it, and you are recorded as the Approver.",
   "forms.releases.twoPersonUnknown":
-    "v{version} was published before this deployment recorded publishing accounts, so the second-approver rule cannot be checked against it. Publish a new version and release that one.",
-  "forms.releases.version": "Version to release",
-  "forms.releases.fromEnvironment": "Promoted from (optional)",
-  "forms.releases.fromNone": "Nowhere: release it directly",
-  "forms.releases.confirm": "Release to {environment}",
+    "Who froze v{version} was not recorded, so second approval cannot be checked against it. Publish the draft again and use that version.",
+  "forms.releases.version": "Version to publish",
+  "forms.releases.fromEnvironment": "Published from (optional)",
+  "forms.releases.fromNone": "Nowhere: publish it directly",
+  "forms.releases.confirm": "Publish to {environment}",
   "forms.releases.cancel": "Cancel",
-  "forms.releases.pending": "Releasing...",
-  "forms.releases.released": "v{version} is now released to {environment}.",
-  "forms.releases.failed": "Nothing was released. {message}",
-  "forms.releases.rollbackDone": "v{version} is released to {environment} again, as a rollback.",
+  "forms.releases.pending": "Publishing...",
+  "forms.releases.released": "v{version} is now live in {environment}.",
+  "forms.releases.failed": "Nothing was published. {message}",
+  "forms.releases.rollbackDone": "v{version} is live in {environment} again, as a rollback.",
 
-  /** Released to means serving now; historical destinations must not appear live. */
-  "forms.versions.availableIn": "Released to",
+  /** Live in means serving now; historical destinations must not appear live. */
+  "forms.versions.availableIn": "Live in",
   "forms.versions.availableNowhere": "Nowhere",
-  "forms.versions.publishedBy": "Published by",
+  "forms.versions.publishedBy": "Frozen by",
   "forms.versions.publisherUnknown": "Not recorded",
   "forms.versions.review": "Review",
 
@@ -1207,57 +1207,59 @@ export const messages = {
 
   "forms.publish.intro":
     "Choose what to publish and where it goes. Nothing is written until you confirm, and a " +
-    "confirmation releases into every destination or into none of them.",
+    "confirmation publishes to every destination or to none of them.",
   "forms.publish.step.source": "What to publish",
   "forms.publish.step.destinations": "Where it goes",
   "forms.publish.step.review": "Review and confirm",
   "forms.publish.step.announce": "Step: {step}",
   "forms.publish.source.draft": "The shared draft",
-  "forms.publish.source.draftHint": "Publishing freezes a new immutable version of the draft.",
+  "forms.publish.source.draftHint": "Freezes the draft as the next version and makes it live, in one act.",
   "forms.publish.source.version": "An existing version",
-  "forms.publish.source.versionLabel": "Version to release",
+  "forms.publish.source.versionLabel": "Version to publish",
   "forms.publish.source.noDraft": "There is no saved draft to publish.",
   "forms.publish.source.noVersions": "No version of this form has been published yet.",
-  "forms.publish.source.publishedBy": "Published by {publisher}.",
+  "forms.publish.source.publishedBy": "Frozen by {publisher}.",
   "forms.publish.destinations.hint":
-    "Only the environments you may release this form into are listed.",
+    "Only the environments you may publish this form to are listed.",
   "forms.publish.destinations.none":
-    "You hold no release permission for this form in any environment.",
-  "forms.publish.destinations.publishOnly": "Create version without releasing",
+    "You hold Publish forms for this form in no environment.",
+  "forms.publish.destinations.publishOnly": "Freeze the draft without making it live",
   "forms.publish.destinations.publishOnlyHint":
-    "Freezes a new version and releases it nowhere. Another account can release it afterwards.",
-  "forms.publish.destinations.serving": "Serving v{version}",
-  "forms.publish.destinations.unreleased": "Nothing released here",
+    "Freezes the draft as the next version and makes it live nowhere. Another person can publish that version afterwards.",
+  "forms.publish.destinations.serving": "Live: v{version}",
+  "forms.publish.destinations.unreleased": "Nothing live here",
   "forms.publish.destinations.closedNote":
-    "This form is closed here, and releasing leaves it closed.",
+    "This form is closed here, and publishing leaves it closed.",
   "forms.publish.destinations.protected": "Production",
+  "forms.publish.destinations.prodFloor":
+    "Prod accepts only a version already live in a non-prod environment. This is fixed, not a setting. On a site with only prod, a draft is published to prod.",
   "forms.publish.destinations.rollbackNote": "This moves {environment} back from v{current}.",
-  "forms.publish.destinations.evidence": "Satisfied by the release of v{version} in {environment}.",
+  "forms.publish.destinations.evidence": "Satisfied by v{version} being live in {environment}.",
   "forms.publish.destinations.pickOne": "Choose at least one destination.",
   "forms.publish.workflow.default":
-    "No release workflow is configured, so this deployment's default rules apply.",
-  "forms.publish.workflow.configured": "Release workflow revision {revision}.",
+    "No publishing workflow is configured, so this deployment's default rules apply.",
+  "forms.publish.workflow.configured": "Publishing workflow revision {revision}.",
   "forms.publish.blocked.priorRelease":
-    "Not yet eligible: this version needs a release in {environments} first.",
+    "Not yet: this version has to be live in {environments} first.",
   "forms.publish.blocked.draftNotAllowed":
-    "A draft cannot be published straight into {environment}. Release an existing version here.",
-  "forms.publish.blocked.alreadyReleased": "Already the released version here.",
+    "A draft is never published straight to {environment}. Publish it to a non-prod environment first, then publish that version here.",
+  "forms.publish.blocked.alreadyReleased": "Already live here.",
   "forms.publish.blocked.approverIsAuthor":
-    "You published this version, and {environment} requires a second account to release it.",
+    "You froze this version, so another person with Publish forms in {environment} publishes it.",
   "forms.publish.blocked.approverUnknownAuthor":
-    "The publisher of this version was not recorded, so the second-account rule cannot be checked.",
+    "Who froze this version was not recorded, so second approval cannot be checked against it.",
   "forms.publish.blocked.other": "Not eligible here: {code}.",
   "forms.publish.review.sourceDraft": "The shared draft becomes a new immutable version.",
-  "forms.publish.review.sourceVersion": "v{version} is released, and nothing is published.",
+  "forms.publish.review.sourceVersion": "v{version} goes live, and nothing is frozen.",
   "forms.publish.review.publishOnly":
-    "A new version is created and released nowhere. Another account can release it afterwards.",
+    "The draft is frozen as the next version and goes live nowhere. Another person can publish that version afterwards.",
   "forms.publish.review.transition": "{environment}: v{current} becomes v{version}",
-  "forms.publish.review.transitionFirst": "{environment}: nothing released becomes v{version}",
+  "forms.publish.review.transitionFirst": "{environment}: nothing live becomes v{version}",
   "forms.publish.review.transitionDraft": "{environment}: v{current} becomes the new version",
   "forms.publish.review.transitionDraftFirst":
-    "{environment}: nothing released becomes the new version",
+    "{environment}: nothing live becomes the new version",
   "forms.publish.review.secondPerson":
-    "{environment} requires a second account: this release is recorded against you as the approver.",
+    "Second approval is on for {environment}: you are recorded as the Approver.",
   "forms.publish.wizardConfirm": "Confirm",
   "forms.publish.wizardPending": "Confirming...",
   "forms.publish.next": "Continue",
@@ -1279,15 +1281,15 @@ export const messages = {
     "Nothing was committed under that confirmation. You can confirm again.",
   "forms.publish.result.heading": "Recorded",
   "forms.publish.result.version": "Version {version} is published.",
-  "forms.publish.result.released": "Version {version} is released.",
+  "forms.publish.result.released": "Version {version} is live.",
   "forms.publish.result.replayed":
     "This is the recorded result of the confirmation you already sent, not a second one.",
-  "forms.publish.result.releasedIn": "Released to {environment}",
-  "forms.publish.result.rolledBackIn": "Released to {environment}, as a rollback",
-  "forms.publish.result.noRelease": "Released nowhere.",
+  "forms.publish.result.releasedIn": "Live in {environment}",
+  "forms.publish.result.rolledBackIn": "Live in {environment}, as a rollback",
+  "forms.publish.result.noRelease": "Live nowhere.",
   "forms.publish.result.operations": "Open {environment} operations",
   "forms.publish.result.versions": "Back to versions",
-  "forms.publish.wizardFailed": "Nothing was published or released. {message}",
+  "forms.publish.wizardFailed": "Nothing was published. {message}",
   "forms.publish.wizardBlockedCount.one":
     "1 issue blocks publishing. It is listed in the builder, linking to its cause.",
   "forms.publish.wizardBlockedCount.other":
@@ -1295,29 +1297,29 @@ export const messages = {
     "its cause.",
   "forms.publish.wizardBlockedLink": "Open the builder",
 
-  "forms.workflow.release": "Release v{version} to {environment}",
+  "forms.workflow.release": "Publish v{version} to {environment}",
   "forms.workflow.publishedForm": "Published form",
-  "forms.workflow.testCandidate": "This version was released to test.",
-  "forms.workflow.firstRelease": "v{version} will be the first version released to {environment}.",
+  "forms.workflow.testCandidate": "This version is live in test.",
+  "forms.workflow.firstRelease": "v{version} will be the first version live in {environment}.",
   "forms.workflow.replacesVersion": "v{version} will replace v{current} in {environment}.",
   "forms.workflow.reviewLoading": "Loading the stored content of v{version}...",
   "forms.workflow.reviewFailed":
     "The published version could not be loaded. Close this confirmation and try again.",
-  "forms.workflow.alreadyReleased": "v{version} is already released to {environment}.",
+  "forms.workflow.alreadyReleased": "v{version} is already live in {environment}.",
   "forms.workflow.noPublishPermission":
-    "Publishing requires permission to publish forms in this workspace.",
+    "Publishing a draft needs Edit forms and Publish forms in this workspace.",
   "forms.workflow.noReleasePermission":
-    "You do not have permission to release versions to {environment} in this workspace.",
+    "Needs Publish forms in {environment}. Publishers gives it; ask a Workspace administrator.",
   "forms.workflow.noCandidate":
-    "No version is available to release to {environment}. Publish and verify a version in test first.",
+    "No version can go to {environment} yet. Publish a version to a non-prod environment first.",
   "forms.workflow.reviewVersion": "Review v{version}",
   "forms.workflow.testRequired":
-    "Publish and verify this version in test, then switch to prod and release the existing version.",
+    "Publish this version to a non-prod environment first, then switch to prod and publish that version.",
   "forms.workflow.noEditPermission":
     "You do not have permission to edit form drafts in this workspace.",
   "forms.workflow.noReleasedVersion":
-    "Nothing is released in this environment yet. Select a published version on Versions to review and release it.",
-  "forms.workflow.reviewCurrent": "Currently released: v{version}",
+    "Nothing is live in this environment yet. Pick a frozen version on Versions to review and publish it.",
+  "forms.workflow.reviewCurrent": "Live now: v{version}",
 
   "forms.preview.heading": "Preview",
   "forms.preview.banner": "Preview - not published",
@@ -1354,11 +1356,11 @@ export const messages = {
   "forms.history.table": "Published versions",
   /** Default history shows every immutable version; hiding iterations must be an explicit presentation filter. */
   "forms.history.filter.all": "Every version",
-  "forms.history.filter.released": "Released anywhere",
+  "forms.history.filter.released": "Published somewhere",
   "forms.history.filter.legend": "Show",
   "forms.history.filter.hidden":
-    "{count} versions are hidden because they were never released anywhere.",
-  "forms.history.column.released": "Released in",
+    "{count} versions are hidden because they were never published anywhere.",
+  "forms.history.column.released": "Published to",
   "forms.history.releasedIn": "{environments}",
   "forms.history.releasedNowhere": "Nowhere",
   "forms.history.column.version": "Version",
@@ -1456,7 +1458,7 @@ export const messages = {
   "forms.links.revoked": "That link is revoked.",
   "forms.links.revokeFailed": "The link was not revoked. {message}",
   "forms.links.noPublicAddress":
-    "{environment} has no public form address. A non-production environment is reached through secure links only, which is what keeps an unreleased version off the open internet.",
+    "{environment} has no public form address. A non-production environment is reached through secure links only, which is what keeps a non-production version off the open internet.",
   "forms.links.environmentScope":
     "This table lists {environment}'s links. A link minted for another environment is listed, and revocable, under that environment.",
   "forms.links.listFailed": "The links could not be loaded. {message}",
@@ -1561,7 +1563,7 @@ export const messages = {
   "forms.assist.step.read_question": "Reading a question",
   "forms.assist.step.read_form": "Reading a form",
   "forms.assist.step.list_form_versions": "Listing the versions",
-  "forms.assist.step.list_releases": "Checking the releases",
+  "forms.assist.step.list_releases": "Checking where this form is live",
   "forms.assist.step.list_links": "Listing the links",
   "forms.assist.step.list_webhooks": "Listing the endpoints",
   "forms.assist.step.list_erasures": "Reading the erasure log",
@@ -1619,22 +1621,22 @@ export const messages = {
     "A new draft is seeded from the latest version. Nothing published changes, and no form moves to it until a draft pins it.",
   "agent.card.form.create.title": "Create the form {slug}",
   "agent.card.form.create.consequence":
-    "The form and an empty first draft are created. Its id is minted from the slug once and never changes, and no respondent can reach it until it is published and released.",
+    "The form and an empty first draft are created. Its id is minted from the slug once and never changes, and no respondent can reach it until it is published to an environment.",
   "agent.card.form.publish.title":
-    "Publish {formId} as a new version and release it to {environment}",
+    "Publish the draft of {formId} to {environment}",
   "agent.card.form.publish.consequence":
-    "The working draft becomes an immutable version, and that version is released to {environment} in the same act. Respondents starting from now get it there.",
-  "agent.card.form.release.title": "Release version {version} of {formId} to {environment}",
+    "The working draft is frozen as the next version and goes live in {environment}, in one act. Respondents starting from now get it there.",
+  "agent.card.form.release.title": "Publish version {version} of {formId} to {environment}",
   "agent.card.form.release.consequence":
-    "Respondents starting from now get this version in {environment}.",
+    "Respondents starting from now get this version in {environment}. Nothing is frozen.",
   "agent.card.apply-draft.title": "Apply the proposed draft to {formId}",
   "agent.card.apply-draft.consequence":
-    "The working draft is replaced by the one below. It publishes nothing and releases nothing: respondents see no change until this form is published.",
+    "The working draft is replaced by the one below. It publishes nothing: respondents see no change until this form is published to an environment.",
   "agent.card.apply-draft.provenance":
     "The draft is marked as carrying agent-assisted changes, and keeps that mark until it is published.",
   "agent.card.form.saveDraft.title": "Save the draft of {formId}",
   "agent.card.form.saveDraft.consequence":
-    "The form's working draft is replaced by the one below, through the same save the builder uses. It publishes nothing and releases nothing: respondents see no change until this form is published.",
+    "The form's working draft is replaced by the one below, through the same save the builder uses. It publishes nothing: respondents see no change until this form is published to an environment.",
   "agent.card.form.settings.title": "Change the form settings of {formId}",
   "agent.card.form.settings.consequence":
     "Abuse controls for this form. They apply the next time it is published.",
@@ -1643,7 +1645,7 @@ export const messages = {
     "No one can start a new response to this form in {environment} after it closes. Every other environment is unaffected: a test run keeps going if one is under way. Responses already in progress here keep going too and finish on the version they started on; their answers are unaffected.",
   "agent.card.form.reopen.title": "Reopen {formId} in {environment}",
   "agent.card.form.reopen.consequence":
-    "New responses can start in {environment} again, on the version released there.",
+    "New responses can start in {environment} again, on the version live there.",
   "agent.card.webhook.create.title": "Add a delivery endpoint at {url}",
   "agent.card.webhook.create.consequence":
     "This form's events are delivered to that URL in {environment}, signed with a secret.",

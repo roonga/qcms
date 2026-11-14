@@ -32,6 +32,6 @@ describe("what each environment is serving", () => {
     expect(markup).toContain('data-availability="open"');
     expect(markup).toContain('data-availability="closed"');
     expect(markup).toContain('data-availability="unreleased"');
-    expect(markup).toContain(">Not Released<");
+    expect(markup).toContain(">Not live<");
   });
 });

@@ -3,6 +3,7 @@
 import Link from "next/link";
 
 import { HeadingMarker } from "@/components/agent/heading-marker";
+import { Button } from "@/components/kit";
 import type { FormPublishingWorkflow } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
 
@@ -26,7 +27,7 @@ export function FormActions({
       </h2>
 
       <div className="flex flex-wrap items-center gap-2">
-        {canPublish && (
+        {canPublish ? (
           <HeadingMarker control="builder.publish">
             <Link
               className="qcms-button-link"
@@ -36,11 +37,17 @@ export function FormActions({
               {t("forms.versions.publishEntry")}
             </Link>
           </HeadingMarker>
+        ) : (
+          <span data-testid="qcms-publish-entry-disabled">
+            <Button variant="primary" size="md" isDisabled>
+              {t("forms.versions.publishEntry")}
+            </Button>
+          </span>
         )}
       </div>
 
-      {workflow?.enabled && !workflow.canPublish && (
-        <p className="text-sm text-(--color-text-muted)">
+      {!canPublish && (
+        <p className="text-sm text-(--color-text-muted)" data-testid="qcms-publish-denied">
           {t("forms.workflow.noPublishPermission")}
         </p>
       )}

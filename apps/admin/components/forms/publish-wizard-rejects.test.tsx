@@ -8,22 +8,22 @@ import { t } from "../../lib/i18n/en.ts";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
+const PROD_TARGET = {
+  environment: "prod",
+  currentVersion: 1,
+  currentSequence: 4,
+  closed: false,
+  evidence: [],
+  blockers: [],
+  twoPerson: { applies: true, refusedAsAuthor: false },
+  protected: true,
+} as const;
+
 const PROD_ONLY: ReleaseReview = {
   source: { kind: "version", version: 2, publishedBy: "usr_bob" },
   workflowRevision: null,
   workflowSource: "default",
-  targets: [
-    {
-      environment: "prod",
-      currentVersion: 1,
-      currentSequence: 4,
-      closed: false,
-      evidence: [],
-      blockers: [],
-      twoPerson: { applies: true, refusedAsAuthor: false },
-      protected: true,
-    },
-  ],
+  targets: [PROD_TARGET],
 };
 
 function transportFailure(): Promise<never> {
@@ -157,6 +157,70 @@ describe("a confirmation whose answer is lost", () => {
     expect(confirm.mock.calls[1]?.[0].idempotencyKey).toBe(
       confirm.mock.calls[0]?.[0].idempotencyKey,
     );
+  });
+});
+
+describe("the fixed prod floor", () => {
+  it("states the floor wherever production is a destination", async () => {
+    const user = userEvent.setup();
+    render(
+      <PublishWizard
+        formId="frm_intake"
+        versions={[2, 1]}
+        hasDraft={false}
+        canPublishDraft={false}
+        draft={null}
+        review={() => Promise.resolve({ ok: true, data: PROD_ONLY })}
+        confirm={() => Promise.resolve({ status: "idle" })}
+        lookup={() => Promise.resolve({ status: "idle" })}
+        secureCookies={false}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: t("forms.publish.next") }));
+
+    expect((await screen.findByTestId("qcms-publish-prod-floor")).textContent).toBe(
+      t("forms.publish.destinations.prodFloor"),
+    );
+  });
+
+  it("names the environments the refusal will accept, from the blocker itself", async () => {
+    const user = userEvent.setup();
+    render(
+      <PublishWizard
+        formId="frm_intake"
+        versions={[2, 1]}
+        hasDraft={false}
+        canPublishDraft={false}
+        draft={null}
+        review={() =>
+          Promise.resolve({
+            ok: true,
+            data: {
+              ...PROD_ONLY,
+              targets: [
+                {
+                  ...PROD_TARGET,
+                  blockers: [{ code: "TEST_RELEASE_REQUIRED", requiresAnyOf: ["test", "staging"] }],
+                },
+              ],
+            },
+          })
+        }
+        confirm={() => Promise.resolve({ status: "idle" })}
+        lookup={() => Promise.resolve({ status: "idle" })}
+        secureCookies={false}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: t("forms.publish.next") }));
+
+    const blocker = await screen.findByTestId("qcms-publish-blocker");
+    expect(blocker.dataset["code"]).toBe("TEST_RELEASE_REQUIRED");
+    expect(blocker.textContent).toBe(
+      t("forms.publish.blocked.priorRelease", { environments: "test, staging" }),
+    );
+    expect(screen.getByRole("checkbox", { name: "prod" }).hasAttribute("disabled")).toBe(true);
   });
 });
 
