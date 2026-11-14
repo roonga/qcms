@@ -425,7 +425,7 @@ test("mints, copies, exports and revokes a secure link (exit criterion 1)", asyn
   await expect(linksStatus).not.toContainText("/l/");
   await expect(linksStatus.getByTestId("qcms-minted-links")).toHaveCount(0);
 
-  await minted.getByRole("button", { name: "Copy URL" }).first().click();
+  await minted.getByRole("button", { name: "Copy link" }).first().click();
   await expect(page.getByText("Link copied to the clipboard.")).toBeVisible();
   const clipboard = await page.evaluate(() => navigator.clipboard.readText());
   expect(clipboard, "the copied value should be a link URL").toContain("/l/");
