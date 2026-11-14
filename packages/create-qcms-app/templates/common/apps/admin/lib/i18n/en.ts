@@ -1793,6 +1793,10 @@ export const messages = {
     "Hiding this clears it from the card, and it cannot be shown again.",
   "agent.card.reveal.dismissHint.other":
     "Hiding these clears them from the card, and they cannot be shown again.",
+  "agent.card.reveal.dismissAsk.one": "Hide this? It cannot be shown again.",
+  "agent.card.reveal.dismissAsk.other": "Hide these? They cannot be shown again.",
+  "agent.card.reveal.dismissKeep": "Keep showing",
+  "agent.card.reveal.dismissFinal": "Hide for good",
   "agent.card.typed.label": "Type the session id to confirm",
   "agent.card.typed.hint": "Type {value} exactly.",
   "agent.card.confirm": "Confirm",

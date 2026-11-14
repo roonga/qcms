@@ -17,6 +17,7 @@ import {
   type PlanNames,
   type StepArgumentLine,
 } from "@/lib/agent/card-copy";
+import { focusPostAction } from "@/lib/ops/post-action-focus";
 import { plainQuote, REASON_CHARS } from "@/lib/agent/reason";
 import {
   resultLine,
@@ -159,9 +160,26 @@ function RevealBlock({
   readonly onDismiss: (() => void) | undefined;
 }): React.ReactElement {
   const [note, setNote] = useState("");
+  const [asking, setAsking] = useState(false);
+  const asked = useRef(false);
+  const hideRef = useRef<HTMLSpanElement>(null);
+  const keepRef = useRef<HTMLSpanElement>(null);
   const base = `${idBase}-${String(index)}-reveal`;
   const secret = typeof reveal === "string" ? reveal : undefined;
   const links = typeof reveal === "string" ? [] : reveal;
+  const count = secret === undefined ? links.length : 1;
+
+  // The question takes focus on its keeping answer, so the answer that cannot be undone is never the
+  // one a second keypress lands on.
+  useEffect(() => {
+    if (asking) {
+      asked.current = true;
+      return focusPostAction(keepRef.current?.querySelector("button") ?? null);
+    }
+    if (!asked.current) return undefined;
+    asked.current = false;
+    return focusPostAction(hideRef.current?.querySelector("button") ?? null);
+  }, [asking]);
 
   const copy = useCallback((url: string) => {
     void copyMintedUrl(url).then(
@@ -219,6 +237,12 @@ function RevealBlock({
         <code>{secret}</code>
       )}
 
+      {!asking ? null : (
+        <p className="qcms-acard__label" data-testid="qcms-acard-reveal-ask">
+          {tPlural("agent.card.reveal.dismissAsk.one", "agent.card.reveal.dismissAsk.other", count)}
+        </p>
+      )}
+
       <div className="qcms-acard__reveal-controls">
         {secret !== undefined ? null : (
           <Button
@@ -231,19 +255,45 @@ function RevealBlock({
             {t("agent.card.reveal.csv")}
           </Button>
         )}
-        {onDismiss === undefined ? null : (
-          <Button variant="ghost" size="sm" onPress={onDismiss}>
-            {t("agent.card.reveal.dismiss")}
-          </Button>
+        {onDismiss === undefined || asking ? null : (
+          <span ref={hideRef}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onPress={() => {
+                setAsking(true);
+              }}
+            >
+              {t("agent.card.reveal.dismiss")}
+            </Button>
+          </span>
+        )}
+        {onDismiss === undefined || !asking ? null : (
+          <>
+            <span ref={keepRef}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onPress={() => {
+                  setAsking(false);
+                }}
+              >
+                {t("agent.card.reveal.dismissKeep")}
+              </Button>
+            </span>
+            <Button variant="danger" size="sm" onPress={onDismiss}>
+              {t("agent.card.reveal.dismissFinal")}
+            </Button>
+          </>
         )}
       </div>
 
-      {onDismiss === undefined ? null : (
+      {onDismiss === undefined || asking ? null : (
         <p>
           {tPlural(
             "agent.card.reveal.dismissHint.one",
             "agent.card.reveal.dismissHint.other",
-            secret === undefined ? links.length : 1,
+            count,
           )}
         </p>
       )}

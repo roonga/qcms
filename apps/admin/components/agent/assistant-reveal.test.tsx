@@ -199,6 +199,7 @@ describe("the addresses a confirmed mint put on the card", () => {
     await say("now revoke the first one");
 
     fireEvent.click(screen.getByRole("button", { name: t("agent.card.reveal.dismiss") }));
+    fireEvent.click(screen.getByRole("button", { name: t("agent.card.reveal.dismissFinal") }));
 
     expect(screen.queryByTestId("qcms-acard-reveal-list")).toBeNull();
     expect(document.querySelectorAll(".qcms-acard[data-held]")).toHaveLength(0);

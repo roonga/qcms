@@ -199,7 +199,7 @@ describe("the addresses one mint produced", () => {
     expect((click.mock.instances[0] as HTMLAnchorElement).download).toBe("frm_quote-links.csv");
   });
 
-  it("warns that hiding them is final, and reports the dismissal to its owner", async () => {
+  it("warns that hiding them is final, and reports the dismissal once it is confirmed", async () => {
     const dismissed = vi.fn<(index: number) => void>();
     const user = userEvent.setup();
     renderReveal(minted(2), dismissed);
@@ -208,7 +208,31 @@ describe("the addresses one mint produced", () => {
       within(revealBlock()).getByText(t("agent.card.reveal.dismissHint.other", { count: 2 })),
     ).toBeTruthy();
     await user.click(screen.getByRole("button", { name: t("agent.card.reveal.dismiss") }));
+    expect(dismissed, "Hide alone must not clear a reveal").not.toHaveBeenCalled();
+
+    const asked = screen.getByTestId("qcms-acard-reveal-ask");
+    expect(asked.textContent).toBe(t("agent.card.reveal.dismissAsk.other", { count: 2 }));
+    const keep = screen.getByRole("button", { name: t("agent.card.reveal.dismissKeep") });
+    expect(document.activeElement, "the answer that keeps the reveal takes focus").toBe(keep);
+
+    await user.click(screen.getByRole("button", { name: t("agent.card.reveal.dismissFinal") }));
     expect(dismissed).toHaveBeenCalledWith(0);
+  });
+
+  it("puts the question away again, and the addresses stay, when the answer is to keep them", async () => {
+    const dismissed = vi.fn<(index: number) => void>();
+    const user = userEvent.setup();
+    renderReveal(minted(2), dismissed);
+
+    await user.click(screen.getByRole("button", { name: t("agent.card.reveal.dismiss") }));
+    await user.click(screen.getByRole("button", { name: t("agent.card.reveal.dismissKeep") }));
+
+    expect(dismissed).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("qcms-acard-reveal-ask")).toBeNull();
+    expect(screen.getByTestId("qcms-acard-reveal-list")).toBeTruthy();
+    expect(document.activeElement, "focus returns to the control that asked").toBe(
+      screen.getByRole("button", { name: t("agent.card.reveal.dismiss") }),
+    );
   });
 
   it("offers no dismissal where no owner can clear it", () => {
@@ -233,6 +257,10 @@ describe("a single revealed secret", () => {
     ).toBeTruthy();
 
     await user.click(screen.getByRole("button", { name: t("agent.card.reveal.dismiss") }));
+    expect(screen.getByTestId("qcms-acard-reveal-ask").textContent).toBe(
+      t("agent.card.reveal.dismissAsk.one", { count: 1 }),
+    );
+    await user.click(screen.getByRole("button", { name: t("agent.card.reveal.dismissFinal") }));
     expect(dismissed).toHaveBeenCalledWith(0);
   });
 });

@@ -34,6 +34,12 @@ export function revealedAddresses(scope: Locator): Promise<string[]> {
   return revealList(scope).locator("code").allInnerTexts();
 }
 
+/** Hiding a reveal asks first, because nothing can show it again; the answer to that question clears it. */
+export async function hideReveal(scope: Locator): Promise<void> {
+  await scope.getByRole("button", { name: "Hide", exact: true }).click();
+  await scope.getByRole("button", { name: "Hide for good", exact: true }).click();
+}
+
 export function cardChip(page: Page): Locator {
   return card(page).locator(".qcms-acard__head .qcms-acard__state");
 }

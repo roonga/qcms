@@ -17,6 +17,7 @@ import {
   expectStepChips,
   expectWaitingStepStates,
   heldCard,
+  hideReveal,
   openPanel,
   propose,
   revealedAddresses,
@@ -117,6 +118,16 @@ test("confirms a mint and a revoke alone, changing the screen and recording each
 
   expect(await revealedAddresses(heldCard(page))).toEqual(addresses);
   await heldCard(page).getByRole("button", { name: "Hide", exact: true }).click();
+  await expect(heldCard(page).getByTestId("qcms-acard-reveal-ask")).toHaveText(
+    "Hide these? They cannot be shown again.",
+  );
+  await heldCard(page).getByRole("button", { name: "Keep showing", exact: true }).click();
+  expect(
+    await revealedAddresses(heldCard(page)),
+    "keeping them leaves every address on the card",
+  ).toEqual(addresses);
+
+  await hideReveal(heldCard(page));
   await expect(heldCard(page)).toHaveCount(0);
 
   expect(auditDelta(before, await auditTally())).toEqual({ "link.mint": 1, "link.revoke": 1 });
@@ -217,7 +228,7 @@ test("shows a full batch on the card, and one of its addresses starts a session"
   await expectAxeClean(page, "a hundred minted addresses");
   await page.setViewportSize({ width: 1280, height: 900 });
 
-  await card(page).getByRole("button", { name: "Hide", exact: true }).click();
+  await hideReveal(card(page));
   await expect(revealList(card(page))).toHaveCount(0);
   await expect(card(page)).toBeVisible();
 
