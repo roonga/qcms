@@ -297,7 +297,9 @@ describe("the appearance tables' grants (D1, D2)", () => {
       values.map((value) => `'${value}'`).join(", ");
     expect(sql).toContain(`in (${list(APPEARANCE_CORNERS)})`);
     expect(sql).toContain(`in (${list(LOGO_CONTENT_TYPES)})`);
-    expect(sql).toContain(`octet_length("control"."${APPEARANCE_LOGOS_TABLE}"."bytes") <= ${LOGO_MAX_BYTES}`);
+    expect(sql).toContain(
+      `octet_length("control"."${APPEARANCE_LOGOS_TABLE}"."bytes") <= ${LOGO_MAX_BYTES}`,
+    );
   });
 
   it("needs no trigger on the appearance column: `form_versions` refuses every UPDATE", () => {

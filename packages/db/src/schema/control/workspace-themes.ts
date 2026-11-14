@@ -1,13 +1,5 @@
 import { sql } from "drizzle-orm";
-import {
-  check,
-  customType,
-  jsonb,
-  text,
-  timestamp,
-  uniqueIndex,
-  uuid,
-} from "drizzle-orm/pg-core";
+import { check, customType, jsonb, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 import type { AppearanceFace, AppearancePalettes } from "@roonga/qcms-core";
 
@@ -51,9 +43,7 @@ export const appearanceLogos = controlSchema.table(
     key: text("key").primaryKey(),
     contentType: text("content_type").$type<LogoContentType>().notNull(),
     bytes: bytea("bytes").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
-      .notNull()
-      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
     /** `user.id`, or null where a seeding path stored it. No foreign key, as on the audits. */
     createdBy: text("created_by"),
   },
@@ -90,13 +80,9 @@ export const workspaceThemes = controlSchema.table(
     logoKey: text("logo_key").references(() => appearanceLogos.key),
     /** The host a derive read. Null for a theme made by hand. */
     sourceHost: text("source_host"),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
-      .notNull()
-      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
     createdBy: text("created_by"),
-    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" })
-      .notNull()
-      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
     updatedBy: text("updated_by"),
   },
   (t) => [
