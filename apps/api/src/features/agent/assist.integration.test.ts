@@ -1,9 +1,10 @@
-import { parseQuestionDefinition, QuestionId, stepQuestionRefs } from "@roonga/qcms-core";
+import { FormId, parseQuestionDefinition, QuestionId, stepQuestionRefs } from "@roonga/qcms-core";
 import {
   SEED_WORKSPACE_ID,
   addAccessGroupHolder,
   authOrganization,
   createAccessGroup,
+  createForm,
   createQuestion,
   createQuestionVersion,
   getDraft,
@@ -1161,8 +1162,12 @@ describe("a publisher's contexts follow its group's environments", () => {
         ],
       },
     });
-    await seedPublishedQuestion("q_env_scoped", "Env scoped");
-    await seedForm(FORM_ID, ["q_env_scoped"]);
+    await createForm(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
+      formId: FormId.parse(FORM_ID),
+      slug: "envscoped",
+      defaultLocale: "en",
+    });
     await testDb.client.query(
       `insert into webhooks (webhook_id, form_id, url, secret_encrypted, active)
        values ('whk_env_scoped', $1, $2, 'enc', true)`,
