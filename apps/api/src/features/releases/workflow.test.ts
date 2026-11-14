@@ -26,7 +26,12 @@ function prodRules(served: readonly string[]): WorkflowRule[] {
   for (const requiresPriorReleaseIn of prerequisites) {
     for (const allowsDraftPublish of [true, false]) {
       for (const allowsInBatch of [true, false]) {
-        rules.push({ environment: "prod", requiresPriorReleaseIn, allowsDraftPublish, allowsInBatch });
+        rules.push({
+          environment: "prod",
+          requiresPriorReleaseIn,
+          allowsDraftPublish,
+          allowsInBatch,
+        });
       }
     }
   }

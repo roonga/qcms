@@ -327,11 +327,9 @@ beforeAll(async () => {
   app = createApp(deps, MOUNTED, { groups });
   // A site whose only environment is prod: the same database, with this process serving
   // prod alone, which is what the floor reads.
-  prodOnlyApp = createApp(
-    makeDeps({ databases: databases(["prod"]), env: validEnv() }),
-    MOUNTED,
-    { groups },
-  );
+  prodOnlyApp = createApp(makeDeps({ databases: databases(["prod"]), env: validEnv() }), MOUNTED, {
+    groups,
+  });
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
 afterAll(async () => {

@@ -5387,7 +5387,7 @@
     "/admin/forms/{id}/publish-and-release": {
       "post": {
         "summary": "Publish the draft and release the new version to an environment, in one act (admin)",
-        "description": "The combined action finding 2 accepted: one intent is one act. It publishes a real, immutable version and keeps it - there is no draft-level release and nothing skips publishing - and the publish, the release record and the `form.released` event share one transaction, so it happens atomically or not at all. When test and prod are served, publish to test and promote the existing version; direct combined publication to prod is refused.",
+        "description": "The combined action finding 2 accepted: one intent is one act. It publishes a real, immutable version and keeps it - there is no draft-level release and nothing skips publishing - and the publish, the release record and the `form.released` event share one transaction, so it happens atomically or not at all. Where a non-prod environment is served, a draft is never published straight to prod, whatever the workflow says.",
         "tags": [
           "forms"
         ],
@@ -5486,7 +5486,7 @@
     "/admin/forms/{id}/publish-batch": {
       "post": {
         "summary": "Freeze the draft once and release that snapshot into every destination (admin)",
-        "description": "One confirmation, one transaction, **one snapshot**: the draft is frozen once and the same immutable version is released into each destination, never once per target. An empty `targets` is \"create a version without releasing it\" and needs `form: publish` alone; with destinations listed, the gate also evaluates `release: create` once per listed environment and refuses on the first failure, naming only that environment. `source.draftRevision` is the revision the review reported: a save that landed in between is refused and nothing is written. The workflow decides whether a destination accepts a version frozen in the same act, and the two-person rule still refuses a gated production destination whose publisher is this account, which is why that case stays two requests by two accounts. `idempotencyKey` replays the stored result on reuse and is refused with 422 for a changed intent, so a browser timeout never creates a second version.",
+        "description": "One confirmation, one transaction, **one snapshot**: the draft is frozen once and the same immutable version is released into each destination, never once per target. An empty `targets` is \"create a version without releasing it\" and needs `form: publish` alone; with destinations listed, the gate also evaluates `release: create` once per listed environment and refuses on the first failure, naming only that environment. `source.draftRevision` is the revision the review reported: a save that landed in between is refused and nothing is written. The workflow decides whether a destination accepts a version frozen in the same act, under a fixed floor: where a non-prod environment is served, prod never does, and the two-person rule still refuses a gated production destination whose publisher is this account, which is why that case stays two requests by two accounts. `idempotencyKey` replays the stored result on reuse and is refused with 422 for a changed intent, so a browser timeout never creates a second version.",
         "tags": [
           "forms"
         ],
@@ -6509,7 +6509,7 @@
     "/admin/release-workflow": {
       "get": {
         "summary": "The release-workflow rules in force, per destination (admin)",
-        "description": "Read by every authoring role, because a publisher needs the rule the confirmation will apply. With no revision written it reports `source: \"default\"` and the deployment's derived behaviour, which is what runs until an installation administrator writes one. `protected` is true for the production environment alone and is read-only: it reports the role split and the workspace second-approver switch, which this configuration cannot alter whatever its rules say.",
+        "description": "Read by every authoring role, because a publisher needs the rule the confirmation will apply. With no revision written it reports `source: \"default\"` and the deployment's derived behaviour, which is what runs until an installation administrator writes one. `protected` is true for the production environment alone and is read-only: it reports the role split and the workspace second-approver switch, which this configuration cannot alter whatever its rules say. The rules reported are the ones enforced, with the fixed prod floor applied.",
         "tags": [
           "releases"
         ],
@@ -6555,7 +6555,7 @@
       },
       "put": {
         "summary": "Write the next release-workflow revision (installation administrator)",
-        "description": "Installation-wide and the installation administrator's alone: a workspace's own grants do not reach it. The write appends a revision rather than editing one, so a release refused under an earlier revision stays explainable. Every environment named must be served, no destination may require a prior release in itself (releasing a version it already served is a rollback and is eligible anyway), and the prerequisite graph must be acyclic. It creates, renames and deletes no environment: that stays the operator command's. `expectedRevision` is `null` while none is configured. Each write lands as an access-audit `setting` row.",
+        "description": "Installation-wide and the installation administrator's alone: a workspace's own grants do not reach it. The write appends a revision rather than editing one, so a release refused under an earlier revision stays explainable. Every environment named must be served, no destination may require a prior release in itself (releasing a version it already served is a rollback and is eligible anyway), and the prerequisite graph, judged with the fixed prod floor in place, must be acyclic. A rule that would lift the floor is accepted and the floor still applies. It creates, renames and deletes no environment: that stays the operator command's. `expectedRevision` is `null` while none is configured. Each write lands as an access-audit `setting` row.",
         "tags": [
           "releases"
         ],
@@ -6711,7 +6711,7 @@
       },
       "post": {
         "summary": "Release a published version to an environment, or promote it there (admin)",
-        "description": "Writes one release record and copies nothing: the form id and the version number are the published ones. Releasing an earlier version than the one it replaces is a rollback and is the same act. A release never re-pins a session already open. When test and prod are served, production requires prior test or prod release history; otherwise the request is refused with TEST_RELEASE_REQUIRED.",
+        "description": "Writes one release record and copies nothing: the form id and the version number are the published ones. Releasing an earlier version than the one it replaces is a rollback and is the same act. A release never re-pins a session already open. Where a non-prod environment is served, prod accepts only a version with a prior release in a non-prod environment or in prod itself; no workflow revision lifts this. Under the default revision the refusal keeps the TEST_RELEASE_REQUIRED code.",
         "tags": [
           "releases"
         ],
@@ -6800,7 +6800,7 @@
     "/admin/forms/{id}/release-review": {
       "post": {
         "summary": "What releasing a draft or a version into each permitted target would do (admin)",
-        "description": "A read, and it writes nothing: no version, no release, no review token and no access-audit row. It reports one target per environment the caller holds `release: create` in and no others, with what is serving there, whether the form is closed there, the committed release rows that satisfy the target's prerequisite, the blockers that remain, and whether the two-person rule applies and would refuse this account as the version's author. Until a release-workflow revision is configured the review reports `workflowSource: default`, which is this deployment's derived test and prod behaviour, and a missing production prerequisite keeps the TEST_RELEASE_REQUIRED code. A version with a prior release in the target itself is a rollback and is eligible there regardless of prerequisites; the two-person rule still applies to it. The review is a report rather than a reservation: the confirmation rechecks every expectation in its own transaction.",
+        "description": "A read, and it writes nothing: no version, no release, no review token and no access-audit row. It reports one target per environment the caller holds `release: create` in and no others, with what is serving there, whether the form is closed there, the committed release rows that satisfy the target's prerequisite, the blockers that remain, and whether the two-person rule applies and would refuse this account as the version's author. Until a release-workflow revision is configured the review reports `workflowSource: default`, which is the fixed prod floor alone, and a missing production prerequisite keeps the TEST_RELEASE_REQUIRED code. Every revision has the floor applied over it. A version with a prior release in the target itself is a rollback and is eligible there regardless of prerequisites; the two-person rule still applies to it. The review is a report rather than a reservation: the confirmation rechecks every expectation in its own transaction.",
         "tags": [
           "releases"
         ],

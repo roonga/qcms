@@ -686,7 +686,9 @@ export function makeGetFormHandler(deps: Deps): RouteHandler<typeof getFormRoute
         ? [...productionVersions(releases)]
         : versions.map((v) => v.version);
     const preferred = releases.find((r) =>
-      workflowEnabled && environment === "prod" ? r.environment !== "prod" : r.environment === environment,
+      workflowEnabled && environment === "prod"
+        ? r.environment !== "prod"
+        : r.environment === environment,
     );
     const workflow = {
       enabled: workflowEnabled,

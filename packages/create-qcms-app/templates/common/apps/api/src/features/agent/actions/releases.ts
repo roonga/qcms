@@ -20,7 +20,7 @@ const PublishArgs = z.strictObject({
     .string()
     .min(1)
     .max(53)
-    .describe("The one environment the newly frozen version is released into."),
+    .describe("The one environment the newly frozen version goes live in."),
 });
 
 function bodyMember(facts: ActionRequestFacts, name: string): unknown {
@@ -68,9 +68,10 @@ export const publishForm: ActionKindDef = {
     headingControl: "builder.publish",
   },
   description:
-    "Freeze the form's working draft as a new immutable version and release that version " +
-    "into one environment, in one act. The release workflow, the two-person rule and the " +
-    "production approval apply exactly as they do on the screen.",
+    "Publish the form's working draft to one environment: freeze it as the next version and " +
+    "make that version live there, in one act. Needs Edit forms and Publish forms for that " +
+    "environment. Where a non-prod environment exists a draft is never published straight " +
+    "to prod. The workflow and second approval apply exactly as they do on the screen.",
 };
 
 export const releaseVersion: ActionKindDef = {
@@ -99,6 +100,7 @@ export const releaseVersion: ActionKindDef = {
     headingControl: "releases.release",
   },
   description:
-    "Release, promote or roll back a published version to one environment. The two-person " +
-    "rule and the production approval apply exactly as they do on the screen.",
+    "Publish an existing version to one environment, including an earlier one (rollback). " +
+    "Nothing is frozen. Prod accepts only a version already live in a non-prod environment, " +
+    "where one exists. Second approval applies exactly as it does on the screen.",
 };

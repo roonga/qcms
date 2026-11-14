@@ -95,9 +95,7 @@ export async function readWorkflow(
 
 /** The rules a stored revision, or none, enforces over the served set, floor included. */
 export function effectiveWorkflow(
-  configured:
-    | { readonly revision: number; readonly rules: readonly WorkflowRule[] }
-    | undefined,
+  configured: { readonly revision: number; readonly rules: readonly WorkflowRule[] } | undefined,
   served: readonly string[],
 ): EffectiveWorkflow {
   if (configured === undefined) {
