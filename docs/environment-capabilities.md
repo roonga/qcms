@@ -15,21 +15,21 @@ It records server capabilities, and the table below stays accurate for them.
 
 ## Shared content and environment state
 
-| Shared across the deployment                                      | Separate for each environment                  |
-| ----------------------------------------------------------------- | ---------------------------------------------- |
-| Workspaces, memberships and access grants                         | The form version currently released            |
-| Question identities and version history                           | Whether a form accepts new sessions            |
-| Form identities, editable drafts and immutable published versions | Respondent sessions, answers and submissions   |
-| A form version's exact question-version references and rules      | Secure-link destination and access             |
-| Form-level challenge and minimum-submit-time settings             | Webhook endpoints, delivery history and outbox |
+| Shared across the deployment                                 | Separate for each environment                  |
+| ------------------------------------------------------------ | ---------------------------------------------- |
+| Workspaces, memberships and access grants                    | The form version currently released            |
+| Question identities and version history                      | Whether a form accepts new sessions            |
+| Form identities, editable drafts and immutable versions      | Respondent sessions, answers and submissions   |
+| A form version's exact question-version references and rules | Secure-link destination and access             |
+| Form-level challenge and minimum-submit-time settings        | Webhook endpoints, delivery history and outbox |
 
 - Editing a question or form draft changes shared authoring content. There is no
   independent dev, test, staging or production copy of that draft.
 - Question versions used by a published form are pinned. A question edit does not
   rewrite an existing published form; an author must update its references and
   publish a new form version to include the change.
-- Publishing creates an immutable version. Releasing makes an existing published
-  version available in an environment. The combined operation can do both atomically.
+- Publishing creates an immutable version. Releasing makes an existing version
+  available in an environment. The combined operation can do both atomically.
 - Promotion releases the same version in another environment. It copies neither
   content nor respondent data.
 - A new session uses its environment's released version. Existing sessions keep
@@ -39,73 +39,75 @@ It records server capabilities, and the table below stays accurate for them.
 
 ## What a user can do
 
-This section records the roles as built. The decided workspace access model is
-[`docs/WORKSPACE_ACCESS.md`](WORKSPACE_ACCESS.md) and is not built yet; its
-[status table](WORKSPACE_ACCESS.md#1-status-and-authority) says what is.
+This section records the roles as built, named as the glossary in
+[`docs/WORKSPACE_ACCESS.md`](WORKSPACE_ACCESS.md) section 2 names them. That
+document's [status table](WORKSPACE_ACCESS.md#1-status-and-authority) says which
+parts of the model are built.
 
 Every administrative capability below also requires workspace membership and the
 relevant role. Respondent entry instead requires a valid secure link or permitted
 public access. Environment access alone grants no administrative action. A person
 can hold several roles.
 
-| Capability                                                 | Shared authoring                   | dev                | test               | stg                | prod                                      |
-| ---------------------------------------------------------- | ---------------------------------- | ------------------ | ------------------ | ------------------ | ----------------------------------------- |
-| Create and edit questions, publish question versions       | Editor                             | Shared operation   | Shared operation   | Shared operation   | Shared operation                          |
-| Create and edit form drafts, rules and question references | Editor                             | Shared operation   | Shared operation   | Shared operation   | Shared operation                          |
-| Preview a form draft with hypothetical answers             | Editor                             | Shared operation   | Shared operation   | Shared operation   | Shared operation                          |
-| Publish an immutable form version without releasing it     | Editor                             | Shared operation   | Shared operation   | Shared operation   | Shared operation                          |
-| Release a published form version                           | Not an authoring edit              | Editor or approver | Editor or approver | Editor or approver | Approver                                  |
-| Publish and release a new form version atomically          | Requires publishing permission too | Editor             | Editor             | Editor             | Conditional; see below                    |
-| Roll back by releasing an older eligible version           | Not an authoring edit              | Editor or approver | Editor or approver | Editor or approver | Approver                                  |
-| Close or reopen a form                                     | Not an authoring edit              | Editor or approver | Editor or approver | Editor or approver | Approver                                  |
-| Create or revoke environment-bound secure links            | Not an authoring edit              | Editor or approver | Editor or approver | Editor or approver | Approver                                  |
-| Configure webhook endpoints                                | Not an authoring edit              | Editor or approver | Editor or approver | Editor or approver | Approver; optional second account         |
-| Complete a released form as a respondent                   | Not an authoring edit              | Secure link        | Secure link        | Secure link        | Public entry when allowed, or secure link |
-| Read and export responses                                  | Not an authoring edit              | Responses viewer   | Responses viewer   | Responses viewer   | Responses viewer                          |
-| Erase a response                                           | Not an authoring edit              | Responses eraser   | Responses eraser   | Responses eraser   | Responses eraser                          |
+| Capability                                                 | Shared authoring                   | dev                           | test                          | stg                           | prod                                      |
+| ---------------------------------------------------------- | ---------------------------------- | ----------------------------- | ----------------------------- | ----------------------------- | ----------------------------------------- |
+| Create and edit questions, publish question versions       | Edit forms                         | Shared operation              | Shared operation              | Shared operation              | Shared operation                          |
+| Create and edit form drafts, rules and question references | Edit forms                         | Shared operation              | Shared operation              | Shared operation              | Shared operation                          |
+| Preview a form draft with hypothetical answers             | Edit forms                         | Shared operation              | Shared operation              | Shared operation              | Shared operation                          |
+| Publish an immutable form version without releasing it     | Edit forms with Publish forms      | Shared operation              | Shared operation              | Shared operation              | Shared operation                          |
+| Release a published form version                           | Not an authoring edit              | Publish forms                 | Publish forms                 | Publish forms                 | Publish forms                             |
+| Publish and release a new form version atomically          | Requires publishing permission too | Edit forms with Publish forms | Edit forms with Publish forms | Edit forms with Publish forms | Conditional; see below                    |
+| Roll back by releasing an older eligible version           | Not an authoring edit              | Publish forms                 | Publish forms                 | Publish forms                 | Publish forms                             |
+| Close or reopen a form                                     | Not an authoring edit              | Publish forms                 | Publish forms                 | Publish forms                 | Publish forms                             |
+| Create or revoke environment-bound secure links            | Not an authoring edit              | Publish forms                 | Publish forms                 | Publish forms                 | Publish forms                             |
+| Configure webhook endpoints                                | Not an authoring edit              | Publish forms                 | Publish forms                 | Publish forms                 | Publish forms; optional second account    |
+| Complete a released form as a respondent                   | Not an authoring edit              | Secure link                   | Secure link                   | Secure link                   | Public entry when allowed, or secure link |
+| Read and export responses                                  | Not an authoring edit              | View responses                | View responses                | View responses                | View responses                            |
+| Erase a response                                           | Not an authoring edit              | Erase responses               | Erase responses               | Erase responses               | Erase responses                           |
 
 "Shared operation" means the server operation has no environment scope; it is
-not a recommendation to place an editor inside every environment. All environment
+not a recommendation to put Edit forms inside every environment. All environment
 operations require the destination environment in the caller's grant. Response
 operations additionally require the form in scope.
 
-Configuration and version-history reads are available to the forms viewer,
-editor and approver roles across their workspace. A forms viewer cannot edit,
-release or read responses. An approver role alone cannot edit or publish drafts.
-An editor role alone cannot perform production releases or production operational
-writes, even with an environment scope of `all`.
+Configuration and version-history reads are available to View forms, Edit forms
+and Publish forms across their workspace, the last within its own environments.
+View forms cannot edit, release or read responses. Publish forms alone cannot
+edit a draft. Edit forms alone releases nothing and performs no operational
+write, in production or anywhere else, whatever environments a group names.
 
-A workspace owner administers memberships, grants and workspace settings. An
-installation administrator manages installation settings, environments and accounts.
-Neither role alone grants authoring, releasing or response access. Response access
-requires its own grant; installation administration is not a response-data bypass.
+A Workspace administrator administers one workspace: its people, access groups,
+settings, audit and archive. A Site administrator administers the whole site:
+accounts, workspaces, Site administrators and site settings. Neither role alone
+grants authoring, releasing or response access. Response access requires its own
+grant; site administration is not a response-data bypass.
 
 ## Release and approval constraints
 
 - Environment names are configurable. `dev`, `test`, `stg` and `prod` are an example
   deployment, not four mandatory environments. Current authorization treats `stg`
-  like other non-production environments; there is no special staging approver role.
+  like other non-production environments; there is no special staging publish role.
 - Where `prod` is served beside any non-production environment, a production
   candidate must have a prior release in one of them, or a prior production release
   for rollback. An unreleased draft cannot be a production candidate. This floor is
   fixed: no workflow revision lifts it.
 - A test release records availability, not a successful manual test or approval.
   There is no separate persisted test-pass gate in this workflow.
-- Prerequisites are an installation-wide, versioned release-workflow configuration,
-  written by the installation administrator alone and read by every `forms.` role. No
+- Prerequisites are a site-wide, versioned release-workflow configuration, written
+  by a Site administrator alone and read by every `forms.` role. No
   revision is seeded, so a deployment that configures none keeps the production floor
   above and no other ordering. A revision is read with the floor applied over it.
 - Where `prod` is served beside any non-production environment, publishing a draft
   straight to prod is refused. Production releases use an existing eligible version.
-- A prod-only deployment can publish and release directly when the caller has both
-  editor and prod approver permissions and the second-person rule is off. Separate
+- A prod-only deployment can publish and release directly when the caller holds both
+  Edit forms and Publish forms in prod and Second approval is off. Separate
   publication and release remain possible.
-- A workspace can require a second person for production. Then the releasing
-  approver must differ from the account that published that version, including for
-  rollback. Holding both roles does not let one account satisfy this rule alone.
+- A workspace can turn Second approval on for production. Then the Approver must
+  differ from the account that froze that version, including for rollback. Holding
+  both roles does not let one account satisfy this rule alone.
 - The same optional rule makes production webhook changes a proposal followed by
   confirmation from another eligible account. The new endpoint stays pending until
-  confirmed. Non-production operations do not use this second-person gate.
+  confirmed. Non-production operations do not use Second approval.
 - Release history records the version, destination, actor, time and applicable
   source/approval information. Rollback adds another release record.
 - Non-production respondent entry uses environment-prefixed secure links. Respondent

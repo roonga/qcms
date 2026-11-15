@@ -142,7 +142,7 @@ describe("runPlan", () => {
     expect(card.steps.map((view) => view.state)).toEqual(["done", "failed", "not-run"]);
   });
 
-  it("sends nothing further once a step is held for a second approver", async () => {
+  it("sends nothing further once a step is held for an Approver", async () => {
     const plan = proposal([PUBLISH, step()]);
     const runStep = vi
       .fn<(request: RunStepRequest) => Promise<{ outcome: "pending-approval" }>>()

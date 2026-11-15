@@ -17,13 +17,13 @@ import {
 describe("role names", () => {
   it("gives every group role and the administrator a plain name and a one-line description", () => {
     expect(GROUP_ROLES.map(roleName)).toEqual([
-      "Form viewer",
-      "Form editor",
-      "Form publisher",
-      "Response viewer",
-      "Response eraser",
+      "View forms",
+      "Edit forms",
+      "Publish forms",
+      "View responses",
+      "Erase responses",
     ]);
-    expect(roleName("forms.owner")).toBe("Workspace owner");
+    expect(roleName("forms.owner")).toBe("Workspace administrator");
     for (const role of [...GROUP_ROLES, "forms.owner"]) {
       expect(roleDescription(role), role).toMatch(/\.$/u);
       expect(roleDescription(role), role).not.toContain(role);
@@ -110,19 +110,19 @@ describe("the wire set", () => {
 describe("a group in words", () => {
   it("reads as its roles and the environments it names", () => {
     expect(groupScope({ roles: ["responses.viewer"], environments: ["test"] })).toBe(
-      "Response viewer, in test",
+      "View responses, in test",
     );
     expect(
       groupScope({
         roles: ["forms.publisher", "responses.eraser"],
         environments: ["test", "prod"],
       }),
-    ).toBe("Form publisher, Response eraser, in test, prod");
+    ).toBe("Publish forms, Erase responses, in test, prod");
   });
 
   it("names every environment when the group's roles ignore the set", () => {
     expect(groupScope({ roles: ["forms.editor"], environments: [] })).toBe(
-      "Form editor, in every environment",
+      "Edit forms, in every environment",
     );
   });
 
@@ -131,8 +131,8 @@ describe("a group in words", () => {
       { name: "Authors", roles: ["forms.editor"], environments: [] },
       { name: "Publishers", roles: ["forms.publisher"], environments: ["prod"] },
     ]);
-    expect(titles.get("Authors")).toBe("Form editor, in every environment");
-    expect(titles.get("Publishers")).toBe("Form publisher, in prod");
+    expect(titles.get("Authors")).toBe("Edit forms, in every environment");
+    expect(titles.get("Publishers")).toBe("Publish forms, in prod");
     expect(titles.get("Gone")).toBeUndefined();
   });
 });
