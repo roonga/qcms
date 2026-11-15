@@ -332,9 +332,18 @@ describe("forms helpers", () => {
       defaultLocale: "en",
     });
 
-    const first = await upsertDraft(testDb.db, { formId, definition: emptyDef });
+    const first = await upsertDraft(testDb.db, {
+      formId,
+      definition: emptyDef,
+      appearance: null,
+    });
     const firstUpdatedAt = first.updatedAt.getTime();
-    const second = await upsertDraft(testDb.db, { formId, definition: emptyDef });
+    expect(first.appearance).toBeNull();
+    const second = await upsertDraft(testDb.db, {
+      formId,
+      definition: emptyDef,
+      appearance: null,
+    });
     expect(second.updatedAt.getTime()).toBeGreaterThanOrEqual(firstUpdatedAt);
 
     expect((await getDraft(testDb.db, formId))?.formId).toBe(formId);
