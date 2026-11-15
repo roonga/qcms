@@ -41,6 +41,7 @@ import {
   releaseThroughWizard,
 } from "./support/publish.js";
 import { confirmLifecycle, createDraft, fillDate, optionIds } from "./support/questions.js";
+import { waitForHydration } from "./support/hydration.js";
 
 // Keep the reveal rule within one step and after its condition so missing output cannot be mistaken for an unreached step.
 
@@ -49,6 +50,8 @@ test.use({ storageState: TEST_ENVIRONMENT_STORAGE });
 test.describe.configure({ mode: "serial" });
 
 const EMAIL = uniqueAdminEmail("publish");
+const EDITOR_ONLY = uniqueAdminEmail("publish-editor");
+const PUBLISHER_ONLY = uniqueAdminEmail("publish-publisher");
 
 let totpSecret = "";
 
@@ -79,7 +82,14 @@ const FORM_TITLE = "Vehicle insurance";
 
 test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
+  await createTestAdmin(EDITOR_ONLY, { grants: ["forms.viewer", "forms.editor"], owner: false });
+  await createTestAdmin(PUBLISHER_ONLY, {
+    grants: ["forms.viewer", "forms.publisher"],
+    owner: false,
+  });
 });
+
+const NEEDS_BOTH_ROLES = "Publishing a draft needs Edit forms and Publish forms in this workspace.";
 
 async function publishQuestion(page: Page, slug: string, typeLabel: string): Promise<void> {
   await createDraft(page, slug, typeLabel);
@@ -486,6 +496,52 @@ test("closes the form to new sessions and reopens it (deliverable: close/reopen)
   await page.getByRole("button", { name: "Reopen in prod" }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Reopen it in prod" }).click();
   await expect(page.getByTestId("qcms-form-closed")).toHaveCount(0, { timeout: 30_000 });
+});
+
+test("the destinations step states the fixed prod floor and offers no freeze on its own", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+
+  await openPublishWizard(page, formId);
+  await chooseSource(page, "An existing version");
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+
+  const destinations = page.getByTestId("qcms-publish-destinations");
+  await expect(destinations).toBeVisible();
+
+  // This harness serves test beside prod, so the floor is in force.
+  const floor = page.getByTestId("qcms-publish-prod-floor");
+  await expect(floor).toHaveAttribute("data-floor", "true");
+  await expect(floor).toHaveText(
+    "Prod accepts only a version already live in a non-prod environment. This is fixed, not a setting.",
+  );
+  await expect(page.getByTestId("qcms-publish-only")).toHaveCount(0);
+});
+
+test("an Edit-only holder sees Publish disabled with the reason beside it", async ({ page }) => {
+  test.setTimeout(180_000);
+  await enrollNewAdmin(page, EDITOR_ONLY);
+
+  await page.goto(`/forms/${formId}`);
+  await waitForHydration(page);
+
+  await expect(page.getByTestId("qcms-publish-entry")).toHaveCount(0);
+  await expect(page.getByTestId("qcms-publish-entry-disabled").getByRole("button")).toBeDisabled();
+  await expect(page.getByTestId("qcms-publish-denied")).toHaveText(NEEDS_BOTH_ROLES);
+});
+
+test("a Publish-only holder is not offered the draft to freeze", async ({ page }) => {
+  test.setTimeout(180_000);
+  await enrollNewAdmin(page, PUBLISHER_ONLY);
+
+  await openPublishWizard(page, formId);
+
+  const source = page.getByTestId("qcms-publish-source");
+  await expect(source.getByRole("radio", { name: "The shared draft" })).toBeDisabled();
+  await expect(source.getByRole("radio", { name: "An existing version" })).toBeChecked();
+  await expect(page.getByTestId("qcms-publish-draft-denied")).toHaveText(NEEDS_BOTH_ROLES);
 });
 
 // Read the last form inside the step card: hydration replaces the fallback, and the header has its own form.
