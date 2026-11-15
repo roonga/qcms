@@ -342,14 +342,18 @@ export function AssistantPanelSlot() {
           </AssistIconButton>
           {mode !== "sheet" && (
             <AssistIconButton
-              label={t("agent.expand")}
+              label={t(mode === "expanded" ? "agent.collapse" : "agent.expand")}
               testId="qcms-assistant-expand"
               pressed={mode === "expanded"}
               controls={PANEL_ID}
               onPress={control.toggleExpanded}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M4 9V4h5M20 15v5h-5" strokeLinecap="round" strokeLinejoin="round" />
+                <path
+                  d={mode === "expanded" ? "M9 4v5H4M15 20v-5h5" : "M4 9V4h5M20 15v5h-5"}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
               </svg>
             </AssistIconButton>
           )}

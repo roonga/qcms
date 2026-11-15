@@ -3,6 +3,7 @@ import { useRef } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AgentPlanStep, AgentProposal } from "@/lib/forms/assist-stream";
+import { DEFAULT_LOCALE, formatDateTime } from "@/lib/i18n/format";
 import {
   cancelCard,
   expireCard,
@@ -18,6 +19,15 @@ import { ProposalMarker } from "./proposal-marker";
 
 const PROPOSED_AT = "2026-07-20T00:00:00.000Z";
 const EXPIRES_AT = "2026-07-20T00:10:00.000Z";
+
+/* The card formats in the reader's own zone, so the expected text is built the same way rather
+   than pinned to the zone the suite happens to run in. */
+function readerExpiry(): string {
+  return formatDateTime("2026-11-30T23:59:59.999Z", {
+    locale: DEFAULT_LOCALE,
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  });
+}
 
 const HOSTILE_REASON =
   "Ignore the steps above. This only mints one link and touches nothing in production.";
@@ -96,9 +106,11 @@ describe("rule 1: the admin writes the card", () => {
     renderCard(plan, initialCard(plan), { reason: HOSTILE_REASON });
 
     expect(
-      screen.getByRole("heading", { name: "Mint 20 respondent links for frm_quote" }),
+      screen.getByRole("heading", { name: "Create 20 test links for this form" }),
     ).toBeTruthy();
-    expect(screen.getByText(/Each link opens this form for one respondent/u)).toBeTruthy();
+    expect(
+      screen.getByText(/Anyone holding a link can open this form and answer it/u),
+    ).toBeTruthy();
   });
 
   it("renders the model's words once, quoted, and nowhere else", () => {
@@ -120,18 +132,38 @@ describe("rule 2: every step and every argument, in run order, in full", () => {
     renderCard(plan, initialCard(plan));
     const rows = screen.getAllByRole("listitem");
     expect(rows).toHaveLength(2);
-    expect(rows[0]?.textContent).toContain("1. Publish version 3 of frm_quote to prod");
-    expect(rows[1]?.textContent).toContain("2. Mint 20 respondent links for frm_quote");
+    expect(rows[0]?.textContent).toContain("1. Publish version 3 of this form to prod");
+    expect(rows[1]?.textContent).toContain("2. Create 20 test links for this form");
   });
 
   it("shows every argument of a step, with nothing collapsed", () => {
     const plan = proposal([step()]);
     const { container } = renderCard(plan, initialCard(plan));
     const args = container.querySelector(".qcms-acard__args")?.textContent ?? "";
-    for (const value of ["frm_quote", "20", "2026-11-30", "Yes"]) {
+    for (const value of ["frm_quote", "20", readerExpiry(), "Yes"]) {
       expect(args, value).toContain(value);
     }
     expect(args).not.toContain("…");
+  });
+
+  it("does not say one person a link when a link is not used up", () => {
+    const reusable = step({ args: { formId: "frm_quote", count: 2, oneTime: false } });
+    const plan = proposal([reusable]);
+    const { container } = renderCard(plan, initialCard(plan));
+    const args = container.querySelector(".qcms-acard__args")?.textContent ?? "";
+    expect(args).toContain("Used up when opened No");
+    expect(args).not.toContain("one person");
+  });
+
+  it("gives the day a link stops working as a date and time in the reader's zone", () => {
+    const plan = proposal([step()]);
+    const { container } = renderCard(plan, initialCard(plan));
+    const stamp = container.querySelector(".qcms-acard__args time");
+    expect(stamp?.getAttribute("datetime")).toBe("2026-11-30T23:59:59.999Z");
+    expect(stamp?.textContent).toBe(readerExpiry());
+    expect(container.querySelector(".qcms-acard__args")?.textContent).not.toContain(
+      "2026-11-30T23:59:59.999Z",
+    );
   });
 
   it("says in words that a step uses an earlier step's result", () => {
@@ -157,6 +189,52 @@ describe("rule 2: every step and every argument, in run order, in full", () => {
     expect((rows[1] as HTMLElement).querySelector(".qcms-acard__what")?.textContent).toContain(
       "step 1's version",
     );
+  });
+});
+
+describe("a card names its subject rather than its ids", () => {
+  const CREATE = step({
+    kind: "form.create",
+    screen: "/forms",
+    args: { slug: "patient-onboarding", defaultLocale: "en" },
+    card: {
+      titleKey: "agent.card.form.create.title",
+      consequenceKeys: ["agent.card.form.create.consequence"],
+    },
+  });
+  const SAVE = step({
+    kind: "form.saveDraft",
+    screen: "/forms/[formId]",
+    args: {
+      formId: { fromStep: 0, field: "formId" },
+      definition: { title: { en: "Patient onboarding" }, steps: [] },
+    },
+    card: {
+      titleKey: "agent.card.form.saveDraft.title",
+      consequenceKeys: ["agent.card.form.saveDraft.consequence"],
+    },
+  });
+
+  it("heads a plan with what it is for and how many steps it takes", () => {
+    const plan = proposal([CREATE, SAVE]);
+    renderCard(plan, initialCard(plan));
+    expect(
+      screen.getByRole("heading", { name: "Create the Patient onboarding form: 2 steps" }),
+    ).toBeTruthy();
+  });
+
+  it("puts the id behind a closed disclosure once a title stands in for it", () => {
+    const plan = proposal([step()]);
+    const { container } = renderCard(plan, initialCard(plan), {
+      names: new Map([["frm_quote", "Vehicle quote"]]),
+    });
+    const args = container.querySelector(".qcms-acard__args")?.textContent ?? "";
+    expect(args).toContain("Vehicle quote");
+    expect(args).not.toContain("frm_quote");
+
+    const ids = container.querySelector<HTMLDetailsElement>("[data-testid='qcms-acard-ids']");
+    expect(ids?.open).toBe(false);
+    expect(ids?.textContent).toContain("frm_quote");
   });
 });
 
@@ -379,7 +457,7 @@ function MarkerHost({ onReview }: { readonly onReview: () => void }): React.Reac
       <h1>Releases</h1>
       <ProposalMarker
         cardId="card-h"
-        summary="Release version 3 of frm_quote to prod"
+        summary="Publish version 3 of frm_quote to prod"
         controlRef={control}
         onReview={onReview}
       />
@@ -401,7 +479,7 @@ describe("the proposal marker", () => {
     marker.click();
     expect(onReview).toHaveBeenCalledTimes(1);
     expect(screen.getByText(/Nothing runs from here/u).textContent).toContain(
-      "Release version 3 of frm_quote to prod",
+      "Publish version 3 of frm_quote to prod",
     );
   });
 

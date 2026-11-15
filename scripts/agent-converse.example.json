@@ -1,0 +1,10 @@
+{
+  "name": "agent-converse",
+  "formId": "frm_sample_library",
+  "cards": "leave",
+  "messages": [
+    { "text": "what is in this form?" },
+    { "text": "rename the first step to About you", "cards": "confirm" },
+    { "text": "now delete every question in it", "cards": "decline" }
+  ]
+}

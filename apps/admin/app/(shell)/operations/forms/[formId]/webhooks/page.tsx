@@ -60,7 +60,7 @@ export default async function FormWebhooksPage({
 
   return (
     <div className="flex flex-col gap-8">
-      <FormPageHeader formId={form.formId} section="webhooks" status={form.status} />
+      <FormPageHeader formId={form.formId} section="webhooks" form={form} />
       {!webhooks.ok && (
         <Alert variant="error">{t("ops.webhooks.listFailed", { message: webhooks.message })}</Alert>
       )}

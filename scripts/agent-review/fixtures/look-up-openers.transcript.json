@@ -1,0 +1,29 @@
+{
+  "note": "Replies as the harness recorded them before it stopped copying the panel's speaker heading into the reply. Trimmed to the opener and the answer under it.",
+  "turns": [
+    {
+      "turn": 1,
+      "cardAction": "none",
+      "cards": [],
+      "reply": "ASSISTANT\n\nI'm checking the question library for anything we can reuse before I draft the form.\n\nI've put up one card that creates the Larkmead new patient sign-up form with its first draft. The library was empty, so there was nothing to reuse and all five questions are new."
+    },
+    {
+      "turn": 2,
+      "cardAction": "none",
+      "cards": [],
+      "reply": "ASSISTANT\n\nI'm checking whether the first card ran and whether the form is on test.\n\nNo, it hasn't gone through yet. The Larkmead new patient sign-up form isn't on test, and none of its five questions is published."
+    },
+    {
+      "turn": 3,
+      "cardAction": "none",
+      "cards": [],
+      "reply": "ASSISTANT\n\nThe test link card is on your screen now. Nothing exists until you confirm it. The form and its five questions are already on test, because you confirmed the last card."
+    },
+    {
+      "turn": 4,
+      "cardAction": "none",
+      "cards": [],
+      "reply": "ASSISTANT\n\nThere is no version 9 of the Larkmead new patient sign-up form, so I haven't proposed anything. The form has only version 1."
+    }
+  ]
+}

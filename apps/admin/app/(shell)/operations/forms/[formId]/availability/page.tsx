@@ -54,7 +54,7 @@ export default async function FormAvailabilityPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <FormPageHeader formId={form.formId} section="availability" status={form.status} />
+      <FormPageHeader formId={form.formId} section="availability" form={form} />
       <p className="text-sm text-(--color-text-muted)">
         {t("environment.inThis", { environment })}
       </p>

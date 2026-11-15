@@ -52,7 +52,7 @@ export default async function FormErasePage({
 
   return (
     <div className="flex flex-col gap-6">
-      <FormPageHeader {...(form.ok ? { ...header, status: form.data.status } : header)} />
+      <FormPageHeader {...(form.ok ? { ...header, form: form.data } : header)} />
       {erasable ? (
         <>
           <p className="text-sm text-(--color-text-muted)">

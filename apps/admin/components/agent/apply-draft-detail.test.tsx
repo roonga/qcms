@@ -153,8 +153,9 @@ describe("the apply-draft step's detail", () => {
       />,
     );
     expect(
-      screen.getByText(t("forms.assist.newQuestionPending", { questionId: "q_preferred_name" })),
+      screen.getByText(t("forms.assist.newQuestionPending", { question: "Preferred name" })),
     ).toBeTruthy();
+    expect(screen.getByText("Added: Question: Preferred name (shortText)")).toBeTruthy();
   });
 
   it("still shows both lists with no builder mounted, and no diff it cannot compute", () => {

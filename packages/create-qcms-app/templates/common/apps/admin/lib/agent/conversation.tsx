@@ -25,10 +25,12 @@ import { conversationSubject, screenForPath } from "./screens";
 export {
   CONVERSATION_TURN_CAP,
   isProseTurn,
-  promptTurns,
+  postedTurns,
+  waitingProposalTurns,
   type AgentProseTurn,
   type AgentTurnRecord,
   type PromptTurn,
+  type WaitingProposalTurn,
 } from "./conversation-state";
 
 /**
