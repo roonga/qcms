@@ -249,7 +249,8 @@ export const uploadThemeLogoRoute = createRoute({
   description:
     `${themeAuthority} PNG, JPEG or WebP, confirmed by magic-number sniff and capped at ` +
     "512 KiB; SVG and anything else is refused. The bytes are stored immutably under the " +
-    "SHA-256 of themselves, which is the key the logo route serves them by.",
+    "SHA-256 of themselves, which is the key the logo route serves them by. An image a " +
+    "Site administrator took down is refused with `LOGO_TAKEN_DOWN` (409).",
   tags: themeTags,
   request: { params: ThemeIdParam, body: jsonBody(ThemeLogoBody) },
   responses: {
@@ -257,7 +258,7 @@ export const uploadThemeLogoRoute = createRoute({
       description: "The stored logo's key",
       content: { "application/json": { schema: ThemeLogoResponse } },
     },
-    ...errorResponses(400, 401, 403, 404, 413, 422),
+    ...errorResponses(400, 401, 403, 404, 409, 413, 422),
   },
   ...withScopes("forms:write"),
 });

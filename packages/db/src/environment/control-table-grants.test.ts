@@ -23,6 +23,8 @@ import {
   APPEARANCE_LOGOS_TABLE,
   APPEARANCE_LOGO_TAKEDOWN_FUNCTION,
   APPEARANCE_LOGO_TAKEDOWN_SETTING,
+  APPEARANCE_LOGO_TOMBSTONES_TABLE,
+  APPEARANCE_LOGOS_TAKEN_DOWN,
   LOGO_CONTENT_TYPES,
   LOGO_MAX_BYTES,
   WORKSPACE_THEMES_TABLE,
@@ -327,10 +329,18 @@ describe("the logo takedown's function and the fifth site audit kind", () => {
     );
   });
 
-  it("keeps the UPDATE rejection and gates the delete on the key-scoped flag", () => {
+  it("keeps the UPDATE rejection and gates the delete on the flag and the call stack", () => {
     expect(sql).toContain("SECURITY DEFINER");
     expect(sql).toContain(APPEARANCE_LOGO_TAKEDOWN_SETTING);
+    expect(sql).toContain("GET DIAGNOSTICS stack = PG_CONTEXT");
     expect(sql).not.toContain(`DROP TRIGGER "${APPEARANCE_LOGOS_TABLE}_reject_update"`);
+  });
+
+  it("records the digest and refuses it on insert, under the name the API maps", () => {
+    expect(sql).toContain(`CREATE TABLE "control"."${APPEARANCE_LOGO_TOMBSTONES_TABLE}"`);
+    expect(sql).toContain(`INSERT INTO control.${APPEARANCE_LOGO_TOMBSTONES_TABLE}`);
+    expect(sql).toContain(`CONSTRAINT = '${APPEARANCE_LOGOS_TAKEN_DOWN}'`);
+    expect(sql).not.toContain(`ON "control"."${APPEARANCE_LOGO_TOMBSTONES_TABLE}" TO`);
   });
 
   it("pins the fifth site audit kind at the database", () => {

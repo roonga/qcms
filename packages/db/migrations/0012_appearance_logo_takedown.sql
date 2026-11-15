@@ -7,36 +7,57 @@ ALTER TABLE "control"."site_audit" ADD CONSTRAINT "site_audit_kind" CHECK ("cont
 -- `grantAppearanceLogoTakedownStatements` in `src/environment/sql.ts` and asserted
 -- against this file by `src/environment/control-table-grants.test.ts`.
 --
--- A stored logo may now be taken down, which migration 0010 said could never happen.
--- The act is a Site administrator's alone and removes the bytes site-wide, so a draft,
--- a published version or any other holder of the key keeps the key it froze and is
--- served the same uniform 404 an unknown key is served.
---
--- The mechanism is the narrowest one that leaves the privilege catalogue honest:
+-- A Site administrator may take a stored logo down. That removes the bytes site-wide, so
+-- a draft, a published version or any other holder of the key keeps the key it froze and
+-- is served the same uniform 404 an unknown key is served.
 --
 --   * no application role gains `DELETE` on `control.appearance_logos`, so a direct
 --     delete on any application pool is still refused at the privilege check;
 --   * `control.appearance_logo_takedown` is `SECURITY DEFINER`, owned by the migration
 --     credential that owns the table, with `search_path` pinned and `EXECUTE` revoked
 --     from `PUBLIC` and granted to `qcms_app_control` alone;
---   * the delete trigger still rejects every row, except where the transaction-local
---     flag names exactly the key being deleted. That flag is set inside the function
---     and cleared again before it returns, so the door is one key wide and one
---     statement long, and nothing outside the function can be deleted through it.
+--   * the delete trigger admits a row only when the transaction-local flag names that
+--     key AND the outermost frame on the call stack (`PG_CONTEXT`) is the takedown
+--     function's own delete. The stack is written by the server, not the caller, so a
+--     role holding `DELETE`, or the table owner, that sets the flag by hand is refused;
+--   * the takedown records the digest in `control.appearance_logo_tombstones`, which no
+--     application role can read or write, and an insert trigger refuses those bytes
+--     for good. It runs after the insert so that an upload racing a takedown, which
+--     waits on the key's unique index, reads the committed tombstone.
 --
 -- `UPDATE` is untouched: `appearance_logos_reject_update` still rejects one for every
 -- role, the migration credential included, because the key is the digest of the bytes
 -- and an update would make the key a lie.
 -- ===========================================================================
 CREATE OR REPLACE FUNCTION control.appearance_logos_reject_delete() RETURNS trigger AS $$
+DECLARE stack text;
 BEGIN
-	IF current_setting('qcms.appearance_logo_takedown', true) = OLD.key THEN
+	GET DIAGNOSTICS stack = PG_CONTEXT;
+	IF current_setting('qcms.appearance_logo_takedown', true) = OLD.key
+		AND stack ~ '\nPL/pgSQL function (control\.)?appearance_logo_takedown\(text\) line [0-9]+ at SQL statement$' THEN
 		RETURN OLD;
 	END IF;
 	RAISE EXCEPTION 'appearance_logos are immutable (ADR-07): DELETE is rejected'
 		USING ERRCODE = 'restrict_violation';
 END;
 $$ LANGUAGE plpgsql;
+--> statement-breakpoint
+CREATE FUNCTION control.appearance_logos_refuse_taken_down() RETURNS trigger
+	LANGUAGE plpgsql
+	SECURITY DEFINER
+	SET search_path = control, pg_catalog
+AS $$
+BEGIN
+	IF EXISTS (SELECT 1 FROM control.appearance_logo_tombstones WHERE key = NEW.key) THEN
+		RAISE EXCEPTION 'appearance logo % was taken down and may not be stored again', NEW.key
+			USING ERRCODE = 'restrict_violation', CONSTRAINT = 'appearance_logos_taken_down';
+	END IF;
+	RETURN NULL;
+END;
+$$;
+--> statement-breakpoint
+CREATE TRIGGER appearance_logos_refuse_taken_down AFTER INSERT ON control.appearance_logos
+	FOR EACH ROW EXECUTE FUNCTION control.appearance_logos_refuse_taken_down();
 --> statement-breakpoint
 CREATE FUNCTION control.appearance_logo_takedown(logo_key text) RETURNS boolean
 	LANGUAGE plpgsql
@@ -49,6 +70,10 @@ BEGIN
 	DELETE FROM control.appearance_logos WHERE key = logo_key;
 	GET DIAGNOSTICS removed = ROW_COUNT;
 	PERFORM set_config('qcms.appearance_logo_takedown', '', true);
+	IF removed > 0 THEN
+		INSERT INTO control.appearance_logo_tombstones (key) VALUES (logo_key)
+			ON CONFLICT (key) DO NOTHING;
+	END IF;
 	RETURN removed > 0;
 END;
 $$;

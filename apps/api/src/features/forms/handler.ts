@@ -860,8 +860,7 @@ export function makePutDraftHandler(deps: Deps): RouteHandler<typeof putDraftRou
     const saved = await deps.databases.control.transaction(async (tx) => {
       if (appearance !== undefined) {
         // `FOR SHARE` against the lock setter's `FOR UPDATE`: a lock committed between
-        // this read and the write below would otherwise be missed under READ COMMITTED,
-        // and criterion 121 is stated as an invariant.
+        // this read and the write below would otherwise be missed under READ COMMITTED.
         const workspace = await getWorkspaceForShare(tx, form.workspaceId);
         const held = await currentAppearance(tx, formId);
         if (workspace?.appearanceLocked === true && !sameAppearance(appearance, held)) {

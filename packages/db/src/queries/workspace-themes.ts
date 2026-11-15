@@ -9,7 +9,11 @@ import type {
   RasterLogoContentType,
 } from "@roonga/qcms-core";
 
-import { appearanceLogos, workspaceThemes } from "../schema/index.js";
+import {
+  APPEARANCE_LOGOS_TAKEN_DOWN,
+  appearanceLogos,
+  workspaceThemes,
+} from "../schema/index.js";
 import type { Executor } from "./executor.js";
 
 /**
@@ -155,7 +159,8 @@ export async function deleteWorkspaceTheme(
 /**
  * Store logo bytes under the SHA-256 the caller computed. Content-addressed and immutable,
  * so re-storing the same image is a no-op rather than a conflict; the CHECK on the table
- * is what makes the key and the bytes agree.
+ * is what makes the key and the bytes agree. Bytes that were taken down are refused with
+ * {@link APPEARANCE_LOGOS_TAKEN_DOWN}, which {@link isLogoTakenDown} recognises.
  */
 export async function insertAppearanceLogo(
   exec: Executor,
@@ -211,23 +216,36 @@ export async function getAppearanceLogo(
  * dangling reference, so this runs in the takedown's own transaction before the bytes go;
  * a draft or a version carries its appearance by value and keeps the key it froze.
  */
-export async function clearThemeLogoKey(exec: Executor, key: string): Promise<number> {
+export async function clearThemeLogoKey(
+  exec: Executor,
+  key: string,
+): Promise<{ readonly themesCleared: number; readonly workspaceIds: readonly string[] }> {
   const cleared = await exec
     .update(workspaceThemes)
     .set({ logoKey: null })
     .where(eq(workspaceThemes.logoKey, key))
-    .returning({ id: workspaceThemes.id });
-  return cleared.length;
+    .returning({ workspaceId: workspaceThemes.workspaceId });
+  const workspaceIds = [...new Set(cleared.map((row) => row.workspaceId))].sort();
+  return { themesCleared: cleared.length, workspaceIds };
 }
 
 /**
- * Delete stored logo bytes through migration 0012's sanctioned function: no application
- * role holds `DELETE` on the table, and the immutability trigger admits a delete only
- * inside that function, for the one key it names. False where nothing was stored.
+ * Delete stored logo bytes through migration 0012's sanctioned function, which also
+ * records the digest so the store refuses those bytes from then on. False where nothing
+ * was stored.
  */
 export async function takeDownAppearanceLogo(exec: Executor, key: string): Promise<boolean> {
   const result = await exec.execute<{ taken_down: boolean }>(
     sql`select control.appearance_logo_takedown(${key}) as taken_down`,
   );
   return result.rows[0]?.taken_down === true;
+}
+
+/** True where `err` is the store's refusal of a taken-down digest. */
+export function isLogoTakenDown(err: unknown): boolean {
+  for (let e: unknown = err; typeof e === "object" && e !== null; ) {
+    if ((e as { constraint?: unknown }).constraint === APPEARANCE_LOGOS_TAKEN_DOWN) return true;
+    e = (e as { cause?: unknown }).cause;
+  }
+  return false;
 }

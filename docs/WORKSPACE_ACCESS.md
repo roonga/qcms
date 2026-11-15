@@ -313,7 +313,7 @@ Two append-only logs. For both, the application role holds `INSERT` and `SELECT`
   - **Access groups:** create, rename, delete, change of roles or environments, member added, member removed, re-confirmation of a suspended membership.
   - **Workspaces:** create, rename, archive, form moved in or out, second-approval switch changed, appearance lock set or cleared (one `setting` row), marked or unmarked as the shared question library.
   - **Workspace themes:** each theme derive fetch, one row (SEC-18).
-  - **Appearance logo store:** each takedown, one site-audit row (Code Owner, 2026-11-16).
+  - **Appearance logo store:** each takedown, one site-audit row, mirrored as a `setting` row into each workspace whose themes had the logo cleared (Code Owner, 2026-11-16).
   - **Workspace approval requests** (turning second approval off, self-grant, Move form): created, approved, rejected, expired.
   - **Pending draft publish to `prod`** on a site whose only environment is `prod` (approved on the form, not a workspace approval request): requested, approved, rejected, expired.
 

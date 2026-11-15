@@ -894,13 +894,17 @@ image for as long as it is stored (ADR-07).
 **An `UPDATE` is still impossible for every role, and the one sanctioned delete is a
 takedown**, which `DELETE /admin/logos/{key}` performs and a **Site administrator alone**
 may call: the store is site-wide, so a takedown removes the image from every workspace at
-once and is not reversible except by uploading the same bytes again.
+once and is not reversible: the digest is recorded as a tombstone in
+`control.appearance_logo_tombstones`, and an insert trigger refuses those bytes from then on.
 It is an operation rather than a migration-level decision, and it writes one `logo` row in
-the site audit.
+the site audit, mirrored into each workspace whose themes lost the logo.
 Migration 0012 adds the mechanism: a `SECURITY DEFINER` function owned by the migration
 credential, `EXECUTE` revoked from `PUBLIC` and granted to `qcms_app_control` alone, which
-sets the key-scoped flag the delete trigger honours, deletes that one key and clears the
-flag again.
+sets a key-scoped flag, deletes that one key, clears the flag and writes the tombstone.
+The delete trigger admits a row only when the flag names it and the outermost frame of the
+server-written call stack (`PG_CONTEXT`) is that function's delete, so a role later granted
+`DELETE`, or the table owner, that sets the flag by hand is still refused.
+No application role holds any privilege on the tombstone table.
 No application role gains `DELETE` on the table, so a direct `DELETE FROM
 control.appearance_logos` is still refused on every application pool; the least-privilege
 and restore-drill e2e suites assert exactly that.

@@ -62,6 +62,7 @@ describe("query helper import surface", () => {
     "getAppearanceLogo",
     "clearThemeLogoKey",
     "takeDownAppearanceLogo",
+    "isLogoTakenDown",
     "listEnvironments",
     "getEnvironmentChallengeProvider",
     "listEnvironmentRetention",

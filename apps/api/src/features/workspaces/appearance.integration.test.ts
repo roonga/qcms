@@ -965,9 +965,154 @@ describe("a Site administrator may take a stored logo down", { timeout: TIMEOUT_
     expect(mine).toHaveLength(1);
     expect(mine[0]?.detail).toBe("logo=takedown themes=1");
 
+    // The workspace whose theme lost the logo gets the mirrored row in its own audit.
+    const mirrored = await listAccessAudit(testDb.db, workspaceId, { kind: "setting" });
+    expect(mirrored.rows.map((row) => row.detail)).toContain(
+      `subject=${logoKey} logo=takedown themes=1`,
+    );
+
     // Taking the same key down twice is the same 404 an unknown key answers.
     const again = await as(siteAdministrator.token, "DELETE", `/logos/${logoKey}`);
     expect(again.status).toBe(404);
+  });
+
+  it("refuses a later upload of the same bytes, from any workspace", async () => {
+    const workspaceId = await newWorkspace("tombstone");
+    const themeId = await createTheme(workspaceId, "Tombstone", "#1d4ed8");
+    const bytes = pngBase64(0x77);
+    const uploaded = await uploadLogo(workspaceId, themeId, bytes);
+    expect(uploaded.status, await uploaded.clone().text()).toBe(201);
+    const { logoKey } = (await uploaded.json()) as { logoKey: string };
+
+    const siteAdministrator = await seedAdminSession(testDb.db, {
+      label: "tombstone-site-admin",
+      membership: false,
+    });
+    const takedown = await as(siteAdministrator.token, "DELETE", `/logos/${logoKey}`);
+    expect(takedown.status, await takedown.clone().text()).toBe(200);
+
+    const elsewhere = await newWorkspace("tombstone-elsewhere");
+    const otherTheme = await createTheme(elsewhere, "Elsewhere", "#1d4ed8");
+    for (const [workspace, theme] of [
+      [workspaceId, themeId],
+      [elsewhere, otherTheme],
+    ] as const) {
+      const again = await uploadLogo(workspace, theme, bytes);
+      expect(again.status, await again.clone().text()).toBe(409);
+      expect(await codeOf(again)).toBe("LOGO_TAKEN_DOWN");
+    }
+    expect((await serveLogo(logoKey)).status).toBe(404);
+  });
+
+  it("mirrors one row into each workspace whose themes named the logo", async () => {
+    const first = await newWorkspace("takedown-mirror-a");
+    const second = await newWorkspace("takedown-mirror-b");
+    const bystander = await newWorkspace("takedown-mirror-c");
+    const firstTheme = await createTheme(first, "Mirror", "#1d4ed8");
+    const uploaded = await uploadLogo(first, firstTheme, pngBase64(0x78));
+    expect(uploaded.status, await uploaded.clone().text()).toBe(201);
+    const { logoKey } = (await uploaded.json()) as { logoKey: string };
+    for (const name of ["One", "Two"]) {
+      const res = await send("POST", `/workspaces/${second}/themes`, {
+        ...themeBody(name, "#1d4ed8"),
+        logoKey,
+      });
+      expect(res.status, await res.clone().text()).toBe(201);
+    }
+
+    const siteAdministrator = await seedAdminSession(testDb.db, {
+      label: "takedown-mirror-site-admin",
+      membership: false,
+    });
+    const takedown = await as(siteAdministrator.token, "DELETE", `/logos/${logoKey}`);
+    expect(takedown.status, await takedown.clone().text()).toBe(200);
+    expect((await takedown.json()) as unknown).toMatchObject({ themesCleared: 3 });
+
+    const mirroredIn = async (workspaceId: string): Promise<(string | null)[]> =>
+      (await listAccessAudit(testDb.db, workspaceId, { kind: "setting" })).rows
+        .filter((row) => row.detail?.startsWith(`subject=${logoKey}`) === true)
+        .map((row) => row.detail);
+    expect(await mirroredIn(first)).toStrictEqual([`subject=${logoKey} logo=takedown themes=3`]);
+    expect(await mirroredIn(second)).toStrictEqual([`subject=${logoKey} logo=takedown themes=3`]);
+    expect(await mirroredIn(bystander)).toStrictEqual([]);
+  });
+
+  /** Until the request on the pool is parked behind the open transaction's row lock. */
+  async function untilBlocked(): Promise<void> {
+    for (let tries = 0; tries < 200; tries += 1) {
+      const waiting = await testDb.client.query<{ n: number }>(
+        `select count(*)::int as n from pg_stat_activity
+          where wait_event_type = 'Lock' and pid <> pg_backend_pid()`,
+      );
+      if ((waiting.rows[0]?.n ?? 0) > 0) return;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+    throw new Error("the request never waited on the lock");
+  }
+
+  it("answers LOGO_UNKNOWN when a takedown commits between the logo check and a theme save", async () => {
+    const workspaceId = await newWorkspace("takedown-race-theme");
+    const themeId = await createTheme(workspaceId, "Race", "#1d4ed8");
+    const uploaded = await uploadLogo(workspaceId, themeId, pngBase64(0x79));
+    expect(uploaded.status, await uploaded.clone().text()).toBe(201);
+    const { logoKey } = (await uploaded.json()) as { logoKey: string };
+    await testDb.client.query(`update workspace_themes set logo_key = null where id = $1`, [
+      themeId,
+    ]);
+
+    await testDb.client.query("begin");
+    try {
+      await testDb.client.query(`select control.appearance_logo_takedown($1)`, [logoKey]);
+      const saving = send("PUT", `/workspaces/${workspaceId}/themes/${themeId}`, {
+        ...themeBody("Race", "#1d4ed8"),
+        logoKey,
+      });
+      await untilBlocked();
+      await testDb.client.query("commit");
+      const res = await saving;
+      expect(res.status, await res.clone().text()).toBe(422);
+      expect(await codeOf(res)).toBe("LOGO_UNKNOWN");
+    } finally {
+      await testDb.client.query("rollback").catch(() => undefined);
+    }
+  });
+
+  it("clears again and succeeds when a theme takes the logo during the takedown", async () => {
+    const workspaceId = await newWorkspace("takedown-race-delete");
+    const themeId = await createTheme(workspaceId, "Race", "#1d4ed8");
+    const uploaded = await uploadLogo(workspaceId, themeId, pngBase64(0x7a));
+    expect(uploaded.status, await uploaded.clone().text()).toBe(201);
+    const { logoKey } = (await uploaded.json()) as { logoKey: string };
+    await testDb.client.query(`update workspace_themes set logo_key = null where id = $1`, [
+      themeId,
+    ]);
+    const siteAdministrator = await seedAdminSession(testDb.db, {
+      label: "takedown-race-site-admin",
+      membership: false,
+    });
+
+    await testDb.client.query("begin");
+    try {
+      // The foreign key check takes a key-share lock on the logo, which the takedown's
+      // delete then waits on.
+      await testDb.client.query(`update workspace_themes set logo_key = $1 where id = $2`, [
+        logoKey,
+        themeId,
+      ]);
+      const takingDown = as(siteAdministrator.token, "DELETE", `/logos/${logoKey}`);
+      await untilBlocked();
+      await testDb.client.query("commit");
+      const res = await takingDown;
+      expect(res.status, await res.clone().text()).toBe(200);
+      expect((await res.json()) as unknown).toMatchObject({ logoKey, themesCleared: 1 });
+    } finally {
+      await testDb.client.query("rollback").catch(() => undefined);
+    }
+    expect((await serveLogo(logoKey)).status).toBe(404);
+    const theme = await send("GET", `/workspaces/${workspaceId}/themes/${themeId}`);
+    expect(
+      ((await theme.json()) as { theme: { logoKey: string | null } }).theme.logoKey,
+    ).toBeNull();
   });
 
   it("refuses a Workspace administrator and an Edit forms holder", async () => {

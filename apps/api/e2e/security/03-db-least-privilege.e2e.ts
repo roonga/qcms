@@ -4,6 +4,7 @@ import {
   AGENT_ACTIONS_TABLE,
   APPEARANCE_LOGOS_TABLE,
   APPEARANCE_LOGO_TAKEDOWN_FUNCTION,
+  APPEARANCE_LOGO_TOMBSTONES_TABLE,
   CONTROL_FORBIDDEN_TABLES,
   CONTROL_READ_COLUMNS,
   CONTROL_READ_TABLES,
@@ -387,6 +388,17 @@ describe("qcms_app_control: the control plane, and one grant in each data plane"
     expect(
       await hasFunctionExecute(CONTROL_ROLE, `${APPEARANCE_LOGO_TAKEDOWN_FUNCTION}(text)`),
     ).toBe(true);
+  });
+
+  it("holds nothing on the takedown tombstones, which only the takedown function writes", async () => {
+    const held = await tablePrivileges("control", CONTROL_ROLE);
+    expect(held[APPEARANCE_LOGO_TOMBSTONES_TABLE]).toBeUndefined();
+    const client = clients.get(CONTROL_ROLE)!;
+    const refusal = await refusalFor(
+      client,
+      `delete from control.${APPEARANCE_LOGO_TOMBSTONES_TABLE}`,
+    );
+    expect(refusal).toMatch(/permission denied/i);
   });
 
   it("can insert the release event Q49 gives it, without RETURNING", async () => {

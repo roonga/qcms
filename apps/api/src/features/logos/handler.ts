@@ -3,7 +3,7 @@ import {
   clearThemeLogoKey,
   getAppearanceLogo,
   takeDownAppearanceLogo,
-  writeSiteAuditRow,
+  writeSiteAuditWithMirror,
 } from "@roonga/qcms-db";
 
 import { LogoKey } from "@roonga/qcms-core";
@@ -57,11 +57,23 @@ export function makeServeLogoHandler(deps: Deps): RouteHandler<typeof serveLogoR
   };
 }
 
+function isForeignKeyViolation(err: unknown): boolean {
+  for (let e: unknown = err; typeof e === "object" && e !== null; ) {
+    if ((e as { code?: unknown }).code === "23503") return true;
+    e = (e as { cause?: unknown }).cause;
+  }
+  return false;
+}
+
+/** A theme that names the key can commit between the clear and the delete; each retry clears it again. */
+const TAKEDOWN_ATTEMPTS = 3;
+
 /**
  * A Site administrator's act and nobody else's, which the route policy's
  * `installationOnly` row is what enforces. The theme keys go first, because the themes'
  * foreign key forbids a dangling one; a draft and a version carry their appearance by
- * value and keep the key they froze, which then serves the uniform 404.
+ * value and keep the key they froze, which then serves the uniform 404. Each workspace
+ * whose themes lost the logo gets a mirrored row in its own audit.
  */
 export function makeTakeDownLogoHandler(
   deps: Deps,
@@ -74,19 +86,35 @@ export function makeTakeDownLogoHandler(
     }
     if (!LogoKey.safeParse(key).success) throw notFound();
 
-    const themesCleared = await deps.databases.control.transaction(async (tx) => {
-      const cleared = await clearThemeLogoKey(tx, key);
-      if (!(await takeDownAppearanceLogo(tx, key))) throw notFound();
-      await writeSiteAuditRow(tx, {
-        actor: principal.userId,
-        subject: key,
-        kind: "logo",
-        detail: `logo=takedown themes=${String(cleared)}`,
-        occurredAt: deps.clock.now(),
-      });
-      return cleared;
-    });
-
-    return c.json({ logoKey: key, themesCleared }, 200);
+    for (let attempt = 1; ; attempt += 1) {
+      try {
+        const themesCleared = await deps.databases.control.transaction(async (tx) => {
+          const cleared = await clearThemeLogoKey(tx, key);
+          if (!(await takeDownAppearanceLogo(tx, key))) throw notFound();
+          await writeSiteAuditWithMirror(
+            tx,
+            {
+              actor: principal.userId,
+              subject: key,
+              kind: "logo",
+              detail: `logo=takedown themes=${String(cleared.themesCleared)}`,
+              occurredAt: deps.clock.now(),
+            },
+            cleared.workspaceIds,
+          );
+          return cleared.themesCleared;
+        });
+        return c.json({ logoKey: key, themesCleared }, 200);
+      } catch (err: unknown) {
+        if (!isForeignKeyViolation(err)) throw err;
+        if (attempt >= TAKEDOWN_ATTEMPTS) {
+          throw new ApiError(
+            "LOGO_TAKEDOWN_CONFLICT",
+            409,
+            "A theme took this logo while it was being taken down; try again",
+          );
+        }
+      }
+    }
   };
 }

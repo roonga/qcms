@@ -31,13 +31,21 @@ export const LOGO_MAX_BYTES = 524_288;
 
 /**
  * The `SECURITY DEFINER` function migration 0012 creates. It is the only sanctioned
- * delete on {@link appearanceLogos}: no application role holds `DELETE` on the table, and
- * the delete trigger admits a row only inside this function, for the one key it names.
+ * delete on {@link appearanceLogos}: the delete trigger admits a row only when this
+ * function's own frame is the outermost one on the call stack, for the one key it names.
  */
 export const APPEARANCE_LOGO_TAKEDOWN_FUNCTION = "control.appearance_logo_takedown";
 
-/** The transaction-local flag the delete trigger honours, set by that function alone. */
+/**
+ * The transaction-local key the takedown function sets for its one delete. Not a
+ * credential: the trigger also requires that function's frame on the call stack, so a
+ * caller that sets it by hand, the table owner or a role holding `DELETE` included, is
+ * still refused.
+ */
 export const APPEARANCE_LOGO_TAKEDOWN_SETTING = "qcms.appearance_logo_takedown";
+
+/** The name of the error the store raises for an upload of a taken-down digest. */
+export const APPEARANCE_LOGOS_TAKEN_DOWN = "appearance_logos_taken_down";
 
 export const APPEARANCE_LOGOS_KEY_CHECK = "appearance_logos_key_hex";
 export const APPEARANCE_LOGOS_DIGEST_CHECK = "appearance_logos_key_matches_bytes";
@@ -82,6 +90,25 @@ export const appearanceLogos = controlSchema.table(
     // Content addressing is a database invariant, not a caller's promise.
     check(APPEARANCE_LOGOS_DIGEST_CHECK, sql`${t.key} = encode(sha256(${t.bytes}), 'hex')`),
   ],
+);
+
+/** The table name, for the migration that creates it and the trigger that reads it. */
+export const APPEARANCE_LOGO_TOMBSTONES_TABLE = "appearance_logo_tombstones";
+
+/**
+ * One row per taken-down digest, written by the takedown function alone. The store refuses
+ * a later upload of the same bytes, so a takedown cannot be undone by uploading them again.
+ * No application role holds any privilege here.
+ */
+export const appearanceLogoTombstones = controlSchema.table(
+  APPEARANCE_LOGO_TOMBSTONES_TABLE,
+  {
+    key: text("key").primaryKey(),
+    takenDownAt: timestamp("taken_down_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [check("appearance_logo_tombstones_key_hex", sql`${t.key} ~ '^[0-9a-f]{64}$'`)],
 );
 
 /**

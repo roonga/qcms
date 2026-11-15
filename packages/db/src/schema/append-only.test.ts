@@ -3,6 +3,10 @@ import { createHash } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
+  APPEARANCE_LOGOS_TAKEN_DOWN,
+  APPEARANCE_LOGO_TAKEDOWN_SETTING,
+} from "./control/workspace-themes.js";
+import {
   CONTAINER_BOOT_TIMEOUT_MS,
   DEFAULT_TEST_ENVIRONMENT,
   SEED_WORKSPACE_ID,
@@ -256,11 +260,91 @@ describe("stored logos are immutable, so a theme never moves one (D2)", () => {
     ).rejects.toThrow(/immutable/i);
   });
 
-  it("rejects a DELETE, with no sanctioned door beside it", async () => {
+  it("rejects a direct DELETE", async () => {
     const key = await storeLogo(Buffer.from("deletable-png-bytes"));
     await expect(
       testDb.client.query(`delete from appearance_logos where key = $1`, [key]),
     ).rejects.toThrow(/immutable/i);
+  });
+
+  /** Runs `body` in a transaction that is always rolled back, so a refusal leaves no state. */
+  async function inRolledBack(body: () => Promise<unknown>): Promise<unknown> {
+    await testDb.client.query("begin");
+    try {
+      return await body();
+    } finally {
+      await testDb.client.query("rollback");
+    }
+  }
+
+  it("refuses the table owner who sets the takedown flag by hand", async () => {
+    const key = await storeLogo(Buffer.from("owner-flag-png-bytes"));
+    await expect(
+      inRolledBack(async () => {
+        await testDb.client.query(`select set_config($1, $2, true)`, [
+          APPEARANCE_LOGO_TAKEDOWN_SETTING,
+          key,
+        ]);
+        return testDb.client.query(`delete from appearance_logos where key = $1`, [key]);
+      }),
+    ).rejects.toThrow(/immutable/i);
+  });
+
+  it("refuses a role granted DELETE that sets the takedown flag by hand", async () => {
+    const key = await storeLogo(Buffer.from("granted-delete-png-bytes"));
+    await expect(
+      inRolledBack(async () => {
+        await testDb.client.query(`create role logo_deleter nologin`);
+        await testDb.client.query(`grant usage on schema control to logo_deleter`);
+        await testDb.client.query(
+          `grant select, delete on control.appearance_logos to logo_deleter`,
+        );
+        await testDb.client.query(`set local role logo_deleter`);
+        await testDb.client.query(`select set_config($1, $2, true)`, [
+          APPEARANCE_LOGO_TAKEDOWN_SETTING,
+          key,
+        ]);
+        return testDb.client.query(`delete from control.appearance_logos where key = $1`, [key]);
+      }),
+    ).rejects.toThrow(/immutable/i);
+  });
+
+  it("refuses a delete whose statement text imitates the takedown's stack frame", async () => {
+    const key = await storeLogo(Buffer.from("forged-frame-png-bytes"));
+    const forged =
+      `delete from control.appearance_logos where key = '${key}' /*\n` +
+      "PL/pgSQL function control.appearance_logo_takedown(text) line 4 at SQL statement */";
+    await expect(
+      inRolledBack(() =>
+        testDb.client.query(
+          `do $$ begin
+             perform set_config('${APPEARANCE_LOGO_TAKEDOWN_SETTING}', '${key}', true);
+             execute $forged$${forged}$forged$;
+           end $$`,
+        ),
+      ),
+    ).rejects.toThrow(/immutable/i);
+  });
+
+  it("deletes through the takedown function and refuses the same bytes from then on", async () => {
+    const bytes = Buffer.from("tombstoned-png-bytes");
+    const key = await storeLogo(bytes);
+    const taken = await testDb.client.query<{ taken: boolean }>(
+      `select control.appearance_logo_takedown($1) as taken`,
+      [key],
+    );
+    expect(taken.rows[0]?.taken).toBe(true);
+    const tombstone = await testDb.client.query(
+      `select 1 from appearance_logo_tombstones where key = $1`,
+      [key],
+    );
+    expect(tombstone.rowCount).toBe(1);
+
+    const refused = await storeLogo(bytes).then(
+      () => undefined,
+      (err: unknown) => err as { constraint?: string },
+    );
+    expect(refused?.constraint).toBe(APPEARANCE_LOGOS_TAKEN_DOWN);
   });
 
   it("leaves the logo a version carries when the theme that introduced it is deleted", async () => {
