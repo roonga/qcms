@@ -1,0 +1,32 @@
+{
+  "id": "did-you-create-a-link",
+  "name": "agent-review-04-did-you-create-a-link",
+  "goal": "The person asks what happened. The answer leads with who did what, and nothing new is created.",
+  "mode": "scripted",
+  "screen": "/forms",
+  "cards": "leave",
+  "messages": [{ "text": "Did you create a link?", "cards": "leave" }],
+  "seed": {
+    "reset": "after:publish-and-test-link",
+    "requires": "One test link on the form, minted by a confirmed plan in scenario 2.",
+    "fixtures": "Fake clinic data only."
+  },
+  "budget": { "turns": 1 },
+  "expect": {
+    "endState": [
+      {
+        "check": "linkCount",
+        "title": "Larkmead new patient sign-up",
+        "environment": "test",
+        "exactly": 1
+      }
+    ],
+    "assistantMust": [
+      "lead with who did what: the person confirmed a plan, and the step ran",
+      "never say I created, I minted or I made",
+      "not propose anything, because the question is a question",
+      "say the address was shown once and cannot be read back"
+    ]
+  },
+  "notes": "A reply that corrects the record before it answers the question fails this scenario even when every fact in it is right."
+}

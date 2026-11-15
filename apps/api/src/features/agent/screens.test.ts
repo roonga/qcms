@@ -4,6 +4,7 @@ import { z } from "zod";
 import { REDACT_FRAGMENTS } from "@roonga/qcms-observability";
 
 import { ACTION_KIND_NAMES, actionKind, actsInOneEnvironment } from "./actions/registry.js";
+import { WaitingProposalTurnBody } from "./schema.js";
 import {
   SCREEN_IDS,
   SCREENS,
@@ -201,17 +202,25 @@ describe("one door, by grant and registry", () => {
 });
 
 describe("no answer value can be described by any schema", () => {
+  /** A waiting card is replayed to the provider as well, and no facts schema describes it. */
+  const REPLAYED_TURNS: readonly { readonly name: string; readonly schema: z.ZodType }[] = [
+    { name: "turn proposal", schema: WaitingProposalTurnBody },
+  ];
+
   const schemas: readonly { readonly name: string; readonly schema: z.ZodType }[] = [
     ...SCREEN_IDS.map((id) => ({ name: `facts ${id}`, schema: SCREENS[id].facts })),
     ...AGENT_TOOL_NAMES.map((name) => ({
       name: `output ${name}`,
       schema: TOOLS[name].outputSchema,
     })),
+    ...REPLAYED_TURNS,
   ];
 
-  it("walks every facts schema and every tool output schema", () => {
+  it("walks every facts schema, tool output schema and replayed turn body", () => {
     // A guard on the guard: a registry that lost its rows would pass vacuously.
-    expect(schemas.length).toBe(SCREEN_IDS.length + AGENT_TOOL_NAMES.length);
+    expect(schemas.length).toBe(
+      SCREEN_IDS.length + AGENT_TOOL_NAMES.length + REPLAYED_TURNS.length,
+    );
   });
 
   it("names no field from the respondent-content or secret vocabulary", () => {
