@@ -276,16 +276,14 @@ describe("a refusal says which rule refused it", () => {
     );
   });
 
-  it("does not tell a draft author they froze a version that does not exist yet", async () => {
+  it("offers no approver for a draft, which second approval cannot hold yet", async () => {
     const blocker = await blockerFor({
       source: DRAFT_SOURCE,
       workflowRevision: null,
       workflowSource: "default",
       targets: [{ ...PROD_TARGET, blockers: AUTHOR_BLOCKED }],
     });
-    expect(blocker.textContent).toBe(
-      t("forms.publish.blocked.approverIsAuthorDraft", { environment: "prod" }),
-    );
+    expect(blocker.textContent).toBe(t("forms.publish.blocked.draftSecondApproval"));
   });
 
   it("keeps the frozen wording when the source is an existing version", async () => {

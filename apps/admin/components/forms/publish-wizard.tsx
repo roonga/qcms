@@ -64,7 +64,7 @@ function blockerSentence(
       return t("forms.publish.blocked.alreadyReleased");
     case "APPROVER_IS_AUTHOR":
       return isDraft
-        ? t("forms.publish.blocked.approverIsAuthorDraft", { environment })
+        ? t("forms.publish.blocked.draftSecondApproval")
         : t("forms.publish.blocked.approverIsAuthor", { environment });
     case "APPROVER_UNKNOWN_AUTHOR":
       return t("forms.publish.blocked.approverUnknownAuthor");

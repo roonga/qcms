@@ -1245,8 +1245,9 @@ export const messages = {
   "forms.publish.blocked.alreadyReleased": "Already live here.",
   "forms.publish.blocked.approverIsAuthor":
     "You froze this version, so another person with Publish forms in {environment} publishes it.",
-  "forms.publish.blocked.approverIsAuthorDraft":
-    "You would be this version's author, so another person with Publish forms in {environment} publishes it.",
+  /** Second approval cannot hold a draft publish yet, so no copy may offer an approver for one. */
+  "forms.publish.blocked.draftSecondApproval":
+    "Second approval is on for production, so a draft cannot be published there: publish an existing version instead.",
   "forms.publish.blocked.approverUnknownAuthor":
     "Who froze this version was not recorded, so second approval cannot be checked against it.",
   "forms.publish.blocked.other": "Not eligible here: {code}.",
