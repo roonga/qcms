@@ -1,3 +1,9 @@
+CREATE TABLE "control"."appearance_logo_tombstones" (
+	"key" text PRIMARY KEY NOT NULL,
+	"taken_down_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "appearance_logo_tombstones_key_hex" CHECK ("control"."appearance_logo_tombstones"."key" ~ '^[0-9a-f]{64}$')
+);
+--> statement-breakpoint
 ALTER TABLE "control"."site_audit" DROP CONSTRAINT "site_audit_kind";--> statement-breakpoint
 ALTER TABLE "control"."site_audit" ADD CONSTRAINT "site_audit_kind" CHECK ("control"."site_audit"."kind" in ('account', 'administrator', 'approval', 'library', 'logo'));--> statement-breakpoint
 -- ===========================================================================

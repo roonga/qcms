@@ -1,5 +1,5 @@
 {
-  "id": "e9107aec-1f6f-4ef8-b355-48da76b6336f",
+  "id": "a1b0c73e-e1ad-4caa-be0a-d1800637c0b2",
   "prevId": "da6d8bc4-d90f-4410-bde0-5213cda84877",
   "version": "7",
   "dialect": "postgresql",
@@ -2278,6 +2278,37 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "control.appearance_logo_tombstones": {
+      "name": "appearance_logo_tombstones",
+      "schema": "control",
+      "columns": {
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "taken_down_at": {
+          "name": "taken_down_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "appearance_logo_tombstones_key_hex": {
+          "name": "appearance_logo_tombstones_key_hex",
+          "value": "\"control\".\"appearance_logo_tombstones\".\"key\" ~ '^[0-9a-f]{64}$'"
+        }
+      },
       "isRLSEnabled": false
     },
     "control.appearance_logos": {

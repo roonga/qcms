@@ -319,21 +319,21 @@ export function makeUploadThemeLogoHandler(
     const key = await sha256Hex(bytes);
     try {
       await deps.databases.control.transaction(async (tx) => {
-      await insertAppearanceLogo(tx, { key, contentType, bytes, actor: principal.userId });
-      await updateWorkspaceTheme(tx, {
-        name: theme.name,
-        palettes: theme.palettes,
-        face: theme.face,
-        corners: theme.corners,
-        pageTint: theme.pageTint,
-        sourceHost: theme.sourceHost,
-        logoKey: key,
-        workspaceId: id,
-        themeId,
-        actor: principal.userId,
-        now: deps.clock.now(),
+        await insertAppearanceLogo(tx, { key, contentType, bytes, actor: principal.userId });
+        await updateWorkspaceTheme(tx, {
+          name: theme.name,
+          palettes: theme.palettes,
+          face: theme.face,
+          corners: theme.corners,
+          pageTint: theme.pageTint,
+          sourceHost: theme.sourceHost,
+          logoKey: key,
+          workspaceId: id,
+          themeId,
+          actor: principal.userId,
+          now: deps.clock.now(),
+        });
       });
-    });
     } catch (err: unknown) {
       if (isLogoTakenDown(err)) throw fail.takenDown();
       if (isLogoForeignKeyViolation(err)) throw fail.takenDown();

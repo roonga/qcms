@@ -6,6 +6,7 @@ import {
   getWorkspaceTheme,
   insertAppearanceLogo,
   insertWorkspaceTheme,
+  isLogoTakenDown,
   listWorkspaceThemes,
   setWorkspaceAppearanceLock,
   updateWorkspaceTheme,
@@ -60,6 +61,12 @@ const fail = {
   /** Its own code, so it is never confused with the serving route's 404. */
   unknownLogo: (): ApiError =>
     new ApiError("LOGO_UNKNOWN", 422, "No stored logo has that key; upload the image first"),
+  takenDown: (): ApiError =>
+    new ApiError(
+      "LOGO_TAKEN_DOWN",
+      409,
+      "A Site administrator took this image down, so it may not be uploaded again",
+    ),
   malformedLogo: (): ApiError => new ApiError("INVALID_LOGO", 400, "The body is not valid base64"),
   logoTooLarge: (): ApiError =>
     new ApiError("LOGO_TOO_LARGE", 413, `A logo may be at most ${String(LOGO_MAX_BYTES)} bytes`),
@@ -85,10 +92,19 @@ function requireThemeId(themeId: string): string {
   return themeId;
 }
 
-function isUniqueViolation(err: unknown): boolean {
+function hasCode(err: unknown, code: string): boolean {
   const codeOf = (e: unknown): string | undefined =>
     typeof e === "object" && e !== null ? (e as { code?: string }).code : undefined;
-  return codeOf(err) === "23505" || codeOf((err as { cause?: unknown }).cause) === "23505";
+  return codeOf(err) === code || codeOf((err as { cause?: unknown }).cause) === code;
+}
+
+function isUniqueViolation(err: unknown): boolean {
+  return hasCode(err, "23505");
+}
+
+/** A takedown that commits between the logo check and the theme write. */
+function isLogoForeignKeyViolation(err: unknown): boolean {
+  return hasCode(err, "23503");
 }
 
 function view(row: WorkspaceThemeRow): {
@@ -205,6 +221,7 @@ export function makeCreateWorkspaceThemeHandler(
       return c.json({ theme: view(row) }, 201);
     } catch (err: unknown) {
       if (isUniqueViolation(err)) throw fail.nameTaken(input.name);
+      if (isLogoForeignKeyViolation(err)) throw fail.unknownLogo();
       throw err;
     }
   };
@@ -233,6 +250,7 @@ export function makeUpdateWorkspaceThemeHandler(
       return c.json({ theme: view(row) }, 200);
     } catch (err: unknown) {
       if (isUniqueViolation(err)) throw fail.nameTaken(input.name);
+      if (isLogoForeignKeyViolation(err)) throw fail.unknownLogo();
       throw err;
     }
   };
@@ -299,22 +317,28 @@ export function makeUploadThemeLogoHandler(
     if (contentType === null) throw fail.notRaster();
 
     const key = await sha256Hex(bytes);
-    await deps.databases.control.transaction(async (tx) => {
-      await insertAppearanceLogo(tx, { key, contentType, bytes, actor: principal.userId });
-      await updateWorkspaceTheme(tx, {
-        name: theme.name,
-        palettes: theme.palettes,
-        face: theme.face,
-        corners: theme.corners,
-        pageTint: theme.pageTint,
-        sourceHost: theme.sourceHost,
-        logoKey: key,
-        workspaceId: id,
-        themeId,
-        actor: principal.userId,
-        now: deps.clock.now(),
+    try {
+      await deps.databases.control.transaction(async (tx) => {
+        await insertAppearanceLogo(tx, { key, contentType, bytes, actor: principal.userId });
+        await updateWorkspaceTheme(tx, {
+          name: theme.name,
+          palettes: theme.palettes,
+          face: theme.face,
+          corners: theme.corners,
+          pageTint: theme.pageTint,
+          sourceHost: theme.sourceHost,
+          logoKey: key,
+          workspaceId: id,
+          themeId,
+          actor: principal.userId,
+          now: deps.clock.now(),
+        });
       });
-    });
+    } catch (err: unknown) {
+      if (isLogoTakenDown(err)) throw fail.takenDown();
+      if (isLogoForeignKeyViolation(err)) throw fail.takenDown();
+      throw err;
+    }
 
     return c.json({ logoKey: key, contentType, bytes: bytes.byteLength }, 201);
   };

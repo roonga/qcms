@@ -58,7 +58,7 @@ export function makeServeLogoHandler(deps: Deps): RouteHandler<typeof serveLogoR
 }
 
 function isForeignKeyViolation(err: unknown): boolean {
-  for (let e: unknown = err; typeof e === "object" && e !== null; ) {
+  for (let e: unknown = err; typeof e === "object" && e !== null;) {
     if ((e as { code?: unknown }).code === "23503") return true;
     e = (e as { cause?: unknown }).cause;
   }

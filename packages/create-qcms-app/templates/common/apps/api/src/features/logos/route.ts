@@ -48,8 +48,8 @@ export const takeDownLogoRoute = createRoute({
     "site-wide and a takedown removes them for every workspace at once. The key is " +
     "cleared off every theme that named it and the bytes are deleted, so a draft, a " +
     "version or a theme still holding the key is served the same 404 an unknown key is. " +
-    "One `logo` row goes to the site audit. The act is not reversible: re-uploading the " +
-    "same image stores it again under the same key.",
+    "One `logo` row goes to the site audit, mirrored into each workspace whose themes " +
+    "lost it. The digest is recorded, so the same image may never be uploaded again.",
   tags: ["workspaces"],
   request: { params: LogoKeyParam },
   responses: {
@@ -57,7 +57,7 @@ export const takeDownLogoRoute = createRoute({
       description: "The key that is gone, and how many themes stopped naming it",
       content: { "application/json": { schema: LogoTakedownResponse } },
     },
-    ...errorResponses(401, 403, 404),
+    ...errorResponses(401, 403, 404, 409),
   },
   ...withScopes("forms:write"),
 });

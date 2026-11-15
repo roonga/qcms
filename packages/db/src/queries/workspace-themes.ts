@@ -9,11 +9,7 @@ import type {
   RasterLogoContentType,
 } from "@roonga/qcms-core";
 
-import {
-  APPEARANCE_LOGOS_TAKEN_DOWN,
-  appearanceLogos,
-  workspaceThemes,
-} from "../schema/index.js";
+import { APPEARANCE_LOGOS_TAKEN_DOWN, appearanceLogos, workspaceThemes } from "../schema/index.js";
 import type { Executor } from "./executor.js";
 
 /**
@@ -243,7 +239,7 @@ export async function takeDownAppearanceLogo(exec: Executor, key: string): Promi
 
 /** True where `err` is the store's refusal of a taken-down digest. */
 export function isLogoTakenDown(err: unknown): boolean {
-  for (let e: unknown = err; typeof e === "object" && e !== null; ) {
+  for (let e: unknown = err; typeof e === "object" && e !== null;) {
     if ((e as { constraint?: unknown }).constraint === APPEARANCE_LOGOS_TAKEN_DOWN) return true;
     e = (e as { cause?: unknown }).cause;
   }

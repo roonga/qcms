@@ -8310,7 +8310,7 @@
     "/admin/workspaces/{id}/themes/{themeId}/logo": {
       "post": {
         "summary": "Upload a theme's logo (Edit forms)",
-        "description": "Edit forms in that workspace. A Workspace administrator or a Site administrator who holds no Edit forms grant there is refused, because theming is authoring and not administration (docs/WORKSPACE_ACCESS.md section 3). PNG, JPEG or WebP, confirmed by magic-number sniff and capped at 512 KiB; SVG and anything else is refused. The bytes are stored immutably under the SHA-256 of themselves, which is the key the logo route serves them by.",
+        "description": "Edit forms in that workspace. A Workspace administrator or a Site administrator who holds no Edit forms grant there is refused, because theming is authoring and not administration (docs/WORKSPACE_ACCESS.md section 3). PNG, JPEG or WebP, confirmed by magic-number sniff and capped at 512 KiB; SVG and anything else is refused. The bytes are stored immutably under the SHA-256 of themselves, which is the key the logo route serves them by. An image a Site administrator took down is refused with `LOGO_TAKEN_DOWN` (409).",
         "tags": [
           "workspaces"
         ],
@@ -8394,6 +8394,16 @@
           },
           "404": {
             "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
             "content": {
               "application/json": {
                 "schema": {
@@ -8527,7 +8537,7 @@
     "/admin/logos/{key}": {
       "delete": {
         "summary": "Take a stored logo down (Site administrator)",
-        "description": "Site administrator only, and no workspace grant reaches it: the bytes are stored site-wide and a takedown removes them for every workspace at once. The key is cleared off every theme that named it and the bytes are deleted, so a draft, a version or a theme still holding the key is served the same 404 an unknown key is. One `logo` row goes to the site audit. The act is not reversible: re-uploading the same image stores it again under the same key.",
+        "description": "Site administrator only, and no workspace grant reaches it: the bytes are stored site-wide and a takedown removes them for every workspace at once. The key is cleared off every theme that named it and the bytes are deleted, so a draft, a version or a theme still holding the key is served the same 404 an unknown key is. One `logo` row goes to the site audit, mirrored into each workspace whose themes lost it. The digest is recorded, so the same image may never be uploaded again.",
         "tags": [
           "workspaces"
         ],
@@ -8582,6 +8592,16 @@
           },
           "404": {
             "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
             "content": {
               "application/json": {
                 "schema": {
