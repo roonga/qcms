@@ -2358,7 +2358,7 @@ export const messages = {
   "membership.settings.heading": "Workspace settings",
   "membership.settings.twoPerson": "Require a second approver for production",
   "membership.settings.twoPersonHelp":
-    "One switch, three effects. A publish to production is refused for the account that froze the version; a production endpoint change takes a second approver's confirmation; and nobody can give themselves a response role, or a new environment for one - a second workspace owner, or the holder of the installation-wide claim, has to make that change. Off by default, because an installation with one account cannot satisfy the rule at all.",
+    "One switch, three effects. A publish to production is refused for the account that froze the version; a production endpoint change takes an Approver's confirmation; and nobody can give themselves a response role, or a new environment for one - a second Workspace administrator, or a Site administrator, has to approve that change. Off by default, because a site with one account cannot satisfy the rule at all.",
   "membership.settings.save": "Save settings",
   "membership.settings.saved": "The settings were saved, and the change is on the access audit.",
   "membership.settings.saveFailed": "The settings were not saved: {message}",

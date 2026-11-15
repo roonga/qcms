@@ -128,7 +128,7 @@ test("the two-person switch states all three of its effects", async ({ page }) =
 
   for (const effect of [
     "A publish to production is refused for the account that froze the version",
-    "a production endpoint change takes a second approver's confirmation",
+    "a production endpoint change takes an Approver's confirmation",
     "nobody can give themselves a response role",
   ]) {
     await expect(page.getByText(effect, { exact: false })).toBeVisible();
