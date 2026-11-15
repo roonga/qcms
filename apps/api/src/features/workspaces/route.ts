@@ -115,7 +115,8 @@ export const archiveWorkspaceRoute = createRoute({
     "the library or hand it on. Nothing is deleted, closed, moved or unmarked on the " +
     "operator's behalf, and no response row is reached. An archive is terminal: there " +
     "is no unarchive, and the only write an archived workspace still takes is unmarking " +
-    "the shared library.",
+    "the shared library. It writes one `setting` audit row, the kind a rename and the " +
+    "second-approval switch are written with.",
   tags,
   request: { params: WorkspaceIdParam },
   responses: {
