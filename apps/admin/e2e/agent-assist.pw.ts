@@ -470,7 +470,7 @@ test("accepting a proposal creates its new question as an unpublished library dr
   await expect(validation.getByTestId("qcms-issue-summary")).toContainText("1 issue", {
     timeout: 30_000,
   });
-  await expect(validation).toContainText("can only pin a published version");
+  await expect(validation).toContainText("can only pin a version that is published");
   await expect(validation).not.toContainText("does not resolve");
 
   await openStep(page, "About you");
