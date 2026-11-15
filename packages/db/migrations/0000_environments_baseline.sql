@@ -874,7 +874,7 @@ DO $$
 BEGIN
 	IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'qcms_app_test')
 		AND EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'control' AND tablename = 'appearance_logos') THEN
-		EXECUTE 'GRANT SELECT ON "control"."appearance_logos" TO "qcms_app_test"';
+		EXECUTE 'GRANT SELECT ("key", "content_type", "bytes") ON "control"."appearance_logos" TO "qcms_app_test"';
 	END IF;
 END
 $$;
@@ -951,7 +951,7 @@ DO $$
 BEGIN
 	IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'qcms_app_prod')
 		AND EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'control' AND tablename = 'appearance_logos') THEN
-		EXECUTE 'GRANT SELECT ON "control"."appearance_logos" TO "qcms_app_prod"';
+		EXECUTE 'GRANT SELECT ("key", "content_type", "bytes") ON "control"."appearance_logos" TO "qcms_app_prod"';
 	END IF;
 END
 $$;

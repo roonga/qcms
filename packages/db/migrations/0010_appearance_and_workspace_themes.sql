@@ -6,7 +6,8 @@ CREATE TABLE "control"."appearance_logos" (
 	"created_by" text,
 	CONSTRAINT "appearance_logos_key_hex" CHECK ("control"."appearance_logos"."key" ~ '^[0-9a-f]{64}$'),
 	CONSTRAINT "appearance_logos_content_type" CHECK ("control"."appearance_logos"."content_type" in ('image/png', 'image/jpeg', 'image/webp')),
-	CONSTRAINT "appearance_logos_size" CHECK (octet_length("control"."appearance_logos"."bytes") > 0 and octet_length("control"."appearance_logos"."bytes") <= 524288)
+	CONSTRAINT "appearance_logos_size" CHECK (octet_length("control"."appearance_logos"."bytes") > 0 and octet_length("control"."appearance_logos"."bytes") <= 524288),
+	CONSTRAINT "appearance_logos_key_matches_bytes" CHECK ("control"."appearance_logos"."key" = encode(sha256("control"."appearance_logos"."bytes"), 'hex'))
 );
 --> statement-breakpoint
 CREATE TABLE "control"."workspace_themes" (
@@ -16,6 +17,7 @@ CREATE TABLE "control"."workspace_themes" (
 	"palettes" jsonb NOT NULL,
 	"face" text NOT NULL,
 	"corners" text NOT NULL,
+	"page_tint" boolean DEFAULT false NOT NULL,
 	"logo_key" text,
 	"source_host" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -48,20 +50,29 @@ ALTER TABLE "control"."access_audit" ADD CONSTRAINT "access_audit_kind" CHECK ("
 -- would make the key a lie, and a DELETE would empty a logo out of a published
 -- version whose appearance is frozen with it (ADR-07). The triggers hold both
 -- against every role, the migration credential included, and the REVOKE below holds
--- them against the application roles as well, as the audits do.
+-- them against the application roles as well, as the audits do. There is deliberately
+-- no sanctioned deletion door and no cleanup path, so a stored logo is permanent
+-- (Code Owner, 2026-11-15).
+--
+-- A fourth CHECK makes the content address a database invariant: the key must equal
+-- `encode(sha256(bytes), 'hex')`, so a row whose key does not name its bytes cannot be
+-- stored at all. It is declared after the hex-shape CHECK so a malformed key reports
+-- the narrower constraint.
 --
 -- Grants:
 --
 --   * `qcms_app_control` holds SELECT and INSERT.
---   * every `qcms_app_<env>` in the live set holds SELECT, because the logo route
---     answers an unauthenticated respondent off the serving pool, where it reads
---     `form_versions` already.
+--   * every `qcms_app_<env>` in the live set holds SELECT on `key`, `content_type` and
+--     `bytes`, a COLUMN grant and not the table, because the logo route answers an
+--     unauthenticated respondent off the serving pool and needs the bytes it serves,
+--     never who uploaded one or when (Code Owner, 2026-11-15). `created_by` and
+--     `created_at` are unreadable on that pool.
 --   * UPDATE and DELETE are revoked from every `qcms_app%` role, written against the
 --     PREFIX so a role an operator creates later gets the same control.
 --
--- The SELECT is owed TWICE, as 0001's is: this covers the environments that exist
--- when the migration runs, and `grantEnvironmentStatements` covers every environment
--- created afterwards, guarded on this table existing.
+-- That column SELECT is owed TWICE, as 0001's table SELECT is: this covers the
+-- environments that exist when the migration runs, and `grantEnvironmentStatements`
+-- covers every environment created afterwards, guarded on this table existing.
 --
 -- `workspace_themes` takes plain DML and no environment-role privilege at all: a
 -- theme is authoring state the respondent path never reads, and it is deletable,
@@ -107,7 +118,7 @@ BEGIN
 				SELECT 1 FROM pg_roles
 				 WHERE rolname = 'qcms_app_' || environment.name)
 	LOOP
-		EXECUTE format('GRANT SELECT ON "control"."appearance_logos" TO %I', environment_role);
+		EXECUTE format('GRANT SELECT ("key", "content_type", "bytes") ON "control"."appearance_logos" TO %I', environment_role);
 	END LOOP;
 END
 $$;

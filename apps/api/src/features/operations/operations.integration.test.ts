@@ -158,6 +158,7 @@ async function seedForm(
 ): Promise<void> {
   await createForm(control, { formId, slug, workspaceId, defaultLocale: "en" });
   await insertFormVersion(control, {
+    appearance: null,
     formId,
     definition: { title: { en: title ?? `${slug} form` } } as unknown as FormDefinition,
     compiled: emptyCompiled,
@@ -900,6 +901,7 @@ describe("the candidate review", () => {
     await insertFormVersion(control, {
       formId: FORM_CLAIMS,
       definition: emptyDef,
+      appearance: null,
       compiled: emptyCompiled,
       compilerVersion: "1.0.0",
       a2uiSpecVersion: "1.0.0",

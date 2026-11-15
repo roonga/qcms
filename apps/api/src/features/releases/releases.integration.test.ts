@@ -227,6 +227,7 @@ async function seedForm(label: string, versions = 1): Promise<{ formId: FormId; 
     await insertFormVersion(control, {
       formId,
       definition: emptyDef,
+      appearance: null,
       compiled: emptyCompiled,
       compilerVersion: "1.0.0",
       a2uiSpecVersion: "1.0.0",
@@ -691,6 +692,7 @@ describe("the two-person rule for a prod release (task 070, Q13, Q30, Q51)", () 
       await insertFormVersion(control, {
         formId: RULE_FORM,
         definition: emptyDef,
+        appearance: null,
         compiled: emptyCompiled,
         compilerVersion: "0.1.0",
         a2uiSpecVersion: "0.1.0",

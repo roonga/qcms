@@ -177,6 +177,7 @@ async function seedForm(
     await insertFormVersion(control, {
       formId,
       definition: emptyDef,
+      appearance: null,
       compiled: emptyCompiled,
       compilerVersion: "1.0.0",
       a2uiSpecVersion: "1.0.0",

@@ -8,6 +8,7 @@ import {
   AGENT_ACTIONS_TABLE,
   APPEARANCE_LOGOS_TABLE,
   CONTROL_FORBIDDEN_TABLES,
+  CONTROL_READ_COLUMNS,
   CONTROL_READ_TABLES,
   DATA_PLANE_TABLE_NAMES,
   ENDPOINT_PROPOSALS_TABLE,
@@ -175,6 +176,21 @@ async function hasSchemaUsage(schema: string, role: string): Promise<boolean> {
   const res = await owner.query<{ has: boolean }>(
     `select has_schema_privilege($1, $2, 'USAGE') as has`,
     [role, schema],
+  );
+  return res.rows[0]?.has ?? false;
+}
+
+// `has_column_privilege` answers true for a table-wide grant too, so a column read is
+// only proved a column read beside `has_table_privilege` answering false.
+async function hasColumnPrivilege(
+  role: string,
+  table: string,
+  column: string,
+  privilege: string,
+): Promise<boolean> {
+  const res = await owner.query<{ has: boolean }>(
+    `select has_column_privilege($1, $2, $3, $4) as has`,
+    [role, table, column, privilege],
   );
   return res.rows[0]?.has ?? false;
 }
@@ -470,10 +486,10 @@ describe("the projections of that map, named so a failure says which claim broke
   });
 
   it.each(ENVIRONMENTS)(
-    "gives qcms_app_%s exactly the seven-table read list, one UPDATE and the audits' INSERT",
+    "gives qcms_app_%s exactly the six-table read list, one UPDATE and the audits' INSERT",
     async (environment) => {
       const held = await tablePrivileges("control", ENVIRONMENT_ROLES[environment]);
-      expect(CONTROL_READ_TABLES).toHaveLength(7);
+      expect(CONTROL_READ_TABLES).toHaveLength(6);
       expect(Object.keys(held).sort()).toEqual([...CONTROL_READ_TABLES, ...AUDIT_TABLES].sort());
       for (const table of CONTROL_READ_TABLES) {
         const expected = table === "secure_links" ? ["SELECT", "UPDATE"] : ["SELECT"];
@@ -481,6 +497,24 @@ describe("the projections of that map, named so a failure says which claim broke
       }
       for (const audit of AUDIT_TABLES) {
         expect([...(held[audit] ?? [])], audit).toEqual(["INSERT"]);
+      }
+    },
+  );
+
+  it.each(ENVIRONMENTS)(
+    "re-grants qcms_app_%s the logo store by COLUMN, uploader and time still unreadable",
+    async (environment) => {
+      // Code Owner, 2026-11-15. The restore path has to reproduce the narrowing, not just
+      // the table list: a table-wide SELECT here would be a widening nobody wrote.
+      const role = ENVIRONMENT_ROLES[environment];
+      const table = `control.${APPEARANCE_LOGOS_TABLE}`;
+      const held = await tablePrivileges("control", role);
+      expect(held[APPEARANCE_LOGOS_TABLE]).toBeUndefined();
+      for (const column of CONTROL_READ_COLUMNS[APPEARANCE_LOGOS_TABLE]!) {
+        expect(await hasColumnPrivilege(role, table, column, "SELECT"), column).toBe(true);
+      }
+      for (const column of ["created_by", "created_at"]) {
+        expect(await hasColumnPrivilege(role, table, column, "SELECT"), column).toBe(false);
       }
     },
   );

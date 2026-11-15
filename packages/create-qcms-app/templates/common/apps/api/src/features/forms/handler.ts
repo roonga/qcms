@@ -1445,8 +1445,8 @@ async function freezeDraft(
 
 /**
  * `publishedBy` is the account the two-person rule compares against, and is frozen here
- * because `form_versions` is append-only and no later write can fill it in. The draft's
- * appearance is copied in the same statement, so a later draft edit cannot reach it.
+ * because `form_versions` is append-only and no later write can fill it in. The appearance
+ * `freezeDraft` read is written with the version, so a later draft edit cannot reach it.
  */
 async function writeVersion(
   tx: Executor,

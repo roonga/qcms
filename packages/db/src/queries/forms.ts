@@ -169,7 +169,8 @@ export async function insertFormVersion(
     compilerVersion: string;
     a2uiSpecVersion: string;
     semanticsVersion: string;
-    appearance?: Appearance | null;
+    /** Required rather than defaulted, so a publish path cannot drop it silently. */
+    appearance: Appearance | null;
     publishedAt?: Date;
     publishedBy?: string | null;
   },
@@ -180,7 +181,7 @@ export async function insertFormVersion(
       formId: input.formId,
       version: sql<number>`(select coalesce(max(${formVersions.version}), 0) + 1 from ${formVersions} where ${formVersions.formId} = ${input.formId})`,
       definition: input.definition,
-      appearance: input.appearance ?? null,
+      appearance: input.appearance,
       compiled: input.compiled,
       compilerVersion: input.compilerVersion,
       a2uiSpecVersion: input.a2uiSpecVersion,

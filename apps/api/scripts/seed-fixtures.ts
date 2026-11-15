@@ -243,6 +243,7 @@ async function seedForm(db: Db, workspaceId: string): Promise<string | undefined
     defaultLocale: definition.defaultLocale,
   });
   const version = await insertFormVersion(db, {
+    appearance: null,
     formId,
     definition,
     compiled,

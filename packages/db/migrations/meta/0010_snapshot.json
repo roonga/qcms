@@ -1,5 +1,5 @@
 {
-  "id": "1ee02c5f-1df1-4b40-9f7e-130e4af24c6a",
+  "id": "08535145-b7aa-45bb-8aaf-4d23af36cc77",
   "prevId": "2dd40aae-1d72-457f-89bd-f4086434be26",
   "version": "7",
   "dialect": "postgresql",
@@ -2247,6 +2247,10 @@
         "appearance_logos_size": {
           "name": "appearance_logos_size",
           "value": "octet_length(\"control\".\"appearance_logos\".\"bytes\") > 0 and octet_length(\"control\".\"appearance_logos\".\"bytes\") <= 524288"
+        },
+        "appearance_logos_key_matches_bytes": {
+          "name": "appearance_logos_key_matches_bytes",
+          "value": "\"control\".\"appearance_logos\".\"key\" = encode(sha256(\"control\".\"appearance_logos\".\"bytes\"), 'hex')"
         }
       },
       "isRLSEnabled": false
@@ -2291,6 +2295,13 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "page_tint": {
+          "name": "page_tint",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "logo_key": {
           "name": "logo_key",

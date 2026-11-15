@@ -14,12 +14,16 @@ import {
 import { APPEARANCE_CORNERS } from "@roonga/qcms-core";
 
 import {
+  APPEARANCE_LOGOS_DIGEST_CHECK,
   APPEARANCE_LOGOS_TABLE,
   LOGO_CONTENT_TYPES,
   LOGO_MAX_BYTES,
   WORKSPACE_THEMES_TABLE,
 } from "../schema/control/workspace-themes.js";
+
+const LOGO_COLUMN_GRANT = `GRANT SELECT ("key", "content_type", "bytes") ON "control"."${APPEARANCE_LOGOS_TABLE}"`;
 import {
+  CONTROL_READ_COLUMNS,
   CONTROL_READ_TABLES,
   grantAccessAuditStatements,
   grantAgentActionsStatements,
@@ -263,17 +267,24 @@ describe("the appearance tables' grants (D1, D2)", () => {
     );
   });
 
-  it("gives every environment role SELECT on the logo store and nothing on the themes", () => {
-    expect(CONTROL_READ_TABLES).toContain(APPEARANCE_LOGOS_TABLE);
-    expect(CONTROL_READ_TABLES).not.toContain(WORKSPACE_THEMES_TABLE);
-    expect(sql).toContain(`GRANT SELECT ON "control"."${APPEARANCE_LOGOS_TABLE}" TO %I`);
-    expect(sql).not.toContain(`ON "control"."${WORKSPACE_THEMES_TABLE}" TO %I`);
+  it("gives every environment role three COLUMNS of the logo store, never the table", () => {
+    // The Code Owner's 2026-11-15 ruling: the serving pool reads the bytes it answers
+    // with, and `created_by` and `created_at` are not on that pool's read list at all.
+    expect(CONTROL_READ_TABLES).not.toContain(APPEARANCE_LOGOS_TABLE);
+    expect(CONTROL_READ_COLUMNS[APPEARANCE_LOGOS_TABLE]).toEqual(["key", "content_type", "bytes"]);
+    expect(sql).toContain(`${LOGO_COLUMN_GRANT} TO %I`);
+    expect(sql).not.toContain(`GRANT SELECT ON "control"."${APPEARANCE_LOGOS_TABLE}"`);
     const later = grantEnvironmentStatements("staging").join("\n");
-    expect(later).toContain(
-      `GRANT SELECT ON "control"."${APPEARANCE_LOGOS_TABLE}" TO "qcms_app_staging"`,
-    );
+    expect(later).toContain(`${LOGO_COLUMN_GRANT} TO "qcms_app_staging"`);
+    expect(later).not.toContain(`GRANT SELECT ON "control"."${APPEARANCE_LOGOS_TABLE}"`);
     expect(later).toContain(`tablename = '${APPEARANCE_LOGOS_TABLE}'`);
-    expect(later).not.toContain(WORKSPACE_THEMES_TABLE);
+  });
+
+  it("gives every environment role nothing at all on the themes", () => {
+    expect(CONTROL_READ_TABLES).not.toContain(WORKSPACE_THEMES_TABLE);
+    expect(CONTROL_READ_COLUMNS[WORKSPACE_THEMES_TABLE]).toBeUndefined();
+    expect(sql).not.toContain(`ON "control"."${WORKSPACE_THEMES_TABLE}" TO %I`);
+    expect(grantEnvironmentStatements("staging").join("\n")).not.toContain(WORKSPACE_THEMES_TABLE);
   });
 
   it("adds the appearance columns and the workspace lock the draft save path reads", () => {
@@ -281,6 +292,13 @@ describe("the appearance tables' grants (D1, D2)", () => {
     expect(sql).toContain('ALTER TABLE "control"."form_versions" ADD COLUMN "appearance" jsonb');
     expect(sql).toContain(
       'ALTER TABLE "control"."organization" ADD COLUMN "appearanceLocked" boolean DEFAULT false NOT NULL',
+    );
+    expect(sql).toContain('"page_tint" boolean DEFAULT false NOT NULL');
+  });
+
+  it("makes the logo key the content address at the database, not a caller's promise", () => {
+    expect(sql).toContain(
+      `CONSTRAINT "${APPEARANCE_LOGOS_DIGEST_CHECK}" CHECK ("control"."${APPEARANCE_LOGOS_TABLE}"."key" = encode(sha256("control"."${APPEARANCE_LOGOS_TABLE}"."bytes"), 'hex'))`,
     );
   });
 

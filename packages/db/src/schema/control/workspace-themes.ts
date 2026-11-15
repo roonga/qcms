@@ -1,7 +1,16 @@
 import { sql } from "drizzle-orm";
-import { check, customType, jsonb, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  check,
+  customType,
+  jsonb,
+  text,
+  timestamp,
+  uniqueIndex,
+  uuid,
+} from "drizzle-orm/pg-core";
 
-import type { AppearanceFace, AppearancePalettes } from "@roonga/qcms-core";
+import type { AppearanceCorners, AppearanceFace, AppearancePalettes } from "@roonga/qcms-core";
 
 import { authOrganization } from "./auth.js";
 
@@ -21,6 +30,7 @@ export type LogoContentType = (typeof LOGO_CONTENT_TYPES)[number];
 export const LOGO_MAX_BYTES = 524_288;
 
 export const APPEARANCE_LOGOS_KEY_CHECK = "appearance_logos_key_hex";
+export const APPEARANCE_LOGOS_DIGEST_CHECK = "appearance_logos_key_matches_bytes";
 export const APPEARANCE_LOGOS_CONTENT_TYPE_CHECK = "appearance_logos_content_type";
 export const APPEARANCE_LOGOS_SIZE_CHECK = "appearance_logos_size";
 export const WORKSPACE_THEMES_CORNERS_CHECK = "workspace_themes_corners";
@@ -57,6 +67,9 @@ export const appearanceLogos = controlSchema.table(
       APPEARANCE_LOGOS_SIZE_CHECK,
       sql`octet_length(${t.bytes}) > 0 and octet_length(${t.bytes}) <= 524288`,
     ),
+    // Declared after the shape CHECK so a malformed key reports that one, which is the
+    // narrower message. Content addressing is a database invariant, not a caller's promise.
+    check(APPEARANCE_LOGOS_DIGEST_CHECK, sql`${t.key} = encode(sha256(${t.bytes}), 'hex')`),
   ],
 );
 
@@ -75,7 +88,9 @@ export const workspaceThemes = controlSchema.table(
     name: text("name").notNull(),
     palettes: jsonb("palettes").$type<AppearancePalettes>().notNull(),
     face: text("face").$type<AppearanceFace>().notNull(),
-    corners: text("corners").notNull(),
+    corners: text("corners").$type<AppearanceCorners>().notNull(),
+    /** `Appearance.pageTint` in `@roonga/qcms-core`, which requires it, so this is `NOT NULL`. */
+    pageTint: boolean("page_tint").notNull().default(false),
     /** No cascade and no `ON DELETE SET NULL`: the bytes outlive every theme that names them. */
     logoKey: text("logo_key").references(() => appearanceLogos.key),
     /** The host a derive read. Null for a theme made by hand. */

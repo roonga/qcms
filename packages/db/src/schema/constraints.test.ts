@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
@@ -10,6 +12,7 @@ import {
   ACCESS_AUDIT_KINDS,
   ACCESS_AUDIT_KIND_CHECK,
   APPEARANCE_LOGOS_CONTENT_TYPE_CHECK,
+  APPEARANCE_LOGOS_DIGEST_CHECK,
   APPEARANCE_LOGOS_KEY_CHECK,
   APPEARANCE_LOGOS_SIZE_CHECK,
   LOGO_MAX_BYTES,
@@ -79,30 +82,28 @@ describe("the logo store refuses anything it could not serve back (D2)", () => {
     );
   }
 
+  const digestOf = (bytes: Buffer): string => createHash("sha256").update(bytes).digest("hex");
   const png = Buffer.from("png-bytes");
 
   it("accepts a raster logo under the cap", async () => {
-    await storeLogo({ key: "1".repeat(64), contentType: "image/png", bytes: png });
+    await storeLogo({ key: digestOf(png), contentType: "image/png", bytes: png });
     const stored = await testDb.client.query<{ n: number }>(
       `select octet_length(bytes)::int as n from appearance_logos where key = $1`,
-      ["1".repeat(64)],
+      [digestOf(png)],
     );
     expect(stored.rows[0]!.n).toBe(png.byteLength);
   });
 
   it("refuses a logo over the cap", async () => {
+    const oversized = Buffer.alloc(LOGO_MAX_BYTES + 1, 1);
     await expect(
-      storeLogo({
-        key: "2".repeat(64),
-        contentType: "image/png",
-        bytes: Buffer.alloc(LOGO_MAX_BYTES + 1, 1),
-      }),
+      storeLogo({ key: digestOf(oversized), contentType: "image/png", bytes: oversized }),
     ).rejects.toMatchObject({ constraint: APPEARANCE_LOGOS_SIZE_CHECK });
   });
 
   it("refuses an unknown content type, SVG included", async () => {
     await expect(
-      storeLogo({ key: "3".repeat(64), contentType: "image/svg+xml", bytes: png }),
+      storeLogo({ key: digestOf(png), contentType: "image/svg+xml", bytes: png }),
     ).rejects.toMatchObject({ constraint: APPEARANCE_LOGOS_CONTENT_TYPE_CHECK });
   });
 
@@ -110,6 +111,16 @@ describe("the logo store refuses anything it could not serve back (D2)", () => {
     await expect(
       storeLogo({ key: "not-a-digest", contentType: "image/png", bytes: png }),
     ).rejects.toMatchObject({ constraint: APPEARANCE_LOGOS_KEY_CHECK });
+  });
+
+  it("refuses a well-formed key that is not the digest of these bytes", async () => {
+    await expect(
+      storeLogo({
+        key: digestOf(Buffer.from("other-bytes")),
+        contentType: "image/png",
+        bytes: png,
+      }),
+    ).rejects.toMatchObject({ constraint: APPEARANCE_LOGOS_DIGEST_CHECK });
   });
 });
 
@@ -131,6 +142,24 @@ describe("workspace_themes pins its vocabulary and its name", () => {
   it("refuses a second theme of the same name in one workspace", async () => {
     await insertTheme("House", "rounded");
     await expect(insertTheme("House", "sharp")).rejects.toMatchObject({ code: "23505" });
+  });
+
+  it("carries the page tint, defaulted off, because the shared module requires the flag", async () => {
+    await insertTheme("Untinted", "subtle");
+    await testDb.client.query(
+      `insert into workspace_themes (workspace_id, name, palettes, face, corners, page_tint)
+       values ($1, 'Tinted', '{}'::jsonb, 'system', 'subtle', true)`,
+      [SEED_WORKSPACE_ID],
+    );
+    const stored = await testDb.client.query<{ name: string; page_tint: boolean }>(
+      `select name, page_tint from workspace_themes
+        where workspace_id = $1 and name in ('Untinted', 'Tinted') order by name`,
+      [SEED_WORKSPACE_ID],
+    );
+    expect(stored.rows).toEqual([
+      { name: "Tinted", page_tint: true },
+      { name: "Untinted", page_tint: false },
+    ]);
   });
 });
 
