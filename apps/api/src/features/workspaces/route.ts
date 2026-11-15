@@ -256,7 +256,7 @@ export const uploadThemeLogoRoute = createRoute({
       description: "The stored logo's key",
       content: { "application/json": { schema: ThemeLogoResponse } },
     },
-    ...errorResponses(400, 401, 403, 404, 413, 415),
+    ...errorResponses(400, 401, 403, 404, 413, 422),
   },
   ...withScopes("forms:write"),
 });

@@ -68,7 +68,7 @@ const fail = {
   notRaster: (): ApiError =>
     new ApiError(
       "LOGO_NOT_RASTER",
-      415,
+      422,
       "A logo must be a PNG, JPEG or WebP image. The bytes decide, not the request's content type, and SVG is refused.",
     ),
 } as const;
@@ -249,8 +249,12 @@ function decodeBase64(value: string): Buffer {
   return bytes;
 }
 
-async function sha256Hex(bytes: Uint8Array): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
+async function sha256Hex(bytes: Buffer): Promise<string> {
+  // Copied into a plain view: a `Buffer` is backed by a pooled `ArrayBufferLike`, which
+  // `crypto.subtle.digest` does not take.
+  const view = new Uint8Array(bytes.byteLength);
+  view.set(bytes);
+  const digest = await crypto.subtle.digest("SHA-256", view);
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
