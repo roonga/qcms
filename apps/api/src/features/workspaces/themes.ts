@@ -256,7 +256,7 @@ export function makeDeleteWorkspaceThemeHandler(
 }
 
 // `atob`/`btoa` rather than `Buffer`, which is a `node:*` API this layer stays clear of.
-function decodeBase64(value: string): Uint8Array {
+function decodeBase64(value: string): Uint8Array<ArrayBuffer> {
   const trimmed = value.replaceAll(/\s/gu, "");
   let binary: string;
   try {
@@ -267,12 +267,12 @@ function decodeBase64(value: string): Uint8Array {
   // Round-tripped, because `atob` accepts padding and alphabet variants that re-encode to
   // something else, and a key that is the digest of the bytes may not depend on which.
   if (btoa(binary) !== trimmed) throw fail.malformedLogo();
-  const bytes = new Uint8Array(binary.length);
+  const bytes = new Uint8Array(new ArrayBuffer(binary.length));
   for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
   return bytes;
 }
 
-async function sha256Hex(bytes: Uint8Array): Promise<string> {
+async function sha256Hex(bytes: Uint8Array<ArrayBuffer>): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
