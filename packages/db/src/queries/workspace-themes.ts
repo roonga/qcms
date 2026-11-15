@@ -139,7 +139,7 @@ export async function updateWorkspaceTheme(
   return row;
 }
 
-/** Removes the theme row alone. The logo bytes it named outlive it and are never deleted. */
+/** Removes the theme row alone. The logo bytes it named outlive it until a takedown. */
 export async function deleteWorkspaceTheme(
   exec: Executor,
   workspaceId: string,

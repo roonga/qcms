@@ -8239,7 +8239,7 @@
       },
       "delete": {
         "summary": "Delete a workspace theme (Edit forms)",
-        "description": "Edit forms in that workspace. A Workspace administrator or a Site administrator who holds no Edit forms grant there is refused, because theming is authoring and not administration (docs/WORKSPACE_ACCESS.md section 3). Removes the theme row and no logo: the logo store is immutable and undeletable, so every draft and version that copied this theme keeps its image.",
+        "description": "Edit forms in that workspace. A Workspace administrator or a Site administrator who holds no Edit forms grant there is refused, because theming is authoring and not administration (docs/WORKSPACE_ACCESS.md section 3). Removes the theme row and no logo, so every draft and version that copied this theme keeps its image. Only a Site administrator takedown removes a logo.",
         "tags": [
           "workspaces"
         ],

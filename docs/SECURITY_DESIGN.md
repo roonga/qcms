@@ -666,13 +666,15 @@ It holds **no privilege of any kind** on `user`, `session`, `account`, `verifica
 That is the property an API-layer check cannot buy: a defect on the anonymous respondent path cannot rewrite a grant row or a staff session, because the connection it runs on has no grant on those tables at all.
 And an author never reads a production answer at the database, because the connection the authoring routes run on has no grant on `data_prod`.
 
-**The logo store is read by column, and no role can delete a logo (Code Owner, 2026-11-15, task 108).**
+**The logo store is read by column, and no application role can delete a logo directly (Code Owner, 2026-11-15, task 108; revised 2026-11-16, task 109).**
 `control.appearance_logos` holds the raster bytes a form's appearance names, keyed by the SHA-256 of those bytes, and two CHECKs pin that: the key must be 64 lowercase hex characters and must equal `encode(sha256(bytes), 'hex')`, so a row whose key does not name its own bytes cannot be stored at all.
 The logo route answers an **unauthenticated** respondent off the serving pool, so every `qcms_app_<env>` needs those bytes - and holds `SELECT` on `key`, `content_type` and `bytes` **only**, a COLUMN grant rather than the table, so `created_by` and `created_at` are unreadable on that pool and a defect there cannot learn who uploaded which logo or when.
-The control pool holds `SELECT` and `INSERT` and nothing else.
-**No role can change or remove a stored logo, and there is deliberately no cleanup path.**
-`UPDATE` and `DELETE` are revoked from every `qcms_app%` role by prefix, and two triggers in `control` reject both against **every** role, the migration credential included, because a key a draft, a theme or a published version carries has to resolve to the same image forever (ADR-07): an `UPDATE` would make the key a lie, and a `DELETE` would empty the logo out of a frozen version.
-The accepted consequence is that **every upload is permanent**, at up to 512 KiB each, and that a takedown is not an application act: removing one would take a migration that drops those triggers first, which is a decision rather than an operation.
+The control pool holds `SELECT` and `INSERT` on the table and nothing else.
+**No role can change a stored logo, and the only removal is a Site administrator's takedown.**
+`UPDATE` and `DELETE` are revoked from every `qcms_app%` role by prefix, and two triggers in `control` reject both against **every** role, the migration credential included, so a key always names the same bytes: an `UPDATE` would make the key a lie.
+The one exception is the takedown (`DELETE /admin/logos/{key}`, section 3.2): migration 0012 adds a `SECURITY DEFINER` function owned by the migration credential, `search_path` pinned, `EXECUTE` revoked from `PUBLIC` and granted to `qcms_app_control` alone, which sets the key-scoped flag the delete trigger honours, deletes that one key and clears the flag.
+A direct `DELETE` is still refused for every role, and `UPDATE` stays refused with no exception.
+A takedown clears the key off every theme; a draft or a published version that froze the key is served the uniform 404 an unknown key is served, which is the accepted cost of being able to remove an image at all.
 Deleting a theme removes no logo, which is what makes a theme deletable at all.
 
 No application role holds `CREATE` on any schema, any DDL, ownership of anything, or `TRUNCATE`, `REFERENCES` or `TRIGGER`.

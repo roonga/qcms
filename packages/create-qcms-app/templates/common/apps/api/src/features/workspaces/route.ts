@@ -231,8 +231,8 @@ export const deleteWorkspaceThemeRoute = createRoute({
   path: "/workspaces/{id}/themes/{themeId}",
   summary: "Delete a workspace theme (Edit forms)",
   description:
-    `${themeAuthority} Removes the theme row and no logo: the logo store is immutable and ` +
-    "undeletable, so every draft and version that copied this theme keeps its image.",
+    `${themeAuthority} Removes the theme row and no logo, so every draft and version that ` +
+    "copied this theme keeps its image. Only a Site administrator takedown removes a logo.",
   tags: themeTags,
   request: { params: ThemeIdParam },
   responses: {

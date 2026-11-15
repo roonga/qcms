@@ -19,6 +19,7 @@ The routes that read and write appearance, themes and the lock. The lock is the 
   - Set and clear the appearance lock: Workspace administrator of that workspace or Site administrator (Code Owner, 2026-11-13); no second approval, even with the rule on; one `setting` row in the workspace audit.
   - Logo upload on a theme: PNG, JPEG or WebP confirmed by magic-number sniff, size-capped, SVG refused.
   - The logo route: served without a session, fixed content type, `X-Content-Type-Options: nosniff`, from the portal's own origin so SEC-9's `img-src` holds. It serves only a raster logo held in 108's immutable logo storage, for a theme, a draft or a version, and takes no grant.
+- Logo takedown (Code Owner, 2026-11-16, revising the 108 ruling that no role may delete a logo): `DELETE /admin/logos/{key}`, Site administrator only (`installationOnly`), clears the key off every theme, deletes the bytes through migration 0012's `SECURITY DEFINER` function and writes one `logo` row to the site audit. The logo route therefore caches for a day with `must-revalidate`, not as immutable.
 - SEC-3 §3.2 route rows for every new route; `route-policy.ts` rows; agent kinds on these routes stay absent until 117.
 
 ## Exit criteria
@@ -43,7 +44,7 @@ Spec criteria owned: **118, 120, 121, 122, 124**. This task owns those and no ot
 
 ## Migration
 
-None (108 holds the columns).
+`0012_appearance_logo_takedown.sql`: the takedown function and its one `EXECUTE` grant. 108 holds the columns.
 
 ## Gates
 

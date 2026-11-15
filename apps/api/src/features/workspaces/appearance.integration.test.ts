@@ -39,6 +39,7 @@ import { registerServeStep } from "../responses/serve-step/route.js";
 import { registerAnonymousEntry } from "../responses/start-session/route.js";
 import { registerWorkspaces } from "./route.js";
 
+const TIMEOUT_MS = 30_000;
 const ADMIN_ONLY = { public: false, internal: false, admin: true } as const;
 const PUBLIC_ONLY = { public: true, internal: false, admin: false } as const;
 
@@ -285,389 +286,403 @@ async function settingRows(workspaceId: string): Promise<string[]> {
     .filter((detail) => detail.startsWith("setting=appearanceLock"));
 }
 
-describe("workspace themes need Edit forms in that workspace (criterion 118)", () => {
-  it("lets an Edit forms holder save, read, list, change and delete one", async () => {
-    const workspaceId = await newWorkspace("themes-crud");
-    const themeId = await createTheme(workspaceId, "Harbour", "#1d4ed8");
+describe(
+  "workspace themes need Edit forms in that workspace (criterion 118)",
+  { timeout: TIMEOUT_MS },
+  () => {
+    it("lets an Edit forms holder save, read, list, change and delete one", async () => {
+      const workspaceId = await newWorkspace("themes-crud");
+      const themeId = await createTheme(workspaceId, "Harbour", "#1d4ed8");
 
-    const read = await send("GET", `/workspaces/${workspaceId}/themes/${themeId}`);
-    expect(read.status).toBe(200);
-    expect(((await read.json()) as { theme: { name: string } }).theme.name).toBe("Harbour");
+      const read = await send("GET", `/workspaces/${workspaceId}/themes/${themeId}`);
+      expect(read.status).toBe(200);
+      expect(((await read.json()) as { theme: { name: string } }).theme.name).toBe("Harbour");
 
-    const list = await send("GET", `/workspaces/${workspaceId}/themes`);
-    expect(list.status).toBe(200);
-    expect(((await list.json()) as { themes: unknown[] }).themes).toHaveLength(1);
+      const list = await send("GET", `/workspaces/${workspaceId}/themes`);
+      expect(list.status).toBe(200);
+      expect(((await list.json()) as { themes: unknown[] }).themes).toHaveLength(1);
 
-    const changed = await send(
-      "PUT",
-      `/workspaces/${workspaceId}/themes/${themeId}`,
-      themeBody("Harbour at night", "#0f766e"),
-    );
-    expect(changed.status, await changed.clone().text()).toBe(200);
+      const changed = await send(
+        "PUT",
+        `/workspaces/${workspaceId}/themes/${themeId}`,
+        themeBody("Harbour at night", "#0f766e"),
+      );
+      expect(changed.status, await changed.clone().text()).toBe(200);
 
-    const removed = await send("DELETE", `/workspaces/${workspaceId}/themes/${themeId}`);
-    expect(removed.status).toBe(204);
-    expect((await send("GET", `/workspaces/${workspaceId}/themes/${themeId}`)).status).toBe(404);
-  });
-
-  it("refuses a View forms holder", async () => {
-    const workspaceId = await newWorkspace("themes-viewer");
-    const viewer = await seedAdminSession(testDb.db, {
-      label: "themes-viewer",
-      claim: false,
-      owner: false,
-      workspaceId,
-      grants: ["forms.viewer"],
-    });
-    const res = await as(
-      viewer.token,
-      "POST",
-      `/workspaces/${workspaceId}/themes`,
-      themeBody("Refused", "#1d4ed8"),
-    );
-    expect(res.status).toBe(403);
-    expect(await codeOf(res)).toBe("FORBIDDEN");
-  });
-
-  it("refuses an Edit forms holder of another workspace", async () => {
-    const mine = await newWorkspace("themes-mine");
-    const theirs = await newWorkspace("themes-theirs");
-    const elsewhere = await seedAdminSession(testDb.db, {
-      label: "themes-elsewhere",
-      claim: false,
-      owner: false,
-      workspaceId: theirs,
-      grants: ["forms.editor"],
-    });
-    const res = await as(
-      elsewhere.token,
-      "POST",
-      `/workspaces/${mine}/themes`,
-      themeBody("Refused", "#1d4ed8"),
-    );
-    expect(res.status).toBe(403);
-  });
-
-  it("refuses a Workspace administrator and a Site administrator who hold no Edit forms", async () => {
-    const workspaceId = await newWorkspace("themes-administrators");
-    const workspaceAdministrator = await seedAdminSession(testDb.db, {
-      label: "themes-workspace-admin",
-      claim: false,
-      workspaceId,
-      grants: [],
-    });
-    const siteAdministrator = await seedAdminSession(testDb.db, {
-      label: "themes-site-admin",
-      membership: false,
+      const removed = await send("DELETE", `/workspaces/${workspaceId}/themes/${themeId}`);
+      expect(removed.status).toBe(204);
+      expect((await send("GET", `/workspaces/${workspaceId}/themes/${themeId}`)).status).toBe(404);
     });
 
-    for (const actor of [workspaceAdministrator, siteAdministrator]) {
+    it("refuses a View forms holder", async () => {
+      const workspaceId = await newWorkspace("themes-viewer");
+      const viewer = await seedAdminSession(testDb.db, {
+        label: "themes-viewer",
+        claim: false,
+        owner: false,
+        workspaceId,
+        grants: ["forms.viewer"],
+      });
       const res = await as(
-        actor.token,
+        viewer.token,
         "POST",
         `/workspaces/${workspaceId}/themes`,
         themeBody("Refused", "#1d4ed8"),
       );
-      expect(res.status, await res.clone().text()).toBe(403);
-    }
-  });
-
-  it("refuses palettes that fail contrast, with the correction report", async () => {
-    const workspaceId = await newWorkspace("themes-contrast");
-    const body = themeBody("Unreadable", "#1d4ed8") as {
-      palettes: Record<string, Record<string, string>>;
-    };
-    const light = body.palettes["light"] as Record<string, string>;
-    body.palettes["light"] = { ...light, "text-muted": "#d8d8d8" };
-
-    const res = await send("POST", `/workspaces/${workspaceId}/themes`, body);
-    expect(res.status).toBe(422);
-    expect(await codeOf(res)).toBe("APPEARANCE_CONTRAST");
-    const failures = (await detailsOf(res))["failures"] as { palette: string; ratio: number }[];
-    expect(failures.length).toBeGreaterThan(0);
-    expect(failures[0]?.palette).toBe("light");
-  });
-
-  it("refuses a second theme with a name the workspace already uses", async () => {
-    const workspaceId = await newWorkspace("themes-name");
-    await createTheme(workspaceId, "Only one", "#1d4ed8");
-    const again = await send(
-      "POST",
-      `/workspaces/${workspaceId}/themes`,
-      themeBody("Only one", "#0f766e"),
-    );
-    expect(again.status).toBe(409);
-    expect(await codeOf(again)).toBe("THEME_NAME_TAKEN");
-  });
-
-  it("refuses a theme naming a logo key nothing was stored under", async () => {
-    const workspaceId = await newWorkspace("themes-unknown-logo");
-    const res = await send("POST", `/workspaces/${workspaceId}/themes`, {
-      ...themeBody("Phantom", "#1d4ed8"),
-      logoKey: "b".repeat(64),
-    });
-    expect(res.status).toBe(422);
-    // Its own code: the serving route's 404 is `LOGO_NOT_FOUND` and this is not that.
-    expect(await codeOf(res)).toBe("LOGO_UNKNOWN");
-  });
-
-  it("answers the uniform theme 404 for an id that is not a uuid, on every theme route", async () => {
-    const workspaceId = await newWorkspace("themes-bad-id");
-    const probes: [string, string, unknown][] = [
-      ["GET", `/workspaces/${workspaceId}/themes/thm_x`, undefined],
-      ["PUT", `/workspaces/${workspaceId}/themes/thm_x`, themeBody("Nope", "#1d4ed8")],
-      ["DELETE", `/workspaces/${workspaceId}/themes/thm_x`, undefined],
-      ["POST", `/workspaces/${workspaceId}/themes/thm_x/logo`, { bytesBase64: pngBase64(0x44) }],
-    ];
-    for (const [method, path, body] of probes) {
-      const res = await send(method, path, body);
-      expect(res.status, `${method} ${path}`).toBe(404);
-      expect(await codeOf(res)).toBe("THEME_NOT_FOUND");
-    }
-  });
-});
-
-describe("the appearance lock is a workspace setting (criterion 120)", () => {
-  it("is set and cleared by a Workspace administrator and by a Site administrator", async () => {
-    const workspaceId = await newWorkspace("lock-administrators");
-    const workspaceAdministrator = await seedAdminSession(testDb.db, {
-      label: "lock-workspace-admin",
-      claim: false,
-      workspaceId,
-      grants: [],
-    });
-    const siteAdministrator = await seedAdminSession(testDb.db, {
-      label: "lock-site-admin",
-      membership: false,
+      expect(res.status).toBe(403);
+      expect(await codeOf(res)).toBe("FORBIDDEN");
     });
 
-    const set = await as(
-      workspaceAdministrator.token,
-      "PUT",
-      `/workspaces/${workspaceId}/appearance-lock`,
-      {
-        locked: true,
-      },
-    );
-    expect(set.status, await set.clone().text()).toBe(200);
-    expect((await set.json()) as unknown).toMatchObject({ appearanceLocked: true });
-
-    const cleared = await as(
-      siteAdministrator.token,
-      "PUT",
-      `/workspaces/${workspaceId}/appearance-lock`,
-      {
-        locked: false,
-      },
-    );
-    expect(cleared.status, await cleared.clone().text()).toBe(200);
-    expect((await cleared.json()) as unknown).toMatchObject({ appearanceLocked: false });
-  });
-
-  it("refuses an Edit forms holder", async () => {
-    const workspaceId = await newWorkspace("lock-editor");
-    const onlyEditor = await seedAdminSession(testDb.db, {
-      label: "lock-only-editor",
-      claim: false,
-      owner: false,
-      workspaceId,
-      grants: ["forms.editor"],
+    it("refuses an Edit forms holder of another workspace", async () => {
+      const mine = await newWorkspace("themes-mine");
+      const theirs = await newWorkspace("themes-theirs");
+      const elsewhere = await seedAdminSession(testDb.db, {
+        label: "themes-elsewhere",
+        claim: false,
+        owner: false,
+        workspaceId: theirs,
+        grants: ["forms.editor"],
+      });
+      const res = await as(
+        elsewhere.token,
+        "POST",
+        `/workspaces/${mine}/themes`,
+        themeBody("Refused", "#1d4ed8"),
+      );
+      expect(res.status).toBe(403);
     });
-    const res = await as(onlyEditor.token, "PUT", `/workspaces/${workspaceId}/appearance-lock`, {
-      locked: true,
-    });
-    expect(res.status).toBe(403);
-  });
 
-  it("applies at once with second approval on, and writes exactly one setting row", async () => {
-    const workspaceId = await newWorkspace("lock-audit");
-    await setRequireSecondApprover(testDb.db, workspaceId, true);
-
-    const set = await send("PUT", `/workspaces/${workspaceId}/appearance-lock`, { locked: true });
-    expect(set.status, await set.clone().text()).toBe(200);
-    expect(await settingRows(workspaceId)).toEqual(["setting=appearanceLock to=true"]);
-
-    // A repeat changes nothing, so it records nothing: the audit holds acts, not requests.
-    const again = await send("PUT", `/workspaces/${workspaceId}/appearance-lock`, { locked: true });
-    expect(again.status).toBe(200);
-    expect(await settingRows(workspaceId)).toHaveLength(1);
-
-    const cleared = await send("PUT", `/workspaces/${workspaceId}/appearance-lock`, {
-      locked: false,
-    });
-    expect(cleared.status).toBe(200);
-    // Sorted, because the suite's clock is fixed: both rows carry one `occurred_at` and
-    // their order is the tiebreaker's, which is not what this asserts.
-    expect([...(await settingRows(workspaceId))].sort()).toEqual([
-      "setting=appearanceLock to=false",
-      "setting=appearanceLock to=true",
-    ]);
-  });
-});
-
-describe("a locked workspace refuses every appearance change (criterion 121)", () => {
-  async function lockedFormWith(appearance: Appearance | null): Promise<{
-    workspaceId: string;
-    formId: FormId;
-  }> {
-    const workspaceId = await newWorkspace("locked");
-    const formId = await newForm(workspaceId);
-    const saved = await send("PUT", `/forms/${formId}/draft`, {
-      definition: definitionFor(formId),
-      ...(appearance === null ? {} : { appearance }),
-    });
-    expect(saved.status, await saved.clone().text()).toBe(200);
-    const locked = await send("PUT", `/workspaces/${workspaceId}/appearance-lock`, {
-      locked: true,
-    });
-    expect(locked.status).toBe(200);
-    return { workspaceId, formId };
-  }
-
-  it("refuses an Edit forms holder, a Workspace administrator and a Site administrator alike", async () => {
-    const { workspaceId, formId } = await lockedFormWith(appearanceFor("#1d4ed8"));
-    const actors = [
-      editor,
-      await seedAdminSession(testDb.db, {
-        label: "locked-workspace-admin",
+    it("refuses a Workspace administrator and a Site administrator who hold no Edit forms", async () => {
+      const workspaceId = await newWorkspace("themes-administrators");
+      const workspaceAdministrator = await seedAdminSession(testDb.db, {
+        label: "themes-workspace-admin",
         claim: false,
         workspaceId,
-        grants: ["forms.editor"],
-      }),
-      await seedAdminSession(testDb.db, {
-        label: "locked-site-admin",
+        grants: [],
+      });
+      const siteAdministrator = await seedAdminSession(testDb.db, {
+        label: "themes-site-admin",
+        membership: false,
+      });
+
+      for (const actor of [workspaceAdministrator, siteAdministrator]) {
+        const res = await as(
+          actor.token,
+          "POST",
+          `/workspaces/${workspaceId}/themes`,
+          themeBody("Refused", "#1d4ed8"),
+        );
+        expect(res.status, await res.clone().text()).toBe(403);
+      }
+    });
+
+    it("refuses palettes that fail contrast, with the correction report", async () => {
+      const workspaceId = await newWorkspace("themes-contrast");
+      const body = themeBody("Unreadable", "#1d4ed8") as {
+        palettes: Record<string, Record<string, string>>;
+      };
+      const light = body.palettes["light"] as Record<string, string>;
+      body.palettes["light"] = { ...light, "text-muted": "#d8d8d8" };
+
+      const res = await send("POST", `/workspaces/${workspaceId}/themes`, body);
+      expect(res.status).toBe(422);
+      expect(await codeOf(res)).toBe("APPEARANCE_CONTRAST");
+      const failures = (await detailsOf(res))["failures"] as { palette: string; ratio: number }[];
+      expect(failures.length).toBeGreaterThan(0);
+      expect(failures[0]?.palette).toBe("light");
+    });
+
+    it("refuses a second theme with a name the workspace already uses", async () => {
+      const workspaceId = await newWorkspace("themes-name");
+      await createTheme(workspaceId, "Only one", "#1d4ed8");
+      const again = await send(
+        "POST",
+        `/workspaces/${workspaceId}/themes`,
+        themeBody("Only one", "#0f766e"),
+      );
+      expect(again.status).toBe(409);
+      expect(await codeOf(again)).toBe("THEME_NAME_TAKEN");
+    });
+
+    it("refuses a theme naming a logo key nothing was stored under", async () => {
+      const workspaceId = await newWorkspace("themes-unknown-logo");
+      const res = await send("POST", `/workspaces/${workspaceId}/themes`, {
+        ...themeBody("Phantom", "#1d4ed8"),
+        logoKey: "b".repeat(64),
+      });
+      expect(res.status).toBe(422);
+      // Its own code: the serving route's 404 is `LOGO_NOT_FOUND` and this is not that.
+      expect(await codeOf(res)).toBe("LOGO_UNKNOWN");
+    });
+
+    it("answers the uniform theme 404 for an id that is not a uuid, on every theme route", async () => {
+      const workspaceId = await newWorkspace("themes-bad-id");
+      const probes: [string, string, unknown][] = [
+        ["GET", `/workspaces/${workspaceId}/themes/thm_x`, undefined],
+        ["PUT", `/workspaces/${workspaceId}/themes/thm_x`, themeBody("Nope", "#1d4ed8")],
+        ["DELETE", `/workspaces/${workspaceId}/themes/thm_x`, undefined],
+        ["POST", `/workspaces/${workspaceId}/themes/thm_x/logo`, { bytesBase64: pngBase64(0x44) }],
+      ];
+      for (const [method, path, body] of probes) {
+        const res = await send(method, path, body);
+        expect(res.status, `${method} ${path}`).toBe(404);
+        expect(await codeOf(res)).toBe("THEME_NOT_FOUND");
+      }
+    });
+  },
+);
+
+describe(
+  "the appearance lock is a workspace setting (criterion 120)",
+  { timeout: TIMEOUT_MS },
+  () => {
+    it("is set and cleared by a Workspace administrator and by a Site administrator", async () => {
+      const workspaceId = await newWorkspace("lock-administrators");
+      const workspaceAdministrator = await seedAdminSession(testDb.db, {
+        label: "lock-workspace-admin",
+        claim: false,
+        workspaceId,
+        grants: [],
+      });
+      const siteAdministrator = await seedAdminSession(testDb.db, {
+        label: "lock-site-admin",
+        membership: false,
+      });
+
+      const set = await as(
+        workspaceAdministrator.token,
+        "PUT",
+        `/workspaces/${workspaceId}/appearance-lock`,
+        {
+          locked: true,
+        },
+      );
+      expect(set.status, await set.clone().text()).toBe(200);
+      expect((await set.json()) as unknown).toMatchObject({ appearanceLocked: true });
+
+      const cleared = await as(
+        siteAdministrator.token,
+        "PUT",
+        `/workspaces/${workspaceId}/appearance-lock`,
+        {
+          locked: false,
+        },
+      );
+      expect(cleared.status, await cleared.clone().text()).toBe(200);
+      expect((await cleared.json()) as unknown).toMatchObject({ appearanceLocked: false });
+    });
+
+    it("refuses an Edit forms holder", async () => {
+      const workspaceId = await newWorkspace("lock-editor");
+      const onlyEditor = await seedAdminSession(testDb.db, {
+        label: "lock-only-editor",
+        claim: false,
+        owner: false,
         workspaceId,
         grants: ["forms.editor"],
-      }),
-    ];
+      });
+      const res = await as(onlyEditor.token, "PUT", `/workspaces/${workspaceId}/appearance-lock`, {
+        locked: true,
+      });
+      expect(res.status).toBe(403);
+    });
 
-    for (const actor of actors) {
-      const res = await as(actor.token, "PUT", `/forms/${formId}/draft`, {
+    it("applies at once with second approval on, and writes exactly one setting row", async () => {
+      const workspaceId = await newWorkspace("lock-audit");
+      await setRequireSecondApprover(testDb.db, workspaceId, true);
+
+      const set = await send("PUT", `/workspaces/${workspaceId}/appearance-lock`, { locked: true });
+      expect(set.status, await set.clone().text()).toBe(200);
+      expect(await settingRows(workspaceId)).toEqual(["setting=appearanceLock to=true"]);
+
+      // A repeat changes nothing, so it records nothing: the audit holds acts, not requests.
+      const again = await send("PUT", `/workspaces/${workspaceId}/appearance-lock`, {
+        locked: true,
+      });
+      expect(again.status).toBe(200);
+      expect(await settingRows(workspaceId)).toHaveLength(1);
+
+      const cleared = await send("PUT", `/workspaces/${workspaceId}/appearance-lock`, {
+        locked: false,
+      });
+      expect(cleared.status).toBe(200);
+      // Sorted, because the suite's clock is fixed: both rows carry one `occurred_at` and
+      // their order is the tiebreaker's, which is not what this asserts.
+      expect([...(await settingRows(workspaceId))].sort()).toEqual([
+        "setting=appearanceLock to=false",
+        "setting=appearanceLock to=true",
+      ]);
+    });
+  },
+);
+
+describe(
+  "a locked workspace refuses every appearance change (criterion 121)",
+  { timeout: TIMEOUT_MS },
+  () => {
+    async function lockedFormWith(appearance: Appearance | null): Promise<{
+      workspaceId: string;
+      formId: FormId;
+    }> {
+      const workspaceId = await newWorkspace("locked");
+      const formId = await newForm(workspaceId);
+      const saved = await send("PUT", `/forms/${formId}/draft`, {
         definition: definitionFor(formId),
+        ...(appearance === null ? {} : { appearance }),
+      });
+      expect(saved.status, await saved.clone().text()).toBe(200);
+      const locked = await send("PUT", `/workspaces/${workspaceId}/appearance-lock`, {
+        locked: true,
+      });
+      expect(locked.status).toBe(200);
+      return { workspaceId, formId };
+    }
+
+    it("refuses an Edit forms holder, a Workspace administrator and a Site administrator alike", async () => {
+      const { workspaceId, formId } = await lockedFormWith(appearanceFor("#1d4ed8"));
+      const actors = [
+        editor,
+        await seedAdminSession(testDb.db, {
+          label: "locked-workspace-admin",
+          claim: false,
+          workspaceId,
+          grants: ["forms.editor"],
+        }),
+        await seedAdminSession(testDb.db, {
+          label: "locked-site-admin",
+          workspaceId,
+          grants: ["forms.editor"],
+        }),
+      ];
+
+      for (const actor of actors) {
+        const res = await as(actor.token, "PUT", `/forms/${formId}/draft`, {
+          definition: definitionFor(formId),
+          appearance: appearanceFor("#0f766e"),
+        });
+        expect(res.status, await res.clone().text()).toBe(409);
+        expect(await codeOf(res)).toBe("APPEARANCE_LOCKED");
+      }
+    });
+
+    it("refuses an appearance on the assistant's own draft path, locked or not (SEC-17)", async () => {
+      // The proposal digest binds the form id and the definition only, so an appearance on
+      // a tokened save was never on the card. It is refused until the digest binds it,
+      // which is a stronger answer than the lock and does not depend on one.
+      async function tokenedSave(
+        formId: FormId,
+        proposalId: string,
+        body: Record<string, unknown>,
+      ): Promise<Response> {
+        const definition = definitionFor(formId);
+        const args = { formId: String(formId), definition: { ...definition, formId: undefined } };
+        const token = await signProposalToken(deps.config.keys.app, {
+          sub: editor.userId,
+          pid: proposalId,
+          steps: [
+            {
+              kind: "form.saveDraft",
+              argsDigest: await argumentsDigest(args),
+              environment: "prod",
+            },
+          ],
+          formId: String(formId),
+          issuedAt: deps.clock.now(),
+        });
+        return as(
+          editor.token,
+          "PUT",
+          `/forms/${formId}/draft`,
+          { definition, ...body },
+          { [PROPOSAL_HEADER]: token, [PROPOSAL_STEP_HEADER]: "0" },
+        );
+      }
+
+      const locked = await lockedFormWith(appearanceFor("#1d4ed8"));
+      const refused = await tokenedSave(locked.formId, "prp_locked_0001", {
         appearance: appearanceFor("#0f766e"),
       });
-      expect(res.status, await res.clone().text()).toBe(409);
-      expect(await codeOf(res)).toBe("APPEARANCE_LOCKED");
-    }
-  });
+      expect(refused.status, await refused.clone().text()).toBe(422);
+      expect(await codeOf(refused)).toBe("APPEARANCE_NOT_IN_PROPOSAL");
 
-  it("refuses an appearance on the assistant's own draft path, locked or not (SEC-17)", async () => {
-    // The proposal digest binds the form id and the definition only, so an appearance on
-    // a tokened save was never on the card. It is refused until the digest binds it,
-    // which is a stronger answer than the lock and does not depend on one.
-    async function tokenedSave(
-      formId: FormId,
-      proposalId: string,
-      body: Record<string, unknown>,
-    ): Promise<Response> {
-      const definition = definitionFor(formId);
-      const args = { formId: String(formId), definition: { ...definition, formId: undefined } };
-      const token = await signProposalToken(deps.config.keys.app, {
-        sub: editor.userId,
-        pid: proposalId,
-        steps: [
-          {
-            kind: "form.saveDraft",
-            argsDigest: await argumentsDigest(args),
-            environment: "prod",
-          },
-        ],
-        formId: String(formId),
-        issuedAt: deps.clock.now(),
+      // Unlocked, and still refused: the refusal is the proposal's shape, not the lock.
+      const openWorkspace = await newWorkspace("agent-appearance");
+      const openForm = await newForm(openWorkspace);
+      const unlocked = await tokenedSave(openForm, "prp_open_0001", {
+        appearance: appearanceFor("#0f766e"),
       });
-      return as(
-        editor.token,
-        "PUT",
-        `/forms/${formId}/draft`,
-        { definition, ...body },
-        { [PROPOSAL_HEADER]: token, [PROPOSAL_STEP_HEADER]: "0" },
-      );
-    }
+      expect(unlocked.status, await unlocked.clone().text()).toBe(422);
+      expect(await codeOf(unlocked)).toBe("APPEARANCE_NOT_IN_PROPOSAL");
 
-    const locked = await lockedFormWith(appearanceFor("#1d4ed8"));
-    const refused = await tokenedSave(locked.formId, "prp_locked_0001", {
-      appearance: appearanceFor("#0f766e"),
+      // Carrying none still saves, under the lock as well: that is the kind as it stands.
+      const carried = await tokenedSave(locked.formId, "prp_locked_0002", {});
+      expect(carried.status, await carried.clone().text()).toBe(200);
     });
-    expect(refused.status, await refused.clone().text()).toBe(422);
-    expect(await codeOf(refused)).toBe("APPEARANCE_NOT_IN_PROPOSAL");
 
-    // Unlocked, and still refused: the refusal is the proposal's shape, not the lock.
-    const openWorkspace = await newWorkspace("agent-appearance");
-    const openForm = await newForm(openWorkspace);
-    const unlocked = await tokenedSave(openForm, "prp_open_0001", {
-      appearance: appearanceFor("#0f766e"),
+    it("accepts a save that changes no appearance, whether it is omitted or echoed back", async () => {
+      const appearance = appearanceFor("#1d4ed8");
+      const { formId } = await lockedFormWith(appearance);
+
+      const omitted = await send("PUT", `/forms/${formId}/draft`, {
+        definition: definitionFor(formId),
+      });
+      expect(omitted.status, await omitted.clone().text()).toBe(200);
+
+      const echoed = await send("PUT", `/forms/${formId}/draft`, {
+        definition: definitionFor(formId),
+        appearance,
+      });
+      expect(echoed.status, await echoed.clone().text()).toBe(200);
+      expect((await getDraft(testDb.db, formId))?.appearance).toStrictEqual(appearance);
     });
-    expect(unlocked.status, await unlocked.clone().text()).toBe(422);
-    expect(await codeOf(unlocked)).toBe("APPEARANCE_NOT_IN_PROPOSAL");
 
-    // Carrying none still saves, under the lock as well: that is the kind as it stands.
-    const carried = await tokenedSave(locked.formId, "prp_locked_0002", {});
-    expect(carried.status, await carried.clone().text()).toBe(200);
-  });
+    it("refuses a draft appearance that fails contrast, with the correction report", async () => {
+      const workspaceId = await newWorkspace("draft-contrast");
+      const formId = await newForm(workspaceId);
+      const appearance = appearanceFor("#1d4ed8");
+      const broken = {
+        ...appearance,
+        palettes: {
+          ...appearance.palettes,
+          dark: { ...appearance.palettes.dark, "text-muted": "#2a2a2a" },
+        },
+      };
 
-  it("accepts a save that changes no appearance, whether it is omitted or echoed back", async () => {
-    const appearance = appearanceFor("#1d4ed8");
-    const { formId } = await lockedFormWith(appearance);
-
-    const omitted = await send("PUT", `/forms/${formId}/draft`, {
-      definition: definitionFor(formId),
+      const res = await send("PUT", `/forms/${formId}/draft`, {
+        definition: definitionFor(formId),
+        appearance: broken,
+      });
+      expect(res.status).toBe(422);
+      expect(await codeOf(res)).toBe("APPEARANCE_CONTRAST");
+      const failures = (await detailsOf(res))["failures"] as { palette: string }[];
+      expect(failures.some((failure) => failure.palette === "dark")).toBe(true);
     });
-    expect(omitted.status, await omitted.clone().text()).toBe(200);
 
-    const echoed = await send("PUT", `/forms/${formId}/draft`, {
-      definition: definitionFor(formId),
-      appearance,
+    it("refuses a draft logo key nothing was stored under, as the theme path does", async () => {
+      const workspaceId = await newWorkspace("draft-unknown-logo");
+      const formId = await newForm(workspaceId);
+      const res = await send("PUT", `/forms/${formId}/draft`, {
+        definition: definitionFor(formId),
+        appearance: appearanceFor("#1d4ed8", "b".repeat(64)),
+      });
+      expect(res.status, await res.clone().text()).toBe(422);
+      expect(await codeOf(res)).toBe("LOGO_UNKNOWN");
     });
-    expect(echoed.status, await echoed.clone().text()).toBe(200);
-    expect((await getDraft(testDb.db, formId))?.appearance).toStrictEqual(appearance);
-  });
 
-  it("refuses a draft appearance that fails contrast, with the correction report", async () => {
-    const workspaceId = await newWorkspace("draft-contrast");
-    const formId = await newForm(workspaceId);
-    const appearance = appearanceFor("#1d4ed8");
-    const broken = {
-      ...appearance,
-      palettes: {
-        ...appearance.palettes,
-        dark: { ...appearance.palettes.dark, "text-muted": "#2a2a2a" },
-      },
-    };
-
-    const res = await send("PUT", `/forms/${formId}/draft`, {
-      definition: definitionFor(formId),
-      appearance: broken,
+    it("refuses an appearance that is not one, before the lock is ever consulted", async () => {
+      const workspaceId = await newWorkspace("draft-invalid");
+      const formId = await newForm(workspaceId);
+      const res = await send("PUT", `/forms/${formId}/draft`, {
+        definition: definitionFor(formId),
+        appearance: { face: "comicsans" },
+      });
+      expect(res.status).toBe(422);
+      expect(await codeOf(res)).toBe("INVALID_APPEARANCE");
     });
-    expect(res.status).toBe(422);
-    expect(await codeOf(res)).toBe("APPEARANCE_CONTRAST");
-    const failures = (await detailsOf(res))["failures"] as { palette: string }[];
-    expect(failures.some((failure) => failure.palette === "dark")).toBe(true);
-  });
+  },
+);
 
-  it("refuses a draft logo key nothing was stored under, as the theme path does", async () => {
-    const workspaceId = await newWorkspace("draft-unknown-logo");
-    const formId = await newForm(workspaceId);
-    const res = await send("PUT", `/forms/${formId}/draft`, {
-      definition: definitionFor(formId),
-      appearance: appearanceFor("#1d4ed8", "b".repeat(64)),
-    });
-    expect(res.status, await res.clone().text()).toBe(422);
-    expect(await codeOf(res)).toBe("LOGO_UNKNOWN");
-  });
-
-  it("refuses an appearance that is not one, before the lock is ever consulted", async () => {
-    const workspaceId = await newWorkspace("draft-invalid");
-    const formId = await newForm(workspaceId);
-    const res = await send("PUT", `/forms/${formId}/draft`, {
-      definition: definitionFor(formId),
-      appearance: { face: "comicsans" },
-    });
-    expect(res.status).toBe(422);
-    expect(await codeOf(res)).toBe("INVALID_APPEARANCE");
-  });
-});
-
-describe("the logo route (criterion 122)", () => {
+describe("the logo route (criterion 122)", { timeout: TIMEOUT_MS }, () => {
   it("stores a sniffed raster and serves it with no session, a fixed type and nosniff", async () => {
     const workspaceId = await newWorkspace("logo-serve");
     const themeId = await createTheme(workspaceId, "With a logo", "#1d4ed8");
@@ -737,7 +752,7 @@ describe("the logo route (criterion 122)", () => {
   });
 });
 
-describe("appearance travels by value (criterion 124)", () => {
+describe("appearance travels by value (criterion 124)", { timeout: TIMEOUT_MS }, () => {
   it("keeps a draft's and a version's appearance when the theme is changed and deleted", async () => {
     const workspaceId = await newWorkspace("by-value");
     const themeId = await createTheme(workspaceId, "Applied", "#1d4ed8");
@@ -795,7 +810,7 @@ describe("appearance travels by value (criterion 124)", () => {
 
     expect((await getDraft(testDb.db, formId))?.appearance).toStrictEqual(applied);
     expect((await getFormVersion(testDb.db, formId, version))?.appearance).toStrictEqual(applied);
-    // The logo store is immutable and undeletable, so the bytes outlive the theme.
+    // Deleting a theme removes no logo; only a Site administrator takedown does.
     expect((await serveLogo(logoKey)).status).toBe(200);
   });
 
@@ -861,41 +876,45 @@ describe("appearance travels by value (criterion 124)", () => {
   });
 });
 
-describe("a respondent keeps the appearance of the version they started (A2, ADR-07)", () => {
-  it("carries it on start-session and on every step, and a later version does not reach it", async () => {
-    const workspaceId = await newWorkspace("respondent-appearance");
-    const formId = await newForm(workspaceId);
-    const first = appearanceFor("#1d4ed8");
-    const savedFirst = await send("PUT", `/forms/${formId}/draft`, {
-      definition: definitionFor(formId),
-      appearance: first,
+describe(
+  "a respondent keeps the appearance of the version they started (A2, ADR-07)",
+  { timeout: TIMEOUT_MS },
+  () => {
+    it("carries it on start-session and on every step, and a later version does not reach it", async () => {
+      const workspaceId = await newWorkspace("respondent-appearance");
+      const formId = await newForm(workspaceId);
+      const first = appearanceFor("#1d4ed8");
+      const savedFirst = await send("PUT", `/forms/${formId}/draft`, {
+        definition: definitionFor(formId),
+        appearance: first,
+      });
+      expect(savedFirst.status, await savedFirst.clone().text()).toBe(200);
+      await publishAndRelease(formId);
+
+      const session = await startSession(slugOf(formId));
+      expect(session.appearance).toStrictEqual(first);
+      expect(await stepOf(session.sessionId, session.sessionToken)).toStrictEqual(first);
+
+      // A second version with a different appearance, released over the first.
+      const second = appearanceFor("#b91c1c");
+      const savedSecond = await send("PUT", `/forms/${formId}/draft`, {
+        definition: definitionFor(formId),
+        appearance: second,
+      });
+      expect(savedSecond.status, await savedSecond.clone().text()).toBe(200);
+      await publishAndRelease(formId);
+
+      // The running session is pinned, so its step still carries the first appearance.
+      expect(await stepOf(session.sessionId, session.sessionToken)).toStrictEqual(first);
+      // A session started now gets the second, which is what makes the pin above mean something.
+      const later = await startSession(slugOf(formId));
+      expect(later.appearance).toStrictEqual(second);
+      expect(await stepOf(later.sessionId, later.sessionToken)).toStrictEqual(second);
     });
-    expect(savedFirst.status, await savedFirst.clone().text()).toBe(200);
-    await publishAndRelease(formId);
+  },
+);
 
-    const session = await startSession(slugOf(formId));
-    expect(session.appearance).toStrictEqual(first);
-    expect(await stepOf(session.sessionId, session.sessionToken)).toStrictEqual(first);
-
-    // A second version with a different appearance, released over the first.
-    const second = appearanceFor("#b91c1c");
-    const savedSecond = await send("PUT", `/forms/${formId}/draft`, {
-      definition: definitionFor(formId),
-      appearance: second,
-    });
-    expect(savedSecond.status, await savedSecond.clone().text()).toBe(200);
-    await publishAndRelease(formId);
-
-    // The running session is pinned, so its step still carries the first appearance.
-    expect(await stepOf(session.sessionId, session.sessionToken)).toStrictEqual(first);
-    // A session started now gets the second, which is what makes the pin above mean something.
-    const later = await startSession(slugOf(formId));
-    expect(later.appearance).toStrictEqual(second);
-    expect(await stepOf(later.sessionId, later.sessionToken)).toStrictEqual(second);
-  });
-});
-
-describe("a Site administrator may take a stored logo down", () => {
+describe("a Site administrator may take a stored logo down", { timeout: TIMEOUT_MS }, () => {
   async function storedLogo(label: string, fill: number): Promise<string> {
     const workspaceId = await newWorkspace(label);
     const themeId = await createTheme(workspaceId, "Takedown", "#1d4ed8");

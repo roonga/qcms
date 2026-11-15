@@ -239,8 +239,8 @@ export function makeUpdateWorkspaceThemeHandler(
 }
 
 /**
- * Removes the theme row and no logo: the bytes are immutable and undeletable, so every
- * draft and version that copied this theme keeps the image it carries (criterion 124).
+ * Removes the theme row and no logo, so every draft and version that copied this theme keeps
+ * the image it carries (criterion 124). Only a Site administrator takedown removes a logo.
  */
 export function makeDeleteWorkspaceThemeHandler(
   deps: Deps,
