@@ -376,6 +376,32 @@ describe("the audit column and the response routes agree (criterion 8)", () => {
     expect(row?.audit).toBe("setting");
   });
 
+  it("gives every theme route Edit forms and the lock the administrator's cell (criteria 118, 120)", () => {
+    for (const [method, path] of [
+      ["GET", "/admin/workspaces/org_x/themes"],
+      ["POST", "/admin/workspaces/org_x/themes"],
+      ["GET", "/admin/workspaces/org_x/themes/thm_x"],
+      ["PUT", "/admin/workspaces/org_x/themes/thm_x"],
+      ["DELETE", "/admin/workspaces/org_x/themes/thm_x"],
+      ["POST", "/admin/workspaces/org_x/themes/thm_x/logo"],
+    ] as const) {
+      expect(policyForRequest(method, path), `${method} ${path}`).toMatchObject({
+        resource: "form",
+        action: "write",
+        workspace: "path",
+      });
+    }
+
+    const lock = policyForRequest("PUT", "/admin/workspaces/org_x/appearance-lock");
+    expect(lock).toMatchObject({
+      resource: "workspace",
+      action: "update",
+      workspace: "path",
+      audit: "setting",
+    });
+    expect(lock?.installationOnly).toBeUndefined();
+  });
+
   it("gives the rename route the workspace administrator's cell, in the named workspace (criterion 97)", () => {
     const row = policyForRequest("PUT", "/admin/workspaces/org_x/name");
     expect(row).toMatchObject({

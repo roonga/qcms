@@ -5,6 +5,7 @@
  */
 
 import { Buffer } from "node:buffer";
+import { createHash } from "node:crypto";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -19,6 +20,7 @@ import {
   getReleasedVersion,
   getWebhook,
   getWorkspace,
+  insertAppearanceLogo,
   insertFormVersion,
   listAccessAudit,
   setRequireSecondApprover,
@@ -176,9 +178,24 @@ beforeAll(async () => {
   });
   probeTeamId = seeded.teamIds["forms.viewer"] as string;
 
+  // A logo really in the store, so the positive control on the logo route serves bytes
+  // rather than proving a 404 is a 404.
+  const logoBytes = Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    Buffer.alloc(32, 0x5a),
+  ]);
+  const logoKey = createHash("sha256").update(logoBytes).digest("hex");
+  await insertAppearanceLogo(testDb.db, {
+    key: logoKey,
+    contentType: "image/png",
+    bytes: logoBytes,
+    actor: null,
+  });
+
   ctx = {
     formId,
     formSlug: slug,
+    logoKey,
     sessionId: a.body.sessionId,
     otherSessionId: b.body.sessionId,
     linkId: LINK_ID,
