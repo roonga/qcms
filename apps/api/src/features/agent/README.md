@@ -181,7 +181,7 @@ The draft preamble that asks for changes is sent only on a screen that offers a
 propose verb, so a screen holding the draft for a read tool alone is not told to
 propose against it.
 
-## One prefix, cached
+## One prefix, cached, and the volatile part after it
 
 The tools and the instructions are the same bytes on every step of every turn, at
 full grants about 140,000 characters of them, and a turn runs up to
@@ -191,6 +191,11 @@ and knows nothing of its shape, and a provider with no such control is sent
 nothing. **One breakpoint covers the tools as well as the instructions**, because
 the cacheable prefix is the tools, then the instructions, then the messages, so a
 marker on the instructions closes over both.
+
+The screen's facts and the form's draft are different on every turn, so they sit
+**after** the turns that can no longer change and **before** the person's own
+latest words, and a second breakpoint rides the last of those settled turns: the
+history is then read from the cache rather than resent.
 
 The tool set and the kinds the propose tools advertise are ordered by their
 registries rather than by the order the caller's workspaces came back in
