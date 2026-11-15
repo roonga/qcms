@@ -4,7 +4,7 @@ import type { Resource } from "../../membership/policy.js";
 import type { ScreenId } from "../screens.js";
 
 /**
- * One action kind's descriptor (section 6.2). It is the whole of what the propose tools,
+ * One action kind's descriptor (section 6.2). It is the whole of what the propose tool,
  * the grant filter and the provenance check know about a kind, so none can be
  * half-declared.
  */

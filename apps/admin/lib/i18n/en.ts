@@ -1594,7 +1594,6 @@ export const messages = {
   "forms.assist.step.list_erasures": "Reading the erasure log",
   "forms.assist.step.list_workspaces": "Listing the workspaces",
   "forms.assist.step.read_workspace": "Reading a workspace",
-  "forms.assist.step.propose_action": "Preparing an action for you to confirm",
   "forms.assist.step.propose_plan": "Preparing a plan for you to confirm",
 
   "forms.assist.diffCount.one": "1 change proposed.",

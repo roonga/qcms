@@ -1,5 +1,5 @@
 /**
- * The grant filter (section 6.1): the kinds offered in the propose tools' schemas, as
+ * The grant filter (section 6.1): the kinds offered in the propose tool's schema, as
  * (kind, environment) pairs the route middleware's own evaluator allows. Every registered
  * kind is considered whatever screen the turn is on; execution remains the limit.
  */

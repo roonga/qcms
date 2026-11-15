@@ -72,7 +72,6 @@ describe("the agent tool registry", () => {
       "list_webhooks",
       "list_workspaces",
       "project_draft",
-      "propose_action",
       "propose_draft",
       "propose_plan",
       "propose_questions",
@@ -86,8 +85,8 @@ describe("the agent tool registry", () => {
     ]);
   });
 
-  it("splits the propose tools from the read tools, and names no screen's read list", () => {
-    expect([...AGENT_PROPOSE_TOOL_NAMES].sort()).toEqual(["propose_action", "propose_plan"]);
+  it("splits the propose tool from the read tools, and names no screen's read list", () => {
+    expect([...AGENT_PROPOSE_TOOL_NAMES]).toEqual(["propose_plan"]);
     expect([...AGENT_READ_TOOL_NAMES, ...AGENT_PROPOSE_TOOL_NAMES].sort()).toEqual(
       [...AGENT_TOOL_NAMES].sort(),
     );
@@ -99,7 +98,6 @@ describe("the agent tool registry", () => {
     );
 
     expect([...offered].sort()).toEqual([
-      "propose_action",
       "propose_draft",
       "propose_plan",
       "propose_questions",
@@ -184,7 +182,7 @@ describe("a scripted rogue model", () => {
     expect(logged).toContain("draft assistant tool call rejected");
     expect(logged).toContain(tool);
 
-    expect(events.filter((e) => e.type === "action")).toHaveLength(0);
+    expect(events.filter((e) => e.type === "plan")).toHaveLength(0);
   });
 });
 

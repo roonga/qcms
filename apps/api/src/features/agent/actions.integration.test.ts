@@ -229,12 +229,10 @@ async function turn(args: {
   return readEvents(res);
 }
 
-type ProposalEvent = Extract<AssistEvent, { type: "action" | "plan" }>;
+type ProposalEvent = Extract<AssistEvent, { type: "plan" }>;
 
 function proposals(events: readonly AssistEvent[]): ProposalEvent[] {
-  return events.filter(
-    (event): event is ProposalEvent => event.type === "action" || event.type === "plan",
-  );
+  return events.filter((event): event is ProposalEvent => event.type === "plan");
 }
 
 function stepSummary(event: ProposalEvent): { kind: string; environment: string }[] {
@@ -394,7 +392,7 @@ describe("the two caps (criterion 15)", () => {
       });
       const cards = proposals(events);
       expect(cards).toHaveLength(1);
-      expect(cards[0]?.type).toBe("action");
+      expect(cards[0]?.type).toBe("plan");
       expect(cards[0] === undefined ? [] : stepSummary(cards[0])).toEqual([
         { kind: "link.mint", environment: "test" },
       ]);
@@ -450,7 +448,6 @@ describe("a read-only user is offered no write (criterion 3)", () => {
       const offered = Array.isArray(call?.tools)
         ? (call.tools as { name?: unknown }[]).map((tool) => tool.name)
         : [];
-      expect(offered).not.toContain("propose_action");
       expect(offered).not.toContain("propose_plan");
 
       // The prompt's standing sentence covers the case; the structural half above is what
