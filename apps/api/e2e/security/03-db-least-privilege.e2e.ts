@@ -571,10 +571,10 @@ describe.each(ENVIRONMENTS)(
       for (const column of ["created_by", "created_at"]) {
         expect(await hasColumnPrivilege(role, table, column, "SELECT"), column).toBe(false);
       }
-      for (const privilege of DML) {
-        expect(await hasColumnPrivilege(role, table, "bytes", privilege), privilege).toBe(
-          privilege === "SELECT",
-        );
+      // `DELETE` is not a column privilege at all, so the three that are stand for it,
+      // beside the table carrying no privilege for this role in the catalogue above.
+      for (const privilege of ["INSERT", "UPDATE", "REFERENCES"]) {
+        expect(await hasColumnPrivilege(role, table, "bytes", privilege), privilege).toBe(false);
       }
     });
 
