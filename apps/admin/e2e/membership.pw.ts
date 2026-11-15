@@ -127,7 +127,7 @@ test("the two-person switch states all three of its effects", async ({ page }) =
   await expect(twoPerson).not.toBeChecked();
 
   for (const effect of [
-    "A release to production is refused for the account that published the version",
+    "A publish to production is refused for the account that froze the version",
     "a production endpoint change takes a second approver's confirmation",
     "nobody can give themselves a response role",
   ]) {
