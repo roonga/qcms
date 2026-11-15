@@ -213,7 +213,10 @@ export const messages = {
     "That password was refused. Choose a longer one you have not used elsewhere.",
   /** One answer for unknown, used and expired, so a link tells a stranger nothing. */
   "claim.linkRefused":
-    "That sign-in link cannot be used. A link works once and expires 72 hours after it was sent. Ask a site administrator to send you a new one.",
+    "That sign-in link cannot be used. A link works once and expires 72 hours after it was sent.",
+  /** Shown whenever the screen has no token, so it never offers a form that cannot work. */
+  "claim.useLinkAgain":
+    "Open the sign-in link in your email again. If it no longer works, ask a site administrator to send you a new one.",
 
   "enroll.title": "Set up two-factor authentication",
   "enroll.intro":
