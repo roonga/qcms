@@ -93,15 +93,15 @@ better-auth instance:
   so nothing it writes is later decrypted elsewhere.
 - **But the API's own secret must then stay stable, or enrolment dies.** better-auth stores
   the TOTP secret encrypted under it and decrypts with whatever the current value is -
-  checked against the source of better-auth 1.7.14, the pinned version, not inferred:
+  checked against the source of better-auth 1.7.22, the pinned version, not inferred:
   `symmetricEncrypt({ key: ctx.context.secretConfig, ... })` at
-  `dist/plugins/two-factor/index.mjs:135-138`, decrypt at
+  `dist/plugins/two-factor/index.mjs:191-194`, decrypt at
   `dist/plugins/two-factor/totp/index.mjs:19-20`, <!-- expect: symmetricDecrypt(options) -->
   called at `:153-156` for verification and `:102-105` for the URI reveal. Change the
   secret and the authenticator's codes are rejected for good - **and so are the recovery
   codes**, which this file used to claim survive because better-auth stores them as plain
   JSON. It does not: the plugin defaults `storeBackupCodes` to `"encrypted"`
-  (`dist/plugins/two-factor/index.mjs:25-27`), so all ten (`.../backup-codes/index.mjs:15`,
+  (`dist/plugins/two-factor/index.mjs:59-61`), so all ten (`.../backup-codes/index.mjs:15`,
   `amount ?? 10`) are encrypted under the same key (issue #319). `pnpm dev:admin` generates
   a fresh secret when the variable is unset (and says so on startup), which is why the
   block above exports it first. In a deployment, change the secret through the versioned

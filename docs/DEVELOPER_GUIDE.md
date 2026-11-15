@@ -110,11 +110,11 @@ process.
 **Pin `QCMS_ADMIN_AUTH_SECRET` in your environment before you enrol, though.** It is the
 key better-auth encrypts the stored TOTP secret under, so changing it does not just
 invalidate cookies - it makes an existing enrolment permanently unverifiable. Checked
-against the source of better-auth 1.7.14, the pinned version, rather than inferred:
+against the source of better-auth 1.7.22, the pinned version, rather than inferred:
 `two-factor/enable` stores
 the secret with `symmetricEncrypt({ key: ctx.context.secretConfig, ... })`
-(`dist/plugins/two-factor/index.mjs:135-138`) and every verification decrypts with the
-_current_ key (`dist/plugins/two-factor/totp/index.mjs:188`, and `:122` for the URI
+(`dist/plugins/two-factor/index.mjs:191-194`) and every verification decrypts with the
+_current_ key (`dist/plugins/two-factor/totp/index.mjs:153-156`, and `:102-105` for the URI
 reveal). `pnpm dev:portal` and `pnpm dev:admin` generate a fresh secret when the variable
 is unset, so an unpinned restart leaves your authenticator's codes rejected for good.
 `pnpm dev:admin` says so on startup rather than leaving you to remember it.
@@ -122,7 +122,7 @@ is unset, so an unpinned restart leaves your authenticator's codes rejected for 
 **Nothing is left in that state, including the recovery codes.** This guide used to say
 the ten recovery codes survive an unpinned restart because better-auth stores them as
 plain JSON - that was wrong (issue #319). The plugin defaults `storeBackupCodes` to
-`"encrypted"` (`dist/plugins/two-factor/index.mjs:25-27`; the decoder
+`"encrypted"` (`dist/plugins/two-factor/index.mjs:59-61`; the decoder
 `getBackupCodes` at `.../backup-codes/index.mjs:44` takes its encrypted branch on `:45`
 and falls through to the plain-JSON `return safeJSONParse(backupCodes)` on `:56` <!-- expect: return safeJSONParse(backupCodes) --> only
 when a caller _overrides_ the default), so

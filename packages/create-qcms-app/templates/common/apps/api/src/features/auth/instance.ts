@@ -40,7 +40,7 @@ export const AUTH_BASE_PATH = "/api/auth";
 /**
  * A literal in the library rather than a configurable name: `findCredentialAccount` looks
  * the row up with `value: "credential"`
- * (`dist/db/internal-adapter.mjs:667-684`) <!-- expect: value: "credential" -->, so the
+ * (`dist/db/internal-adapter.mjs:699-716`) <!-- expect: value: "credential" -->, so the
  * `account.update.after` hook below needs it to tell that row from an OAuth account.
  */
 const CREDENTIAL_PROVIDER_ID = "credential";
@@ -69,12 +69,12 @@ export function warnIfBreachCheckDisabled(
  * Read back off `await auth.$context`, which the limiter itself consults, never echoed from
  * the options passed in. Without an explicit `rateLimit.enabled` the default follows `NODE_ENV`:
  * `dist/context/create-context.mjs:172` <!-- expect: options.rateLimit?.enabled ?? isProduction -->
- * `@better-auth/core/dist/env/env-impl.mjs:32` <!-- expect: isProduction = nodeENV === "production" -->
+ * `@better-auth/core/dist/env/env-impl.mjs:33` <!-- expect: isProduction = nodeENV === "production" -->
  * `dist/api/rate-limiter/index.mjs:293` <!-- expect: if (!ctx.rateLimit.enabled) return -->
  * `@better-auth/core/dist/utils/ip.mjs:206` <!-- expect: ipAddressHeaders || DEFAULT_IP_HEADERS -->
  * The vendor's numbers are module-private, so they are not reported as an observation:
  * `dist/api/rate-limiter/index.mjs:305-311` <!-- expect: window: 10, max: 3 -->
- * `dist/plugins/two-factor/index.mjs:338-344` <!-- expect: path.startsWith("/two-factor/") -->
+ * `dist/plugins/two-factor/index.mjs:389-395` <!-- expect: path.startsWith("/two-factor/") -->
  */
 export interface SignInThrottleState {
   readonly enabled: boolean;
@@ -318,7 +318,7 @@ export function createAdminAuth(input: AdminAuthInput) {
           /**
            * Every sign-in shape mints the session here, the pending-second-factor one
            * included, which creates it and then deletes it:
-           * `dist/plugins/two-factor/index.mjs:291` <!-- expect: internalAdapter.deleteSession(data.session.token) -->
+           * `dist/plugins/two-factor/index.mjs:339` <!-- expect: internalAdapter.deleteSession(data.session.token) -->
            * The claim is deliberately not read: an unclaimed account reaches its own claim.
            */
           before: async (session) => {
@@ -334,7 +334,7 @@ export function createAdminAuth(input: AdminAuthInput) {
            * Clearing the flag is ours : the hash write follows the password verify:
            * `dist/api/routes/update-user.mjs:175` <!-- expect: internalAdapter.updateAccount(account.id, { password: passwordHash }) -->
            * `dist/api/routes/update-user.mjs:169` <!-- expect: password.verify -->
-           * `dist/db/internal-adapter.mjs:711` <!-- expect: updateWithHooks -->
+           * `dist/db/internal-adapter.mjs:743` <!-- expect: updateWithHooks -->
            * The `providerId` guard keeps an OAuth token refresh from clearing the flag. Hooks drain on commit:
            * `@better-auth/core/dist/context/transaction.mjs:139` <!-- expect: if (!store?.isTransactionActive) return executeHook(); -->
            * `@better-auth/core/dist/context/transaction.mjs:90,109` <!-- expect: for (const hook of pendingHooks) -->
@@ -373,7 +373,7 @@ export function createAdminAuth(input: AdminAuthInput) {
         skipVerificationOnEnable: false,
         backupCodeOptions: {
           // Pin encrypted recovery-code storage so a vendor default change cannot weaken key protection.
-          // `dist/plugins/two-factor/index.mjs:25-27` <!-- expect: storeBackupCodes: "encrypted" -->
+          // `dist/plugins/two-factor/index.mjs:59-61` <!-- expect: storeBackupCodes: "encrypted" -->
           storeBackupCodes: "encrypted",
         },
       }),
