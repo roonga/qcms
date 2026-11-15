@@ -2,11 +2,10 @@ import { ApiError } from "../../errors.js";
 import type { AdminAuth } from "./instance.js";
 
 /**
- * The allowlisted endpoints the mount does not judge by the request's session. Sign-in
- * carries its identity in the body rather than in the cookie, and the `session.create.before`
- * hook refuses the account it names; sign-out deletes only the session its own cookie names,
- * so every account can clear one. Judging either by the cookie refuses a person whose browser
- * still holds a stale session.
+ * The allowlisted endpoints the mount does not judge by the request's session, because a
+ * stale cookie decides neither: the `session.create.before` hook answers the sign-in, which
+ * carries its identity in the body, and a sign-out deletes only the session its own cookie
+ * names, so every account can clear one.
  */
 export const SESSION_CHECK_EXEMPT_ENDPOINTS: readonly string[] = [
   "POST /sign-in/email",
