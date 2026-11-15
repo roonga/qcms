@@ -121,7 +121,10 @@ async function newWorkspace(label: string): Promise<string> {
   const res = await send("POST", "/workspaces", { name: slug, slug });
   expect(res.status, await res.clone().text()).toBe(201);
   const created = (await res.json()) as { workspace: { workspaceId: string } };
-  await seedGrants(testDb.db, { userId: editor.userId, workspaceId: created.workspace.workspaceId });
+  await seedGrants(testDb.db, {
+    userId: editor.userId,
+    workspaceId: created.workspace.workspaceId,
+  });
   return created.workspace.workspaceId;
 }
 
@@ -373,15 +376,25 @@ describe("the appearance lock is a workspace setting (criterion 120)", () => {
       membership: false,
     });
 
-    const set = await as(workspaceAdministrator.token, "PUT", `/workspaces/${workspaceId}/appearance-lock`, {
-      locked: true,
-    });
+    const set = await as(
+      workspaceAdministrator.token,
+      "PUT",
+      `/workspaces/${workspaceId}/appearance-lock`,
+      {
+        locked: true,
+      },
+    );
     expect(set.status, await set.clone().text()).toBe(200);
     expect((await set.json()) as unknown).toMatchObject({ appearanceLocked: true });
 
-    const cleared = await as(siteAdministrator.token, "PUT", `/workspaces/${workspaceId}/appearance-lock`, {
-      locked: false,
-    });
+    const cleared = await as(
+      siteAdministrator.token,
+      "PUT",
+      `/workspaces/${workspaceId}/appearance-lock`,
+      {
+        locked: false,
+      },
+    );
     expect(cleared.status, await cleared.clone().text()).toBe(200);
     expect((await cleared.json()) as unknown).toMatchObject({ appearanceLocked: false });
   });
@@ -591,10 +604,9 @@ describe("the logo route (criterion 122)", () => {
     expect(refusedSvg.status).toBe(422);
     expect(await codeOf(refusedSvg)).toBe("LOGO_NOT_RASTER");
 
-    const polyglot = Buffer.concat([
-      Buffer.from("<svg/>"),
-      Buffer.from(PNG_SIGNATURE),
-    ]).toString("base64");
+    const polyglot = Buffer.concat([Buffer.from("<svg/>"), Buffer.from(PNG_SIGNATURE)]).toString(
+      "base64",
+    );
     const refusedPolyglot = await uploadLogo(workspaceId, themeId, polyglot);
     expect(refusedPolyglot.status).toBe(422);
     expect(await codeOf(refusedPolyglot)).toBe("LOGO_NOT_RASTER");

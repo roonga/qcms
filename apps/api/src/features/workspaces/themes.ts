@@ -39,7 +39,11 @@ import type {
 
 const fail = {
   noPrincipal: (): ApiError =>
-    new ApiError("ADMIN_REQUIRED", 401, "This act is attributed to an account, so it needs a session"),
+    new ApiError(
+      "ADMIN_REQUIRED",
+      401,
+      "This act is attributed to an account, so it needs a session",
+    ),
   themeNotFound: (): ApiError => new ApiError("THEME_NOT_FOUND", 404, "No such theme"),
   nameTaken: (name: string): ApiError =>
     new ApiError("THEME_NAME_TAKEN", 409, `This workspace already has a theme named "${name}"`),
@@ -56,11 +60,7 @@ const fail = {
     new ApiError("LOGO_NOT_FOUND", 422, "No stored logo has that key; upload the image first"),
   malformedLogo: (): ApiError => new ApiError("INVALID_LOGO", 400, "The body is not valid base64"),
   logoTooLarge: (): ApiError =>
-    new ApiError(
-      "LOGO_TOO_LARGE",
-      413,
-      `A logo may be at most ${String(LOGO_MAX_BYTES)} bytes`,
-    ),
+    new ApiError("LOGO_TOO_LARGE", 413, `A logo may be at most ${String(LOGO_MAX_BYTES)} bytes`),
   /**
    * One answer for an SVG, a polyglot and anything else the bytes do not declare as one of
    * the three raster types: the sniff is the only authority, so there is nothing more to say.
@@ -332,9 +332,6 @@ export function makeSetAppearanceLockHandler(
       return result.workspace;
     });
 
-    return c.json(
-      { workspaceId: workspace.id, appearanceLocked: workspace.appearanceLocked },
-      200,
-    );
+    return c.json({ workspaceId: workspace.id, appearanceLocked: workspace.appearanceLocked }, 200);
   };
 }

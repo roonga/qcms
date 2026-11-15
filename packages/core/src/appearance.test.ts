@@ -337,9 +337,9 @@ describe("logo sniffing", () => {
   });
 
   it("refuses SVG, however it is dressed", () => {
-    expect(sniffRasterLogo(new Uint8Array(ascii('<svg xmlns="http://www.w3.org/2000/svg"/>')))).toBe(
-      null,
-    );
+    expect(
+      sniffRasterLogo(new Uint8Array(ascii('<svg xmlns="http://www.w3.org/2000/svg"/>'))),
+    ).toBe(null);
     expect(sniffRasterLogo(new Uint8Array(ascii('<?xml version="1.0"?><svg/>')))).toBe(null);
     expect(sniffRasterLogo(new Uint8Array(ascii("\n\n  <svg/>")))).toBe(null);
   });

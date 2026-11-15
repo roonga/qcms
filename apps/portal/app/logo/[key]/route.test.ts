@@ -12,8 +12,7 @@ let upstream: () => Response;
 
 beforeEach(() => {
   requested = [];
-  upstream = () =>
-    new Response(PNG, { status: 200, headers: { "content-type": "image/png" } });
+  upstream = () => new Response(PNG, { status: 200, headers: { "content-type": "image/png" } });
   vi.stubEnv("QCMS_API_BASE_URL", "http://api.internal:4000");
   vi.stubEnv("QCMS_INTERNAL_TOKEN", "internal-token-value-for-this-test-only");
   vi.stubGlobal("fetch", (input: string) => {

@@ -127,7 +127,12 @@ export async function updateWorkspaceTheme(
       updatedBy: input.actor,
       updatedAt: input.now,
     })
-    .where(and(eq(workspaceThemes.workspaceId, input.workspaceId), eq(workspaceThemes.id, input.themeId)))
+    .where(
+      and(
+        eq(workspaceThemes.workspaceId, input.workspaceId),
+        eq(workspaceThemes.id, input.themeId),
+      ),
+    )
     .returning(themeColumns);
   return row;
 }
