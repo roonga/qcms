@@ -1,6 +1,5 @@
 import { claimAccount, enableTwoFactor } from "@/lib/server/auth-api";
 import { CLAIM_PATH, claimRefusalOf } from "@/lib/server/claim";
-import { twoFactorOptional } from "@/lib/server/config";
 import { pendingEnrollmentCookie, recoveryCodesCookie } from "@/lib/server/enrollment";
 import {
   authRefused,
@@ -10,7 +9,7 @@ import {
   isSameOriginPost,
   redirectAfterPost,
 } from "@/lib/server/route-helpers";
-import { ENROLL_PATH, SHELL_HOME_PATH, SIGN_IN_PATH } from "@/lib/server/session";
+import { ENROLL_PATH, SIGN_IN_PATH } from "@/lib/server/session";
 
 /**
  * The claim POST. No session guard: the emailed token is what identifies the account, and
@@ -43,7 +42,11 @@ async function refusedClaim(claimed: Response, token: string): Promise<Response>
   return refusal === "weak" ? claimRedirect("weak", token) : claimRedirect("error");
 }
 
-/** Provision enrolment while the chosen password is still in this request. */
+/**
+ * Provision enrolment while the chosen password is still in this request. A claim always
+ * ends at the second factor: `QCMS_ADMIN_2FA=optional` relaxes sign-in for accounts that
+ * are already claimed, never the claim, which the API writes only once a factor verifies.
+ */
 async function enrolAfterClaim(
   request: Request,
   claimed: Response,
@@ -54,7 +57,6 @@ async function enrolAfterClaim(
   if (body.twoFactorRedirect === true) {
     return redirectAfterPost("/two-factor/challenge", cookies);
   }
-  if (twoFactorOptional()) return redirectAfterPost(SHELL_HOME_PATH, cookies);
 
   const issuedCookie = cookies.map((value) => value.split(";")[0]).join("; ");
   const provisioned = await enableTwoFactor(request.headers, password, issuedCookie);

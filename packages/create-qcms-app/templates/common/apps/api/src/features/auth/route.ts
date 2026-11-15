@@ -42,6 +42,21 @@ export function adminAuthFor(deps: Deps): AdminAuth {
   return built;
 }
 
+/** The account a response's own session belongs to, read back off its `Set-Cookie` headers. */
+async function accountOfIssuedSession(
+  auth: AdminAuth,
+  response: Response,
+): Promise<string | undefined> {
+  const cookie = response.headers
+    .getSetCookie()
+    .map((value) => value.split(";")[0])
+    .filter((value): value is string => value !== undefined && value !== "")
+    .join("; ");
+  if (cookie === "") return undefined;
+  const session = await auth.api.getSession({ headers: new Headers({ cookie }) });
+  return session?.user.id;
+}
+
 export function authSubPath(url: string): string {
   const { pathname } = new URL(url);
   const rest = pathname.startsWith(AUTH_BASE_PATH) ? pathname.slice(AUTH_BASE_PATH.length) : "";
@@ -74,8 +89,12 @@ export const registerAdminAuthProxy: SliceRegistrar = (group, deps) => {
     const response = await auth.handler(request);
     // The claim is finished by the act, not by the screen that posted it: the account
     // holds nothing until a password and a verified second factor both exist.
-    if (enrolling !== null && response.ok) {
-      await claimAfterFactorVerified(deps, enrolling.user.id);
+    if (endpoint === TOTP_VERIFY_ENDPOINT && response.ok) {
+      // The session the response issues is read as well, so a verification posted on the
+      // pending-second-factor cookie, which resolves to none, still finishes a claim whose
+      // write did not land when the factor was first enrolled.
+      const verified = enrolling?.user.id ?? (await accountOfIssuedSession(auth, response));
+      if (verified !== undefined) await claimAfterFactorVerified(deps, verified);
     }
     return response;
   });

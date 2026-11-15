@@ -66,9 +66,11 @@ export const resendSignInLinkRoute = createRoute({
   path: "/accounts/{id}/sign-in-link",
   summary: "Send the account a fresh sign-in link (Site administrator)",
   description:
-    "Issues a new single-use link and invalidates the one before it, so the account " +
-    "holds exactly one usable link. Refused for a claimed account, which has no " +
-    "creation link to resend, and for a disabled one, which is reactivated instead.",
+    "Issues a new single-use link and invalidates every live one before it under the " +
+    "account's own lock, so the account holds exactly one usable link however many " +
+    "resends run at once, and completing the claim invalidates that one too. Refused for " +
+    "a claimed account, which has no creation link to resend, and for a disabled one, " +
+    "which is reactivated instead.",
   tags,
   request: { params: AccountIdParam },
   responses: {

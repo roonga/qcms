@@ -468,6 +468,19 @@ export function makeSetMemberRoleHandler(
           detail: `administrator=${appointed ? "appointed" : "removed"} subject=${userId}`,
           occurredAt: deps.clock.now(),
         });
+        // Appointing an unclaimed account is a grant made while unclaimed like any other,
+        // so it is findable in the site audit as well as in this workspace's own.
+        const subject = appointed ? (await findUsersByIds(tx, [userId]))[0] : undefined;
+        if (subject !== undefined && subject.claimedAt === null) {
+          await writeSiteAuditRow(tx, {
+            actor: actor.userId,
+            subject: userId,
+            workspaceId,
+            kind: "account",
+            detail: "act=grant-while-unclaimed role=administrator",
+            occurredAt: deps.clock.now(),
+          });
+        }
       }
       await writeAgentStep(tx, site, userId, deps.clock.now());
     });

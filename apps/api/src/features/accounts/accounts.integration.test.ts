@@ -1,4 +1,10 @@
-import { authSession, authUser, issueSignInLink, listSiteAudit, signInLinks } from "@roonga/qcms-db";
+import {
+  authSession,
+  authUser,
+  issueSignInLink,
+  listSiteAudit,
+  signInLinks,
+} from "@roonga/qcms-db";
 import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
 import { and, eq, isNull } from "drizzle-orm";
 import { generate } from "otplib";
@@ -476,120 +482,118 @@ describe("claiming an account (criteria 52, 53, 54)", { timeout: CLAIM_TIMEOUT_M
     expect((await authPost("/claim", { token: created.token, password })).status).toBe(200);
   });
 
-  it(
-    "always needs the second factor, and the escape hatch does not stand in for it",
-    async () => {
-      const password = freshPassword();
-      const created = await createAccount("optional.factor@example.test");
-      const claimed = await factorOptional.request("/api/auth/claim", {
-        method: "POST",
-        headers: authHeaders(),
-        body: JSON.stringify({ token: created.token, password }),
-      });
-      expect(claimed.status, await claimed.clone().text()).toBe(200);
-      expect((await accountRow(created.userId)).claimedAt).toBeNull();
-      expect(await siteAuditDetails(created.userId)).not.toContain("act=claim");
-
-      // Read back through the same composition, so the only thing refusing this session
-      // is the claim the hatch did not write.
-      const session = await liveSessionTokenFor(created.userId);
-      const refused = await factorOptional.request("/admin/me/access", {
-        headers: adminHeaders(session),
-      });
-      expect(refused.status).toBe(401);
-    },
-  );
-
-  it(
-    "completes a claim whose write did not land, on the next sign-in and factor check",
-    async () => {
-      const password = freshPassword();
-      const created = await createAccount("late.claim@example.test");
-      const { secret } = await finishClaim(created.token, password);
-
-      // The state a failed claim write leaves behind: the factor is enrolled and nothing
-      // on the account says so.
-      await testDb.db
-        .update(authUser)
-        .set({ claimedAt: null })
-        .where(eq(authUser.id, created.userId));
-      await testDb.db.delete(authSession).where(eq(authSession.userId, created.userId));
-
-      const signedIn = await authPost("/sign-in/email", {
-        email: "late.claim@example.test",
-        password,
-      });
-      expect(signedIn.status).toBe(200);
-      const verified = await authPost(
-        "/two-factor/verify-totp",
-        { code: await generate({ secret }) },
-        cookieHeader(signedIn),
-      );
-      expect(verified.status, await verified.clone().text()).toBe(200);
-      expect((await accountRow(created.userId)).claimedAt).toBeInstanceOf(Date);
-    },
-  );
-});
-
-describe("the SEC-1 breach lookup runs on the chosen password", { timeout: CLAIM_TIMEOUT_MS }, () => {
-  let corpus: { prefixes: string[]; restore: () => void } | undefined;
-
-  afterEach(() => {
-    corpus?.restore();
-    corpus = undefined;
-  });
-
-  async function claimWithCheck(token: string, password: string): Promise<Response> {
-    return breachChecked.request("/api/auth/claim", {
+  it("always needs the second factor, and the escape hatch does not stand in for it", async () => {
+    const password = freshPassword();
+    const created = await createAccount("optional.factor@example.test");
+    const claimed = await factorOptional.request("/api/auth/claim", {
       method: "POST",
       headers: authHeaders(),
-      body: JSON.stringify({ token, password }),
+      body: JSON.stringify({ token: created.token, password }),
     });
-  }
+    expect(claimed.status, await claimed.clone().text()).toBe(200);
+    expect((await accountRow(created.userId)).claimedAt).toBeNull();
+    expect(await siteAuditDetails(created.userId)).not.toContain("act=claim");
 
-  it(
-    "refuses a password the corpus holds and leaves the link unspent",
-    async () => {
-      const password = freshPassword();
-      corpus = stubCorpus([await sha1Hex(password)]);
-      const created = await createAccount("breached@example.test");
+    // Read back through the same composition, so the only thing refusing this session
+    // is the claim the hatch did not write.
+    const session = await liveSessionTokenFor(created.userId);
+    const refused = await factorOptional.request("/admin/me/access", {
+      headers: adminHeaders(session),
+    });
+    expect(refused.status).toBe(401);
+  });
 
-      const refused = await claimWithCheck(created.token, password);
-      expect(refused.status).toBe(400);
-      expect(await errorCodeOf(refused)).toBe("PASSWORD_COMPROMISED");
-      expect(corpus.prefixes).toHaveLength(1);
-      expect(corpus.prefixes[0]).toBe((await sha1Hex(password)).slice(0, 5));
+  it("completes a claim whose write did not land, on the next sign-in and factor check", async () => {
+    const password = freshPassword();
+    const created = await createAccount("late.claim@example.test");
+    const { secret } = await finishClaim(created.token, password);
 
-      const [link] = await testDb.db
-        .select()
-        .from(signInLinks)
-        .where(eq(signInLinks.userId, created.userId));
-      expect(link?.usedAt).toBeNull();
-      expect((await accountRow(created.userId)).claimedAt).toBeNull();
-    },
-    CLAIM_TIMEOUT_MS,
-  );
+    // The state a failed claim write leaves behind: the factor is enrolled and nothing
+    // on the account says so.
+    await testDb.db
+      .update(authUser)
+      .set({ claimedAt: null })
+      .where(eq(authUser.id, created.userId));
+    await testDb.db.delete(authSession).where(eq(authSession.userId, created.userId));
 
-  it(
-    "accepts a password the corpus does not hold, having asked",
-    async () => {
-      const password = freshPassword();
-      corpus = stubCorpus([await sha1Hex(`other-${password}`)]);
-      const created = await createAccount("not.breached@example.test");
-
-      const claimed = await claimWithCheck(created.token, password);
-      expect(claimed.status, await claimed.clone().text()).toBe(200);
-      expect(corpus.prefixes).toHaveLength(1);
-
-      const signedIn = await authPost("/sign-in/email", {
-        email: "not.breached@example.test",
-        password,
-      });
-      expect(signedIn.status).toBe(200);
-    },
-    CLAIM_TIMEOUT_MS,
-  );
+    const signedIn = await authPost("/sign-in/email", {
+      email: "late.claim@example.test",
+      password,
+    });
+    expect(signedIn.status).toBe(200);
+    const verified = await authPost(
+      "/two-factor/verify-totp",
+      { code: await generate({ secret }) },
+      cookieHeader(signedIn),
+    );
+    expect(verified.status, await verified.clone().text()).toBe(200);
+    expect((await accountRow(created.userId)).claimedAt).toBeInstanceOf(Date);
+  });
 });
+
+describe(
+  "the SEC-1 breach lookup runs on the chosen password",
+  { timeout: CLAIM_TIMEOUT_MS },
+  () => {
+    let corpus: { prefixes: string[]; restore: () => void } | undefined;
+
+    afterEach(() => {
+      corpus?.restore();
+      corpus = undefined;
+    });
+
+    async function claimWithCheck(token: string, password: string): Promise<Response> {
+      return breachChecked.request("/api/auth/claim", {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ token, password }),
+      });
+    }
+
+    it(
+      "refuses a password the corpus holds and leaves the link unspent",
+      async () => {
+        const password = freshPassword();
+        corpus = stubCorpus([await sha1Hex(password)]);
+        const created = await createAccount("breached@example.test");
+
+        const refused = await claimWithCheck(created.token, password);
+        expect(refused.status).toBe(400);
+        expect(await errorCodeOf(refused)).toBe("PASSWORD_COMPROMISED");
+        expect(corpus.prefixes).toHaveLength(1);
+        expect(corpus.prefixes[0]).toBe((await sha1Hex(password)).slice(0, 5));
+
+        const [link] = await testDb.db
+          .select()
+          .from(signInLinks)
+          .where(eq(signInLinks.userId, created.userId));
+        expect(link?.usedAt).toBeNull();
+        expect((await accountRow(created.userId)).claimedAt).toBeNull();
+      },
+      CLAIM_TIMEOUT_MS,
+    );
+
+    it(
+      "accepts a password the corpus does not hold, having asked",
+      async () => {
+        const password = freshPassword();
+        corpus = stubCorpus([await sha1Hex(`other-${password}`)]);
+        const created = await createAccount("not.breached@example.test");
+
+        const claimed = await claimWithCheck(created.token, password);
+        expect(claimed.status, await claimed.clone().text()).toBe(200);
+        expect(corpus.prefixes).toHaveLength(1);
+
+        const signedIn = await authPost("/sign-in/email", {
+          email: "not.breached@example.test",
+          password,
+        });
+        expect(signedIn.status).toBe(200);
+      },
+      CLAIM_TIMEOUT_MS,
+    );
+  },
+);
 
 describe("resending the link", { timeout: CLAIM_TIMEOUT_MS }, () => {
   const linkPath = (userId: string): string => `/admin/accounts/${userId}/sign-in-link`;
@@ -656,7 +660,11 @@ describe("resending the link", { timeout: CLAIM_TIMEOUT_MS }, () => {
       const { totpURI } = (await enabled.json()) as { totpURI: string };
       cookie = cookieHeader(enabled) === "" ? cookie : cookieHeader(enabled);
       const secret = new URL(totpURI).searchParams.get("secret") ?? "";
-      const verified = await authPost("/two-factor/verify-totp", { code: await generate({ secret }) }, cookie);
+      const verified = await authPost(
+        "/two-factor/verify-totp",
+        { code: await generate({ secret }) },
+        cookie,
+      );
       expect(verified.status).toBe(200);
       expect((await accountRow(created.userId)).claimedAt).toBeInstanceOf(Date);
 
@@ -684,9 +692,9 @@ describe("resending the link", { timeout: CLAIM_TIMEOUT_MS }, () => {
   );
 
   it("is refused for an account that does not exist", async () => {
-    expect((await adminPost("/admin/accounts/au_missing/sign-in-link", siteAdminToken)).status).toBe(
-      404,
-    );
+    expect(
+      (await adminPost("/admin/accounts/au_missing/sign-in-link", siteAdminToken)).status,
+    ).toBe(404);
   });
 });
 
@@ -781,79 +789,85 @@ describe("adding a member by address (criteria 55, 56)", { timeout: CLAIM_TIMEOU
   });
 });
 
-describe("an unclaimed account is not an administrator (criterion 54)", { timeout: CLAIM_TIMEOUT_MS }, () => {
-  it(
-    "holds the flag and is still not counted by the last administrator guard",
-    async () => {
-      // A workspace of its own, so the count under test is this test's own two accounts
-      // rather than every administrator the suite has seeded elsewhere.
-      const soleAdmin = await createAccount("sole.admin@example.test");
-      await finishClaim(soleAdmin.token, freshPassword());
-      const madeWorkspace = await adminPost("/admin/workspaces", siteAdminToken, {
-        name: "Counting",
-        slug: `counting-${crypto.randomUUID().slice(0, 8)}`,
-        firstAdministratorEmail: "sole.admin@example.test",
-      });
-      expect(madeWorkspace.status, await madeWorkspace.clone().text()).toBe(201);
-      const { workspace } = (await madeWorkspace.json()) as { workspace: { workspaceId: string } };
-      const own = workspace.workspaceId;
+describe(
+  "an unclaimed account is not an administrator (criterion 54)",
+  { timeout: CLAIM_TIMEOUT_MS },
+  () => {
+    it(
+      "holds the flag and is still not counted by the last administrator guard",
+      async () => {
+        // A workspace of its own, so the count under test is this test's own two accounts
+        // rather than every administrator the suite has seeded elsewhere.
+        const soleAdmin = await createAccount("sole.admin@example.test");
+        await finishClaim(soleAdmin.token, freshPassword());
+        const madeWorkspace = await adminPost("/admin/workspaces", siteAdminToken, {
+          name: "Counting",
+          slug: `counting-${crypto.randomUUID().slice(0, 8)}`,
+          firstAdministratorEmail: "sole.admin@example.test",
+        });
+        expect(madeWorkspace.status, await madeWorkspace.clone().text()).toBe(201);
+        const { workspace } = (await madeWorkspace.json()) as {
+          workspace: { workspaceId: string };
+        };
+        const own = workspace.workspaceId;
 
-      const listed = await adminGet(`/admin/workspaces/${own}/access-groups`, siteAdminToken);
-      const { groups } = (await listed.json()) as { groups: { teamId: string }[] };
-      const anyGroup = groups[0]?.teamId ?? "";
-      expect(anyGroup).not.toBe("");
+        const listed = await adminGet(`/admin/workspaces/${own}/access-groups`, siteAdminToken);
+        const { groups } = (await listed.json()) as { groups: { teamId: string }[] };
+        const anyGroup = groups[0]?.teamId ?? "";
+        expect(anyGroup).not.toBe("");
 
-      // An unclaimed account is made a member and then appointed, which is the state the
-      // criterion is about: it holds the flag.
-      const unclaimed = await createAccount("flagged.unclaimed@example.test");
-      const added = await adminPost(
-        `/admin/workspaces/${own}/access-groups/${anyGroup}/holders`,
-        siteAdminToken,
-        { userId: unclaimed.userId },
-      );
-      expect(added.status, await added.clone().text()).toBe(201);
-      const appointed = await adminPut(
-        `/admin/workspaces/${own}/members/${unclaimed.userId}`,
-        siteAdminToken,
-        { role: "forms.owner" },
-      );
-      expect(appointed.status, await appointed.clone().text()).toBe(200);
-      const members = await adminGet(`/admin/workspaces/${own}/members`, siteAdminToken);
-      const { members: rows } = (await members.json()) as {
-        members: { userId: string; role: string }[];
-      };
-      expect(rows.find((row) => row.userId === unclaimed.userId)?.role).toBe("forms.owner");
+        // An unclaimed account is made a member and then appointed, which is the state the
+        // criterion is about: it holds the flag.
+        const unclaimed = await createAccount("flagged.unclaimed@example.test");
+        const added = await adminPost(
+          `/admin/workspaces/${own}/access-groups/${anyGroup}/holders`,
+          siteAdminToken,
+          { userId: unclaimed.userId },
+        );
+        expect(added.status, await added.clone().text()).toBe(201);
+        const appointed = await adminPut(
+          `/admin/workspaces/${own}/members/${unclaimed.userId}`,
+          siteAdminToken,
+          { role: "forms.owner" },
+        );
+        expect(appointed.status, await appointed.clone().text()).toBe(200);
+        const members = await adminGet(`/admin/workspaces/${own}/members`, siteAdminToken);
+        const { members: rows } = (await members.json()) as {
+          members: { userId: string; role: string }[];
+        };
+        expect(rows.find((row) => row.userId === unclaimed.userId)?.role).toBe("forms.owner");
 
-      // Appointing an unclaimed account is a grant while unclaimed, so the site audit
-      // holds it as well as the workspace's own.
-      expect(await siteAuditDetails(unclaimed.userId)).toContain(
-        "act=grant-while-unclaimed role=administrator",
-      );
+        // Appointing an unclaimed account is a grant while unclaimed, so the site audit
+        // holds it as well as the workspace's own.
+        expect(await siteAuditDetails(unclaimed.userId)).toContain(
+          "act=grant-while-unclaimed role=administrator",
+        );
 
-      // Two accounts carry the flag and only one of them counts, so the claimed one is
-      // the last administrator and cannot be removed.
-      const refused = await adminDelete(
-        `/admin/workspaces/${own}/members/${soleAdmin.userId}`,
-        siteAdminToken,
-      );
-      expect(refused.status).toBe(409);
-      expect(await errorCodeOf(refused)).toBe("LAST_ADMINISTRATOR");
+        // Two accounts carry the flag and only one of them counts, so the claimed one is
+        // the last administrator and cannot be removed.
+        const refused = await adminDelete(
+          `/admin/workspaces/${own}/members/${soleAdmin.userId}`,
+          siteAdminToken,
+        );
+        expect(refused.status).toBe(409);
+        expect(await errorCodeOf(refused)).toBe("LAST_ADMINISTRATOR");
 
-      // Claiming the second one is what makes the first removable, which is the whole
-      // difference the criterion names.
-      await testDb.db
-        .update(authUser)
-        .set({ claimedAt: new Date() })
-        .where(eq(authUser.id, unclaimed.userId));
-      const removed = await adminDelete(
-        `/admin/workspaces/${own}/members/${soleAdmin.userId}`,
-        siteAdminToken,
-      );
-      expect(removed.status, await removed.clone().text()).toBe(204);
-    },
-    CLAIM_TIMEOUT_MS,
-  );
-});
+        // Claiming the second one is what makes the first removable, which is the whole
+        // difference the criterion names.
+        await testDb.db
+          .update(authUser)
+          .set({ claimedAt: new Date() })
+          .where(eq(authUser.id, unclaimed.userId));
+        const removed = await adminDelete(
+          `/admin/workspaces/${own}/members/${soleAdmin.userId}`,
+          siteAdminToken,
+        );
+        expect(removed.status, await removed.clone().text()).toBe(204);
+      },
+      CLAIM_TIMEOUT_MS,
+    );
+  },
+);
 
 describe("a backup code never finishes a claim", { timeout: CLAIM_TIMEOUT_MS }, () => {
   it("refuses an unclaimed account at the pending-second-factor step", async () => {
