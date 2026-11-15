@@ -402,6 +402,12 @@ export function createAdminAuth(input: AdminAuthInput) {
                 defaultValue: false,
                 input: false,
               },
+              appearanceLocked: {
+                type: "boolean",
+                required: false,
+                defaultValue: false,
+                input: false,
+              },
               archivedAt: { type: "date", required: false, input: false },
             },
           },
