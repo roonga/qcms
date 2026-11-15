@@ -31,7 +31,7 @@ import type { Resource } from "../membership/policy.js";
 import { PRODUCTION_ENVIRONMENT } from "../membership/policy.js";
 import { holdsInstallationClaim, type ResolvedMembership } from "../membership/resolver.js";
 import { savedDraftPins } from "./draft-pins.js";
-import { offeredActionKinds, offersNoAction, type OfferedActionKind } from "./grant-filter.js";
+import { mergeOffers, offeredActionKinds, offersNoAction } from "./grant-filter.js";
 import { buildProposal } from "./tools/propose.js";
 import {
   AGENT_PROPOSE_TOOL_NAMES,
@@ -226,24 +226,6 @@ function grantedReadTools(
       action: cell.action,
     });
   });
-}
-
-/** The union across the caller's workspaces: a kind held in one of them is offered. */
-function mergeOffers(
-  offers: readonly (readonly OfferedActionKind[])[],
-): readonly OfferedActionKind[] {
-  const byKind = new Map<string, Set<string>>();
-  for (const offer of offers) {
-    for (const entry of offer) {
-      const environments = byKind.get(entry.kind) ?? new Set<string>();
-      for (const environment of entry.environments) environments.add(environment);
-      byKind.set(entry.kind, environments);
-    }
-  }
-  return [...byKind.entries()].map(([kind, environments]) => ({
-    kind,
-    environments: [...environments],
-  }));
 }
 
 /**

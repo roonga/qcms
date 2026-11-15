@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import type { HeldGrant } from "../membership/policy.js";
-import { offeredActionKinds, offeredEnvironments, offersNoAction } from "./grant-filter.js";
+import { ACTION_KIND_NAMES } from "./actions/registry.js";
+import {
+  mergeOffers,
+  offeredActionKinds,
+  offeredEnvironments,
+  offersNoAction,
+} from "./grant-filter.js";
 import type { ScreenId } from "./screens.js";
 
 const ENVIRONMENTS = ["test", "prod"] as const;
@@ -164,5 +170,35 @@ describe("the kinds a caller is offered, whatever screen the turn is on", () => 
       { roles: ["forms.approver"], environments: ["test", "prod"] },
     ];
     expect(kindsOn("/forms/[formId]", unknown)).toEqual([]);
+  });
+});
+
+describe("merging what each workspace offers", () => {
+  const release = (environments: readonly string[]) => [
+    { kind: "form.release", environments: [...environments] },
+  ];
+
+  it("orders kinds by the registry, whatever order the workspaces arrive in", () => {
+    const first = [{ kind: "form.publish", environments: ["test"] }];
+    const second = [{ kind: "form.create", environments: ["test"] }];
+    const registryOrder = ACTION_KIND_NAMES.filter(
+      (kind) => kind === "form.create" || kind === "form.publish",
+    );
+
+    expect(mergeOffers([first, second]).map((entry) => entry.kind)).toEqual(registryOrder);
+    expect(mergeOffers([second, first]).map((entry) => entry.kind)).toEqual(registryOrder);
+  });
+
+  it("orders each kind's environments, whatever order the workspaces arrive in", () => {
+    expect(mergeOffers([release(["prod"]), release(["test"])])).toEqual([
+      { kind: "form.release", environments: ["prod", "test"] },
+    ]);
+    expect(mergeOffers([release(["test"]), release(["prod"])])).toEqual([
+      { kind: "form.release", environments: ["prod", "test"] },
+    ]);
+  });
+
+  it("drops a kind the registry does not carry", () => {
+    expect(mergeOffers([[{ kind: "form.invent", environments: ["test"] }]])).toEqual([]);
   });
 });
