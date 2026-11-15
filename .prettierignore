@@ -30,6 +30,9 @@ apps/api/src/features/agent/prompts/system/
 apps/api/src/features/agent/prompts/tools/
 apps/api/src/features/agent/prompts/actions/
 
+# Written by the agent's tests as the prompt the model is sent; reviewed as a diff.
+apps/api/src/features/agent/prompts/rendered/
+
 # Preserve vendored upstream bytes and generated snapshots.
 packages/ui/src/components/a2ui/
 **/__snapshots__/

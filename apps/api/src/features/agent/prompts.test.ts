@@ -14,7 +14,8 @@ import {
   buildSystemPrompt,
   CONTRACTS_HEADING,
 } from "./system-prompt.js";
-import { AGENT_TOOL_NAMES, TOOLS } from "./tools/registry.js";
+import type { AgentContext } from "./types.js";
+import { advertisedJsonSchema, AGENT_TOOL_NAMES, TOOLS } from "./tools/registry.js";
 
 const EM_DASH = String.fromCharCode(0x2014);
 
@@ -32,6 +33,38 @@ function guidanceSources(): { name: string; text: string }[] {
   const contracts = system.findIndex((source) => source.text.includes(CONTRACTS_HEADING));
   expect(contracts, `no system section carries "${CONTRACTS_HEADING}"`).toBeGreaterThan(0);
   return system.slice(0, contracts);
+}
+
+const PROMPT_DIRS = ["system", "tools", "actions"];
+
+/** The first segment of every tool name, which is what a mention is recognised by. */
+function toolHeads(): Set<string> {
+  return new Set(AGENT_TOOL_NAMES.map((name) => name.split("_")[0] ?? ""));
+}
+
+function kindHeads(): Set<string> {
+  return new Set(
+    ACTION_KIND_NAMES.filter((kind) => kind.includes(".")).map((kind) => kind.split(".")[0] ?? ""),
+  );
+}
+
+/**
+ * Every tool as a turn advertises it, with the propose tools carrying every action kind
+ * so each kind's arguments and their own text are in the rendered view.
+ */
+async function renderedTools(): Promise<unknown[]> {
+  const offeredActionKinds = ACTION_KIND_NAMES.map((kind) => ({ kind, environments: [] }));
+  const ctx = { offeredActionKinds } as unknown as AgentContext;
+  const rendered = [];
+  for (const name of AGENT_TOOL_NAMES) {
+    const def = TOOLS[name];
+    rendered.push({
+      name,
+      description: def.description,
+      inputSchema: await advertisedJsonSchema(def.schemaFor?.(ctx) ?? def.inputSchema),
+    });
+  }
+  return rendered;
 }
 
 describe("the assistant's prompt sources", () => {
@@ -78,21 +111,42 @@ describe("the assistant's prompt sources", () => {
     }
   });
 
-  it("carries the tool descriptions this folder replaced, byte for byte", async () => {
-    const descriptions = Object.fromEntries(
-      Object.entries(TOOLS).map(([name, def]) => [name, def.description]),
-    );
-    await expect(`${JSON.stringify(descriptions, null, 2)}\n`).toMatchFileSnapshot(
-      "./__snapshots__/tool-descriptions.json",
+  it("names only tools and action kinds the registries hold", () => {
+    const toolLike = new RegExp(`\\b(?:${[...toolHeads()].join("|")})_[a-z][a-z_]*`, "g");
+    const kindLike = new RegExp(`\\b(?:${[...kindHeads()].join("|")})\\.[a-z][A-Za-z]*`, "g");
+    const tools: { name: string; where: string }[] = [];
+    const kinds: { name: string; where: string }[] = [];
+    for (const directory of PROMPT_DIRS) {
+      for (const source of sources(directory)) {
+        const where = `${directory}/${source.name}`;
+        for (const [name] of source.text.matchAll(toolLike)) tools.push({ name, where });
+        for (const [name] of source.text.matchAll(kindLike)) kinds.push({ name, where });
+      }
+    }
+    // Counted first: a head that stopped matching would leave the loops below vacuous.
+    expect(tools.length, "no prompt source names a tool").toBeGreaterThan(0);
+    expect(kinds.length, "no prompt source names an action kind").toBeGreaterThan(0);
+    for (const { name, where } of tools) {
+      expect(AGENT_TOOL_NAMES, `${where} names the tool ${name}`).toContain(name);
+    }
+    for (const { name, where } of kinds) {
+      expect(ACTION_KIND_NAMES, `${where} names the action kind ${name}`).toContain(name);
+    }
+  });
+
+  it("advertises the tools and schemas a turn sends, text and all", async () => {
+    await expect(`${JSON.stringify(await renderedTools(), null, 2)}\n`).toMatchFileSnapshot(
+      "./prompts/rendered/tools.json",
     );
   });
 
-  it("carries the action descriptions this folder replaced, byte for byte", async () => {
-    const descriptions = Object.fromEntries(
-      Object.entries(ACTION_KINDS).map(([kind, def]) => [kind, def.description]),
-    );
-    await expect(`${JSON.stringify(descriptions, null, 2)}\n`).toMatchFileSnapshot(
-      "./__snapshots__/action-descriptions.json",
+  it("advertises every action kind a step may name", async () => {
+    const kinds = ACTION_KIND_NAMES.map((kind) => ({
+      kind,
+      description: ACTION_KINDS[kind].description,
+    }));
+    await expect(`${JSON.stringify(kinds, null, 2)}\n`).toMatchFileSnapshot(
+      "./prompts/rendered/action-kinds.json",
     );
   });
 });
