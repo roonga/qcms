@@ -10,12 +10,14 @@ export function generateMetadata(): Metadata {
   return pageMetadata(t("claim.title"));
 }
 
-function firstValue(raw: string | string[] | undefined): string | undefined {
+type QueryValue = string | string[] | undefined;
+
+function firstValue(raw: QueryValue): string | undefined {
   if (typeof raw === "string") return raw;
   return Array.isArray(raw) ? raw[0] : undefined;
 }
 
-function refusedMessage(marker: string | string[] | undefined): string | undefined {
+function refusedMessage(marker: QueryValue): string | undefined {
   return marker === undefined ? undefined : t("claim.linkRefused");
 }
 
@@ -28,7 +30,7 @@ function refusedMessage(marker: string | string[] | undefined): string | undefin
 export default async function ClaimPage({
   searchParams,
 }: {
-  readonly searchParams: Promise<Record<string, string | string[] | undefined>>;
+  readonly searchParams: Promise<Record<string, QueryValue>>;
 }) {
   const params = await searchParams;
   const token = firstValue(params.token);
