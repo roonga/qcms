@@ -93,12 +93,12 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (700 files common to both shapes)
+### Scaffolded paths (701 files common to both shapes)
 
 | Path                                                                            | Files |
 | ------------------------------------------------------------------------------- | ----- |
 | `(project root)`                                                                | 8     |
-| `apps/`                                                                         | 689   |
+| `apps/`                                                                         | 690   |
 | `apps/admin/`                                                                   | 390   |
 | `apps/admin/app/`                                                               | 104   |
 | `apps/admin/app/(shell)/`                                                       | 80    |
@@ -212,10 +212,10 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/lib/questions/`                                                     | 9     |
 | `apps/admin/lib/server/`                                                        | 32    |
 | `apps/admin/lib/shell/`                                                         | 7     |
-| `apps/api/`                                                                     | 225   |
-| `apps/api/src/`                                                                 | 222   |
-| `apps/api/src/features/`                                                        | 190   |
-| `apps/api/src/features/agent/`                                                  | 117   |
+| `apps/api/`                                                                     | 226   |
+| `apps/api/src/`                                                                 | 223   |
+| `apps/api/src/features/`                                                        | 191   |
+| `apps/api/src/features/agent/`                                                  | 118   |
 | `apps/api/src/features/agent/actions/`                                          | 10    |
 | `apps/api/src/features/agent/contexts/`                                         | 5     |
 | `apps/api/src/features/agent/prompts/`                                          | 82    |
@@ -302,7 +302,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (700)</summary>
+<summary>Every scaffolded file (701)</summary>
 
 ```
 .dockerignore
@@ -720,6 +720,7 @@ apps/api/src/features/agent/actions/types.ts
 apps/api/src/features/agent/actions/webhooks.ts
 apps/api/src/features/agent/assistant.ts
 apps/api/src/features/agent/audit.ts
+apps/api/src/features/agent/caching.ts
 apps/api/src/features/agent/contexts/administration.ts
 apps/api/src/features/agent/contexts/authoring.ts
 apps/api/src/features/agent/contexts/operations.ts
