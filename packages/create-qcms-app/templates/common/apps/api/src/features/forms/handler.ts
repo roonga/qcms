@@ -48,11 +48,13 @@ import {
   createForm,
   environmentStatesByForm,
   deleteDraft,
+  getAppearanceLogo,
   getDraft,
   getForm,
   getFormVersion,
   getLatestPublishedVersion,
   getWorkspace,
+  getWorkspaceForShare,
   insertFormVersion,
   listForms,
   listQuestionOwnership,
@@ -220,6 +222,19 @@ const fail = {
       "This workspace's appearance is locked, so a save may not change a form's " +
         "appearance. A Workspace administrator or a Site administrator can clear the lock.",
     ),
+  /**
+   * SEC-17: the proposal digest binds the form id and the definition only, so an
+   * appearance on a tokened save was never on the card the person confirmed.
+   */
+  appearanceNotProposed: (): ApiError =>
+    new ApiError(
+      "APPEARANCE_NOT_IN_PROPOSAL",
+      422,
+      "An assistant-confirmed save may not carry an appearance, because the confirmation " +
+        "did not cover one. Save the appearance as an ordinary edit instead.",
+    ),
+  unknownLogo: (): ApiError =>
+    new ApiError("LOGO_UNKNOWN", 422, "No stored logo has that key; upload the image first"),
 } as const;
 
 /**
@@ -301,6 +316,17 @@ function requireNullableAppearance(value: unknown): Appearance | null {
 
 function sameAppearance(a: Appearance | null, b: Appearance | null): boolean {
   return canonicalJson(a) === canonicalJson(b);
+}
+
+/**
+ * A draft may name only a logo already in the immutable store, as a theme may: a version
+ * that froze a key nothing was stored under would be a form whose logo route answers 404
+ * (criterion 124).
+ */
+async function requireStoredLogo(deps: Deps, logo: string): Promise<void> {
+  if ((await getAppearanceLogo(deps.databases.control, logo)) === undefined) {
+    throw fail.unknownLogo();
+  }
 }
 
 export const requireFormDefinition = requireDefinition;
@@ -820,22 +846,28 @@ export function makePutDraftHandler(deps: Deps): RouteHandler<typeof putDraftRou
     const definition = requireDefinition(body.definition);
     const site = agentStepSite(c);
 
+    if (site !== undefined && body.appearance !== undefined) throw fail.appearanceNotProposed();
+
     const form = await getForm(deps.databases.control, formId);
     if (form === undefined) throw fail.formNotFound();
     const appearance =
       body.appearance === undefined ? undefined : requireNullableAppearance(body.appearance);
-    if (appearance !== undefined) {
-      const workspace = await getWorkspace(deps.databases.control, form.workspaceId);
-      const held = await currentAppearance(deps.databases.control, formId);
-      if (workspace?.appearanceLocked === true && !sameAppearance(appearance, held)) {
-        throw fail.appearanceLocked();
-      }
-    }
+    if (appearance?.logo != null) await requireStoredLogo(deps, appearance.logo);
 
     // Save first, then advise: a draft may be temporarily inconsistent, and the issues
     // block publish rather than the save. The agent row rides the save's own transaction,
     // so a refused save writes none.
     const saved = await deps.databases.control.transaction(async (tx) => {
+      if (appearance !== undefined) {
+        // `FOR SHARE` against the lock setter's `FOR UPDATE`: a lock committed between
+        // this read and the write below would otherwise be missed under READ COMMITTED,
+        // and criterion 121 is stated as an invariant.
+        const workspace = await getWorkspaceForShare(tx, form.workspaceId);
+        const held = await currentAppearance(tx, formId);
+        if (workspace?.appearanceLocked === true && !sameAppearance(appearance, held)) {
+          throw fail.appearanceLocked();
+        }
+      }
       const row = await storeDraftDefinition(
         tx,
         formId,

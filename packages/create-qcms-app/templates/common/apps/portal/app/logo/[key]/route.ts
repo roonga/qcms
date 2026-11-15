@@ -8,10 +8,11 @@ import { getLogo } from "../../../lib/server/api";
 const LOGO_KEY = /^[0-9a-f]{64}$/u;
 
 /**
- * Content-addressed and immutable, so a year is safe: nothing can ever be stored under
- * this key but these bytes.
+ * A day, and revalidated rather than `immutable` for a year: a Site administrator may take
+ * a logo down, and a cache that never asks again would keep serving it (Code Owner,
+ * 2026-11-16).
  */
-const CACHE_CONTROL = "public, max-age=31536000, immutable";
+const CACHE_CONTROL = "public, max-age=86400, must-revalidate";
 
 /** The three the API ever serves. A stored logo is one of them, sniffed at upload. */
 const SERVED_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
@@ -48,6 +49,8 @@ export async function GET(
       "content-type": contentType,
       "x-content-type-options": "nosniff",
       "cache-control": CACHE_CONTROL,
+      // The key is the digest of the bytes, so it is already the strong validator.
+      etag: `"${key}"`,
     },
   });
 }

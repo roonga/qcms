@@ -35,8 +35,15 @@ export const SharedWorkspaceBody = z
   })
   .openapi("SharedWorkspaceBody");
 
+/** The themes table's primary key is `uuid`, so anything else is not a theme id at all. */
+export const ThemeId = z.uuid();
+
 export const ThemeIdParam = z.object({
   id: z.string().openapi({ param: { name: "id", in: "path" }, example: "org_default_workspace" }),
+  /**
+   * Left opaque so a malformed id answers the one 404 an unknown id answers rather than a
+   * shape error a caller could tell apart.
+   */
   themeId: z.string().openapi({
     param: { name: "themeId", in: "path" },
     example: "9f3a2b1c-0000-4000-8000-000000000000",

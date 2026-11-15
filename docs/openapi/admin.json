@@ -2653,6 +2653,24 @@
         ],
         "additionalProperties": false
       },
+      "LogoTakedownResponse": {
+        "type": "object",
+        "properties": {
+          "logoKey": {
+            "type": "string",
+            "example": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "themesCleared": {
+            "type": "integer",
+            "minimum": 0,
+            "example": 1
+          }
+        },
+        "required": [
+          "logoKey",
+          "themesCleared"
+        ]
+      },
       "MyAccessResponse": {
         "type": "object",
         "properties": {
@@ -8506,6 +8524,75 @@
         }
       }
     },
+    "/admin/logos/{key}": {
+      "delete": {
+        "summary": "Take a stored logo down (Site administrator)",
+        "description": "Site administrator only, and no workspace grant reaches it: the bytes are stored site-wide and a takedown removes them for every workspace at once. The key is cleared off every theme that named it and the bytes are deleted, so a draft, a version or a theme still holding the key is served the same 404 an unknown key is. One `logo` row goes to the site audit. The act is not reversible: re-uploading the same image stores it again under the same key.",
+        "tags": [
+          "workspaces"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "required": true,
+            "name": "key",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The key that is gone, and how many themes stopped naming it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogoTakedownResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/admin/me/access": {
       "get": {
         "summary": "Which workspaces, roles, environments and forms the caller holds (admin)",
@@ -9489,7 +9576,8 @@
                 "account",
                 "administrator",
                 "approval",
-                "library"
+                "library",
+                "logo"
               ]
             },
             "required": false,

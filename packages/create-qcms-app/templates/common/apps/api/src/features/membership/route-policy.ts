@@ -276,6 +276,16 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     audit: "setting",
   },
   {
+    // The logo store is site-wide, so a takedown is nobody's workspace act: it removes
+    // the bytes from every draft, version and theme in the installation at once.
+    method: "DELETE",
+    path: "/admin/logos/{key}",
+    resource: "workspace",
+    action: "update",
+    workspace: "installation",
+    installationOnly: true,
+  },
+  {
     method: "GET",
     path: "/admin/workspaces/{id}/audit",
     resource: "audit",
