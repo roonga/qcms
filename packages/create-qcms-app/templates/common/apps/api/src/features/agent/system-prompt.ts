@@ -79,7 +79,7 @@ const PLACEHOLDER_VALUES: Readonly<Record<string, () => string>> = {
   CONDITION_OPERATORS: () => CONDITION_OPERATORS.join(", "),
 };
 
-const PLACEHOLDER = /\{\{([^}]*)\}\}/g;
+const PLACEHOLDER = /\{\{(\w*)\}\}/g;
 
 /** Must stay deterministic: identical bytes are what make upstream prompt caching work. */
 export function buildSystemPrompt(): string {

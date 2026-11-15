@@ -33,7 +33,7 @@ export const PLACEHOLDERS = [
   "CONDITION_OPERATORS",
 ];
 
-const PLACEHOLDER = /\{\{([^}]*)\}\}/g;
+const PLACEHOLDER = /\{\{(\w*)\}\}/g;
 
 const HEADER =
   "// Generated from the Markdown in this folder by `pnpm prompts:generate`. Do not edit.";
