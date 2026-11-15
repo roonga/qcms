@@ -6,7 +6,7 @@
 
 - There is no file question and no upload. Do not propose one and do not imply the form can take an attachment.
 - List what has to be supplied in the step title or in `help`, in the source form's own words, as a list the respondent reads.
-- Where the form must record what they are sending, add a `multiChoice` over the documents the source form names, with `constraints.minSelected: 1` where at least one is needed.
+- Where the form must record what they are sending, add a `multiChoice` over the documents the source form names, `required: true` where at least one has to be named.
 - Where the form must record a document's details, add the ordinary questions for them: a `shortText` for the reference number, a `date` for the date issued.
 - Say in the step title how the documents themselves are to be sent, which is a decision for the person, not for you.
 
