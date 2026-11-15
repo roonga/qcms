@@ -4,10 +4,8 @@ import { messages } from "./en.ts";
 
 /**
  * The "Replaces" column of `docs/WORKSPACE_ACCESS.md` section 2, as patterns over what a
- * reader sees, each with a sentence it must catch. Wire ids, keys and API paths keep their
- * names, so only values are scanned. The sample proves the pattern bites: three of these
- * terms appear in no shipped value, and a pattern that could never match one would read as
- * coverage without being any.
+ * reader sees; only values are scanned, because keys and API paths keep their names. Each
+ * sample proves its pattern bites, since three of these terms are in no shipped value.
  */
 const RETIRED: readonly (readonly [string, RegExp, string])[] = [
   [
