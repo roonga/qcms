@@ -388,6 +388,16 @@ describe("the audit column and the response routes agree (criterion 8)", () => {
     expect(row?.audit).toBe("setting");
   });
 
+  it("marks the archive route as the `setting` kind, as a rename is (section 11)", () => {
+    const row = policyForRequest("POST", "/admin/workspaces/org_x/archive");
+    expect(row).toMatchObject({
+      resource: "workspace",
+      action: "archive",
+      workspace: "path",
+      audit: "setting",
+    });
+  });
+
   it("gives the rename route the workspace administrator's cell, in the named workspace (criterion 97)", () => {
     const row = policyForRequest("PUT", "/admin/workspaces/org_x/name");
     expect(row).toMatchObject({

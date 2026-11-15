@@ -101,7 +101,8 @@ export const setMemberRoleRoute = createRoute({
   summary: "Appoint or remove a Workspace administrator (admin)",
   description:
     "The Workspace administrator flag lives on the member row rather than on an access " +
-    "group. Both directions write an `administrator` audit row. Removing the last " +
+    "group. Each direction writes an `administrator` audit row, and a write that leaves " +
+    "the flag where it was writes none. Removing the last " +
     "active, claimed Workspace administrator is refused for every actor, a Site " +
     "administrator included: that role never satisfies the guard, and a workspace with " +
     "no administrator is one nobody can administer. The write takes the workspace's " +
@@ -206,10 +207,10 @@ export const deleteAccessGroupRoute = createRoute({
   summary: "Remove an access group and every grant it carried (admin)",
   description:
     "The holders' rows go with it. They are read first and one revoke row is written " +
-    "per holder, in the same transaction as the removal, which is why no removal may " +
-    "originate at the organisation plugin's own endpoint: its cascade runs below any " +
-    "hook and would leave the removals invisible. Allowed on an archived workspace, " +
-    "since removing a group is a revoke.",
+    "per holder, beside the one `group` row that records the removal itself, in the same " +
+    "transaction, which is why no removal may originate at the organisation plugin's own " +
+    "endpoint: its cascade runs below any hook and would leave the removals invisible. " +
+    "Allowed on an archived workspace, since removing a group is a revoke.",
   tags,
   request: { params: AccessGroupParams },
   responses: {

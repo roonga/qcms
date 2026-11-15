@@ -152,6 +152,7 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     resource: "workspace",
     action: "archive",
     workspace: "path",
+    audit: "setting",
   },
   {
     method: "GET",

@@ -511,6 +511,17 @@ describe("archiving a workspace (criterion 4)", () => {
     expect((await send("POST", `/workspaces/${workspaceId}/archive`)).status).toBe(200);
   });
 
+  it("writes one `setting` audit row, the kind a rename is written with (section 11)", async () => {
+    const workspaceId = await createWorkspace("archive-audited");
+    const before = (await countAccessAuditByKind(testDb.db, workspaceId))["setting"] ?? 0;
+
+    expect((await send("POST", `/workspaces/${workspaceId}/archive`)).status).toBe(200);
+
+    expect((await countAccessAuditByKind(testDb.db, workspaceId))["setting"] ?? 0).toBe(before + 1);
+    const rows = (await listAccessAudit(testDb.db, workspaceId, { kind: "setting" })).rows;
+    expect(rows.map((row) => row.detail)).toContain("setting=archived");
+  });
+
   it("has no unarchive, which is a decision and not an omission (Code Owner, 2026-10-16)", async () => {
     const workspaceId = await createWorkspace("archive-terminal");
     expect((await send("POST", `/workspaces/${workspaceId}/archive`)).status).toBe(200);

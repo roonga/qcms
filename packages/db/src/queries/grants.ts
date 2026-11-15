@@ -342,7 +342,7 @@ export async function createAccessGroup(
 
 /**
  * Rename one access group or change its roles and environments. The caller writes one
- * audit row per holder, since every holder's grant changes with it.
+ * `group` audit row naming both sides of the change, whoever holds it.
  */
 export async function updateAccessGroup(
   exec: Executor,

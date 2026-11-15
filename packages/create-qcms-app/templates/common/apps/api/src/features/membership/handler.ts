@@ -38,6 +38,7 @@ import {
   writeAccessAuditRow,
   type AccessGroupRow,
   type Executor,
+  type WorkspaceAdministratorRow,
   type WorkspaceRow,
 } from "@roonga/qcms-db";
 
@@ -145,6 +146,18 @@ async function workspaceOf(deps: Deps, id: string): Promise<WorkspaceRow> {
   return workspace;
 }
 
+/**
+ * The same refusals as {@link workspaceOf} plus the archive one, on whatever executor the
+ * caller passes. The self-grant rule turns on this row's own switch, so a write that
+ * consults it reads it inside {@link lockWorkspaceMembership} rather than before.
+ */
+async function openWorkspaceOf(exec: Executor, id: string): Promise<WorkspaceRow> {
+  const workspace = await getWorkspace(exec, id);
+  if (workspace === undefined) throw fail.notFound();
+  if (workspace.archivedAt !== null) throw fail.archived();
+  return workspace;
+}
+
 // Empty unless the group names exactly one environment; a wider set is not lost, it moves
 // to the audit row's `detail`.
 function scopeColumns(group: { readonly environments: readonly string[] }): {
@@ -192,16 +205,14 @@ function groupDetail(
 }
 
 /**
- * Refuses while the subject is the only active, claimed Workspace administrator left. It
- * must run inside {@link lockWorkspaceMembership}, or two removals each see the
+ * Refuses while the subject is the only active, claimed Workspace administrator left. The
+ * rows must be read inside {@link lockWorkspaceMembership}, or two removals each see the
  * administrator the other is taking away (criterion 88).
  */
-async function refuseLastAdministrator(
-  exec: Executor,
-  workspaceId: string,
+function refuseLastAdministrator(
+  administrators: readonly WorkspaceAdministratorRow[],
   userId: string,
-): Promise<void> {
-  const administrators = await listWorkspaceAdministrators(exec, workspaceId);
+): void {
   const subject = administrators.find((row) => row.userId === userId);
   if (subject === undefined || !subject.counts) return;
   if (administrators.filter((row) => row.counts).length <= 1) throw fail.lastAdministrator();
@@ -438,20 +449,24 @@ export function makeSetMemberRoleHandler(
     const site = agentStepSite(c);
     await deps.databases.control.transaction(async (tx) => {
       await lockWorkspaceMembership(tx, workspaceId);
-      if (role !== OWNER_MEMBER_ROLE) await refuseLastAdministrator(tx, workspaceId, userId);
+      const administrators = await listWorkspaceAdministrators(tx, workspaceId);
+      if (role !== OWNER_MEMBER_ROLE) refuseLastAdministrator(administrators, userId);
 
       const updated = await setMemberRole(tx, workspaceId, userId, role);
       if (updated === undefined) throw fail.notAMember();
 
-      // Both directions are audited: appointing an administrator and removing one each
-      // change who may administer the workspace.
-      await writeAccessAuditRow(tx, {
-        actor: actor.userId,
-        workspaceId,
-        kind: "administrator",
-        detail: `administrator=${role === OWNER_MEMBER_ROLE ? "appointed" : "removed"} subject=${userId}`,
-        occurredAt: deps.clock.now(),
-      });
+      // Both directions are audited, and only a direction: a write that leaves the flag
+      // where it was appointed nobody and removed nobody, so it records nothing.
+      const appointed = role === OWNER_MEMBER_ROLE;
+      if (administrators.some((row) => row.userId === userId) !== appointed) {
+        await writeAccessAuditRow(tx, {
+          actor: actor.userId,
+          workspaceId,
+          kind: "administrator",
+          detail: `administrator=${appointed ? "appointed" : "removed"} subject=${userId}`,
+          occurredAt: deps.clock.now(),
+        });
+      }
       await writeAgentStep(tx, site, userId, deps.clock.now());
     });
 
@@ -470,12 +485,11 @@ export function makeRemoveMemberHandler(
     const actor = principalOf(c);
     await workspaceOf(deps, workspaceId);
 
-    const site = agentStepSite(c);
     await deps.databases.control.transaction(async (tx) => {
       await lockWorkspaceMembership(tx, workspaceId);
-      await refuseLastAdministrator(tx, workspaceId, userId);
-
       const administrators = await listWorkspaceAdministrators(tx, workspaceId);
+      refuseLastAdministrator(administrators, userId);
+
       const held = await listAccessGroupsHeldIn(tx, workspaceId, userId);
       const removed = await removeMembership(tx, workspaceId, userId);
       if (!removed && held.length === 0) throw fail.notAMember();
@@ -507,7 +521,6 @@ export function makeRemoveMemberHandler(
         detail: `member=removed subject=${userId}`,
         occurredAt: deps.clock.now(),
       });
-      await writeAgentStep(tx, site, userId, deps.clock.now());
     });
 
     return c.body(null, 204);
@@ -583,28 +596,31 @@ export function makeUpdateAccessGroupHandler(
     const { id: workspaceId, teamId } = c.req.valid("param");
     const body = c.req.valid("json");
     const actor = principalOf(c);
-    const workspace = await workspaceOf(deps, workspaceId);
-    if (workspace.archivedAt !== null) throw fail.archived();
 
     const exec = deps.databases.control;
-    const existing = await getAccessGroup(exec, teamId);
-    if (existing === undefined || existing.workspaceId !== workspaceId) throw fail.groupNotFound();
-
-    const checked = await validateGroup(exec, body);
-
-    if (
-      refuseSelfGrant({
-        actorHolds: await holdsAccessGroup(exec, teamId, actor.userId),
-        requireSecondApprover: workspace.requireSecondApprover,
-        before: existing,
-        after: checked,
-      })
-    ) {
-      throw fail.selfGrant();
-    }
-
     const updated = await exec.transaction(async (tx) => {
       await lockWorkspaceMembership(tx, workspaceId);
+      // Every read the refusal rests on is taken here: a holder add that commits between
+      // the check and this write would otherwise leave the actor holding the response
+      // role the check exists to refuse.
+      const workspace = await openWorkspaceOf(tx, workspaceId);
+      const existing = await getAccessGroup(tx, teamId);
+      if (existing === undefined || existing.workspaceId !== workspaceId) {
+        throw fail.groupNotFound();
+      }
+
+      const checked = await validateGroup(tx, body);
+      if (
+        refuseSelfGrant({
+          actorHolds: await holdsAccessGroup(tx, teamId, actor.userId),
+          requireSecondApprover: workspace.requireSecondApprover,
+          before: existing,
+          after: checked,
+        })
+      ) {
+        throw fail.selfGrant();
+      }
+
       if (await isAccessGroupNameTaken(tx, workspaceId, body.name, teamId)) {
         throw fail.nameTaken(body.name);
       }
@@ -683,41 +699,42 @@ export function makeAddHolderHandler(deps: Deps): RouteHandler<typeof addHolderR
     const { id: workspaceId, teamId } = c.req.valid("param");
     const body = c.req.valid("json");
     const actor = principalOf(c);
-    const workspace = await workspaceOf(deps, workspaceId);
-    if (workspace.archivedAt !== null) throw fail.archived();
 
     const exec = deps.databases.control;
-    const group = await getAccessGroup(exec, teamId);
-    if (group === undefined || group.workspaceId !== workspaceId) throw fail.groupNotFound();
-
-    const subject =
-      body.userId !== undefined
-        ? (await findUsersByIds(exec, [body.userId]))[0]
-        : await findUserByEmail(exec, body.email as string);
-    if (subject === undefined) throw fail.cannotAdd();
-    // Only the installation administrator browses the account directory; anybody else
-    // adds a newcomer by exact address, so an id must already belong to this workspace.
-    if (
-      body.userId !== undefined &&
-      !holdsInstallationClaim(actor.role) &&
-      (await resolveMembership(exec, subject.userId, workspaceId)).memberRole === undefined
-    ) {
-      throw fail.cannotAdd();
-    }
-
-    // The test is "is this account giving itself a response role", so the installation
-    // claim is not a way around the rule.
-    if (
-      subject.userId === actor.userId &&
-      carriesResponsesRole(group.roles) &&
-      workspace.requireSecondApprover
-    ) {
-      throw fail.selfGrant();
-    }
-
     const site = agentStepSite(c);
-    await exec.transaction(async (tx) => {
+    const group = await exec.transaction(async (tx) => {
       await lockWorkspaceMembership(tx, workspaceId);
+      // Read here for the same reason the group edit does, and the `grant` row names this
+      // row's roles, so it records what the group carried when the hold was written.
+      const workspace = await openWorkspaceOf(tx, workspaceId);
+      const held = await getAccessGroup(tx, teamId);
+      if (held === undefined || held.workspaceId !== workspaceId) throw fail.groupNotFound();
+
+      const subject =
+        body.userId !== undefined
+          ? (await findUsersByIds(tx, [body.userId]))[0]
+          : await findUserByEmail(tx, body.email as string);
+      if (subject === undefined) throw fail.cannotAdd();
+      // Only the installation administrator browses the account directory; anybody else
+      // adds a newcomer by exact address, so an id must already belong to this workspace.
+      if (
+        body.userId !== undefined &&
+        !holdsInstallationClaim(actor.role) &&
+        (await resolveMembership(tx, subject.userId, workspaceId)).memberRole === undefined
+      ) {
+        throw fail.cannotAdd();
+      }
+
+      // The test is "is this account giving itself a response role", so the installation
+      // claim is not a way around the rule.
+      if (
+        subject.userId === actor.userId &&
+        carriesResponsesRole(held.roles) &&
+        workspace.requireSecondApprover
+      ) {
+        throw fail.selfGrant();
+      }
+
       if (await holdsAccessGroup(tx, teamId, subject.userId)) throw fail.alreadyHolds();
       await ensureWorkspaceMember(tx, workspaceId, subject.userId);
       await addAccessGroupHolder(tx, teamId, subject.userId);
@@ -725,11 +742,12 @@ export function makeAddHolderHandler(deps: Deps): RouteHandler<typeof addHolderR
         actor: actor.userId,
         workspaceId,
         kind: "grant",
-        ...scopeColumns(group),
-        detail: scopeDetail(group, `subject=${subject.userId} group=${group.name}`),
+        ...scopeColumns(held),
+        detail: scopeDetail(held, `subject=${subject.userId} group=${held.name}`),
         occurredAt: deps.clock.now(),
       });
       await writeAgentStep(tx, site, teamId, deps.clock.now());
+      return held;
     });
 
     return c.json({ group: await groupView(exec, group) }, 201);
@@ -775,10 +793,13 @@ export function makeWorkspaceSettingsHandler(
     const workspaceId = c.req.valid("param").id;
     const body = c.req.valid("json");
     const actor = principalOf(c);
-    const workspace = await requireOpenWorkspace(deps.databases.control, workspaceId);
 
     const site = agentStepSite(c);
     const requireSecondApprover = await deps.databases.control.transaction(async (tx) => {
+      // The same lock the membership writes take: this switch is what their self-grant
+      // check turns on, so it may not move between one of those checks and its write.
+      await lockWorkspaceMembership(tx, workspaceId);
+      const workspace = await requireOpenWorkspace(tx, workspaceId);
       if (body.requireSecondApprover === workspace.requireSecondApprover) {
         await writeAgentStep(tx, site, workspaceId, deps.clock.now());
         return workspace.requireSecondApprover;

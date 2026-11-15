@@ -214,7 +214,14 @@ async function appointAdministrator(workspaceId: string, label: string): Promise
     claim: false,
     membership: false,
   });
-  await seedGrants(testDb.db, { userId: account.userId, workspaceId, grants: [] });
+  // A plain member first, so the route under test is what appoints them and the
+  // `administrator` row is the route's own.
+  await seedGrants(testDb.db, {
+    userId: account.userId,
+    workspaceId,
+    grants: [],
+    owner: false,
+  });
   expect(
     (
       await send("PUT", `/workspaces/${workspaceId}/members/${account.userId}`, {
@@ -909,6 +916,72 @@ describe("the self-grant rule (criteria 20 and 21, Q56)", () => {
     expect(renamed.status, await renamed.clone().text()).toBe(200);
   });
 
+  it("refuses one of a concurrent join and a response-role edit of the same group", async () => {
+    const workspaceId = await createWorkspace("Self race", "self-race");
+    await setRequireSecondApprover(testDb.db, workspaceId, true);
+
+    // Joining a group that carries no response role is allowed, and so is widening a
+    // group the actor does not hold. Together they would hand the actor the response
+    // role either refuses on its own, so one of the two has to lose.
+    for (let attempt = 1; attempt <= 10; attempt += 1) {
+      const name = `Builders ${attempt}`;
+      const created = await send("POST", `/workspaces/${workspaceId}/access-groups`, {
+        name,
+        roles: ["forms.editor"],
+        environments: [],
+      });
+      expect(created.status, await created.clone().text()).toBe(201);
+      const teamId = ((await created.json()) as GroupBody).group.teamId;
+
+      const [joined, widened] = await Promise.all([
+        send("POST", `/workspaces/${workspaceId}/access-groups/${teamId}/holders`, {
+          userId: ownerId,
+        }),
+        send("PUT", `/workspaces/${workspaceId}/access-groups/${teamId}`, {
+          name,
+          roles: ["forms.editor", "responses.viewer"],
+          environments: ["prod"],
+        }),
+      ]);
+
+      const refusedCount = [joined, widened].filter((res) => res.status === 409).length;
+      expect(
+        [joined.status, widened.status],
+        `attempt ${attempt}, refused ${refusedCount}`,
+      ).toContain(409);
+      expect(refusedCount, `attempt ${attempt}`).toBe(1);
+      const refused = joined.status === 409 ? joined : widened;
+      expect((await refused.json()) as ErrorBody).toMatchObject({
+        error: { code: "SELF_GRANT_REFUSED" },
+      });
+
+      // Whichever won, the actor never ends up holding a group that carries the role.
+      const stored = (await listAccessGroups(testDb.db, workspaceId)).find(
+        (row) => row.teamId === teamId,
+      );
+      const holders = (await listAccessGroupHolders(testDb.db, teamId)).map(
+        (holder) => holder.userId,
+      );
+      if (holders.includes(ownerId)) {
+        expect(stored?.roles, `attempt ${attempt}`).toEqual(["forms.editor"]);
+      } else {
+        expect(stored?.roles, `attempt ${attempt}`).toEqual(["forms.editor", "responses.viewer"]);
+      }
+
+      // The `grant` row names the roles the group carried as the hold was written, not a
+      // set read before the lock.
+      const grants = (await auditRowsOfKind(workspaceId, "grant"))
+        .map((row) => row.detail)
+        .filter((detail) => detail?.endsWith(`group=${name}`) === true);
+      expect(grants, `attempt ${attempt}`).toHaveLength(joined.status === 201 ? 1 : 0);
+      if (joined.status === 201) {
+        expect(grants[0], `attempt ${attempt}`).toContain(
+          `roles=${(stored?.roles ?? []).join(",")}`,
+        );
+      }
+    }
+  });
+
   it("applies the same rule to the installation administrator", async () => {
     const claimHolder = await as(ownerToken, "GET", "/me/access");
     expect(((await claimHolder.json()) as { installationAdmin: boolean }).installationAdmin).toBe(
@@ -1567,22 +1640,83 @@ describe("the per-workspace membership lock and the last-administrator guard (08
     const workspaceId = await createWorkspace("Race", "race-admins");
     const second = await appointAdministrator(workspaceId, "race2");
 
-    // Each removal takes the other's subject, so without the lock both would read two
-    // administrators and the workspace would be left with none.
-    const [first, other] = await Promise.all([
-      send("PUT", `/workspaces/${workspaceId}/members/${second}`, { role: "member" }),
-      send("PUT", `/workspaces/${workspaceId}/members/${ownerId}`, { role: "member" }),
-    ]);
+    // Raced ten times, not once: the first race in a process does not interleave, so a
+    // single attempt passes with the lock taken out again.
+    for (let attempt = 1; attempt <= 10; attempt += 1) {
+      // Each removal takes the other's subject, so without the lock both would read two
+      // administrators and the workspace would be left with none.
+      const [first, other] = await Promise.all([
+        send("PUT", `/workspaces/${workspaceId}/members/${second}`, { role: "member" }),
+        send("PUT", `/workspaces/${workspaceId}/members/${ownerId}`, { role: "member" }),
+      ]);
 
-    const codes = [first.status, other.status].sort((a, b) => a - b);
-    expect(codes).toEqual([200, 409]);
-    const refused = first.status === 409 ? first : other;
-    expect((await refused.json()) as ErrorBody).toMatchObject({
-      error: { code: "LAST_ADMINISTRATOR" },
+      const codes = [first.status, other.status].sort((a, b) => a - b);
+      expect(codes, `attempt ${attempt}`).toEqual([200, 409]);
+      const refused = first.status === 409 ? first : other;
+      expect((await refused.json()) as ErrorBody).toMatchObject({
+        error: { code: "LAST_ADMINISTRATOR" },
+      });
+
+      const members = await listWorkspaceMembers(testDb.db, workspaceId);
+      const administrators = members.filter((member) => member.role === "forms.owner");
+      expect(administrators, `attempt ${attempt}`).toHaveLength(1);
+
+      const survivor = administrators[0]?.userId;
+      await setMemberRole(
+        testDb.db,
+        workspaceId,
+        survivor === ownerId ? second : ownerId,
+        "forms.owner",
+      );
+    }
+  });
+
+  it("writes no `administrator` row for a write that leaves the flag where it was", async () => {
+    const workspaceId = await createWorkspace("No move", "no-move-admins");
+    const second = await appointAdministrator(workspaceId, "nomove");
+
+    // Already an administrator, so appointing again appoints nobody.
+    const before = (await administratorRows(workspaceId)).length;
+    expect(
+      (await send("PUT", `/workspaces/${workspaceId}/members/${second}`, { role: "forms.owner" }))
+        .status,
+    ).toBe(200);
+    expect((await administratorRows(workspaceId)).length).toBe(before);
+
+    // And a plain member stays one, so removing the flag removes nobody.
+    const plain = await seedAdminSession(testDb.db, {
+      label: "nomoveplain",
+      claim: false,
+      membership: false,
     });
+    await seedGrants(testDb.db, {
+      userId: plain.userId,
+      workspaceId,
+      grants: [],
+      owner: false,
+    });
+    expect(
+      (await send("PUT", `/workspaces/${workspaceId}/members/${plain.userId}`, { role: "member" }))
+        .status,
+    ).toBe(200);
+    expect((await administratorRows(workspaceId)).length).toBe(before);
 
-    const members = await listWorkspaceMembers(testDb.db, workspaceId);
-    expect(members.filter((member) => member.role === "forms.owner")).toHaveLength(1);
+    // The two directions that do move it still write their row.
+    expect(
+      (
+        await send("PUT", `/workspaces/${workspaceId}/members/${plain.userId}`, {
+          role: "forms.owner",
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (await send("PUT", `/workspaces/${workspaceId}/members/${plain.userId}`, { role: "member" }))
+        .status,
+    ).toBe(200);
+    const details = (await administratorRows(workspaceId)).map((row) => row.detail);
+    expect(details).toContain(`administrator=appointed subject=${plain.userId}`);
+    expect(details).toContain(`administrator=removed subject=${plain.userId}`);
+    expect(details).toHaveLength(before + 2);
   });
 
   it("does not count a disabled or an unclaimed administrator (criterion 87)", async () => {
@@ -1756,7 +1890,14 @@ describe("a group stays inside its workspace (criteria 23 and 25)", () => {
     });
     await seedGrants(testDb.db, { userId: administrator.userId, workspaceId: theirs, grants: [] });
     await setMemberRole(testDb.db, theirs, administrator.userId, "forms.owner");
+    const crossed = await createGroup({
+      name: "Crossed",
+      roles: ["forms.viewer"],
+      environments: [],
+    });
 
+    // Every act the seeded workspace has, read and write, the member row's own two
+    // included: the refusal is the workspace, not the shape of the request.
     for (const [method, path, body] of [
       ["GET", `/workspaces/${SEED_WORKSPACE_ID}/members`, undefined],
       ["GET", `/workspaces/${SEED_WORKSPACE_ID}/access-groups`, undefined],
@@ -1766,12 +1907,34 @@ describe("a group stays inside its workspace (criteria 23 and 25)", () => {
         `/workspaces/${SEED_WORKSPACE_ID}/access-groups`,
         { name: "Crossing", roles: ["forms.viewer"], environments: [] },
       ],
+      [
+        "PUT",
+        `/workspaces/${SEED_WORKSPACE_ID}/access-groups/${crossed}`,
+        { name: "Crossed over", roles: ["forms.editor"], environments: [] },
+      ],
+      ["DELETE", `/workspaces/${SEED_WORKSPACE_ID}/access-groups/${crossed}`, undefined],
+      [
+        "POST",
+        `/workspaces/${SEED_WORKSPACE_ID}/access-groups/${crossed}/holders`,
+        { userId: editorId },
+      ],
+      [
+        "DELETE",
+        `/workspaces/${SEED_WORKSPACE_ID}/access-groups/${crossed}/holders/${editorId}`,
+        undefined,
+      ],
+      ["PUT", `/workspaces/${SEED_WORKSPACE_ID}/members/${editorId}`, { role: "forms.owner" }],
       ["DELETE", `/workspaces/${SEED_WORKSPACE_ID}/members/${editorId}`, undefined],
       ["PUT", `/workspaces/${SEED_WORKSPACE_ID}/settings`, { requireSecondApprover: true }],
     ] as const) {
       const res = await as(administrator.token, method, path, body);
       expect(res.status, `${method} ${path}`).toBe(403);
     }
+
+    // Nothing the refusals named moved.
+    expect((await listAccessGroups(testDb.db, SEED_WORKSPACE_ID)).map((row) => row.name)).toContain(
+      "Crossed",
+    );
   });
 });
 
@@ -1846,13 +2009,21 @@ describe("every group act writes one `group` row (section 11)", () => {
     ).toBe(204);
 
     const details = (await auditRowsOfKind(workspaceId, "group")).map((row) => row.detail);
-    expect(details).toContain("group=created name=Readers roles=forms.viewer environments=");
-    const changed = details.find((detail) => detail?.startsWith("group=changed") === true);
-    expect(changed).toContain("name=Response readers");
-    expect(changed).toContain("roles=responses.viewer");
-    expect(changed).toContain("environments=prod");
-    expect(changed).toContain("previousName=Readers");
-    expect(changed).toContain("previousRoles=forms.viewer");
-    expect(details.some((detail) => detail?.startsWith("group=deleted") === true)).toBe(true);
+    // One row each, counted: the four starter groups this workspace was created with
+    // write none, and a re-scope no longer writes one per holder.
+    expect(details.filter((detail) => detail?.startsWith("group=created") === true)).toEqual([
+      "group=created name=Readers roles=forms.viewer environments=",
+    ]);
+    const changed = details.filter((detail) => detail?.startsWith("group=changed") === true);
+    expect(changed).toHaveLength(1);
+    expect(changed[0]).toContain("name=Response readers");
+    expect(changed[0]).toContain("roles=responses.viewer");
+    expect(changed[0]).toContain("environments=prod");
+    expect(changed[0]).toContain("previousName=Readers");
+    expect(changed[0]).toContain("previousRoles=forms.viewer");
+    expect(details.filter((detail) => detail?.startsWith("group=deleted") === true)).toHaveLength(
+      1,
+    );
+    expect(details).toHaveLength(3);
   });
 });
