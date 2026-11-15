@@ -1,12 +1,8 @@
 import { CREDENTIAL_PROVIDER_ID, type AdminAuth } from "../auth/instance.js";
 
-/**
- * The account rows better-auth owns, reached through its own internal adapter rather than
- * an HTTP endpoint: there is no sign-up surface on this deployment (ADR-09), and an
- * account created here deliberately holds no credential at all until its claim writes one.
- * `password.hash` is the library's checked hash, so the SEC-1 breach lookup runs on the
- * password the person chooses and on nothing else.
- */
+// The account rows better-auth owns, reached through its own internal adapter because this
+// deployment mounts no sign-up endpoint (ADR-09). `password.hash` is the library's checked
+// hash, so the SEC-1 breach lookup runs on the password the person chooses and nothing else.
 
 export interface CreatedAccount {
   readonly userId: string;

@@ -15,15 +15,9 @@ import { MIN_PASSWORD_LENGTH } from "../auth/instance.js";
 import { hashChosenPassword, PasswordRefused, writeAccountPasswordHash } from "./credential.js";
 import { CLAIM_PATH, signInTokenHash } from "./tokens.js";
 
-/**
- * The claim, mounted beside the better-auth endpoints because it issues a session and so
- * cannot sit behind the admin-session gate. It is the only door into an account created
- * by a Site administrator: that account holds no credential until this route writes one,
- * so `POST /sign-in/email` cannot admit it beforehand.
- *
- * No rate limit of its own: the token is 256 random bits, and an unknown one is refused by
- * a single indexed read before any password is hashed.
- */
+// The claim is mounted beside the better-auth endpoints because it issues a session, so it
+// cannot sit behind the admin-session gate. It needs no rate limit of its own: the token is
+// 256 random bits, and an unknown one is refused by one indexed read before any hashing.
 
 const ClaimBody = z.strictObject({
   token: z.string().min(1).max(512),
