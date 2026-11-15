@@ -7,10 +7,12 @@ import {
   auditDelta,
   auditTally,
   cancel,
+  card,
   confirm,
   createdLink,
   expectAxeClean,
   expectStepChips,
+  expectStepDetailsFillStep,
   expectWaitingStepStates,
   openPanel,
   propose,
@@ -106,6 +108,7 @@ test("confirms two creates inside one plan", async ({ page }) => {
 
   const before = await auditTally();
   await propose(page, "plan-questions-create", `add two #qcms-fake-new:${PLANNED}`);
+  await expectStepDetailsFillStep(page);
   await confirm(page, /^Done\. All 2 steps ran/u);
   await expectStepChips(page, ["Done", "Done"]);
   await expectAxeClean(page, "done plan");
@@ -133,6 +136,12 @@ test("confirms a save, a publish, a next draft and a deprecation, one card at a 
   );
 
   await propose(page, "propose-question-publish", "publish that draft");
+  // Nothing in the plan names this question, so the title comes from the library the screen reads.
+  await expect(card(page).locator(".qcms-acard__title")).toHaveText(
+    "Publish version 1 of the question What the assistant proposed",
+    { timeout: 30_000 },
+  );
+  await expect(card(page).getByTestId("qcms-acard-ids")).toContainText("q_");
   await confirm(page, /^Done\./u);
   await expect(versionLink(page, 1)).toContainText("Published", { timeout: 30_000 });
 

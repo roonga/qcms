@@ -145,7 +145,9 @@ describe("a refused clipboard write on a minted link", { timeout: 30_000 }, () =
     );
 
     const panel = await screen.findByTestId("qcms-minted-links");
-    await user.click(within(panel).getByRole("button", { name: t("forms.links.copy") }));
+    await user.click(
+      within(panel).getByRole("button", { name: t("forms.links.copyNumbered", { number: 1 }) }),
+    );
 
     expect(await screen.findByText(t("forms.links.copyFailed"))).toBeTruthy();
   });

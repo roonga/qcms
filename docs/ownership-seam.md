@@ -93,15 +93,15 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (619 files common to both shapes)
+### Scaffolded paths (618 files common to both shapes)
 
 | Path                                                                            | Files |
 | ------------------------------------------------------------------------------- | ----- |
 | `(project root)`                                                                | 8     |
-| `apps/`                                                                         | 608   |
-| `apps/admin/`                                                                   | 387   |
-| `apps/admin/app/`                                                               | 102   |
-| `apps/admin/app/(shell)/`                                                       | 78    |
+| `apps/`                                                                         | 607   |
+| `apps/admin/`                                                                   | 390   |
+| `apps/admin/app/`                                                               | 104   |
+| `apps/admin/app/(shell)/`                                                       | 80    |
 | `apps/admin/app/(shell)/@rail/`                                                 | 34    |
 | `apps/admin/app/(shell)/@rail/forms/`                                           | 9     |
 | `apps/admin/app/(shell)/@rail/forms/[formId]/`                                  | 7     |
@@ -137,8 +137,8 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/(shell)/@rail/workspaces/[workspaceId]/members/`                | 1     |
 | `apps/admin/app/(shell)/@rail/workspaces/[workspaceId]/settings/`               | 1     |
 | `apps/admin/app/(shell)/@rail/workspaces/all/`                                  | 1     |
-| `apps/admin/app/(shell)/assist/`                                                | 1     |
-| `apps/admin/app/(shell)/forms/`                                                 | 13    |
+| `apps/admin/app/(shell)/assist/`                                                | 2     |
+| `apps/admin/app/(shell)/forms/`                                                 | 14    |
 | `apps/admin/app/(shell)/forms/[formId]/`                                        | 7     |
 | `apps/admin/app/(shell)/forms/[formId]/assist/`                                 | 1     |
 | `apps/admin/app/(shell)/forms/[formId]/preview/`                                | 1     |
@@ -194,8 +194,8 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/two-factor/recovery-codes/`                                     | 2     |
 | `apps/admin/app/two-factor/recovery-codes/confirm/`                             | 1     |
 | `apps/admin/app/two-factor/recovery/verify/`                                    | 1     |
-| `apps/admin/components/`                                                        | 138   |
-| `apps/admin/components/agent/`                                                  | 11    |
+| `apps/admin/components/`                                                        | 139   |
+| `apps/admin/components/agent/`                                                  | 12    |
 | `apps/admin/components/forms/`                                                  | 41    |
 | `apps/admin/components/membership/`                                             | 9     |
 | `apps/admin/components/ops/`                                                    | 19    |
@@ -212,9 +212,9 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/lib/questions/`                                                     | 9     |
 | `apps/admin/lib/server/`                                                        | 32    |
 | `apps/admin/lib/shell/`                                                         | 7     |
-| `apps/api/`                                                                     | 146   |
-| `apps/api/src/`                                                                 | 143   |
-| `apps/api/src/features/`                                                        | 111   |
+| `apps/api/`                                                                     | 143   |
+| `apps/api/src/`                                                                 | 140   |
+| `apps/api/src/features/`                                                        | 108   |
 | `apps/api/src/features/agent/`                                                  | 35    |
 | `apps/api/src/features/agent/actions/`                                          | 10    |
 | `apps/api/src/features/agent/contexts/`                                         | 5     |
@@ -223,7 +223,6 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/api/src/features/email/`                                                  | 3     |
 | `apps/api/src/features/forms/`                                                  | 3     |
 | `apps/api/src/features/links/`                                                  | 3     |
-| `apps/api/src/features/logos/`                                                  | 2     |
 | `apps/api/src/features/membership/`                                             | 9     |
 | `apps/api/src/features/operations/`                                             | 3     |
 | `apps/api/src/features/outbox/`                                                 | 3     |
@@ -235,12 +234,12 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/api/src/features/responses/start-session/`                                | 3     |
 | `apps/api/src/features/responses/submit/`                                       | 3     |
 | `apps/api/src/features/webhooks/`                                               | 8     |
-| `apps/api/src/features/workspaces/`                                             | 7     |
+| `apps/api/src/features/workspaces/`                                             | 6     |
 | `apps/api/src/middleware/`                                                      | 7     |
 | `apps/api/src/routes/`                                                          | 1     |
 | `apps/api/src/schedulers/`                                                      | 4     |
-| `apps/portal/`                                                                  | 75    |
-| `apps/portal/app/`                                                              | 20    |
+| `apps/portal/`                                                                  | 74    |
+| `apps/portal/app/`                                                              | 19    |
 | `apps/portal/app/appearance/`                                                   | 1     |
 | `apps/portal/app/done/`                                                         | 1     |
 | `apps/portal/app/expired/`                                                      | 1     |
@@ -250,8 +249,6 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/portal/app/l/`                                                            | 1     |
 | `apps/portal/app/l/[token]/`                                                    | 1     |
 | `apps/portal/app/link-error/`                                                   | 1     |
-| `apps/portal/app/logo/`                                                         | 1     |
-| `apps/portal/app/logo/[key]/`                                                   | 1     |
 | `apps/portal/app/s/`                                                            | 7     |
 | `apps/portal/app/s/[sessionId]/`                                                | 7     |
 | `apps/portal/app/s/[sessionId]/answers/`                                        | 1     |
@@ -301,7 +298,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (619)</summary>
+<summary>Every scaffolded file (618)</summary>
 
 ```
 .dockerignore
@@ -344,6 +341,7 @@ apps/admin/app/(shell)/@rail/workspaces/[workspaceId]/settings/page.tsx
 apps/admin/app/(shell)/@rail/workspaces/all/page.tsx
 apps/admin/app/(shell)/@rail/workspaces/page.tsx
 apps/admin/app/(shell)/assist/route.ts
+apps/admin/app/(shell)/assist/titles.ts
 apps/admin/app/(shell)/forms/[formId]/assist/route.ts
 apps/admin/app/(shell)/forms/[formId]/page.tsx
 apps/admin/app/(shell)/forms/[formId]/preview/page.tsx
@@ -352,6 +350,7 @@ apps/admin/app/(shell)/forms/[formId]/rules/page.tsx
 apps/admin/app/(shell)/forms/[formId]/versions/[version]/page.tsx
 apps/admin/app/(shell)/forms/[formId]/versions/page.tsx
 apps/admin/app/(shell)/forms/actions.ts
+apps/admin/app/(shell)/forms/form-row-menu.tsx
 apps/admin/app/(shell)/forms/forms-table.tsx
 apps/admin/app/(shell)/forms/new/create-form.tsx
 apps/admin/app/(shell)/forms/new/page.tsx
@@ -424,6 +423,7 @@ apps/admin/components/agent/definition-detail.tsx
 apps/admin/components/agent/heading-marker.tsx
 apps/admin/components/agent/proposal-marker.tsx
 apps/admin/components/agent/step-actions.ts
+apps/admin/components/agent/subject-titles.ts
 apps/admin/components/announcer.tsx
 apps/admin/components/app-update.tsx
 apps/admin/components/appearance-glyph.tsx
@@ -754,8 +754,6 @@ apps/api/src/features/forms/schema.ts
 apps/api/src/features/links/handler.ts
 apps/api/src/features/links/route.ts
 apps/api/src/features/links/schema.ts
-apps/api/src/features/logos/handler.ts
-apps/api/src/features/logos/route.ts
 apps/api/src/features/membership/context.ts
 apps/api/src/features/membership/handler.ts
 apps/api/src/features/membership/middleware.ts
@@ -814,7 +812,6 @@ apps/api/src/features/workspaces/resolve.ts
 apps/api/src/features/workspaces/route.ts
 apps/api/src/features/workspaces/rules.ts
 apps/api/src/features/workspaces/schema.ts
-apps/api/src/features/workspaces/themes.ts
 apps/api/src/index.ts
 apps/api/src/logger.ts
 apps/api/src/main.ts
@@ -853,7 +850,6 @@ apps/portal/app/icon.svg
 apps/portal/app/l/[token]/route.ts
 apps/portal/app/layout.tsx
 apps/portal/app/link-error/page.tsx
-apps/portal/app/logo/[key]/route.ts
 apps/portal/app/page.tsx
 apps/portal/app/s/[sessionId]/answers/route.ts
 apps/portal/app/s/[sessionId]/error.tsx

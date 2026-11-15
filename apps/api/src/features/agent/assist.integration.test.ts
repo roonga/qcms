@@ -674,6 +674,7 @@ describe("every screen's context, with a sentinel in the database", () => {
   const SESSION_ID = "ses_sentinel";
   const FORM_ID = "frm_sentinel";
   let screenStatuses: Map<string, number>;
+  let waitingStatus = 0;
   let walkFrom = 0;
 
   async function seedSentinelData(): Promise<void> {
@@ -746,6 +747,22 @@ describe("every screen's context, with a sentinel in the database", () => {
       // Drain the stream, so the turn and its provider call have completed.
       if (res.status === 200) await readEvents(res);
     }
+    // A waiting card is replayed to the provider as well, so the walk covers that channel
+    // too; `read-all` cannot carry it, because every script obeys the waiting-card rule.
+    await resetLimiter();
+    const waiting = await post("/assist", {
+      conversation: [
+        { role: "user", content: "put this form out on test" },
+        { role: "assistant", content: "Here is the plan." },
+        { role: "proposal", proposalId: "prp_sentinel", steps: [{ kind: "form.publish" }] },
+        { role: "user", content: "did that go through" },
+      ],
+      screen: "/forms/[formId]",
+      params: paramsFor("/forms/[formId]"),
+      conversationId: "cnv_sentinel",
+    });
+    waitingStatus = waiting.status;
+    if (waiting.status === 200) await readEvents(waiting);
     // Every screen in the registry runs a turn here, so this fixture is longer than one
     // boot.
   }, BOOT_TIMEOUT * 3);
@@ -770,6 +787,14 @@ describe("every screen's context, with a sentinel in the database", () => {
     // read walk never executes one. The walk runs as the seeded owner, who holds every
     // cell, so every read tool is offered somewhere in it.
     expect([...executed].sort()).toEqual([...AGENT_READ_TOOL_NAMES].sort());
+  });
+
+  it("replays a waiting card to the provider, as its step kinds and no proposal id", () => {
+    expect(waitingStatus).toBe(200);
+    const sent = JSON.stringify(providerCalls.slice(walkFrom));
+    expect(sent).toContain("still waiting for the person to confirm it");
+    expect(sent).toContain("form.publish");
+    expect(sent).not.toContain("prp_sentinel");
   });
 
   it("has the sentinel in the database, so the assertions below are not about an empty one", async () => {
@@ -990,11 +1015,9 @@ describe("a reduced-grant caller over HTTP", () => {
       expect(res.status).toBe(200);
       const events = await readEvents(res);
       expect(events.some((event) => event.type === "text")).toBe(true);
-      // The one error is the script withholding a proposal, so nothing the screen read was
+      // An answered turn that proposes nothing is clean, so nothing the screen read was
       // refused for this caller.
-      expect(events.flatMap((event) => (event.type === "error" ? [event.code] : []))).toEqual([
-        "NO_PROPOSAL",
-      ]);
+      expect(events.flatMap((event) => (event.type === "error" ? [event.code] : []))).toEqual([]);
       // The facts the screen built reached the provider, so this is a turn with a context
       // rather than one that answered from nothing.
       expect(JSON.stringify(providerCalls)).toContain(FORM_ID);

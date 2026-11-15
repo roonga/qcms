@@ -5,7 +5,9 @@ import {
   appendCapped,
   atSubject,
   parseConversation,
+  postedTurns,
   promptTurns,
+  waitingProposalTurns,
   serializeConversation,
   startConversation,
   type AgentTurnRecord,
@@ -94,6 +96,58 @@ describe("the history a turn replays", () => {
         steps: [{ kind: "form.publish", outcome: "done" }],
       },
     ]);
+  });
+});
+
+describe("the history a turn posts", () => {
+  const waiting = waitingProposalTurns({ proposalId: "prp_1", steps: [{ kind: "form.publish" }] });
+
+  it("stays within the cap once the waiting card takes its slot", () => {
+    const posted = postedTurns(prose(CONVERSATION_TURN_CAP), waiting);
+    expect(posted).toHaveLength(CONVERSATION_TURN_CAP);
+    expect(posted.at(0)).toMatchObject({ content: "turn 1" });
+    expect(posted.at(-1)).toMatchObject({ role: "proposal", proposalId: "prp_1" });
+  });
+
+  it("drops nothing when no card is waiting", () => {
+    const posted = postedTurns(prose(CONVERSATION_TURN_CAP), []);
+    expect(posted).toHaveLength(CONVERSATION_TURN_CAP);
+    expect(posted.at(0)).toMatchObject({ content: "turn 0" });
+  });
+
+  it("counts the panel's own outcome lines out before it measures the room", () => {
+    const history: readonly AgentTurnRecord[] = [
+      ...prose(CONVERSATION_TURN_CAP - 1),
+      { role: "result", content: "accepted" },
+    ];
+    const posted = postedTurns(history, waiting);
+    expect(posted).toHaveLength(CONVERSATION_TURN_CAP);
+    expect(posted.at(0)).toMatchObject({ content: "turn 0" });
+  });
+});
+
+describe("the card a turn says is waiting", () => {
+  it("carries the step kinds and nothing the card displays", () => {
+    expect(
+      waitingProposalTurns({
+        proposalId: "prp_1",
+        steps: [
+          { kind: "form.create", title: { en: "Patient onboarding" } },
+          { kind: "form.saveDraft" },
+        ] as unknown as readonly { readonly kind: string }[],
+      }),
+    ).toEqual([
+      {
+        role: "proposal",
+        proposalId: "prp_1",
+        steps: [{ kind: "form.create" }, { kind: "form.saveDraft" }],
+      },
+    ]);
+  });
+
+  it("says nothing when no card is waiting", () => {
+    expect(waitingProposalTurns(undefined)).toEqual([]);
+    expect(waitingProposalTurns({ proposalId: "prp_1", steps: [] })).toEqual([]);
   });
 });
 

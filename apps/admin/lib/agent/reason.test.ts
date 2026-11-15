@@ -17,23 +17,34 @@ describe("the card's quoted reason", () => {
     );
   });
 
-  it("turns a list into a comma-separated run", () => {
+  it("keeps a list on its own lines instead of running it together", () => {
     expect(plainQuote("New questions:\n- one\n- two\n- three\n", 280)).toBe(
-      "New questions: one, two, three",
+      "New questions:\none\ntwo\nthree",
     );
   });
 
-  it("never follows a finished sentence with a comma", () => {
-    expect(plainQuote("Done.\n- The first thing.\n- The second thing.\n", 280)).toBe(
-      "Done. The first thing. The second thing.",
+  it("keeps a heading that introduces a list apart from its first item", () => {
+    expect(plainQuote("- About you step:\n  - Full name\n  - Date of birth.\n", 280)).toBe(
+      "About you step:\nFull name\nDate of birth.",
     );
+  });
+
+  it("never runs two sentences together on one line", () => {
+    expect(plainQuote("Done.\n- The first thing.\n- The second thing.\n", 280)).toBe(
+      "Done.\nThe first thing.\nThe second thing.",
+    );
+  });
+
+  it("drops whole lines rather than stopping one mid-thought", () => {
+    const quoted = plainQuote("Short enough.\n" + "word ".repeat(80), 40) ?? "";
+    expect(quoted).toBe("Short enough.");
   });
 
   it("drops an item with no text rather than leaving its marker", () => {
     expect(plainQuote("Nothing to add:\n- \n", 280)).toBe("Nothing to add");
   });
 
-  it("cuts on a sentence boundary where there is one", () => {
+  it("cuts one over-long line on a sentence boundary where there is one", () => {
     const text = `${"word ".repeat(40)}end. ${"tail ".repeat(40)}`;
     const quoted = plainQuote(text, 280) ?? "";
     expect(quoted.endsWith("end.")).toBe(true);
