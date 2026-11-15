@@ -50,7 +50,8 @@ flag-gated, and streams rather than returning a modelled JSON body.
 | `grant-filter.ts`                       | The (kind, environment) pairs a turn is offered, through the evaluator the route middleware uses.                                                                                                                                        |
 | `fake-model.ts`                         | The deterministic scripted model CI drives, including the hostile scripts.                                                                                                                                                               |
 | `route.ts` / `handler.ts` / `schema.ts` | The flag-gated registrar, the SSE relay and its 15 second keep-alive, the request schema.                                                                                                                                                |
-| `thinking.ts`                           | One function from `QCMS_AGENT_THINKING` to the provider's own options, and nothing vendor-shaped anywhere else (081).                                                                                                                    |
+| `thinking.ts`                           | One function from `QCMS_AGENT_THINKING` to the provider's own options (081).                                                                                                                                                             |
+| `caching.ts`                            | One function from a provider to the marker a cache breakpoint is spelled as. The other vendor-shaped file, and the last one.                                                                                                             |
 
 ## The registry and the door are security controls
 
@@ -179,6 +180,27 @@ control: the controls are the caller's own grants, the door, and the human confi
 The draft preamble that asks for changes is sent only on a screen that offers a
 propose verb, so a screen holding the draft for a read tool alone is not told to
 propose against it.
+
+## One prefix, cached
+
+The tools and the instructions are the same bytes on every step of every turn, at
+full grants about 140,000 characters of them, and a turn runs up to
+`QCMS_AGENT_MAX_STEPS` provider calls. So a breakpoint closes that prefix:
+`caching.ts` names the marker, `assistant.ts` puts it where the stable part ends
+and knows nothing of its shape, and a provider with no such control is sent
+nothing. **One breakpoint covers the tools as well as the instructions**, because
+the cacheable prefix is the tools, then the instructions, then the messages, so a
+marker on the instructions closes over both.
+
+The tool set and the kinds the propose tools advertise are ordered by their
+registries rather than by the order the caller's workspaces came back in
+(`mergeOffers`), because a prefix that reorders itself between turns is cached
+and never read.
+
+The turn log carries `cacheReadTokens` and `cacheWriteTokens` beside the input
+and output counts. Both are zero from a provider that reports no cache
+accounting, which is what `openai` and `google` do here: they cache without
+being asked, and nothing in the request changes for them.
 
 ## A read tool is refused wherever its screen would be
 
