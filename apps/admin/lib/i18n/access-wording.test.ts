@@ -4,23 +4,51 @@ import { messages } from "./en.ts";
 
 /**
  * The "Replaces" column of `docs/WORKSPACE_ACCESS.md` section 2, as patterns over what a
- * reader sees. Wire ids, keys and API paths keep their names, so only values are scanned.
+ * reader sees, each with a sentence it must catch. Wire ids, keys and API paths keep their
+ * names, so only values are scanned. The sample proves the pattern bites: three of these
+ * terms appear in no shipped value, and a pattern that could never match one would read as
+ * coverage without being any.
  */
-const RETIRED: readonly (readonly [string, RegExp])[] = [
+const RETIRED: readonly (readonly [string, RegExp, string])[] = [
   [
     "installation administrator or claim",
     /installation (admin|administrator|claim)|installation-wide claim/iu,
+    "You hold the installation-wide claim, so you are an installation administrator.",
   ],
-  ["workspace owner", /workspace owner|\bowners?\b/iu],
-  ["holders", /\bholders?\b/iu],
-  ["form viewer, editor or publisher", /form (viewer|editor|publisher)/iu],
-  ["response viewer or eraser", /response (viewer|eraser)\b/iu],
-  ["release approver or release forms", /release (approver|forms)/iu],
-  ["second approver", /second approver/iu],
-  ["production release", /production release/iu],
-  ["published version", /\bpublished versions?\b/iu],
-  ["two-person rule", /two-person/iu],
-  ["give or remove access", /give access|remove access/iu],
+  [
+    "workspace owner",
+    /workspace owner|\bowners?\b/iu,
+    "Ask a workspace owner, or any of this workspace's owners.",
+  ],
+  ["holders", /\bholders?\b/iu, "Every holder keeps theirs, and the other holders do too."],
+  [
+    "form viewer, editor or publisher",
+    /form (viewer|editor|publisher)/iu,
+    "A form viewer reads it, a form editor drafts it and a form publisher ships it.",
+  ],
+  [
+    "response viewer or eraser",
+    /response (viewer|eraser)\b/iu,
+    "A response viewer exports, and a response eraser erases.",
+  ],
+  [
+    "release approver or release forms",
+    /release (approver|forms)/iu,
+    "Release forms carries it, so ask a release approver.",
+  ],
+  ["second approver", /second approver/iu, "This change is waiting for a second approver."],
+  ["production release", /production release/iu, "A production release is a separate act."],
+  [
+    "published version",
+    /\bpublished versions?\b/iu,
+    "A published version never changes, and earlier published versions stay as they are.",
+  ],
+  ["two-person rule", /two-person/iu, "The two-person rule applies in production."],
+  [
+    "give or remove access",
+    /give access|remove access/iu,
+    "Give access to this group, or remove access from it.",
+  ],
 ];
 
 /**
@@ -37,8 +65,9 @@ describe("the admin interface says what the glossary says", () => {
     expect(scanned().length).toBeGreaterThan(500);
   });
 
-  for (const [label, pattern] of RETIRED) {
+  for (const [label, pattern, sample] of RETIRED) {
     it(`writes no ${label} into a value a reader sees`, () => {
+      expect(pattern.test(sample), `the ${label} pattern catches nothing`).toBe(true);
       const offending = scanned().filter((key) =>
         pattern.test(messages[key as keyof typeof messages]),
       );
