@@ -305,6 +305,10 @@ export function createAdminAuth(input: AdminAuthInput) {
           defaultValue: true,
           input: false,
         },
+        // Both `input: false`: only a Site administrator's own act sets either. Neither
+        // carries a default here, so the column's own default decides what a sign-up writes.
+        disabledAt: { type: "date", required: false, input: false },
+        claimedAt: { type: "date", required: false, input: false },
       },
     },
     databaseHooks: {
@@ -421,6 +425,14 @@ export function createAdminAuth(input: AdminAuthInput) {
               // Written only by the directory sync path; declared now so the column
               // predates it rather than arriving as a migration against a live deployment.
               externalGroupId: { type: "string", required: false, input: false },
+            },
+          },
+          teamMember: {
+            // A suspension is a Site administrator's act, so neither field takes request
+            // input and neither carries a default.
+            additionalFields: {
+              suspendedAt: { type: "date", required: false, input: false },
+              suspendedBy: { type: "string", required: false, input: false },
             },
           },
         },

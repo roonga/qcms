@@ -23,6 +23,7 @@ import {
   getResponse,
   getSessionInForm,
   getSubmission,
+  isAccountActive,
   listResponses,
   listTombstones,
   type ReportingResponseRow,
@@ -301,11 +302,14 @@ export function makeExportHandler(deps: Deps): RouteHandler<typeof exportRoute, 
       });
     });
 
+    const guard = exportGuard(deps, c.get("adminPrincipal")?.userId);
+
     if (format === "json") {
-      const stream = jsonExportStream(deps.databases.forRequest(c.get("requestEnvironment")), {
-        formId,
-        ...filter,
-      });
+      const stream = jsonExportStream(
+        deps.databases.forRequest(c.get("requestEnvironment")),
+        { formId, ...filter },
+        guard,
+      );
       return new Response(stream, {
         status: 200,
         headers: {
@@ -352,6 +356,7 @@ export function makeExportHandler(deps: Deps): RouteHandler<typeof exportRoute, 
           pageFilter,
           columns,
           groups,
+          guard,
         ),
         {
           status: 200,
@@ -364,7 +369,12 @@ export function makeExportHandler(deps: Deps): RouteHandler<typeof exportRoute, 
     }
 
     return new Response(
-      csvExportStream(deps.databases.forRequest(c.get("requestEnvironment")), pageFilter, columns),
+      csvExportStream(
+        deps.databases.forRequest(c.get("requestEnvironment")),
+        pageFilter,
+        columns,
+        guard,
+      ),
       {
         status: 200,
         headers: {
@@ -382,6 +392,20 @@ export function makeExportHandler(deps: Deps): RouteHandler<typeof exportRoute, 
  */
 type RequestDatabase = ReturnType<Databases["forRequest"]>;
 
+/**
+ * A stream outlives the request that authorised it, so the exporting account's state is read
+ * again before every page: a disable stops the bytes rather than taking effect next time.
+ */
+type ExportGuard = () => Promise<void>;
+
+function exportGuard(deps: Deps, actorId: string | undefined): ExportGuard {
+  if (actorId === undefined) return async (): Promise<void> => undefined;
+  return async (): Promise<void> => {
+    if (await isAccountActive(deps.databases.control, actorId)) return;
+    throw new Error("the exporting account is no longer active");
+  };
+}
+
 interface ExportFilter {
   formId: FormId;
   version?: number | undefined;
@@ -394,6 +418,7 @@ function csvExportStream(
   request: RequestDatabase,
   filter: ExportFilter,
   columns: readonly ResponseColumn[],
+  guard: ExportGuard,
 ): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
   let after: SessionId | undefined;
@@ -403,6 +428,7 @@ function csvExportStream(
   return new ReadableStream<Uint8Array>({
     async pull(controller) {
       if (done) return;
+      await guard();
       if (!started) {
         controller.enqueue(encoder.encode(UTF8_BOM + csvHeaderRow(columns)));
         started = true;
@@ -435,6 +461,7 @@ function zipExportStream(
   filter: ExportFilter,
   columns: readonly ResponseColumn[],
   groups: readonly GroupFileColumns[],
+  guard: ExportGuard,
 ): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
 
@@ -442,9 +469,11 @@ function zipExportStream(
     header: string,
     body: (row: ReportingResponseRow) => string,
   ): AsyncIterable<Uint8Array> {
+    await guard();
     yield encoder.encode(UTF8_BOM + header);
     let after: SessionId | undefined;
     for (;;) {
+      await guard();
       const rows = await nextPage(request, filter, after);
       if (rows.length === 0) return;
       let chunk = "";
@@ -474,6 +503,7 @@ function zipExportStream(
 function jsonExportStream(
   request: RequestDatabase,
   filter: ExportFilter,
+  guard: ExportGuard,
 ): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
   let after: SessionId | undefined;
@@ -484,6 +514,7 @@ function jsonExportStream(
   return new ReadableStream<Uint8Array>({
     async pull(controller) {
       if (done) return;
+      await guard();
       if (!started) {
         controller.enqueue(encoder.encode("["));
         started = true;

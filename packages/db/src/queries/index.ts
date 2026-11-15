@@ -1,6 +1,11 @@
 export type { Executor } from "./executor.js";
 
-export { type AdminSessionRow, getAdminSessionByToken, countAdminUsers } from "./auth.js";
+export {
+  type AdminSessionRow,
+  getAdminSessionByToken,
+  countAdminUsers,
+  isAccountActive,
+} from "./auth.js";
 
 export {
   SITE_ADMINISTRATOR_ROLE,
@@ -128,6 +133,14 @@ export {
   listAccessAudit,
   writeAccessAuditRow,
 } from "./access-audit.js";
+
+export {
+  type SiteAuditEntry,
+  type SiteAuditRow,
+  listSiteAudit,
+  writeSiteAuditRow,
+  writeSiteAuditWithMirror,
+} from "./site-audit.js";
 
 export {
   type AgentActionEntry,

@@ -3,7 +3,12 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { ACCESS_AUDIT_TABLE } from "../schema/control/access-audit.js";
+import { ACCESS_AUDIT_KINDS, ACCESS_AUDIT_TABLE } from "../schema/control/access-audit.js";
+import {
+  SITE_AUDIT_KIND_CHECK,
+  SITE_AUDIT_KINDS,
+  SITE_AUDIT_TABLE,
+} from "../schema/control/site-audit.js";
 import { AGENT_ACTIONS_STEP_UNIQUE, AGENT_ACTIONS_TABLE } from "../schema/control/agent-actions.js";
 import { ENDPOINT_PROPOSALS_TABLE } from "../schema/control/endpoint-proposals.js";
 import { RELEASE_BATCHES_TABLE } from "../schema/control/release-batches.js";
@@ -30,6 +35,7 @@ import {
   grantAppearanceLogosStatements,
   grantControlTableStatements,
   grantEnvironmentStatements,
+  grantSiteAuditStatements,
 } from "./sql.js";
 
 /**
@@ -58,6 +64,10 @@ const AGENT_MIGRATION = fileURLToPath(
 
 const APPEARANCE_MIGRATION = fileURLToPath(
   new URL("../../migrations/0010_appearance_and_workspace_themes.sql", import.meta.url),
+);
+
+const SITE_AUDIT_MIGRATION = fileURLToPath(
+  new URL("../../migrations/0011_account_state_and_site_audit.sql", import.meta.url),
 );
 
 describe("the `form_releases` grants", () => {
@@ -239,6 +249,47 @@ describe("the SEC-17 agent audit's grants (Q12)", () => {
       `GRANT INSERT ON "control"."${AGENT_ACTIONS_TABLE}" TO "qcms_app_staging"`,
     );
     expect(later).not.toContain(`GRANT SELECT ON "control"."${AGENT_ACTIONS_TABLE}"`);
+  });
+});
+
+describe("the site audit's grants (criterion 112)", () => {
+  const sql = readFileSync(SITE_AUDIT_MIGRATION, "utf8");
+
+  it("are exactly the statements the generator emits, verbatim", () => {
+    const statements = grantSiteAuditStatements();
+    expect(statements).toHaveLength(2);
+    for (const statement of statements) expect(sql).toContain(statement);
+  });
+
+  it("gives the control role SELECT and INSERT and neither of the other two", () => {
+    expect(sql).toContain(
+      `GRANT SELECT, INSERT ON "control"."${SITE_AUDIT_TABLE}" TO "qcms_app_control"`,
+    );
+    expect(sql).not.toContain(
+      `GRANT SELECT, INSERT, UPDATE, DELETE ON "control"."${SITE_AUDIT_TABLE}"`,
+    );
+  });
+
+  it("grants no environment role anything, now or for one created later", () => {
+    expect(sql).not.toContain(`ON "control"."${SITE_AUDIT_TABLE}" TO %I`);
+    const later = grantEnvironmentStatements("staging").join("\n");
+    expect(later).not.toContain(`"control"."${SITE_AUDIT_TABLE}"`);
+  });
+
+  it("revokes UPDATE and DELETE from every `qcms_app%` role, by prefix", () => {
+    expect(sql).toContain("WHERE rolname LIKE 'qcms\\_app%'");
+    expect(sql).toContain(`REVOKE UPDATE, DELETE ON TABLE control.${SITE_AUDIT_TABLE} FROM %I`);
+  });
+
+  it("carries no trigger and no foreign key, both deliberately", () => {
+    expect(sql).not.toContain("CREATE TRIGGER");
+    expect(sql).not.toContain("FOREIGN KEY");
+  });
+
+  it("pins the four site kinds and the access audit's eleven at the database", () => {
+    expect(sql).toContain(`CONSTRAINT "${SITE_AUDIT_KIND_CHECK}"`);
+    for (const kind of SITE_AUDIT_KINDS) expect(sql).toContain(`'${kind}'`);
+    for (const kind of ACCESS_AUDIT_KINDS) expect(sql).toContain(`'${kind}'`);
   });
 });
 

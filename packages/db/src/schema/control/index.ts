@@ -19,6 +19,7 @@ export * from "./releases.js";
 export * from "./auth.js";
 export * from "./two-factor-resets.js";
 export * from "./access-audit.js";
+export * from "./site-audit.js";
 export * from "./agent-actions.js";
 export * from "./endpoint-proposals.js";
 export * from "./release-workflow.js";
@@ -33,6 +34,7 @@ import * as releasesModule from "./releases.js";
 import * as secureLinksModule from "./secure-links.js";
 import * as twoFactorResetsModule from "./two-factor-resets.js";
 import * as accessAuditModule from "./access-audit.js";
+import * as siteAuditModule from "./site-audit.js";
 import * as agentActionsModule from "./agent-actions.js";
 import * as endpointProposalsModule from "./endpoint-proposals.js";
 import * as releaseWorkflowModule from "./release-workflow.js";
@@ -60,6 +62,7 @@ const CONTROL_TABLE_OBJECTS: readonly PgTable[] = [
   authModule.authTeamMember,
   twoFactorResetsModule.twoFactorResets,
   accessAuditModule.accessAudit,
+  siteAuditModule.siteAudit,
   agentActionsModule.agentActions,
   endpointProposalsModule.webhookEndpointProposals,
   releaseWorkflowModule.releaseWorkflowRevisions,

@@ -30,6 +30,13 @@ export const authUser = controlSchema.table("user", {
    * successful password change.
    */
   mustChangePassword: boolean("mustChangePassword").notNull().default(false),
+  /** Set while the account is disabled. The session verifier reads it on every request. */
+  disabledAt: timestamp("disabledAt"),
+  /**
+   * When the person first set a password and enrolled a second factor. `null` is unclaimed,
+   * which holds nothing; the default claims every account an administrator does not create.
+   */
+  claimedAt: timestamp("claimedAt").defaultNow(),
 });
 
 /** A signed-in administrator's session. */
@@ -188,4 +195,8 @@ export const authTeamMember = controlSchema.table("teamMember", {
   /** The plugin's own uniqueness key: `input: false`, `returned: false`, optional. */
   membershipKey: text("membershipKey").unique(),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
+  /** Set while the grant is suspended by a credential reset or a reactivation; it then grants nothing. */
+  suspendedAt: timestamp("suspendedAt"),
+  /** The `user.id` that performed the reset or reactivation, so the re-confirmation rule can exclude them. */
+  suspendedBy: text("suspendedBy"),
 });
