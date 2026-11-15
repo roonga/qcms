@@ -73,6 +73,28 @@ export function offeredActionKinds(input: GrantFilterInput): readonly OfferedAct
   return offered;
 }
 
+/**
+ * The union across the caller's workspaces: a kind held in one of them is offered. The order is
+ * the registry's and each kind's environments are sorted, because this list is what the propose
+ * tools advertise, and a schema that reorders itself between turns is cached nowhere.
+ */
+export function mergeOffers(
+  offers: readonly (readonly OfferedActionKind[])[],
+): readonly OfferedActionKind[] {
+  const byKind = new Map<string, Set<string>>();
+  for (const offer of offers) {
+    for (const entry of offer) {
+      const environments = byKind.get(entry.kind) ?? new Set<string>();
+      for (const environment of entry.environments) environments.add(environment);
+      byKind.set(entry.kind, environments);
+    }
+  }
+  return ACTION_KIND_NAMES.flatMap((kind) => {
+    const environments = byKind.get(kind);
+    return environments === undefined ? [] : [{ kind, environments: [...environments].sort() }];
+  });
+}
+
 export function offersNoAction(offered: readonly OfferedActionKind[]): boolean {
   return offered.length === 0;
 }
