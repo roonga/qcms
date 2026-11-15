@@ -1,6 +1,6 @@
 # Handover: workspace access spec
 
-Status: 2026-11-13. PR #1260 (branch `docs/workspace-access-work-orders`) is open and carries the spec, the Code Owner rulings of 2026-11-13 (all accepted as recommended) and work orders 084 to 121. Docs only; nothing is built in code.
+Status: 2026-11-13. PR #1260 (branch `docs/workspace-access-work-orders`) merged and carried the spec, the Code Owner rulings of 2026-11-13 (all accepted as recommended) and work orders 084 to 121. Docs only; nothing is built in code.
 
 ## Where things are
 

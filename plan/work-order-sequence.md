@@ -61,7 +61,7 @@ Gates:
 | 120  | P3 and P4: respondent menu, text size        | 118                         | O      | V, B          | yes          | no        |
 | 121  | S2: docs, cross-flow e2e, sentinel, closure  | 093, 095, 106 to 120        | O      | V, D, B, E, M | no           | no        |
 
-- "spec" is `docs/WORKSPACE_ACCESS.md` on `main`. 106 also needs the theme rows of that spec (section 3), which this branch adds.
+- "spec" is `docs/WORKSPACE_ACCESS.md` on `main`. 106 also needs the theme rows of that spec (section 3), which the spec adds.
 - Each of 085, 086, 089 and 094 fixes the agent kinds on the routes it changes; 096 audits every kind afterwards, the builder's included.
 
 ## Parallel groups
