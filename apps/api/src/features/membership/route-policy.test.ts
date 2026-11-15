@@ -284,7 +284,7 @@ describe("every row names an action the policy declares", () => {
     expect(read?.installationOnly).toBeUndefined();
   });
 
-  it("names exactly six installation-only rows", () => {
+  it("names exactly seven installation-only rows", () => {
     expect(
       ROUTE_POLICIES.filter((row) => row.installationOnly === true).map(
         (row) => `${row.method} ${row.path}`,
@@ -293,6 +293,7 @@ describe("every row names an action the policy declares", () => {
       "POST /admin/workspaces",
       "PUT /admin/workspaces/{id}/shared",
       "PUT /admin/release-workflow",
+      "DELETE /admin/logos/{key}",
       "GET /admin/site-audit",
       "GET /admin/outbox/dead-letters",
       "GET /admin/erasures",
