@@ -125,7 +125,7 @@ export {
   listWorkspaceMembers,
   lockWorkspaceMembership,
   removeAccessGroupHolder,
-  removeWorkspaceMember,
+  removeMembership,
   resolveMembership,
   setMemberRole,
   setRequireSecondApprover,

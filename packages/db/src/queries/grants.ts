@@ -454,8 +454,11 @@ export async function listWorkspaceAdministrators(
   return rows;
 }
 
-/** Remove one member row, leaving the account and its other workspaces alone. */
-export async function removeWorkspaceMember(
+/**
+ * Remove one member row. The workspace, the account and the account's other
+ * workspaces all stand: nothing here deletes a workspace.
+ */
+export async function removeMembership(
   exec: Executor,
   workspaceId: string,
   userId: string,

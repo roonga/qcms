@@ -30,7 +30,7 @@ import {
   refuseAccessGroupRoles,
   refuseEnvironmentSet,
   removeAccessGroupHolder,
-  removeWorkspaceMember,
+  removeMembership,
   resolveMembership,
   setMemberRole,
   setRequireSecondApprover,
@@ -477,7 +477,7 @@ export function makeRemoveMemberHandler(
 
       const administrators = await listWorkspaceAdministrators(tx, workspaceId);
       const held = await listAccessGroupsHeldIn(tx, workspaceId, userId);
-      const removed = await removeWorkspaceMember(tx, workspaceId, userId);
+      const removed = await removeMembership(tx, workspaceId, userId);
       if (!removed && held.length === 0) throw fail.notAMember();
 
       for (const group of held) {

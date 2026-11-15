@@ -155,7 +155,7 @@ describe("query helper import surface", () => {
     "ensureWorkspaceMember",
     "setMemberRole",
     "listWorkspaceAdministrators",
-    "removeWorkspaceMember",
+    "removeMembership",
     "lockWorkspaceMembership",
     "addAccessGroupHolder",
     "removeAccessGroupHolder",
