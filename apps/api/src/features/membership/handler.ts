@@ -167,8 +167,16 @@ function scopeDetail(
 // act without reading the group back.
 function groupDetail(
   act: "created" | "changed" | "deleted",
-  group: { readonly name: string; readonly roles: readonly string[]; readonly environments: readonly string[] },
-  before?: { readonly name: string; readonly roles: readonly string[]; readonly environments: readonly string[] },
+  group: {
+    readonly name: string;
+    readonly roles: readonly string[];
+    readonly environments: readonly string[];
+  },
+  before?: {
+    readonly name: string;
+    readonly roles: readonly string[];
+    readonly environments: readonly string[];
+  },
 ): string {
   const parts = [`group=${act}`, `name=${group.name}`, scopeDetail(group)];
   if (before !== undefined) {

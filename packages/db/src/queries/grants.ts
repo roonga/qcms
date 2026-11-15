@@ -37,10 +37,7 @@ function accountHoldsGrants() {
  * decided cannot interleave with another writer's (`docs/WORKSPACE_ACCESS.md` section 10).
  * It must be taken inside the write's own transaction, which is where it is released.
  */
-export async function lockWorkspaceMembership(
-  exec: Executor,
-  workspaceId: string,
-): Promise<void> {
+export async function lockWorkspaceMembership(exec: Executor, workspaceId: string): Promise<void> {
   await exec.execute(
     sql`select pg_advisory_xact_lock(hashtext(${MEMBERSHIP_LOCK_CLASS}), hashtext(${workspaceId}))`,
   );

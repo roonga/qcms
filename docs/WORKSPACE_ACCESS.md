@@ -16,7 +16,7 @@ The user guide for these rules is [`docs/workspace-access-guide.html`](workspace
 | Environment scope enforced in the API per route                   | Built        |
 | Access groups with several roles and one explicit environment set | Built        |
 | Five roles, View forms to Erase responses                         | Built        |
-| Workspace administrator as a direct membership flag               | Partly built |
+| Workspace administrator as a direct membership flag               | Built        |
 | Site administrator as an explicit, non-default role               | Built        |
 | Four starter groups on every new workspace                        | Built        |
 | One user-facing Publish step                                      | Built        |

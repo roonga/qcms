@@ -9,6 +9,7 @@ import {
   listAccessGroupHolders,
   listAccessGroups,
   listWorkspaceMembers,
+  setMemberRole,
   setRequireSecondApprover,
   writeAgentActionRow,
   writeSiteAuditRow,
@@ -21,6 +22,7 @@ import type { Deps } from "../../deps.js";
 import { ADMIN_SESSION_HEADER, registerAdminAuth } from "../../middleware/admin-auth.js";
 import { registerRequestEnvironment } from "../../middleware/request-environment.js";
 import {
+  disableSeededAccount,
   internalTokenFor,
   makeDeps,
   seedAdminSession,
@@ -179,6 +181,49 @@ async function auditCounts(): Promise<Readonly<Record<string, number>>> {
 }
 
 const STARTER_GROUP_NAMES = ["Authors", "Publishers", "Response viewers", "Response erasers"];
+
+async function createWorkspace(name: string, slug: string): Promise<string> {
+  const res = await send("POST", "/workspaces", { name, slug });
+  expect(res.status, await res.clone().text()).toBe(201);
+  return ((await res.json()) as { workspace: { workspaceId: string } }).workspace.workspaceId;
+}
+
+async function auditRowsOfKind(
+  workspaceId: string,
+  kind: string,
+): Promise<readonly { kind: string; detail: string | null; environment: string | null }[]> {
+  const res = await send("GET", `/workspaces/${workspaceId}/audit?kind=${kind}&pageSize=200`);
+  expect(res.status, await res.clone().text()).toBe(200);
+  return (
+    (await res.json()) as {
+      rows: { kind: string; detail: string | null; environment: string | null }[];
+    }
+  ).rows;
+}
+
+async function administratorRows(
+  workspaceId: string,
+): Promise<readonly { kind: string; detail: string | null; environment: string | null }[]> {
+  return auditRowsOfKind(workspaceId, "administrator");
+}
+
+/** Make a second account a Workspace administrator of this workspace. */
+async function appointAdministrator(workspaceId: string, label: string): Promise<string> {
+  const account = await seedAdminSession(testDb.db, {
+    label,
+    claim: false,
+    membership: false,
+  });
+  await seedGrants(testDb.db, { userId: account.userId, workspaceId, grants: [] });
+  expect(
+    (
+      await send("PUT", `/workspaces/${workspaceId}/members/${account.userId}`, {
+        role: "forms.owner",
+      })
+    ).status,
+  ).toBe(200);
+  return account.userId;
+}
 
 describe("the membership list and the capability endpoint (criterion 7, Q35)", () => {
   it("serves the membership list to an owner, with the groups each member holds", async () => {
@@ -408,6 +453,24 @@ describe("access-group names and the role set (criteria 12 and 13)", () => {
     expect(stored[0]?.name).toBe("Readers");
   });
 
+  it("keeps a member row's role to the administrator flag, whatever the row says", async () => {
+    const subject = await seedAdminSession(testDb.db, {
+      label: "memberrow",
+      claim: false,
+      grants: [],
+    });
+    await setMemberRole(testDb.db, SEED_WORKSPACE_ID, subject.userId, "responses.viewer");
+
+    const body = (await (await as(subject.token, "GET", "/me/access")).json()) as {
+      capabilities: Record<string, boolean>;
+      workspaces: { memberRole: string | null }[];
+    };
+    expect(body.workspaces[0]?.memberRole).toBe("member");
+    expect(Object.values(body.capabilities).every((held) => held === false)).toBe(true);
+
+    await setMemberRole(testDb.db, SEED_WORKSPACE_ID, subject.userId, "forms.owner");
+  });
+
   it("fails closed on a role name that reaches the row but no declared role", async () => {
     const teamId = await createGroup({
       name: "Mislabelled",
@@ -432,19 +495,18 @@ describe("access-group names and the role set (criteria 12 and 13)", () => {
     };
     expect(before.capabilities["operations"]).toBe(true);
 
-    await testDb.db
-      .update(authTeam)
-      .set({ roles: ["forms.superuser"] })
-      .where(eq(authTeam.id, teamId));
+    // A group row carries access roles only, so neither an undeclared name nor the
+    // administrator flag survives the read, let alone grants anything.
+    for (const roles of [["forms.superuser"], ["forms.owner"]]) {
+      await testDb.db.update(authTeam).set({ roles }).where(eq(authTeam.id, teamId));
 
-    const after = (await (await as(subject.token, "GET", "/me/access")).json()) as {
-      capabilities: Record<string, boolean>;
-      workspaces: { grants: { roles: string[] }[] }[];
-    };
-    expect(after.workspaces[0]?.grants.flatMap((grant) => grant.roles)).toEqual([
-      "forms.superuser",
-    ]);
-    expect(Object.values(after.capabilities).every((held) => held === false)).toBe(true);
+      const after = (await (await as(subject.token, "GET", "/me/access")).json()) as {
+        capabilities: Record<string, boolean>;
+        workspaces: { grants: { roles: string[] }[] }[];
+      };
+      expect(after.workspaces[0]?.grants.flatMap((grant) => grant.roles)).toEqual([]);
+      expect(Object.values(after.capabilities).every((held) => held === false)).toBe(true);
+    }
 
     await testDb.db
       .update(authTeam)
@@ -655,7 +717,7 @@ describe("every grant and every revoke writes a SEC-15 row (criterion 19, Q56)",
     expect((await auditCounts()).revoke ?? 0).toBe(before + 2);
   });
 
-  it("audits the member row's role in both directions", async () => {
+  it("audits an administrator appointment and its removal, as `administrator` both ways", async () => {
     const before = await auditCounts();
     expect(
       (
@@ -664,7 +726,7 @@ describe("every grant and every revoke writes a SEC-15 row (criterion 19, Q56)",
         })
       ).status,
     ).toBe(200);
-    expect((await auditCounts()).grant ?? 0).toBe((before.grant ?? 0) + 1);
+    expect((await auditCounts()).administrator ?? 0).toBe((before.administrator ?? 0) + 1);
     expect(
       (
         await send("PUT", `/workspaces/${SEED_WORKSPACE_ID}/members/${editorId}`, {
@@ -672,18 +734,21 @@ describe("every grant and every revoke writes a SEC-15 row (criterion 19, Q56)",
         })
       ).status,
     ).toBe(200);
-    expect((await auditCounts()).revoke ?? 0).toBe((before.revoke ?? 0) + 1);
+    expect((await auditCounts()).administrator ?? 0).toBe((before.administrator ?? 0) + 2);
+    const rows = await administratorRows(SEED_WORKSPACE_ID);
+    expect(rows.map((row) => row.detail)).toContain(`administrator=appointed subject=${editorId}`);
+    expect(rows.map((row) => row.detail)).toContain(`administrator=removed subject=${editorId}`);
   });
 
-  it("refuses to demote a workspace's last owner", async () => {
-    const workspace = await send("POST", "/workspaces", { name: "Last", slug: "last-owner" });
-    const workspaceId = ((await workspace.json()) as { workspace: { workspaceId: string } })
-      .workspace.workspaceId;
+  it("refuses to remove a workspace's last Workspace administrator (criterion 86)", async () => {
+    const workspaceId = await createWorkspace("Last", "last-owner");
     const res = await send("PUT", `/workspaces/${workspaceId}/members/${ownerId}`, {
       role: "member",
     });
     expect(res.status).toBe(409);
-    expect((await res.json()) as ErrorBody).toMatchObject({ error: { code: "LAST_OWNER" } });
+    expect((await res.json()) as ErrorBody).toMatchObject({
+      error: { code: "LAST_ADMINISTRATOR" },
+    });
   });
 });
 
@@ -1494,5 +1559,254 @@ describe("the site audit (criteria 111 and 113)", () => {
     const body = (await res.json()) as { rows: { kind: string; detail: string | null }[] };
     expect(body.rows).toHaveLength(1);
     expect(body.rows[0]?.detail).toBe(`subject=${secondOwnerId} act=reset scope=password`);
+  });
+});
+
+describe("the per-workspace membership lock and the last-administrator guard (089)", () => {
+  it("leaves one administrator when two concurrent removals race (criterion 88)", async () => {
+    const workspaceId = await createWorkspace("Race", "race-admins");
+    const second = await appointAdministrator(workspaceId, "race2");
+
+    // Each removal takes the other's subject, so without the lock both would read two
+    // administrators and the workspace would be left with none.
+    const [first, other] = await Promise.all([
+      send("PUT", `/workspaces/${workspaceId}/members/${second}`, { role: "member" }),
+      send("PUT", `/workspaces/${workspaceId}/members/${ownerId}`, { role: "member" }),
+    ]);
+
+    const codes = [first.status, other.status].sort((a, b) => a - b);
+    expect(codes).toEqual([200, 409]);
+    const refused = first.status === 409 ? first : other;
+    expect((await refused.json()) as ErrorBody).toMatchObject({
+      error: { code: "LAST_ADMINISTRATOR" },
+    });
+
+    const members = await listWorkspaceMembers(testDb.db, workspaceId);
+    expect(members.filter((member) => member.role === "forms.owner")).toHaveLength(1);
+  });
+
+  it("does not count a disabled or an unclaimed administrator (criterion 87)", async () => {
+    const workspaceId = await createWorkspace("Standing", "standing-admins");
+    const disabled = await appointAdministrator(workspaceId, "standdis");
+    await disableSeededAccount(testDb.db, disabled, deps.clock.now());
+    const unclaimed = await seedAdminSession(testDb.db, {
+      label: "standunc",
+      claim: false,
+      claimed: false,
+      membership: false,
+    });
+    await seedGrants(testDb.db, { userId: unclaimed.userId, workspaceId, grants: [] });
+    await setMemberRole(testDb.db, workspaceId, unclaimed.userId, "forms.owner");
+
+    // Three administrator rows, one of them active and claimed, so the guard still bites.
+    const refused = await send("PUT", `/workspaces/${workspaceId}/members/${ownerId}`, {
+      role: "member",
+    });
+    expect(refused.status).toBe(409);
+    expect((await refused.json()) as ErrorBody).toMatchObject({
+      error: { code: "LAST_ADMINISTRATOR" },
+    });
+
+    // Neither of the two satisfies the guard, so neither is held by it either.
+    for (const subject of [disabled, unclaimed.userId]) {
+      const res = await send("PUT", `/workspaces/${workspaceId}/members/${subject}`, {
+        role: "member",
+      });
+      expect(res.status, await res.clone().text()).toBe(200);
+    }
+  });
+
+  it("refuses a Site administrator removing the last administrator, by either route", async () => {
+    const workspaceId = await createWorkspace("Site refused", "site-refused");
+    const only = await appointAdministrator(workspaceId, "onlyadmin");
+    expect(
+      (await send("PUT", `/workspaces/${workspaceId}/members/${ownerId}`, { role: "member" }))
+        .status,
+    ).toBe(200);
+
+    // `ownerToken` is a Site administrator and not an administrator of this workspace now.
+    const demoted = await send("PUT", `/workspaces/${workspaceId}/members/${only}`, {
+      role: "member",
+    });
+    expect(demoted.status).toBe(409);
+    const removed = await send("DELETE", `/workspaces/${workspaceId}/members/${only}`);
+    expect(removed.status).toBe(409);
+    expect((await removed.json()) as ErrorBody).toMatchObject({
+      error: { code: "LAST_ADMINISTRATOR" },
+    });
+  });
+});
+
+describe("taking somebody out of a workspace (089)", () => {
+  it("removes every group hold and the member row, one revoke row each", async () => {
+    const workspaceId = await createWorkspace("Exit", "exit-workspace");
+    const subject = await seedAdminSession(testDb.db, {
+      label: "exit",
+      claim: false,
+      membership: false,
+    });
+    const group = await send("POST", `/workspaces/${workspaceId}/access-groups`, {
+      name: "Exit viewers",
+      roles: ["forms.viewer"],
+      environments: [],
+    });
+    const teamId = ((await group.json()) as GroupBody).group.teamId;
+    expect(
+      (
+        await send("POST", `/workspaces/${workspaceId}/access-groups/${teamId}/holders`, {
+          userId: subject.userId,
+        })
+      ).status,
+    ).toBe(201);
+
+    const res = await send("DELETE", `/workspaces/${workspaceId}/members/${subject.userId}`);
+    expect(res.status, await res.clone().text()).toBe(204);
+
+    expect(
+      (await listWorkspaceMembers(testDb.db, workspaceId)).some(
+        (member) => member.userId === subject.userId,
+      ),
+    ).toBe(false);
+    expect(
+      (await listAccessGroupHolders(testDb.db, teamId)).some(
+        (holder) => holder.userId === subject.userId,
+      ),
+    ).toBe(false);
+
+    const details = (await auditRowsOfKind(workspaceId, "revoke")).map((row) => row.detail);
+    expect(details).toContain(`member=removed subject=${subject.userId}`);
+    expect(
+      details.some(
+        (detail) =>
+          detail?.includes(`subject=${subject.userId}`) === true &&
+          detail.includes("group=Exit viewers"),
+      ),
+    ).toBe(true);
+  });
+
+  it("writes the administrator row when the person held the flag", async () => {
+    const workspaceId = await createWorkspace("Exit admin", "exit-admin");
+    const second = await appointAdministrator(workspaceId, "exitadmin");
+    expect((await send("DELETE", `/workspaces/${workspaceId}/members/${second}`)).status).toBe(204);
+    expect((await administratorRows(workspaceId)).map((row) => row.detail)).toContain(
+      `administrator=removed subject=${second}`,
+    );
+  });
+
+  it("answers 404 for an account with nothing in this workspace", async () => {
+    const workspaceId = await createWorkspace("Exit none", "exit-none");
+    const stranger = await seedAdminSession(testDb.db, {
+      label: "exitnone",
+      claim: false,
+      membership: false,
+    });
+    const res = await send("DELETE", `/workspaces/${workspaceId}/members/${stranger.userId}`);
+    expect(res.status).toBe(404);
+    expect((await res.json()) as ErrorBody).toMatchObject({ error: { code: "NOT_A_MEMBER" } });
+  });
+});
+
+describe("a group stays inside its workspace (criteria 23 and 25)", () => {
+  it("refuses a group id from another workspace in every act that names one", async () => {
+    const other = await createWorkspace("Elsewhere", "elsewhere-groups");
+    const group = await send("POST", `/workspaces/${other}/access-groups`, {
+      name: "Elsewhere viewers",
+      roles: ["forms.viewer"],
+      environments: [],
+    });
+    const foreign = ((await group.json()) as GroupBody).group.teamId;
+
+    const grant = await send(
+      "POST",
+      `/workspaces/${SEED_WORKSPACE_ID}/access-groups/${foreign}/holders`,
+      { userId: editorId },
+    );
+    expect(grant.status).toBe(404);
+    expect((await grant.json()) as ErrorBody).toMatchObject({
+      error: { code: "ACCESS_GROUP_NOT_FOUND" },
+    });
+
+    for (const [method, path] of [
+      ["PUT", `/workspaces/${SEED_WORKSPACE_ID}/access-groups/${foreign}`],
+      ["DELETE", `/workspaces/${SEED_WORKSPACE_ID}/access-groups/${foreign}`],
+      ["DELETE", `/workspaces/${SEED_WORKSPACE_ID}/access-groups/${foreign}/holders/${editorId}`],
+    ] as const) {
+      const res = await send(
+        method,
+        path,
+        method === "PUT"
+          ? { name: "Renamed elsewhere", roles: ["forms.viewer"], environments: [] }
+          : undefined,
+      );
+      expect(res.status, `${method} ${path}`).toBe(404);
+    }
+
+    // The group itself is untouched, and so is its workspace.
+    expect((await listAccessGroups(testDb.db, other)).map((row) => row.name)).toContain(
+      "Elsewhere viewers",
+    );
+  });
+
+  it("refuses a Workspace administrator of one workspace every act on another", async () => {
+    const theirs = await createWorkspace("Theirs", "theirs-workspace");
+    const administrator = await seedAdminSession(testDb.db, {
+      label: "theirsadmin",
+      claim: false,
+      membership: false,
+    });
+    await seedGrants(testDb.db, { userId: administrator.userId, workspaceId: theirs, grants: [] });
+    await setMemberRole(testDb.db, theirs, administrator.userId, "forms.owner");
+
+    for (const [method, path, body] of [
+      ["GET", `/workspaces/${SEED_WORKSPACE_ID}/members`, undefined],
+      ["GET", `/workspaces/${SEED_WORKSPACE_ID}/access-groups`, undefined],
+      ["GET", `/workspaces/${SEED_WORKSPACE_ID}/audit`, undefined],
+      [
+        "POST",
+        `/workspaces/${SEED_WORKSPACE_ID}/access-groups`,
+        { name: "Crossing", roles: ["forms.viewer"], environments: [] },
+      ],
+      ["DELETE", `/workspaces/${SEED_WORKSPACE_ID}/members/${editorId}`, undefined],
+      ["PUT", `/workspaces/${SEED_WORKSPACE_ID}/settings`, { requireSecondApprover: true }],
+    ] as const) {
+      const res = await as(administrator.token, method, path, body);
+      expect(res.status, `${method} ${path}`).toBe(403);
+    }
+  });
+});
+
+describe("every group act writes one `group` row (section 11)", () => {
+  it("records a create, a rename, a change of roles and environments, and a delete", async () => {
+    const workspaceId = await createWorkspace("Group audit", "group-audit");
+    const created = await send("POST", `/workspaces/${workspaceId}/access-groups`, {
+      name: "Readers",
+      roles: ["forms.viewer"],
+      environments: [],
+    });
+    expect(created.status, await created.clone().text()).toBe(201);
+    const teamId = ((await created.json()) as GroupBody).group.teamId;
+
+    expect(
+      (
+        await send("PUT", `/workspaces/${workspaceId}/access-groups/${teamId}`, {
+          name: "Response readers",
+          roles: ["responses.viewer"],
+          environments: ["prod"],
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (await send("DELETE", `/workspaces/${workspaceId}/access-groups/${teamId}`)).status,
+    ).toBe(204);
+
+    const details = (await auditRowsOfKind(workspaceId, "group")).map((row) => row.detail);
+    expect(details).toContain("group=created name=Readers roles=forms.viewer environments=");
+    const changed = details.find((detail) => detail?.startsWith("group=changed") === true);
+    expect(changed).toContain("name=Response readers");
+    expect(changed).toContain("roles=responses.viewer");
+    expect(changed).toContain("environments=prod");
+    expect(changed).toContain("previousName=Readers");
+    expect(changed).toContain("previousRoles=forms.viewer");
+    expect(details.some((detail) => detail?.startsWith("group=deleted") === true)).toBe(true);
   });
 });

@@ -34,7 +34,8 @@ export interface RoutePolicy {
   // Here rather than in the handler so "no path reads or exports without an audit row" is
   // checkable against the route list; the handlers write the row inside the read's own
   // transaction.
-  readonly audit?: "read" | "export" | "erasure" | "grant" | "revoke" | "setting";
+  readonly audit?:
+    "read" | "export" | "erasure" | "grant" | "revoke" | "setting" | "group" | "administrator";
 }
 
 /**
@@ -160,12 +161,21 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     workspace: "path",
   },
   {
+    // Appointing or removing a Workspace administrator, which is the member row's flag.
     method: "PUT",
     path: "/admin/workspaces/{id}/members/{userId}",
     resource: "membership",
     action: "write",
     workspace: "path",
-    audit: "grant",
+    audit: "administrator",
+  },
+  {
+    method: "DELETE",
+    path: "/admin/workspaces/{id}/members/{userId}",
+    resource: "membership",
+    action: "write",
+    workspace: "path",
+    audit: "revoke",
   },
   {
     method: "GET",
@@ -180,6 +190,7 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     resource: "membership",
     action: "write",
     workspace: "path",
+    audit: "group",
   },
   {
     method: "PUT",
@@ -187,14 +198,16 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     resource: "membership",
     action: "write",
     workspace: "path",
+    audit: "group",
   },
   {
+    // The group row; the holders it carried get a revoke row each in the same transaction.
     method: "DELETE",
     path: "/admin/workspaces/{id}/access-groups/{teamId}",
     resource: "membership",
     action: "write",
     workspace: "path",
-    audit: "revoke",
+    audit: "group",
   },
   {
     method: "POST",

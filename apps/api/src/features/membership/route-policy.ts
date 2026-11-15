@@ -35,14 +35,7 @@ export interface RoutePolicy {
   // checkable against the route list; the handlers write the row inside the read's own
   // transaction.
   readonly audit?:
-    | "read"
-    | "export"
-    | "erasure"
-    | "grant"
-    | "revoke"
-    | "setting"
-    | "group"
-    | "administrator";
+    "read" | "export" | "erasure" | "grant" | "revoke" | "setting" | "group" | "administrator";
 }
 
 /**

@@ -17,6 +17,7 @@ import {
   makeListMembersHandler,
   makeMyAccessHandler,
   makeRemoveHolderHandler,
+  makeRemoveMemberHandler,
   makeSetMemberRoleHandler,
   makeSiteAuditHandler,
   makeUpdateAccessGroupHandler,
@@ -97,12 +98,14 @@ export const listMembersRoute = createRoute({
 export const setMemberRoleRoute = createRoute({
   method: "put",
   path: "/workspaces/{id}/members/{userId}",
-  summary: "Make somebody a workspace owner, or take the role away (admin)",
+  summary: "Appoint or remove a Workspace administrator (admin)",
   description:
-    "`forms.owner` is the one role that lives on the member row rather than on an " +
-    "access group. Both directions write an access-audit row. The workspace's last " +
-    "owner cannot be demoted, because a workspace with no owner is one nobody can " +
-    "administer.",
+    "The Workspace administrator flag lives on the member row rather than on an access " +
+    "group. Both directions write an `administrator` audit row. Removing the last " +
+    "active, claimed Workspace administrator is refused for every actor, a Site " +
+    "administrator included: that role never satisfies the guard, and a workspace with " +
+    "no administrator is one nobody can administer. The write takes the workspace's " +
+    "membership lock, so two removals cannot jointly remove the last one.",
   tags,
   request: { params: WorkspaceMemberParams, body: jsonBody(SetMemberRoleBody) },
   responses: {
@@ -115,14 +118,34 @@ export const setMemberRoleRoute = createRoute({
   ...withScopes("forms:write"),
 });
 
+export const removeMemberRoute = createRoute({
+  method: "delete",
+  path: "/workspaces/{id}/members/{userId}",
+  summary: "Take somebody out of this workspace (admin)",
+  description:
+    "Removes every access group the person holds here and the member row itself, one " +
+    "revoke row each, in one transaction under the workspace's membership lock. The " +
+    "account and every other workspace are untouched: a Workspace administrator revokes " +
+    "within their own workspace and never disables an account. The last active, claimed " +
+    "Workspace administrator cannot be removed. Allowed on an archived workspace, which " +
+    "refuses every grant but never a revoke.",
+  tags,
+  request: { params: WorkspaceMemberParams },
+  responses: {
+    204: { description: "Removed" },
+    ...errorResponses(401, 403, 404, 409),
+  },
+  ...withScopes("forms:write"),
+});
+
 export const listAccessGroupsRoute = createRoute({
   method: "get",
   path: "/workspaces/{id}/access-groups",
-  summary: "The workspace's access groups, with their scope and their holders (admin)",
+  summary: "The workspace's access groups, with their roles, environments and holders (admin)",
   description:
-    "An access group is one grant: a role and its scope. The stored name is shown " +
-    "inside a workspace page and the derived full name in cross-workspace lists; " +
-    "neither derived name is stored, so renaming a workspace slug changes display only.",
+    "An access group is one grant: a set of roles and one environment set, held by the " +
+    "people in it. The name is a label an administrator chose, unique within the " +
+    "workspace and never parsed to authorise anything.",
   tags,
   request: { params: WorkspaceIdParam },
   responses: {
@@ -140,12 +163,11 @@ export const createAccessGroupRoute = createRoute({
   path: "/workspaces/{id}/access-groups",
   summary: "Create an access group (admin)",
   description:
-    "The role and the scope are the grant and the name is a label kept in step with " +
-    "them: a name out of step with the fields is refused on save, and nothing parses a " +
-    "name to authorise. Names are unique within a workspace. A combined environment " +
-    "set is written in the order of the environments table, so `dev-test` is the one " +
-    "spelling. A group with no holders grants nobody anything, so creating one writes " +
-    "no audit row; adding a holder does.",
+    "The roles and the environment set are the grant and the name is a label nothing " +
+    "parses to authorise. Names are unique within a workspace. The environment set is " +
+    "written in the order of the environments table, so one set has one spelling. " +
+    "Creating a group writes one `group` audit row; it grants nobody anything until a " +
+    "holder is added, which writes a `grant` row of its own.",
   tags,
   request: { params: WorkspaceIdParam, body: jsonBody(CreateAccessGroupBody) },
   responses: {
@@ -161,12 +183,11 @@ export const createAccessGroupRoute = createRoute({
 export const updateAccessGroupRoute = createRoute({
   method: "put",
   path: "/workspaces/{id}/access-groups/{teamId}",
-  summary: "Rename or re-scope an access group (admin)",
+  summary: "Rename an access group, or change its roles and environments (admin)",
   description:
-    "The role is not changeable: a different role is a different grant, and moving one " +
-    "would change what the group grants under the people holding it. Delete the group " +
-    "and create the one you meant, which is two audited acts rather than one unaudited " +
-    "change of meaning. A re-scope writes one audit row per holder.",
+    "One `group` audit row naming what the group now carries and what it carried " +
+    "before. A change that would give the person making it a response role, or a new " +
+    "environment for one, is refused while the workspace requires a second approver.",
   tags,
   request: { params: AccessGroupParams, body: jsonBody(UpdateAccessGroupBody) },
   responses: {
@@ -244,16 +265,12 @@ export const removeHolderRoute = createRoute({
 export const workspaceSettingsRoute = createRoute({
   method: "put",
   path: "/workspaces/{id}/settings",
-  summary: "The workspace's two switches: the second approver and the test-data seed (admin)",
+  summary: "The workspace's second-approval switch (admin)",
   description:
-    "Both default off. The second-approver switch governs the two-person rule for a " +
-    "production release and a production endpoint change, and the self-grant rule for " +
-    "a responses role, so an installation turns on one thing and gets the whole " +
-    "two-person posture. The seed switch decides whether a new editor is also granted " +
-    "a responses viewer role on dev and test, and a grant on test responses is a grant " +
-    "on personal data, because a test run can involve real respondents. Turning either " +
-    "on or off writes an access-audit row of kind `setting`. Refused on an archived " +
-    "workspace.",
+    "Off by default. It governs second approval for a production publish and a " +
+    "production endpoint change, and the self-grant rule for a response role, so a " +
+    "workspace turns on one thing and gets the whole posture. Turning it on or off " +
+    "writes an access-audit row of kind `setting`. Refused on an archived workspace.",
   tags,
   request: { params: WorkspaceIdParam, body: jsonBody(WorkspaceSettingsBody) },
   responses: {
@@ -337,6 +354,7 @@ export const registerMembership: SliceRegistrar = (group, deps: Deps): void => {
   group.openapi(myAccessRoute, makeMyAccessHandler(deps));
   group.openapi(listMembersRoute, makeListMembersHandler(deps));
   group.openapi(setMemberRoleRoute, makeSetMemberRoleHandler(deps));
+  group.openapi(removeMemberRoute, makeRemoveMemberHandler(deps));
   group.openapi(listAccessGroupsRoute, makeListAccessGroupsHandler(deps));
   group.openapi(createAccessGroupRoute, makeCreateAccessGroupHandler(deps));
   group.openapi(updateAccessGroupRoute, makeUpdateAccessGroupHandler(deps));
