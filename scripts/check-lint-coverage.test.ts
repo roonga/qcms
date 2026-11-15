@@ -9,6 +9,7 @@ import {
   hasUnpinnedEslint,
   isGeneratedCopy,
   isPromptSource,
+  isProseMarkdown,
   isVendoredSource,
   lintScope,
   lintTargets,
@@ -198,6 +199,14 @@ describe("recognizing the copied source boundary", () => {
     expect(isGeneratedCopy("packages/create-qcms-app/src/scaffold.ts")).toBe(false);
     expect(isGeneratedCopy("packages/create-qcms-app/scripts/sync-templates.mjs")).toBe(false);
     expect(isGeneratedCopy("packages/create-qcms-app/templates-static/common/x.ts")).toBe(false);
+  });
+
+  it("reads the copied Markdown tree as bytes, like the source it copies", () => {
+    expect(
+      isProseMarkdown("packages/create-qcms-app/templates/common/apps/api/src/x/prompts/a.md"),
+    ).toBe(false);
+    expect(isProseMarkdown("apps/api/src/features/agent/prompts/system/01-role.md")).toBe(false);
+    expect(isProseMarkdown("docs/agent-authoring.md")).toBe(true);
   });
 
   it("recognizes only the Markdown holding the assistant's prompt text", () => {
