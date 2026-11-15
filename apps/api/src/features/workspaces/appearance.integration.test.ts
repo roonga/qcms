@@ -418,7 +418,9 @@ describe("the appearance lock is a workspace setting (criterion 120)", () => {
       locked: false,
     });
     expect(cleared.status).toBe(200);
-    expect(await settingRows(workspaceId)).toEqual([
+    // Sorted, because the suite's clock is fixed: both rows carry one `occurred_at` and
+    // their order is the tiebreaker's, which is not what this asserts.
+    expect([...(await settingRows(workspaceId))].sort()).toEqual([
       "setting=appearanceLock to=false",
       "setting=appearanceLock to=true",
     ]);

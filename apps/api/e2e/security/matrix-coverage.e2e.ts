@@ -32,6 +32,7 @@ const DOCUMENTED_ROWS: Readonly<Record<string, MatrixRow>> = {
   Erasure: "erasure",
   "Links mint/revoke, webhook config": "links-webhooks",
   "Membership, grants and the access audit": "membership",
+  "Serve a stored logo": "logo",
   "Health/ready": "health",
 };
 
@@ -183,6 +184,8 @@ const DOCUMENTED_ROLE_ROWS: Readonly<Record<string, readonly [string, string]>> 
     "write",
   ],
   "Workspace settings: two-person switch, archive": ["workspace", "update"],
+  "Save or change a workspace theme": ["form", "write"],
+  "Set or clear the workspace appearance lock": ["workspace", "update"],
   "Read the access audit": ["audit", "read"],
   "Create workspaces, mark the shared one, environment settings, user accounts, release-workflow configuration":
     ["workspace", "update"],

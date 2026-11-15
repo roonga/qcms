@@ -18,6 +18,7 @@ export type MatrixRow =
   | "erasure"
   | "links-webhooks"
   | "membership"
+  | "logo"
   | "health";
 
 /** ADR-09: an unmounted group answers 404, not 403. */
@@ -45,6 +46,8 @@ export interface PathContext {
   readonly webhookId: string;
   readonly deliveryId: string;
   readonly questionId: string;
+  /** A logo really in the store, so the positive control below serves bytes. */
+  readonly logoKey: string;
   readonly workspaceId: string;
   readonly teamId: string;
   readonly holderId: string;
@@ -628,6 +631,17 @@ export const SURFACES: readonly Surface[] = [
     path: () => "/api/auth/sign-in/email",
     body: { email: "nobody@example.test", ...WRONG_CREDENTIAL },
     anonymousReachable: false,
+  },
+  {
+    // Anonymous like the two entry rows: a logo is served to whoever the form is served
+    // to, and the route takes no session and no grant.
+    name: "GET /logos/{key}",
+    row: "logo",
+    group: "public",
+    method: "GET",
+    path: (ctx) => `/logos/${ctx.logoKey}`,
+    anonymousReachable: true,
+    readControl: true,
   },
   {
     name: "GET /health",
