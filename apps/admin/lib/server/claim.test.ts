@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { CLAIM_LINK_REFUSED_CODE, claimRefusalOf } from "./claim.ts";
+import { CLAIM_INVALID_BODY_CODE, CLAIM_LINK_REFUSED_CODE, claimRefusalOf } from "./claim.ts";
 import { PASSWORD_COMPROMISED_CODE } from "./password-refusal.ts";
 
 function refusal(body: unknown): Response {
@@ -21,6 +21,12 @@ describe("reading a claim refusal", () => {
     await expect(
       claimRefusalOf(refusal({ error: { code: PASSWORD_COMPROMISED_CODE } })),
     ).resolves.toBe("compromised");
+  });
+
+  it("names a body the claim schema refused, which is a password the screen can ask for again", async () => {
+    await expect(
+      claimRefusalOf(refusal({ error: { code: CLAIM_INVALID_BODY_CODE } })),
+    ).resolves.toBe("weak");
   });
 
   it("stays generic for every other code, and for a body that is not the envelope", async () => {

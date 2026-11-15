@@ -47,7 +47,7 @@ test("an unknown token is refused with the same answer", async ({ page }) => {
   await page.goto("/claim?token=not-a-token-that-was-ever-issued");
   await fillClaim(page, CHOSEN_PASSWORD, CHOSEN_PASSWORD);
   await Promise.all([
-    page.waitForURL(/\/claim\?error=1$/),
+    page.waitForURL(/\/claim\?linkRefused=1$/),
     page.getByRole("button", { name: "Continue" }).click(),
   ]);
   await expect(alertText(page)).toContainText("cannot be used");
@@ -116,7 +116,7 @@ test("the spent link is refused on a second use", async ({ page }) => {
   await page.goto(`/claim?token=${encodeURIComponent(token)}`);
   await fillClaim(page, `${CHOSEN_PASSWORD}-again`, `${CHOSEN_PASSWORD}-again`);
   await Promise.all([
-    page.waitForURL(/\/claim\?error=1$/),
+    page.waitForURL(/\/claim\?linkRefused=1$/),
     page.getByRole("button", { name: "Continue" }).click(),
   ]);
   await expect(alertText(page)).toContainText("cannot be used");

@@ -1,4 +1,5 @@
 import { claimAccount, enableTwoFactor } from "@/lib/server/auth-api";
+import { CLAIM_PATH, claimRefusalOf } from "@/lib/server/claim";
 import { twoFactorOptional } from "@/lib/server/config";
 import { pendingEnrollmentCookie, recoveryCodesCookie } from "@/lib/server/enrollment";
 import {
@@ -9,7 +10,6 @@ import {
   isSameOriginPost,
   redirectAfterPost,
 } from "@/lib/server/route-helpers";
-import { CLAIM_PATH, claimRefusalOf } from "@/lib/server/claim";
 import { ENROLL_PATH, SHELL_HOME_PATH, SIGN_IN_PATH } from "@/lib/server/session";
 
 /**
@@ -19,25 +19,24 @@ import { ENROLL_PATH, SHELL_HOME_PATH, SIGN_IN_PATH } from "@/lib/server/session
  * forced-change handler does, so it never has to be held for a later screen.
  */
 export async function POST(request: Request): Promise<Response> {
-  if (!isSameOriginPost(request)) return claimRedirect(undefined, "error");
+  if (!isSameOriginPost(request)) return claimRedirect("linkRefused");
 
   const form = await request.formData();
   const token = formField(form, "token");
   const newPassword = formField(form, "newPassword");
   const confirmPassword = formField(form, "confirmPassword");
-  if (token === undefined) return claimRedirect(undefined, "error");
-  if (newPassword === undefined) return claimRedirect(token, "weak");
-  if (newPassword !== confirmPassword) return claimRedirect(token, "mismatch");
+  if (token === undefined) return claimRedirect("linkRefused");
+  if (newPassword === undefined) return claimRedirect("weak", token);
+  if (newPassword !== confirmPassword) return claimRedirect("mismatch", token);
 
   const claimed = await claimAccount(request.headers, { token, password: newPassword });
 
   if (authRefused(claimed)) {
-    if (authThrottled(claimed)) return claimRedirect(token, "throttled");
+    if (authThrottled(claimed)) return claimRedirect("throttled");
     const refusal = await claimRefusalOf(claimed);
-    // A refused link is spent, so the retry screen drops the token rather than offering a
-    // form that cannot succeed.
-    if (refusal === "link") return claimRedirect(undefined, "error");
-    return claimRedirect(token, refusal === "compromised" ? "compromised" : "weak");
+    if (refusal === "link") return claimRedirect("linkRefused");
+    if (refusal === "compromised") return claimRedirect("compromised", token);
+    return refusal === "weak" ? claimRedirect("weak", token) : claimRedirect("error");
   }
 
   const cookies = cookiesFrom(claimed);
@@ -63,12 +62,18 @@ export async function POST(request: Request): Promise<Response> {
   ]);
 }
 
-type ClaimMarker = "error" | "throttled" | "mismatch" | "compromised" | "weak";
+type ClaimMarker = "linkRefused" | "error" | "throttled" | "mismatch" | "compromised" | "weak";
 
-/** One builder, because the claim path already carries a query and a second `?` would be dropped. */
-function claimRedirect(token: string | undefined, marker: ClaimMarker): Response {
+/**
+ * Retyping fixes a mismatch and a refused password, so those three keep the token and the
+ * form. A throttle, an unexplained refusal and a spent link do not, so the screen drops
+ * the token and sends the person back to the link they were sent.
+ */
+const KEEPS_TOKEN = new Set<ClaimMarker>(["mismatch", "compromised", "weak"]);
+
+function claimRedirect(marker: ClaimMarker, token?: string): Response {
   const query = new URLSearchParams();
-  if (token !== undefined) query.set("token", token);
+  if (token !== undefined && KEEPS_TOKEN.has(marker)) query.set("token", token);
   query.set(marker, "1");
   return redirectAfterPost(`${CLAIM_PATH}?${query.toString()}`);
 }

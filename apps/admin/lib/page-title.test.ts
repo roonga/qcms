@@ -50,6 +50,7 @@ describe("every route titles its own browser tab", () => {
     expect(sorted(routes())).toEqual([
       "/",
       "/change-password",
+      "/claim",
       "/forms",
       "/forms/[formId]",
       "/forms/[formId]/preview",
