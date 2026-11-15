@@ -43,19 +43,41 @@ function stepName(step: Step): string {
   return t("forms.publish.step.review");
 }
 
-function blockerSentence(blocker: ReleaseBlockerRecord, environment: string): string {
+/**
+ * The fixed floor refuses a draft only where a non-prod environment is served, which the
+ * review states: a caller holding Publish forms in `prod` alone sees no other target and
+ * cannot tell the two deployments apart from the target list.
+ */
+function draftRefusal(target: ReviewTarget, floor: boolean): string {
+  const environment = target.environment;
+  if (!target.protected) return t("forms.publish.blocked.draftNotAllowed", { environment });
+  return floor
+    ? t("forms.publish.blocked.draftNotAllowedProd", { environment })
+    : t("forms.publish.blocked.draftNotAllowedOnly", { environment });
+}
+
+function blockerSentence(
+  blocker: ReleaseBlockerRecord,
+  target: ReviewTarget,
+  isDraft: boolean,
+  floor: boolean,
+): string {
+  const environment = target.environment;
   switch (blocker.code) {
     case "TEST_RELEASE_REQUIRED":
     case "PRIOR_RELEASE_REQUIRED":
+      // Any one of them satisfies the rule, so they are joined as alternatives.
       return t("forms.publish.blocked.priorRelease", {
-        environments: blocker.requiresAnyOf.join(", "),
+        environments: blocker.requiresAnyOf.join(" or "),
       });
     case "DRAFT_PUBLISH_NOT_ALLOWED":
-      return t("forms.publish.blocked.draftNotAllowed", { environment });
+      return draftRefusal(target, floor);
     case "ALREADY_RELEASED":
       return t("forms.publish.blocked.alreadyReleased");
     case "APPROVER_IS_AUTHOR":
-      return t("forms.publish.blocked.approverIsAuthor", { environment });
+      return isDraft
+        ? t("forms.publish.blocked.draftSecondApproval")
+        : t("forms.publish.blocked.approverIsAuthor", { environment });
     case "APPROVER_UNKNOWN_AUTHOR":
       return t("forms.publish.blocked.approverUnknownAuthor");
     default:
@@ -320,7 +342,6 @@ export function PublishWizard({
   );
   const [version, setVersion] = useState<number | undefined>(versions[0]);
   const [chosen, setChosen] = useState<readonly string[]>([]);
-  const [publishOnly, setPublishOnly] = useState(false);
   const [review, setReview] = useState<ReleaseReview>();
   const [reviewFailed, setReviewFailed] = useState(false);
   const [key, setKey] = useState<string>();
@@ -345,7 +366,6 @@ export function PublishWizard({
 
   const resetFromSource = useCallback(() => {
     setChosen([]);
-    setPublishOnly(false);
     setReview(undefined);
     setReviewFailed(false);
     setKey(undefined);
@@ -379,17 +399,15 @@ export function PublishWizard({
   const targets = review?.targets ?? [];
   const selectable = targets.filter((target) => isTargetEligible(target));
   const selected = targets.filter((target) => chosen.includes(target.environment));
-  const destinations: readonly PublishDestination[] = publishOnly
-    ? []
-    : selected.map((target) => {
-        const from = target.evidence.find((row) => row.environment !== target.environment);
-        return {
-          environment: target.environment,
-          expectedSequence: target.currentSequence,
-          ...(from === undefined ? {} : { fromEnvironment: from.environment }),
-        };
-      });
-  const canConfirm = publishOnly || destinations.length > 0;
+  const destinations: readonly PublishDestination[] = selected.map((target) => {
+    const from = target.evidence.find((row) => row.environment !== target.environment);
+    return {
+      environment: target.environment,
+      expectedSequence: target.currentSequence,
+      ...(from === undefined ? {} : { fromEnvironment: from.environment }),
+    };
+  });
+  const canConfirm = destinations.length > 0;
 
   const run = useCallback(() => {
     if (review === undefined || !canConfirm) return;
@@ -492,6 +510,11 @@ export function PublishWizard({
                       ? t("forms.publish.source.draftHint")
                       : t("forms.publish.source.noDraft")}
                   </span>
+                  {hasDraft && !canPublishDraft && (
+                    <span className="text-sm" data-testid="qcms-publish-draft-denied">
+                      {t("forms.workflow.noPublishPermission")}
+                    </span>
+                  )}
                 </span>
               </RadioButton>
             </RadioField>
@@ -553,6 +576,17 @@ export function PublishWizard({
               : t("forms.publish.workflow.default")}
           </p>
           {targets.length === 0 && <p>{t("forms.publish.destinations.none")}</p>}
+          {targets.some((target) => target.protected) && (
+            <p
+              className="text-sm text-(--color-text-muted)"
+              data-testid="qcms-publish-prod-floor"
+              data-floor={review.productionFloor ? "true" : "false"}
+            >
+              {review.productionFloor
+                ? t("forms.publish.destinations.prodFloor")
+                : t("forms.publish.destinations.prodOnly")}
+            </p>
+          )}
           {targets.map((target) => {
             const eligible = isTargetEligible(target);
             return (
@@ -565,7 +599,7 @@ export function PublishWizard({
                 <Checkbox
                   label={target.environment}
                   isSelected={chosen.includes(target.environment)}
-                  isDisabled={!eligible || publishOnly}
+                  isDisabled={!eligible}
                   onChange={(next) => {
                     setChosen((current) =>
                       next
@@ -594,31 +628,17 @@ export function PublishWizard({
                     data-testid="qcms-publish-blocker"
                     data-code={blocker.code}
                   >
-                    {blockerSentence(blocker, target.environment)}
+                    {blockerSentence(
+                      blocker,
+                      target,
+                      review.source.kind === "draft",
+                      review.productionFloor,
+                    )}
                   </span>
                 ))}
               </div>
             );
           })}
-          {review.source.kind === "draft" && (
-            // A production release may require a different account from the publisher; freezing without releasing
-            // enables that handoff.
-            <div data-testid="qcms-publish-only">
-              <Checkbox
-                label={t("forms.publish.destinations.publishOnly")}
-                isSelected={publishOnly}
-                onChange={(next) => {
-                  setPublishOnly(next);
-                  if (next) setChosen([]);
-                  setKey(undefined);
-                  setState(IDLE_PUBLISH_BATCH);
-                }}
-              />
-              <span className="block text-sm text-(--color-text-muted)">
-                {t("forms.publish.destinations.publishOnlyHint")}
-              </span>
-            </div>
-          )}
           {!canConfirm && selectable.length > 0 && (
             <p className="text-sm text-(--color-text-muted)">
               {t("forms.publish.destinations.pickOne")}
@@ -667,54 +687,48 @@ export function PublishWizard({
           {review.source.kind === "draft" && draft !== null && (
             <FreezeSummary draft={draft} agentAssisted={agentAssisted} />
           )}
-          {publishOnly ? (
-            <p data-testid="qcms-publish-review-publish-only">
-              {t("forms.publish.review.publishOnly")}
-            </p>
-          ) : (
-            <ul className="flex flex-col gap-2">
-              {selected.map((target) => (
-                <li
-                  key={target.environment}
-                  className="flex flex-col gap-1"
-                  data-environment={target.environment}
-                >
-                  <span>{transition(target, review)}</span>
-                  {target.closed && (
-                    <span className="text-sm text-(--color-text-muted)">
-                      {t("forms.publish.destinations.closedNote")}
-                    </span>
-                  )}
-                  {review.source.kind === "version" &&
-                    target.currentVersion !== null &&
-                    review.source.version < target.currentVersion && (
-                      <span className="text-sm" data-testid="qcms-publish-rollback">
-                        {t("forms.publish.destinations.rollbackNote", {
-                          environment: target.environment,
-                          current: target.currentVersion,
-                        })}
-                      </span>
-                    )}
-                  {target.evidence.map((row) => (
-                    <span
-                      key={`${row.environment}-${row.sequence}`}
-                      className="text-sm text-(--color-text-muted)"
-                    >
-                      {t("forms.publish.destinations.evidence", {
-                        version: row.version,
-                        environment: row.environment,
+          <ul className="flex flex-col gap-2">
+            {selected.map((target) => (
+              <li
+                key={target.environment}
+                className="flex flex-col gap-1"
+                data-environment={target.environment}
+              >
+                <span>{transition(target, review)}</span>
+                {target.closed && (
+                  <span className="text-sm text-(--color-text-muted)">
+                    {t("forms.publish.destinations.closedNote")}
+                  </span>
+                )}
+                {review.source.kind === "version" &&
+                  target.currentVersion !== null &&
+                  review.source.version < target.currentVersion && (
+                    <span className="text-sm" data-testid="qcms-publish-rollback">
+                      {t("forms.publish.destinations.rollbackNote", {
+                        environment: target.environment,
+                        current: target.currentVersion,
                       })}
                     </span>
-                  ))}
-                  {target.twoPerson.applies && (
-                    <span className="text-sm" data-testid="qcms-publish-second-person">
-                      {t("forms.publish.review.secondPerson", { environment: target.environment })}
-                    </span>
                   )}
-                </li>
-              ))}
-            </ul>
-          )}
+                {target.evidence.map((row) => (
+                  <span
+                    key={`${row.environment}-${row.sequence}`}
+                    className="text-sm text-(--color-text-muted)"
+                  >
+                    {t("forms.publish.destinations.evidence", {
+                      version: row.version,
+                      environment: row.environment,
+                    })}
+                  </span>
+                ))}
+                {target.twoPerson.applies && (
+                  <span className="text-sm" data-testid="qcms-publish-second-person">
+                    {t("forms.publish.review.secondPerson", { environment: target.environment })}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
           <div className="flex flex-wrap gap-2">
             <ConfirmControls
               state={state}

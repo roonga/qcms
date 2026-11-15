@@ -123,9 +123,7 @@ test("reopens a filtered library from its URL alone, controls and all", async ({
   const toolbar = page.locator("form.qcms-filters");
   await expect(field(page, "Search")).toHaveValue(SCOPE);
 
-  await expect(toolbar.getByRole("button", { name: /Availability$/ })).toContainText(
-    "Not Released",
-  );
+  await expect(toolbar.getByRole("button", { name: /Availability$/ })).toContainText("Not live");
   await expect(toolbar.getByRole("button", { name: /Sort by$/ })).toContainText("Slug (Z to A)");
 });
 

@@ -39,9 +39,11 @@ import { approvalForRelease } from "../membership/two-person.js";
 import { commitReleaseBatch, intentHashOf, type BatchResult } from "./batch.js";
 import { recordRelease } from "./release.js";
 import {
+  enforcedRules,
   evidenceFor,
   isRollback,
   prerequisiteCode,
+  productionFloorApplies,
   readWorkflow,
   requireReleaseCandidate,
   ruleFor,
@@ -357,6 +359,7 @@ export function makeReleaseReviewHandler(
               } as const),
         workflowRevision: workflow.revision,
         workflowSource: workflow.source,
+        productionFloor: productionFloorApplies(served),
         targets,
       },
       200,
@@ -621,10 +624,8 @@ export function makeReleaseWorkflowWriteHandler(
 
     const exec = deps.databases.control;
     const rows = await servedEnvironments(deps);
-    validateWorkflowRules(
-      body.rules,
-      rows.map((row) => row.name),
-    );
+    const served = rows.map((row) => row.name);
+    validateWorkflowRules(body.rules, served);
 
     // The read and the insert leave a window: two writers can both read the same newest
     // revision and race for the next number. The primary key is the backstop, and its
@@ -650,7 +651,7 @@ export function makeReleaseWorkflowWriteHandler(
             kind: "setting",
             detail:
               `setting=releaseWorkflow value=revision ${String(revision.revision)}; ` +
-              ruleSummary(body.rules),
+              ruleSummary(enforcedRules(body.rules, served)),
             occurredAt: deps.clock.now(),
           });
         }
@@ -660,15 +661,15 @@ export function makeReleaseWorkflowWriteHandler(
       throw error;
     }
 
-    const workflow = await readWorkflow(
-      exec,
-      rows.map((row) => row.name),
-    );
+    const workflow = await readWorkflow(exec, served);
     return c.json(workflowBody(workflow, rows), 200);
   };
 }
 
-/** A compact summary for the audit detail. It carries no URL, no secret and no content. */
+/**
+ * A compact summary for the audit detail, over the rules **as enforced**: the row an owner
+ * reads after a refusal has to say what was in force. It carries no URL, secret or content.
+ */
 function ruleSummary(rules: readonly RuleInput[]): string {
   if (rules.length === 0) return "rules=none";
   return rules
@@ -682,9 +683,9 @@ function ruleSummary(rules: readonly RuleInput[]): string {
 }
 
 /**
- * Every name served, no destination requiring itself, no duplicate row and no cycle.
- * Rollback is the ruled exception rather than a rule, so a self-reference is a defect in
- * the configuration and not a way to express one.
+ * Every name served, no self-reference, no duplicate row and no cycle once the fixed
+ * `prod` floor is in place. Rollback is the ruled exception, so a self-reference is a
+ * defect in the configuration rather than a way to express one.
  */
 function validateWorkflowRules(rules: readonly RuleInput[], served: readonly string[]): void {
   const seen = new Set<string>();
@@ -713,7 +714,7 @@ function validateWorkflowRules(rules: readonly RuleInput[], served: readonly str
       }
     }
   }
-  const cycle = findCycle(rules);
+  const cycle = findCycle(enforcedRules(rules, served));
   if (cycle !== undefined) {
     throw fail.workflowRuleInvalid(cycle, "is on a cycle, so no version could ever reach it");
   }
@@ -771,6 +772,7 @@ export function makeReleaseBatchHandler(
       formId,
       workspaceId: c.get("grantContext")?.workspaceId ?? form.workspaceId,
       principalId: principal.userId,
+      agent: agentStepSite(c),
       idempotencyKey: body.idempotencyKey,
       intentHash: await intentHashOf(body),
       expectedWorkflowRevision: body.expectedWorkflowRevision,

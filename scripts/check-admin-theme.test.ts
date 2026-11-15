@@ -9,6 +9,7 @@ import {
   checkAdminTheme,
   findLiteralColours,
   literalColourFunctions,
+  namesThisApp,
   stripComments,
 } from "./check-admin-theme.mjs";
 
@@ -92,7 +93,25 @@ describe("catalog values", () => {
 
   it("catches a user-facing name on a continuation line", () => {
     const bad = CATALOG.replace("Scan this code", "Scan this admin code");
-    expect(catalogValues(bad).some((v) => /admin/i.test(v.text))).toBe(true);
+    expect(catalogValues(bad).some((v) => namesThisApp(v.text))).toBe(true);
+  });
+});
+
+describe("naming this app", () => {
+  it("rejects the bare word wherever a reader meets it", () => {
+    for (const text of ["Open the admin", "the admin's settings", "Admins can do this", "/admin"]) {
+      expect(namesThisApp(text), text).toBe(true);
+    }
+  });
+
+  it("accepts the role names, which name a person and not this app", () => {
+    for (const text of [
+      "Ask a Workspace administrator.",
+      "Site administrators approve this.",
+      "administration",
+    ]) {
+      expect(namesThisApp(text), text).toBe(false);
+    }
   });
 });
 

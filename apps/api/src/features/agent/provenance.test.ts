@@ -29,15 +29,21 @@ function mintFacts(overrides: Partial<ActionRequestFacts> = {}): ActionRequestFa
   };
 }
 
+/** `form.release` runs on the wizard's batch route, so the facts carry a batch body. */
 function releaseFacts(
-  body: Readonly<Record<string, unknown>>,
+  intent: Readonly<Record<string, unknown>>,
   environment: string,
 ): ActionRequestFacts {
   return {
-    path: "/admin/forms/{id}/releases",
+    path: "/admin/forms/{id}/release-batch",
     method: "POST",
     params: { id: "frm_a" },
-    body,
+    body: {
+      idempotencyKey: "6f9619ff-8b86-d011-b42d-00c04fc964ff",
+      expectedWorkflowRevision: null,
+      source: { kind: "version", version: intent["version"] },
+      targets: [{ environment: intent["environment"], expectedSequence: null }],
+    },
     environment,
   };
 }

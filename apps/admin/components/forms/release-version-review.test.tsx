@@ -59,7 +59,7 @@ describe("reviewing a release candidate", () => {
       />,
     );
     await user.click(screen.getByRole("button", { name: t("forms.releases.action") }));
-    const confirm = await screen.findByRole("button", { name: "Release v2 to prod" });
+    const confirm = await screen.findByRole("button", { name: "Publish v2 to prod" });
     expect(confirm.hasAttribute("disabled")).toBe(true);
     await act(async () => {
       await Promise.resolve(complete?.({ ok: true, data: snapshot(2) }));

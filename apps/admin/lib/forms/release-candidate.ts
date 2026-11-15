@@ -33,6 +33,8 @@ export interface ReleaseReview {
   readonly source: ReviewSource;
   readonly workflowRevision: number | null;
   readonly workflowSource: "default" | "configured";
+  /** Whether the fixed `prod` floor is in force; the targets a caller sees cannot show it. */
+  readonly productionFloor: boolean;
   readonly targets: readonly ReviewTarget[];
 }
 
@@ -134,6 +136,7 @@ export function parseReleaseReview(value: unknown): ReleaseReview | undefined {
     source?: unknown;
     workflowRevision?: unknown;
     workflowSource?: unknown;
+    productionFloor?: unknown;
     targets?: unknown;
   };
   const source = readSource(body.source);
@@ -142,6 +145,7 @@ export function parseReleaseReview(value: unknown): ReleaseReview | undefined {
     source,
     workflowRevision: typeof body.workflowRevision === "number" ? body.workflowRevision : null,
     workflowSource: body.workflowSource === "configured" ? "configured" : "default",
+    productionFloor: body.productionFloor === true,
     targets: readTargets(body.targets),
   };
 }

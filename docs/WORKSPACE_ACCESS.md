@@ -19,7 +19,7 @@ The user guide for these rules is [`docs/workspace-access-guide.html`](workspace
 | Workspace administrator as a direct membership flag               | Partly built |
 | Site administrator as an explicit, non-default role               | Built        |
 | Four starter groups on every new workspace                        | Built        |
-| One user-facing Publish step                                      | Not built    |
+| One user-facing Publish step                                      | Built        |
 | Second approval for `prod` publish and endpoint changes           | Built        |
 | Second approval for turning the rule off and for self-grant       | Partly built |
 | Account creation, disable, reactivation and reset in the app      | Not built    |
@@ -340,7 +340,7 @@ The shipped navigation stands: the top bar is app navigation with the workspace 
 - There is no form-level access screen and no access step in form creation.
 - The design canvas (https://claude.ai/artifact/S1Mt2WFT52Q9vKuqNPARD4) is the UI plan. No admin UI task starts until its screens are on the canvas and the Code Owner has seen them.
 
-Routes are under `apps/admin/app/(shell)/`. Artboards are boards on the design canvas, named without the `.dc.html` suffix. The canvas boards have not yet been reviewed by the Code Owner, and no admin UI task starts until they have.
+Routes are under `apps/admin/app/(shell)/`. Artboards are boards on the design canvas, named without the `.dc.html` suffix. The Code Owner reviewed design batch 6 (Form-Publish, Forms-Unavailable, Held-Publish, Phone-F and Phone-H) on 2026-11-15. The remaining batches have not been reviewed, and no admin UI task starts until the Code Owner has seen its boards.
 
 | Flow                                                                                            | Who                                                                            | Route or location                                                | Design artboard                                      | Status       |
 | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------- | ---------------------------------------------------- | ------------ |
@@ -374,7 +374,7 @@ Routes are under `apps/admin/app/(shell)/`. Artboards are boards on the design c
 | Forms list                                                                                      | Form roles                                                                     | `forms/`                                                         | Forms-Unavailable                                    | Partly built |
 | Create form                                                                                     | Edit forms                                                                     | `forms/new/`                                                     | to be confirmed on the canvas                        | Built        |
 | Edit form                                                                                       | Edit forms                                                                     | `forms/[formId]/`                                                | Forms-Unavailable                                    | Built        |
-| Publish to an environment                                                                       | Publish forms, and Edit forms for a draft                                      | `forms/[formId]/publish/`                                        | Form-Publish, Phone-F                                | Partly built |
+| Publish to an environment                                                                       | Publish forms, and Edit forms for a draft                                      | `forms/[formId]/publish/`                                        | Form-Publish, Phone-F                                | Built        |
 | Move form                                                                                       | Edit forms in both workspaces; an approver per section 9 when the move is held | new (rail row on the form)                                       | Form-Move, Phone-F                                   | Not built    |
 | Availability, links, webhooks                                                                   | Publish forms                                                                  | `operations/forms/[formId]/availability/`, `links/`, `webhooks/` | Operations-Unavailable                               | Partly built |
 | Responses and export                                                                            | View responses                                                                 | `operations/forms/[formId]/responses/`                           | Operations-Unavailable, Phone-F                      | Partly built |

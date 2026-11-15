@@ -1,5 +1,13 @@
 import { stepPins } from "./draft.ts";
-import type { DraftForm } from "./types.ts";
+import type { DraftForm, FormPublishingWorkflow } from "./types.ts";
+
+/**
+ * Whether the wizard may offer the draft as a source. Freezing one needs Edit forms as well
+ * as Publish forms, so a Publish-only holder is offered the frozen versions alone.
+ */
+export function canFreezeDraft(workflow: FormPublishingWorkflow | undefined): boolean {
+  return workflow === undefined || (workflow.canPublish && workflow.canEdit);
+}
 
 // Read back step, pin and rule counts before freezing so authors can catch a missing part of the draft.
 export interface FreezeSummary {

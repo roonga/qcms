@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { blankDraft } from "./draft.ts";
 import { isRevocable, linkStateKey, mintedLinksCsv, mintedLinksFilename } from "./links.ts";
-import { freezeSummary, nextVersion } from "./publish.ts";
+import { canFreezeDraft, freezeSummary, nextVersion } from "./publish.ts";
 import type { MintedLink } from "./types.ts";
 
 function minted(overrides: Partial<MintedLink> = {}): MintedLink {
@@ -95,5 +95,28 @@ describe("the publish confirmation's freeze summary", () => {
   it("names v1 for a form that has never been published", () => {
     expect(nextVersion(undefined)).toBe(1);
     expect(nextVersion(3)).toBe(4);
+  });
+});
+
+describe("offering the draft as a publish source", () => {
+  const workflow = {
+    enabled: true,
+    environment: "test",
+    canEdit: true,
+    canPublish: true,
+    canRelease: true,
+    eligibleVersions: [1],
+    preferredVersion: 1,
+    currentVersion: 1,
+  };
+
+  it("needs Edit forms as well as Publish forms", () => {
+    expect(canFreezeDraft(workflow)).toBe(true);
+    expect(canFreezeDraft({ ...workflow, canEdit: false })).toBe(false);
+    expect(canFreezeDraft({ ...workflow, canPublish: false })).toBe(false);
+  });
+
+  it("leaves the decision to the confirmation when no workflow was projected", () => {
+    expect(canFreezeDraft(undefined)).toBe(true);
   });
 });

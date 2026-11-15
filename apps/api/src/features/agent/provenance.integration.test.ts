@@ -327,6 +327,42 @@ function publishBatchBody(
   };
 }
 
+async function reviewVersion(formId: string, version: number): Promise<DraftReview> {
+  const res = await send({
+    caller: owner,
+    path: `/forms/${formId}/release-review`,
+    environment: "prod",
+    body: { source: { kind: "version", version } },
+  });
+  expect(res.status).toBe(200);
+  const body = (await res.json()) as {
+    workflowRevision: number | null;
+    targets: { environment: string; currentSequence: number | null }[];
+  };
+  return {
+    draftRevision: 0,
+    workflowRevision: body.workflowRevision,
+    sequences: Object.fromEntries(
+      body.targets.map((target) => [target.environment, target.currentSequence]),
+    ),
+  };
+}
+
+/** `form.release` runs on the wizard's batch route, so its request is a batch body. */
+async function releaseBatchBody(
+  formId: string,
+  version: number,
+  environment: string,
+): Promise<Record<string, unknown>> {
+  const review = await reviewVersion(formId, version);
+  return {
+    idempotencyKey: crypto.randomUUID(),
+    expectedWorkflowRevision: review.workflowRevision,
+    source: { kind: "version", version },
+    targets: [{ environment, expectedSequence: review.sequences[environment] ?? null }],
+  };
+}
+
 describe("provenance adds provenance and never rights (criterion 2)", () => {
   const FORM_ID = "frm_prov_equal";
 
@@ -514,18 +550,18 @@ describe("a two-environment plan verifies step by step (criterion 1, plan-two-en
 
     const toTest = await send({
       caller: owner,
-      path: `/forms/${RUN_FORM_ID}/releases`,
+      path: `/forms/${RUN_FORM_ID}/release-batch`,
       environment: "test",
-      body: { environment: "test", version: 1 },
+      body: await releaseBatchBody(RUN_FORM_ID, 1, "test"),
       proposal: { token, step: 0 },
     });
     expect(toTest.status).toBe(200);
 
     const toProd = await send({
       caller: owner,
-      path: `/forms/${RUN_FORM_ID}/releases`,
+      path: `/forms/${RUN_FORM_ID}/release-batch`,
       environment: "prod",
-      body: { environment: "prod", version: 1 },
+      body: await releaseBatchBody(RUN_FORM_ID, 1, "prod"),
       proposal: { token, step: 1 },
     });
     expect(toProd.status).toBe(200);
@@ -544,18 +580,18 @@ describe("a two-environment plan verifies step by step (criterion 1, plan-two-en
     });
     const toTest = await send({
       caller: owner,
-      path: `/forms/${REWRITE_FORM_ID}/releases`,
+      path: `/forms/${REWRITE_FORM_ID}/release-batch`,
       environment: "test",
-      body: { environment: "test", version: 1 },
+      body: await releaseBatchBody(REWRITE_FORM_ID, 1, "test"),
       proposal: { token, step: 0 },
     });
     expect(toTest.status).toBe(200);
 
     const rewritten = await send({
       caller: owner,
-      path: `/forms/${REWRITE_FORM_ID}/releases`,
+      path: `/forms/${REWRITE_FORM_ID}/release-batch`,
       environment: "test",
-      body: { environment: "test", version: 1 },
+      body: await releaseBatchBody(REWRITE_FORM_ID, 1, "test"),
       proposal: { token, step: 1 },
     });
     expect(rewritten.status).toBe(403);
@@ -601,11 +637,17 @@ describe("a three-step plan runs end to end, with the reference checked (criteri
       { step_index: 0, kind: "form.publish", environment: "test", detail: String(version) },
     ]);
 
+    const prod = await reviewVersion(FORM_ID, version);
     const wrong = await send({
       caller: owner,
-      path: `/forms/${FORM_ID}/releases`,
+      path: `/forms/${FORM_ID}/release-batch`,
       environment: "prod",
-      body: { environment: "prod", version: version + 1 },
+      body: {
+        idempotencyKey: crypto.randomUUID(),
+        expectedWorkflowRevision: prod.workflowRevision,
+        source: { kind: "version", version: version + 1 },
+        targets: [{ environment: "prod", expectedSequence: prod.sequences["prod"] ?? null }],
+      },
       proposal: { token, step: 1 },
     });
     expect(wrong.status).toBe(403);
@@ -614,9 +656,9 @@ describe("a three-step plan runs end to end, with the reference checked (criteri
 
     const right = await send({
       caller: owner,
-      path: `/forms/${FORM_ID}/releases`,
+      path: `/forms/${FORM_ID}/release-batch`,
       environment: "prod",
-      body: { environment: "prod", version },
+      body: await releaseBatchBody(FORM_ID, version, "prod"),
       proposal: { token, step: 1 },
     });
     expect(right.status).toBe(200);
@@ -718,9 +760,9 @@ describe("a reference in a plan whose first step runs on the screen itself", () 
 
     const released = await send({
       caller: owner,
-      path: `/forms/${FORM_ID}/releases`,
+      path: `/forms/${FORM_ID}/release-batch`,
       environment: "prod",
-      body: { environment: "prod", version },
+      body: await releaseBatchBody(FORM_ID, version, "prod"),
       proposal: { token, step: 1 },
     });
     expect(released.status).toBe(200);

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AgentAuditNames } from "@/lib/membership/audit-wording";
 import type { AgentAuditPage, AgentAuditRow } from "@/lib/membership/types";
+import { t } from "@/lib/i18n/en";
 
 import { AgentAuditPanel } from "./agent-audit-panel";
 
@@ -40,7 +41,7 @@ describe("the agent audit panel", () => {
   it("reads the act, its detail and the screen in words rather than wire values", () => {
     render(<AgentAuditPanel audit={page([row()])} message={undefined} names={EMPTY} />);
     expect(screen.getByRole("table")).toBeTruthy();
-    expect(screen.getByText("Released a form version")).toBeTruthy();
+    expect(screen.getByText(t("membership.agentAudit.act.form.release"))).toBeTruthy();
     expect(screen.getByText("Version: 3")).toBeTruthy();
     expect(screen.getByText("Publish")).toBeTruthy();
     expect(screen.queryByText("form.release")).toBeNull();

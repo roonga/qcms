@@ -102,6 +102,15 @@ export function catalogValues(source) {
   return values;
 }
 
+/**
+ * The interface calls this app QCMS, never "admin". "Workspace administrator" and "Site
+ * administrator" are user-facing role names rather than a name for the app, so only the
+ * bare word and its plural are rejected.
+ */
+export function namesThisApp(text) {
+  return /\badmins?\b/i.test(text);
+}
+
 function walk(dir) {
   const out = [];
   for (const entry of readdirSync(`${ROOT}${dir}`)) {
@@ -150,7 +159,7 @@ export function checkAdminTheme() {
   }
 
   for (const { text, line } of catalogValues(readFileSync(`${ROOT}${CATALOG}`, "utf8"))) {
-    if (/admin/i.test(text)) {
+    if (namesThisApp(text)) {
       problems.push(
         `${CATALOG}:${line}  user-facing string names this app "admin": ${JSON.stringify(text)}`,
       );
