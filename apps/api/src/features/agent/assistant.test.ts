@@ -178,6 +178,12 @@ function capturingLogger(): {
 
 type PromptMessage = { role: string; content: unknown; providerOptions?: unknown };
 
+/** A message's text, for a content member the SDK types as a string or a part array. */
+function contentOf(message: { content?: unknown } | undefined): string {
+  const { content } = message ?? {};
+  return typeof content === "string" ? content : JSON.stringify(content);
+}
+
 /** One step's messages, as the provider was handed them. */
 function promptStep(sent: readonly unknown[], step: number): PromptMessage[] {
   return (sent[step] ?? []) as PromptMessage[];
@@ -870,16 +876,16 @@ describe("prompt caching", () => {
     ]);
     expect(messages[1]?.providerOptions).toEqual(CACHE_BREAKPOINT);
     expect(messages.filter((message) => message.providerOptions !== undefined)).toHaveLength(1);
-    expect(String(messages[2]?.content)).toContain("The current draft of the form");
-    expect(String(messages[3]?.content)).toContain("The user is now on");
+    expect(contentOf(messages[2])).toContain("The current draft of the form");
+    expect(contentOf(messages[3])).toContain("The user is now on");
     expect(messages[4]?.content).toBe("now add a consent step");
   });
 
   it("sends a first turn in the order it always sent it", () => {
     const messages = toModelMessages(builderTurnContext(contextFor("a quote form").ctx));
     expect(messages.map((message) => message.role)).toEqual(["user", "user", "user"]);
-    expect(String(messages[0]?.content)).toContain("The current draft of the form");
-    expect(String(messages[1]?.content)).toContain("The user is now on");
+    expect(contentOf(messages[0])).toContain("The current draft of the form");
+    expect(contentOf(messages[1])).toContain("The user is now on");
     expect(messages[2]?.content).toBe("a quote form");
   });
 
