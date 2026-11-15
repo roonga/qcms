@@ -2,7 +2,9 @@ import { applyMigrations, CONTAINER_BOOT_TIMEOUT_MS } from "@roonga/qcms-db/test
 import {
   ACCESS_AUDIT_TABLE,
   AGENT_ACTIONS_TABLE,
+  APPEARANCE_LOGOS_TABLE,
   CONTROL_FORBIDDEN_TABLES,
+  CONTROL_READ_COLUMNS,
   CONTROL_READ_TABLES,
   DATA_PLANE_ENUM_TYPES,
   ENDPOINT_PROPOSALS_TABLE,
@@ -35,6 +37,9 @@ const HOME_PROD_REPORTING_ROLE = workspaceReportingRoleName("prod", HOME_WORKSPA
 const DML = ["SELECT", "INSERT", "UPDATE", "DELETE"] as const;
 
 const AUDIT_TABLES: readonly string[] = [ACCESS_AUDIT_TABLE, AGENT_ACTIONS_TABLE];
+
+/** The audits plus the logo store: every table no application role may rewrite. */
+const APPEND_ONLY_TABLES: readonly string[] = [...AUDIT_TABLES, APPEARANCE_LOGOS_TABLE];
 
 // Each planner probe needs a session of its own: `pg_temp` is per session, and a notice
 // listener on a shared client would collect another case's notices.
@@ -106,6 +111,21 @@ async function hasSchemaUsage(schema: string, role: string): Promise<boolean> {
   const res = await owner.query<{ has: boolean }>(
     `select has_schema_privilege($1, $2, 'USAGE') as has`,
     [role, schema],
+  );
+  return res.rows[0]?.has ?? false;
+}
+
+// `has_column_privilege` answers true for a table-wide grant too, so a column read is
+// only proved a column read beside `has_table_privilege` answering false.
+async function hasColumnPrivilege(
+  role: string,
+  table: string,
+  column: string,
+  privilege: string,
+): Promise<boolean> {
+  const res = await owner.query<{ has: boolean }>(
+    `select has_column_privilege($1, $2, $3, $4) as has`,
+    [role, table, column, privilege],
   );
   return res.rows[0]?.has ?? false;
 }
@@ -293,17 +313,17 @@ describe("the migration role is the only role that owns anything", () => {
 });
 
 describe("qcms_app_control: the control plane, and one grant in each data plane", () => {
-  it("holds DML on every control-plane table except the audits", async () => {
+  it("holds DML on every control-plane table except the append-only ones", async () => {
     const held = await tablePrivileges("control", CONTROL_ROLE);
     // Absent entirely rather than present with fewer privileges: the revoke takes all four.
     expect(held["two_factor_resets"]).toBeUndefined();
-    // No `UPDATE` and no `DELETE` on either audit, so this role can add a row and change none.
-    for (const audit of AUDIT_TABLES) {
-      expect([...(held[audit] ?? [])].sort(), audit).toEqual(["INSERT", "SELECT"]);
+    // No `UPDATE` and no `DELETE`, so this role can add a row there and change none.
+    for (const table of APPEND_ONLY_TABLES) {
+      expect([...(held[table] ?? [])].sort(), table).toEqual(["INSERT", "SELECT"]);
     }
     expect([...(held[ENDPOINT_PROPOSALS_TABLE] ?? [])].sort()).toEqual([...DML].sort());
     for (const [table, privileges] of Object.entries(held)) {
-      if (AUDIT_TABLES.includes(table)) continue;
+      if (APPEND_ONLY_TABLES.includes(table)) continue;
       expect([...privileges].sort(), `control.${table}`).toEqual([...DML].sort());
     }
     expect(Object.keys(held).length).toBeGreaterThan(10);
@@ -535,6 +555,40 @@ describe.each(ENVIRONMENTS)(
       for (const audit of AUDIT_TABLES) {
         expect([...(held[audit] ?? [])], `control.${audit}`).toEqual(["INSERT"]);
       }
+    });
+
+    it("reads the logo store by column: the bytes it serves, not who stored them", async () => {
+      // A COLUMN grant on `key`, `content_type` and `bytes`, so the pool answering
+      // anonymous respondents cannot enumerate uploaders or upload times.
+      const table = `control.${APPEARANCE_LOGOS_TABLE}`;
+      const held = await tablePrivileges("control", role);
+      expect(held[APPEARANCE_LOGOS_TABLE]).toBeUndefined();
+      const granted = CONTROL_READ_COLUMNS[APPEARANCE_LOGOS_TABLE]!;
+      expect(granted).toEqual(["key", "content_type", "bytes"]);
+      for (const column of granted) {
+        expect(await hasColumnPrivilege(role, table, column, "SELECT"), column).toBe(true);
+      }
+      for (const column of ["created_by", "created_at"]) {
+        expect(await hasColumnPrivilege(role, table, column, "SELECT"), column).toBe(false);
+      }
+      // `DELETE` is not a column privilege at all, so the three that are stand for it,
+      // beside the table carrying no privilege for this role in the catalogue above.
+      for (const privilege of ["INSERT", "UPDATE", "REFERENCES"]) {
+        expect(await hasColumnPrivilege(role, table, "bytes", privilege), privilege).toBe(false);
+      }
+    });
+
+    it("is refused a read of the logo store's columns it was never granted", async () => {
+      const client = clients.get(role)!;
+      const bytes = await client.query(
+        `select key, content_type, bytes from control.${APPEARANCE_LOGOS_TABLE} limit 1`,
+      );
+      expect(bytes.rowCount).toBe(0);
+      const refusal = await refusalFor(
+        client,
+        `select created_by from control.${APPEARANCE_LOGOS_TABLE} limit 1`,
+      );
+      expect(refusal).toMatch(/permission denied/i);
     });
 
     it("holds nothing at all on the pending prod endpoint change (task 070)", async () => {

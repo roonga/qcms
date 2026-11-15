@@ -8430,7 +8430,8 @@
                 "erasure",
                 "grant",
                 "revoke",
-                "setting"
+                "setting",
+                "derive"
               ]
             },
             "required": false,

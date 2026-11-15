@@ -1517,6 +1517,7 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
     // Three versions differing only in their publisher, which is what the rule compares.
     for (const publishedBy of [author.userId, second.userId, null]) {
       await insertFormVersion(testDb.db, {
+        appearance: null,
         formId: FormId.parse(TWO_PERSON_FORM),
         definition: { formId: TWO_PERSON_FORM, steps: [] } as never,
         compiled: {} as never,

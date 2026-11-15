@@ -259,6 +259,7 @@ export {
   SYSTEM_FACE,
   AppearanceFace,
   APPEARANCE_CORNERS,
+  type AppearanceCorners,
   APPEARANCE_DENSITIES,
   PROGRESS_MODES,
   TEXT_SIZE_MIN,

@@ -164,6 +164,7 @@ async function seedForm(
   const version = await insertFormVersion(testDb.db, {
     formId,
     definition: INSURANCE_DEF,
+    appearance: null,
     compiled,
     compilerVersion: GOLDEN.compilerVersion,
     a2uiSpecVersion: GOLDEN.a2uiSpecVersion,
@@ -536,6 +537,7 @@ describe("an empty value is refused, never stored and never a retraction (ADR-33
     const kitchenVersion = await insertFormVersion(testDb.db, {
       formId,
       definition: KITCHEN_SINK_DEF,
+      appearance: null,
       compiled: KITCHEN_SINK_GOLDEN as unknown as VersionInput["compiled"],
       compilerVersion: KITCHEN_SINK_GOLDEN.compilerVersion,
       a2uiSpecVersion: KITCHEN_SINK_GOLDEN.a2uiSpecVersion,

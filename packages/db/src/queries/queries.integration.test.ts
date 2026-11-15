@@ -100,6 +100,7 @@ async function seedPublishedForm(id: string): Promise<{ formId: FormId; version:
   const v = await insertFormVersion(testDb.db, {
     formId,
     definition: emptyDef,
+    appearance: null,
     compiled: emptyCompiled,
     compilerVersion: "1.0.0",
     a2uiSpecVersion: "1.0.0",
@@ -353,6 +354,7 @@ describe("forms helpers", () => {
     const v1 = await insertFormVersion(testDb.db, {
       formId,
       definition: emptyDef,
+      appearance: null,
       compiled: emptyCompiled,
       compilerVersion: "1.0.0",
       a2uiSpecVersion: "1.0.0",
@@ -361,6 +363,7 @@ describe("forms helpers", () => {
     const v2 = await insertFormVersion(testDb.db, {
       formId,
       definition: emptyDef,
+      appearance: null,
       compiled: emptyCompiled,
       compilerVersion: "1.1.0",
       a2uiSpecVersion: "1.0.0",

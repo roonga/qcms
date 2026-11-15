@@ -109,6 +109,7 @@ export const AppearanceFace = z.enum(FACE_KEYS);
 export type AppearanceFace = z.infer<typeof AppearanceFace>;
 
 export const APPEARANCE_CORNERS = ["sharp", "subtle", "rounded", "pill"] as const;
+export type AppearanceCorners = (typeof APPEARANCE_CORNERS)[number];
 export const APPEARANCE_DENSITIES = ["compact", "comfortable", "spacious"] as const;
 export const PROGRESS_MODES = ["side-rail", "top-indicator", "none"] as const;
 export const TEXT_SIZE_MIN = 16;

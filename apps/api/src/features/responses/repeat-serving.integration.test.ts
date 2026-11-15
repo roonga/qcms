@@ -236,6 +236,7 @@ beforeAll(async () => {
   await insertFormVersion(testDb.db, {
     formId,
     definition: DEFINITION,
+    appearance: null,
     compiled,
     compilerVersion: compiled.compilerVersion,
     a2uiSpecVersion: compiled.a2uiSpecVersion,
@@ -268,6 +269,7 @@ beforeAll(async () => {
   await insertFormVersion(testDb.db, {
     formId: wideFormId,
     definition: WIDE_DEFINITION,
+    appearance: null,
     compiled: wideCompiled,
     compilerVersion: wideCompiled.compilerVersion,
     a2uiSpecVersion: wideCompiled.a2uiSpecVersion,
@@ -284,6 +286,7 @@ beforeAll(async () => {
   await insertFormVersion(testDb.db, {
     formId: perInstanceFormId,
     definition: PER_INSTANCE_DEFINITION,
+    appearance: null,
     compiled: piCompiled,
     compilerVersion: piCompiled.compilerVersion,
     a2uiSpecVersion: piCompiled.a2uiSpecVersion,

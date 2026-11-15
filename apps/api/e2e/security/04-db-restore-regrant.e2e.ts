@@ -6,7 +6,9 @@ import {
 import {
   ACCESS_AUDIT_TABLE,
   AGENT_ACTIONS_TABLE,
+  APPEARANCE_LOGOS_TABLE,
   CONTROL_FORBIDDEN_TABLES,
+  CONTROL_READ_COLUMNS,
   CONTROL_READ_TABLES,
   DATA_PLANE_TABLE_NAMES,
   ENDPOINT_PROPOSALS_TABLE,
@@ -49,6 +51,9 @@ const QCMS_SCHEMAS = [
 const DML = ["SELECT", "INSERT", "UPDATE", "DELETE"] as const;
 
 const AUDIT_TABLES: readonly string[] = [ACCESS_AUDIT_TABLE, AGENT_ACTIONS_TABLE];
+
+/** The audits plus the logo store: every table no application role may rewrite. */
+const APPEND_ONLY_TABLES: readonly string[] = [...AUDIT_TABLES, APPEARANCE_LOGOS_TABLE];
 
 /** Not `/tmp`: the `postgres` user's own directory in a container this test alone owns. */
 const DUMP_PATH = "/var/lib/postgresql/qcms-restore-regrant.sql";
@@ -171,6 +176,21 @@ async function hasSchemaUsage(schema: string, role: string): Promise<boolean> {
   const res = await owner.query<{ has: boolean }>(
     `select has_schema_privilege($1, $2, 'USAGE') as has`,
     [role, schema],
+  );
+  return res.rows[0]?.has ?? false;
+}
+
+// `has_column_privilege` answers true for a table-wide grant too, so a column read is
+// only proved a column read beside `has_table_privilege` answering false.
+async function hasColumnPrivilege(
+  role: string,
+  table: string,
+  column: string,
+  privilege: string,
+): Promise<boolean> {
+  const res = await owner.query<{ has: boolean }>(
+    `select has_column_privilege($1, $2, $3, $4) as has`,
+    [role, table, column, privilege],
   );
   return res.rows[0]?.has ?? false;
 }
@@ -384,14 +404,14 @@ describe("after the restore and the re-grant", () => {
 });
 
 describe("the projections of that map, named so a failure says which claim broke", () => {
-  it("gives the control role DML on `control` with the audits carved out", async () => {
+  it("gives the control role DML on `control` with the append-only tables carved out", async () => {
     const held = await tablePrivileges("control", CONTROL_ROLE);
     expect(held["two_factor_resets"]).toBeUndefined();
-    for (const audit of AUDIT_TABLES) {
-      expect([...(held[audit] ?? [])].sort(), audit).toEqual(["INSERT", "SELECT"]);
+    for (const table of APPEND_ONLY_TABLES) {
+      expect([...(held[table] ?? [])].sort(), table).toEqual(["INSERT", "SELECT"]);
     }
     for (const [table, privileges] of Object.entries(held)) {
-      if (AUDIT_TABLES.includes(table)) continue;
+      if (APPEND_ONLY_TABLES.includes(table)) continue;
       expect([...privileges].sort(), `control.${table}`).toEqual([...DML].sort());
     }
     expect(Object.keys(held).length).toBeGreaterThan(10);
@@ -482,6 +502,24 @@ describe("the projections of that map, named so a failure says which claim broke
   );
 
   it.each(ENVIRONMENTS)(
+    "re-grants qcms_app_%s the logo store by COLUMN, uploader and time still unreadable",
+    async (environment) => {
+      // The restore path has to reproduce the narrowing, not just the table list: a
+      // table-wide SELECT here would be a widening nobody wrote.
+      const role = ENVIRONMENT_ROLES[environment];
+      const table = `control.${APPEARANCE_LOGOS_TABLE}`;
+      const held = await tablePrivileges("control", role);
+      expect(held[APPEARANCE_LOGOS_TABLE]).toBeUndefined();
+      for (const column of CONTROL_READ_COLUMNS[APPEARANCE_LOGOS_TABLE]!) {
+        expect(await hasColumnPrivilege(role, table, column, "SELECT"), column).toBe(true);
+      }
+      for (const column of ["created_by", "created_at"]) {
+        expect(await hasColumnPrivilege(role, table, column, "SELECT"), column).toBe(false);
+      }
+    },
+  );
+
+  it.each(ENVIRONMENTS)(
     "gives qcms_app_%s SELECT on its own reporting views and no other environment's (Q52)",
     async (environment) => {
       const role = ENVIRONMENT_ROLES[environment];
@@ -521,9 +559,9 @@ describe("the projections of that map, named so a failure says which claim broke
   );
 
   it.each([CONTROL_ROLE, ...Object.values(ENVIRONMENT_ROLES), UNSHIPPED_ROLE])(
-    "leaves %s no UPDATE and no DELETE on either audit, the restore re-grant included",
+    "leaves %s no UPDATE and no DELETE on the audits or the logo store, the re-grant included",
     async (role) => {
-      for (const audit of AUDIT_TABLES) {
+      for (const audit of APPEND_ONLY_TABLES) {
         for (const privilege of ["UPDATE", "DELETE"]) {
           const res = await owner.query<{ has: boolean }>(
             `select has_table_privilege($1, $2, $3) as has`,

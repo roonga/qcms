@@ -23,6 +23,7 @@ export * from "./agent-actions.js";
 export * from "./endpoint-proposals.js";
 export * from "./release-workflow.js";
 export * from "./release-batches.js";
+export * from "./workspace-themes.js";
 
 import * as environmentsModule from "./environments.js";
 import * as authModule from "./auth.js";
@@ -36,6 +37,7 @@ import * as agentActionsModule from "./agent-actions.js";
 import * as endpointProposalsModule from "./endpoint-proposals.js";
 import * as releaseWorkflowModule from "./release-workflow.js";
 import * as releaseBatchesModule from "./release-batches.js";
+import * as workspaceThemesModule from "./workspace-themes.js";
 
 const CONTROL_TABLE_OBJECTS: readonly PgTable[] = [
   questionsModule.questions,
@@ -63,6 +65,8 @@ const CONTROL_TABLE_OBJECTS: readonly PgTable[] = [
   releaseWorkflowModule.releaseWorkflowRevisions,
   releaseWorkflowModule.releaseWorkflowRules,
   releaseBatchesModule.releaseBatches,
+  workspaceThemesModule.appearanceLogos,
+  workspaceThemesModule.workspaceThemes,
 ];
 
 /** Every table name in `control`. */

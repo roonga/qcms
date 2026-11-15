@@ -54,6 +54,7 @@ async function seedForm(id: string): Promise<{ formId: FormId; version: number }
   const v = await insertFormVersion(testDb.db, {
     formId,
     definition: emptyDef,
+    appearance: null,
     compiled: emptyCompiled,
     compilerVersion: "1.0.0",
     a2uiSpecVersion: "1.0.0",

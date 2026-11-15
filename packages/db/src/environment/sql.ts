@@ -20,6 +20,7 @@ import {
 import { sqlLiteral as literal } from "../sql-literal.js";
 import { ACCESS_AUDIT_TABLE } from "../schema/control/access-audit.js";
 import { AGENT_ACTIONS_TABLE } from "../schema/control/agent-actions.js";
+import { APPEARANCE_LOGOS_TABLE } from "../schema/control/workspace-themes.js";
 import {
   APPLICATION_ROLE_PREFIX,
   CONTROL_ROLE,
@@ -290,10 +291,10 @@ export function createEnvironmentStatements(environment: string): string[] {
 }
 
 /**
- * The grants for one environment. `qcms_app_<env>` gets DML on its own schemas and on `control` only
- * {@link CONTROL_READ_TABLES} plus one `UPDATE`; `qcms_app_control` gets `INSERT` on `outbox` only.
- * Every statement is guarded on the role existing, since an unguarded `GRANT` would fail the migration on a
- * database without `qcms_app%` roles.
+ * The grants for one environment. `qcms_app_<env>` gets DML on its own schemas and, on `control`, only
+ * {@link CONTROL_READ_TABLES}, {@link CONTROL_READ_COLUMNS} and one `UPDATE`; `qcms_app_control` gets
+ * `INSERT` on `outbox` only. Every statement is guarded on the role existing, since an unguarded `GRANT`
+ * would fail the migration on a database without `qcms_app%` roles.
  */
 export function grantEnvironmentStatements(environment: string): string[] {
   const schema = dataSchemaName(environment);
@@ -327,9 +328,10 @@ export function grantEnvironmentStatements(environment: string): string[] {
   return [
     guardedOnRole(role, environmentGrants),
     ...CONTROL_READ_TABLES_GUARDED_ON_EXISTENCE.map((table) =>
-      guardedOnRoleAndTable(role, CONTROL_SCHEMA, table, [
-        `GRANT SELECT ON ${quote(CONTROL_SCHEMA)}.${quote(table)} TO ${quote(role)}`,
-      ]),
+      guardedOnRoleAndTable(role, CONTROL_SCHEMA, table, [controlReadGrant(table, quote(role))]),
+    ),
+    ...Object.keys(CONTROL_READ_COLUMNS).map((table) =>
+      guardedOnRoleAndTable(role, CONTROL_SCHEMA, table, [controlReadGrant(table, quote(role))]),
     ),
     // `INSERT` and nothing else, so an environment role may add an audit row and may not read, change or remove
     // one (and on the same terms).
@@ -386,7 +388,7 @@ export function workspaceReportingGrantStatements(input: {
  * The grants for a control-plane table created after the baseline, which its own migration must carry: the
  * baseline's `ALL TABLES` pass covers only tables existing then, and no default privilege can carve out the
  * break-glass audit. `qcms_app_control` gets DML; an environment role gets `SELECT` only if the table is on
- * {@link CONTROL_READ_TABLES}.
+ * {@link CONTROL_READ_TABLES} or {@link CONTROL_READ_COLUMNS}.
  */
 export function grantControlTableStatements(table: string): string[] {
   const statements = [
@@ -394,7 +396,7 @@ export function grantControlTableStatements(table: string): string[] {
       `GRANT SELECT, INSERT, UPDATE, DELETE ON ${quote(CONTROL_SCHEMA)}.${quote(table)} TO ${quote(CONTROL_ROLE)}`,
     ]),
   ];
-  if (CONTROL_READ_TABLES.includes(table)) {
+  if (CONTROL_READ_TABLES.includes(table) || Object.hasOwn(CONTROL_READ_COLUMNS, table)) {
     statements.push(grantControlReadToEnvironmentRolesStatement(table));
   }
   return statements;
@@ -413,12 +415,26 @@ export function grantAgentActionsStatements(): string[] {
   return appendOnlyAuditGrantStatements(AGENT_ACTIONS_TABLE);
 }
 
+/**
+ * The logo store is append-only like the audits, and readable by an environment role
+ * because the logo route answers an unauthenticated respondent off the serving pool. That
+ * read is narrowed to {@link CONTROL_READ_COLUMNS}' three columns.
+ */
+export function grantAppearanceLogosStatements(): string[] {
+  const table = `${quote(CONTROL_SCHEMA)}.${quote(APPEARANCE_LOGOS_TABLE)}`;
+  return [
+    guardedOnRole(CONTROL_ROLE, [`GRANT SELECT, INSERT ON ${table} TO ${quote(CONTROL_ROLE)}`]),
+    grantControlReadToEnvironmentRolesStatement(APPEARANCE_LOGOS_TABLE),
+    revokeTableWritesStatement(APPEARANCE_LOGOS_TABLE),
+  ];
+}
+
 function appendOnlyAuditGrantStatements(auditTable: string): string[] {
   const table = `${quote(CONTROL_SCHEMA)}.${quote(auditTable)}`;
   return [
     guardedOnRole(CONTROL_ROLE, [`GRANT SELECT, INSERT ON ${table} TO ${quote(CONTROL_ROLE)}`]),
     grantAuditInsertToEnvironmentRolesStatement(auditTable),
-    revokeAuditWritesStatement(auditTable),
+    revokeTableWritesStatement(auditTable),
   ];
 }
 
@@ -441,7 +457,7 @@ $$;`;
 }
 
 // Against the role prefix, so a role an operator creates later is covered too.
-function revokeAuditWritesStatement(auditTable: string): string {
+function revokeTableWritesStatement(table: string): string {
   return `DO $$
 DECLARE application_role text;
 BEGIN
@@ -449,7 +465,7 @@ BEGIN
 \t\tSELECT rolname FROM pg_roles WHERE rolname LIKE 'qcms\\_app%'
 \tLOOP
 \t\tEXECUTE format(
-\t\t\t'REVOKE UPDATE, DELETE ON TABLE ${CONTROL_SCHEMA}.${auditTable} FROM %I',
+\t\t\t'REVOKE UPDATE, DELETE ON TABLE ${CONTROL_SCHEMA}.${table} FROM %I',
 \t\t\tapplication_role);
 \tEND LOOP;
 END
@@ -462,7 +478,7 @@ $$;`;
  * row, hence the `EXISTS` in the cursor.
  */
 function grantControlReadToEnvironmentRolesStatement(table: string): string {
-  const grant = `GRANT SELECT ON ${quote(CONTROL_SCHEMA)}.${quote(table)} TO %I`;
+  const grant = controlReadGrant(table, "%I");
   return `DO $$
 DECLARE environment_role text;
 BEGIN
@@ -480,7 +496,20 @@ $$;`;
 }
 
 /**
- * The `control` tables an environment role may read. Exported so the least-privilege
+ * `SELECT` on the whole table, or on {@link CONTROL_READ_COLUMNS}' named columns where the
+ * table has an entry there. `role` is a quoted name, or `%I` inside a `format` call.
+ */
+function controlReadGrant(table: string, role: string): string {
+  const columns = CONTROL_READ_COLUMNS[table];
+  const select =
+    columns === undefined
+      ? "SELECT"
+      : `SELECT (${columns.map((column) => quote(column)).join(", ")})`;
+  return `GRANT ${select} ON ${quote(CONTROL_SCHEMA)}.${quote(table)} TO ${role}`;
+}
+
+/**
+ * The `control` tables an environment role may read whole. Exported so the least-privilege
  * suite asserts it against the catalogue rather than re-typing it.
  */
 export const CONTROL_READ_TABLES: readonly string[] = [
@@ -491,6 +520,15 @@ export const CONTROL_READ_TABLES: readonly string[] = [
   "environments",
   "form_releases",
 ];
+
+/**
+ * The `control` columns an environment role may read where it holds no table-wide `SELECT`: the
+ * serving pool needs the logo bytes it answers with, and not who stored one or when. Each entry's
+ * grant is guarded on the table existing, as {@link CONTROL_READ_TABLES_GUARDED_ON_EXISTENCE} is.
+ */
+export const CONTROL_READ_COLUMNS: Readonly<Record<string, readonly string[]>> = {
+  [APPEARANCE_LOGOS_TABLE]: ["key", "content_type", "bytes"],
+};
 
 /**
  * The members of {@link CONTROL_READ_TABLES} whose grant is guarded on the table existing,
