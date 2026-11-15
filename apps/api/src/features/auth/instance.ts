@@ -427,14 +427,6 @@ export function createAdminAuth(input: AdminAuthInput) {
               externalGroupId: { type: "string", required: false, input: false },
             },
           },
-          teamMember: {
-            // A suspension is a Site administrator's act, so neither field takes request
-            // input and neither carries a default.
-            additionalFields: {
-              suspendedAt: { type: "date", required: false, input: false },
-              suspendedBy: { type: "string", required: false, input: false },
-            },
-          },
         },
       }),
     ],

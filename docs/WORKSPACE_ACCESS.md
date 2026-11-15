@@ -315,8 +315,16 @@ Two append-only logs. For both, the application role holds `INSERT` and `SELECT`
   - **Workspace themes:** each theme derive fetch, one row (SEC-18).
   - **Workspace approval requests** (turning second approval off, self-grant, Move form): created, approved, rejected, expired.
   - **Pending draft publish to `prod`** on a site whose only environment is `prod` (approved on the form, not a workspace approval request): requested, approved, rejected, expired.
-- The stored kinds for these rows, beyond the workspace audit's six existing kinds, are settled in the foundation task (section 16).
-  - **Existing rows, unchanged:** response read, export and erasure; `prod` endpoint propose, confirm and withdraw; release-workflow change.
+
+### Stored kinds and the site audit's row shape
+
+Settled in task 088.
+
+- The **site audit row** is `actor`, `subject` (the account, workspace or request the act was on), `workspace_id` (set only where the act affects one workspace, which is where the mirrored row goes), `kind`, `occurred_at` and a free-text `detail`. No foreign key, so a row never cascades away with the account it names, and no column carries a credential, an answer value or authored text.
+- **Site audit kinds**, four, with `detail` naming the act within its kind: `account` (create, disable, reactivate, credential or factor reset, a grant made while unclaimed), `administrator` (a Site administrator promoted or demoted), `approval` (a site approval request created, approved, rejected or expired), `library` (a workspace marked or unmarked as the shared question library).
+- **Workspace audit kinds gained**, four beside the seven already stored: `group` (an access group created, renamed, deleted, or its roles or environments changed), `administrator` (a Workspace administrator appointed or removed), `approval` (a workspace approval request or a held `prod` draft publish created, approved, rejected or expired), `account` (the mirror of a site-level account act into a workspace the account held something in).
+- A member added or removed stays `grant` and `revoke`, and a re-confirmation of a suspended membership is a `grant`, because it restores one. A workspace created, renamed or archived, a form moved, the second-approval switch, the appearance lock and the library marking's mirror keep the kinds they are already written with.
+- **Existing rows, unchanged:** response read, export and erasure; `prod` endpoint propose, confirm and withdraw; release-workflow change; the theme derive fetch.
 
 ## 12. Navigation and screens
 
@@ -599,9 +607,13 @@ Each record below, except the built-task records, now links here for workspace a
 
 Request expiry (7 days), the `prod` rule with its exception for a site whose only environment is `prod` (section 5) and the held draft publish applying the draft as requested (section 6) are settled, not defaults. That a Site administrator is trusted at site level is an accepted limitation, stated in section 10, not an open item.
 
+### Ruled in task 088
+
+- **Audit kinds and the site audit's row shape are settled** (Q79), in section 11: four site kinds, four kinds added to the workspace audit, and a site row of `actor`, `subject`, `workspace_id`, `kind`, `occurred_at` and `detail`. A coarse kind per family with the act in `detail` follows the shape the seven existing kinds already have.
+- **`user.claimedAt` defaults to the row's creation time.** Every account that exists before task 090 is claimed, which is what the landing order already states, and 090's create path is the one that writes an unclaimed account by leaving the column null. No environment role may insert into `control.site_audit`: a site-level act is never performed on an environment pool, so its grant set is two statements where the other two audits have three.
+
 ### Undecided
 
-- Audit kinds for the new acts beyond the workspace audit's six existing kinds (Q79), and the site audit's row shape. Left to the foundation task and reviewed there.
 - A workspace's own questions at archive. This document states no rule. As built, questions do not block an archive and stay with the archived workspace, taking no new pin (ADR-41's archive Notes); the earlier "questions are reassigned first" no longer applies, because questions do not move.
 
 ## 17. Out of scope and deferred

@@ -195,7 +195,10 @@ export const authTeamMember = controlSchema.table("teamMember", {
   /** The plugin's own uniqueness key: `input: false`, `returned: false`, optional. */
   membershipKey: text("membershipKey").unique(),
   createdAt: timestamp("createdAt").notNull().defaultNow(),
-  /** Set while the grant is suspended by a credential reset or a reactivation; it then grants nothing. */
+  /**
+   * Set while the grant is suspended by a credential reset or a reactivation; it then grants
+   * nothing. The plugin's `teamMember` schema takes no additional fields, so it never writes it.
+   */
   suspendedAt: timestamp("suspendedAt"),
   /** The `user.id` that performed the reset or reactivation, so the re-confirmation rule can exclude them. */
   suspendedBy: text("suspendedBy"),

@@ -1,6 +1,11 @@
 import { z } from "@hono/zod-openapi";
 
-import { ACCESS_AUDIT_KINDS, ACCESS_GROUPS_MAX_ROLES, ACCESS_ROLES } from "@roonga/qcms-db";
+import {
+  ACCESS_AUDIT_KINDS,
+  ACCESS_GROUPS_MAX_ROLES,
+  ACCESS_ROLES,
+  SITE_AUDIT_KINDS,
+} from "@roonga/qcms-db";
 
 // No `externalGroupId` on a request body: it is the directory sync join key, and
 // `z.strictObject` refuses it.
@@ -202,6 +207,44 @@ export const AuditListResponse = z
     total: z.number().int(),
   })
   .openapi("AuditListResponse");
+
+export const SiteAuditQuery = z.object({
+  kind: z
+    .enum(SITE_AUDIT_KINDS as unknown as [string, ...string[]])
+    .optional()
+    .openapi({ param: { name: "kind", in: "query" } }),
+  page: z
+    .string()
+    .optional()
+    .openapi({ param: { name: "page", in: "query" } }),
+  pageSize: z
+    .string()
+    .optional()
+    .openapi({ param: { name: "pageSize", in: "query" } }),
+});
+
+export const SiteAuditListResponse = z
+  .object({
+    rows: z.array(
+      z.object({
+        id: z.string(),
+        actor: z.string(),
+        // Null once the account is gone, as the access audit's is.
+        actorEmail: z.string().nullable(),
+        // The account, workspace or request the act was on.
+        subject: z.string().nullable(),
+        // Set where the act affects one workspace, which also holds a mirrored row.
+        workspaceId: z.string().nullable(),
+        kind: z.string(),
+        occurredAt: z.string(),
+        detail: z.string().nullable(),
+      }),
+    ),
+    page: z.number().int(),
+    pageSize: z.number().int(),
+    total: z.number().int(),
+  })
+  .openapi("SiteAuditListResponse");
 
 export const AgentAuditQuery = z.object({
   kind: z

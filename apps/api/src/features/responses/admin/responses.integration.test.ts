@@ -33,7 +33,13 @@ import type { Deps } from "../../../deps.js";
 import { FLAG_REASONS, FlagReason } from "../flag-reasons.js";
 import { registerGrantCheck } from "../../membership/middleware.js";
 import { ADMIN_SESSION_HEADER, registerAdminAuth } from "../../../middleware/admin-auth.js";
-import { internalTokenFor, makeDeps, seedAdminSession, validEnv } from "../../../test-support.js";
+import {
+  disableSeededAccount,
+  internalTokenFor,
+  makeDeps,
+  seedAdminSession,
+  validEnv,
+} from "../../../test-support.js";
 import { registerAdminResponses } from "./route.js";
 
 const ADMIN_ONLY = { public: false, internal: false, admin: true } as const;
@@ -491,6 +497,57 @@ describe("large export streams without buffering the whole table (exit criterion
     expect(dataRows).toBe(10001);
     expect(chunks).toBeGreaterThan(1);
     expect(maxChunkBytes * 4).toBeLessThan(totalBytes);
+  }, 60_000);
+});
+
+describe("a running export stops when its account is disabled (criterion 67)", () => {
+  it("errors the stream mid-body rather than finishing the file", async () => {
+    const formId = FormId.parse("frm_disable_export");
+    await seedForm("frm_disable_export", [["stp_a", ["q_t"]]]);
+    await testDb.client.query(
+      `insert into sessions (session_id, form_id, form_version, access_mode, environment, status, expires_at, created_at)
+       select 'ses_off_' || lpad(g::text, 6, '0'), $1, 1, 'anonymous', 'prod', 'submitted', now() + interval '1 day', now()
+       from generate_series(1, 2600) g`,
+      [formId],
+    );
+    await testDb.client.query(
+      `insert into submissions (session_id, content_hash, locked_answers, submitted_at)
+       select 'ses_off_' || lpad(g::text, 6, '0'), repeat('0', 64),
+              jsonb_build_object('answers',
+                jsonb_build_array(jsonb_build_object('questionId', 'q_t', 'value', 'v' || g::text))),
+              now()
+       from generate_series(1, 2600) g`,
+    );
+
+    // Its own account, so disabling it leaves every other case in this file alone.
+    const exporter = await seedAdminSession(testDb.db, { label: "exporter" });
+    const res = await app.request("/admin/forms/frm_disable_export/export?format=csv&version=1", {
+      headers: {
+        "x-qcms-internal-token": internalToken,
+        [ADMIN_SESSION_HEADER]: exporter.token,
+      },
+    });
+    expect(res.status).toBe(200);
+
+    const reader = res.body!.getReader();
+    await reader.read();
+    await disableSeededAccount(testDb.db, exporter.userId, new Date());
+
+    let stopped = false;
+    let completed = false;
+    try {
+      for (let read = 0; read < 40; read += 1) {
+        const { done } = await reader.read();
+        if (done) {
+          completed = true;
+          break;
+        }
+      }
+    } catch {
+      stopped = true;
+    }
+    expect(completed).toBe(false);
+    expect(stopped).toBe(true);
   }, 60_000);
 });
 
