@@ -53,6 +53,14 @@ const MIRROR_KIND: Readonly<Record<SiteAuditKind, AccessAuditKind>> = {
   library: "setting",
 };
 
+// The workspace audit has no `subject` column, so the mirrored row carries it in `detail`.
+function mirrorDetail(entry: SiteAuditEntry): string | undefined {
+  if (entry.subject === undefined) return entry.detail;
+  const subject = `subject=${entry.subject}`;
+  if (entry.detail === undefined) return subject;
+  return `${subject} ${entry.detail}`;
+}
+
 /**
  * Append the site row, then the mirrored workspace-audit row for each workspace the act
  * affects. Pass the caller's own transaction, so the site row and its mirrors land together.
@@ -63,10 +71,7 @@ export async function writeSiteAuditWithMirror(
   mirrorTo: readonly string[],
 ): Promise<void> {
   await writeSiteAuditRow(exec, entry);
-  const detail =
-    entry.subject === undefined
-      ? entry.detail
-      : `subject=${entry.subject}${entry.detail === undefined ? "" : ` ${entry.detail}`}`;
+  const detail = mirrorDetail(entry);
   for (const workspaceId of mirrorTo) {
     await writeAccessAuditRow(exec, {
       actor: entry.actor,

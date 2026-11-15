@@ -219,10 +219,7 @@ export async function seedAdminSession(
   return { token, userId };
 }
 
-/**
- * Set the disabled flag directly, which is how criteria 66 and 67 are proven: the act that
- * disables an account, and its same-transaction session delete, land in task 091.
- */
+/** Set the disabled flag directly, which is how criteria 66 and 67 are proven. */
 export async function disableSeededAccount(
   exec: Executor,
   userId: string,
@@ -231,7 +228,7 @@ export async function disableSeededAccount(
   await exec.update(authUser).set({ disabledAt: at }).where(eq(authUser.id, userId));
 }
 
-/** Suspend one seeded grant, as a credential reset will in task 091. */
+/** Suspend one seeded grant, as a credential reset does. */
 export async function suspendSeededGrant(
   exec: Executor,
   input: {

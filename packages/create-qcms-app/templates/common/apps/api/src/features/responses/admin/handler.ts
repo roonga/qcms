@@ -399,7 +399,7 @@ type RequestDatabase = ReturnType<Databases["forRequest"]>;
 type ExportGuard = () => Promise<void>;
 
 function exportGuard(deps: Deps, actorId: string | undefined): ExportGuard {
-  if (actorId === undefined) return async (): Promise<void> => undefined;
+  if (actorId === undefined) return (): Promise<void> => Promise.resolve();
   return async (): Promise<void> => {
     if (await isAccountActive(deps.databases.control, actorId)) return;
     throw new Error("the exporting account is no longer active");
