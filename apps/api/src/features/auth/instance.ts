@@ -307,7 +307,7 @@ export function createAdminAuth(input: AdminAuthInput) {
           input: false,
         },
         // Both `input: false`: only a Site administrator's own act sets either. Neither
-        // carries a default here, so the column's own default decides what a sign-up writes.
+        // column carries a default, so a sign-up writes neither and the claim is an act.
         disabledAt: { type: "date", required: false, input: false },
         claimedAt: { type: "date", required: false, input: false },
       },

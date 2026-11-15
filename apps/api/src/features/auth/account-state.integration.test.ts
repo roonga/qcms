@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "../../app.js";
 import { appGroups } from "../../registrars.js";
 import { internalTokenFor, makeDeps, validEnv } from "../../test-support.js";
-import { CLAIM_AUTH_ENDPOINTS } from "./account-state.js";
+import { CLAIM_AUTH_ENDPOINTS, SESSION_CHECK_EXEMPT_ENDPOINTS } from "./account-state.js";
 import { createInitialAdmin } from "./bootstrap.js";
 import { createAdminAuth, type AdminAuth } from "./instance.js";
 import { ALLOWED_AUTH_ENDPOINTS } from "./route.js";
@@ -22,6 +22,8 @@ const ALL = { public: true, internal: true, admin: true } as const;
 
 /** The one allowlisted endpoint that carries its identity in the body rather than a session. */
 const SIGN_IN = "POST /sign-in/email";
+/** The one endpoint every account reaches, because it only deletes its own session. */
+const SIGN_OUT = "POST /sign-out";
 
 let testDb: TestDb;
 let app: ReturnType<typeof createApp>;
@@ -91,6 +93,24 @@ async function setAccountState(state: {
   await testDb.db.update(authUser).set(state).where(eq(authUser.id, adminId));
 }
 
+/**
+ * A second account with a session of its own, created before its state is set, so a case
+ * that spends or refuses that session never touches the fixture admin's.
+ */
+async function spareWithSession(
+  email: string,
+  state: { readonly disabledAt?: Date; readonly claimedAt?: Date | null },
+): Promise<{ readonly userId: string; readonly cookie: string }> {
+  const created = await auth.api.signUpEmail({
+    body: { email, password: PASSWORD, name: "Spare" },
+    asResponse: true,
+  });
+  expect(created.ok).toBe(true);
+  const { user } = (await created.json()) as { user: { id: string } };
+  await testDb.db.update(authUser).set(state).where(eq(authUser.id, user.id));
+  return { userId: user.id, cookie: cookieHeader(created) };
+}
+
 async function authPost(path: string, body: unknown, cookie: string): Promise<Response> {
   return app.request(`/api/auth${path}`, {
     method: "POST",
@@ -148,7 +168,7 @@ describe("the bootstrap account is claimed, so the first run is not refused", ()
   });
 });
 
-describe("a disabled account is refused on every allowlisted auth endpoint (criterion 66)", () => {
+describe("a disabled account is refused on every allowlisted auth endpoint but sign-out (criterion 66)", () => {
   beforeAll(async () => {
     await setAccountState({ disabledAt: new Date() });
   });
@@ -157,7 +177,7 @@ describe("a disabled account is refused on every allowlisted auth endpoint (crit
     await setAccountState({ disabledAt: null });
   });
 
-  for (const endpoint of ALLOWED_AUTH_ENDPOINTS) {
+  for (const endpoint of ALLOWED_AUTH_ENDPOINTS.filter((e) => e !== SIGN_OUT)) {
     it(`refuses ${endpoint}`, async () => {
       // Sign-in is sent as a browser would, with no session cookie; every other endpoint
       // is sent with the live session the account signed in with.
@@ -169,6 +189,19 @@ describe("a disabled account is refused on every allowlisted auth endpoint (crit
       if (endpoint !== SIGN_IN) expect(await isMountRefusal(res)).toBe(true);
     });
   }
+
+  it("still signs out, which deletes the session its own cookie names and nothing else", async () => {
+    const spare = await spareWithSession("state.disabled.signout@example.test", {
+      disabledAt: new Date(),
+      claimedAt: new Date(),
+    });
+    expect((await send(SIGN_OUT, spare.cookie)).status).toBe(200);
+    const rows = await testDb.db
+      .select()
+      .from(authSession)
+      .where(eq(authSession.userId, spare.userId));
+    expect(rows).toEqual([]);
+  });
 });
 
 describe("a disabled account that never enrolled a factor is minted no session", () => {
@@ -205,14 +238,14 @@ describe("an unclaimed account reaches its claim and nothing else", () => {
     await setAccountState({ claimedAt: new Date() });
   });
 
-  for (const endpoint of CLAIM_AUTH_ENDPOINTS.filter((e) => e !== "POST /sign-out")) {
+  for (const endpoint of CLAIM_AUTH_ENDPOINTS) {
     it(`admits ${endpoint}`, async () => {
       expect(await isMountRefusal(await send(endpoint, sessionCookie))).toBe(false);
     });
   }
 
   for (const endpoint of ALLOWED_AUTH_ENDPOINTS.filter(
-    (e) => e !== SIGN_IN && !CLAIM_AUTH_ENDPOINTS.includes(e),
+    (e) => !SESSION_CHECK_EXEMPT_ENDPOINTS.includes(e) && !CLAIM_AUTH_ENDPOINTS.includes(e),
   )) {
     it(`refuses ${endpoint}`, async () => {
       expect(await isMountRefusal(await send(endpoint, sessionCookie))).toBe(true);
@@ -224,4 +257,35 @@ describe("an unclaimed account reaches its claim and nothing else", () => {
     const res = await send("POST /sign-out", sessionCookie);
     expect(res.status).toBe(200);
   });
+});
+
+/**
+ * The admin forwards the browser's cookies on sign-in, so judging sign-in by the cookie
+ * would refuse a person whose browser still holds a session the server will not honour.
+ */
+describe("a sign-in is judged by the credential, not by the cookie the browser still holds", () => {
+  const holders: readonly {
+    readonly label: string;
+    readonly state: { readonly disabledAt?: Date; readonly claimedAt?: Date | null };
+  }[] = [
+    { label: "disabled", state: { disabledAt: new Date(), claimedAt: new Date() } },
+    { label: "unclaimed", state: { claimedAt: null } },
+  ];
+
+  for (const holder of holders) {
+    it(`signs in as an active account while the browser holds a ${holder.label} cookie`, async () => {
+      const spare = await spareWithSession(
+        `state.${holder.label}.holder@example.test`,
+        holder.state,
+      );
+      const res = await app.request("/api/auth/sign-in/email", {
+        method: "POST",
+        headers: { ...headersFor(spare.cookie), "content-type": "application/json" },
+        body: JSON.stringify({ email: EMAIL, password: PASSWORD }),
+      });
+      expect(res.status, await res.clone().text()).toBe(200);
+      // The fixture admin has a factor, so its sign-in stops at the second-factor step.
+      expect(await res.json()).toMatchObject({ twoFactorRedirect: true });
+    });
+  }
 });

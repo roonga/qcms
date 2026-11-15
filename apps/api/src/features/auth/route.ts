@@ -58,8 +58,8 @@ export const registerAdminAuthProxy: SliceRegistrar = (group, deps) => {
     }
     const auth = adminAuthFor(deps);
     // These endpoints change a credential and enrol a factor, so the account's state is read
-    // here as well as on `/admin`. Sign-in holds no session yet and is refused where the
-    // session is minted instead.
+    // here as well as on `/admin`. Sign-in and sign-out are exempt: neither is the stale
+    // cookie's to decide, and the session-create hook refuses the sign-in instead.
     if (await authEndpointRefused(auth, request, endpoint)) throw accountStateRefusal();
     return auth.handler(request);
   });
