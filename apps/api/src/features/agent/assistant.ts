@@ -134,14 +134,31 @@ function toInstructions(breakpoint: ProviderOptions | undefined): SystemModelMes
   };
 }
 
-export function toModelMessages(ctx: AgentContext): ModelMessage[] {
+/** The breakpoint rides the last message of a run, which is the end of a cacheable prefix. */
+function withBreakpoint<T extends ModelMessage>(
+  messages: readonly T[],
+  breakpoint: ProviderOptions | undefined,
+): T[] {
+  const last = messages.at(-1);
+  if (breakpoint === undefined || last === undefined) return [...messages];
+  return [...messages.slice(0, -1), { ...last, providerOptions: breakpoint }];
+}
+
+/**
+ * The volatile preambles sit after the turns that will not change again and before the
+ * person's own latest words, so the prefix above them is byte-identical from one turn to the
+ * next and the breakpoint on its last message carries it across turns.
+ */
+export function toModelMessages(ctx: AgentContext, breakpoint?: ProviderOptions): ModelMessage[] {
   // A screen can hold the draft ports for a read tool and still have nothing to propose,
   // so the preamble that asks for changes is sent only where a propose verb is offered.
   const draft = PROPOSE_TOOLS.some((name) => ctx.tools.includes(name)) ? ctx.draft : undefined;
+  const history = ctx.conversation.map((turn) => modelTurn(turn));
   return [
+    ...withBreakpoint(history.slice(0, -1), breakpoint),
     ...(draft === undefined ? [] : [{ role: "user" as const, content: draftPreamble(draft) }]),
     { role: "user" as const, content: factsPreamble(ctx) },
-    ...ctx.conversation.map((turn) => modelTurn(turn)),
+    ...history.slice(-1),
   ];
 }
 
@@ -404,7 +421,7 @@ async function* runTurn(args: {
     // One breakpoint covers the tools too: a cacheable prefix is the tools, then the
     // instructions, then the messages, so marking the instructions closes over both.
     instructions: toInstructions(args.cacheBreakpoint),
-    messages: toModelMessages(ctx),
+    messages: toModelMessages(ctx, args.cacheBreakpoint),
     tools: agentToolSet(ctx, state),
     stopWhen: [stepCountIs(ctx.maxSteps), stopOnRejectedTool(ctx.tools)],
     abortSignal: signal,

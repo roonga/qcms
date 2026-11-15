@@ -848,6 +848,38 @@ describe("prompt caching", () => {
     expect(turn?.fields?.["cacheWriteTokens"]).toBeGreaterThan(0);
   });
 
+  it("marks the last turn that cannot change again, and leaves the person's words last", () => {
+    const { ctx } = contextFor("now add a consent step", {
+      conversation: [
+        { role: "user", content: "create the Patient onboarding form" },
+        { role: "assistant", content: "Here is the plan." },
+        { role: "user", content: "now add a consent step" },
+      ],
+    });
+    const messages = toModelMessages(builderTurnContext(ctx), CACHE_BREAKPOINT);
+
+    expect(messages.map((message) => message.role)).toEqual([
+      "user",
+      "assistant",
+      "user",
+      "user",
+      "user",
+    ]);
+    expect(messages[1]?.providerOptions).toEqual(CACHE_BREAKPOINT);
+    expect(messages.filter((message) => message.providerOptions !== undefined)).toHaveLength(1);
+    expect(String(messages[2]?.content)).toContain("The current draft of the form");
+    expect(String(messages[3]?.content)).toContain("The user is now on");
+    expect(messages[4]?.content).toBe("now add a consent step");
+  });
+
+  it("sends a first turn in the order it always sent it", () => {
+    const messages = toModelMessages(builderTurnContext(contextFor("a quote form").ctx));
+    expect(messages.map((message) => message.role)).toEqual(["user", "user", "user"]);
+    expect(String(messages[0]?.content)).toContain("The current draft of the form");
+    expect(String(messages[1]?.content)).toContain("The user is now on");
+    expect(messages[2]?.content).toBe("a quote form");
+  });
+
   it("logs a zero count for a turn the provider cached nothing of", async () => {
     const { logger, records } = capturingLogger();
     await collect(contextFor("a quote form").ctx, logger);
