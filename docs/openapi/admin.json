@@ -7470,7 +7470,7 @@
     "/admin/workspaces/{id}/archive": {
       "post": {
         "summary": "Archive a workspace (admin)",
-        "description": "Refused while the workspace owns any form at all, closed and never-released ones included, or while it is the shared question library. The refusal names the forms to reassign, reports the open and the released ones separately, and says to unmark the library or hand it on. Nothing is deleted, closed, moved or unmarked on the operator's behalf, and no response row is reached. An archive is terminal: there is no unarchive, and the only write an archived workspace still takes is unmarking the shared library.",
+        "description": "Refused while the workspace owns any form at all, closed and never-released ones included, or while it is the shared question library. The refusal names the forms to reassign, reports the open and the released ones separately, and says to unmark the library or hand it on. Nothing is deleted, closed, moved or unmarked on the operator's behalf, and no response row is reached. An archive is terminal: there is no unarchive, and the only write an archived workspace still takes is unmarking the shared library. It writes one `setting` audit row, the kind a rename and the second-approval switch are written with.",
         "tags": [
           "workspaces"
         ],
@@ -7734,8 +7734,8 @@
     },
     "/admin/workspaces/{id}/members/{userId}": {
       "put": {
-        "summary": "Make somebody a workspace owner, or take the role away (admin)",
-        "description": "`forms.owner` is the one role that lives on the member row rather than on an access group. Both directions write an access-audit row. The workspace's last owner cannot be demoted, because a workspace with no owner is one nobody can administer.",
+        "summary": "Appoint or remove a Workspace administrator (admin)",
+        "description": "The Workspace administrator flag lives on the member row rather than on an access group. Each direction writes an `administrator` audit row, and a write that leaves the flag where it was writes none. Removing the last active, claimed Workspace administrator is refused for every actor, a Site administrator included: that role never satisfies the guard, and a workspace with no administrator is one nobody can administer. The write takes the workspace's membership lock, so two removals cannot jointly remove the last one.",
         "tags": [
           "membership"
         ],
@@ -7838,12 +7838,91 @@
             }
           }
         }
+      },
+      "delete": {
+        "summary": "Take somebody out of this workspace (admin)",
+        "description": "Removes every access group the person holds here and the member row itself, one revoke row each, in one transaction under the workspace's membership lock. The account and every other workspace are untouched: a Workspace administrator revokes within their own workspace and never disables an account. The last active, claimed Workspace administrator cannot be removed. Allowed on an archived workspace, which refuses every grant but never a revoke.",
+        "tags": [
+          "membership"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "org_default_workspace"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "usr_0a1b2c"
+            },
+            "required": true,
+            "name": "userId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed"
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/admin/workspaces/{id}/access-groups": {
       "get": {
-        "summary": "The workspace's access groups, with their scope and their holders (admin)",
-        "description": "An access group is one grant: a role and its scope. The stored name is shown inside a workspace page and the derived full name in cross-workspace lists; neither derived name is stored, so renaming a workspace slug changes display only.",
+        "summary": "The workspace's access groups, with their roles, environments and holders (admin)",
+        "description": "An access group is one grant: a set of roles and one environment set, held by the people in it. The name is a label an administrator chose, unique within the workspace and never parsed to authorise anything.",
         "tags": [
           "membership"
         ],
@@ -7910,7 +7989,7 @@
       },
       "post": {
         "summary": "Create an access group (admin)",
-        "description": "The role and the scope are the grant and the name is a label kept in step with them: a name out of step with the fields is refused on save, and nothing parses a name to authorise. Names are unique within a workspace. A combined environment set is written in the order of the environments table, so `dev-test` is the one spelling. A group with no holders grants nobody anything, so creating one writes no audit row; adding a holder does.",
+        "description": "The roles and the environment set are the grant and the name is a label nothing parses to authorise. Names are unique within a workspace. The environment set is written in the order of the environments table, so one set has one spelling. Creating a group writes one `group` audit row; it grants nobody anything until a holder is added, which writes a `grant` row of its own.",
         "tags": [
           "membership"
         ],
@@ -8008,8 +8087,8 @@
     },
     "/admin/workspaces/{id}/access-groups/{teamId}": {
       "put": {
-        "summary": "Rename or re-scope an access group (admin)",
-        "description": "The role is not changeable: a different role is a different grant, and moving one would change what the group grants under the people holding it. Delete the group and create the one you meant, which is two audited acts rather than one unaudited change of meaning. A re-scope writes one audit row per holder.",
+        "summary": "Rename an access group, or change its roles and environments (admin)",
+        "description": "One `group` audit row naming what the group now carries and what it carried before. A change that would give the person making it a response role, or a new environment for one, is refused while the workspace requires a second approver.",
         "tags": [
           "membership"
         ],
@@ -8115,7 +8194,7 @@
       },
       "delete": {
         "summary": "Remove an access group and every grant it carried (admin)",
-        "description": "The holders' rows go with it. They are read first and one revoke row is written per holder, in the same transaction as the removal, which is why no removal may originate at the organisation plugin's own endpoint: its cascade runs below any hook and would leave the removals invisible. Allowed on an archived workspace, since removing a group is a revoke.",
+        "description": "The holders' rows go with it. They are read first and one revoke row is written per holder, beside the one `group` row that records the removal itself, in the same transaction, which is why no removal may originate at the organisation plugin's own endpoint: its cascade runs below any hook and would leave the removals invisible. Allowed on an archived workspace, since removing a group is a revoke.",
         "tags": [
           "membership"
         ],
@@ -8373,8 +8452,8 @@
     },
     "/admin/workspaces/{id}/settings": {
       "put": {
-        "summary": "The workspace's two switches: the second approver and the test-data seed (admin)",
-        "description": "Both default off. The second-approver switch governs the two-person rule for a production release and a production endpoint change, and the self-grant rule for a responses role, so an installation turns on one thing and gets the whole two-person posture. The seed switch decides whether a new editor is also granted a responses viewer role on dev and test, and a grant on test responses is a grant on personal data, because a test run can involve real respondents. Turning either on or off writes an access-audit row of kind `setting`. Refused on an archived workspace.",
+        "summary": "The workspace's second-approval switch (admin)",
+        "description": "Off by default. It governs second approval for a production publish and a production endpoint change, and the self-grant rule for a response role, so a workspace turns on one thing and gets the whole posture. Turning it on or off writes an access-audit row of kind `setting`. Refused on an archived workspace.",
         "tags": [
           "membership"
         ],
