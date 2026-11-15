@@ -432,6 +432,7 @@ describe("the audit column and the response routes agree (criterion 8)", () => {
       action: "archive",
       workspace: "path",
       audit: "setting",
+    });
   });
 
   it("gives the rename route the workspace administrator's cell, in the named workspace (criterion 97)", () => {
