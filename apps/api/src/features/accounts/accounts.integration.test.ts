@@ -266,7 +266,7 @@ describe("creating an account (criteria 50, 51)", () => {
       .select()
       .from(signInLinks)
       .where(eq(signInLinks.userId, created.userId));
-    expect(link?.tokenHash).toBe(signInTokenHash(created.token));
+    expect(link?.tokenHash).toBe(await signInTokenHash(created.token));
     expect(JSON.stringify(link)).not.toContain(created.token);
     expect(link?.usedAt).toBeNull();
     expect(link?.delivery).toBe("sent");

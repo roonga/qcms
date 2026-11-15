@@ -64,7 +64,7 @@ export const registerAccountClaim: SliceRegistrar = (group, deps: Deps) => {
 
     const exec = deps.databases.control;
     const now = deps.clock.now();
-    const tokenHash = signInTokenHash(token);
+    const tokenHash = await signInTokenHash(token);
 
     const link = await findSignInLinkByHash(exec, tokenHash);
     if (link === undefined || !signInLinkIsLive(link, now)) throw linkRefused();

@@ -29,10 +29,11 @@ export async function issueAndSendSignInLink(
   if (!deps.config.mail.configured) throw new Error("outbound mail is not configured");
   const now = deps.clock.now();
   const token = mintSignInToken();
+  const tokenHash = await signInTokenHash(token);
   const link = await exec.transaction((tx) =>
     issueSignInLink(tx, {
       userId: input.userId,
-      tokenHash: signInTokenHash(token),
+      tokenHash,
       purpose: input.purpose,
       expiresAt: new Date(now.getTime() + SIGN_IN_LINK_TTL_HOURS * HOUR_MS),
       issuedBy: input.issuedBy,

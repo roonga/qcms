@@ -69,7 +69,7 @@ export async function writeAccountPasswordHash(
 ): Promise<void> {
   const ctx = await auth.$context;
   const existing = await ctx.internalAdapter.findCredentialAccount(userId);
-  if (existing === null || existing === undefined) {
+  if (existing === null) {
     await ctx.internalAdapter.createAccount({
       userId,
       providerId: CREDENTIAL_PROVIDER_ID,

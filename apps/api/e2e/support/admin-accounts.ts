@@ -141,7 +141,7 @@ export async function issueTestSignInLink(input: {
   const now = new Date();
   await issueSignInLink(db, {
     userId: account.userId,
-    tokenHash: signInTokenHash(token),
+    tokenHash: await signInTokenHash(token),
     purpose: "account-created",
     expiresAt: input.expiresAt ?? new Date(now.getTime() + 72 * 60 * 60 * 1000),
     issuedBy: account.userId,
