@@ -1,4 +1,5 @@
-import { getLogo } from "@/lib/server/api";
+// Relative, not the `@/` alias: Vitest resolves no Next path aliases (as in `proxy.ts`).
+import { getLogo } from "../../../lib/server/api";
 
 /**
  * The content-addressed key the appearance carries: the lowercase hex SHA-256 of the
