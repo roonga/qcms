@@ -322,7 +322,9 @@ describe("the logo takedown's function and the fifth site audit kind", () => {
 
   it("gives no application role DELETE on the store the function deletes from", () => {
     expect(sql).not.toContain(`GRANT DELETE ON "control"."${APPEARANCE_LOGOS_TABLE}"`);
-    expect(sql).not.toContain(`GRANT SELECT, INSERT, UPDATE, DELETE ON "control"."${APPEARANCE_LOGOS_TABLE}"`);
+    expect(sql).not.toContain(
+      `GRANT SELECT, INSERT, UPDATE, DELETE ON "control"."${APPEARANCE_LOGOS_TABLE}"`,
+    );
   });
 
   it("keeps the UPDATE rejection and gates the delete on the key-scoped flag", () => {

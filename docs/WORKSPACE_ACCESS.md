@@ -300,10 +300,10 @@ Every new workspace is created with four starter groups. They are ordinary group
 
 Two append-only logs. For both, the application role holds `INSERT` and `SELECT` only, never `UPDATE` or `DELETE`. There is no auditor role.
 
-| Log             | Holds                                                                          | Read by                                                        |
-| --------------- | ------------------------------------------------------------------------------ | -------------------------------------------------------------- |
-| Workspace audit | Response reads, exports and erasures; workspace access acts; assistant actions | That workspace's Workspace administrators; Site administrators |
-| Site audit      | Account and Site administrator acts; shared question library marking; appearance logo takedown | Site administrators                            |
+| Log             | Holds                                                                                          | Read by                                                        |
+| --------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Workspace audit | Response reads, exports and erasures; workspace access acts; assistant actions                 | That workspace's Workspace administrators; Site administrators |
+| Site audit      | Account and Site administrator acts; shared question library marking; appearance logo takedown | Site administrators                                            |
 
 - A site-level act that affects a workspace is mirrored into that workspace's audit.
 - Every one of these acts writes a row:

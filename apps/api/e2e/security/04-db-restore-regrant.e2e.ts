@@ -204,15 +204,12 @@ async function hasColumnPrivilege(
   return res.rows[0]?.has ?? false;
 }
 
-async function hasTablePrivilege(
-  role: string,
-  table: string,
-  privilege: string,
-): Promise<boolean> {
-  const res = await owner.query<{ has: boolean }>(
-    `select has_table_privilege($1, $2, $3) as has`,
-    [role, table, privilege],
-  );
+async function hasTablePrivilege(role: string, table: string, privilege: string): Promise<boolean> {
+  const res = await owner.query<{ has: boolean }>(`select has_table_privilege($1, $2, $3) as has`, [
+    role,
+    table,
+    privilege,
+  ]);
   return res.rows[0]?.has ?? false;
 }
 

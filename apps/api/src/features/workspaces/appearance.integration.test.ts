@@ -937,7 +937,9 @@ describe("a Site administrator may take a stored logo down", () => {
     // The version is immutable, so it keeps the key it froze; the theme stops naming one.
     expect((await getFormVersion(testDb.db, formId, version))?.appearance).toStrictEqual(applied);
     const theme = await send("GET", `/workspaces/${workspaceId}/themes/${themeId}`);
-    expect(((await theme.json()) as { theme: { logoKey: string | null } }).theme.logoKey).toBeNull();
+    expect(
+      ((await theme.json()) as { theme: { logoKey: string | null } }).theme.logoKey,
+    ).toBeNull();
 
     const { rows } = await listSiteAudit(testDb.db, { kind: "logo", limit: 50 });
     const mine = rows.filter((row) => row.subject === logoKey);
