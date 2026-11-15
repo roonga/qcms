@@ -9,6 +9,13 @@ import {
   SITE_AUDIT_KINDS,
   SITE_AUDIT_TABLE,
 } from "../schema/control/site-audit.js";
+import {
+  SIGN_IN_LINK_DELIVERIES,
+  SIGN_IN_LINK_DELIVERY_CHECK,
+  SIGN_IN_LINK_PURPOSE_CHECK,
+  SIGN_IN_LINK_PURPOSES,
+  SIGN_IN_LINKS_TABLE,
+} from "../schema/control/sign-in-links.js";
 import { AGENT_ACTIONS_STEP_UNIQUE, AGENT_ACTIONS_TABLE } from "../schema/control/agent-actions.js";
 import { ENDPOINT_PROPOSALS_TABLE } from "../schema/control/endpoint-proposals.js";
 import { RELEASE_BATCHES_TABLE } from "../schema/control/release-batches.js";
@@ -68,6 +75,10 @@ const APPEARANCE_MIGRATION = fileURLToPath(
 
 const SITE_AUDIT_MIGRATION = fileURLToPath(
   new URL("../../migrations/0011_account_state_and_site_audit.sql", import.meta.url),
+);
+
+const SIGN_IN_LINKS_MIGRATION = fileURLToPath(
+  new URL("../../migrations/0012_sign_in_links.sql", import.meta.url),
 );
 
 describe("the `form_releases` grants", () => {
@@ -377,5 +388,38 @@ describe("the appearance tables' grants (D1, D2)", () => {
       "utf8",
     );
     expect(versions).toContain('CREATE TRIGGER "form_versions_reject_update"');
+  });
+});
+
+describe("the sign-in links' grants (task 090)", () => {
+  const sql = readFileSync(SIGN_IN_LINKS_MIGRATION, "utf8");
+
+  it("is exactly the statement the generator emits, verbatim", () => {
+    const statements = grantControlTableStatements(SIGN_IN_LINKS_TABLE);
+    expect(statements).toHaveLength(1);
+    for (const statement of statements) expect(sql).toContain(statement);
+  });
+
+  it("gives every environment role nothing at all", () => {
+    expect(CONTROL_READ_TABLES).not.toContain(SIGN_IN_LINKS_TABLE);
+    expect(CONTROL_READ_COLUMNS[SIGN_IN_LINKS_TABLE]).toBeUndefined();
+    expect(sql).not.toContain(`ON "control"."${SIGN_IN_LINKS_TABLE}" TO %I`);
+    expect(grantEnvironmentStatements("staging").join("
+")).not.toContain(SIGN_IN_LINKS_TABLE);
+  });
+
+  it("stores the digest and no token, and pins both value sets at the database", () => {
+    expect(sql).toContain('"token_hash" text NOT NULL');
+    expect(sql).not.toMatch(/"token" text/);
+    expect(sql).toContain(`CONSTRAINT "${SIGN_IN_LINK_PURPOSE_CHECK}"`);
+    expect(sql).toContain(`CONSTRAINT "${SIGN_IN_LINK_DELIVERY_CHECK}"`);
+    for (const purpose of SIGN_IN_LINK_PURPOSES) expect(sql).toContain(`'${purpose}'`);
+    for (const delivery of SIGN_IN_LINK_DELIVERIES) expect(sql).toContain(`'${delivery}'`);
+  });
+
+  it("keeps the expiry and the used flag as columns a consume can compare and set", () => {
+    expect(sql).toContain('"expires_at" timestamp with time zone NOT NULL');
+    expect(sql).toContain('"used_at" timestamp with time zone');
+    expect(sql).toContain('"invalidated_at" timestamp with time zone');
   });
 });
