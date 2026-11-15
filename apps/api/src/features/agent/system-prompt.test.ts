@@ -280,9 +280,7 @@ describe("the draft assistant system prompt", () => {
     expect(SYSTEM_PROMPT_VERSION).toBeGreaterThan(0);
   });
 
-  // The rendered file holds the bytes the single template string produced, so the move to
-  // Markdown sources is checkable rather than asserted.
-  it("assembles the prompt the template string produced, byte for byte", async () => {
+  it("matches the rendered system prompt snapshot", async () => {
     await expect(buildSystemPrompt()).toMatchFileSnapshot("./prompts/rendered/system-prompt.txt");
   });
 });
