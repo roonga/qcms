@@ -1,8 +1,12 @@
 import type { SliceRegistrar } from "../../app.js";
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
+import { claimAfterFactorVerified } from "../accounts/claim.js";
 import { accountStateRefusal, authEndpointRefused } from "./account-state.js";
 import { AUTH_BASE_PATH, createAdminAuth, type AdminAuth } from "./instance.js";
+
+/** The one endpoint that can turn an unclaimed account's enrolment into a claim. */
+const TOTP_VERIFY_ENDPOINT = "POST /two-factor/verify-totp";
 
 /** Allowlist endpoints so sign-up and organization writes cannot become public through a vendor mount. */
 export const ALLOWED_AUTH_ENDPOINTS: readonly string[] = [
@@ -61,6 +65,18 @@ export const registerAdminAuthProxy: SliceRegistrar = (group, deps) => {
     // here as well as on `/admin`. Sign-in and sign-out are exempt: neither is the stale
     // cookie's to decide, and the session-create hook refuses the sign-in instead.
     if (await authEndpointRefused(auth, request, endpoint)) throw accountStateRefusal();
-    return auth.handler(request);
+    // Resolved before the handler, because a verification that enrols the factor replaces
+    // the session the request carried and the old cookie no longer resolves afterwards.
+    const enrolling =
+      endpoint === TOTP_VERIFY_ENDPOINT
+        ? await auth.api.getSession({ headers: request.headers })
+        : null;
+    const response = await auth.handler(request);
+    // The claim is finished by the act, not by the screen that posted it: the account
+    // holds nothing until a password and a verified second factor both exist.
+    if (enrolling !== null && response.ok) {
+      await claimAfterFactorVerified(deps, enrolling.user.id);
+    }
+    return response;
   });
 };

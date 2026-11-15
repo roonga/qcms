@@ -93,14 +93,14 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (618 files common to both shapes)
+### Scaffolded paths (629 files common to both shapes)
 
 | Path                                                                            | Files |
 | ------------------------------------------------------------------------------- | ----- |
 | `(project root)`                                                                | 8     |
-| `apps/`                                                                         | 607   |
-| `apps/admin/`                                                                   | 390   |
-| `apps/admin/app/`                                                               | 104   |
+| `apps/`                                                                         | 618   |
+| `apps/admin/`                                                                   | 393   |
+| `apps/admin/app/`                                                               | 106   |
 | `apps/admin/app/(shell)/`                                                       | 80    |
 | `apps/admin/app/(shell)/@rail/`                                                 | 34    |
 | `apps/admin/app/(shell)/@rail/forms/`                                           | 9     |
@@ -178,6 +178,8 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/(shell)/workspaces/all/`                                        | 1     |
 | `apps/admin/app/change-password/`                                               | 2     |
 | `apps/admin/app/change-password/submit/`                                        | 1     |
+| `apps/admin/app/claim/`                                                         | 2     |
+| `apps/admin/app/claim/submit/`                                                  | 1     |
 | `apps/admin/app/healthz/`                                                       | 1     |
 | `apps/admin/app/pwa-icon-192/`                                                  | 1     |
 | `apps/admin/app/pwa-icon-512/`                                                  | 1     |
@@ -202,7 +204,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/components/questions/`                                              | 16    |
 | `apps/admin/components/shell/`                                                  | 6     |
 | `apps/admin/components/test-support/`                                           | 3     |
-| `apps/admin/lib/`                                                               | 140   |
+| `apps/admin/lib/`                                                               | 141   |
 | `apps/admin/lib/agent/`                                                         | 14    |
 | `apps/admin/lib/forms/`                                                         | 31    |
 | `apps/admin/lib/i18n/`                                                          | 2     |
@@ -210,11 +212,12 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/lib/ops/`                                                           | 16    |
 | `apps/admin/lib/pwa/`                                                           | 4     |
 | `apps/admin/lib/questions/`                                                     | 9     |
-| `apps/admin/lib/server/`                                                        | 32    |
+| `apps/admin/lib/server/`                                                        | 33    |
 | `apps/admin/lib/shell/`                                                         | 7     |
-| `apps/api/`                                                                     | 143   |
-| `apps/api/src/`                                                                 | 140   |
-| `apps/api/src/features/`                                                        | 108   |
+| `apps/api/`                                                                     | 151   |
+| `apps/api/src/`                                                                 | 148   |
+| `apps/api/src/features/`                                                        | 116   |
+| `apps/api/src/features/accounts/`                                               | 8     |
 | `apps/api/src/features/agent/`                                                  | 35    |
 | `apps/api/src/features/agent/actions/`                                          | 10    |
 | `apps/api/src/features/agent/contexts/`                                         | 5     |
@@ -298,7 +301,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (618)</summary>
+<summary>Every scaffolded file (629)</summary>
 
 ```
 .dockerignore
@@ -389,6 +392,8 @@ apps/admin/app/(shell)/workspaces/page.tsx
 apps/admin/app/apple-icon.tsx
 apps/admin/app/change-password/page.tsx
 apps/admin/app/change-password/submit/route.ts
+apps/admin/app/claim/page.tsx
+apps/admin/app/claim/submit/route.ts
 apps/admin/app/globals.css
 apps/admin/app/healthz/route.ts
 apps/admin/app/icon.svg
@@ -652,6 +657,7 @@ apps/admin/lib/server/api-result.ts
 apps/admin/lib/server/api.ts
 apps/admin/lib/server/assist-request.ts
 apps/admin/lib/server/auth-api.ts
+apps/admin/lib/server/claim.ts
 apps/admin/lib/server/client-address.ts
 apps/admin/lib/server/config.ts
 apps/admin/lib/server/csp.ts
@@ -704,6 +710,14 @@ apps/api/src/create-admin.ts
 apps/api/src/deps.ts
 apps/api/src/environments.ts
 apps/api/src/errors.ts
+apps/api/src/features/accounts/claim-route.ts
+apps/api/src/features/accounts/claim.ts
+apps/api/src/features/accounts/credential.ts
+apps/api/src/features/accounts/handler.ts
+apps/api/src/features/accounts/links.ts
+apps/api/src/features/accounts/route.ts
+apps/api/src/features/accounts/schema.ts
+apps/api/src/features/accounts/tokens.ts
 apps/api/src/features/agent/actions/forms-library.ts
 apps/api/src/features/agent/actions/forms.ts
 apps/api/src/features/agent/actions/links.ts

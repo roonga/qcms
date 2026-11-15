@@ -1,6 +1,7 @@
 import type { RouteHandler } from "@hono/zod-openapi";
 import {
   OWNER_MEMBER_ROLE,
+  accountStatusOf,
   addAccessGroupHolder,
   carriesResponsesRole,
   createAccessGroup,
@@ -36,6 +37,7 @@ import {
   setRequireSecondApprover,
   updateAccessGroup,
   writeAccessAuditRow,
+  writeSiteAuditRow,
   type AccessGroupRow,
   type Executor,
   type WorkspaceAdministratorRow,
@@ -715,6 +717,13 @@ export function makeAddHolderHandler(deps: Deps): RouteHandler<typeof addHolderR
           ? (await findUsersByIds(tx, [body.userId]))[0]
           : await findUserByEmail(tx, body.email as string);
       if (subject === undefined) throw fail.cannotAdd();
+      // One answer by address for an unknown, a disabled and an unclaimed account, so a
+      // Workspace administrator learns nothing about the directory from a refusal. Only a
+      // Site administrator, who browses that directory, grants by id to an unclaimed
+      // account, and that grant is audited below.
+      if (body.email !== undefined && accountStatusOf(subject) !== "active") {
+        throw fail.cannotAdd();
+      }
       // Only the installation administrator browses the account directory; anybody else
       // adds a newcomer by exact address, so an id must already belong to this workspace.
       if (
@@ -746,6 +755,18 @@ export function makeAddHolderHandler(deps: Deps): RouteHandler<typeof addHolderR
         detail: scopeDetail(held, `subject=${subject.userId} group=${held.name}`),
         occurredAt: deps.clock.now(),
       });
+      // A grant made while the account is still unclaimed is a site act too, so it is
+      // findable in the site audit as well as in this workspace's own.
+      if (subject.claimedAt === null) {
+        await writeSiteAuditRow(tx, {
+          actor: actor.userId,
+          subject: subject.userId,
+          workspaceId,
+          kind: "account",
+          detail: `act=grant-while-unclaimed group=${held.name}`,
+          occurredAt: deps.clock.now(),
+        });
+      }
       await writeAgentStep(tx, site, teamId, deps.clock.now());
       return held;
     });
