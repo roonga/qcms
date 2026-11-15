@@ -53,7 +53,7 @@ can hold several roles.
 | Create and edit questions, publish question versions       | Editor                             | Shared operation   | Shared operation   | Shared operation   | Shared operation                          |
 | Create and edit form drafts, rules and question references | Editor                             | Shared operation   | Shared operation   | Shared operation   | Shared operation                          |
 | Preview a form draft with hypothetical answers             | Editor                             | Shared operation   | Shared operation   | Shared operation   | Shared operation                          |
-| Publish an immutable form version without releasing it     | Editor                             | Shared operation   | Shared operation   | Shared operation   | Shared operation                          |
+| Publish an immutable form version without releasing it     | Editor with publisher              | Shared operation   | Shared operation   | Shared operation   | Shared operation                          |
 | Release a published form version                           | Not an authoring edit              | Editor or approver | Editor or approver | Editor or approver | Approver                                  |
 | Publish and release a new form version atomically          | Requires publishing permission too | Editor             | Editor             | Editor             | Conditional; see below                    |
 | Roll back by releasing an older eligible version           | Not an authoring edit              | Editor or approver | Editor or approver | Editor or approver | Approver                                  |
