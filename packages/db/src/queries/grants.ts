@@ -1,5 +1,6 @@
 import { and, asc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 
+import { isAccessRole } from "../access-groups.js";
 import {
   authMember,
   authOrganization,
@@ -29,6 +30,41 @@ function mintId(prefix: string): string {
 // administration lists below are not decisions and report the rows as they stand.
 function accountHoldsGrants() {
   return and(isNull(authUser.disabledAt), isNotNull(authUser.claimedAt));
+}
+
+/**
+ * The lock every membership write in one workspace takes, so a check and the write it
+ * decided cannot interleave with another writer's (`docs/WORKSPACE_ACCESS.md` section 10).
+ * It must be taken inside the write's own transaction, which is where it is released.
+ */
+export async function lockWorkspaceMembership(
+  exec: Executor,
+  workspaceId: string,
+): Promise<void> {
+  await exec.execute(
+    sql`select pg_advisory_xact_lock(hashtext(${MEMBERSHIP_LOCK_CLASS}), hashtext(${workspaceId}))`,
+  );
+}
+
+// The two-argument lock space, so these never meet the one-argument session locks the
+// respondent path takes.
+const MEMBERSHIP_LOCK_CLASS = "qcms.workspace.membership";
+
+/**
+ * A member row carries the Workspace administrator flag and nothing else: any other stored
+ * name reads as the empty role, so a row written outside the API's own write path cannot
+ * carry an access role.
+ */
+function memberRoleHeld(role: string): string {
+  return role === OWNER_MEMBER_ROLE ? OWNER_MEMBER_ROLE : EMPTY_MEMBER_ROLE;
+}
+
+/**
+ * A group row carries access roles only: the administrator flag lives on the member row,
+ * so a `roles` entry naming it, or naming anything undeclared, grants nothing.
+ */
+function groupRolesHeld(roles: readonly string[]): readonly string[] {
+  return roles.filter(isAccessRole);
 }
 
 /** One access group: a team row carrying a set of roles and one environment set. */
@@ -108,7 +144,12 @@ export async function resolveMembership(
     )
     .orderBy(asc(authTeam.name));
 
-  return { workspaceId, memberRole: members[0]?.role, grants };
+  const role = members[0]?.role;
+  return {
+    workspaceId,
+    memberRole: role === undefined ? undefined : memberRoleHeld(role),
+    grants: grants.map((grant) => ({ ...grant, roles: groupRolesHeld(grant.roles) })),
+  };
 }
 
 /** Every grant one caller holds, across every workspace. */
@@ -116,7 +157,7 @@ export async function listGrantsForUser(
   exec: Executor,
   userId: string,
 ): Promise<readonly HeldGrant[]> {
-  return exec
+  const rows = await exec
     .select({
       ...groupColumns,
       workspaceSlug: authOrganization.slug,
@@ -135,6 +176,7 @@ export async function listGrantsForUser(
       ),
     )
     .orderBy(asc(authOrganization.slug), asc(authTeam.name));
+  return rows.map((row) => ({ ...row, roles: groupRolesHeld(row.roles) }));
 }
 
 /** One workspace a caller has a `member` row in, with that row's role. */
@@ -155,7 +197,7 @@ export async function listMemberWorkspacesForUser(
   exec: Executor,
   userId: string,
 ): Promise<readonly MemberWorkspace[]> {
-  return exec
+  const rows = await exec
     .select({
       workspaceId: authMember.organizationId,
       slug: authOrganization.slug,
@@ -168,6 +210,7 @@ export async function listMemberWorkspacesForUser(
     .innerJoin(authUser, eq(authUser.id, authMember.userId))
     .where(and(eq(authMember.userId, userId), accountHoldsGrants()))
     .orderBy(asc(authOrganization.slug));
+  return rows.map((row) => ({ ...row, role: memberRoleHeld(row.role) }));
 }
 
 /** One member row as the membership list reports it. */
@@ -383,13 +426,65 @@ export async function setMemberRole(
   return rows[0]?.role;
 }
 
-/** How many Workspace administrator member rows a workspace has. */
-export async function countWorkspaceOwners(exec: Executor, workspaceId: string): Promise<number> {
+/** One Workspace administrator of a workspace, and whether the guard counts it. */
+export interface WorkspaceAdministratorRow {
+  readonly userId: string;
+  /**
+   * Active and claimed. A disabled or unclaimed administrator cannot administer anything,
+   * so it never satisfies the last-administrator guard (criterion 87).
+   */
+  readonly counts: boolean;
+}
+
+/**
+ * Every Workspace administrator member row, with whether the account behind it is active
+ * and claimed. The Site administrator role is deliberately absent: it never satisfies the
+ * guard (`docs/WORKSPACE_ACCESS.md` section 10).
+ */
+export async function listWorkspaceAdministrators(
+  exec: Executor,
+  workspaceId: string,
+): Promise<readonly WorkspaceAdministratorRow[]> {
   const rows = await exec
-    .select({ total: sql<number>`count(*)::int` })
+    .select({
+      userId: authMember.userId,
+      counts: sql<boolean>`${authUser.disabledAt} is null and ${authUser.claimedAt} is not null`,
+    })
     .from(authMember)
-    .where(and(eq(authMember.organizationId, workspaceId), eq(authMember.role, OWNER_MEMBER_ROLE)));
-  return rows[0]?.total ?? 0;
+    .innerJoin(authUser, eq(authUser.id, authMember.userId))
+    .where(and(eq(authMember.organizationId, workspaceId), eq(authMember.role, OWNER_MEMBER_ROLE)))
+    .orderBy(asc(authMember.userId));
+  return rows;
+}
+
+/** Remove one member row, leaving the account and its other workspaces alone. */
+export async function removeWorkspaceMember(
+  exec: Executor,
+  workspaceId: string,
+  userId: string,
+): Promise<boolean> {
+  const rows = await exec
+    .delete(authMember)
+    .where(and(eq(authMember.organizationId, workspaceId), eq(authMember.userId, userId)))
+    .returning({ id: authMember.id });
+  return rows.length > 0;
+}
+
+/**
+ * Every access group one account holds in one workspace, suspended holds included: a
+ * removal takes them all, and the caller writes one revoke row each.
+ */
+export async function listAccessGroupsHeldIn(
+  exec: Executor,
+  workspaceId: string,
+  userId: string,
+): Promise<readonly AccessGroupRow[]> {
+  return exec
+    .select(groupColumns)
+    .from(authTeamMember)
+    .innerJoin(authTeam, eq(authTeam.id, authTeamMember.teamId))
+    .where(and(eq(authTeamMember.userId, userId), eq(authTeam.organizationId, workspaceId)))
+    .orderBy(asc(authTeam.name));
 }
 
 /** Add one holder to an access group: team membership is the grant. */

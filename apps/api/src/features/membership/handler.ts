@@ -1,8 +1,8 @@
 import type { RouteHandler } from "@hono/zod-openapi";
 import {
+  OWNER_MEMBER_ROLE,
   addAccessGroupHolder,
   carriesResponsesRole,
-  countWorkspaceOwners,
   createAccessGroup,
   deleteAccessGroup,
   ensureWorkspaceMember,
@@ -16,17 +16,21 @@ import {
   listAccessAudit,
   listAccessGroupHolders,
   listAccessGroups,
+  listAccessGroupsHeldIn,
   listAgentActions,
   listEnvironmentNames,
   listGrantsForUser,
   listMemberWorkspacesForUser,
   listSiteAudit,
+  listWorkspaceAdministrators,
   listWorkspaceMembers,
+  lockWorkspaceMembership,
   normaliseEnvironmentSet,
   refuseAccessGroupName,
   refuseAccessGroupRoles,
   refuseEnvironmentSet,
   removeAccessGroupHolder,
+  removeWorkspaceMember,
   resolveMembership,
   setMemberRole,
   setRequireSecondApprover,
@@ -55,6 +59,7 @@ import type {
   listMembersRoute,
   myAccessRoute,
   removeHolderRoute,
+  removeMemberRoute,
   setMemberRoleRoute,
   siteAuditRoute,
   updateAccessGroupRoute,
@@ -104,11 +109,13 @@ const fail = {
     new ApiError("ALREADY_GRANTED", 409, "That account already holds this access group"),
   notAHolder: (): ApiError =>
     new ApiError("NOT_GRANTED", 404, "That account does not hold this access group"),
-  lastOwner: (): ApiError =>
+  lastAdministrator: (): ApiError =>
     new ApiError(
-      "LAST_OWNER",
+      "LAST_ADMINISTRATOR",
       409,
-      "This is the workspace's last `forms.owner`, and a workspace without one is a workspace nobody can administer. Make somebody else an owner first.",
+      "This is the workspace's last active Workspace administrator, and a workspace " +
+        "without one is a workspace nobody can administer. Appoint somebody else first. " +
+        "The Site administrator role does not stand in for it.",
     ),
   selfGrant: (): ApiError =>
     new ApiError(
@@ -154,6 +161,42 @@ function scopeDetail(
   const parts = [`roles=${group.roles.join(",")}`, `environments=${group.environments.join(",")}`];
   if (extra !== undefined) parts.push(extra);
   return parts.join(" ");
+}
+
+// What the group now is, and what it was where a change moved it, so the row answers the
+// act without reading the group back.
+function groupDetail(
+  act: "created" | "changed" | "deleted",
+  group: { readonly name: string; readonly roles: readonly string[]; readonly environments: readonly string[] },
+  before?: { readonly name: string; readonly roles: readonly string[]; readonly environments: readonly string[] },
+): string {
+  const parts = [`group=${act}`, `name=${group.name}`, scopeDetail(group)];
+  if (before !== undefined) {
+    if (before.name !== group.name) parts.push(`previousName=${before.name}`);
+    if (before.roles.join(",") !== group.roles.join(",")) {
+      parts.push(`previousRoles=${before.roles.join(",")}`);
+    }
+    if (before.environments.join(",") !== group.environments.join(",")) {
+      parts.push(`previousEnvironments=${before.environments.join(",")}`);
+    }
+  }
+  return parts.join(" ");
+}
+
+/**
+ * Refuses while the subject is the only active, claimed Workspace administrator left. It
+ * must run inside {@link lockWorkspaceMembership}, or two removals each see the
+ * administrator the other is taking away (criterion 88).
+ */
+async function refuseLastAdministrator(
+  exec: Executor,
+  workspaceId: string,
+  userId: string,
+): Promise<void> {
+  const administrators = await listWorkspaceAdministrators(exec, workspaceId);
+  const subject = administrators.find((row) => row.userId === userId);
+  if (subject === undefined || !subject.counts) return;
+  if (administrators.filter((row) => row.counts).length <= 1) throw fail.lastAdministrator();
 }
 
 async function groupView(
@@ -371,8 +414,9 @@ export function makeListMembersHandler(deps: Deps): RouteHandler<typeof listMemb
   };
 }
 
-// Refuses removal of a workspace's last owner: nobody could then administer it, and the
-// repair would need the installation claim.
+// Appoint or remove a Workspace administrator. Demoting the last one is refused for every
+// actor, a Site administrator included: nobody could then administer the workspace, and
+// that role never satisfies the guard.
 export function makeSetMemberRoleHandler(
   deps: Deps,
 ): RouteHandler<typeof setMemberRoleRoute, ApiEnv> {
@@ -385,31 +429,80 @@ export function makeSetMemberRoleHandler(
 
     const site = agentStepSite(c);
     await deps.databases.control.transaction(async (tx) => {
-      if (role === "member") {
-        const owners = await countWorkspaceOwners(tx, workspaceId);
-        const current = await listWorkspaceMembers(tx, workspaceId);
-        const isOwner = current.some(
-          (member) => member.userId === userId && member.role === "forms.owner",
-        );
-        if (isOwner && owners <= 1) throw fail.lastOwner();
-      }
+      await lockWorkspaceMembership(tx, workspaceId);
+      if (role !== OWNER_MEMBER_ROLE) await refuseLastAdministrator(tx, workspaceId, userId);
 
       const updated = await setMemberRole(tx, workspaceId, userId, role);
       if (updated === undefined) throw fail.notAMember();
 
-      // Both directions are audited: granting ownership and taking it away each change
-      // what somebody may do.
+      // Both directions are audited: appointing an administrator and removing one each
+      // change who may administer the workspace.
       await writeAccessAuditRow(tx, {
         actor: actor.userId,
         workspaceId,
-        kind: role === "forms.owner" ? "grant" : "revoke",
-        detail: `memberRole=${role} subject=${userId}`,
+        kind: "administrator",
+        detail: `administrator=${role === OWNER_MEMBER_ROLE ? "appointed" : "removed"} subject=${userId}`,
         occurredAt: deps.clock.now(),
       });
       await writeAgentStep(tx, site, userId, deps.clock.now());
     });
 
     return c.json({ userId, role }, 200);
+  };
+}
+
+// Takes the person out of the workspace: every access group they hold there and the member
+// row itself, each with its own revoke row. Their account, and every other workspace, are
+// untouched.
+export function makeRemoveMemberHandler(
+  deps: Deps,
+): RouteHandler<typeof removeMemberRoute, ApiEnv> {
+  return async (c) => {
+    const { id: workspaceId, userId } = c.req.valid("param");
+    const actor = principalOf(c);
+    await workspaceOf(deps, workspaceId);
+
+    const site = agentStepSite(c);
+    await deps.databases.control.transaction(async (tx) => {
+      await lockWorkspaceMembership(tx, workspaceId);
+      await refuseLastAdministrator(tx, workspaceId, userId);
+
+      const administrators = await listWorkspaceAdministrators(tx, workspaceId);
+      const held = await listAccessGroupsHeldIn(tx, workspaceId, userId);
+      const removed = await removeWorkspaceMember(tx, workspaceId, userId);
+      if (!removed && held.length === 0) throw fail.notAMember();
+
+      for (const group of held) {
+        await removeAccessGroupHolder(tx, group.teamId, userId);
+        await writeAccessAuditRow(tx, {
+          actor: actor.userId,
+          workspaceId,
+          kind: "revoke",
+          ...scopeColumns(group),
+          detail: scopeDetail(group, `subject=${userId} group=${group.name}`),
+          occurredAt: deps.clock.now(),
+        });
+      }
+      if (administrators.some((row) => row.userId === userId)) {
+        await writeAccessAuditRow(tx, {
+          actor: actor.userId,
+          workspaceId,
+          kind: "administrator",
+          detail: `administrator=removed subject=${userId}`,
+          occurredAt: deps.clock.now(),
+        });
+      }
+      await writeAccessAuditRow(tx, {
+        actor: actor.userId,
+        workspaceId,
+        kind: "revoke",
+        detail: `member=removed subject=${userId}`,
+        occurredAt: deps.clock.now(),
+      });
+      await writeAgentStep(tx, site, userId, deps.clock.now());
+    });
+
+    return c.body(null, 204);
   };
 }
 
@@ -428,32 +521,42 @@ export function makeListAccessGroupsHandler(
   };
 }
 
-// No audit row: a group with no holders carries no grant. The row is written when a
-// holder is added, which is when the grant exists.
+// One `group` row: the group grants nobody anything until a holder is added, but creating
+// it is an act on the workspace's access that section 11 records.
 export function makeCreateAccessGroupHandler(
   deps: Deps,
 ): RouteHandler<typeof createAccessGroupRoute, ApiEnv> {
   return async (c) => {
     const workspaceId = c.req.valid("param").id;
     const body = c.req.valid("json");
+    const actor = principalOf(c);
     const workspace = await workspaceOf(deps, workspaceId);
     if (workspace.archivedAt !== null) throw fail.archived();
 
     const exec = deps.databases.control;
     const checked = await validateGroup(exec, body);
 
-    // Enforced here because the auth plugin does not enforce uniqueness on team names.
-    if (await isAccessGroupNameTaken(exec, workspaceId, body.name)) {
-      throw fail.nameTaken(body.name);
-    }
-
     const site = agentStepSite(c);
     const group = await exec.transaction(async (tx) => {
+      await lockWorkspaceMembership(tx, workspaceId);
+      // Inside the lock, and enforced here because the auth plugin does not enforce
+      // uniqueness on team names.
+      if (await isAccessGroupNameTaken(tx, workspaceId, body.name)) {
+        throw fail.nameTaken(body.name);
+      }
       const created = await createAccessGroup(tx, {
         workspaceId,
         name: body.name,
         roles: checked.roles,
         environments: checked.environments,
+      });
+      await writeAccessAuditRow(tx, {
+        actor: actor.userId,
+        workspaceId,
+        kind: "group",
+        ...scopeColumns(created),
+        detail: groupDetail("created", created),
+        occurredAt: deps.clock.now(),
       });
       await writeAgentStep(tx, site, created.teamId, deps.clock.now());
       return created;
@@ -462,9 +565,9 @@ export function makeCreateAccessGroupHandler(
   };
 }
 
-// A change writes one `grant` row per holder, so "who made this possible" stays
-// answerable per person. The self-grant check is here too: editing a group you are in is
-// one of the ways to give yourself response access.
+// A rename or a change of roles or environments writes one `group` row naming both sides,
+// which is the act; who holds the group is the group's own list. The self-grant check is
+// here too: editing a group you are in is one of the ways to give yourself response access.
 export function makeUpdateAccessGroupHandler(
   deps: Deps,
 ): RouteHandler<typeof updateAccessGroupRoute, ApiEnv> {
@@ -480,9 +583,6 @@ export function makeUpdateAccessGroupHandler(
     if (existing === undefined || existing.workspaceId !== workspaceId) throw fail.groupNotFound();
 
     const checked = await validateGroup(exec, body);
-    if (await isAccessGroupNameTaken(exec, workspaceId, body.name, teamId)) {
-      throw fail.nameTaken(body.name);
-    }
 
     if (
       refuseSelfGrant({
@@ -496,6 +596,10 @@ export function makeUpdateAccessGroupHandler(
     }
 
     const updated = await exec.transaction(async (tx) => {
+      await lockWorkspaceMembership(tx, workspaceId);
+      if (await isAccessGroupNameTaken(tx, workspaceId, body.name, teamId)) {
+        throw fail.nameTaken(body.name);
+      }
       const row = await updateAccessGroup(tx, teamId, {
         name: body.name,
         roles: checked.roles,
@@ -504,16 +608,14 @@ export function makeUpdateAccessGroupHandler(
       });
       if (row === undefined) throw fail.groupNotFound();
 
-      for (const holder of await listAccessGroupHolders(tx, teamId)) {
-        await writeAccessAuditRow(tx, {
-          actor: actor.userId,
-          workspaceId,
-          kind: "grant",
-          ...scopeColumns(row),
-          detail: scopeDetail(row, `subject=${holder.userId} changed=${existing.name}`),
-          occurredAt: deps.clock.now(),
-        });
-      }
+      await writeAccessAuditRow(tx, {
+        actor: actor.userId,
+        workspaceId,
+        kind: "group",
+        ...scopeColumns(row),
+        detail: groupDetail("changed", row, existing),
+        occurredAt: deps.clock.now(),
+      });
       return row;
     });
 
@@ -534,6 +636,7 @@ export function makeDeleteAccessGroupHandler(
 
     const site = agentStepSite(c);
     await deps.databases.control.transaction(async (tx) => {
+      await lockWorkspaceMembership(tx, workspaceId);
       const group = await getAccessGroup(tx, teamId);
       if (group === undefined || group.workspaceId !== workspaceId) throw fail.groupNotFound();
 
@@ -547,6 +650,14 @@ export function makeDeleteAccessGroupHandler(
           occurredAt: deps.clock.now(),
         });
       }
+      await writeAccessAuditRow(tx, {
+        actor: actor.userId,
+        workspaceId,
+        kind: "group",
+        ...scopeColumns(group),
+        detail: groupDetail("deleted", group),
+        occurredAt: deps.clock.now(),
+      });
       const removed = await deleteAccessGroup(tx, teamId);
       if (!removed) throw fail.groupNotFound();
       await writeAgentStep(tx, site, teamId, deps.clock.now());
@@ -598,6 +709,7 @@ export function makeAddHolderHandler(deps: Deps): RouteHandler<typeof addHolderR
 
     const site = agentStepSite(c);
     await exec.transaction(async (tx) => {
+      await lockWorkspaceMembership(tx, workspaceId);
       if (await holdsAccessGroup(tx, teamId, subject.userId)) throw fail.alreadyHolds();
       await ensureWorkspaceMember(tx, workspaceId, subject.userId);
       await addAccessGroupHolder(tx, teamId, subject.userId);
@@ -626,6 +738,7 @@ export function makeRemoveHolderHandler(
 
     const site = agentStepSite(c);
     await deps.databases.control.transaction(async (tx) => {
+      await lockWorkspaceMembership(tx, workspaceId);
       const group = await getAccessGroup(tx, teamId);
       if (group === undefined || group.workspaceId !== workspaceId) throw fail.groupNotFound();
       const removed = await removeAccessGroupHolder(tx, teamId, userId);
