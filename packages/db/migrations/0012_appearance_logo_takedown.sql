@@ -26,8 +26,9 @@ ALTER TABLE "control"."site_audit" ADD CONSTRAINT "site_audit_kind" CHECK ("cont
 --     key AND the outermost frame on the call stack (`PG_CONTEXT`) is the takedown
 --     function's own delete. The stack is written by the server, not the caller, so a
 --     role holding `DELETE`, or the table owner, that sets the flag by hand is refused;
---   * the takedown records the digest in `control.appearance_logo_tombstones`, which no
---     application role can read or write, and an insert trigger refuses those bytes
+--   * the takedown records the digest in `control.appearance_logo_tombstones`, revoked
+--     from every `qcms_app%` role so the control role's schema-wide grant cannot reach
+--     it on a re-grant, and an insert trigger refuses those bytes
 --     for good. It runs after the insert so that an upload racing a takedown, which
 --     waits on the key's unique index, reads the committed tombstone.
 --
@@ -91,5 +92,18 @@ BEGIN
 	IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'qcms_app_control') THEN
 		EXECUTE 'GRANT EXECUTE ON FUNCTION control.appearance_logo_takedown(text) TO "qcms_app_control"';
 	END IF;
+END
+$$;
+--> statement-breakpoint
+DO $$
+DECLARE application_role text;
+BEGIN
+	FOR application_role IN
+		SELECT rolname FROM pg_roles WHERE rolname LIKE 'qcms\_app%'
+	LOOP
+		EXECUTE format(
+			'REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLE control.appearance_logo_tombstones FROM %I',
+			application_role);
+	END LOOP;
 END
 $$;

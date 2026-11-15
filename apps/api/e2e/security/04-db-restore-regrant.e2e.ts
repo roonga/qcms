@@ -8,6 +8,7 @@ import {
   AGENT_ACTIONS_TABLE,
   APPEARANCE_LOGOS_TABLE,
   APPEARANCE_LOGO_TAKEDOWN_FUNCTION,
+  APPEARANCE_LOGO_TOMBSTONES_TABLE,
   CONTROL_FORBIDDEN_TABLES,
   CONTROL_READ_COLUMNS,
   CONTROL_READ_TABLES,
@@ -433,6 +434,8 @@ describe("the projections of that map, named so a failure says which claim broke
   it("gives the control role DML on `control` with the append-only tables carved out", async () => {
     const held = await tablePrivileges("control", CONTROL_ROLE);
     expect(held["two_factor_resets"]).toBeUndefined();
+    // The schema-wide grant a re-grant replays would reach the tombstones without the revoke.
+    expect(held[APPEARANCE_LOGO_TOMBSTONES_TABLE]).toBeUndefined();
     for (const table of APPEND_ONLY_TABLES) {
       expect([...(held[table] ?? [])].sort(), table).toEqual(["INSERT", "SELECT"]);
     }

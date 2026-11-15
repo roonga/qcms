@@ -310,8 +310,14 @@ describe("the logo takedown's function and the fifth site audit kind", () => {
 
   it("are exactly the statements the generator emits, verbatim", () => {
     const statements = grantAppearanceLogoTakedownStatements();
-    expect(statements).toHaveLength(2);
+    expect(statements).toHaveLength(3);
     for (const statement of statements) expect(sql).toContain(statement);
+  });
+
+  it("takes every privilege on the tombstones back from the application roles", () => {
+    expect(grantAppearanceLogoTakedownStatements().join("\n")).toContain(
+      `REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLE control.${APPEARANCE_LOGO_TOMBSTONES_TABLE} FROM %I`,
+    );
   });
 
   it("takes EXECUTE back from PUBLIC before giving it to the control role alone", () => {

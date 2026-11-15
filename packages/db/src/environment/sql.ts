@@ -24,6 +24,7 @@ import { SITE_AUDIT_TABLE } from "../schema/control/site-audit.js";
 import {
   APPEARANCE_LOGOS_TABLE,
   APPEARANCE_LOGO_TAKEDOWN_FUNCTION,
+  APPEARANCE_LOGO_TOMBSTONES_TABLE,
 } from "../schema/control/workspace-themes.js";
 import {
   APPLICATION_ROLE_PREFIX,
@@ -450,12 +451,15 @@ export function grantAppearanceLogosStatements(): string[] {
  * The takedown function's own grant. `EXECUTE` comes to every role by default, so it is
  * revoked from `PUBLIC` first and then given to the control role alone: no environment
  * role may call it, and no application role gains `DELETE` on the table it deletes from.
+ * The tombstones are taken back from every `qcms_app%` role, because the control role's
+ * schema-wide grant would otherwise let it delete one and re-admit those bytes.
  */
 export function grantAppearanceLogoTakedownStatements(): string[] {
   const fn = `${APPEARANCE_LOGO_TAKEDOWN_FUNCTION}(text)`;
   return [
     `REVOKE ALL ON FUNCTION ${fn} FROM PUBLIC;`,
     guardedOnRole(CONTROL_ROLE, [`GRANT EXECUTE ON FUNCTION ${fn} TO ${quote(CONTROL_ROLE)}`]),
+    revokeAllFromApplicationRolesStatement(APPEARANCE_LOGO_TOMBSTONES_TABLE),
   ];
 }
 
@@ -619,6 +623,10 @@ $$;`;
  * table out of a schema.
  */
 export function revokeMigrateOnlyStatement(): string {
+  return revokeAllFromApplicationRolesStatement("two_factor_resets");
+}
+
+function revokeAllFromApplicationRolesStatement(table: string): string {
   return `DO $$
 DECLARE application_role text;
 BEGIN
@@ -626,7 +634,7 @@ BEGIN
 \t\tSELECT rolname FROM pg_roles WHERE rolname LIKE 'qcms\\_app%'
 \tLOOP
 \t\tEXECUTE format(
-\t\t\t'REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLE ${CONTROL_SCHEMA}.two_factor_resets FROM %I',
+\t\t\t'REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLE ${CONTROL_SCHEMA}.${table} FROM %I',
 \t\t\tapplication_role);
 \tEND LOOP;
 END
