@@ -12,6 +12,7 @@ import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import { adminAuthFor } from "../auth/route.js";
 import { MIN_PASSWORD_LENGTH } from "../auth/instance.js";
+import { claimAfterFactorVerified } from "./claim.js";
 import { hashChosenPassword, PasswordRefused, writeAccountPasswordHash } from "./credential.js";
 import { CLAIM_PATH, signInTokenHash } from "./tokens.js";
 
@@ -89,6 +90,12 @@ export const registerAccountClaim: SliceRegistrar = (group, deps: Deps) => {
     // one link the person was sent. The compare-and-set is the single-use guarantee.
     if ((await consumeSignInLink(exec, tokenHash, now)) === undefined) throw linkRefused();
     await writeAccountPasswordHash(auth, account.userId, passwordHash);
+    // Where the deployment does not require a second factor, which is a development
+    // escape hatch only, the password is the whole claim; otherwise the factor
+    // verification writes it, and the account holds nothing until then.
+    if (deps.flags.adminTwoFactor !== "required") {
+      await claimAfterFactorVerified(deps, account.userId);
+    }
 
     const signedIn = await auth.api.signInEmail({
       body: { email: account.email, password },

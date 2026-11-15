@@ -100,20 +100,21 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     installationOnly: true,
   },
   {
-    // Creating an account is a site act, not a workspace one: the new account belongs to
-    // no workspace until somebody grants it something.
+    // The installation administrator's own cell, the one `docs/SECURITY_DESIGN.md` names
+    // user accounts under: creating an account belongs to no workspace, and its row goes
+    // to the site audit rather than to any workspace's.
     method: "POST",
     path: "/admin/accounts",
-    resource: "membership",
-    action: "write",
+    resource: "workspace",
+    action: "update",
     workspace: "installation",
     installationOnly: true,
   },
   {
     method: "POST",
     path: "/admin/accounts/{id}/sign-in-link",
-    resource: "membership",
-    action: "write",
+    resource: "workspace",
+    action: "update",
     workspace: "installation",
     installationOnly: true,
   },
