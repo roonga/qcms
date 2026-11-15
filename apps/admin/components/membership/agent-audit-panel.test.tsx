@@ -31,7 +31,7 @@ function page(rows: readonly AgentAuditRow[]): AgentAuditPage {
 }
 
 const NAMES: AgentAuditNames = {
-  groups: new Map([["tm_1", "Response viewer, test, 1 form"]]),
+  groups: new Map([["tm_1", "View responses, test, 1 form"]]),
   people: new Map([["usr_2", "held@qcms.test"]]),
 };
 
@@ -80,7 +80,7 @@ describe("the agent audit panel", () => {
         names={NAMES}
       />,
     );
-    expect(screen.getByText("Access group: Response viewer, test, 1 form")).toBeTruthy();
+    expect(screen.getByText("Access group: View responses, test, 1 form")).toBeTruthy();
   });
 
   it("marks a person taken down since as removed rather than dropping the act", () => {

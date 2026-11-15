@@ -48,21 +48,21 @@ relevant role. Respondent entry instead requires a valid secure link or permitte
 public access. Environment access alone grants no administrative action. A person
 can hold several roles.
 
-| Capability                                                 | Shared authoring                   | dev                | test               | stg                | prod                                      |
-| ---------------------------------------------------------- | ---------------------------------- | ------------------ | ------------------ | ------------------ | ----------------------------------------- |
-| Create and edit questions, publish question versions       | Editor                             | Shared operation   | Shared operation   | Shared operation   | Shared operation                          |
-| Create and edit form drafts, rules and question references | Editor                             | Shared operation   | Shared operation   | Shared operation   | Shared operation                          |
-| Preview a form draft with hypothetical answers             | Editor                             | Shared operation   | Shared operation   | Shared operation   | Shared operation                          |
-| Publish an immutable form version without releasing it     | Editor with publisher              | Shared operation   | Shared operation   | Shared operation   | Shared operation                          |
-| Release a published form version                           | Not an authoring edit              | Editor or approver | Editor or approver | Editor or approver | Approver                                  |
-| Publish and release a new form version atomically          | Requires publishing permission too | Editor             | Editor             | Editor             | Conditional; see below                    |
-| Roll back by releasing an older eligible version           | Not an authoring edit              | Editor or approver | Editor or approver | Editor or approver | Approver                                  |
-| Close or reopen a form                                     | Not an authoring edit              | Editor or approver | Editor or approver | Editor or approver | Approver                                  |
-| Create or revoke environment-bound secure links            | Not an authoring edit              | Editor or approver | Editor or approver | Editor or approver | Approver                                  |
-| Configure webhook endpoints                                | Not an authoring edit              | Editor or approver | Editor or approver | Editor or approver | Approver; optional second account         |
-| Complete a released form as a respondent                   | Not an authoring edit              | Secure link        | Secure link        | Secure link        | Public entry when allowed, or secure link |
-| Read and export responses                                  | Not an authoring edit              | Responses viewer   | Responses viewer   | Responses viewer   | Responses viewer                          |
-| Erase a response                                           | Not an authoring edit              | Responses eraser   | Responses eraser   | Responses eraser   | Responses eraser                          |
+| Capability                                                 | Shared authoring                   | dev                   | test                  | stg                   | prod                                      |
+| ---------------------------------------------------------- | ---------------------------------- | --------------------- | --------------------- | --------------------- | ----------------------------------------- |
+| Create and edit questions, publish question versions       | Editor                             | Shared operation      | Shared operation      | Shared operation      | Shared operation                          |
+| Create and edit form drafts, rules and question references | Editor                             | Shared operation      | Shared operation      | Shared operation      | Shared operation                          |
+| Preview a form draft with hypothetical answers             | Editor                             | Shared operation      | Shared operation      | Shared operation      | Shared operation                          |
+| Publish an immutable form version without releasing it     | Editor with publisher              | Shared operation      | Shared operation      | Shared operation      | Shared operation                          |
+| Release a published form version                           | Not an authoring edit              | Editor or approver    | Editor or approver    | Editor or approver    | Approver                                  |
+| Publish and release a new form version atomically          | Requires publishing permission too | Editor with publisher | Editor with publisher | Editor with publisher | Conditional; see below                    |
+| Roll back by releasing an older eligible version           | Not an authoring edit              | Editor or approver    | Editor or approver    | Editor or approver    | Approver                                  |
+| Close or reopen a form                                     | Not an authoring edit              | Editor or approver    | Editor or approver    | Editor or approver    | Approver                                  |
+| Create or revoke environment-bound secure links            | Not an authoring edit              | Editor or approver    | Editor or approver    | Editor or approver    | Approver                                  |
+| Configure webhook endpoints                                | Not an authoring edit              | Editor or approver    | Editor or approver    | Editor or approver    | Approver; optional second account         |
+| Complete a released form as a respondent                   | Not an authoring edit              | Secure link           | Secure link           | Secure link           | Public entry when allowed, or secure link |
+| Read and export responses                                  | Not an authoring edit              | Responses viewer      | Responses viewer      | Responses viewer      | Responses viewer                          |
+| Erase a response                                           | Not an authoring edit              | Responses eraser      | Responses eraser      | Responses eraser      | Responses eraser                          |
 
 "Shared operation" means the server operation has no environment scope; it is
 not a recommendation to place an editor inside every environment. All environment

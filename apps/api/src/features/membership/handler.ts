@@ -112,9 +112,9 @@ const fail = {
     new ApiError(
       "SELF_GRANT_REFUSED",
       409,
-      "This workspace requires a second approver, so you cannot give yourself a response " +
-        "role, or a new environment for one: another workspace administrator, or the " +
-        "installation administrator, has to make this change. A grant on response data " +
+      "This workspace has second approval on, so you cannot give yourself a response " +
+        "role, or a new environment for one: another Workspace administrator, or a " +
+        "Site administrator, has to make this change. A grant on response data " +
         "is a grant on personal data.",
     ),
   noPrincipal: (): ApiError => new ApiError("unauthorized", 401, "Admin authentication required"),

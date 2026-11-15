@@ -128,12 +128,12 @@ async function setSecondApprover(page: Page, on: boolean): Promise<void> {
   await page.goto(`/workspaces/${WORKSPACE_ID}/settings`);
   await waitForHydration(page);
   const control = page.getByRole("checkbox", {
-    name: "Require a second approver for production",
+    name: "Second approval in production",
     exact: true,
   });
 
   if ((await control.isChecked()) !== on) {
-    await page.getByText("Require a second approver for production", { exact: true }).click();
+    await page.getByText("Second approval in production", { exact: true }).click();
   }
   await expect(control).toBeChecked({ checked: on });
   await page.getByRole("button", { name: "Save settings" }).click();
@@ -348,7 +348,7 @@ test("ends the plan on Pending approval when production holds the change", async
 
   await expect(endpoints(page)).toContainText(ENDPOINT_URL);
   await expect(endpoints(page)).not.toContainText(MOVED_URL);
-  await expect(pendingPanel(page)).toContainText("Waiting for a second approver");
+  await expect(pendingPanel(page)).toContainText("Waiting for an Approver");
   await expect(pendingPanel(page)).toContainText(MOVED_URL);
 
   expect(auditDelta(before, await auditTally())).toEqual({ "webhook.retarget": 1 });
