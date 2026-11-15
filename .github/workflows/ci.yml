@@ -217,7 +217,6 @@ jobs:
       - run: pnpm check:templates
         if: env.PLAN_ONLY != 'true'
 
-      # The assistant's generated prompt module, and the version its text is recorded at.
       - run: pnpm check:prompts
         if: env.PLAN_ONLY != 'true'
         env:
