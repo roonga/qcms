@@ -1229,7 +1229,9 @@ export const messages = {
     "This form is closed here, and publishing leaves it closed.",
   "forms.publish.destinations.protected": "Production",
   "forms.publish.destinations.prodFloor":
-    "Prod accepts only a version already live in a non-prod environment. This is fixed, not a setting. On a site with only prod, a draft is published to prod.",
+    "Prod accepts only a version already live in a non-prod environment. This is fixed, not a setting.",
+  "forms.publish.destinations.prodOnly":
+    "Prod is the only environment this deployment serves, so a draft is published straight to prod.",
   "forms.publish.destinations.rollbackNote": "This moves {environment} back from v{current}.",
   "forms.publish.destinations.evidence": "Satisfied by v{version} being live in {environment}.",
   "forms.publish.destinations.pickOne": "Choose at least one destination.",
@@ -1242,6 +1244,8 @@ export const messages = {
     "A draft is never published straight to {environment}. Publish it to a non-prod environment first, then publish that version here.",
   "forms.publish.blocked.draftNotAllowed":
     "The publishing workflow does not let a draft go straight to {environment}. Publish it to another environment first, then publish that version here.",
+  "forms.publish.blocked.draftNotAllowedOnly":
+    "The publishing workflow does not let a draft go straight to {environment}, and this deployment serves no other environment. Ask an administrator to change the publishing workflow.",
   "forms.publish.blocked.alreadyReleased": "Already live here.",
   "forms.publish.blocked.approverIsAuthor":
     "You froze this version, so another person with Publish forms in {environment} publishes it.",

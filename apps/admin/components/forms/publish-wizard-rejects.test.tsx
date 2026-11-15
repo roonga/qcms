@@ -19,10 +19,11 @@ const PROD_TARGET = {
   protected: true,
 } as const;
 
-const PROD_ONLY: ReleaseReview = {
+const PROD_REVIEW: ReleaseReview = {
   source: { kind: "version", version: 2, publishedBy: "usr_bob" },
   workflowRevision: null,
   workflowSource: "default",
+  productionFloor: true,
   targets: [PROD_TARGET],
 };
 
@@ -43,7 +44,7 @@ async function toReview(props: {
       hasDraft={false}
       canPublishDraft={false}
       draft={null}
-      review={props.review ?? (() => Promise.resolve({ ok: true, data: PROD_ONLY }))}
+      review={props.review ?? (() => Promise.resolve({ ok: true, data: PROD_REVIEW }))}
       confirm={props.confirm ?? (() => Promise.resolve({ status: "idle" }))}
       lookup={props.lookup ?? (() => Promise.resolve({ status: "idle" }))}
       secureCookies={false}
@@ -170,7 +171,7 @@ describe("the fixed prod floor", () => {
         hasDraft={false}
         canPublishDraft={false}
         draft={null}
-        review={() => Promise.resolve({ ok: true, data: PROD_ONLY })}
+        review={() => Promise.resolve({ ok: true, data: PROD_REVIEW })}
         confirm={() => Promise.resolve({ status: "idle" })}
         lookup={() => Promise.resolve({ status: "idle" })}
         secureCookies={false}
@@ -182,6 +183,31 @@ describe("the fixed prod floor", () => {
     expect((await screen.findByTestId("qcms-publish-prod-floor")).textContent).toBe(
       t("forms.publish.destinations.prodFloor"),
     );
+  });
+
+  it("says prod is the only environment where the floor does not apply", async () => {
+    const user = userEvent.setup();
+    render(
+      <PublishWizard
+        formId="frm_intake"
+        versions={[2, 1]}
+        hasDraft={false}
+        canPublishDraft={false}
+        draft={null}
+        review={() =>
+          Promise.resolve({ ok: true, data: { ...PROD_REVIEW, productionFloor: false } })
+        }
+        confirm={() => Promise.resolve({ status: "idle" })}
+        lookup={() => Promise.resolve({ status: "idle" })}
+        secureCookies={false}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: t("forms.publish.next") }));
+
+    const notice = await screen.findByTestId("qcms-publish-prod-floor");
+    expect(notice.dataset["floor"]).toBe("false");
+    expect(notice.textContent).toBe(t("forms.publish.destinations.prodOnly"));
   });
 
   it("names the environments the refusal will accept, from the blocker itself", async () => {
@@ -197,7 +223,7 @@ describe("the fixed prod floor", () => {
           Promise.resolve({
             ok: true,
             data: {
-              ...PROD_ONLY,
+              ...PROD_REVIEW,
               targets: [
                 {
                   ...PROD_TARGET,
@@ -255,10 +281,25 @@ describe("a refusal says which rule refused it", () => {
       source: DRAFT_SOURCE,
       workflowRevision: null,
       workflowSource: "default",
+      productionFloor: true,
       targets: [{ ...PROD_TARGET, blockers: DRAFT_BLOCKED }],
     });
     expect(blocker.textContent).toBe(
       t("forms.publish.blocked.draftNotAllowedProd", { environment: "prod" }),
+    );
+  });
+
+  // The floor is off, so the stored revision refused it and there is nowhere else to publish first.
+  it("sends nobody to a non-prod environment a prod-only deployment does not serve", async () => {
+    const blocker = await blockerFor({
+      source: DRAFT_SOURCE,
+      workflowRevision: 4,
+      workflowSource: "configured",
+      productionFloor: false,
+      targets: [{ ...PROD_TARGET, blockers: DRAFT_BLOCKED }],
+    });
+    expect(blocker.textContent).toBe(
+      t("forms.publish.blocked.draftNotAllowedOnly", { environment: "prod" }),
     );
   });
 
@@ -267,6 +308,7 @@ describe("a refusal says which rule refused it", () => {
       source: DRAFT_SOURCE,
       workflowRevision: 2,
       workflowSource: "configured",
+      productionFloor: true,
       targets: [
         { ...PROD_TARGET, environment: "staging", protected: false, blockers: DRAFT_BLOCKED },
       ],
@@ -281,6 +323,7 @@ describe("a refusal says which rule refused it", () => {
       source: DRAFT_SOURCE,
       workflowRevision: null,
       workflowSource: "default",
+      productionFloor: false,
       targets: [{ ...PROD_TARGET, blockers: AUTHOR_BLOCKED }],
     });
     expect(blocker.textContent).toBe(t("forms.publish.blocked.draftSecondApproval"));
@@ -288,7 +331,7 @@ describe("a refusal says which rule refused it", () => {
 
   it("keeps the frozen wording when the source is an existing version", async () => {
     const blocker = await blockerFor({
-      ...PROD_ONLY,
+      ...PROD_REVIEW,
       targets: [{ ...PROD_TARGET, blockers: AUTHOR_BLOCKED }],
     });
     expect(blocker.textContent).toBe(
@@ -307,7 +350,7 @@ describe("moving between steps", () => {
         hasDraft={false}
         canPublishDraft={false}
         draft={null}
-        review={() => Promise.resolve({ ok: true, data: PROD_ONLY })}
+        review={() => Promise.resolve({ ok: true, data: PROD_REVIEW })}
         confirm={() => Promise.resolve({ status: "idle" })}
         lookup={() => Promise.resolve({ status: "idle" })}
         secureCookies={false}

@@ -26,6 +26,7 @@ const TEST_ONLY: ReleaseReview = {
   source: { kind: "draft", draftRevision: 7 },
   workflowRevision: null,
   workflowSource: "default",
+  productionFloor: true,
   targets: [
     {
       environment: "test",
@@ -218,6 +219,7 @@ describe("a promotion's recorded source", () => {
               source: { kind: "version", version: 1, publishedBy: null },
               workflowRevision: null,
               workflowSource: "default",
+              productionFloor: true,
               targets: [
                 {
                   environment: "prod",

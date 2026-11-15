@@ -1214,6 +1214,7 @@ describe("the single Publish step", () => {
         const review = await call(prodAuthor.token, "POST", `/forms/${formId}/release-review`, {
           source: { kind: "draft" },
         });
+        expect(review.body.productionFloor, label).toBe(true);
         const prod = (review.body.targets as { environment: string; blockers: unknown[] }[]).find(
           (target) => target.environment === "prod",
         );
@@ -1344,6 +1345,8 @@ describe("a site whose only environment is prod", () => {
       prodOnlyApp,
     );
     expect(review.status).toBe(200);
+    // The screens tell the two deployments apart by this flag, not by the target list.
+    expect(review.body.productionFloor).toBe(false);
     expect(review.body.targets).toEqual([
       expect.objectContaining({ environment: "prod", blockers: [] }),
     ]);

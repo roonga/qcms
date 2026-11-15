@@ -83,7 +83,8 @@ export const releaseReviewRoute = createRoute({
     "account as the version's author. Until a release-workflow revision is configured " +
     "the review reports `workflowSource: default`, which is the fixed prod floor alone, " +
     "and a missing production prerequisite keeps the TEST_RELEASE_REQUIRED code. Every " +
-    "revision has the floor applied over it. A version with a prior release in the target itself is " +
+    "revision has the floor applied over it, and `productionFloor` reports whether it is " +
+    "in force, which the caller's own targets cannot show. A version with a prior release in the target itself is " +
     "a rollback and is eligible there regardless of prerequisites; the two-person rule " +
     "still applies to it. The review is a report rather than a reservation: the " +
     "confirmation rechecks every expectation in its own transaction.",

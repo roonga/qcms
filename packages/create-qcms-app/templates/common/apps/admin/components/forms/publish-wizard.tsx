@@ -43,10 +43,24 @@ function stepName(step: Step): string {
   return t("forms.publish.step.review");
 }
 
+/**
+ * The fixed floor refuses a draft only where a non-prod environment is served, which the
+ * review states: a caller holding Publish forms in `prod` alone sees no other target and
+ * cannot tell the two deployments apart from the target list.
+ */
+function draftRefusal(target: ReviewTarget, floor: boolean): string {
+  const environment = target.environment;
+  if (!target.protected) return t("forms.publish.blocked.draftNotAllowed", { environment });
+  return floor
+    ? t("forms.publish.blocked.draftNotAllowedProd", { environment })
+    : t("forms.publish.blocked.draftNotAllowedOnly", { environment });
+}
+
 function blockerSentence(
   blocker: ReleaseBlockerRecord,
   target: ReviewTarget,
   isDraft: boolean,
+  floor: boolean,
 ): string {
   const environment = target.environment;
   switch (blocker.code) {
@@ -57,9 +71,7 @@ function blockerSentence(
         environments: blocker.requiresAnyOf.join(" or "),
       });
     case "DRAFT_PUBLISH_NOT_ALLOWED":
-      return target.protected
-        ? t("forms.publish.blocked.draftNotAllowedProd", { environment })
-        : t("forms.publish.blocked.draftNotAllowed", { environment });
+      return draftRefusal(target, floor);
     case "ALREADY_RELEASED":
       return t("forms.publish.blocked.alreadyReleased");
     case "APPROVER_IS_AUTHOR":
@@ -565,8 +577,14 @@ export function PublishWizard({
           </p>
           {targets.length === 0 && <p>{t("forms.publish.destinations.none")}</p>}
           {targets.some((target) => target.protected) && (
-            <p className="text-sm text-(--color-text-muted)" data-testid="qcms-publish-prod-floor">
-              {t("forms.publish.destinations.prodFloor")}
+            <p
+              className="text-sm text-(--color-text-muted)"
+              data-testid="qcms-publish-prod-floor"
+              data-floor={review.productionFloor ? "true" : "false"}
+            >
+              {review.productionFloor
+                ? t("forms.publish.destinations.prodFloor")
+                : t("forms.publish.destinations.prodOnly")}
             </p>
           )}
           {targets.map((target) => {
@@ -610,7 +628,12 @@ export function PublishWizard({
                     data-testid="qcms-publish-blocker"
                     data-code={blocker.code}
                   >
-                    {blockerSentence(blocker, target, review.source.kind === "draft")}
+                    {blockerSentence(
+                      blocker,
+                      target,
+                      review.source.kind === "draft",
+                      review.productionFloor,
+                    )}
                   </span>
                 ))}
               </div>

@@ -2041,6 +2041,9 @@
               "configured"
             ]
           },
+          "productionFloor": {
+            "type": "boolean"
+          },
           "targets": {
             "type": "array",
             "items": {
@@ -2112,6 +2115,7 @@
           "source",
           "workflowRevision",
           "workflowSource",
+          "productionFloor",
           "targets"
         ]
       },
@@ -6800,7 +6804,7 @@
     "/admin/forms/{id}/release-review": {
       "post": {
         "summary": "What releasing a draft or a version into each permitted target would do (admin)",
-        "description": "A read, and it writes nothing: no version, no release, no review token and no access-audit row. It reports one target per environment the caller holds `release: create` in and no others, with what is serving there, whether the form is closed there, the committed release rows that satisfy the target's prerequisite, the blockers that remain, and whether the two-person rule applies and would refuse this account as the version's author. Until a release-workflow revision is configured the review reports `workflowSource: default`, which is the fixed prod floor alone, and a missing production prerequisite keeps the TEST_RELEASE_REQUIRED code. Every revision has the floor applied over it. A version with a prior release in the target itself is a rollback and is eligible there regardless of prerequisites; the two-person rule still applies to it. The review is a report rather than a reservation: the confirmation rechecks every expectation in its own transaction.",
+        "description": "A read, and it writes nothing: no version, no release, no review token and no access-audit row. It reports one target per environment the caller holds `release: create` in and no others, with what is serving there, whether the form is closed there, the committed release rows that satisfy the target's prerequisite, the blockers that remain, and whether the two-person rule applies and would refuse this account as the version's author. Until a release-workflow revision is configured the review reports `workflowSource: default`, which is the fixed prod floor alone, and a missing production prerequisite keeps the TEST_RELEASE_REQUIRED code. Every revision has the floor applied over it, and `productionFloor` reports whether it is in force, which the caller's own targets cannot show. A version with a prior release in the target itself is a rollback and is eligible there regardless of prerequisites; the two-person rule still applies to it. The review is a report rather than a reservation: the confirmation rechecks every expectation in its own transaction.",
         "tags": [
           "releases"
         ],
