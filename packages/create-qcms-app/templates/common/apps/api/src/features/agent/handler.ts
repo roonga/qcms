@@ -247,7 +247,7 @@ function mergeOffers(
 }
 
 /**
- * The propose tools' port and the kinds the grant filter offered this caller, across every
+ * The propose tool's port and the kinds the grant filter offered this caller, across every
  * workspace they hold a grant in. A caller holding none gets neither the port nor the
  * tools, which is how "a read-only user is offered no write" is structural (point 1).
  */

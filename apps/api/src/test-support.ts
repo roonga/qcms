@@ -318,7 +318,7 @@ const BUILDER_KINDS = ["apply-draft", "form.publish", "form.settings"] as const;
 
 /**
  * A turn on the builder screen: the draft ports {@link AssistContext} holds, the draft
- * verbs, the propose tools a writer is offered, and an authorisation that has nothing to
+ * verbs, the propose tool a writer is offered, and an authorisation that has nothing to
  * refuse because no grant is resolved in a unit test.
  */
 export function builderTurnContext(

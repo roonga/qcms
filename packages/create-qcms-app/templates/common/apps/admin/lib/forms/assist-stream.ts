@@ -110,7 +110,6 @@ export type AssistEvent =
       readonly outputTokens: number;
       readonly steps: number;
     }
-  | { readonly type: "action"; readonly proposal: AgentProposal }
   | { readonly type: "plan"; readonly proposal: AgentProposal }
   | { readonly type: "error"; readonly code: AssistErrorCode; readonly message: string };
 
@@ -188,11 +187,9 @@ function toAssistEvent(raw: unknown): AssistEvent | undefined {
         : undefined;
     case "usage":
       return toUsageEvent(raw);
-    case "action":
     case "plan": {
       const proposal = toAgentProposal(raw["proposal"]);
-      if (proposal === undefined) return undefined;
-      return raw["type"] === "action" ? { type: "action", proposal } : { type: "plan", proposal };
+      return proposal === undefined ? undefined : { type: "plan", proposal };
     }
     case "error":
       return toErrorEvent(raw);

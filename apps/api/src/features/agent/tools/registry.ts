@@ -15,7 +15,7 @@ import {
   type QuestionId,
 } from "@roonga/qcms-core";
 
-import { proposeActionSchema, proposePlanSchema } from "./propose-schema.js";
+import { proposePlanSchema } from "./propose-schema.js";
 import { ProposedStep, type Proposal } from "./propose.js";
 import { selfContainedToolSchema } from "./tool-schema.js";
 import { TOOL_DESCRIPTIONS } from "../prompts/prompts.generated.js";
@@ -47,17 +47,16 @@ export const AGENT_TOOL_NAMES = [
   "list_erasures",
   "list_workspaces",
   "read_workspace",
-  "propose_action",
   "propose_plan",
 ] as const;
 
 export type AgentToolName = (typeof AGENT_TOOL_NAMES)[number];
 
 /**
- * The two tools the grant filter offers, rather than a screen's own read list: they put a
- * card up for the user to confirm and execute nothing themselves.
+ * The tool the grant filter offers, rather than a screen's own read list: it puts a card
+ * up for the user to confirm and executes nothing itself.
  */
-export const AGENT_PROPOSE_TOOL_NAMES = ["propose_action", "propose_plan"] as const;
+export const AGENT_PROPOSE_TOOL_NAMES = ["propose_plan"] as const;
 
 const PROPOSE: ReadonlySet<string> = new Set<string>(AGENT_PROPOSE_TOOL_NAMES);
 
@@ -81,19 +80,14 @@ export class ToolNotAllowedError extends Error {
   }
 }
 
-export interface RecordedProposal {
-  readonly variant: "action" | "plan";
-  readonly proposal: Proposal;
-}
-
 /** Mutable by design: the tool loop accumulates across steps and is read once it ends. */
 export interface ProposalState {
   proposedDraft: FormDefinition | undefined;
   readonly newQuestions: QuestionDefinition[];
 
-  readonly actionProposals: RecordedProposal[];
+  readonly actionProposals: Proposal[];
   /** Recorded but not yet emitted, so the stream can flush each one at once. */
-  readonly unsentProposals: RecordedProposal[];
+  readonly unsentProposals: Proposal[];
 }
 
 export function createProposalState(): ProposalState {
@@ -605,7 +599,6 @@ const Outputs = {
       }),
     ),
   }),
-  propose_action: ProposeOutput,
   propose_plan: ProposeOutput,
 } as const satisfies Record<AgentToolName, z.ZodType>;
 
@@ -627,8 +620,8 @@ interface AgentToolDef {
   readonly description: string;
   readonly inputSchema: z.ZodType;
   /**
-   * The schema the provider is shown, when it is narrowed per caller. The propose tools
-   * are the only ones: their kinds and environments are the grant filter's answer.
+   * The schema the provider is shown, when it is narrowed per caller. `propose_plan` is
+   * the only one: its kinds and environments are the grant filter's answer.
    */
   readonly schemaFor?: (ctx: AgentContext) => z.ZodType;
   readonly outputSchema: z.ZodType;
@@ -656,13 +649,12 @@ interface AgentToolDef {
  */
 async function propose(
   steps: readonly ProposedStep[],
-  variant: "action" | "plan",
   ctx: AgentContext,
   state: ProposalState,
 ): Promise<Record<string, unknown>> {
   const outcome = await port(
     ctx.propose,
-    `propose_${variant}`,
+    "propose_plan",
   )({
     steps,
     proposalsThisTurn: state.actionProposals.length,
@@ -678,17 +670,15 @@ async function propose(
         }),
   });
   if (!outcome.ok) return { proposed: false, reason: outcome.reason };
-  const recorded = { variant, proposal: outcome.proposal };
-  state.actionProposals.push(recorded);
-  state.unsentProposals.push(recorded);
+  state.actionProposals.push(outcome.proposal);
+  state.unsentProposals.push(outcome.proposal);
   return { proposed: true, proposalId: outcome.proposal.proposalId };
 }
 
-function stepsOf(input: unknown, variant: "action" | "plan"): readonly ProposedStep[] {
-  const body = (input ?? {}) as { action?: unknown; steps?: unknown };
-  const raw = variant === "action" ? [body.action] : body.steps;
-  if (!Array.isArray(raw)) return [];
-  return raw.map((entry) => ProposedStep.parse(entry));
+function stepsOf(input: unknown): readonly ProposedStep[] {
+  const { steps } = (input ?? {}) as { steps?: unknown };
+  if (!Array.isArray(steps)) return [];
+  return steps.map((entry) => ProposedStep.parse(entry));
 }
 
 /** A tool reached without its port is a registry that disagrees with a screen's list. */
@@ -1010,19 +1000,12 @@ export const TOOLS: Readonly<Record<AgentToolName, AgentToolDef>> = Object.freez
     execute: (input, ctx) =>
       port(ctx.readWorkspace, "read_workspace")(WorkspaceSubjectInput.parse(input)),
   },
-  propose_action: {
-    description: TOOL_DESCRIPTIONS.propose_action,
-    inputSchema: proposeActionSchema([]),
-    schemaFor: (ctx) => proposeActionSchema(ctx.offeredActionKinds ?? []),
-    outputSchema: Outputs.propose_action,
-    execute: (input, ctx, state) => propose(stepsOf(input, "action"), "action", ctx, state),
-  },
   propose_plan: {
     description: TOOL_DESCRIPTIONS.propose_plan,
     inputSchema: proposePlanSchema([]),
     schemaFor: (ctx) => proposePlanSchema(ctx.offeredActionKinds ?? []),
     outputSchema: Outputs.propose_plan,
-    execute: (input, ctx, state) => propose(stepsOf(input, "plan"), "plan", ctx, state),
+    execute: (input, ctx, state) => propose(stepsOf(input), ctx, state),
   },
 });
 
@@ -1117,14 +1100,14 @@ export function agentToolSet(ctx: AgentContext, state: ProposalState): ToolSet {
 }
 
 export async function advertisedJsonSchema(zodType: z.ZodType): Promise<JSONSchema7> {
-  return asSchema(providerSchema(zodType)).jsonSchema;
+  return providerSchema(zodType).jsonSchema;
 }
 
 /** Exported for the tests only: the fake provider never reads a tool schema. */
 export async function agentToolJsonSchemas(): Promise<Record<AgentToolName, JSONSchema7>> {
   const out: Partial<Record<AgentToolName, JSONSchema7>> = {};
   for (const name of AGENT_TOOL_NAMES) {
-    out[name] = await asSchema(providerSchema(TOOLS[name].inputSchema)).jsonSchema;
+    out[name] = await providerSchema(TOOLS[name].inputSchema).jsonSchema;
   }
   return out as Record<AgentToolName, JSONSchema7>;
 }

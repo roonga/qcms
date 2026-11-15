@@ -134,8 +134,8 @@ async function collectWithThinking(
 }
 
 function appliedDraft(events: readonly AssistEvent[]): ProposedDraftStep {
-  const card = events.find((event) => event.type === "action");
-  if (card?.type !== "action") {
+  const card = events.find((event) => event.type === "plan");
+  if (card?.type !== "plan") {
     throw new Error(`no card: ${JSON.stringify(events.map((event) => event.type))}`);
   }
   const step = card.proposal.steps[0];
@@ -183,8 +183,11 @@ describe("draft assistant tool loop (fake provider)", () => {
   it("puts the draft up as one card, never as a proposal event of its own", async () => {
     const { ctx } = contextFor("a vehicle-insurance quote");
     const events = await collect(ctx);
-    expect(events.filter((event) => event.type === "action")).toHaveLength(1);
-    expect(events.filter((event) => event.type === "plan")).toHaveLength(0);
+    const cards = events.filter((event) => event.type === "plan");
+    expect(cards).toHaveLength(1);
+    expect(
+      cards[0]?.type === "plan" ? cards[0].proposal.steps.map((step) => step.kind) : [],
+    ).toEqual(["apply-draft"]);
   });
 
   it("carries the warnings the server's own validation returned, beside the issues", async () => {
@@ -220,7 +223,7 @@ describe("draft assistant tool loop (fake provider)", () => {
   it("maps a model refusal to a REFUSED error rather than an empty proposal", async () => {
     const { ctx } = contextFor("#qcms-fake:refusal do something questionable");
     const events = await collect(ctx);
-    expect(events.filter((e) => e.type === "action")).toHaveLength(0);
+    expect(events.filter((e) => e.type === "plan")).toHaveLength(0);
     expect(events.find((e) => e.type === "error")).toMatchObject({ code: "REFUSED" });
   });
 
@@ -272,7 +275,7 @@ describe("draft assistant tool loop (fake provider)", () => {
       expect(stepOutcomes(events)).toEqual([
         ["search_question_library", "done"],
         ["propose_draft", "done"],
-        ["propose_action", "done"],
+        ["propose_plan", "done"],
       ]);
       const announced = events.findIndex((e) => e.type === "status" && e.step === 1);
       const finished = events.findIndex((e) => e.type === "tool-outcome" && e.step === 1);
@@ -286,7 +289,7 @@ describe("draft assistant tool loop (fake provider)", () => {
         ["propose_draft", "failed"],
         ["search_question_library", "done"],
         ["propose_draft", "done"],
-        ["propose_action", "done"],
+        ["propose_plan", "done"],
       ]);
       for (const event of events.filter((e) => e.type === "tool-outcome")) {
         expect(Object.keys(event).sort()).toEqual(["outcome", "step", "type"]);
@@ -352,7 +355,7 @@ describe("draft assistant tool loop (fake provider)", () => {
     const { ctx } = contextFor("#qcms-fake:rogue-publish do it");
     const events = await collect(ctx);
     expect(events.find((e) => e.type === "error")).toMatchObject({ code: "REFUSED" });
-    expect(events.filter((e) => e.type === "action")).toHaveLength(0);
+    expect(events.filter((e) => e.type === "plan")).toHaveLength(0);
   });
 
   // The `rogue-publish` script asks on every step, so without a stop condition on the
@@ -382,7 +385,7 @@ describe("draft assistant tool loop (fake provider)", () => {
         message: "The assistant attempted an action outside its allowed tools and was stopped.",
       },
     ]);
-    expect(events.filter((e) => e.type === "action")).toHaveLength(0);
+    expect(events.filter((e) => e.type === "plan")).toHaveLength(0);
   });
 
   it("reports NO_PROPOSAL when the turn left no card and no words", async () => {
@@ -426,7 +429,7 @@ describe("assist error codes are all reachable", () => {
     // The message is framed into the SSE body, which carries no environment identifier
     // (ADR-24); `QCMS_` is this repository's environment prefix.
     expect(error.message).not.toMatch(/QCMS_[A-Z0-9_]+/);
-    expect(events.filter((e) => e.type === "action")).toHaveLength(0);
+    expect(events.filter((e) => e.type === "plan")).toHaveLength(0);
   });
 
   it("covers every declared code, so a new code cannot be unreachable", () => {
@@ -601,7 +604,7 @@ describe("reasoning events", () => {
     expect(events.filter((e) => e.type === "reasoning")).toHaveLength(0);
     expect(events.filter((e) => e.type === "reasoning-end")).toHaveLength(0);
     expect(JSON.stringify(events)).not.toContain(FAKE_REASONING_SENTINEL);
-    expect(events.find((e) => e.type === "action")).toBeDefined();
+    expect(events.find((e) => e.type === "plan")).toBeDefined();
   });
 
   it("streams the frames under summary, carrying the sentinel", async () => {
@@ -611,7 +614,7 @@ describe("reasoning events", () => {
     const deltas = events.flatMap((e) => (e.type === "reasoning" ? [e.delta] : []));
     expect(deltas.join("")).toContain(FAKE_REASONING_SENTINEL);
     expect(events.filter((e) => e.type === "reasoning-end").length).toBeGreaterThan(0);
-    expect(events.find((e) => e.type === "action")).toBeDefined();
+    expect(events.find((e) => e.type === "plan")).toBeDefined();
   });
 
   it("logs a reasoning token count and never a word of the text", async () => {
@@ -690,7 +693,7 @@ describe("prompt framing", () => {
       ],
     });
 
-    expect(events.filter((e) => e.type === "action" || e.type === "plan")).toEqual([]);
+    expect(events.filter((e) => e.type === "plan")).toEqual([]);
     expect(events.filter((e) => e.type === "error")).toEqual([]);
     expect(events.some((e) => e.type === "text")).toBe(true);
   });
@@ -748,6 +751,6 @@ describe("a refused verb that streamed its input first", () => {
       tool: "publish_form",
     });
     expect(events.find((e) => e.type === "error")).toMatchObject({ code: "REFUSED" });
-    expect(events.filter((e) => e.type === "action")).toHaveLength(0);
+    expect(events.filter((e) => e.type === "plan")).toHaveLength(0);
   });
 });

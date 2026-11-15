@@ -62,8 +62,8 @@ operational state (`count_links`, `list_links`, `list_webhooks`,
 `delivery_status`, `list_responses`, `count_responses`, `count_dead_letters`,
 `list_erasures`), administration (`list_workspaces`, `read_workspace`), the
 preview verbs (`project_draft`, `test_rule`) and the draft verbs
-(`propose_questions`, `propose_draft`, `validate_draft`). Beside them sit the two
-propose tools, which execute nothing. There is no generic GET passthrough.
+(`propose_questions`, `propose_draft`, `validate_draft`). Beside them sits
+`propose_plan`, which executes nothing. There is no generic GET passthrough.
 Publish, erase, link minting, webhook configuration and every read of response
 **content** are absent from the module, so an agent cannot call them however it
 is prompted, jailbroken or swapped.

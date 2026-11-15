@@ -17,7 +17,7 @@ from.
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `system/NN-<name>.md`  | One section of the system prompt. The number is its position; the assembled prompt is these files joined by one blank line.                             |
 | `tools/<tool-name>.md` | One tool's description, as the provider's tool schema carries it. The file stem is the tool name in `tools/registry.ts`.                                |
-| `actions/<kind>.md`    | One action kind's description, shown to the model in the propose tools' schema. The file stem is the kind a proposed step names.                        |
+| `actions/<kind>.md`    | One action kind's description, shown to the model in the propose tool's schema. The file stem is the kind a proposed step names.                        |
 | `prompts.generated.ts` | Generated. Do not edit it: edit the Markdown and regenerate.                                                                                            |
 | `rendered/`            | The as-sent view, written by the tests: the assembled system prompt, every tool with its description and advertised JSON schema, and every action kind. |
 

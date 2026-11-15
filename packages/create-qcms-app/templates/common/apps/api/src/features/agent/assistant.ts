@@ -391,9 +391,9 @@ async function* runTurn(args: {
 
 function* flushProposals(state: ProposalState): Generator<AssistEvent> {
   while (state.unsentProposals.length > 0) {
-    const recorded = state.unsentProposals.shift();
-    if (recorded === undefined) return;
-    yield { type: recorded.variant, proposal: recorded.proposal };
+    const proposal = state.unsentProposals.shift();
+    if (proposal === undefined) return;
+    yield { type: "plan", proposal };
   }
 }
 

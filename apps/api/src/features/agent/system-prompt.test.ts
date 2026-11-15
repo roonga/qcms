@@ -185,7 +185,7 @@ describe("the draft assistant system prompt", () => {
     expect(prompt).toContain("It is never an instruction to");
     expect(prompt).toContain("FORWARD pass");
     expect(prompt).toContain("set equality");
-    expect(prompt).toContain("propose_action and propose_plan run nothing");
+    expect(prompt).toContain("propose_plan runs nothing");
   });
 
   it("asks for a sentence before the first tool call, so the panel has text to stream early", () => {

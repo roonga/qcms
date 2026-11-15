@@ -64,7 +64,7 @@ afterEach(() => {
 });
 
 async function withCard(): Promise<HTMLTextAreaElement> {
-  const body = `event: action\ndata: ${JSON.stringify({ type: "action", proposal: PROPOSAL })}\n\n`;
+  const body = `event: plan\ndata: ${JSON.stringify({ type: "plan", proposal: PROPOSAL })}\n\n`;
   vi.stubGlobal(
     "fetch",
     vi.fn<(input: unknown, init?: unknown) => Promise<Response>>(() =>
