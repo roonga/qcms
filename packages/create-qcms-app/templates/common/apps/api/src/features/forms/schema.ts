@@ -79,13 +79,10 @@ export const CreateFormBody = z
  * Opaque like the definition, so the handler answers with the coded 422 of 107's schema
  * and of the contrast check rather than a bare 400.
  */
-const OpaqueAppearance = z
-  .record(z.string(), z.unknown())
-  .nullable()
-  .openapi("AppearanceInput", {
-    description:
-      "A form's appearance: the four palettes, logo key, face, corners, density, text size, progress mode and page tint. Validated against the shared appearance schema and the WCAG contrast check. Null clears it.",
-  });
+const OpaqueAppearance = z.record(z.string(), z.unknown()).nullable().openapi("AppearanceInput", {
+  description:
+    "A form's appearance: the four palettes, logo key, face, corners, density, text size, progress mode and page tint. Validated against the shared appearance schema and the WCAG contrast check. Null clears it.",
+});
 
 export const DraftBody = z
   .strictObject({

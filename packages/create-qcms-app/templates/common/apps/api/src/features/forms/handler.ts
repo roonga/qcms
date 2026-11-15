@@ -197,8 +197,7 @@ const fail = {
       422,
       "The draft compiled, but its rules could not be evaluated for these answers",
     ),
-  invalidAppearance: (detail: string): ApiError =>
-    new ApiError("INVALID_APPEARANCE", 422, detail),
+  invalidAppearance: (detail: string): ApiError => new ApiError("INVALID_APPEARANCE", 422, detail),
   /**
    * The correction report rides `details.failures`, so an author is told which pair in
    * which palette fell short and by how much rather than that something did.
@@ -282,10 +281,7 @@ export async function storeDraftDefinition(
  * version's, which is what a seeded draft is drawn from. The same answer the form read
  * serves, so a save that echoes it back changes nothing and passes the lock.
  */
-async function currentAppearance(
-  exec: Executor,
-  formId: FormId,
-): Promise<Appearance | null> {
+async function currentAppearance(exec: Executor, formId: FormId): Promise<Appearance | null> {
   const draft = await getDraft(exec, formId);
   if (draft !== undefined) return draft.appearance;
   return (await getLatestPublishedVersion(exec, formId))?.appearance ?? null;
