@@ -61,9 +61,16 @@ export { isVendoredSource };
 export { isGeneratedCopy };
 
 /**
- * Markdown read as bytes rather than prose: the only Prettier exemption, re-exported for
- * the same reason as the two above.
+ * Markdown read as bytes rather than prose: the prompt text the model is sent, and the
+ * copied tree whose originals Prettier already checks.
+ *
+ * @param {string} file
+ * @returns {boolean}
  */
+export function isProseMarkdown(file) {
+  return !isPromptSource(file) && !isGeneratedCopy(file);
+}
+
 export { isPromptSource };
 
 /** @returns {string[]} */
@@ -205,8 +212,7 @@ export function uncovered(source, scope) {
  */
 export async function uncoveredMarkdown(files, repoRoot) {
   const violations = [];
-  for (const file of files) {
-    if (isPromptSource(file)) continue;
+  for (const file of files.filter((file) => isProseMarkdown(file))) {
     const info = await getFileInfo(path.join(repoRoot, file), {
       ignorePath: path.join(repoRoot, ".prettierignore"),
     });
@@ -235,7 +241,7 @@ export async function main() {
   const lintableSource = ignoredChecks.filter(({ ignored }) => !ignored).map(({ file }) => file);
   const violations = uncovered(lintableSource, scope);
   const markdownViolations = await uncoveredMarkdown(markdown, repoRoot);
-  const promptSources = markdown.filter((file) => isPromptSource(file));
+  const prose = markdown.filter((file) => isProseMarkdown(file));
 
   if (
     scope.missing.length === 0 &&
@@ -247,8 +253,8 @@ export async function main() {
     console.log(
       `check-lint-coverage: OK - ${String(lintableSource.length)} source files reached by ESLint; ` +
         `${String(vendored.length)} copied source files explicitly excluded; ` +
-        `${String(markdown.length - promptSources.length)} Markdown files reached by Prettier; ` +
-        `${String(promptSources.length)} prompt sources read as bytes instead; ` +
+        `${String(prose.length)} Markdown files reached by Prettier; ` +
+        `${String(markdown.length - prose.length)} prompt sources and copies read as bytes; ` +
         "0 unexplained exemptions.",
     );
     return 0;
