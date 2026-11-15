@@ -7,6 +7,7 @@ import {
   getForm,
   getWorkspace,
   getWorkspaceBySlug,
+  isAccountActive,
   listWorkspaces,
   moveFormToWorkspace,
   renameWorkspace,
@@ -52,6 +53,16 @@ const fail = {
       "FIRST_ADMINISTRATOR_NOT_FOUND",
       422,
       "No account has that address. The first Workspace administrator must be an existing account.",
+    ),
+  /**
+   * One answer for disabled and for unclaimed: an account that has not set a password and
+   * enrolled a factor cannot administer a workspace, and neither can a disabled one.
+   */
+  firstAdministratorNotClaimed: (): ApiError =>
+    new ApiError(
+      "FIRST_ADMINISTRATOR_NOT_CLAIMED",
+      422,
+      "The first Workspace administrator must be an account that is active and has been claimed.",
     ),
   noPrincipal: (): ApiError =>
     new ApiError(
@@ -227,6 +238,9 @@ export function makeCreateWorkspaceHandler(
       const named = await findUserByEmail(exec, body.firstAdministratorEmail);
       if (named === undefined) throw fail.firstAdministratorUnknown();
       firstAdministratorId = named.userId;
+    }
+    if (!(await isAccountActive(exec, firstAdministratorId))) {
+      throw fail.firstAdministratorNotClaimed();
     }
 
     let created: WorkspaceRow;

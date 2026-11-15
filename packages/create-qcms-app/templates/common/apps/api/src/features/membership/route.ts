@@ -18,6 +18,7 @@ import {
   makeMyAccessHandler,
   makeRemoveHolderHandler,
   makeSetMemberRoleHandler,
+  makeSiteAuditHandler,
   makeUpdateAccessGroupHandler,
   makeWorkspaceSettingsHandler,
 } from "./handler.js";
@@ -34,6 +35,8 @@ import {
   CreateAccessGroupBody,
   MyAccessResponse,
   SetMemberRoleBody,
+  SiteAuditListResponse,
+  SiteAuditQuery,
   UpdateAccessGroupBody,
   WorkspaceIdParam,
   WorkspaceMemberListResponse,
@@ -285,6 +288,28 @@ export const auditRoute = createRoute({
   ...withScopes("forms:read"),
 });
 
+export const siteAuditRoute = createRoute({
+  method: "get",
+  path: "/site-audit",
+  summary: "The site audit (admin)",
+  description:
+    "Every account act, every Site administrator act and every change to the shared " +
+    "question library, newest first. Site administrators only: a workspace " +
+    "administrator reads their own workspace's audit, where a site act that affected " +
+    "that workspace is mirrored. It carries no credential, no answer value and no " +
+    "authored text.",
+  tags,
+  request: { query: SiteAuditQuery },
+  responses: {
+    200: {
+      description: "The site audit rows",
+      content: { "application/json": { schema: SiteAuditListResponse } },
+    },
+    ...errorResponses(400, 401, 403),
+  },
+  ...withScopes("forms:read"),
+});
+
 export const agentAuditRoute = createRoute({
   method: "get",
   path: "/workspaces/{id}/agent-actions",
@@ -320,5 +345,6 @@ export const registerMembership: SliceRegistrar = (group, deps: Deps): void => {
   group.openapi(removeHolderRoute, makeRemoveHolderHandler(deps));
   group.openapi(workspaceSettingsRoute, makeWorkspaceSettingsHandler(deps));
   group.openapi(auditRoute, makeAuditHandler(deps));
+  group.openapi(siteAuditRoute, makeSiteAuditHandler(deps));
   group.openapi(agentAuditRoute, makeAgentAuditHandler(deps));
 };

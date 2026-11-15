@@ -23,7 +23,13 @@ import {
   REQUEST_ENVIRONMENT_HEADER,
   registerRequestEnvironment,
 } from "../../middleware/request-environment.js";
-import { internalTokenFor, makeDeps, seedAdminSession, validEnv } from "../../test-support.js";
+import {
+  disableSeededAccount,
+  internalTokenFor,
+  makeDeps,
+  seedAdminSession,
+  validEnv,
+} from "../../test-support.js";
 import { registerForms } from "../forms/route.js";
 import { registerLinks } from "../links/route.js";
 import { registerGrantCheck } from "../membership/middleware.js";
@@ -1601,6 +1607,36 @@ describe("a workspace administration step is audited and never widened", () => {
     });
     expect(withToken.status).toBe(without.status);
     expect(await errorCode(withToken)).toBe(await errorCode(without));
+    expect(await countRows(proposalId)).toBe(0);
+  });
+});
+
+describe("a Confirm from a disabled account is refused (criterion 67)", () => {
+  it("refuses the step and writes no row, because the session gate reads the flag", async () => {
+    const confirmer = await seedAdminSession(testDb.db, { label: "confirmer" });
+    const name = "Response viewers disabled-confirm";
+    const createBody = { name, roles: ["responses.viewer"], environments: ["test"] } as const;
+    const { token, proposalId } = await mintToken({
+      subject: confirmer.userId,
+      steps: [
+        await binding(
+          "access.groupCreate",
+          { workspaceId: SEED_WORKSPACE_ID, ...createBody },
+          "test",
+        ),
+      ],
+    });
+
+    await disableSeededAccount(testDb.db, confirmer.userId, deps.clock.now());
+
+    const res = await send({
+      caller: confirmer,
+      path: `/workspaces/${SEED_WORKSPACE_ID}/access-groups`,
+      environment: "test",
+      body: createBody,
+      proposal: { token, step: 0 },
+    });
+    expect(res.status).toBe(401);
     expect(await countRows(proposalId)).toBe(0);
   });
 });

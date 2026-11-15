@@ -451,6 +451,14 @@ export const SURFACES: readonly Surface[] = [
     readControl: true,
   },
   {
+    name: "GET /admin/site-audit",
+    row: "membership",
+    group: "admin",
+    method: "GET",
+    path: () => "/admin/site-audit",
+    anonymousReachable: false,
+  },
+  {
     name: "GET /admin/forms/{id}/responses",
     row: "responses-read",
     group: "admin",

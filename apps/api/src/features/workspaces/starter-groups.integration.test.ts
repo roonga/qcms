@@ -176,6 +176,39 @@ describe("who creates a workspace (criterion 92)", () => {
     expect(again.status).toBe(201);
   });
 
+  it("refuses an unclaimed first administrator, and creates nothing (criterion 93)", async () => {
+    const unclaimed = await seedAdminSession(testDb.db, {
+      label: "unclaimed-first",
+      claim: false,
+      claimed: false,
+      membership: false,
+    });
+    const res = await createWorkspace(siteAdmin.token, {
+      name: "Unclaimed",
+      slug: "unclaimed-first",
+      firstAdministratorEmail: await emailOf(unclaimed.userId),
+    });
+    expect(res.status).toBe(422);
+    expect(((await res.json()) as ErrorBody).error.code).toBe("FIRST_ADMINISTRATOR_NOT_CLAIMED");
+    expect(await getWorkspaceBySlug(testDb.db, "unclaimed-first")).toBeUndefined();
+  });
+
+  it("refuses a disabled first administrator with the same answer", async () => {
+    const disabled = await seedAdminSession(testDb.db, {
+      label: "disabled-first",
+      claim: false,
+      membership: false,
+      disabledAt: new Date("2026-07-20T00:00:00.000Z"),
+    });
+    const res = await createWorkspace(siteAdmin.token, {
+      name: "Disabled",
+      slug: "disabled-first",
+      firstAdministratorEmail: await emailOf(disabled.userId),
+    });
+    expect(res.status).toBe(422);
+    expect(((await res.json()) as ErrorBody).error.code).toBe("FIRST_ADMINISTRATOR_NOT_CLAIMED");
+  });
+
   it("creates the four starter groups with nobody in them", async () => {
     const workspaceId = await created("four-groups");
     const groups = await listAccessGroups(testDb.db, workspaceId);

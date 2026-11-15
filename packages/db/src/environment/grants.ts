@@ -7,6 +7,7 @@ import type { Executor } from "../queries/executor.js";
 import { ACCESS_AUDIT_TABLE } from "../schema/control/access-audit.js";
 import { AGENT_ACTIONS_TABLE } from "../schema/control/agent-actions.js";
 import { ENDPOINT_PROPOSALS_TABLE } from "../schema/control/endpoint-proposals.js";
+import { SITE_AUDIT_TABLE } from "../schema/control/site-audit.js";
 import { RELEASE_BATCHES_TABLE } from "../schema/control/release-batches.js";
 import {
   RELEASE_WORKFLOW_REVISIONS_TABLE,
@@ -28,6 +29,7 @@ import {
   grantAppearanceLogosStatements,
   grantControlTableStatements,
   grantEnvironmentStatements,
+  grantSiteAuditStatements,
   revokeMigrateOnlyStatement,
 } from "./sql.js";
 
@@ -198,6 +200,12 @@ export const GRANT_SOURCES: readonly GrantSource[] = [
     scope: "installation",
     inMigrationTree: true,
     statements: () => grantControlTableStatements(WORKSPACE_THEMES_TABLE),
+  },
+  {
+    name: `${CONTROL_SCHEMA}.${SITE_AUDIT_TABLE} (migration 0011)`,
+    scope: "installation",
+    inMigrationTree: true,
+    statements: grantSiteAuditStatements,
   },
   {
     name: "control.two_factor_resets is migrate-only (baseline, last)",

@@ -20,6 +20,7 @@ import {
 import { sqlLiteral as literal } from "../sql-literal.js";
 import { ACCESS_AUDIT_TABLE } from "../schema/control/access-audit.js";
 import { AGENT_ACTIONS_TABLE } from "../schema/control/agent-actions.js";
+import { SITE_AUDIT_TABLE } from "../schema/control/site-audit.js";
 import { APPEARANCE_LOGOS_TABLE } from "../schema/control/workspace-themes.js";
 import {
   APPLICATION_ROLE_PREFIX,
@@ -413,6 +414,19 @@ export function grantAccessAuditStatements(): string[] {
 /** Emit agent-audit grants through the same function as access-audit grants so the two tables cannot diverge. */
 export function grantAgentActionsStatements(): string[] {
   return appendOnlyAuditGrantStatements(AGENT_ACTIONS_TABLE);
+}
+
+/**
+ * The site audit is append-only like the other two, and the control role alone reaches it: a
+ * site-level act is never performed on an environment pool, so no environment role is granted
+ * `INSERT` here.
+ */
+export function grantSiteAuditStatements(): string[] {
+  const table = `${quote(CONTROL_SCHEMA)}.${quote(SITE_AUDIT_TABLE)}`;
+  return [
+    guardedOnRole(CONTROL_ROLE, [`GRANT SELECT, INSERT ON ${table} TO ${quote(CONTROL_ROLE)}`]),
+    revokeTableWritesStatement(SITE_AUDIT_TABLE),
+  ];
 }
 
 /**

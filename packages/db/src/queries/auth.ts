@@ -1,4 +1,4 @@
-import { count, eq, sql } from "drizzle-orm";
+import { and, count, eq, isNotNull, isNull, sql } from "drizzle-orm";
 
 import { authSession, authTwoFactor, authUser, twoFactorResets } from "../schema/index.js";
 import type { Executor } from "./executor.js";
@@ -20,6 +20,10 @@ export interface AdminSessionRow {
   readonly twoFactorEnabled: boolean;
   /** The API must refuse a session holding a provisional credential. */
   readonly mustChangePassword: boolean;
+  /** Set while the account is disabled, which refuses the request this session carries. */
+  readonly disabledAt: Date | null;
+  /** `null` while the account is unclaimed, which holds nothing. */
+  readonly claimedAt: Date | null;
 }
 
 /**
@@ -41,6 +45,8 @@ export async function getAdminSessionByToken(
       role: authUser.role,
       twoFactorEnabled: authUser.twoFactorEnabled,
       mustChangePassword: authUser.mustChangePassword,
+      disabledAt: authUser.disabledAt,
+      claimedAt: authUser.claimedAt,
     })
     .from(authSession)
     .innerJoin(authUser, eq(authUser.id, authSession.userId))
@@ -58,7 +64,35 @@ export async function getAdminSessionByToken(
     // to policy.
     twoFactorEnabled: row.twoFactorEnabled === true,
     mustChangePassword: row.mustChangePassword,
+    disabledAt: row.disabledAt,
+    claimedAt: row.claimedAt,
   };
+}
+
+/**
+ * Whether an account may act: it exists, it is not disabled and it is claimed. Read per
+ * request and per export page, never cached, so a disable takes effect at once.
+ */
+export async function isAccountActive(exec: Executor, userId: string): Promise<boolean> {
+  const rows = await exec
+    .select({ id: authUser.id })
+    .from(authUser)
+    .where(and(eq(authUser.id, userId), isNull(authUser.disabledAt), isNotNull(authUser.claimedAt)))
+    .limit(1);
+  return rows.length > 0;
+}
+
+/**
+ * Whether the account is disabled. The claim is deliberately not read here, so a claim still
+ * in progress is not mistaken for a disabled account.
+ */
+export async function isAccountDisabled(exec: Executor, userId: string): Promise<boolean> {
+  const rows = await exec
+    .select({ id: authUser.id })
+    .from(authUser)
+    .where(and(eq(authUser.id, userId), isNotNull(authUser.disabledAt)))
+    .limit(1);
+  return rows.length > 0;
 }
 
 /**
@@ -70,6 +104,14 @@ export async function clearMustChangePassword(exec: Executor, userId: string): P
     .update(authUser)
     .set({ mustChangePassword: false, updatedAt: new Date() })
     .where(eq(authUser.id, userId));
+}
+
+/**
+ * Write the claim: the person has set a password and enrolled a second factor. The create
+ * path leaves the column null, so the claim is always an act rather than a default.
+ */
+export async function markAccountClaimed(exec: Executor, userId: string, at: Date): Promise<void> {
+  await exec.update(authUser).set({ claimedAt: at, updatedAt: at }).where(eq(authUser.id, userId));
 }
 
 /** The `user.role` value of a Site administrator; an account holds nothing by default. */

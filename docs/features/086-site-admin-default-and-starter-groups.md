@@ -20,7 +20,7 @@ Green field: no data migration (spec section 1).
 
 ## Interim behaviour until later tasks land
 
-- **Claimed first administrator (until 088):** the named account must exist. 088 adds `claimedAt` and refuses an unclaimed one (criterion 93). No unclaimed account can exist before 090.
+- **Claimed first administrator (until 088):** the named account must exist. 088 adds `claimedAt` and refuses an unclaimed one (criterion 93). The column carries no default, so only a create path that writes no claim produces an unclaimed account, which 090 adds.
 
 ## Exit criteria
 

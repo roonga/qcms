@@ -37,6 +37,7 @@ export {
   CONTROL_READ_TABLES_GUARDED_ON_EXISTENCE,
   DATA_PLANE_ENUM_TYPES,
   grantAccessAuditStatements,
+  grantSiteAuditStatements,
   environmentObjectNames,
   workspaceReportingStatements,
   type EnvironmentObjectNames,

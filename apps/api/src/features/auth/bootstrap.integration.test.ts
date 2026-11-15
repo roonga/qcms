@@ -11,7 +11,7 @@ import {
   starterGroups,
 } from "@roonga/qcms-db";
 import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { validEnv } from "../../test-support.js";
@@ -59,6 +59,32 @@ describe("createInitialAdmin against an empty database", () => {
     expect(await countAdminUsers(testDb.db)).toBe(0);
   });
 
+  it("promotes nobody when the claim write fails, so a re-run can still recover the account", async () => {
+    const stranded = "atomic.admin@example.test";
+    // A real mid-sequence failure: the database admits the promotion and refuses the claim,
+    // which is the order the two writes happen in.
+    await testDb.db.execute(
+      sql`alter table control."user" add constraint refuse_claim check ("claimedAt" is null)`,
+    );
+    try {
+      const refused = await createInitialAdmin(auth, testDb.db, {
+        email: stranded,
+        password: PASSWORD,
+      });
+      expect(refused.ok === false && refused.refusal.kind).toBe("promotion-failed");
+      const [account] = await testDb.db.select().from(authUser);
+      expect(account?.email).toBe(stranded);
+      expect(account?.role ?? null).toBeNull();
+      expect(account?.claimedAt ?? null).toBeNull();
+      expect(await countSiteAdministrators(testDb.db)).toBe(0);
+    } finally {
+      await testDb.db.execute(sql`alter table control."user" drop constraint refuse_claim`);
+      // Every case below starts from an empty database, as a first run does.
+      await testDb.db.delete(authUser).where(eq(authUser.email, stranded));
+    }
+    expect(await countAdminUsers(testDb.db)).toBe(0);
+  });
+
   it("creates the first admin, leaves no session behind, and that admin can sign in", async () => {
     const created = await createInitialAdmin(auth, testDb.db, {
       email: EMAIL,
@@ -73,6 +99,8 @@ describe("createInitialAdmin against an empty database", () => {
     expect(row?.email).toBe(EMAIL);
     expect(row?.role).toBe("admin");
     expect(row?.twoFactorEnabled ?? false).toBe(false);
+    // The bootstrap is the claim: the command sets the password it hands over.
+    expect(row?.claimedAt).toBeInstanceOf(Date);
 
     // `signUpEmail` issues a session, which the CLI revokes: a command line has no browser.
     const sessions = await auth.api.listSessions({ headers: new Headers() }).catch(() => []);
@@ -146,6 +174,8 @@ describe("createInitialAdmin against an empty database", () => {
     const userId = signedUp.user.id;
     const [row] = await testDb.db.select().from(authUser).where(eq(authUser.id, userId));
     expect(row?.role ?? null).toBeNull();
+    // No column default, so a create path that writes no claim leaves the account unclaimed.
+    expect(row?.claimedAt ?? null).toBeNull();
 
     for (const workspace of await listWorkspaces(testDb.db)) {
       const membership = await resolveMembership(testDb.db, userId, workspace.id);
@@ -206,6 +236,7 @@ describe("createInitialAdmin re-run after a first run that never promoted its ac
 
     const [account] = await recoveryDb.db.select().from(authUser);
     expect(account?.role).toBe("admin");
+    expect(account?.claimedAt).toBeInstanceOf(Date);
     const [workspace] = await listWorkspaces(recoveryDb.db);
     const membership = await resolveMembership(
       recoveryDb.db,

@@ -33,7 +33,13 @@ import type { Deps } from "../../../deps.js";
 import { FLAG_REASONS, FlagReason } from "../flag-reasons.js";
 import { registerGrantCheck } from "../../membership/middleware.js";
 import { ADMIN_SESSION_HEADER, registerAdminAuth } from "../../../middleware/admin-auth.js";
-import { internalTokenFor, makeDeps, seedAdminSession, validEnv } from "../../../test-support.js";
+import {
+  disableSeededAccount,
+  internalTokenFor,
+  makeDeps,
+  seedAdminSession,
+  validEnv,
+} from "../../../test-support.js";
 import { registerAdminResponses } from "./route.js";
 
 const ADMIN_ONLY = { public: false, internal: false, admin: true } as const;
@@ -491,6 +497,79 @@ describe("large export streams without buffering the whole table (exit criterion
     expect(dataRows).toBe(10001);
     expect(chunks).toBeGreaterThan(1);
     expect(maxChunkBytes * 4).toBeLessThan(totalBytes);
+  }, 60_000);
+});
+
+describe("a running export stops when its account is disabled (criterion 67)", () => {
+  /** Enough rows that every format pulls several pages, so a page follows the disable. */
+  async function bulkSubmitted(formId: FormId, prefix: string, questionId: string): Promise<void> {
+    await testDb.client.query(
+      `insert into sessions (session_id, form_id, form_version, access_mode, environment, status, expires_at, created_at)
+       select $2::text || lpad(g::text, 6, '0'), $1, 1, 'anonymous', 'prod', 'submitted', now() + interval '1 day', now()
+       from generate_series(1, 2600) g`,
+      [formId, prefix],
+    );
+    await testDb.client.query(
+      `insert into submissions (session_id, content_hash, locked_answers, submitted_at)
+       select $1::text || lpad(g::text, 6, '0'), repeat('0', 64),
+              jsonb_build_object('answers',
+                jsonb_build_array(jsonb_build_object('questionId', $2::text, 'value', 'v' || g::text))),
+              now()
+       from generate_series(1, 2600) g`,
+      [prefix, questionId],
+    );
+  }
+
+  /** Each case exports as its own account, so disabling one leaves the others alone. */
+  async function stopsMidBody(path: string, label: string): Promise<void> {
+    const exporter = await seedAdminSession(testDb.db, { label });
+    const res = await app.request(`/admin${path}`, {
+      headers: {
+        "x-qcms-internal-token": internalToken,
+        [ADMIN_SESSION_HEADER]: exporter.token,
+      },
+    });
+    expect(res.status).toBe(200);
+
+    const reader = res.body!.getReader();
+    await reader.read();
+    await disableSeededAccount(testDb.db, exporter.userId, new Date());
+
+    let stopped = false;
+    let completed = false;
+    try {
+      for (let read = 0; read < 40; read += 1) {
+        const { done } = await reader.read();
+        if (done) {
+          completed = true;
+          break;
+        }
+      }
+    } catch {
+      stopped = true;
+    }
+    expect(completed).toBe(false);
+    expect(stopped).toBe(true);
+  }
+
+  beforeAll(async () => {
+    await seedForm("frm_disable_export", [["stp_a", ["q_t"]]]);
+    await bulkSubmitted(FormId.parse("frm_disable_export"), "ses_off_", "q_t");
+    // A repeating group, which is what makes the export a zip of several entries.
+    await seedRepeatForm("frm_disable_zip", [2]);
+    await bulkSubmitted(FormId.parse("frm_disable_zip"), "ses_zip_", "q_booking_ref");
+  }, CONTAINER_BOOT_TIMEOUT_MS);
+
+  it("errors the CSV stream mid-body rather than finishing the file", async () => {
+    await stopsMidBody("/forms/frm_disable_export/export?format=csv&version=1", "exporter-csv");
+  }, 60_000);
+
+  it("errors the JSON stream mid-body rather than finishing the file", async () => {
+    await stopsMidBody("/forms/frm_disable_export/export?format=json", "exporter-json");
+  }, 60_000);
+
+  it("errors the zip stream mid-entry rather than finishing the archive", async () => {
+    await stopsMidBody("/forms/frm_disable_zip/export?format=csv&version=1", "exporter-zip");
   }, 60_000);
 });
 

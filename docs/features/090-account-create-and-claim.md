@@ -12,7 +12,9 @@ A Site administrator creates an account by address; the server emails a single-u
 - Site administrator routes: list and search accounts (paged; role and status filters), create, resend (invalidates the prior link).
 - `control.sign_in_links`: hash only, expiry at 72 hours, used flag, delivery status.
 - Create is refused while mail is not configured; the first account (`qcms:create-admin`) is exempt.
+- Create leaves `user.claimedAt` null. The column carries no default, so an account holds nothing until the claim writes it (088).
 - Claim forces password set and second-factor enrolment before any other act, reusing the forced screens.
+- Close 088's one remaining gap: 088's mount check judges an account by the request's session, and the pending-second-factor state carries none, so an unclaimed account still reaches `two-factor/verify-backup-code` and is minted a session that holds nothing on `/admin`.
 - Grants while unclaimed are audited.
 - The generic add-member answer from 084 extended to disabled and unclaimed accounts.
 - Create, resend and claim audited in the site audit.
