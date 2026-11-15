@@ -127,14 +127,18 @@ async function liveSessionTokenFor(userId: string): Promise<string> {
   return newest;
 }
 
-/** Drive the claim to completion: the password, then the factor that finishes it. */
+/**
+ * Drive the claim to completion: the password, then the factor that finishes it. The
+ * cookie is carried forward step by step, because verifying the factor replaces the
+ * session the claim minted.
+ */
 async function finishClaim(
   token: string,
   password: string,
 ): Promise<{ cookie: string; backupCodes: readonly string[] }> {
   const claimed = await authPost("/claim", { token, password });
   expect(claimed.status, await claimed.clone().text()).toBe(200);
-  const cookie = cookieHeader(claimed);
+  let cookie = cookieHeader(claimed);
 
   const enabled = await authPost("/two-factor/enable", { password }, cookie);
   expect(enabled.status, await enabled.clone().text()).toBe(200);
@@ -142,14 +146,12 @@ async function finishClaim(
     totpURI: string;
     backupCodes: string[];
   };
+  cookie = cookieHeader(enabled) === "" ? cookie : cookieHeader(enabled);
+
   const secret = new URL(totpURI).searchParams.get("secret") ?? "";
-  const verified = await authPost(
-    "/two-factor/verify-totp",
-    { code: await generate({ secret }) },
-    cookieHeader(enabled) === "" ? cookie : cookieHeader(enabled),
-  );
+  const verified = await authPost("/two-factor/verify-totp", { code: await generate({ secret }) }, cookie);
   expect(verified.status, await verified.clone().text()).toBe(200);
-  return { cookie, backupCodes };
+  return { cookie: cookieHeader(verified) === "" ? cookie : cookieHeader(verified), backupCodes };
 }
 
 async function accountRow(userId: string): Promise<typeof authUser.$inferSelect> {
@@ -173,12 +175,11 @@ beforeAll(async () => {
     mailer: recordingMailer,
   });
   app = createApp(deps, ALL, { groups: appGroups });
+  // The same environment with the relay removed, so the two compositions share this
+  // suite's internal token and auth secret and differ only in whether mail is configured.
+  const withoutRelay = { ...env, QCMS_SMTP_HOST: undefined, QCMS_SMTP_FROM: undefined };
   mailless = createApp(
-    makeDeps({
-      db: testDb.db,
-      env: validEnv({ DATABASE_URL: testDb.connectionUri }),
-      clock: { now: () => new Date() },
-    }),
+    makeDeps({ db: testDb.db, env: withoutRelay, clock: { now: () => new Date() } }),
     ALL,
     { groups: appGroups },
   );
