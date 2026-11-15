@@ -52,7 +52,7 @@ async function releaseVersion(
 ): Promise<void> {
   await openPublishWizard(page, formId);
   await chooseSource(page, "An existing version");
-  await chooseOption(page.getByTestId("qcms-publish-source"), "Version to release", "v1");
+  await chooseOption(page.getByTestId("qcms-publish-source"), "Version to publish", "v1");
   await page.getByRole("button", { name: "Continue", exact: true }).click();
   const destinations = page.getByTestId("qcms-publish-destinations");
   await expect(destinations).toBeVisible();
@@ -62,7 +62,7 @@ async function releaseVersion(
   await page.getByRole("button", { name: "Confirm", exact: true }).click();
   const result = page.getByTestId("qcms-publish-result");
   await expect(result).toBeVisible({ timeout: 30_000 });
-  await expect(result).toContainText("Version 1 is released.");
+  await expect(result).toContainText("Version 1 is live.");
   await expect(result.locator(`li[data-environment="${environment}"]`)).toBeVisible();
 }
 

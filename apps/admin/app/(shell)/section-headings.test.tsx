@@ -94,7 +94,7 @@ describe("the header's availability line", () => {
   it.each([
     ["open", "Open"],
     ["closed", "Closed"],
-    ["unreleased", "Not Released"],
+    ["unreleased", "Not live"],
   ] as const)("labels %s as Availability, reading '%s'", (status, reading) => {
     const markup = renderToStaticMarkup(
       <FormPageHeader formId="frm_alpha" section="versions" status={status} />,

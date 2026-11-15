@@ -4,6 +4,7 @@ import {
   type ReleaseReview,
 } from "../forms/release-candidate.ts";
 import { parseReleases, type ReleaseRecord } from "../forms/releases.ts";
+import { t } from "../i18n/en.ts";
 
 import { proposalHeaders, type AgentProposalRef } from "./agent-proposal.ts";
 import { adminApiFetch } from "./api.ts";
@@ -109,6 +110,7 @@ export async function releaseBatch(
   session: AdminSession,
   formId: string,
   request: BatchRequest & { readonly version: number },
+  proposal?: AgentProposalRef,
 ): Promise<ApiResult<BatchOutcome>> {
   return readBatch(
     await readResult(
@@ -120,19 +122,20 @@ export async function releaseBatch(
           source: { kind: "version", version: request.version },
           targets: request.targets,
         },
+        headers: proposalHeaders(proposal),
       }),
     ),
   );
 }
 
-/** Empty targets freezes without releasing. This permits a first version when production requires a releaser distinct from its publisher. */
+/** The route accepts no destination, which freezes alone; the wizard always names at least one. */
 export async function publishBatch(
   session: AdminSession,
   formId: string,
   request: BatchRequest & { readonly draftRevision: number },
   proposal?: AgentProposalRef,
 ): Promise<ApiResult<BatchOutcome>> {
-  return readBatch(
+  const result = readBatch(
     await readResult(
       await adminApiFetch(session, `/forms/${encodeURIComponent(formId)}/publish-batch`, {
         method: "POST",
@@ -146,6 +149,11 @@ export async function publishBatch(
       }),
     ),
   );
+  // Only a draft reaches this route, so the catalog's frozen-version refusal is false here.
+  if (!result.ok && result.code === "APPROVER_IS_AUTHOR") {
+    return { ...result, message: t("forms.publish.blocked.draftSecondApproval") };
+  }
+  return result;
 }
 
 /** A 404 means this key never committed and may be resent; it never calls for creating another version. */

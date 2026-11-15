@@ -26,6 +26,7 @@ const TEST_ONLY: ReleaseReview = {
   source: { kind: "draft", draftRevision: 7 },
   workflowRevision: null,
   workflowSource: "default",
+  productionFloor: true,
   targets: [
     {
       environment: "test",
@@ -143,6 +144,34 @@ describe("the review step of a draft publish", () => {
   });
 });
 
+describe("the destinations step of a draft publish", () => {
+  it("offers no way to freeze a draft without making it live", async () => {
+    const user = userEvent.setup();
+    render(
+      <PublishWizard
+        formId="frm_intake"
+        versions={[]}
+        hasDraft
+        canPublishDraft
+        draft={DRAFT}
+        review={() => Promise.resolve({ ok: true, data: TEST_ONLY })}
+        confirm={() => Promise.resolve({ status: "idle" })}
+        lookup={() => Promise.resolve({ status: "idle" })}
+        secureCookies={false}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: t("forms.publish.next") }));
+    await screen.findByTestId("qcms-publish-destinations");
+
+    expect(screen.queryByTestId("qcms-publish-only")).toBeNull();
+    expect(screen.getByText(t("forms.publish.destinations.pickOne"))).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: t("forms.publish.next") }).hasAttribute("disabled"),
+    ).toBe(true);
+  });
+});
+
 describe("the recorded outcome's way into Operations", () => {
   it("makes the environment selection, then opens Operations on it", async () => {
     push.mockClear();
@@ -190,6 +219,7 @@ describe("a promotion's recorded source", () => {
               source: { kind: "version", version: 1, publishedBy: null },
               workflowRevision: null,
               workflowSource: "default",
+              productionFloor: true,
               targets: [
                 {
                   environment: "prod",

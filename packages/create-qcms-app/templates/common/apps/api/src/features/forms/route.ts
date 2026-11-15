@@ -221,8 +221,8 @@ export const publishAndReleaseFormRoute = createRoute({
     "The combined action finding 2 accepted: one intent is one act. It publishes a real, " +
     "immutable version and keeps it - there is no draft-level release and nothing skips " +
     "publishing - and the publish, the release record and the `form.released` event share " +
-    "one transaction, so it happens atomically or not at all. When test and prod are served, " +
-    "publish to test and promote the existing version; direct combined publication to prod is refused.",
+    "one transaction, so it happens atomically or not at all. Where a non-prod environment " +
+    "is served, a draft is never published straight to prod, whatever the workflow says.",
   tags,
   request: { params: FormIdParam, body: jsonBody(PublishAndReleaseBody) },
   responses: {
@@ -248,6 +248,7 @@ export const publishBatchRoute = createRoute({
     "naming only that environment. `source.draftRevision` is the revision the review " +
     "reported: a save that landed in between is refused and nothing is written. The " +
     "workflow decides whether a destination accepts a version frozen in the same act, " +
+    "under a fixed floor: where a non-prod environment is served, prod never does, " +
     "and the two-person rule still refuses a gated production destination whose " +
     "publisher is this account, which is why that case stays two requests by two " +
     "accounts. `idempotencyKey` replays the stored result on reuse and is refused with " +

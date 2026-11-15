@@ -116,6 +116,10 @@ export const ReleaseReviewResponse = z
     // "default"` and today's derived behaviour.
     workflowRevision: z.number().int().nullable(),
     workflowSource: z.enum(["default", "configured"]),
+    // True where `prod` is served beside a non-prod environment. Reported separately
+    // because a caller holding `release: create` in `prod` alone is served one target
+    // either way, while the refusal a draft meets differs between the two deployments.
+    productionFloor: z.boolean(),
     // One entry per environment the caller holds `release: create` in, and no others.
     targets: z.array(
       z.object({

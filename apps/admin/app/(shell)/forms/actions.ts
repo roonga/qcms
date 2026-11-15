@@ -398,12 +398,17 @@ export async function confirmPublishAction(
           },
           proposal,
         )
-      : await releaseBatch(session, formId, {
-          idempotencyKey: request.idempotencyKey,
-          expectedWorkflowRevision: request.expectedWorkflowRevision,
-          version: request.source.version,
-          targets: request.targets,
-        });
+      : await releaseBatch(
+          session,
+          formId,
+          {
+            idempotencyKey: request.idempotencyKey,
+            expectedWorkflowRevision: request.expectedWorkflowRevision,
+            version: request.source.version,
+            targets: request.targets,
+          },
+          proposal,
+        );
   if (!result.ok) return refusedPublish(result);
   return committedPublish(formId, result.data);
 }

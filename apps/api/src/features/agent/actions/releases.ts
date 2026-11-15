@@ -20,7 +20,7 @@ const PublishArgs = z.strictObject({
     .string()
     .min(1)
     .max(53)
-    .describe("The one environment the newly frozen version is released into."),
+    .describe("The one environment the newly frozen version goes live in."),
 });
 
 function bodyMember(facts: ActionRequestFacts, name: string): unknown {
@@ -30,15 +30,23 @@ function bodyMember(facts: ActionRequestFacts, name: string): unknown {
 }
 
 /**
- * The destination the batch body names, which is the environment the step is verified
- * against. A body naming none or several is refused by the provenance check, so this
- * reads the one and reports nothing for any other shape.
+ * One member of the destination a batch body names, which is the environment the step is
+ * verified against. A body naming none or several is refused by the provenance check, so
+ * this reads the one and reports nothing for any other shape.
  */
-function soleTarget(facts: ActionRequestFacts): unknown {
+function soleTargetMember(facts: ActionRequestFacts, name: string): unknown {
   const targets = bodyMember(facts, "targets");
   if (!Array.isArray(targets) || targets.length !== 1) return undefined;
-  const target = targets[0] as { environment?: unknown } | undefined;
-  return target?.environment;
+  const target = targets[0] as Record<string, unknown> | undefined;
+  return target?.[name];
+}
+
+/** The version a `release-batch` body publishes, which lives under its source. */
+function sourceVersion(facts: ActionRequestFacts): unknown {
+  const source = bodyMember(facts, "source");
+  return typeof source === "object" && source !== null
+    ? (source as Record<string, unknown>)["version"]
+    : undefined;
 }
 
 export const publishForm: ActionKindDef = {
@@ -58,7 +66,7 @@ export const publishForm: ActionKindDef = {
   args: PublishArgs,
   recomputeArgs: (facts) => ({
     formId: facts.params.id ?? "",
-    environment: soleTarget(facts),
+    environment: soleTargetMember(facts, "environment"),
   }),
   references: ["version"],
   resultAllowlist: ["version", "environment"],
@@ -68,26 +76,30 @@ export const publishForm: ActionKindDef = {
     headingControl: "builder.publish",
   },
   description:
-    "Freeze the form's working draft as a new immutable version and release that version " +
-    "into one environment, in one act. The release workflow, the two-person rule and the " +
-    "production approval apply exactly as they do on the screen.",
+    "Publish the form's working draft to one environment: freeze it as the next version and " +
+    "make that version live there, in one act. Needs Edit forms and Publish forms for that " +
+    "environment. Where a non-prod environment exists a draft is never published straight " +
+    "to prod. The workflow and second approval apply exactly as they do on the screen.",
 };
 
 export const releaseVersion: ActionKindDef = {
   kind: "form.release",
   screen: "/forms/[formId]/publish",
-  route: { method: "POST", path: "/admin/forms/{id}/releases" },
+  // The wizard's own route, so the card is refused on a stale confirmation exactly as the
+  // wizard is: the batch body carries `expectedWorkflowRevision` and each destination's
+  // `expectedSequence`, and the legacy single release carries neither.
+  route: { method: "POST", path: "/admin/forms/{id}/release-batch" },
   cell: { resource: "release", action: "create" },
   environmentFrom: "argument",
   environmentArgument: "environment",
   args: ReleaseArgs,
   recomputeArgs: (facts) => ({
     formId: facts.params.id ?? "",
-    version: bodyMember(facts, "version"),
-    environment: bodyMember(facts, "environment"),
-    ...(bodyMember(facts, "fromEnvironment") === undefined
+    version: sourceVersion(facts),
+    environment: soleTargetMember(facts, "environment"),
+    ...(soleTargetMember(facts, "fromEnvironment") === undefined
       ? {}
-      : { fromEnvironment: bodyMember(facts, "fromEnvironment") }),
+      : { fromEnvironment: soleTargetMember(facts, "fromEnvironment") }),
   }),
   // The version alone: that is what this step's audit row records, and a reference
   // resolves against the row rather than against anything the browser says.
@@ -99,6 +111,9 @@ export const releaseVersion: ActionKindDef = {
     headingControl: "releases.release",
   },
   description:
-    "Release, promote or roll back a published version to one environment. The two-person " +
-    "rule and the production approval apply exactly as they do on the screen.",
+    "Publish an existing version to one environment, including an earlier one (rollback). " +
+    "Nothing is frozen. Prod accepts only a version already live in a non-prod environment, " +
+    "where one exists. The workflow revision, the destination's release state and second " +
+    "approval are all rechecked at confirmation, so a stale review is refused and writes " +
+    "nothing, exactly as on the screen.",
 };

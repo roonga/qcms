@@ -120,7 +120,7 @@ describe("rule 2: every step and every argument, in run order, in full", () => {
     renderCard(plan, initialCard(plan));
     const rows = screen.getAllByRole("listitem");
     expect(rows).toHaveLength(2);
-    expect(rows[0]?.textContent).toContain("1. Release version 3 of frm_quote to prod");
+    expect(rows[0]?.textContent).toContain("1. Publish version 3 of frm_quote to prod");
     expect(rows[1]?.textContent).toContain("2. Mint 20 respondent links for frm_quote");
   });
 
