@@ -1775,6 +1775,52 @@ describe("a group stays inside its workspace (criteria 23 and 25)", () => {
   });
 });
 
+describe("a revoke takes effect on the next request (criterion 89)", () => {
+  it("adds and drops the workspace from the caller's own list with no restart between", async () => {
+    const elsewhere = await createWorkspace("No cache", "no-cache-revoke");
+    const subject = await seedAdminSession(testDb.db, {
+      label: "nocache",
+      claim: false,
+      owner: false,
+      grants: ["forms.viewer"],
+    });
+    const group = await send("POST", `/workspaces/${elsewhere}/access-groups`, {
+      name: "Readers",
+      roles: ["forms.viewer"],
+      environments: [],
+    });
+    const teamId = ((await group.json()) as GroupBody).group.teamId;
+
+    const held = async (): Promise<readonly string[]> => {
+      const res = await as(subject.token, "GET", "/workspaces");
+      expect(res.status, await res.clone().text()).toBe(200);
+      return ((await res.json()) as { workspaces: { workspaceId: string }[] }).workspaces.map(
+        (workspace) => workspace.workspaceId,
+      );
+    };
+
+    expect(await held()).not.toContain(elsewhere);
+    expect(
+      (
+        await send("POST", `/workspaces/${elsewhere}/access-groups/${teamId}/holders`, {
+          userId: subject.userId,
+        })
+      ).status,
+    ).toBe(201);
+    expect(await held()).toContain(elsewhere);
+
+    expect(
+      (
+        await send(
+          "DELETE",
+          `/workspaces/${elsewhere}/access-groups/${teamId}/holders/${subject.userId}`,
+        )
+      ).status,
+    ).toBe(204);
+    expect(await held()).not.toContain(elsewhere);
+  });
+});
+
 describe("every group act writes one `group` row (section 11)", () => {
   it("records a create, a rename, a change of roles and environments, and a delete", async () => {
     const workspaceId = await createWorkspace("Group audit", "group-audit");
