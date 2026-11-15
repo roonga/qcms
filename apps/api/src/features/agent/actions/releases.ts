@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { ACTION_DESCRIPTIONS } from "../prompts/prompts.generated.js";
 import type { ActionKindDef, ActionRequestFacts } from "./types.js";
 
 /**
@@ -75,11 +76,7 @@ export const publishForm: ActionKindDef = {
     consequenceKeys: ["agent.card.form.publish.consequence", "agent.card.environment.production"],
     headingControl: "builder.publish",
   },
-  description:
-    "Publish the form's working draft to one environment: freeze it as the next version and " +
-    "make that version live there, in one act. Needs Edit forms and Publish forms for that " +
-    "environment. Where a non-prod environment exists a draft is never published straight " +
-    "to prod. The workflow and second approval apply exactly as they do on the screen.",
+  description: ACTION_DESCRIPTIONS["form.publish"],
 };
 
 export const releaseVersion: ActionKindDef = {
@@ -110,10 +107,5 @@ export const releaseVersion: ActionKindDef = {
     consequenceKeys: ["agent.card.form.release.consequence", "agent.card.environment.production"],
     headingControl: "releases.release",
   },
-  description:
-    "Publish an existing version to one environment, including an earlier one (rollback). " +
-    "Nothing is frozen. Prod accepts only a version already live in a non-prod environment, " +
-    "where one exists. The workflow revision, the destination's release state and second " +
-    "approval are all rechecked at confirmation, so a stale review is refused and writes " +
-    "nothing, exactly as on the screen.",
+  description: ACTION_DESCRIPTIONS["form.release"],
 };

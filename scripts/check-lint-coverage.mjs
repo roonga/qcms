@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Two byte-for-byte copy trees are the only source exclusions, and each is named below
- * with its reason and with what covers it instead.
+ * Two byte-for-byte copy trees are the only source exclusions, and the assistant's prompt
+ * text the only Markdown one. Each is named below with its reason and with what covers it.
  */
 
 import { execFileSync } from "node:child_process";
@@ -16,6 +16,7 @@ import { getFileInfo } from "prettier";
 
 import { VALUE_FLAGS, WORKSPACE_RUNNER } from "./eslint-workspace.mjs";
 import { isGeneratedCopy } from "./generated-copy.mjs";
+import { isPromptSource } from "./prompt-sources.mjs";
 import { isVendoredSource } from "./vendored-source.mjs";
 
 const SOURCE_GLOBS = ["*.ts", "*.tsx", "*.mts", "*.cts", "*.js", "*.jsx", "*.mjs", "*.cjs"];
@@ -58,6 +59,12 @@ export { isVendoredSource };
  * at the source. Folding them together would tell four other gates to stop scanning.
  */
 export { isGeneratedCopy };
+
+/**
+ * Markdown read as bytes rather than prose: the only Prettier exemption, re-exported for
+ * the same reason as the two above.
+ */
+export { isPromptSource };
 
 /** @returns {string[]} */
 export function trackedManifests() {
@@ -199,6 +206,7 @@ export function uncovered(source, scope) {
 export async function uncoveredMarkdown(files, repoRoot) {
   const violations = [];
   for (const file of files) {
+    if (isPromptSource(file)) continue;
     const info = await getFileInfo(path.join(repoRoot, file), {
       ignorePath: path.join(repoRoot, ".prettierignore"),
     });
@@ -227,6 +235,7 @@ export async function main() {
   const lintableSource = ignoredChecks.filter(({ ignored }) => !ignored).map(({ file }) => file);
   const violations = uncovered(lintableSource, scope);
   const markdownViolations = await uncoveredMarkdown(markdown, repoRoot);
+  const promptSources = markdown.filter((file) => isPromptSource(file));
 
   if (
     scope.missing.length === 0 &&
@@ -238,7 +247,8 @@ export async function main() {
     console.log(
       `check-lint-coverage: OK - ${String(lintableSource.length)} source files reached by ESLint; ` +
         `${String(vendored.length)} copied source files explicitly excluded; ` +
-        `${String(markdown.length)} Markdown files reached by Prettier; ` +
+        `${String(markdown.length - promptSources.length)} Markdown files reached by Prettier; ` +
+        `${String(promptSources.length)} prompt sources read as bytes instead; ` +
         "0 unexplained exemptions.",
     );
     return 0;

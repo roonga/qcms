@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { ACTION_DESCRIPTIONS } from "../prompts/prompts.generated.js";
 import type { ActionKindDef, ActionRequestFacts } from "./types.js";
 
 /** D3's two kinds. A minted URL is a bearer credential and reaches the user only. */
@@ -49,9 +50,7 @@ export const mintLinks: ActionKindDef = {
     consequenceKeys: ["agent.card.link.mint.consequence"],
     headingControl: "links.mint",
   },
-  description:
-    "Mint one-time or reusable respondent links in the current environment. The URLs are " +
-    "shown to the user once and are never returned to you.",
+  description: ACTION_DESCRIPTIONS["link.mint"],
 };
 
 export const revokeLink: ActionKindDef = {
@@ -71,5 +70,5 @@ export const revokeLink: ActionKindDef = {
     titleKey: "agent.card.link.revoke.title",
     consequenceKeys: ["agent.card.link.revoke.consequence"],
   },
-  description: "Revoke one respondent link in the current environment.",
+  description: ACTION_DESCRIPTIONS["link.revoke"],
 };

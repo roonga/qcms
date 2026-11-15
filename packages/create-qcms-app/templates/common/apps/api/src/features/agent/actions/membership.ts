@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { ACTION_DESCRIPTIONS } from "../prompts/prompts.generated.js";
 import type { ActionKindDef, ActionRequestFacts } from "./types.js";
 
 /**
@@ -90,9 +91,7 @@ export const createAccessGroup: ActionKindDef = {
     consequenceKeys: ["agent.card.access.groupCreate.consequence"],
     headingControl: "membership.groupCreate",
   },
-  description:
-    "Create an access group in a workspace. The group grants nobody anything until " +
-    "somebody holds it, so creating one changes no access by itself.",
+  description: ACTION_DESCRIPTIONS["access.groupCreate"],
 };
 
 export const removeAccessGroup: ActionKindDef = {
@@ -113,9 +112,7 @@ export const removeAccessGroup: ActionKindDef = {
     consequenceKeys: ["agent.card.access.groupRemove.consequence"],
     headingControl: "membership.groupRemove",
   },
-  description:
-    "Remove an access group and every grant it carried. Each holder loses that access at " +
-    "once, and one revoke row is written for each.",
+  description: ACTION_DESCRIPTIONS["access.groupRemove"],
 };
 
 export const grantAccessGroup: ActionKindDef = {
@@ -137,9 +134,7 @@ export const grantAccessGroup: ActionKindDef = {
     consequenceKeys: ["agent.card.access.grant.consequence"],
     headingControl: "membership.grant",
   },
-  description:
-    "Grant an access group to one person, by address. A self-grant of a response role is " +
-    "refused while the workspace requires a second approver.",
+  description: ACTION_DESCRIPTIONS["access.grant"],
 };
 
 export const revokeAccessGroup: ActionKindDef = {
@@ -161,7 +156,7 @@ export const revokeAccessGroup: ActionKindDef = {
     consequenceKeys: ["agent.card.access.revoke.consequence"],
     headingControl: "membership.revoke",
   },
-  description: "Revoke one person's hold on an access group. Every other holder keeps theirs.",
+  description: ACTION_DESCRIPTIONS["access.revoke"],
 };
 
 export const setMemberRole: ActionKindDef = {
@@ -183,9 +178,7 @@ export const setMemberRole: ActionKindDef = {
     consequenceKeys: ["agent.card.member.role.consequence"],
     headingControl: "membership.memberRole",
   },
-  description:
-    "Make a member an owner of the workspace, or take ownership away. Removing the last " +
-    "owner is refused.",
+  description: ACTION_DESCRIPTIONS["member.role"],
 };
 
 export const saveWorkspaceSettings: ActionKindDef = {
@@ -206,7 +199,5 @@ export const saveWorkspaceSettings: ActionKindDef = {
     consequenceKeys: ["agent.card.workspace.settings.consequence"],
     headingControl: "membership.workspaceSettings",
   },
-  description:
-    "Change the workspace's second-approver switch: whether a production release and a " +
-    "response self-grant need a second account.",
+  description: ACTION_DESCRIPTIONS["workspace.settings"],
 };

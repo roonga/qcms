@@ -93,12 +93,12 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (618 files common to both shapes)
+### Scaffolded paths (701 files common to both shapes)
 
 | Path                                                                            | Files |
 | ------------------------------------------------------------------------------- | ----- |
 | `(project root)`                                                                | 8     |
-| `apps/`                                                                         | 607   |
+| `apps/`                                                                         | 690   |
 | `apps/admin/`                                                                   | 390   |
 | `apps/admin/app/`                                                               | 104   |
 | `apps/admin/app/(shell)/`                                                       | 80    |
@@ -212,12 +212,16 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/lib/questions/`                                                     | 9     |
 | `apps/admin/lib/server/`                                                        | 32    |
 | `apps/admin/lib/shell/`                                                         | 7     |
-| `apps/api/`                                                                     | 143   |
-| `apps/api/src/`                                                                 | 140   |
-| `apps/api/src/features/`                                                        | 108   |
-| `apps/api/src/features/agent/`                                                  | 35    |
+| `apps/api/`                                                                     | 226   |
+| `apps/api/src/`                                                                 | 223   |
+| `apps/api/src/features/`                                                        | 191   |
+| `apps/api/src/features/agent/`                                                  | 118   |
 | `apps/api/src/features/agent/actions/`                                          | 10    |
 | `apps/api/src/features/agent/contexts/`                                         | 5     |
+| `apps/api/src/features/agent/prompts/`                                          | 83    |
+| `apps/api/src/features/agent/prompts/actions/`                                  | 30    |
+| `apps/api/src/features/agent/prompts/system/`                                   | 26    |
+| `apps/api/src/features/agent/prompts/tools/`                                    | 26    |
 | `apps/api/src/features/agent/tools/`                                            | 5     |
 | `apps/api/src/features/auth/`                                                   | 6     |
 | `apps/api/src/features/email/`                                                  | 3     |
@@ -298,7 +302,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (618)</summary>
+<summary>Every scaffolded file (701)</summary>
 
 ```
 .dockerignore
@@ -725,6 +729,89 @@ apps/api/src/features/agent/draft-pins.ts
 apps/api/src/features/agent/fake-model.ts
 apps/api/src/features/agent/grant-filter.ts
 apps/api/src/features/agent/handler.ts
+apps/api/src/features/agent/prompts/actions/access.grant.md
+apps/api/src/features/agent/prompts/actions/access.groupCreate.md
+apps/api/src/features/agent/prompts/actions/access.groupRemove.md
+apps/api/src/features/agent/prompts/actions/access.revoke.md
+apps/api/src/features/agent/prompts/actions/apply-draft.md
+apps/api/src/features/agent/prompts/actions/form.close.md
+apps/api/src/features/agent/prompts/actions/form.create.md
+apps/api/src/features/agent/prompts/actions/form.publish.md
+apps/api/src/features/agent/prompts/actions/form.release.md
+apps/api/src/features/agent/prompts/actions/form.reopen.md
+apps/api/src/features/agent/prompts/actions/form.saveDraft.md
+apps/api/src/features/agent/prompts/actions/form.settings.md
+apps/api/src/features/agent/prompts/actions/link.mint.md
+apps/api/src/features/agent/prompts/actions/link.revoke.md
+apps/api/src/features/agent/prompts/actions/member.role.md
+apps/api/src/features/agent/prompts/actions/question.create.md
+apps/api/src/features/agent/prompts/actions/question.deprecate.md
+apps/api/src/features/agent/prompts/actions/question.newVersion.md
+apps/api/src/features/agent/prompts/actions/question.publish.md
+apps/api/src/features/agent/prompts/actions/question.saveDraft.md
+apps/api/src/features/agent/prompts/actions/response.erase.md
+apps/api/src/features/agent/prompts/actions/response.export.md
+apps/api/src/features/agent/prompts/actions/response.unflag.md
+apps/api/src/features/agent/prompts/actions/webhook.create.md
+apps/api/src/features/agent/prompts/actions/webhook.deactivate.md
+apps/api/src/features/agent/prompts/actions/webhook.reactivate.md
+apps/api/src/features/agent/prompts/actions/webhook.redeliver.md
+apps/api/src/features/agent/prompts/actions/webhook.retarget.md
+apps/api/src/features/agent/prompts/actions/webhook.rotate.md
+apps/api/src/features/agent/prompts/actions/workspace.settings.md
+apps/api/src/features/agent/prompts/prompts.generated.ts
+apps/api/src/features/agent/prompts/system/01-role-and-limits.md
+apps/api/src/features/agent/prompts/system/02-how-you-talk.md
+apps/api/src/features/agent/prompts/system/03-open-with-the-result.md
+apps/api/src/features/agent/prompts/system/04-look-before-proposing.md
+apps/api/src/features/agent/prompts/system/05-one-request-one-plan.md
+apps/api/src/features/agent/prompts/system/06-when-a-step-fails.md
+apps/api/src/features/agent/prompts/system/07-why-you-stopped.md
+apps/api/src/features/agent/prompts/system/08-test-links.md
+apps/api/src/features/agent/prompts/system/09-naming-the-subject.md
+apps/api/src/features/agent/prompts/system/10-nothing-exists-until-confirmed.md
+apps/api/src/features/agent/prompts/system/11-creating-a-new-form.md
+apps/api/src/features/agent/prompts/system/12-server-side-validation.md
+apps/api/src/features/agent/prompts/system/13-propose-without-asking.md
+apps/api/src/features/agent/prompts/system/14-draft-saves-replace-the-draft.md
+apps/api/src/features/agent/prompts/system/15-editing-an-existing-form.md
+apps/api/src/features/agent/prompts/system/16-blank-to-a-fillable-link.md
+apps/api/src/features/agent/prompts/system/17-a-complete-question-definition.md
+apps/api/src/features/agent/prompts/system/18-markdown-output.md
+apps/api/src/features/agent/prompts/system/19-domain-contracts.md
+apps/api/src/features/agent/prompts/system/20-question-types.md
+apps/api/src/features/agent/prompts/system/21-answer-encodings.md
+apps/api/src/features/agent/prompts/system/22-identifiers.md
+apps/api/src/features/agent/prompts/system/23-rules-dsl.md
+apps/api/src/features/agent/prompts/system/24-repeating-groups.md
+apps/api/src/features/agent/prompts/system/25-draft-shape.md
+apps/api/src/features/agent/prompts/system/26-be-concise.md
+apps/api/src/features/agent/prompts/tools/count_dead_letters.md
+apps/api/src/features/agent/prompts/tools/count_links.md
+apps/api/src/features/agent/prompts/tools/count_responses.md
+apps/api/src/features/agent/prompts/tools/delivery_status.md
+apps/api/src/features/agent/prompts/tools/diff_form_versions.md
+apps/api/src/features/agent/prompts/tools/diff_question_versions.md
+apps/api/src/features/agent/prompts/tools/list_erasures.md
+apps/api/src/features/agent/prompts/tools/list_form_versions.md
+apps/api/src/features/agent/prompts/tools/list_links.md
+apps/api/src/features/agent/prompts/tools/list_questions.md
+apps/api/src/features/agent/prompts/tools/list_releases.md
+apps/api/src/features/agent/prompts/tools/list_responses.md
+apps/api/src/features/agent/prompts/tools/list_webhooks.md
+apps/api/src/features/agent/prompts/tools/list_workspaces.md
+apps/api/src/features/agent/prompts/tools/project_draft.md
+apps/api/src/features/agent/prompts/tools/propose_action.md
+apps/api/src/features/agent/prompts/tools/propose_draft.md
+apps/api/src/features/agent/prompts/tools/propose_plan.md
+apps/api/src/features/agent/prompts/tools/propose_questions.md
+apps/api/src/features/agent/prompts/tools/read_form.md
+apps/api/src/features/agent/prompts/tools/read_question.md
+apps/api/src/features/agent/prompts/tools/read_workspace.md
+apps/api/src/features/agent/prompts/tools/search_forms.md
+apps/api/src/features/agent/prompts/tools/search_question_library.md
+apps/api/src/features/agent/prompts/tools/test_rule.md
+apps/api/src/features/agent/prompts/tools/validate_draft.md
 apps/api/src/features/agent/proposal-token.ts
 apps/api/src/features/agent/provenance-mount.ts
 apps/api/src/features/agent/provenance.ts
