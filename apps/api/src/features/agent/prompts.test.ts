@@ -141,9 +141,9 @@ describe("the assistant's prompt sources", () => {
   });
 
   it("advertises every action kind a step may name", async () => {
-    const kinds = ACTION_KIND_NAMES.map((kind) => ({
+    const kinds = Object.entries(ACTION_KINDS).map(([kind, def]) => ({
       kind,
-      description: ACTION_KINDS[kind].description,
+      description: def.description,
     }));
     await expect(`${JSON.stringify(kinds, null, 2)}\n`).toMatchFileSnapshot(
       "./prompts/rendered/action-kinds.json",
