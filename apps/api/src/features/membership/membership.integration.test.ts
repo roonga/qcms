@@ -11,6 +11,8 @@ import {
   listWorkspaceMembers,
   setRequireSecondApprover,
   writeAgentActionRow,
+  writeSiteAuditRow,
+  writeSiteAuditWithMirror,
 } from "@roonga/qcms-db";
 import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
 
@@ -23,6 +25,7 @@ import {
   makeDeps,
   seedAdminSession,
   seedGrants,
+  suspendSeededGrant,
   validEnv,
 } from "../../test-support.js";
 import { createAdminAuth, MEMBERSHIP_LIMIT } from "../auth/instance.js";
@@ -46,6 +49,7 @@ let secondOwnerId: string;
 let editorToken: string;
 let editorId: string;
 let nobodyToken: string;
+let workspaceOwnerToken: string;
 
 const registerUndecidedRoute: SliceRegistrar = (group): void => {
   // Group-relative: the admin group is mounted at `/admin`, so this serves
@@ -97,6 +101,16 @@ beforeAll(async () => {
   });
   editorToken = editor.token;
   editorId = editor.userId;
+
+  // A real Workspace administrator: the `member` row's owner role, and no installation
+  // claim, which is the caller criterion 113 is about.
+  const workspaceOwner = await seedAdminSession(testDb.db, {
+    label: "wsowner",
+    owner: true,
+    claim: false,
+    grants: ["forms.editor"],
+  });
+  workspaceOwnerToken = workspaceOwner.token;
 
   const nobody = await seedAdminSession(testDb.db, {
     label: "nobody",
@@ -1344,5 +1358,141 @@ describe("an environment added after the groups were written (criterion 14)", ()
 
     const stored = await listAccessGroups(testDb.db, workspaceId);
     expect(stored.find((group) => group.name === "Readers")?.environments).not.toContain("sandbox");
+  });
+});
+
+interface MyAccessBody {
+  workspaces: {
+    workspaceId: string;
+    memberRole: string | null;
+    grants: { name: string; roles: string[] }[];
+  }[];
+}
+
+describe("a suspended membership grants nothing (sections 7 and 10)", () => {
+  let holderToken: string;
+  let holderId: string;
+  let teamId: string;
+
+  beforeAll(async () => {
+    const holder = await seedAdminSession(testDb.db, {
+      label: "suspendable",
+      owner: false,
+      claim: false,
+      grants: ["forms.editor"],
+    });
+    holderToken = holder.token;
+    holderId = holder.userId;
+    const groups = await listAccessGroups(testDb.db, SEED_WORKSPACE_ID);
+    teamId = groups.find((group) => group.name === "Every environment: forms.editor")!.teamId;
+  });
+
+  it("holds the grant while the membership is live", async () => {
+    const before = (await (await as(holderToken, "GET", "/me/access")).json()) as MyAccessBody;
+    const workspace = before.workspaces.find((row) => row.workspaceId === SEED_WORKSPACE_ID);
+    expect(workspace?.grants.flatMap((grant) => grant.roles)).toEqual(["forms.editor"]);
+    expect((await as(holderToken, "GET", "/workspaces")).status).toBe(200);
+  });
+
+  it("holds nothing once the membership is suspended, with the member row untouched", async () => {
+    await suspendSeededGrant(testDb.db, {
+      teamId,
+      userId: holderId,
+      by: ownerId,
+      at: new Date("2026-07-20T00:00:00.000Z"),
+    });
+
+    const after = (await (await as(holderToken, "GET", "/me/access")).json()) as MyAccessBody;
+    const workspace = after.workspaces.find((row) => row.workspaceId === SEED_WORKSPACE_ID);
+    expect(workspace?.grants).toEqual([]);
+    expect(workspace?.memberRole).toBe("member");
+
+    const refused = await as(holderToken, "GET", "/workspaces");
+    expect(refused.status).toBe(403);
+  });
+
+  it("still lists the suspended holder to an administrator, so the state can be seen", async () => {
+    const holders = await listAccessGroupHolders(testDb.db, teamId);
+    expect(holders.map((row) => row.userId)).toContain(holderId);
+  });
+});
+
+interface SiteAuditBody {
+  rows: {
+    id: string;
+    actor: string;
+    actorEmail: string | null;
+    subject: string | null;
+    workspaceId: string | null;
+    kind: string;
+    detail: string | null;
+  }[];
+  total: number;
+}
+
+describe("the site audit (criteria 111 and 113)", () => {
+  beforeAll(async () => {
+    const at = new Date("2026-07-20T00:00:00.000Z");
+    await writeSiteAuditRow(testDb.db, {
+      actor: ownerId,
+      subject: secondOwnerId,
+      kind: "administrator",
+      detail: "act=promote",
+      occurredAt: at,
+    });
+    await writeSiteAuditWithMirror(
+      testDb.db,
+      {
+        actor: ownerId,
+        subject: secondOwnerId,
+        workspaceId: SEED_WORKSPACE_ID,
+        kind: "account",
+        detail: "act=reset scope=password",
+        occurredAt: new Date(at.getTime() + 1_000),
+      },
+      [SEED_WORKSPACE_ID],
+    );
+  });
+
+  it("serves the site audit to a Site administrator, newest first", async () => {
+    const res = await send("GET", "/site-audit");
+    expect(res.status, await res.clone().text()).toBe(200);
+    const body = (await res.json()) as SiteAuditBody;
+    expect(body.rows[0]).toMatchObject({
+      kind: "account",
+      subject: secondOwnerId,
+      workspaceId: SEED_WORKSPACE_ID,
+      detail: "act=reset scope=password",
+    });
+    expect(body.rows[1]).toMatchObject({ kind: "administrator", workspaceId: null });
+    expect(body.rows[0]?.actorEmail).not.toBeNull();
+  });
+
+  it("filters on the kind", async () => {
+    const res = await send("GET", "/site-audit?kind=administrator");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as SiteAuditBody;
+    expect(body.rows.length).toBeGreaterThan(0);
+    expect(body.rows.every((row) => row.kind === "administrator")).toBe(true);
+  });
+
+  it("refuses a kind the log does not hold", async () => {
+    expect((await send("GET", "/site-audit?kind=read")).status).toBe(400);
+  });
+
+  it("refuses a Workspace administrator and a caller with no grant at all", async () => {
+    for (const token of [workspaceOwnerToken, editorToken, nobodyToken]) {
+      const res = await as(token, "GET", "/site-audit");
+      expect(res.status).toBe(403);
+      expect((await res.json()) as ErrorBody).toMatchObject({ error: { code: "FORBIDDEN" } });
+    }
+  });
+
+  it("mirrors a site act that affects a workspace into that workspace's audit", async () => {
+    const res = await send("GET", `/workspaces/${SEED_WORKSPACE_ID}/audit?kind=account`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { rows: { kind: string; detail: string | null }[] };
+    expect(body.rows).toHaveLength(1);
+    expect(body.rows[0]?.detail).toBe(`subject=${secondOwnerId} act=reset scope=password`);
   });
 });

@@ -20,6 +20,7 @@ import {
   listEnvironmentNames,
   listGrantsForUser,
   listMemberWorkspacesForUser,
+  listSiteAudit,
   listWorkspaceMembers,
   normaliseEnvironmentSet,
   refuseAccessGroupName,
@@ -55,6 +56,7 @@ import type {
   myAccessRoute,
   removeHolderRoute,
   setMemberRoleRoute,
+  siteAuditRoute,
   updateAccessGroupRoute,
   workspaceSettingsRoute,
 } from "./route.js";
@@ -719,6 +721,46 @@ export function makeAuditHandler(deps: Deps): RouteHandler<typeof auditRoute, Ap
           actorEmail: addresses.get(row.actor) ?? null,
           environment: row.environment,
           formId: row.formId,
+          kind: row.kind,
+          occurredAt: row.occurredAt.toISOString(),
+          detail: row.detail,
+        })),
+        page,
+        pageSize,
+        total,
+      },
+      200,
+    );
+  };
+}
+
+/**
+ * The site audit, which names no workspace: the route row is `installationOnly`, so the
+ * grant middleware has already refused everybody but a Site administrator.
+ */
+export function makeSiteAuditHandler(deps: Deps): RouteHandler<typeof siteAuditRoute, ApiEnv> {
+  return async (c) => {
+    const query = c.req.valid("query");
+    const { page, pageSize } = auditWindow(query);
+
+    const exec = deps.databases.control;
+    const { rows, total } = await listSiteAudit(exec, {
+      limit: pageSize,
+      offset: (page - 1) * pageSize,
+      ...(query.kind === undefined ? {} : { kind: query.kind }),
+    });
+
+    const actors = await findUsersByIds(exec, [...new Set(rows.map((row) => row.actor))]);
+    const addresses = new Map(actors.map((actor) => [actor.userId, actor.email]));
+
+    return c.json(
+      {
+        rows: rows.map((row) => ({
+          id: row.id,
+          actor: row.actor,
+          actorEmail: addresses.get(row.actor) ?? null,
+          subject: row.subject,
+          workspaceId: row.workspaceId,
           kind: row.kind,
           occurredAt: row.occurredAt.toISOString(),
           detail: row.detail,

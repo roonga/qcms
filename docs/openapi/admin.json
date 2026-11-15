@@ -468,6 +468,9 @@
             "type": "string",
             "nullable": true,
             "format": "date-time"
+          },
+          "title": {
+            "nullable": true
           }
         },
         "required": [
@@ -2941,6 +2944,72 @@
         },
         "required": [
           "workspaceId",
+          "rows",
+          "page",
+          "pageSize",
+          "total"
+        ]
+      },
+      "SiteAuditListResponse": {
+        "type": "object",
+        "properties": {
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "actor": {
+                  "type": "string"
+                },
+                "actorEmail": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "subject": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "workspaceId": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "occurredAt": {
+                  "type": "string"
+                },
+                "detail": {
+                  "type": "string",
+                  "nullable": true
+                }
+              },
+              "required": [
+                "id",
+                "actor",
+                "actorEmail",
+                "subject",
+                "workspaceId",
+                "kind",
+                "occurredAt",
+                "detail"
+              ]
+            }
+          },
+          "page": {
+            "type": "integer"
+          },
+          "pageSize": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
           "rows",
           "page",
           "pageSize",
@@ -8435,7 +8504,11 @@
                 "grant",
                 "revoke",
                 "setting",
-                "derive"
+                "derive",
+                "group",
+                "administrator",
+                "approval",
+                "account"
               ]
             },
             "required": false,
@@ -8502,6 +8575,96 @@
           },
           "404": {
             "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/site-audit": {
+      "get": {
+        "summary": "The site audit (admin)",
+        "description": "Every account act, every Site administrator act and every change to the shared question library, newest first. Site administrators only: a workspace administrator reads their own workspace's audit, where a site act that affected that workspace is mirrored. It carries no credential, no answer value and no authored text.",
+        "tags": [
+          "membership"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "account",
+                "administrator",
+                "approval",
+                "library"
+              ]
+            },
+            "required": false,
+            "name": "kind",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "pageSize",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The site audit rows",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SiteAuditListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {

@@ -10,6 +10,7 @@ import {
   authUser,
   authVerification,
   clearMustChangePassword,
+  isAccountDisabled,
 } from "@roonga/qcms-db";
 import type { Executor } from "@roonga/qcms-db";
 import { betterAuth } from "better-auth";
@@ -305,9 +306,28 @@ export function createAdminAuth(input: AdminAuthInput) {
           defaultValue: true,
           input: false,
         },
+        // Both `input: false`: only a Site administrator's own act sets either. Neither
+        // column carries a default, so a sign-up writes neither and the claim is an act.
+        disabledAt: { type: "date", required: false, input: false },
+        claimedAt: { type: "date", required: false, input: false },
       },
     },
     databaseHooks: {
+      session: {
+        create: {
+          /**
+           * Every sign-in shape mints the session here, the pending-second-factor one
+           * included, which creates it and then deletes it:
+           * `dist/plugins/two-factor/index.mjs:291` <!-- expect: internalAdapter.deleteSession(data.session.token) -->
+           * The claim is deliberately not read: an unclaimed account reaches its own claim.
+           */
+          before: async (session) => {
+            if (!(await isAccountDisabled(input.db, session.userId))) return;
+            // No reason in the body, as everywhere else this surface refuses.
+            throw new APIError("UNAUTHORIZED");
+          },
+        },
+      },
       account: {
         update: {
           /**

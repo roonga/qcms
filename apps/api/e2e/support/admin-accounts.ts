@@ -1,4 +1,9 @@
-import { clearMustChangePassword, makeSiteAdministrator, schema } from "@roonga/qcms-db";
+import {
+  clearMustChangePassword,
+  makeSiteAdministrator,
+  markAccountClaimed,
+  schema,
+} from "@roonga/qcms-db";
 import type { Executor } from "@roonga/qcms-db";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
@@ -74,6 +79,13 @@ export interface TestAdminInput {
    * not a Site administrator, so `signUpEmail` alone makes none.
    */
   readonly siteAdministrator?: boolean;
+
+  /**
+   * Defaults to true, standing in for an administrator who has already claimed the account.
+   * `claimedAt` has no column default, so `false` seeds an unclaimed account, which reaches
+   * its own claim and nothing else.
+   */
+  readonly claimed?: boolean;
 }
 
 /**
@@ -93,6 +105,7 @@ export async function createTestAdmin(input: TestAdminInput): Promise<void> {
   // Before the credential state: an account sent to the password-change screen still
   // needs grants for the screens it reaches afterwards.
   if (typeof userId === "string") {
+    if (input.claimed !== false) await markAccountClaimed(db, userId, new Date());
     if (input.siteAdministrator !== false) await makeSiteAdministrator(db, userId);
     await seedGrants(db, {
       userId,

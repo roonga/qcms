@@ -13,6 +13,7 @@ import {
   DATA_PLANE_TABLE_NAMES,
   ENDPOINT_PROPOSALS_TABLE,
   GRANT_SOURCES,
+  SITE_AUDIT_TABLE,
   ownsControlSchema,
   reconcileWorkspaceReporting,
   regrantEnvironments,
@@ -52,8 +53,15 @@ const DML = ["SELECT", "INSERT", "UPDATE", "DELETE"] as const;
 
 const AUDIT_TABLES: readonly string[] = [ACCESS_AUDIT_TABLE, AGENT_ACTIONS_TABLE];
 
-/** The audits plus the logo store: every table no application role may rewrite. */
-const APPEND_ONLY_TABLES: readonly string[] = [...AUDIT_TABLES, APPEARANCE_LOGOS_TABLE];
+/**
+ * The audits plus the logo store: every table no application role may rewrite. The site
+ * audit is not in `AUDIT_TABLES`, because no environment role may insert into it either.
+ */
+const APPEND_ONLY_TABLES: readonly string[] = [
+  ...AUDIT_TABLES,
+  SITE_AUDIT_TABLE,
+  APPEARANCE_LOGOS_TABLE,
+];
 
 /** Not `/tmp`: the `postgres` user's own directory in a container this test alone owns. */
 const DUMP_PATH = "/var/lib/postgresql/qcms-restore-regrant.sql";

@@ -69,7 +69,7 @@ export default async function ResponseDetailPage({
   // refused form read costs the status line rather than the screen. The same stance the
   // pinned-version read below already takes for its labels.
   const formHeader = { formId, section: "responses", heading: responseHeading(sessionId) } as const;
-  const withStatus = form.ok ? { ...formHeader, status: form.data.status } : formHeader;
+  const withStatus = form.ok ? { ...formHeader, form: form.data } : formHeader;
 
   if (!response.ok) {
     // Consult tombstones before returning 404: an erased response remains evidence at its original URL.

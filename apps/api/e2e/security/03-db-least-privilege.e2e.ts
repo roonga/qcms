@@ -9,6 +9,7 @@ import {
   DATA_PLANE_ENUM_TYPES,
   ENDPOINT_PROPOSALS_TABLE,
   DATA_PLANE_TABLE_NAMES,
+  SITE_AUDIT_TABLE,
   workspaceReportingRoleName,
   workspaceReportingStatements,
 } from "@roonga/qcms-db";
@@ -38,8 +39,15 @@ const DML = ["SELECT", "INSERT", "UPDATE", "DELETE"] as const;
 
 const AUDIT_TABLES: readonly string[] = [ACCESS_AUDIT_TABLE, AGENT_ACTIONS_TABLE];
 
-/** The audits plus the logo store: every table no application role may rewrite. */
-const APPEND_ONLY_TABLES: readonly string[] = [...AUDIT_TABLES, APPEARANCE_LOGOS_TABLE];
+/**
+ * The audits plus the logo store: every table no application role may rewrite. The site
+ * audit is not in `AUDIT_TABLES`, because no environment role may insert into it either.
+ */
+const APPEND_ONLY_TABLES: readonly string[] = [
+  ...AUDIT_TABLES,
+  SITE_AUDIT_TABLE,
+  APPEARANCE_LOGOS_TABLE,
+];
 
 // Each planner probe needs a session of its own: `pg_temp` is per session, and a notice
 // listener on a shared client would collect another case's notices.
@@ -841,6 +849,65 @@ describe("the SEC-15 access audit's grants and revokes (task 069, Q40 with Q56)"
     const keys = await owner.query<{ conname: string }>(
       `select conname from pg_constraint
         where conrelid = 'control.access_audit'::regclass and contype = 'f'`,
+    );
+    expect(keys.rows).toEqual([]);
+  });
+});
+
+describe("the site audit's grants and revokes (criterion 112)", () => {
+  const table = `control.${SITE_AUDIT_TABLE}`;
+
+  it("lets the control role append and read a row", async () => {
+    const client = clients.get(CONTROL_ROLE) as pg.Client;
+    await client.query(
+      `insert into ${table} (actor, subject, workspace_id, kind, detail)
+       values ('usr_e2e', 'usr_subject', 'org_e2e', 'account', 'act=disable')`,
+    );
+    const read = await client.query<{ n: string }>(
+      `select count(*) as n from ${table} where kind = 'account'`,
+    );
+    expect(Number(read.rows[0]?.n)).toBeGreaterThan(0);
+  });
+
+  it.each([CONTROL_ROLE, ...Object.values(ENVIRONMENT_ROLES), UNSHIPPED_ROLE])(
+    "leaves %s no UPDATE and no DELETE on the site audit",
+    async (role) => {
+      for (const privilege of ["UPDATE", "DELETE"]) {
+        const res = await owner.query<{ has: boolean }>(
+          `select has_table_privilege($1, '${table}', $2) as has`,
+          [role, privilege],
+        );
+        expect(res.rows[0]?.has, `${role} must not hold ${privilege}`).toBe(false);
+      }
+    },
+  );
+
+  it("refuses the control role an UPDATE and a DELETE at the statement, not only the bit", async () => {
+    expect(
+      await refusalFor(clients.get(CONTROL_ROLE)!, `update ${table} set kind = 'library'`),
+    ).toMatch(/permission denied/i);
+    expect(await refusalFor(clients.get(CONTROL_ROLE)!, `delete from ${table}`)).toMatch(
+      /permission denied/i,
+    );
+  });
+
+  it.each(Object.values(ENVIRONMENT_ROLES))(
+    "gives %s no privilege of any kind: a site act is never performed on an environment pool",
+    async (role) => {
+      for (const privilege of DML) {
+        const res = await owner.query<{ has: boolean }>(
+          `select has_table_privilege($1, '${table}', $2) as has`,
+          [role, privilege],
+        );
+        expect(res.rows[0]?.has, `${role} must not hold ${privilege}`).toBe(false);
+      }
+    },
+  );
+
+  it("carries no foreign key, so no row cascades away with the account it names", async () => {
+    const keys = await owner.query<{ conname: string }>(
+      `select conname from pg_constraint
+        where conrelid = '${table}'::regclass and contype = 'f'`,
     );
     expect(keys.rows).toEqual([]);
   });

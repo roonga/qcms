@@ -1,6 +1,7 @@
 import type { SliceRegistrar } from "../../app.js";
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
+import { accountStateRefusal, authEndpointRefused } from "./account-state.js";
 import { AUTH_BASE_PATH, createAdminAuth, type AdminAuth } from "./instance.js";
 
 /** Allowlist endpoints so sign-up and organization writes cannot become public through a vendor mount. */
@@ -51,9 +52,15 @@ export function authSubPath(url: string): string {
 export const registerAdminAuthProxy: SliceRegistrar = (group, deps) => {
   group.on(["GET", "POST"], "/*", async (c) => {
     const request = c.req.raw;
-    if (!ALLOWED.has(`${request.method} ${authSubPath(request.url)}`)) {
+    const endpoint = `${request.method} ${authSubPath(request.url)}`;
+    if (!ALLOWED.has(endpoint)) {
       throw new ApiError("not_found", 404, "Not Found");
     }
-    return adminAuthFor(deps).handler(request);
+    const auth = adminAuthFor(deps);
+    // These endpoints change a credential and enrol a factor, so the account's state is read
+    // here as well as on `/admin`. Sign-in and sign-out are exempt: neither is the stale
+    // cookie's to decide, and the session-create hook refuses the sign-in instead.
+    if (await authEndpointRefused(auth, request, endpoint)) throw accountStateRefusal();
+    return auth.handler(request);
   });
 };

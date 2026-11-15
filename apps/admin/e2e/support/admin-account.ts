@@ -23,6 +23,8 @@ export async function createTestAdmin(
     // Defaults to full team grants; the installation claim alone authorizes no authoring or response reads.
     readonly grants?: readonly string[];
     readonly owner?: boolean;
+    // Defaults to claimed; an unclaimed account reaches its own claim and nothing else.
+    readonly claimed?: boolean;
   } = {},
 ): Promise<void> {
   await createAdminAccount({
@@ -34,6 +36,7 @@ export async function createTestAdmin(
     ...(options.name !== undefined && { name: options.name }),
     ...(options.grants !== undefined && { grants: options.grants }),
     ...(options.owner !== undefined && { owner: options.owner }),
+    ...(options.claimed !== undefined && { claimed: options.claimed }),
     mustChangePassword: options.mustChangePassword === true,
   });
 }

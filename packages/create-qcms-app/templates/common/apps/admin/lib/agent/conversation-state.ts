@@ -15,8 +15,21 @@ export function isProseTurn(turn: AgentTurnRecord): turn is AgentProseTurn {
   return turn.role !== "action-result";
 }
 
+/**
+ * A card on screen that the person has not acted on. Derived from the live card each time
+ * a turn is sent rather than kept in the history, because a card stops waiting without
+ * writing anything: it is confirmed, cancelled, expired or replaced by the next one.
+ */
+export interface WaitingProposalTurn {
+  readonly role: "proposal";
+  readonly proposalId: string;
+  readonly steps: readonly { readonly kind: string }[];
+}
+
 export type PromptTurn =
-  { readonly role: "user" | "assistant"; readonly content: string } | ActionResultTurn;
+  | { readonly role: "user" | "assistant"; readonly content: string }
+  | ActionResultTurn
+  | WaitingProposalTurn;
 
 /** The history a turn replays: the prose without the panel's own outcome lines. */
 export function promptTurns(turns: readonly AgentTurnRecord[]): readonly PromptTurn[] {
@@ -26,8 +39,37 @@ export function promptTurns(turns: readonly AgentTurnRecord[]): readonly PromptT
   });
 }
 
+/** Step kinds alone: what the card covers is in the model's own words, already in the history. */
+export function waitingProposalTurns(
+  waiting:
+    | { readonly proposalId: string; readonly steps: readonly { readonly kind: string }[] }
+    | undefined,
+): readonly WaitingProposalTurn[] {
+  if (waiting === undefined || waiting.steps.length === 0) return [];
+  return [
+    {
+      role: "proposal",
+      proposalId: waiting.proposalId,
+      steps: waiting.steps.map((step) => ({ kind: step.kind })),
+    },
+  ];
+}
+
 /** The longest history the API accepts, so the oldest turns drop here rather than there. */
 export const CONVERSATION_TURN_CAP = 40;
+
+/**
+ * The history to post, waiting card last and within the cap: the card's own turn takes a
+ * slot, so the oldest prose drops here rather than the whole turn being refused there.
+ */
+export function postedTurns(
+  turns: readonly AgentTurnRecord[],
+  waiting: readonly WaitingProposalTurn[],
+): readonly PromptTurn[] {
+  const history = promptTurns(turns);
+  const room = Math.max(0, CONVERSATION_TURN_CAP - waiting.length);
+  return [...history.slice(Math.max(0, history.length - room)), ...waiting];
+}
 
 export interface ConversationState {
   /** Random, minted when the conversation starts; the key audited reads are grouped by. */

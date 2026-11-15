@@ -5,7 +5,13 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "../app.js";
 import type { SliceRegistrar } from "../app.js";
 import type { Deps } from "../deps.js";
-import { internalTokenFor, makeDeps, seedAdminSession, validEnv } from "../test-support.js";
+import {
+  disableSeededAccount,
+  internalTokenFor,
+  makeDeps,
+  seedAdminSession,
+  validEnv,
+} from "../test-support.js";
 import { ADMIN_SESSION_HEADER, registerAdminAuth } from "./admin-auth.js";
 
 const ADMIN_ONLY = { public: false, internal: false, admin: true } as const;
@@ -208,5 +214,47 @@ describe("admin-auth: the provisional bootstrap credential (SEC-1, task 061)", (
     expect((await whoami(compose(), token)).status).toBe(401);
     await clearMustChangePassword(testDb.db, userId);
     expect((await whoami(compose(), token)).status).toBe(200);
+  });
+});
+
+describe("admin-auth: the disabled flag and the claim (criterion 66)", () => {
+  it("refuses a stale session as soon as the account is disabled, with no restart", async () => {
+    const { token, userId } = await seedAdminSession(testDb.db, { at: NOW, label: "to-disable" });
+    const composed = compose();
+    expect((await whoami(composed, token)).status).toBe(200);
+
+    await disableSeededAccount(testDb.db, userId, NOW);
+
+    // The same composed app and the same token: the flag is read from the row on every
+    // request, so nothing cached can keep the session alive.
+    expect((await whoami(composed, token)).status).toBe(401);
+  });
+
+  it("refuses an unclaimed account's session", async () => {
+    const { token } = await seedAdminSession(testDb.db, {
+      at: NOW,
+      claimed: false,
+      label: "unclaimed",
+    });
+    expect((await whoami(compose(), token)).status).toBe(401);
+  });
+
+  it("says nothing about WHY, like every other refusal here (SEC-1)", async () => {
+    const { token, userId } = await seedAdminSession(testDb.db, { at: NOW, label: "silent-off" });
+    await disableSeededAccount(testDb.db, userId, NOW);
+    const refused = (await (await whoami(compose(), token)).json()) as {
+      error: { code: string; message: string };
+    };
+    const unknown = (await (await whoami(compose(), "st_never-issued-to-anybody")).json()) as {
+      error: { code: string; message: string };
+    };
+    expect(refused).toEqual(unknown);
+  });
+
+  it("is not relaxed by QCMS_ADMIN_2FA=optional", async () => {
+    const { token, userId } = await seedAdminSession(testDb.db, { at: NOW, label: "off-optional" });
+    await disableSeededAccount(testDb.db, userId, NOW);
+    const optional = compose(validEnv({ QCMS_ADMIN_2FA: "optional" }));
+    expect((await whoami(optional, token)).status).toBe(401);
   });
 });

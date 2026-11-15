@@ -60,6 +60,21 @@ export const ActionResultTurnBody = z.strictObject({
 });
 
 /**
+ * The `proposal` turn: a card the person has already been shown and has not yet confirmed
+ * or dismissed. Only the browser knows a card is still waiting, so only the browser can
+ * say so, and it says it in step kinds alone: the words describing the card are the
+ * model's own, already in the conversation above it.
+ */
+export const WaitingProposalTurnBody = z.strictObject({
+  role: z.literal("proposal"),
+  proposalId: z.string().min(1).max(64),
+  steps: z
+    .array(z.strictObject({ kind: z.string().min(1).max(100) }))
+    .min(1)
+    .max(25),
+});
+
+/**
  * A filter date the response query can use. Parsed here because `new Date` on an
  * unparsable string reaches the query as `Invalid Date` and fails as a 500.
  */
@@ -90,24 +105,40 @@ const ScreenParamsBody = z.strictObject({
 });
 
 export type ConversationTurnBody =
-  z.infer<typeof AssistTurnBody> | z.infer<typeof ActionResultTurnBody>;
+  | z.infer<typeof AssistTurnBody>
+  | z.infer<typeof ActionResultTurnBody>
+  | z.infer<typeof WaitingProposalTurnBody>;
 
-export function actionResultRefusal(
-  conversation: readonly ConversationTurnBody[],
+function firstRefusal<T>(
+  steps: readonly T[],
+  refusalOf: (step: T) => string | undefined,
 ): string | undefined {
-  for (const turn of conversation) {
-    if (turn.role !== "action-result") continue;
-    for (const step of turn.steps) {
-      const refusal = stepResultRefusal(step);
-      if (refusal !== undefined) return refusal;
-    }
+  for (const step of steps) {
+    const refusal = refusalOf(step);
+    if (refusal !== undefined) return refusal;
   }
   return undefined;
 }
 
+function turnRefusal(turn: ConversationTurnBody): string | undefined {
+  if (turn.role === "proposal") {
+    return firstRefusal(turn.steps, ({ kind }) =>
+      actionKind(kind) === undefined ? `There is no action kind named "${kind}".` : undefined,
+    );
+  }
+  if (turn.role !== "action-result") return undefined;
+  return firstRefusal(turn.steps, stepResultRefusal);
+}
+
+export function conversationRefusal(
+  conversation: readonly ConversationTurnBody[],
+): string | undefined {
+  return firstRefusal(conversation, turnRefusal);
+}
+
 // Capped because an unbounded history is an unbounded upstream bill.
 const ConversationBody = z
-  .array(z.union([AssistTurnBody, ActionResultTurnBody]))
+  .array(z.union([AssistTurnBody, ActionResultTurnBody, WaitingProposalTurnBody]))
   .min(1)
   .max(40);
 

@@ -101,7 +101,9 @@ test("a row opens the form's operational contexts in the environment the chip na
 }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
   await chooseEnvironment(page, "test");
-  await page.goto("/operations");
+  // Narrowed to this form for the reason the first test gives: the table pages at 25 rows, so
+  // an unfiltered view leaves the accumulated fixtures to decide which page this one lands on.
+  await page.goto(`/operations?q=${ALPHA}`);
   await waitForHydration(page);
 
   const row = page.getByTestId("qcms-operations-table").getByRole("row").filter({ hasText: ALPHA });
@@ -127,7 +129,7 @@ test("the addresses the operational screens had still arrive, with their query",
   page,
 }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
-  await page.goto("/operations");
+  await page.goto(`/operations?q=${ALPHA}`);
   await waitForHydration(page);
   const formId = await page
     .getByTestId("qcms-operations-table")

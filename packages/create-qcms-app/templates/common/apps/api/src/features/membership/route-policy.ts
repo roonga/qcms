@@ -228,6 +228,16 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     workspace: "path",
   },
   {
+    // Site administrators only, and no role reaches it: a workspace administrator reads
+    // the mirrored rows in their own workspace's audit instead.
+    method: "GET",
+    path: "/admin/site-audit",
+    resource: "audit",
+    action: "read",
+    workspace: "installation",
+    installationOnly: true,
+  },
+  {
     // The same cell as the access audit: the two are one readership by decision, so a
     // second cell would be a second answer to the same question.
     method: "GET",

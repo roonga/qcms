@@ -18,6 +18,7 @@ import type {
   ValidateDraftState,
 } from "@/lib/forms/builder-state";
 import { formIdFromSlug } from "@/lib/forms/draft";
+import { linkExpiryInstant } from "@/lib/forms/links";
 import { t } from "@/lib/i18n/en";
 import { messageForFormCode } from "@/lib/forms/errors";
 import { readState, type ReadState } from "@/lib/read-state";
@@ -542,7 +543,7 @@ export async function mintLinksAction(
     formId,
     {
       environment: check.environment,
-      expiresAt: endOfDay(request.expiresAt),
+      expiresAt: linkExpiryInstant(request.expiresAt),
       oneTime: request.oneTime,
       count,
     },
@@ -551,12 +552,6 @@ export async function mintLinksAction(
   if (!result.ok) return { status: "error", message: result.message };
   revalidatePath(`/operations/forms/${formId}/links`);
   return { status: "minted", links: result.data };
-}
-
-/* Use the end of the chosen UTC day so a link remains valid throughout its labelled day, independently of
-   the operator's zone. */
-function endOfDay(value: string): string {
-  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T23:59:59.999Z` : value;
 }
 
 /* Revocation stops new use; an in-flight session is unaffected. */

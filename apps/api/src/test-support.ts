@@ -1,9 +1,12 @@
 // Every secret here is synthetic and generated in-test: no real secret enters a fixture.
 
+import { and, eq } from "drizzle-orm";
+
 import {
   SITE_ADMINISTRATOR_ROLE,
   addAccessGroupHolder,
   authSession,
+  authTeamMember,
   authUser,
   createAccessGroup,
   ensureWorkspaceMember,
@@ -163,6 +166,10 @@ export async function seedAdminSession(
     readonly twoFactorEnabled?: boolean;
     /** True seeds an account still holding the provisional bootstrap credential. */
     readonly mustChangePassword?: boolean;
+    /** A date seeds a disabled account, which is how criterion 66 sets the flag. */
+    readonly disabledAt?: Date;
+    /** `false` seeds an unclaimed account, which holds nothing; the default is claimed. */
+    readonly claimed?: boolean;
     readonly label?: string;
     /** An empty list seeds no access group, so the account reaches nothing. */
     readonly grants?: readonly string[];
@@ -189,6 +196,8 @@ export async function seedAdminSession(
     twoFactorEnabled: options.twoFactorEnabled ?? true,
     mustChangePassword: options.mustChangePassword ?? false,
     role: options.claim === false ? null : SITE_ADMINISTRATOR_ROLE,
+    ...(options.disabledAt === undefined ? {} : { disabledAt: options.disabledAt }),
+    claimedAt: options.claimed === false ? null : at,
   });
   await exec.insert(authSession).values({
     id: `ss_${synthSecret().slice(0, 16)}`,
@@ -208,6 +217,31 @@ export async function seedAdminSession(
     });
   }
   return { token, userId };
+}
+
+/** Set the disabled flag directly, which is how criteria 66 and 67 are proven. */
+export async function disableSeededAccount(
+  exec: Executor,
+  userId: string,
+  at: Date,
+): Promise<void> {
+  await exec.update(authUser).set({ disabledAt: at }).where(eq(authUser.id, userId));
+}
+
+/** Suspend one seeded grant, as a credential reset does. */
+export async function suspendSeededGrant(
+  exec: Executor,
+  input: {
+    readonly teamId: string;
+    readonly userId: string;
+    readonly by: string;
+    readonly at: Date;
+  },
+): Promise<void> {
+  await exec
+    .update(authTeamMember)
+    .set({ suspendedAt: input.at, suspendedBy: input.by })
+    .where(and(eq(authTeamMember.teamId, input.teamId), eq(authTeamMember.userId, input.userId)));
 }
 
 export const DEFAULT_SEEDED_GRANTS: readonly string[] = [

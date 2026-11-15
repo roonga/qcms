@@ -19,6 +19,14 @@ export const ACCESS_AUDIT_KINDS = [
   "setting",
   /** One row per theme derive fetch (SEC-18). The appearance lock uses `setting`. */
   "derive",
+  /** An access group created, renamed, deleted, or its roles or environments changed. */
+  "group",
+  /** A Workspace administrator appointed or removed. */
+  "administrator",
+  /** A workspace approval request or a held publish: created, approved, rejected or expired. */
+  "approval",
+  /** The mirror of a site-level account act into a workspace this account held something in. */
+  "account",
 ] as const;
 
 /** One of {@link ACCESS_AUDIT_KINDS}. */
@@ -54,7 +62,7 @@ export const accessAudit = controlSchema.table(
   (t) => [
     check(
       ACCESS_AUDIT_KIND_CHECK,
-      sql`${t.kind} in ('read', 'export', 'erasure', 'grant', 'revoke', 'setting', 'derive')`,
+      sql`${t.kind} in ('read', 'export', 'erasure', 'grant', 'revoke', 'setting', 'derive', 'group', 'administrator', 'approval', 'account')`,
     ),
   ],
 );

@@ -315,8 +315,16 @@ Two append-only logs. For both, the application role holds `INSERT` and `SELECT`
   - **Workspace themes:** each theme derive fetch, one row (SEC-18).
   - **Workspace approval requests** (turning second approval off, self-grant, Move form): created, approved, rejected, expired.
   - **Pending draft publish to `prod`** on a site whose only environment is `prod` (approved on the form, not a workspace approval request): requested, approved, rejected, expired.
-- The stored kinds for these rows, beyond the workspace audit's six existing kinds, are settled in the foundation task (section 16).
-  - **Existing rows, unchanged:** response read, export and erasure; `prod` endpoint propose, confirm and withdraw; release-workflow change.
+
+### Stored kinds and the site audit's row shape
+
+Settled in task 088.
+
+- The **site audit row** is `actor`, `subject` (the account, workspace or request the act was on), `workspace_id` (set only where the act affects one workspace, which is where the mirrored row goes), `kind`, `occurred_at` and a free-text `detail`. No foreign key, so a row never cascades away with the account it names, and no column carries a credential, an answer value or authored text.
+- **Site audit kinds**, four, with `detail` naming the act within its kind: `account` (create, disable, reactivate, credential or factor reset, a grant made while unclaimed), `administrator` (a Site administrator promoted or demoted), `approval` (a site approval request created, approved, rejected or expired), `library` (a workspace marked or unmarked as the shared question library).
+- **Workspace audit kinds gained**, four beside the seven already stored: `group` (an access group created, renamed, deleted, or its roles or environments changed), `administrator` (a Workspace administrator appointed or removed), `approval` (a workspace approval request or a held `prod` draft publish created, approved, rejected or expired), `account` (the mirror of a site-level account act into a workspace the account held something in).
+- A member added or removed stays `grant` and `revoke`, and a re-confirmation of a suspended membership is a `grant`, because it restores one. A workspace created, renamed or archived, a form moved, the second-approval switch, the appearance lock and the library marking's mirror keep the kinds they are already written with.
+- **Existing rows, unchanged:** response read, export and erasure; `prod` endpoint propose, confirm and withdraw; release-workflow change; the theme derive fetch.
 
 ## 12. Navigation and screens
 
@@ -595,13 +603,20 @@ Each record below, except the built-task records, now links here for workspace a
 ### Ruled (Code Owner, 2026-11-15)
 
 - **Bootstrap recovery: a re-run promotes.** Where no Site administrator exists and exactly one account exists, a `qcms:create-admin` re-run whose `QCMS_ADMIN_EMAIL` names that account promotes it to Site administrator, seeds the first workspace and writes an audit row, in one transaction. Where a Site administrator exists, the re-run is refused as before. This covers a first run that created its account and stopped before promoting it.
+- **`user.claimedAt` carries no default, so `null` is unclaimed.** A create path that writes no claim leaves an account that holds nothing, which is the fail-closed direction; a defaulted column would have made any insert that omitted it a claimed account. Migration `0011` marks every row that predates the column claimed, and the first-run bootstrap writes the first administrator's claim itself, because `qcms:create-admin` sets the password it hands over and no later act writes it. 090's create path leaves the column null.
+- **A disabled or unclaimed account is refused on the allowlisted better-auth endpoints too**, not only on `/admin`. Those endpoints carry no admin-session gate, since they are the endpoints that issue the session, which left a disabled account able to sign in, change its password and enrol a factor. The mount reads the account behind the request's session and refuses it, and no sign-in mints a session for a disabled account. Sign-in and sign-out are exempt from the mount's check: a stale cookie decides neither, and a sign-out deletes only the session its own cookie names. An unclaimed account still reaches the endpoints that are its own claim, which is the path 090 needs, and is refused every other endpoint it carries a session to; the pending-second-factor state carries none, so `two-factor/verify-backup-code` is 090's to close.
 - **Workspace creation keeps the direct insert in one transaction.** The workspace row, the first Workspace administrator's member row, the starter groups and the audit row are inserted by QCMS in one transaction rather than through the library's `createOrganization`. The checks the library's `beforeAddMember` hook applies to a member row run inside that transaction too, from the same code (`docs/auth-swap.md`).
 
 Request expiry (7 days), the `prod` rule with its exception for a site whose only environment is `prod` (section 5) and the held draft publish applying the draft as requested (section 6) are settled, not defaults. That a Site administrator is trusted at site level is an accepted limitation, stated in section 10, not an open item.
 
+### Ruled in task 088
+
+- **Audit kinds and the site audit's row shape are settled** (Q79), in section 11: four site kinds, four kinds added to the workspace audit, and a site row of `actor`, `subject`, `workspace_id`, `kind`, `occurred_at` and `detail`. A coarse kind per family with the act in `detail` follows the shape the seven existing kinds already have.
+- **No environment role may insert into `control.site_audit`**: a site-level act is never performed on an environment pool, so its grant set is two statements where the other two audits have three.
+- **A refusal gets no kind** (the handover nit). Both logs record acts, so a refused act leaves no row: the refusal is already the answer the caller got, and a log of refusals would be a different log with a different readership. A publish refused because the draft changed is therefore recorded nowhere, and neither is any other refusal.
+
 ### Undecided
 
-- Audit kinds for the new acts beyond the workspace audit's six existing kinds (Q79), and the site audit's row shape. Left to the foundation task and reviewed there.
 - A workspace's own questions at archive. This document states no rule. As built, questions do not block an archive and stay with the archived workspace, taking no new pin (ADR-41's archive Notes); the earlier "questions are reassigned first" no longer applies, because questions do not move.
 
 ## 17. Out of scope and deferred

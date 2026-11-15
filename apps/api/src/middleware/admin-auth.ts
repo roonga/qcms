@@ -36,6 +36,11 @@ export function betterAuthSessionVerifier(deps: Deps): AdminSessionVerifier {
     if (deps.flags.adminTwoFactor === "required" && !session.twoFactorEnabled) return undefined;
     // The bootstrap credential is provisional and has no escape hatch.
     if (session.mustChangePassword) return undefined;
+    // Read from the row on every request, so a disable takes effect at once: nothing here
+    // or above it caches a session.
+    if (session.disabledAt !== null) return undefined;
+    // An account that has not set a password and enrolled a factor holds nothing.
+    if (session.claimedAt === null) return undefined;
 
     return { userId: session.userId, role: session.role, scopes: [...SCOPES] };
   };

@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 
 import {
   authMember,
@@ -22,6 +22,13 @@ export const OWNER_MEMBER_ROLE = "forms.owner";
 
 function mintId(prefix: string): string {
   return `${prefix}_${crypto.randomUUID().replaceAll("-", "")}`;
+}
+
+// A disabled or unclaimed account holds nothing and a suspended membership grants nothing,
+// so every read a decision is made from joins the account and filters both. The
+// administration lists below are not decisions and report the rows as they stand.
+function accountHoldsGrants() {
+  return and(isNull(authUser.disabledAt), isNotNull(authUser.claimedAt));
 }
 
 /** One access group: a team row carrying a set of roles and one environment set. */
@@ -76,14 +83,29 @@ export async function resolveMembership(
   const members = await exec
     .select({ role: authMember.role })
     .from(authMember)
-    .where(and(eq(authMember.userId, userId), eq(authMember.organizationId, workspaceId)))
+    .innerJoin(authUser, eq(authUser.id, authMember.userId))
+    .where(
+      and(
+        eq(authMember.userId, userId),
+        eq(authMember.organizationId, workspaceId),
+        accountHoldsGrants(),
+      ),
+    )
     .limit(1);
 
   const grants = await exec
     .select(groupColumns)
     .from(authTeamMember)
     .innerJoin(authTeam, eq(authTeam.id, authTeamMember.teamId))
-    .where(and(eq(authTeamMember.userId, userId), eq(authTeam.organizationId, workspaceId)))
+    .innerJoin(authUser, eq(authUser.id, authTeamMember.userId))
+    .where(
+      and(
+        eq(authTeamMember.userId, userId),
+        eq(authTeam.organizationId, workspaceId),
+        isNull(authTeamMember.suspendedAt),
+        accountHoldsGrants(),
+      ),
+    )
     .orderBy(asc(authTeam.name));
 
   return { workspaceId, memberRole: members[0]?.role, grants };
@@ -104,7 +126,14 @@ export async function listGrantsForUser(
     .from(authTeamMember)
     .innerJoin(authTeam, eq(authTeam.id, authTeamMember.teamId))
     .innerJoin(authOrganization, eq(authOrganization.id, authTeam.organizationId))
-    .where(eq(authTeamMember.userId, userId))
+    .innerJoin(authUser, eq(authUser.id, authTeamMember.userId))
+    .where(
+      and(
+        eq(authTeamMember.userId, userId),
+        isNull(authTeamMember.suspendedAt),
+        accountHoldsGrants(),
+      ),
+    )
     .orderBy(asc(authOrganization.slug), asc(authTeam.name));
 }
 
@@ -136,7 +165,8 @@ export async function listMemberWorkspacesForUser(
     })
     .from(authMember)
     .innerJoin(authOrganization, eq(authOrganization.id, authMember.organizationId))
-    .where(eq(authMember.userId, userId))
+    .innerJoin(authUser, eq(authUser.id, authMember.userId))
+    .where(and(eq(authMember.userId, userId), accountHoldsGrants()))
     .orderBy(asc(authOrganization.slug));
 }
 
