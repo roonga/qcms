@@ -558,8 +558,8 @@ describe.each(ENVIRONMENTS)(
     });
 
     it("reads the logo store by column: the bytes it serves, not who stored them", async () => {
-      // Code Owner, 2026-11-15: a COLUMN grant on `key`, `content_type` and `bytes`, so
-      // the pool answering anonymous respondents cannot enumerate uploaders or times.
+      // A COLUMN grant on `key`, `content_type` and `bytes`, so the pool answering
+      // anonymous respondents cannot enumerate uploaders or upload times.
       const table = `control.${APPEARANCE_LOGOS_TABLE}`;
       const held = await tablePrivileges("control", role);
       expect(held[APPEARANCE_LOGOS_TABLE]).toBeUndefined();

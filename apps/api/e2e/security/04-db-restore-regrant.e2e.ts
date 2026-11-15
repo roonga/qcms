@@ -504,8 +504,8 @@ describe("the projections of that map, named so a failure says which claim broke
   it.each(ENVIRONMENTS)(
     "re-grants qcms_app_%s the logo store by COLUMN, uploader and time still unreadable",
     async (environment) => {
-      // Code Owner, 2026-11-15. The restore path has to reproduce the narrowing, not just
-      // the table list: a table-wide SELECT here would be a widening nobody wrote.
+      // The restore path has to reproduce the narrowing, not just the table list: a
+      // table-wide SELECT here would be a widening nobody wrote.
       const role = ENVIRONMENT_ROLES[environment];
       const table = `control.${APPEARANCE_LOGOS_TABLE}`;
       const held = await tablePrivileges("control", role);

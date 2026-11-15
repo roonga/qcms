@@ -291,11 +291,10 @@ export function createEnvironmentStatements(environment: string): string[] {
 }
 
 /**
- * The grants for one environment. `qcms_app_<env>` gets DML on its own schemas and on `control` only
+ * The grants for one environment. `qcms_app_<env>` gets DML on its own schemas and, on `control`, only
  * {@link CONTROL_READ_TABLES}, {@link CONTROL_READ_COLUMNS} and one `UPDATE`; `qcms_app_control` gets
- * `INSERT` on `outbox` only.
- * Every statement is guarded on the role existing, since an unguarded `GRANT` would fail the migration on a
- * database without `qcms_app%` roles.
+ * `INSERT` on `outbox` only. Every statement is guarded on the role existing, since an unguarded `GRANT`
+ * would fail the migration on a database without `qcms_app%` roles.
  */
 export function grantEnvironmentStatements(environment: string): string[] {
   const schema = dataSchemaName(environment);
@@ -523,11 +522,9 @@ export const CONTROL_READ_TABLES: readonly string[] = [
 ];
 
 /**
- * The `control` columns an environment role may read where it holds no table-wide `SELECT`.
- * The logo store is here rather than on {@link CONTROL_READ_TABLES} because the serving pool
- * needs the bytes a respondent is shown and not who uploaded one or when (Code Owner,
- * 2026-11-15). Every entry's grant is guarded on the table existing, as the late tables on
- * {@link CONTROL_READ_TABLES_GUARDED_ON_EXISTENCE} are.
+ * The `control` columns an environment role may read where it holds no table-wide `SELECT`: the
+ * serving pool needs the logo bytes it answers with, and not who stored one or when. Each entry's
+ * grant is guarded on the table existing, as {@link CONTROL_READ_TABLES_GUARDED_ON_EXISTENCE} is.
  */
 export const CONTROL_READ_COLUMNS: Readonly<Record<string, readonly string[]>> = {
   [APPEARANCE_LOGOS_TABLE]: ["key", "content_type", "bytes"],

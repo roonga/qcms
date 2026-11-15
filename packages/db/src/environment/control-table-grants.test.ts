@@ -268,8 +268,8 @@ describe("the appearance tables' grants (D1, D2)", () => {
   });
 
   it("gives every environment role three COLUMNS of the logo store, never the table", () => {
-    // The Code Owner's 2026-11-15 ruling: the serving pool reads the bytes it answers
-    // with, and `created_by` and `created_at` are not on that pool's read list at all.
+    // The serving pool reads the bytes it answers with; `created_by` and `created_at`
+    // are not on its read list at all.
     expect(CONTROL_READ_TABLES).not.toContain(APPEARANCE_LOGOS_TABLE);
     expect(CONTROL_READ_COLUMNS[APPEARANCE_LOGOS_TABLE]).toEqual(["key", "content_type", "bytes"]);
     expect(sql).toContain(`${LOGO_COLUMN_GRANT} TO %I`);
