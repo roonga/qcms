@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { ACTION_DESCRIPTIONS } from "../prompts/prompts.generated.js";
 import type { ActionKindDef, ActionRequestFacts } from "./types.js";
 
 /**
@@ -63,9 +64,7 @@ export const createWebhook: ActionKindDef = {
     consequenceKeys: ["agent.card.webhook.create.consequence", "agent.card.webhook.create.secret"],
     headingControl: "webhooks.create",
   },
-  description:
-    "Configure a new delivery endpoint for this form in the current environment. Its " +
-    "signing secret is shown to the user once and is never returned to you.",
+  description: ACTION_DESCRIPTIONS["webhook.create"],
 };
 
 export const rotateWebhookSecret: ActionKindDef = {
@@ -86,9 +85,7 @@ export const rotateWebhookSecret: ActionKindDef = {
     consequenceKeys: ["agent.card.webhook.rotate.consequence", "agent.card.webhook.create.secret"],
     headingControl: "webhooks.rotate",
   },
-  description:
-    "Replace an endpoint's signing secret. Deliveries signed with the old one stop " +
-    "verifying, and the new secret is shown to the user once.",
+  description: ACTION_DESCRIPTIONS["webhook.rotate"],
 };
 
 export const reactivateWebhook: ActionKindDef = {
@@ -109,7 +106,7 @@ export const reactivateWebhook: ActionKindDef = {
     consequenceKeys: ["agent.card.webhook.reactivate.consequence"],
     headingControl: "webhooks.activation",
   },
-  description: "Put a deactivated endpoint back in service in the current environment.",
+  description: ACTION_DESCRIPTIONS["webhook.reactivate"],
 };
 
 export const retargetWebhook: ActionKindDef = {
@@ -131,9 +128,7 @@ export const retargetWebhook: ActionKindDef = {
     consequenceKeys: ["agent.card.webhook.retarget.consequence"],
     headingControl: "webhooks.retarget",
   },
-  description:
-    "Point an endpoint at another URL. The card names the endpoint and shows the new " +
-    "target in full, query string included.",
+  description: ACTION_DESCRIPTIONS["webhook.retarget"],
 };
 
 export const deactivateWebhook: ActionKindDef = {
@@ -154,9 +149,7 @@ export const deactivateWebhook: ActionKindDef = {
     consequenceKeys: ["agent.card.webhook.deactivate.consequence"],
     headingControl: "webhooks.activation",
   },
-  description:
-    "Stop delivering to an endpoint. The row and its delivery history stay, and a " +
-    "delivery already in flight keeps its own retry state.",
+  description: ACTION_DESCRIPTIONS["webhook.deactivate"],
 };
 
 export const redeliverDelivery: ActionKindDef = {
@@ -177,7 +170,5 @@ export const redeliverDelivery: ActionKindDef = {
     consequenceKeys: ["agent.card.webhook.redeliver.consequence"],
     headingControl: "deadletters.redeliver",
   },
-  description:
-    "Reset one dead-lettered delivery to due-now, so the worker attempts it again. It " +
-    "reads no part of the payload.",
+  description: ACTION_DESCRIPTIONS["webhook.redeliver"],
 };

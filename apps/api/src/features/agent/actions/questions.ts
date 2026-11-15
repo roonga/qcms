@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { ACTION_DESCRIPTIONS } from "../prompts/prompts.generated.js";
 import type { ActionKindDef, ActionRequestFacts } from "./types.js";
 
 /**
@@ -90,10 +91,7 @@ export const createQuestion: ActionKindDef = {
     headingControl: "questions.create",
     createdLink: { screen: "/questions/[questionId]", field: "questionId" },
   },
-  description:
-    "Create a question and its draft v1 in the library. The id is minted once and never " +
-    "changes. Nothing pins the question until a form's draft does, and nothing serves it " +
-    "until the version is published.",
+  description: ACTION_DESCRIPTIONS["question.create"],
 };
 
 export const saveQuestionDraft: ActionKindDef = {
@@ -116,9 +114,7 @@ export const saveQuestionDraft: ActionKindDef = {
     consequenceKeys: ["agent.card.question.saveDraft.consequence"],
     headingControl: "question.save",
   },
-  description:
-    "Replace a draft version's definition. A published or deprecated version is refused: " +
-    "published content is immutable, so changing one means opening a new version.",
+  description: ACTION_DESCRIPTIONS["question.saveDraft"],
 };
 
 export const publishQuestionVersion: ActionKindDef = {
@@ -139,9 +135,7 @@ export const publishQuestionVersion: ActionKindDef = {
     consequenceKeys: ["agent.card.question.publish.consequence"],
     headingControl: "question.lifecycle",
   },
-  description:
-    "Freeze a draft version and make it pinnable. Its content can never change again, and " +
-    "a form's draft that pins it stops reporting an unpublished pin.",
+  description: ACTION_DESCRIPTIONS["question.publish"],
 };
 
 export const deprecateQuestionVersion: ActionKindDef = {
@@ -162,9 +156,7 @@ export const deprecateQuestionVersion: ActionKindDef = {
     consequenceKeys: ["agent.card.question.deprecate.consequence"],
     headingControl: "question.lifecycle",
   },
-  description:
-    "Block new pins on a published version. Every form already pinned to it is untouched " +
-    "and keeps serving it.",
+  description: ACTION_DESCRIPTIONS["question.deprecate"],
 };
 
 export const newQuestionVersion: ActionKindDef = {
@@ -183,7 +175,5 @@ export const newQuestionVersion: ActionKindDef = {
     headingControl: "question.lifecycle",
     createdLink: { screen: "/questions/[questionId]", field: "questionId" },
   },
-  description:
-    "Open a new draft version, seeded from the latest one. Nothing published changes, and " +
-    "no form moves to it until a draft pins the new version.",
+  description: ACTION_DESCRIPTIONS["question.newVersion"],
 };

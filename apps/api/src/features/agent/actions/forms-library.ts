@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { ACTION_DESCRIPTIONS } from "../prompts/prompts.generated.js";
 import type { ActionKindDef, ActionRequestFacts } from "./types.js";
 
 /**
@@ -63,8 +64,5 @@ export const createForm: ActionKindDef = {
     headingControl: "forms.create",
     createdLink: { screen: "/forms/[formId]", field: "formId" },
   },
-  description:
-    "Create a form and its empty first draft in a workspace this user may create in. The " +
-    "id is minted from the slug and never changes. The form's title is authored in the " +
-    "builder afterwards; creating it changes nothing a respondent can reach.",
+  description: ACTION_DESCRIPTIONS["form.create"],
 };

@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { ACTION_DESCRIPTIONS } from "../prompts/prompts.generated.js";
 import type { ActionKindDef, ActionRequestFacts } from "./types.js";
 
 /**
@@ -86,10 +87,7 @@ export const applyDraft: ActionKindDef = {
     titleKey: "agent.card.apply-draft.title",
     consequenceKeys: ["agent.card.apply-draft.consequence", "agent.card.apply-draft.provenance"],
   },
-  description:
-    "Apply the draft you proposed with propose_draft to this form's working draft, for the " +
-    "user to review as a diff and confirm. Call propose_draft first. It publishes nothing " +
-    "and releases nothing: the draft is stored as a draft and marked agent-assisted.",
+  description: ACTION_DESCRIPTIONS["apply-draft"],
 };
 
 /**
@@ -116,11 +114,7 @@ export const saveFormDraft: ActionKindDef = {
     titleKey: "agent.card.form.saveDraft.title",
     consequenceKeys: ["agent.card.form.saveDraft.consequence", "agent.card.apply-draft.provenance"],
   },
-  description:
-    "Save a complete draft to a form, through the same save path every edit in the builder " +
-    "takes. It publishes nothing and releases nothing: the draft is stored as a draft and " +
-    "marked agent-assisted. This is how a form goes from blank to a reviewable draft, after " +
-    "form.create and any question.create steps of the same plan.",
+  description: ACTION_DESCRIPTIONS["form.saveDraft"],
 };
 
 export const updateFormSettings: ActionKindDef = {
@@ -146,9 +140,7 @@ export const updateFormSettings: ActionKindDef = {
     consequenceKeys: ["agent.card.form.settings.consequence"],
     headingControl: "builder.settings",
   },
-  description:
-    "Change the form's abuse-control settings. It affects sessions started from now on and " +
-    "leaves every session already under way untouched.",
+  description: ACTION_DESCRIPTIONS["form.settings"],
 };
 
 // Both kinds act on one environment's availability, and the builder edits a draft that
@@ -168,9 +160,7 @@ export const closeForm: ActionKindDef = {
     consequenceKeys: ["agent.card.form.close.consequence"],
     headingControl: "intake.door",
   },
-  description:
-    "Close the form to new sessions in the current environment. Every session already " +
-    "under way keeps its pinned version and finishes normally.",
+  description: ACTION_DESCRIPTIONS["form.close"],
 };
 
 export const reopenForm: ActionKindDef = {
@@ -188,5 +178,5 @@ export const reopenForm: ActionKindDef = {
     consequenceKeys: ["agent.card.form.reopen.consequence"],
     headingControl: "intake.door",
   },
-  description: "Reopen the form to new sessions in the current environment.",
+  description: ACTION_DESCRIPTIONS["form.reopen"],
 };

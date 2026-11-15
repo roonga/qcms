@@ -8,6 +8,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import {
   hasUnpinnedEslint,
   isGeneratedCopy,
+  isPromptSource,
   isVendoredSource,
   lintScope,
   lintTargets,
@@ -197,6 +198,14 @@ describe("recognizing the copied source boundary", () => {
     expect(isGeneratedCopy("packages/create-qcms-app/src/scaffold.ts")).toBe(false);
     expect(isGeneratedCopy("packages/create-qcms-app/scripts/sync-templates.mjs")).toBe(false);
     expect(isGeneratedCopy("packages/create-qcms-app/templates-static/common/x.ts")).toBe(false);
+  });
+
+  it("recognizes only the Markdown holding the assistant's prompt text", () => {
+    expect(isPromptSource("apps/api/src/features/agent/prompts/system/01-role.md")).toBe(true);
+    expect(isPromptSource("apps/api/src/features/agent/prompts/tools/read_form.md")).toBe(true);
+    expect(isPromptSource("apps/api/src/features/agent/prompts/actions/form.create.md")).toBe(true);
+    expect(isPromptSource("apps/api/src/features/agent/prompts/README.md")).toBe(false);
+    expect(isPromptSource("apps/api/src/features/agent/README.md")).toBe(false);
   });
 
   it("keeps the two exclusions apart, so neither widens the other", () => {

@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { ACTION_DESCRIPTIONS } from "../prompts/prompts.generated.js";
 import type { ActionKindDef, ActionRequestFacts } from "./types.js";
 
 /**
@@ -53,9 +54,7 @@ export const eraseResponse: ActionKindDef = {
     headingControl: "responses.erase",
     typedConfirmation: "sessionId",
   },
-  description:
-    "Erase one respondent's answers and submission, recording a tombstone. It cannot be " +
-    "undone, and the user retypes the session id on the card before it can run.",
+  description: ACTION_DESCRIPTIONS["response.erase"],
 };
 
 export const unflagResponse: ActionKindDef = {
@@ -76,8 +75,7 @@ export const unflagResponse: ActionKindDef = {
     consequenceKeys: ["agent.card.response.unflag.consequence"],
     headingControl: "responses.unflag",
   },
-  description:
-    "Release one flagged response's withheld submission event, so its consumers receive it.",
+  description: ACTION_DESCRIPTIONS["response.unflag"],
 };
 
 /**
@@ -120,7 +118,5 @@ export const exportResponses: ActionKindDef = {
     ],
     headingControl: "responses.export",
   },
-  description:
-    "Open the export dialog with these filters. The user presses Export and the file " +
-    "downloads in their browser; no part of it is returned to you.",
+  description: ACTION_DESCRIPTIONS["response.export"],
 };
