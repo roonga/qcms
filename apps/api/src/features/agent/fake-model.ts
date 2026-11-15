@@ -1781,6 +1781,40 @@ function planDefaultStep(
   ];
 }
 
+function marksACacheBreakpoint(message: PromptMessage): boolean {
+  const { providerOptions } = message as {
+    providerOptions?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
+  };
+  return Object.values(providerOptions ?? {}).some(
+    (vendor) => vendor["cacheControl"] !== undefined,
+  );
+}
+
+/**
+ * The accounting a provider honouring the breakpoint would return: the marked prefix is written
+ * on a call that has nothing above it and read by every call after one.
+ */
+function cacheTokens(
+  messages: readonly PromptMessage[],
+): Readonly<Record<string, number>> | undefined {
+  if (!messages.some((message) => marksACacheBreakpoint(message))) return undefined;
+  const read = messages.some((message) => message.role === "assistant");
+  return { noCache: 10, cacheRead: read ? 90 : 0, cacheWrite: read ? 0 : 90 };
+}
+
+function withCacheTokens(
+  parts: readonly StreamPart[],
+  messages: readonly PromptMessage[],
+): readonly StreamPart[] {
+  const cache = cacheTokens(messages);
+  if (cache === undefined) return parts;
+  return parts.map((part) => {
+    if (part["type"] !== "finish") return part;
+    const usage = part["usage"] as { inputTokens?: Record<string, number> };
+    return { ...part, usage: { ...usage, inputTokens: { ...usage.inputTokens, ...cache } } };
+  });
+}
+
 export function fakeAssistantModel(): MockLanguageModelV3 {
   return new MockLanguageModelV3({
     provider: "qcms-fake",
@@ -1788,7 +1822,7 @@ export function fakeAssistantModel(): MockLanguageModelV3 {
     doStream: ({ prompt, tools }) => {
       const messages = prompt as unknown as readonly PromptMessage[];
       const script = pickScript(messages);
-      const parts = planStep(messages, script, offeredTools(tools));
+      const parts = withCacheTokens(planStep(messages, script, offeredTools(tools)), messages);
       return Promise.resolve({
         stream: simulateReadableStream({
           chunks: [{ type: "stream-start", warnings: [] }, ...parts],

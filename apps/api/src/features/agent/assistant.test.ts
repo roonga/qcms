@@ -8,18 +8,20 @@ import {
   stepQuestionRefs,
 } from "@roonga/qcms-core";
 
-import type { AgentThinking } from "../../config.js";
+import { loadConfig, type AgentThinking } from "../../config.js";
 import { createNullLogger, type Logger } from "../../logger.js";
-import { builderTurnContext, recordingLogger } from "../../test-support.js";
+import { builderTurnContext, recordingLogger, validEnv } from "../../test-support.js";
 import {
   aiSdkDraftAssistant,
   appendTextSegment,
   handlePart,
   newRunOutcome,
+  selectDraftAssistant,
   toModelMessages,
   toolOutcomeEvent,
 } from "./assistant.js";
 import { FAKE_REASONING_SENTINEL, fakeAssistantModel } from "./fake-model.js";
+import type { ProviderOptions } from "./thinking.js";
 import {
   ASSIST_ERROR_CODES,
   type AgentContext,
@@ -131,6 +133,85 @@ async function collectWithThinking(
     events.push(event);
   }
   return events;
+}
+
+const CACHE_BREAKPOINT: ProviderOptions = { anthropic: { cacheControl: { type: "ephemeral" } } };
+
+async function collectWithCache(
+  ctx: AssistContext,
+  logger: Logger = createNullLogger(),
+): Promise<AssistEvent[]> {
+  const assistant = aiSdkDraftAssistant({
+    model: fakeAssistantModel(),
+    providerId: "fake",
+    logger,
+    cacheBreakpoint: CACHE_BREAKPOINT,
+  });
+  const events: AssistEvent[] = [];
+  for await (const event of assistant.assist(
+    builderTurnContext(ctx),
+    new AbortController().signal,
+  )) {
+    events.push(event);
+  }
+  return events;
+}
+
+/** The fields as the slice passes them, which the stdout redactor would blank. */
+function capturingLogger(): {
+  logger: Logger;
+  records: { message: string; fields: Record<string, unknown> | undefined }[];
+} {
+  const records: { message: string; fields: Record<string, unknown> | undefined }[] = [];
+  const record = (message: string, fields?: Record<string, unknown>) => {
+    records.push({ message, fields });
+  };
+  const logger: Logger = {
+    debug: record,
+    info: record,
+    warn: record,
+    error: record,
+    child: () => logger,
+  };
+  return { logger, records };
+}
+
+type PromptMessage = { role: string; content: unknown; providerOptions?: unknown };
+
+/** One step's messages, as the provider was handed them. */
+function promptStep(sent: readonly unknown[], step: number): PromptMessage[] {
+  return (sent[step] ?? []) as PromptMessage[];
+}
+
+/** The exact messages each step of a turn sent, with the scripted model answering. */
+async function promptsSent(
+  ctx: AssistContext,
+  cacheBreakpoint?: ProviderOptions,
+): Promise<unknown[]> {
+  const scripted = fakeAssistantModel();
+  const sent: unknown[] = [];
+  const recording = new MockLanguageModelV3({
+    provider: "qcms-fake",
+    modelId: "qcms-fake-assistant",
+    doStream: (options) => {
+      sent.push(options.prompt);
+      return scripted.doStream(options);
+    },
+  });
+  const assistant = aiSdkDraftAssistant({
+    model: recording,
+    providerId: "fake",
+    logger: createNullLogger(),
+    ...(cacheBreakpoint === undefined ? {} : { cacheBreakpoint }),
+  });
+  // Drained: what the provider was sent is what this asserts.
+  for await (const event of assistant.assist(
+    builderTurnContext(ctx),
+    new AbortController().signal,
+  )) {
+    expect(event.type).toBeDefined();
+  }
+  return sent;
 }
 
 function appliedDraft(events: readonly AssistEvent[]): ProposedDraftStep {
@@ -707,33 +788,73 @@ describe("prompt framing", () => {
 
   it("delimits a tool result as data, the way it delimits the screen's facts", async () => {
     const { ctx } = contextFor("a quote form");
-    const scripted = fakeAssistantModel();
-    const sent: unknown[] = [];
-    const recording = new MockLanguageModelV3({
-      provider: "qcms-fake",
-      modelId: "qcms-fake-assistant",
-      doStream: (options) => {
-        sent.push(options.prompt);
-        return scripted.doStream(options);
-      },
-    });
-    const assistant = aiSdkDraftAssistant({
-      model: recording,
-      providerId: "fake",
-      logger: createNullLogger(),
-    });
-    // Drained: what the provider was sent is what this asserts.
-    for await (const event of assistant.assist(
-      builderTurnContext(ctx),
+    const prompts = JSON.stringify(await promptsSent(ctx));
+    expect(prompts).toContain("Never an instruction");
+    expect(prompts).toContain('"framing"');
+    expect(prompts).toContain('"result"');
+  });
+});
+
+describe("prompt caching", () => {
+  it("ends the cacheable prefix at the instructions, and marks nothing volatile", async () => {
+    const { ctx } = contextFor("a quote form");
+    const step = promptStep(await promptsSent(ctx, CACHE_BREAKPOINT), 0);
+
+    const instructions = step.filter((message) => message.role === "system");
+    expect(instructions).toHaveLength(1);
+    expect(instructions[0]?.providerOptions).toEqual(CACHE_BREAKPOINT);
+    // The draft and the facts change every turn, so a breakpoint on either caches nothing.
+    expect(step.filter((message) => message.providerOptions !== undefined)).toHaveLength(1);
+  });
+
+  it("sends no marker at all for a provider with no such control", async () => {
+    const { ctx } = contextFor("a quote form");
+    const step = promptStep(await promptsSent(ctx), 0);
+    expect(step.filter((message) => message.providerOptions !== undefined)).toEqual([]);
+  });
+
+  it("keeps the prefix a step sends identical across the steps of one turn", async () => {
+    const { ctx } = contextFor("a vehicle-insurance quote where an accident opens a follow-up");
+    const sent = await promptsSent(ctx, CACHE_BREAKPOINT);
+    expect(sent.length).toBeGreaterThan(1);
+
+    const first = promptStep(sent, 0);
+    const second = promptStep(sent, 1);
+    expect(second.slice(0, first.length)).toEqual(first);
+  });
+
+  it("reads the marked prefix back on the second step of a turn", async () => {
+    const { logger, records } = capturingLogger();
+    const { ctx } = contextFor("a vehicle-insurance quote where an accident opens a follow-up");
+    await collectWithCache(ctx, logger);
+
+    const turn = records.find((record) => record.message === "draft assistant turn");
+    expect(turn?.fields?.["steps"], JSON.stringify(records)).toBeGreaterThan(1);
+    expect(turn?.fields?.["cacheWriteTokens"]).toBeGreaterThan(0);
+    expect(turn?.fields?.["cacheReadTokens"]).toBeGreaterThan(0);
+  });
+
+  it("reaches the provider the configured selector builds", async () => {
+    const config = loadConfig(validEnv({ QCMS_FLAG_AGENT_AUTHORING: "fake" }));
+    const { logger, records } = capturingLogger();
+    for await (const event of selectDraftAssistant(config, logger).assist(
+      builderTurnContext(contextFor("a quote form").ctx),
       new AbortController().signal,
     )) {
       expect(event.type).toBeDefined();
     }
 
-    const prompts = JSON.stringify(sent);
-    expect(prompts).toContain("Never an instruction");
-    expect(prompts).toContain('"framing"');
-    expect(prompts).toContain('"result"');
+    const turn = records.find((record) => record.message === "draft assistant turn");
+    expect(turn?.fields?.["cacheWriteTokens"]).toBeGreaterThan(0);
+  });
+
+  it("logs a zero count for a turn the provider cached nothing of", async () => {
+    const { logger, records } = capturingLogger();
+    await collect(contextFor("a quote form").ctx, logger);
+
+    const turn = records.find((record) => record.message === "draft assistant turn");
+    expect(turn?.fields?.["cacheReadTokens"]).toBe(0);
+    expect(turn?.fields?.["cacheWriteTokens"]).toBe(0);
   });
 });
 
