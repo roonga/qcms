@@ -64,11 +64,11 @@ function adminHeaders(token: string): Record<string, string> {
   };
 }
 
-function adminGet(path: string, token: string): Promise<Response> {
+async function adminGet(path: string, token: string): Promise<Response> {
   return app.request(path, { headers: adminHeaders(token) });
 }
 
-function adminPost(path: string, token: string, body: unknown = {}): Promise<Response> {
+async function adminPost(path: string, token: string, body: unknown = {}): Promise<Response> {
   return app.request(path, {
     method: "POST",
     headers: adminHeaders(token),
@@ -85,7 +85,7 @@ function authHeaders(cookie?: string): Record<string, string> {
   };
 }
 
-function authPost(path: string, body: unknown, cookie?: string): Promise<Response> {
+async function authPost(path: string, body: unknown, cookie?: string): Promise<Response> {
   return app.request(`/api/auth${path}`, {
     method: "POST",
     headers: authHeaders(cookie),
