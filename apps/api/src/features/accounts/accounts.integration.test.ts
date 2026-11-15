@@ -791,7 +791,7 @@ describe("an unclaimed account is not an administrator (criterion 54)", { timeou
       await finishClaim(soleAdmin.token, freshPassword());
       const madeWorkspace = await adminPost("/admin/workspaces", siteAdminToken, {
         name: "Counting",
-        slug: `counting-${soleAdmin.userId.slice(-8).toLowerCase()}`,
+        slug: `counting-${crypto.randomUUID().slice(0, 8)}`,
         firstAdministratorEmail: "sole.admin@example.test",
       });
       expect(madeWorkspace.status, await madeWorkspace.clone().text()).toBe(201);

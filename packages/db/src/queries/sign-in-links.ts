@@ -44,9 +44,9 @@ export async function invalidateLiveSignInLinks(
   exec: Executor,
   userId: string,
   now: Date,
-): Promise<number> {
+): Promise<void> {
   await lockAccountLinks(exec, userId);
-  const rows = await exec
+  await exec
     .update(signInLinks)
     .set({ invalidatedAt: now })
     .where(
@@ -55,9 +55,7 @@ export async function invalidateLiveSignInLinks(
         isNull(signInLinks.usedAt),
         isNull(signInLinks.invalidatedAt),
       ),
-    )
-    .returning({ id: signInLinks.id });
-  return rows.length;
+    );
 }
 
 /**
