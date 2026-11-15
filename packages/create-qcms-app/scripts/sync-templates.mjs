@@ -124,8 +124,11 @@ const APP_EXCLUDED_PATHS = new Set([
 
 const EXCLUDED_APP_DIRECTORIES = new Set(["e2e", "__snapshots__"]);
 
-/** Dropped wholesale: the fixtures feed `scripts/seed-fixtures.ts`, which is itself dropped. */
-const EXCLUDED_APP_PREFIXES = ["scripts/fixtures/"];
+/**
+ * Dropped wholesale: the fixtures feed `scripts/seed-fixtures.ts`, which is itself dropped,
+ * and the rendered prompt is what this repository's tests diff their own output against.
+ */
+const EXCLUDED_APP_PREFIXES = ["scripts/fixtures/", "src/features/agent/prompts/rendered/"];
 
 /** Matched by shape: the scaffold ships no test runner, so a stamped config fails `tsc`. */
 const TEST_RUNNER_CONFIG = /(^|\/)(vitest|playwright)\.[\w.-]*\.[cm]?[jt]s$/;
