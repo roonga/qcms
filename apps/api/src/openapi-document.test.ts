@@ -283,6 +283,14 @@ const OPEN_REQUEST_BODY_SCHEMAS: Record<string, string> = {
   "AcceptProposalBody.newQuestions[].definition":
     "One proposed question definition, opaque exactly as QuestionDefinitionInput is, and " +
     "unnamed for the same flag-gating reason.",
+  AppearanceInput:
+    "A form's appearance is opaque at the route boundary for the reason the form definition " +
+    "is: the shared appearance schema owns its shape and the WCAG contrast check owns its " +
+    "colours, so the handler answers with their coded 422 and the correction report rather " +
+    "than a bare 400. That schema is a strictObject, so an unknown key is refused there.",
+  ThemePalettesInput:
+    "A workspace theme's four palettes, opaque for the same reason and validated by the same " +
+    "strictObject: closing it here would restate the token set at the transport boundary.",
 };
 
 function refName(ref: string): string {
@@ -361,8 +369,8 @@ const allSurfaces = createApp(
 
 const WALKED: ReadonlyArray<readonly [string, OpenApiDocument, number]> = [
   ["respondent", readCommitted("respondent"), 6],
-  ["admin", committedAdmin, 29],
-  ["all surfaces with every flag on", allSurfaces, 38],
+  ["admin", committedAdmin, 33],
+  ["all surfaces with every flag on", allSurfaces, 42],
 ];
 
 describe("every request body rejects unknown keys (issue #893)", () => {
