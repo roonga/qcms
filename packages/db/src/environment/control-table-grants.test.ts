@@ -404,8 +404,7 @@ describe("the sign-in links' grants (task 090)", () => {
     expect(CONTROL_READ_TABLES).not.toContain(SIGN_IN_LINKS_TABLE);
     expect(CONTROL_READ_COLUMNS[SIGN_IN_LINKS_TABLE]).toBeUndefined();
     expect(sql).not.toContain(`ON "control"."${SIGN_IN_LINKS_TABLE}" TO %I`);
-    expect(grantEnvironmentStatements("staging").join("
-")).not.toContain(SIGN_IN_LINKS_TABLE);
+    expect(grantEnvironmentStatements("staging").join(" ")).not.toContain(SIGN_IN_LINKS_TABLE);
   });
 
   it("stores the digest and no token, and pins both value sets at the database", () => {
