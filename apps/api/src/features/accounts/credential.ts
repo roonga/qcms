@@ -24,14 +24,19 @@ export async function createUnclaimedAccount(
   input: { readonly email: string; readonly name: string },
 ): Promise<CreatedAccount> {
   const ctx = await auth.$context;
-  const created = await ctx.internalAdapter.createUser({
-    email: input.email,
-    name: input.name,
-    emailVerified: false,
-    // No provisional credential exists to replace, so the forced-change gate does not
-    // apply; `claimedAt` is what holds this account until it is claimed.
-    mustChangePassword: false,
-  });
+  const created = await ctx.internalAdapter.createUser(
+    {
+      email: input.email,
+      name: input.name,
+      emailVerified: false,
+      // No provisional credential exists to replace, so the forced-change gate does not
+      // apply; `claimedAt` is what holds this account until it is claimed.
+      mustChangePassword: false,
+    },
+    // The provisioning origin the library records. The account will hold an email and
+    // password credential, written by its claim.
+    { method: "email-password" },
+  );
   return { userId: created.id, email: created.email, name: created.name };
 }
 

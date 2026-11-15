@@ -1,5 +1,5 @@
 import { issueSignInLink, recordSignInLinkDelivery } from "@roonga/qcms-db";
-import type { Executor, SignInLinkDelivery } from "@roonga/qcms-db";
+import type { Executor } from "@roonga/qcms-db";
 
 import type { Deps } from "../../deps.js";
 import { adminLink, SIGN_IN_LINK_TTL_HOURS, type SignInLinkPurpose } from "../email/templates.js";
@@ -7,6 +7,9 @@ import { signInLinkMessage } from "../email/templates.js";
 import { claimPathFor, mintSignInToken, signInTokenHash } from "./tokens.js";
 
 const HOUR_MS = 60 * 60 * 1000;
+
+/** What a caller learns about one send. `pending` never escapes: a send always answers. */
+export type SignInLinkDeliveryOutcome = "sent" | "undeliverable";
 
 /**
  * Mint one link, store its digest and email it. The token exists only in this function's
@@ -22,7 +25,7 @@ export async function issueAndSendSignInLink(
     readonly purpose: SignInLinkPurpose;
     readonly issuedBy: string;
   },
-): Promise<SignInLinkDelivery> {
+): Promise<SignInLinkDeliveryOutcome> {
   if (!deps.config.mail.configured) throw new Error("outbound mail is not configured");
   const now = deps.clock.now();
   const token = mintSignInToken();
@@ -44,7 +47,7 @@ export async function issueAndSendSignInLink(
       adminLink(deps.config.mail.linkBaseUrl, claimPathFor(token)),
     ),
   );
-  const delivery: SignInLinkDelivery = result.ok ? "sent" : "undeliverable";
+  const delivery: SignInLinkDeliveryOutcome = result.ok ? "sent" : "undeliverable";
   await recordSignInLinkDelivery(exec, link.id, delivery);
   return delivery;
 }
