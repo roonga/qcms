@@ -28,6 +28,8 @@ What an adopter should know.
   removing a Workspace administrator writes an `administrator` row; a group created, renamed,
   deleted or re-scoped writes one `group` row naming both sides of the change, in place of
   the previous row per holder on a re-scope. A group delete still writes a revoke row per
-  holder.
+  holder. Archiving a workspace writes a `setting` audit row. An administrator write that
+  changes nothing, such as appointing an existing administrator or removing a non-member,
+  records nothing.
 
 No migration: the kinds this uses were added by `0011`.

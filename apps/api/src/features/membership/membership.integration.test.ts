@@ -2010,7 +2010,7 @@ describe("every group act writes one `group` row (section 11)", () => {
 
     const details = (await auditRowsOfKind(workspaceId, "group")).map((row) => row.detail);
     // One row each, counted: the four starter groups this workspace was created with
-    // write none, and a re-scope no longer writes one per holder.
+    // write none, and a re-scope writes one row for the group, not one per holder.
     expect(details.filter((detail) => detail?.startsWith("group=created") === true)).toEqual([
       "group=created name=Readers roles=forms.viewer environments=",
     ]);
