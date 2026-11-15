@@ -59,6 +59,32 @@ describe("createInitialAdmin against an empty database", () => {
     expect(await countAdminUsers(testDb.db)).toBe(0);
   });
 
+  it("promotes nobody when the claim write fails, so a re-run can still recover the account", async () => {
+    const stranded = "atomic.admin@example.test";
+    // A real mid-sequence failure: the database admits the promotion and refuses the claim,
+    // which is the order the two writes happen in.
+    await testDb.db.execute(
+      sql`alter table control."user" add constraint refuse_claim check ("claimedAt" is null)`,
+    );
+    try {
+      const refused = await createInitialAdmin(auth, testDb.db, {
+        email: stranded,
+        password: PASSWORD,
+      });
+      expect(refused.ok === false && refused.refusal.kind).toBe("promotion-failed");
+      const [account] = await testDb.db.select().from(authUser);
+      expect(account?.email).toBe(stranded);
+      expect(account?.role ?? null).toBeNull();
+      expect(account?.claimedAt ?? null).toBeNull();
+      expect(await countSiteAdministrators(testDb.db)).toBe(0);
+    } finally {
+      await testDb.db.execute(sql`alter table control."user" drop constraint refuse_claim`);
+      // Every case below starts from an empty database, as a first run does.
+      await testDb.db.delete(authUser).where(eq(authUser.email, stranded));
+    }
+    expect(await countAdminUsers(testDb.db)).toBe(0);
+  });
+
   it("creates the first admin, leaves no session behind, and that admin can sign in", async () => {
     const created = await createInitialAdmin(auth, testDb.db, {
       email: EMAIL,
@@ -254,55 +280,5 @@ describe("createInitialAdmin re-run after a first run that never promoted its ac
     const message = describeRefusal({ kind: "promotion-failed", email: ORPHAN, detail: "boom" });
     expect(message).toContain("Re-run this command");
     expect(message).not.toContain("POST /admin/workspaces");
-  });
-});
-
-describe("createInitialAdmin when the claim write fails after the promotion", () => {
-  let atomicDb: TestDb;
-  let atomicAuth: AdminAuth;
-  const ATOMIC = "atomic.admin@example.test";
-
-  beforeAll(async () => {
-    atomicDb = await startTestDb({ seedWorkspace: false });
-    const config = loadAdminAuthConfig(
-      validEnv({
-        DATABASE_URL: atomicDb.connectionUri,
-        QCMS_ADMIN_BASE_URL: "http://localhost:7040",
-      }),
-    );
-    atomicAuth = createAdminAuth({ db: atomicDb.db, adminAuth: config.adminAuth });
-  }, CONTAINER_BOOT_TIMEOUT_MS);
-
-  afterAll(async () => {
-    await atomicDb?.teardown();
-  }, CONTAINER_BOOT_TIMEOUT_MS);
-
-  it("promotes nobody, so the re-run the guard allows can still recover the account", async () => {
-    // A real mid-sequence failure: the database refuses the claim write and admits the
-    // promotion, which is the order the two writes happen in.
-    await atomicDb.db.execute(
-      sql`alter table control."user" add constraint refuse_claim check ("claimedAt" is null)`,
-    );
-    const refused = await createInitialAdmin(atomicAuth, atomicDb.db, {
-      email: ATOMIC,
-      password: PASSWORD,
-    });
-    expect(refused.ok === false && refused.refusal.kind).toBe("promotion-failed");
-
-    const [account] = await atomicDb.db.select().from(authUser);
-    expect(account?.email).toBe(ATOMIC);
-    expect(account?.role ?? null).toBeNull();
-    expect(account?.claimedAt ?? null).toBeNull();
-    expect(await countSiteAdministrators(atomicDb.db)).toBe(0);
-
-    await atomicDb.db.execute(sql`alter table control."user" drop constraint refuse_claim`);
-    const recovered = await createInitialAdmin(atomicAuth, atomicDb.db, {
-      email: ATOMIC,
-      password: PASSWORD,
-    });
-    expect(recovered.ok, JSON.stringify(recovered)).toBe(true);
-    const [promoted] = await atomicDb.db.select().from(authUser);
-    expect(promoted?.role).toBe("admin");
-    expect(promoted?.claimedAt).toBeInstanceOf(Date);
   });
 });
