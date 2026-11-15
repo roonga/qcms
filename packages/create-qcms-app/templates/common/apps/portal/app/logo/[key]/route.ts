@@ -8,9 +8,8 @@ import { getLogo } from "../../../lib/server/api";
 const LOGO_KEY = /^[0-9a-f]{64}$/u;
 
 /**
- * A day, and revalidated rather than `immutable` for a year: a Site administrator may take
- * a logo down, and a cache that never asks again would keep serving it (Code Owner,
- * 2026-11-16).
+ * Revalidated rather than `immutable`: a Site administrator may take a logo down, and a
+ * cache that never asks again would go on serving it.
  */
 const CACHE_CONTROL = "public, max-age=86400, must-revalidate";
 
