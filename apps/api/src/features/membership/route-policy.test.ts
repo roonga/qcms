@@ -402,7 +402,7 @@ describe("the audit column and the response routes agree (criterion 8)", () => {
     expect(lock?.installationOnly).toBeUndefined();
   });
 
-  it("puts the logo takedown out of every role's reach (Code Owner, 2026-11-16)", () => {
+  it("puts the logo takedown out of every role's reach", () => {
     const row = policyForRequest("DELETE", `/admin/logos/${"a".repeat(64)}`);
     expect(row).toMatchObject({
       resource: "workspace",

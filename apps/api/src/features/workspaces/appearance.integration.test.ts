@@ -553,7 +553,7 @@ describe("a locked workspace refuses every appearance change (criterion 121)", (
 
   it("refuses an appearance on the assistant's own draft path, locked or not (SEC-17)", async () => {
     // The proposal digest binds the form id and the definition only, so an appearance on
-    // a tokened save was never on the card. Task 117 binds it; until then it is refused,
+    // a tokened save was never on the card. It is refused until the digest binds it,
     // which is a stronger answer than the lock and does not depend on one.
     async function tokenedSave(
       formId: FormId,
@@ -895,7 +895,7 @@ describe("a respondent keeps the appearance of the version they started (A2, ADR
   });
 });
 
-describe("a Site administrator may take a stored logo down (Code Owner, 2026-11-16)", () => {
+describe("a Site administrator may take a stored logo down", () => {
   async function storedLogo(label: string, fill: number): Promise<string> {
     const workspaceId = await newWorkspace(label);
     const themeId = await createTheme(workspaceId, "Takedown", "#1d4ed8");

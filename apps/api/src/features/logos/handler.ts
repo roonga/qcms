@@ -23,9 +23,8 @@ function notFound(): ApiError {
 }
 
 /**
- * A day, and revalidated rather than `immutable` for a year: a Site administrator may take
- * a logo down, and a cache that never asks again would keep serving it (Code Owner,
- * 2026-11-16).
+ * Revalidated rather than `immutable`: a Site administrator may take a logo down, and a
+ * cache that never asks again would go on serving it.
  */
 const CACHE_CONTROL = "public, max-age=86400, must-revalidate";
 
@@ -59,10 +58,10 @@ export function makeServeLogoHandler(deps: Deps): RouteHandler<typeof serveLogoR
 }
 
 /**
- * A Site administrator's act and nobody else's (Code Owner, 2026-11-16), which the route
- * policy's `installationOnly` row is what enforces. The theme keys go first, because the
- * themes' foreign key forbids a dangling one; a draft and a version carry their
- * appearance by value and keep the key they froze, which then serves the uniform 404.
+ * A Site administrator's act and nobody else's, which the route policy's
+ * `installationOnly` row is what enforces. The theme keys go first, because the themes'
+ * foreign key forbids a dangling one; a draft and a version carry their appearance by
+ * value and keep the key they froze, which then serves the uniform 404.
  */
 export function makeTakeDownLogoHandler(
   deps: Deps,

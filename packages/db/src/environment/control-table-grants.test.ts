@@ -303,7 +303,7 @@ describe("the site audit's grants (criterion 112)", () => {
   });
 });
 
-describe("the logo takedown's function and kind (Code Owner, 2026-11-16)", () => {
+describe("the logo takedown's function and the fifth site audit kind", () => {
   const sql = readFileSync(TAKEDOWN_MIGRATION, "utf8");
 
   it("are exactly the statements the generator emits, verbatim", () => {
