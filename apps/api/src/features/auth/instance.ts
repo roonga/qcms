@@ -10,6 +10,7 @@ import {
   authUser,
   authVerification,
   clearMustChangePassword,
+  isAccountActive,
   isAccountDisabled,
 } from "@roonga/qcms-db";
 import type { Executor } from "@roonga/qcms-db";
@@ -43,7 +44,10 @@ export const AUTH_BASE_PATH = "/api/auth";
  * (`dist/db/internal-adapter.mjs:667-684`) <!-- expect: value: "credential" -->, so the
  * `account.update.after` hook below needs it to tell that row from an OAuth account.
  */
-const CREDENTIAL_PROVIDER_ID = "credential";
+export const CREDENTIAL_PROVIDER_ID = "credential";
+
+/** The one session-minting path a claim never reaches; see the session hook below. */
+export const BACKUP_CODE_VERIFY_PATH = "/two-factor/verify-backup-code";
 
 /**
  * The only composition-shaped rule here: NIST SP 800-63B Rev 4 section 3.1.1.2 forbids the rest and mandates
@@ -319,10 +323,19 @@ export function createAdminAuth(input: AdminAuthInput) {
            * Every sign-in shape mints the session here, the pending-second-factor one
            * included, which creates it and then deletes it:
            * `dist/plugins/two-factor/index.mjs:291` <!-- expect: internalAdapter.deleteSession(data.session.token) -->
-           * The claim is deliberately not read: an unclaimed account reaches its own claim.
+           * The claim is read on one path only. An unclaimed account reaches its own
+           * claim, so a password sign-in and the TOTP verification that completes the
+           * enrolment both pass; a backup code proves possession of a code the enrolment
+           * already handed out and proves no enrolment, so it is the one shape that must
+           * not admit an account that has never finished claiming.
            */
-          before: async (session) => {
-            if (!(await isAccountDisabled(input.db, session.userId))) return;
+          before: async (session, context) => {
+            const path: unknown = (context as { path?: unknown } | undefined)?.path;
+            const refused =
+              path === BACKUP_CODE_VERIFY_PATH
+                ? !(await isAccountActive(input.db, session.userId))
+                : await isAccountDisabled(input.db, session.userId);
+            if (!refused) return;
             // No reason in the body, as everywhere else this surface refuses.
             throw new APIError("UNAUTHORIZED");
           },

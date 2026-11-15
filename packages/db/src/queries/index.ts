@@ -97,6 +97,7 @@ export {
   type AccessGroupHolderRow,
   type AccessGroupRow,
   type EnvironmentNamingGroup,
+  type GrantSubjectRow,
   type HeldGrant,
   type MemberWorkspace,
   type Membership,
@@ -147,6 +148,25 @@ export {
   writeSiteAuditRow,
   writeSiteAuditWithMirror,
 } from "./site-audit.js";
+
+export {
+  type SignInLinkRow,
+  consumeSignInLink,
+  findSignInLinkByHash,
+  issueSignInLink,
+  recordSignInLinkDelivery,
+  signInLinkIsLive,
+} from "./sign-in-links.js";
+
+export {
+  type AccountDirectoryQuery,
+  type AccountDirectoryRow,
+  type AccountRoleFilter,
+  type AccountStatus,
+  accountStatusOf,
+  findAccountById,
+  listAccountDirectory,
+} from "./accounts.js";
 
 export {
   type AgentActionEntry,
