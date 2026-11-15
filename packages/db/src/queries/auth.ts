@@ -110,15 +110,8 @@ export async function clearMustChangePassword(exec: Executor, userId: string): P
  * Write the claim: the person has set a password and enrolled a second factor. The create
  * path leaves the column null, so the claim is always an act rather than a default.
  */
-export async function markAccountClaimed(
-  exec: Executor,
-  userId: string,
-  at: Date,
-): Promise<void> {
-  await exec
-    .update(authUser)
-    .set({ claimedAt: at, updatedAt: at })
-    .where(eq(authUser.id, userId));
+export async function markAccountClaimed(exec: Executor, userId: string, at: Date): Promise<void> {
+  await exec.update(authUser).set({ claimedAt: at, updatedAt: at }).where(eq(authUser.id, userId));
 }
 
 /** The `user.role` value of a Site administrator; an account holds nothing by default. */
