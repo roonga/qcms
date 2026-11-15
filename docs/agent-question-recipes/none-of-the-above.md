@@ -6,7 +6,7 @@
 
 - Add the option to the `multiChoice` list, last, with its own stable option id, exactly as the source form words it.
 - Leave `constraints.maxSelected` unset. A cap of 1 would also forbid two ordinary answers, which is not the rule the form wants.
-- `constraints.minSelected: 1`, so the question cannot be left empty.
+- `required: true`, so the question cannot be left empty. An empty selection is refused in any case.
 - Put the rule the form cannot hold into `help`, in the respondent's words: "If none of these apply, pick the last answer on its own."
 - Tell the person plainly, before they confirm, that the option can be ticked alongside the others.
 
