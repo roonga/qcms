@@ -195,32 +195,36 @@ describe("turbo orders every dist a program-shaped task reads", () => {
     expect([...cleaned]).toContain("@roonga/qcms-db");
   });
 
-  it.each(PROGRAM_SHAPED_TASKS)("builds every dist %s reads, before it reads it", (task) => {
-    const graph = turboTaskGraph(task);
-    expect(graph.size).toBeGreaterThan(0);
+  it.each(PROGRAM_SHAPED_TASKS)(
+    "builds every dist %s reads, before it reads it",
+    (task) => {
+      const graph = turboTaskGraph(task);
+      expect(graph.size).toBeGreaterThan(0);
 
-    const undeclared: string[] = [];
-    let checked = 0;
-    for (const pkg of packages) {
-      if (pkg.scripts[task] === undefined) continue;
-      const taskId = `${pkg.name}#${task}`;
-      if (!graph.has(taskId)) continue;
-      checked += 1;
-      const reached = workspaceImportsReachedFrom(pkg.directory);
-      expect(
-        reached.files,
-        `${relative(REPOSITORY_ROOT, pkg.directory)} reached no files`,
-      ).toBeGreaterThan(0);
-      const ordered = orderedBefore(graph, taskId);
-      for (const dependency of reached.packages) {
-        if (dependency === pkg.name || !cleaned.has(dependency)) continue;
-        if (!ordered.has(`${dependency}#build`)) {
-          undeclared.push(`${taskId} reads ${dependency} but does not wait for its build`);
+      const undeclared: string[] = [];
+      let checked = 0;
+      for (const pkg of packages) {
+        if (pkg.scripts[task] === undefined) continue;
+        const taskId = `${pkg.name}#${task}`;
+        if (!graph.has(taskId)) continue;
+        checked += 1;
+        const reached = workspaceImportsReachedFrom(pkg.directory);
+        expect(
+          reached.files,
+          `${relative(REPOSITORY_ROOT, pkg.directory)} reached no files`,
+        ).toBeGreaterThan(0);
+        const ordered = orderedBefore(graph, taskId);
+        for (const dependency of reached.packages) {
+          if (dependency === pkg.name || !cleaned.has(dependency)) continue;
+          if (!ordered.has(`${dependency}#build`)) {
+            undeclared.push(`${taskId} reads ${dependency} but does not wait for its build`);
+          }
         }
       }
-    }
 
-    expect(checked, `no ${task} task was checked`).toBeGreaterThan(0);
-    expect(undeclared.sort()).toEqual([]);
-  }, 20_000);
+      expect(checked, `no ${task} task was checked`).toBeGreaterThan(0);
+      expect(undeclared.sort()).toEqual([]);
+    },
+    20_000,
+  );
 });
