@@ -51,6 +51,14 @@ describe("query helper import surface", () => {
     "countWorkspaceContents",
     "ensureSeedWorkspace",
     "insertWorkspace",
+    "setWorkspaceAppearanceLock",
+    "listWorkspaceThemes",
+    "getWorkspaceTheme",
+    "insertWorkspaceTheme",
+    "updateWorkspaceTheme",
+    "deleteWorkspaceTheme",
+    "insertAppearanceLogo",
+    "getAppearanceLogo",
     "listEnvironments",
     "getEnvironmentChallengeProvider",
     "listEnvironmentRetention",
@@ -201,8 +209,15 @@ describe("query helper import surface", () => {
 
   it("exports no path that deletes a workspace (task 068, criterion 5)", () => {
     const workspaceWriters = exportNames.filter((name) => /workspace/i.test(name));
+    // Things held inside a workspace, which are deleted by design. The guard is about a
+    // path that removes the workspace row itself, and the exceptions are listed rather
+    // than matched by shape so a new one is a change somebody reviews.
+    const insideAWorkspace = ["deleteWorkspaceTheme"];
     expect(
-      workspaceWriters.filter((name) => /^(delete|remove|drop|purge|erase)/i.test(name)),
+      workspaceWriters.filter(
+        (name) =>
+          /^(delete|remove|drop|purge|erase)/i.test(name) && !insideAWorkspace.includes(name),
+      ),
     ).toEqual([]);
     expect(workspaceWriters).toContain("archiveWorkspace");
   });
