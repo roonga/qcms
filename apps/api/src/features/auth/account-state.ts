@@ -3,8 +3,8 @@ import type { AdminAuth } from "./instance.js";
 
 /**
  * The allowlisted endpoints an unclaimed account still reaches, because together they are
- * the claim: task 090's single-use link lands on the forced password and factor screens,
- * which post here. A disabled account reaches none of them.
+ * the claim: the single-use link lands on the forced password and factor screens, which
+ * post here. A disabled account reaches none of them.
  */
 export const CLAIM_AUTH_ENDPOINTS: readonly string[] = [
   "GET /get-session",

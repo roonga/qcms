@@ -75,6 +75,12 @@ interface: request in, `AdminPrincipal` or `undefined` out. `registerAdminAuth` 
   (R4) - use WebCrypto, not `node:crypto` - and it must keep the current rejection
   contract: **every** failure returns `undefined`, so the 401 carries no reason (SEC-1's
   no-enumeration rule is enforced at that boundary, not in the handler).
+- **What a replacement verifier must keep reading:** the absolute session lifetime, the
+  second-factor policy, the provisional-credential flag `mustChangePassword`, and the
+  account state `disabledAt` and `claimedAt`. The last two are read from the row on every
+  request, which is what makes a disable take effect at once; a verifier that caches a
+  session, or that reads neither, reopens the gap task 088 closed. The auth mount reads the
+  same two for the endpoints that issue the session, and the Confirm refusal depends on them.
 - The principal's `role` claim (SEC-3) is where an IdP's group or role mapping lands.
   Launch issues a single `admin` value and nothing branches on it, so a mapping can be
   added without touching a route.

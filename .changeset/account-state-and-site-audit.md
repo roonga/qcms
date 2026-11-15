@@ -18,9 +18,16 @@ What an adopter should know.
   `resolveMembership`, `listGrantsForUser` and `listMemberWorkspacesForUser` filter all
   three. The `member` row's Workspace administrator flag is not suspended, and
   administration lists still report a suspended holder so the state can be seen.
-- `claimedAt` defaults to the row's creation time, so every account an upgrade already holds
-  is claimed. The account-creation act that writes an unclaimed account lands with the
-  creation and claim work; nothing here writes `disabledAt` or `suspendedAt` either.
+- `claimedAt` carries **no default**: `null` is unclaimed and holds nothing, so a create path
+  that writes no claim leaves an unclaimed account. The migration marks every row it finds
+  claimed, and `qcms:create-admin` writes the first administrator's claim itself. The
+  account-creation act that writes an unclaimed account lands with the creation and claim
+  work; nothing here writes `disabledAt` or `suspendedAt` either.
+- A disabled account is refused on the **allowlisted better-auth endpoints** as well as on
+  `/admin`: the mount reads the account behind the request's session, and no sign-in mints a
+  session for one. An unclaimed account still reaches the endpoints that are its own claim
+  (`get-session`, `sign-out`, `change-password`, `two-factor/enable` and
+  `two-factor/verify-totp`) and is refused the rest.
 - `POST /admin/workspaces` now refuses a first Workspace administrator who is disabled or
   unclaimed, with one answer for both.
 - `control.site_audit` is the second append-only log: `actor`, `subject`, `workspace_id`,

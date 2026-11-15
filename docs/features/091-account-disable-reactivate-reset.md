@@ -12,6 +12,7 @@ The acts that end or restore an account's access, and the re-confirmation of sus
 - **Disable:** sessions deleted in the same transaction; the last active, claimed Site administrator refused; response holdings and last-Workspace-administrator workspaces returned for the confirmation; disable removes the Site administrator role; no delete route.
 - **Reactivate:** through an emailed link; response-role memberships suspended, others restored at once.
 - **Credential and factor reset:** sessions revoked; response-role memberships suspended; sign-in again through an emailed link; a factor-only reset does not force a new password.
+- A running response export is not stopped by a credential reset or by a membership suspension: the export cut-off reads the account's disabled flag alone (088).
 - **Re-confirm** a suspended membership: a Workspace administrator of that workspace or a Site administrator. Refused for the person in `suspendedBy` where an active, claimed administrator other than that person and the subject exists; where none exists, that person may re-confirm and the audit row records it. Always refused for the subject.
 - The Workspace administrator flag is never suspended.
 - One site-audit row per act, mirrored to every affected workspace.
