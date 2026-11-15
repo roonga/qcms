@@ -39,7 +39,7 @@ async function anthropicRequest(): Promise<Record<string, unknown>> {
   const anthropic = createAnthropic({
     apiKey: "anthropic-key-absent-from-this-test",
     fetch: (_url, init) => {
-      bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+      bodies.push(JSON.parse(init?.body as string) as Record<string, unknown>);
       return Promise.reject(new Error("captured"));
     },
   });
@@ -61,7 +61,7 @@ async function anthropicRequest(): Promise<Record<string, unknown>> {
     messages: [{ role: "user", content: "a quote form" }],
   });
   // Drained so the failed call is awaited rather than left unhandled.
-  for await (const part of result.fullStream) expect(part.type).toBeDefined();
+  for await (const part of result.stream) expect(part.type).toBeDefined();
 
   const [body] = bodies;
   if (body === undefined) throw new Error("the provider made no call");
