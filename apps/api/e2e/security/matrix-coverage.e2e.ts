@@ -148,12 +148,23 @@ describe("the §3.2 matrix and the probe inventory stay in step", () => {
       "/admin/operations/forms",
       // The installation-wide release workflow, whose write no grant reaches.
       "/admin/release-workflow",
+      "/admin/accounts",
+      "/admin/accounts/{id}/sign-in-link",
     ]) {
       expect(
         adminPaths.some((path) => path.includes(slice)),
         `no probe covers ${slice}`,
       ).toBe(true);
     }
+  });
+
+  it("probes every identity route outside the admin gate, including the claim", () => {
+    const authPaths = SURFACES.filter((surface) => surface.group === "auth").map(
+      (surface) => surface.name,
+    );
+    expect(authPaths).toEqual(
+      expect.arrayContaining(["POST /api/auth/sign-in/email", "POST /api/auth/claim"]),
+    );
   });
 });
 
