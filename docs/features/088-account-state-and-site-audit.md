@@ -14,7 +14,7 @@ Green field: no data migration (spec section 1).
 - `user.disabledAt`, `user.claimedAt`; `team_member.suspendedAt` and `suspendedBy` (who performed the reset or reactivation).
 - Workspace creation refuses an unclaimed first Workspace administrator (closes 086's interim).
 - The session verifier reads the disabled flag on every request; no cache.
-- A disabled or unclaimed account is refused on the allowlisted better-auth endpoints too, not only on `/admin` (Code Owner, 2026-11-15). An unclaimed account still reaches the endpoints that are its own claim, so the first-run and claim path 090 needs is not blocked.
+- A disabled or unclaimed account is refused on the allowlisted better-auth endpoints too, not only on `/admin` (Code Owner, 2026-11-15). An unclaimed account still reaches the endpoints that are its own claim, so the first-run and claim path 090 needs is not blocked. Sign-in and sign-out are judged elsewhere: the session-create hook answers the sign-in, and a sign-out clears only its own session.
 - The resolver ignores disabled, unclaimed and suspended memberships.
 - A streamed export aborts, and an agent Confirm is refused, once the account is disabled.
 - `control.site_audit`, with the application role holding `INSERT` and `SELECT` only; a writer, and a mirror helper into `access_audit`.
