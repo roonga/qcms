@@ -24,11 +24,9 @@ function notFound(): Response {
 }
 
 /**
- * The respondent-facing logo, served from the portal's own origin so SEC-9's `img-src
- * 'self'` holds without widening it. No session: a logo is served to whoever the form is
- * served to, and it reads no form, version or response. The content type is the one the
- * API stored from its magic-number sniff, and it is passed through only if it is still
- * one of the three raster types, with `nosniff` so no browser may decide otherwise. The
+ * Served from the portal's own origin so SEC-9's `img-src 'self'` holds unwidened, and
+ * without a session: a logo reaches whoever the form reaches. The type is the one the API
+ * sniffed at upload, passed through only while it is still raster. The
  * Content-Security-Policy is the proxy's, which sets it on every response here.
  */
 export async function GET(
