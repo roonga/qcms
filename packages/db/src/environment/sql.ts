@@ -448,11 +448,9 @@ export function grantAppearanceLogosStatements(): string[] {
 }
 
 /**
- * The takedown function's own grant. `EXECUTE` comes to every role by default, so it is
- * revoked from `PUBLIC` first and then given to the control role alone: no environment
- * role may call it, and no application role gains `DELETE` on the table it deletes from.
- * The tombstones are taken back from every `qcms_app%` role, because the control role's
- * schema-wide grant would otherwise let it delete one and re-admit those bytes.
+ * The takedown function's `EXECUTE`, revoked from `PUBLIC` and given to the control role
+ * alone. The tombstones are taken back from every `qcms_app%` role, because the control
+ * role's schema-wide grant would otherwise let it delete one and re-admit those bytes.
  */
 export function grantAppearanceLogoTakedownStatements(): string[] {
   const fn = `${APPEARANCE_LOGO_TAKEDOWN_FUNCTION}(text)`;
