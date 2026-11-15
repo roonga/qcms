@@ -8,7 +8,7 @@ Superseded for sequencing by [`work-order-sequence.md`](work-order-sequence.md) 
 - Every admin UI task is gated on its design batch: no dispatch until its screens are on the design canvas and the Code Owner has seen them ([section 12](../docs/WORKSPACE_ACCESS.md#12-navigation-and-screens)).
 - Green field: no data migration, upgrade path or backward compatibility ([section 1](../docs/WORKSPACE_ACCESS.md#1-status-and-authority)). Work orders restate this so reviewers do not read the removal of form scope and old roles as data loss.
 - Gates: V = `pnpm verify`; D = `pnpm exec turbo run test --force` (executed, not cached); B = `QCMS_PORT_SEAT=<n> pnpm verify:browser:detached` then `pnpm verify:browser:wait <dir>` (never with D on one checkout); E = `QCMS_PORT_SEAT=<n> pnpm up:e2e`.
-- Every task: template mirrors via `packages/create-qcms-app/sync-templates.mjs`, `pnpm openapi:generate` when routes change, dead-key check, logs under `node scripts/agent-scratch.mjs <name>`, and a PR that lists the suites run and skipped.
+- Every task: template mirrors via `packages/create-qcms-app/scripts/sync-templates.mjs`, `pnpm openapi:generate` when routes change, dead-key check, logs under `node scripts/agent-scratch.mjs <name>`, and a PR that lists the suites run and skipped.
 
 ## 1. Open decision
 
