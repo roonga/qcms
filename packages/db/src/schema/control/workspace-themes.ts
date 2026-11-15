@@ -67,8 +67,9 @@ export const appearanceLogos = controlSchema.table(
       APPEARANCE_LOGOS_SIZE_CHECK,
       sql`octet_length(${t.bytes}) > 0 and octet_length(${t.bytes}) <= 524288`,
     ),
-    // Declared after the shape CHECK so a malformed key reports that one, which is the
-    // narrower message. Content addressing is a database invariant, not a caller's promise.
+    // Postgres checks CHECK constraints in name order, and the shape check's name sorts
+    // first, so a malformed key reports it, the narrower message.
+    // Content addressing is a database invariant, not a caller's promise.
     check(APPEARANCE_LOGOS_DIGEST_CHECK, sql`${t.key} = encode(sha256(${t.bytes}), 'hex')`),
   ],
 );

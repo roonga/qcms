@@ -388,7 +388,7 @@ export function workspaceReportingGrantStatements(input: {
  * The grants for a control-plane table created after the baseline, which its own migration must carry: the
  * baseline's `ALL TABLES` pass covers only tables existing then, and no default privilege can carve out the
  * break-glass audit. `qcms_app_control` gets DML; an environment role gets `SELECT` only if the table is on
- * {@link CONTROL_READ_TABLES}.
+ * {@link CONTROL_READ_TABLES} or {@link CONTROL_READ_COLUMNS}.
  */
 export function grantControlTableStatements(table: string): string[] {
   const statements = [
@@ -396,7 +396,7 @@ export function grantControlTableStatements(table: string): string[] {
       `GRANT SELECT, INSERT, UPDATE, DELETE ON ${quote(CONTROL_SCHEMA)}.${quote(table)} TO ${quote(CONTROL_ROLE)}`,
     ]),
   ];
-  if (CONTROL_READ_TABLES.includes(table) || CONTROL_READ_COLUMNS[table] !== undefined) {
+  if (CONTROL_READ_TABLES.includes(table) || Object.hasOwn(CONTROL_READ_COLUMNS, table)) {
     statements.push(grantControlReadToEnvironmentRolesStatement(table));
   }
   return statements;

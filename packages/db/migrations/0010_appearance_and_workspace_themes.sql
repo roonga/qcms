@@ -51,13 +51,13 @@ ALTER TABLE "control"."access_audit" ADD CONSTRAINT "access_audit_kind" CHECK ("
 -- version whose appearance is frozen with it (ADR-07). The triggers hold both
 -- against every role, the migration credential included, and the REVOKE below holds
 -- them against the application roles as well, as the audits do. There is deliberately
--- no sanctioned deletion door and no cleanup path, so a stored logo is permanent
--- (Code Owner, 2026-11-15).
+-- no sanctioned deletion door and no cleanup path, so a stored logo is permanent.
 --
 -- A fourth CHECK makes the content address a database invariant: the key must equal
 -- `encode(sha256(bytes), 'hex')`, so a row whose key does not name its bytes cannot be
--- stored at all. It is declared after the hex-shape CHECK so a malformed key reports
--- the narrower constraint.
+-- stored at all. Postgres checks CHECK constraints in name order and
+-- `appearance_logos_key_hex` sorts before `appearance_logos_key_matches_bytes`, so a
+-- malformed key reports the narrower shape constraint.
 --
 -- Grants:
 --
@@ -65,7 +65,7 @@ ALTER TABLE "control"."access_audit" ADD CONSTRAINT "access_audit_kind" CHECK ("
 --   * every `qcms_app_<env>` in the live set holds SELECT on `key`, `content_type` and
 --     `bytes`, a COLUMN grant and not the table, because the logo route answers an
 --     unauthenticated respondent off the serving pool and needs the bytes it serves,
---     never who uploaded one or when (Code Owner, 2026-11-15). `created_by` and
+--     never who uploaded one or when. `created_by` and
 --     `created_at` are unreadable on that pool.
 --   * UPDATE and DELETE are revoked from every `qcms_app%` role, written against the
 --     PREFIX so a role an operator creates later gets the same control.
