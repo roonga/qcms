@@ -1223,9 +1223,6 @@ export const messages = {
   "forms.publish.destinations.hint":
     "Only the environments you may publish this form to are listed.",
   "forms.publish.destinations.none": "You hold Publish forms for this form in no environment.",
-  "forms.publish.destinations.publishOnly": "Freeze the draft without making it live",
-  "forms.publish.destinations.publishOnlyHint":
-    "Freezes the draft as the next version and makes it live nowhere. Another person can publish that version afterwards.",
   "forms.publish.destinations.serving": "Live: v{version}",
   "forms.publish.destinations.unreleased": "Nothing live here",
   "forms.publish.destinations.closedNote":
@@ -1255,8 +1252,6 @@ export const messages = {
   "forms.publish.blocked.other": "Not eligible here: {code}.",
   "forms.publish.review.sourceDraft": "The shared draft becomes a new immutable version.",
   "forms.publish.review.sourceVersion": "v{version} goes live, and nothing is frozen.",
-  "forms.publish.review.publishOnly":
-    "The draft is frozen as the next version and goes live nowhere. Another person can publish that version afterwards.",
   "forms.publish.review.transition": "{environment}: v{current} becomes v{version}",
   "forms.publish.review.transitionFirst": "{environment}: nothing live becomes v{version}",
   "forms.publish.review.transitionDraft": "{environment}: v{current} becomes the new version",

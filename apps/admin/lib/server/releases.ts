@@ -127,7 +127,7 @@ export async function releaseBatch(
   );
 }
 
-/** Empty targets freezes without releasing. This permits a first version when production requires a releaser distinct from its publisher. */
+/** The route accepts no destination, which freezes alone; the wizard always names at least one. */
 export async function publishBatch(
   session: AdminSession,
   formId: string,

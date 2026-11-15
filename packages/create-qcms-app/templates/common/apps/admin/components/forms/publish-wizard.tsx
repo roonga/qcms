@@ -330,7 +330,6 @@ export function PublishWizard({
   );
   const [version, setVersion] = useState<number | undefined>(versions[0]);
   const [chosen, setChosen] = useState<readonly string[]>([]);
-  const [publishOnly, setPublishOnly] = useState(false);
   const [review, setReview] = useState<ReleaseReview>();
   const [reviewFailed, setReviewFailed] = useState(false);
   const [key, setKey] = useState<string>();
@@ -355,7 +354,6 @@ export function PublishWizard({
 
   const resetFromSource = useCallback(() => {
     setChosen([]);
-    setPublishOnly(false);
     setReview(undefined);
     setReviewFailed(false);
     setKey(undefined);
@@ -389,17 +387,15 @@ export function PublishWizard({
   const targets = review?.targets ?? [];
   const selectable = targets.filter((target) => isTargetEligible(target));
   const selected = targets.filter((target) => chosen.includes(target.environment));
-  const destinations: readonly PublishDestination[] = publishOnly
-    ? []
-    : selected.map((target) => {
-        const from = target.evidence.find((row) => row.environment !== target.environment);
-        return {
-          environment: target.environment,
-          expectedSequence: target.currentSequence,
-          ...(from === undefined ? {} : { fromEnvironment: from.environment }),
-        };
-      });
-  const canConfirm = publishOnly || destinations.length > 0;
+  const destinations: readonly PublishDestination[] = selected.map((target) => {
+    const from = target.evidence.find((row) => row.environment !== target.environment);
+    return {
+      environment: target.environment,
+      expectedSequence: target.currentSequence,
+      ...(from === undefined ? {} : { fromEnvironment: from.environment }),
+    };
+  });
+  const canConfirm = destinations.length > 0;
 
   const run = useCallback(() => {
     if (review === undefined || !canConfirm) return;
@@ -585,7 +581,7 @@ export function PublishWizard({
                 <Checkbox
                   label={target.environment}
                   isSelected={chosen.includes(target.environment)}
-                  isDisabled={!eligible || publishOnly}
+                  isDisabled={!eligible}
                   onChange={(next) => {
                     setChosen((current) =>
                       next
@@ -620,25 +616,6 @@ export function PublishWizard({
               </div>
             );
           })}
-          {review.source.kind === "draft" && (
-            // A production release may require a different account from the publisher; freezing without releasing
-            // enables that handoff.
-            <div data-testid="qcms-publish-only">
-              <Checkbox
-                label={t("forms.publish.destinations.publishOnly")}
-                isSelected={publishOnly}
-                onChange={(next) => {
-                  setPublishOnly(next);
-                  if (next) setChosen([]);
-                  setKey(undefined);
-                  setState(IDLE_PUBLISH_BATCH);
-                }}
-              />
-              <span className="block text-sm text-(--color-text-muted)">
-                {t("forms.publish.destinations.publishOnlyHint")}
-              </span>
-            </div>
-          )}
           {!canConfirm && selectable.length > 0 && (
             <p className="text-sm text-(--color-text-muted)">
               {t("forms.publish.destinations.pickOne")}
@@ -687,54 +664,48 @@ export function PublishWizard({
           {review.source.kind === "draft" && draft !== null && (
             <FreezeSummary draft={draft} agentAssisted={agentAssisted} />
           )}
-          {publishOnly ? (
-            <p data-testid="qcms-publish-review-publish-only">
-              {t("forms.publish.review.publishOnly")}
-            </p>
-          ) : (
-            <ul className="flex flex-col gap-2">
-              {selected.map((target) => (
-                <li
-                  key={target.environment}
-                  className="flex flex-col gap-1"
-                  data-environment={target.environment}
-                >
-                  <span>{transition(target, review)}</span>
-                  {target.closed && (
-                    <span className="text-sm text-(--color-text-muted)">
-                      {t("forms.publish.destinations.closedNote")}
-                    </span>
-                  )}
-                  {review.source.kind === "version" &&
-                    target.currentVersion !== null &&
-                    review.source.version < target.currentVersion && (
-                      <span className="text-sm" data-testid="qcms-publish-rollback">
-                        {t("forms.publish.destinations.rollbackNote", {
-                          environment: target.environment,
-                          current: target.currentVersion,
-                        })}
-                      </span>
-                    )}
-                  {target.evidence.map((row) => (
-                    <span
-                      key={`${row.environment}-${row.sequence}`}
-                      className="text-sm text-(--color-text-muted)"
-                    >
-                      {t("forms.publish.destinations.evidence", {
-                        version: row.version,
-                        environment: row.environment,
+          <ul className="flex flex-col gap-2">
+            {selected.map((target) => (
+              <li
+                key={target.environment}
+                className="flex flex-col gap-1"
+                data-environment={target.environment}
+              >
+                <span>{transition(target, review)}</span>
+                {target.closed && (
+                  <span className="text-sm text-(--color-text-muted)">
+                    {t("forms.publish.destinations.closedNote")}
+                  </span>
+                )}
+                {review.source.kind === "version" &&
+                  target.currentVersion !== null &&
+                  review.source.version < target.currentVersion && (
+                    <span className="text-sm" data-testid="qcms-publish-rollback">
+                      {t("forms.publish.destinations.rollbackNote", {
+                        environment: target.environment,
+                        current: target.currentVersion,
                       })}
                     </span>
-                  ))}
-                  {target.twoPerson.applies && (
-                    <span className="text-sm" data-testid="qcms-publish-second-person">
-                      {t("forms.publish.review.secondPerson", { environment: target.environment })}
-                    </span>
                   )}
-                </li>
-              ))}
-            </ul>
-          )}
+                {target.evidence.map((row) => (
+                  <span
+                    key={`${row.environment}-${row.sequence}`}
+                    className="text-sm text-(--color-text-muted)"
+                  >
+                    {t("forms.publish.destinations.evidence", {
+                      version: row.version,
+                      environment: row.environment,
+                    })}
+                  </span>
+                ))}
+                {target.twoPerson.applies && (
+                  <span className="text-sm" data-testid="qcms-publish-second-person">
+                    {t("forms.publish.review.secondPerson", { environment: target.environment })}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
           <div className="flex flex-wrap gap-2">
             <ConfirmControls
               state={state}
