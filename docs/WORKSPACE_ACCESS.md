@@ -22,7 +22,7 @@ The user guide for these rules is [`docs/workspace-access-guide.html`](workspace
 | One user-facing Publish step                                      | Built        |
 | Second approval for `prod` publish and endpoint changes           | Built        |
 | Second approval for turning the rule off and for self-grant       | Partly built |
-| Account creation, disable, reactivation and reset in the app      | Not built    |
+| Account creation, disable, reactivation and reset in the app      | Partly built |
 | Site administrator appointment with approval requests             | Not built    |
 | Workspace audit (SEC-15)                                          | Built        |
 | Site audit and mirroring                                          | Not built    |
@@ -33,6 +33,7 @@ The user guide for these rules is [`docs/workspace-access-guide.html`](workspace
 | Workspace themes and the workspace appearance lock                | Not built    |
 
 - The workspace list admits every grant holder and returns only the workspaces the caller holds something in. A caller who holds no `workspace: read` there is given the workspace's identity alone, with no setting and no counts (criterion 26).
+- Account creation and the claim are built; disable, reactivation and reset are not. The Accounts screens themselves are a later task, so the built half is the API and the claim screen the emailed link lands on.
 - Records that describe what is built (`docs/SECURITY_DESIGN.md`, the operator guides, the built-task notes in ADR-41) keep that description until the code changes, with a line pointing here.
 - The SEC-3 role table in `docs/SECURITY_DESIGN.md` §3.2 carries the policy code, because `apps/api/e2e/security/matrix-coverage.e2e.ts` reads it. It changes with the roles in code.
 
@@ -195,12 +196,18 @@ Every new workspace is created with four starter groups. They are ordinary group
 - **Account creation is refused until outbound email is configured.** The only exception is the first account, created at install by `qcms:create-admin`.
 - **Dependency: outbound email.** QCMS has no mail transport today. A transport, its configuration, the message template, delivery-failure handling and resend are v1 deliverables.
 - Every emailed sign-in link in this section, for creation, reactivation or after a reset, is single-use and expires after 72 hours.
+- **A link carries its purpose, and the claim answers only a creation link.** Reactivation and reset links reach an account that is already claimed, so they are not interchangeable with a creation link even while both are live.
+- **A claim always requires a verified second factor (Code Owner, 2026-11-16).** A password alone leaves the account unclaimed, so it still holds nothing. `QCMS_ADMIN_2FA=optional` is a development escape hatch for signing in to accounts that are already claimed, and never relaxes the claim.
+- **A completed claim kills every live link the account holds, and a claimed account refuses a creation link (Code Owner, 2026-11-16).** Both, rather than either: a link issued in the window between the password and the verified factor would otherwise stay usable for its 72 hours and set a new password on an account that had become live.
+- **Issuing a link supersedes every live one under the account's own lock**, so two resends at once leave one usable link rather than two.
 
 ### Directory visibility
 
 - Workspace administrators add a person by exact email address only.
 - Adding an address that is unknown, disabled or unclaimed gets one generic answer, the same for all three. For a Workspace administrator that answer is a refusal: nobody is added.
 - Browse and search of the account directory is for Site administrators only.
+- **Granting by id to an account already in the workspace is allowed even while it is unclaimed or disabled, and stays audited (Code Owner, 2026-11-16).** Only the by-address path refuses: an id names an account the caller already knows about, and the generic answer exists to keep the directory closed rather than to hold a grant.
+- **Every grant made while the account is unclaimed writes a site-audit row** as well as the workspace's own, appointing a Workspace administrator included (Code Owner, 2026-11-16).
 
 ### Credential and factor reset
 

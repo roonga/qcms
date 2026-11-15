@@ -207,7 +207,10 @@ first sign-in you are sent to `/change-password` and reach nothing else until yo
 it, then you must enroll a TOTP factor, and the recovery codes are shown once.
 `QCMS_ADMIN_2FA=optional` skips enrollment for development; the API reads the same
 variable, so relaxing it in one place only means every admin API call 401s. It does **not**
-skip the password change, which needs no device and so has no reason for a hatch. The admin adopts the same `.next` / `.next-dev`
+skip the password change, which needs no device and so has no reason for a hatch, and it does
+**not** relax the claim: an account created in the app is claimed only once a second factor
+is verified, so a seeded account you intend to sign in as needs TOTP whatever this is set to.
+The admin adopts the same `.next` / `.next-dev`
 split described next, from day one.
 
 **Adding a screen to the admin?** `apps/admin/app/(shell)/AGENTS.md` names the six places

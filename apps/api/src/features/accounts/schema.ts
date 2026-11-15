@@ -14,6 +14,7 @@ export const AccountIdParam = z.object({
 export const AccountDirectoryQueryParams = z.object({
   q: z
     .string()
+    .max(200)
     .optional()
     .openapi({ param: { name: "q", in: "query" }, example: "ada@" }),
   role: z

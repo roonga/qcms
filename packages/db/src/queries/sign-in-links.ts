@@ -1,5 +1,6 @@
-import { and, eq, gt, isNull } from "drizzle-orm";
+import { and, eq, gt, isNull, sql } from "drizzle-orm";
 
+import { authUser } from "../schema/index.js";
 import { signInLinks } from "../schema/control/sign-in-links.js";
 import type { SignInLinkDelivery, SignInLinkPurpose } from "../schema/control/sign-in-links.js";
 import type { Executor } from "./executor.js";
@@ -30,8 +31,39 @@ const columns = {
 } as const;
 
 /**
+ * Take the account's row for the duration of the caller's transaction, so that issuing and
+ * invalidating links for one account is serialized. Without it two concurrent resends each
+ * read no live link to supersede and both insert, leaving two usable links.
+ */
+async function lockAccountLinks(exec: Executor, userId: string): Promise<void> {
+  await exec.execute(sql`select 1 from ${authUser} where ${authUser.id} = ${userId} for update`);
+}
+
+/** Supersede every link the account still holds, which the claim does once it completes. */
+export async function invalidateLiveSignInLinks(
+  exec: Executor,
+  userId: string,
+  now: Date,
+): Promise<number> {
+  await lockAccountLinks(exec, userId);
+  const rows = await exec
+    .update(signInLinks)
+    .set({ invalidatedAt: now })
+    .where(
+      and(
+        eq(signInLinks.userId, userId),
+        isNull(signInLinks.usedAt),
+        isNull(signInLinks.invalidatedAt),
+      ),
+    )
+    .returning({ id: signInLinks.id });
+  return rows.length;
+}
+
+/**
  * Supersede every live link the account holds and store the digest of the new one. Both
- * halves in the caller's transaction, so a resend can never leave two usable links.
+ * halves run under the account row's lock in the caller's transaction, so concurrent
+ * resends are serialized and only the last one leaves a usable link.
  */
 export async function issueSignInLink(
   exec: Executor,
@@ -45,16 +77,7 @@ export async function issueSignInLink(
     readonly now: Date;
   },
 ): Promise<SignInLinkRow> {
-  await exec
-    .update(signInLinks)
-    .set({ invalidatedAt: input.now })
-    .where(
-      and(
-        eq(signInLinks.userId, input.userId),
-        isNull(signInLinks.usedAt),
-        isNull(signInLinks.invalidatedAt),
-      ),
-    );
+  await invalidateLiveSignInLinks(exec, input.userId, input.now);
   const [row] = await exec
     .insert(signInLinks)
     .values({

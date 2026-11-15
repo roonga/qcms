@@ -11,14 +11,20 @@ import type { SliceRegistrar } from "../../app.js";
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import { adminAuthFor } from "../auth/route.js";
-import { MIN_PASSWORD_LENGTH } from "../auth/instance.js";
-import { claimAfterFactorVerified } from "./claim.js";
-import { hashChosenPassword, PasswordRefused, writeAccountPasswordHash } from "./credential.js";
+import { BREACH_LOOKUP_FAILED_CODE, MIN_PASSWORD_LENGTH } from "../auth/instance.js";
+import { PasswordRefused, setAccountPassword } from "./credential.js";
 import { CLAIM_PATH, signInTokenHash } from "./tokens.js";
 
 // The claim is mounted beside the better-auth endpoints because it issues a session, so it
 // cannot sit behind the admin-session gate. It needs no rate limit of its own: the token is
 // 256 random bits, and an unknown one is refused by one indexed read before any hashing.
+
+/**
+ * The one link purpose this route answers. Reactivation and reset links are issued for
+ * accounts that are already claimed, so the purpose is checked here rather than left to
+ * follow from the account's state.
+ */
+const CLAIM_PURPOSE = "account-created";
 
 const ClaimBody = z.strictObject({
   token: z.string().min(1).max(512),
@@ -43,9 +49,11 @@ function passwordRefused(error: unknown): ApiError {
     const body = error.body as { code?: unknown; message?: unknown } | undefined;
     const code = typeof body?.code === "string" ? body.code : "PASSWORD_REFUSED";
     const message = typeof body?.message === "string" ? body.message : "That password was refused";
-    // The vendor's own status is not in this API's set, so every refusal about the
-    // password answers 400 and carries the vendor's code for the screen to read.
-    return new ApiError(code, 400, message);
+    // A breach lookup that did not complete is not a judgement about the password, so it
+    // keeps its own status; every other refusal about the password answers 400 and carries
+    // the vendor's code for the screen to read.
+    const status = code === BREACH_LOOKUP_FAILED_CODE ? 503 : 400;
+    return new ApiError(code, status, message);
   }
   return new ApiError("PASSWORD_REFUSED", 400, "That password was refused");
 }
@@ -68,9 +76,13 @@ export const registerAccountClaim: SliceRegistrar = (group, deps: Deps) => {
 
     const link = await findSignInLinkByHash(exec, tokenHash);
     if (link === undefined || !signInLinkIsLive(link, now)) throw linkRefused();
+    if (link.purpose !== CLAIM_PURPOSE) throw linkRefused();
 
     const account = await findAccountById(exec, link.userId);
     if (account === undefined || account.disabledAt !== null) throw linkRefused();
+    // A claimed account already holds a password, so a creation link that outlived the
+    // claim is not a way to set another one.
+    if (account.claimedAt !== null) throw linkRefused();
 
     const auth = adminAuthFor(deps);
     // A session for somebody else is the wrong-account use: the link belongs to one
@@ -78,25 +90,20 @@ export const registerAccountClaim: SliceRegistrar = (group, deps: Deps) => {
     const resolved = await auth.api.getSession({ headers: c.req.raw.headers });
     if (resolved !== null && resolved.user.id !== account.userId) throw linkRefused();
 
-    let passwordHash: string;
     try {
-      passwordHash = await hashChosenPassword(auth, password);
+      await setAccountPassword(auth, account.userId, password);
     } catch (error) {
       if (error instanceof PasswordRefused) throw passwordRefused(error.cause);
       throw error;
     }
 
-    // Consumed only once the password is in hand, so a refused password never burns the
-    // one link the person was sent. The compare-and-set is the single-use guarantee.
+    // Consumed after the password is written, so a refused password never burns the one
+    // link the person was sent and a failed write leaves a link they can use again. The
+    // compare-and-set is the single-use guarantee.
     if ((await consumeSignInLink(exec, tokenHash, now)) === undefined) throw linkRefused();
-    await writeAccountPasswordHash(auth, account.userId, passwordHash);
-    // Where the deployment does not require a second factor, which is a development
-    // escape hatch only, the password is the whole claim; otherwise the factor
-    // verification writes it, and the account holds nothing until then.
-    if (deps.flags.adminTwoFactor !== "required") {
-      await claimAfterFactorVerified(deps, account.userId);
-    }
 
+    // The session issued here is the one that enrols the second factor. The claim itself
+    // is written only once that factor is verified, so the account still holds nothing.
     const signedIn = await auth.api.signInEmail({
       body: { email: account.email, password },
       asResponse: true,

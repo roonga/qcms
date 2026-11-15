@@ -172,6 +172,7 @@ describe("query helper import surface", () => {
     "writeSiteAuditWithMirror",
     "listSiteAudit",
     "issueSignInLink",
+    "invalidateLiveSignInLinks",
     "recordSignInLinkDelivery",
     "consumeSignInLink",
     "findSignInLinkByHash",

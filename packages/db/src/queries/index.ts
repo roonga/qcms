@@ -153,6 +153,7 @@ export {
   type SignInLinkRow,
   consumeSignInLink,
   findSignInLinkByHash,
+  invalidateLiveSignInLinks,
   issueSignInLink,
   recordSignInLinkDelivery,
   signInLinkIsLive,

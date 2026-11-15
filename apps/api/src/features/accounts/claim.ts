@@ -1,4 +1,9 @@
-import { findAccountById, markAccountClaimed, writeSiteAuditRow } from "@roonga/qcms-db";
+import {
+  findAccountById,
+  invalidateLiveSignInLinks,
+  markAccountClaimed,
+  writeSiteAuditRow,
+} from "@roonga/qcms-db";
 
 import type { Deps } from "../../deps.js";
 
@@ -7,6 +12,10 @@ import type { Deps } from "../../deps.js";
  * criterion 53 names: a password alone leaves the account unclaimed, so it still holds
  * nothing. Called from the auth mount after the library has answered, and guarded on
  * `claimedAt` so a later verification by an already-claimed account writes no row.
+ *
+ * Every link the account still holds dies with the claim, in the same transaction: one
+ * issued between the password and the factor would otherwise stay usable for its 72 hours
+ * and set a new password on an account that is now live.
  */
 export async function claimAfterFactorVerified(deps: Deps, userId: string): Promise<void> {
   const exec = deps.databases.control;
@@ -15,6 +24,7 @@ export async function claimAfterFactorVerified(deps: Deps, userId: string): Prom
   const now = deps.clock.now();
   await exec.transaction(async (tx) => {
     await markAccountClaimed(tx, userId, now);
+    await invalidateLiveSignInLinks(tx, userId, now);
     await writeSiteAuditRow(tx, {
       actor: userId,
       subject: userId,

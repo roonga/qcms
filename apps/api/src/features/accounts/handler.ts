@@ -49,8 +49,15 @@ const fail = {
       "That account is already claimed, so there is no creation link to resend",
     ),
   badWindow: (): ApiError =>
-    new ApiError("INVALID_QUERY", 400, "page and pageSize must be positive integers"),
+    new ApiError(
+      "INVALID_QUERY",
+      400,
+      `page and pageSize must be positive integers, and page at most ${String(MAX_PAGE)}`,
+    ),
 } as const;
+
+/** An offset nothing can reach: 200 a page over this is far beyond any real directory. */
+const MAX_PAGE = 10_000;
 
 function principalOf(c: { get: (key: "adminPrincipal") => unknown }): {
   readonly userId: string;
@@ -90,9 +97,8 @@ function directoryWindow(query: {
 }): { readonly page: number; readonly pageSize: number } {
   const page = query.page === undefined ? 1 : Number(query.page);
   const pageSize = query.pageSize === undefined ? 50 : Math.min(Number(query.pageSize), 200);
-  if (!Number.isInteger(page) || page < 1 || !Number.isInteger(pageSize) || pageSize < 1) {
-    throw fail.badWindow();
-  }
+  if (!Number.isInteger(page) || page < 1 || page > MAX_PAGE) throw fail.badWindow();
+  if (!Number.isInteger(pageSize) || pageSize < 1) throw fail.badWindow();
   return { page, pageSize };
 }
 
@@ -167,8 +173,8 @@ export function makeResendSignInLinkHandler(
     if (status === "disabled") throw fail.disabled();
     if (status === "active") throw fail.alreadyClaimed();
 
-    // Issuing supersedes every live link this account holds, so the one just emailed is
-    // the only one a claim will accept.
+    // Issuing takes the account's row and supersedes every live link it holds, so two
+    // resends at once still leave exactly one link a claim will accept: the last.
     const delivery = await issueAndSendSignInLink(deps, exec, {
       userId: row.userId,
       email: row.email,

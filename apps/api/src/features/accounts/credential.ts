@@ -1,8 +1,7 @@
-import { CREDENTIAL_PROVIDER_ID, type AdminAuth } from "../auth/instance.js";
+import type { AdminAuth } from "../auth/instance.js";
 
 // The account rows better-auth owns, reached through its own internal adapter because this
-// deployment mounts no sign-up endpoint (ADR-09). `password.hash` is the library's checked
-// hash, so the SEC-1 breach lookup runs on the password the person chooses and nothing else.
+// deployment mounts no sign-up endpoint (ADR-09).
 
 export interface CreatedAccount {
   readonly userId: string;
@@ -47,36 +46,53 @@ export class PasswordRefused extends Error {
   }
 }
 
-/** Hash a chosen password through the library's checked hash, or refuse it. */
-export async function hashChosenPassword(auth: AdminAuth, password: string): Promise<string> {
-  const ctx = await auth.$context;
-  try {
-    return await ctx.password.hash(password);
-  } catch (error) {
-    throw new PasswordRefused(error);
-  }
+/**
+ * The library's own single-use reset token. It is minted and spent inside one call here and
+ * never emailed: QCMS's own `control.sign_in_links` row is the link a person holds.
+ */
+const RESET_TOKEN_TTL_MS = 60_000;
+
+const RESET_IDENTIFIER_PREFIX = "reset-password:";
+
+function mintResetToken(): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(32)), (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
 }
 
 /**
- * Write an already-hashed password onto the account's credential row, creating that row
- * the first time. Both shapes exist because a claim writes the first password and a
- * reactivation writes a later one onto the row the claim left behind.
+ * Set the account's password through the vendor's own reset endpoint rather than through
+ * the adapter, because the SEC-1 breach lookup is a plugin that wraps `password.hash` and
+ * reads whichever endpoint better-auth is running:
+ * `dist/plugins/haveibeenpwned/index.mjs:69` <!-- expect: const c = getCurrentAuthEndpointContext(); -->
+ * `@better-auth/core/dist/context/endpoint-context.mjs:35` <!-- expect: No auth context found. -->
+ * A hash called outside an endpoint therefore throws instead of checking anything.
+ * `/reset-password` is one of the paths the plugin checks, and `auth.api.*` dispatches
+ * through the same endpoint context the HTTP router uses:
+ * `dist/plugins/haveibeenpwned/index.mjs:54` <!-- expect: "/reset-password", -->
+ * `dist/api/dispatch.mjs:210` <!-- expect: runWithEndpointContext(internalContext, -->
+ * The endpoint also creates the credential row where there is none and spends the reset
+ * token in the same transaction as the password write:
+ * `dist/utils/password.mjs:32` <!-- expect: runWithTransaction(ctx.context.adapter, -->
+ * so a refused password leaves nothing behind and the caller's own link is still unspent.
  */
-export async function writeAccountPasswordHash(
+export async function setAccountPassword(
   auth: AdminAuth,
   userId: string,
-  passwordHash: string,
+  password: string,
 ): Promise<void> {
   const ctx = await auth.$context;
-  const existing = await ctx.internalAdapter.findCredentialAccount(userId);
-  if (existing === null) {
-    await ctx.internalAdapter.createAccount({
-      userId,
-      providerId: CREDENTIAL_PROVIDER_ID,
-      accountId: userId,
-      password: passwordHash,
-    });
-    return;
+  const token = mintResetToken();
+  const identifier = `${RESET_IDENTIFIER_PREFIX}${token}`;
+  await ctx.internalAdapter.createVerificationValue({
+    identifier,
+    value: userId,
+    expiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS),
+  });
+  try {
+    await auth.api.resetPassword({ body: { token, newPassword: password } });
+  } catch (error) {
+    await ctx.internalAdapter.deleteVerificationByIdentifier(identifier).catch(() => undefined);
+    throw new PasswordRefused(error);
   }
-  await ctx.internalAdapter.updatePassword(userId, passwordHash);
 }
