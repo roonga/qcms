@@ -9,6 +9,7 @@ import {
   findAdminsByEmail,
   listWorkspaces,
   makeSiteAdministrator,
+  markAccountClaimed,
   SITE_ADMINISTRATOR_ROLE,
   setMemberRole,
   writeAccessAuditRow,
@@ -109,6 +110,9 @@ export async function createInitialAdmin(
 
   try {
     await makeSiteAdministrator(exec, body.user.id);
+    // The claim is the bootstrap itself: the command sets the password it hands over, so no
+    // later act writes it and an unclaimed first administrator would hold nothing.
+    await markAccountClaimed(exec, body.user.id, new Date());
   } catch (error) {
     return {
       ok: false,
@@ -157,6 +161,7 @@ async function promoteOnlyAccount(
   try {
     const workspace = await exec.transaction(async (tx) => {
       await makeSiteAdministrator(tx, account.userId);
+      await markAccountClaimed(tx, account.userId, new Date());
       const seeded = await seedFirstWorkspace(tx, account.userId);
       await writeAccessAuditRow(tx, {
         actor: account.userId,

@@ -73,6 +73,8 @@ describe("createInitialAdmin against an empty database", () => {
     expect(row?.email).toBe(EMAIL);
     expect(row?.role).toBe("admin");
     expect(row?.twoFactorEnabled ?? false).toBe(false);
+    // The bootstrap is the claim: the command sets the password it hands over.
+    expect(row?.claimedAt).toBeInstanceOf(Date);
 
     // `signUpEmail` issues a session, which the CLI revokes: a command line has no browser.
     const sessions = await auth.api.listSessions({ headers: new Headers() }).catch(() => []);
@@ -146,6 +148,8 @@ describe("createInitialAdmin against an empty database", () => {
     const userId = signedUp.user.id;
     const [row] = await testDb.db.select().from(authUser).where(eq(authUser.id, userId));
     expect(row?.role ?? null).toBeNull();
+    // No column default, so a create path that writes no claim leaves the account unclaimed.
+    expect(row?.claimedAt ?? null).toBeNull();
 
     for (const workspace of await listWorkspaces(testDb.db)) {
       const membership = await resolveMembership(testDb.db, userId, workspace.id);
@@ -206,6 +210,7 @@ describe("createInitialAdmin re-run after a first run that never promoted its ac
 
     const [account] = await recoveryDb.db.select().from(authUser);
     expect(account?.role).toBe("admin");
+    expect(account?.claimedAt).toBeInstanceOf(Date);
     const [workspace] = await listWorkspaces(recoveryDb.db);
     const membership = await resolveMembership(
       recoveryDb.db,

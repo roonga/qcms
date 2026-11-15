@@ -5,9 +5,6 @@ import { siteAudit, type SiteAuditKind } from "../schema/control/site-audit.js";
 import { writeAccessAuditRow } from "./access-audit.js";
 import type { Executor } from "./executor.js";
 
-// No `RETURNING` on the write, as on the access audit: the control role holds `INSERT` and
-// `SELECT` here and nothing else, and the two writers stay the same shape.
-
 /** One site audit row to append. `occurredAt` defaults to the column's `now()`. */
 export interface SiteAuditEntry {
   /** The Site administrator's account, or the IdP subject under single sign-on. */
@@ -33,7 +30,7 @@ export interface SiteAuditRow {
   readonly detail: string | null;
 }
 
-/** Append one site audit row. Never add `RETURNING`: see the note above. */
+/** Append one site audit row. */
 export async function writeSiteAuditRow(exec: Executor, entry: SiteAuditEntry): Promise<void> {
   await exec.insert(siteAudit).values({
     actor: entry.actor,

@@ -83,6 +83,19 @@ export async function isAccountActive(exec: Executor, userId: string): Promise<b
 }
 
 /**
+ * Whether the account is disabled. The claim is deliberately not read here, so a claim still
+ * in progress is not mistaken for a disabled account.
+ */
+export async function isAccountDisabled(exec: Executor, userId: string): Promise<boolean> {
+  const rows = await exec
+    .select({ id: authUser.id })
+    .from(authUser)
+    .where(and(eq(authUser.id, userId), isNotNull(authUser.disabledAt)))
+    .limit(1);
+  return rows.length > 0;
+}
+
+/**
  * Clear the provisional flag only from better-auth's account.update.after hook after a successful password
  * change, never from sign-in, session refresh, or a route handler.
  */
@@ -90,6 +103,21 @@ export async function clearMustChangePassword(exec: Executor, userId: string): P
   await exec
     .update(authUser)
     .set({ mustChangePassword: false, updatedAt: new Date() })
+    .where(eq(authUser.id, userId));
+}
+
+/**
+ * Write the claim: the person has set a password and enrolled a second factor. The create
+ * path leaves the column null, so the claim is always an act rather than a default.
+ */
+export async function markAccountClaimed(
+  exec: Executor,
+  userId: string,
+  at: Date,
+): Promise<void> {
+  await exec
+    .update(authUser)
+    .set({ claimedAt: at, updatedAt: at })
     .where(eq(authUser.id, userId));
 }
 

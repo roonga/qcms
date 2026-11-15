@@ -399,7 +399,11 @@ type RequestDatabase = ReturnType<Databases["forRequest"]>;
 type ExportGuard = () => Promise<void>;
 
 function exportGuard(deps: Deps, actorId: string | undefined): ExportGuard {
-  if (actorId === undefined) return (): Promise<void> => Promise.resolve();
+  // Unreachable through the mounted order, which authenticates first. Fail closed anyway:
+  // an unguarded stream is the one outcome this guard exists to prevent.
+  if (actorId === undefined) {
+    return (): Promise<void> => Promise.reject(new Error("the export names no acting account"));
+  }
   return async (): Promise<void> => {
     if (await isAccountActive(deps.databases.control, actorId)) return;
     throw new Error("the exporting account is no longer active");

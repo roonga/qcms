@@ -33,10 +33,10 @@ export const authUser = controlSchema.table("user", {
   /** Set while the account is disabled. The session verifier reads it on every request. */
   disabledAt: timestamp("disabledAt"),
   /**
-   * When the person first set a password and enrolled a second factor. `null` is unclaimed,
-   * which holds nothing; the default claims every account an administrator does not create.
+   * When the person first set a password and enrolled a second factor. There is no default:
+   * `null` is unclaimed and holds nothing, so a create path has to write the claim itself.
    */
-  claimedAt: timestamp("claimedAt").defaultNow(),
+  claimedAt: timestamp("claimedAt"),
 });
 
 /** A signed-in administrator's session. */

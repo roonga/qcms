@@ -49,6 +49,7 @@ let secondOwnerId: string;
 let editorToken: string;
 let editorId: string;
 let nobodyToken: string;
+let workspaceOwnerToken: string;
 
 const registerUndecidedRoute: SliceRegistrar = (group): void => {
   // Group-relative: the admin group is mounted at `/admin`, so this serves
@@ -100,6 +101,16 @@ beforeAll(async () => {
   });
   editorToken = editor.token;
   editorId = editor.userId;
+
+  // A real Workspace administrator: the `member` row's owner role, and no installation
+  // claim, which is the caller criterion 113 is about.
+  const workspaceOwner = await seedAdminSession(testDb.db, {
+    label: "wsowner",
+    owner: true,
+    claim: false,
+    grants: ["forms.editor"],
+  });
+  workspaceOwnerToken = workspaceOwner.token;
 
   const nobody = await seedAdminSession(testDb.db, {
     label: "nobody",
@@ -1470,7 +1481,7 @@ describe("the site audit (criteria 111 and 113)", () => {
   });
 
   it("refuses a Workspace administrator and a caller with no grant at all", async () => {
-    for (const token of [editorToken, nobodyToken]) {
+    for (const token of [workspaceOwnerToken, editorToken, nobodyToken]) {
       const res = await as(token, "GET", "/site-audit");
       expect(res.status).toBe(403);
       expect((await res.json()) as ErrorBody).toMatchObject({ error: { code: "FORBIDDEN" } });

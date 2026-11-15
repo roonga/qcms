@@ -172,7 +172,7 @@ export const MyAccessResponse = z
 
 export const AuditQuery = z.object({
   kind: z
-    .enum(ACCESS_AUDIT_KINDS as unknown as [string, ...string[]])
+    .enum(ACCESS_AUDIT_KINDS)
     .optional()
     .openapi({ param: { name: "kind", in: "query" } }),
   page: z
@@ -210,7 +210,7 @@ export const AuditListResponse = z
 
 export const SiteAuditQuery = z.object({
   kind: z
-    .enum(SITE_AUDIT_KINDS as unknown as [string, ...string[]])
+    .enum(SITE_AUDIT_KINDS)
     .optional()
     .openapi({ param: { name: "kind", in: "query" } }),
   page: z

@@ -168,7 +168,7 @@ export async function seedAdminSession(
     readonly mustChangePassword?: boolean;
     /** A date seeds a disabled account, which is how criterion 66 sets the flag. */
     readonly disabledAt?: Date;
-    /** `false` seeds an unclaimed account, which holds nothing. */
+    /** `false` seeds an unclaimed account, which holds nothing; the default is claimed. */
     readonly claimed?: boolean;
     readonly label?: string;
     /** An empty list seeds no access group, so the account reaches nothing. */
@@ -197,7 +197,7 @@ export async function seedAdminSession(
     mustChangePassword: options.mustChangePassword ?? false,
     role: options.claim === false ? null : SITE_ADMINISTRATOR_ROLE,
     ...(options.disabledAt === undefined ? {} : { disabledAt: options.disabledAt }),
-    ...(options.claimed === false ? { claimedAt: null } : {}),
+    claimedAt: options.claimed === false ? null : at,
   });
   await exec.insert(authSession).values({
     id: `ss_${synthSecret().slice(0, 16)}`,

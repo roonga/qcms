@@ -5,6 +5,7 @@ export {
   getAdminSessionByToken,
   countAdminUsers,
   isAccountActive,
+  isAccountDisabled,
 } from "./auth.js";
 
 export {
@@ -12,6 +13,7 @@ export {
   clearMustChangePassword,
   countSiteAdministrators,
   makeSiteAdministrator,
+  markAccountClaimed,
 } from "./auth.js";
 
 export {
