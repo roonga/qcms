@@ -382,6 +382,14 @@ export const SURFACES: readonly Surface[] = [
     anonymousReachable: false,
   },
   {
+    name: "DELETE /admin/workspaces/{id}/members/{userId}",
+    row: "membership",
+    group: "admin",
+    method: "DELETE",
+    path: (ctx) => `/admin/workspaces/${ctx.workspaceId}/members/${ctx.holderId}`,
+    anonymousReachable: false,
+  },
+  {
     name: "GET /admin/workspaces/{id}/access-groups",
     row: "membership",
     group: "admin",

@@ -16,7 +16,7 @@ The user guide for these rules is [`docs/workspace-access-guide.html`](workspace
 | Environment scope enforced in the API per route                   | Built        |
 | Access groups with several roles and one explicit environment set | Built        |
 | Five roles, View forms to Erase responses                         | Built        |
-| Workspace administrator as a direct membership flag               | Partly built |
+| Workspace administrator as a direct membership flag               | Built        |
 | Site administrator as an explicit, non-default role               | Built        |
 | Four starter groups on every new workspace                        | Built        |
 | One user-facing Publish step                                      | Built        |
@@ -324,6 +324,7 @@ Settled in task 088.
 - The **site audit row** is `actor`, `subject` (the account, workspace or request the act was on), `workspace_id` (set only where the act affects one workspace, which is where the mirrored row goes), `kind`, `occurred_at` and a free-text `detail`. No foreign key, so a row never cascades away with the account it names, and no column carries a credential, an answer value or authored text.
 - **Site audit kinds**, five, with `detail` naming the act within its kind: `account` (create, disable, reactivate, credential or factor reset, a grant made while unclaimed), `administrator` (a Site administrator promoted or demoted), `approval` (a site approval request created, approved, rejected or expired), `library` (a workspace marked or unmarked as the shared question library), `logo` (a stored appearance logo taken down, which deletes the bytes site-wide; Code Owner, 2026-11-16). None of the first four names an act on stored media, and `library` is the question library's marking alone, so the takedown takes its own kind rather than overloading one.
 - **Workspace audit kinds gained**, four beside the seven already stored: `group` (an access group created, renamed, deleted, or its roles or environments changed), `administrator` (a Workspace administrator appointed or removed), `approval` (a workspace approval request or a held `prod` draft publish created, approved, rejected or expired), `account` (the mirror of a site-level account act into a workspace the account held something in).
+- One act may write more than one row, which is the reading of criterion 111: taking somebody out of a workspace writes one `revoke` row per access group they held there plus one for the member row, and deleting an access group writes one `group` row for the removal plus one `revoke` row per holder.
 - A member added or removed stays `grant` and `revoke`, and a re-confirmation of a suspended membership is a `grant`, because it restores one. A workspace created, renamed or archived, a form moved, the second-approval switch, the appearance lock and the library marking's mirror keep the kinds they are already written with.
 - **Existing rows, unchanged:** response read, export and erasure; `prod` endpoint propose, confirm and withdraw; release-workflow change; the theme derive fetch.
 
@@ -339,7 +340,7 @@ The shipped navigation stands: the top bar is app navigation with the workspace 
 
 - Forms, Operations and Responses screens change only in what they show or disable for the person's roles, with a short reason where an action is unavailable.
 - There is no form-level access screen and no access step in form creation.
-- The design canvas (https://claude.ai/artifact/S1Mt2WFT52Q9vKuqNPARD4) is the UI plan. No admin UI task starts until its screens are on the canvas and the Code Owner has seen them.
+- The design canvas is the UI plan. It is an internal artifact that contributors may not be able to open, so the Code Owner confirms the screens have been seen. No admin UI task starts until its screens are on the canvas and the Code Owner has seen them.
 
 Routes are under `apps/admin/app/(shell)/`. Artboards are boards on the design canvas, named without the `.dc.html` suffix. The Code Owner reviewed design batch 6 (Form-Publish, Forms-Unavailable, Held-Publish, Phone-F and Phone-H) on 2026-11-15. The remaining batches have not been reviewed, and no admin UI task starts until the Code Owner has seen its boards.
 

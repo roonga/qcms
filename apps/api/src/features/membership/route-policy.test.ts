@@ -360,16 +360,28 @@ describe("the audit column and the response routes agree (criterion 8)", () => {
     }
   });
 
-  it("marks every grant and revoke route with its kind (criterion 19)", () => {
-    const grantRoutes = ROUTE_POLICIES.filter(
+  it("marks every membership write with its audit kind (criterion 19)", () => {
+    const writes = ROUTE_POLICIES.filter(
       (row) => row.resource === "membership" && row.action === "write",
     );
-    // Group create and rename carry no kind: a group with no holders grants nobody
-    // anything, so there is nothing yet for an audit row to record.
-    expect(grantRoutes.length).toBeGreaterThan(4);
-    const kinds = new Set(grantRoutes.map((row) => row.audit));
-    expect(kinds.has("grant")).toBe(true);
-    expect(kinds.has("revoke")).toBe(true);
+    expect(writes.length).toBeGreaterThan(4);
+    // Every write path records something: no membership write is unaudited.
+    expect(writes.filter((row) => row.audit === undefined)).toEqual([]);
+    expect(new Set(writes.map((row) => row.audit))).toEqual(
+      new Set(["grant", "revoke", "group", "administrator"]),
+    );
+  });
+
+  it("gives the member row's routes the administrator and revoke kinds (criteria 86, 111)", () => {
+    expect(policyForRequest("PUT", "/admin/workspaces/org_x/members/usr_y")?.audit).toBe(
+      "administrator",
+    );
+    expect(policyForRequest("DELETE", "/admin/workspaces/org_x/members/usr_y")).toMatchObject({
+      resource: "membership",
+      action: "write",
+      workspace: "path",
+      audit: "revoke",
+    });
   });
 
   it("marks the workspace settings route as the `setting` kind (criterion 22)", () => {
@@ -411,6 +423,15 @@ describe("the audit column and the response routes agree (criterion 8)", () => {
       workspace: "installation",
       installationOnly: true,
     });
+  });
+
+  it("marks the archive route as the `setting` kind, as a rename is (section 11)", () => {
+    const row = policyForRequest("POST", "/admin/workspaces/org_x/archive");
+    expect(row).toMatchObject({
+      resource: "workspace",
+      action: "archive",
+      workspace: "path",
+      audit: "setting",
   });
 
   it("gives the rename route the workspace administrator's cell, in the named workspace (criterion 97)", () => {

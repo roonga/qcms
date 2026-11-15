@@ -302,6 +302,8 @@ export function makeArchiveWorkspaceHandler(
 ): RouteHandler<typeof archiveWorkspaceRoute, ApiEnv> {
   return async (c) => {
     const workspaceId = c.req.valid("param").id;
+    const principal = c.get("adminPrincipal");
+    if (principal === undefined) throw fail.noPrincipal();
     const workspace = await getWorkspace(deps.databases.control, workspaceId);
     if (workspace === undefined)
       throw new ApiError("WORKSPACE_NOT_FOUND", 404, "No such workspace");
@@ -312,10 +314,20 @@ export function makeArchiveWorkspaceHandler(
       throw fail.archiveBlocked(blockers);
     }
 
-    const archived = await archiveWorkspace(deps.databases.control, workspaceId, deps.clock.now());
-    // `archiveWorkspace` matches only an unarchived row, so `undefined` here is the
-    // concurrent-archive race the pre-read cannot close.
-    if (archived === undefined) throw fail.alreadyArchived();
+    const archived = await deps.databases.control.transaction(async (tx) => {
+      const row = await archiveWorkspace(tx, workspaceId, deps.clock.now());
+      // `archiveWorkspace` matches only an unarchived row, so `undefined` here is the
+      // concurrent-archive race the pre-read cannot close.
+      if (row === undefined) throw fail.alreadyArchived();
+      await writeAccessAuditRow(tx, {
+        actor: principal.userId,
+        workspaceId,
+        kind: "setting",
+        detail: "setting=archived",
+        occurredAt: deps.clock.now(),
+      });
+      return row;
+    });
     return c.json({ workspace: await workspaceView(deps, archived) }, 200);
   };
 }
