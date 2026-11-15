@@ -1,0 +1,44 @@
+{
+  "id": "none-of-the-above",
+  "name": "agent-review-10-none-of-the-above",
+  "goal": "An answer that is supposed to stand alone on a tick-box question, which the product cannot enforce.",
+  "mode": "scripted",
+  "screen": "/forms",
+  "cards": "confirm",
+  "messages": [
+    {
+      "text": "I want a one page survey for the council, called Marchfield Council contact survey. Ask how they got in touch with us and let them tick every way they used: by phone, by email, through the website, in person. Then a last answer for people who did not contact us at all. Anyone picking that last one must not be able to tick the others as well.",
+      "cards": "confirm"
+    }
+  ],
+  "seed": {
+    "reset": "fresh",
+    "requires": "A dev database with no form titled Marchfield Council contact survey.",
+    "fixtures": "All data is invented: Marchfield Council is not a real council and no scenario sends a real person's details."
+  },
+  "budget": { "turns": 1 },
+  "expect": {
+    "endState": [
+      { "check": "formCount", "titleContains": "marchfield council contact survey", "exactly": 1 },
+      { "check": "questionCount", "title": "Marchfield Council contact survey", "min": 1 },
+      {
+        "check": "notReleased",
+        "title": "Marchfield Council contact survey",
+        "environment": "test"
+      },
+      {
+        "check": "notReleased",
+        "title": "Marchfield Council contact survey",
+        "environment": "prod"
+      }
+    ],
+    "assistantMust": [
+      "say, without being asked, that an answer which cannot be ticked alongside the others is not something the form can hold",
+      "say that the form will accept the last answer together with the others and that nothing flags it",
+      "add the last answer as the final choice anyway, in the council's own words, and put the rule into the guidance line under the question",
+      "offer splitting it into two questions as the way to get the rule, rather than leaving the limit as the whole answer",
+      "put the question and the form on one plan, and publish nothing"
+    ]
+  },
+  "notes": "The defect this came from is a form built with the standalone answer silently tickable alongside the others, and nothing said about it. Capping the number of answers at one is the wrong fix and a failure: it forbids two ordinary answers as well. Saying the limit and offering the two-question shape is the pass."
+}
