@@ -463,7 +463,7 @@ export const messages = {
   "questions.confirm.publishConfirm": "Publish",
   "questions.confirm.newVersionTitle": "Create version {next}?",
   "questions.confirm.newVersionBody":
-    "Version {next} starts as a draft copied from version {version}. Published versions never change, so forms using them are unaffected until someone moves a form to the new one.",
+    "Version {next} starts as a draft copied from version {version}. A version never changes, so forms using this one are unaffected until someone moves a form to the new one.",
   "questions.confirm.newVersionConfirm": "Create draft",
   "questions.confirm.deprecateTitle": "Deprecate version {version}?",
   "questions.confirm.deprecateBody":
@@ -545,11 +545,11 @@ export const messages = {
   "forms.builder.status": "Availability",
   "forms.builder.draftSource.open": "Editing the saved draft.",
   "forms.builder.draftSource.seeded":
-    "Started from the newest published version. Nothing is stored until the first save.",
+    "Started from the newest version. Nothing is stored until the first save.",
   "forms.builder.draftSource.none": "Nothing has been drafted or published for this form yet.",
   "forms.builder.formTitle": "Form title",
   "forms.builder.seeded":
-    "This draft was started from the newest published version and has not been saved yet. Your first change stores it.",
+    "This draft was started from the newest version and has not been saved yet. Your first change stores it.",
   "forms.builder.concurrent":
     "Autosave replaces the stored draft outright: if another author has this form open, whichever of you saves last wins and the other's change is gone. There is no locking at launch, so coordinate before editing the same form.",
   "forms.save.flash": "Saved",
@@ -614,7 +614,7 @@ export const messages = {
   /** Accessible names must contain the painted version label for speech input and identify the pin among repeated controls. */
   "forms.step.movePin": "{versionLabel}, move pin for {questionId}",
   "forms.step.movePinTo": "Move to v{version}",
-  "forms.step.movePinNone": "No other published version",
+  "forms.step.movePinNone": "No other version",
   "forms.step.movePinUnknown": "Other versions are not known: the question library did not load",
   "forms.step.removePin": "Remove {questionId}",
   "forms.step.pinUp": "Move {questionId} up",
@@ -996,7 +996,7 @@ export const messages = {
     "This names an option the pinned version of that question does not declare. Moving a pin can do this: option IDs belong to a version.",
   "forms.issue.danglingStep": "This names a step the form does not have.",
   "forms.issue.unpublishedPin":
-    "A form can only pin a published version. Publish that version, or pin one that already is.",
+    "A form can only pin a version that is published. Publish that version, or pin one that already is.",
   "forms.issue.localeIncomplete": "This has no text for the form's default locale.",
 
   "forms.issue.backwardTarget":
@@ -1090,7 +1090,7 @@ export const messages = {
   "forms.error.approverIsAuthor":
     "You froze this version, so another person with Publish forms in prod publishes it.",
   "forms.error.approverUnknownAuthor":
-    "Who froze this version was not recorded, so second approval cannot be checked against it. Publish the draft again and use that version.",
+    "Who froze this version was not recorded, so Second approval cannot be checked against it. Publish the draft again and use that version.",
   "forms.error.unknownCreate": "The form could not be created. Try again.",
   "forms.error.listFailed": "The form library could not be loaded. {message}",
   "forms.error.libraryFailed": "The question library could not be loaded. {message}",
@@ -1119,7 +1119,7 @@ export const messages = {
   "forms.publish.freezes.rules.one": "1 rule",
   "forms.publish.freezes.rules.other": "{count} rules",
   "forms.publish.immutable":
-    "A published version is never edited. Your next change starts a fresh draft, seeded from this one.",
+    "A version is never edited. Your next change starts a fresh draft, seeded from this one.",
   "forms.publish.blocked": "This draft cannot be published yet.",
   "forms.publish.blockedCount": "{count} issues block publishing. Each one links to its cause.",
 
@@ -1184,7 +1184,7 @@ export const messages = {
   "forms.releases.twoPersonSecond":
     "Second approval is on for {environment}. You did not freeze this version, so you can publish it, and you are recorded as the Approver.",
   "forms.releases.twoPersonUnknown":
-    "Who froze v{version} was not recorded, so second approval cannot be checked against it. Publish the draft again and use that version.",
+    "Who froze v{version} was not recorded, so Second approval cannot be checked against it. Publish the draft again and use that version.",
   "forms.releases.version": "Version to publish",
   "forms.releases.fromEnvironment": "Published from (optional)",
   "forms.releases.fromNone": "Nowhere: publish it directly",
@@ -1255,7 +1255,7 @@ export const messages = {
   "forms.publish.blocked.draftSecondApproval":
     "Second approval is on for production, so a draft cannot be published there: publish an existing version instead.",
   "forms.publish.blocked.approverUnknownAuthor":
-    "Who froze this version was not recorded, so second approval cannot be checked against it.",
+    "Who froze this version was not recorded, so Second approval cannot be checked against it.",
   "forms.publish.blocked.other": "Not eligible here: {code}.",
   "forms.publish.review.sourceDraft": "The shared draft becomes a new immutable version.",
   "forms.publish.review.sourceVersion": "v{version} goes live, and nothing is frozen.",
@@ -1310,7 +1310,7 @@ export const messages = {
   "forms.workflow.replacesVersion": "v{version} will replace v{current} in {environment}.",
   "forms.workflow.reviewLoading": "Loading the stored content of v{version}...",
   "forms.workflow.reviewFailed":
-    "The published version could not be loaded. Close this confirmation and try again.",
+    "The version could not be loaded. Close this confirmation and try again.",
   "forms.workflow.alreadyReleased": "v{version} is already live in {environment}.",
   "forms.workflow.noPublishPermission":
     "Publishing a draft needs Edit forms and Publish forms in this workspace.",
@@ -1356,10 +1356,10 @@ export const messages = {
   "forms.preview.stamps": "Compiler {compilerVersion} · A2UI spec {a2uiSpecVersion}",
 
   "forms.history.intro":
-    "Every published version, frozen exactly as it was. Viewing one renders the compiled documents stored at publish time, which is what respondents on that version saw (ADR-18).",
+    "Every version, frozen exactly as it was. Viewing one renders the compiled documents stored at publish time, which is what respondents on that version saw (ADR-18).",
   "forms.history.emptyTitle": "Not published yet",
   "forms.history.empty": "This form has never been published.",
-  "forms.history.table": "Published versions",
+  "forms.history.table": "Versions",
   /** Default history shows every immutable version; hiding iterations must be an explicit presentation filter. */
   "forms.history.filter.all": "Every version",
   "forms.history.filter.released": "Published somewhere",
@@ -1378,7 +1378,7 @@ export const messages = {
   "forms.history.versionHeading": "Version {version}",
   "forms.history.stored":
     "Rendered from the compiled documents stored with v{version}. Nothing was recompiled.",
-  "forms.history.readOnly": "Read only: a published version is never edited (R1).",
+  "forms.history.readOnly": "Read only: a version is never edited (R1).",
 
   "forms.history.frame": "Respondent view, as stored at publish",
   "forms.history.backToHistory": "Back to version history",
@@ -1400,7 +1400,7 @@ export const messages = {
 
   "forms.links.heading": "Secure links",
   "forms.links.needsPublish":
-    "Publish this form before minting links: a link opens the newest published version, and there is not one yet.",
+    "Publish this form before minting links: a link opens the newest version, and there is not one yet.",
   "forms.links.mint": "Mint links",
   /** Restate mint environment in title and confirmation because links determine where respondent answers land. */
   "forms.links.mintTitle": "Mint secure links for {environment}",
@@ -1626,7 +1626,7 @@ export const messages = {
     "Adds the question to the library as version 1, not published yet. No form shows it to anyone until you publish that version and a form uses it.",
   "agent.card.question.saveDraft.title": "Save version {version} of the question {question}",
   "agent.card.question.saveDraft.consequence":
-    "Replaces what this version says with the wording on this card. It works only while that version is not published yet: a published version never changes, so the save is refused instead.",
+    "Replaces what this version says with the wording on this card. It works only while that version is not published yet: a version never changes, so the save is refused instead.",
   "agent.card.question.publish.title": "Publish version {version} of the question {question}",
   "agent.card.question.publish.consequence":
     "Freezes this version's wording for good, so a form can use it. A form that already uses it stops reporting that the question is not published yet.",
@@ -1705,7 +1705,7 @@ export const messages = {
     "Confirm opens the export dialog with these filters. You press Export, and no part of the file is returned to the assistant.",
   "agent.card.access.groupCreate.title": "Create the access group {name} with the roles {roles}",
   "agent.card.access.groupCreate.consequence":
-    "The group exists but grants nobody anything yet. Holding the group is the grant, so nobody's access changes until somebody is added to it.",
+    "The group exists but grants nobody anything yet. Being in the group is the grant, so nobody's access changes until somebody is added to it.",
   "agent.card.access.groupRemove.title": "Remove the access group {teamId}",
   "agent.card.access.groupRemove.consequence":
     "Everybody in this group loses the access it carried, at once. One revoke row is written for each of them.",
@@ -2157,7 +2157,7 @@ export const messages = {
     "Saved as a change waiting for approval. Nothing has changed in {environment} yet: a different Approver has to confirm it before the endpoint moves.",
   "ops.proposals.heading": "Changes waiting for approval",
   "ops.proposals.intro":
-    "This workspace has second approval on for production. Each change below has taken effect on nothing: the endpoint still delivers exactly as it did. An Approver other than the one who proposed it can confirm it, and either of them can withdraw it.",
+    "This workspace has Second approval on for production. Each change below has taken effect on nothing: the endpoint still delivers exactly as it did. An Approver other than the one who proposed it can confirm it, and either of them can withdraw it.",
   "ops.proposals.table": "Endpoint changes waiting for approval",
   "ops.proposals.column.endpoint": "Endpoint",
   "ops.proposals.column.change": "Proposed change",
@@ -2362,7 +2362,7 @@ export const messages = {
 
   "membership.groups.heading": "Access groups",
   "membership.groups.intro":
-    "Holding a group is the grant, so a group nobody holds grants nobody anything.",
+    "Being in a group is the grant, so a group with nobody in it grants nobody anything.",
   "membership.groups.loadFailed": "The access groups could not be read: {message}",
   "membership.groups.none": "This workspace has no access groups yet.",
   "membership.groups.scope": "{roles}, in {environments}",
@@ -2380,7 +2380,7 @@ export const messages = {
     "View forms and Edit forms apply in every environment, so this group names none.",
   "membership.groups.createSubmit": "Create group",
   "membership.groups.created":
-    "The access group {name} was created. It grants nobody anything until somebody holds it.",
+    "The access group {name} was created. It grants nobody anything until somebody is in it.",
   "membership.groups.createFailed": "The access group was not created: {message}",
   "membership.groups.remove": "Remove group",
   "membership.groups.removed":

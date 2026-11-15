@@ -10,3 +10,5 @@ Put the scaffolded admin copy on the access glossary of `docs/WORKSPACE_ACCESS.m
 - My access and the Members help name the Site administrator instead of the installation-wide claim.
 - The second-approval switch, the assistant cards and the endpoint approval panel say Second approval and Approver.
 - The self-grant refusal names a Workspace administrator and a Site administrator.
+- The form copy says Version where it said published version.
+- The assistant prompt and the membership tool descriptions say Second approval, Approver and a publish to production; `SYSTEM_PROMPT_VERSION` moves to 22.

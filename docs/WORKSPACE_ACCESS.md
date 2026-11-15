@@ -345,7 +345,7 @@ Routes are under `apps/admin/app/(shell)/`. Artboards are boards on the design c
 
 - Batch 1, the glossary on the existing artboards: Wording, Members, Members-Three, People-Person, Screens-A to Screens-F, NewGroup-Closed, Phone-A to Phone-C.
 - Batch 2, shared patterns: Patterns-A, FormSelect-Card, Patterns-B, Step-Up.
-- Batch 3, the Workspace area: Rail, Promotion, the batch 1 screens, Group-Edit, Settings-States.
+- Batch 3, the Workspace area: Rail, Promotion, the batch 1 screens, Group-Edit, Settings-States, Phone-D.
 - Batch 4, Site configuration: Accounts, Account-Manage, Site-Admins, Approval-Requests, Site-Audit, Account-States, Phone-G.
 - Batch 5, the account menu: Account-Menu, First-Signin, Phone-E, Phone-H.
 

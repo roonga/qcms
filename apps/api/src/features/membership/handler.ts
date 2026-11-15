@@ -122,7 +122,7 @@ const fail = {
     new ApiError(
       "SELF_GRANT_REFUSED",
       409,
-      "This workspace has second approval on, so you cannot give yourself a response " +
+      "This workspace has Second approval on, so you cannot give yourself a response " +
         "role, or a new environment for one: another Workspace administrator, or a " +
         "Site administrator, has to make this change. A grant on response data " +
         "is a grant on personal data.",

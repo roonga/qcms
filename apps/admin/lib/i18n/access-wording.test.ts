@@ -17,26 +17,24 @@ const RETIRED: readonly (readonly [string, RegExp])[] = [
   ["response viewer or eraser", /response (viewer|eraser)\b/iu],
   ["release approver or release forms", /release (approver|forms)/iu],
   ["second approver", /second approver/iu],
+  ["production release", /production release/iu],
+  ["published version", /\bpublished versions?\b/iu],
   ["two-person rule", /two-person/iu],
   ["give or remove access", /give access|remove access/iu],
 ];
 
-/** Access copy the glossary governs. Group and starter-group names are the operator's own. */
-const PREFIXES = [
-  "membership.",
-  "access.",
-  "ops.proposals.",
-  "agent.card.access.",
-  "agent.card.member.",
-];
-
+/**
+ * Every value, not a prefix list: the swept strings reach beyond the access screens into
+ * the operations empty state, the publish refusals and the assistant cards, and a prefix
+ * list leaves each of those uncovered until somebody remembers to extend it.
+ */
 function scanned(): readonly string[] {
-  return Object.keys(messages).filter((key) => PREFIXES.some((prefix) => key.startsWith(prefix)));
+  return Object.keys(messages);
 }
 
-describe("the access interface says what the glossary says", () => {
-  it("scans the access copy", () => {
-    expect(scanned().length).toBeGreaterThan(50);
+describe("the admin interface says what the glossary says", () => {
+  it("scans the whole catalog", () => {
+    expect(scanned().length).toBeGreaterThan(500);
   });
 
   for (const [label, pattern] of RETIRED) {
@@ -65,5 +63,17 @@ describe("the access interface says what the glossary says", () => {
       "Workspace administrator",
     ]);
     expect(messages["membership.groups.columnHolders"]).toBe("People in this group");
+  });
+
+  it("keeps the strings swept outside the access screens covered", () => {
+    for (const key of [
+      "operations.empty.body",
+      "forms.publish.blocked.draftNotAllowedOnly",
+      "agent.card.arg.requireSecondApprover",
+      "agent.card.result.held",
+      "ops.error.proposerCannotConfirm",
+    ]) {
+      expect(scanned(), key).toContain(key);
+    }
   });
 });

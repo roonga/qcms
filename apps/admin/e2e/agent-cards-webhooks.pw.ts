@@ -28,7 +28,7 @@ import { publishDraftThroughWizard, releaseThroughWizard } from "./support/publi
 
 // Use separate configuration and delivery forms to preserve other specs' exact delivery counts.
 // Keep delivery responses successful and drain after redelivery so the global dead-letter queue stays clean.
-// Respondent submissions require a production release; authoring resets selection to test.
+// Respondent submissions require a publish to production; authoring resets selection to test.
 
 test.describe.configure({ mode: "serial" });
 
@@ -343,7 +343,7 @@ test("ends the plan on Pending approval when production holds the change", async
 
   await expect(cardChip(page)).toHaveText("Pending approval", { timeout: 60_000 });
   await expectStepChips(page, ["Pending approval", "Not run"]);
-  await expect(card(page)).toContainText("a different approver has to confirm it");
+  await expect(card(page)).toContainText("a different Approver has to confirm it");
   await expectAxeClean(page, "pending approval");
 
   await expect(endpoints(page)).toContainText(ENDPOINT_URL);

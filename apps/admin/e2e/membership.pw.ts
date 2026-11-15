@@ -39,7 +39,9 @@ test("the membership area is reachable from the shell's navigation", async ({ pa
   await expect(page.getByText("You are a Site administrator", { exact: false })).toBeVisible();
 
   await expect(
-    page.getByText("It grants no response read, export or erasure anywhere", { exact: false }),
+    page.getByText("The role grants no response read, export or erasure anywhere", {
+      exact: false,
+    }),
   ).toBeVisible();
 });
 
@@ -173,7 +175,7 @@ test("an access group is created with the pickers, granted to a member and taken
 
   await chooseOption(row, "Member", MEMBER);
   await row.getByRole("button", { name: "Grant", exact: true }).click();
-  await expect(page.getByText(`${MEMBER} now holds ${GROUP_NAME}.`)).toBeVisible();
+  await expect(page.getByText(`${MEMBER} is now in ${GROUP_NAME}.`)).toBeVisible();
   await expect(row).toContainText(MEMBER);
 
   // Members reads a group by its roles and environments, so two groups of one name are told apart.
