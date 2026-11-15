@@ -30,15 +30,25 @@ export async function POST(request: Request): Promise<Response> {
   if (newPassword !== confirmPassword) return claimRedirect("mismatch", token);
 
   const claimed = await claimAccount(request.headers, { token, password: newPassword });
+  return authRefused(claimed)
+    ? refusedClaim(claimed, token)
+    : enrolAfterClaim(request, claimed, newPassword);
+}
 
-  if (authRefused(claimed)) {
-    if (authThrottled(claimed)) return claimRedirect("throttled");
-    const refusal = await claimRefusalOf(claimed);
-    if (refusal === "link") return claimRedirect("linkRefused");
-    if (refusal === "compromised") return claimRedirect("compromised", token);
-    return refusal === "weak" ? claimRedirect("weak", token) : claimRedirect("error");
-  }
+async function refusedClaim(claimed: Response, token: string): Promise<Response> {
+  if (authThrottled(claimed)) return claimRedirect("throttled");
+  const refusal = await claimRefusalOf(claimed);
+  if (refusal === "link") return claimRedirect("linkRefused");
+  if (refusal === "compromised") return claimRedirect("compromised", token);
+  return refusal === "weak" ? claimRedirect("weak", token) : claimRedirect("error");
+}
 
+/** Provision enrolment while the chosen password is still in this request. */
+async function enrolAfterClaim(
+  request: Request,
+  claimed: Response,
+  password: string,
+): Promise<Response> {
   const cookies = cookiesFrom(claimed);
   const body = (await claimed.json()) as { twoFactorRedirect?: boolean };
   if (body.twoFactorRedirect === true) {
@@ -46,10 +56,8 @@ export async function POST(request: Request): Promise<Response> {
   }
   if (twoFactorOptional()) return redirectAfterPost(SHELL_HOME_PATH, cookies);
 
-  // Provision enrolment while the chosen password is still in this request, as the
-  // sign-in and forced-change handlers do.
   const issuedCookie = cookies.map((value) => value.split(";")[0]).join("; ");
-  const provisioned = await enableTwoFactor(request.headers, newPassword, issuedCookie);
+  const provisioned = await enableTwoFactor(request.headers, password, issuedCookie);
   if (authRefused(provisioned)) return redirectAfterPost(SIGN_IN_PATH, cookies);
   const { totpURI, backupCodes } = (await provisioned.json()) as {
     totpURI: string;
