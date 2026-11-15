@@ -339,7 +339,7 @@ The shipped navigation stands: the top bar is app navigation with the workspace 
 
 - Forms, Operations and Responses screens change only in what they show or disable for the person's roles, with a short reason where an action is unavailable.
 - There is no form-level access screen and no access step in form creation.
-- The design canvas is an internal artifact used as the UI design reference. It is not a gate for contributors.
+- The design canvas is the UI plan. It is an internal artifact that contributors may not be able to open, so the Code Owner confirms the screens have been seen. No admin UI task starts until its screens are on the canvas and the Code Owner has seen them.
 
 Routes are under `apps/admin/app/(shell)/`. Artboards are boards on the design canvas, named without the `.dc.html` suffix. The Code Owner reviewed design batch 6 (Form-Publish, Forms-Unavailable, Held-Publish, Phone-F and Phone-H) on 2026-11-15. The remaining batches have not been reviewed, and no admin UI task starts until the Code Owner has seen its boards.
 
