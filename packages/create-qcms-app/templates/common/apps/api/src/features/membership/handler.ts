@@ -98,7 +98,7 @@ const fail = {
     new ApiError(
       "ACCOUNT_NOT_ADDABLE",
       404,
-      "No account that can be added here matches. Check the address with the person, or ask the installation administrator.",
+      "No account that can be added here matches. Check the address with the person, or ask a Site administrator.",
     ),
   notAMember: (): ApiError =>
     new ApiError(
