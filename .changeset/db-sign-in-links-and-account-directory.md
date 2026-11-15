@@ -1,5 +1,6 @@
 ---
 "@roonga/qcms-db": minor
+"create-qcms-app": minor
 ---
 
 Add `control.sign_in_links` and the account-directory queries that account creation and
@@ -20,3 +21,9 @@ grant path can give an unknown, a disabled and an unclaimed address one identica
 
 Migration `0012_sign_in_links.sql` creates the table with ordinary control-plane DML for
 `qcms_app_control` and nothing at all for any environment role.
+
+The scaffolded apps gain the Site administrator account routes (`GET`/`POST
+/admin/accounts` and `POST /admin/accounts/{id}/sign-in-link`), the unauthenticated claim
+endpoint beside the better-auth mount, and the admin claim screen the emailed link lands
+on. Account creation is refused until `QCMS_SMTP_*` is configured; the first account,
+created by `qcms:create-admin`, is not.
