@@ -24,8 +24,7 @@ import type { createAccountRoute, listAccountsRoute, resendSignInLinkRoute } fro
 // directory stays closed to a Workspace administrator.
 
 const fail = {
-  noPrincipal: (): ApiError =>
-    new ApiError("unauthorized", 401, "Admin authentication required"),
+  noPrincipal: (): ApiError => new ApiError("unauthorized", 401, "Admin authentication required"),
   mailNotConfigured: (): ApiError =>
     new ApiError(
       "MAIL_NOT_CONFIGURED",
@@ -58,8 +57,7 @@ function principalOf(c: { get: (key: "adminPrincipal") => unknown }): {
   readonly role: string;
 } {
   const principal = c.get("adminPrincipal") as
-    | { readonly userId: string; readonly role: string }
-    | undefined;
+    { readonly userId: string; readonly role: string } | undefined;
   if (principal === undefined) throw fail.noPrincipal();
   return principal;
 }

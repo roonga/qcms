@@ -209,7 +209,8 @@ export const messages = {
   "claim.confirm": "Confirm password",
   "claim.action": "Continue",
   "claim.mismatch": "The two passwords did not match. Please type them again.",
-  "claim.weakPassword": "That password was refused. Choose a longer one you have not used elsewhere.",
+  "claim.weakPassword":
+    "That password was refused. Choose a longer one you have not used elsewhere.",
   /** One answer for unknown, used and expired, so a link tells a stranger nothing. */
   "claim.linkRefused":
     "That sign-in link cannot be used. A link works once and expires 72 hours after it was sent. Ask a site administrator to send you a new one.",

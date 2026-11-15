@@ -633,5 +633,8 @@ export async function findUsersByIds(
   userIds: readonly string[],
 ): Promise<readonly GrantSubjectRow[]> {
   if (userIds.length === 0) return [];
-  return exec.select(grantSubjectColumns).from(authUser).where(inArray(authUser.id, [...userIds]));
+  return exec
+    .select(grantSubjectColumns)
+    .from(authUser)
+    .where(inArray(authUser.id, [...userIds]));
 }

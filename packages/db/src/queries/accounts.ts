@@ -74,10 +74,7 @@ function directoryWhere(query: AccountDirectoryQuery): SQL | undefined {
     // Escaped before interpolation: an address holding `%` would otherwise widen the match.
     const pattern = `%${search.replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_")}%`;
     conditions.push(
-      or(
-        sql`${authUser.email} ilike ${pattern}`,
-        sql`${authUser.name} ilike ${pattern}`,
-      ),
+      or(sql`${authUser.email} ilike ${pattern}`, sql`${authUser.name} ilike ${pattern}`),
     );
   }
   if (query.role !== undefined) conditions.push(roleCondition(query.role));

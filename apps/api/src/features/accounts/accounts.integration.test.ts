@@ -149,7 +149,11 @@ async function finishClaim(
   cookie = cookieHeader(enabled) === "" ? cookie : cookieHeader(enabled);
 
   const secret = new URL(totpURI).searchParams.get("secret") ?? "";
-  const verified = await authPost("/two-factor/verify-totp", { code: await generate({ secret }) }, cookie);
+  const verified = await authPost(
+    "/two-factor/verify-totp",
+    { code: await generate({ secret }) },
+    cookie,
+  );
   expect(verified.status, await verified.clone().text()).toBe(200);
   return { cookie: cookieHeader(verified) === "" ? cookie : cookieHeader(verified), backupCodes };
 }
@@ -205,8 +209,7 @@ beforeAll(async () => {
   const { groups: accessGroups } = (await listed.json()) as {
     groups: { teamId: string; roles: string[] }[];
   };
-  editorGroupId =
-    accessGroups.find((group) => group.roles.includes("forms.editor"))?.teamId ?? "";
+  editorGroupId = accessGroups.find((group) => group.roles.includes("forms.editor"))?.teamId ?? "";
   expect(editorGroupId).not.toBe("");
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
@@ -508,7 +511,10 @@ describe("a backup code never finishes a claim", () => {
 
     // Put the account back in the state the gap needs: a verified factor and recovery
     // codes, with the claim not written.
-    await testDb.db.update(authUser).set({ claimedAt: null }).where(eq(authUser.id, created.userId));
+    await testDb.db
+      .update(authUser)
+      .set({ claimedAt: null })
+      .where(eq(authUser.id, created.userId));
     await testDb.db.delete(authSession).where(eq(authSession.userId, created.userId));
 
     const signedIn = await authPost("/sign-in/email", {

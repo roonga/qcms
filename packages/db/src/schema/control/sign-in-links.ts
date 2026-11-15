@@ -57,9 +57,6 @@ export const signInLinks = controlSchema.table(
       SIGN_IN_LINK_PURPOSE_CHECK,
       sql`${t.purpose} in ('account-created', 'reactivated', 'reset')`,
     ),
-    check(
-      SIGN_IN_LINK_DELIVERY_CHECK,
-      sql`${t.delivery} in ('pending', 'sent', 'undeliverable')`,
-    ),
+    check(SIGN_IN_LINK_DELIVERY_CHECK, sql`${t.delivery} in ('pending', 'sent', 'undeliverable')`),
   ],
 );

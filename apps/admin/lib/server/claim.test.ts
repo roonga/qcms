@@ -30,8 +30,8 @@ describe("reading a claim refusal", () => {
     await expect(claimRefusalOf(refusal({ code: CLAIM_LINK_REFUSED_CODE }))).resolves.toBe(
       "generic",
     );
-    await expect(
-      claimRefusalOf(new Response("not json", { status: 400 })),
-    ).resolves.toBe("generic");
+    await expect(claimRefusalOf(new Response("not json", { status: 400 }))).resolves.toBe(
+      "generic",
+    );
   });
 });

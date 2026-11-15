@@ -1,10 +1,7 @@
 import { and, eq, gt, isNull } from "drizzle-orm";
 
 import { signInLinks } from "../schema/control/sign-in-links.js";
-import type {
-  SignInLinkDelivery,
-  SignInLinkPurpose,
-} from "../schema/control/sign-in-links.js";
+import type { SignInLinkDelivery, SignInLinkPurpose } from "../schema/control/sign-in-links.js";
 import type { Executor } from "./executor.js";
 
 /** One stored sign-in link, as the claim path reads it back. Never carries the token. */

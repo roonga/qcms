@@ -5,7 +5,10 @@ export const ACCOUNT_STATUSES = ["active", "unclaimed", "disabled"] as const;
 export const ACCOUNT_ROLES = ["site-administrator", "member"] as const;
 
 export const AccountIdParam = z.object({
-  id: z.string().min(1).openapi({ param: { name: "id", in: "path" }, example: "usr_7m2" }),
+  id: z
+    .string()
+    .min(1)
+    .openapi({ param: { name: "id", in: "path" }, example: "usr_7m2" }),
 });
 
 export const AccountDirectoryQueryParams = z.object({
@@ -21,8 +24,14 @@ export const AccountDirectoryQueryParams = z.object({
     .enum(ACCOUNT_STATUSES)
     .optional()
     .openapi({ param: { name: "status", in: "query" } }),
-  page: z.string().optional().openapi({ param: { name: "page", in: "query" } }),
-  pageSize: z.string().optional().openapi({ param: { name: "pageSize", in: "query" } }),
+  page: z
+    .string()
+    .optional()
+    .openapi({ param: { name: "page", in: "query" } }),
+  pageSize: z
+    .string()
+    .optional()
+    .openapi({ param: { name: "pageSize", in: "query" } }),
 });
 
 export const CreateAccountBody = z
