@@ -1,0 +1,80 @@
+{
+  "startedAt": "2026-11-14T10:00:00.000Z",
+  "finishedAt": "2026-11-14T10:02:40.000Z",
+  "baseUrl": "http://localhost:7040",
+  "screen": "/forms",
+  "account": "owner@qcms.test",
+  "directory": "<scratch>/agent-review-02-publish-and-test-link",
+  "secretsFile": "<scratch>/agent-review-02-publish-and-test-link/secrets.json",
+  "secretCount": 1,
+  "errors": [],
+  "turns": [
+    {
+      "turn": 1,
+      "directive": "leave",
+      "cardAction": "left as proposed",
+      "screen": "/forms",
+      "context": "Forms",
+      "user": "Put the Larkmead new patient sign-up and its questions out on test, and give me a link I can open to try it myself.",
+      "reply": "The plan below puts the five questions and the form itself out on test. The link has to wait for that, because a link points at a form that is already out there; once you confirm this, the link is one more confirm and I will have it ready.",
+      "thinking": [],
+      "replySteps": [],
+      "card": {
+        "title": "Put the form out on test",
+        "state": "proposed",
+        "stateLabel": "Waiting for you",
+        "irreversible": null,
+        "reason": null,
+        "typedHint": null,
+        "result": null,
+        "steps": [
+          {
+            "state": "waiting",
+            "title": "Put the form out on test",
+            "details": "Larkmead new patient sign-up, version 1",
+            "notes": [],
+            "issues": [],
+            "revealed": null
+          }
+        ]
+      },
+      "panelError": null,
+      "screenshot": "turn-01.png"
+    },
+    {
+      "turn": 2,
+      "directive": "confirm",
+      "cardAction": "confirmed",
+      "screen": "/forms",
+      "context": "Forms",
+      "user": "Did that go through? I still need a link I can open.",
+      "reply": "Not yet: the plan from a moment ago is still waiting for your confirm, just above this. Confirm it and the form goes out on test; the link comes next on its own plan, and its address is shown on the card once, so copy it then. I cannot read it back afterwards.",
+      "thinking": [],
+      "replySteps": [],
+      "card": {
+        "title": "Put the form out on test",
+        "state": "done",
+        "stateLabel": "Done",
+        "irreversible": null,
+        "reason": null,
+        "typedHint": null,
+        "result": "Version 1 is out on test.",
+        "steps": [
+          {
+            "state": "done",
+            "title": "Put the form out on test",
+            "details": "Larkmead new patient sign-up, version 1",
+            "notes": [],
+            "issues": [],
+            "revealed": {
+              "secret": true,
+              "ref": "secret-1"
+            }
+          }
+        ]
+      },
+      "panelError": null,
+      "screenshot": "turn-02.png"
+    }
+  ]
+}

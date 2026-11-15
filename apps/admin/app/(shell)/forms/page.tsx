@@ -10,7 +10,9 @@ import { pageMetadata } from "@/lib/page-title";
 import { optionalProp } from "@/lib/questions/errors";
 import { listForms } from "@/lib/server/forms";
 import { requireAdminSession } from "@/lib/server/session";
+import { navigableCapabilities, shellAccess } from "@/lib/server/shell";
 import { currentWorkspaceId } from "@/lib/server/workspace-context";
+import { permitsMode } from "@/lib/shell/modes";
 
 import { FormsTable } from "./forms-table";
 
@@ -26,12 +28,15 @@ export default async function FormsPage({
   const session = await requireAdminSession();
   const { status, sort, search, isFiltered } = readFormListFilters(await searchParams);
 
-  const result = await listForms(session, {
-    ...optionalProp("status", status),
-    ...optionalProp("workspaceId", await currentWorkspaceId(session)),
-    search,
-    sort,
-  });
+  const [result, capabilities] = await Promise.all([
+    listForms(session, {
+      ...optionalProp("status", status),
+      ...optionalProp("workspaceId", await currentWorkspaceId(session)),
+      search,
+      sort,
+    }),
+    shellAccess(session).then(navigableCapabilities),
+  ]);
 
   const isEmpty = result.ok && result.data.length === 0;
 
@@ -76,7 +81,9 @@ export default async function FormsPage({
           />
         ))}
 
-      {result.ok && result.data.length > 0 && <FormsTable rows={result.data} />}
+      {result.ok && result.data.length > 0 && (
+        <FormsTable rows={result.data} canOperate={permitsMode(capabilities, "operations")} />
+      )}
     </div>
   );
 }

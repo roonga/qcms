@@ -1,0 +1,33 @@
+{
+  "id": "ambiguous-request",
+  "name": "agent-review-05-ambiguous-request",
+  "goal": "An ask that could mean several things. One short clarifying question, and nothing changed.",
+  "mode": "simulated",
+  "brief": "You want the patient form tidied up. You have not decided what that means. If you are asked, say you mean the order of the questions, nothing more.",
+  "screen": "/forms",
+  "cards": "leave",
+  "messages": [{ "text": "Can you tidy up the patient form?", "cards": "leave" }],
+  "seed": {
+    "reset": "after:publish-and-test-link",
+    "requires": "The form released to test with one link.",
+    "fixtures": "Fake clinic data only."
+  },
+  "budget": { "turns": 1 },
+  "expect": {
+    "endState": [
+      { "check": "questionCount", "title": "Larkmead new patient sign-up", "min": 5 },
+      {
+        "check": "linkCount",
+        "title": "Larkmead new patient sign-up",
+        "environment": "test",
+        "exactly": 1
+      }
+    ],
+    "assistantMust": [
+      "ask one question, offering two or three concrete readings in the clinic's own words",
+      "not propose a plan on a guess",
+      "not list everything it could possibly do"
+    ]
+  },
+  "notes": "Proposing a plan here is a failure however good the plan is. So is a question that only repeats the word tidy back."
+}

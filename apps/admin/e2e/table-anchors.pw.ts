@@ -80,8 +80,9 @@ test("every converted table's row control is in the document's own tab order", a
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(new RegExp(questionIdFor(PICKER_SLUG)));
 
-  await page.goto("/forms");
-  const formLink = page.getByRole("link", { name: `Open form anchors570-form-${RUN}` });
+  await page.goto(`/forms?q=anchors570-form-${RUN}`);
+  // The row leads with the form's title, and its link is named by the text it paints.
+  const formLink = page.getByRole("link", { name: "Open form Anchors 570" });
   await expect(formLink).toHaveAttribute("href", `/forms/${pickerFormId}`);
   await tabTo(page, formLink);
   await expect(formLink, "the form library's row link is reachable by Tab").toBeFocused();

@@ -297,13 +297,20 @@ test("returns focus and the dock state from Escape in all three modes (exit crit
   await expect(panel(page), "Escape does not close the dock").toBeVisible();
   await expect(page.locator("main#main-content")).toBeFocused();
 
-  await page.getByTestId("qcms-assistant-expand").click();
+  const expand = page.getByTestId("qcms-assistant-expand");
+  await expect(expand).toHaveAttribute("aria-label", "Expand the assistant");
+  await expand.click();
   await expect(panel(page)).toHaveAttribute("data-mode", "expanded");
   await expect(panel(page)).toHaveRole("dialog");
-  await expect(page.getByTestId("qcms-assistant-expand")).toHaveAttribute("aria-pressed", "true");
+  await expect(expand).toHaveAttribute("aria-pressed", "true");
+  await expect(expand, "the toggle names the action it now offers").toHaveAttribute(
+    "aria-label",
+    "Collapse the assistant",
+  );
   await expect(page.locator("main#main-content")).toHaveAttribute("inert", "");
-  await page.getByTestId("qcms-assistant-expand").press("Escape");
+  await expand.press("Escape");
   await expect(panel(page)).toHaveAttribute("data-mode", "dock");
+  await expect(expand).toHaveAttribute("aria-label", "Expand the assistant");
   await expect(page.locator("main#main-content")).not.toHaveAttribute("inert", "");
 
   await page.setViewportSize({ width: 390, height: 844 });
@@ -519,6 +526,111 @@ test("keeps the dock the height of the viewport, with the composer inside it", a
     geometry.viewport,
   );
   expect(geometry.composerBottom).toBeGreaterThan(0);
+});
+
+// Two nested scroll containers put two scrollbars side by side; the conversation owns the only one.
+async function panelScrollers(page: Page): Promise<readonly string[]> {
+  return page.evaluate(() => {
+    const root = document.getElementById("qcms-assistant-panel");
+    if (root === null) return [];
+    return [root, ...root.querySelectorAll("*")]
+      .filter((node): node is HTMLElement => node instanceof HTMLElement)
+      .filter((node) => {
+        const style = window.getComputedStyle(node);
+        const scrolls = /auto|scroll/u.test(`${style.overflowY} ${style.overflowX}`);
+        return (
+          scrolls &&
+          (node.scrollHeight > node.clientHeight + 1 || node.scrollWidth > node.clientWidth + 1)
+        );
+      })
+      .map((node) => node.dataset["testid"] ?? node.className);
+  });
+}
+
+async function expectOneScroller(page: Page, where: string): Promise<void> {
+  const scrollers = await panelScrollers(page);
+  expect(
+    scrollers.filter((name) => name !== "qcms-assistant-turns"),
+    `${where} should scroll in the conversation alone`,
+  ).toEqual([]);
+}
+
+async function expectComposerRingShown(page: Page, where: string): Promise<void> {
+  await composer(page).focus();
+  const ring = await page.evaluate(() => {
+    const area = document.querySelector('[data-testid="qcms-assistant-composer"]');
+    const panel = document.getElementById("qcms-assistant-panel");
+    if (!(area instanceof HTMLElement) || panel === null) return undefined;
+    const style = window.getComputedStyle(area);
+    const reach = Number.parseFloat(style.outlineWidth) + Number.parseFloat(style.outlineOffset);
+    const box = area.getBoundingClientRect();
+    const within = panel.getBoundingClientRect();
+    return {
+      width: Number.parseFloat(style.outlineWidth),
+      style: style.outlineStyle,
+      inside:
+        box.left - reach >= within.left - 1 &&
+        box.right + reach <= within.right + 1 &&
+        box.top - reach >= within.top - 1 &&
+        box.bottom + reach <= within.bottom + 1,
+    };
+  });
+  expect(ring?.style, `the composer shows a focus ring in ${where}`).not.toBe("none");
+  expect(ring?.width ?? 0, `the ${where} focus ring is thick enough to see`).toBeGreaterThanOrEqual(
+    2,
+  );
+  expect(ring?.inside, `the ${where} focus ring is not clipped by the panel`).toBe(true);
+}
+
+test("gives the panel one scroll container and holds the page still behind it", async ({
+  page,
+}) => {
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.setViewportSize({ width: WIDE, height: 700 });
+  await page.goto(`/forms/${FORM_ID}`);
+  await chooseEnvironment(page, "test");
+  await open(page);
+  await expect(panel(page)).toHaveAttribute("data-mode", "dock");
+  await expectOneScroller(page, "the dock");
+  await expectComposerRingShown(page, "the dock");
+
+  await page.getByTestId("qcms-assistant-expand").click();
+  await expect(panel(page)).toHaveAttribute("data-mode", "expanded");
+  await expectOneScroller(page, "the expanded panel");
+  await expectComposerRingShown(page, "the expanded panel");
+
+  await page.setViewportSize({ width: 700, height: 700 });
+  await expect(panel(page)).toHaveAttribute("data-mode", "sheet");
+  await expectOneScroller(page, "the sheet");
+
+  // A programmatic scroll still moves a viewport whose overflow is hidden; only a gesture is blocked.
+  await page.mouse.move(350, 350);
+  await page.mouse.wheel(0, 1200);
+  const fit = await page.evaluate(() => {
+    const box = document.getElementById("qcms-assistant-panel")?.getBoundingClientRect();
+    const bar = document.querySelector("header.qcms-topbar")?.getBoundingClientRect();
+    const composer = document
+      .querySelector('[data-testid="qcms-assistant-composer"]')
+      ?.getBoundingClientRect();
+    return {
+      scrolled: Math.round(window.scrollY),
+      top: Math.round(box?.top ?? 0),
+      bottom: Math.round(box?.bottom ?? 0),
+      barBottom: Math.round(bar?.bottom ?? 0),
+      composerBottom: Math.round(composer?.bottom ?? 0),
+      viewport: window.innerHeight,
+    };
+  });
+  expect(fit.scrolled, "the page behind the sheet does not scroll").toBe(0);
+  expect(
+    Math.abs(fit.top - fit.barBottom),
+    "the sheet starts under the top bar",
+  ).toBeLessThanOrEqual(1);
+  expect(fit.bottom, "the sheet reaches the foot of the viewport").toBe(fit.viewport);
+  expect(fit.composerBottom, "the composer sits at the sheet's foot").toBeGreaterThan(
+    fit.viewport - 120,
+  );
+  expect(fit.composerBottom).toBeLessThanOrEqual(fit.viewport);
 });
 
 test("runs no animation on open, close or expand under reduced motion (exit criterion 5)", async ({

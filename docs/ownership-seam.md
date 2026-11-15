@@ -93,15 +93,15 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (615 files common to both shapes)
+### Scaffolded paths (618 files common to both shapes)
 
 | Path                                                                            | Files |
 | ------------------------------------------------------------------------------- | ----- |
 | `(project root)`                                                                | 8     |
-| `apps/`                                                                         | 604   |
-| `apps/admin/`                                                                   | 387   |
-| `apps/admin/app/`                                                               | 102   |
-| `apps/admin/app/(shell)/`                                                       | 78    |
+| `apps/`                                                                         | 607   |
+| `apps/admin/`                                                                   | 390   |
+| `apps/admin/app/`                                                               | 104   |
+| `apps/admin/app/(shell)/`                                                       | 80    |
 | `apps/admin/app/(shell)/@rail/`                                                 | 34    |
 | `apps/admin/app/(shell)/@rail/forms/`                                           | 9     |
 | `apps/admin/app/(shell)/@rail/forms/[formId]/`                                  | 7     |
@@ -137,8 +137,8 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/(shell)/@rail/workspaces/[workspaceId]/members/`                | 1     |
 | `apps/admin/app/(shell)/@rail/workspaces/[workspaceId]/settings/`               | 1     |
 | `apps/admin/app/(shell)/@rail/workspaces/all/`                                  | 1     |
-| `apps/admin/app/(shell)/assist/`                                                | 1     |
-| `apps/admin/app/(shell)/forms/`                                                 | 13    |
+| `apps/admin/app/(shell)/assist/`                                                | 2     |
+| `apps/admin/app/(shell)/forms/`                                                 | 14    |
 | `apps/admin/app/(shell)/forms/[formId]/`                                        | 7     |
 | `apps/admin/app/(shell)/forms/[formId]/assist/`                                 | 1     |
 | `apps/admin/app/(shell)/forms/[formId]/preview/`                                | 1     |
@@ -194,8 +194,8 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/two-factor/recovery-codes/`                                     | 2     |
 | `apps/admin/app/two-factor/recovery-codes/confirm/`                             | 1     |
 | `apps/admin/app/two-factor/recovery/verify/`                                    | 1     |
-| `apps/admin/components/`                                                        | 138   |
-| `apps/admin/components/agent/`                                                  | 11    |
+| `apps/admin/components/`                                                        | 139   |
+| `apps/admin/components/agent/`                                                  | 12    |
 | `apps/admin/components/forms/`                                                  | 41    |
 | `apps/admin/components/membership/`                                             | 9     |
 | `apps/admin/components/ops/`                                                    | 19    |
@@ -298,7 +298,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (615)</summary>
+<summary>Every scaffolded file (618)</summary>
 
 ```
 .dockerignore
@@ -341,6 +341,7 @@ apps/admin/app/(shell)/@rail/workspaces/[workspaceId]/settings/page.tsx
 apps/admin/app/(shell)/@rail/workspaces/all/page.tsx
 apps/admin/app/(shell)/@rail/workspaces/page.tsx
 apps/admin/app/(shell)/assist/route.ts
+apps/admin/app/(shell)/assist/titles.ts
 apps/admin/app/(shell)/forms/[formId]/assist/route.ts
 apps/admin/app/(shell)/forms/[formId]/page.tsx
 apps/admin/app/(shell)/forms/[formId]/preview/page.tsx
@@ -349,6 +350,7 @@ apps/admin/app/(shell)/forms/[formId]/rules/page.tsx
 apps/admin/app/(shell)/forms/[formId]/versions/[version]/page.tsx
 apps/admin/app/(shell)/forms/[formId]/versions/page.tsx
 apps/admin/app/(shell)/forms/actions.ts
+apps/admin/app/(shell)/forms/form-row-menu.tsx
 apps/admin/app/(shell)/forms/forms-table.tsx
 apps/admin/app/(shell)/forms/new/create-form.tsx
 apps/admin/app/(shell)/forms/new/page.tsx
@@ -421,6 +423,7 @@ apps/admin/components/agent/definition-detail.tsx
 apps/admin/components/agent/heading-marker.tsx
 apps/admin/components/agent/proposal-marker.tsx
 apps/admin/components/agent/step-actions.ts
+apps/admin/components/agent/subject-titles.ts
 apps/admin/components/announcer.tsx
 apps/admin/components/app-update.tsx
 apps/admin/components/appearance-glyph.tsx

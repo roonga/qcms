@@ -708,8 +708,8 @@ test("the form library lists the forms that were built", async ({ page }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto("/forms");
   await expect(page.getByRole("table", { name: "Form library" })).toBeVisible();
-  await expect(page.getByRole("row").filter({ hasText: insuranceFormId })).toBeVisible();
-  await expect(page.getByRole("row").filter({ hasText: insuranceFormId })).toContainText(
-    "Unpublished draft",
-  );
+  // A row leads with the form's title and carries its id on the copy control, not as row text.
+  const row = page.locator(`tr[data-form-id="${insuranceFormId}"]`);
+  await expect(row).toBeVisible();
+  await expect(row).toContainText("Unpublished draft");
 });

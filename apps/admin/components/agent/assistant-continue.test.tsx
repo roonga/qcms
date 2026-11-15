@@ -174,7 +174,9 @@ describe("the turn the panel posts after an accept settles", () => {
     nextDraftSaved.mockResolvedValue(undefined);
     const fetchMock = await confirmTheAccept();
     await vi.waitFor(() => {
-      expect(screen.getAllByText(t("agent.card.result.done", { count: 1 }))).not.toHaveLength(0);
+      expect(screen.getAllByText(t("agent.card.result.done.one", { count: 1 }))).not.toHaveLength(
+        0,
+      );
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });

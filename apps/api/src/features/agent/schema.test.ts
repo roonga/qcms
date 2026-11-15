@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   ActionResultTurnBody,
   ActionStepResultBody,
-  actionResultRefusal,
+  ScreenAssistBody,
+  conversationRefusal,
   stepResultRefusal,
   type ActionStepResult,
   type ConversationTurnBody,
@@ -90,8 +91,39 @@ describe("the conversation the route checks", () => {
         steps: [{ kind: "link.mint", outcome: "done", result }],
       },
     ];
-    expect(actionResultRefusal(turn({ count: 2 }))).toBeUndefined();
-    expect(actionResultRefusal(turn({ version: 3 }))).toContain("version");
+    expect(conversationRefusal(turn({ count: 2 }))).toBeUndefined();
+    expect(conversationRefusal(turn({ version: 3 }))).toContain("version");
+  });
+
+  it("passes a waiting card and refuses one naming a kind that does not exist", () => {
+    const waiting = (kind: string): ConversationTurnBody[] => [
+      { role: "user", content: "hi" },
+      { role: "proposal", proposalId: "prp_abc", steps: [{ kind }] },
+    ];
+    expect(conversationRefusal(waiting("form.publish"))).toBeUndefined();
+    expect(conversationRefusal(waiting("form.obliterate"))).toContain("form.obliterate");
+  });
+});
+
+describe("the posted conversation's length", () => {
+  const body = (turns: number): unknown => ({
+    conversation: [
+      ...Array.from({ length: turns - 1 }, (_value, index) => ({
+        role: "user",
+        content: `turn ${String(index)}`,
+      })),
+      { role: "proposal", proposalId: "prp_abc", steps: [{ kind: "form.publish" }] },
+    ],
+    screen: "forms",
+    conversationId: "cnv_abc",
+  });
+
+  it("accepts a full history whose last turn is the waiting card", () => {
+    expect(ScreenAssistBody.safeParse(body(40)).success).toBe(true);
+  });
+
+  it("refuses one turn more", () => {
+    expect(ScreenAssistBody.safeParse(body(41)).success).toBe(false);
   });
 });
 

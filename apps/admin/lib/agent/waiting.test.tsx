@@ -40,7 +40,7 @@ function Requester() {
 
 const WAITING: WaitingProposal = {
   cardId: "card-1",
-  summary: "Release version 3 of frm_quote to prod",
+  summary: "Publish version 3 of frm_quote to prod",
   control: "releases.release",
 };
 

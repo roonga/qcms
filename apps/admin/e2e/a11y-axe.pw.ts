@@ -444,9 +444,16 @@ test("the form builder and the condition editor have zero violations", async ({ 
   await page.goto("/forms/new");
   await expectNoViolations(page, "new form");
 
-  await createForm(page, `a11y-form-${run}`, "Accessibility sweep form");
+  const sweepFormId = await createForm(page, `a11y-form-${run}`, "Accessibility sweep form");
 
   await expectNoViolations(page, "form builder, empty");
+
+  await page.goto(`/forms?q=a11y-form-${run}`);
+  await openMenu(page.getByRole("button", { name: "Actions for form Accessibility sweep form" }));
+  await expectNoViolations(page, "form library, row menu open");
+  await page.keyboard.press("Escape");
+
+  await page.goto(`/forms/${sweepFormId}`);
 
   await addStep(page, "Cover");
 
