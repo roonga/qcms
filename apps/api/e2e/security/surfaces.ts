@@ -357,6 +357,17 @@ export const SURFACES: readonly Surface[] = [
     anonymousReachable: false,
     readControl: true,
   },
+  // The account directory: Site administrators only, and the one membership-row route
+  // that names no workspace at all.
+  {
+    name: "GET /admin/accounts",
+    row: "membership",
+    group: "admin",
+    method: "GET",
+    path: () => "/admin/accounts",
+    anonymousReachable: false,
+    readControl: true,
+  },
   {
     name: "GET /admin/workspaces/{id}/members",
     row: "membership",
