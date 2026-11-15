@@ -21,7 +21,10 @@ import { sqlLiteral as literal } from "../sql-literal.js";
 import { ACCESS_AUDIT_TABLE } from "../schema/control/access-audit.js";
 import { AGENT_ACTIONS_TABLE } from "../schema/control/agent-actions.js";
 import { SITE_AUDIT_TABLE } from "../schema/control/site-audit.js";
-import { APPEARANCE_LOGOS_TABLE } from "../schema/control/workspace-themes.js";
+import {
+  APPEARANCE_LOGOS_TABLE,
+  APPEARANCE_LOGO_TAKEDOWN_FUNCTION,
+} from "../schema/control/workspace-themes.js";
 import {
   APPLICATION_ROLE_PREFIX,
   CONTROL_ROLE,
@@ -440,6 +443,19 @@ export function grantAppearanceLogosStatements(): string[] {
     guardedOnRole(CONTROL_ROLE, [`GRANT SELECT, INSERT ON ${table} TO ${quote(CONTROL_ROLE)}`]),
     grantControlReadToEnvironmentRolesStatement(APPEARANCE_LOGOS_TABLE),
     revokeTableWritesStatement(APPEARANCE_LOGOS_TABLE),
+  ];
+}
+
+/**
+ * The takedown function's own grant. `EXECUTE` comes to every role by default, so it is
+ * revoked from `PUBLIC` first and then given to the control role alone: no environment
+ * role may call it, and no application role gains `DELETE` on the table it deletes from.
+ */
+export function grantAppearanceLogoTakedownStatements(): string[] {
+  const fn = `${APPEARANCE_LOGO_TAKEDOWN_FUNCTION}(text)`;
+  return [
+    `REVOKE ALL ON FUNCTION ${fn} FROM PUBLIC;`,
+    guardedOnRole(CONTROL_ROLE, [`GRANT EXECUTE ON FUNCTION ${fn} TO ${quote(CONTROL_ROLE)}`]),
   ];
 }
 

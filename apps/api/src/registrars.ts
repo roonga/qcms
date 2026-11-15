@@ -4,7 +4,7 @@ import { registerAgentProvenance } from "./features/agent/provenance-mount.js";
 import { registerFormsAssist } from "./features/agent/route.js";
 import { registerForms } from "./features/forms/route.js";
 import { registerLinks } from "./features/links/route.js";
-import { registerLogos } from "./features/logos/route.js";
+import { registerLogoTakedown, registerLogos } from "./features/logos/route.js";
 import { registerMembership } from "./features/membership/route.js";
 import { registerOperations } from "./features/operations/route.js";
 import { registerOutboxOps } from "./features/outbox/route.js";
@@ -56,6 +56,8 @@ export const appGroups: RouteGroups = {
     registerAdminResponses,
     registerReleases,
     registerWorkspaces,
+    // The one write on the site-wide logo store, and a Site administrator's alone.
+    registerLogoTakedown,
     // The only grant write path.
     registerMembership,
     registerLinks,

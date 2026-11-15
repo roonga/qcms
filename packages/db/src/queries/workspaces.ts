@@ -69,6 +69,24 @@ export async function getWorkspace(
   return row;
 }
 
+/**
+ * One workspace by id, holding a share lock on the row. Run it in a transaction: the lock
+ * is what stops a concurrent lock setter, which takes the row `FOR UPDATE`, from
+ * committing between a read of `appearanceLocked` and the write that read admitted.
+ */
+export async function getWorkspaceForShare(
+  exec: Executor,
+  workspaceId: string,
+): Promise<WorkspaceRow | undefined> {
+  const [row] = await exec
+    .select(workspaceColumns)
+    .from(authOrganization)
+    .where(eq(authOrganization.id, workspaceId))
+    .limit(1)
+    .for("share");
+  return row;
+}
+
 /** One workspace by slug, or `undefined`. Slugs are unique installation-wide. */
 export async function getWorkspaceBySlug(
   exec: Executor,

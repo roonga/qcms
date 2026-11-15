@@ -29,6 +29,16 @@ export type LogoContentType = (typeof LOGO_CONTENT_TYPES)[number];
 /** The largest logo the store accepts, pinned by a CHECK so no caller can raise it. */
 export const LOGO_MAX_BYTES = 524_288;
 
+/**
+ * The `SECURITY DEFINER` function migration 0012 creates. It is the only sanctioned
+ * delete on {@link appearanceLogos}: no application role holds `DELETE` on the table, and
+ * the delete trigger admits a row only inside this function, for the one key it names.
+ */
+export const APPEARANCE_LOGO_TAKEDOWN_FUNCTION = "control.appearance_logo_takedown";
+
+/** The transaction-local flag the delete trigger honours, set by that function alone. */
+export const APPEARANCE_LOGO_TAKEDOWN_SETTING = "qcms.appearance_logo_takedown";
+
 export const APPEARANCE_LOGOS_KEY_CHECK = "appearance_logos_key_hex";
 export const APPEARANCE_LOGOS_DIGEST_CHECK = "appearance_logos_key_matches_bytes";
 export const APPEARANCE_LOGOS_CONTENT_TYPE_CHECK = "appearance_logos_content_type";

@@ -82,6 +82,7 @@ export {
   listWorkspaces,
   listActiveWorkspaces,
   getWorkspace,
+  getWorkspaceForShare,
   getWorkspaceBySlug,
   getSharedWorkspace,
   setWorkspaceShared,
@@ -98,12 +99,14 @@ export {
   type AppearanceLogoRow,
   type WorkspaceThemeInput,
   type WorkspaceThemeRow,
+  clearThemeLogoKey,
   deleteWorkspaceTheme,
   getAppearanceLogo,
   getWorkspaceTheme,
   insertAppearanceLogo,
   insertWorkspaceTheme,
   listWorkspaceThemes,
+  takeDownAppearanceLogo,
   updateWorkspaceTheme,
 } from "./workspace-themes.js";
 

@@ -10,7 +10,7 @@ import { createHash } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { SEED_WORKSPACE_ID } from "@roonga/qcms-db/testing";
-import { FormId } from "@roonga/qcms-core";
+import { FormId, deriveAppearance } from "@roonga/qcms-core";
 import {
   addAccessGroupHolder,
   authOrganization,
@@ -22,6 +22,7 @@ import {
   getWorkspace,
   insertAppearanceLogo,
   insertFormVersion,
+  insertWorkspaceTheme,
   listAccessAudit,
   setRequireSecondApprover,
 } from "@roonga/qcms-db";
@@ -192,10 +193,26 @@ beforeAll(async () => {
     actor: null,
   });
 
+  // A real theme, so a theme probe cannot pass because the handler refused an id that
+  // does not exist where a gate had failed.
+  const derived = deriveAppearance({ primary: "#1d4ed8" });
+  const theme = await insertWorkspaceTheme(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    name: "Matrix probe",
+    palettes: derived.palettes,
+    face: derived.face,
+    corners: "subtle",
+    pageTint: derived.pageTint,
+    logoKey: null,
+    sourceHost: null,
+    actor: null,
+  });
+
   ctx = {
     formId,
     formSlug: slug,
     logoKey,
+    themeId: theme.id,
     sessionId: a.body.sessionId,
     otherSessionId: b.body.sessionId,
     linkId: LINK_ID,

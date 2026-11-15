@@ -402,6 +402,16 @@ describe("the audit column and the response routes agree (criterion 8)", () => {
     expect(lock?.installationOnly).toBeUndefined();
   });
 
+  it("puts the logo takedown out of every role's reach (Code Owner, 2026-11-16)", () => {
+    const row = policyForRequest("DELETE", `/admin/logos/${"a".repeat(64)}`);
+    expect(row).toMatchObject({
+      resource: "workspace",
+      action: "update",
+      workspace: "installation",
+      installationOnly: true,
+    });
+  });
+
   it("gives the rename route the workspace administrator's cell, in the named workspace (criterion 97)", () => {
     const row = policyForRequest("PUT", "/admin/workspaces/org_x/name");
     expect(row).toMatchObject({

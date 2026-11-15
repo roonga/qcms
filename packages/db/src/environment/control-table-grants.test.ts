@@ -21,6 +21,8 @@ import { APPEARANCE_CORNERS } from "@roonga/qcms-core";
 import {
   APPEARANCE_LOGOS_DIGEST_CHECK,
   APPEARANCE_LOGOS_TABLE,
+  APPEARANCE_LOGO_TAKEDOWN_FUNCTION,
+  APPEARANCE_LOGO_TAKEDOWN_SETTING,
   LOGO_CONTENT_TYPES,
   LOGO_MAX_BYTES,
   WORKSPACE_THEMES_TABLE,
@@ -32,6 +34,7 @@ import {
   CONTROL_READ_TABLES,
   grantAccessAuditStatements,
   grantAgentActionsStatements,
+  grantAppearanceLogoTakedownStatements,
   grantAppearanceLogosStatements,
   grantControlTableStatements,
   grantEnvironmentStatements,
@@ -68,6 +71,10 @@ const APPEARANCE_MIGRATION = fileURLToPath(
 
 const SITE_AUDIT_MIGRATION = fileURLToPath(
   new URL("../../migrations/0011_account_state_and_site_audit.sql", import.meta.url),
+);
+
+const TAKEDOWN_MIGRATION = fileURLToPath(
+  new URL("../../migrations/0012_appearance_logo_takedown.sql", import.meta.url),
 );
 
 describe("the `form_releases` grants", () => {
@@ -286,10 +293,47 @@ describe("the site audit's grants (criterion 112)", () => {
     expect(sql).not.toContain("FOREIGN KEY");
   });
 
-  it("pins the four site kinds and the access audit's eleven at the database", () => {
+  it("pins the site kinds it shipped with and the access audit's eleven at the database", () => {
+    expect(sql).toContain(`CONSTRAINT "${SITE_AUDIT_KIND_CHECK}"`);
+    // The fifth kind, `logo`, arrives with the takedown in 0012 and is asserted there.
+    for (const kind of SITE_AUDIT_KINDS.filter((name) => name !== "logo")) {
+      expect(sql).toContain(`'${kind}'`);
+    }
+    for (const kind of ACCESS_AUDIT_KINDS) expect(sql).toContain(`'${kind}'`);
+  });
+});
+
+describe("the logo takedown's function and kind (Code Owner, 2026-11-16)", () => {
+  const sql = readFileSync(TAKEDOWN_MIGRATION, "utf8");
+
+  it("are exactly the statements the generator emits, verbatim", () => {
+    const statements = grantAppearanceLogoTakedownStatements();
+    expect(statements).toHaveLength(2);
+    for (const statement of statements) expect(sql).toContain(statement);
+  });
+
+  it("takes EXECUTE back from PUBLIC before giving it to the control role alone", () => {
+    const revoked = sql.indexOf(`REVOKE ALL ON FUNCTION ${APPEARANCE_LOGO_TAKEDOWN_FUNCTION}`);
+    const granted = sql.indexOf(`GRANT EXECUTE ON FUNCTION ${APPEARANCE_LOGO_TAKEDOWN_FUNCTION}`);
+    expect(revoked).toBeGreaterThan(-1);
+    expect(granted).toBeGreaterThan(revoked);
+    expect(sql).not.toContain("TO %I");
+  });
+
+  it("gives no application role DELETE on the store the function deletes from", () => {
+    expect(sql).not.toContain(`GRANT DELETE ON "control"."${APPEARANCE_LOGOS_TABLE}"`);
+    expect(sql).not.toContain(`GRANT SELECT, INSERT, UPDATE, DELETE ON "control"."${APPEARANCE_LOGOS_TABLE}"`);
+  });
+
+  it("keeps the UPDATE rejection and gates the delete on the key-scoped flag", () => {
+    expect(sql).toContain("SECURITY DEFINER");
+    expect(sql).toContain(APPEARANCE_LOGO_TAKEDOWN_SETTING);
+    expect(sql).not.toContain(`DROP TRIGGER "${APPEARANCE_LOGOS_TABLE}_reject_update"`);
+  });
+
+  it("pins the fifth site audit kind at the database", () => {
     expect(sql).toContain(`CONSTRAINT "${SITE_AUDIT_KIND_CHECK}"`);
     for (const kind of SITE_AUDIT_KINDS) expect(sql).toContain(`'${kind}'`);
-    for (const kind of ACCESS_AUDIT_KINDS) expect(sql).toContain(`'${kind}'`);
   });
 });
 

@@ -34,13 +34,15 @@ async function serve(key: string): Promise<Response> {
 }
 
 describe("the respondent-facing logo route", () => {
-  it("serves the API's bytes with the stored type, nosniff and a long immutable cache", async () => {
+  it("serves the API's bytes with the stored type, nosniff and a revalidated day's cache", async () => {
     const res = await serve(KEY);
 
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("image/png");
     expect(res.headers.get("x-content-type-options")).toBe("nosniff");
-    expect(res.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
+    // A takedown can remove these bytes, so the hop revalidates rather than pinning a year.
+    expect(res.headers.get("cache-control")).toBe("public, max-age=86400, must-revalidate");
+    expect(res.headers.get("etag")).toBe(`"${KEY}"`);
     expect(new Uint8Array(await res.arrayBuffer())).toStrictEqual(PNG);
     expect(requested).toEqual([`http://api.internal:4000/logos/${KEY}`]);
   });

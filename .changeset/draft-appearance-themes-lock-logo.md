@@ -13,15 +13,20 @@ logo's bytes themselves declare, matched from offset zero so a caller's content 
 never believed and an SVG, a polyglot or any other container is refused rather than stored
 as an image.
 
-`@roonga/qcms-db` gains the workspace-theme and logo-store queries, and
-`setWorkspaceAppearanceLock`. `upsertDraft` now requires `appearance`, so no save path can
+`@roonga/qcms-db` gains the workspace-theme and logo-store queries,
+`setWorkspaceAppearanceLock`, `getWorkspaceForShare` and the logo takedown pair
+(`clearThemeLogoKey`, `takeDownAppearanceLogo`). `upsertDraft` now requires `appearance`, so no save path can
 drop a form's appearance by forgetting the field, and `WorkspaceRow` carries
 `appearanceLocked`. The logo read selects exactly the three columns an environment role
 holds `SELECT` on, because the serving pool answers with it.
 
 `PUT /admin/forms/{id}/draft` accepts `appearance`, validates it against the shared schema
 and the WCAG contrast check, and refuses any change to it while the workspace's appearance
-lock is set, for every actor and for the assistant alike. An omitted field keeps what the
+lock is set, for every actor and for the assistant alike. The lock is read `FOR SHARE`
+inside the save's own transaction, so a lock committed beside a save cannot be missed. A
+draft may name only a logo already in the store, as a theme may. A request carrying an
+assistant proposal token may not carry an appearance at all until task 117 binds it in the
+digest (SEC-17, Code Owner, 2026-11-16). An omitted field keeps what the
 form already carries, so a client that knows nothing of appearance never clears one and a
 save that changes nothing succeeds under the lock. The form read, session start and every
 step response carry the appearance of the draft or the pinned version.
@@ -30,10 +35,19 @@ A workspace's themes are listed, read, saved, changed and deleted by an Edit for
 of that workspace, with the logo uploaded under the SHA-256 of its own bytes into immutable
 storage. The lock is set and cleared by a Workspace administrator or a Site administrator,
 with no second approver and one `setting` audit row. `GET /logos/{key}` serves the bytes
-with no session, the sniffed content type, `nosniff` and a year's immutable cache; the
-portal re-serves them from its own origin so SEC-9's `img-src 'self'` holds. A malformed
-key, an unknown key and a key stored elsewhere are one uniform 404.
+with no session, the sniffed content type, `nosniff`, an `ETag` that is the key and
+`public, max-age=86400, must-revalidate`; the portal re-serves them from its own origin so
+SEC-9's `img-src 'self'` holds. A malformed key, an unknown key and a key stored elsewhere
+are one uniform 404.
 
 Nothing links a form to a theme: applying one copies its values in, so changing or deleting
 a theme afterwards alters no draft and no version, and the logo each carries is still
-served. No migration: task 108 holds the columns.
+served.
+
+`DELETE /admin/logos/{key}` takes a stored logo down, and a Site administrator alone may
+call it (Code Owner, 2026-11-16, revising the 108 ruling that no role may ever delete a
+logo). It clears the key off every theme that named it, deletes the bytes and writes one
+`logo` row in the site audit, the fifth kind. Migration 0012 adds the mechanism: a
+`SECURITY DEFINER` function the control role alone may execute, which sets the key-scoped
+flag the delete trigger honours. No application role gains `DELETE` on
+`control.appearance_logos`, and `UPDATE` is still rejected for every role.

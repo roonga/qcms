@@ -123,6 +123,14 @@ async function hasSchemaUsage(schema: string, role: string): Promise<boolean> {
   return res.rows[0]?.has ?? false;
 }
 
+async function hasFunctionExecute(role: string, signature: string): Promise<boolean> {
+  const res = await owner.query<{ has: boolean }>(
+    `select has_function_privilege($1, $2, 'EXECUTE') as has`,
+    [role, signature],
+  );
+  return res.rows[0]?.has ?? false;
+}
+
 // `has_column_privilege` answers true for a table-wide grant too, so a column read is
 // only proved a column read beside `has_table_privilege` answering false.
 async function hasColumnPrivilege(
@@ -369,6 +377,17 @@ describe("qcms_app_control: the control plane, and one grant in each data plane"
     expect(refusal).toMatch(/permission denied/i);
   });
 
+  it("deletes a logo only through the takedown function, never from the table (task 109)", async () => {
+    // The takedown is a sanctioned act, so this role may call the function; it still holds
+    // no `DELETE` on the table, which is what keeps the one door the only door.
+    const client = clients.get(CONTROL_ROLE)!;
+    const refusal = await refusalFor(client, `delete from control.${APPEARANCE_LOGOS_TABLE}`);
+    expect(refusal).toMatch(/permission denied/i);
+    expect(
+      await hasFunctionExecute(CONTROL_ROLE, `${APPEARANCE_LOGO_TAKEDOWN_FUNCTION}(text)`),
+    ).toBe(true);
+  });
+
   it("can insert the release event Q49 gives it, without RETURNING", async () => {
     const client = clients.get(CONTROL_ROLE);
     await client!.query(
@@ -597,6 +616,17 @@ describe.each(ENVIRONMENTS)(
         `select created_by from control.${APPEARANCE_LOGOS_TABLE} limit 1`,
       );
       expect(refusal).toMatch(/permission denied/i);
+    });
+
+    it("can neither delete a logo nor call the takedown function (task 109)", async () => {
+      // The takedown is a Site administrator's act on the control pool; the pool serving
+      // anonymous respondents holds neither half of it.
+      const client = clients.get(role)!;
+      const refusal = await refusalFor(client, `delete from control.${APPEARANCE_LOGOS_TABLE}`);
+      expect(refusal).toMatch(/permission denied/i);
+      expect(await hasFunctionExecute(role, `${APPEARANCE_LOGO_TAKEDOWN_FUNCTION}(text)`)).toBe(
+        false,
+      );
     });
 
     it("holds nothing at all on the pending prod endpoint change (task 070)", async () => {

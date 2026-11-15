@@ -19,6 +19,7 @@ The only outbound fetch the builder makes. `apps/api/src/features/webhooks/ssrf.
   - each subresource (CSS, logo) through the same guard; no cookies sent;
   - one uniform error for every refusal, so the route is no port-scan oracle.
 - Derive output: 107's derivation over the fetched colours and faces, as a strict schema of hex colours and a registry face enum, no free strings, no title or alt text (Q21). No page text and no logo bytes go to the model provider. PDF deferred.
+- The same decoder runs on a hand-uploaded logo: the theme logo upload route decodes, applies the pixel cap and re-encodes, so a hand upload and a derived logo get the same SEC-18 treatment (Code Owner, 2026-11-16; task 109 ships the upload with a magic-number sniff and a byte cap only).
 - Rate limit per user and workspace; one access-audit row per fetch, with the source host (spec section 11).
 - A fake `BrandFetcher` and a local fixture server for tests and for 117's Playwright run.
 - Config parsing in `apps/api/src/config.ts`; `route-policy.ts` row; SEC-3 §3.2 row; OpenAPI.

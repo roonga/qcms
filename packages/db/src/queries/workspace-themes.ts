@@ -1,4 +1,6 @@
-import { and, asc, eq } from "drizzle-orm";
+import { Buffer } from "node:buffer";
+
+import { and, asc, eq, sql } from "drizzle-orm";
 
 import type {
   AppearanceCorners,
@@ -160,7 +162,7 @@ export async function insertAppearanceLogo(
   input: {
     readonly key: string;
     readonly contentType: RasterLogoContentType;
-    readonly bytes: Buffer;
+    readonly bytes: Uint8Array;
     readonly actor: string | null;
   },
 ): Promise<void> {
@@ -169,7 +171,9 @@ export async function insertAppearanceLogo(
     .values({
       key: input.key,
       contentType: input.contentType,
-      bytes: input.bytes,
+      // `bytea` binds a `Buffer`, which the driver owns: a handler stays on Web APIs and
+      // hands over a plain view.
+      bytes: Buffer.from(input.bytes.buffer, input.bytes.byteOffset, input.bytes.byteLength),
       createdBy: input.actor,
     })
     .onConflictDoNothing({ target: appearanceLogos.key });
@@ -178,7 +182,7 @@ export async function insertAppearanceLogo(
 export interface AppearanceLogoRow {
   readonly key: string;
   readonly contentType: RasterLogoContentType;
-  readonly bytes: Buffer;
+  readonly bytes: Uint8Array;
 }
 
 /**
@@ -200,4 +204,30 @@ export async function getAppearanceLogo(
     .where(eq(appearanceLogos.key, key))
     .limit(1);
   return row;
+}
+
+/**
+ * Clear a taken-down key off every theme that names it. The themes' foreign key forbids a
+ * dangling reference, so this runs in the takedown's own transaction before the bytes go;
+ * a draft or a version carries its appearance by value and keeps the key it froze.
+ */
+export async function clearThemeLogoKey(exec: Executor, key: string): Promise<number> {
+  const cleared = await exec
+    .update(workspaceThemes)
+    .set({ logoKey: null })
+    .where(eq(workspaceThemes.logoKey, key))
+    .returning({ id: workspaceThemes.id });
+  return cleared.length;
+}
+
+/**
+ * Delete stored logo bytes through migration 0012's sanctioned function: no application
+ * role holds `DELETE` on the table, and the immutability trigger admits a delete only
+ * inside that function, for the one key it names. False where nothing was stored.
+ */
+export async function takeDownAppearanceLogo(exec: Executor, key: string): Promise<boolean> {
+  const result = await exec.execute<{ taken_down: boolean }>(
+    sql`select control.appearance_logo_takedown(${key}) as taken_down`,
+  );
+  return result.rows[0]?.taken_down === true;
 }

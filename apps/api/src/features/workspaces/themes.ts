@@ -27,6 +27,7 @@ import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
 import { requireOpenWorkspace, requireWorkspace, workspaceFail } from "./resolve.js";
+import { ThemeId } from "./schema.js";
 import type {
   createWorkspaceThemeRoute,
   deleteWorkspaceThemeRoute,
@@ -56,8 +57,9 @@ const fail = {
       "Some colour pairs do not meet their minimum contrast ratio",
       { failures },
     ),
+  /** Its own code, so it is never confused with the serving route's 404. */
   unknownLogo: (): ApiError =>
-    new ApiError("LOGO_NOT_FOUND", 422, "No stored logo has that key; upload the image first"),
+    new ApiError("LOGO_UNKNOWN", 422, "No stored logo has that key; upload the image first"),
   malformedLogo: (): ApiError => new ApiError("INVALID_LOGO", 400, "The body is not valid base64"),
   logoTooLarge: (): ApiError =>
     new ApiError("LOGO_TOO_LARGE", 413, `A logo may be at most ${String(LOGO_MAX_BYTES)} bytes`),
@@ -72,6 +74,16 @@ const fail = {
       "A logo must be a PNG, JPEG or WebP image. The bytes decide, not the request's content type, and SVG is refused.",
     ),
 } as const;
+
+/**
+ * The column is `uuid`, so a theme id that is not one would reach Postgres as a cast
+ * error. It answers the same 404 an unknown id and another workspace's id answer, which
+ * is what keeps the route from telling a caller which ids exist.
+ */
+function requireThemeId(themeId: string): string {
+  if (!ThemeId.safeParse(themeId).success) throw fail.themeNotFound();
+  return themeId;
+}
 
 function isUniqueViolation(err: unknown): boolean {
   const codeOf = (e: unknown): string | undefined =>
@@ -168,7 +180,7 @@ export function makeGetWorkspaceThemeHandler(
   return async (c) => {
     const { id, themeId } = c.req.valid("param");
     await requireWorkspace(deps.databases.control, id);
-    const row = await getWorkspaceTheme(deps.databases.control, id, themeId);
+    const row = await getWorkspaceTheme(deps.databases.control, id, requireThemeId(themeId));
     if (row === undefined) throw fail.themeNotFound();
     return c.json({ theme: view(row) }, 200);
   };
@@ -206,6 +218,7 @@ export function makeUpdateWorkspaceThemeHandler(
     const principal = c.get("adminPrincipal");
     if (principal === undefined) throw fail.noPrincipal();
     await requireOpenWorkspace(deps.databases.control, id);
+    requireThemeId(themeId);
     const input = await checkedTheme(deps, c.req.valid("json"));
 
     try {
@@ -235,26 +248,32 @@ export function makeDeleteWorkspaceThemeHandler(
   return async (c) => {
     const { id, themeId } = c.req.valid("param");
     await requireWorkspace(deps.databases.control, id);
-    if (!(await deleteWorkspaceTheme(deps.databases.control, id, themeId))) {
+    if (!(await deleteWorkspaceTheme(deps.databases.control, id, requireThemeId(themeId)))) {
       throw fail.themeNotFound();
     }
     return c.body(null, 204);
   };
 }
 
-function decodeBase64(value: string): Buffer {
-  // Round-tripped, because `Buffer.from` drops anything it cannot read rather than failing.
-  const bytes = Buffer.from(value, "base64");
-  if (bytes.toString("base64") !== value.replaceAll(/\s/gu, "")) throw fail.malformedLogo();
+// `atob`/`btoa` rather than `Buffer`, which is a `node:*` API this layer stays clear of.
+function decodeBase64(value: string): Uint8Array {
+  const trimmed = value.replaceAll(/\s/gu, "");
+  let binary: string;
+  try {
+    binary = atob(trimmed);
+  } catch {
+    throw fail.malformedLogo();
+  }
+  // Round-tripped, because `atob` accepts padding and alphabet variants that re-encode to
+  // something else, and a key that is the digest of the bytes may not depend on which.
+  if (btoa(binary) !== trimmed) throw fail.malformedLogo();
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
   return bytes;
 }
 
-async function sha256Hex(bytes: Buffer): Promise<string> {
-  // Copied into a plain view: a `Buffer` is backed by a pooled `ArrayBufferLike`, which
-  // `crypto.subtle.digest` does not take.
-  const view = new Uint8Array(bytes.byteLength);
-  view.set(bytes);
-  const digest = await crypto.subtle.digest("SHA-256", view);
+async function sha256Hex(bytes: Uint8Array): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
@@ -271,7 +290,7 @@ export function makeUploadThemeLogoHandler(
     const principal = c.get("adminPrincipal");
     if (principal === undefined) throw fail.noPrincipal();
     await requireOpenWorkspace(deps.databases.control, id);
-    const theme = await getWorkspaceTheme(deps.databases.control, id, themeId);
+    const theme = await getWorkspaceTheme(deps.databases.control, id, requireThemeId(themeId));
     if (theme === undefined) throw fail.themeNotFound();
 
     const bytes = decodeBase64(c.req.valid("json").bytesBase64);
