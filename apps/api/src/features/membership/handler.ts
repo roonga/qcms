@@ -718,9 +718,8 @@ export function makeAddHolderHandler(deps: Deps): RouteHandler<typeof addHolderR
           : await findUserByEmail(tx, body.email as string);
       if (subject === undefined) throw fail.cannotAdd();
       // One answer by address for an unknown, a disabled and an unclaimed account, so a
-      // Workspace administrator learns nothing about the directory from a refusal. Only a
-      // Site administrator, who browses that directory, grants by id to an unclaimed
-      // account, and that grant is audited below.
+      // Workspace administrator learns nothing about the directory from a refusal. Granting
+      // an unclaimed account is the Site administrator's act, by id, audited below.
       if (body.email !== undefined && accountStatusOf(subject) !== "active") {
         throw fail.cannotAdd();
       }
