@@ -61,20 +61,15 @@ function mintResetToken(): string {
 }
 
 /**
- * Set the account's password through the vendor's own reset endpoint rather than through
- * the adapter, because the SEC-1 breach lookup is a plugin that wraps `password.hash` and
- * reads whichever endpoint better-auth is running:
+ * Through the vendor's reset endpoint rather than the adapter: the SEC-1 breach lookup
+ * wraps `password.hash` and reads the endpoint being run, so a hash called outside one
+ * checks nothing. `/reset-password` is a path the plugin checks and `auth.api.*` dispatches
+ * in that context; the endpoint writes the credential, creating its row, and spends its token.
  * `dist/plugins/haveibeenpwned/index.mjs:69` <!-- expect: const c = getCurrentAuthEndpointContext(); -->
  * `@better-auth/core/dist/context/endpoint-context.mjs:35` <!-- expect: No auth context found. -->
- * A hash called outside an endpoint therefore throws instead of checking anything.
- * `/reset-password` is one of the paths the plugin checks, and `auth.api.*` dispatches
- * through the same endpoint context the HTTP router uses:
  * `dist/plugins/haveibeenpwned/index.mjs:54` <!-- expect: "/reset-password", -->
  * `dist/api/dispatch.mjs:210` <!-- expect: runWithEndpointContext(internalContext, -->
- * The endpoint also creates the credential row where there is none and spends the reset
- * token in the same transaction as the password write:
  * `dist/utils/password.mjs:32` <!-- expect: runWithTransaction(ctx.context.adapter, -->
- * so a refused password leaves nothing behind and the caller's own link is still unspent.
  */
 export async function setAccountPassword(
   auth: AdminAuth,

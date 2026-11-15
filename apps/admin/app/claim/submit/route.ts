@@ -45,8 +45,7 @@ async function refusedClaim(claimed: Response, token: string): Promise<Response>
 /**
  * Provision enrolment while the chosen password is still in this request. A claim always
  * ends at the second factor: `QCMS_ADMIN_2FA=optional` relaxes sign-in for accounts that
- * are already claimed, never the claim, which the API writes only once a factor is
- * verified.
+ * are already claimed, never the claim, which the API writes only once a factor verifies.
  */
 async function enrolAfterClaim(
   request: Request,

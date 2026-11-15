@@ -90,10 +90,9 @@ export const registerAdminAuthProxy: SliceRegistrar = (group, deps) => {
     // The claim is finished by the act, not by the screen that posted it: the account
     // holds nothing until a password and a verified second factor both exist.
     if (endpoint === TOTP_VERIFY_ENDPOINT && response.ok) {
-      // The session the response issues is read as well, so a verification posted with
-      // the pending-second-factor cookie still finishes a claim. Without it an account
-      // whose claim write failed after the factor was enrolled could never be claimed:
-      // every later sign-in arrives on that cookie, which resolves to no session.
+      // The session the response issues is read as well, so a verification posted on the
+      // pending-second-factor cookie, which resolves to none, still finishes a claim whose
+      // write did not land when the factor was first enrolled.
       const verified = enrolling?.user.id ?? (await accountOfIssuedSession(auth, response));
       if (verified !== undefined) await claimAfterFactorVerified(deps, verified);
     }

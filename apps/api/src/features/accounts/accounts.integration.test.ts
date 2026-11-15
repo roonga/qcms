@@ -29,9 +29,8 @@ const RELAY = {
 };
 
 /**
- * Every claim hashes a password and then verifies it to sign in, which is two deliberately
- * slow derivations; the default five seconds is not a realistic budget for one on a loaded
- * machine (issue #604).
+ * A claim hashes a password and then verifies it to sign in, which is two deliberately slow
+ * derivations; five seconds is not a realistic budget for one on a loaded machine.
  */
 const CLAIM_TIMEOUT_MS = 30_000;
 
@@ -375,7 +374,7 @@ describe("creating an account (criteria 50, 51)", () => {
   });
 });
 
-describe("claiming an account (criteria 52, 53, 54)", () => {
+describe("claiming an account (criteria 52, 53, 54)", { timeout: CLAIM_TIMEOUT_MS }, () => {
   it("holds nothing until the factor is verified, then holds its grants", async () => {
     const password = freshPassword();
     const created = await createAccount("claimer@example.test");
@@ -469,17 +468,13 @@ describe("claiming an account (criteria 52, 53, 54)", () => {
     expect(right.status).toBe(200);
   });
 
-  it(
-    "refuses a password the length rule rejects, leaving the link usable",
-    async () => {
-      const created = await createAccount("weak@example.test");
-      const short = await authPost("/claim", { token: created.token, password: "short" });
-      expect(short.status).toBe(400);
-      const password = freshPassword();
-      expect((await authPost("/claim", { token: created.token, password })).status).toBe(200);
-    },
-    CLAIM_TIMEOUT_MS,
-  );
+  it("refuses a password the length rule rejects, leaving the link usable", async () => {
+    const created = await createAccount("weak@example.test");
+    const short = await authPost("/claim", { token: created.token, password: "short" });
+    expect(short.status).toBe(400);
+    const password = freshPassword();
+    expect((await authPost("/claim", { token: created.token, password })).status).toBe(200);
+  });
 
   it(
     "always needs the second factor, and the escape hatch does not stand in for it",
@@ -503,7 +498,6 @@ describe("claiming an account (criteria 52, 53, 54)", () => {
       });
       expect(refused.status).toBe(401);
     },
-    CLAIM_TIMEOUT_MS,
   );
 
   it(
@@ -534,11 +528,10 @@ describe("claiming an account (criteria 52, 53, 54)", () => {
       expect(verified.status, await verified.clone().text()).toBe(200);
       expect((await accountRow(created.userId)).claimedAt).toBeInstanceOf(Date);
     },
-    CLAIM_TIMEOUT_MS,
   );
 });
 
-describe("the SEC-1 breach lookup runs on the chosen password", () => {
+describe("the SEC-1 breach lookup runs on the chosen password", { timeout: CLAIM_TIMEOUT_MS }, () => {
   let corpus: { prefixes: string[]; restore: () => void } | undefined;
 
   afterEach(() => {
@@ -598,7 +591,7 @@ describe("the SEC-1 breach lookup runs on the chosen password", () => {
   );
 });
 
-describe("resending the link", () => {
+describe("resending the link", { timeout: CLAIM_TIMEOUT_MS }, () => {
   const linkPath = (userId: string): string => `/admin/accounts/${userId}/sign-in-link`;
 
   async function liveLinkCount(userId: string): Promise<number> {
@@ -697,7 +690,7 @@ describe("resending the link", () => {
   });
 });
 
-describe("the directory (criterion 57)", () => {
+describe("the directory (criterion 57)", { timeout: CLAIM_TIMEOUT_MS }, () => {
   it("is refused to a Workspace administrator, for browse, search, create and resend", async () => {
     expect((await adminGet("/admin/accounts", workspaceAdminToken)).status).toBe(403);
     expect((await adminGet("/admin/accounts?q=ada", workspaceAdminToken)).status).toBe(403);
@@ -749,7 +742,7 @@ describe("the directory (criterion 57)", () => {
   });
 });
 
-describe("adding a member by address (criteria 55, 56)", () => {
+describe("adding a member by address (criteria 55, 56)", { timeout: CLAIM_TIMEOUT_MS }, () => {
   const holdersPath = (): string =>
     `/admin/workspaces/${workspaceId}/access-groups/${editorGroupId}/holders`;
 
@@ -788,7 +781,7 @@ describe("adding a member by address (criteria 55, 56)", () => {
   });
 });
 
-describe("an unclaimed account is not an administrator (criterion 54)", () => {
+describe("an unclaimed account is not an administrator (criterion 54)", { timeout: CLAIM_TIMEOUT_MS }, () => {
   it(
     "holds the flag and is still not counted by the last administrator guard",
     async () => {
@@ -862,7 +855,7 @@ describe("an unclaimed account is not an administrator (criterion 54)", () => {
   );
 });
 
-describe("a backup code never finishes a claim", () => {
+describe("a backup code never finishes a claim", { timeout: CLAIM_TIMEOUT_MS }, () => {
   it("refuses an unclaimed account at the pending-second-factor step", async () => {
     const password = freshPassword();
     const created = await createAccount("backup.gap@example.test");

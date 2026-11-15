@@ -23,6 +23,9 @@ import type { createAccountRoute, listAccountsRoute, resendSignInLinkRoute } fro
 // `features/membership/route-policy.ts`, so no workspace grant reaches one and the
 // directory stays closed to a Workspace administrator.
 
+/** An offset nothing can reach: 200 a page over this is far beyond any real directory. */
+const MAX_PAGE = 10_000;
+
 const fail = {
   noPrincipal: (): ApiError => new ApiError("unauthorized", 401, "Admin authentication required"),
   mailNotConfigured: (): ApiError =>
@@ -55,9 +58,6 @@ const fail = {
       `page and pageSize must be positive integers, and page at most ${String(MAX_PAGE)}`,
     ),
 } as const;
-
-/** An offset nothing can reach: 200 a page over this is far beyond any real directory. */
-const MAX_PAGE = 10_000;
 
 function principalOf(c: { get: (key: "adminPrincipal") => unknown }): {
   readonly userId: string;
