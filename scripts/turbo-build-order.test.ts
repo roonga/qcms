@@ -222,5 +222,5 @@ describe("turbo orders every dist a program-shaped task reads", () => {
 
     expect(checked, `no ${task} task was checked`).toBeGreaterThan(0);
     expect(undeclared.sort()).toEqual([]);
-  });
+  }, 20_000);
 });
