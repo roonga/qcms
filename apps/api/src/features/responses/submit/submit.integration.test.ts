@@ -156,6 +156,7 @@ async function seedForm(
   const version = await insertFormVersion(testDb.db, {
     formId,
     definition: INSURANCE_DEF,
+    appearance: null,
     compiled,
     compilerVersion: GOLDEN.compilerVersion,
     a2uiSpecVersion: GOLDEN.a2uiSpecVersion,
@@ -596,6 +597,7 @@ describe("silent anti-abuse flags (exit criterion 5)", () => {
     const gatedVersion = await insertFormVersion(testDb.db, {
       formId: gatedFormId,
       definition: INSURANCE_DEF,
+      appearance: null,
       compiled: GOLDEN as unknown as VersionInput["compiled"],
       compilerVersion: GOLDEN.compilerVersion,
       a2uiSpecVersion: GOLDEN.a2uiSpecVersion,

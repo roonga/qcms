@@ -168,6 +168,7 @@ beforeAll(async () => {
   });
   erasedFormVersion = (
     await insertFormVersion(testDb.db, {
+      appearance: null,
       formId: FORM_ERASED,
       definition: {} as unknown as FormDefinition,
       compiled: {} as unknown as Parameters<typeof insertFormVersion>[1]["compiled"],
@@ -648,6 +649,7 @@ describe("form scope on redeliver (issue #305)", () => {
     });
     ownerVersion = (
       await insertFormVersion(testDb.db, {
+        appearance: null,
         formId: FORM_SCOPE_OWNER,
         definition: {} as unknown as FormDefinition,
         compiled: {} as unknown as Parameters<typeof insertFormVersion>[1]["compiled"],

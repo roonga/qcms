@@ -10,7 +10,7 @@ The builder's single migration. D1 and D2 ship as one migration so the queue hol
 ## Deliverables
 
 - D1: nullable `appearance` jsonb on `control.form_drafts` and `control.form_versions`, typed by 107's schema. Publish copies the draft's appearance into the version in the same transaction; a version's appearance is frozen with it (append-only, ADR-07). Appearance holds tokens by value and no theme reference (spec section 9).
-- D2: `control.workspace_themes` (workspace, name, colour tokens, face, corners, logo, source host of a derive, created and updated by and at) and the workspace appearance lock column on the workspace (`control.organization`).
+- D2: `control.workspace_themes` (workspace, name, colour tokens, page tint, face, corners, logo, source host of a derive, created and updated by and at) and the workspace appearance lock column on the workspace (`control.organization`).
 - Logo storage, decided here: immutable and content-addressed (for example an append-only table keyed by a hash of the bytes), holding raster logos only (PNG, JPEG, WebP), size-capped by a CHECK on the byte length. A theme, a draft and a version reference a logo by that key, so changing or deleting a theme never changes or removes the logo a draft or version carries.
 - `control.access_audit`: extend `ACCESS_AUDIT_KINDS` and its CHECK with one kind for a theme derive fetch (spec section 11, one row per fetch; the kind's name is settled here). The lock uses the existing `setting` kind.
 - Confirm that `control.agent_actions` holds a draft edit row and an Undo row (111) in its current columns, one token id per edit; any column 111 needs goes in this migration, because there is no second builder migration.

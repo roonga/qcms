@@ -201,6 +201,7 @@ async function seedForm(
   await insertFormVersion(control, {
     formId,
     definition: emptyDef,
+    appearance: null,
     compiled: emptyCompiled,
     compilerVersion: "1.0.0",
     a2uiSpecVersion: "1.0.0",
@@ -529,6 +530,7 @@ describe("the closed state is per environment (criterion 5, Q18)", () => {
     await insertFormVersion(control, {
       formId,
       definition: emptyDef,
+      appearance: null,
       compiled: emptyCompiled,
       compilerVersion: "1.0.0",
       a2uiSpecVersion: "1.0.0",

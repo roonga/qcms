@@ -1,6 +1,8 @@
 import { compileForm } from "@roonga/qcms-a2ui-compiler";
 import {
+  type Appearance,
   compileDraft,
+  deriveAppearance,
   type FormDefinition,
   FormId,
   parseQuestionDefinition,
@@ -17,6 +19,7 @@ import {
   createSession,
   deprecateQuestionVersion,
   getDraft,
+  getFormVersion,
   getSession,
   listFormVersions,
   insertFormRelease,
@@ -223,6 +226,73 @@ describe("full authoring loop (exit criterion 1)", () => {
     expect(versions).toBe(200);
     const rows = await listFormVersions(testDb.db, FormId.parse("frm_loop"));
     expect(rows.map((r) => r.version).sort((a, b) => a - b)).toEqual([1, 2]);
+  });
+});
+
+describe("publish copies the draft's appearance and freezes it (D1)", () => {
+  function appearanceFor(primary: string): Appearance {
+    const derived = deriveAppearance({ primary });
+    return {
+      palettes: derived.palettes,
+      logo: null,
+      face: derived.face,
+      corners: "subtle",
+      density: "comfortable",
+      textSize: 16,
+      progress: "side-rail",
+      pageTint: derived.pageTint,
+    };
+  }
+
+  async function setDraftAppearance(formId: string, appearance: Appearance | null): Promise<void> {
+    const updated = await testDb.client.query(
+      `update form_drafts set appearance = $2::jsonb where form_id = $1`,
+      [formId, appearance === null ? null : JSON.stringify(appearance)],
+    );
+    expect(updated.rowCount).toBe(1);
+  }
+
+  async function seedDraft(formId: string, slug: string, questionId: string): Promise<void> {
+    await seedPublishedQuestion(questionId, "Name");
+    expect((await post("/forms", { formId, slug, defaultLocale: "en" })).status).toBe(201);
+    const definition = formDefinition(formId, [["stp_one", [questionId]]]);
+    expect((await put(`/forms/${formId}/draft`, { definition })).status).toBe(200);
+  }
+
+  it("freezes the draft's appearance into the version, and a later draft leaves it alone", async () => {
+    const formId = "frm_appearance";
+    await seedDraft(formId, "appearance", "q_appearance_name");
+    const published = appearanceFor("#2456c6");
+    await setDraftAppearance(formId, published);
+
+    expect((await post(`/forms/${formId}/publish`)).status).toBe(200);
+    const frozen = await getFormVersion(testDb.db, FormId.parse(formId), 1);
+    expect(frozen?.appearance).toEqual(published);
+
+    // A second draft, themed differently, then published: version 1 still carries its own.
+    const next = formDefinition(formId, [["stp_one", ["q_appearance_name"]]], [], "Retitled");
+    expect((await put(`/forms/${formId}/draft`, { definition: next })).status).toBe(200);
+    const later = appearanceFor("#1e7a46");
+    await setDraftAppearance(formId, later);
+
+    expect((await getFormVersion(testDb.db, FormId.parse(formId), 1))?.appearance).toEqual(
+      published,
+    );
+    expect((await post(`/forms/${formId}/publish`)).status).toBe(200);
+    expect((await getFormVersion(testDb.db, FormId.parse(formId), 2))?.appearance).toEqual(later);
+    expect((await getFormVersion(testDb.db, FormId.parse(formId), 1))?.appearance).toEqual(
+      published,
+    );
+  });
+
+  it("copies a null appearance as null, which is the deployment default", async () => {
+    const formId = "frm_appearance_null";
+    await seedDraft(formId, "appearance-null", "q_appearance_null");
+    const draft = await getDraft(testDb.db, FormId.parse(formId));
+    expect(draft?.appearance).toBeNull();
+
+    expect((await post(`/forms/${formId}/publish`)).status).toBe(200);
+    expect((await getFormVersion(testDb.db, FormId.parse(formId), 1))?.appearance).toBeNull();
   });
 });
 

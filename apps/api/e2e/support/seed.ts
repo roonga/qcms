@@ -244,6 +244,7 @@ export async function publishInsuranceVersion(db: Db, formId: string): Promise<v
   const version = await insertFormVersion(db, {
     formId: FormId.parse(formId),
     definition: DEF,
+    appearance: null,
     compiled: COMPILED,
     compilerVersion: INSURANCE_GOLDEN.compilerVersion,
     a2uiSpecVersion: INSURANCE_GOLDEN.a2uiSpecVersion,
@@ -355,6 +356,7 @@ export async function seedKitchenSinkForm(
   const seeded = await insertFormVersion(db, {
     formId: FormId.parse(formId),
     definition: KS_DEF,
+    appearance: null,
     compiled: KS_COMPILED,
     compilerVersion: KITCHEN_SINK_GOLDEN.compilerVersion,
     a2uiSpecVersion: KITCHEN_SINK_GOLDEN.a2uiSpecVersion,
@@ -387,6 +389,7 @@ export async function seedAuthorMessagesForm(
   const seeded = await insertFormVersion(db, {
     formId: FormId.parse(formId),
     definition: AUTHOR_MESSAGES_DEF as FormVersionInput["definition"],
+    appearance: null,
     compiled: AUTHOR_MESSAGES_GOLDEN as unknown as FormVersionInput["compiled"],
     compilerVersion: AUTHOR_MESSAGES_GOLDEN.compilerVersion,
     a2uiSpecVersion: AUTHOR_MESSAGES_GOLDEN.a2uiSpecVersion,
@@ -419,6 +422,7 @@ export async function seedRepeatFleetForm(
   const seeded = await insertFormVersion(db, {
     formId: FormId.parse(formId),
     definition: REPEAT_FLEET_DEF as FormVersionInput["definition"],
+    appearance: null,
     compiled: REPEAT_FLEET_GOLDEN as unknown as FormVersionInput["compiled"],
     compilerVersion: REPEAT_FLEET_GOLDEN.compilerVersion,
     a2uiSpecVersion: REPEAT_FLEET_GOLDEN.a2uiSpecVersion,
@@ -451,6 +455,7 @@ export async function seedRepeatTableForm(
   const seeded = await insertFormVersion(db, {
     formId: FormId.parse(formId),
     definition: REPEAT_TABLE_DEF as FormVersionInput["definition"],
+    appearance: null,
     compiled: REPEAT_TABLE_GOLDEN as unknown as FormVersionInput["compiled"],
     compilerVersion: REPEAT_TABLE_GOLDEN.compilerVersion,
     a2uiSpecVersion: REPEAT_TABLE_GOLDEN.a2uiSpecVersion,
@@ -483,6 +488,7 @@ export async function seedRepeatTourForm(
   const seeded = await insertFormVersion(db, {
     formId: FormId.parse(formId),
     definition: REPEAT_TOUR_DEF as FormVersionInput["definition"],
+    appearance: null,
     compiled: REPEAT_TOUR_GOLDEN as unknown as FormVersionInput["compiled"],
     compilerVersion: REPEAT_TOUR_GOLDEN.compilerVersion,
     a2uiSpecVersion: REPEAT_TOUR_GOLDEN.a2uiSpecVersion,

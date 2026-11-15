@@ -21,7 +21,7 @@ const EXEMPT_PATTERNS = [
 ];
 
 function git(args) {
-  return execFileSync("git", args, { encoding: "utf8" }).trim();
+  return execFileSync("git", args, { encoding: "utf8", windowsHide: true }).trim();
 }
 
 function tryGit(args) {

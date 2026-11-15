@@ -852,7 +852,9 @@ it; `USAGE` on its
 own `reporting_<env>` with `SELECT` on that schema's views and nothing on any other
 environment's; `USAGE` on `control` with `SELECT` on
 exactly six tables, `forms`, `form_versions`, `question_versions`, `secure_links`,
-`environments` and `form_releases`, plus `UPDATE` on `secure_links` for one-time link
+`environments` and `form_releases`, plus a **column** `SELECT` on `control.appearance_logos`
+narrowed to `key`, `content_type` and `bytes`, plus `UPDATE` on `secure_links` for one-time
+link
 consumption, **no `INSERT` on `secure_links`** and `INSERT` on the SEC-15 audit; and no
 privilege of any kind on `user`,
 `session`, `account`, `verification`, `twoFactor`, `two_factor_resets`, `invitation`,
@@ -867,6 +869,22 @@ so a role an operator created last week comes out of that migration holding all 
 This recipe and the environment-create command carry the sixth clause guarded on the table
 existing, the way the SEC-15 audit's clauses are, because the baseline runs before that
 migration.
+**The logo store's clause is a COLUMN grant, and no role may delete a logo (Code Owner,
+2026-11-15).**
+`control.appearance_logos` arrives with task 108's migration, which grants every
+environment role in the live set `SELECT` on `key`, `content_type` and `bytes` and on no
+other column, by the same enumeration of `control.environments`, because the logo route
+answers an unauthenticated respondent off the serving pool and needs the bytes it serves
+rather than `created_by` or `created_at`.
+That clause is guarded on the table existing in both places too.
+The control role holds `SELECT` and `INSERT` there and nothing more, `UPDATE` and `DELETE`
+are revoked from every `qcms_app%` role by prefix, and two triggers reject both against
+every role including the migration credential, so **a stored logo is permanent and there is
+no cleanup path**: the key is the SHA-256 of the bytes, pinned by a CHECK, and a key a
+draft, a theme or a published version carries has to resolve to the same image forever
+(ADR-07).
+An operator who must remove one is making a migration-level decision, not running an
+operation.
 That migration also makes the release history **append-only** at the database: two triggers
 in `control` reject an `UPDATE` and a `DELETE` on `form_releases`, the same division
 `control.form_versions` already uses, so the grant stays the DML this role has on `control`

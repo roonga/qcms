@@ -136,6 +136,7 @@ async function seedForm(
     await insertFormVersion(testDb.db, {
       formId,
       definition: emptyDef,
+      appearance: null,
       compiled: emptyCompiled,
       compilerVersion: "1.0.0",
       a2uiSpecVersion: "1.0.0",
@@ -397,6 +398,7 @@ describe("version pinning (exit criterion 2) and release resolution (exit criter
     await insertFormVersion(testDb.db, {
       formId,
       definition: emptyDef,
+      appearance: null,
       compiled: emptyCompiled,
       compilerVersion: "1.0.0",
       a2uiSpecVersion: "1.0.0",

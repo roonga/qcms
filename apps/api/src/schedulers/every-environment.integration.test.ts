@@ -93,6 +93,7 @@ async function seedForm(id: string): Promise<{ formId: FormId; version: number }
     compilerVersion: "1.0.0",
     a2uiSpecVersion: "1.0.0",
     semanticsVersion: "1",
+    appearance: null,
   } as unknown as Parameters<typeof insertFormVersion>[1]);
   return { formId, version: version.version };
 }

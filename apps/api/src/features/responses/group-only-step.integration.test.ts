@@ -167,6 +167,7 @@ async function publish(definition: FormDefinition, slug: string): Promise<FormId
     defaultLocale: "en",
   });
   await insertFormVersion(testDb.db, {
+    appearance: null,
     formId,
     definition,
     compiled,

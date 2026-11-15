@@ -107,6 +107,7 @@ async function seedForm(formId: string, steps: [string, string[]][]): Promise<Fo
   await insertFormVersion(testDb.db, {
     formId: id,
     definition: formDefinition(formId, steps),
+    appearance: null,
     compiled: emptyCompiled,
     compilerVersion: "1.0.0",
     a2uiSpecVersion: "1.0.0",
@@ -214,6 +215,7 @@ describe("list, detail, and filters (exit criterion 1)", () => {
     await insertFormVersion(testDb.db, {
       formId,
       definition: formDefinition("frm_versions_api", [["stp_a", ["q_name"]]]),
+      appearance: null,
       compiled: emptyCompiled,
       compilerVersion: "1.0.0",
       a2uiSpecVersion: "1.0.0",
@@ -783,6 +785,7 @@ async function seedRepeatForm(formId: string, maxima: readonly number[]): Promis
     await insertFormVersion(testDb.db, {
       formId: id,
       definition: repeatFormDefinition(formId, max),
+      appearance: null,
       compiled: emptyCompiled,
       compilerVersion: "1.0.0",
       a2uiSpecVersion: "1.0.0",
