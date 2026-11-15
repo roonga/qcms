@@ -752,6 +752,7 @@ export function makeAcceptProposalHandler(
         issues,
         warnings: [...warnings],
         agentAssisted: stored.draft.agentAssisted,
+        appearance: stored.draft.appearance,
         updatedAt: stored.draft.updatedAt.toISOString(),
         createdQuestions: stored.created.map(({ question, version }) => ({
           questionId: question.questionId,

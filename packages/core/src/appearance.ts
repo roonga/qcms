@@ -118,6 +118,35 @@ export const TEXT_SIZE_MAX = 24;
 /** The content-addressed key of an immutable stored logo. */
 export const LogoKey = z.string().regex(/^[0-9a-f]{64}$/u);
 
+/** The raster types a stored logo may carry. SVG is refused, because it can carry script (SEC-9). */
+export const RASTER_LOGO_CONTENT_TYPES = ["image/png", "image/jpeg", "image/webp"] as const;
+export type RasterLogoContentType = (typeof RASTER_LOGO_CONTENT_TYPES)[number];
+
+const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+const JPEG_SIGNATURE = [0xff, 0xd8, 0xff];
+
+function hasPrefix(bytes: Uint8Array, signature: readonly number[]): boolean {
+  return signature.every((byte, index) => bytes[index] === byte);
+}
+
+function hasAsciiAt(bytes: Uint8Array, at: number, text: string): boolean {
+  return [...text].every((char, index) => bytes[at + index] === char.codePointAt(0));
+}
+
+/**
+ * The type the bytes declare, or null. A whole signature has to match from offset zero, so
+ * a caller's own content type is never believed and a polyglot that leads with markup or
+ * another container is refused rather than stored as an image.
+ */
+export function sniffRasterLogo(bytes: Uint8Array): RasterLogoContentType | null {
+  if (hasPrefix(bytes, PNG_SIGNATURE)) return "image/png";
+  if (hasPrefix(bytes, JPEG_SIGNATURE)) return "image/jpeg";
+  if (bytes.length >= 12 && hasAsciiAt(bytes, 0, "RIFF") && hasAsciiAt(bytes, 8, "WEBP")) {
+    return "image/webp";
+  }
+  return null;
+}
+
 /** A form's appearance, held by value: colour tokens inline, never a theme reference. */
 export const Appearance = z.strictObject({
   palettes: AppearancePalettes,

@@ -11,6 +11,7 @@ import {
   createSession,
   getForm,
   getFormBySlug,
+  getFormVersion,
   getFormEnvironmentState,
   getSecureLink,
   getSession,
@@ -22,6 +23,8 @@ import type {
   SecureLinkRow,
   SessionTtlConfig,
 } from "@roonga/qcms-db";
+
+import type { Appearance } from "@roonga/qcms-core";
 
 import type { Config } from "../../../config.js";
 import type { Deps } from "../../../deps.js";
@@ -67,6 +70,7 @@ interface StartResult {
   sessionId: SessionId;
   sessionToken: string;
   formVersion: number;
+  appearance: Appearance | null;
   expiresAt: Date;
 }
 
@@ -74,12 +78,14 @@ function created(result: StartResult): {
   sessionId: SessionId;
   sessionToken: string;
   formVersion: number;
+  appearance: Appearance | null;
   expiresAt: string;
 } {
   return {
     sessionId: result.sessionId,
     sessionToken: result.sessionToken,
     formVersion: result.formVersion,
+    appearance: result.appearance,
     expiresAt: result.expiresAt.toISOString(),
   };
 }
@@ -176,7 +182,13 @@ async function startAnonymous(
     expiresAt,
   });
 
-  return finish(deps, sessionId, released.version, expiresAt);
+  return finish(
+    deps,
+    sessionId,
+    released.version,
+    await pinnedAppearance(request, form.formId, released.version),
+    expiresAt,
+  );
 }
 
 async function startFromSecureLink(
@@ -243,7 +255,13 @@ async function startFromSecureLink(
     });
   }
 
-  return finish(deps, sessionId, released.version, expiresAt);
+  return finish(
+    deps,
+    sessionId,
+    released.version,
+    await pinnedAppearance(request, formId, released.version),
+    expiresAt,
+  );
 }
 
 /**
@@ -284,10 +302,24 @@ async function insertPinnedSession(
   });
 }
 
+/**
+ * Read from the version rather than the draft: a session is pinned at its start and keeps
+ * that version's appearance however the draft moves afterwards (ADR-07).
+ */
+async function pinnedAppearance(
+  request: RequestDatabase,
+  formId: FormId,
+  formVersion: number,
+): Promise<Appearance | null> {
+  const version = await getFormVersion(request.exec, formId, formVersion);
+  return version?.appearance ?? null;
+}
+
 async function finish(
   deps: Deps,
   sessionId: SessionId,
   formVersion: number,
+  appearance: Appearance | null,
   expiresAt: Date,
 ): Promise<StartResult> {
   const [signingKey] = await importSessionKeys(deps.config);
@@ -296,7 +328,7 @@ async function finish(
     throw new Error("no session signing key configured");
   }
   const sessionToken = await mintSessionToken(sessionId, expiresAt, signingKey);
-  return { sessionId, sessionToken, formVersion, expiresAt };
+  return { sessionId, sessionToken, formVersion, appearance, expiresAt };
 }
 
 async function importLinkKeys(config: Config): Promise<CryptoKey[]> {

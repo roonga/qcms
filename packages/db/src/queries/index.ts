@@ -85,6 +85,7 @@ export {
   getWorkspaceBySlug,
   getSharedWorkspace,
   setWorkspaceShared,
+  setWorkspaceAppearanceLock,
   renameWorkspace,
   archiveWorkspace,
   findArchiveBlockers,
@@ -92,6 +93,19 @@ export {
   ensureSeedWorkspace,
   insertWorkspace,
 } from "./workspaces.js";
+
+export {
+  type AppearanceLogoRow,
+  type WorkspaceThemeInput,
+  type WorkspaceThemeRow,
+  deleteWorkspaceTheme,
+  getAppearanceLogo,
+  getWorkspaceTheme,
+  insertAppearanceLogo,
+  insertWorkspaceTheme,
+  listWorkspaceThemes,
+  updateWorkspaceTheme,
+} from "./workspace-themes.js";
 
 export {
   type AccessGroupHolderRow,
