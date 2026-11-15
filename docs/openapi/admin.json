@@ -524,6 +524,13 @@
             "type": "boolean",
             "example": false
           },
+          "appearance": {
+            "nullable": true
+          },
+          "appearanceLocked": {
+            "type": "boolean",
+            "example": false
+          },
           "draftRevision": {
             "type": "integer",
             "nullable": true,
@@ -614,6 +621,7 @@
           "status",
           "draftSource",
           "draftAgentAssisted",
+          "appearanceLocked",
           "draftRevision",
           "draftUpdatedAt",
           "versions",
@@ -704,6 +712,9 @@
             "type": "boolean",
             "example": false
           },
+          "appearance": {
+            "nullable": true
+          },
           "updatedAt": {
             "type": "string",
             "example": "2026-08-01T09:00:00.000Z"
@@ -724,6 +735,9 @@
           },
           "agentAssisted": {
             "type": "boolean"
+          },
+          "appearance": {
+            "$ref": "#/components/schemas/AppearanceInput"
           }
         },
         "required": [
@@ -737,6 +751,14 @@
           "nullable": true
         },
         "description": "A form definition (kernel-validated)."
+      },
+      "AppearanceInput": {
+        "type": "object",
+        "nullable": true,
+        "additionalProperties": {
+          "nullable": true
+        },
+        "description": "A form's appearance: the four palettes, logo key, face, corners, density, text size, progress mode and page tint. Validated against the shared appearance schema and the WCAG contrast check. Null clears it."
       },
       "ValidateDraftResponse": {
         "type": "object",
@@ -2422,6 +2444,209 @@
         },
         "required": [
           "workspaceId"
+        ],
+        "additionalProperties": false
+      },
+      "WorkspaceThemeListResponse": {
+        "type": "object",
+        "properties": {
+          "themes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceThemeView"
+            }
+          }
+        },
+        "required": [
+          "themes"
+        ]
+      },
+      "WorkspaceThemeView": {
+        "type": "object",
+        "properties": {
+          "themeId": {
+            "type": "string"
+          },
+          "workspaceId": {
+            "type": "string",
+            "example": "org_default_workspace"
+          },
+          "name": {
+            "type": "string",
+            "example": "Harbour"
+          },
+          "palettes": {
+            "nullable": true
+          },
+          "face": {
+            "type": "string",
+            "example": "system"
+          },
+          "corners": {
+            "type": "string",
+            "example": "subtle"
+          },
+          "pageTint": {
+            "type": "boolean",
+            "example": false
+          },
+          "logoKey": {
+            "type": "string",
+            "nullable": true
+          },
+          "sourceHost": {
+            "type": "string",
+            "nullable": true
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "themeId",
+          "workspaceId",
+          "name",
+          "face",
+          "corners",
+          "pageTint",
+          "logoKey",
+          "sourceHost",
+          "updatedAt"
+        ]
+      },
+      "WorkspaceThemeResponse": {
+        "type": "object",
+        "properties": {
+          "theme": {
+            "$ref": "#/components/schemas/WorkspaceThemeView"
+          }
+        },
+        "required": [
+          "theme"
+        ]
+      },
+      "WorkspaceThemeBody": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "example": "Harbour"
+          },
+          "palettes": {
+            "$ref": "#/components/schemas/ThemePalettesInput"
+          },
+          "face": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "example": "system"
+          },
+          "corners": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 16,
+            "example": "subtle"
+          },
+          "pageTint": {
+            "type": "boolean",
+            "example": false
+          },
+          "logoKey": {
+            "type": "string",
+            "nullable": true,
+            "example": null
+          },
+          "sourceHost": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 253,
+            "example": null
+          }
+        },
+        "required": [
+          "name",
+          "palettes",
+          "face",
+          "corners",
+          "pageTint"
+        ],
+        "additionalProperties": false
+      },
+      "ThemePalettesInput": {
+        "type": "object",
+        "additionalProperties": {
+          "nullable": true
+        },
+        "description": "The four palettes (light, dark, lightHighContrast, darkHighContrast), each a complete set of colour tokens. Validated against the shared appearance schema and the WCAG contrast check."
+      },
+      "ThemeLogoResponse": {
+        "type": "object",
+        "properties": {
+          "logoKey": {
+            "type": "string",
+            "example": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          "contentType": {
+            "type": "string",
+            "example": "image/png"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "example": 2048
+          }
+        },
+        "required": [
+          "logoKey",
+          "contentType",
+          "bytes"
+        ]
+      },
+      "ThemeLogoBody": {
+        "type": "object",
+        "properties": {
+          "bytesBase64": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The image, base64-encoded. PNG, JPEG or WebP only, confirmed by magic-number sniff; SVG is refused. Capped at 512 KiB decoded."
+          }
+        },
+        "required": [
+          "bytesBase64"
+        ],
+        "additionalProperties": false
+      },
+      "AppearanceLockResponse": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "example": "org_default_workspace"
+          },
+          "appearanceLocked": {
+            "type": "boolean",
+            "example": true
+          }
+        },
+        "required": [
+          "workspaceId",
+          "appearanceLocked"
+        ]
+      },
+      "AppearanceLockBody": {
+        "type": "object",
+        "properties": {
+          "locked": {
+            "type": "boolean",
+            "example": true
+          }
+        },
+        "required": [
+          "locked"
         ],
         "additionalProperties": false
       },
@@ -7591,6 +7816,662 @@
           },
           "401": {
             "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/workspaces/{id}/themes": {
+      "get": {
+        "summary": "A workspace's named themes (Edit forms)",
+        "description": "Edit forms in that workspace. A Workspace administrator or a Site administrator who holds no Edit forms grant there is refused, because theming is authoring and not administration (docs/WORKSPACE_ACCESS.md section 3).",
+        "tags": [
+          "workspaces"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "org_default_workspace"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The workspace's themes, by name",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceThemeListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Save a workspace theme (Edit forms)",
+        "description": "Edit forms in that workspace. A Workspace administrator or a Site administrator who holds no Edit forms grant there is refused, because theming is authoring and not administration (docs/WORKSPACE_ACCESS.md section 3). The palettes go through the shared appearance schema and the WCAG contrast check; a failing set is refused with the correction report. Nothing links a form to a theme: applying one copies its values into a draft.",
+        "tags": [
+          "workspaces"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "org_default_workspace"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceThemeBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The theme just saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceThemeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/workspaces/{id}/themes/{themeId}": {
+      "get": {
+        "summary": "One workspace theme (Edit forms)",
+        "description": "Edit forms in that workspace. A Workspace administrator or a Site administrator who holds no Edit forms grant there is refused, because theming is authoring and not administration (docs/WORKSPACE_ACCESS.md section 3).",
+        "tags": [
+          "workspaces"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "org_default_workspace"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "9f3a2b1c-0000-4000-8000-000000000000"
+            },
+            "required": true,
+            "name": "themeId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The theme",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceThemeResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "summary": "Change a workspace theme (Edit forms)",
+        "description": "Edit forms in that workspace. A Workspace administrator or a Site administrator who holds no Edit forms grant there is refused, because theming is authoring and not administration (docs/WORKSPACE_ACCESS.md section 3). Replaces every stored field. No draft and no version changes: each carries the appearance it copied (docs/WORKSPACE_ACCESS.md section 9).",
+        "tags": [
+          "workspaces"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "org_default_workspace"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "9f3a2b1c-0000-4000-8000-000000000000"
+            },
+            "required": true,
+            "name": "themeId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceThemeBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The theme as it now stands",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceThemeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a workspace theme (Edit forms)",
+        "description": "Edit forms in that workspace. A Workspace administrator or a Site administrator who holds no Edit forms grant there is refused, because theming is authoring and not administration (docs/WORKSPACE_ACCESS.md section 3). Removes the theme row and no logo: the logo store is immutable and undeletable, so every draft and version that copied this theme keeps its image.",
+        "tags": [
+          "workspaces"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "org_default_workspace"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "9f3a2b1c-0000-4000-8000-000000000000"
+            },
+            "required": true,
+            "name": "themeId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The theme is gone"
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/workspaces/{id}/themes/{themeId}/logo": {
+      "post": {
+        "summary": "Upload a theme's logo (Edit forms)",
+        "description": "Edit forms in that workspace. A Workspace administrator or a Site administrator who holds no Edit forms grant there is refused, because theming is authoring and not administration (docs/WORKSPACE_ACCESS.md section 3). PNG, JPEG or WebP, confirmed by magic-number sniff and capped at 512 KiB; SVG and anything else is refused. The bytes are stored immutably under the SHA-256 of themselves, which is the key the logo route serves them by.",
+        "tags": [
+          "workspaces"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "org_default_workspace"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "9f3a2b1c-0000-4000-8000-000000000000"
+            },
+            "required": true,
+            "name": "themeId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ThemeLogoBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The stored logo's key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThemeLogoResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Payload too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/workspaces/{id}/appearance-lock": {
+      "put": {
+        "summary": "Set or clear the workspace appearance lock (admin)",
+        "description": "A Workspace administrator of that workspace or a Site administrator. No second approver, even with the rule on, and exactly one `setting` row in the workspace audit. While it is set, every draft save that would change a form's appearance is refused, for every actor and for the assistant; a save that changes no appearance succeeds, and a form moved in keeps what it carries.",
+        "tags": [
+          "workspaces"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "org_default_workspace"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppearanceLockBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The lock as it now stands",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppearanceLockResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {

@@ -10,6 +10,7 @@ import {
   type AnswerMap,
   answerKey,
   type AnswerValue,
+  type Appearance,
   evaluateRules,
   type FlowState,
   type FormDefinition,
@@ -108,6 +109,8 @@ interface LoadedSnapshot {
   readonly frozen: FrozenSnapshot;
   readonly compiled: CompiledFormView;
   readonly a2uiSpecVersion: string;
+  /** Frozen with the version, so it cannot change under a session already running. */
+  readonly appearance: Appearance | null;
   readonly resolveQuestion: ResolveQuestion;
   readonly questionById: ReadonlyMap<QuestionId, QuestionDefinition>;
 }
@@ -156,6 +159,7 @@ async function loadSnapshot(
     },
     compiled,
     a2uiSpecVersion: version.a2uiSpecVersion,
+    appearance: version.appearance,
     resolveQuestion: (questionId) => questionById.get(questionId),
     questionById,
   };
@@ -373,6 +377,7 @@ function project(
   return {
     step,
     values: rendered.values,
+    appearance: snapshot.appearance,
     a2uiSpecVersion: snapshot.a2uiSpecVersion,
     flowState: {
       currentStep: flow.currentStep,

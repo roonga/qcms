@@ -105,10 +105,21 @@ export const HeldValues = z.record(z.string(), AnswerValue).openapi({
   example: { q_at_fault_accident: true, q_accident_count: 2 },
 });
 
+/**
+ * The pinned version's appearance, carried on every step response because a respondent
+ * keeps the version they started (ADR-07). Null where the version carries none, which is
+ * the deployment default. Opaque here: the shared appearance schema is what validated it.
+ */
+export const PinnedAppearance = z.unknown().openapi({
+  description:
+    "The appearance frozen with the version this session is pinned to, or null. It never changes mid-session: a respondent keeps the version they started (ADR-07).",
+});
+
 export const StepResponse = z
   .object({
     step: StepDocument.nullable(),
     values: HeldValues,
+    appearance: PinnedAppearance,
     a2uiSpecVersion: z.string().openapi({
       description:
         "The pinned snapshot's A2UI spec version, so the renderer selects the right handling (ADR-18).",
@@ -173,6 +184,7 @@ export const BatchAnswerResponse = z
   .object({
     step: StepDocument.nullable(),
     values: HeldValues,
+    appearance: PinnedAppearance,
     a2uiSpecVersion: z.string(),
     flowState: FlowStateProjection,
     rosters: RosterProjection,
@@ -212,6 +224,7 @@ export const RosterOpResponse = z
   .object({
     step: StepDocument.nullable(),
     values: HeldValues,
+    appearance: PinnedAppearance,
     a2uiSpecVersion: z.string(),
     flowState: FlowStateProjection,
     rosters: RosterProjection,

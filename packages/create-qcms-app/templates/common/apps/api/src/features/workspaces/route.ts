@@ -12,14 +12,31 @@ import {
   makeSetSharedWorkspaceHandler,
 } from "./handler.js";
 import {
+  makeCreateWorkspaceThemeHandler,
+  makeDeleteWorkspaceThemeHandler,
+  makeGetWorkspaceThemeHandler,
+  makeListWorkspaceThemesHandler,
+  makeSetAppearanceLockHandler,
+  makeUpdateWorkspaceThemeHandler,
+  makeUploadThemeLogoHandler,
+} from "./themes.js";
+import {
+  AppearanceLockBody,
+  AppearanceLockResponse,
   CreateWorkspaceBody,
   MoveToWorkspaceBody,
   MovedResponse,
   RenameWorkspaceBody,
   SharedWorkspaceBody,
+  ThemeIdParam,
+  ThemeLogoBody,
+  ThemeLogoResponse,
   WorkspaceIdParam,
   WorkspaceListResponse,
   WorkspaceResponse,
+  WorkspaceThemeBody,
+  WorkspaceThemeListResponse,
+  WorkspaceThemeResponse,
 } from "./schema.js";
 
 const tags = ["workspaces"];
@@ -128,6 +145,144 @@ export const archiveWorkspaceRoute = createRoute({
   ...withScopes("forms:write"),
 });
 
+const themeTags = ["workspaces"];
+
+const themeAuthority =
+  "Edit forms in that workspace. A Workspace administrator or a Site administrator who " +
+  "holds no Edit forms grant there is refused, because theming is authoring and not " +
+  "administration (docs/WORKSPACE_ACCESS.md section 3).";
+
+export const listWorkspaceThemesRoute = createRoute({
+  method: "get",
+  path: "/workspaces/{id}/themes",
+  summary: "A workspace's named themes (Edit forms)",
+  description: themeAuthority,
+  tags: themeTags,
+  request: { params: WorkspaceIdParam },
+  responses: {
+    200: {
+      description: "The workspace's themes, by name",
+      content: { "application/json": { schema: WorkspaceThemeListResponse } },
+    },
+    ...errorResponses(401, 403, 404),
+  },
+  ...withScopes("forms:read"),
+});
+
+export const getWorkspaceThemeRoute = createRoute({
+  method: "get",
+  path: "/workspaces/{id}/themes/{themeId}",
+  summary: "One workspace theme (Edit forms)",
+  description: themeAuthority,
+  tags: themeTags,
+  request: { params: ThemeIdParam },
+  responses: {
+    200: {
+      description: "The theme",
+      content: { "application/json": { schema: WorkspaceThemeResponse } },
+    },
+    ...errorResponses(401, 403, 404),
+  },
+  ...withScopes("forms:read"),
+});
+
+export const createWorkspaceThemeRoute = createRoute({
+  method: "post",
+  path: "/workspaces/{id}/themes",
+  summary: "Save a workspace theme (Edit forms)",
+  description:
+    `${themeAuthority} The palettes go through the shared appearance schema and the WCAG ` +
+    "contrast check; a failing set is refused with the correction report. Nothing links a " +
+    "form to a theme: applying one copies its values into a draft.",
+  tags: themeTags,
+  request: { params: WorkspaceIdParam, body: jsonBody(WorkspaceThemeBody) },
+  responses: {
+    201: {
+      description: "The theme just saved",
+      content: { "application/json": { schema: WorkspaceThemeResponse } },
+    },
+    ...errorResponses(400, 401, 403, 404, 409, 422),
+  },
+  ...withScopes("forms:write"),
+});
+
+export const updateWorkspaceThemeRoute = createRoute({
+  method: "put",
+  path: "/workspaces/{id}/themes/{themeId}",
+  summary: "Change a workspace theme (Edit forms)",
+  description:
+    `${themeAuthority} Replaces every stored field. No draft and no version changes: each ` +
+    "carries the appearance it copied (docs/WORKSPACE_ACCESS.md section 9).",
+  tags: themeTags,
+  request: { params: ThemeIdParam, body: jsonBody(WorkspaceThemeBody) },
+  responses: {
+    200: {
+      description: "The theme as it now stands",
+      content: { "application/json": { schema: WorkspaceThemeResponse } },
+    },
+    ...errorResponses(400, 401, 403, 404, 409, 422),
+  },
+  ...withScopes("forms:write"),
+});
+
+export const deleteWorkspaceThemeRoute = createRoute({
+  method: "delete",
+  path: "/workspaces/{id}/themes/{themeId}",
+  summary: "Delete a workspace theme (Edit forms)",
+  description:
+    `${themeAuthority} Removes the theme row and no logo: the logo store is immutable and ` +
+    "undeletable, so every draft and version that copied this theme keeps its image.",
+  tags: themeTags,
+  request: { params: ThemeIdParam },
+  responses: {
+    204: { description: "The theme is gone" },
+    ...errorResponses(401, 403, 404),
+  },
+  ...withScopes("forms:write"),
+});
+
+export const uploadThemeLogoRoute = createRoute({
+  method: "post",
+  path: "/workspaces/{id}/themes/{themeId}/logo",
+  summary: "Upload a theme's logo (Edit forms)",
+  description:
+    `${themeAuthority} PNG, JPEG or WebP, confirmed by magic-number sniff and capped at ` +
+    "512 KiB; SVG and anything else is refused. The bytes are stored immutably under the " +
+    "SHA-256 of themselves, which is the key the logo route serves them by.",
+  tags: themeTags,
+  request: { params: ThemeIdParam, body: jsonBody(ThemeLogoBody) },
+  responses: {
+    201: {
+      description: "The stored logo's key",
+      content: { "application/json": { schema: ThemeLogoResponse } },
+    },
+    ...errorResponses(400, 401, 403, 404, 413, 422),
+  },
+  ...withScopes("forms:write"),
+});
+
+export const setAppearanceLockRoute = createRoute({
+  method: "put",
+  path: "/workspaces/{id}/appearance-lock",
+  summary: "Set or clear the workspace appearance lock (admin)",
+  description:
+    "A Workspace administrator of that workspace or a Site administrator. No second " +
+    "approver, even with the rule on, and exactly one `setting` row in the workspace " +
+    "audit. While it is set, every draft save that would change a form's appearance is " +
+    "refused, for every actor and for the assistant; a save that changes no appearance " +
+    "succeeds, and a form moved in keeps what it carries.",
+  tags: themeTags,
+  request: { params: WorkspaceIdParam, body: jsonBody(AppearanceLockBody) },
+  responses: {
+    200: {
+      description: "The lock as it now stands",
+      content: { "application/json": { schema: AppearanceLockResponse } },
+    },
+    ...errorResponses(400, 401, 403, 404, 409),
+  },
+  ...withScopes("forms:write"),
+});
+
 export const moveFormRoute = createRoute({
   method: "post",
   path: "/forms/{id}/workspace",
@@ -154,4 +309,11 @@ export const registerWorkspaces: SliceRegistrar = (group, deps: Deps): void => {
   group.openapi(setSharedWorkspaceRoute, makeSetSharedWorkspaceHandler(deps));
   group.openapi(archiveWorkspaceRoute, makeArchiveWorkspaceHandler(deps));
   group.openapi(moveFormRoute, makeMoveFormHandler(deps));
+  group.openapi(listWorkspaceThemesRoute, makeListWorkspaceThemesHandler(deps));
+  group.openapi(createWorkspaceThemeRoute, makeCreateWorkspaceThemeHandler(deps));
+  group.openapi(getWorkspaceThemeRoute, makeGetWorkspaceThemeHandler(deps));
+  group.openapi(updateWorkspaceThemeRoute, makeUpdateWorkspaceThemeHandler(deps));
+  group.openapi(deleteWorkspaceThemeRoute, makeDeleteWorkspaceThemeHandler(deps));
+  group.openapi(uploadThemeLogoRoute, makeUploadThemeLogoHandler(deps));
+  group.openapi(setAppearanceLockRoute, makeSetAppearanceLockHandler(deps));
 };
