@@ -1245,7 +1245,7 @@ export const messages = {
   "forms.publish.blocked.draftNotAllowed":
     "The publishing workflow does not let a draft go straight to {environment}. Publish it to another environment first, then publish that version here.",
   "forms.publish.blocked.draftNotAllowedOnly":
-    "The publishing workflow does not let a draft go straight to {environment}, and this deployment serves no other environment. Ask an administrator to change the publishing workflow.",
+    "The publishing workflow does not let a draft go straight to {environment}, and this deployment serves no other environment. Ask a Site administrator to change the publishing workflow.",
   "forms.publish.blocked.alreadyReleased": "Already live here.",
   "forms.publish.blocked.approverIsAuthor":
     "You froze this version, so another person with Publish forms in {environment} publishes it.",
@@ -2284,7 +2284,7 @@ export const messages = {
   /** Plain role names, each with one line on what it allows; the wire id never reaches the screen. */
   "membership.role.formsViewer.name": "Form viewer",
   "membership.role.formsViewer.description":
-    "Reads the workspace's questions, forms, releases, links and webhook settings. Changes nothing.",
+    "Reads the workspace's questions, forms, publish history, links and webhook settings. Changes nothing.",
   "membership.role.formsEditor.name": "Form editor",
   "membership.role.formsEditor.description":
     "Drafts and edits forms and questions, and previews them. Publishes nothing on its own.",
@@ -2363,7 +2363,7 @@ export const messages = {
   "membership.settings.heading": "Workspace settings",
   "membership.settings.twoPerson": "Require a second approver for production",
   "membership.settings.twoPersonHelp":
-    "One switch, three effects. A publish to production is refused for the account that froze the version; a production endpoint change takes an Approver's confirmation; and nobody can give themselves a response role, or a new environment for one - a second Workspace administrator, or a Site administrator, has to approve that change. Off by default, because a site with one account cannot satisfy the rule at all.",
+    "One switch, three effects. A publish to production is refused for the account that froze the version; a production endpoint change takes an Approver's confirmation; and nobody can give themselves a response role, or a new environment for one - a second Workspace administrator, or a Site administrator, has to make that change. Off by default, because a site with one account cannot satisfy the rule at all.",
   "membership.settings.save": "Save settings",
   "membership.settings.saved": "The settings were saved, and the change is on the access audit.",
   "membership.settings.saveFailed": "The settings were not saved: {message}",
