@@ -591,13 +591,36 @@ export async function setRequireSecondApprover(
   return rows[0]?.value;
 }
 
-/** Resolve an account by its address, for a grant write that names a person. */
+/** An account as a grant write resolves it, with the state that decides whether it may be added. */
+export interface GrantSubjectRow {
+  readonly userId: string;
+  readonly email: string;
+  readonly name: string;
+  /** Set while the account is disabled. */
+  readonly disabledAt: Date | null;
+  /** `null` while the account is unclaimed. */
+  readonly claimedAt: Date | null;
+}
+
+const grantSubjectColumns = {
+  userId: authUser.id,
+  email: authUser.email,
+  name: authUser.name,
+  disabledAt: authUser.disabledAt,
+  claimedAt: authUser.claimedAt,
+} as const;
+
+/**
+ * Resolve an account by its address, for a grant write that names a person. Case-sensitive
+ * on purpose: the address a Workspace administrator types must be the stored one exactly,
+ * and a near miss gets the same answer as an unknown address.
+ */
 export async function findUserByEmail(
   exec: Executor,
   email: string,
-): Promise<{ readonly userId: string; readonly email: string; readonly name: string } | undefined> {
+): Promise<GrantSubjectRow | undefined> {
   const rows = await exec
-    .select({ userId: authUser.id, email: authUser.email, name: authUser.name })
+    .select(grantSubjectColumns)
     .from(authUser)
     .where(eq(authUser.email, email))
     .limit(1);
@@ -608,10 +631,10 @@ export async function findUserByEmail(
 export async function findUsersByIds(
   exec: Executor,
   userIds: readonly string[],
-): Promise<readonly { readonly userId: string; readonly email: string }[]> {
+): Promise<readonly GrantSubjectRow[]> {
   if (userIds.length === 0) return [];
   return exec
-    .select({ userId: authUser.id, email: authUser.email })
+    .select(grantSubjectColumns)
     .from(authUser)
     .where(inArray(authUser.id, [...userIds]));
 }

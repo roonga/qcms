@@ -1,5 +1,7 @@
 import {
   clearMustChangePassword,
+  findAdminsByEmail,
+  issueSignInLink,
   makeSiteAdministrator,
   markAccountClaimed,
   schema,
@@ -10,6 +12,7 @@ import pg from "pg";
 
 import { loadAdminAuthConfig } from "../../src/config.js";
 import { createAdminAuth, type AdminAuth } from "../../src/features/auth/instance.js";
+import { mintSignInToken, signInTokenHash } from "../../src/features/accounts/tokens.js";
 import { seedGrants } from "../../src/test-support.js";
 
 const instances = new Map<string, { readonly auth: AdminAuth; readonly db: Executor }>();
@@ -118,6 +121,33 @@ export async function createTestAdmin(input: TestAdminInput): Promise<void> {
   // The same write the API's password-change hook makes, through the same helper, so this
   // harness cannot arrive at a state the product cannot.
   if (typeof userId === "string") await clearMustChangePassword(db, userId);
+}
+
+/**
+ * Issue an account a sign-in link and hand back the token, which the product itself only
+ * ever puts in an email. A browser spec drives the claim screen with it.
+ */
+export async function issueTestSignInLink(input: {
+  readonly databaseUrl: string;
+  readonly authSecret: string;
+  readonly adminBaseUrl: string;
+  readonly email: string;
+  readonly expiresAt?: Date;
+}): Promise<string> {
+  const { db } = authFor(input.databaseUrl, input.authSecret, input.adminBaseUrl);
+  const [account] = await findAdminsByEmail(db, input.email);
+  if (account === undefined) throw new Error(`no account for ${input.email}`);
+  const token = mintSignInToken();
+  const now = new Date();
+  await issueSignInLink(db, {
+    userId: account.userId,
+    tokenHash: await signInTokenHash(token),
+    purpose: "account-created",
+    expiresAt: input.expiresAt ?? new Date(now.getTime() + 72 * 60 * 60 * 1000),
+    issuedBy: account.userId,
+    now,
+  });
+  return token;
 }
 
 const HARNESS_SEARCH_PATH = "-c search_path=data_prod,control";

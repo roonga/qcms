@@ -193,10 +193,10 @@ than reading as clean.
 Two destinations, both from `qcms-api` only, and both worth knowing before you write
 an egress firewall rule:
 
-| Destination                      | When                                                                                            | If it is blocked                                                                                                                                                                                       |
-| -------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Your webhook consumers           | Whenever a submission is delivered (SEC-6, SSRF-guarded)                                        | Deliveries retry and eventually park in the outbox; nothing else is affected.                                                                                                                          |
-| `api.pwnedpasswords.com` (HTTPS) | Only while an **admin password is being set**: `qcms:create-admin`, and change-password (SEC-1) | **The password is refused, by design.** A first admin cannot be created at all. Set `QCMS_ADMIN_PASSWORD_BREACH_CHECK=false` for a deployment that is genuinely offline; see the variable's row below. |
+| Destination                      | When                                                                                                                                                                                                | If it is blocked                                                                                                                                                                                       |
+| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Your webhook consumers           | Whenever a submission is delivered (SEC-6, SSRF-guarded)                                                                                                                                            | Deliveries retry and eventually park in the outbox; nothing else is affected.                                                                                                                          |
+| `api.pwnedpasswords.com` (HTTPS) | Only while an **admin password is being set**: `qcms:create-admin`, change-password, and the claim of a new account (SEC-1). A lookup that has not answered in three seconds counts as unreachable. | **The password is refused, by design.** A first admin cannot be created at all. Set `QCMS_ADMIN_PASSWORD_BREACH_CHECK=false` for a deployment that is genuinely offline; see the variable's row below. |
 
 Nothing else in the API reaches the internet. The portal and the admin reach only the
 API.
@@ -471,6 +471,15 @@ sits in with the paragraphs above: outside production better-auth's own default 
 have the limiter off entirely, and in the default production shape it is on but keyed on
 a constant. Both are warned about; neither is the intended posture for a deployment
 serving real administrators.
+
+### Ingress access logs hold live sign-in links
+
+An account-creation email carries its single-use token in the link's query string, which
+is where an emailed link has to put it. QCMS keeps it out of referrers and telemetry, but
+an ingress or reverse proxy in front of the admin that logs full request lines records a
+live token until the claim spends it. Treat such a log as credential material for the
+72 hours a link lives, or log the admin's paths without their query strings. The
+reasoning is in [`docs/SECURITY_DESIGN.md`](SECURITY_DESIGN.md) section 2.1.
 
 ## Environment reference
 

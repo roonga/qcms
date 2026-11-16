@@ -18,6 +18,7 @@ afterEach(() => {
 });
 
 const seams = {
+  claimAccount: vi.fn(),
   signInEmail: vi.fn(),
   verifyTotp: vi.fn(),
   verifyBackupCode: vi.fn(),
@@ -29,6 +30,7 @@ const seams = {
 };
 
 vi.mock("@/lib/server/auth-api", () => ({
+  claimAccount: seams.claimAccount,
   signInEmail: seams.signInEmail,
   verifyTotp: seams.verifyTotp,
   verifyBackupCode: seams.verifyBackupCode,
@@ -50,6 +52,7 @@ vi.mock("@/lib/server/enrollment", () => ({
   clearRecoveryCodesCookie: (): string => "qcms_admin.recovery_codes=; Max-Age=0; Path=/",
 }));
 
+const claimRoute = await import("../../app/claim/submit/route.ts");
 const signInRoute = await import("../../app/sign-in/submit/route.ts");
 const challengeRoute = await import("../../app/two-factor/challenge/verify/route.ts");
 const enrollRoute = await import("../../app/two-factor/enroll/verify/route.ts");
@@ -104,6 +107,22 @@ function sentenceRenderedFor(route: RefusingRoute, response: Response): string |
 }
 
 const ROUTES: readonly RefusingRoute[] = [
+  {
+    // The only one with no session of its own: the emailed token is the credential, and a
+    // refusal the person cannot retype past drops it and sends them back to the link.
+    path: "app/claim/submit/route.ts",
+    screen: "/claim",
+    markers: SHARED_MARKERS,
+    refuseWith: (status) => seams.claimAccount.mockResolvedValue(refusal(status)),
+    post: () =>
+      claimRoute.POST(
+        formPost("/claim/submit", {
+          token: "a-link-token",
+          newPassword: "correct horse battery staple",
+          confirmPassword: "correct horse battery staple",
+        }),
+      ),
+  },
   {
     path: "app/sign-in/submit/route.ts",
     screen: "/sign-in",

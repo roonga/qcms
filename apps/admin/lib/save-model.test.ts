@@ -29,6 +29,11 @@ const SCREENS: readonly ScreenRow[] = [
     why: "Credentials submitted once. Nothing is authored and nothing accumulates.",
   },
   {
+    route: "app/claim/page.tsx",
+    model: "action",
+    why: "The claim an emailed single-use link lands on (task 090). One password submitted once; nothing is authored and nothing accumulates, so there is nothing to autosave.",
+  },
+  {
     route: "app/change-password/page.tsx",
     model: "action",
     why: "The forced change on first sign-in after bootstrap (task 061). One credential submitted once; nothing is authored and nothing accumulates, so there is nothing to autosave and nothing to lose by navigating away.",

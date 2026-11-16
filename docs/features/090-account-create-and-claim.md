@@ -40,7 +40,7 @@ New `apps/api/src/features/accounts/`, `apps/api/src/features/auth/`, `apps/api/
 
 ## Migration
 
-Yes. Fifth in the migration queue (planned `0012`; numbered at rebase time).
+Yes. Fifth in the migration queue (numbered `0013`).
 
 ## Gates
 
