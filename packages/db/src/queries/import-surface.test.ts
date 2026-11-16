@@ -209,6 +209,7 @@ describe("query helper import surface", () => {
     "issuedPendingResetLink",
     "signInLinkHold",
     "wasSentResetOrReactivationLink",
+    "newestSignInLink",
     "newestSignInLinkPurpose",
     "countActiveSiteAdministrators",
     "suspendResponseMemberships",

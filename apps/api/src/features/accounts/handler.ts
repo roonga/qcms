@@ -4,12 +4,13 @@ import {
   findAccountById,
   findAdminsByEmail,
   listAccountDirectory,
-  newestSignInLinkPurpose,
+  newestSignInLink,
   SITE_ADMINISTRATOR_ROLE,
   writeSiteAuditRow,
   type AccountDirectoryRow,
   type AccountRoleFilter,
   type AccountStatus,
+  type Executor,
 } from "@roonga/qcms-db";
 
 import type { Deps } from "../../deps.js";
@@ -177,19 +178,25 @@ export function makeResendSignInLinkHandler(
     if (row === undefined) throw fail.notFound();
 
     // A reset or reactivation link is resent as one, never as a creation link: the purposes
-    // are not interchangeable. The state and the purpose are read under the account's lock,
-    // so a resend crossing the claim's or a reset's commit never leaves the wrong link.
+    // are not interchangeable, and it keeps the issuer of the link it replaces, the act's
+    // performer, so resending never makes the resender a performer. The state and the purpose
+    // are read under the account's lock, so a resend crossing the claim's or a reset's commit
+    // never leaves the wrong link.
+    const pendingAct = async (tx: Executor) => {
+      const newest = await newestSignInLink(tx, id);
+      const purpose = newest?.purpose;
+      return newest !== undefined && (purpose === "reset" || purpose === "reactivated")
+        ? { purpose, issuedBy: newest.issuedBy }
+        : undefined;
+    };
     const delivery = await issueAndSendSignInLink(
       deps,
       exec,
       {
         userId: row.userId,
         email: row.email,
-        purpose: async (tx) => {
-          const newest = await newestSignInLinkPurpose(tx, id);
-          return newest === "reset" || newest === "reactivated" ? newest : "account-created";
-        },
-        issuedBy: actor.userId,
+        purpose: async (tx) => (await pendingAct(tx))?.purpose ?? "account-created",
+        issuedBy: async (tx) => (await pendingAct(tx))?.issuedBy ?? actor.userId,
       },
       async (tx) => {
         const current = await findAccountById(tx, id);

@@ -213,6 +213,7 @@ export {
   listAccountHoldings,
   listActiveAdministratorsFor,
   listWorkspacesHeldBy,
+  newestSignInLink,
   newestSignInLinkPurpose,
   reactivateAccount,
   reconfirmHold,

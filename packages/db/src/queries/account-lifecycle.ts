@@ -125,7 +125,10 @@ export async function wasSentResetOrReactivationLink(
   return rows.length > 0;
 }
 
-/** Whether `issuerId` issued any of the account's newest unbroken run of reset or reactivation links. */
+/**
+ * Whether `issuerId` performed the reset or reactivation behind any of the account's newest
+ * unbroken run of reset or reactivation links. A resent link keeps its act's issuer.
+ */
 export async function issuedPendingResetLink(
   exec: Executor,
   userId: string,
@@ -170,18 +173,26 @@ export async function deleteTrustedDevices(exec: Executor, userId: string): Prom
     );
 }
 
+/** The newest link the account was sent, or `undefined` when it has none. */
+export async function newestSignInLink(
+  exec: Executor,
+  userId: string,
+): Promise<{ readonly purpose: string; readonly issuedBy: string } | undefined> {
+  const [row] = await exec
+    .select({ purpose: signInLinks.purpose, issuedBy: signInLinks.issuedBy })
+    .from(signInLinks)
+    .where(eq(signInLinks.userId, userId))
+    .orderBy(sql`${signInLinks.createdAt} desc`, sql`${signInLinks.id} desc`)
+    .limit(1);
+  return row;
+}
+
 /** The purpose of the newest link the account was sent, or `undefined` when it has none. */
 export async function newestSignInLinkPurpose(
   exec: Executor,
   userId: string,
 ): Promise<string | undefined> {
-  const [row] = await exec
-    .select({ purpose: signInLinks.purpose })
-    .from(signInLinks)
-    .where(eq(signInLinks.userId, userId))
-    .orderBy(sql`${signInLinks.createdAt} desc`, sql`${signInLinks.id} desc`)
-    .limit(1);
-  return row?.purpose;
+  return (await newestSignInLink(exec, userId))?.purpose;
 }
 
 /** How many Site administrators are active and claimed, the only ones any guard counts. */

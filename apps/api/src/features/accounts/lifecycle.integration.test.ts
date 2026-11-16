@@ -304,6 +304,29 @@ async function resend(userId: string): Promise<void> {
   expect(response.status, await response.clone().text()).toBe(200);
 }
 
+async function trustedDevices(userId: string): Promise<string[]> {
+  const rows = await testDb.db
+    .select({ id: authVerification.id })
+    .from(authVerification)
+    .where(
+      and(
+        like(authVerification.identifier, "trust-device-%"),
+        eq(authVerification.value, userId),
+      ),
+    );
+  return rows.map((row) => row.id);
+}
+
+async function rememberDevice(userId: string): Promise<void> {
+  const id = crypto.randomUUID();
+  await testDb.db.insert(authVerification).values({
+    id,
+    identifier: `trust-device-${id}`,
+    value: userId,
+    expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+  });
+}
+
 async function accountRow(userId: string): Promise<typeof authUser.$inferSelect> {
   const [row] = await testDb.db.select().from(authUser).where(eq(authUser.id, userId));
   if (row === undefined) throw new Error("no such account");
@@ -845,7 +868,7 @@ describe("resetting a password or a factor (criteria 58, 59, 64, 65)", () => {
   );
 
   it(
-    "forgets every remembered device on a factor reset",
+    "forgets every remembered device on a factor reset, a disable and a reactivation",
     async () => {
       const person = await createAndClaim("reset.trusted@example.test");
       const begun = await authPost("/sign-in/email", {
@@ -882,16 +905,7 @@ describe("resetting a password or a factor (criteria 58, 59, 64, 65)", () => {
         { password: false, factor: true },
       );
       expect(reset.status, await reset.clone().text()).toBe(200);
-      const devices = await testDb.db
-        .select({ id: authVerification.id })
-        .from(authVerification)
-        .where(
-          and(
-            like(authVerification.identifier, "trust-device-%"),
-            eq(authVerification.value, person.userId),
-          ),
-        );
-      expect(devices).toEqual([]);
+      expect(await trustedDevices(person.userId)).toEqual([]);
 
       await signInThroughLink(person, "keep-password", { factorKept: false });
       const after = await authPost(
@@ -903,6 +917,18 @@ describe("resetting a password or a factor (criteria 58, 59, 64, 65)", () => {
       expect(((await after.json()) as { twoFactorRedirect?: boolean }).twoFactorRedirect).toBe(
         true,
       );
+
+      for (const act of ["disable", "reactivate"] as const) {
+        await rememberDevice(person.userId);
+        expect(await trustedDevices(person.userId)).toHaveLength(1);
+        const response = await adminSend(
+          "POST",
+          `/admin/accounts/${person.userId}/${act}`,
+          siteAdminToken,
+        );
+        expect(response.status, await response.clone().text()).toBe(200);
+        expect(await trustedDevices(person.userId), act).toEqual([]);
+      }
     },
     FLOW_TIMEOUT_MS,
   );
@@ -1250,6 +1276,97 @@ describe("re-confirming a suspended membership (criteria 60, 61, 62, 63)", () =>
       expect(await errorCodeOf(byResetter)).toBe("RECONFIRM_BY_PERFORMER_REFUSED");
       const byOther = await reconfirm(secondSiteAdminToken, target, person.userId);
       expect(byOther.status, await byOther.clone().text()).toBe(200);
+      expect((await myAccess(person.session)).workspaces.get(workspaceId)?.groups).toContain(name);
+    },
+    FLOW_TIMEOUT_MS,
+  );
+
+  it(
+    "counts only the resetter as the performer, so the administrator who resent the link re-confirms",
+    async () => {
+      const person = await createAndClaim("reconfirm.resender@example.test");
+      const created = await adminSend("POST", "/admin/workspaces", siteAdminToken, {
+        name: "Reconfirm resender",
+        slug: "reconfirm-resender",
+        firstAdministratorEmail: person.email,
+      });
+      expect(created.status, await created.clone().text()).toBe(201);
+      const own = ((await created.json()) as { workspace: { workspaceId: string } }).workspace
+        .workspaceId;
+      const viewers = await createGroup(own, "Resender viewers", ["responses.viewer"], ["prod"]);
+      await grant(viewers, person.userId, own);
+      const reset = await adminSend(
+        "POST",
+        `/admin/accounts/${person.userId}/reset`,
+        siteAdminToken,
+        { password: false, factor: true },
+      );
+      expect(reset.status, await reset.clone().text()).toBe(200);
+      const resent = await adminSend(
+        "POST",
+        `/admin/accounts/${person.userId}/sign-in-link`,
+        secondSiteAdminToken,
+      );
+      expect(resent.status, await resent.clone().text()).toBe(200);
+      const links = await testDb.db
+        .select({ purpose: signInLinks.purpose, issuedBy: signInLinks.issuedBy })
+        .from(signInLinks)
+        .where(eq(signInLinks.userId, person.userId));
+      expect(links.filter((link) => link.purpose === "reset")).toEqual([
+        { purpose: "reset", issuedBy: siteAdminId },
+        { purpose: "reset", issuedBy: siteAdminId },
+      ]);
+      expect(await siteActs(person.userId)).toContain("act=resend");
+      await signInThroughLink(person, "keep-password", { factorKept: false });
+
+      const byResetter = await reconfirm(siteAdminToken, viewers, person.userId, own);
+      expect(await errorCodeOf(byResetter)).toBe("RECONFIRM_BY_PERFORMER_REFUSED");
+      const byOwn = await reconfirm(person.session, viewers, person.userId, own);
+      expect(await errorCodeOf(byOwn)).toBe("RECONFIRM_OWN_REFUSED");
+      const byResender = await reconfirm(secondSiteAdminToken, viewers, person.userId, own);
+      expect(byResender.status, await byResender.clone().text()).toBe(200);
+      const rows = await grantRows(own, person.userId);
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).not.toContain("byPerformer");
+      expect((await myAccess(person.session)).workspaces.get(own)?.groups).toEqual([
+        "Resender viewers",
+      ]);
+    },
+    FLOW_TIMEOUT_MS,
+  );
+
+  it(
+    "counts a group edit by an administrator outside the reset as their re-confirmation, and audits it",
+    async () => {
+      const person = await createAndClaim("reconfirm.thirdedit@example.test");
+      const name = "Third edit target";
+      const target = await createGroup(workspaceId, name, ["forms.editor"], []);
+      await grant(target, person.userId);
+      const reset = await adminSend(
+        "POST",
+        `/admin/accounts/${person.userId}/reset`,
+        siteAdminToken,
+        { password: false, factor: true },
+      );
+      expect(reset.status, await reset.clone().text()).toBe(200);
+
+      await editGroup(secondSiteAdminToken, target, {
+        name,
+        roles: ["forms.editor", "responses.viewer"],
+        environments: ["prod"],
+      });
+      expect(await suspendedBy(target, person.userId)).toBeNull();
+      const { rows } = await listAccessAudit(testDb.db, workspaceId, { limit: 500, kind: "grant" });
+      const reconfirmed = rows.filter((row) =>
+        (row.detail ?? "").includes(`subject=${person.userId} group=${name} act=reconfirm via=edit`),
+      );
+      expect(reconfirmed).toHaveLength(1);
+      expect(reconfirmed[0]?.actor).toBe(secondSiteAdminId);
+      expect(await siteActs(person.userId)).toContain(
+        `act=grant-while-unclaimed group=${name} reconfirm=1 via=edit`,
+      );
+
+      await signInThroughLink(person, "keep-password", { factorKept: false });
       expect((await myAccess(person.session)).workspaces.get(workspaceId)?.groups).toContain(name);
     },
     FLOW_TIMEOUT_MS,
