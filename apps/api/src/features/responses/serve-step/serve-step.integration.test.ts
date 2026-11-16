@@ -2,7 +2,14 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { type Appearance, deriveAppearance, FormId, QuestionId, SessionId } from "@roonga/qcms-core";
+import {
+  type Appearance,
+  deriveAppearance,
+  FormId,
+  QuestionDefinition,
+  QuestionId,
+  SessionId,
+} from "@roonga/qcms-core";
 import {
   SEED_WORKSPACE_ID,
   answerLedger,
@@ -1043,12 +1050,12 @@ describe("the step rail and the cursor's back-jump (ADR-28, Q8)", () => {
     });
     await createQuestionVersion(testDb.db, {
       questionId: QuestionId.parse("q_rail_name"),
-      definition: {
+      definition: QuestionDefinition.parse({
         type: "shortText",
         questionId: "q_rail_name",
         label: { en: "Your name" },
         required: true,
-      } as Parameters<typeof createQuestionVersion>[1]["definition"],
+      }),
     });
     const formId = FormId.parse("frm_rail");
     await createForm(testDb.db, {
