@@ -225,7 +225,7 @@ const CRUMB_SCREENS: readonly CrumbScreen[] = [
   { path: "/webhooks", trail: ["Delivery failures"] },
   // One workspace, so the area is singular and the rail offers no way back to a list.
   { path: `/workspaces/${WORKSPACE_ID}/members`, trail: ["Workspace", "", "Members"] },
-  { path: "/settings", trail: ["Settings"] },
+  { path: "/settings", trail: ["My account"] },
 ];
 
 async function expectTrail(page: Page, screen: CrumbScreen): Promise<void> {

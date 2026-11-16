@@ -265,7 +265,7 @@ test("regenerating recovery codes needs the password, and retires the old set (i
   await signOut(page);
 });
 
-test("the account menu names the operator and routes to the password screen", async ({ page }) => {
+test("the account menu names the operator and routes to My account", async ({ page }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
   const trigger = accountTrigger(page);
   await expect(trigger).toHaveAccessibleName(`EA, account menu for ${EMAIL}`);
@@ -286,19 +286,14 @@ test("the account menu names the operator and routes to the password screen", as
 
   await expect(page.locator(".qcms-menu .qcms-menu__sep")).toHaveCount(1);
 
-  await expect(menu.getByRole("menuitem")).toHaveText([
-    "Settings",
-    "My access",
-    "Change password",
-    "Sign out",
-  ]);
+  await expect(menu.getByRole("menuitem")).toHaveText(["My account", "My access", "Sign out"]);
 
-  await expect(menu.getByRole("menuitem", { name: "Change password" })).toHaveAttribute(
-    "href",
-    "/settings#change-password",
-  );
-
-  await menu.getByRole("menuitem", { name: "Change password" }).click();
+  await menu.getByRole("menuitem", { name: "My account" }).click();
+  await expect(page).toHaveURL(/\/settings$/);
+  await page
+    .getByTestId("qcms-settings-rail")
+    .getByRole("link", { name: "Change password", exact: true })
+    .click();
   await expect(page).toHaveURL(/\/settings#change-password$/);
   await expect(page.getByLabel("Current password")).toBeVisible();
 });

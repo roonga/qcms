@@ -8,16 +8,17 @@ import {
   type GroupGrant,
 } from "@/lib/membership/access-patterns";
 
+type ExplanationSubject =
+  | { readonly person: string; readonly workspace: string; readonly caption?: undefined }
+  | { readonly caption: string; readonly person?: undefined; readonly workspace?: undefined };
+
 export function AccessExplanation({
-  person,
-  workspace,
   groups,
   environments,
   capabilities,
   groupHref,
-}: {
-  readonly person: string;
-  readonly workspace: string;
+  ...subject
+}: ExplanationSubject & {
   /** The groups this person is in, in this workspace. */
   readonly groups: readonly GroupGrant[];
   /** The site's environments, in its own order. */
@@ -32,7 +33,8 @@ export function AccessExplanation({
     <div className="min-w-0 overflow-x-auto" data-testid="qcms-access-explanation">
       <table className="w-full border-collapse text-sm">
         <caption className="pb-2 text-left text-sm font-semibold text-(--color-text)">
-          {t("access.explain.title", { person, workspace })}
+          {subject.caption ??
+            t("access.explain.title", { person: subject.person, workspace: subject.workspace })}
         </caption>
         <thead>
           <tr>

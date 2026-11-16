@@ -24,7 +24,9 @@ export function AccountMenu({ email, name }: { readonly email: string; readonly 
         /* The account header labels the menu but must stay outside its keyboard item sequence. */
         header={
           <>
-            <span className="qcms-menu__who">{t("account.signedInAs")}</span>
+            <span className="qcms-menu__who">
+              {name === undefined || name.trim() === "" ? t("account.signedInAs") : name}
+            </span>
             <span className="qcms-menu__email">{email}</span>
           </>
         }
@@ -38,11 +40,6 @@ export function AccountMenu({ email, name }: { readonly email: string; readonly 
         items={[
           { id: "settings", label: t("nav.settings"), href: SETTINGS_PATH },
           { id: "access", label: t("access.title"), href: MY_ACCESS_PATH },
-          {
-            id: "password",
-            label: t("action.changePassword"),
-            href: "/settings#change-password",
-          },
           { id: "sign-out", label: t("action.signOut") },
         ]}
       />

@@ -32,14 +32,14 @@ test("the application navigation offers the areas the caller holds", async ({ pa
   await expect(nav.getByRole("link", { name: "Forms" })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Operations", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Workspace", exact: true })).toBeVisible();
-  await expect(nav.getByRole("link", { name: "Settings" })).toHaveCount(0);
+  await expect(nav.getByRole("link", { name: "My account" })).toHaveCount(0);
 });
 
-test("the avatar menu carries Settings and My access", async ({ page }) => {
+test("the avatar menu carries My account and My access", async ({ page }) => {
   await signInWithTotp(page, EVERYTHING, everythingSecret);
 
   await page.getByTestId("account-menu").getByRole("button").click();
-  await expect(page.getByRole("menuitem", { name: "Settings" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "My account" })).toBeVisible();
   const access = page.getByRole("menuitem", { name: "My access" });
   await expect(access).toBeVisible();
   await access.click();
@@ -84,7 +84,7 @@ test("account settings opened inside Operations keep the mode", async ({ page })
   await page.goto("/operations");
 
   await page.getByTestId("account-menu").getByRole("button").click();
-  await page.getByRole("menuitem", { name: "Settings" }).click();
+  await page.getByRole("menuitem", { name: "My account" }).click();
 
   await expect(page).toHaveURL(/\/settings$/);
   await expect(page.getByTestId("qcms-mode-header")).toHaveAttribute("data-mode", "operations");
@@ -102,7 +102,7 @@ test("Settings opened from normal mode after a focused visit shows no focused he
   await expect(page).toHaveURL(/\/questions$/);
 
   await page.getByTestId("account-menu").getByRole("button").click();
-  await page.getByRole("menuitem", { name: "Settings" }).click();
+  await page.getByRole("menuitem", { name: "My account" }).click();
 
   await expect(page).toHaveURL(/\/settings$/);
   await expect(page.getByTestId("qcms-mode-header")).toHaveCount(0);
