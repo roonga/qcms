@@ -22,6 +22,17 @@
       { "check": "formCount", "titleContains": "marchfield council contact survey", "exactly": 1 },
       { "check": "questionCount", "title": "Marchfield Council contact survey", "min": 1 },
       {
+        "check": "optionCount",
+        "title": "Marchfield Council contact survey",
+        "labelContains": "how",
+        "min": 5
+      },
+      {
+        "check": "required",
+        "title": "Marchfield Council contact survey",
+        "labelContains": "how"
+      },
+      {
         "check": "notReleased",
         "title": "Marchfield Council contact survey",
         "environment": "test"

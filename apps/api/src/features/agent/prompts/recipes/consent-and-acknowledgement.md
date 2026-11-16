@@ -4,19 +4,18 @@
 
 **Settings**
 
-Where the form cannot be sent without agreement, use a one-answer list, not a yes or no:
+Build a one-answer list, never a yes or no, and say why it looks that way:
 
 - `singleChoice` with exactly one option, worded as the agreement: "I agree to the practice sharing my record with the out of hours service."
 - `required: true`. Nothing else is accepted, so the form cannot be submitted until they pick it.
 - The notice text itself in `help`, or as the step title where it is long.
 - `messages.required` in the form's own words: "Please agree before sending the form."
+- Tell the person, in the same reply, that a list of one answer is what it takes and why a yes or no would not do it. A one-member list looks odd on the screen, so an unexplained one reads as a mistake.
 
-Where refusing is a real answer the form must record, use a yes or no:
+Offer a yes or no only where they say recording a refusal matters more than blocking the submission, and only after they have heard that it can then be sent either way:
 
 - `boolean`, `required: true`, with `yesLabel` and `noLabel` in the source form's words: "I consent", "I do not consent".
 - Put anything that follows from a refusal behind a rule on `value: false`.
-
-Decide which of the two it is before you propose, and say which you chose.
 
 **Cannot be expressed**
 
