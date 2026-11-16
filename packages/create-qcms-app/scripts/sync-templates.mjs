@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Derives `packages/create-qcms-app/templates/` from the canonical apps; `--write` generates, `--check` diffs.
+ * Derives `packages/create-qcms-app/templates/` from the canonical apps; `--write` generates, `--check` diffs,
+ * `--seam` prints the scaffold inventory.
  * Not part of `build`: turbo does not hash `apps/**`, so a cached build would skip it. `pnpm check:templates` gates drift.
  */
 
@@ -1303,38 +1304,61 @@ function staticTemplates() {
   return files;
 }
 
-/** The document whose generated block this script owns. */
+/** The hand-written seam document; `--check` holds its package table to the stamped dependencies. */
 export const SEAM_DOC = "docs/ownership-seam.md";
 
-export const SEAM_BEGIN = "<!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->";
-export const SEAM_END = "<!-- END GENERATED: ownership-seam -->";
+const QCMS_PACKAGE = /"(@roonga\/qcms-[a-z0-9-]+)"\s*:/g;
 
-const PACKAGE_STORY = {
-  "@roonga/qcms-core": [
-    "Domain model, the rules DSL and its forward-pass evaluator, the publish compiler, answer validation, secure-link tokens.",
-    "Upgrade freely within a major. Published versions are immutable (R1), so a form already published keeps the semantics it was compiled under; a new version changes what NEW publishes may express and how they evaluate. A major bump is where a semantics change would land, and would carry a migration note.",
-  ],
-  "@roonga/qcms-a2ui-compiler": [
-    "Compiles a published form into the stored A2UI document the portal serves.",
-    "Upgrade freely. The portal serves the STORED document and never recompiles (ADR-18), so a compiler upgrade cannot alter a form that is already live: it changes what the next publish produces. The golden corpus is append-only, which is what makes that promise checkable rather than asserted.",
-  ],
-  "@roonga/qcms-db": [
-    "The schema, the migration history, the query helpers and the reporting view.",
-    "Upgrade, then run `docker compose run --rm migrate` as its own step before the new API instances take traffic. Migration is never done at boot, deliberately: with more than one API instance that is a race, and an operator has to be able to choose when schema changes land. Migrations are plain SQL files you can read before you run them.",
-  ],
-  "@roonga/qcms-ui": [
-    "The A2UI renderer, the vendored input controls, and the token contract the theming rests on.",
-    "Upgrade freely. The vendored components are pinned inside the package rather than resolved from upstream (ADR-22), so an upstream component release cannot reach a published form until a QCMS release deliberately pulls it in and re-runs the conformance suite.",
-  ],
-  "@roonga/qcms-observability": [
-    "The redacting server logger, trace correlation, and the SEC-13 allowlists that decide what a log record or a span may carry off the box.",
-    "Upgrade freely, and prefer to. It is a versioned package rather than scaffolded source precisely because the allowlists are a security control: a tightening reaches every deployment through an upgrade instead of through 300 forks each editing their own copy (ADR-34, SEC-13).",
-  ],
-  "@roonga/qcms-csv": [
-    "One helper: RFC 4180 quoting plus the spreadsheet formula-injection guard every exported cell passes through.",
-    "Upgrade freely, and prefer to, for the same reason as `@roonga/qcms-observability`. The guard is the SEC control on issue #470, and the export routes that call it are yours to edit, so the value of shipping it as a version is that a correction to the guard is an upgrade rather than a code review in every adopter's tree.",
-  ],
-};
+/**
+ * Every `@roonga/qcms-*` package the scaffold stamps into an app manifest.
+ *
+ * @param {Map<string, string>} tree
+ * @returns {string[]}
+ */
+export function stampedPackages(tree) {
+  /** @type {Set<string>} */
+  const names = new Set();
+  for (const [path, contents] of tree) {
+    if (!/^common\/apps\/[^/]+\/package\.json(?:\.tmpl)?$/.test(path)) continue;
+    for (const match of contents.matchAll(QCMS_PACKAGE)) names.add(match[1] ?? "");
+  }
+  return [...names].sort();
+}
+
+/**
+ * The packages named in the seam document's table rows.
+ *
+ * @param {string} text
+ * @returns {string[]}
+ */
+export function documentedPackages(text) {
+  /** @type {Set<string>} */
+  const names = new Set();
+  for (const match of text.matchAll(/^\|\s*`(@roonga\/qcms-[a-z0-9-]+)`\s*\|/gm)) {
+    names.add(match[1] ?? "");
+  }
+  return [...names].sort();
+}
+
+/**
+ * Where the seam document's package table disagrees with what the scaffold stamps.
+ *
+ * @param {Map<string, string>} tree
+ * @param {string} text
+ * @returns {string[]}
+ */
+export function seamDocumentProblems(tree, text) {
+  const stamped = stampedPackages(tree);
+  const documented = documentedPackages(text);
+  return [
+    ...stamped
+      .filter((name) => !documented.includes(name))
+      .map((name) => `undocumented: ${name} is stamped but has no row in ${SEAM_DOC}`),
+    ...documented
+      .filter((name) => !stamped.includes(name))
+      .map((name) => `stale:    ${SEAM_DOC} has a row for ${name}, which is not stamped`),
+  ];
+}
 
 function scaffoldPaths(tree) {
   /** @type {Map<string, string[]>} */
@@ -1362,12 +1386,17 @@ function directoryCounts(paths) {
   return [...counts.entries()].sort(([a], [b]) => (a < b ? -1 : 1));
 }
 
-/** The generated half of `docs/ownership-seam.md`: a directory table plus the full manifest, from the tree the CLI stamps. */
-export function renderSeamBlock(tree = buildTemplates()) {
+/**
+ * The scaffold inventory, printed by `--seam`: a directory table, the per-shape additions and the full manifest.
+ * Generated on demand and never committed, so concurrent branches cannot conflict on it.
+ *
+ * @param {Map<string, string>} tree
+ * @returns {string}
+ */
+export function renderSeamInventory(tree = buildTemplates()) {
   const byLayer = scaffoldPaths(tree);
   const common = (byLayer.get("common") ?? []).sort();
-  const versions = publishedVersions();
-  const lines = [SEAM_BEGIN, ""];
+  const lines = [];
 
   lines.push(`### Scaffolded paths (${common.length} files common to both shapes)`, "");
   lines.push("| Path | Files |", "| --- | --- |");
@@ -1385,38 +1414,10 @@ export function renderSeamBlock(tree = buildTemplates()) {
   }
   lines.push("");
 
-  lines.push("### Package dependencies stamped into `apps/*/package.json`", "");
-  lines.push("| Package | Range | What it carries | Upgrade story |", "| --- | --- | --- | --- |");
-  for (const [name, [carries, story]] of Object.entries(PACKAGE_STORY)) {
-    lines.push(`| \`${name}\` | \`${versions[name]}\` | ${carries} | ${story} |`);
-  }
-  lines.push("");
-
-  lines.push("### QCMS-internal references in the scaffolded source", "");
-  lines.push(
-    "Scaffolded source follows the Code comments rule in `PROJECT_INSTRUCTIONS.md`:",
-    "the default is no comment. Keep a concise explanation only for a non-obvious why,",
-    "a safety or security constraint, or an external-bug workaround. A citation alone",
-    "does not justify retaining a comment; remove historical narration and text the",
-    "code already explains. Preserve license headers, lint/type justifications and",
-    "required machine-read annotations.",
-    "",
-    "Retained `ADR-nn` and `SEC-n` references point to `docs/adr/` and",
-    "`docs/SECURITY_DESIGN.md` in the upstream QCMS repository. Keep an upstream issue",
-    "number only when it is the sole pointer to a non-obvious constraint. Change the",
-    "authored source and regenerate its scaffold mirror with `pnpm qcms:sync-templates`.",
-    "",
-    "The two places QCMS's identity would have been more than a citation are fixed",
-    "rather than documented: the images no longer claim to be built from this",
-    "repository, and no scaffolded message names a script your project does not define.",
-    "",
-  );
-
-  lines.push("<details>", `<summary>Every scaffolded file (${common.length})</summary>`, "");
+  lines.push(`### Every scaffolded file (${common.length})`, "");
   lines.push("```");
   for (const path of common) lines.push(path);
-  lines.push("```", "", "</details>", "");
-  lines.push(SEAM_END);
+  lines.push("```", "");
   return lines.join("\n");
 }
 
@@ -1440,50 +1441,6 @@ export function countInternalReferences(tree) {
     }
   }
   return { files, lines };
-}
-
-/**
- * The block with Prettier's table padding collapsed, so `--check` compares content: a repadded cell is not drift.
- * Everything else is compared byte for byte.
- *
- * @param {string} block
- * @returns {string}
- */
-export function normalizeSeamBlock(block) {
-  return block
-    .split("\n")
-    .map((line) =>
-      line.startsWith("|")
-        ? line
-            .replaceAll(/-{3,}/g, "---")
-            .replaceAll(/[ \t]+/g, " ")
-            .trim()
-        : line,
-    )
-    .join("\n");
-}
-
-/** Replace the generated block, throwing when the markers are missing. */
-export function replaceSeamBlock(text, block) {
-  const begin = text.indexOf(SEAM_BEGIN);
-  const end = text.indexOf(SEAM_END);
-  if (begin === -1 || end === -1 || end < begin) {
-    throw new Error(
-      `${SEAM_DOC} is missing the generated-block markers. Expected:\n${SEAM_BEGIN}\n...\n${SEAM_END}`,
-    );
-  }
-  return text.slice(0, begin) + block + text.slice(end + SEAM_END.length);
-}
-
-/** The block currently sitting in the document. */
-export function currentSeamBlock() {
-  const text = read(SEAM_DOC);
-  const begin = text.indexOf(SEAM_BEGIN);
-  const end = text.indexOf(SEAM_END);
-  if (begin === -1 || end === -1 || end < begin) {
-    throw new Error(`${SEAM_DOC} is missing the generated-block markers.`);
-  }
-  return text.slice(begin, end + SEAM_END.length);
 }
 
 /** Everything committed under the template directory; `scripts/dependabot-changeset.mjs` reads the tree the same way. */
@@ -1530,68 +1487,35 @@ function writeTemplates(tree) {
   }
 }
 
-/** Dynamic import: `--check` must run under plain `node` in a tree that was never installed. */
-async function loadPrettier() {
-  try {
-    return await import("prettier");
-  } catch (cause) {
-    throw new Error(
-      `sync-templates: --write leaves ${SEAM_DOC} formatted and could not load Prettier to do ` +
-        `it. Run pnpm install first. --check needs no dependencies and is unaffected.`,
-      { cause },
-    );
-  }
-}
-
-/**
- * The seam document as `--write` leaves it: the whole file goes through Prettier with the repository
- * config, so `pnpm format` cannot disagree.
- *
- * @param {string} block the rendered generated block
- * @param {string} current the document as it stands
- * @returns {Promise<string>}
- */
-export async function seamDocumentText(block = renderSeamBlock(), current = read(SEAM_DOC)) {
-  const path = join(REPOSITORY_ROOT, SEAM_DOC);
-  const prettier = await loadPrettier();
-  const options = await prettier.resolveConfig(path);
-  return prettier.format(replaceSeamBlock(current, block), { ...options, filepath: path });
-}
-
 export async function main(args = argv.slice(2)) {
   const tree = buildTemplates();
-  const block = renderSeamBlock(tree);
-  if (args.includes("--write")) {
-    writeTemplates(tree);
-    const path = join(REPOSITORY_ROOT, SEAM_DOC);
-    const text = readFileSync(path, "utf8");
-    // Compared as finished text: formatted output has no pad and unpad loop with `pnpm lint`.
-    const next = await seamDocumentText(block, text);
-    if (next !== text) writeFileSync(path, next);
-    process.stdout.write(
-      `sync-templates: wrote ${tree.size} files to ${TEMPLATE_DIR} and the generated block in ${SEAM_DOC}\n`,
-    );
+  if (args.includes("--seam")) {
+    process.stdout.write(renderSeamInventory(tree));
     return 0;
   }
-  const problems = diffTrees(tree, currentTemplates());
-  if (normalizeSeamBlock(currentSeamBlock()) !== normalizeSeamBlock(block)) {
-    problems.push(`drifted:  ${SEAM_DOC} (the generated block)`);
+  if (args.includes("--write")) {
+    writeTemplates(tree);
+    process.stdout.write(`sync-templates: wrote ${tree.size} files to ${TEMPLATE_DIR}\n`);
+    return 0;
   }
+  renderSeamInventory(tree);
+  const problems = [
+    ...diffTrees(tree, currentTemplates()),
+    ...seamDocumentProblems(tree, read(SEAM_DOC)),
+  ];
   if (problems.length > 0) {
     process.stderr.write(
       `The scaffolding templates have drifted from the canonical apps:\n\n  ${problems.join("\n  ")}\n\n` +
-        "Regenerate them with `pnpm qcms:sync-templates` and commit the result. It leaves\n" +
-        `${SEAM_DOC} formatted, so no separate \`pnpm format\` step is needed (issue #866).\n` +
+        "Regenerate the templates with `pnpm qcms:sync-templates` and commit the result.\n" +
         "On a Dependabot bump, `pnpm changeset:dependabot -- --write` does the regeneration\n" +
-        "and writes the changeset it also needs (issue #834).\n\n" +
-        `After a rebase conflict in ${SEAM_DOC}, the resolution is always the\n` +
-        "same: take the base's side, re-run the regeneration, `git add` the result. Never\n" +
-        "hand-merge the counts (issue #866).\n",
+        "and writes the changeset it also needs (issue #834). A package row in\n" +
+        `${SEAM_DOC} is hand-written: add or remove it there.\n`,
     );
     return 1;
   }
   process.stdout.write(
-    `sync-templates: ${tree.size} template files and ${SEAM_DOC} match the canonical apps\n`,
+    `sync-templates: ${tree.size} template files match the canonical apps and ${SEAM_DOC} ` +
+      "names every stamped package\n",
   );
   return 0;
 }
