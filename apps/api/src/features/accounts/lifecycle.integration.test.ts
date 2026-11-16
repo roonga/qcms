@@ -32,8 +32,8 @@ const RELAY = {
   QCMS_SMTP_FROM: "QCMS <no-reply@example.test>",
 };
 
-/** Several password hashes and verifies per case; five seconds is no budget on a loaded host. */
-const FLOW_TIMEOUT_MS = 60_000;
+/** Several password hashes per case, and a factor kept by a reset waits up to 30 s for a fresh code. */
+const FLOW_TIMEOUT_MS = 120_000;
 
 /** More than the control pool's ten connections. */
 const PARALLEL = 12;
