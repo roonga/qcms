@@ -18,7 +18,7 @@ the PII boundary statement) is `docs/agent-authoring.md`.
 | `POST /admin/forms/:id/draft/assist`        | `forms:write`                    | One agent turn. Body `{ conversation, clientState?, screen?, params?, conversationId?, visitId? }`. Answers `text/event-stream`.        |
 | `POST /admin/forms/:id/draft/assist/accept` | `forms:write`, `questions:write` | The human's Accept. Body `{ definition, newQuestions }`. Answers a saved-draft JSON body.                                               |
 | `POST /admin/assist`                        | `forms:read`                     | One turn on the screen the body names. Body `{ conversation, screen, params?, conversationId, visitId? }`. Answers `text/event-stream`. |
-| `GET /admin/forms/:id/draft/agent-changes`  | `forms:read`                     | The wizard's read: the newest published version, the open draft and the agent draft changes recorded since. Mounted whatever the flag. |
+| `GET /admin/forms/:id/draft/agent-changes`  | `forms:read`                     | The wizard's read: the newest published version, the open draft and the agent draft changes recorded since. Mounted whatever the flag.  |
 
 Both turn routes share **one per-principal limiter key** (Q19), so ten turns a
 minute is the caller's whole budget rather than one budget per route.
