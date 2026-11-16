@@ -16,8 +16,8 @@ import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import { adminAuthFor, adminAuthOn } from "../auth/route.js";
 import {
-  asClaimSignIn,
   BREACH_LOOKUP_FAILED_CODE,
+  claimSignInHeaders,
   MIN_PASSWORD_LENGTH,
 } from "../auth/instance.js";
 import { PasswordRefused, setAccountPassword, verifyAccountPassword } from "./credential.js";
@@ -152,12 +152,11 @@ export const registerAccountClaim: SliceRegistrar = (group, deps: Deps) => {
 
     // The session issued here is the one that enrols the second factor. The claim itself
     // is written only once that factor is verified, so the account still holds nothing.
-    const signedIn = await asClaimSignIn(() =>
-      auth.api.signInEmail({
-        body: { email: account.email, password },
-        asResponse: true,
-      }),
-    );
+    const signedIn = await auth.api.signInEmail({
+      body: { email: account.email, password },
+      headers: claimSignInHeaders(),
+      asResponse: true,
+    });
     if (!signedIn.ok) {
       throw new ApiError("CLAIM_FAILED", 500, "The claim could not be completed");
     }

@@ -15,7 +15,6 @@ import {
   signInLinkHold,
 } from "@roonga/qcms-db";
 import type { Executor } from "@roonga/qcms-db";
-import { AsyncLocalStorage } from "node:async_hooks";
 import { betterAuth } from "better-auth";
 import type { BetterAuthPlugin } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
@@ -58,14 +57,26 @@ export const BACKUP_CODE_VERIFY_PATH = "/two-factor/verify-backup-code";
 /** The password sign-in, which alone needs no session, challenge cookie or link. */
 export const PASSWORD_SIGN_IN_PATH = "/sign-in/email";
 
-const claimSignIn = new AsyncLocalStorage<true>();
+const CLAIM_SIGN_IN_HEADER = "x-qcms-claim-sign-in";
+
+/** Minted per process and never sent anywhere, so no request from outside can carry it. */
+const claimSignInKey = Array.from(crypto.getRandomValues(new Uint8Array(32)), (byte) =>
+  byte.toString(16).padStart(2, "0"),
+).join("");
 
 /**
- * Run the claim route's own password sign-in. A reset whose link is spent but whose factor is
- * not yet verified admits a password sign-in from here alone, never from `POST /sign-in/email`.
+ * The headers of the claim route's own password sign-in. A reset whose link is spent but whose
+ * factor is not yet verified admits a password sign-in carrying these alone, never one from
+ * `POST /sign-in/email`.
  */
-export function asClaimSignIn<T>(run: () => Promise<T>): Promise<T> {
-  return claimSignIn.run(true, run);
+export function claimSignInHeaders(): Headers {
+  return new Headers({ [CLAIM_SIGN_IN_HEADER]: claimSignInKey });
+}
+
+function isClaimSignIn(context: unknown): boolean {
+  const headers = (context as { headers?: { get?: unknown } } | undefined)?.headers;
+  if (typeof headers?.get !== "function") return false;
+  return (headers as Headers).get(CLAIM_SIGN_IN_HEADER) === claimSignInKey;
 }
 
 /**
@@ -392,7 +403,7 @@ export function createAdminAuth(input: AdminAuthInput) {
               return (
                 hold === "claim-session" &&
                 path === PASSWORD_SIGN_IN_PATH &&
-                claimSignIn.getStore() !== true
+                !isClaimSignIn(context)
               );
             };
             if (!(await refused())) return;

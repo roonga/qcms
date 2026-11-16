@@ -790,24 +790,12 @@ export function makeAddHolderHandler(deps: Deps): RouteHandler<typeof addHolderR
       }
 
       if (await holdsAccessGroup(tx, teamId, subject.userId)) throw fail.alreadyHolds();
-      // Workspace lock, then the account's tried: the same order as the re-confirmation, and
-      // a reset holds only the account's, so neither waits on the other.
-      const responses = carriesResponsesRole(held.roles);
-      if (responses && !(await tryLockAccount(tx, subject.userId))) throw fail.accountBusy();
-      await ensureWorkspaceMember(tx, workspaceId, subject.userId);
-      await addAccessGroupHolder(tx, teamId, subject.userId);
-      // Whoever reset or reactivated the account cannot restore its response access alone,
-      // by re-confirming or by removing a suspended hold and granting it again.
-      const suspended =
-        responses && (await issuedPendingResetLink(tx, subject.userId, actor.userId));
-      if (suspended) {
-        await suspendHold(tx, {
-          teamId,
-          userId: subject.userId,
-          by: actor.userId,
-          at: deps.clock.now(),
-        });
-      }
+      const suspended = await writeHold(tx, {
+        group: held,
+        userId: subject.userId,
+        actorId: actor.userId,
+        at: deps.clock.now(),
+      });
       const grant = `subject=${subject.userId} group=${held.name}`;
       await writeAccessAuditRow(tx, {
         actor: actor.userId,
@@ -835,6 +823,31 @@ export function makeAddHolderHandler(deps: Deps): RouteHandler<typeof addHolderR
 
     return c.json({ group: await groupView(exec, group) }, 201);
   };
+}
+
+/**
+ * Write one hold, suspended where the grantor reset or reactivated the account: that person
+ * cannot restore its response access alone, by re-confirming or by removing a suspended hold
+ * and granting it again. The account's lock is tried after the workspace's, the order the
+ * re-confirmation takes them in; a reset holds only the account's, so neither waits on the other.
+ */
+async function writeHold(
+  tx: Executor,
+  input: {
+    readonly group: AccessGroupRow;
+    readonly userId: string;
+    readonly actorId: string;
+    readonly at: Date;
+  },
+): Promise<boolean> {
+  const { group, userId } = input;
+  const responses = carriesResponsesRole(group.roles);
+  if (responses && !(await tryLockAccount(tx, userId))) throw fail.accountBusy();
+  await ensureWorkspaceMember(tx, group.workspaceId, userId);
+  await addAccessGroupHolder(tx, group.teamId, userId);
+  if (!responses || !(await issuedPendingResetLink(tx, userId, input.actorId))) return false;
+  await suspendHold(tx, { teamId: group.teamId, userId, by: input.actorId, at: input.at });
+  return true;
 }
 
 export function makeRemoveHolderHandler(
