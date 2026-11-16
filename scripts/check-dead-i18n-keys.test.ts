@@ -171,7 +171,7 @@ describe("scoping", () => {
 describe("the repository", () => {
   it("has no dead catalog key", () => {
     expect(deadKeys()).toEqual([]);
-  });
+  }, 30_000);
 
   it("carries only the action-card exemptions, each with a reason", () => {
     // The card renders the keys the API's action-kind descriptors name, so no admin

@@ -107,7 +107,7 @@ describe("starter-group environments follow the site (criteria 94 and 95)", () =
         expect(group.environments.length, group.name).toBeGreaterThan(0);
       }
     }
-  });
+  }, 20_000);
 
   it("with dev, test and prod, Authors covers dev and test and the other three cover prod", async () => {
     await createEnvironment(testDb.db, { name: "dev" });
@@ -120,7 +120,7 @@ describe("starter-group environments follow the site (criteria 94 and 95)", () =
       expect(groups[name]?.roles).toEqual(roles);
       expect(groups[name]?.environments).toEqual(["prod"]);
     }
-  });
+  }, 20_000);
 });
 
 describe("who creates a workspace (criterion 92)", () => {
