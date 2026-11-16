@@ -259,9 +259,7 @@ describe("SEC-18 F5: an allowlisted content type, confirmed by sniff", () => {
     expect((await refusal(fetcher, "https://brand.example/logo.svg", "logo")).reason).toBe(
       "content-type",
     );
-    expect((await refusal(fetcher, "https://brand.example/logo.png", "logo")).reason).toBe(
-      "sniff",
-    );
+    expect((await refusal(fetcher, "https://brand.example/logo.png", "logo")).reason).toBe("sniff");
   });
 });
 

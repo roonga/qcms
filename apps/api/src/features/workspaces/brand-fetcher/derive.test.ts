@@ -132,9 +132,7 @@ describe("the derive (SEC-18 F8, M1, M2)", () => {
     const enums = new Set<string>([...PALETTE_KINDS, ...APPEARANCE_COLOR_TOKENS, ...faces]);
     for (const value of strings(derived)) {
       expect(
-        /^#[0-9a-f]{6}$/iu.test(value) ||
-          /^[0-9a-f]{64}$/u.test(value) ||
-          enums.has(value),
+        /^#[0-9a-f]{6}$/iu.test(value) || /^[0-9a-f]{64}$/u.test(value) || enums.has(value),
         value,
       ).toBe(true);
     }
@@ -184,7 +182,9 @@ describe("the derive output schema (SEC-18 M1)", () => {
       "a free string inside a correction",
       (r: Record<string, unknown>) => ({
         ...r,
-        corrections: [{ palette: "light", token: "primary", from: "#000000", to: "#ffffff", why: "x" }],
+        corrections: [
+          { palette: "light", token: "primary", from: "#000000", to: "#ffffff", why: "x" },
+        ],
       }),
     ],
   ])("fails with %s", async (_name, mutate) => {

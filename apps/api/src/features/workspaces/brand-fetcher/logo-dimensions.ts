@@ -13,7 +13,9 @@ function u16be(bytes: Uint8Array, at: number): number {
 }
 
 function u32be(bytes: Uint8Array, at: number): number {
-  return ((bytes[at]! << 24) >>> 0) + (bytes[at + 1]! << 16) + (bytes[at + 2]! << 8) + bytes[at + 3]!;
+  return (
+    ((bytes[at]! << 24) >>> 0) + (bytes[at + 1]! << 16) + (bytes[at + 2]! << 8) + bytes[at + 3]!
+  );
 }
 
 function ascii(bytes: Uint8Array, at: number, length: number): string {

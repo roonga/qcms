@@ -56,7 +56,10 @@ export interface NodeTransportOptions {
   readonly dial?: (address: string) => { readonly host: string; readonly port: number };
 }
 
-function tlsOptions(request: TransportRequest, options: NodeTransportOptions): tls.ConnectionOptions {
+function tlsOptions(
+  request: TransportRequest,
+  options: NodeTransportOptions,
+): tls.ConnectionOptions {
   return {
     // Verified against this name as well as sent as SNI, so the pinned address has to
     // present a certificate for the host the user typed (F3).

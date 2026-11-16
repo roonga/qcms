@@ -106,9 +106,9 @@ export function scanPage(html: string, pageUrl: URL): PageSignals {
   const links = tags(source, "link");
   const metas = tags(source, "meta");
 
-  const themeColor = metas.find((m) => m.get("name")?.toLowerCase() === "theme-color")?.get(
-    "content",
-  );
+  const themeColor = metas
+    .find((m) => m.get("name")?.toLowerCase() === "theme-color")
+    ?.get("content");
   const css = [...source.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/giu)]
     .map((m) => m[1]!)
     .join("\n");
@@ -146,7 +146,8 @@ export function cssColor(value: string | undefined): string | undefined {
   const text = (value ?? "").trim().toLowerCase();
   const hex = /^#([0-9a-f]{3,8})\b/u.exec(text)?.[1];
   if (hex !== undefined) {
-    if (hex.length === 3 || hex.length === 4) return `#${[...hex.slice(0, 3)].map((c) => c + c).join("")}`;
+    if (hex.length === 3 || hex.length === 4)
+      return `#${[...hex.slice(0, 3)].map((c) => c + c).join("")}`;
     if (hex.length === 6 || hex.length === 8) return `#${hex.slice(0, 6)}`;
     return undefined;
   }

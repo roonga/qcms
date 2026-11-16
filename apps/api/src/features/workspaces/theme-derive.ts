@@ -84,9 +84,7 @@ async function storeDerivedLogo(
   return key;
 }
 
-export function makeDeriveThemeHandler(
-  deps: Deps,
-): RouteHandler<typeof deriveThemeRoute, ApiEnv> {
+export function makeDeriveThemeHandler(deps: Deps): RouteHandler<typeof deriveThemeRoute, ApiEnv> {
   return async (c) => {
     const workspaceId = c.req.valid("param").id;
     const principal = c.get("adminPrincipal");

@@ -7,7 +7,13 @@ import { createApp } from "../../app.js";
 import type { Deps } from "../../deps.js";
 import { ADMIN_SESSION_HEADER, registerAdminAuth } from "../../middleware/admin-auth.js";
 import { registerRequestEnvironment } from "../../middleware/request-environment.js";
-import { internalTokenFor, makeDeps, seedAdminSession, seedGrants, validEnv } from "../../test-support.js";
+import {
+  internalTokenFor,
+  makeDeps,
+  seedAdminSession,
+  seedGrants,
+  validEnv,
+} from "../../test-support.js";
 import { registerLogos } from "../logos/route.js";
 import { registerGrantCheck } from "../membership/middleware.js";
 import { FakeBrandFetcher } from "./brand-fetcher/fake.js";
@@ -265,7 +271,9 @@ describe("rate limits per user and per workspace (SEC-18 W3)", { timeout: TIMEOU
     });
     const statuses: number[] = [];
     for (const token of [editor.token, editor.token, editor.token, second.token, second.token]) {
-      statuses.push((await derive(workspaceId, "https://brand.example/", token, limited.app)).status);
+      statuses.push(
+        (await derive(workspaceId, "https://brand.example/", token, limited.app)).status,
+      );
     }
     expect(statuses).toStrictEqual([200, 200, 429, 200, 429]);
   });

@@ -171,13 +171,12 @@ function sniffsAsStylesheet(bytes: Uint8Array): boolean {
   return !leadingText(bytes, 1).startsWith("<");
 }
 
-const SNIFFS: Readonly<
-  Record<BrandResourceKind, (body: Uint8Array, declared: string) => boolean>
-> = {
-  page: (body) => sniffsAsHtml(body),
-  stylesheet: (body) => sniffsAsStylesheet(body),
-  logo: (body, declared) => sniffRasterLogo(body) === declared,
-};
+const SNIFFS: Readonly<Record<BrandResourceKind, (body: Uint8Array, declared: string) => boolean>> =
+  {
+    page: (body) => sniffsAsHtml(body),
+    stylesheet: (body) => sniffsAsStylesheet(body),
+    logo: (body, declared) => sniffRasterLogo(body) === declared,
+  };
 
 /** F5: the declared type must be on the list for its kind and agree with what the bytes are. */
 export function checkContent(

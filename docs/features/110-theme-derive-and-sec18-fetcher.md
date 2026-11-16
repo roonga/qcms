@@ -61,3 +61,20 @@ None. No UI.
 ## Out of scope
 
 The `theme.derive` action kind, card and derive flow (117). Operator docs for the flag and egress (121).
+
+## Sources
+
+Checked while building, each behaviour the fetcher relies on also pinned by a test:
+
+- Node.js `dns.promises.Resolver` (`resolve4`, `resolve6`, the `timeout` and `tries` options, `cancel()`): https://nodejs.org/api/dns.html#class-dnspromisesresolver
+- Node.js `tls.connect` (`servername` is sent as SNI and is the name `checkServerIdentity` verifies): https://nodejs.org/api/tls.html#tlsconnectoptions-callback
+- Node.js `http.request` (`createConnection` is used only when no `agent` is given; `agent: false` opens its own socket, measured): https://nodejs.org/api/http.html#httprequestoptions-callback
+- Node.js `zlib` streaming decompressors: https://nodejs.org/api/zlib.html
+- `ipaddr.js` range names (`unicast`, `ipv4Mapped`, `rfc6052`, `6to4`, `teredo`): https://github.com/whitequark/ipaddr.js
+- `tldts` `getDomain` with `allowPrivateDomains` for the registrable domain: https://github.com/remusao/tldts
+- WHATWG MIME Sniffing, the HTML signature table: https://mimesniff.spec.whatwg.org/#identifying-a-resource-with-an-unknown-mime-type
+- `pngjs` (its non-interlaced inflate is bounded by the image size; the interlaced path is not, so interlaced PNGs are refused): https://github.com/pngjs/pngjs
+- `jpeg-js` `maxResolutionInMP` and `maxMemoryUsageInMB`: https://github.com/jpeg-js/jpeg-js
+- `@jsquash/webp` decoder initialised from its `.wasm` in Node: https://github.com/jamsinclair/jSquash
+- `sharp` was not used: its `libvips` binaries are LGPL-3.0, which `check:licenses` refuses, and the lockfile already ignores it as an optional dependency.
+- OWASP Server-Side Request Forgery Prevention Cheat Sheet: https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html

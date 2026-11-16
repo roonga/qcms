@@ -181,6 +181,12 @@ QCMS_DB_PASSWORD=
 # (optional, default none)
 # QCMS_FLAG_AGENT_AUTHORING=
 
+# on mounts POST /admin/workspaces/{id}/themes/derive, the one outbound fetch
+# to an address a user types (SEC-18). Separate from
+# QCMS_FLAG_AGENT_AUTHORING; off leaves the route 404 whatever that says.
+# (optional, default off)
+# QCMS_FLAG_THEME_DERIVE=
+
 # Version stamped into the images at build time
 # (org.opencontainers.image.version). pnpm qcms:build-images derives a real
 # one; a bare docker compose build leaves it dev.
@@ -290,6 +296,22 @@ QCMS_PORTAL_BASE_URL=
 # (optional, default 60000)
 # QCMS_RL_AGENT_ASSIST_WINDOW_MS=
 
+# Theme derives one administrator may request per window.
+# (optional, default 10)
+# QCMS_RL_THEME_DERIVE_USER_MAX=
+
+# Rate-limit window for theme derives, keyed by admin principal.
+# (optional, default 600000)
+# QCMS_RL_THEME_DERIVE_USER_WINDOW_MS=
+
+# Theme derives one workspace may take per window, across all its editors.
+# (optional, default 30)
+# QCMS_RL_THEME_DERIVE_WORKSPACE_MAX=
+
+# Rate-limit window for theme derives, keyed by workspace.
+# (optional, default 3600000)
+# QCMS_RL_THEME_DERIVE_WORKSPACE_WINDOW_MS=
+
 # Secure respondent cookies; leave unset behind TLS. False is allowed only on
 # loopback such as http://localhost:7000; other origins refuse boot. Accepts
 # trimmed, case-insensitive true/1/yes/on or false/0/no/off; invalid values
@@ -344,3 +366,15 @@ QCMS_SESSION_KEYS=
 # Relay user name; set together with QCMS_SMTP_PASSWORD, or neither.
 # (conditional)
 # QCMS_SMTP_USER=
+
+# Comma-separated host names a derive may fetch from, each matching itself and
+# its subdomains. Empty allows any public host. Only narrows: a listed host
+# resolving to a private address is still refused.
+# (optional)
+# QCMS_THEME_DERIVE_ALLOWED_HOSTS=
+
+# An http://host:port CONNECT proxy for derive fetches, without credentials.
+# The proxy is handed the checked address, never the host name, and TLS is
+# still verified for the host.
+# (optional)
+# QCMS_THEME_DERIVE_PROXY=
