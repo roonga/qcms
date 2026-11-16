@@ -373,6 +373,12 @@ body:has(.qcms-landing) .main-pane > .content-panel {
   padding-block: 3rem 1rem;
 }
 
+/* A grid track sizes to its widest unbreakable child, so the command chip would
+   otherwise widen the whole page rather than scrolling inside itself. */
+.qcms-hero > * {
+  min-width: 0;
+}
+
 .qcms-hero__eyebrow {
   font-size: var(--sl-text-xs);
   font-weight: 600;
