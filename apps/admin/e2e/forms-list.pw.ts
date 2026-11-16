@@ -134,9 +134,10 @@ test("ends each row with a menu of that form's own screens", async ({ page }) =>
     "href",
     `/operations/forms/${formId}/links`,
   );
-  await expect(
-    menu.getByRole("menuitem", { name: "Edit with the agent builder" }),
-  ).toHaveAttribute("href", `/forms/${formId}/build`);
+  await expect(menu.getByRole("menuitem", { name: "Edit with the agent builder" })).toHaveAttribute(
+    "href",
+    `/forms/${formId}/build`,
+  );
 });
 
 test("opens, walks and closes that menu from the keyboard alone", async ({ page }) => {
