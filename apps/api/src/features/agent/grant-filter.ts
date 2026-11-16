@@ -50,6 +50,16 @@ function holds(input: GrantFilterInput, def: ActionKindDef, environment: string)
 }
 
 /**
+ * A local kind reaches no route, so only its own screen may offer it. The agent builder edits
+ * its draft without a card and publishes through the wizard, so it offers the library writes
+ * alone.
+ */
+function screenOffers(def: ActionKindDef, screen: string | undefined): boolean {
+  if (def.local === true && def.screen !== screen) return false;
+  return screen !== BUILDER_SCREEN || BUILDER_ACTION_KINDS.includes(def.kind);
+}
+
+/**
  * The offered kinds, each with the environments it may be proposed in. A kind the caller
  * holds in no environment is absent entirely rather than present with an empty list, so a
  * read-only caller's list is empty and the system prompt can say so.
@@ -58,13 +68,7 @@ export function offeredActionKinds(input: GrantFilterInput): readonly OfferedAct
   const offered: OfferedActionKind[] = [];
   for (const name of ACTION_KIND_NAMES) {
     const def = actionKind(name);
-    if (def === undefined) continue;
-    // A local kind reaches no route: only its own screen can run it, so only its own
-    // screen may offer it.
-    if (def.local === true && def.screen !== input.screen) continue;
-    // The agent builder edits its draft without a card and publishes through the wizard, so
-    // it offers the library writes alone.
-    if (input.screen === BUILDER_SCREEN && !BUILDER_ACTION_KINDS.includes(name)) continue;
+    if (def === undefined || !screenOffers(def, input.screen)) continue;
     if (def.environmentFrom === "switcher") {
       if (holds(input, def, input.current)) {
         offered.push({ kind: name, environments: [input.current] });

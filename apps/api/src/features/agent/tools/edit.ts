@@ -148,77 +148,99 @@ function findPin(draft: FormDefinition, questionId: string) {
   return undefined;
 }
 
-function applyQuestion(draft: FormDefinition, input: z.infer<typeof EditQuestionInput>): void {
-  const found = findPin(draft, input.questionId);
-  switch (input.action) {
-    case "pin": {
-      if (found !== undefined) refuse(`${input.questionId} is already on this form.`);
-      if (input.version === undefined) refuse("pin needs the version to pin.");
-      const step = requireStep(draft, input.stepId, "pin");
-      insertAt(
-        step.items,
-        { questionId: input.questionId, version: input.version },
-        input.position,
-      );
-      return;
-    }
-    case "repin": {
-      if (found === undefined) refuse(`${input.questionId} is not on this form.`);
-      if (input.version === undefined) refuse("repin needs the version to pin.");
-      const list = found.group?.items ?? found.step.items;
-      list[found.index] = { questionId: input.questionId, version: input.version };
-      return;
-    }
-    case "move": {
-      if (found === undefined) refuse(`${input.questionId} is not on this form.`);
-      if (found.group !== undefined) {
-        refuse("That question is inside a repeating group: replace the step with edit_step.");
-      }
-      const target = requireStep(draft, input.stepId, "move");
-      const [pin] = found.step.items.splice(found.index, 1);
-      if (pin === undefined) refuse(`${input.questionId} is not on this form.`);
-      insertAt(target.items, pin, input.position);
-      return;
-    }
-    case "unpin": {
-      if (found === undefined) refuse(`${input.questionId} is not on this form.`);
-      const list = found.group?.items ?? found.step.items;
-      list.splice(found.index, 1);
-      return;
-    }
-  }
+type QuestionEdit = z.infer<typeof EditQuestionInput>;
+type Pin = NonNullable<ReturnType<typeof findPin>>;
+
+function requirePin(draft: FormDefinition, questionId: string): Pin {
+  const found = findPin(draft, questionId);
+  if (found === undefined) refuse(`${questionId} is not on this form.`);
+  return found;
 }
 
-function applyStep(draft: FormDefinition, input: z.infer<typeof EditStepInput>): void {
-  const index = stepIndex(draft, input.stepId);
-  if (input.step !== undefined && input.step.stepId !== input.stepId) {
-    refuse("The step's own stepId must equal stepId.");
-  }
-  switch (input.action) {
-    case "add":
-      if (index >= 0) refuse(`There is already a step ${input.stepId}.`);
-      if (input.step === undefined) refuse("add needs the whole step.");
-      insertAt(draft.steps, input.step, input.position);
-      return;
-    case "replace":
-      if (index < 0) refuse(`There is no step ${input.stepId} in this draft.`);
-      if (input.step === undefined) refuse("replace needs the whole step.");
-      draft.steps[index] = input.step;
-      return;
-    case "move": {
-      if (index < 0) refuse(`There is no step ${input.stepId} in this draft.`);
-      if (input.position === undefined) refuse("move needs the position to move it to.");
-      const [step] = draft.steps.splice(index, 1);
-      if (step === undefined) refuse(`There is no step ${input.stepId} in this draft.`);
-      insertAt(draft.steps, step, input.position);
-      return;
+function requireVersion(input: QuestionEdit): number {
+  if (input.version === undefined) refuse(`${input.action} needs the version to pin.`);
+  return input.version;
+}
+
+const QUESTION_EDITS: Readonly<
+  Record<QuestionEdit["action"], (draft: FormDefinition, input: QuestionEdit) => void>
+> = {
+  pin: (draft, input) => {
+    if (findPin(draft, input.questionId) !== undefined) {
+      refuse(`${input.questionId} is already on this form.`);
     }
-    case "remove":
-      if (index < 0) refuse(`There is no step ${input.stepId} in this draft.`);
-      if (draft.steps.length === 1) refuse("A form keeps at least one step.");
-      draft.steps.splice(index, 1);
-      return;
-  }
+    const version = requireVersion(input);
+    const step = requireStep(draft, input.stepId, "pin");
+    insertAt(step.items, { questionId: input.questionId, version }, input.position);
+  },
+  repin: (draft, input) => {
+    const found = requirePin(draft, input.questionId);
+    const version = requireVersion(input);
+    (found.group?.items ?? found.step.items)[found.index] = {
+      questionId: input.questionId,
+      version,
+    };
+  },
+  move: (draft, input) => {
+    const found = requirePin(draft, input.questionId);
+    if (found.group !== undefined) {
+      refuse("That question is inside a repeating group: replace the step with edit_step.");
+    }
+    const target = requireStep(draft, input.stepId, "move");
+    const [pin] = found.step.items.splice(found.index, 1);
+    if (pin === undefined) refuse(`${input.questionId} is not on this form.`);
+    insertAt(target.items, pin, input.position);
+  },
+  unpin: (draft, input) => {
+    const found = requirePin(draft, input.questionId);
+    (found.group?.items ?? found.step.items).splice(found.index, 1);
+  },
+};
+
+type StepEdit = z.infer<typeof EditStepInput>;
+
+function existingStep(draft: FormDefinition, stepId: string): number {
+  const index = stepIndex(draft, stepId);
+  if (index < 0) refuse(`There is no step ${stepId} in this draft.`);
+  return index;
+}
+
+function wholeStep(input: StepEdit): NonNullable<StepEdit["step"]> {
+  if (input.step === undefined) refuse(`${input.action} needs the whole step.`);
+  if (input.step.stepId !== input.stepId) refuse("The step's own stepId must equal stepId.");
+  return input.step;
+}
+
+const STEP_EDITS: Readonly<
+  Record<StepEdit["action"], (draft: FormDefinition, input: StepEdit) => void>
+> = {
+  add: (draft, input) => {
+    if (stepIndex(draft, input.stepId) >= 0) refuse(`There is already a step ${input.stepId}.`);
+    insertAt(draft.steps, wholeStep(input), input.position);
+  },
+  replace: (draft, input) => {
+    draft.steps[existingStep(draft, input.stepId)] = wholeStep(input);
+  },
+  move: (draft, input) => {
+    const index = existingStep(draft, input.stepId);
+    if (input.position === undefined) refuse("move needs the position to move it to.");
+    const [step] = draft.steps.splice(index, 1);
+    if (step === undefined) refuse(`There is no step ${input.stepId} in this draft.`);
+    insertAt(draft.steps, step, input.position);
+  },
+  remove: (draft, input) => {
+    const index = existingStep(draft, input.stepId);
+    if (draft.steps.length === 1) refuse("A form keeps at least one step.");
+    draft.steps.splice(index, 1);
+  },
+};
+
+function applyQuestion(draft: FormDefinition, input: QuestionEdit): void {
+  QUESTION_EDITS[input.action](draft, input);
+}
+
+function applyStep(draft: FormDefinition, input: StepEdit): void {
+  STEP_EDITS[input.action](draft, input);
 }
 
 function applyRule(draft: FormDefinition, input: z.infer<typeof EditRuleInput>): void {
