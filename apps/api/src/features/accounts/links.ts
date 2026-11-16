@@ -45,8 +45,7 @@ export async function issueAndSendSignInLink(
     if (busy === undefined) await lockAccount(tx, input.userId);
     else if (!(await tryLockAccount(tx, input.userId))) throw busy();
     await withinIssue?.(tx);
-    const purpose =
-      typeof input.purpose === "function" ? await input.purpose(tx) : input.purpose;
+    const purpose = typeof input.purpose === "function" ? await input.purpose(tx) : input.purpose;
     const issued = await issueSignInLink(tx, {
       userId: input.userId,
       tokenHash,

@@ -272,7 +272,9 @@ async function liveLinks(userId: string): Promise<number> {
 }
 
 /** The vendor's open second-factor challenges for the account, with their attempt counters. */
-async function pendingChallenges(userId: string): Promise<(typeof authVerification.$inferSelect)[]> {
+async function pendingChallenges(
+  userId: string,
+): Promise<(typeof authVerification.$inferSelect)[]> {
   const challenges = await testDb.db
     .select()
     .from(authVerification)
@@ -291,7 +293,11 @@ async function pendingChallenges(userId: string): Promise<(typeof authVerificati
 }
 
 async function resend(userId: string): Promise<void> {
-  const response = await adminSend("POST", `/admin/accounts/${userId}/sign-in-link`, siteAdminToken);
+  const response = await adminSend(
+    "POST",
+    `/admin/accounts/${userId}/sign-in-link`,
+    siteAdminToken,
+  );
   expect(response.status, await response.clone().text()).toBe(200);
 }
 
@@ -427,7 +433,11 @@ describe("who may act on an account (criteria 73, 74)", () => {
 
   it("refuses your own account on disable and reactivate", async () => {
     for (const act of ["disable", "reactivate"]) {
-      const response = await adminSend("POST", `/admin/accounts/${siteAdminId}/${act}`, siteAdminToken);
+      const response = await adminSend(
+        "POST",
+        `/admin/accounts/${siteAdminId}/${act}`,
+        siteAdminToken,
+      );
       expect(response.status, act).toBe(409);
       expect(await errorCodeOf(response), act).toBe("OWN_ACCOUNT");
     }
@@ -934,10 +944,15 @@ describe("re-confirming a suspended membership (criteria 60, 61, 62, 63)", () =>
     async () => {
       const person = await createAndClaim("reconfirm.regrant@example.test");
       await grant(viewersGroupId, person.userId);
-      const reset = await adminSend("POST", `/admin/accounts/${person.userId}/reset`, siteAdminToken, {
-        password: false,
-        factor: true,
-      });
+      const reset = await adminSend(
+        "POST",
+        `/admin/accounts/${person.userId}/reset`,
+        siteAdminToken,
+        {
+          password: false,
+          factor: true,
+        },
+      );
       expect(reset.status, await reset.clone().text()).toBe(200);
 
       const byResetter = await reconfirm(siteAdminToken, viewersGroupId, person.userId);
@@ -958,7 +973,9 @@ describe("re-confirming a suspended membership (criteria 60, 61, 62, 63)", () =>
 
       const byOther = await reconfirm(secondSiteAdminToken, viewersGroupId, person.userId);
       expect(byOther.status, await byOther.clone().text()).toBe(200);
-      expect((await findHoldSuspension(testDb.db, viewersGroupId, person.userId))?.suspendedAt).toBeNull();
+      expect(
+        (await findHoldSuspension(testDb.db, viewersGroupId, person.userId))?.suspendedAt,
+      ).toBeNull();
       // The subject has not finished the reset, so the re-confirmation is a grant while unclaimed.
       expect((await accountRow(person.userId)).claimedAt).toBeNull();
       expect(await siteActs(person.userId)).toContain(

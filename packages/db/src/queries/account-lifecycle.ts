@@ -251,7 +251,12 @@ export async function findHoldSuspension(
 /** Suspend one hold, recording who performed the act the suspension answers to. */
 export async function suspendHold(
   exec: Executor,
-  input: { readonly teamId: string; readonly userId: string; readonly by: string; readonly at: Date },
+  input: {
+    readonly teamId: string;
+    readonly userId: string;
+    readonly by: string;
+    readonly at: Date;
+  },
 ): Promise<void> {
   await exec
     .update(authTeamMember)
