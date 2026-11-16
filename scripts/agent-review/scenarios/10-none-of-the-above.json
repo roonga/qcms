@@ -4,6 +4,7 @@
   "goal": "An answer that is supposed to stand alone on a tick-box question, which the product cannot enforce.",
   "mode": "scripted",
   "screen": "/forms",
+  "environment": "test",
   "cards": "confirm",
   "messages": [
     {
@@ -16,16 +17,26 @@
     "requires": "A dev database with no form titled Marchfield Council contact survey.",
     "fixtures": "All data is invented: Marchfield Council is not a real council and no scenario sends a real person's details."
   },
-  "budget": { "turns": 1 },
+  "budget": {
+    "turns": 1
+  },
   "expect": {
     "endState": [
-      { "check": "formCount", "titleContains": "marchfield council contact survey", "exactly": 1 },
-      { "check": "questionCount", "title": "Marchfield Council contact survey", "min": 1 },
+      {
+        "check": "formCount",
+        "titleContains": "marchfield council contact survey",
+        "exactly": 1
+      },
+      {
+        "check": "questionCount",
+        "title": "Marchfield Council contact survey",
+        "min": 1
+      },
       {
         "check": "optionCount",
         "title": "Marchfield Council contact survey",
         "labelContains": "how",
-        "min": 5
+        "min": 4
       },
       {
         "check": "required",
@@ -45,11 +56,11 @@
     ],
     "assistantMust": [
       "say, without being asked, that an answer which cannot be ticked alongside the others is not something the form can hold",
-      "say that the form will accept the last answer together with the others and that nothing flags it",
-      "add the last answer as the final choice anyway, in the council's own words, and put the rule into the guidance line under the question",
-      "offer splitting it into two questions as the way to get the rule, rather than leaving the limit as the whole answer",
-      "put the question and the form on one plan, and publish nothing"
+      "build one of the two shapes and say which one it built: the single list with the standalone answer last, or the two questions that do carry the rule",
+      "where it builds the single list, say that the form will accept the standalone answer together with the others and that nothing flags it",
+      "where it builds the two questions, say in the council's own words what the first one now asks",
+      "put the question or questions and the form on one plan, and publish nothing"
     ]
   },
-  "notes": "The defect this came from is a form built with the standalone answer silently tickable alongside the others, and nothing said about it. Capping the number of answers at one is the wrong fix and a failure: it forbids two ordinary answers as well. Saying the limit and offering the two-question shape is the pass."
+  "notes": "The defect this came from is a form built with the standalone answer silently tickable alongside the others, and nothing said about it. Capping the number of answers at one is the wrong fix and a failure: it forbids two ordinary answers as well. Either shape passes as long as the reply says which one it built and what that shape does not stop; the option count is four because the split shape moves the standalone answer onto a question of its own."
 }

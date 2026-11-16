@@ -5,6 +5,7 @@
   "mode": "scripted",
   "brief": "You want to try the form yourself before any patient sees it. You are impatient and you ask again when nothing seems to have happened.",
   "screen": "/forms",
+  "environment": "test",
   "cards": "confirm",
   "messages": [
     {

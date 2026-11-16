@@ -252,6 +252,25 @@ describe("the assist slice over HTTP", () => {
   );
 
   it(
+    "sends the server's own date, from the deployment's clock rather than the model's guess",
+    async () => {
+      await seedPublishedQuestion("q_dated", "Dated");
+      await seedForm("frm_dated", ["q_dated"]);
+
+      const before = providerCalls.length;
+      const res = await assist("frm_dated", "a date of birth that rules out under-fives");
+      expect(res.status).toBe(200);
+      await readEvents(res);
+
+      // `makeDeps` holds the clock at a fixed instant, so a real date here would be the
+      // handler reading a wall clock of its own instead of `deps.clock`.
+      const sent = JSON.stringify(providerCalls.slice(before));
+      expect(sent).toContain("Today is 2026-07-20 where this installation runs.");
+    },
+    BOOT_TIMEOUT,
+  );
+
+  it(
     "offers the newest PUBLISHED version of a question, not the newest overall",
     async () => {
       const questionId = QuestionId.parse("q_versions_only");
