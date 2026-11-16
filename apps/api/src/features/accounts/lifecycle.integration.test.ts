@@ -1304,7 +1304,11 @@ describe("re-confirming a suspended membership (criteria 60, 61, 62, 63)", () =>
       await editGroup(
         person.session,
         editors,
-        { name: "Self editors", roles: ["forms.editor", "responses.viewer"], environments: ["prod"] },
+        {
+          name: "Self editors",
+          roles: ["forms.editor", "responses.viewer"],
+          environments: ["prod"],
+        },
         own,
       );
       expect(await suspendedBy(editors, person.userId)).toBe(person.userId);

@@ -1,3 +1,5 @@
+import { timingSafeEqual } from "node:crypto";
+
 import {
   authAccount,
   authInvitation,
@@ -76,7 +78,11 @@ export function claimSignInHeaders(): Headers {
 function isClaimSignIn(context: unknown): boolean {
   const headers = (context as { headers?: { get?: unknown } } | undefined)?.headers;
   if (typeof headers?.get !== "function") return false;
-  return (headers as Headers).get(CLAIM_SIGN_IN_HEADER) === claimSignInKey;
+  const sent = (headers as Headers).get(CLAIM_SIGN_IN_HEADER);
+  if (sent === null) return false;
+  const given = Buffer.from(sent);
+  const expected = Buffer.from(claimSignInKey);
+  return given.length === expected.length && timingSafeEqual(given, expected);
 }
 
 /**

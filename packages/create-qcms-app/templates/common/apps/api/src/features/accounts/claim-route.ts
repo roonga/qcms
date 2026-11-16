@@ -2,6 +2,7 @@ import { z } from "@hono/zod-openapi";
 import {
   boundAccountTransaction,
   consumeSignInLink,
+  deletePendingTwoFactorSignIns,
   findAccountById,
   findSignInLinkByHash,
   holdsAccountPassword,
@@ -122,6 +123,9 @@ export const registerAccountClaim: SliceRegistrar = (group, deps: Deps) => {
       // A claimed account already holds a password, so a link that outlived the claim is
       // not a way to set another one. A reset and a reactivation unclaim the account.
       if (found.claimedAt !== null) throw linkRefused();
+      // A challenge from a sign-in that raced the reset's commit would otherwise let the
+      // claim session be finished with the old password and the kept factor.
+      await deletePendingTwoFactorSignIns(tx, found.userId);
 
       const use = passwordUseFor(link.purpose, {
         holdsPassword: await holdsAccountPassword(tx, found.userId),
