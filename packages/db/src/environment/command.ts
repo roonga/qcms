@@ -61,6 +61,7 @@ export const RESERVED_ENVIRONMENT_NAMES: readonly string[] = [
   "assist",
   "release-workflow",
   "site-audit",
+  "accounts",
   "me",
   "health",
   "ready",

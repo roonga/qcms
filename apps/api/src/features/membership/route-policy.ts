@@ -97,6 +97,36 @@ export const AGENT_SCREEN_CELLS: readonly {
 // this".
 export const ROUTE_POLICIES: readonly RoutePolicy[] = [
   {
+    // The account directory. Site administrators only, and no role reaches it: a
+    // Workspace administrator adds a person by exact address and never browses it
+    // (`docs/WORKSPACE_ACCESS.md`, section 7).
+    method: "GET",
+    path: "/admin/accounts",
+    resource: "membership",
+    action: "read",
+    workspace: "installation",
+    installationOnly: true,
+  },
+  {
+    // The installation administrator's own cell, the one `docs/SECURITY_DESIGN.md` names
+    // user accounts under: creating an account belongs to no workspace, and its row goes
+    // to the site audit rather than to any workspace's.
+    method: "POST",
+    path: "/admin/accounts",
+    resource: "workspace",
+    action: "update",
+    workspace: "installation",
+    installationOnly: true,
+  },
+  {
+    method: "POST",
+    path: "/admin/accounts/{id}/sign-in-link",
+    resource: "workspace",
+    action: "update",
+    workspace: "installation",
+    installationOnly: true,
+  },
+  {
     method: "POST",
     path: "/admin/workspaces",
     resource: "workspace",

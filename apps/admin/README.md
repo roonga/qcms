@@ -156,7 +156,9 @@ one gate list that every route inherits.
 reads the same variable, so relaxing it in one place and not the other fails closed
 (every admin API call 401s). It does **not** skip the password change: that hatch exists
 because enrolment needs a device you may not have to hand, and changing a password needs
-nothing.
+nothing. It does **not** relax the claim either: an account created in the app holds
+nothing until a password and a verified second factor both exist, so `/claim` always ends
+at enrolment.
 
 ### Content to look at
 

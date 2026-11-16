@@ -10,6 +10,7 @@ import {
   BREACH_CHECK_DISABLED_WARNING,
   BREACH_LOOKUP_FAILED_CODE,
   BREACH_LOOKUP_OPERATOR_GUIDANCE,
+  BREACH_LOOKUP_TIMEOUT_MS,
   createAdminAuth,
   explainBreachLookupFailure,
   warnIfBreachCheckDisabled,
@@ -41,7 +42,7 @@ interface Wire {
   restore(): void;
 }
 
-function stubWire(answer: (prefix: string) => Response): Wire {
+function stubWire(answer: (prefix: string) => Response | Promise<Response>): Wire {
   const urls: string[] = [];
   const original = globalThis.fetch;
   globalThis.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
@@ -155,6 +156,35 @@ describe("an unreachable corpus fails closed, and says so", () => {
     expect(await countAdminUsers(testDb.db)).toBe(0);
     expect(wire.urls).toHaveLength(1);
   });
+
+  it("refuses the bootstrap once a hung lookup runs past its bound", async () => {
+    const password = newPassword();
+    let release: (() => void) | undefined;
+    wire = stubWire(
+      () =>
+        new Promise<Response>((_resolve, reject) => {
+          release = () => {
+            reject(new TypeError("fetch failed"));
+          };
+        }),
+    );
+    const logged: string[] = [];
+
+    const started = performance.now();
+    const result = await createInitialAdmin(
+      authWith(true, (message) => logged.push(message)),
+      testDb.db,
+      { email: EMAIL, password },
+    );
+    const elapsed = performance.now() - started;
+    release?.();
+
+    expect(result.ok === false && result.refusal.kind).toBe("breach-corpus-unreachable");
+    expect(elapsed).toBeGreaterThanOrEqual(BREACH_LOOKUP_TIMEOUT_MS - 50);
+    expect(elapsed).toBeLessThan(BREACH_LOOKUP_TIMEOUT_MS + 4_000);
+    expect(logged[0]).toContain(BREACH_LOOKUP_OPERATOR_GUIDANCE);
+    expect(await countAdminUsers(testDb.db)).toBe(0);
+  }, 30_000);
 
   it("names the network, denies the wrong hypothesis, and points at the knob", () => {
     const message = describeRefusal({ kind: "breach-corpus-unreachable" });

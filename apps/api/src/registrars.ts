@@ -1,4 +1,6 @@
 import type { RouteGroups } from "./app.js";
+import { registerAccountClaim } from "./features/accounts/claim-route.js";
+import { registerAccounts } from "./features/accounts/route.js";
 import { registerAdminAuthProxy } from "./features/auth/route.js";
 import { registerAgentProvenance } from "./features/agent/provenance-mount.js";
 import { registerFormsAssist } from "./features/agent/route.js";
@@ -28,7 +30,8 @@ import { registerRequestEnvironment } from "./middleware/request-environment.js"
 /**
  * `anonymous` is mounted only on `prod`, so other surfaces answer `404`. In `admin`, `registerAdminAuth`
  * goes first so the session gate refuses before the environment name matters, then
- * `registerRequestEnvironment`. `auth` sits outside the group.
+ * `registerRequestEnvironment`. `auth` sits outside the group, because its routes issue the
+ * session the gate reads.
  */
 export const appGroups: RouteGroups = {
   respondent: [
@@ -63,6 +66,7 @@ export const appGroups: RouteGroups = {
     registerLogoTakedown,
     // The only grant write path.
     registerMembership,
+    registerAccounts,
     registerLinks,
     registerWebhooks,
     // Operations discovery: what a response-only caller needs to find its own forms,
@@ -70,5 +74,7 @@ export const appGroups: RouteGroups = {
     registerOperations,
     registerOutboxOps,
   ],
-  auth: [registerAdminAuthProxy],
+  // The claim comes first: the proxy below answers 404 to every path that is not a
+  // better-auth endpoint, so a registrar after it would never be reached.
+  auth: [registerAccountClaim, registerAdminAuthProxy],
 };

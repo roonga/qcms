@@ -9,6 +9,7 @@ export const ORIGIN_BELT_REFUSED = "origin.belt.refused";
 export type BeltRoute =
   | "/assist"
   | "/change-password/submit"
+  | "/claim/submit"
   | "/forms/{formId}/assist"
   | "/settings/password"
   | "/settings/recovery-codes"
@@ -61,6 +62,12 @@ const BELTED_ROUTES: readonly BeltedRoute[] = [
     /** Bootstrap password changes are distinct from settings changes: provisional accounts cannot reach the shell. */
     route: "/change-password/submit",
     pattern: /^\/change-password\/submit\/?$/,
+    outcome: "redirect-with-failure",
+  },
+  {
+    /** The claim has no session of its own to refuse: the emailed token is the credential. */
+    route: "/claim/submit",
+    pattern: /^\/claim\/submit\/?$/,
     outcome: "redirect-with-failure",
   },
   {

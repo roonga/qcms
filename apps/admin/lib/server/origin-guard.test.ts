@@ -32,6 +32,7 @@ function authResponse(body: unknown, init: ResponseInit = {}): Response {
 }
 
 const seams = {
+  claimAccount: vi.fn(),
   signInEmail: vi.fn(),
   signOut: vi.fn(),
   verifyTotp: vi.fn(),
@@ -50,6 +51,7 @@ const seams = {
 };
 
 vi.mock("@/lib/server/auth-api", () => ({
+  claimAccount: seams.claimAccount,
   signInEmail: seams.signInEmail,
   signOut: seams.signOut,
   verifyTotp: seams.verifyTotp,
@@ -107,6 +109,7 @@ vi.mock("@/lib/server/session", async () => ({
 }));
 
 const { isSameOriginPost } = await import("./route-helpers.ts");
+const claimRoute = await import("../../app/claim/submit/route.ts");
 const signInRoute = await import("../../app/sign-in/submit/route.ts");
 const signOutRoute = await import("../../app/sign-out/route.ts");
 const challengeRoute = await import("../../app/two-factor/challenge/verify/route.ts");
@@ -215,6 +218,26 @@ function form(entries: Record<string, string>): FormData {
 }
 
 const ROUTES: readonly GuardedRoute[] = [
+  {
+    path: "app/claim/submit/route.ts",
+    post: (headers) =>
+      claimRoute.POST(
+        formPost(
+          "/claim/submit",
+          headers,
+          form({
+            token: "a-link-token",
+            newPassword: "correct horse battery staple",
+            confirmPassword: "correct horse battery staple",
+          }),
+        ),
+      ),
+    reached: () => seams.claimAccount,
+    // The token is dropped on a belt refusal, as on every refusal the person cannot
+    // retype past.
+    refusalLocation: "/claim?linkRefused=1",
+    logged: { beltRoute: "/claim/submit", beltOutcome: "redirect-with-failure" },
+  },
   {
     path: "app/sign-in/submit/route.ts",
     post: (headers) =>
@@ -406,6 +429,7 @@ describe("isSameOriginPost", () => {
 describe.each(ROUTES)("$path", (route) => {
   beforeEach(() => {
     for (const seam of Object.values(seams)) seam.mockClear();
+    seams.claimAccount.mockResolvedValue(authResponse({}));
     seams.signInEmail.mockResolvedValue(authResponse({}));
     seams.signOut.mockResolvedValue(authResponse({}));
     seams.verifyTotp.mockResolvedValue(authResponse({}));

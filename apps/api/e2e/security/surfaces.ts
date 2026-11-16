@@ -363,6 +363,34 @@ export const SURFACES: readonly Surface[] = [
     anonymousReachable: false,
     readControl: true,
   },
+  // The account directory: Site administrators only, and the one membership-row route
+  // that names no workspace at all.
+  {
+    name: "GET /admin/accounts",
+    row: "membership",
+    group: "admin",
+    method: "GET",
+    path: () => "/admin/accounts",
+    anonymousReachable: false,
+    readControl: true,
+  },
+  {
+    name: "POST /admin/accounts",
+    row: "membership",
+    group: "admin",
+    method: "POST",
+    path: () => "/admin/accounts",
+    body: { email: "matrix.probe@example.test" },
+    anonymousReachable: false,
+  },
+  {
+    name: "POST /admin/accounts/{id}/sign-in-link",
+    row: "membership",
+    group: "admin",
+    method: "POST",
+    path: (ctx) => `/admin/accounts/${ctx.holderId}/sign-in-link`,
+    anonymousReachable: false,
+  },
   {
     name: "GET /admin/workspaces/{id}/members",
     row: "membership",
@@ -726,6 +754,17 @@ export const SURFACES: readonly Surface[] = [
     path: () => "/api/auth/sign-in/email",
     body: { email: "nobody@example.test", ...WRONG_CREDENTIAL },
     anonymousReachable: false,
+  },
+  // Sets a credential and issues a session for a caller holding no session at all: the
+  // channel token and the emailed link are all it asks for.
+  {
+    name: "POST /api/auth/claim",
+    row: "membership",
+    group: "auth",
+    method: "POST",
+    path: () => "/api/auth/claim",
+    body: { token: "not-a-real-claim-token", ...WRONG_CREDENTIAL },
+    anonymousReachable: true,
   },
   {
     // Anonymous like the two entry rows: a logo is served to whoever the form is served
