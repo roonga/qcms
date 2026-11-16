@@ -14,6 +14,9 @@ const REPO_ROOT = new URL("../", import.meta.url);
 const PACKAGE_JSON = "package.json";
 const WORKFLOW = ".github/workflows/ci.yml";
 
+/** Workflows that own a required status check; the merge queue stalls on any that does not run for it. */
+export const REQUIRED_CHECK_WORKFLOWS = [WORKFLOW, ".github/workflows/e2e.yml"];
+
 /**
  * `check:plan` is the fast lane's replacement for the build-and-test steps, so it is
  * not a member of `check:all`. Named rather than pattern-matched, so a second case
@@ -81,10 +84,44 @@ export function compareLists(inCheckAll, inWorkflow) {
   };
 }
 
+/**
+ * True when the workflow's `on:` block runs it for a merge queue entry. Comment lines are
+ * dropped first, so a commented-out trigger does not count.
+ *
+ * @param {string} workflowText
+ * @returns {boolean}
+ */
+export function hasMergeGroupTrigger(workflowText) {
+  const lines = workflowText.split("\n").filter((line) => !line.trimStart().startsWith("#"));
+  const start = lines.findIndex((line) => /^on:\s*$/.test(line));
+  if (start === -1) return false;
+  const end = lines.findIndex((line, index) => index > start && /^\S/.test(line));
+  const block = lines.slice(start + 1, end === -1 ? undefined : end).join("\n");
+  return /^ {2}merge_group:/m.test(block) && /checks_requested/.test(block);
+}
+
 /** @returns {number} */
 function main() {
   const packageJsonText = readFileSync(fileURLToPath(new URL(PACKAGE_JSON, REPO_ROOT)), "utf8");
   const workflowText = readFileSync(fileURLToPath(new URL(WORKFLOW, REPO_ROOT)), "utf8");
+
+  const withoutQueue = REQUIRED_CHECK_WORKFLOWS.filter(
+    (path) => !hasMergeGroupTrigger(readFileSync(fileURLToPath(new URL(path, REPO_ROOT)), "utf8")),
+  );
+  if (withoutQueue.length > 0) {
+    console.error(
+      [
+        "check-ci-parity: these workflows own a required check but do not run for the merge queue:",
+        "",
+        ...withoutQueue.map((path) => `  ${path}`),
+        "",
+        "Add `merge_group: { types: [checks_requested] }` to their `on:` triggers, or every",
+        "queue entry waits for a check that never reports.",
+        "",
+      ].join("\n"),
+    );
+    return 1;
+  }
 
   const inCheckAll = checkAllEntries(packageJsonText);
   const inWorkflow = workflowEntries(workflowText);
