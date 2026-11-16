@@ -94,8 +94,8 @@ function stream(body: string): Response {
 }
 
 function actionStream(): Response {
-  const event = { type: "action", proposal: APPLY_DRAFT_PROPOSAL };
-  return stream(`event: action\ndata: ${JSON.stringify(event)}\n\n`);
+  const event = { type: "plan", proposal: APPLY_DRAFT_PROPOSAL };
+  return stream(`event: plan\ndata: ${JSON.stringify(event)}\n\n`);
 }
 
 function mount(): void {

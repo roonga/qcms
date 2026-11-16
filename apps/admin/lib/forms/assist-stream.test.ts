@@ -119,10 +119,10 @@ describe("readAssistEvents", () => {
       warnings: [{ code: "MULTICHOICE_SAME_STEP_TARGET", message: "reveals on the same step" }],
     };
     const events = await collect(
-      streamOf([frame("action", { proposal: proposalWith(applyDraftStep(draft)) })]),
+      streamOf([frame("plan", { proposal: proposalWith(applyDraftStep(draft)) })]),
     );
     const event = events[0];
-    if (event?.type !== "action") throw new Error("expected an action frame");
+    if (event?.type !== "plan") throw new Error("expected a plan frame");
     expect(event.proposal.steps[0]?.local).toBe(true);
     expect(event.proposal.steps[0]?.draft).toEqual(draft);
   });
@@ -138,16 +138,16 @@ describe("readAssistEvents", () => {
         hideEnvironment: true,
       },
     };
-    const events = await collect(streamOf([frame("action", { proposal: proposalWith(step) })]));
+    const events = await collect(streamOf([frame("plan", { proposal: proposalWith(step) })]));
     const event = events[0];
-    if (event?.type !== "action") throw new Error("expected an action frame");
+    if (event?.type !== "plan") throw new Error("expected a plan frame");
     expect(event.proposal.steps[0]?.card.hideEnvironment).toBe(true);
   });
 
   it("omits hideEnvironment where the API sent none, rather than inventing false", async () => {
     const events = await collect(
       streamOf([
-        frame("action", {
+        frame("plan", {
           proposal: proposalWith(
             applyDraftStep({ definition: { formId: "frm_a" }, newQuestions: [], issues: [] }),
           ),
@@ -155,7 +155,7 @@ describe("readAssistEvents", () => {
       ]),
     );
     const event = events[0];
-    if (event?.type !== "action") throw new Error("expected an action frame");
+    if (event?.type !== "plan") throw new Error("expected a plan frame");
     expect(event.proposal.steps[0]?.card.hideEnvironment).toBeUndefined();
   });
 
@@ -166,9 +166,9 @@ describe("readAssistEvents", () => {
       issues: [],
       createdBy: [{ questionId: "q_new", step: 1 }],
     });
-    const events = await collect(streamOf([frame("action", { proposal: proposalWith(step) })]));
+    const events = await collect(streamOf([frame("plan", { proposal: proposalWith(step) })]));
     const event = events[0];
-    if (event?.type !== "action") throw new Error("expected an action frame");
+    if (event?.type !== "plan") throw new Error("expected a plan frame");
     expect(event.proposal.steps[0]?.draft?.createdBy).toEqual([{ questionId: "q_new", step: 1 }]);
   });
 
@@ -179,9 +179,9 @@ describe("readAssistEvents", () => {
       issues: [],
       createdBy: [{ questionId: "", step: 1 }, { questionId: "q_ok" }, "nonsense"],
     });
-    const events = await collect(streamOf([frame("action", { proposal: proposalWith(step) })]));
+    const events = await collect(streamOf([frame("plan", { proposal: proposalWith(step) })]));
     const event = events[0];
-    if (event?.type !== "action") throw new Error("expected an action frame");
+    if (event?.type !== "plan") throw new Error("expected a plan frame");
     expect(event.proposal.steps[0]?.draft?.createdBy).toBeUndefined();
   });
 
@@ -196,16 +196,16 @@ describe("readAssistEvents", () => {
         { name: "no id" },
       ],
     };
-    const events = await collect(streamOf([frame("action", { proposal })]));
+    const events = await collect(streamOf([frame("plan", { proposal })]));
     const event = events[0];
-    if (event?.type !== "action") throw new Error("expected an action frame");
+    if (event?.type !== "plan") throw new Error("expected a plan frame");
     expect(event.proposal.workspaces).toEqual([{ workspaceId: "wsp_a", name: "Clinic forms" }]);
   });
 
   it("reads an applied draft with no warnings key as no warnings, not as absent", async () => {
     const events = await collect(
       streamOf([
-        frame("action", {
+        frame("plan", {
           proposal: proposalWith(
             applyDraftStep({
               definition: { formId: "frm_a", steps: [], rules: [] },
@@ -217,7 +217,7 @@ describe("readAssistEvents", () => {
       ]),
     );
     const event = events[0];
-    if (event?.type !== "action") throw new Error("expected an action frame");
+    if (event?.type !== "plan") throw new Error("expected a plan frame");
     expect(event.proposal.steps[0]?.draft?.warnings).toEqual([]);
   });
 

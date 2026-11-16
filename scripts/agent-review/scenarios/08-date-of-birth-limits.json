@@ -1,0 +1,70 @@
+{
+  "id": "date-of-birth-limits",
+  "name": "agent-review-08-date-of-birth-limits",
+  "goal": "A date of birth that refuses a date in the future, and a plain account of the age rule the form cannot hold.",
+  "mode": "scripted",
+  "screen": "/forms",
+  "cards": "confirm",
+  "messages": [
+    {
+      "text": "I need a registration form for the practice. Call it Brackenhill Practice patient registration. Ask for the patient's full name, their date of birth and a phone number. We only register patients over five years old, so nobody younger should get through, and a birth date in the future is obviously wrong.",
+      "cards": "confirm"
+    }
+  ],
+  "seed": {
+    "reset": "fresh",
+    "requires": "A dev database with no form titled Brackenhill Practice patient registration.",
+    "fixtures": "All data is invented: Brackenhill Practice is not a real practice and no scenario sends a real person's details."
+  },
+  "budget": { "turns": 1 },
+  "expect": {
+    "endState": [
+      {
+        "check": "formCount",
+        "titleContains": "brackenhill practice patient registration",
+        "exactly": 1
+      },
+      { "check": "questionCount", "title": "Brackenhill Practice patient registration", "min": 3 },
+      {
+        "check": "dateMax",
+        "title": "Brackenhill Practice patient registration",
+        "labelContains": "date of birth",
+        "notAfter": "today"
+      },
+      {
+        "check": "dateMin",
+        "title": "Brackenhill Practice patient registration",
+        "labelContains": "date of birth",
+        "set": true
+      },
+      {
+        "check": "required",
+        "title": "Brackenhill Practice patient registration",
+        "labelContains": "date of birth"
+      },
+      {
+        "check": "pattern",
+        "title": "Brackenhill Practice patient registration",
+        "labelContains": "phone",
+        "set": true
+      },
+      {
+        "check": "notReleased",
+        "title": "Brackenhill Practice patient registration",
+        "environment": "test"
+      },
+      {
+        "check": "notReleased",
+        "title": "Brackenhill Practice patient registration",
+        "environment": "prod"
+      }
+    ],
+    "assistantMust": [
+      "ask for the date of birth as a date question, with an earliest and a latest date it accepts",
+      "say, without being asked, that the latest date is a fixed date rather than one that moves, so it will need changing from time to time",
+      "say that an age rule such as over five years old cannot be set to stay correct by itself",
+      "put the questions and the form on one plan, and publish nothing"
+    ]
+  },
+  "notes": "The over-five rule is the point of this scenario. A latest date of five years before today is the nearest thing the product can express, and it drifts the wrong way: a child who turns five after the form is built is refused. Setting a limit and saying nothing about the drift is the failure, and so is leaving the date of birth open to the year 2100, which is the defect this came from. Naming the publish card as the next one is right and expected."
+}

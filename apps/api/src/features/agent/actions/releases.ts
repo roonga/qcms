@@ -1,5 +1,8 @@
 import { z } from "zod";
 
+import { BatchTarget, PublishBatchBody, ReleaseBatchBody } from "../../releases/schema.js";
+import { ACTION_DESCRIPTIONS } from "../prompts/prompts.generated.js";
+import { bodyMember, routeArgs, type StepArgs } from "./derive.js";
 import type { ActionKindDef, ActionRequestFacts } from "./types.js";
 
 /**
@@ -7,38 +10,20 @@ import type { ActionKindDef, ActionRequestFacts } from "./types.js";
  * test, then promote it to prod" is verified on each step's own environment.
  */
 
-const ReleaseArgs = z.strictObject({
-  formId: z.string().min(1).max(200),
-  version: z.number().int().min(1).max(1_000_000),
-  environment: z.string().min(1).max(53),
-  fromEnvironment: z.string().min(1).max(53).optional(),
-});
-
-const PublishArgs = z.strictObject({
-  formId: z.string().min(1).max(200),
-  environment: z
-    .string()
-    .min(1)
-    .max(53)
-    .describe("The one environment the newly frozen version goes live in."),
-});
-
-function bodyMember(facts: ActionRequestFacts, name: string): unknown {
-  return typeof facts.body === "object" && facts.body !== null
-    ? (facts.body as Record<string, unknown>)[name]
-    : undefined;
-}
+const FormIdArg = z.string().min(1).max(200);
 
 /**
  * One member of the destination a batch body names, which is the environment the step is
  * verified against. A body naming none or several is refused by the provenance check, so
  * this reads the one and reports nothing for any other shape.
  */
-function soleTargetMember(facts: ActionRequestFacts, name: string): unknown {
-  const targets = bodyMember(facts, "targets");
-  if (!Array.isArray(targets) || targets.length !== 1) return undefined;
-  const target = targets[0] as Record<string, unknown> | undefined;
-  return target?.[name];
+function soleTargetMember(name: string): (facts: ActionRequestFacts) => unknown {
+  return (facts) => {
+    const targets = bodyMember(facts, "targets");
+    if (!Array.isArray(targets) || targets.length !== 1) return undefined;
+    const target = targets[0] as Record<string, unknown> | undefined;
+    return target?.[name];
+  };
 }
 
 /** The version a `release-batch` body publishes, which lives under its source. */
@@ -48,6 +33,53 @@ function sourceVersion(facts: ActionRequestFacts): unknown {
     ? (source as Record<string, unknown>)["version"]
     : undefined;
 }
+
+// A batch body nests what a step names: the version under `source`, the environment under
+// the one destination `targets` carries. The expectations the wizard forwards are the
+// browser's own, read off the review immediately before Confirm.
+const BATCH_UNNAMED = ["idempotencyKey", "expectedWorkflowRevision", "source", "targets"] as const;
+
+const publish = routeArgs(
+  PublishBatchBody,
+  {
+    formId: FormIdArg,
+    environment: BatchTarget.shape.environment.describe(
+      "The one environment the newly frozen version goes live in.",
+    ),
+  } satisfies StepArgs<
+    typeof PublishBatchBody.shape,
+    (typeof BATCH_UNNAMED)[number],
+    "formId" | "environment"
+  >,
+  {
+    unnamed: BATCH_UNNAMED,
+    params: { formId: "id" },
+    readers: { environment: soleTargetMember("environment") },
+  },
+);
+
+const release = routeArgs(
+  ReleaseBatchBody,
+  {
+    formId: FormIdArg,
+    version: ReleaseBatchBody.shape.source.shape.version.max(1_000_000),
+    environment: BatchTarget.shape.environment,
+    fromEnvironment: BatchTarget.shape.fromEnvironment,
+  } satisfies StepArgs<
+    typeof ReleaseBatchBody.shape,
+    (typeof BATCH_UNNAMED)[number],
+    "formId" | "version" | "environment" | "fromEnvironment"
+  >,
+  {
+    unnamed: BATCH_UNNAMED,
+    params: { formId: "id" },
+    readers: {
+      version: sourceVersion,
+      environment: soleTargetMember("environment"),
+      fromEnvironment: soleTargetMember("fromEnvironment"),
+    },
+  },
+);
 
 export const publishForm: ActionKindDef = {
   kind: "form.publish",
@@ -63,11 +95,7 @@ export const publishForm: ActionKindDef = {
   ],
   environmentFrom: "argument",
   environmentArgument: "environment",
-  args: PublishArgs,
-  recomputeArgs: (facts) => ({
-    formId: facts.params.id ?? "",
-    environment: soleTargetMember(facts, "environment"),
-  }),
+  ...publish,
   references: ["version"],
   resultAllowlist: ["version", "environment"],
   card: {
@@ -75,11 +103,7 @@ export const publishForm: ActionKindDef = {
     consequenceKeys: ["agent.card.form.publish.consequence", "agent.card.environment.production"],
     headingControl: "builder.publish",
   },
-  description:
-    "Publish the form's working draft to one environment: freeze it as the next version and " +
-    "make that version live there, in one act. Needs Edit forms and Publish forms for that " +
-    "environment. Where a non-prod environment exists a draft is never published straight " +
-    "to prod. The workflow and second approval apply exactly as they do on the screen.",
+  description: ACTION_DESCRIPTIONS["form.publish"],
 };
 
 export const releaseVersion: ActionKindDef = {
@@ -92,15 +116,7 @@ export const releaseVersion: ActionKindDef = {
   cell: { resource: "release", action: "create" },
   environmentFrom: "argument",
   environmentArgument: "environment",
-  args: ReleaseArgs,
-  recomputeArgs: (facts) => ({
-    formId: facts.params.id ?? "",
-    version: sourceVersion(facts),
-    environment: soleTargetMember(facts, "environment"),
-    ...(soleTargetMember(facts, "fromEnvironment") === undefined
-      ? {}
-      : { fromEnvironment: soleTargetMember(facts, "fromEnvironment") }),
-  }),
+  ...release,
   // The version alone: that is what this step's audit row records, and a reference
   // resolves against the row rather than against anything the browser says.
   references: ["version"],
@@ -110,10 +126,5 @@ export const releaseVersion: ActionKindDef = {
     consequenceKeys: ["agent.card.form.release.consequence", "agent.card.environment.production"],
     headingControl: "releases.release",
   },
-  description:
-    "Publish an existing version to one environment, including an earlier one (rollback). " +
-    "Nothing is frozen. Prod accepts only a version already live in a non-prod environment, " +
-    "where one exists. The workflow revision, the destination's release state and second " +
-    "approval are all rechecked at confirmation, so a stale review is refused and writes " +
-    "nothing, exactly as on the screen.",
+  description: ACTION_DESCRIPTIONS["form.release"],
 };

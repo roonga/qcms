@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-import type { ActionKindDef, ActionRequestFacts } from "./types.js";
+import { CreateWebhookBody, UpdateWebhookBody } from "../../webhooks/schema.js";
+import { ACTION_DESCRIPTIONS } from "../prompts/prompts.generated.js";
+import { routeArgs, stated, type StepArgs } from "./derive.js";
+import type { ActionKindDef } from "./types.js";
 
 /**
  * A created or rotated secret reaches the user's card once and is on no allowlist, so it cannot travel into
@@ -10,38 +13,61 @@ import type { ActionKindDef, ActionRequestFacts } from "./types.js";
 
 const ENDPOINT_PATH = "/admin/forms/{id}/webhooks/{webhookId}";
 
+// Narrower than the route's own member, which takes any string: an endpoint is a URL.
 const Url = z
   .url()
   .max(2000)
   .describe("The endpoint's full URL, with its query string if it has one.");
 
-const CreateArgs = z.strictObject({
-  formId: z.string().min(1).max(200),
-  url: Url,
-  active: z.boolean().describe("Whether deliveries start at once."),
+const FormIdArg = z.string().min(1).max(200);
+const WebhookIdArg = z.string().min(1).max(200);
+
+const create = routeArgs(
+  CreateWebhookBody,
+  {
+    formId: FormIdArg,
+    url: Url,
+    active: stated(CreateWebhookBody.shape.active).describe("Whether deliveries start at once."),
+  } satisfies StepArgs<typeof CreateWebhookBody.shape, "secret", "formId">,
+  // The signing secret is the route's to mint: no card carries one in its arguments.
+  { unnamed: ["secret"], params: { formId: "id" } },
+);
+
+// The kind is the act, so the update body holds nothing a step chooses: a rotate sends
+// `rotateSecret`, a reactivate sends `active`, and the endpoint itself is the path's.
+const ENDPOINT_ARGS = {
+  formId: FormIdArg,
+  webhookId: WebhookIdArg,
+} satisfies StepArgs<
+  typeof UpdateWebhookBody.shape,
+  "url" | "active" | "rotateSecret" | "secret",
+  "formId" | "webhookId"
+>;
+
+const ENDPOINT_PARAMS = { formId: "id", webhookId: "webhookId" } as const;
+
+const endpoint = routeArgs(UpdateWebhookBody, ENDPOINT_ARGS, {
+  unnamed: ["url", "active", "rotateSecret", "secret"],
+  params: ENDPOINT_PARAMS,
 });
 
-const EndpointArgs = z.strictObject({
-  formId: z.string().min(1).max(200),
-  webhookId: z.string().min(1).max(200),
-});
-
-const RetargetArgs = z.strictObject({
-  formId: z.string().min(1).max(200),
-  webhookId: z.string().min(1).max(200),
-  url: Url,
-});
+const retarget = routeArgs(
+  UpdateWebhookBody,
+  {
+    ...ENDPOINT_ARGS,
+    url: Url,
+  } satisfies StepArgs<
+    typeof UpdateWebhookBody.shape,
+    "active" | "rotateSecret" | "secret",
+    "formId" | "webhookId"
+  >,
+  { unnamed: ["active", "rotateSecret", "secret"], params: ENDPOINT_PARAMS },
+);
 
 const RedeliverArgs = z.strictObject({
-  formId: z.string().min(1).max(200),
+  formId: FormIdArg,
   deliveryId: z.string().min(1).max(200),
 });
-
-function bodyMember(facts: ActionRequestFacts, name: string): unknown {
-  return typeof facts.body === "object" && facts.body !== null
-    ? (facts.body as Record<string, unknown>)[name]
-    : undefined;
-}
 
 export const createWebhook: ActionKindDef = {
   kind: "webhook.create",
@@ -49,12 +75,7 @@ export const createWebhook: ActionKindDef = {
   route: { method: "POST", path: "/admin/forms/{id}/webhooks" },
   cell: { resource: "webhook", action: "configure" },
   environmentFrom: "switcher",
-  args: CreateArgs,
-  recomputeArgs: (facts) => ({
-    formId: facts.params.id ?? "",
-    url: bodyMember(facts, "url"),
-    active: bodyMember(facts, "active"),
-  }),
+  ...create,
   references: ["webhookId"],
   // Never `secret`: the one place the plaintext exists is the screen that asked for it.
   resultAllowlist: ["webhookId", "environment", "active"],
@@ -63,9 +84,7 @@ export const createWebhook: ActionKindDef = {
     consequenceKeys: ["agent.card.webhook.create.consequence", "agent.card.webhook.create.secret"],
     headingControl: "webhooks.create",
   },
-  description:
-    "Configure a new delivery endpoint for this form in the current environment. Its " +
-    "signing secret is shown to the user once and is never returned to you.",
+  description: ACTION_DESCRIPTIONS["webhook.create"],
 };
 
 export const rotateWebhookSecret: ActionKindDef = {
@@ -74,11 +93,7 @@ export const rotateWebhookSecret: ActionKindDef = {
   route: { method: "PUT", path: ENDPOINT_PATH, bodyMembers: ["rotateSecret"] },
   cell: { resource: "webhook", action: "configure" },
   environmentFrom: "switcher",
-  args: EndpointArgs,
-  recomputeArgs: (facts) => ({
-    formId: facts.params.id ?? "",
-    webhookId: facts.params.webhookId ?? "",
-  }),
+  ...endpoint,
   references: ["webhookId"],
   resultAllowlist: ["webhookId", "environment"],
   card: {
@@ -86,9 +101,7 @@ export const rotateWebhookSecret: ActionKindDef = {
     consequenceKeys: ["agent.card.webhook.rotate.consequence", "agent.card.webhook.create.secret"],
     headingControl: "webhooks.rotate",
   },
-  description:
-    "Replace an endpoint's signing secret. Deliveries signed with the old one stop " +
-    "verifying, and the new secret is shown to the user once.",
+  description: ACTION_DESCRIPTIONS["webhook.rotate"],
 };
 
 export const reactivateWebhook: ActionKindDef = {
@@ -97,11 +110,7 @@ export const reactivateWebhook: ActionKindDef = {
   route: { method: "PUT", path: ENDPOINT_PATH, bodyMembers: ["active"] },
   cell: { resource: "webhook", action: "configure" },
   environmentFrom: "switcher",
-  args: EndpointArgs,
-  recomputeArgs: (facts) => ({
-    formId: facts.params.id ?? "",
-    webhookId: facts.params.webhookId ?? "",
-  }),
+  ...endpoint,
   references: ["webhookId"],
   resultAllowlist: ["webhookId", "environment"],
   card: {
@@ -109,7 +118,7 @@ export const reactivateWebhook: ActionKindDef = {
     consequenceKeys: ["agent.card.webhook.reactivate.consequence"],
     headingControl: "webhooks.activation",
   },
-  description: "Put a deactivated endpoint back in service in the current environment.",
+  description: ACTION_DESCRIPTIONS["webhook.reactivate"],
 };
 
 export const retargetWebhook: ActionKindDef = {
@@ -118,12 +127,7 @@ export const retargetWebhook: ActionKindDef = {
   route: { method: "PUT", path: ENDPOINT_PATH, bodyMembers: ["url"] },
   cell: { resource: "webhook", action: "configure" },
   environmentFrom: "switcher",
-  args: RetargetArgs,
-  recomputeArgs: (facts) => ({
-    formId: facts.params.id ?? "",
-    webhookId: facts.params.webhookId ?? "",
-    url: bodyMember(facts, "url"),
-  }),
+  ...retarget,
   references: ["webhookId"],
   resultAllowlist: ["webhookId", "environment"],
   card: {
@@ -131,9 +135,7 @@ export const retargetWebhook: ActionKindDef = {
     consequenceKeys: ["agent.card.webhook.retarget.consequence"],
     headingControl: "webhooks.retarget",
   },
-  description:
-    "Point an endpoint at another URL. The card names the endpoint and shows the new " +
-    "target in full, query string included.",
+  description: ACTION_DESCRIPTIONS["webhook.retarget"],
 };
 
 export const deactivateWebhook: ActionKindDef = {
@@ -142,7 +144,7 @@ export const deactivateWebhook: ActionKindDef = {
   route: { method: "DELETE", path: ENDPOINT_PATH },
   cell: { resource: "webhook", action: "configure" },
   environmentFrom: "switcher",
-  args: EndpointArgs,
+  args: z.strictObject(ENDPOINT_ARGS),
   recomputeArgs: (facts) => ({
     formId: facts.params.id ?? "",
     webhookId: facts.params.webhookId ?? "",
@@ -154,9 +156,7 @@ export const deactivateWebhook: ActionKindDef = {
     consequenceKeys: ["agent.card.webhook.deactivate.consequence"],
     headingControl: "webhooks.activation",
   },
-  description:
-    "Stop delivering to an endpoint. The row and its delivery history stay, and a " +
-    "delivery already in flight keeps its own retry state.",
+  description: ACTION_DESCRIPTIONS["webhook.deactivate"],
 };
 
 export const redeliverDelivery: ActionKindDef = {
@@ -177,7 +177,5 @@ export const redeliverDelivery: ActionKindDef = {
     consequenceKeys: ["agent.card.webhook.redeliver.consequence"],
     headingControl: "deadletters.redeliver",
   },
-  description:
-    "Reset one dead-lettered delivery to due-now, so the worker attempts it again. It " +
-    "reads no part of the payload.",
+  description: ACTION_DESCRIPTIONS["webhook.redeliver"],
 };

@@ -1,0 +1,12 @@
+Before you propose, look at what is already proposed or already done:
+- A card still waiting for their Confirm appears in the conversation as a line
+  saying so and listing its steps. When that line is there the card is on their
+  screen now: say it is waiting and what it covers. Do not put up a second one.
+- Being asked to get on with it, while a card of yours is waiting, is not a new
+  request. The waiting card is the thing they have to confirm, so point them at
+  it and say nothing can run until they do.
+- If a card they confirmed already did it, say it is done and what it produced.
+- A new card earns its place only on a real difference: another subject, a
+  correction to something that failed, or something the first card did not cover.
+  Different wording for the same work is not a difference, and neither is a
+  different short name for the same question.

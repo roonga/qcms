@@ -2,16 +2,21 @@ import {
   APICallError,
   stepCountIs,
   streamText,
+  type AssistantModelMessage,
   type LanguageModel,
+  type ModelMessage,
   type StopCondition,
+  type SystemModelMessage,
   type TextStreamPart,
   type ToolSet,
+  type UserModelMessage,
 } from "ai";
 
 import type { FormDefinition } from "@roonga/qcms-core";
 
 import type { AgentThinking, Config } from "../../config.js";
 import type { Logger } from "../../logger.js";
+import { cacheBreakpointOptions } from "./caching.js";
 import { fakeAssistantModel } from "./fake-model.js";
 import { buildSystemPrompt, SYSTEM_PROMPT_VERSION } from "./system-prompt.js";
 import { thinkingProviderOptions, type ProviderOptions } from "./thinking.js";
@@ -53,6 +58,9 @@ export interface RunOutcome {
   readonly toolSteps: Map<string, number>;
   /** Counted, never quoted. */
   reasoningTokens: number;
+  /** The whole turn's cache accounting: zero from a provider that reports none. */
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
   /** The current screen's tool list: the only names a step may announce or run. */
   readonly offered: ReadonlySet<string>;
 }
@@ -117,16 +125,40 @@ function factsPreamble(ctx: AgentContext): string {
 
 const PROPOSE_TOOLS = ["propose_draft", "propose_questions"] as const;
 
-export function toModelMessages(
-  ctx: AgentContext,
-): { role: "user" | "assistant"; content: string }[] {
+/** The instructions, carrying the breakpoint that ends the prefix the tools and this share. */
+function toInstructions(breakpoint: ProviderOptions | undefined): SystemModelMessage {
+  return {
+    role: "system",
+    content: buildSystemPrompt(),
+    ...(breakpoint === undefined ? {} : { providerOptions: breakpoint }),
+  };
+}
+
+/** The breakpoint rides the last message of a run, which is the end of a cacheable prefix. */
+function withBreakpoint<T extends ModelMessage>(
+  messages: readonly T[],
+  breakpoint: ProviderOptions | undefined,
+): T[] {
+  const last = messages.at(-1);
+  if (breakpoint === undefined || last === undefined) return [...messages];
+  return [...messages.slice(0, -1), { ...last, providerOptions: breakpoint }];
+}
+
+/**
+ * The volatile preambles sit after the turns that will not change again and before the
+ * person's own latest words, so the prefix above them is byte-identical from one turn to the
+ * next and the breakpoint on its last message carries it across turns.
+ */
+export function toModelMessages(ctx: AgentContext, breakpoint?: ProviderOptions): ModelMessage[] {
   // A screen can hold the draft ports for a read tool and still have nothing to propose,
   // so the preamble that asks for changes is sent only where a propose verb is offered.
   const draft = PROPOSE_TOOLS.some((name) => ctx.tools.includes(name)) ? ctx.draft : undefined;
+  const history = ctx.conversation.map((turn) => modelTurn(turn));
   return [
+    ...withBreakpoint(history.slice(0, -1), breakpoint),
     ...(draft === undefined ? [] : [{ role: "user" as const, content: draftPreamble(draft) }]),
     { role: "user" as const, content: factsPreamble(ctx) },
-    ...ctx.conversation.map((turn) => modelTurn(turn)),
+    ...history.slice(-1),
   ];
 }
 
@@ -159,9 +191,13 @@ function waitingTurn(turn: WaitingProposalTurn): string {
  * An action-result turn as the model reads it: one line per step, written here from
  * structured fields, so no model text and no content can re-enter the conversation.
  */
-function modelTurn(turn: AssistTurn): { role: "user" | "assistant"; content: string } {
+function modelTurn(turn: AssistTurn): UserModelMessage | AssistantModelMessage {
   if (turn.role === "proposal") return { role: "user", content: waitingTurn(turn) };
-  if (turn.role !== "action-result") return { role: turn.role, content: turn.content };
+  if (turn.role !== "action-result") {
+    return turn.role === "assistant"
+      ? { role: "assistant", content: turn.content }
+      : { role: "user", content: turn.content };
+  }
   const lines = turn.steps.map(
     (step, index) => `${String(index + 1)}. ${step.kind}: ${step.outcome}${resultFields(step)}`,
   );
@@ -205,15 +241,27 @@ export function aiSdkDraftAssistant(options: {
   readonly providerId: string;
   readonly logger: Logger;
   readonly providerOptions?: ProviderOptions;
+  /** The marker that ends the cacheable prefix, or nothing for a provider with no such control. */
+  readonly cacheBreakpoint?: ProviderOptions;
   /** Defaults to `off`. */
   readonly thinking?: AgentThinking;
 }): DraftAssistant {
-  const { model, providerId, logger, providerOptions, thinking = "off" } = options;
+  const { model, providerId, logger, providerOptions, cacheBreakpoint, thinking = "off" } = options;
 
   return {
     assist(ctx: AgentContext, signal: AbortSignal): AsyncIterable<AssistEvent> {
       const state = createProposalState();
-      return runTurn({ ctx, signal, model, providerId, logger, providerOptions, state, thinking });
+      return runTurn({
+        ctx,
+        signal,
+        model,
+        providerId,
+        logger,
+        providerOptions,
+        cacheBreakpoint,
+        state,
+        thinking,
+      });
     },
   };
 }
@@ -283,6 +331,8 @@ export function newRunOutcome(offered: readonly string[] = AGENT_TOOL_NAMES): Ru
     toolErrors: 0,
     toolSteps: new Map(),
     reasoningTokens: 0,
+    cacheReadTokens: 0,
+    cacheWriteTokens: 0,
     offered: new Set(offered),
   };
 }
@@ -332,6 +382,8 @@ export function handlePart(
       outcome.inputTokens = part.totalUsage.inputTokens ?? 0;
       outcome.outputTokens = part.totalUsage.outputTokens ?? 0;
       outcome.reasoningTokens = part.totalUsage.outputTokenDetails.reasoningTokens ?? 0;
+      outcome.cacheReadTokens = part.totalUsage.inputTokenDetails.cacheReadTokens ?? 0;
+      outcome.cacheWriteTokens = part.totalUsage.inputTokenDetails.cacheWriteTokens ?? 0;
       return undefined;
     default:
       return undefined;
@@ -357,6 +409,7 @@ async function* runTurn(args: {
   providerId: string;
   logger: Logger;
   providerOptions: ProviderOptions | undefined;
+  cacheBreakpoint: ProviderOptions | undefined;
   state: ProposalState;
   thinking: AgentThinking;
 }): AsyncGenerator<AssistEvent> {
@@ -365,8 +418,10 @@ async function* runTurn(args: {
 
   const result = streamText({
     model,
-    system: buildSystemPrompt(),
-    messages: toModelMessages(ctx),
+    // One breakpoint covers the tools too: a cacheable prefix is the tools, then the
+    // instructions, then the messages, so marking the instructions closes over both.
+    instructions: toInstructions(args.cacheBreakpoint),
+    messages: toModelMessages(ctx, args.cacheBreakpoint),
     tools: agentToolSet(ctx, state),
     stopWhen: [stepCountIs(ctx.maxSteps), stopOnRejectedTool(ctx.tools)],
     abortSignal: signal,
@@ -391,9 +446,9 @@ async function* runTurn(args: {
 
 function* flushProposals(state: ProposalState): Generator<AssistEvent> {
   while (state.unsentProposals.length > 0) {
-    const recorded = state.unsentProposals.shift();
-    if (recorded === undefined) return;
-    yield { type: recorded.variant, proposal: recorded.proposal };
+    const proposal = state.unsentProposals.shift();
+    if (proposal === undefined) return;
+    yield { type: "plan", proposal };
   }
 }
 
@@ -464,6 +519,8 @@ function* finishTurn(args: {
     toolErrors: outcome.toolErrors,
     // Reasoning text is never logged; only the count.
     reasoningTokens: outcome.reasoningTokens,
+    cacheReadTokens: outcome.cacheReadTokens,
+    cacheWriteTokens: outcome.cacheWriteTokens,
   });
 
   yield {
@@ -579,10 +636,14 @@ async function* deferred(
 }
 
 /** Spread-shaped, because `exactOptionalPropertyTypes` refuses an explicit `undefined`. */
-function optionalProviderOptions(options: ProviderOptions | undefined): {
-  providerOptions?: ProviderOptions;
-} {
-  return options === undefined ? {} : { providerOptions: options };
+function optionalProviderOptions(
+  providerOptions: ProviderOptions | undefined,
+  cacheBreakpoint: ProviderOptions | undefined,
+): { providerOptions?: ProviderOptions; cacheBreakpoint?: ProviderOptions } {
+  return {
+    ...(providerOptions === undefined ? {} : { providerOptions }),
+    ...(cacheBreakpoint === undefined ? {} : { cacheBreakpoint }),
+  };
 }
 
 /**
@@ -602,7 +663,10 @@ export function selectDraftAssistant(config: Config, logger: Logger): DraftAssis
           providerId: agent.provider,
           logger,
           thinking: agent.thinking,
-          ...optionalProviderOptions(thinkingProviderOptions(agent.provider, agent.thinking)),
+          ...optionalProviderOptions(
+            thinkingProviderOptions(agent.provider, agent.thinking),
+            cacheBreakpointOptions(agent.provider),
+          ),
         }),
       );
       return deferred(pending, ctx, signal);

@@ -30,6 +30,12 @@ export const PREPULL_ACTION = "prepull-base-images";
  * @type {Record<string, { mirror: boolean; assert: boolean; prepull: boolean; why: string }>}
  */
 export const JOB_GUARDS = {
+  "agent-prompt-label.yml#label": {
+    mirror: false,
+    assert: false,
+    prepull: false,
+    why: "adds one label to a pull request through the API. No checkout, no container, no registry.",
+  },
   "audit.yml#audit": {
     mirror: false,
     assert: false,
