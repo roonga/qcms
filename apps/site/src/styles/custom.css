@@ -299,7 +299,6 @@ dialog.sl-search-modal,
 
 .sl-markdown-content table {
   border-collapse: collapse;
-  width: 100%;
 }
 
 .sl-markdown-content :is(th, td) {

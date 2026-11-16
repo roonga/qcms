@@ -12,16 +12,16 @@ chrome is not adopter-themeable.
 
 ## Selecting a theme
 
-| Variable                 | Values, default first                       | Effect                       |
-| ------------------------ | ------------------------------------------- | ---------------------------- |
-| `QCMS_PORTAL_THEME`      | `slate`, `harbor`, `sand`, `plum`            | theme attribute              |
-| `QCMS_PORTAL_CORNERS`    | `subtle`, `sharp`, `rounded`, `pill`         | corner preset                |
-| `QCMS_PORTAL_MODE`       | `auto`, `light`, `dark`, `hc`                | default mode                 |
-| `QCMS_PORTAL_DENSITY`    | `comfortable`, `compact`, `spacious`         | default density              |
-| `QCMS_PORTAL_FONT`       | `system`, or a registry key                  | default font                 |
-| `QCMS_PORTAL_FONTS`      | registry keys, comma or space separated      | the subset offered           |
-| `QCMS_PORTAL_BRAND_NAME` | any text                                     | header mark and document title |
-| `QCMS_PORTAL_BRAND_LOGO` | a root-relative path or a `data:` image URI  | optional logo beside the text |
+| Variable                 | Values, default first                       | Effect                         |
+| ------------------------ | ------------------------------------------- | ------------------------------ |
+| `QCMS_PORTAL_THEME`      | `slate`, `harbor`, `sand`, `plum`           | theme attribute                |
+| `QCMS_PORTAL_CORNERS`    | `subtle`, `sharp`, `rounded`, `pill`        | corner preset                  |
+| `QCMS_PORTAL_MODE`       | `auto`, `light`, `dark`, `hc`               | default mode                   |
+| `QCMS_PORTAL_DENSITY`    | `comfortable`, `compact`, `spacious`        | default density                |
+| `QCMS_PORTAL_FONT`       | `system`, or a registry key                 | default font                   |
+| `QCMS_PORTAL_FONTS`      | registry keys, comma or space separated     | the subset offered             |
+| `QCMS_PORTAL_BRAND_NAME` | any text                                    | header mark and document title |
+| `QCMS_PORTAL_BRAND_LOGO` | a root-relative path or a `data:` image URI | optional logo beside the text  |
 
 An unrecognized value falls back to the default rather than throwing: a typo in presentation config
 must not take a deployment down.
@@ -31,8 +31,8 @@ then on. Theme and corners have no respondent control.
 
 ## The four themes
 
-| Key      | Name       | Character                                                     |
-| -------- | ---------- | ------------------------------------------------------------- |
+| Key      | Name       | Character                                                      |
+| -------- | ---------- | -------------------------------------------------------------- |
 | `slate`  | Slate Teal | the shipped default: muted blue-green over cool slate neutrals |
 | `harbor` | Harbor     | calm corporate blue; info shares the primary hue               |
 | `sand`   | Sand       | warm neutral with a muted terracotta primary                   |
@@ -49,12 +49,12 @@ high contrast.
 
 Everything the portal renders resolves from a CSS custom property. There are exactly four groups.
 
-| Group        | Tokens                                                                                               | Varies with                 |
-| ------------ | ---------------------------------------------------------------------------------------------------- | --------------------------- |
-| 1 Colour     | `--color-*`, 36 tokens                                                                                 | theme and mode              |
-| 2 Typography | `--font-fallback-*`, `--font-portal`, `--font-mono`, `--type-*`                                        | the selected font           |
-| 3 Spacing    | `--space-control-h`, `--space-control-pad-x`, `--space-field-gap`, `--space-section-pad`, `--space-stack` | density, three levels    |
-| 4 Radius     | `--radius-control`, `--radius-card`, `--radius-sm`                                                     | the corner preset           |
+| Group        | Tokens                                                                                                    | Varies with           |
+| ------------ | --------------------------------------------------------------------------------------------------------- | --------------------- |
+| 1 Colour     | `--color-*`, 36 tokens                                                                                    | theme and mode        |
+| 2 Typography | `--font-fallback-*`, `--font-portal`, `--font-mono`, `--type-*`                                           | the selected font     |
+| 3 Spacing    | `--space-control-h`, `--space-control-pad-x`, `--space-field-gap`, `--space-section-pad`, `--space-stack` | density, three levels |
+| 4 Radius     | `--radius-control`, `--radius-card`, `--radius-sm`                                                        | the corner preset     |
 
 Every rule is anchored on one selector:
 
@@ -73,14 +73,14 @@ The family token is populated by a declarative, self-hosted font registry. The `
 committed to the repository: a portal serves fonts from its own origin and makes no external
 request for a typeface. There is no CDN and no build-time download.
 
-| Group                    | Keys                                                                     |
-| ------------------------ | ------------------------------------------------------------------------ |
-| System                   | `system`, always present and never removable                              |
-| Accessibility            | `atkinson`, `lexend`, `opendyslexic`                                      |
-| Popular                  | `inter`, `roboto`, `opensans`, `lato`, `poppins`, `montserrat`            |
-| Playful and kids         | `andika`, `fredoka`, `baloo2`, `comicneue`, `patrickhand`                 |
+| Group                     | Keys                                                                                |
+| ------------------------- | ----------------------------------------------------------------------------------- |
+| System                    | `system`, always present and never removable                                        |
+| Accessibility             | `atkinson`, `lexend`, `opendyslexic`                                                |
+| Popular                   | `inter`, `roboto`, `opensans`, `lato`, `poppins`, `montserrat`                      |
+| Playful and kids          | `andika`, `fredoka`, `baloo2`, `comicneue`, `patrickhand`                           |
 | Traditional and corporate | `merriweather`, `lora`, `ptserif`, `librebaskerville`, `ibmplexserif`, `publicsans` |
-| Monospace                | `jetbrainsmono`, `geistmono`                                              |
+| Monospace                 | `jetbrainsmono`, `geistmono`                                                        |
 
 A respondent downloads one family, so the per-visit cost is small. `QCMS_PORTAL_FONTS` is the
 curation surface: unset or empty offers the whole registry rather than an empty list, unknown keys

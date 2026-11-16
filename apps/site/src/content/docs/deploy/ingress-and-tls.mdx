@@ -47,14 +47,14 @@ database.
 
 The edge policy it applies:
 
-| Directive                   | Why                                                                                       |
-| --------------------------- | ------------------------------------------------------------------------------------------ |
-| Strict-Transport-Security   | Invariant 2. Drop `preload` if any sibling hostname under the same parent domain still serves plain HTTP |
-| Remove the server banner    | No version disclosure                                                                        |
-| Request body size limit     | The edge-side match for the API's own body limit. Raise both together or neither             |
-| Response compression        | At the edge                                                                                  |
-| Set the forwarded scheme    | Invariant 5                                                                                  |
-| Set the forwarded address   | Invariant 6. Set, never append                                                               |
+| Directive                 | Why                                                                                                      |
+| ------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Strict-Transport-Security | Invariant 2. Drop `preload` if any sibling hostname under the same parent domain still serves plain HTTP |
+| Remove the server banner  | No version disclosure                                                                                    |
+| Request body size limit   | The edge-side match for the API's own body limit. Raise both together or neither                         |
+| Response compression      | At the edge                                                                                              |
+| Set the forwarded scheme  | Invariant 5                                                                                              |
+| Set the forwarded address | Invariant 6. Set, never append                                                                           |
 
 HTTP redirects to HTTPS on its own; there is no rule to write for it.
 
@@ -83,12 +83,12 @@ default.
 `X-Forwarded-For` is not a fact, it is a list of claims. The rightmost entry was written by the
 nearest proxy, so each app counts its hop-count entries from the right.
 
-| Setting                                   | Consequence                                                                                                   |
-| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Setting                                   | Consequence                                                                                                                                                                         |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Higher than reality                       | **The dangerous one.** The app reads into caller-supplied text, so a caller picks its own bucket and per-address rate limiting stops existing. Nothing in the stack can detect this |
-| Lower than reality                        | Safe but coarse                                                                                                 |
-| `0`                                       | Every caller on that hostname shares one bucket                                                                 |
-| App reachable directly, count left at `1` | Set it to `0`                                                                                                   |
+| Lower than reality                        | Safe but coarse                                                                                                                                                                     |
+| `0`                                       | Every caller on that hostname shares one bucket                                                                                                                                     |
+| App reachable directly, count left at `1` | Set it to `0`                                                                                                                                                                       |
 
 Stacking a CDN or WAF in front means configuring the proxy to trust the CDN's ranges and append
 rather than set, **and then** raising the hop count to 2. Doing only the second half is the bypass

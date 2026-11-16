@@ -12,14 +12,14 @@ Each environment schema carries two views.
 
 `reporting_<env>.responses` has one row per submitted response, with answers in a wide JSONB column.
 
-| Column         | Type        |
-| -------------- | ----------- |
-| `session_id`   | text        |
-| `form_id`      | text        |
-| `form_version` | integer     |
-| `submitted_at` | timestamptz |
+| Column         | Type                         |
+| -------------- | ---------------------------- |
+| `session_id`   | text                         |
+| `form_id`      | text                         |
+| `form_version` | integer                      |
+| `submitted_at` | timestamptz                  |
 | `access_mode`  | `anonymous` or `secure_link` |
-| `answers`      | jsonb       |
+| `answers`      | jsonb                        |
 
 `reporting_<env>.answers_flat` is the same data unpivoted to long format, one row per answer, with
 `question_id`, `value` and `instance_id`. The instance id is the repeating-group instance the answer

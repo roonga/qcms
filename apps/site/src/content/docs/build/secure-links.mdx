@@ -19,12 +19,12 @@ algorithm-confusion attack surface.
 
 A link token carries four claims.
 
-| Claim       | Meaning                                                               |
-| ----------- | --------------------------------------------------------------------- |
-| `formId`    | the single form this link opens                                        |
-| `linkId`    | the minted-link row, so storage can revoke and enforce one-time use    |
-| `expiresAt` | hard expiry in ISO 8601 UTC; valid strictly before this instant        |
-| `oneTime`   | optional single-use marker, carried for the verifier                   |
+| Claim       | Meaning                                                             |
+| ----------- | ------------------------------------------------------------------- |
+| `formId`    | the single form this link opens                                     |
+| `linkId`    | the minted-link row, so storage can revoke and enforce one-time use |
+| `expiresAt` | hard expiry in ISO 8601 UTC; valid strictly before this instant     |
+| `oneTime`   | optional single-use marker, carried for the verifier                |
 
 The payload is encoded, not encrypted: anyone holding a link can decode and read its claims. That is
 why no personal data ever goes in a token. Claims are opaque ids and an expiry.

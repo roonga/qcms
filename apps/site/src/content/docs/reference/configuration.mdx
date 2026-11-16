@@ -35,52 +35,52 @@ Admin, required: `QCMS_API_BASE_URL`, `QCMS_INTERNAL_TOKEN`, `QCMS_ADMIN_BASE_UR
 
 These are consumed by the Compose files; the containers never see them under these names.
 
-| Variable                        | Default             | Purpose                                                                |
-| ------------------------------- | ------------------- | ---------------------------------------------------------------------- |
-| `QCMS_DB_PASSWORD`              | required            | Bootstrap superuser. Only the role service uses it; serving processes must not hold it |
-| `QCMS_DB_MIGRATE_PASSWORD`      | required            | Schema owner, held only by the migration service                        |
-| `QCMS_DB_APP_CONTROL_PASSWORD`  | required            | Control-pool role                                                       |
-| `QCMS_DB_APP_TEST_PASSWORD`     | required            | Test-pool role, data manipulation only on its own schema                |
-| `QCMS_DB_APP_PROD_PASSWORD`     | required            | Prod-pool role, data manipulation only on its own schema                |
-| `QCMS_DB_NAME`                  | `qcms`              | Database name created on first boot of the volume                       |
-| `QCMS_DB_USER`                  | `qcms`              | Bootstrap superuser name                                                |
-| `QCMS_POSTGRES_IMAGE`           | a pinned Postgres   | Override to use an image mirror                                         |
-| `QCMS_PORTAL_PORT`              | `7000`              | Published portal host port                                              |
-| `QCMS_ADMIN_PORT`               | `7040`              | Published admin host port                                               |
-| `QCMS_BIND_ADDRESS`             | loopback            | Interface the two published apps bind to. The loopback default is a control |
-| `QCMS_CADDY_IMAGE`              | a pinned Caddy      | Used only by the proxy overlay                                          |
-| `QCMS_PORTAL_DOMAIN`            | required by overlay | Public hostname for the portal                                          |
-| `QCMS_ADMIN_DOMAIN`             | required by overlay | Public hostname for the admin                                           |
-| `QCMS_ACME_EMAIL`               | required by overlay | Contact address for the certificate account                             |
+| Variable                       | Default             | Purpose                                                                                |
+| ------------------------------ | ------------------- | -------------------------------------------------------------------------------------- |
+| `QCMS_DB_PASSWORD`             | required            | Bootstrap superuser. Only the role service uses it; serving processes must not hold it |
+| `QCMS_DB_MIGRATE_PASSWORD`     | required            | Schema owner, held only by the migration service                                       |
+| `QCMS_DB_APP_CONTROL_PASSWORD` | required            | Control-pool role                                                                      |
+| `QCMS_DB_APP_TEST_PASSWORD`    | required            | Test-pool role, data manipulation only on its own schema                               |
+| `QCMS_DB_APP_PROD_PASSWORD`    | required            | Prod-pool role, data manipulation only on its own schema                               |
+| `QCMS_DB_NAME`                 | `qcms`              | Database name created on first boot of the volume                                      |
+| `QCMS_DB_USER`                 | `qcms`              | Bootstrap superuser name                                                               |
+| `QCMS_POSTGRES_IMAGE`          | a pinned Postgres   | Override to use an image mirror                                                        |
+| `QCMS_PORTAL_PORT`             | `7000`              | Published portal host port                                                             |
+| `QCMS_ADMIN_PORT`              | `7040`              | Published admin host port                                                              |
+| `QCMS_BIND_ADDRESS`            | loopback            | Interface the two published apps bind to. The loopback default is a control            |
+| `QCMS_CADDY_IMAGE`             | a pinned Caddy      | Used only by the proxy overlay                                                         |
+| `QCMS_PORTAL_DOMAIN`           | required by overlay | Public hostname for the portal                                                         |
+| `QCMS_ADMIN_DOMAIN`            | required by overlay | Public hostname for the admin                                                          |
+| `QCMS_ACME_EMAIL`              | required by overlay | Contact address for the certificate account                                            |
 
 ## API
 
-| Variable                 | Default      | Purpose                                                                           |
-| ------------------------ | ------------ | ---------------------------------------------------------------------------------- |
-| `DATABASE_URL`           | required     | Postgres connection string, held only by the API                                   |
-| `QCMS_MOUNT`             | required     | Comma-separated route groups: `public`, `internal`, `admin`, environment names, or `all` |
-| `QCMS_LINK_KEYS`         | required     | Secure-link signing keys. The first signs, all verify                               |
-| `QCMS_SESSION_KEYS`      | required     | Respondent session-token signing keys, same rotation model                          |
-| `QCMS_INTERNAL_TOKEN`    | required     | Service channel tokens. Any listed token is accepted; keep both during a rotation    |
-| `QCMS_APP_KEY`           | required     | AES-256-GCM key for stored webhook secrets. Set once and back it up: there is no in-place rotation |
-| `QCMS_PORTAL_BASE_URL`   | required     | Public origin of the portal, used to build secure-link URLs                         |
-| `QCMS_ADMIN_AUTH_SECRET` | conditional  | Admin auth signing and encryption secret                                            |
-| `QCMS_ADMIN_BASE_URL`    | conditional  | Browser-facing admin origin; must match exactly what the browser sees               |
-| `QCMS_ENVIRONMENTS`      | `test,prod`  | The live environments. The API refuses boot unless this matches the registry exactly |
-| `PORT`                   | `3000`       | Port the API listens on inside its container                                        |
+| Variable                 | Default     | Purpose                                                                                            |
+| ------------------------ | ----------- | -------------------------------------------------------------------------------------------------- |
+| `DATABASE_URL`           | required    | Postgres connection string, held only by the API                                                   |
+| `QCMS_MOUNT`             | required    | Comma-separated route groups: `public`, `internal`, `admin`, environment names, or `all`           |
+| `QCMS_LINK_KEYS`         | required    | Secure-link signing keys. The first signs, all verify                                              |
+| `QCMS_SESSION_KEYS`      | required    | Respondent session-token signing keys, same rotation model                                         |
+| `QCMS_INTERNAL_TOKEN`    | required    | Service channel tokens. Any listed token is accepted; keep both during a rotation                  |
+| `QCMS_APP_KEY`           | required    | AES-256-GCM key for stored webhook secrets. Set once and back it up: there is no in-place rotation |
+| `QCMS_PORTAL_BASE_URL`   | required    | Public origin of the portal, used to build secure-link URLs                                        |
+| `QCMS_ADMIN_AUTH_SECRET` | conditional | Admin auth signing and encryption secret                                                           |
+| `QCMS_ADMIN_BASE_URL`    | conditional | Browser-facing admin origin; must match exactly what the browser sees                              |
+| `QCMS_ENVIRONMENTS`      | `test,prod` | The live environments. The API refuses boot unless this matches the registry exactly               |
+| `PORT`                   | `3000`      | Port the API listens on inside its container                                                       |
 
 ### Admin authentication and sessions
 
-| Variable                           | Default                  |
-| ---------------------------------- | ------------------------ |
-| `QCMS_ADMIN_2FA`                   | `required`               |
-| `QCMS_ADMIN_SECURE_COOKIES`        | true in production        |
-| `QCMS_ADMIN_TRUSTED_PROXY_HOPS`    | `1` on the admin app      |
-| `QCMS_ADMIN_PASSWORD_BREACH_CHECK` | `true`                    |
-| `QCMS_ADMIN_SIGNIN_THROTTLE`       | `true`                    |
-| `QCMS_ADMIN_SESSION_IDLE_MS`       | 1 hour                    |
-| `QCMS_ADMIN_SESSION_MAX_AGE_MS`    | 12 hours                  |
-| `QCMS_SESSION_TTL_MS`              | 24 hours                  |
+| Variable                           | Default              |
+| ---------------------------------- | -------------------- |
+| `QCMS_ADMIN_2FA`                   | `required`           |
+| `QCMS_ADMIN_SECURE_COOKIES`        | true in production   |
+| `QCMS_ADMIN_TRUSTED_PROXY_HOPS`    | `1` on the admin app |
+| `QCMS_ADMIN_PASSWORD_BREACH_CHECK` | `true`               |
+| `QCMS_ADMIN_SIGNIN_THROTTLE`       | `true`               |
+| `QCMS_ADMIN_SESSION_IDLE_MS`       | 1 hour               |
+| `QCMS_ADMIN_SESSION_MAX_AGE_MS`    | 12 hours             |
+| `QCMS_SESSION_TTL_MS`              | 24 hours             |
 
 The breach check sends only five hex characters of a password hash to an external service, and it
 fails closed: an unreachable service refuses passwords, including first-admin creation.
@@ -150,14 +150,14 @@ respondent appearance.
 
 ## Never set these in a deployment
 
-| Setting                               | Why                                                                      |
-| ------------------------------------- | ------------------------------------------------------------------------- |
-| `QCMS_ADMIN_2FA=optional`             | Skips enrollment; development only                                        |
-| `QCMS_SMTP_ALLOW_INSECURE`            | Admits an unencrypted relay; links would cross the network in clear text   |
-| `QCMS_DEV_LOGIN_PREFILL`              | Enables password prefill from the query string                            |
-| `QCMS_SECURE_COOKIES=false`           | Allowed only on loopback; other origins refuse boot                       |
-| `QCMS_ADMIN_SECURE_COOKIES=false`     | The same                                                                  |
-| `QCMS_ADMIN_PASSWORD_BREACH_CHECK=false` | Only for an offline bootstrap                                          |
+| Setting                                  | Why                                                                      |
+| ---------------------------------------- | ------------------------------------------------------------------------ |
+| `QCMS_ADMIN_2FA=optional`                | Skips enrollment; development only                                       |
+| `QCMS_SMTP_ALLOW_INSECURE`               | Admits an unencrypted relay; links would cross the network in clear text |
+| `QCMS_DEV_LOGIN_PREFILL`                 | Enables password prefill from the query string                           |
+| `QCMS_SECURE_COOKIES=false`              | Allowed only on loopback; other origins refuse boot                      |
+| `QCMS_ADMIN_SECURE_COOKIES=false`        | The same                                                                 |
+| `QCMS_ADMIN_PASSWORD_BREACH_CHECK=false` | Only for an offline bootstrap                                            |
 
 :::note
 There is no secret-store integration. Secrets come from `.env` at mode 600, or from the platform's

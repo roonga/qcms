@@ -9,16 +9,16 @@ Everything else is derivable.
 
 ## The lifecycle
 
-| From          | To            | Trigger                                                        |
-| ------------- | ------------- | -------------------------------------------------------------- |
-| start         | `Created`     | start a session, anonymous or from a secure link; pins a version |
-| `Created`     | `InProgress`  | first answer appended                                           |
-| `InProgress`  | `InProgress`  | answer appended; rules re-evaluated                             |
-| `InProgress`  | `Submitted`   | submit: validate everything, lock the answer set                |
-| `Created`     | `Expired`     | retention sweep                                                 |
-| `InProgress`  | `Expired`     | retention sweep                                                 |
-| `InProgress`  | `Erased`      | erasure: delete and tombstone                                   |
-| `Submitted`   | `Erased`      | erasure: delete and tombstone                                   |
+| From         | To           | Trigger                                                          |
+| ------------ | ------------ | ---------------------------------------------------------------- |
+| start        | `Created`    | start a session, anonymous or from a secure link; pins a version |
+| `Created`    | `InProgress` | first answer appended                                            |
+| `InProgress` | `InProgress` | answer appended; rules re-evaluated                              |
+| `InProgress` | `Submitted`  | submit: validate everything, lock the answer set                 |
+| `Created`    | `Expired`    | retention sweep                                                  |
+| `InProgress` | `Expired`    | retention sweep                                                  |
+| `InProgress` | `Erased`     | erasure: delete and tombstone                                    |
+| `Submitted`  | `Erased`     | erasure: delete and tombstone                                    |
 
 The lock is the audit boundary: the answer ledger up to lock is the complete history of what changed
 and when. Submission emits a `response.submitted` event through a transactional outbox, at least
@@ -78,16 +78,16 @@ label follows overall submit-readiness is the honest control to render.
 
 ## Respondent routes
 
-| Method and path                      | What it does                                                            |
-| ------------------------------------ | ----------------------------------------------------------------------- |
-| `POST /sessions`                     | Start an anonymous session from a public form slug, production only      |
-| `POST /sessions/link`                | Start a session from a secure link, in every environment                 |
-| `GET /sessions/{id}`                 | Read a session's status and pinned version                               |
-| `GET /sessions/{id}/step`            | Serve a step's stored compiled UI and flow projection                    |
-| `POST /sessions/{id}/answers`        | Submit one answer, or retract it with a null value                       |
-| `POST /sessions/{id}/answers/batch`  | Submit a whole step's answers in one request, under one session lock     |
-| `POST /sessions/{id}/roster`         | Add or remove one instance of a repeating group; writes no answer        |
-| `POST /sessions/{id}/submit`         | Validate visible-required answers, lock the set, emit the outbox event   |
+| Method and path                     | What it does                                                           |
+| ----------------------------------- | ---------------------------------------------------------------------- |
+| `POST /sessions`                    | Start an anonymous session from a public form slug, production only    |
+| `POST /sessions/link`               | Start a session from a secure link, in every environment               |
+| `GET /sessions/{id}`                | Read a session's status and pinned version                             |
+| `GET /sessions/{id}/step`           | Serve a step's stored compiled UI and flow projection                  |
+| `POST /sessions/{id}/answers`       | Submit one answer, or retract it with a null value                     |
+| `POST /sessions/{id}/answers/batch` | Submit a whole step's answers in one request, under one session lock   |
+| `POST /sessions/{id}/roster`        | Add or remove one instance of a repeating group; writes no answer      |
+| `POST /sessions/{id}/submit`        | Validate visible-required answers, lock the set, emit the outbox event |
 
 Session-scoped calls carry the bearer token minted when the session started. A batch is not
 all-or-nothing on validation: a refused entry leaves the rest applied, so one mistyped cell does not

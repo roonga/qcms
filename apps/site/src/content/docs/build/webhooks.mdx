@@ -30,12 +30,12 @@ instances. Inside a repeating group each entry also carries an `instanceId`, and
 for every question outside a group. Nothing about repetition sits outside `answers`: there is no
 groups member, no rows, no instances and no instance count anywhere in the envelope.
 
-| Header              | Value                                                    |
-| ------------------- | -------------------------------------------------------- |
-| `X-QCMS-Event`      | the event type                                            |
-| `X-QCMS-Delivery`   | a fresh UUID, unique per attempt; a retry has a new one   |
-| `X-QCMS-Timestamp`  | Unix seconds when the request was signed                  |
-| `X-QCMS-Signature`  | `v1=<hex HMAC-SHA256(secret, timestamp + "." + body)>`    |
+| Header             | Value                                                   |
+| ------------------ | ------------------------------------------------------- |
+| `X-QCMS-Event`     | the event type                                          |
+| `X-QCMS-Delivery`  | a fresh UUID, unique per attempt; a retry has a new one |
+| `X-QCMS-Timestamp` | Unix seconds when the request was signed                |
+| `X-QCMS-Signature` | `v1=<hex HMAC-SHA256(secret, timestamp + "." + body)>`  |
 
 ## Verifying
 
@@ -61,12 +61,12 @@ event id twice must be a no-op.
 
 ## Configuring an endpoint
 
-| Route                                       | Effect                                                                                       |
-| ------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `POST /admin/forms/:id/webhooks`            | Configure a webhook. The secret is generated if omitted, and shown exactly once in the response |
-| `GET /admin/forms/:id/webhooks`             | List the form's webhooks. Secrets are masked and never returned                                |
-| `PUT /admin/forms/:id/webhooks/:webhookId`  | Update the URL or active flag, or rotate the secret; the new secret is shown once               |
-| `DELETE /admin/forms/:id/webhooks/:webhookId` | Soft-deactivate, so delivery history survives                                                |
+| Route                                         | Effect                                                                                          |
+| --------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `POST /admin/forms/:id/webhooks`              | Configure a webhook. The secret is generated if omitted, and shown exactly once in the response |
+| `GET /admin/forms/:id/webhooks`               | List the form's webhooks. Secrets are masked and never returned                                 |
+| `PUT /admin/forms/:id/webhooks/:webhookId`    | Update the URL or active flag, or rotate the secret; the new secret is shown once               |
+| `DELETE /admin/forms/:id/webhooks/:webhookId` | Soft-deactivate, so delivery history survives                                                   |
 
 Multiple webhooks per form are allowed, and delivery goes to every active one.
 

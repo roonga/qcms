@@ -36,11 +36,11 @@ Non-production respondent addresses carry an environment path prefix, as in `/<e
 
 Three headers, not cookies.
 
-| Header                   | Carried by                                                        |
-| ------------------------ | ------------------------------------------------------------------ |
-| `x-qcms-internal-token`  | every mounted request; the service channel token                   |
-| `x-qcms-admin-session`   | admin requests; the signed-in administrator's session token        |
-| `Authorization: Bearer`  | respondent session-scoped calls; the token minted at session start |
+| Header                  | Carried by                                                         |
+| ----------------------- | ------------------------------------------------------------------ |
+| `x-qcms-internal-token` | every mounted request; the service channel token                   |
+| `x-qcms-admin-session`  | admin requests; the signed-in administrator's session token        |
+| `Authorization: Bearer` | respondent session-scoped calls; the token minted at session start |
 
 The channel token authorizes nothing on its own. An admin session is rejected with a reasonless
 `401` when it is unknown, idle-expired, past its absolute lifetime, or not yet enrolled in
@@ -51,33 +51,33 @@ public API will require and enforces nothing today.
 
 ## Respondent routes
 
-| Method and path                     | Summary                                                             |
+| Method and path                     | Summary                                                              |
 | ----------------------------------- | -------------------------------------------------------------------- |
-| `POST /sessions`                    | Start an anonymous session from a public form slug, production only   |
-| `POST /sessions/link`               | Start a session from a secure link, in every environment              |
-| `GET /sessions/{id}`                | Read a session's status and pinned version                            |
-| `GET /sessions/{id}/step`           | Serve a step's stored compiled UI and flow projection                 |
-| `POST /sessions/{id}/answers`       | Submit one answer, or retract it with a null value                    |
-| `POST /sessions/{id}/answers/batch` | Submit a whole step's answers in one request, under one session lock  |
-| `POST /sessions/{id}/roster`        | Add or remove one instance of a repeating group                       |
-| `POST /sessions/{id}/submit`        | Validate, lock the answer set, emit the outbox event                  |
-| `GET /health`                       | Liveness probe                                                        |
-| `GET /ready`                        | Readiness probe, checks the database                                  |
+| `POST /sessions`                    | Start an anonymous session from a public form slug, production only  |
+| `POST /sessions/link`               | Start a session from a secure link, in every environment             |
+| `GET /sessions/{id}`                | Read a session's status and pinned version                           |
+| `GET /sessions/{id}/step`           | Serve a step's stored compiled UI and flow projection                |
+| `POST /sessions/{id}/answers`       | Submit one answer, or retract it with a null value                   |
+| `POST /sessions/{id}/answers/batch` | Submit a whole step's answers in one request, under one session lock |
+| `POST /sessions/{id}/roster`        | Add or remove one instance of a repeating group                      |
+| `POST /sessions/{id}/submit`        | Validate, lock the answer set, emit the outbox event                 |
+| `GET /health`                       | Liveness probe                                                       |
+| `GET /ready`                        | Readiness probe, checks the database                                 |
 
 The probes are the only unauthenticated routes.
 
 ## Admin route groups
 
-| Group                     | Examples                                                                                |
-| ------------------------- | ----------------------------------------------------------------------------------------- |
-| Questions                 | create a question, append a draft version, publish a version, deprecate one                |
-| Forms and publishing      | replace the draft, dry-run validation, publish, publish and release in one act, close      |
-| Releases and environments | the live environment set, the release workflow, release or promote, atomic batch release   |
-| Responses and export      | list responses, read one with its audit ledger, stream an export, erase, list tombstones   |
-| Secure links              | mint, list, revoke                                                                         |
-| Webhooks                  | configure, list, update, deactivate, and the proposal routes                               |
-| Outbox operations         | dead letters, redeliver one delivery, list deliveries                                      |
-| Workspaces and access     | workspaces, themes, members, access groups, audit, the caller's own access                 |
+| Group                     | Examples                                                                                 |
+| ------------------------- | ---------------------------------------------------------------------------------------- |
+| Questions                 | create a question, append a draft version, publish a version, deprecate one              |
+| Forms and publishing      | replace the draft, dry-run validation, publish, publish and release in one act, close    |
+| Releases and environments | the live environment set, the release workflow, release or promote, atomic batch release |
+| Responses and export      | list responses, read one with its audit ledger, stream an export, erase, list tombstones |
+| Secure links              | mint, list, revoke                                                                       |
+| Webhooks                  | configure, list, update, deactivate, and the proposal routes                             |
+| Outbox operations         | dead letters, redeliver one delivery, list deliveries                                    |
+| Workspaces and access     | workspaces, themes, members, access groups, audit, the caller's own access               |
 
 ## Errors
 

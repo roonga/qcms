@@ -9,14 +9,14 @@ worth making about it: **a backup nobody has restored is not a backup, it is a f
 
 ## What is in scope
 
-| State                                                      | Where it lives                   | Backed up by      |
-| ---------------------------------------------------------- | -------------------------------- | ----------------- |
-| Forms, versions, responses, answers, sessions               | Postgres                         | `pg_dump`         |
-| Administrator accounts and two-factor material              | Postgres                         | `pg_dump`         |
-| Outbox and delivery history                                 | Postgres                         | `pg_dump`         |
-| Erasure tombstones, the compliance evidence                 | Postgres                         | `pg_dump`         |
-| Signing and encryption keys                                 | the environment, never the database | **you**, separately |
-| Built images                                                | a registry, or rebuilt from a tag | not backed up     |
+| State                                          | Where it lives                      | Backed up by        |
+| ---------------------------------------------- | ----------------------------------- | ------------------- |
+| Forms, versions, responses, answers, sessions  | Postgres                            | `pg_dump`           |
+| Administrator accounts and two-factor material | Postgres                            | `pg_dump`           |
+| Outbox and delivery history                    | Postgres                            | `pg_dump`           |
+| Erasure tombstones, the compliance evidence    | Postgres                            | `pg_dump`           |
+| Signing and encryption keys                    | the environment, never the database | **you**, separately |
+| Built images                                   | a registry, or rebuilt from a tag   | not backed up       |
 
 The last two rows are the ones that bite.
 

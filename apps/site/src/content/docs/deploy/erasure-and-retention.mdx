@@ -78,11 +78,11 @@ null them, or they will survive erasure.
 Three time-based sweeps run on one scheduler, hourly by default, in the process that mounts the
 internal route group.
 
-| Sweep                     | Window variable                   | Default |
-| ------------------------- | --------------------------------- | ------- |
-| Expired sessions          | the session TTL                   | 24 hours |
-| Webhook response snippet  | `QCMS_DELIVERY_SNIPPET_TTL_MS`    | 7 days  |
-| Outbox payload            | `QCMS_OUTBOX_PAYLOAD_TTL_MS`      | 30 days |
+| Sweep                    | Window variable                | Default  |
+| ------------------------ | ------------------------------ | -------- |
+| Expired sessions         | the session TTL                | 24 hours |
+| Webhook response snippet | `QCMS_DELIVERY_SNIPPET_TTL_MS` | 7 days   |
+| Outbox payload           | `QCMS_OUTBOX_PAYLOAD_TTL_MS`   | 30 days  |
 
 A delivery exhausts its ten retries in a little over a day, so by day seven the snippet row has
 either been fixed and redelivered or been abandoned. The outbox window is the redelivery window, and

@@ -50,28 +50,28 @@ rejected at publish.
 
 Ids are branded strings with a fixed prefix, so one kind is not assignable to another.
 
-| Entity            | Prefix |
-| ----------------- | ------ |
-| Question          | `q_`   |
-| Form              | `frm_` |
-| Step              | `stp_` |
-| Option            | `opt_` |
-| Rule              | `rul_` |
-| Session           | `ses_` |
-| Secure link       | `lnk_` |
-| Repeating group   | `grp_` |
-| Group instance    | `ins_` |
+| Entity          | Prefix |
+| --------------- | ------ |
+| Question        | `q_`   |
+| Form            | `frm_` |
+| Step            | `stp_` |
+| Option          | `opt_` |
+| Rule            | `rul_` |
+| Session         | `ses_` |
+| Secure link     | `lnk_` |
+| Repeating group | `grp_` |
+| Group instance  | `ins_` |
 
 ## Canonical answer encodings
 
-| Question type             | Canonical encoding                                                                            |
-| ------------------------- | --------------------------------------------------------------------------------------------- |
-| `shortText` / `longText`  | NFC-normalized string, normalized on parse rather than rejected                                 |
-| `number`                  | finite IEEE double; `integer` is a validation constraint, not an encoding                       |
-| `date`                    | timezone-less ISO `YYYY-MM-DD`, validated as a real calendar date; respondent-local by design   |
-| `boolean`                 | JSON boolean                                                                                    |
-| `singleChoice`            | an `optionId`                                                                                   |
-| `multiChoice`             | an array of `optionId`, deduplicated and order-preserving                                       |
+| Question type            | Canonical encoding                                                                            |
+| ------------------------ | --------------------------------------------------------------------------------------------- |
+| `shortText` / `longText` | NFC-normalized string, normalized on parse rather than rejected                               |
+| `number`                 | finite IEEE double; `integer` is a validation constraint, not an encoding                     |
+| `date`                   | timezone-less ISO `YYYY-MM-DD`, validated as a real calendar date; respondent-local by design |
+| `boolean`                | JSON boolean                                                                                  |
+| `singleChoice`           | an `optionId`                                                                                 |
+| `multiChoice`            | an array of `optionId`, deduplicated and order-preserving                                     |
 
 ## Validation
 
@@ -104,16 +104,16 @@ The authoring API refuses an unsafe pattern on any new or edited definition.
 
 ## How each type renders
 
-| Question type                  | Control                                               |
-| ------------------------------ | ----------------------------------------------------- |
-| `shortText`                    | Text field                                            |
-| `longText`                     | Text area                                             |
-| `number`                       | Number field                                          |
-| `date`                         | Date picker                                           |
-| `boolean`                      | Radio group of two, values `"true"` and `"false"`     |
-| `singleChoice`, up to 7 options | Radio group, one radio per option                    |
-| `singleChoice`, over 7 options | Select                                                |
-| `multiChoice`                  | Checkbox group, one checkbox per option               |
+| Question type                   | Control                                           |
+| ------------------------------- | ------------------------------------------------- |
+| `shortText`                     | Text field                                        |
+| `longText`                      | Text area                                         |
+| `number`                        | Number field                                      |
+| `date`                          | Date picker                                       |
+| `boolean`                       | Radio group of two, values `"true"` and `"false"` |
+| `singleChoice`, up to 7 options | Radio group, one radio per option                 |
+| `singleChoice`, over 7 options  | Select                                            |
+| `multiChoice`                   | Checkbox group, one checkbox per option           |
 
 Constraint props reach the browser as advisory hints. Server-side domain validation is the
 authority. A `boolean` renders as a yes/no radio group rather than a single checkbox, because a lone

@@ -26,19 +26,19 @@ The first non-flag argument is the directory to stamp into; the project name is 
 must be lowercase letters, digits, dots, hyphens and underscores, starting with a letter or digit,
 because it becomes a directory, a manifest name and a Compose project.
 
-| Option                  | Meaning                                              |
-| ----------------------- | ---------------------------------------------------- |
-| `-y`, `--yes`           | Take every default; ask nothing                      |
-| `--package-manager`     | `pnpm`, the only value                               |
-| `--shape <s>`           | `solo` or `enterprise` (default `solo`)              |
-| `--admin-2fa <p>`       | `required` or `optional` (default `required`)        |
-| `--portal-base-url <u>` | Public origin of the respondent portal               |
-| `--admin-base-url <u>`  | Public origin of the authoring admin                 |
-| `--no-install`          | Stamp the files, install nothing                     |
-| `--no-git`              | Do not initialise a git repository                   |
-| `--force`               | Stamp into a directory that already has files        |
-| `-h`, `--help`          | Show the usage message                               |
-| `-v`, `--version`       | Show the version                                     |
+| Option                  | Meaning                                       |
+| ----------------------- | --------------------------------------------- |
+| `-y`, `--yes`           | Take every default; ask nothing               |
+| `--package-manager`     | `pnpm`, the only value                        |
+| `--shape <s>`           | `solo` or `enterprise` (default `solo`)       |
+| `--admin-2fa <p>`       | `required` or `optional` (default `required`) |
+| `--portal-base-url <u>` | Public origin of the respondent portal        |
+| `--admin-base-url <u>`  | Public origin of the authoring admin          |
+| `--no-install`          | Stamp the files, install nothing              |
+| `--no-git`              | Do not initialise a git repository            |
+| `--force`               | Stamp into a directory that already has files |
+| `-h`, `--help`          | Show the usage message                        |
+| `-v`, `--version`       | Show the version                              |
 
 There is one package manager and no prompt for it: QCMS scaffolds a pnpm workspace, and the shipped
 Dockerfiles prune their runtime tree with `pnpm deploy --legacy --prod`, which has no npm or yarn

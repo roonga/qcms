@@ -31,18 +31,18 @@ contributes no visible questions regardless of per-question rules.
 
 Leaf operators read one question.
 
-| `op`          | Fields besides `op`                   | Applies to          |
-| ------------- | ------------------------------------- | ------------------- |
-| `equals`      | `questionId`, `value`                 | any type            |
-| `notEquals`   | `questionId`, `value`                 | any type            |
-| `in`          | `questionId`, `values` (at least one) | any type            |
-| `gt`          | `questionId`, `value`                 | number, date        |
-| `gte`         | `questionId`, `value`                 | number, date        |
-| `lt`          | `questionId`, `value`                 | number, date        |
-| `lte`         | `questionId`, `value`                 | number, date        |
-| `answered`    | `questionId`                          | any type            |
-| `contains`    | `questionId`, `value` (an option id)  | `multiChoice` only  |
-| `containsAny` | `questionId`, `values` (option ids)   | `multiChoice` only  |
+| `op`          | Fields besides `op`                   | Applies to         |
+| ------------- | ------------------------------------- | ------------------ |
+| `equals`      | `questionId`, `value`                 | any type           |
+| `notEquals`   | `questionId`, `value`                 | any type           |
+| `in`          | `questionId`, `values` (at least one) | any type           |
+| `gt`          | `questionId`, `value`                 | number, date       |
+| `gte`         | `questionId`, `value`                 | number, date       |
+| `lt`          | `questionId`, `value`                 | number, date       |
+| `lte`         | `questionId`, `value`                 | number, date       |
+| `answered`    | `questionId`                          | any type           |
+| `contains`    | `questionId`, `value` (an option id)  | `multiChoice` only |
+| `containsAny` | `questionId`, `values` (option ids)   | `multiChoice` only |
 
 Combinators are `and` and `or`, each taking `conditions`, and `not`, taking one `condition`.
 
@@ -116,12 +116,12 @@ Authoring guidance warns against `equals` on non-integer number questions.
 
 ## Hidden answers
 
-| Answers, latest per question                            | Visible                                      | Current step  | Missing required      | Complete |
-| ------------------------------------------------------- | -------------------------------------------- | ------------- | --------------------- | -------- |
-| `{}`                                                    | `q_at_fault_accident`                        | `stp_history` | `q_at_fault_accident` | `false`  |
-| `q_at_fault_accident=true`                              | `q_at_fault_accident`, `q_accident_count`    | `stp_history` | `q_accident_count`    | `false`  |
-| `q_at_fault_accident=true, q_accident_count=2`          | `q_at_fault_accident`, `q_accident_count`    | `null`        |                       | `true`   |
-| `q_at_fault_accident=false, q_accident_count=2` (stale) | `q_at_fault_accident`                        | `null`        |                       | `true`   |
+| Answers, latest per question                            | Visible                                   | Current step  | Missing required      | Complete |
+| ------------------------------------------------------- | ----------------------------------------- | ------------- | --------------------- | -------- |
+| `{}`                                                    | `q_at_fault_accident`                     | `stp_history` | `q_at_fault_accident` | `false`  |
+| `q_at_fault_accident=true`                              | `q_at_fault_accident`, `q_accident_count` | `stp_history` | `q_accident_count`    | `false`  |
+| `q_at_fault_accident=true, q_accident_count=2`          | `q_at_fault_accident`, `q_accident_count` | `null`        |                       | `true`   |
+| `q_at_fault_accident=false, q_accident_count=2` (stale) | `q_at_fault_accident`                     | `null`        |                       | `true`   |
 
 The last row is hidden-answer exclusion at work. A session that answers true, then `2`, then false
 leaves three ledger rows. The forward pass sees the latest per question, hides `q_accident_count`,

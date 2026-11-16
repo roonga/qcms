@@ -12,13 +12,13 @@ reporting schema per environment.
 
 ## Shared or separate
 
-| Shared across the deployment                              | Separate for each environment                  |
-| --------------------------------------------------------- | ----------------------------------------------- |
-| Workspaces, memberships and access grants                   | The form version currently released             |
-| Question identities and version history                     | Whether a form accepts new sessions             |
-| Form identities, editable drafts and immutable versions     | Respondent sessions, answers and submissions    |
+| Shared across the deployment                                 | Separate for each environment                  |
+| ------------------------------------------------------------ | ---------------------------------------------- |
+| Workspaces, memberships and access grants                    | The form version currently released            |
+| Question identities and version history                      | Whether a form accepts new sessions            |
+| Form identities, editable drafts and immutable versions      | Respondent sessions, answers and submissions   |
 | A form version's exact question-version references and rules | Secure-link destination and access             |
-| Form-level challenge and minimum-submit-time settings       | Webhook endpoints, delivery history and outbox  |
+| Form-level challenge and minimum-submit-time settings        | Webhook endpoints, delivery history and outbox |
 
 The rules that follow from that split:
 
@@ -86,11 +86,11 @@ portal container. The portal serves only production when that setting is empty.
 `QCMS_FLAG_*` is the flag namespace, and an unknown name in it refuses boot. Three exist, all
 installation-wide boot-time settings rather than per-environment toggles:
 
-| Flag                           | Values                                                                    |
-| ------------------------------ | ------------------------------------------------------------------------- |
-| `QCMS_FLAG_CHALLENGE_PROVIDER` | `none` (default), `turnstile`                                              |
-| `QCMS_FLAG_AGENT_AUTHORING`    | `none` (default), `anthropic`, `openai`, `google`, `openai-compatible`     |
-| `QCMS_FLAG_THEME_DERIVE`       | `off` (default), `on`                                                      |
+| Flag                           | Values                                                                 |
+| ------------------------------ | ---------------------------------------------------------------------- |
+| `QCMS_FLAG_CHALLENGE_PROVIDER` | `none` (default), `turnstile`                                          |
+| `QCMS_FLAG_AGENT_AUTHORING`    | `none` (default), `anthropic`, `openai`, `google`, `openai-compatible` |
+| `QCMS_FLAG_THEME_DERIVE`       | `off` (default), `on`                                                  |
 
 The per-environment settings that do exist are the two retention windows and the challenge provider
 row. A null in either retention column leaves the installation-wide value in force.

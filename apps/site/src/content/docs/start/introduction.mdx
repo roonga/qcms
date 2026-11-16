@@ -29,8 +29,8 @@ self-hostable.
 
 ## Who it is for
 
-| Audience            | What they do                                                                                                                    | Surface                                   |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| Audience            | What they do                                                                                                                     | Surface                                   |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
 | Form authors        | Curate a governed question library; compose forms; define branching rules; publish and version; review responses; export         | The admin app, internal                   |
 | Respondents         | Complete flows anonymously or through signed secure links; resume in-progress sessions; on any device, with assistive technology | The portal, public                        |
 | Downstream systems  | Receive submissions by signed webhook; pull by CSV or JSON export, or read the documented reporting view in Postgres             | Webhook, export, reporting views          |
@@ -62,9 +62,9 @@ What being yours means, precisely:
 Three schemas and a single direction of derivation. No layer reaches upward.
 
 ```
-FormDefinition ──────compile──────▶ A2UI documents ──────persist──────▶ Postgres
-   (meaning)                            (views)                        (storage)
-@roonga/qcms-core            @roonga/qcms-a2ui-compiler            @roonga/qcms-db
+FormDefinition ──compile──▶ A2UI documents ──persist──▶ Postgres
+  (meaning)                     (views)                 (storage)
+   qcms-core               qcms-a2ui-compiler            qcms-db
 ```
 
 A deployment is four containers: the respondent portal, the authoring admin, the API and Postgres.
