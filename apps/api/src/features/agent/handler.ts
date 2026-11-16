@@ -37,6 +37,7 @@ import {
   AGENT_PROPOSE_TOOL_NAMES,
   AGENT_READ_TOOL_NAMES,
   isClaimTool,
+  isFixedTextTool,
   stagesForApplyDraft,
   toolCell,
   type AgentToolName,
@@ -218,6 +219,7 @@ function grantedReadTools(
 ): readonly AgentToolName[] {
   return AGENT_READ_TOOL_NAMES.filter((name) => {
     if (stagesForApplyDraft(name) && screen !== BUILDER_SCREEN) return false;
+    if (isFixedTextTool(name)) return true;
     if (isClaimTool(name)) return build.principal.claim;
     const cell = toolCell(name);
     if (cell === undefined) return true;

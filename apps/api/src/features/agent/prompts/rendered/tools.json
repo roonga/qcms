@@ -96,6 +96,60 @@
     }
   },
   {
+    "name": "question_recipes",
+    "description": "Look up this installation's own recipe for one or more common question types: the settings to apply, what the product cannot express, and what to tell the person about it. Name only types the list holds. Reads nothing a user authored and changes nothing.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "type": "object",
+      "properties": {
+        "types": {
+          "minItems": 1,
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "address",
+              "age-in-years",
+              "consent-and-acknowledgement",
+              "date-of-birth",
+              "date-range",
+              "declaration-and-signature",
+              "email-address",
+              "future-date",
+              "identifier-with-a-format",
+              "long-free-text",
+              "money-amount",
+              "none-of-the-above",
+              "other-please-specify",
+              "past-date",
+              "person-name",
+              "phone-number",
+              "postcode",
+              "quantity",
+              "rating-scale",
+              "repeating-items",
+              "scale-battery",
+              "select-all-that-apply",
+              "short-free-text",
+              "single-choice",
+              "supporting-document",
+              "time-of-day",
+              "voluntary-and-non-answer",
+              "yes-or-no-with-detail",
+              "yes-or-no"
+            ]
+          },
+          "description": "The question types to look up, from this list."
+        }
+      },
+      "required": [
+        "types"
+      ],
+      "additionalProperties": false
+    }
+  },
+  {
     "name": "propose_questions",
     "description": "Stage new question definitions for the apply-draft card, and nothing else. It creates nothing: the definitions are kept only by an apply-draft card proposed in the same turn, and are discarded otherwise. To create a question the user keeps, propose a question.create step instead.",
     "inputSchema": {
