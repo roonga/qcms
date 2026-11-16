@@ -37,7 +37,8 @@ let opsWebhookId = "";
 test.describe.configure({ mode: "serial" });
 
 test.beforeAll(async () => {
-  await createTestAdmin(EMAIL);
+  // The tombstone is read from the installation-only erasure log.
+  await createTestAdmin(EMAIL, { siteAdministrator: true });
 });
 
 test.describe("admin operations: responses, erasure, webhooks", () => {
