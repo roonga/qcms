@@ -3,6 +3,7 @@ import {
   consumeSignInLink,
   findAccountById,
   findSignInLinkByHash,
+  lockAccount,
   signInLinkIsLive,
 } from "@roonga/qcms-db";
 import { isAPIError } from "better-auth/api";
@@ -78,29 +79,37 @@ export const registerAccountClaim: SliceRegistrar = (group, deps: Deps) => {
     if (link === undefined || !signInLinkIsLive(link, now)) throw linkRefused();
     if (link.purpose !== CLAIM_PURPOSE) throw linkRefused();
 
-    const account = await findAccountById(exec, link.userId);
-    if (account === undefined || account.disabledAt !== null) throw linkRefused();
-    // A claimed account already holds a password, so a creation link that outlived the
-    // claim is not a way to set another one.
-    if (account.claimedAt !== null) throw linkRefused();
-
     const auth = adminAuthFor(deps);
     // A session for somebody else is the wrong-account use: the link belongs to one
     // account, so it never signs a different one in and never claims one on its behalf.
     const resolved = await auth.api.getSession({ headers: c.req.raw.headers });
-    if (resolved !== null && resolved.user.id !== account.userId) throw linkRefused();
+    if (resolved !== null && resolved.user.id !== link.userId) throw linkRefused();
 
-    try {
-      await setAccountPassword(auth, account.userId, password);
-    } catch (error) {
-      if (error instanceof PasswordRefused) throw passwordRefused(error.cause);
-      throw error;
-    }
+    // Held from the claimed check to the link's spend, so a claim committing meanwhile
+    // cannot be followed by this request overwriting the claimed account's password.
+    const account = await exec.transaction(async (tx) => {
+      await lockAccount(tx, link.userId);
+      const found = await findAccountById(tx, link.userId);
+      if (found === undefined || found.disabledAt !== null) throw linkRefused();
+      // A claimed account already holds a password, so a creation link that outlived the
+      // claim is not a way to set another one.
+      if (found.claimedAt !== null) throw linkRefused();
 
-    // Consumed after the password is written, so a refused password never burns the one
-    // link the person was sent and a failed write leaves a link they can use again. The
-    // compare-and-set is the single-use guarantee.
-    if ((await consumeSignInLink(exec, tokenHash, now)) === undefined) throw linkRefused();
+      // The write revokes every session the account holds (`revokeSessionsOnPasswordReset`),
+      // so one minted from an earlier link does not outlive it.
+      try {
+        await setAccountPassword(auth, found.userId, password);
+      } catch (error) {
+        if (error instanceof PasswordRefused) throw passwordRefused(error.cause);
+        throw error;
+      }
+
+      // Consumed after the password is written, so a refused password never burns the one
+      // link the person was sent and a failed write leaves a link they can use again. The
+      // compare-and-set is the single-use guarantee.
+      if ((await consumeSignInLink(tx, tokenHash, now)) === undefined) throw linkRefused();
+      return found;
+    });
 
     // The session issued here is the one that enrols the second factor. The claim itself
     // is written only once that factor is verified, so the account still holds nothing.

@@ -137,20 +137,26 @@ export function makeCreateAccountHandler(
       email,
       name: body.name ?? email,
     });
-    await writeSiteAuditRow(exec, {
-      actor: actor.userId,
-      subject: created.userId,
-      kind: "account",
-      detail: "act=create",
-      occurredAt: deps.clock.now(),
-    });
-
-    const delivery = await issueAndSendSignInLink(deps, exec, {
-      userId: created.userId,
-      email: created.email,
-      purpose: "account-created",
-      issuedBy: actor.userId,
-    });
+    // The account itself is the auth library's write on its own connection, so it cannot
+    // join this transaction; the audit row and the link commit together.
+    const delivery = await issueAndSendSignInLink(
+      deps,
+      exec,
+      {
+        userId: created.userId,
+        email: created.email,
+        purpose: "account-created",
+        issuedBy: actor.userId,
+      },
+      (tx) =>
+        writeSiteAuditRow(tx, {
+          actor: actor.userId,
+          subject: created.userId,
+          kind: "account",
+          detail: "act=create",
+          occurredAt: deps.clock.now(),
+        }),
+    );
 
     const row = await findAccountById(exec, created.userId);
     if (row === undefined) throw fail.notFound();
@@ -169,25 +175,33 @@ export function makeResendSignInLinkHandler(
     const exec = deps.databases.control;
     const row = await findAccountById(exec, id);
     if (row === undefined) throw fail.notFound();
-    const status = accountStatusOf(row);
-    if (status === "disabled") throw fail.disabled();
-    if (status === "active") throw fail.alreadyClaimed();
 
-    // Issuing takes the account's row and supersedes every live link it holds, so two
-    // resends at once still leave exactly one link a claim will accept: the last.
-    const delivery = await issueAndSendSignInLink(deps, exec, {
-      userId: row.userId,
-      email: row.email,
-      purpose: "account-created",
-      issuedBy: actor.userId,
-    });
-    await writeSiteAuditRow(exec, {
-      actor: actor.userId,
-      subject: row.userId,
-      kind: "account",
-      detail: `act=resend delivery=${delivery}`,
-      occurredAt: deps.clock.now(),
-    });
+    // The state is read again under the account's lock, so a resend crossing the claim's
+    // commit is refused rather than leaving a live creation link on a claimed account.
+    const delivery = await issueAndSendSignInLink(
+      deps,
+      exec,
+      {
+        userId: row.userId,
+        email: row.email,
+        purpose: "account-created",
+        issuedBy: actor.userId,
+      },
+      async (tx) => {
+        const current = await findAccountById(tx, id);
+        if (current === undefined) throw fail.notFound();
+        const status = accountStatusOf(current);
+        if (status === "disabled") throw fail.disabled();
+        if (status === "active") throw fail.alreadyClaimed();
+        await writeSiteAuditRow(tx, {
+          actor: actor.userId,
+          subject: row.userId,
+          kind: "account",
+          detail: "act=resend",
+          occurredAt: deps.clock.now(),
+        });
+      },
+    );
     return c.json({ delivery }, 200);
   };
 }

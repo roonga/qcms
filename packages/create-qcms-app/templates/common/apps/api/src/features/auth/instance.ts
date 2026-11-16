@@ -298,6 +298,12 @@ export function createAdminAuth(input: AdminAuthInput) {
       minPasswordLength: MIN_PASSWORD_LENGTH,
       // No reset mail exists, so do not advertise one.
       requireEmailVerification: false,
+      // Only the claim reaches `/reset-password`, which is not on the proxy's allowlist, so
+      // this revokes nothing else. A session minted from an earlier link of the same
+      // account dies in the same transaction as the password write and the token's spend:
+      // `dist/utils/password.mjs:34` <!-- expect: revokeSessionsOnPasswordReset) await ctx.context.internalAdapter.deleteUserSessions(userId); -->
+      // `dist/utils/password.mjs:32` <!-- expect: runWithTransaction(ctx.context.adapter, -->
+      revokeSessionsOnPasswordReset: true,
     },
     session: {
       expiresIn: Math.floor(adminAuth.idleMs / 1000),

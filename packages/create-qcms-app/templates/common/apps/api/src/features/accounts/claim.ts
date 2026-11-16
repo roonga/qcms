@@ -1,7 +1,9 @@
 import {
   findAccountById,
   invalidateLiveSignInLinks,
+  lockAccount,
   markAccountClaimed,
+  revokeAccountSessions,
   writeSiteAuditRow,
 } from "@roonga/qcms-db";
 
@@ -10,16 +12,22 @@ import type { Deps } from "../../deps.js";
 /**
  * Write the claim once the second factor is verified, which is the act criterion 53 names:
  * a password alone leaves the account unclaimed. Guarded on `claimedAt`, so a later
- * verification writes no row. Every link the account still holds dies in the same
- * transaction, the one a resend crossing the claim left live included.
+ * verification writes no row. In the same transaction every link the account still holds
+ * dies, and every session but `keepToken`'s is deleted: the admin gate reads the factor
+ * from the account, so a session minted before the factor existed would otherwise pass it.
  */
-export async function claimAfterFactorVerified(deps: Deps, userId: string): Promise<void> {
-  const exec = deps.databases.control;
-  const account = await findAccountById(exec, userId);
-  if (account === undefined || account.claimedAt !== null || account.disabledAt !== null) return;
+export async function claimAfterFactorVerified(
+  deps: Deps,
+  userId: string,
+  keepToken: string | undefined,
+): Promise<void> {
   const now = deps.clock.now();
-  await exec.transaction(async (tx) => {
+  await deps.databases.control.transaction(async (tx) => {
+    await lockAccount(tx, userId);
+    const account = await findAccountById(tx, userId);
+    if (account === undefined || account.claimedAt !== null || account.disabledAt !== null) return;
     await invalidateLiveSignInLinks(tx, userId, now);
+    await revokeAccountSessions(tx, userId, keepToken);
     await markAccountClaimed(tx, userId, now);
     await writeSiteAuditRow(tx, {
       actor: userId,
