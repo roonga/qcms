@@ -825,12 +825,9 @@ export function makeAddHolderHandler(deps: Deps): RouteHandler<typeof addHolderR
   };
 }
 
-/**
- * Write one hold, suspended where the grantor reset or reactivated the account: that person
- * cannot restore its response access alone, by re-confirming or by removing a suspended hold
- * and granting it again. The account's lock is tried after the workspace's, the order the
- * re-confirmation takes them in; a reset holds only the account's, so neither waits on the other.
- */
+// Suspended where the grantor reset or reactivated the account, so removing a suspended hold
+// and granting it again does not lift it. The account's lock is tried after the workspace's,
+// as the re-confirmation takes them; a reset holds only the account's.
 async function writeHold(
   tx: Executor,
   input: {

@@ -383,13 +383,9 @@ export function createAdminAuth(input: AdminAuthInput) {
       session: {
         create: {
           /**
-           * Every sign-in shape mints the session here, the pending-second-factor one
-           * included, which creates it and then deletes it:
+           * Every sign-in shape mints the session here, the challenge one included:
            * `dist/plugins/two-factor/index.mjs:291` <!-- expect: internalAdapter.deleteSession(data.session.token) -->
-           * The mounted paths that mint one without a session are `/sign-in/email` and the two
-           * verify paths, which finish a challenge only a sign-in opens; `/change-password` and
-           * the enrolment verify need a session already. An unspent link refuses every path, so
-           * a path mounted later is covered too.
+           * Only a password sign-in opens a session from nothing, so an unspent link refusing every path covers the rest.
            */
           before: async (session, context) => {
             const path: unknown = (context as { path?: unknown } | undefined)?.path;

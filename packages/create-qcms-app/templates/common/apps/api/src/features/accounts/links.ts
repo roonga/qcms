@@ -18,11 +18,9 @@ const HOUR_MS = 60 * 60 * 1000;
 export type SignInLinkDeliveryOutcome = "sent" | "undeliverable";
 
 /**
- * Mint one link, store its digest and email it; the token is never returned, logged or
- * stored. `withinIssue` runs in the issuing transaction under the account's lock, before
- * the mail, so a check it makes holds for the issue and a row it writes commits with it. A
- * `purpose` given as a function is read there too, after `withinIssue`.
- * With `busy`, the lock is tried rather than waited for and `busy()` is thrown when it is held.
+ * Mint, store the digest of and email one link. `withinIssue`, and `purpose` given as a
+ * function, run in the issuing transaction under the account's lock, before the mail. With
+ * `busy`, the lock is tried, and `busy()` thrown while it is held.
  */
 export async function issueAndSendSignInLink(
   deps: Deps,

@@ -28,10 +28,8 @@ import { CLAIM_PATH, signInTokenHash } from "./tokens.js";
 // 256 random bits, and an unknown one is refused by one indexed read before any hashing.
 
 /**
- * What each link purpose does with the password sent: a creation or reactivation link sets
- * it, and so does a reset link once the reset took the password away. A reset that kept the
- * password, a factor-only reset, signs the person in with it instead and sets nothing. A
- * creation link for an account that was ever reset or reactivated sets nothing either.
+ * A reset link that kept the password only signs in with it, and a creation link sets nothing
+ * on an account that was ever reset or reactivated, so no link replaces a kept password.
  */
 type PasswordUse = "set" | "verify";
 
@@ -112,11 +110,9 @@ export const registerAccountClaim: SliceRegistrar = (group, deps: Deps) => {
     const resolved = await auth.api.getSession({ headers: c.req.raw.headers });
     if (resolved !== null && resolved.user.id !== link.userId) throw linkRefused();
 
-    // The password is written on this transaction's connection under a tried lock, so a
-    // refusal rolls everything back and no request waits for a second pooled connection
-    // or queues behind a claim in flight while holding one.
-    // A wrong current password spends the link and commits, so the token is not a way to
-    // guess the kept password.
+    // A tried lock and this transaction's own connection, so no request queues holding a
+    // pooled one. A refusal rolls back, but a wrong kept password commits the spend, so the
+    // token is not a way to guess that password.
     const claimed = await exec.transaction(async (tx) => {
       await boundAccountTransaction(tx);
       if (!(await tryLockAccount(tx, link.userId))) throw linkRefused();
