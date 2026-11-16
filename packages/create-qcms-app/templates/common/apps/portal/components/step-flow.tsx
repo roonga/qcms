@@ -764,6 +764,9 @@ export function StepFlow({
     steps: snapshot.steps,
     stepHref: `${basePath}/s/${encodeURIComponent(sessionId)}`,
     onJump: jumpTo,
+    onQuestion: (key) => {
+      if (fieldsRef.current) focusQuestion(fieldsRef.current, key);
+    },
   };
   const namedByIndicator = viewLabel !== undefined && indicatorAnnounces(rail);
   const primaryLabel = isFinalStep ? t("action.submit") : t("action.continue");
