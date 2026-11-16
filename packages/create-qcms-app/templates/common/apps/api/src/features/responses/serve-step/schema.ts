@@ -1,5 +1,7 @@
 import { z } from "@hono/zod-openapi";
-import { AnswerValue } from "@roonga/qcms-core";
+import { AnswerValue, PROGRESS_MODES } from "@roonga/qcms-core";
+
+import { RAIL_STATES } from "./steps.js";
 
 /**
  * A malformed-request bound on an array the transport allocates before validation, not
@@ -24,7 +26,7 @@ export const StepQuery = z.object({
     .openapi({
       param: { name: "step", in: "query", required: false },
       description:
-        "0-based index of the visible step to render (the explicit navigation cursor, ADR-28). Clamped to the visible range; omit to serve the first incomplete step.",
+        "0-based index of the visible step to render (the explicit navigation cursor, ADR-28). Clamped to the visible range; omit to serve the first incomplete step. A forward jump is refused: an index past the end of the first step still missing a required answer serves the first incomplete step instead.",
       example: 1,
     }),
 });
@@ -105,6 +107,39 @@ export const HeldValues = z.record(z.string(), AnswerValue).openapi({
   example: { q_at_fault_accident: true, q_accident_count: 2 },
 });
 
+/** A step's title and its state for this session; a rule's condition never crosses. */
+export const StepRailEntry = z
+  .object({
+    stepId: z.string().openapi({ example: "stp_history" }),
+    label: z.string().openapi({ example: "Driving history" }),
+    state: z.enum(RAIL_STATES).openapi({
+      description:
+        "completed and current as walked; ahead for a visible step not yet reached; notNeeded for a step a rule hides.",
+    }),
+    cursor: z.number().int().nullable().openapi({
+      description:
+        "The `step` cursor that opens this step: set for a completed step only, the one kind a respondent may jump to.",
+      example: 0,
+    }),
+    questions: z
+      .array(z.object({ key: z.string(), label: z.string() }))
+      .optional()
+      .openapi({
+        description:
+          "On the current step only: the rendered view's visible questions, by answer key, in order.",
+      }),
+  })
+  .openapi("StepRailEntry");
+
+export const StepRail = z.array(StepRailEntry).openapi({
+  description: "Every step of the pinned version in form order (ADR-28).",
+});
+
+export const ProgressMode = z.enum(PROGRESS_MODES).openapi({
+  description:
+    "How the portal shows progress, from the pinned version's appearance; top-indicator where the version carries none.",
+});
+
 /**
  * The pinned version's appearance, carried on every step response because a respondent
  * keeps the version they started (ADR-07). Null where the version carries none, which is
@@ -129,6 +164,8 @@ export const StepResponse = z
     rosters: RosterProjection,
     view: StepViewProjection,
     progress: StepProgress,
+    steps: StepRail,
+    progressMode: ProgressMode,
   })
   .openapi("StepResponse");
 export type StepResponse = z.infer<typeof StepResponse>;
@@ -190,6 +227,8 @@ export const BatchAnswerResponse = z
     rosters: RosterProjection,
     view: StepViewProjection,
     progress: StepProgress,
+    steps: StepRail,
+    progressMode: ProgressMode,
     rejected: z.array(BatchAnswerRejection),
   })
   .openapi("BatchAnswerResponse");
@@ -230,6 +269,8 @@ export const RosterOpResponse = z
     rosters: RosterProjection,
     view: StepViewProjection,
     progress: StepProgress,
+    steps: StepRail,
+    progressMode: ProgressMode,
     replayed: z.boolean(),
     minted: z.array(z.string()),
   })

@@ -182,8 +182,13 @@ describe("the §3.2 matrix and the probe inventory stay in step", () => {
  */
 const DOCUMENTED_ROLE_ROWS: Readonly<Record<string, readonly [string, string]>> = {
   "See drafts, published versions and release history": ["form", "read"],
+  "Read the agent changes since the last publish": ["form", "read"],
   "See link and endpoint configuration (viewer: URL query string masked, Q58)": ["link", "read"],
   "Draft and edit questions and forms, pin shared questions, preview": ["form", "write"],
+  "Apply or undo a card-less agent builder edit (the draft save with its edit token)": [
+    "form",
+    "write",
+  ],
   "Publish a version (releases nowhere)": ["form", "publish"],
   "Release to dev or test": ["release", "create"],
   "Release to prod": ["release", "create"],

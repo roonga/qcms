@@ -175,13 +175,14 @@ const LimitOnlyInput = z.object({ limit: Limit });
 
 /**
  * The enum is generated from the recipe file names, so the list the model is shown cannot
- * name a recipe this installation does not ship, and a new file needs no edit here.
+ * name a recipe this installation does not ship, and a new file needs no edit here. The
+ * cap is the whole list, because the prompt asks for every type a plan needs in one call.
  */
 const QuestionRecipesInput = z.object({
   types: z
     .array(z.enum([...QUESTION_RECIPE_TYPES]))
     .min(1)
-    .max(10)
+    .max(QUESTION_RECIPE_TYPES.length)
     .describe("The question types to look up, from this list."),
 });
 

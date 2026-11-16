@@ -4,6 +4,7 @@ import {
   createForm,
   createQuestion,
   createQuestionVersion,
+  insertFormRelease,
   publishQuestionVersion,
 } from "@roonga/qcms-db";
 import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
@@ -181,6 +182,14 @@ async function seedPublishedForm(formId: string, questionIds: readonly string[])
     headers: headersFor(owner),
   });
   expect(published.status).toBe(200);
+  // Publishing reaches no environment, and minting refuses one with nothing live there.
+  const { version } = (await published.json()) as { version: number };
+  await insertFormRelease(testDb.db, {
+    formId: FormId.parse(formId),
+    environment: "test",
+    version,
+    releasedBy: "usr_fixture",
+  });
 }
 
 async function mint(): Promise<Response> {

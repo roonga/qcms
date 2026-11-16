@@ -9,6 +9,7 @@ import {
   type DiffEntry,
 } from "@/lib/forms/assist-diff";
 import type { AgentDraftProposal } from "@/lib/forms/assist-stream";
+import { messageForIssue } from "@/lib/forms/issues";
 import type { DraftForm, FormIssue } from "@/lib/forms/types";
 import { t, tPlural, type MessageKey } from "@/lib/i18n/en";
 
@@ -142,7 +143,10 @@ function DraftIssue({
       </span>
     );
   }
-  if (current === undefined) return <span data-issue-code={issue.code}>{issue.message}</span>;
+  // Off the builder there is no draft to anchor to, but the kernel's own text names ids: the
+  // catalogue sentence is what the reader gets, as in the builder's own panel.
+  if (current === undefined)
+    return <span data-issue-code={issue.code}>{messageForIssue(issue)}</span>;
   return <IssueEntry issue={issue} draft={current} />;
 }
 

@@ -23,6 +23,13 @@ export const messages = {
   // pages legible as instances rather than as unrelated steps.
   "progress.stepNamed": "Step {current} of {total}: {label}",
 
+  "rail.label": "Steps",
+  "rail.done": "Done",
+  // The one word for a step a rule hides, everywhere it appears.
+  "rail.notNeeded": "Not needed",
+  "rail.hint": "You can go back to any finished step. Later steps open as you reach them.",
+  "rail.toggle": "All steps",
+
   "home.body": "Open your questionnaire from the link you were sent.",
 
   "entry.title": "You are invited to complete this form",

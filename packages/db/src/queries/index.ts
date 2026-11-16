@@ -63,6 +63,7 @@ export {
   createForm,
   upsertDraft,
   getDraft,
+  getDraftForUpdate,
   deleteDraft,
   insertFormVersion,
   getFormVersion,
@@ -225,7 +226,9 @@ export {
 export {
   type AgentActionEntry,
   type AgentActionRow,
+  agentStepRecorded,
   listAgentActions,
+  listFormAgentActions,
   listProposalSteps,
   writeAgentActionRow,
 } from "./agent-actions.js";

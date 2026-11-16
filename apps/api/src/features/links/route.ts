@@ -29,7 +29,7 @@ export const mintLinksRoute = createRoute({
       description: "The minted links, each with its shareable URL and expiry",
       content: { "application/json": { schema: MintLinksResponse } },
     },
-    ...errorResponses(400, 401, 404),
+    ...errorResponses(400, 401, 404, 409),
   },
   ...withScopes("links:mint"),
 });

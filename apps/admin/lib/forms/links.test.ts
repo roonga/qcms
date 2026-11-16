@@ -1,7 +1,16 @@
 import { describe, expect, it } from "vitest";
 
+import { t } from "../i18n/en.ts";
+
 import { blankDraft } from "./draft.ts";
-import { isRevocable, linkStateKey, mintedLinksCsv, mintedLinksFilename } from "./links.ts";
+import { messageForFormCode } from "./errors.ts";
+import {
+  isRevocable,
+  linkStateKey,
+  mintAvailability,
+  mintedLinksCsv,
+  mintedLinksFilename,
+} from "./links.ts";
 import { canFreezeDraft, freezeSummary, nextVersion } from "./publish.ts";
 import type { MintedLink } from "./types.ts";
 
@@ -118,5 +127,27 @@ describe("offering the draft as a publish source", () => {
 
   it("leaves the decision to the confirmation when no workflow was projected", () => {
     expect(canFreezeDraft(undefined)).toBe(true);
+  });
+});
+
+describe("whether the screen offers minting", () => {
+  it("offers it only for a form live in the environment on screen", () => {
+    expect(mintAvailability({ status: "open", versions: [1] })).toBe("available");
+    expect(mintAvailability({ status: "closed", versions: [1] })).toBe("available");
+  });
+
+  it("names the two reasons the API would refuse, rather than one", () => {
+    expect(mintAvailability({ status: "unreleased", versions: [] })).toBe("no-version");
+    expect(mintAvailability({ status: "unreleased", versions: [1] })).toBe("not-live");
+  });
+});
+
+describe("the refusal a mint outside a live environment reads as", () => {
+  it("is a sentence, not the API's own prose or a bare code", () => {
+    const message = messageForFormCode("FORM_NOT_RELEASED");
+
+    expect(message).toBe(t("forms.links.notLiveHere"));
+    expect(message).not.toContain("FORM_NOT_RELEASED");
+    expect(message).not.toMatch(/\{[a-z]+\}/iu);
   });
 });

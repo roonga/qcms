@@ -4,6 +4,7 @@
   "goal": "Change when a question is asked, on a form that is already out on test.",
   "mode": "scripted",
   "screen": "/forms",
+  "environment": "test",
   "cards": "confirm",
   "messages": [
     {
@@ -13,15 +14,29 @@
   ],
   "seed": {
     "reset": "after:publish-and-test-link",
-    "requires": "The form released to test at version 1, with the reason for the visit always asked.",
+    "requires": "The form released to test at version 1, with the reason for the visit always asked, and the signed-in person holding Edit forms and Publish forms for test.",
     "fixtures": "Fake clinic data only."
   },
-  "budget": { "turns": 1 },
+  "budget": {
+    "turns": 1
+  },
   "expect": {
     "endState": [
-      { "check": "ruleCount", "title": "Larkmead new patient sign-up", "min": 1 },
-      { "check": "released", "title": "Larkmead new patient sign-up", "environment": "test" },
-      { "check": "notReleased", "title": "Larkmead new patient sign-up", "environment": "prod" },
+      {
+        "check": "ruleCount",
+        "title": "Larkmead new patient sign-up",
+        "min": 1
+      },
+      {
+        "check": "released",
+        "title": "Larkmead new patient sign-up",
+        "environment": "test"
+      },
+      {
+        "check": "notReleased",
+        "title": "Larkmead new patient sign-up",
+        "environment": "prod"
+      },
       {
         "check": "linkCount",
         "title": "Larkmead new patient sign-up",

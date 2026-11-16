@@ -5,6 +5,7 @@ import { Alert } from "@/components/kit";
 import { FormPageHeader } from "@/components/forms/form-page-header";
 import { PublicFormLink } from "@/components/forms/public-form-link";
 import { SecureLinks } from "@/components/forms/secure-links";
+import { mintAvailability } from "@/lib/forms/links";
 import { publicFormLink } from "@/lib/forms/public-link";
 import { t } from "@/lib/i18n/en";
 import { formSectionName, pageMetadata } from "@/lib/page-title";
@@ -69,7 +70,7 @@ export default async function FormLinksPage({
         formId={form.formId}
         environment={environment}
         links={readState(links)}
-        canMint={form.versions.length > 0}
+        availability={mintAvailability(form)}
         maxBatch={MAX_LINK_BATCH}
         mint={mintLinksAction.bind(null, form.formId, shown)}
         revoke={revokeLinkAction.bind(null, form.formId, shown)}

@@ -7,12 +7,21 @@ import { readSessionToken } from "@/lib/server/session-cookie";
 import { currentBasePath } from "@/lib/server/environment";
 import { newOperationToken } from "@/lib/server/operation-token";
 
+/** A rail link's cursor (ADR-28); anything that is not one serves the first incomplete step. */
+function cursorOf(raw: string | string[] | undefined): number | undefined {
+  if (typeof raw !== "string" || !/^\d{1,6}$/.test(raw)) return undefined;
+  return Number(raw);
+}
+
 export default async function FlowPage({
   params,
+  searchParams,
 }: {
   readonly params: Promise<{ sessionId: string }>;
+  readonly searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { sessionId } = await params;
+  const cursor = cursorOf((await searchParams).step);
   const token = await readSessionToken();
 
   if (token === undefined) {
@@ -20,7 +29,7 @@ export default async function FlowPage({
   }
 
   try {
-    const step = await getStep(sessionId, token);
+    const step = await getStep(sessionId, token, cursor);
     const context = await readStepContext();
     // One roster-operation token per render (ADR-43), minted on the server so SSR and
     // the first client render agree. Its only job is to make a doubled post apply once;
@@ -31,6 +40,7 @@ export default async function FlowPage({
         initial={step}
         context={context}
         opToken={newOperationToken()}
+        {...(cursor === undefined ? {} : { cursor })}
         // Every address the step emits has to stay inside the environment the
         // respondent entered (Q21).
         basePath={await currentBasePath()}

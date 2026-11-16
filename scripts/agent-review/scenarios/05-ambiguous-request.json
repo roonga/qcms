@@ -5,17 +5,30 @@
   "mode": "simulated",
   "brief": "You want the patient form tidied up. You have not decided what that means. If you are asked, say you mean the order of the questions, nothing more.",
   "screen": "/forms",
+  "environment": "test",
   "cards": "leave",
-  "messages": [{ "text": "Can you tidy up the patient form?", "cards": "leave" }],
+  "messages": [
+    {
+      "text": "Can you tidy up the patient form?",
+      "cards": "leave",
+      "expectCards": 0
+    }
+  ],
   "seed": {
     "reset": "after:publish-and-test-link",
     "requires": "The form released to test with one link.",
     "fixtures": "Fake clinic data only."
   },
-  "budget": { "turns": 1 },
+  "budget": {
+    "turns": 1
+  },
   "expect": {
     "endState": [
-      { "check": "questionCount", "title": "Larkmead new patient sign-up", "min": 5 },
+      {
+        "check": "questionCount",
+        "title": "Larkmead new patient sign-up",
+        "min": 5
+      },
       {
         "check": "linkCount",
         "title": "Larkmead new patient sign-up",

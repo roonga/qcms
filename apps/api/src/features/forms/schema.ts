@@ -84,6 +84,12 @@ const OpaqueAppearance = z.record(z.string(), z.unknown()).nullable().openapi("A
     "A form's appearance: the four palettes, logo key, face, corners, density, text size, progress mode and page tint. Validated against the shared appearance schema and the WCAG contrast check. Null clears it.",
 });
 
+export const AgentEditHeaders = z.object({
+  "x-qcms-agent-edit": z.string().max(2_000).optional().openapi({
+    description: "An agent edit or Undo token; flag-gated, refused with 400 when the flag is off.",
+  }),
+});
+
 export const DraftBody = z
   .strictObject({
     definition: OpaqueDefinition,
@@ -368,6 +374,11 @@ export const SavedDraftResponse = z
     /** As stored: an omitted request field leaves whatever the form already carried. */
     appearance: z.unknown(),
     updatedAt: z.string().openapi({ example: "2026-08-01T09:00:00.000Z" }),
+    /**
+     * Present only on a save that carried an agent edit or Undo token. `undoToken` reverses
+     * this edit through this same route; null for an Undo, or where nothing can be restored.
+     */
+    agentEdit: z.object({ undoToken: z.string().nullable() }).optional(),
   })
   .openapi("SavedDraftResponse");
 
