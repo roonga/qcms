@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { advertisedJsonSchema } from "./registry.js";
-import { proposeActionSchema, proposePlanSchema } from "./propose-schema.js";
+import { proposePlanSchema } from "./propose-schema.js";
+import { collectRefs } from "./tool-schema.js";
 
 /**
  * Criterion 3 on the provider-facing schema: an editor without `prod` in scope is shown a
@@ -34,7 +35,7 @@ function enumsIn(value: unknown, member: string): string[][] {
   return found;
 }
 
-describe("the propose tools' advertised schemas", () => {
+describe("the propose tool's advertised schema", () => {
   it("narrows an argument kind's environment enum to the caller's environments", async () => {
     const schema = await advertisedJsonSchema(proposePlanSchema(EDITOR_WITHOUT_PROD));
     const enums = enumsIn(schema, "environment");
@@ -48,7 +49,7 @@ describe("the propose tools' advertised schemas", () => {
   it("advertises only the offered kinds", async () => {
     const schema = JSON.stringify(
       await advertisedJsonSchema(
-        proposeActionSchema([{ kind: "link.mint", environments: ["test"] }]),
+        proposePlanSchema([{ kind: "link.mint", environments: ["test"] }]),
       ),
     );
     expect(schema).toContain("link.mint");
@@ -56,9 +57,16 @@ describe("the propose tools' advertised schemas", () => {
   });
 
   it("advertises no kind at all when the grant filter offered none", async () => {
-    const schema = JSON.stringify(await advertisedJsonSchema(proposeActionSchema([])));
+    const schema = JSON.stringify(await advertisedJsonSchema(proposePlanSchema([])));
     expect(schema).not.toContain("link.mint");
     expect(schema).not.toContain("form.publish");
+  });
+
+  it("accepts a plan of one step, which is how a single action is proposed", () => {
+    const parsed = proposePlanSchema([{ kind: "form.publish", environments: ["test"] }]).safeParse({
+      steps: [{ kind: "form.publish", args: { formId: "frm_a", environment: "test" } }],
+    });
+    expect(parsed.success).toBe(true);
   });
 
   it("accepts a plan spanning one form subtree, and refuses one spanning both", () => {
@@ -101,5 +109,21 @@ describe("the propose tools' advertised schemas", () => {
       ),
     );
     expect(schema).toContain("fromStep");
+  });
+
+  it("writes the step reference once and points every argument at that one definition", async () => {
+    const schema = await advertisedJsonSchema(
+      proposePlanSchema([
+        { kind: "form.publish", environments: ["test"] },
+        { kind: "form.release", environments: ["test"] },
+      ]),
+    );
+    const refs = collectRefs(schema).filter(({ ref }) => ref.includes("StepReference"));
+    expect(refs.length).toBeGreaterThan(1);
+    for (const { resolves } of refs) expect(resolves).toBe(true);
+    expect(new Set(refs.map(({ ref }) => ref)).size).toBe(1);
+    expect(JSON.stringify(schema).match(/The zero-based index of an earlier step/gu)).toHaveLength(
+      1,
+    );
   });
 });

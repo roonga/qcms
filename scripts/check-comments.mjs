@@ -12,6 +12,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import ts from "typescript";
 
+import { PROMPT_RENDERED_PREFIX } from "./prompt-sources.mjs";
 import { VENDORED_SOURCE_PREFIX } from "./vendored-source.mjs";
 
 const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -28,6 +29,7 @@ export const EXCLUDED_PATHS = [
   { prefix: VENDORED_SOURCE_PREFIX, why: "vendored byte-for-byte (ADR-22)" },
   { prefix: "packages/create-qcms-app/templates/", why: "generated mirrors of app files" },
   { prefix: "plan/", why: "scratch tree" },
+  { prefix: PROMPT_RENDERED_PREFIX, why: "the prompt as sent, written by the agent's tests" },
 ];
 
 const GENERATED = /(?:\.generated\.)|(?:(?:^|\/)__snapshots__\/)|(?:\.snap$)/;

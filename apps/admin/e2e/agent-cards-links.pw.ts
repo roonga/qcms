@@ -56,6 +56,20 @@ function linkRows(page: Page): Locator {
   return page.getByTestId("qcms-links-table").locator("tbody tr");
 }
 
+// The route refuses a link into an environment with nothing live there, so every fixture
+// form here is published before any of its links are minted.
+async function liveForm(page: Page, slug: string, title: string): Promise<string> {
+  const id = await createForm(page, slug, title);
+  await addStep(page, "Start");
+  await pinQuestion(page, SEEDED_QUESTION, 1);
+  await waitForSaved(page);
+
+  await openPanel(page);
+  await propose(page, "propose-form-publish", "publish this form to test");
+  await confirm(page, /^Done\./u);
+  return id;
+}
+
 function expectAddressShape(addresses: readonly string[]): void {
   for (const address of addresses) {
     expect(new URL(address).pathname, "a minted address addresses the test environment").toMatch(
@@ -78,7 +92,7 @@ test("confirms a mint and a revoke alone, changing the screen and recording each
 }) => {
   test.setTimeout(300_000);
   totpSecret = await enrollNewAdmin(page, EMAIL);
-  formId = await createForm(page, `agent-links-${RUN}`, "Agent links");
+  formId = await liveForm(page, `agent-links-${RUN}`, "Agent links");
 
   await page.goto(`/operations/forms/${formId}/links`);
   await openPanel(page);
@@ -172,7 +186,7 @@ test("confirms both kinds inside one plan", async ({ page }) => {
 test("stops at the step that failed and runs nothing after it", async ({ page }) => {
   test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);
-  emptyFormId = await createForm(page, `agent-links-empty-${RUN}`, "Agent links empty");
+  emptyFormId = await liveForm(page, `agent-links-empty-${RUN}`, "Agent links empty");
 
   await page.goto(`/operations/forms/${emptyFormId}/links`);
   await openPanel(page);
@@ -195,14 +209,7 @@ test("shows a full batch on the card, and one of its addresses starts a session"
 }) => {
   test.setTimeout(600_000);
   await signInWithTotp(page, EMAIL, totpSecret);
-  const batchFormId = await createForm(page, `agent-links-batch-${RUN}`, "Agent links batch");
-  await addStep(page, "Start");
-  await pinQuestion(page, SEEDED_QUESTION, 1);
-  await waitForSaved(page);
-
-  await openPanel(page);
-  await propose(page, "propose-form-publish", "publish this form to test");
-  await confirm(page, /^Done\./u);
+  const batchFormId = await liveForm(page, `agent-links-batch-${RUN}`, "Agent links batch");
 
   await page.goto(`/operations/forms/${batchFormId}/links`);
   await openPanel(page);

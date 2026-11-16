@@ -16,6 +16,7 @@ import { policyForRequest } from "../membership/route-policy.js";
 import { actionKindForRoute } from "./actions/registry.js";
 import type { ActionRequestFacts } from "./actions/types.js";
 import { savedDraftRevision } from "./draft-pins.js";
+import { agentEditDisabled, agentEditProvenance } from "./edit-provenance.js";
 import { unverifiedProposalId, type ProposalRefusalCode } from "./proposal-token.js";
 import {
   checkProvenance,
@@ -177,10 +178,9 @@ export function agentProvenanceDisabled(): MiddlewareHandler<ApiEnv> {
  * request carrying the header is a `400`.
  */
 export const registerAgentProvenance: SliceRegistrar = (group, deps) => {
-  group.use(
-    "*",
-    deps.config.flags.agentAuthoring === "none" ? agentProvenanceDisabled() : agentProvenance(deps),
-  );
+  const off = deps.config.flags.agentAuthoring === "none";
+  group.use("*", off ? agentProvenanceDisabled() : agentProvenance(deps));
+  group.use("*", off ? agentEditDisabled(deps) : agentEditProvenance(deps));
 };
 
 export type { VerifiedProposal };

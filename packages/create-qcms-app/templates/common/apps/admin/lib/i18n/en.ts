@@ -1450,6 +1450,9 @@ export const messages = {
   "forms.links.heading": "Secure links",
   "forms.links.needsPublish":
     "Publish this form before minting links: a link opens the newest version, and there is not one yet.",
+  /** Also the screen and card copy for the API's FORM_NOT_RELEASED, so it has to stand alone. */
+  "forms.links.notLiveHere":
+    "This form is not live in this environment, so a link here would lead nowhere. Publish a version to this environment first.",
   "forms.links.mint": "Mint links",
   /** Restate mint environment in title and confirmation because links determine where respondent answers land. */
   "forms.links.mintTitle": "Mint secure links for {environment}",
@@ -1628,7 +1631,7 @@ export const messages = {
   "forms.assist.step.list_erasures": "Reading the erasure log",
   "forms.assist.step.list_workspaces": "Listing the workspaces",
   "forms.assist.step.read_workspace": "Reading a workspace",
-  "forms.assist.step.propose_action": "Preparing an action for you to confirm",
+  "forms.assist.step.question_recipes": "Checking how to set up these questions",
   "forms.assist.step.propose_plan": "Preparing a plan for you to confirm",
 
   "forms.assist.diffCount.one": "1 change proposed.",

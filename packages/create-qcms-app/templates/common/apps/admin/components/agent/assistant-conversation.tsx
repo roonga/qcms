@@ -359,7 +359,7 @@ function ScreenConversation({
   };
 
   const absorb = (event: AssistEvent): void => {
-    if (event.type === "action" || event.type === "plan") {
+    if (event.type === "plan") {
       const arriving = event.proposal;
       windowRef.current = startedWindow(arriving);
       boundTo.current = { where, environment };

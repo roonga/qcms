@@ -145,7 +145,7 @@ export const ReleaseReviewResponse = z
  * reported, so it covers the released version and the closed state together: a close and a
  * reopen each append a row. `fromEnvironment` records the path and authorises nothing (F7).
  */
-const BatchTarget = z
+export const BatchTarget = z
   .strictObject({
     environment: EnvironmentName,
     expectedSequence: z.number().int().positive().nullable(),

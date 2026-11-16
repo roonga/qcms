@@ -20,6 +20,7 @@ const FORM_CODE_MESSAGES: Readonly<Record<string, MessageKey>> = {
   INVALID_LINK_ID: "forms.error.invalidLinkId",
   LINK_NOT_FOUND: "forms.error.linkNotFound",
   LINK_EXPIRY_INVALID: "forms.error.linkExpiryInvalid",
+  FORM_NOT_RELEASED: "forms.links.notLiveHere",
   // Name the environment because these refusals apply to one release state, not the entire form.
   NOT_RELEASED: "forms.lifecycle.notReleasedHere",
   ALREADY_CLOSED: "forms.lifecycle.alreadyClosedHere",

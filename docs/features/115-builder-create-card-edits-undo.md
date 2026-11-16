@@ -12,7 +12,8 @@ The builder's write experience. Creating a form is the one Confirm card (the slu
 - Form creation from `/forms/new/build`: a Confirm card showing the workspace and the slug; needs Edit forms in that workspace; the form and its first draft are created at Confirm, never when the builder opens; until then Share preview and Publish are off. After Confirm the route becomes `/forms/<id>/build`.
 - Draft edits applied as 111's token-bound edits, browser-executed, with no per-edit card; each edit shows in the conversation with an Undo control. A new or edited library question is a Confirm card with no Undo control (Q22).
 - Undo for the latest edit and earlier ones in reverse order, through 111's Undo route.
-- The publish wizard shows the cumulative agent diff since the last human-reviewed revision (111's read) when entered from the builder or when the draft carries agent edits.
+- The publish wizard shows 111's read when entered from the builder or when the draft carries agent edits: the comparison is labelled "every change since the last publish", with the steps the assistant made marked. No agent-only diff is built.
+- The docked assistant's Accept writes an audit row, so the wizard's read covers it; then the client-supplied `agentAssisted` field is dropped from the draft save body and the draft.
 - Strings in `apps/admin/lib/i18n/en.ts`.
 
 ## Exit criteria
@@ -25,6 +26,7 @@ Spec criteria owned: none.
 
 - Authorisation (X3, U7): create refused without Edit forms in the chosen workspace; a disabled account refused at Confirm; an edit after the account is disabled refused.
 - Lazy create: no form row exists before Confirm; one form and one draft after.
+- Provenance: the docked Accept writes one audit row, and the wizard's read reports it.
 - Playwright (X3): create through the card, three edits with no card, Undo twice, the wizard shows the diff and returns to `/build` through `returnTo`; axe clean.
 
 ## Files and areas

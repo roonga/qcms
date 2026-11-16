@@ -319,10 +319,10 @@ function toolCallPart(toolName: string, input: unknown, nonce = ""): StreamPart 
  */
 function applyDraftCall(prompt: readonly PromptMessage[]): StreamPart[] {
   const formId = currentDraft(prompt)?.formId ?? factFormId(prompt);
-  const input = { action: { kind: "apply-draft", args: { formId } } };
+  const input = { steps: [{ kind: "apply-draft", args: { formId } }] };
   return [
-    ...toolInputParts("propose_action", input),
-    toolCallPart("propose_action", input),
+    ...toolInputParts("propose_plan", input),
+    toolCallPart("propose_plan", input),
     finishPart("tool-calls"),
   ];
 }
@@ -353,7 +353,7 @@ function planRecoveredStep(
       finishPart("tool-calls"),
     ];
   }
-  if (!results.has("propose_action")) return applyDraftCall(prompt);
+  if (!results.has("propose_plan")) return applyDraftCall(prompt);
   return [...textParts("I have proposed the draft.", "t3"), finishPart("stop")];
 }
 
@@ -425,7 +425,7 @@ function planProposeQuestionsStep(
     ];
   }
 
-  if (!results.has("propose_action")) return applyDraftCall(prompt);
+  if (!results.has("propose_plan")) return applyDraftCall(prompt);
 
   return [
     ...textParts(
@@ -475,7 +475,7 @@ function planNarrateStep(
       finishPart("tool-calls"),
     ];
   }
-  if (!results.has("propose_action")) return applyDraftCall(prompt);
+  if (!results.has("propose_plan")) return applyDraftCall(prompt);
   return [
     ...textParts(
       "I added a driving-history step and gated the follow-up on it, so the second question only appears once the first is answered.",
@@ -520,7 +520,7 @@ function planReasoningStep(
       finishPart("tool-calls"),
     ];
   }
-  if (!results.has("propose_action")) return [...reasoning, ...applyDraftCall(prompt)];
+  if (!results.has("propose_plan")) return [...reasoning, ...applyDraftCall(prompt)];
   return [
     ...reasoning,
     ...textParts("I proposed a driving-history step with a gated follow-up.", "t2"),
@@ -572,6 +572,7 @@ const READ_ALL_INPUTS: Readonly<
   list_workspaces: () => ({}),
   read_workspace: () => ({}),
   list_erasures: () => ({ limit: 5 }),
+  question_recipes: () => ({ types: ["date-of-birth", "consent-and-acknowledgement"] }),
 };
 
 /** A rule the draft actually declares, or a probe id so the bench answers `ruleNotFound`. */
@@ -1224,11 +1225,11 @@ function planActionStep(script: FakeScript, prompt: readonly PromptMessage[]): S
 
   const single = SINGLE_ACTIONS[script];
   if (single !== undefined) {
-    if (toolCallCount(prompt, "propose_action") === 0) {
-      const input = { action: single(prompt) };
+    if (toolCallCount(prompt, "propose_plan") === 0) {
+      const input = { steps: [single(prompt)] };
       return [
-        ...toolInputParts("propose_action", input),
-        toolCallPart("propose_action", input),
+        ...toolInputParts("propose_plan", input),
+        toolCallPart("propose_plan", input),
         finishPart("tool-calls"),
       ];
     }
@@ -1236,12 +1237,12 @@ function planActionStep(script: FakeScript, prompt: readonly PromptMessage[]): S
   }
 
   if (script === "two-proposals") {
-    const called = toolCallCount(prompt, "propose_action");
+    const called = toolCallCount(prompt, "propose_plan");
     if (called < 2) {
-      const input = { action: mintStep(factFormId(prompt), called + 1) };
+      const input = { steps: [mintStep(factFormId(prompt), called + 1)] };
       return [
-        ...toolInputParts("propose_action", input, `_${String(called)}`),
-        toolCallPart("propose_action", input, `_${String(called)}`),
+        ...toolInputParts("propose_plan", input, `_${String(called)}`),
+        toolCallPart("propose_plan", input, `_${String(called)}`),
         finishPart("tool-calls"),
       ];
     }
@@ -1743,7 +1744,7 @@ function planBlankToPublishedStep(
       finishPart("tool-calls"),
     ];
   }
-  if (!results.has("propose_action")) return applyDraftCall(prompt);
+  if (!results.has("propose_plan")) return applyDraftCall(prompt);
   return [
     ...textParts(
       "I wrote a patient registration form with twelve questions, each with help text, validation and its own messages. Review the diff and accept it; I will ask about publishing after that.",
@@ -1772,13 +1773,47 @@ function planDefaultStep(
     const definition = buildProposal(draft, libraryHits(results));
     return [toolCallPart("propose_draft", { definition }), finishPart("tool-calls")];
   }
-  if (!results.has("propose_action")) return applyDraftCall(prompt);
+  if (!results.has("propose_plan")) return applyDraftCall(prompt);
   return [
     ...textParts(
       "I added a driving-history step and gated an accident-detail step on it, so the follow-up only appears when the first question is answered.",
     ),
     finishPart("stop"),
   ];
+}
+
+function marksACacheBreakpoint(message: PromptMessage): boolean {
+  const { providerOptions } = message as {
+    providerOptions?: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
+  };
+  return Object.values(providerOptions ?? {}).some(
+    (vendor) => vendor["cacheControl"] !== undefined,
+  );
+}
+
+/**
+ * The accounting a provider honouring the breakpoint would return: the marked prefix is written
+ * on a call that has nothing above it and read by every call after one.
+ */
+function cacheTokens(
+  messages: readonly PromptMessage[],
+): Readonly<Record<string, number>> | undefined {
+  if (!messages.some((message) => marksACacheBreakpoint(message))) return undefined;
+  const read = messages.some((message) => message.role === "assistant");
+  return { noCache: 10, cacheRead: read ? 90 : 0, cacheWrite: read ? 0 : 90 };
+}
+
+function withCacheTokens(
+  parts: readonly StreamPart[],
+  messages: readonly PromptMessage[],
+): readonly StreamPart[] {
+  const cache = cacheTokens(messages);
+  if (cache === undefined) return parts;
+  return parts.map((part) => {
+    if (part["type"] !== "finish") return part;
+    const usage = part["usage"] as { inputTokens?: Record<string, number> };
+    return { ...part, usage: { ...usage, inputTokens: { ...usage.inputTokens, ...cache } } };
+  });
 }
 
 export function fakeAssistantModel(): MockLanguageModelV3 {
@@ -1788,7 +1823,7 @@ export function fakeAssistantModel(): MockLanguageModelV3 {
     doStream: ({ prompt, tools }) => {
       const messages = prompt as unknown as readonly PromptMessage[];
       const script = pickScript(messages);
-      const parts = planStep(messages, script, offeredTools(tools));
+      const parts = withCacheTokens(planStep(messages, script, offeredTools(tools)), messages);
       return Promise.resolve({
         stream: simulateReadableStream({
           chunks: [{ type: "stream-start", warnings: [] }, ...parts],

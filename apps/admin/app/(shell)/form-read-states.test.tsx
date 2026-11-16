@@ -367,6 +367,16 @@ describe("the secure-link list's read states (issues 572, 544)", () => {
     expect(html).not.toContain('data-testid="qcms-links-needs-publish"');
   });
 
+  it("withholds the mint control, and says why, where the form is not live here", async () => {
+    formDetailResult = { ok: true, data: { ...FORM_DETAIL, status: "unreleased" } };
+
+    const html = await renderLinks();
+
+    expect(html).toContain('data-testid="qcms-links-not-live"');
+    expect(html).toContain("forms.links.notLiveHere");
+    expect(html).not.toContain('data-testid="qcms-links-needs-publish"');
+  });
+
   it("still renders the empty panel when the form genuinely has no link", async () => {
     const html = await renderLinks();
 

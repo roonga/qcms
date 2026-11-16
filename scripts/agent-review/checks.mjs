@@ -697,12 +697,85 @@ function boundText(bound) {
   return parts.length === 0 ? "any number" : parts.join(" and ");
 }
 
+/** The settings a scenario may assert about one question, each one a check of its own. */
+const QUESTION_CHECKS = ["required", "optionCount", "dateMin", "dateMax", "pattern"];
+
+/**
+ * @param {Record<string, unknown>} form
+ * @param {string} match lower-case substring of the question's label
+ * @returns {Record<string, unknown> | undefined}
+ */
+function questionNamed(form, match) {
+  const questions = Array.isArray(form["questions"]) ? form["questions"] : [];
+  return /** @type {Record<string, unknown>[]} */ (questions).find((question) =>
+    String(question["label"] ?? "")
+      .toLowerCase()
+      .includes(match),
+  );
+}
+
+/**
+ * A date an assertion names: a literal `YYYY-MM-DD`, or `today`, which resolves to the day
+ * the snapshot was read rather than to the day the checks happen to run.
+ *
+ * @param {unknown} value
+ * @param {string} readAt
+ * @returns {string}
+ */
+function assertedDate(value, readAt) {
+  return value === "today" ? readAt : String(value ?? "");
+}
+
+/**
+ * One question setting against one assertion. The setting is `null` when it was never set,
+ * which is the failure the date of birth defect was.
+ *
+ * @param {Record<string, unknown>} question
+ * @param {Record<string, unknown>} assertion
+ * @param {string} readAt
+ * @returns {string | undefined} what is wrong, or nothing
+ */
+function settingProblem(question, assertion, readAt) {
+  const check = String(assertion["check"]);
+  const bound = /** @type {{ min?: number; max?: number; exactly?: number }} */ (assertion);
+  const set = assertion["set"] !== false;
+
+  if (check === "required") {
+    const wanted = assertion["is"] !== false;
+    if (question["required"] === wanted) return undefined;
+    return wanted ? "it can be left unanswered" : "it must be answered";
+  }
+  if (check === "optionCount") {
+    const actual = question["optionCount"];
+    if (typeof actual !== "number") return `a ${String(question["type"])} offers no options`;
+    return withinBound(actual, bound)
+      ? undefined
+      : `found ${String(actual)} option(s), expected ${boundText(bound)}`;
+  }
+  const value = question[check];
+  if (typeof value !== "string" || value === "") {
+    return set ? "it is not set at all" : undefined;
+  }
+  if (!set) return `it is set, to ${value}`;
+  if (check === "pattern") return undefined;
+
+  const notAfter = assertion["notAfter"];
+  const notBefore = assertion["notBefore"];
+  if (notAfter !== undefined && value > assertedDate(notAfter, readAt)) {
+    return `${value} is later than ${assertedDate(notAfter, readAt)}`;
+  }
+  if (notBefore !== undefined && value < assertedDate(notBefore, readAt)) {
+    return `${value} is earlier than ${assertedDate(notBefore, readAt)}`;
+  }
+  return undefined;
+}
+
 /**
  * Read back from the API after the run, never from what the assistant said. The snapshot is
  * supplied by the caller so this module stays free of the network.
  *
  * @param {{ expect?: { endState?: readonly Record<string, unknown>[] } }} scenario
- * @param {{ forms?: readonly Record<string, unknown>[] }} snapshot
+ * @param {{ readAt?: string | null; forms?: readonly Record<string, unknown>[] }} snapshot
  * @returns {Finding[]}
  */
 export function checkEndState(scenario, snapshot) {
@@ -744,6 +817,44 @@ export function checkEndState(scenario, snapshot) {
       continue;
     }
     if (check === "formExists") continue;
+
+    if (QUESTION_CHECKS.includes(check)) {
+      const match = String(assertion["labelContains"] ?? "").toLowerCase();
+      const question = questionNamed(form, match);
+      if (question === undefined) {
+        findings.push(
+          finding("end-state.missing-question", {
+            where: `${check} on "${title}"`,
+            evidence: match,
+            text: `no question whose label says "${match}"`,
+          }),
+        );
+        continue;
+      }
+      const readAt = String(snapshot.readAt ?? "");
+      const needsToday = [assertion["notAfter"], assertion["notBefore"]].includes("today");
+      if (needsToday && readAt === "") {
+        findings.push(
+          finding("end-state.no-read-date", {
+            where: `${check} on "${title}"`,
+            evidence: match,
+            text: "the assertion names today and the end state records no date it was read on",
+          }),
+        );
+        continue;
+      }
+      const problem = settingProblem(question, assertion, readAt);
+      if (problem !== undefined) {
+        findings.push(
+          finding(`end-state.${check}`, {
+            where: `${check} of "${String(question["label"])}" on "${title}"`,
+            evidence: String(question[check] ?? ""),
+            text: problem,
+          }),
+        );
+      }
+      continue;
+    }
 
     if (check === "questionCount" || check === "ruleCount") {
       const key = check === "questionCount" ? "questionCount" : "ruleCount";

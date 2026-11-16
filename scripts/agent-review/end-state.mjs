@@ -57,15 +57,113 @@ export function readDraft(draft) {
 }
 
 /**
- * @param {{ detail: Record<string, unknown>; links?: Record<string, unknown>;
- *   releases?: Record<string, unknown> }} payloads
+ * The questions one draft pins, in document order and through a repeating group, as
+ * `questionId` and the version the pin names.
+ *
+ * @param {unknown} draft
+ * @returns {{ questionId: string; version: number | null }[]}
+ */
+export function draftPins(draft) {
+  if (draft === null || typeof draft !== "object") return [];
+  /** @type {{ questionId: string; version: number | null }[]} */
+  const pins = [];
+  /** @param {unknown[]} items */
+  const walk = (items) => {
+    for (const entry of items) {
+      if (entry === null || typeof entry !== "object") continue;
+      const item = /** @type {Record<string, unknown>} */ (entry);
+      if (typeof item["questionId"] === "string") {
+        const version = item["version"];
+        pins.push({
+          questionId: item["questionId"],
+          version: typeof version === "number" ? version : null,
+        });
+        continue;
+      }
+      if (Array.isArray(item["items"])) walk(item["items"]);
+    }
+  };
+  const steps = /** @type {Record<string, unknown>} */ (draft)["steps"];
+  for (const step of Array.isArray(steps) ? steps : []) {
+    const items = /** @type {Record<string, unknown>} */ (step)["items"];
+    if (Array.isArray(items)) walk(items);
+  }
+  return pins;
+}
+
+/**
+ * The settings a scenario may assert, read off one question definition. `null` says the
+ * setting is absent, which is the whole point: a date with no upper bound accepts the year
+ * 2100, and a scenario has to be able to see that.
+ *
+ * @param {unknown} definition
  * @returns {Record<string, unknown>}
  */
-export function formSnapshot({ detail, links, releases }) {
+export function questionSettings(definition) {
+  const held = definition === null || typeof definition !== "object" ? {} : definition;
+  const question = /** @type {Record<string, unknown>} */ (held);
+  const raw = question["constraints"];
+  const constraints = /** @type {Record<string, unknown>} */ (
+    raw === null || typeof raw !== "object" ? {} : raw
+  );
+  const options = question["options"];
+  /** @param {unknown} value */
+  const text = (value) => (typeof value === "string" ? value : null);
+
+  return {
+    type: text(question["type"]),
+    label: localized(question["label"], ""),
+    required: question["required"] === true,
+    optionCount: Array.isArray(options) ? options.length : null,
+    dateMin: question["type"] === "date" ? text(constraints["min"]) : null,
+    dateMax: question["type"] === "date" ? text(constraints["max"]) : null,
+    pattern: text(constraints["pattern"]),
+  };
+}
+
+/**
+ * Every version of every question the library holds, keyed `questionId@version` and again
+ * by `questionId` for the newest, which is what a pin naming no version resolves to.
+ *
+ * @param {unknown} listed the body of `GET /admin/questions?versions=all`
+ * @returns {Map<string, unknown>}
+ */
+export function definitionsByPin(listed) {
+  /** @type {Map<string, unknown>} */
+  const byPin = new Map();
+  const rows = /** @type {Record<string, unknown>} */ (listed ?? {})["questions"];
+  for (const entry of Array.isArray(rows) ? rows : []) {
+    const row = /** @type {Record<string, unknown>} */ (entry);
+    const id = row["questionId"];
+    if (typeof id !== "string") continue;
+    const versions = Array.isArray(row["versions"]) ? row["versions"] : [];
+    let newest = -1;
+    for (const candidate of versions) {
+      const version = /** @type {Record<string, unknown>} */ (candidate);
+      const at = version["version"];
+      if (typeof at !== "number") continue;
+      byPin.set(`${id}@${String(at)}`, version["definition"]);
+      if (at > newest) {
+        newest = at;
+        byPin.set(id, version["definition"]);
+      }
+    }
+  }
+  return byPin;
+}
+
+/**
+ * @param {{ detail: Record<string, unknown>; links?: Record<string, unknown>;
+ *   releases?: Record<string, unknown>; definitions?: Map<string, unknown> }} payloads
+ * @returns {Record<string, unknown>}
+ */
+export function formSnapshot({ detail, links, releases, definitions }) {
   const draft = readDraft(detail["draft"]);
   const versions = Array.isArray(detail["versions"]) ? detail["versions"] : [];
   const releaseList = Array.isArray(releases?.["releases"]) ? releases["releases"] : [];
   const linkList = Array.isArray(links?.["links"]) ? links["links"] : [];
+
+  const library = definitions ?? new Map();
 
   return {
     formId: detail["formId"] ?? null,
@@ -73,6 +171,17 @@ export function formSnapshot({ detail, links, releases }) {
     questionCount: draft.questionCount,
     ruleCount: draft.ruleCount,
     versionCount: versions.length,
+    // The settings a scenario asserts, so a bound that was never set is visible as absent
+    // rather than inferred from what the assistant said about it.
+    questions: draftPins(detail["draft"]).map((pin) => ({
+      questionId: pin.questionId,
+      version: pin.version,
+      ...questionSettings(
+        library.get(
+          pin.version === null ? pin.questionId : `${pin.questionId}@${String(pin.version)}`,
+        ),
+      ),
+    })),
     releases: releaseList.map((entry) => {
       const release = /** @type {Record<string, unknown>} */ (entry);
       return { environment: release["environment"], version: release["version"] };
@@ -90,10 +199,16 @@ export function formSnapshot({ detail, links, releases }) {
 /**
  * @param {readonly { detail: Record<string, unknown>; links?: Record<string, unknown>;
  *   releases?: Record<string, unknown> }[]} forms
- * @returns {{ forms: Record<string, unknown>[] }}
+ * @param {{ library?: unknown; readAt?: string }} [context] the question library, and the
+ *   date the snapshot was read, which is what a scenario's `today` resolves to
+ * @returns {{ readAt: string | null; forms: Record<string, unknown>[] }}
  */
-export function buildSnapshot(forms) {
-  return { forms: forms.map((payloads) => formSnapshot(payloads)) };
+export function buildSnapshot(forms, context = {}) {
+  const definitions = definitionsByPin(context.library);
+  return {
+    readAt: context.readAt ?? null,
+    forms: forms.map((payloads) => formSnapshot({ ...payloads, definitions })),
+  };
 }
 
 /**
@@ -142,9 +257,10 @@ async function read(access, path, environment) {
 /**
  * @param {{ baseUrl: string; internalToken: string; session: string }} access
  * @param {string} environment
- * @returns {Promise<{ forms: Record<string, unknown>[] }>}
+ * @param {Date} [now] the clock, so a caller can pin the date `today` resolves to
+ * @returns {Promise<{ readAt: string | null; forms: Record<string, unknown>[] }>}
  */
-export async function readSnapshot(access, environment) {
+export async function readSnapshot(access, environment, now = new Date()) {
   const listed = await read(access, "/forms", environment);
   const forms = Array.isArray(listed["forms"]) ? listed["forms"] : [];
   /** @type {{ detail: Record<string, unknown>; links: Record<string, unknown>;
@@ -159,7 +275,10 @@ export async function readSnapshot(access, environment) {
       releases: await read(access, `/forms/${id}/releases`, environment),
     });
   }
-  return buildSnapshot(payloads);
+  return buildSnapshot(payloads, {
+    library: await read(access, "/questions?versions=all", environment),
+    readAt: (now.toISOString().split("T")[0] ?? "").trim(),
+  });
 }
 
 /**

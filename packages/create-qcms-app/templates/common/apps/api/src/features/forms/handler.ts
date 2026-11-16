@@ -71,7 +71,14 @@ import {
 import type { Executor, FormDraftRow, FormVersionRow, QuestionOwnership } from "@roonga/qcms-db";
 
 import { challengeEnforceable } from "../../config.js";
-import { agentStepSite, writeAgentStep } from "../agent/audit.js";
+import {
+  admitAgentEdit,
+  agentEditSite,
+  agentStepSite,
+  recordAgentEdit,
+  writeAgentStep,
+} from "../agent/audit.js";
+import { logIfEditRefusal } from "../agent/edit-provenance.js";
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import { workspaceFilterNarrowedTo } from "../membership/context.js";
@@ -850,13 +857,22 @@ export function makePutDraftHandler(deps: Deps): RouteHandler<typeof putDraftRou
 
     const form = await getForm(deps.databases.control, formId);
     if (form === undefined) throw fail.formNotFound();
+    const edit = agentEditSite(c, form.workspaceId);
     const appearance =
       body.appearance === undefined ? undefined : requireNullableAppearance(body.appearance);
 
     // Save first, then advise: a draft may be temporarily inconsistent, and the issues
     // block publish rather than the save. The agent row rides the save's own transaction,
     // so a refused save writes none.
+    const logged = (error: unknown): never => {
+      logIfEditRefusal(deps, error);
+      throw error;
+    };
     const saved = await deps.databases.control.transaction(async (tx) => {
+      const pre =
+        edit === undefined
+          ? undefined
+          : await admitAgentEdit(tx, edit, formId, { definition, appearance }).catch(logged);
       if (appearance !== undefined) {
         // `FOR SHARE` against the lock setter's `FOR UPDATE`: a lock committed between
         // this read and the write below would otherwise be missed under READ COMMITTED.
@@ -870,15 +886,24 @@ export function makePutDraftHandler(deps: Deps): RouteHandler<typeof putDraftRou
           throw fail.appearanceLocked();
         }
       }
+      // The client's mark is a hint only: the wizard and the provenance read use the rows.
       const row = await storeDraftDefinition(
         tx,
         formId,
         definition,
-        body.agentAssisted ?? false,
+        site !== undefined || edit !== undefined || (body.agentAssisted ?? false),
         appearance,
       );
       await writeAgentStep(tx, site, formId, deps.clock.now());
-      return row;
+      const undoToken =
+        edit === undefined
+          ? undefined
+          : await recordAgentEdit(tx, edit, row, pre, {
+              appKey: deps.config.keys.app,
+              now: deps.clock.now(),
+              undoTtlMs: deps.config.adminSession.maxAgeMs,
+            }).catch(logged);
+      return { row, undoToken };
     });
     const { issues, warnings } = await validateDraft(deps, definition);
 
@@ -887,9 +912,10 @@ export function makePutDraftHandler(deps: Deps): RouteHandler<typeof putDraftRou
         draft: definition,
         issues,
         warnings: [...warnings],
-        agentAssisted: saved.agentAssisted,
-        appearance: saved.appearance,
-        updatedAt: saved.updatedAt.toISOString(),
+        agentAssisted: saved.row.agentAssisted,
+        appearance: saved.row.appearance,
+        updatedAt: saved.row.updatedAt.toISOString(),
+        ...(saved.undoToken === undefined ? {} : { agentEdit: { undoToken: saved.undoToken } }),
       },
       200,
     );
