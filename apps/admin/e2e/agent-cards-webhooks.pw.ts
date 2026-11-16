@@ -4,6 +4,7 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { openDbHandle } from "../../api/e2e/support/index.js";
 import { readFixtures } from "../../portal/e2e/support/fixtures.js";
+import { t } from "../lib/i18n/en.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import {
   auditDelta,
@@ -336,7 +337,7 @@ test("ends the plan on Pending approval when production holds the change", async
   await openWebhooks(page, prodFormId);
   await propose(page, "plan-pending-at-1", "move the endpoint and resend what is stuck");
 
-  await expect(card(page)).toContainText("Production: changes where respondents");
+  await expect(card(page)).toContainText(t("agent.card.environment.production"));
   await expectWaitingStepStates(page, "Proposed");
 
   await confirmButton(page).click();

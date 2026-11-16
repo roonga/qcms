@@ -49,6 +49,13 @@ describe("the words the assistant may not say", () => {
     expect(findForbiddenTerms("Operational state", ["operational"])).toHaveLength(1);
   });
 
+  it("catches the word recipe, which the assistant reads and never says", () => {
+    expect(findForbiddenTerms("I checked the library and the recipes for a date of birth")).toEqual(
+      [expect.objectContaining({ term: "recipes" })],
+    );
+    expect(REVIEW_ONLY_TERMS).toContain("recipe");
+  });
+
   it("reads back the plain sentence it flagged", () => {
     const [hit] = findForbiddenTerms("I have minted the link for you.");
 

@@ -69,6 +69,7 @@ export function NativeStep({
   context,
   opToken,
   basePath,
+  cursor,
 }: {
   readonly sessionId: string;
   readonly initial: StepResponse;
@@ -85,8 +86,12 @@ export function NativeStep({
    * component would differ between the two.
    */
   readonly opToken: string;
+  /** Set when the page was opened at a rail link, so a refused post returns to that step. */
+  readonly cursor?: number | undefined;
 }) {
-  const action = `${basePath}/s/${encodeURIComponent(sessionId)}/step`;
+  const action = `${basePath}/s/${encodeURIComponent(sessionId)}/step${
+    cursor === undefined ? "" : `?step=${String(initial.progress.stepIndex)}`
+  }`;
   const readyToSubmit = initial.flowState.readyToSubmit;
   const submitLabel = readyToSubmit ? t("action.submit") : t("action.continue");
 
@@ -144,7 +149,14 @@ export function NativeStep({
   const notice = noticeFor(context?.notice);
 
   return (
-    <PortalShell progress={progress}>
+    <PortalShell
+      progress={progress}
+      rail={{
+        mode: initial.progressMode,
+        steps: initial.steps,
+        stepHref: `${basePath}/s/${encodeURIComponent(sessionId)}`,
+      }}
+    >
       <div className="flex flex-col gap-6">
         {notice === undefined ? null : (
           // Announced, not only painted: the respondent arrived at a freshly rendered

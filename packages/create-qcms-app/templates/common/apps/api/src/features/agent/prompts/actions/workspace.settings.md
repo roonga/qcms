@@ -1,2 +1,2 @@
-Change the workspace's second-approval switch: whether a publish to production and a
-response self-grant need a second account.
+Change the workspace's Second approval switch: whether a publish to prod and a response
+self-grant need a second account.

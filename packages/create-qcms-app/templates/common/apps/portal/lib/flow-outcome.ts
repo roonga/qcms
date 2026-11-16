@@ -32,6 +32,7 @@ export type FlowFailure =
   | { readonly kind: "answer"; readonly questionId: string }
   | { readonly kind: "advance" }
   | { readonly kind: "back" }
+  | { readonly kind: "jump"; readonly cursor: number }
   | { readonly kind: "refresh" };
 
 export type FlowSuccess =
