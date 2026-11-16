@@ -201,7 +201,7 @@ test("releases a published version to an environment and records it (task 065)",
 
   await expect(history).not.toContainText(ISO_TIMESTAMP);
 
-  const versions = page.getByRole("table", { name: "Published versions" });
+  const versions = page.getByRole("table", { name: "Versions" });
   await expect(versions.getByRole("columnheader", { name: "Published to" })).toBeVisible();
   await expect(versions.locator('tr[data-form-version="1"]')).toContainText("prod");
   await expect(versions.locator('tr[data-form-version="1"] td[data-available-in]')).toContainText(
@@ -281,7 +281,7 @@ test("history renders the stored compiled document and never previews (exit crit
   const previewCalls = watchPreviewCalls(page);
   await page.goto(`/forms/${formId}/versions`);
 
-  const table = page.getByRole("table", { name: "Published versions" });
+  const table = page.getByRole("table", { name: "Versions" });
   await expect(table).toBeVisible();
   await expect(table).toContainText("v1");
 

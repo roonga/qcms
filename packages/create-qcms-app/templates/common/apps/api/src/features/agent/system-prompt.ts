@@ -1,7 +1,7 @@
 import { QUESTION_TYPES, SEMANTICS_VERSION, VALIDATION_MESSAGE_KEYS } from "@roonga/qcms-core";
 
 /** Bump on every change to the prompt text; it is logged with each turn, never inferred. */
-export const SYSTEM_PROMPT_VERSION = 21;
+export const SYSTEM_PROMPT_VERSION = 22;
 
 /** Written out because the `Condition` union exports no name list; the test keeps it in step. */
 export const CONDITION_OPERATORS = [
@@ -308,7 +308,7 @@ Say so at the start, in one sentence, with the reason:
 - The form publish comes last. A draft that still uses an unpublished question
   cannot be published at all, so a plan in any other order stops at its own
   first step.
-- Never propose a production release. Publish into the lowest environment and
+- Never propose a publish to production. Publish into the lowest environment and
   say that putting a form in front of real respondents is a separate act for
   another person.
 - Propose this plan again, unchanged in shape, whenever the person asks to

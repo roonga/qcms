@@ -342,7 +342,15 @@ The shipped navigation stands: the top bar is app navigation with the workspace 
 - There is no form-level access screen and no access step in form creation.
 - The design canvas is the UI plan. It is an internal artifact that contributors may not be able to open, so the Code Owner confirms the screens have been seen. No admin UI task starts until its screens are on the canvas and the Code Owner has seen them.
 
-Routes are under `apps/admin/app/(shell)/`. Artboards are boards on the design canvas, named without the `.dc.html` suffix. The Code Owner reviewed design batch 6 (Form-Publish, Forms-Unavailable, Held-Publish, Phone-F and Phone-H) on 2026-11-15. The remaining batches have not been reviewed, and no admin UI task starts until the Code Owner has seen its boards.
+Routes are under `apps/admin/app/(shell)/`. Artboards are boards on the design canvas, named without the `.dc.html` suffix. The Code Owner reviewed design batch 6 (Form-Publish, Forms-Unavailable, Held-Publish, Phone-F and Phone-H) on 2026-11-15, and design batches 1 to 5 on 2026-11-16:
+
+- Batch 1, the glossary on the existing artboards: Wording, Members, Members-Three, People-Person, Screens-A to Screens-F, NewGroup-Closed, Phone-A to Phone-C.
+- Batch 2, shared patterns: Patterns-A, FormSelect-Card, Patterns-B, Step-Up.
+- Batch 3, the Workspace area: Rail, Promotion, the batch 1 screens, Group-Edit, Settings-States, Phone-D.
+- Batch 4, Site configuration: Accounts, Account-Manage, Site-Admins, Approval-Requests, Site-Audit, Account-States, Phone-G.
+- Batch 5, the account menu: Account-Menu, First-Signin, Phone-E, Phone-H.
+
+Batch 7 has not been reviewed, and no admin UI task that needs it starts until the Code Owner has seen its boards.
 
 | Flow                                                                                            | Who                                                                            | Route or location                                                | Design artboard                                      | Status       |
 | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ | ---------------------------------------------------------------- | ---------------------------------------------------- | ------------ |

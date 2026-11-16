@@ -643,7 +643,7 @@ test("publish, preview, history and secure links have zero violations", async ({
   await expectNoViolations(page, "draft preview with a branch revealed");
 
   await page.goto(`/forms/${formId}/versions`);
-  await expect(page.getByRole("table", { name: "Published versions" })).toBeVisible();
+  await expect(page.getByRole("table", { name: "Versions" })).toBeVisible();
   await expectNoViolations(page, "version history");
 
   // Assert real overflow before axe: a shorter fixture or wider column would otherwise disable the check silently.

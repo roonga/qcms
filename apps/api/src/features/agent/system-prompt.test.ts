@@ -245,7 +245,7 @@ describe("the draft assistant system prompt", () => {
     expect(prompt).toContain("unpublishedPins");
     expect(prompt).toContain("read from the SAVED draft");
     expect(prompt).toContain("The form publish comes last");
-    expect(prompt).toContain("Never propose a production release");
+    expect(prompt).toContain("Never propose a publish to production");
   });
 
   it("keeps builder terms out of the guidance the person is spoken to through", () => {

@@ -61,7 +61,7 @@ const WorkspaceSettingsArgs = z.strictObject({
   workspaceId: WorkspaceArg,
   requireSecondApprover: z
     .boolean()
-    .describe("Whether a production release and a response self-grant need a second account."),
+    .describe("Whether a publish to production and a response self-grant need a second account."),
 });
 
 function bodyMember(facts: ActionRequestFacts, name: string): unknown {
@@ -139,7 +139,7 @@ export const grantAccessGroup: ActionKindDef = {
   },
   description:
     "Grant an access group to one person, by address. A self-grant of a response role is " +
-    "refused while the workspace requires a second approver.",
+    "refused while the workspace has second approval on.",
 };
 
 export const revokeAccessGroup: ActionKindDef = {
@@ -161,7 +161,7 @@ export const revokeAccessGroup: ActionKindDef = {
     consequenceKeys: ["agent.card.access.revoke.consequence"],
     headingControl: "membership.revoke",
   },
-  description: "Revoke one person's hold on an access group. Every other holder keeps theirs.",
+  description: "Revoke one person from an access group. Everybody else in it keeps theirs.",
 };
 
 export const setMemberRole: ActionKindDef = {
@@ -207,6 +207,6 @@ export const saveWorkspaceSettings: ActionKindDef = {
     headingControl: "membership.workspaceSettings",
   },
   description:
-    "Change the workspace's second-approver switch: whether a production release and a " +
+    "Change the workspace's second-approval switch: whether a publish to production and a " +
     "response self-grant need a second account.",
 };

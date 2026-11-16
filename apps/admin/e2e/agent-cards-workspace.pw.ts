@@ -69,7 +69,7 @@ function groupRow(page: Page, label: string): Locator {
 }
 
 function twoPerson(page: Page): Locator {
-  return page.getByRole("checkbox", { name: "Require a second approver for production" });
+  return page.getByRole("checkbox", { name: "Second approval in production" });
 }
 
 async function openWorkspace(
@@ -107,7 +107,7 @@ test("confirms all six kinds one card at a time, each read back by its own panel
   const toOwner = ((await card(page).textContent()) ?? "").includes("to forms.owner");
   await confirm(page, /^Done\./u);
   await expect(members(page).getByRole("row").filter({ hasText: holder })).toContainText(
-    toOwner ? "Workspace owner" : "No access",
+    toOwner ? "Workspace administrator" : "No access",
     { timeout: 30_000 },
   );
 

@@ -58,7 +58,7 @@ describe("audit wording", () => {
   it("labels the one detail a kind records and resolves the group or person it names", () => {
     expect(agentStepDetail("access.grant", "tm_1", NAMES)).toEqual({
       label: "Access group",
-      value: "Form editor, in every environment",
+      value: "Edit forms, in every environment",
     });
     expect(agentStepDetail("access.revoke", "usr_2", NAMES)).toEqual({
       label: "Person",

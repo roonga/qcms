@@ -1061,7 +1061,7 @@ export const TOOLS: Readonly<Record<AgentToolName, AgentToolDef>> = Object.freez
   list_workspaces: {
     description:
       "List the workspaces this caller administers, with whether each is the shared " +
-      "library and whether it requires a second approver for a production release.",
+      "library and whether it has second approval on for a publish to production.",
     inputSchema: NoInput,
     outputSchema: Outputs.list_workspaces,
     cell: WORKSPACE_READ,
