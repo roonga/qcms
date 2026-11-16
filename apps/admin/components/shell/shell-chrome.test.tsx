@@ -30,7 +30,8 @@ function chrome(multipleWorkspaces = true) {
       secureCookies={false}
       environment={<span data-testid="qcms-environment-switcher">test</span>}
       environmentName="test"
-      trailing={<span>tools</span>}
+      trailing={<span data-testid="qcms-tools-stub">tools</span>}
+      workspace={<span data-testid="qcms-workspace-switcher">Default</span>}
       multipleWorkspaces={multipleWorkspaces}
     />
   );
@@ -101,6 +102,19 @@ describe("the agent builder's top bar group", () => {
     act(() => {
       setBuilderSubjectName("");
     });
+  });
+
+  it("shows the builder group alone, with no workspace switcher, theme toggle or account menu", () => {
+    const view = render(chrome());
+    expect(screen.getByTestId("qcms-workspace-switcher")).toBeTruthy();
+    expect(screen.getByTestId("qcms-tools-stub")).toBeTruthy();
+
+    location.pathname = "/forms/frm_a/build";
+    view.rerender(chrome());
+    expect(screen.getByRole("group", { name: "Agent builder" })).toBeTruthy();
+    expect(screen.queryByTestId("qcms-workspace-switcher")).toBeNull();
+    expect(screen.queryByTestId("qcms-tools-stub")).toBeNull();
+    expect(view.container.querySelector(".qcms-topbar__tools")).toBeNull();
   });
 
   it("names a new form and exits to the New form screen", () => {

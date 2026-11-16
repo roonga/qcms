@@ -120,7 +120,6 @@ test("ends each row with a menu of that form's own screens", async ({ page }) =>
   await openRowMenu(page, "Alpha zebra");
 
   const menu = rowMenu(page, "Alpha zebra");
-  // The agent builder entry comes last, after the form's own screens.
   await expect(menu.getByRole("menuitem")).toHaveCount(4);
   await expect(menu.getByRole("menuitem", { name: "Form details" })).toHaveAttribute(
     "href",

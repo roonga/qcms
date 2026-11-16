@@ -8,6 +8,7 @@ import { publishReturnHref } from "@/lib/forms/build-return";
 import { canFreezeDraft } from "@/lib/forms/publish";
 import { t } from "@/lib/i18n/en";
 import { formSectionName, pageMetadata } from "@/lib/page-title";
+import { agentAuthoringEnabled } from "@/lib/server/agent";
 import { secureCookies } from "@/lib/server/config";
 import { getForm } from "@/lib/server/forms";
 import { requireAdminSession } from "@/lib/server/session";
@@ -47,7 +48,9 @@ export default async function FormPublishPage({
     return <Alert variant="error">{detail.message}</Alert>;
   }
   const form = detail.data;
-  const back = publishReturnHref(form.formId, query["returnTo"]);
+  const back = agentAuthoringEnabled()
+    ? publishReturnHref(form.formId, query["returnTo"])
+    : undefined;
 
   return (
     <div className="flex flex-col gap-6">

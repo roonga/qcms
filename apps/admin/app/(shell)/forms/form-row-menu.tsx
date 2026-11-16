@@ -15,7 +15,7 @@ export function FormRowMenu({
   readonly formId: string;
   readonly name: string;
   readonly canOperate: boolean;
-  /** The agent flag is on and the caller may edit this form's draft. */
+  /** The agent flag is on and the caller holds Edit forms in the form's workspace. */
   readonly canBuild?: boolean;
 }) {
   const label = t("forms.rowActions", { name });

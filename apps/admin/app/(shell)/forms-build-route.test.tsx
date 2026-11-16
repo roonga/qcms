@@ -255,6 +255,12 @@ describe("who reaches the builder (X3, U1)", () => {
     await expect(renderNewBuild()).rejects.toThrow("NEXT_NOT_FOUND");
   });
 
+  it("answers 404 on a new form when the caller's access cannot be read", async () => {
+    accessResult = { ok: false, code: "UPSTREAM_UNAVAILABLE", message: "Unavailable", issues: [] };
+    await expect(renderNewBuild()).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(builderProps).toHaveLength(0);
+  });
+
   it("hides the entries from a View forms holder", async () => {
     accessResult = myAccess(["forms.viewer"]);
     expect(await renderNewForm()).not.toContain('href="/forms/new/build"');
@@ -293,6 +299,12 @@ describe("the publish wizard's returnTo is decided on the server", () => {
   ])("falls back to the form page for %s", async (returnTo) => {
     await renderPublish({ returnTo });
     expect(wizardProps[0]?.["returnTo"]).toEqual({ href: "/forms/frm_one", toBuilder: false });
+  });
+
+  it("ignores returnTo with the flag off", async () => {
+    flag(false);
+    await renderPublish({ returnTo: "/forms/frm_one/build" });
+    expect(wizardProps[0]?.["returnTo"]).toBeUndefined();
   });
 
   it("changes nothing when no returnTo is asked for", async () => {

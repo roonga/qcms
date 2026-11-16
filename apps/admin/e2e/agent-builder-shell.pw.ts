@@ -38,6 +38,9 @@ async function expectBuilderMode(page: Page, subject: string): Promise<void> {
   await expect(page.getByTestId("qcms-assistant-button")).toHaveCount(0);
   await expect(page.getByTestId("qcms-assistant-panel")).toHaveCount(0);
   await expect(page.getByTestId("qcms-environment-switcher")).toHaveCount(0);
+  await expect(page.getByTestId("qcms-workspace-switcher")).toHaveCount(0);
+  await expect(page.getByTestId("appearance-menu")).toHaveCount(0);
+  await expect(page.getByTestId("account-menu")).toHaveCount(0);
 }
 
 function buildPath(id: string): string {
@@ -72,6 +75,7 @@ test("enters from the New form screen, and Exit returns to it", async ({ page })
 
   await Promise.all([page.waitForURL(/\/forms\/new$/u), exit(page).click()]);
   await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
+  await expect(page.getByTestId("account-menu")).toBeVisible();
 });
 
 test("enters from a form's menu, Exit returns to the list, and Edit by hand opens the form", async ({
