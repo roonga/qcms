@@ -221,12 +221,13 @@ test.describe("side rail without scripting", () => {
     await expect(page.locator('input[name="q_full_name"]')).toHaveValue("Ada Lovelace");
     await expectStates(rail(page), { "About you": "current", "Driving history": "ahead" });
 
-    await page.locator('input[name="q_full_name"]').fill("");
+    await fillNativeDate(page, "q_dob", "1990-02-31");
     await submitStep(page);
     await expect(page).toHaveURL(/\?step=0$/);
     await expectStates(rail(page), { "About you": "current" });
+    await expect(page.getByTestId("error-summary")).toBeVisible();
 
-    await page.locator('input[name="q_full_name"]').fill("Grace Hopper");
+    await fillNativeDate(page, "q_dob", "1990-05-17");
     await submitStep(page);
     await expectStates(rail(page), { "About you": "completed", "Driving history": "current" });
   });
@@ -257,7 +258,10 @@ test("axe: the no-JS fallback render of the rail and its fold has zero violation
   await page.locator('input[name="q_full_name"]').fill("Ada Lovelace");
   await fillNativeDate(page, "q_dob", "1990-05-17");
   await submitStep(page);
-  expect(starvation.starvedCount(), "scripts were starved, so this is the no-JS render").toBeGreaterThan(0);
+  expect(
+    starvation.starvedCount(),
+    "scripts were starved, so this is the no-JS render",
+  ).toBeGreaterThan(0);
   await expectStates(rail(page), { "About you": "completed", "Driving history": "current" });
   await expectNoAxeViolations(page, "no-JS side rail");
 
