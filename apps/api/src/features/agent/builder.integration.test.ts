@@ -200,10 +200,10 @@ async function seedSentinel(): Promise<void> {
 function saveDraft(caller: Caller, body: unknown, token?: string): Promise<Response> {
   return Promise.resolve(
     app.request(`/admin/forms/${FORM_ID}/draft`, {
-    method: "PUT",
-    headers: headersFor(caller, token === undefined ? {} : { [EDIT_HEADER]: token }),
-    body: JSON.stringify({ definition: body }),
-  }),
+      method: "PUT",
+      headers: headersFor(caller, token === undefined ? {} : { [EDIT_HEADER]: token }),
+      body: JSON.stringify({ definition: body }),
+    }),
   );
 }
 
