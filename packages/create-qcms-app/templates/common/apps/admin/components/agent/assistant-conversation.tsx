@@ -119,6 +119,7 @@ import {
   type StepState,
   type TurnSegment,
   type TurnStep,
+  wasRetried,
 } from "@/lib/forms/assist-turn";
 import { t, type MessageKey } from "@/lib/i18n/en";
 
@@ -665,6 +666,7 @@ const STEP_STATE_LABELS: Readonly<Record<StepState, MessageKey>> = {
   interrupted: "forms.assist.stepInterrupted",
 };
 
+
 function StepIcon({ state }: { readonly state: StepState }) {
   if (state === "running") return <span className="qcms-assist-steps__pulse" />;
   const path = {
@@ -687,16 +689,17 @@ function StepTimeline({ steps }: { readonly steps: readonly TurnStep[] }) {
       data-testid="qcms-assistant-steps"
     >
       {steps.map((step, at) => {
-        const problem = step.state === "failed" || step.state === "interrupted";
+        const again = wasRetried(steps, at);
+        const problem = !again && (step.state === "failed" || step.state === "interrupted");
         return (
-          <li key={`${step.label}:${String(at)}`} data-state={step.state}>
+          <li key={`${step.label}:${String(at)}`} data-state={again ? "retried" : step.state}>
             <span className="qcms-assist-steps__icon" aria-hidden="true">
-              <StepIcon state={step.state} />
+              <StepIcon state={again ? "interrupted" : step.state} />
             </span>
             <span>{t(step.label)}</span>
             <span className="qcms-visually-hidden">, </span>
             <span className={problem ? "qcms-assist-steps__state" : "qcms-visually-hidden"}>
-              {t(STEP_STATE_LABELS[step.state])}
+              {again ? t("forms.assist.stepRetried") : t(STEP_STATE_LABELS[step.state])}
             </span>
           </li>
         );
