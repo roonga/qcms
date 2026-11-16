@@ -226,7 +226,7 @@ The screen's facts and the form's draft are different on every turn, so they sit
 latest words, and a second breakpoint rides the last of those settled turns: the
 history is then read from the cache rather than resent.
 
-The tool set and the kinds the propose tools advertise are ordered by their
+The tool set and the kinds the propose tool advertises are ordered by their
 registries rather than by the order the caller's workspaces came back in
 (`mergeOffers`), because a prefix that reorders itself between turns is cached
 and never read.
