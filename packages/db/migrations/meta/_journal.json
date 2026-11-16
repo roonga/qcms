@@ -92,6 +92,13 @@
       "when": 1794779002354,
       "tag": "0012_appearance_logo_takedown",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1794800263143,
+      "tag": "0013_sign_in_links",
+      "breakpoints": true
     }
   ]
 }

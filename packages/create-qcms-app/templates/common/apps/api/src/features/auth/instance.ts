@@ -218,11 +218,34 @@ export const MEMBERSHIP_LIMIT = 5_000;
 type PluginInitContext = Parameters<NonNullable<BetterAuthPlugin["init"]>>[0];
 
 /**
+ * Wall-clock bound on a breach-checked hash. A claim holds its pooled connection across the
+ * lookup, and the vendor's fetch takes no abort signal, so a hung corpus is raced, not cancelled.
+ */
+export const BREACH_LOOKUP_TIMEOUT_MS = 3_000;
+
+function withinBreachLookupBound<T>(work: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const expired = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => {
+      reject(new APIError("INTERNAL_SERVER_ERROR", { message: "breach lookup timed out" }));
+    }, ms);
+  });
+  // The abandoned lookup can only finish a hash in memory: it holds no executor.
+  work.catch(() => undefined);
+  return Promise.race([work, expired]).finally(() => {
+    clearTimeout(timer);
+  });
+}
+
+/**
  * Order is the mechanism: better-auth runs plugin `init` hooks in array order, so the
  * `hash` this captures is the vendor's checked hash only while this sits after
  * `haveIBeenPwned` in `plugins`. Listed before it, it would wrap the bare hash.
  */
-function breachLookupDiagnostics(warn?: (message: string) => void): BetterAuthPlugin {
+function breachLookupDiagnostics(
+  checked: boolean,
+  warn?: (message: string) => void,
+): BetterAuthPlugin {
   return {
     id: "qcms-breach-lookup-diagnostics",
     init(ctx: PluginInitContext) {
@@ -232,8 +255,12 @@ function breachLookupDiagnostics(warn?: (message: string) => void): BetterAuthPl
           password: {
             ...ctx.password,
             hash: async (password: string): Promise<string> => {
+              if (!checked) return checkedHash(password);
               try {
-                return await checkedHash(password);
+                return await withinBreachLookupBound(
+                  checkedHash(password),
+                  BREACH_LOOKUP_TIMEOUT_MS,
+                );
               } catch (error) {
                 throw explainBreachLookupFailure(error, warn);
               }
@@ -401,7 +428,7 @@ export function createAdminAuth(input: AdminAuthInput) {
       haveIBeenPwned({ enabled: adminAuth.breachedPasswordCheck }),
       // Must stay immediately after `haveIBeenPwned`: it wraps whatever `password.hash` is
       // at its turn.
-      breachLookupDiagnostics(input.warn),
+      breachLookupDiagnostics(adminAuth.breachedPasswordCheck, input.warn),
       // Declared for its models and its policy only. Enforcement is the QCMS membership
       // middleware, which calls the plugin's authorize function directly because the
       // plugin's HTTP `hasPermission` needs a signed cookie this API does not hold.

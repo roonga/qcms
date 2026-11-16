@@ -137,8 +137,7 @@ export function makeCreateAccountHandler(
       email,
       name: body.name ?? email,
     });
-    // The account itself is the auth library's write on its own connection, so it cannot
-    // join this transaction; the audit row and the link commit together.
+    // The account is written before the link transaction; the audit row commits with the link.
     const delivery = await issueAndSendSignInLink(
       deps,
       exec,
