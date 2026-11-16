@@ -3,6 +3,7 @@ import { importCompactTokenKey, LinkId, mintSecureLink, parseFormId } from "@roo
 import type { FormId } from "@roonga/qcms-core";
 import {
   getForm,
+  getFormEnvironmentState,
   insertSecureLink,
   listSecureLinks,
   revokeSecureLink,
@@ -26,6 +27,12 @@ const fail = {
     new ApiError("LINK_NOT_FOUND", 404, "No such link (or already revoked)"),
   expiryInPast: (): ApiError =>
     new ApiError("LINK_EXPIRY_INVALID", 400, "expiresAt must be a future ISO datetime"),
+  notReleasedThere: (environment: string): ApiError =>
+    new ApiError(
+      "FORM_NOT_RELEASED",
+      409,
+      `This form has no released version in ${environment}, so a link minted there would lead nowhere`,
+    ),
 } as const;
 
 function requireFormId(id: string): FormId {
@@ -37,6 +44,14 @@ function requireFormId(id: string): FormId {
 async function requireForm(deps: Deps, formId: FormId): Promise<void> {
   const form = await getForm(deps.databases.control, formId);
   if (form === undefined) throw fail.formNotFound();
+}
+
+// A link into an environment with nothing released would start working by itself the
+// moment a version reaches it, so it is a standing credential for whatever lands there.
+// Closed is deliberately not refused: the release exists, and start-session says so.
+async function requireRelease(deps: Deps, formId: FormId, environment: string): Promise<void> {
+  const state = await getFormEnvironmentState(deps.databases.control, formId, environment);
+  if (state === undefined) throw fail.notReleasedThere(environment);
 }
 
 function newLinkId(): LinkId {
@@ -78,6 +93,7 @@ export function makeMintLinksHandler(deps: Deps): RouteHandler<typeof mintLinksR
     const environment = requireEnvironment(deps, named);
 
     await requireForm(deps, formId);
+    await requireRelease(deps, formId, environment);
 
     const expiry = new Date(expiresAt);
     if (Number.isNaN(expiry.getTime()) || expiry.getTime() <= now.getTime()) {

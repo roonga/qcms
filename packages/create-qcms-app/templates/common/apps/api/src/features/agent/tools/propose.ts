@@ -1,5 +1,5 @@
 /**
- * The propose tools' own logic (section 6.1). It executes nothing: it validates every
+ * The propose tool's own logic (section 6.1). It executes nothing: it validates every
  * step, checks it against the caller's grants, applies the caps and the hand-off and
  * ADR-41 rules, and mints the token Confirm carries. A refusal goes to the model.
  */

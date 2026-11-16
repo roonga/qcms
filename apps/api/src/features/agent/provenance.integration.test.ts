@@ -10,6 +10,8 @@ import {
   createForm,
   createQuestion,
   createQuestionVersion,
+  insertFormRelease,
+  insertFormVersion,
   publishQuestionVersion,
   writeAgentActionRow,
 } from "@roonga/qcms-db";
@@ -85,6 +87,35 @@ function buildApp(): { deps: Deps; app: ReturnType<typeof createApp> } {
       },
     }),
   };
+}
+
+type VersionInput = Parameters<typeof insertFormVersion>[1];
+
+// Minting refuses an environment with nothing live there, so a form these specs mint
+// links from carries a released version as well as a row.
+async function seedReleasedForm(formId: string, slug: string): Promise<void> {
+  const id = FormId.parse(formId);
+  await createForm(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    formId: id,
+    slug,
+    defaultLocale: "en",
+  });
+  const version = await insertFormVersion(testDb.db, {
+    formId: id,
+    definition: {} as unknown as VersionInput["definition"],
+    appearance: null,
+    compiled: {} as unknown as VersionInput["compiled"],
+    compilerVersion: "1.0.0",
+    a2uiSpecVersion: "1.0.0",
+    semanticsVersion: "1",
+  });
+  await insertFormRelease(testDb.db, {
+    formId: id,
+    environment: "prod",
+    version: version.version,
+    releasedBy: "usr_fixture",
+  });
 }
 
 async function seedPublishedQuestion(id: string, label: string): Promise<void> {
@@ -367,12 +398,7 @@ describe("provenance adds provenance and never rights (criterion 2)", () => {
   const FORM_ID = "frm_prov_equal";
 
   beforeAll(async () => {
-    await createForm(testDb.db, {
-      workspaceId: SEED_WORKSPACE_ID,
-      formId: FormId.parse(FORM_ID),
-      slug: "prov-equal",
-      defaultLocale: "en",
-    });
+    await seedReleasedForm(FORM_ID, "prov-equal");
   }, CONTAINER_BOOT_TIMEOUT_MS);
 
   it("authorises an allowed act identically with and without a token, and only the token writes a row", async () => {
@@ -438,12 +464,7 @@ describe("a replayed step rolls back on the unique constraint (criterion 1)", ()
   const FORM_ID = "frm_prov_replay";
 
   beforeAll(async () => {
-    await createForm(testDb.db, {
-      workspaceId: SEED_WORKSPACE_ID,
-      formId: FormId.parse(FORM_ID),
-      slug: "prov-replay",
-      defaultLocale: "en",
-    });
+    await seedReleasedForm(FORM_ID, "prov-replay");
   }, CONTAINER_BOOT_TIMEOUT_MS);
 
   it("runs step 0 once and refuses the same step again, minting nothing the second time", async () => {
@@ -862,12 +883,7 @@ describe("`plan-fails-at-2` stops at its failed step (criterion 4)", () => {
   const FORM_ID = "frm_prov_fails";
 
   beforeAll(async () => {
-    await createForm(testDb.db, {
-      workspaceId: SEED_WORKSPACE_ID,
-      formId: FormId.parse(FORM_ID),
-      slug: "prov-fails",
-      defaultLocale: "en",
-    });
+    await seedReleasedForm(FORM_ID, "prov-fails");
   }, CONTAINER_BOOT_TIMEOUT_MS);
 
   it("records step 0, writes nothing for the failed step, and never admits step 2", async () => {
@@ -921,12 +937,7 @@ describe("a step's row exists exactly when its own transaction committed (criter
   const FORM_ID = "frm_prov_audit";
 
   beforeAll(async () => {
-    await createForm(testDb.db, {
-      workspaceId: SEED_WORKSPACE_ID,
-      formId: FormId.parse(FORM_ID),
-      slug: "prov-audit",
-      defaultLocale: "en",
-    });
+    await seedReleasedForm(FORM_ID, "prov-audit");
   }, CONTAINER_BOOT_TIMEOUT_MS);
 
   it("writes no row for a step whose handler refused inside its transaction", async () => {
@@ -1314,12 +1325,7 @@ describe("a run bounded by step 0's confirmation, not by `exp` (criterion 10)", 
   const FORM_ID = "frm_prov_window";
 
   beforeAll(async () => {
-    await createForm(testDb.db, {
-      workspaceId: SEED_WORKSPACE_ID,
-      formId: FormId.parse(FORM_ID),
-      slug: "prov-window",
-      defaultLocale: "en",
-    });
+    await seedReleasedForm(FORM_ID, "prov-window");
   }, CONTAINER_BOOT_TIMEOUT_MS);
 
   async function twoMintSteps(): Promise<
@@ -1412,12 +1418,7 @@ describe("a mint proposed in the shape the model may produce runs end to end", (
   const PROPOSED_EXPIRY = "2026-12-31T09:30:00.000Z";
 
   beforeAll(async () => {
-    await createForm(testDb.db, {
-      workspaceId: SEED_WORKSPACE_ID,
-      formId: FormId.parse(FORM_ID),
-      slug: "prov-mint-shape",
-      defaultLocale: "en",
-    });
+    await seedReleasedForm(FORM_ID, "prov-mint-shape");
   }, CONTAINER_BOOT_TIMEOUT_MS);
 
   async function proposeMint(expiresAt: string) {

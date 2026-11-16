@@ -57,13 +57,13 @@ export function isStepReference(value: unknown): value is StepReference {
 
 const encoder = new TextEncoder();
 
-function base64url(bytes: Uint8Array): string {
+export function base64url(bytes: Uint8Array): string {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
 }
 
-function fromBase64url(value: string): Uint8Array<ArrayBuffer> {
+export function fromBase64url(value: string): Uint8Array<ArrayBuffer> {
   const padded = value.replaceAll("-", "+").replaceAll("_", "/");
   const binary = atob(padded.padEnd(Math.ceil(padded.length / 4) * 4, "="));
   const bytes = new Uint8Array(binary.length);
@@ -99,10 +99,10 @@ export async function argumentsDigest(args: unknown): Promise<string> {
 }
 
 /**
- * HKDF-SHA-256 over `QCMS_APP_KEY` under {@link PROPOSAL_KEY_INFO}. No salt, because the
- * label is what separates this purpose from every other use of the same key.
+ * HKDF-SHA-256 over `QCMS_APP_KEY` under one purpose label. No salt, because the label is
+ * what separates this purpose from every other use of the same key.
  */
-async function signingKey(appKey: string): Promise<CryptoKey> {
+export async function purposeKey(appKey: string, info: string): Promise<CryptoKey> {
   const material = await crypto.subtle.importKey("raw", encoder.encode(appKey), "HKDF", false, [
     "deriveBits",
   ]);
@@ -111,7 +111,7 @@ async function signingKey(appKey: string): Promise<CryptoKey> {
       name: "HKDF",
       hash: "SHA-256",
       salt: new Uint8Array(0),
-      info: encoder.encode(PROPOSAL_KEY_INFO),
+      info: encoder.encode(info),
     },
     material,
     256,
@@ -120,6 +120,10 @@ async function signingKey(appKey: string): Promise<CryptoKey> {
     "sign",
     "verify",
   ]);
+}
+
+function signingKey(appKey: string): Promise<CryptoKey> {
+  return purposeKey(appKey, PROPOSAL_KEY_INFO);
 }
 
 interface ProposalTokenArgs {

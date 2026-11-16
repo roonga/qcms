@@ -9,6 +9,7 @@ import {
   appManifest,
   assertComposeForwardsTwoFactor,
   assertComposeReferences,
+  assertFormatterPinMatchesRepository,
   assertImports,
   assertNoEscapingPaths,
   assertReadmeClaims,
@@ -27,6 +28,7 @@ import {
   seamDocumentText,
   templateName,
   transformDockerfile,
+  transformPromptSources,
   walk,
 } from "./sync-templates.mjs";
 import { templateFiles } from "../src/templates.js";
@@ -458,6 +460,56 @@ describe("the release-age hold the scaffold inherits (SEC-11)", () => {
       (tree.get("common/pnpm-workspace.yaml") ?? "").replace(/^minimumReleaseAgeStrict:.*$/m, ""),
     );
     expect(() => assertReleaseAgeHoldIsStamped(without)).toThrow(/minimumReleaseAgeStrict/);
+  });
+});
+
+describe("the prompt generator the scaffold ships (issue #1307)", () => {
+  const tree = buildTemplates();
+
+  it("stamps the generator and the one module it imports", () => {
+    expect(tree.has("common/scripts/generate-prompts.mjs")).toBe(true);
+    expect(tree.get("common/scripts/prompt-sources.mjs") ?? "").toContain(
+      "export const PROMPT_SOURCE_DIRS",
+    );
+  });
+
+  it("wires both scripts into the scaffolded manifest, and verify into the check", () => {
+    const manifest = tree.get("common/package.json.tmpl") ?? "";
+    expect(manifest).toContain('"prompts:generate": "node scripts/generate-prompts.mjs --write"');
+    expect(manifest).toContain('"check:prompts": "node scripts/generate-prompts.mjs --check"');
+    expect(manifest).toMatch(/"verify": "[^"]*pnpm check:prompts/);
+  });
+
+  it("keeps the prompt Markdown outside the formatter it now ships", () => {
+    const ignored = tree.get("common/_prettierignore") ?? "";
+    for (const directory of ["system", "tools", "actions", "recipes"]) {
+      expect(ignored).toContain(`apps/api/src/features/agent/prompts/${directory}/`);
+    }
+  });
+
+  it("cuts the half of prompt-sources.mjs that names a directory the scaffold lacks", () => {
+    const cut = tree.get("common/scripts/prompt-sources.mjs") ?? "";
+    expect(cut).not.toContain("rendered/");
+    expect(cut).not.toContain("isPromptSource");
+  });
+
+  it("catches a prompt-sources.mjs the cut marker no longer matches", () => {
+    expect(() => transformPromptSources("export const PROMPT_SOURCE_DIRS = [];\n")).toThrow(
+      /no longer opens its repository-only half/,
+    );
+  });
+
+  it("catches a scaffolded formatter pin that has drifted from this repository's", () => {
+    const drifted = new Map(tree);
+    drifted.set(
+      "common/package.json.tmpl",
+      (tree.get("common/package.json.tmpl") ?? "").replace(
+        /"prettier": "[^"]+"/,
+        '"prettier": "^1.0.0"',
+      ),
+    );
+    expect(() => assertFormatterPinMatchesRepository(drifted)).toThrow(/prettier/);
+    expect(() => assertFormatterPinMatchesRepository(tree)).not.toThrow();
   });
 });
 

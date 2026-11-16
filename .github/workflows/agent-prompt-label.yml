@@ -1,0 +1,20 @@
+name: agent-prompt-label
+on:
+  # The base-branch workflow runs with a write token on fork PRs too. It checks out nothing and only
+  # calls the labels API, so no PR code ever executes here.
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+    paths:
+      - apps/api/src/features/agent/prompts/**
+permissions:
+  pull-requests: write
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Apply the agent-prompt label
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: gh pr edit "$PR_NUMBER" --add-label agent-prompt

@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { actionResultTurn, initialCard, startRun } from "@/lib/agent/plan-state";
 import { runPlan } from "@/lib/agent/runner";
+import { messageForFormCode } from "@/lib/forms/errors";
+import { t } from "@/lib/i18n/en";
 import type { AgentPlanStep, AgentProposal } from "@/lib/forms/assist-stream";
 import type { MintedLink } from "@/lib/forms/types";
 
@@ -107,6 +109,18 @@ describe("the step that mints links", () => {
       expect(replayed).not.toContain(link.url);
       expect(replayed).not.toContain(link.linkId);
     }
+  });
+
+  it("stops the card with plain words when the form is not live in that environment", async () => {
+    mintLinksAction.mockResolvedValue({
+      status: "error",
+      message: messageForFormCode("FORM_NOT_RELEASED"),
+    });
+
+    const card = await runMint();
+
+    expect(card.state).toBe("stopped");
+    expect(card.steps[0]?.message).toBe(t("forms.links.notLiveHere"));
   });
 
   it("reveals nothing when the mint produced nothing", async () => {

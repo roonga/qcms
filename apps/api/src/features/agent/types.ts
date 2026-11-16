@@ -112,7 +112,7 @@ export type FormDefinitionPort = (input: {
 }) => Promise<{ readonly formId: string; readonly definition: FormDefinition }>;
 
 /**
- * The propose tools' port. It validates, filters and signs; it executes nothing, so a
+ * The propose tool's port. It validates, filters and signs; it executes nothing, so a
  * screen that offers no action kind simply has no port.
  */
 export type ProposePort = (input: {
@@ -565,11 +565,11 @@ export interface AgentContext {
   readonly listWorkspaces?: ListWorkspacesPort;
   readonly readWorkspace?: ReadWorkspacePort;
   readonly listErasures?: ListErasuresPort;
-  /** Absent for a caller who holds no action kind at all, which leaves the propose tools unoffered. */
+  /** Absent for a caller who holds no action kind at all, which leaves the propose tool unoffered. */
   readonly propose?: ProposePort;
   /**
-   * What the grant filter offered this caller, which is what narrows the propose tools'
-   * advertised schemas. Empty means this user changes nothing anywhere.
+   * What the grant filter offered this caller, which is what narrows the propose tool's
+   * advertised schema. Empty means this user changes nothing anywhere.
    */
   readonly offeredActionKinds?: readonly OfferedActionKind[];
 }
@@ -605,10 +605,9 @@ export type AssistEvent =
   /** A tool call outside the allowlist was refused server-side. */
   | { readonly type: "tool-rejected"; readonly tool: string }
   /**
-   * One proposed action, or one ordered plan. The steps and their arguments are the admin's to display; the
-   * token is what Confirm carries. Nothing has run.
+   * One ordered plan, a single action being a plan of one step. The steps and their
+   * arguments are the admin's to display; the token is what Confirm carries. Nothing has run.
    */
-  | { readonly type: "action"; readonly proposal: Proposal }
   | { readonly type: "plan"; readonly proposal: Proposal }
   | { readonly type: "error"; readonly code: AssistErrorCode; readonly message: string }
   /** Counts only, never content. */

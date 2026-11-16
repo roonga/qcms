@@ -452,6 +452,13 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     action: "write",
     workspace: "form",
   },
+  {
+    method: "GET",
+    path: "/admin/forms/{id}/draft/agent-changes",
+    resource: "form",
+    action: "read",
+    workspace: "form",
+  },
   // The agent-authoring routes exist only under `QCMS_FLAG_AGENT_AUTHORING`, so the test's
   // route derivation cannot see them; name their rows here or they become a 403.
   {

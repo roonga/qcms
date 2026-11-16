@@ -33,7 +33,7 @@ describe("a rejected secure-link action", { timeout: 30_000 }, () => {
         formId="form-1"
         environment="prod"
         links={{ ok: true, data: LINKS }}
-        canMint
+        availability="available"
         maxBatch={10}
         mint={transportFailure}
         revoke={() => Promise.resolve(IDLE_REVOKE)}
@@ -65,7 +65,7 @@ describe("a rejected secure-link action", { timeout: 30_000 }, () => {
         formId="form-1"
         environment="prod"
         links={{ ok: true, data: LINKS }}
-        canMint
+        availability="available"
         maxBatch={10}
         mint={() => Promise.resolve(IDLE_MINT)}
         revoke={transportFailure}
@@ -115,7 +115,7 @@ describe("a refused clipboard write on a minted link", { timeout: 30_000 }, () =
         formId="form-1"
         environment="prod"
         links={{ ok: true, data: LINKS }}
-        canMint
+        availability="available"
         maxBatch={10}
         mint={() =>
           Promise.resolve({

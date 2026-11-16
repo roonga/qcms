@@ -361,3 +361,95 @@ describe("key rotation: old-key links still verify after prepending a new key (e
     expect(freshStarted.status).toBe(201);
   });
 });
+
+describe("minting is refused in an environment the form is not live in (#1323)", () => {
+  async function listIn(environment: string): Promise<string[]> {
+    const res = await app.request(`/admin/forms/${FORM_ID}/links`, {
+      headers: { ...adminHeaders(), [REQUEST_ENVIRONMENT_HEADER]: environment },
+    });
+    expect(res.status).toBe(200);
+    const { links } = (await res.json()) as { links: Array<{ linkId: string }> };
+    return links.map((link) => link.linkId);
+  }
+
+  it("refuses a named environment with no release of the form, and mints nothing there", async () => {
+    const before = await listIn("test");
+
+    const res = await mint(app, { environment: "test", expiresAt: FUTURE });
+
+    expect(res.status).toBe(409);
+    expect((await res.json()) as { error: { code: string } }).toMatchObject({
+      error: { code: "FORM_NOT_RELEASED" },
+    });
+    expect(await listIn("test")).toEqual(before);
+  });
+
+  it("refuses a form with no published version at all", async () => {
+    const res = await app.request(`/admin/forms/${OTHER_FORM_ID}/links`, {
+      method: "POST",
+      headers: adminHeaders(),
+      body: JSON.stringify({ environment: DEFAULT_TEST_ENVIRONMENT, expiresAt: FUTURE }),
+    });
+
+    expect(res.status).toBe(409);
+    expect((await res.json()) as { error: { code: string } }).toMatchObject({
+      error: { code: "FORM_NOT_RELEASED" },
+    });
+  });
+
+  it("refuses an unknown form before it reads any release state", async () => {
+    const res = await app.request(`/admin/forms/frm_links_it_absent/links`, {
+      method: "POST",
+      headers: adminHeaders(),
+      body: JSON.stringify({ environment: DEFAULT_TEST_ENVIRONMENT, expiresAt: FUTURE }),
+    });
+
+    expect(res.status).toBe(404);
+    expect((await res.json()) as { error: { code: string } }).toMatchObject({
+      error: { code: "FORM_NOT_FOUND" },
+    });
+  });
+
+  it("mints as before in the environment the form is live in", async () => {
+    const res = await mint(app, { expiresAt: FUTURE });
+
+    expect(res.status).toBe(201);
+    const { links } = (await res.json()) as { links: Array<{ environment: string }> };
+    expect(links).toHaveLength(1);
+    expect(links[0]?.environment).toBe(DEFAULT_TEST_ENVIRONMENT);
+  });
+
+  it("mints once the form becomes live there", async () => {
+    const formId = FormId.parse("frm_links_it_late");
+    await createForm(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
+      formId,
+      slug: "links-it-late",
+      defaultLocale: "en",
+    });
+    const version = await insertFormVersion(testDb.db, {
+      formId,
+      definition: emptyDef,
+      appearance: null,
+      compiled: emptyCompiled,
+      compilerVersion: "1.0.0",
+      a2uiSpecVersion: "1.0.0",
+      semanticsVersion: "1",
+    });
+    const path = `/admin/forms/${formId}/links`;
+    const body = JSON.stringify({ environment: DEFAULT_TEST_ENVIRONMENT, expiresAt: FUTURE });
+
+    const published = await app.request(path, { method: "POST", headers: adminHeaders(), body });
+    expect(published.status).toBe(409);
+
+    await insertFormRelease(testDb.db, {
+      formId,
+      environment: DEFAULT_TEST_ENVIRONMENT,
+      version: version.version,
+      releasedBy: "usr_fixture",
+    });
+
+    const live = await app.request(path, { method: "POST", headers: adminHeaders(), body });
+    expect(live.status).toBe(201);
+  });
+});

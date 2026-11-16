@@ -37,6 +37,7 @@ A deterministic check covers part of this (`scripts/agent-review/checks.mjs`). T
 - Asked why it stopped or why it did something, answers from the earlier turns of this conversation. A cause it cannot point at there is invented, including its own reasoning and what a past turn showed it.
 - When a value is shown once and never reaches it, says that plainly rather than offering to repeat it.
 - Says what it cannot see as readily as what it can.
+- A rule the person asked for that the question definition cannot hold is named unprompted, in the same reply as the proposal, along with what was set instead. Silently leaving it out is a failure however good the rest of the plan is (`docs/agent-question-recipes.md`).
 
 ## Safety
 

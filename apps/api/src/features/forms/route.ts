@@ -20,6 +20,7 @@ import {
   makeValidateDraftHandler,
 } from "./handler.js";
 import {
+  AgentEditHeaders,
   CreateFormBody,
   CreatedFormResponse,
   DraftBody,
@@ -102,9 +103,18 @@ export const putDraftRoute = createRoute({
   method: "put",
   path: "/forms/{id}/draft",
   summary: "Replace the draft definition; returns advisory publish issues (admin)",
+  description:
+    "The single draft save path. With the agent flag on, a card-less builder edit or its Undo " +
+    "carries a server-minted token in `x-qcms-agent-edit`, bound to the user, the form, the " +
+    "turn and the draft: an edit to the revision it was minted for, an Undo to the states on " +
+    "either side of its edit. A stale, replayed, foreign or over-cap token is refused and " +
+    "never saved as an ordinary edit. Each accepted edit and Undo writes one " +
+    "`control.agent_actions` row in the save's transaction, and an edit's response carries " +
+    "the token that undoes it. The body's `agentAssisted` is never taken as provenance.",
   tags,
   request: {
     params: FormIdParam,
+    headers: AgentEditHeaders,
     body: jsonBody(DraftBody),
   },
   responses: {
@@ -112,7 +122,7 @@ export const putDraftRoute = createRoute({
       description: "The saved draft and advisory validation issues",
       content: { "application/json": { schema: SavedDraftResponse } },
     },
-    ...errorResponses(400, 401, 404, 422),
+    ...errorResponses(400, 401, 403, 404, 409, 422),
   },
   ...withScopes("forms:write"),
 });
