@@ -36,15 +36,6 @@ export function FormRowMenu({
       classNames={menuClasses("qcms-iconbutton qcms-iconbutton--sm qcms-rowmenu-trigger")}
       items={[
         { id: "builder", label: t("forms.tab.builder"), href: form },
-        ...(canBuild
-          ? [
-              {
-                id: "agent-builder",
-                label: t("forms.menu.agentBuilder"),
-                href: builderPath(formId),
-              },
-            ]
-          : []),
         { id: "preview", label: t("forms.tab.preview"), href: `${form}/preview` },
         ...(canOperate
           ? [
@@ -52,6 +43,15 @@ export function FormRowMenu({
                 id: "links",
                 label: t("forms.tab.links"),
                 href: formContextHref(formId, "links"),
+              },
+            ]
+          : []),
+        ...(canBuild
+          ? [
+              {
+                id: "agent-builder",
+                label: t("forms.menu.agentBuilder"),
+                href: builderPath(formId),
               },
             ]
           : []),
