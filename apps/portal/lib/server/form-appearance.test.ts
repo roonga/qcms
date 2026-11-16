@@ -147,7 +147,10 @@ describe("packFormAppearance", () => {
   });
 
   it("fits a cookie at the full token set, in characters a cookie carries unencoded", () => {
-    const names = Array.from({ length: 34 }, (_, at) => `surface-container-highest-${"x".repeat(at % 7 + 1)}`);
+    const names = Array.from(
+      { length: 34 },
+      (_, at) => `surface-container-highest-${"x".repeat((at % 7) + 1)}`,
+    );
     const full = Object.fromEntries(names.map((name) => [name, "#123abc"]));
     const packed = packFormAppearance(
       parsed({
