@@ -9,10 +9,7 @@ import { spawnSync } from "node:child_process";
 import { argv, execPath, exit } from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-const STEPS = [
-  ["check-vendor-pin.mjs"],
-  ["vendor-cite.mjs", "--quiet", "--expect"],
-];
+const STEPS = [["check-vendor-pin.mjs"], ["vendor-cite.mjs", "--quiet", "--expect"]];
 
 /**
  * @param {readonly number[]} codes

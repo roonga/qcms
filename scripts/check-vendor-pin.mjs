@@ -83,7 +83,8 @@ export function isExempt(file) {
  * ending in the package name matching at all; the trailing boundary stops a version
  * matching inside a longer one.
  */
-const ASSERTION = /(?<![\w@-])(@better-auth\/[a-z0-9-]+|better-auth)[@ ](\d+\.\d+\.\d+)(?!\d|\.\d)/g;
+const ASSERTION =
+  /(?<![\w@-])(@better-auth\/[a-z0-9-]+|better-auth)[@ ](\d+\.\d+\.\d+)(?!\d|\.\d)/g;
 
 /**
  * @param {string} text
