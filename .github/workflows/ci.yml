@@ -70,7 +70,7 @@ jobs:
     name: verify (node-${{ matrix.node-version }})
     runs-on: ubuntu-latest
     # Bound hangs in installs or container startup so required checks cannot remain pending indefinitely.
-    timeout-minutes: 15
+    timeout-minutes: 25
     needs: changes
     # A skipped required job counts as passing; classifier failures must run the full gate.
     if: ${{ !cancelled() }}
@@ -104,6 +104,14 @@ jobs:
         if: env.PLAN_ONLY == 'true'
         env:
           DEFAULT_BRANCH: ${{ github.event.pull_request.base.ref || 'main' }}
+
+      # apps/site rides the fast lane, so the gates that otherwise reach it only through
+      # `pnpm typecheck` and `pnpm build` have to run inside this required context too.
+      - run: pnpm --filter qcms-site typecheck
+        if: env.PLAN_ONLY == 'true'
+
+      - run: pnpm --filter qcms-site build
+        if: env.PLAN_ONLY == 'true'
 
       # Build declarations before program-shaped tasks resolve workspace packages.
       - run: pnpm build
