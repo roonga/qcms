@@ -1,0 +1,66 @@
+name: site
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/site/**"
+      - ".github/workflows/site.yml"
+  pull_request:
+    paths:
+      - "apps/site/**"
+      - ".github/workflows/site.yml"
+  # Allow a deploy to be requested when a docs change rides another workflow's path filter.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    # A static build of one small site; a longer run means the toolchain is wedged.
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      # Only this package and what it depends on: the site imports no workspace package,
+      # so the rest of the monorepo's install is work this job never uses.
+      - run: pnpm install --frozen-lockfile --filter qcms-site...
+
+      - run: pnpm --filter qcms-site lint
+
+      - run: pnpm --filter qcms-site typecheck
+
+      - run: pnpm --filter qcms-site build
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: apps/site/dist
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Pages allows one deployment at a time, and cancelling a half-finished one leaves
+    # nothing published. Scoped to this job so a pull request build never queues behind
+    # a deploy, nor cancels one.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
