@@ -16,8 +16,8 @@ async function render(initial: SettingsSectionId = SETTINGS_SECTION_IDS.account)
 describe("the Settings rail's markup", () => {
   it("is a complementary landmark named for its subject, holding the sections nav", async () => {
     const html = await render();
-    expect(html).toContain('<aside id="qcms-rail-region" class="qcms-rail" aria-label="Settings"');
-    expect(html).toContain('<nav aria-label="Settings sections">');
+    expect(html).toContain('<aside id="qcms-rail-region" class="qcms-rail" aria-label="My account"');
+    expect(html).toContain('<nav aria-label="My account sections">');
     expect(html).toContain('data-testid="qcms-settings-rail"');
     expect(html).toContain('class="qcms-rail"');
     expect(html).not.toContain("qcms-settings-rail__");
@@ -47,7 +47,7 @@ describe("the Settings rail's markup", () => {
     const html = await render(SETTINGS_SECTION_IDS.twoFactor);
     const summary = html.slice(html.indexOf("<summary"), html.indexOf("</summary>"));
     expect(summary).toContain("qcms-rail__summary--area");
-    expect(summary).not.toContain("Settings");
+    expect(summary).not.toContain("My account");
     expect(summary).not.toContain("Two-factor authentication");
     expect(html).not.toContain("qcms-rail__back");
   });
