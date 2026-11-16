@@ -4,6 +4,7 @@
  */
 
 import {
+  deriveAppearance,
   FormId,
   type LinkClaims,
   LinkId,
@@ -365,6 +366,57 @@ export async function seedKitchenSinkForm(
   });
   await releaseSeededVersion(db, formId, seeded.version);
   return { formId, slug };
+}
+
+/**
+ * The kitchen-sink form with a progress mode, and a rule that hides its whole last step unless
+ * the accident answer is No, so the rail has a "Not needed" step to show. Serving filters
+ * by the flow, so the stored documents stay the kitchen-sink's own. Seed the kitchen sink
+ * first: this pins its questions.
+ */
+export async function seedRailForm(
+  db: Db,
+  opts: { formId: string; slug: string; progress: "side-rail" | "top-indicator" | "none" },
+): Promise<SeededForm> {
+  const definition = KITCHEN_SINK_DEF as { rules: readonly unknown[] };
+  const derived = deriveAppearance({ primary: "#2456c6" });
+  await createForm(db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    formId: FormId.parse(opts.formId),
+    slug: opts.slug,
+    defaultLocale: "en",
+  });
+  const seeded = await insertFormVersion(db, {
+    formId: FormId.parse(opts.formId),
+    definition: {
+      ...definition,
+      formId: opts.formId,
+      rules: [
+        ...definition.rules,
+        {
+          ruleId: "rul_cover_when_clean",
+          when: { op: "equals", questionId: "q_at_fault_accident", value: false },
+          show: ["q_coverage_level", "q_annual_km", "q_body_type", "q_overnight_parking"],
+        },
+      ],
+    } as unknown as FormVersionInput["definition"],
+    appearance: {
+      palettes: derived.palettes,
+      logo: null,
+      face: derived.face,
+      corners: "subtle",
+      density: "comfortable",
+      textSize: 16,
+      progress: opts.progress,
+      pageTint: derived.pageTint,
+    },
+    compiled: KS_COMPILED,
+    compilerVersion: KITCHEN_SINK_GOLDEN.compilerVersion,
+    a2uiSpecVersion: KITCHEN_SINK_GOLDEN.a2uiSpecVersion,
+    semanticsVersion: "1",
+  });
+  await releaseSeededVersion(db, opts.formId, seeded.version);
+  return { formId: opts.formId, slug: opts.slug };
 }
 
 export async function seedAuthorMessagesForm(

@@ -1,0 +1,138 @@
+---
+
+---
+
+<div class="qcms-figure" role="img" aria-label="A question whose answer selects the next step: answering yes leads to 'Tell us about the accident', answering no leads to 'Vehicle details'.">
+  <div class="branch-question" aria-hidden="true">
+    <p class="branch-kind">Single choice</p>
+    <p class="branch-prompt">Any at-fault accident in the last 3 years?</p>
+    <ul class="branch-options">
+      <li><span class="branch-radio branch-radio--on"></span>Yes</li>
+      <li><span class="branch-radio"></span>No</li>
+    </ul>
+  </div>
+
+  <div class="branch-fork" aria-hidden="true">
+    <div class="branch-leg">
+      <span class="branch-edge">Yes</span>
+      <div class="branch-next">Tell us about the accident</div>
+    </div>
+    <div class="branch-leg">
+      <span class="branch-edge">No</span>
+      <div class="branch-next">Vehicle details</div>
+    </div>
+  </div>
+</div>
+
+<style>
+  .qcms-figure {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .branch-question {
+    border: 1px solid var(--qcms-border-strong);
+    border-radius: var(--qcms-radius-card);
+    background-color: var(--qcms-bg);
+    padding: 0.9rem 1rem;
+  }
+
+  .branch-kind {
+    margin: 0 0 0.4rem;
+    font-size: var(--sl-text-2xs);
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--qcms-text-muted);
+  }
+
+  .branch-prompt {
+    margin: 0;
+    font-size: var(--sl-text-sm);
+    font-weight: 600;
+    line-height: 1.4;
+    color: var(--qcms-text);
+  }
+
+  .branch-options {
+    list-style: none;
+    display: flex;
+    gap: 1rem;
+    margin: 0.7rem 0 0;
+    padding: 0;
+  }
+
+  .branch-options li {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: var(--sl-text-sm);
+    color: var(--qcms-text-muted);
+  }
+
+  .branch-radio {
+    width: 0.8rem;
+    height: 0.8rem;
+    border-radius: 50%;
+    border: 1px solid var(--qcms-border-strong);
+    flex-shrink: 0;
+  }
+
+  .branch-radio--on {
+    border-color: var(--qcms-primary);
+    border-width: 4px;
+  }
+
+  .branch-fork {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+
+  .branch-leg {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+
+  .branch-edge {
+    position: relative;
+    margin-block: 0.5rem;
+    padding: 0.1rem 0.35rem;
+    border: 1px solid var(--qcms-border);
+    border-radius: var(--qcms-radius-tag);
+    background-color: var(--qcms-bg);
+    font-size: var(--sl-text-2xs);
+    font-weight: 600;
+    color: var(--qcms-text-muted);
+    z-index: 1;
+  }
+
+  .branch-leg::before,
+  .branch-leg::after {
+    content: "";
+    width: 1px;
+    height: 0.75rem;
+    background-color: var(--qcms-border-strong);
+  }
+
+  .branch-next {
+    width: 100%;
+    border: 1px solid var(--qcms-border);
+    border-radius: var(--qcms-radius-card);
+    background-color: var(--qcms-bg);
+    padding: 0.7rem;
+    text-align: center;
+    font-size: var(--sl-text-sm);
+    line-height: 1.35;
+    color: var(--qcms-text);
+  }
+
+  @media (max-width: 24rem) {
+    .branch-fork {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

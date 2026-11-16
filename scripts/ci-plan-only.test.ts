@@ -140,7 +140,7 @@ describe("plan-only classification: the instruction tree", () => {
   });
 
   it("keeps the .claude prefix anchored with its separator", () => {
-    expect(FAST_LANE_PREFIXES).toEqual(["plan/", ".claude/"]);
+    expect(FAST_LANE_PREFIXES).toEqual(["plan/", ".claude/", "apps/site/"]);
     expect(FAST_LANE_FILES).toEqual(["CLAUDE.md", "PROJECT_INSTRUCTIONS.md", "CONTRIBUTING.md"]);
     expect(isPlanOnly([".claude-hooks/on-stop.mjs"])).toBe(false);
     expect(isPlanOnly([".claude-notes/x.md"])).toBe(false);
@@ -159,6 +159,37 @@ describe("plan-only classification: the instruction tree", () => {
   it("still rejects a diff that also touches the workflow or the classifier", () => {
     expect(isPlanOnly(["CLAUDE.md", ".github/workflows/ci.yml"])).toBe(false);
     expect(isPlanOnly([".claude/agents/dev-task.md", "scripts/ci-plan-only.mjs"])).toBe(false);
+  });
+});
+
+describe("plan-only classification: the static site", () => {
+  it("accepts a diff confined to apps/site", () => {
+    expect(isPlanOnly(["apps/site/src/content/docs/start/introduction.mdx"])).toBe(true);
+    expect(isPlanOnly(["apps/site/astro.config.mjs", "apps/site/src/styles/custom.css"])).toBe(
+      true,
+    );
+    expect(isPlanOnly(["apps/site/package.json", "docs/adr/core.md"])).toBe(true);
+  });
+
+  it("rejects a site diff that also moves the lockfile, which reaches every package", () => {
+    expect(isPlanOnly(["apps/site/package.json", "pnpm-lock.yaml"])).toBe(false);
+  });
+
+  it("rejects a site diff that also touches a package the apps build on", () => {
+    expect(isPlanOnly(["apps/site/src/styles/custom.css", "packages/ui/src/theme.css"])).toBe(
+      false,
+    );
+  });
+
+  it("keeps the prefix anchored to the directory", () => {
+    expect(isPlanOnly(["apps/site"])).toBe(false);
+    expect(isPlanOnly(["apps/sitemap/index.ts"])).toBe(false);
+    expect(isPlanOnly(parsePaths(" apps/site/evil.ts\0"))).toBe(false);
+  });
+
+  it("is admin-only too, so the browser suite narrows rather than widening", () => {
+    expect(isAdminOnly(["apps/site/src/content/docs/start/introduction.mdx"])).toBe(true);
+    expect(isAdminOnly(["apps/site/package.json", "apps/admin/app/page.tsx"])).toBe(true);
   });
 });
 
@@ -276,7 +307,13 @@ describe("admin-only classification", () => {
   });
 
   it("keeps every prefix anchored with a trailing separator", () => {
-    expect(ADMIN_ONLY_PREFIXES).toEqual(["apps/admin/", "docs/", "plan/", ".claude/"]);
+    expect(ADMIN_ONLY_PREFIXES).toEqual([
+      "apps/admin/",
+      "docs/",
+      "plan/",
+      ".claude/",
+      "apps/site/",
+    ]);
     expect(isAdminOnly(["apps/administration/page.tsx"])).toBe(false);
     expect(isAdminOnly(["docsite/index.html"])).toBe(false);
     expect(isAdminOnly(["apps/admin"])).toBe(false);
@@ -402,6 +439,11 @@ describe("no reader of a lane path lives where the lane cannot see it", () => {
       file: "packages/create-qcms-app/scripts/sync-templates.test.ts",
       line: '"CLAUDE.md",',
       why: "asserts the same app-relative strip rule",
+    },
+    {
+      file: "apps/site/astro.config.mjs",
+      line: 'editLink: { baseUrl: "https://github.com/roonga/qcms/edit/main/apps/site/" },',
+      why: "builds a github.com edit URL; reads nothing from that path",
     },
   ];
 

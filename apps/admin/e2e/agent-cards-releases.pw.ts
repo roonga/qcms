@@ -2,6 +2,8 @@ import type { Page } from "@playwright/test";
 
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
+import { t } from "../lib/i18n/en.js";
+
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import {
   auditDelta,
@@ -83,9 +85,7 @@ test("confirms a publish and then a promotion, each changing what the screen ser
   await openPanel(page);
   await propose(page, "propose-form-release", "promote that version to production");
 
-  await expect(card(page)).toContainText(
-    "Production: changes where respondents' answers are sent.",
-  );
+  await expect(card(page)).toContainText(t("agent.card.environment.production"));
   await confirm(page, /^Done\./u);
 
   await expectServing(page, aloneFormId, { test: "v1", prod: "v1" });

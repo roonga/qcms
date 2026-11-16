@@ -1,0 +1,101 @@
+---
+title: Forms and versions
+description: Drafts, published versions, releases, and why a published version never changes.
+---
+
+A form is ordered steps of pinned question references, plus visibility rules. A pin is a
+`{ questionId, version }` pair.
+
+```ts
+const QuestionRef = z.object({
+  questionId: QuestionId,
+  version: z.number().int().positive(), // pinned; drafts may float, snapshots never do
+});
+
+const Step = z.object({
+  stepId: StepId,
+  title: LocalizedText,
+  items: z.array(StepItem).min(1),
+});
+
+const FormDefinition = z.object({
+  formId: FormId,
+  defaultLocale: LocaleCode,
+  title: LocalizedText,
+  steps: z.array(Step).min(1),
+  rules: z.array(VisibilityRule),
+});
+```
+
+A step item is either a pinned question reference or a [repeating
+group](/qcms/concepts/repeating-groups/). A duplicate `stepId`, or a question pinned twice, makes
+rule targeting and answer keying ambiguous, so it is malformed rather than merely unpublishable.
+
+## Publishing
+
+Publishing freezes the draft as a version. One compile pass validates atomically and returns every
+error rather than the first:
+
+- every rule resolves against pinned question versions
+- no dangling question, option or step references
+- the default locale is complete, with no whitespace-only authored text
+- the rule dependency graph is acyclic and forward-only
+
+On success it produces an immutable, deep-frozen snapshot carrying the definition plus the resolved
+question version for each pin, stamped with the rule-semantics version and the snapshot schema
+version. The caller's draft stays editable.
+
+The same pass can raise non-blocking warnings. A warning never blocks a publish.
+
+## Releasing
+
+Publishing ends at a version. A release is a second act. A version lives once and is shared by every
+environment; what makes it live somewhere is a release record naming the environment, the version,
+who released it, and where it was promoted from. So a published version is served nowhere until it
+is released, and promotion is a record rather than a copy.
+
+The practical workflow is: build and preview a draft, publish and release it to test in one
+confirmation, verify it, then run the wizard again on that same version to release it to
+production. Authoring belongs to no environment, so nothing has to be switched to publish.
+
+- Draft is the editable authoring state, shared across environments.
+- Later edits start from the latest published version and leave released versions unchanged until a
+  new release.
+- A fix produces a new form version, which goes through test again.
+- Promotion uses the exact tested version; it does not copy or republish.
+- Existing sessions finish on the version they started with. Rollback means releasing a previously
+  published version to production.
+
+A draft cannot be published straight into production, and that floor is not configurable. On a site
+whose only environment is production, a draft publishes to production.
+
+A form can be `Closed` in one environment while it is published in another, and reopening is
+reopening rather than a new version.
+
+## Question versioning
+
+```ts
+const QuestionVersionRecord = z.object({
+  questionId: QuestionId,
+  version: z.number().int().positive(),
+  definition: QuestionDefinition,
+});
+```
+
+A question version moves draft, then published, then referenced by a published form version, at
+which point it is immutable. Deprecating a version blocks new pins only. History never breaks: any
+version ever referenced by a published form remains resolvable forever.
+
+There is no auto-upgrade and no impact analysis. A draft's pin moves only when the author moves it.
+
+## Serving the stored copy
+
+The portal serves the compiled document stored at publish time and never a recompilation. Every form
+version stamps the compiler version and the A2UI spec version, and the renderer keeps backward
+compatibility with every spec version ever published. That is what makes a compiler or renderer
+upgrade unable to alter a form that is already live.
+
+## Source
+
+- [`docs/DOMAIN_SCHEMA.md`](https://github.com/roonga/qcms/blob/main/docs/DOMAIN_SCHEMA.md)
+- [`docs/form-publishing-flow.md`](https://github.com/roonga/qcms/blob/main/docs/form-publishing-flow.md)

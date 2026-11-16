@@ -93,12 +93,12 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (781 files common to both shapes)
+### Scaffolded paths (783 files common to both shapes)
 
 | Path                                                                            | Files |
 | ------------------------------------------------------------------------------- | ----- |
 | `(project root)`                                                                | 10    |
-| `apps/`                                                                         | 766   |
+| `apps/`                                                                         | 768   |
 | `apps/admin/`                                                                   | 410   |
 | `apps/admin/app/`                                                               | 110   |
 | `apps/admin/app/(shell)/`                                                       | 84    |
@@ -219,9 +219,9 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/lib/questions/`                                                     | 9     |
 | `apps/admin/lib/server/`                                                        | 33    |
 | `apps/admin/lib/shell/`                                                         | 8     |
-| `apps/api/`                                                                     | 281   |
-| `apps/api/src/`                                                                 | 278   |
-| `apps/api/src/features/`                                                        | 246   |
+| `apps/api/`                                                                     | 282   |
+| `apps/api/src/`                                                                 | 279   |
+| `apps/api/src/features/`                                                        | 247   |
 | `apps/api/src/features/accounts/`                                               | 8     |
 | `apps/api/src/features/agent/`                                                  | 152   |
 | `apps/api/src/features/agent/actions/`                                          | 11    |
@@ -242,9 +242,9 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/api/src/features/outbox/`                                                 | 3     |
 | `apps/api/src/features/questions/`                                              | 4     |
 | `apps/api/src/features/releases/`                                               | 6     |
-| `apps/api/src/features/responses/`                                              | 19    |
+| `apps/api/src/features/responses/`                                              | 20    |
 | `apps/api/src/features/responses/admin/`                                        | 4     |
-| `apps/api/src/features/responses/serve-step/`                                   | 3     |
+| `apps/api/src/features/responses/serve-step/`                                   | 4     |
 | `apps/api/src/features/responses/start-session/`                                | 3     |
 | `apps/api/src/features/responses/submit/`                                       | 3     |
 | `apps/api/src/features/webhooks/`                                               | 8     |
@@ -253,7 +253,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/api/src/middleware/`                                                      | 7     |
 | `apps/api/src/routes/`                                                          | 1     |
 | `apps/api/src/schedulers/`                                                      | 4     |
-| `apps/portal/`                                                                  | 75    |
+| `apps/portal/`                                                                  | 76    |
 | `apps/portal/app/`                                                              | 20    |
 | `apps/portal/app/appearance/`                                                   | 1     |
 | `apps/portal/app/done/`                                                         | 1     |
@@ -272,7 +272,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/portal/app/s/[sessionId]/roster/`                                         | 1     |
 | `apps/portal/app/s/[sessionId]/step/`                                           | 1     |
 | `apps/portal/app/s/[sessionId]/submit/`                                         | 1     |
-| `apps/portal/components/`                                                       | 15    |
+| `apps/portal/components/`                                                       | 16    |
 | `apps/portal/lib/`                                                              | 33    |
 | `apps/portal/lib/i18n/`                                                         | 2     |
 | `apps/portal/lib/server/`                                                       | 18    |
@@ -316,7 +316,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (781)</summary>
+<summary>Every scaffolded file (783)</summary>
 
 ```
 .dockerignore
@@ -958,6 +958,7 @@ apps/api/src/features/responses/semantics-version.ts
 apps/api/src/features/responses/serve-step/handler.ts
 apps/api/src/features/responses/serve-step/route.ts
 apps/api/src/features/responses/serve-step/schema.ts
+apps/api/src/features/responses/serve-step/steps.ts
 apps/api/src/features/responses/session-token.ts
 apps/api/src/features/responses/start-session/handler.ts
 apps/api/src/features/responses/start-session/route.ts
@@ -1051,6 +1052,7 @@ apps/portal/components/native-step.tsx
 apps/portal/components/portal-shell.tsx
 apps/portal/components/progressive-step.tsx
 apps/portal/components/step-flow.tsx
+apps/portal/components/step-rail.tsx
 apps/portal/components/turnstile-widget.tsx
 apps/portal/instrumentation.ts
 apps/portal/lib/a11y.ts

@@ -223,6 +223,22 @@
           },
           "progress": {
             "$ref": "#/components/schemas/StepProgress"
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StepRailEntry"
+            },
+            "description": "Every step of the pinned version in form order (ADR-28)."
+          },
+          "progressMode": {
+            "type": "string",
+            "enum": [
+              "side-rail",
+              "top-indicator",
+              "none"
+            ],
+            "description": "How the portal shows progress, from the pinned version's appearance; top-indicator where the version carries none."
           }
         },
         "required": [
@@ -232,7 +248,9 @@
           "flowState",
           "rosters",
           "view",
-          "progress"
+          "progress",
+          "steps",
+          "progressMode"
         ]
       },
       "StepDocument": {
@@ -354,6 +372,60 @@
           "totalVisibleSteps"
         ]
       },
+      "StepRailEntry": {
+        "type": "object",
+        "properties": {
+          "stepId": {
+            "type": "string",
+            "example": "stp_history"
+          },
+          "label": {
+            "type": "string",
+            "example": "Driving history"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "completed",
+              "current",
+              "ahead",
+              "notNeeded"
+            ],
+            "description": "completed and current as walked; ahead for a visible step not yet reached; notNeeded for a step a rule hides."
+          },
+          "cursor": {
+            "type": "integer",
+            "nullable": true,
+            "description": "The `step` cursor that opens this step: set for a completed step only, the one kind a respondent may jump to.",
+            "example": 0
+          },
+          "questions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "label"
+              ]
+            },
+            "description": "On the current step only: the rendered view's visible questions, by answer key, in order."
+          }
+        },
+        "required": [
+          "stepId",
+          "label",
+          "state",
+          "cursor"
+        ]
+      },
       "SubmitAnswerBody": {
         "type": "object",
         "properties": {
@@ -431,6 +503,22 @@
           "progress": {
             "$ref": "#/components/schemas/StepProgress"
           },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StepRailEntry"
+            },
+            "description": "Every step of the pinned version in form order (ADR-28)."
+          },
+          "progressMode": {
+            "type": "string",
+            "enum": [
+              "side-rail",
+              "top-indicator",
+              "none"
+            ],
+            "description": "How the portal shows progress, from the pinned version's appearance; top-indicator where the version carries none."
+          },
           "rejected": {
             "type": "array",
             "items": {
@@ -446,6 +534,8 @@
           "rosters",
           "view",
           "progress",
+          "steps",
+          "progressMode",
           "rejected"
         ]
       },
@@ -542,6 +632,22 @@
           "progress": {
             "$ref": "#/components/schemas/StepProgress"
           },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StepRailEntry"
+            },
+            "description": "Every step of the pinned version in form order (ADR-28)."
+          },
+          "progressMode": {
+            "type": "string",
+            "enum": [
+              "side-rail",
+              "top-indicator",
+              "none"
+            ],
+            "description": "How the portal shows progress, from the pinned version's appearance; top-indicator where the version carries none."
+          },
           "replayed": {
             "type": "boolean"
           },
@@ -560,6 +666,8 @@
           "rosters",
           "view",
           "progress",
+          "steps",
+          "progressMode",
           "replayed",
           "minted"
         ]
@@ -888,11 +996,11 @@
               "type": "integer",
               "nullable": true,
               "minimum": 0,
-              "description": "0-based index of the visible step to render (the explicit navigation cursor, ADR-28). Clamped to the visible range; omit to serve the first incomplete step.",
+              "description": "0-based index of the visible step to render (the explicit navigation cursor, ADR-28). Clamped to the visible range; omit to serve the first incomplete step. A forward jump is refused: an index past the end of the first step still missing a required answer serves the first incomplete step instead.",
               "example": 1
             },
             "required": false,
-            "description": "0-based index of the visible step to render (the explicit navigation cursor, ADR-28). Clamped to the visible range; omit to serve the first incomplete step.",
+            "description": "0-based index of the visible step to render (the explicit navigation cursor, ADR-28). Clamped to the visible range; omit to serve the first incomplete step. A forward jump is refused: an index past the end of the first step still missing a required answer serves the first incomplete step instead.",
             "name": "step",
             "in": "query"
           }
@@ -979,11 +1087,11 @@
               "type": "integer",
               "nullable": true,
               "minimum": 0,
-              "description": "0-based index of the visible step to render (the explicit navigation cursor, ADR-28). Clamped to the visible range; omit to serve the first incomplete step.",
+              "description": "0-based index of the visible step to render (the explicit navigation cursor, ADR-28). Clamped to the visible range; omit to serve the first incomplete step. A forward jump is refused: an index past the end of the first step still missing a required answer serves the first incomplete step instead.",
               "example": 1
             },
             "required": false,
-            "description": "0-based index of the visible step to render (the explicit navigation cursor, ADR-28). Clamped to the visible range; omit to serve the first incomplete step.",
+            "description": "0-based index of the visible step to render (the explicit navigation cursor, ADR-28). Clamped to the visible range; omit to serve the first incomplete step. A forward jump is refused: an index past the end of the first step still missing a required answer serves the first incomplete step instead.",
             "name": "step",
             "in": "query"
           }
@@ -1090,11 +1198,11 @@
               "type": "integer",
               "nullable": true,
               "minimum": 0,
-              "description": "0-based index of the visible step to render (the explicit navigation cursor, ADR-28). Clamped to the visible range; omit to serve the first incomplete step.",
+              "description": "0-based index of the visible step to render (the explicit navigation cursor, ADR-28). Clamped to the visible range; omit to serve the first incomplete step. A forward jump is refused: an index past the end of the first step still missing a required answer serves the first incomplete step instead.",
               "example": 1
             },
             "required": false,
-            "description": "0-based index of the visible step to render (the explicit navigation cursor, ADR-28). Clamped to the visible range; omit to serve the first incomplete step.",
+            "description": "0-based index of the visible step to render (the explicit navigation cursor, ADR-28). Clamped to the visible range; omit to serve the first incomplete step. A forward jump is refused: an index past the end of the first step still missing a required answer serves the first incomplete step instead.",
             "name": "step",
             "in": "query"
           }
@@ -1211,11 +1319,11 @@
               "type": "integer",
               "nullable": true,
               "minimum": 0,
-              "description": "0-based index of the visible step to render (the explicit navigation cursor, ADR-28). Clamped to the visible range; omit to serve the first incomplete step.",
+              "description": "0-based index of the visible step to render (the explicit navigation cursor, ADR-28). Clamped to the visible range; omit to serve the first incomplete step. A forward jump is refused: an index past the end of the first step still missing a required answer serves the first incomplete step instead.",
               "example": 1
             },
             "required": false,
-            "description": "0-based index of the visible step to render (the explicit navigation cursor, ADR-28). Clamped to the visible range; omit to serve the first incomplete step.",
+            "description": "0-based index of the visible step to render (the explicit navigation cursor, ADR-28). Clamped to the visible range; omit to serve the first incomplete step. A forward jump is refused: an index past the end of the first step still missing a required answer serves the first incomplete step instead.",
             "name": "step",
             "in": "query"
           }

@@ -1,0 +1,176 @@
+---
+title: Docker Compose
+description: The four-container topology and how to run it on a server.
+---
+
+QCMS is four containers and one durable thing: the respondent portal, the authoring admin, the API
+and Postgres. Only the database has to survive. The containers are disposable and the images are
+rebuildable.
+
+The recommendation is to run the Compose stack on one small server, essentially unmodified, with the
+Caddy overlay, two DNS records and automatic certificates.
+
+## Services
+
+The base file defines `postgres`, `db-roles`, `migrate`, `api`, `portal` and `admin`, plus one
+volume for the database. The proxy overlay adds `caddy` and two volumes of its own.
+
+Boot order is postgres, then the role bootstrap, then the migration, then the API.
+
+Only the portal and the admin publish host ports, and both bind to `QCMS_BIND_ADDRESS`, which
+defaults to loopback.
+
+Four database roles are created by the one-shot role service on every start: a migration owner, a
+control-pool role, and one application role per environment.
+
+## The five invariants
+
+**The API is never reachable from the internet.** In Compose this is the absence of a published
+port on the API service, which a test asserts against the merged configuration.
+
+**The one-shot migration completes before the API starts.** Migration is a deliberate step, never
+migrate-on-boot.
+
+**The API instance must stay warm.** This is the most common way a QCMS deployment breaks quietly. A
+platform that scales to zero or sleeps stops delivering webhooks and stops sweeping expired sessions
+and aged payloads, without an error anywhere. Exactly one process may carry the internal route
+group.
+
+**The trusted-proxy hop counts must match the real ingress chain.** Setting a count higher than the
+number of proxies that actually exist is a security bug, not a misconfiguration.
+
+**Back up Postgres and the key material, separately.** The keys are deliberately not in the dump.
+
+## Images
+
+Published to GitHub Container Registry as `ghcr.io/roonga/qcms-api`, `ghcr.io/roonga/qcms-portal`
+and `ghcr.io/roonga/qcms-admin`. Two tags per build: the full commit SHA, which is immutable, and a
+moving latest tag. Deploy from the SHA tag.
+
+All three are two-stage builds on one digest-pinned slim Node base, run as an unprivileged user and
+listen on port 3000 inside the container. Each image carries title, version and source labels, plus
+a software bill of materials and a provenance attestation.
+
+## On a server
+
+Put the Compose files, the Caddyfile and a `.env` at mode 600 in one directory. Copy
+`docker-compose.yml`, `docker-compose.proxy.yml` and `docker/Caddyfile` from a checkout unchanged.
+
+The base file builds images tagged locally. On a server you do not build, you pull, so add one
+override of your own that swaps the build stanzas for registry references. Layer it last.
+
+```yaml
+# docker-compose.ghcr.yml
+services:
+  migrate:
+    image: ghcr.io/OWNER/qcms-api:${QCMS_TAG:-latest}
+    build: !reset null
+    pull_policy: always
+  api:
+    image: ghcr.io/OWNER/qcms-api:${QCMS_TAG:-latest}
+    build: !reset null
+    pull_policy: always
+  portal:
+    image: ghcr.io/OWNER/qcms-portal:${QCMS_TAG:-latest}
+    build: !reset null
+    pull_policy: always
+  admin:
+    image: ghcr.io/OWNER/qcms-admin:${QCMS_TAG:-latest}
+    build: !reset null
+    pull_policy: always
+```
+
+`build: !reset null` drops the base file's build stanza so Compose never tries to build on the box.
+Replace `OWNER` with your GitHub organisation or user, and set `QCMS_TAG` to the release you are
+deploying; leave it at the moving tag only for a test box.
+
+Generate every secret with `openssl rand -base64 32`.
+
+```ini
+QCMS_DB_PASSWORD=...            # bootstrap superuser; creates the roles below
+QCMS_DB_MIGRATE_PASSWORD=...    # owns the schema and migrates
+QCMS_DB_APP_CONTROL_PASSWORD=...
+QCMS_DB_APP_TEST_PASSWORD=...
+QCMS_DB_APP_PROD_PASSWORD=...
+QCMS_LINK_KEYS=...
+QCMS_SESSION_KEYS=...
+QCMS_INTERNAL_TOKEN=...
+QCMS_APP_KEY=...
+QCMS_ADMIN_AUTH_SECRET=...
+QCMS_PORTAL_BASE_URL=https://forms.example.org
+QCMS_ADMIN_BASE_URL=https://admin.example.org
+QCMS_PORTAL_DOMAIN=forms.example.org
+QCMS_ADMIN_DOMAIN=admin.example.org
+QCMS_ACME_EMAIL=ops@example.org
+```
+
+Bring it up with the overlays you use:
+
+```sh
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.proxy.yml \
+  -f docker-compose.ghcr.yml \
+  up --detach --wait
+```
+
+Every later command against this stack needs the same three `-f` flags, including `down`, `logs`,
+`ps` and `pull`. Leave one out of `pull` and Compose looks for the local build tags instead of the
+registry.
+
+## The first administrator
+
+There is no self-registration path in any composition. The first administrator is created by a
+command, and the password it sets is provisional: it must be changed before the account is usable.
+First sign-in forces a password change, then TOTP enrolment, and shows the recovery codes exactly
+once. Have an authenticator app ready.
+
+```sh
+QCMS_ADMIN_PASSWORD='the-password' \
+docker compose exec --env QCMS_ADMIN_PASSWORD api \
+  env QCMS_ADMIN_EMAIL=you@example.org node dist/create-admin.js
+```
+
+Put the password in the invoking shell's environment and forward it by name only, so the value rides
+the environment rather than the Docker CLI's arguments, which are visible in a process listing.
+
+The command refuses once a site administrator exists. The password breach check calls an external
+service and fails closed, so an offline host cannot create a first administrator unless the check is
+disabled.
+
+## Upgrading
+
+```sh
+# 1. Read the release notes for migration warnings before anything is stopped.
+# 2. Take a backup and confirm it restores.
+# 3. Pull the new images.
+docker compose pull
+# 4. Migrate.
+docker compose run --rm migrate
+# 5. Restart the services, API first so the apps never call an older API.
+docker compose up --detach --wait
+```
+
+On a server, every one of those commands carries the same `-f` flags as the start command above.
+
+Rolling back is a redeploy of the previous image tag, plus a database restore if the migration was
+not backward compatible.
+
+## Health
+
+`GET /health` is liveness and touches nothing. `GET /ready` is readiness and probes the database; it
+answers `503` with a clean JSON body, never a `500`. Point load-balancer health checks at readiness
+and restart policies at liveness.
+
+Every process writes JSON lines to stdout. There is no log file and no bundled log-shipping sidecar:
+collection and retention remain yours.
+
+:::note
+There are no Kubernetes manifests and no Helm chart. Compose plus per-platform notes is the whole
+supported set.
+:::
+
+## Source
+
+- [`docs/deploy.md`](https://github.com/roonga/qcms/blob/main/docs/deploy.md)
+- [`docs/deploy/vps.md`](https://github.com/roonga/qcms/blob/main/docs/deploy/vps.md)

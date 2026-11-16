@@ -17,7 +17,7 @@ Scenarios, a rubric and deterministic checks for reviewing the admin authoring a
 pnpm agent:converse --script scripts/agent-review/scenarios/02-publish-and-test-link.json
 
 # What the run left behind, and the checks over both.
-node scripts/agent-review/end-state.mjs --environment test --out "$(node scripts/agent-scratch.mjs end-state.json)"
+node scripts/agent-review/end-state.mjs --out "$(node scripts/agent-scratch.mjs end-state.json)"
 node scripts/agent-review/checks.mjs \
   scripts/agent-review/scenarios/02-publish-and-test-link.json \
   "$(node scripts/agent-scratch.mjs agent-review-02-publish-and-test-link)/transcript.json" \
@@ -39,5 +39,15 @@ node scripts/agent-review/eval-status.mjs set "$status" publish-and-test-link '{
 Each write replaces the whole file through a rename, so a reader never catches half of one, and the shape is validated before it lands. It holds no credential, no address and no transcript text beyond a check's own short message.
 
 Every scenario invents its data. No scenario sends a real person's details, and a scenario's end state is read back from the API rather than taken from what the assistant said.
+
+A scenario names the environment its screen is set to, and a message may name how many
+cards that turn should put up: `"expectCards": 0` makes a card a finding where the right
+answer is a question, and `"expectCards": 1` makes a refusal one where the signed-in person
+holds the grant. A message naming no count asserts nothing about its turn.
+
+The end state is read in every environment an installation has, not only the one the run
+acted in, because "not released to prod" read from `test` alone says nothing. Name a
+narrower set with `--environment test` or `--environment test,prod`; the first one named is
+where the form list and the question library are read.
 
 A scenario may assert one question's settings as well as the form's shape: `required`, `optionCount`, `dateMin`, `dateMax` and `pattern`, each naming the question by a substring of its label. `notAfter` and `notBefore` take a literal date or `today`, which resolves to the day the end state was read rather than the day the checks run. A setting that was never set reads as absent, which is what makes "the date of birth accepts the year 2100" a failure rather than a judgement call.

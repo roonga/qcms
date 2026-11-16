@@ -17,6 +17,9 @@ export interface StepArgumentLine {
   /** The id this line replaced with a title, kept for support behind a disclosure. */
   readonly id: string | undefined;
 
+  /** An id nothing here can name: the disclosure carries it and the card's body says nothing. */
+  readonly idOnly: boolean;
+
   readonly fromStep: number | undefined;
 }
 
@@ -155,12 +158,14 @@ export function stepArguments(
       reference === undefined ? undefined : reported[reference.fromStep]?.[reference.field];
     const value = referenceText(raw, reference, resolved, name);
     const named = displayName(name, value, names);
+    const branded = NAMED_ID_ARGUMENTS.has(name) && literalId(raw) !== undefined;
     return {
       name,
       label: argumentLabel(name),
       value: named ?? value,
       mono: named === undefined && MONO_ARGUMENTS.has(name),
-      id: named === undefined || !NAMED_ID_ARGUMENTS.has(name) ? undefined : value,
+      id: branded ? value : undefined,
+      idOnly: branded && named === undefined,
       ...(reference === undefined ? { fromStep: undefined } : { fromStep: reference.fromStep }),
     };
   });
@@ -431,14 +436,14 @@ export function stepTitle(
     : t(key as MessageKey, params);
 }
 
-/** The subject of a whole plan: the form it creates, or whatever its first step is about. */
+/** A plan's own title is its outcome, which is what its last step leaves behind. */
 export function planTitleSubject(
   steps: readonly AgentPlanStep[],
   reported: ReportedResults,
   names: PlanNames,
 ): string {
-  const leading = steps.find((step) => step.kind === "form.create") ?? steps[0];
-  return leading === undefined ? "" : stepTitle(leading, reported, steps, names);
+  const outcome = steps.at(-1);
+  return outcome === undefined ? "" : stepTitle(outcome, reported, steps, names);
 }
 
 export function stepConsequences(step: AgentPlanStep): readonly string[] {
