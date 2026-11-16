@@ -2,7 +2,6 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { t } from "@/lib/i18n/en";
 import { NO_ACCESS_CAPABILITIES, type AccessCapabilities } from "@/lib/membership/access-patterns";
 
 import { AdministratorRemoval } from "./last-administrator";
@@ -97,14 +96,10 @@ describe("the last-administrator control", () => {
         />
       </>,
     );
-    const remove = screen.getByRole("button", { name: /^Remove/ });
-    const demote = screen.getByRole("button", { name: /^Demote/ });
-    expect(remove.getAttribute("aria-label") ?? remove.textContent).toContain(
-      t("access.lastAdmin.remove"),
-    );
-    expect(demote.getAttribute("aria-label") ?? demote.textContent).toContain(
-      t("access.lastAdmin.demote"),
-    );
+    expect(
+      screen.getByRole("button", { name: /^Remove Workspace administrator\b/ }),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Demote\b/ })).toBeTruthy();
   });
 
   it("acts, with no reason shown, while another administrator remains", async () => {
