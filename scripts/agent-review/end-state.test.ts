@@ -1,13 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { checkEndState } from "./checks.mjs";
 import {
   buildSnapshot,
   definitionsByPin,
   draftPins,
+  ENVIRONMENT_HEADER,
+  ENVIRONMENTS,
   formSnapshot,
   questionSettings,
   readDraft,
+  readSnapshot,
   resolveAccess,
 } from "./end-state.mjs";
 
@@ -471,5 +474,41 @@ describe("the end-state checks over those settings", () => {
         ),
       ),
     ).toEqual([]);
+  });
+});
+
+describe("the environments a snapshot is read in", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("reads a link and a release in every one, so an absence is a read rather than a guess", async () => {
+    /** The environment each path was asked for, in call order. */
+    const asked: [string, string][] = [];
+    vi.stubGlobal("fetch", (url: string, init: { headers: Record<string, string> }) => {
+      const path = new URL(url).pathname;
+      asked.push([path, init.headers[ENVIRONMENT_HEADER] as string]);
+      const body =
+        path === "/admin/forms"
+          ? { forms: [{ formId: "frm_one" }] }
+          : path.endsWith("/links")
+            ? { links: [{ environment: "prod", state: "active" }] }
+            : path.endsWith("/releases")
+              ? { releases: [{ environment: "prod", version: 1 }] }
+              : { draft: null, versions: [], questions: [] };
+      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) });
+    });
+
+    const snapshot = await readSnapshot(
+      { baseUrl: "http://api.invalid", internalToken: "t", session: "s" },
+      ENVIRONMENTS,
+    );
+
+    expect(asked.filter(([path]) => path.endsWith("/links")).map(([, env]) => env)).toEqual([
+      "test",
+      "prod",
+    ]);
+    expect(asked.filter(([path]) => path === "/admin/forms")).toEqual([["/admin/forms", "test"]]);
+    expect(snapshot.forms[0]?.["releases"]).toHaveLength(2);
   });
 });

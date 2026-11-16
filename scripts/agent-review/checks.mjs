@@ -53,6 +53,30 @@ const LOOK_UP_OPENER_WORDS = 12;
 const SUCCESS_CLAIM =
   /\b(?:went through|all (?:\d+ )?steps? ran|every step ran|(?:is|are) now (?:on|live|published|released|out on)|ha(?:s|ve) (?:now )?been (?:published|released|created|minted)|(?:links?|forms?|questions?|drafts?|versions?) (?:is|are) ready|(?:that|it)(?:['’]s| is) done)\b/giu;
 
+/**
+ * A word just before a claim that turns it into its own denial. "Nothing has been
+ * published" is the opposite of the claim the pattern above matched inside it.
+ */
+const NEGATED_CLAIM =
+  /\b(?:not|no|never|nothing|none|nobody|neither|cannot|can['\u2019]t|won['\u2019]t|isn['\u2019]t|aren['\u2019]t|hasn['\u2019]t|haven['\u2019]t|didn['\u2019]t|doesn['\u2019]t|without|yet\s+to)\b[^.;:!?]{0,48}$/iu;
+
+/** A Confirm the claim is still waiting on, which is the opposite of saying it ran. */
+const AWAITS_CONFIRM = /^[^.;:!?]{0,48}?\b(?:to confirm|for (?:you|your)\b[^.;:!?]{0,24}confirm)/iu;
+
+/**
+ * Whether a matched claim is cancelled by the words around it: a negation before it, or a
+ * "ready" that names the Confirm it is waiting for.
+ *
+ * @param {string} reply
+ * @param {RegExpExecArray | RegExpMatchArray} claim
+ * @returns {boolean}
+ */
+export function claimIsHedged(reply, claim) {
+  const at = claim.index ?? 0;
+  if (NEGATED_CLAIM.test(reply.slice(0, at))) return true;
+  return /\bready\b/iu.test(claim[0]) && AWAITS_CONFIRM.test(reply.slice(at + claim[0].length));
+}
+
 /** A reply saying a card of its own is on the screen, waiting. */
 const CLAIMS_WAITING =
   /\b(?:waiting for (?:your|a) confirm|card is waiting|is on your screen now)\b/iu;
@@ -293,7 +317,14 @@ export function cardTextOf(card) {
       take(`${at}'s note`, note, false);
     }
     for (const issue of Array.isArray(step["issues"]) ? step["issues"] : []) {
-      take(`${at}'s advisory issue`, issue, false);
+      // The page records an advisory as { code, message }; the person reads the message.
+      take(
+        `${at}'s advisory issue`,
+        typeof issue === "string"
+          ? issue
+          : /** @type {Record<string, unknown>} */ (issue ?? {})["message"],
+        false,
+      );
     }
   }
   return pieces;
@@ -417,6 +448,23 @@ export function checkProposals(transcript) {
 }
 
 /**
+ * A reply step the assistant made again and got right. The turn succeeded, and reporting
+ * the first attempt as a step that did not run makes a self-correction read as a defect.
+ *
+ * @param {readonly unknown[]} steps the turn's own reply steps, in order
+ * @param {number} at
+ * @returns {boolean}
+ */
+export function selfCorrected(steps, at) {
+  const label = String(/** @type {Record<string, unknown>} */ (steps[at] ?? {})["label"] ?? "");
+  if (label === "") return false;
+  return steps.slice(at + 1).some((entry) => {
+    const later = /** @type {Record<string, unknown>} */ (entry);
+    return String(later["label"] ?? "") === label && later["state"] === "done";
+  });
+}
+
+/**
  * @param {{ turns: readonly Record<string, unknown>[] }} transcript
  * @returns {Finding[]}
  */
@@ -429,11 +477,11 @@ export function checkFailures(transcript) {
     /** @type {Set<string>} */
     const failed = new Set();
 
-    for (const entry of replySteps) {
+    for (const [position, entry] of replySteps.entries()) {
       const step = /** @type {Record<string, unknown>} */ (entry);
-      if (step["state"] === "failed" || step["state"] === "interrupted") {
-        failed.add(String(step["label"] ?? "a step"));
-      }
+      if (step["state"] !== "failed" && step["state"] !== "interrupted") continue;
+      if (selfCorrected(replySteps, position)) continue;
+      failed.add(String(step["label"] ?? "a step"));
     }
     for (const card of cardsOf(turn)) {
       const steps = Array.isArray(card["steps"]) ? card["steps"] : [];
@@ -565,6 +613,7 @@ export function checkContradictions(transcript) {
     const failed = stepStates.some((state) => state === "failed" || state === "interrupted");
 
     for (const claim of reply.matchAll(SUCCESS_CLAIM)) {
+      if (claimIsHedged(reply, claim)) continue;
       const evidence = quote(reply, claim.index ?? 0);
       if (failed) {
         findings.push(
@@ -615,6 +664,72 @@ export function checkContradictions(transcript) {
       leftWaiting = at;
     }
     if (cards.some((card) => card["state"] === "done")) anythingRan = true;
+  }
+  return findings;
+}
+
+/**
+ * A reply declining the work rather than putting it up. These are the shapes the eval saw,
+ * and a refusal is only ever judged against what the scenario expected of that turn.
+ */
+const REFUSAL =
+  /\b(?:I (?:can['\u2019]t|cannot|am not able to|do not have|don['\u2019]t have)|is(?:n['\u2019]t| not) something I can|(?:is|are) a separate act|you(?:['\u2019]ll| will) need (?:someone|somebody|another)|only (?:someone|somebody|another) )\b/iu;
+
+/**
+ * What a scenario says each turn should put up. A turn naming no expectation is not
+ * checked, so adding the member to one message does not assert anything about the rest.
+ *
+ * @param {{ messages?: readonly Record<string, unknown>[] }} scenario
+ * @param {number} index the turn's position, from zero
+ * @returns {number | undefined}
+ */
+function expectedCards(scenario, index) {
+  const message = (scenario.messages ?? [])[index];
+  const wanted = message === undefined ? undefined : message["expectCards"];
+  return typeof wanted === "number" && Number.isInteger(wanted) && wanted >= 0
+    ? wanted
+    : undefined;
+}
+
+/**
+ * The cards a turn put up against the cards its scenario asked for, and a refusal in a turn
+ * that was supposed to carry one. A refusal passes every other check in this file: the reply
+ * is honest, claims nothing and names no identifier, so without this a turn that wrongly
+ * declined the work reads as a pass.
+ *
+ * @param {{ turns: readonly Record<string, unknown>[] }} transcript
+ * @param {{ messages?: readonly Record<string, unknown>[] }} scenario
+ * @returns {Finding[]}
+ */
+export function checkCardExpectations(transcript, scenario) {
+  /** @type {Finding[]} */
+  const findings = [];
+  for (const [index, turn] of transcript.turns.entries()) {
+    const at = index + 1;
+    const wanted = expectedCards(scenario, index);
+    if (wanted === undefined) continue;
+    const proposed = cardsOf(turn).filter((card) => card["state"] !== "cancelled").length;
+    if (proposed !== wanted) {
+      findings.push(
+        finding("plan.card-count", {
+          turn: at,
+          where: "the turn's cards",
+          text: `the turn put up ${String(proposed)} card(s) and the scenario expects ${String(wanted)}`,
+        }),
+      );
+    }
+    const reply = asText(turn["reply"]);
+    const refusal = REFUSAL.exec(reply);
+    if (wanted > 0 && refusal !== null) {
+      findings.push(
+        finding("assistant.refused-what-it-may-do", {
+          turn: at,
+          where: "assistant reply",
+          evidence: quote(reply, refusal.index),
+          text: "the reply declines work this scenario says the signed-in person may do",
+        }),
+      );
+    }
   }
   return findings;
 }
@@ -928,12 +1043,14 @@ export function checkEndState(scenario, snapshot) {
 export function reviewTranscript(transcript, scenario, snapshot) {
   const run = { turns: transcript.turns ?? [] };
   const spec = /** @type {{ budget?: { turns?: number };
+    messages?: readonly Record<string, unknown>[];
     expect?: { endState?: readonly Record<string, unknown>[] } }} */ (scenario);
 
   const findings = [
     ...checkVoice(run),
     ...checkCardText(run),
     ...checkBudget(run, spec),
+    ...checkCardExpectations(run, spec),
     ...checkProposals(run),
     ...checkFailures(run),
     ...checkLeadingSentence(run),

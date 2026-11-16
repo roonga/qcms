@@ -5,6 +5,7 @@
   "mode": "simulated",
   "brief": "You run Larkmead Clinic, a two-room practice. You have never built a form before and you do not know what the product calls anything. You want to sign new patients up before they arrive: their name, date of birth, a phone number, whether they have been to the clinic before, and the reason for the visit. You care that the phone number is required and that the reason for the visit is a few sentences, not a single line. Answer a clarifying question in the same plain words you asked in. Do not use product vocabulary. Stop once the form exists with those questions on it, even if you are told a further step is coming.",
   "screen": "/forms",
+  "environment": "test",
   "cards": "confirm",
   "messages": [
     {
@@ -17,13 +18,31 @@
     "requires": "A dev database with no form titled Larkmead new patient sign-up.",
     "fixtures": "All data is invented: Larkmead Clinic is not a real practice and no scenario sends a real person's details."
   },
-  "budget": { "turns": 2 },
+  "budget": {
+    "turns": 2
+  },
   "expect": {
     "endState": [
-      { "check": "formCount", "titleContains": "larkmead new patient sign-up", "exactly": 1 },
-      { "check": "questionCount", "title": "Larkmead new patient sign-up", "min": 5 },
-      { "check": "notReleased", "title": "Larkmead new patient sign-up", "environment": "test" },
-      { "check": "notReleased", "title": "Larkmead new patient sign-up", "environment": "prod" }
+      {
+        "check": "formCount",
+        "titleContains": "larkmead new patient sign-up",
+        "exactly": 1
+      },
+      {
+        "check": "questionCount",
+        "title": "Larkmead new patient sign-up",
+        "min": 5
+      },
+      {
+        "check": "notReleased",
+        "title": "Larkmead new patient sign-up",
+        "environment": "test"
+      },
+      {
+        "check": "notReleased",
+        "title": "Larkmead new patient sign-up",
+        "environment": "prod"
+      }
     ],
     "assistantMust": [
       "put the questions and the form on one plan, not one plan per question",
