@@ -29,6 +29,7 @@ packages/create-qcms-app/templates/
 apps/api/src/features/agent/prompts/system/
 apps/api/src/features/agent/prompts/tools/
 apps/api/src/features/agent/prompts/actions/
+apps/api/src/features/agent/prompts/recipes/
 
 # Written by the agent's tests as the prompt the model is sent; reviewed as a diff.
 apps/api/src/features/agent/prompts/rendered/
