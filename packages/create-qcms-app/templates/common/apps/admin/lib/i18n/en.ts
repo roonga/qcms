@@ -157,8 +157,8 @@ export const messages = {
   "operations.loadFailed": "The forms could not be loaded: {message}",
   "operations.empty.title": "No forms to operate here",
   "operations.empty.body":
-    "You hold no operational grant on a form in this environment. Ask an owner of the " +
-    "workspace you need to add you to one of its access groups.",
+    "You hold no operational grant on a form in this environment. Ask a Workspace " +
+    "administrator of the workspace you need to add you to one of its access groups.",
   "operations.empty.filtered": "No forms match these filters.",
   "operations.filter.search": "Search",
   "operations.filter.searchHint": "Matches a form's name or identifier.",
@@ -180,8 +180,8 @@ export const messages = {
 
   "access.title": "My access",
   "access.none":
-    "You hold no form, question, response or workspace grant yet. Ask an owner of the " +
-    "workspace you need to add you to one of its access groups.",
+    "You hold no form, question, response or workspace grant yet. Ask a Workspace " +
+    "administrator of the workspace you need to add you to one of its access groups.",
 
   "signIn.title": "Sign in to QCMS",
   "signIn.email": "Email",
@@ -480,7 +480,7 @@ export const messages = {
   "questions.confirm.publishConfirm": "Publish",
   "questions.confirm.newVersionTitle": "Create version {next}?",
   "questions.confirm.newVersionBody":
-    "Version {next} starts as a draft copied from version {version}. Published versions never change, so forms using them are unaffected until someone moves a form to the new one.",
+    "Version {next} starts as a draft copied from version {version}. A version never changes, so forms using this one are unaffected until someone moves a form to the new one.",
   "questions.confirm.newVersionConfirm": "Create draft",
   "questions.confirm.deprecateTitle": "Deprecate version {version}?",
   "questions.confirm.deprecateBody":
@@ -562,11 +562,11 @@ export const messages = {
   "forms.builder.status": "Availability",
   "forms.builder.draftSource.open": "Editing the saved draft.",
   "forms.builder.draftSource.seeded":
-    "Started from the newest published version. Nothing is stored until the first save.",
+    "Started from the newest version. Nothing is stored until the first save.",
   "forms.builder.draftSource.none": "Nothing has been drafted or published for this form yet.",
   "forms.builder.formTitle": "Form title",
   "forms.builder.seeded":
-    "This draft was started from the newest published version and has not been saved yet. Your first change stores it.",
+    "This draft was started from the newest version and has not been saved yet. Your first change stores it.",
   "forms.builder.concurrent":
     "Autosave replaces the stored draft outright: if another author has this form open, whichever of you saves last wins and the other's change is gone. There is no locking at launch, so coordinate before editing the same form.",
   "forms.save.flash": "Saved",
@@ -631,7 +631,7 @@ export const messages = {
   /** Accessible names must contain the painted version label for speech input and identify the pin among repeated controls. */
   "forms.step.movePin": "{versionLabel}, move pin for {questionId}",
   "forms.step.movePinTo": "Move to v{version}",
-  "forms.step.movePinNone": "No other published version",
+  "forms.step.movePinNone": "No other version",
   "forms.step.movePinUnknown": "Other versions are not known: the question library did not load",
   "forms.step.removePin": "Remove {questionId}",
   "forms.step.pinUp": "Move {questionId} up",
@@ -1013,7 +1013,7 @@ export const messages = {
     "This names an option the pinned version of that question does not declare. Moving a pin can do this: option IDs belong to a version.",
   "forms.issue.danglingStep": "This names a step the form does not have.",
   "forms.issue.unpublishedPin":
-    "A form can only pin a published version. Publish that version, or pin one that already is.",
+    "A form can only pin a version that is published. Publish that version, or pin one that already is.",
   "forms.issue.localeIncomplete": "This has no text for the form's default locale.",
 
   "forms.issue.backwardTarget":
@@ -1107,7 +1107,7 @@ export const messages = {
   "forms.error.approverIsAuthor":
     "You froze this version, so another person with Publish forms in prod publishes it.",
   "forms.error.approverUnknownAuthor":
-    "Who froze this version was not recorded, so second approval cannot be checked against it. Publish the draft again and use that version.",
+    "Who froze this version was not recorded, so Second approval cannot be checked against it. Publish the draft again and use that version.",
   "forms.error.unknownCreate": "The form could not be created. Try again.",
   "forms.error.listFailed": "The form library could not be loaded. {message}",
   "forms.error.libraryFailed": "The question library could not be loaded. {message}",
@@ -1136,7 +1136,7 @@ export const messages = {
   "forms.publish.freezes.rules.one": "1 rule",
   "forms.publish.freezes.rules.other": "{count} rules",
   "forms.publish.immutable":
-    "A published version is never edited. Your next change starts a fresh draft, seeded from this one.",
+    "A version is never edited. Your next change starts a fresh draft, seeded from this one.",
   "forms.publish.blocked": "This draft cannot be published yet.",
   "forms.publish.blockedCount": "{count} issues block publishing. Each one links to its cause.",
 
@@ -1201,7 +1201,7 @@ export const messages = {
   "forms.releases.twoPersonSecond":
     "Second approval is on for {environment}. You did not freeze this version, so you can publish it, and you are recorded as the Approver.",
   "forms.releases.twoPersonUnknown":
-    "Who froze v{version} was not recorded, so second approval cannot be checked against it. Publish the draft again and use that version.",
+    "Who froze v{version} was not recorded, so Second approval cannot be checked against it. Publish the draft again and use that version.",
   "forms.releases.version": "Version to publish",
   "forms.releases.fromEnvironment": "Published from (optional)",
   "forms.releases.fromNone": "Nowhere: publish it directly",
@@ -1264,7 +1264,7 @@ export const messages = {
   "forms.publish.blocked.draftNotAllowed":
     "The publishing workflow does not let a draft go straight to {environment}. Publish it to another environment first, then publish that version here.",
   "forms.publish.blocked.draftNotAllowedOnly":
-    "The publishing workflow does not let a draft go straight to {environment}, and this deployment serves no other environment. Ask an administrator to change the publishing workflow.",
+    "The publishing workflow does not let a draft go straight to {environment}, and this deployment serves no other environment. Ask a Site administrator to change the publishing workflow.",
   "forms.publish.blocked.alreadyReleased": "Already live here.",
   "forms.publish.blocked.approverIsAuthor":
     "You froze this version, so another person with Publish forms in {environment} publishes it.",
@@ -1272,7 +1272,7 @@ export const messages = {
   "forms.publish.blocked.draftSecondApproval":
     "Second approval is on for production, so a draft cannot be published there: publish an existing version instead.",
   "forms.publish.blocked.approverUnknownAuthor":
-    "Who froze this version was not recorded, so second approval cannot be checked against it.",
+    "Who froze this version was not recorded, so Second approval cannot be checked against it.",
   "forms.publish.blocked.other": "Not eligible here: {code}.",
   "forms.publish.review.sourceDraft": "The shared draft becomes a new immutable version.",
   "forms.publish.review.sourceVersion": "v{version} goes live, and nothing is frozen.",
@@ -1327,7 +1327,7 @@ export const messages = {
   "forms.workflow.replacesVersion": "v{version} will replace v{current} in {environment}.",
   "forms.workflow.reviewLoading": "Loading the stored content of v{version}...",
   "forms.workflow.reviewFailed":
-    "The published version could not be loaded. Close this confirmation and try again.",
+    "The version could not be loaded. Close this confirmation and try again.",
   "forms.workflow.alreadyReleased": "v{version} is already live in {environment}.",
   "forms.workflow.noPublishPermission":
     "Publishing a draft needs Edit forms and Publish forms in this workspace.",
@@ -1373,10 +1373,10 @@ export const messages = {
   "forms.preview.stamps": "Compiler {compilerVersion} · A2UI spec {a2uiSpecVersion}",
 
   "forms.history.intro":
-    "Every published version, frozen exactly as it was. Viewing one renders the compiled documents stored at publish time, which is what respondents on that version saw (ADR-18).",
+    "Every version, frozen exactly as it was. Viewing one renders the compiled documents stored at publish time, which is what respondents on that version saw (ADR-18).",
   "forms.history.emptyTitle": "Not published yet",
   "forms.history.empty": "This form has never been published.",
-  "forms.history.table": "Published versions",
+  "forms.history.table": "Versions",
   /** Default history shows every immutable version; hiding iterations must be an explicit presentation filter. */
   "forms.history.filter.all": "Every version",
   "forms.history.filter.released": "Published somewhere",
@@ -1395,7 +1395,7 @@ export const messages = {
   "forms.history.versionHeading": "Version {version}",
   "forms.history.stored":
     "Rendered from the compiled documents stored with v{version}. Nothing was recompiled.",
-  "forms.history.readOnly": "Read only: a published version is never edited (R1).",
+  "forms.history.readOnly": "Read only: a version is never edited (R1).",
 
   "forms.history.frame": "Respondent view, as stored at publish",
   "forms.history.backToHistory": "Back to version history",
@@ -1417,7 +1417,7 @@ export const messages = {
 
   "forms.links.heading": "Secure links",
   "forms.links.needsPublish":
-    "Publish this form before minting links: a link opens the newest published version, and there is not one yet.",
+    "Publish this form before minting links: a link opens the newest version, and there is not one yet.",
   "forms.links.mint": "Mint links",
   /** Restate mint environment in title and confirmation because links determine where respondent answers land. */
   "forms.links.mintTitle": "Mint secure links for {environment}",
@@ -1643,7 +1643,7 @@ export const messages = {
     "Adds the question to the library as version 1, not published yet. No form shows it to anyone until you publish that version and a form uses it.",
   "agent.card.question.saveDraft.title": "Save version {version} of the question {question}",
   "agent.card.question.saveDraft.consequence":
-    "Replaces what this version says with the wording on this card. It works only while that version is not published yet: a published version never changes, so the save is refused instead.",
+    "Replaces what this version says with the wording on this card. It works only while that version is not published yet: a version never changes, so the save is refused instead.",
   "agent.card.question.publish.title": "Publish version {version} of the question {question}",
   "agent.card.question.publish.consequence":
     "Freezes this version's wording for good, so a form can use it. A form that already uses it stops reporting that the question is not published yet.",
@@ -1722,19 +1722,19 @@ export const messages = {
     "Confirm opens the export dialog with these filters. You press Export, and no part of the file is returned to the assistant.",
   "agent.card.access.groupCreate.title": "Create the access group {name} with the roles {roles}",
   "agent.card.access.groupCreate.consequence":
-    "The group exists but grants nobody anything yet. Holding the group is the grant, so nobody's access changes until somebody is added to it.",
+    "The group exists but grants nobody anything yet. Being in the group is the grant, so nobody's access changes until somebody is added to it.",
   "agent.card.access.groupRemove.title": "Remove the access group {teamId}",
   "agent.card.access.groupRemove.consequence":
-    "Every holder loses the access this group carried, at once. One revoke row is written for each of them.",
+    "Everybody in this group loses the access it carried, at once. One revoke row is written for each of them.",
   "agent.card.access.grant.title": "Grant the access group {teamId} to {email}",
   "agent.card.access.grant.consequence":
     "That person gains everything the group's role, environments and forms allow, from now on.",
   "agent.card.access.revoke.title": "Revoke {userId} from the access group {teamId}",
   "agent.card.access.revoke.consequence":
-    "That person loses the access this group carried. Every other holder keeps theirs.",
+    "That person loses the access this group carried. Everybody else in it keeps theirs.",
   "agent.card.member.role.title": "Set {userId} to {role} in this workspace",
   "agent.card.member.role.consequence":
-    "An owner looks after this workspace: its access groups, its members and its settings. Removing the last owner is refused.",
+    "A Workspace administrator looks after this workspace: its access groups, its members and its settings. Removing the last one is refused.",
   "agent.card.workspace.settings.title": "Change this workspace's settings",
   "agent.card.workspace.settings.consequence":
     "This switch decides whether publishing to production, a production endpoint change and a response self-grant need a second account.",
@@ -1785,7 +1785,7 @@ export const messages = {
   "agent.card.arg.roles": "Roles",
   "agent.card.arg.environments": "Environments",
   "agent.card.arg.forms": "Forms",
-  "agent.card.arg.requireSecondApprover": "Require a second approver",
+  "agent.card.arg.requireSecondApprover": "Second approval",
   "agent.card.arg.unset": "The deployment's own setting",
   "agent.card.arg.yes": "Yes",
   "agent.card.arg.no": "No",
@@ -1853,7 +1853,7 @@ export const messages = {
   "agent.card.result.done.other": "Done. All {count} steps ran, confirmed by you.",
   "agent.card.result.stopped": "Stopped at step {step}. {ran} of {count} ran; nothing was retried.",
   "agent.card.result.stoppedByYou": "Stopped by you. {ran} of {count} ran.",
-  "agent.card.result.held": "Held at step {step} for a second approver. {ran} of {count} ran.",
+  "agent.card.result.held": "Held at step {step} for an Approver. {ran} of {count} ran.",
   "agent.card.result.cancelled": "Cancelled by you. Nothing was sent.",
   "agent.card.result.expired": "Expired. Ask again for a fresh proposal.",
   "agent.card.live.running": "Step {step} of {count} running",
@@ -2163,7 +2163,7 @@ export const messages = {
 
   /** Distinguish applied production changes from changes waiting for a second account; retrying alone cannot clear approval refusals. */
   "ops.error.proposerCannotConfirm":
-    "You proposed this change, so you cannot confirm it. Another approver who holds production in scope has to.",
+    "You proposed this change, so you cannot confirm it. Another Approver who holds production in scope has to.",
   "ops.error.endpointChangePending":
     "This endpoint already has a change waiting for approval. Confirm or withdraw that one first.",
   "ops.error.endpointProposalNotFound":
@@ -2171,10 +2171,10 @@ export const messages = {
   "ops.error.endpointProposalNotPending":
     "That change has already been confirmed or withdrawn. Reload the screen to see where it got to.",
   "ops.proposals.stored":
-    "Saved as a change waiting for approval. Nothing has changed in {environment} yet: a different approver has to confirm it before the endpoint moves.",
+    "Saved as a change waiting for approval. Nothing has changed in {environment} yet: a different Approver has to confirm it before the endpoint moves.",
   "ops.proposals.heading": "Changes waiting for approval",
   "ops.proposals.intro":
-    "This workspace requires a second approver for production. Each change below has taken effect on nothing: the endpoint still delivers exactly as it did. An approver other than the one who proposed it can confirm it, and either of them can withdraw it.",
+    "This workspace has Second approval on for production. Each change below has taken effect on nothing: the endpoint still delivers exactly as it did. An Approver other than the one who proposed it can confirm it, and either of them can withdraw it.",
   "ops.proposals.table": "Endpoint changes waiting for approval",
   "ops.proposals.column.endpoint": "Endpoint",
   "ops.proposals.column.change": "Proposed change",
@@ -2185,7 +2185,7 @@ export const messages = {
   "ops.proposals.kind.update": "Change this endpoint",
   "ops.proposals.kind.deactivate": "Stop delivering to this endpoint",
   "ops.proposals.rotates": "Confirming this also rotates the signing secret.",
-  "ops.proposals.state.waiting": "Waiting for a second approver",
+  "ops.proposals.state.waiting": "Waiting for an Approver",
   /** Confirmed with no applied write is not live. Retrying completes application without another confirmation. */
   "ops.proposals.state.unapplied": "Confirmed, not yet applied. Confirm again to finish it.",
   "ops.proposals.confirm": "Confirm",
@@ -2200,7 +2200,7 @@ export const messages = {
   "ops.proposals.confirmBody.deactivate":
     "The endpoint in {environment} stops receiving deliveries as soon as this is confirmed. Its row and its delivery history are kept.",
   "ops.proposals.confirmWarning":
-    "You cannot confirm a change you proposed yourself. If this is yours, ask another approver.",
+    "You cannot confirm a change you proposed yourself. If this is yours, ask another Approver.",
   "ops.proposals.confirmFailed": "That change was not confirmed. {message}",
   "ops.proposals.withdraw": "Withdraw",
   "ops.proposals.withdrawTitle": "Withdraw this endpoint change?",
@@ -2338,28 +2338,28 @@ export const messages = {
   "membership.allWorkspaces.none": "No workspace you can open.",
 
   /** Plain role names, each with one line on what it allows; the wire id never reaches the screen. */
-  "membership.role.formsViewer.name": "Form viewer",
+  "membership.role.formsViewer.name": "View forms",
   "membership.role.formsViewer.description":
-    "Reads the workspace's questions, forms, releases, links and webhook settings. Changes nothing.",
-  "membership.role.formsEditor.name": "Form editor",
+    "Reads the workspace's questions, forms, publish history, links and webhook settings. Changes nothing.",
+  "membership.role.formsEditor.name": "Edit forms",
   "membership.role.formsEditor.description":
-    "Drafts and edits forms and questions, and previews them. Publishes nothing on its own.",
-  "membership.role.formsPublisher.name": "Form publisher",
+    "Drafts and edits forms and questions, pins shared questions and previews them. Publishing a draft also needs Publish forms.",
+  "membership.role.formsPublisher.name": "Publish forms",
   "membership.role.formsPublisher.description":
     "Publishes to the group's environments, closes and reopens forms, and changes links and webhooks there.",
-  "membership.role.formsOwner.name": "Workspace owner",
+  "membership.role.formsOwner.name": "Workspace administrator",
   "membership.role.formsOwner.description":
-    "Manages this workspace's members, access groups, settings and access audit.",
-  "membership.role.responsesViewer.name": "Response viewer",
+    "Manages this workspace's people, access groups, settings, audit and archive. Sees no form or response unless a group gives that.",
+  "membership.role.responsesViewer.name": "View responses",
   "membership.role.responsesViewer.description":
     "Reads and exports responses in the group's environments.",
-  "membership.role.responsesEraser.name": "Response eraser",
+  "membership.role.responsesEraser.name": "Erase responses",
   "membership.role.responsesEraser.description":
     "Erases responses and clears their flags in the group's environments. Reads none.",
 
   "membership.members.heading": "Members",
   "membership.members.intro":
-    "Who is a member of this workspace, and which access groups each one holds. Only this workspace's owners and the holder of the installation-wide claim can read this list.",
+    "Who is a member of this workspace, and which access groups each one holds. Only this workspace's Workspace administrators and a Site administrator can read this list.",
   "membership.members.loadFailed": "The membership list could not be read: {message}",
   "membership.members.none": "This workspace has no members yet.",
 
@@ -2371,22 +2371,22 @@ export const messages = {
   "membership.members.noGroups": "None",
 
   "membership.members.emptyRole": "No access",
-  "membership.members.ownerRole": "Workspace owner",
-  "membership.members.makeOwner": "Make a workspace owner",
-  "membership.members.removeOwner": "Remove workspace owner",
+  "membership.members.ownerRole": "Workspace administrator",
+  "membership.members.makeOwner": "Make a Workspace administrator",
+  "membership.members.removeOwner": "Remove Workspace administrator",
   "membership.members.roleChanged": "The member row is now {role}.",
   "membership.members.roleFailed": "The member row was not changed: {message}",
 
   "membership.groups.heading": "Access groups",
   "membership.groups.intro":
-    "Holding a group is the grant, so a group nobody holds grants nobody anything.",
+    "Being in a group is the grant, so a group with nobody in it grants nobody anything.",
   "membership.groups.loadFailed": "The access groups could not be read: {message}",
   "membership.groups.none": "This workspace has no access groups yet.",
   "membership.groups.scope": "{roles}, in {environments}",
   "membership.groups.everyEnvironment": "every environment",
   "membership.groups.columnRoles": "Roles",
   "membership.groups.columnEnvironments": "Environments",
-  "membership.groups.columnHolders": "Holders",
+  "membership.groups.columnHolders": "People in this group",
   "membership.groups.create": "Create an access group",
   "membership.groups.createName": "Name",
   "membership.groups.createRole": "Role",
@@ -2394,10 +2394,10 @@ export const messages = {
   "membership.groups.environmentsHelp":
     "Name every environment this group applies in. There is no value meaning all of them, so an environment added later is covered by no group until somebody adds it to one.",
   "membership.groups.noEnvironmentPicker":
-    "A form viewer and a form editor apply in every environment, so this group names none.",
+    "View forms and Edit forms apply in every environment, so this group names none.",
   "membership.groups.createSubmit": "Create group",
   "membership.groups.created":
-    "The access group {name} was created. It grants nobody anything until somebody holds it.",
+    "The access group {name} was created. It grants nobody anything until somebody is in it.",
   "membership.groups.createFailed": "The access group was not created: {message}",
   "membership.groups.remove": "Remove group",
   "membership.groups.removed":
@@ -2405,21 +2405,21 @@ export const messages = {
   "membership.groups.removeFailed": "The group was not removed: {message}",
   "membership.groups.addHolderMember": "Member",
   "membership.groups.addHolderChoose": "Choose a member",
-  "membership.groups.addHolderNone": "Every member of this workspace already holds this group.",
+  "membership.groups.addHolderNone": "Everybody in this workspace is already in this group.",
   "membership.groups.addHolderSubmit": "Grant",
-  "membership.groups.holderAdded": "{email} now holds {name}.",
+  "membership.groups.holderAdded": "{email} is now in {name}.",
   "membership.groups.holderFailed": "The grant was not written: {message}",
   "membership.groups.removeHolder": "Revoke",
-  /** The accessible revoke name includes its visible word and holder email; keep the email out of the painted button to preserve narrow layouts. */
+  /** The accessible revoke name includes its visible word and the person's email; keep the email out of the painted button to preserve narrow layouts. */
   "membership.groups.removeHolderFor": "Revoke this access group from {email}",
   "membership.groups.holderRemoved":
     "The grant was revoked, and the revoke is on the access audit.",
   "membership.groups.noHolders": "Nobody",
 
   "membership.settings.heading": "Workspace settings",
-  "membership.settings.twoPerson": "Require a second approver for production",
+  "membership.settings.twoPerson": "Second approval in production",
   "membership.settings.twoPersonHelp":
-    "One switch, three effects. A publish to production is refused for the account that froze the version; a production endpoint change takes an Approver's confirmation; and nobody can give themselves a response role, or a new environment for one - a second Workspace administrator, or a Site administrator, has to approve that change. Off by default, because a site with one account cannot satisfy the rule at all.",
+    "One switch, three effects. A publish to production is refused for the account that froze the version; a production endpoint change takes an Approver's confirmation; and nobody can give themselves a response role, or a new environment for one - a second Workspace administrator, or a Site administrator, has to make that change. Off by default, because a site with one account cannot satisfy the rule at all.",
   "membership.settings.save": "Save settings",
   "membership.settings.saved": "The settings were saved, and the change is on the access audit.",
   "membership.settings.saveFailed": "The settings were not saved: {message}",
@@ -2504,10 +2504,10 @@ export const messages = {
 
   "membership.mine.heading": "Your own access",
   "membership.mine.intro":
-    "Which workspaces, roles, environments and forms you hold. Everybody can read their own grants; the membership list of a workspace is its owners' to see.",
+    "Which workspaces, roles, environments and forms you hold. Everybody can read their own grants; the membership list of a workspace is its Workspace administrators' to see.",
   "membership.mine.loadFailed": "Your access could not be read: {message}",
   "membership.mine.installationAdmin":
-    "You hold the installation-wide claim: settings, accounts, memberships and environments, in every workspace. It grants no response read, export or erasure anywhere.",
+    "You are a Site administrator: site settings, accounts, memberships and environments, in every workspace. The role grants no response read, export or erasure anywhere.",
   "membership.mine.none": "You hold no grant in any workspace.",
   "membership.mine.memberOnly": "No access",
   "membership.mine.environments": "Environments: {environments}",

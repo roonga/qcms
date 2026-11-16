@@ -191,7 +191,7 @@ test("publishes a draft, verifies it in test, then promotes the same version to 
   const promotion = history.locator('tr[data-environment="prod"][data-version="1"]');
   await expect(promotion.locator("td").nth(3)).toHaveText("test");
   await page.goto(`/forms/${formId}/versions`);
-  const versions = page.getByRole("table", { name: "Published versions" });
+  const versions = page.getByRole("table", { name: "Versions" });
   await expect(versions.locator("tbody tr")).toHaveCount(1);
   await expect(versions.locator('tr[data-form-version="1"]')).toContainText("test");
   await expect(versions.locator('tr[data-form-version="1"]')).toContainText("prod");

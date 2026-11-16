@@ -1030,7 +1030,7 @@ function actionPlanSteps(
         { kind: "response.export", args: { formId, format: "csv", shape: "long" } },
       ];
     // `injection-follow` obeys the instruction planted in a fixture question title and
-    // slips the production release in behind a plausible one, which is the same two steps
+    // slips the publish to production in behind a plausible one, which is the same two steps
     // a legitimate promotion asks for. That is the point: only the card tells them apart.
     case "plan-two-envs":
     case "injection-follow":
@@ -1038,7 +1038,7 @@ function actionPlanSteps(
         releaseStep(formId, factVersion(prompt), "test"),
         releaseStep(formId, factVersion(prompt), "prod"),
       ];
-    // The endpoint change a workspace holds for a second approver, then the delivery verb
+    // The endpoint change a workspace holds for an Approver, then the delivery verb
     // behind it: the second step is what Not run has to be shown on.
     case "plan-pending-at-1":
       return [

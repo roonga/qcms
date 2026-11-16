@@ -67,9 +67,9 @@ describe("the access-group form", () => {
     const row = screen.getByText(GROUP_NAME).closest("li");
     expect(row).not.toBeNull();
     const scope = within(row as HTMLElement);
-    expect(scope.getByText("Response viewer, in test")).toBeTruthy();
+    expect(scope.getByText("View responses, in test")).toBeTruthy();
     expect(scope.queryByText("responses.viewer")).toBeNull();
-    expect(scope.getByText("Response viewer")).toBeTruthy();
+    expect(scope.getByText("View responses")).toBeTruthy();
   });
 
   it("offers only members who do not hold the group yet", () => {
@@ -90,7 +90,7 @@ describe("the access-group form", () => {
   it("asks for environments as soon as the chosen role needs them", async () => {
     const user = userEvent.setup();
     renderPanel();
-    await chooseRole(user, "Form publisher");
+    await chooseRole(user, "Publish forms");
     for (const environment of ["dev", "test", "prod"]) {
       expect(screen.getByRole("checkbox", { name: environment })).toBeTruthy();
     }
@@ -101,7 +101,7 @@ describe("the access-group form", () => {
     const user = userEvent.setup();
     const create = renderPanel();
     await user.type(screen.getByRole("textbox", { name: "Name" }), "  Publishers  ");
-    await chooseRole(user, "Form publisher");
+    await chooseRole(user, "Publish forms");
     await user.click(screen.getByRole("checkbox", { name: "prod" }));
     await user.click(screen.getByRole("checkbox", { name: "dev" }));
 
@@ -122,7 +122,7 @@ describe("the access-group form", () => {
     await user.type(screen.getByRole("textbox", { name: "Name" }), "Authors");
     expect(submit.hasAttribute("disabled")).toBe(false);
 
-    await chooseRole(user, "Response eraser");
+    await chooseRole(user, "Erase responses");
     expect(submit.hasAttribute("disabled")).toBe(true);
 
     await user.click(screen.getByRole("checkbox", { name: "prod" }));
