@@ -70,8 +70,11 @@ test.describe("side rail, scripted", () => {
     });
     await expect(railItem(rail(page), "About you")).toHaveAttribute("aria-current", "step");
     await expect(railItem(rail(page), "Your cover")).toContainText("Not needed");
-    await expect(rail(page).getByRole("link")).toHaveCount(2);
+    await expect(rail(page).locator("a[data-rail-state]")).toHaveCount(0);
     await expectNoAxeViolations(page, "side rail, first step");
+
+    await rail(page).getByRole("link", { name: KS.fullName, exact: true }).click();
+    await expect(page.getByRole("textbox", { name: KS.fullName })).toBeFocused();
 
     await fillText(page, KS.fullName, "Ada Lovelace");
     await enterDate(page, "05171990");
@@ -205,7 +208,7 @@ test.describe("side rail without scripting", () => {
     const fresh = await start(page, railSlug);
     await page.goto(`${fresh}?step=1`);
     await expectStates(rail(page), { "About you": "current", "Driving history": "ahead" });
-    await expect(rail(page).getByRole("link")).toHaveCount(0);
+    await expect(rail(page).locator("a[data-rail-state]")).toHaveCount(0);
 
     await walkToHistory(page, railSlug);
     await expectStates(rail(page), { "About you": "completed", "Driving history": "current" });

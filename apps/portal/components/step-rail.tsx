@@ -8,6 +8,8 @@ export interface RailNavigation {
   readonly stepHref: string;
   /** The scripted flow takes the jump itself; without it the link is a plain page load. */
   readonly onJump?: ((cursor: number) => void) | undefined;
+  /** Moves focus into a question; without it the link is a fragment jump. */
+  readonly onQuestion?: ((key: string) => void) | undefined;
 }
 
 function isPlainClick(event: MouseEvent<HTMLAnchorElement>): boolean {
@@ -136,6 +138,15 @@ export function StepList({
                 <li key={question.key}>
                   <a
                     href={`#${question.key}`}
+                    onClick={
+                      navigation.onQuestion === undefined
+                        ? undefined
+                        : (event) => {
+                            if (!isPlainClick(event)) return;
+                            event.preventDefault();
+                            navigation.onQuestion?.(question.key);
+                          }
+                    }
                     className="flex min-h-8 items-center rounded-(--radius-control) px-3 text-sm text-(--color-text-muted) underline-offset-4 hover:text-(--color-text) hover:underline"
                   >
                     {question.label}
