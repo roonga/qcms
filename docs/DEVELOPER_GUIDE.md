@@ -665,7 +665,7 @@ The pieces, all under `scripts/agent-review/`:
 - `rubric.md` - what a reviewer judges a transcript against: voice, the leading sentence, plans, honesty, safety, round trips, end state, and a section on card layout, status markers, spacing, focus and accessibility read from the screenshots. A line marked **auto** has a check behind it, so a reviewer confirms a finding rather than hunting for it.
 - `terms.mjs` - the words the assistant may never say and the branded id patterns, in one place. It restates the prompt's own `AVOID_WORDS` rather than importing it, because `apps/api` publishes `dist` and no tooling script may reach into it; `terms.test.ts` fails when the two drift apart.
 - `checks.mjs` - the deterministic half, and a command line.
-- `end-state.mjs` - reads the forms, versions, links and rules a run left behind, from the API.
+- `end-state.mjs` - reads the forms, versions, links and rules a run left behind, from the API, in every environment rather than only the one the run acted in.
 - `eval-status.mjs` - the run's own status file, written as it goes so a monitor can follow it.
 
 ```sh
@@ -673,7 +673,7 @@ The pieces, all under `scripts/agent-review/`:
 pnpm agent:converse --script scripts/agent-review/scenarios/02-publish-and-test-link.json
 
 # What it left behind, then the checks over the transcript and that end state.
-node scripts/agent-review/end-state.mjs --environment test --out "$(node scripts/agent-scratch.mjs end-state.json)"
+node scripts/agent-review/end-state.mjs --out "$(node scripts/agent-scratch.mjs end-state.json)"
 node scripts/agent-review/checks.mjs \
   scripts/agent-review/scenarios/02-publish-and-test-link.json \
   "$(node scripts/agent-scratch.mjs agent-review-02-publish-and-test-link)/transcript.json" \

@@ -190,6 +190,7 @@ async function buildScreenContext(args: {
       environment: args.build.environment,
     },
     conversation: args.conversation,
+    today: args.deps.clock.now().toISOString().slice(0, 10),
     maxSteps: maxStepsFor(args.deps),
     // The caller's own permissions, not the screen's: the whole point of the principle's
     // point 1 and point 5.

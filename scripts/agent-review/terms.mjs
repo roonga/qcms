@@ -31,6 +31,8 @@ export const PROMPT_SOURCE = "apps/api/src/features/agent/system-prompt.ts";
  * {@link PROMPT_AVOID_WORDS} so widening one cannot silently widen the other.
  */
 export const REVIEW_ONLY_TERMS = [
+  "recipe",
+  "recipes",
   "API",
   "endpoint",
   "payload",

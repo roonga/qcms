@@ -127,9 +127,9 @@ describe("a card names what it acts on", () => {
     );
   });
 
-  it("gives the whole plan the subject of the form it creates", () => {
-    const { steps, names } = plan([CREATE_FORM, SAVE_DRAFT, MINT]);
-    expect(planTitleSubject(steps, {}, names)).toBe("Create the Patient onboarding form");
+  it("gives the whole plan the subject of its last step, which is its outcome", () => {
+    const { steps, names } = plan([CREATE_FORM, MINT, SAVE_DRAFT]);
+    expect(planTitleSubject(steps, {}, names)).toBe("Save the draft of Patient onboarding");
   });
 
   it("keeps the id of a named argument for support, out of the line itself", () => {
@@ -194,11 +194,11 @@ describe("a card names what it acts on", () => {
     expect(line?.id).toBeUndefined();
   });
 
-  it("leaves an id the plan cannot name in the line itself", () => {
+  it("moves an id the plan cannot name out of the line and under Identifiers", () => {
     const { names } = plan([MINT]);
     const line = stepArguments(MINT, {}, names).find((entry) => entry.name === "formId");
-    expect(line?.value).toBe("frm_patient_onboarding");
-    expect(line?.id).toBeUndefined();
+    expect(line?.idOnly).toBe(true);
+    expect(line?.id).toBe("frm_patient_onboarding");
   });
 });
 

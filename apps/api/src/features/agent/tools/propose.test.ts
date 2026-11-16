@@ -143,7 +143,7 @@ describe("buildProposal: the grant filter behind it (criterion 3)", () => {
     expect(outcome.reason).toContain("Explain and navigate");
   });
 
-  it("refuses a publish to production for a publisher whose groups name `test` alone", async () => {
+  it("refuses a publish to prod for a publisher whose groups name `test` alone", async () => {
     const outcome = await propose({
       steps: [releaseTo("prod", 3)],
       grants: [EDITOR, PUBLISHER_TEST],
@@ -235,7 +235,7 @@ describe("buildProposal: never weaker than the screen (criterion 9)", () => {
     });
     expect(outcome.ok).toBe(false);
     if (outcome.ok) return;
-    expect(outcome.reason).toContain("second approval");
+    expect(outcome.reason).toContain("Second approval on for a publish to prod");
   });
 
   it("offers the same plan with the switch off", async () => {
@@ -247,7 +247,7 @@ describe("buildProposal: never weaker than the screen (criterion 9)", () => {
     expect(outcome.ok).toBe(true);
   });
 
-  it("refuses a publish straight into production while the switch is on", async () => {
+  it("refuses a publish straight into prod while the switch is on", async () => {
     const outcome = await propose({
       steps: [{ kind: "form.publish", args: { formId: "frm_a", environment: "prod" } }],
       grants: [EDITOR, PUBLISHER],
@@ -255,7 +255,7 @@ describe("buildProposal: never weaker than the screen (criterion 9)", () => {
     });
     expect(outcome.ok).toBe(false);
     if (outcome.ok) return;
-    expect(outcome.reason).toContain("second approval");
+    expect(outcome.reason).toContain("Second approval on for a publish to prod");
   });
 
   it("leaves a publish-then-release-to-test plan alone with the switch on", async () => {
