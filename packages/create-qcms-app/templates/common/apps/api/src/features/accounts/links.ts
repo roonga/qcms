@@ -12,11 +12,9 @@ const HOUR_MS = 60 * 60 * 1000;
 export type SignInLinkDeliveryOutcome = "sent" | "undeliverable";
 
 /**
- * Mint one link, store its digest and email it. The token exists only in this function's
- * frame and in the message: it is never returned, logged or written to a row, so no screen
- * and no audit can show it to the administrator who asked for it. `withinIssue` runs in the
- * issuing transaction under the account's lock, before the link is written and before any
- * mail is sent, so a check it makes holds for the issue and a row it writes commits with it.
+ * Mint one link, store its digest and email it; the token is never returned, logged or
+ * stored. `withinIssue` runs in the issuing transaction under the account's lock, before
+ * the mail, so a check it makes holds for the issue and a row it writes commits with it.
  */
 export async function issueAndSendSignInLink(
   deps: Deps,

@@ -10,11 +10,9 @@ import {
 import type { Deps } from "../../deps.js";
 
 /**
- * Write the claim once the second factor is verified, which is the act criterion 53 names:
- * a password alone leaves the account unclaimed. Guarded on `claimedAt`, so a later
- * verification writes no row. In the same transaction every link the account still holds
- * dies, and every session but `keepToken`'s is deleted: the admin gate reads the factor
- * from the account, so a session minted before the factor existed would otherwise pass it.
+ * Write the claim once the second factor is verified; a later verification writes nothing.
+ * In the same transaction every live link dies and every session but `keepToken`'s is
+ * deleted, because the admin gate reads the factor from the account, not the session.
  */
 export async function claimAfterFactorVerified(
   deps: Deps,

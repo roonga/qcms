@@ -30,11 +30,9 @@ const columns = {
 } as const;
 
 /**
- * Serialize every write that decides on an account's links, password or claim, for the
- * duration of the caller's transaction. Without it two concurrent resends each read no live
- * link to supersede and both insert, leaving two usable links. An advisory lock rather than
- * the user row's: the claim holds it while the auth library writes the credential and the
- * user row on its own connection, which a row lock held here would block.
+ * Serialize writes deciding an account's links, password or claim for the caller's
+ * transaction. Advisory rather than the user row's, because the claim holds it while the
+ * auth library writes the credential and the user row on its own connection.
  */
 export async function lockAccount(exec: Executor, userId: string): Promise<void> {
   await exec.execute(
