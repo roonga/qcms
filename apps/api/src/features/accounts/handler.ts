@@ -177,11 +177,9 @@ export function makeResendSignInLinkHandler(
     const row = await findAccountById(exec, id);
     if (row === undefined) throw fail.notFound();
 
-    // A reset or reactivation link is resent as one, never as a creation link: the purposes
-    // are not interchangeable, and it keeps the issuer of the link it replaces, the act's
-    // performer, so resending never makes the resender a performer. The state and the purpose
-    // are read under the account's lock, so a resend crossing the claim's or a reset's commit
-    // never leaves the wrong link.
+    // A reset or reactivation link is resent as one and keeps its act's performer as issuer,
+    // so a resender never becomes a performer. Both are read under the account's lock, so a
+    // resend crossing the claim's or a reset's commit never leaves the wrong link.
     const pendingAct = async (
       tx: Executor,
     ): Promise<{ purpose: "reset" | "reactivated"; issuedBy: string } | undefined> => {
