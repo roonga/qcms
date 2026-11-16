@@ -21,6 +21,7 @@ import { argv } from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { ENV_REFERENCE } from "../../../scripts/env-reference.mjs";
+import { PROMPT_SOURCE_DIRS, PROMPT_SOURCE_PREFIX } from "../../../scripts/prompt-sources.mjs";
 
 /** Repository root, resolved from this file rather than the process cwd. */
 export const REPOSITORY_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
@@ -103,6 +104,16 @@ function assertAppScriptFragmentsApplied() {
 
 /** The workspace root provides these here; an app that ships `typecheck` must ship its compiler. */
 const ROOT_PROVIDED_DEV_DEPENDENCIES = ["typescript"];
+
+/**
+ * Repository tooling an adopter receives at their own root. The prompt generator is the
+ * only way to turn the scaffolded Markdown into the module the API imports, so shipping
+ * the text without it would leave an adopter editing files nothing reads.
+ */
+const SCAFFOLDED_ROOT_SCRIPTS = ["scripts/generate-prompts.mjs", "scripts/prompt-sources.mjs"];
+
+/** The root dev dependency the scaffolded `check:prompts` needs, and the config it formats under. */
+const SCAFFOLD_FORMATTER = "prettier";
 
 const HARNESS_DEV_DEPENDENCIES = new Set([
   "@testcontainers/postgresql",
@@ -307,6 +318,29 @@ const ADOPTER_TEXT_REPLACEMENTS = [
   },
 ];
 
+/** Opens the half of `scripts/prompt-sources.mjs` that only this repository's gates import. */
+const PROMPT_SOURCES_REPOSITORY_HALF =
+  "/** The as-sent view of the prompt, written by the agent's tests and read as a diff. */";
+
+/**
+ * `prompt-sources.mjs` cut down to what the scaffolded generator imports. The rest names
+ * `rendered/`, which the scaffold does not stamp, and feeds gates it does not run.
+ *
+ * @param {string} text
+ * @returns {string}
+ */
+export function transformPromptSources(text) {
+  const cut = text.indexOf(PROMPT_SOURCES_REPOSITORY_HALF);
+  if (cut === -1) {
+    throw new Error(
+      `sync-templates: scripts/prompt-sources.mjs no longer opens its repository-only half with\n` +
+        `  ${PROMPT_SOURCES_REPOSITORY_HALF}\n` +
+        `so the scaffolded copy cannot be cut from it. Fix the marker in ${GENERATOR_PATH}.`,
+    );
+  }
+  return `${text.slice(0, cut).trimEnd()}\n`;
+}
+
 /** Which replacements actually fired, so a dead entry can be reported. */
 const appliedReplacements = new Set();
 
@@ -466,12 +500,11 @@ const CLIMBING_REFERENCE = /(?:\.\.\/)+[^\s"'`)\],;:]*/g;
 
 /**
  * Fail if a generated file reaches outside the scaffold: more `../` than its depth leaves the project, and
- * exactly its depth must land on something the scaffold stamps at its root. Comments are exempt.
+ * exactly its depth must land on a path every shape stamps. Comments are exempt.
  *
  * @param {Map<string, string>} tree
  */
 export function assertNoEscapingPaths(tree) {
-  const roots = scaffoldRootEntries(tree);
   /** @type {string[]} */
   const problems = [];
   for (const [path, contents] of tree) {
@@ -489,7 +522,10 @@ export function assertNoEscapingPaths(tree) {
           // does: `apps/<app>/next.config.ts` reaching `../../` is the workspace root
           // in both trees.
           continue;
-        } else if (climbs === depth && !roots.has(remainder.split("/")[0] ?? "")) {
+        } else if (
+          climbs === depth &&
+          !DEPLOYMENT_SHAPES.every((shape) => stamps(tree, shape, remainder))
+        ) {
           problems.push(
             `${path}: ${reference} resolves to "${remainder}", which the scaffold does not stamp.`,
           );
@@ -503,25 +539,6 @@ export function assertNoEscapingPaths(tree) {
         `Rewrite the reference in a transform in ${GENERATOR_PATH}, the way rewriteUiAssetPaths does.`,
     );
   }
-}
-
-/**
- * Every first path segment the scaffold writes at its own root, across every layer.
- *
- * Read from the tree rather than listed, so it cannot describe a root the generator
- * stopped producing.
- *
- * @param {Map<string, string>} tree
- * @returns {Set<string>}
- */
-function scaffoldRootEntries(tree) {
-  /** @type {Set<string>} */
-  const roots = new Set();
-  for (const path of tree.keys()) {
-    const scaffoldRelative = outputName(path.slice(path.indexOf("/") + 1)).replace(/\.tmpl$/, "");
-    roots.add(scaffoldRelative.split("/")[0] ?? "");
-  }
-  return roots;
 }
 
 /** `@roonga/qcms-<name>` specifiers, from imports and from CSS `@source`/`url()` references. */
@@ -902,6 +919,14 @@ export function buildTemplates() {
     );
   }
 
+  for (const path of SCAFFOLDED_ROOT_SCRIPTS) {
+    const source = readSource(path);
+    tree.set(
+      `common/${path}`,
+      path.endsWith("prompt-sources.mjs") ? transformPromptSources(source) : source,
+    );
+  }
+
   assertImports(tree);
   assertAdopterTextApplied();
   assertAppScriptFragmentsApplied();
@@ -917,6 +942,8 @@ export function buildTemplates() {
   tree.set("common/docker-compose.yml", compose);
   tree.set("common/tsconfig.base.json", readSource("tsconfig.base.json"));
   tree.set("common/_npmrc", readSource(".npmrc"));
+  tree.set("common/_prettierrc.json", readSource(".prettierrc.json"));
+  tree.set("common/_prettierignore", renderPrettierIgnore());
 
   const proxy = readSource("docker-compose.proxy.yml");
   tree.set("solo/docker-compose.proxy.yml", proxy);
@@ -939,6 +966,7 @@ export function buildTemplates() {
   assertComposeReferences(sorted);
   assertReadmeClaims(sorted);
   assertReleaseAgeHoldIsStamped(sorted);
+  assertFormatterPinMatchesRepository(sorted);
   return sorted;
 }
 
@@ -1227,6 +1255,42 @@ function environmentNames(tree, shape) {
     for (const [name] of contents.matchAll(QCMS_ENV_NAME)) names.add(name);
   }
   return names;
+}
+
+/**
+ * The scaffolded `.prettierignore`. The formatter arrives with the prompt generator, and
+ * the model reads the prompt Markdown as bytes: reformatting it would edit the prompt.
+ *
+ * @returns {string}
+ */
+export function renderPrettierIgnore() {
+  return [
+    "# The assistant reads these bytes. Reformatting the Markdown edits the prompt itself,",
+    "# so they stay outside the formatter and inside `pnpm check:prompts`.",
+    ...PROMPT_SOURCE_DIRS.map((directory) => `${PROMPT_SOURCE_PREFIX}${directory}/`),
+    "",
+  ].join("\n");
+}
+
+/**
+ * The scaffolded `check:prompts` reproduces this repository's `prompts.generated.ts`, which
+ * it can only do under the same formatter at the same settings. Left to drift, an adopter's
+ * first `pnpm verify` would fail on a module nobody touched.
+ *
+ * @param {Map<string, string>} tree
+ */
+export function assertFormatterPinMatchesRepository(tree) {
+  const manifest = tree.get("common/package.json.tmpl") ?? "";
+  const pinned = new RegExp(`"${SCAFFOLD_FORMATTER}": "([^"]+)"`).exec(manifest)?.[1];
+  const root = readJson("package.json").devDependencies[SCAFFOLD_FORMATTER];
+  if (pinned !== root) {
+    throw new Error(
+      `sync-templates: the scaffolded root manifest pins ${SCAFFOLD_FORMATTER} at ` +
+        `${String(pinned)} and this repository uses ${String(root)}. The scaffolded ` +
+        `check:prompts formats with it, so the two have to agree. Update ` +
+        `packages/create-qcms-app/templates-static/common/package.json.tmpl.`,
+    );
+  }
 }
 
 /** Hand-written files with no canonical counterpart, kept as real files so Prettier and review see them. */

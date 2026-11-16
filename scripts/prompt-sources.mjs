@@ -1,7 +1,7 @@
 // @ts-check
 /**
- * The assistant's prompt text, read by one gate and excluded by another, so both names
- * come from here and cannot disagree.
+ * Where the assistant's prompt text lives. The generator and every gate that reads or
+ * skips those files take the names from here, so they cannot disagree about the path.
  */
 
 /** Keep the trailing slash: a sibling of `prompts/` is ordinary source. */
