@@ -7,6 +7,8 @@ import {
   type AnswerMap,
   type AnswerValue,
   type Appearance,
+  canonicalJson,
+  checkPalettes,
   compileDraft,
   countBounds,
   type DraftInput,
@@ -18,6 +20,7 @@ import {
   type InstanceId,
   isStepId,
   parseAnswerValue,
+  parseAppearance,
   parseFormDefinition,
   parseFormId,
   parseInstanceId,
@@ -45,11 +48,13 @@ import {
   createForm,
   environmentStatesByForm,
   deleteDraft,
+  getAppearanceLogo,
   getDraft,
   getForm,
   getFormVersion,
   getLatestPublishedVersion,
   getWorkspace,
+  getWorkspaceForShare,
   insertFormVersion,
   listForms,
   listQuestionOwnership,
@@ -194,6 +199,42 @@ const fail = {
       422,
       "The draft compiled, but its rules could not be evaluated for these answers",
     ),
+  invalidAppearance: (detail: string): ApiError => new ApiError("INVALID_APPEARANCE", 422, detail),
+  /**
+   * The correction report rides `details.failures`, so an author is told which pair in
+   * which palette fell short and by how much rather than that something did.
+   */
+  appearanceContrast: (failures: readonly unknown[]): ApiError =>
+    new ApiError(
+      "APPEARANCE_CONTRAST",
+      422,
+      "Some colour pairs do not meet their minimum contrast ratio",
+      { failures },
+    ),
+  /**
+   * The lock is the API's refusal and not the assistant's, so it is raised on the one
+   * draft save path every author and the assistant go through.
+   */
+  appearanceLocked: (): ApiError =>
+    new ApiError(
+      "APPEARANCE_LOCKED",
+      409,
+      "This workspace's appearance is locked, so a save may not change a form's " +
+        "appearance. A Workspace administrator or a Site administrator can clear the lock.",
+    ),
+  /**
+   * SEC-17: the proposal digest binds the form id and the definition only, so an
+   * appearance on a tokened save was never on the card the person confirmed.
+   */
+  appearanceNotProposed: (): ApiError =>
+    new ApiError(
+      "APPEARANCE_NOT_IN_PROPOSAL",
+      422,
+      "An assistant-confirmed save may not carry an appearance, because the confirmation " +
+        "did not cover one. Save the appearance as an ordinary edit instead.",
+    ),
+  unknownLogo: (): ApiError =>
+    new ApiError("LOGO_UNKNOWN", 422, "No stored logo has that key; upload the image first"),
 } as const;
 
 /**
@@ -238,13 +279,54 @@ export async function storeDraftDefinition(
   formId: FormId,
   definition: FormDefinition,
   agentAssisted: boolean,
+  /** Absent keeps whatever the form already carries, which is what the assist accept does. */
+  appearance?: Appearance | null,
 ): Promise<FormDraftRow> {
   if (definition.formId !== formId) throw fail.idMismatch();
 
   const form = await getForm(exec, formId);
   if (form === undefined) throw fail.formNotFound();
 
-  return upsertDraft(exec, { formId, definition, agentAssisted });
+  const settled = appearance === undefined ? await currentAppearance(exec, formId) : appearance;
+  return upsertDraft(exec, { formId, definition, agentAssisted, appearance: settled });
+}
+
+/**
+ * The appearance an author is working from: the open draft's, else the newest published
+ * version's, which is what a seeded draft is drawn from. The same answer the form read
+ * serves, so a save that echoes it back changes nothing and passes the lock.
+ */
+async function currentAppearance(exec: Executor, formId: FormId): Promise<Appearance | null> {
+  const draft = await getDraft(exec, formId);
+  if (draft !== undefined) return draft.appearance;
+  return (await getLatestPublishedVersion(exec, formId))?.appearance ?? null;
+}
+
+function requireAppearance(value: unknown): Appearance {
+  const parsed = parseAppearance(value);
+  if (!parsed.ok) throw fail.invalidAppearance(parsed.error.message);
+  const failures = checkPalettes(parsed.value.palettes);
+  if (failures.length > 0) throw fail.appearanceContrast(failures);
+  return parsed.value;
+}
+
+function requireNullableAppearance(value: unknown): Appearance | null {
+  return value === null ? null : requireAppearance(value);
+}
+
+function sameAppearance(a: Appearance | null, b: Appearance | null): boolean {
+  return canonicalJson(a) === canonicalJson(b);
+}
+
+/**
+ * A draft may name only a logo already in the immutable store, as a theme may: a version
+ * that froze a key nothing was stored under would be a form whose logo route answers 404
+ * (criterion 124).
+ */
+async function requireStoredLogo(exec: Executor, logo: string): Promise<void> {
+  if ((await getAppearanceLogo(exec, logo)) === undefined) {
+    throw fail.unknownLogo();
+  }
 }
 
 export const requireFormDefinition = requireDefinition;
@@ -515,7 +597,7 @@ export function makeCreateFormHandler(deps: Deps): RouteHandler<typeof createFor
         }
         throw err;
       }
-      await upsertDraft(tx, { formId, definition: emptyDraft });
+      await upsertDraft(tx, { formId, definition: emptyDraft, appearance: null });
       await writeAgentStep(tx, site, formId, deps.clock.now());
       return emptyDraft;
     });
@@ -722,6 +804,12 @@ export function makeGetFormHandler(deps: Deps): RouteHandler<typeof getFormRoute
         releasedDefinition:
           versions.find((v) => v.version === environmentState?.version)?.definition ?? null,
         draftAgentAssisted: openDraft?.agentAssisted ?? false,
+        // The draft's own, or the version a seeded draft is drawn from, so a save that
+        // echoes it back changes nothing under the lock.
+        appearance:
+          openDraft?.appearance ??
+          (draftSource === "seeded" ? (versions[0]?.appearance ?? null) : null),
+        appearanceLocked: workspace?.appearanceLocked ?? false,
         draftRevision: openDraft?.revision ?? null,
         draftUpdatedAt: openDraft?.updatedAt.toISOString() ?? null,
         versions: versions.map((v) => ({
@@ -746,21 +834,48 @@ export function makeGetFormHandler(deps: Deps): RouteHandler<typeof getFormRoute
   };
 }
 
+/**
+ * The one draft save path, so the appearance lock is enforced here for every author and
+ * for the assistant alike (agent-builder Q10). An omitted `appearance` keeps what the form
+ * carries, so a client that knows nothing of appearance never clears one.
+ */
 export function makePutDraftHandler(deps: Deps): RouteHandler<typeof putDraftRoute, ApiEnv> {
   return async (c) => {
     const formId = requireFormId(c.req.valid("param").id);
-    const definition = requireDefinition(c.req.valid("json").definition);
+    const body = c.req.valid("json");
+    const definition = requireDefinition(body.definition);
     const site = agentStepSite(c);
+
+    if (site !== undefined && body.appearance !== undefined) throw fail.appearanceNotProposed();
+
+    const form = await getForm(deps.databases.control, formId);
+    if (form === undefined) throw fail.formNotFound();
+    const appearance =
+      body.appearance === undefined ? undefined : requireNullableAppearance(body.appearance);
 
     // Save first, then advise: a draft may be temporarily inconsistent, and the issues
     // block publish rather than the save. The agent row rides the save's own transaction,
     // so a refused save writes none.
     const saved = await deps.databases.control.transaction(async (tx) => {
+      if (appearance !== undefined) {
+        // `FOR SHARE` against the lock setter's `FOR UPDATE`: a lock committed between
+        // this read and the write below would otherwise be missed under READ COMMITTED.
+        const workspace = await getWorkspaceForShare(tx, form.workspaceId);
+        const held = await currentAppearance(tx, formId);
+        // Only a changed key is checked, so an echo of a key since taken down still saves.
+        if (appearance?.logo != null && appearance.logo !== held?.logo) {
+          await requireStoredLogo(tx, appearance.logo);
+        }
+        if (workspace?.appearanceLocked === true && !sameAppearance(appearance, held)) {
+          throw fail.appearanceLocked();
+        }
+      }
       const row = await storeDraftDefinition(
         tx,
         formId,
         definition,
-        c.req.valid("json").agentAssisted ?? false,
+        body.agentAssisted ?? false,
+        appearance,
       );
       await writeAgentStep(tx, site, formId, deps.clock.now());
       return row;
@@ -773,6 +888,7 @@ export function makePutDraftHandler(deps: Deps): RouteHandler<typeof putDraftRou
         issues,
         warnings: [...warnings],
         agentAssisted: saved.agentAssisted,
+        appearance: saved.appearance,
         updatedAt: saved.updatedAt.toISOString(),
       },
       200,

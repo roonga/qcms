@@ -300,10 +300,10 @@ Every new workspace is created with four starter groups. They are ordinary group
 
 Two append-only logs. For both, the application role holds `INSERT` and `SELECT` only, never `UPDATE` or `DELETE`. There is no auditor role.
 
-| Log             | Holds                                                                          | Read by                                                        |
-| --------------- | ------------------------------------------------------------------------------ | -------------------------------------------------------------- |
-| Workspace audit | Response reads, exports and erasures; workspace access acts; assistant actions | That workspace's Workspace administrators; Site administrators |
-| Site audit      | Account and Site administrator acts; shared question library marking           | Site administrators                                            |
+| Log             | Holds                                                                                          | Read by                                                        |
+| --------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Workspace audit | Response reads, exports and erasures; workspace access acts; assistant actions                 | That workspace's Workspace administrators; Site administrators |
+| Site audit      | Account and Site administrator acts; shared question library marking; appearance logo takedown | Site administrators                                            |
 
 - A site-level act that affects a workspace is mirrored into that workspace's audit.
 - Every one of these acts writes a row:
@@ -313,6 +313,7 @@ Two append-only logs. For both, the application role holds `INSERT` and `SELECT`
   - **Access groups:** create, rename, delete, change of roles or environments, member added, member removed, re-confirmation of a suspended membership.
   - **Workspaces:** create, rename, archive, form moved in or out, second-approval switch changed, appearance lock set or cleared (one `setting` row), marked or unmarked as the shared question library.
   - **Workspace themes:** each theme derive fetch, one row (SEC-18).
+  - **Appearance logo store:** each takedown, one site-audit row, mirrored as a `setting` row into each workspace whose themes had the logo cleared (Code Owner, 2026-11-16).
   - **Workspace approval requests** (turning second approval off, self-grant, Move form): created, approved, rejected, expired.
   - **Pending draft publish to `prod`** on a site whose only environment is `prod` (approved on the form, not a workspace approval request): requested, approved, rejected, expired.
 
@@ -321,7 +322,7 @@ Two append-only logs. For both, the application role holds `INSERT` and `SELECT`
 Settled in task 088.
 
 - The **site audit row** is `actor`, `subject` (the account, workspace or request the act was on), `workspace_id` (set only where the act affects one workspace, which is where the mirrored row goes), `kind`, `occurred_at` and a free-text `detail`. No foreign key, so a row never cascades away with the account it names, and no column carries a credential, an answer value or authored text.
-- **Site audit kinds**, four, with `detail` naming the act within its kind: `account` (create, disable, reactivate, credential or factor reset, a grant made while unclaimed), `administrator` (a Site administrator promoted or demoted), `approval` (a site approval request created, approved, rejected or expired), `library` (a workspace marked or unmarked as the shared question library).
+- **Site audit kinds**, five, with `detail` naming the act within its kind: `account` (create, disable, reactivate, credential or factor reset, a grant made while unclaimed), `administrator` (a Site administrator promoted or demoted), `approval` (a site approval request created, approved, rejected or expired), `library` (a workspace marked or unmarked as the shared question library), `logo` (a stored appearance logo taken down, which deletes the bytes site-wide; Code Owner, 2026-11-16). None of the first four names an act on stored media, and `library` is the question library's marking alone, so the takedown takes its own kind rather than overloading one.
 - **Workspace audit kinds gained**, four beside the seven already stored: `group` (an access group created, renamed, deleted, or its roles or environments changed), `administrator` (a Workspace administrator appointed or removed), `approval` (a workspace approval request or a held `prod` draft publish created, approved, rejected or expired), `account` (the mirror of a site-level account act into a workspace the account held something in).
 - One act may write more than one row, which is the reading of criterion 111: taking somebody out of a workspace writes one `revoke` row per access group they held there plus one for the member row, and deleting an access group writes one `group` row for the removal plus one `revoke` row per holder.
 - A member added or removed stays `grant` and `revoke`, and a re-confirmation of a suspended membership is a `grant`, because it restores one. A workspace created, renamed or archived, a form moved, the second-approval switch, the appearance lock and the library marking's mirror keep the kinds they are already written with.

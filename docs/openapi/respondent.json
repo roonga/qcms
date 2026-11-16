@@ -69,6 +69,9 @@
             "exclusiveMinimum": true,
             "example": 1
           },
+          "appearance": {
+            "nullable": true
+          },
           "expiresAt": {
             "type": "string",
             "format": "date-time",
@@ -199,6 +202,10 @@
               "q_at_fault_accident": true,
               "q_accident_count": 2
             }
+          },
+          "appearance": {
+            "nullable": true,
+            "description": "The appearance frozen with the version this session is pinned to, or null. It never changes mid-session: a respondent keeps the version they started (ADR-07)."
           },
           "a2uiSpecVersion": {
             "type": "string",
@@ -405,6 +412,10 @@
               "q_accident_count": 2
             }
           },
+          "appearance": {
+            "nullable": true,
+            "description": "The appearance frozen with the version this session is pinned to, or null. It never changes mid-session: a respondent keeps the version they started (ADR-07)."
+          },
           "a2uiSpecVersion": {
             "type": "string"
           },
@@ -511,6 +522,10 @@
               "q_at_fault_accident": true,
               "q_accident_count": 2
             }
+          },
+          "appearance": {
+            "nullable": true,
+            "description": "The appearance frozen with the version this session is pinned to, or null. It never changes mid-session: a respondent keeps the version they started (ADR-07)."
           },
           "a2uiSpecVersion": {
             "type": "string"
@@ -1366,6 +1381,48 @@
           },
           "422": {
             "description": "Unprocessable entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/logos/{key}": {
+      "get": {
+        "summary": "Serve a stored raster logo by its content key (no session)",
+        "description": "Answers an unauthenticated respondent through the portal, which serves the bytes from its own origin so SEC-9's `img-src 'self'` holds. The key is the SHA-256 of the bytes, so the content is immutable and the address unguessable. Only a PNG, JPEG or WebP already in the immutable logo store is served, with the type it was sniffed as at upload and `X-Content-Type-Options: nosniff`. Anything else, a malformed key included, is the same 404: the route is no oracle for which keys exist.",
+        "tags": [
+          "responses"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "responses:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "required": true,
+            "name": "key",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The logo bytes, with their stored content type"
+          },
+          "404": {
+            "description": "Not found",
             "content": {
               "application/json": {
                 "schema": {

@@ -82,9 +82,11 @@ export {
   listWorkspaces,
   listActiveWorkspaces,
   getWorkspace,
+  getWorkspaceForShare,
   getWorkspaceBySlug,
   getSharedWorkspace,
   setWorkspaceShared,
+  setWorkspaceAppearanceLock,
   renameWorkspace,
   archiveWorkspace,
   findArchiveBlockers,
@@ -92,6 +94,23 @@ export {
   ensureSeedWorkspace,
   insertWorkspace,
 } from "./workspaces.js";
+
+export {
+  type AppearanceLogoRow,
+  type WorkspaceThemeInput,
+  type WorkspaceThemeRow,
+  clearThemeLogoKey,
+  deleteWorkspaceTheme,
+  getAppearanceLogo,
+  getWorkspaceTheme,
+  insertAppearanceLogo,
+  insertWorkspaceTheme,
+  isLogoTakenDown,
+  isThemeLogoKeyViolation,
+  listWorkspaceThemes,
+  takeDownAppearanceLogo,
+  updateWorkspaceTheme,
+} from "./workspace-themes.js";
 
 export {
   type AccessGroupHolderRow,

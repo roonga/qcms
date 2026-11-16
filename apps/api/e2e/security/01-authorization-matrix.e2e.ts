@@ -5,11 +5,12 @@
  */
 
 import { Buffer } from "node:buffer";
+import { createHash } from "node:crypto";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { SEED_WORKSPACE_ID } from "@roonga/qcms-db/testing";
-import { FormId } from "@roonga/qcms-core";
+import { FormId, deriveAppearance } from "@roonga/qcms-core";
 import {
   addAccessGroupHolder,
   authOrganization,
@@ -19,7 +20,9 @@ import {
   getReleasedVersion,
   getWebhook,
   getWorkspace,
+  insertAppearanceLogo,
   insertFormVersion,
+  insertWorkspaceTheme,
   listAccessAudit,
   setRequireSecondApprover,
 } from "@roonga/qcms-db";
@@ -176,9 +179,40 @@ beforeAll(async () => {
   });
   probeTeamId = seeded.teamIds["forms.viewer"] as string;
 
+  // A logo really in the store, so the positive control on the logo route serves bytes
+  // rather than proving a 404 is a 404.
+  const logoBytes = Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    Buffer.alloc(32, 0x5a),
+  ]);
+  const logoKey = createHash("sha256").update(logoBytes).digest("hex");
+  await insertAppearanceLogo(testDb.db, {
+    key: logoKey,
+    contentType: "image/png",
+    bytes: logoBytes,
+    actor: null,
+  });
+
+  // A real theme, so a theme probe cannot pass because the handler refused an id that
+  // does not exist where a gate had failed.
+  const derived = deriveAppearance({ primary: "#1d4ed8" });
+  const theme = await insertWorkspaceTheme(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    name: "Matrix probe",
+    palettes: derived.palettes,
+    face: derived.face,
+    corners: "subtle",
+    pageTint: derived.pageTint,
+    logoKey: null,
+    sourceHost: null,
+    actor: null,
+  });
+
   ctx = {
     formId,
     formSlug: slug,
+    logoKey,
+    themeId: theme.id,
     sessionId: a.body.sessionId,
     otherSessionId: b.body.sessionId,
     linkId: LINK_ID,

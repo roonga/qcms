@@ -18,6 +18,8 @@ export interface WorkspaceRow {
   /** The org-wide question library every workspace may pin from. */
   readonly isShared: boolean;
   readonly requireSecondApprover: boolean;
+  /** While set, the draft save path refuses every change to a form's appearance. */
+  readonly appearanceLocked: boolean;
   /** Set once. A workspace is archived and never deleted. */
   readonly archivedAt: Date | null;
   readonly createdAt: Date;
@@ -29,6 +31,7 @@ const workspaceColumns = {
   slug: authOrganization.slug,
   isShared: authOrganization.isShared,
   requireSecondApprover: authOrganization.requireSecondApprover,
+  appearanceLocked: authOrganization.appearanceLocked,
   archivedAt: authOrganization.archivedAt,
   createdAt: authOrganization.createdAt,
 } as const;
@@ -63,6 +66,24 @@ export async function getWorkspace(
     .from(authOrganization)
     .where(eq(authOrganization.id, workspaceId))
     .limit(1);
+  return row;
+}
+
+/**
+ * One workspace by id, holding a share lock on the row. Run it in a transaction: the lock
+ * is what stops a concurrent lock setter, which takes the row `FOR UPDATE`, from
+ * committing between a read of `appearanceLocked` and the write that read admitted.
+ */
+export async function getWorkspaceForShare(
+  exec: Executor,
+  workspaceId: string,
+): Promise<WorkspaceRow | undefined> {
+  const [row] = await exec
+    .select(workspaceColumns)
+    .from(authOrganization)
+    .where(eq(authOrganization.id, workspaceId))
+    .limit(1)
+    .for("share");
   return row;
 }
 
@@ -105,6 +126,31 @@ export async function setWorkspaceShared(
     .where(eq(authOrganization.id, workspaceId))
     .returning(workspaceColumns);
   return row;
+}
+
+/**
+ * Set or clear the appearance lock, returning the workspace and the value it held, so the
+ * caller writes one audit row for a change and none for a repeat. The row is locked first,
+ * so run it in a transaction for an exact `previouslyLocked`.
+ */
+export async function setWorkspaceAppearanceLock(
+  exec: Executor,
+  workspaceId: string,
+  locked: boolean,
+): Promise<{ readonly workspace: WorkspaceRow; readonly previouslyLocked: boolean } | undefined> {
+  const [current] = await exec
+    .select({ appearanceLocked: authOrganization.appearanceLocked })
+    .from(authOrganization)
+    .where(and(eq(authOrganization.id, workspaceId), isNull(authOrganization.archivedAt)))
+    .for("update");
+  if (current === undefined) return undefined;
+  const [workspace] = await exec
+    .update(authOrganization)
+    .set({ appearanceLocked: locked })
+    .where(eq(authOrganization.id, workspaceId))
+    .returning(workspaceColumns);
+  if (workspace === undefined) return undefined;
+  return { workspace, previouslyLocked: current.appearanceLocked };
 }
 
 /**

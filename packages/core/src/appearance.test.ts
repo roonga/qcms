@@ -18,6 +18,7 @@ import {
   parseAppearance,
   relativeLuminance,
   requiredRatio,
+  sniffRasterLogo,
 } from "./appearance.js";
 
 const twoDp = (value: number): number => Math.floor(value * 100) / 100;
@@ -317,5 +318,44 @@ describe("the Appearance schema", () => {
         required: 4.5,
       }),
     );
+  });
+});
+
+describe("logo sniffing", () => {
+  const png = () => Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]);
+  const jpeg = () => Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 0, 16, 0x4a, 0x46]);
+  const webp = () => new Uint8Array([...ascii("RIFF"), 0, 0, 0, 0, ...ascii("WEBP"), 0x56, 0x50]);
+
+  function ascii(text: string): number[] {
+    return [...text].map((char) => char.codePointAt(0) ?? 0);
+  }
+
+  it("names each raster type from its own bytes", () => {
+    expect(sniffRasterLogo(png())).toBe("image/png");
+    expect(sniffRasterLogo(jpeg())).toBe("image/jpeg");
+    expect(sniffRasterLogo(webp())).toBe("image/webp");
+  });
+
+  it("refuses SVG, however it is dressed", () => {
+    expect(
+      sniffRasterLogo(new Uint8Array(ascii('<svg xmlns="http://www.w3.org/2000/svg"/>'))),
+    ).toBe(null);
+    expect(sniffRasterLogo(new Uint8Array(ascii('<?xml version="1.0"?><svg/>')))).toBe(null);
+    expect(sniffRasterLogo(new Uint8Array(ascii("\n\n  <svg/>")))).toBe(null);
+  });
+
+  it("refuses a polyglot, a truncated signature and an empty body", () => {
+    const polyglot = new Uint8Array([...ascii("<svg/>"), ...png()]);
+    expect(sniffRasterLogo(polyglot)).toBe(null);
+    expect(sniffRasterLogo(new Uint8Array([...ascii("RIFF"), 0, 0, 0, 0, ...ascii("WEB")]))).toBe(
+      null,
+    );
+    expect(sniffRasterLogo(Uint8Array.from([0x89, 0x50, 0x4e]))).toBe(null);
+    expect(sniffRasterLogo(new Uint8Array(0))).toBe(null);
+  });
+
+  it("refuses GIF and PDF, which are neither of the three", () => {
+    expect(sniffRasterLogo(new Uint8Array(ascii("GIF89a")))).toBe(null);
+    expect(sniffRasterLogo(new Uint8Array(ascii("%PDF-1.7")))).toBe(null);
   });
 });

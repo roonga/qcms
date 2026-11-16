@@ -7,6 +7,8 @@ import {
   ACCESS_AUDIT_TABLE,
   AGENT_ACTIONS_TABLE,
   APPEARANCE_LOGOS_TABLE,
+  APPEARANCE_LOGO_TAKEDOWN_FUNCTION,
+  APPEARANCE_LOGO_TOMBSTONES_TABLE,
   CONTROL_FORBIDDEN_TABLES,
   CONTROL_READ_COLUMNS,
   CONTROL_READ_TABLES,
@@ -199,6 +201,23 @@ async function hasColumnPrivilege(
   const res = await owner.query<{ has: boolean }>(
     `select has_column_privilege($1, $2, $3, $4) as has`,
     [role, table, column, privilege],
+  );
+  return res.rows[0]?.has ?? false;
+}
+
+async function hasTablePrivilege(role: string, table: string, privilege: string): Promise<boolean> {
+  const res = await owner.query<{ has: boolean }>(`select has_table_privilege($1, $2, $3) as has`, [
+    role,
+    table,
+    privilege,
+  ]);
+  return res.rows[0]?.has ?? false;
+}
+
+async function hasFunctionExecute(role: string, signature: string): Promise<boolean> {
+  const res = await owner.query<{ has: boolean }>(
+    `select has_function_privilege($1, $2, 'EXECUTE') as has`,
+    [role, signature],
   );
   return res.rows[0]?.has ?? false;
 }
@@ -415,6 +434,8 @@ describe("the projections of that map, named so a failure says which claim broke
   it("gives the control role DML on `control` with the append-only tables carved out", async () => {
     const held = await tablePrivileges("control", CONTROL_ROLE);
     expect(held["two_factor_resets"]).toBeUndefined();
+    // The schema-wide grant a re-grant replays would reach the tombstones without the revoke.
+    expect(held[APPEARANCE_LOGO_TOMBSTONES_TABLE]).toBeUndefined();
     for (const table of APPEND_ONLY_TABLES) {
       expect([...(held[table] ?? [])].sort(), table).toEqual(["INSERT", "SELECT"]);
     }
@@ -526,6 +547,20 @@ describe("the projections of that map, named so a failure says which claim broke
       }
     },
   );
+
+  it("re-grants the logo takedown function to the control role and to nobody else (task 109)", async () => {
+    // The sanctioned delete has to survive a restore as the grants do, or a takedown
+    // would fail on a restored database with no statement to blame.
+    const signature = `${APPEARANCE_LOGO_TAKEDOWN_FUNCTION}(text)`;
+    expect(await hasFunctionExecute(CONTROL_ROLE, signature)).toBe(true);
+    for (const role of Object.values(ENVIRONMENT_ROLES)) {
+      expect(await hasFunctionExecute(role, signature), role).toBe(false);
+      expect(
+        await hasTablePrivilege(role, `control.${APPEARANCE_LOGOS_TABLE}`, "DELETE"),
+        role,
+      ).toBe(false);
+    }
+  });
 
   it.each(ENVIRONMENTS)(
     "gives qcms_app_%s SELECT on its own reporting views and no other environment's (Q52)",

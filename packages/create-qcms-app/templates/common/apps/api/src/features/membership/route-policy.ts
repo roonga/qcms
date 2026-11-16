@@ -235,6 +235,71 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     audit: "setting",
   },
   {
+    // Theming is authoring, so these are the editor's `form: write` cell rather than a
+    // workspace setting: a Workspace administrator or a Site administrator holding no Edit
+    // forms grant in that workspace is refused, as the matrix has it.
+    method: "GET",
+    path: "/admin/workspaces/{id}/themes",
+    resource: "form",
+    action: "write",
+    workspace: "path",
+  },
+  {
+    method: "POST",
+    path: "/admin/workspaces/{id}/themes",
+    resource: "form",
+    action: "write",
+    workspace: "path",
+  },
+  {
+    method: "GET",
+    path: "/admin/workspaces/{id}/themes/{themeId}",
+    resource: "form",
+    action: "write",
+    workspace: "path",
+  },
+  {
+    method: "PUT",
+    path: "/admin/workspaces/{id}/themes/{themeId}",
+    resource: "form",
+    action: "write",
+    workspace: "path",
+  },
+  {
+    method: "DELETE",
+    path: "/admin/workspaces/{id}/themes/{themeId}",
+    resource: "form",
+    action: "write",
+    workspace: "path",
+  },
+  {
+    method: "POST",
+    path: "/admin/workspaces/{id}/themes/{themeId}/logo",
+    resource: "form",
+    action: "write",
+    workspace: "path",
+  },
+  {
+    // The other half of the pair: the lock is a workspace setting, so it is the
+    // administrator's cell and no Edit forms grant reaches it.
+    method: "PUT",
+    path: "/admin/workspaces/{id}/appearance-lock",
+    resource: "workspace",
+    action: "update",
+    workspace: "path",
+    audit: "setting",
+  },
+  {
+    // The logo store is site-wide, so a takedown is nobody's workspace act: it removes
+    // the bytes from every draft, version and theme in the installation at once.
+    method: "DELETE",
+    path: "/admin/logos/{key}",
+    resource: "workspace",
+    action: "update",
+    workspace: "installation",
+    installationOnly: true,
+  },
+  {
     method: "GET",
     path: "/admin/workspaces/{id}/audit",
     resource: "audit",
