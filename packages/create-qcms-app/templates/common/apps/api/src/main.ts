@@ -7,6 +7,12 @@ import { adminAuthFor } from "./features/auth/route.js";
 import { selectDraftAssistant } from "./features/agent/assistant.js";
 import { selectMailer } from "./features/email/smtp.js";
 import { selectChallengeVerifier } from "./features/responses/challenge.js";
+import { createBrandFetcher } from "./features/workspaces/brand-fetcher/fetcher.js";
+import { createLogoCodec } from "./features/workspaces/brand-fetcher/node-codec.js";
+import {
+  createDnsResolver,
+  createNodeTransport,
+} from "./features/workspaces/brand-fetcher/node-transport.js";
 import { appGroups } from "./registrars.js";
 import { loadConfig, turnstileSiteKeyDeprecationWarning } from "./config.js";
 import type { Deps } from "./deps.js";
@@ -72,6 +78,12 @@ export function main(telemetry: Telemetry): void {
     draftAssistant: selectDraftAssistant(config, logger),
     mailer: selectMailer(config, logger),
     flags: config.flags,
+    brandFetcher: createBrandFetcher({
+      resolver: createDnsResolver(),
+      transport: createNodeTransport({ proxy: config.themeDerive.proxy }),
+      allowedHosts: config.themeDerive.allowedHosts,
+    }),
+    logoCodec: createLogoCodec(),
   };
 
   const app = createApp(deps, config.mount, { groups: appGroups });

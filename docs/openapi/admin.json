@@ -2615,7 +2615,7 @@
           "bytesBase64": {
             "type": "string",
             "minLength": 1,
-            "description": "The image, base64-encoded. PNG, JPEG or WebP only, confirmed by magic-number sniff; SVG is refused. Capped at 512 KiB decoded."
+            "description": "The image, base64-encoded. A non-interlaced PNG or a JPEG only, confirmed by magic-number sniff; WebP and SVG are refused. Capped at 512 KiB decoded."
           }
         },
         "required": [
@@ -2650,6 +2650,889 @@
         },
         "required": [
           "locked"
+        ],
+        "additionalProperties": false
+      },
+      "DeriveThemeResponse": {
+        "type": "object",
+        "properties": {
+          "derived": {
+            "$ref": "#/components/schemas/DeriveResult"
+          }
+        },
+        "required": [
+          "derived"
+        ]
+      },
+      "DeriveResult": {
+        "type": "object",
+        "properties": {
+          "palettes": {
+            "type": "object",
+            "properties": {
+              "light": {
+                "type": "object",
+                "properties": {
+                  "primary": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "primary-hover": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "primary-active": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "primary-foreground": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "secondary": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "secondary-hover": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "secondary-active": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "secondary-foreground": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "danger": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "danger-hover": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "danger-active": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "danger-foreground": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "danger-subtle": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "danger-fg": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "ghost-hover": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "ghost-active": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "info": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "info-subtle": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "info-fg": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "success": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "success-subtle": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "success-fg": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "warning": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "warning-subtle": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "warning-fg": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "text": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "text-muted": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "border": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "border-strong": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "background": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "background-muted": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "surface": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "surface-hover": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "focus-ring": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  }
+                },
+                "required": [
+                  "primary",
+                  "primary-hover",
+                  "primary-active",
+                  "primary-foreground",
+                  "secondary",
+                  "secondary-hover",
+                  "secondary-active",
+                  "secondary-foreground",
+                  "danger",
+                  "danger-hover",
+                  "danger-active",
+                  "danger-foreground",
+                  "danger-subtle",
+                  "danger-fg",
+                  "ghost-hover",
+                  "ghost-active",
+                  "info",
+                  "info-subtle",
+                  "info-fg",
+                  "success",
+                  "success-subtle",
+                  "success-fg",
+                  "warning",
+                  "warning-subtle",
+                  "warning-fg",
+                  "text",
+                  "text-muted",
+                  "border",
+                  "border-strong",
+                  "background",
+                  "background-muted",
+                  "surface",
+                  "surface-hover",
+                  "focus-ring"
+                ],
+                "additionalProperties": false
+              },
+              "dark": {
+                "type": "object",
+                "properties": {
+                  "primary": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "primary-hover": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "primary-active": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "primary-foreground": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "secondary": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "secondary-hover": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "secondary-active": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "secondary-foreground": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "danger": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "danger-hover": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "danger-active": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "danger-foreground": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "danger-subtle": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "danger-fg": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "ghost-hover": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "ghost-active": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "info": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "info-subtle": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "info-fg": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "success": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "success-subtle": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "success-fg": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "warning": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "warning-subtle": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "warning-fg": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "text": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "text-muted": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "border": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "border-strong": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "background": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "background-muted": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "surface": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "surface-hover": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "focus-ring": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  }
+                },
+                "required": [
+                  "primary",
+                  "primary-hover",
+                  "primary-active",
+                  "primary-foreground",
+                  "secondary",
+                  "secondary-hover",
+                  "secondary-active",
+                  "secondary-foreground",
+                  "danger",
+                  "danger-hover",
+                  "danger-active",
+                  "danger-foreground",
+                  "danger-subtle",
+                  "danger-fg",
+                  "ghost-hover",
+                  "ghost-active",
+                  "info",
+                  "info-subtle",
+                  "info-fg",
+                  "success",
+                  "success-subtle",
+                  "success-fg",
+                  "warning",
+                  "warning-subtle",
+                  "warning-fg",
+                  "text",
+                  "text-muted",
+                  "border",
+                  "border-strong",
+                  "background",
+                  "background-muted",
+                  "surface",
+                  "surface-hover",
+                  "focus-ring"
+                ],
+                "additionalProperties": false
+              },
+              "lightHighContrast": {
+                "type": "object",
+                "properties": {
+                  "primary": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "primary-hover": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "primary-active": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "primary-foreground": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "secondary": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "secondary-hover": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "secondary-active": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "secondary-foreground": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "danger": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "danger-hover": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "danger-active": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "danger-foreground": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "danger-subtle": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "danger-fg": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "ghost-hover": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "ghost-active": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "info": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "info-subtle": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "info-fg": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "success": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "success-subtle": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "success-fg": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "warning": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "warning-subtle": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "warning-fg": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "text": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "text-muted": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "border": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "border-strong": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "background": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "background-muted": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "surface": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "surface-hover": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "focus-ring": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  }
+                },
+                "required": [
+                  "primary",
+                  "primary-hover",
+                  "primary-active",
+                  "primary-foreground",
+                  "secondary",
+                  "secondary-hover",
+                  "secondary-active",
+                  "secondary-foreground",
+                  "danger",
+                  "danger-hover",
+                  "danger-active",
+                  "danger-foreground",
+                  "danger-subtle",
+                  "danger-fg",
+                  "ghost-hover",
+                  "ghost-active",
+                  "info",
+                  "info-subtle",
+                  "info-fg",
+                  "success",
+                  "success-subtle",
+                  "success-fg",
+                  "warning",
+                  "warning-subtle",
+                  "warning-fg",
+                  "text",
+                  "text-muted",
+                  "border",
+                  "border-strong",
+                  "background",
+                  "background-muted",
+                  "surface",
+                  "surface-hover",
+                  "focus-ring"
+                ],
+                "additionalProperties": false
+              },
+              "darkHighContrast": {
+                "type": "object",
+                "properties": {
+                  "primary": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "primary-hover": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "primary-active": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "primary-foreground": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "secondary": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "secondary-hover": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "secondary-active": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "secondary-foreground": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "danger": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "danger-hover": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "danger-active": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "danger-foreground": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "danger-subtle": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "danger-fg": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "ghost-hover": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "ghost-active": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "info": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "info-subtle": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "info-fg": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "success": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "success-subtle": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "success-fg": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "warning": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "warning-subtle": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "warning-fg": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "text": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "text-muted": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "border": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "border-strong": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "background": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "background-muted": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "surface": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "surface-hover": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  },
+                  "focus-ring": {
+                    "type": "string",
+                    "pattern": "^#[0-9a-f]{6}$/iu"
+                  }
+                },
+                "required": [
+                  "primary",
+                  "primary-hover",
+                  "primary-active",
+                  "primary-foreground",
+                  "secondary",
+                  "secondary-hover",
+                  "secondary-active",
+                  "secondary-foreground",
+                  "danger",
+                  "danger-hover",
+                  "danger-active",
+                  "danger-foreground",
+                  "danger-subtle",
+                  "danger-fg",
+                  "ghost-hover",
+                  "ghost-active",
+                  "info",
+                  "info-subtle",
+                  "info-fg",
+                  "success",
+                  "success-subtle",
+                  "success-fg",
+                  "warning",
+                  "warning-subtle",
+                  "warning-fg",
+                  "text",
+                  "text-muted",
+                  "border",
+                  "border-strong",
+                  "background",
+                  "background-muted",
+                  "surface",
+                  "surface-hover",
+                  "focus-ring"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "required": [
+              "light",
+              "dark",
+              "lightHighContrast",
+              "darkHighContrast"
+            ],
+            "additionalProperties": false
+          },
+          "face": {
+            "type": "string",
+            "enum": [
+              "system",
+              "atkinson",
+              "lexend",
+              "opendyslexic",
+              "inter",
+              "roboto",
+              "opensans",
+              "lato",
+              "poppins",
+              "montserrat",
+              "andika",
+              "fredoka",
+              "baloo2",
+              "comicneue",
+              "patrickhand",
+              "merriweather",
+              "lora",
+              "ptserif",
+              "librebaskerville",
+              "ibmplexserif",
+              "publicsans",
+              "jetbrainsmono",
+              "geistmono"
+            ]
+          },
+          "pageTint": {
+            "type": "boolean"
+          },
+          "logoKey": {
+            "type": "string",
+            "nullable": true,
+            "pattern": "^[0-9a-f]{64}$/u"
+          },
+          "corrections": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "palette": {
+                  "type": "string",
+                  "enum": [
+                    "light",
+                    "dark",
+                    "lightHighContrast",
+                    "darkHighContrast"
+                  ]
+                },
+                "token": {
+                  "type": "string",
+                  "enum": [
+                    "primary",
+                    "primary-hover",
+                    "primary-active",
+                    "primary-foreground",
+                    "secondary",
+                    "secondary-hover",
+                    "secondary-active",
+                    "secondary-foreground",
+                    "danger",
+                    "danger-hover",
+                    "danger-active",
+                    "danger-foreground",
+                    "danger-subtle",
+                    "danger-fg",
+                    "ghost-hover",
+                    "ghost-active",
+                    "info",
+                    "info-subtle",
+                    "info-fg",
+                    "success",
+                    "success-subtle",
+                    "success-fg",
+                    "warning",
+                    "warning-subtle",
+                    "warning-fg",
+                    "text",
+                    "text-muted",
+                    "border",
+                    "border-strong",
+                    "background",
+                    "background-muted",
+                    "surface",
+                    "surface-hover",
+                    "focus-ring"
+                  ]
+                },
+                "from": {
+                  "type": "string",
+                  "pattern": "^#[0-9a-f]{6}$/iu"
+                },
+                "to": {
+                  "type": "string",
+                  "pattern": "^#[0-9a-f]{6}$/iu"
+                }
+              },
+              "required": [
+                "palette",
+                "token",
+                "from",
+                "to"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "tintDropped": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "light",
+                "dark",
+                "lightHighContrast",
+                "darkHighContrast"
+              ]
+            }
+          }
+        },
+        "required": [
+          "palettes",
+          "face",
+          "pageTint",
+          "logoKey",
+          "corrections",
+          "tintDropped"
+        ],
+        "additionalProperties": false
+      },
+      "DeriveThemeBody": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048,
+            "example": "https://www.example.com/"
+          }
+        },
+        "required": [
+          "url"
         ],
         "additionalProperties": false
       },
@@ -8471,7 +9354,7 @@
     "/admin/workspaces/{id}/themes/{themeId}/logo": {
       "post": {
         "summary": "Upload a theme's logo (Edit forms)",
-        "description": "Edit forms in that workspace. A Workspace administrator or a Site administrator who holds no Edit forms grant there is refused, because theming is authoring and not administration (docs/WORKSPACE_ACCESS.md section 3). PNG, JPEG or WebP, confirmed by magic-number sniff and capped at 512 KiB; SVG and anything else is refused. The bytes are stored immutably under the SHA-256 of themselves, which is the key the logo route serves them by. An image a Site administrator took down is refused with `LOGO_TAKEN_DOWN` (409).",
+        "description": "Edit forms in that workspace. A Workspace administrator or a Site administrator who holds no Edit forms grant there is refused, because theming is authoring and not administration (docs/WORKSPACE_ACCESS.md section 3). A non-interlaced PNG or a JPEG, confirmed by magic-number sniff, capped at 512 KiB and 4,194,304 pixels, then decoded and re-encoded as PNG; WebP, SVG and anything else is refused. The re-encoded bytes are stored immutably under their SHA-256, which is the key the logo route serves them by. An image a Site administrator took down is refused with `LOGO_TAKEN_DOWN` (409).",
         "tags": [
           "workspaces"
         ],
@@ -8684,6 +9567,125 @@
           },
           "409": {
             "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/workspaces/{id}/themes/derive": {
+      "post": {
+        "summary": "Derive a theme from a website (Edit forms)",
+        "description": "Behind its own flag, off by default and separate from the agent flag; with it off the route is 404. Fetches the https page the user typed, up to two of its own stylesheets and one PNG or JPEG logo, each held to SEC-18: every DNS record public, the connection pinned to the checked address, port 443, one same-site redirect, a sniffed content type and caps on bytes, time and pixels. The logo is re-encoded and stored. Nothing is saved as a theme. A logo that is refused is left out and the derive goes on; every other refusal is one uniform `THEME_DERIVE_REFUSED`. Each fetch writes one `derive` row to the workspace audit, naming the host contacted, before it is contacted.",
+        "tags": [
+          "workspace themes"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "org_default_workspace"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeriveThemeBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Colours, a registry face and a stored logo key; no page text",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeriveThemeResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
             "content": {
               "application/json": {
                 "schema": {

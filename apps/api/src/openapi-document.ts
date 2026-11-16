@@ -8,6 +8,8 @@ import type { Deps } from "./deps.js";
 import { unavailableDraftAssistant } from "./features/agent/assistant.js";
 import { unconfiguredMailer } from "./features/email/mailer.js";
 import { nullChallengeVerifier } from "./features/responses/challenge.js";
+import { refusingBrandFetcher } from "./features/workspaces/brand-fetcher/fake.js";
+import { createLogoCodec } from "./features/workspaces/brand-fetcher/node-codec.js";
 import { createNullLogger } from "./logger.js";
 import { InMemoryRateLimitStore } from "./rate-limit.js";
 import { appGroups } from "./registrars.js";
@@ -37,6 +39,8 @@ const CODEGEN_ENV: Record<string, string> = {
   QCMS_PORTAL_BASE_URL: "https://forms.example.test",
   QCMS_ADMIN_AUTH_SECRET: "codegen-openapi-placeholder-value-000000000",
   QCMS_ADMIN_BASE_URL: "https://admin.example.test",
+  // On, unlike the agent flag, so the derive route is in the published admin document.
+  QCMS_FLAG_THEME_DERIVE: "on",
 };
 
 function inertDb(): Executor {
@@ -72,6 +76,8 @@ function codegenDeps(): Deps {
     draftAssistant: unavailableDraftAssistant,
     mailer: unconfiguredMailer,
     flags: config.flags,
+    brandFetcher: refusingBrandFetcher,
+    logoCodec: createLogoCodec(),
   };
 }
 

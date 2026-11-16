@@ -22,6 +22,7 @@ import {
 import { registerSubmit } from "./features/responses/submit/route.js";
 import { registerWebhooks } from "./features/webhooks/route.js";
 import { registerWorkspaces } from "./features/workspaces/route.js";
+import { registerThemeDerive } from "./features/workspaces/theme-derive.js";
 import { registerGrantCheck } from "./features/membership/middleware.js";
 import { registerAdminAuth } from "./middleware/admin-auth.js";
 import { registerRequestEnvironment } from "./middleware/request-environment.js";
@@ -59,6 +60,8 @@ export const appGroups: RouteGroups = {
     registerAdminResponses,
     registerReleases,
     registerWorkspaces,
+    // Unmounted unless its own SEC-18 flag is on.
+    registerThemeDerive,
     // The one write on the site-wide logo store, and a Site administrator's alone.
     registerLogoTakedown,
     // The only grant write path.
