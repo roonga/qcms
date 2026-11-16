@@ -1,3 +1,5 @@
+import type { Executor } from "@roonga/qcms-db";
+
 import type { SliceRegistrar } from "../../app.js";
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
@@ -25,12 +27,13 @@ const ALLOWED = new Set(ALLOWED_AUTH_ENDPOINTS);
 /** Keyed on `Deps`, not module-level: one process composes several apps over different databases. */
 const instances = new WeakMap<Deps, AdminAuth>();
 
-/** Read throttle state from the mounted instance; a second instance could report a different configuration. */
-export function adminAuthFor(deps: Deps): AdminAuth {
-  const existing = instances.get(deps);
-  if (existing !== undefined) return existing;
-  const built = createAdminAuth({
-    db: deps.databases.control,
+/**
+ * An uncached instance whose writes run on `db`, for a caller that must write through the
+ * library inside its own transaction.
+ */
+export function adminAuthOn(deps: Deps, db: Executor): AdminAuth {
+  return createAdminAuth({
+    db,
     adminAuth: deps.config.adminAuth,
     // Operator-only channel: the variable that turns the breach check off never goes to
     // the client that provoked the warning.
@@ -38,8 +41,38 @@ export function adminAuthFor(deps: Deps): AdminAuth {
       deps.logger.warn(message);
     },
   });
+}
+
+/** Read throttle state from the mounted instance; a second instance could report a different configuration. */
+export function adminAuthFor(deps: Deps): AdminAuth {
+  const existing = instances.get(deps);
+  if (existing !== undefined) return existing;
+  const built = adminAuthOn(deps, deps.databases.control);
   instances.set(deps, built);
   return built;
+}
+
+/**
+ * The account a successful verification completed for, as the vendor's own response names
+ * it, and the session to keep: the one the response issues, else the one it verified on.
+ * A session read before the handler is not used, because the vendor resolves its own and
+ * falls back to the pending-second-factor cookie when that session no longer resolves.
+ */
+async function verifiedAccount(
+  auth: AdminAuth,
+  response: Response,
+): Promise<{ readonly userId: string; readonly keepToken: string | undefined } | undefined> {
+  const body = (await response
+    .clone()
+    .json()
+    .catch(() => null)) as { token?: unknown; user?: { id?: unknown } } | null;
+  const userId = body?.user?.id;
+  if (typeof userId !== "string") return undefined;
+  const issued = await issuedSession(auth, response);
+  if (issued !== undefined) {
+    return issued.userId === userId ? { userId, keepToken: issued.token } : undefined;
+  }
+  return { userId, keepToken: typeof body?.token === "string" ? body.token : undefined };
 }
 
 /** The session a response issues, read back off its `Set-Cookie` headers. */
@@ -80,23 +113,13 @@ export const registerAdminAuthProxy: SliceRegistrar = (group, deps) => {
     // here as well as on `/admin`. Sign-in and sign-out are exempt: neither is the stale
     // cookie's to decide, and the session-create hook refuses the sign-in instead.
     if (await authEndpointRefused(auth, request, endpoint)) throw accountStateRefusal();
-    // Resolved before the handler, because a verification that enrols the factor replaces
-    // the session the request carried and the old cookie no longer resolves afterwards.
-    const enrolling =
-      endpoint === TOTP_VERIFY_ENDPOINT
-        ? await auth.api.getSession({ headers: request.headers })
-        : null;
     const response = await auth.handler(request);
     // The claim is finished by the act, not by the screen that posted it: the account
     // holds nothing until a password and a verified second factor both exist.
     if (endpoint === TOTP_VERIFY_ENDPOINT && response.ok) {
-      // The issued session is read too, so a verification on the pending-second-factor
-      // cookie still finishes a claim whose write did not land at enrolment. It is the one
-      // session the claim keeps.
-      const issued = await issuedSession(auth, response);
-      const verified = enrolling?.user.id ?? issued?.userId;
+      const verified = await verifiedAccount(auth, response);
       if (verified !== undefined) {
-        await claimAfterFactorVerified(deps, verified, issued?.token ?? enrolling?.session.token);
+        await claimAfterFactorVerified(deps, verified.userId, verified.keepToken);
       }
     }
     return response;

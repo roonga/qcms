@@ -1,17 +1,18 @@
 import { z } from "@hono/zod-openapi";
 import {
+  boundAccountTransaction,
   consumeSignInLink,
   findAccountById,
   findSignInLinkByHash,
-  lockAccount,
   signInLinkIsLive,
+  tryLockAccount,
 } from "@roonga/qcms-db";
 import { isAPIError } from "better-auth/api";
 
 import type { SliceRegistrar } from "../../app.js";
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
-import { adminAuthFor } from "../auth/route.js";
+import { adminAuthFor, adminAuthOn } from "../auth/route.js";
 import { BREACH_LOOKUP_FAILED_CODE, MIN_PASSWORD_LENGTH } from "../auth/instance.js";
 import { PasswordRefused, setAccountPassword } from "./credential.js";
 import { CLAIM_PATH, signInTokenHash } from "./tokens.js";
@@ -85,10 +86,15 @@ export const registerAccountClaim: SliceRegistrar = (group, deps: Deps) => {
     const resolved = await auth.api.getSession({ headers: c.req.raw.headers });
     if (resolved !== null && resolved.user.id !== link.userId) throw linkRefused();
 
-    // Held from the claimed check to the link's spend, so a claim committing meanwhile
-    // cannot be followed by this request overwriting the claimed account's password.
+    // One transaction holds the lock from the claimed check to the link's spend, and the
+    // password is written on its connection, so a refused password or a spent link rolls
+    // everything back and the request never waits on a second pooled connection. The lock is
+    // tried rather than awaited: a claim already in flight for this account means this one
+    // is refused at once instead of queueing with a connection held.
     const account = await exec.transaction(async (tx) => {
-      await lockAccount(tx, link.userId);
+      await boundAccountTransaction(tx);
+      if (!(await tryLockAccount(tx, link.userId))) throw linkRefused();
+      if ((await consumeSignInLink(tx, tokenHash, now)) === undefined) throw linkRefused();
       const found = await findAccountById(tx, link.userId);
       if (found === undefined || found.disabledAt !== null) throw linkRefused();
       // A claimed account already holds a password, so a creation link that outlived the
@@ -98,16 +104,11 @@ export const registerAccountClaim: SliceRegistrar = (group, deps: Deps) => {
       // The write revokes every session the account holds (`revokeSessionsOnPasswordReset`),
       // so one minted from an earlier link does not outlive it.
       try {
-        await setAccountPassword(auth, found.userId, password);
+        await setAccountPassword(adminAuthOn(deps, tx), found.userId, password);
       } catch (error) {
         if (error instanceof PasswordRefused) throw passwordRefused(error.cause);
         throw error;
       }
-
-      // Consumed after the password is written, so a refused password never burns the one
-      // link the person was sent and a failed write leaves a link they can use again. The
-      // compare-and-set is the single-use guarantee.
-      if ((await consumeSignInLink(tx, tokenHash, now)) === undefined) throw linkRefused();
       return found;
     });
 
