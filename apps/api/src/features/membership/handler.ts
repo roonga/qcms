@@ -342,7 +342,7 @@ export function makeMyAccessHandler(deps: Deps): RouteHandler<typeof myAccessRou
         userId: principal.userId,
         installationAdmin: claim,
         capabilities: await areasFor(exec, { userId: principal.userId, claim }),
-        siteAdministrators: holdsNothing ? await listActiveSiteAdministrators(exec) : [],
+        siteAdministrators: holdsNothing ? [...(await listActiveSiteAdministrators(exec))] : [],
         workspaces: [...byWorkspace.values()].map((workspace) => ({
           ...workspace,
           environments: environmentsHeld(workspace.grants, live),
