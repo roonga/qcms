@@ -22,7 +22,7 @@ The user guide for these rules is [`docs/workspace-access-guide.html`](workspace
 | One user-facing Publish step                                      | Built        |
 | Second approval for `prod` publish and endpoint changes           | Built        |
 | Second approval for turning the rule off and for self-grant       | Partly built |
-| Account creation, disable, reactivation and reset in the app      | Partly built |
+| Account creation, disable, reactivation and reset in the app      | Built        |
 | Site administrator appointment with approval requests             | Not built    |
 | Workspace audit (SEC-15)                                          | Built        |
 | Site audit and mirroring                                          | Not built    |
@@ -33,7 +33,7 @@ The user guide for these rules is [`docs/workspace-access-guide.html`](workspace
 | Workspace themes and the workspace appearance lock                | Not built    |
 
 - The workspace list admits every grant holder and returns only the workspaces the caller holds something in. A caller who holds no `workspace: read` there is given the workspace's identity alone, with no setting and no counts (criterion 26).
-- Account creation and the claim are built; disable, reactivation and reset are not. The Accounts screens themselves are a later task, so the built half is the API and the claim screen the emailed link lands on.
+- Account creation, the claim, disable, reactivation, reset and re-confirmation are built in the API, with the claim screen the emailed link lands on. The Accounts screens are a later task, and disabling a Site administrator is refused until the step-up and approval guards of section 8 are built.
 - Records that describe what is built (`docs/SECURITY_DESIGN.md`, the operator guides, the built-task notes in ADR-41) keep that description until the code changes, with a line pointing here.
 - The SEC-3 role table in `docs/SECURITY_DESIGN.md` §3.2 carries the policy code, because `apps/api/e2e/security/matrix-coverage.e2e.ts` reads it. It changes with the roles in code.
 
@@ -196,7 +196,7 @@ Every new workspace is created with four starter groups. They are ordinary group
 - **Account creation is refused until outbound email is configured.** The only exception is the first account, created at install by `qcms:create-admin`.
 - **Dependency: outbound email.** QCMS has no mail transport today. A transport, its configuration, the message template, delivery-failure handling and resend are v1 deliverables.
 - Every emailed sign-in link in this section, for creation, reactivation or after a reset, is single-use and expires after 72 hours.
-- **A link carries its purpose, and the claim answers only a creation link.** Reactivation and reset links reach an account that is already claimed, so they are not interchangeable with a creation link even while both are live.
+- **A link carries its purpose, and the claim answers each purpose by its own rule.** A creation or reactivation link sets a password. A reset link sets one where the reset took the password away, and otherwise signs the person in with the password they hold, so a reset link never replaces a kept password. A reset or a reactivation returns the account to unclaimed until that sign-in and a verified second factor, and a password sign-in is refused while the newest link is unspent.
 - **A claim always requires a verified second factor (Code Owner, 2026-11-16).** A password alone leaves the account unclaimed, so it still holds nothing. `QCMS_ADMIN_2FA=optional` is a development escape hatch for signing in to accounts that are already claimed, and never relaxes the claim.
 - **A completed claim kills every live link the account holds, and a claimed account refuses a creation link (Code Owner, 2026-11-16).** Both, rather than either: a link issued in the window between the password and the verified factor would otherwise stay usable for its 72 hours and set a new password on an account that had become live.
 - **Issuing a link supersedes every live one under the account's own lock**, so two resends at once leave one usable link rather than two.

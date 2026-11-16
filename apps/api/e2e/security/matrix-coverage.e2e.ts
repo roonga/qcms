@@ -154,6 +154,10 @@ describe("the §3.2 matrix and the probe inventory stay in step", () => {
       "/admin/logos",
       "/admin/accounts",
       "/admin/accounts/{id}/sign-in-link",
+      "/admin/accounts/{id}/holdings",
+      "/admin/accounts/{id}/disable",
+      "/admin/accounts/{id}/reactivate",
+      "/admin/accounts/{id}/reset",
     ]) {
       expect(
         adminPaths.some((path) => path.includes(slice)),
