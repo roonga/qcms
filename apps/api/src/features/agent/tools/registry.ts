@@ -15,6 +15,7 @@ import {
   type QuestionId,
 } from "@roonga/qcms-core";
 
+import { ResponseFilterQuery } from "../../responses/admin/schema.js";
 import { proposePlanSchema } from "./propose-schema.js";
 import { ProposedStep, type Proposal } from "./propose.js";
 import { selfContainedToolSchema } from "./tool-schema.js";
@@ -208,13 +209,18 @@ const DiffFormVersionsInput = z.object({
 
 const NoInput = z.object({});
 
-const ResponseFiltersInput = z.object({
-  ...FORM_SUBJECT,
+/**
+ * The response screen's own filters, typed as the model sends them rather than as the query
+ * string spells them. The key set is the route's: a filter it gains or loses fails here.
+ */
+const RESPONSE_FILTERS = {
   version: z.number().int().min(1).max(1_000_000).optional(),
   from: z.string().max(40).optional().describe("Inclusive lower bound on the start time."),
   to: z.string().max(40).optional().describe("Exclusive upper bound on the start time."),
   flagged: z.boolean().optional(),
-});
+} satisfies Record<keyof typeof ResponseFilterQuery.shape, z.ZodType>;
+
+const ResponseFiltersInput = z.object({ ...FORM_SUBJECT, ...RESPONSE_FILTERS });
 
 const ListResponsesInput = ResponseFiltersInput.extend({ limit: Limit });
 

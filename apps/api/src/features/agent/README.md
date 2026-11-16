@@ -43,6 +43,7 @@ flag-gated, and streams rather than returning a modelled JSON body.
 | `system-prompt.ts`                      | The versioned system prompt: the generated sections joined, with the kernel's own contracts filled in. Reviewed like code.                                                                                                               |
 | `assistant.ts`                          | The `streamText` tool loop, the stop-reason mapping, and the provider selector.                                                                                                                                                          |
 | `actions/`                              | One module per action-kind group, each kind's descriptor: its route, cell, argument schema, how the middleware recomputes its arguments, its result allowlist and its card templates.                                                    |
+| `actions/derive.ts`                     | The one way a kind's arguments are written: built from its route's own request-body schema, with the recompute that reads them back off a request.                                                                                       |
 | `proposal-token.ts`                     | The signed proposal token: the ordered step list, each step's argument digest and the environment it acts in.                                                                                                                            |
 | `draft-pins.ts`                         | The form's saved draft as a plan sees it: the versions it pins unpublished, and the revision a plan built from them is bound to.                                                                                                         |
 | `provenance.ts` / `provenance-mount.ts` | The provenance check and the middleware the admin group mounts it as. It adds provenance and never rights.                                                                                                                               |
@@ -106,6 +107,34 @@ screen, and the two tools whose only consumer that card is
 (`propose_questions`, `propose_draft`) are withheld with it. From anywhere else
 the same work is a plan of `question.create` steps and one `form.saveDraft`, and
 both the refusal and the system prompt say so.
+
+## A kind's arguments are the route's own schema
+
+Every argument of every kind is built from the Zod schema its route publishes,
+through `routeArgs` in `actions/derive.ts`. The limits, enums and formats a card
+offers are therefore the ones the route enforces: the access-group roles are the
+installation's own role names, an environment carries the name pattern, and a
+grant's address is an address.
+
+Three things hold it together. `StepArgs` is a type over the body's shape, so a
+body member that appears, disappears or is renamed fails `tsc` in the kind's own
+module rather than drifting into a card the route then refuses. Each kind names
+the body members **no step names** - a member the server derives, one the
+switcher supplies, or one a nested argument reaches - and a member in neither
+list is refused when the module loads. `recomputeArgs` is built from the same
+argument list, with the body's own default standing in where a request omits a
+member, so the propose side and the request side cannot disagree about what the
+digest covers.
+
+What a kind still spells out is a deliberate narrowing, each with its reason
+beside it: an erasure reason is the dialog's closed vocabulary, a link's expiry
+is a full instant rather than any string, and an endpoint is a URL. A read tool
+that mirrors a screen's own route shares its filter set the same way, by a
+`satisfies` over that route's query schema.
+
+The browser is outside all of it. `apps/admin/components/agent/step-actions.ts`
+reads a confirmed step's arguments by name and cannot import this registry, so
+`pnpm check:agent-step-args` is what holds the two together.
 
 ## A card never offers a step the route would reject
 

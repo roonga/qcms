@@ -1,7 +1,9 @@
 import { z } from "zod";
 
+import { CreateQuestionBody, EditVersionBody } from "../../questions/schema.js";
 import { ACTION_DESCRIPTIONS } from "../prompts/prompts.generated.js";
-import type { ActionKindDef, ActionRequestFacts } from "./types.js";
+import { routeArgs, stated, wholeParam, type StepArgs } from "./derive.js";
+import type { ActionKindDef } from "./types.js";
 
 /**
  * D6's question library and question detail. A question definition is authoring content
@@ -18,37 +20,39 @@ const VersionArg = z
   .max(2_147_483_647)
   .describe("The version this act names. A draft for a save, a published one to deprecate.");
 
-const DefinitionArg = z
-  .record(z.string(), z.unknown())
-  .describe(
-    "The question definition, as the kernel takes it: `questionId`, `type`, `label` and " +
-      "whatever that type requires. The API refuses one that is not valid, and the card " +
-      "shows every field of it before anybody confirms.",
-  );
+const DEFINITION_TEXT =
+  "The question definition, as the kernel takes it: `questionId`, `type`, `label` and " +
+  "whatever that type requires. The API refuses one that is not valid, and the card " +
+  "shows every field of it before anybody confirms.";
 
-const CreateQuestionArgs = z.strictObject({
-  slug: z
-    .string()
-    .min(1)
-    .max(200)
-    .describe("The slug the question is addressed by, unique in the library."),
-  definition: DefinitionArg,
-  workspaceId: z
-    .string()
-    .min(1)
-    .max(200)
-    .optional()
-    .describe(
-      "The workspace the question belongs to. Omitted where the installation has one, " +
-        "and required where it has more.",
-    ),
-});
+const create = routeArgs(
+  CreateQuestionBody,
+  {
+    slug: CreateQuestionBody.shape.slug
+      .max(200)
+      .describe("The slug the question is addressed by, unique in the library."),
+    definition: CreateQuestionBody.shape.definition.describe(DEFINITION_TEXT),
+    workspaceId: stated(CreateQuestionBody.shape.workspaceId)
+      .max(200)
+      .optional()
+      .describe(
+        "The workspace the question belongs to. Omitted where the installation has one, " +
+          "and required where it has more.",
+      ),
+  } satisfies StepArgs<typeof CreateQuestionBody.shape, never, never>,
+  {},
+);
 
-const SaveDraftArgs = z.strictObject({
-  questionId: QuestionIdArg,
-  version: VersionArg,
-  definition: DefinitionArg,
-});
+const saveDraft = routeArgs(
+  EditVersionBody,
+  {
+    questionId: QuestionIdArg,
+    version: VersionArg,
+    definition: EditVersionBody.shape.definition.describe(DEFINITION_TEXT),
+  } satisfies StepArgs<typeof EditVersionBody.shape, never, "questionId" | "version">,
+  // The path's `{v}` as the card displayed it, which is a number rather than its text.
+  { params: { questionId: "id" }, readers: { version: wholeParam("v") } },
+);
 
 const VersionActArgs = z.strictObject({
   questionId: QuestionIdArg,
@@ -57,16 +61,8 @@ const VersionActArgs = z.strictObject({
 
 const NewVersionArgs = z.strictObject({ questionId: QuestionIdArg });
 
-function bodyMember(facts: ActionRequestFacts, name: string): unknown {
-  return typeof facts.body === "object" && facts.body !== null
-    ? (facts.body as Record<string, unknown>)[name]
-    : undefined;
-}
-
 /** The path's `{v}` as the card displayed it, which is a number rather than its text. */
-function versionParam(facts: ActionRequestFacts): number {
-  return Number.parseInt(facts.params["v"] ?? "", 10);
-}
+const versionParam = wholeParam("v");
 
 export const createQuestion: ActionKindDef = {
   kind: "question.create",
@@ -74,14 +70,7 @@ export const createQuestion: ActionKindDef = {
   route: { method: "POST", path: "/admin/questions" },
   cell: { resource: "question", action: "write" },
   environmentFrom: "switcher",
-  args: CreateQuestionArgs,
-  recomputeArgs: (facts) => ({
-    slug: bodyMember(facts, "slug"),
-    definition: bodyMember(facts, "definition"),
-    ...(bodyMember(facts, "workspaceId") === undefined
-      ? {}
-      : { workspaceId: bodyMember(facts, "workspaceId") }),
-  }),
+  ...create,
   references: ["questionId"],
   resultAllowlist: ["questionId", "slug", "version"],
   carriesQuestionDefinition: true,
@@ -100,12 +89,7 @@ export const saveQuestionDraft: ActionKindDef = {
   route: { method: "PUT", path: "/admin/questions/{id}/versions/{v}" },
   cell: { resource: "question", action: "write" },
   environmentFrom: "switcher",
-  args: SaveDraftArgs,
-  recomputeArgs: (facts) => ({
-    questionId: facts.params["id"] ?? "",
-    version: versionParam(facts),
-    definition: bodyMember(facts, "definition"),
-  }),
+  ...saveDraft,
   references: [],
   resultAllowlist: ["questionId", "version", "status"],
   carriesQuestionDefinition: true,

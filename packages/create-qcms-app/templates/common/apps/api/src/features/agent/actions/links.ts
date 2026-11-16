@@ -1,33 +1,38 @@
 import { z } from "zod";
 
+import { MintLinksBody } from "../../links/schema.js";
 import { ACTION_DESCRIPTIONS } from "../prompts/prompts.generated.js";
-import type { ActionKindDef, ActionRequestFacts } from "./types.js";
+import { routeArgs, stated, type StepArgs } from "./derive.js";
+import type { ActionKindDef } from "./types.js";
 
 /** D3's two kinds. A minted URL is a bearer credential and reaches the user only. */
 
-const MintArgs = z.strictObject({
-  formId: z.string().min(1).max(200),
-  count: z.number().int().min(1).max(100).describe("How many links to mint."),
-  // A full UTC instant, not a calendar day: the mint dialog widens a date-only value to
-  // the end of that day, and the digest is taken over what the request body carries.
-  expiresAt: z.iso
-    .datetime()
-    .describe(
-      "When the links stop working, as a full UTC instant such as 2026-12-31T23:59:59.000Z.",
+const FormIdArg = z.string().min(1).max(200);
+
+const mint = routeArgs(
+  MintLinksBody,
+  {
+    formId: FormIdArg,
+    count: stated(MintLinksBody.shape.count).describe("How many links to mint."),
+    // A full UTC instant, not a calendar day: the mint dialog widens a date-only value to
+    // the end of that day, and the digest is taken over what the request body carries.
+    expiresAt: z.iso
+      .datetime()
+      .describe(
+        "When the links stop working, as a full UTC instant such as 2026-12-31T23:59:59.000Z.",
+      ),
+    oneTime: stated(MintLinksBody.shape.oneTime).describe(
+      "Whether each link is consumed by the first respondent.",
     ),
-  oneTime: z.boolean().describe("Whether each link is consumed by the first respondent."),
-});
+  } satisfies StepArgs<typeof MintLinksBody.shape, "environment", "formId">,
+  // The environment is the switcher's, which a step binds rather than names.
+  { unnamed: ["environment"], params: { formId: "id" } },
+);
 
 const RevokeArgs = z.strictObject({
-  formId: z.string().min(1).max(200),
+  formId: FormIdArg,
   linkId: z.string().min(1).max(200),
 });
-
-function bodyMember(facts: ActionRequestFacts, name: string): unknown {
-  return typeof facts.body === "object" && facts.body !== null
-    ? (facts.body as Record<string, unknown>)[name]
-    : undefined;
-}
 
 export const mintLinks: ActionKindDef = {
   kind: "link.mint",
@@ -35,13 +40,7 @@ export const mintLinks: ActionKindDef = {
   route: { method: "POST", path: "/admin/forms/{id}/links" },
   cell: { resource: "link", action: "mint" },
   environmentFrom: "switcher",
-  args: MintArgs,
-  recomputeArgs: (facts) => ({
-    formId: facts.params.id ?? "",
-    count: bodyMember(facts, "count") ?? 1,
-    expiresAt: bodyMember(facts, "expiresAt"),
-    oneTime: bodyMember(facts, "oneTime") ?? false,
-  }),
+  ...mint,
   references: ["count"],
   // Never `url` or `links`: a link URL carries a bearer token.
   resultAllowlist: ["count", "expiresAt", "environment"],

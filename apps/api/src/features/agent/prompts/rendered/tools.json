@@ -2958,6 +2958,7 @@
                             "type": "string",
                             "minLength": 1,
                             "maxLength": 53,
+                            "pattern": "^[a-z][a-z0-9]*$",
                             "description": "The one environment the newly frozen version goes live in."
                           },
                           {
@@ -3006,7 +3007,7 @@
                         "anyOf": [
                           {
                             "type": "integer",
-                            "minimum": 1,
+                            "exclusiveMinimum": 0,
                             "maximum": 1000000
                           },
                           {
@@ -3019,7 +3020,8 @@
                           {
                             "type": "string",
                             "minLength": 1,
-                            "maxLength": 53
+                            "maxLength": 53,
+                            "pattern": "^[a-z][a-z0-9]*$"
                           },
                           {
                             "$ref": "#/$defs/StepReference_d3"
@@ -3031,7 +3033,8 @@
                           {
                             "type": "string",
                             "minLength": 1,
-                            "maxLength": 53
+                            "maxLength": 53,
+                            "pattern": "^[a-z][a-z0-9]*$"
                           },
                           {
                             "$ref": "#/$defs/StepReference_d3"
@@ -3095,7 +3098,7 @@
                               {
                                 "type": "integer",
                                 "minimum": 0,
-                                "maximum": 600000
+                                "maximum": 3600000
                               },
                               {
                                 "type": "null"
@@ -3902,8 +3905,13 @@
                             "type": "array",
                             "items": {
                               "type": "string",
-                              "minLength": 1,
-                              "maxLength": 100
+                              "enum": [
+                                "forms.viewer",
+                                "forms.editor",
+                                "forms.publisher",
+                                "responses.viewer",
+                                "responses.eraser"
+                              ]
                             },
                             "description": "Every role each holder of this group is granted."
                           },
@@ -3915,12 +3923,12 @@
                       "environments": {
                         "anyOf": [
                           {
-                            "maxItems": 50,
+                            "maxItems": 32,
                             "type": "array",
                             "items": {
                               "type": "string",
-                              "minLength": 1,
-                              "maxLength": 53
+                              "maxLength": 53,
+                              "pattern": "^[a-z][a-z0-9]*$"
                             },
                             "description": "The environments the group applies in. There is no value meaning all of them. Empty only where every role in the group is forms.viewer or forms.editor, which apply in every environment."
                           },
@@ -4033,8 +4041,9 @@
                         "anyOf": [
                           {
                             "type": "string",
-                            "minLength": 3,
                             "maxLength": 320,
+                            "format": "email",
+                            "pattern": "^(?:[A-Za-z0-9_'+\\-]+\\.)*[A-Za-z0-9_'+\\-]*[A-Za-z0-9_+-]@(?:[A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
                             "description": "The address of the person the group is granted to."
                           },
                           {
