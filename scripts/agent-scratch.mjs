@@ -1,22 +1,22 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Key scratch paths by branch so neither a stale file nor another lane can satisfy a run. Concurrent
- * sessions on one branch need distinct lane overrides; a name already taken is refused rather than removed.
+ * Key scratch paths by worktree folder so neither a stale file nor another lane can satisfy a run.
+ * Concurrent sessions in one worktree need distinct lane overrides; a name already taken is refused rather than removed.
  */
 
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { argv, cwd, env } from "node:process";
 import { pathToFileURL } from "node:url";
 
 export const DEFAULT_ROOT_NAME = "qcms-agent-scratch";
 
 /**
- * Bounded so a long branch name cannot push the path past a filesystem limit. The slug
- * is lossy, which is safe only because the branch namespace leads with a unique number.
+ * Bounded so a long name cannot push the path past a filesystem limit. The slug is lossy,
+ * which is safe only because worktree folder names are unique within one checkout.
  *
  * @param {string} name
  * @returns {string}
@@ -33,8 +33,9 @@ export function laneSlug(name) {
 }
 
 /**
- * A detached HEAD keys on its short SHA rather than a shared fallback name, since a
- * shared fallback is the defect this file exists to remove.
+ * Keyed on the worktree folder rather than the branch: the folder is fixed when the worktree
+ * is created, so a first call cannot see another branch's name, and a renamed or detached
+ * branch keeps its directory.
  *
  * @param {string} directory
  * @param {NodeJS.ProcessEnv} environment
@@ -44,17 +45,12 @@ export function resolveLane(directory, environment) {
   const override = environment.QCMS_AGENT_LANE?.trim();
   if (override !== undefined && override !== "") return laneSlug(override);
 
-  /** @param {string[]} args */
-  const git = (args) =>
-    execFileSync("git", ["-C", directory, ...args], {
+  let top;
+  try {
+    top = execFileSync("git", ["-C", directory, "rev-parse", "--show-toplevel"], {
       encoding: "utf8",
-      windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"],
     }).trim();
-
-  let branch;
-  try {
-    branch = git(["rev-parse", "--abbrev-ref", "HEAD"]);
   } catch (error) {
     // A spawn failure and a refusal from git need different fixes, so they are reported
     // apart: `ENOENT` means git could not be started at all.
@@ -68,14 +64,13 @@ export function resolveLane(directory, environment) {
     }
     const stderr = String(/** @type {{ stderr?: unknown }} */ (detail).stderr ?? "").trim();
     throw new Error(
-      `git could not name the branch in ${directory}: ` +
+      `git could not find the worktree root of ${directory}: ` +
         `${stderr === "" ? (detail.message ?? "no output") : stderr}. ` +
         `Run this from a worktree, or set QCMS_AGENT_LANE.`,
       { cause: error },
     );
   }
-  if (branch === "HEAD") return laneSlug(`detached-${git(["rev-parse", "--short", "HEAD"])}`);
-  return laneSlug(branch);
+  return laneSlug(basename(top));
 }
 
 /**
