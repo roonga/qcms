@@ -244,11 +244,16 @@ async function publishVersion(formId: string): Promise<void> {
 }
 
 /** Holds a tokened save between its reads and its upsert while `between` runs. */
-async function stalled(formId: string, token: string, between: () => Promise<void>) {
+async function stalled(
+  formId: string,
+  token: string | undefined,
+  between: () => Promise<void>,
+  title = "Agent",
+) {
   await testDb.client.query("begin");
   try {
     await testDb.client.query("lock table control.form_drafts in share row exclusive mode");
-    const pending = put(formId, "Agent", token);
+    const pending = put(formId, title, token);
     let waiting = 0;
     for (let i = 0; i < 400 && waiting === 0; i += 1) {
       await new Promise((resolve) => setTimeout(resolve, 25));
@@ -278,4 +283,48 @@ describe("an edit binds the published version it was minted for", { timeout: TIM
       expect(await revisionOf(formId)).toBe(seeded ? 1 : 0);
     });
   }
+});
+
+async function rowKinds(formId: string): Promise<string[]> {
+  const result = await testDb.client.query<{ kind: string }>(
+    "select kind from control.agent_actions where form_id = $1 order by kind",
+    [formId],
+  );
+  return result.rows.map((row) => row.kind);
+}
+
+async function undoTokenAfterEdit(formId: string): Promise<string> {
+  const edited = await put(formId, "Agent", await mint(formId, 1));
+  const body = (await edited.json()) as { agentEdit?: { undoToken?: string } };
+  const undoToken = body.agentEdit?.undoToken;
+  if (undoToken === undefined) throw new Error("edit returned no undo token");
+  return undoToken;
+}
+
+describe("an undo binds the published version it was minted for", { timeout: TIMEOUT_MS }, () => {
+  it("refuses an undo when a version lands between its reads and its write", async () => {
+    const formId = await newForm(true);
+    const undoToken = await undoTokenAfterEdit(formId);
+    const rowsBefore = await rowKinds(formId);
+    const res = await stalled(formId, undoToken, () => publishVersion(formId), "Start");
+    expect(await outcome(res)).toBe("409:AGENT_UNDO_SUPERSEDED");
+    expect(await rowKinds(formId)).toEqual(rowsBefore);
+    expect(await revisionOf(formId)).toBe(2);
+  });
+
+  it("applies an undo when nothing lands in between", async () => {
+    const formId = await newForm(true);
+    const undoToken = await undoTokenAfterEdit(formId);
+    const res = await stalled(formId, undoToken, async () => {}, "Start");
+    expect(await outcome(res)).toBe("200");
+    expect(await rowKinds(formId)).toContain("draft.undo");
+    expect(await revisionOf(formId)).toBe(3);
+  });
+
+  it("does not refuse a plain save when a version lands between its reads and its write", async () => {
+    const formId = await newForm(true);
+    const res = await stalled(formId, undefined, () => publishVersion(formId), "Human");
+    expect(await outcome(res)).toBe("200");
+    expect(await rowKinds(formId)).toEqual([]);
+  });
 });
