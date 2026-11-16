@@ -21,6 +21,7 @@ import {
   portalMode,
   portalTheme,
   resolveAppearance,
+  resolveCorners,
   rootClassName,
 } from "./theme.js";
 
@@ -279,6 +280,54 @@ describe("respondent choices resolve over config (task 053)", () => {
     process.env.QCMS_PORTAL_FONT = "inter";
     expect(resolveAppearance({ ...NO_COOKIES, font: "lexend" }).font).toBe("inter");
     expect(resolveAppearance({ ...NO_COOKIES, font: SYSTEM_FONT_KEY }).font).toBe(SYSTEM_FONT_KEY);
+  });
+});
+
+describe("a form's appearance sits between the respondent's choice and config", () => {
+  const FORM = { face: "lexend", density: "spacious", corners: "pill" } as const;
+
+  it("the form beats config on face, density and corners", () => {
+    process.env.QCMS_PORTAL_FONT = "inter";
+    process.env.QCMS_PORTAL_DENSITY = "compact";
+    process.env.QCMS_PORTAL_CORNERS = "sharp";
+    const resolved = resolveAppearance(NO_COOKIES, FORM);
+    expect(resolved.font).toBe("lexend");
+    expect(resolved.density).toBe("spacious");
+    expect(resolveCorners(FORM)).toBe("pill");
+  });
+
+  it("the respondent's cookie beats the form on every axis it carries", () => {
+    process.env.QCMS_PORTAL_MODE = "light";
+    expect(resolveAppearance({ mode: "hc", font: "atkinson", density: "compact" }, FORM)).toEqual({
+      mode: "hc",
+      modeChosen: true,
+      font: "atkinson",
+      density: "compact",
+    });
+  });
+
+  it("leaves the mode to the respondent and config, since a form sets none", () => {
+    process.env.QCMS_PORTAL_MODE = "dark";
+    expect(resolveAppearance(NO_COOKIES, FORM).mode).toBe("dark");
+  });
+
+  it("falls back to config with no form appearance", () => {
+    process.env.QCMS_PORTAL_FONT = "inter";
+    process.env.QCMS_PORTAL_DENSITY = "compact";
+    process.env.QCMS_PORTAL_CORNERS = "sharp";
+    for (const form of [null, undefined]) {
+      expect(resolveAppearance(NO_COOKIES, form)).toMatchObject({
+        font: "inter",
+        density: "compact",
+      });
+      expect(resolveCorners(form)).toBe("sharp");
+    }
+  });
+
+  it("holds the form's face to the faces the deployment offers", () => {
+    process.env.QCMS_PORTAL_FONTS = "inter";
+    process.env.QCMS_PORTAL_FONT = "inter";
+    expect(resolveAppearance(NO_COOKIES, FORM).font).toBe("inter");
   });
 });
 

@@ -117,6 +117,15 @@ describe("the environment prefix (task 066)", () => {
     expect(response.headers.get(ENVIRONMENT_HEADER)).toBe("test");
   });
 
+  it("names the environment-stripped path on the request, overwriting a client's", () => {
+    vi.stubEnv("QCMS_PORTAL_ENVIRONMENTS", "test");
+    const PATH = "x-middleware-request-x-qcms-path";
+    expect(at("https://portal.example/test/s/ses_1?step=2").headers.get(PATH)).toBe("/s/ses_1");
+    expect(at("https://portal.example/s/ses_2", { "x-qcms-path": "/s/ses_9" }).headers.get(PATH)).toBe(
+      "/s/ses_2",
+    );
+  });
+
   it("does not honour an environment header a client sent", () => {
     vi.stubEnv("QCMS_PORTAL_ENVIRONMENTS", "test");
     const response = at("https://portal.example/s/ses_1", { "x-qcms-environment": "test" });
