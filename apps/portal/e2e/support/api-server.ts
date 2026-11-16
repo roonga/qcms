@@ -1,6 +1,7 @@
 import { createRequire } from "node:module";
 import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+import { pathToFileURL } from "node:url";
 
 import {
   adminLogin,
@@ -50,6 +51,27 @@ type Serve = (options: {
 const apiRequire = createRequire(new URL("../../../api/package.json", import.meta.url));
 const { serve } = apiRequire("@hono/node-server") as { serve: Serve };
 
+/** A form the per-form appearance suite publishes appearances into, one per test. */
+export interface AppearanceForm {
+  readonly formId: string;
+  readonly slug: string;
+}
+
+/** The colour and face axes `deriveAppearance` returns, which the suite builds appearances from. */
+export interface DerivedLook {
+  readonly palettes: Readonly<Record<string, Readonly<Record<string, string>>>>;
+  readonly face: string;
+  readonly pageTint: boolean;
+}
+
+export interface FormAppearanceFixtures {
+  readonly adminSessionToken: string;
+  readonly workspaceId: string;
+  readonly forms: Readonly<Record<"own" | "frozen" | "theme" | "axe" | "noJs", AppearanceForm>>;
+  /** Keyed by the seed primary. */
+  readonly looks: Readonly<Record<"teal" | "crimson", DerivedLook>>;
+}
+
 /** The fixtures the specs read: the form slug and one link token per outcome. */
 export interface PortalFixtures {
   readonly slug: string;
@@ -71,6 +93,7 @@ export interface PortalFixtures {
   readonly closedFormToken: string;
   readonly testEnvironmentToken: string;
   readonly unpublishedPinFormId: string;
+  readonly formAppearance: FormAppearanceFixtures;
 }
 
 interface RunningApi {
@@ -209,6 +232,7 @@ export async function startApiServer(): Promise<void> {
   });
 
   const { formId: unpublishedPinFormId } = await seedUnpublishedPinForm(testDb.db);
+  const formAppearance = await seedAppearanceForms(testDb.db, adminSessionToken);
 
   const fixtures: PortalFixtures = {
     slug,
@@ -226,12 +250,53 @@ export async function startApiServer(): Promise<void> {
     closedFormToken,
     testEnvironmentToken,
     unpublishedPinFormId,
+    formAppearance,
   };
   mkdirSync(dirname(FIXTURES_PATH), { recursive: true });
   writeFileSync(FIXTURES_PATH, JSON.stringify(fixtures, null, 2), "utf8");
 
   const server = serve({ fetch: app.fetch, port: API_PORT, hostname: "127.0.0.1" });
   running = { testDb, server };
+}
+
+interface CoreAppearance {
+  deriveAppearance(seed: { primary: string }): DerivedLook;
+}
+
+/**
+ * Each form starts as a copy of the insurance form with no appearance. The suite then
+ * publishes appearances through the admin API, so what it checks went through a real
+ * freeze rather than a storage door.
+ */
+async function seedAppearanceForms(
+  db: TestDb["db"],
+  adminSessionToken: string,
+): Promise<FormAppearanceFixtures> {
+  const forms = {} as Record<keyof FormAppearanceFixtures["forms"], AppearanceForm>;
+  for (const name of ["own", "frozen", "theme", "axe", "noJs"] as const) {
+    const slug = `appearance-${name.toLowerCase()}`;
+    const { formId } = await seedInsuranceForm(db, {
+      formId: `frm_appearance_${name.toLowerCase()}`,
+      slug,
+      sharedQuestionsSeeded: true,
+    });
+    forms[name] = { formId, slug };
+  }
+  const core = (await import(
+    pathToFileURL(apiRequire.resolve("@roonga/qcms-core")).href
+  )) as CoreAppearance;
+  const testing = (await import(
+    pathToFileURL(apiRequire.resolve("@roonga/qcms-db/testing")).href
+  )) as { SEED_WORKSPACE_ID: string };
+  return {
+    adminSessionToken,
+    workspaceId: testing.SEED_WORKSPACE_ID,
+    forms,
+    looks: {
+      teal: core.deriveAppearance({ primary: "#0f766e" }),
+      crimson: core.deriveAppearance({ primary: "#b91c1c" }),
+    },
+  };
 }
 
 export async function stopApiServer(): Promise<void> {
