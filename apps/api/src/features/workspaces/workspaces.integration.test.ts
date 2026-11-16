@@ -60,7 +60,7 @@ beforeAll(async () => {
     },
   });
   internalToken = internalTokenFor(deps.config);
-  const admin = await seedAdminSession(testDb.db);
+  const admin = await seedAdminSession(testDb.db, { claim: true });
   adminSessionToken = admin.token;
   adminUserId = admin.userId;
 }, CONTAINER_BOOT_TIMEOUT_MS);
@@ -171,7 +171,11 @@ describe("the workspace list narrowed to the caller's own", () => {
 
   it("gives the installation administrator every workspace", async () => {
     const elsewhere = await createWorkspace("list-elsewhere");
-    const claimOnly = await seedAdminSession(testDb.db, { label: "list-claim", membership: false });
+    const claimOnly = await seedAdminSession(testDb.db, {
+      label: "list-claim",
+      claim: true,
+      membership: false,
+    });
 
     const ids = await listedIds(claimOnly.token);
     const every = (await listWorkspaces(testDb.db)).map((row) => row.id);

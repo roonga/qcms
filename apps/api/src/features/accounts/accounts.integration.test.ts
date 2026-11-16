@@ -311,7 +311,7 @@ beforeAll(async () => {
   adminOrigin = deps.config.adminAuth.baseUrl;
 
   const at = new Date();
-  const siteAdmin = await seedAdminSession(testDb.db, { label: "site", at });
+  const siteAdmin = await seedAdminSession(testDb.db, { label: "site", at, claim: true });
   siteAdminToken = siteAdmin.token;
   const workspaceAdmin = await seedAdminSession(testDb.db, {
     label: "wsadmin",

@@ -85,7 +85,7 @@ beforeAll(async () => {
   });
   internalToken = internalTokenFor(deps.config);
 
-  const owner = await seedAdminSession(testDb.db, { label: "owner" });
+  const owner = await seedAdminSession(testDb.db, { label: "owner", claim: true });
   ownerToken = owner.token;
   ownerId = owner.userId;
 
@@ -290,11 +290,13 @@ describe("the membership list and the capability endpoint (criterion 7, Q35)", (
     const unclaimedAdmin = await seedAdminSession(testDb.db, {
       label: "unclaimedadmin",
       claimed: false,
+      claim: true,
       grants: [],
     });
     const disabledAdmin = await seedAdminSession(testDb.db, {
       label: "disabledadmin",
       disabledAt: new Date(),
+      claim: true,
       grants: [],
     });
     const nothing = (await (await as(nobodyToken, "GET", "/me/access")).json()) as {

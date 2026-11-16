@@ -292,7 +292,7 @@ beforeAll(async () => {
     { roles: ["forms.editor"], environments: [] },
     { roles: ["forms.publisher"], environments: [...LIVE_SET] },
   ]);
-  claim = await seedAdminSession(control, { label: "bClaim", membership: false });
+  claim = await seedAdminSession(control, { label: "bClaim", membership: false, claim: true });
   otherWorkspaceEditor = await persona("bOther", [
     { roles: ["forms.editor"], environments: [], workspaceId: OTHER_WORKSPACE },
     { roles: ["forms.publisher"], environments: [...LIVE_SET], workspaceId: OTHER_WORKSPACE },

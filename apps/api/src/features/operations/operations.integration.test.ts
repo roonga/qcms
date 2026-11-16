@@ -289,6 +289,7 @@ beforeAll(async () => {
   installationAdmin = await seedAdminSession(control, {
     label: "opsclaim",
     membership: false,
+    claim: true,
   });
   combined = await persona("opscombined", [
     { roles: ["forms.viewer"], environments: [] },

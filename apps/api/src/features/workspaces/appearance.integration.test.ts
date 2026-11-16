@@ -59,6 +59,7 @@ let app: ReturnType<typeof createApp>;
 let respondentApp: ReturnType<typeof createApp>;
 let internalToken: string;
 let editor: { token: string; userId: string };
+let siteAdmin: { token: string; userId: string };
 
 beforeAll(async () => {
   testDb = await startTestDb();
@@ -83,6 +84,11 @@ beforeAll(async () => {
   });
   internalToken = internalTokenFor(deps.config);
   editor = await seedAdminSession(testDb.db, { label: "appearance-editor" });
+  siteAdmin = await seedAdminSession(testDb.db, {
+    label: "appearance-site",
+    claim: true,
+    membership: false,
+  });
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
 afterAll(async () => {
@@ -135,7 +141,7 @@ let workspaceCounter = 0;
 async function newWorkspace(label: string): Promise<string> {
   workspaceCounter += 1;
   const slug = `${label}-${String(workspaceCounter)}`;
-  const res = await send("POST", "/workspaces", { name: slug, slug });
+  const res = await as(siteAdmin.token, "POST", "/workspaces", { name: slug, slug });
   expect(res.status, await res.clone().text()).toBe(201);
   const created = (await res.json()) as { workspace: { workspaceId: string } };
   await seedGrants(testDb.db, {
@@ -383,6 +389,7 @@ describe(
       });
       const siteAdministrator = await seedAdminSession(testDb.db, {
         label: "themes-site-admin",
+        claim: true,
         membership: false,
       });
 
@@ -467,6 +474,7 @@ describe(
       });
       const siteAdministrator = await seedAdminSession(testDb.db, {
         label: "lock-site-admin",
+        claim: true,
         membership: false,
       });
 
@@ -571,6 +579,7 @@ describe(
         }),
         await seedAdminSession(testDb.db, {
           label: "locked-site-admin",
+          claim: true,
           workspaceId,
           grants: ["forms.editor"],
         }),
@@ -1026,6 +1035,7 @@ describe("a Site administrator may take a stored logo down", { timeout: TIMEOUT_
 
     const siteAdministrator = await seedAdminSession(testDb.db, {
       label: "takedown-site-admin",
+        claim: true,
       membership: false,
     });
     const takedown = await as(siteAdministrator.token, "DELETE", `/logos/${logoKey}`);
@@ -1070,6 +1080,7 @@ describe("a Site administrator may take a stored logo down", { timeout: TIMEOUT_
 
     const siteAdministrator = await seedAdminSession(testDb.db, {
       label: "tombstone-site-admin",
+        claim: true,
       membership: false,
     });
     const takedown = await as(siteAdministrator.token, "DELETE", `/logos/${logoKey}`);
@@ -1106,6 +1117,7 @@ describe("a Site administrator may take a stored logo down", { timeout: TIMEOUT_
 
     const siteAdministrator = await seedAdminSession(testDb.db, {
       label: "takedown-mirror-site-admin",
+        claim: true,
       membership: false,
     });
     const takedown = await as(siteAdministrator.token, "DELETE", `/logos/${logoKey}`);
@@ -1172,6 +1184,7 @@ describe("a Site administrator may take a stored logo down", { timeout: TIMEOUT_
     ]);
     const siteAdministrator = await seedAdminSession(testDb.db, {
       label: "takedown-race-site-admin",
+        claim: true,
       membership: false,
     });
 

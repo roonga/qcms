@@ -32,7 +32,6 @@ import {
 import { REQUEST_ENVIRONMENT_HEADER } from "../../src/middleware/request-environment.js";
 import { seedAdminSession, seedGrants, synthSecret } from "../../src/test-support.js";
 import {
-  adminLogin,
   AdminClient,
   MOUNT,
   RespondentClient,
@@ -42,6 +41,7 @@ import {
   mintInsuranceLink,
   publishInsuranceVersion,
   seedInsuranceForm,
+  siteAdminLogin,
   startTestDb,
   type TestDb,
 } from "../support/index.js";
@@ -106,7 +106,7 @@ beforeAll(async () => {
   all = composeApi(testDb.db, env, MOUNT.all);
   publicOnly = composeApi(testDb.db, env, MOUNT.publicOnly);
   internalToken = all.internalToken;
-  adminToken = await adminLogin(testDb.db);
+  adminToken = await siteAdminLogin(testDb.db);
 
   const { formId, slug } = await seedInsuranceForm(testDb.db);
   const respondent = new RespondentClient(all.app, internalToken);
@@ -974,6 +974,7 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
   it("gives the installation claim administration and no response anywhere (criterion 5, Q29)", async () => {
     const claimOnly = await seedAdminSession(testDb.db, {
       label: "probe-claim",
+      claim: true,
       membership: false,
     });
     expect(
@@ -1074,6 +1075,7 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
 
     const claimOnly = await seedAdminSession(testDb.db, {
       label: "probe-list-claim",
+      claim: true,
       membership: false,
     });
     const claimSees = await listed(claimOnly.token);
@@ -1102,6 +1104,7 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
 
     const claimOnly = await seedAdminSession(testDb.db, {
       label: "probe-rename-claim",
+      claim: true,
       membership: false,
     });
     const renamed = await put(claimOnly.token, other.workspaceId, "Renamed by the claim");

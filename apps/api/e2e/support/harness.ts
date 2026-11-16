@@ -92,6 +92,12 @@ export async function adminLogin(db: TestDb["db"], at: Date = NOW): Promise<stri
   return token;
 }
 
+/** {@link adminLogin} for a Site administrator, for a suite that reaches installation-wide routes. */
+export async function siteAdminLogin(db: TestDb["db"], at: Date = NOW): Promise<string> {
+  const { token } = await seedAdminSession(db, { at, claim: true });
+  return token;
+}
+
 /**
  * One real pool per environment, each registered with {@link TestDb.register} so teardown
  * drains it. Real pools, because the suites assert which schema a row landed in.

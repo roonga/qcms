@@ -617,7 +617,11 @@ describe("erase excludes from all read paths; unflag releases the event (exit cr
     }>;
     expect(rows.map((r) => r.sessionId)).toEqual([kept]);
 
-    const erasures = (await (await get("/erasures?formId=frm_erase_api")).json()) as {
+    const siteAdmin = await seedAdminSession(testDb.db, { label: "tombstones", claim: true });
+    const erasuresRes = await app.request("/admin/erasures?formId=frm_erase_api", {
+      headers: authHeaders({ [ADMIN_SESSION_HEADER]: siteAdmin.token }),
+    });
+    const erasures = (await erasuresRes.json()) as {
       erasures: Array<{ sessionId: string; reason: string }>;
     };
     expect(erasures.erasures.map((e) => e.sessionId)).toContain(erased);

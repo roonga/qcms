@@ -2,7 +2,6 @@ import { DEFAULT_TEST_ENVIRONMENT } from "@roonga/qcms-db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
-  adminLogin,
   AdminClient,
   INSURANCE_DEF,
   INSURANCE_GOLDEN,
@@ -15,6 +14,7 @@ import {
   buildEnv,
   composeApi,
   drainWebhooks,
+  siteAdminLogin,
   startTestDb,
   tokenFromLinkUrl,
   verifyWebhookSignature,
@@ -53,7 +53,7 @@ beforeAll(async () => {
   const env = buildEnv();
   const composed = composeApi(testDb.db, env, MOUNT.all);
   deps = composed.deps;
-  admin = new AdminClient(composed.app, composed.internalToken, await adminLogin(testDb.db));
+  admin = new AdminClient(composed.app, composed.internalToken, await siteAdminLogin(testDb.db));
   respondent = new RespondentClient(composed.app, composed.internalToken);
 });
 

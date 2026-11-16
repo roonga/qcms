@@ -44,7 +44,11 @@ beforeAll(async () => {
     },
   });
   internalToken = internalTokenFor(deps.config);
-  siteAdmin = await seedAdminSession(testDb.db, { label: "site-admin", membership: false });
+  siteAdmin = await seedAdminSession(testDb.db, {
+    label: "site-admin",
+    claim: true,
+    membership: false,
+  });
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
 afterAll(async () => {

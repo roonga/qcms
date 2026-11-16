@@ -135,7 +135,7 @@ beforeAll(async () => {
   // QCMS_APP_KEY stable so an encrypted webhook secret stays decryptable.
   baseEnv = validEnv({ QCMS_WEBHOOK_ALLOW_PRIVATE: "true" });
   deps = makeDeps({ db: testDb.db, env: baseEnv, clock: systemClock });
-  adminSessionToken = (await seedAdminSession(testDb.db, { at: new Date(), label: "operator" }))
+  adminSessionToken = (await seedAdminSession(testDb.db, { at: new Date(), label: "operator", claim: true }))
     .token;
 }, CONTAINER_BOOT_TIMEOUT_MS);
 

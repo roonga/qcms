@@ -96,7 +96,7 @@ describe("admin-auth: an unauthenticated /admin call is 401", () => {
 
 describe("admin-auth: a real, in-policy session authenticates", () => {
   it("passes and resolves the principal with its SEC-3 role claim", async () => {
-    const { token, userId } = await seedAdminSession(testDb.db, { at: NOW, label: "ok" });
+    const { token, userId } = await seedAdminSession(testDb.db, { at: NOW, label: "ok", claim: true });
     const res = await whoami(compose(), token);
     expect(res.status).toBe(200);
     const body = (await res.json()) as {

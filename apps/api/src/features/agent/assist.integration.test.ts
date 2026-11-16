@@ -725,7 +725,13 @@ describe("every screen's context, with a sentinel in the database", () => {
     return params;
   }
 
+  let owner = { token: "", userId: "" };
+
   beforeAll(async () => {
+    owner = { token: adminSessionToken, userId: adminUserId };
+    const siteAdmin = await seedAdminSession(testDb.db, { label: "walk", claim: true });
+    adminSessionToken = siteAdmin.token;
+    adminUserId = siteAdmin.userId;
     await seedSentinelData();
     screenStatuses = new Map<string, number>();
     // The provider calls before the walk, so the assertions below read this walk's own
@@ -767,6 +773,11 @@ describe("every screen's context, with a sentinel in the database", () => {
     // boot.
   }, BOOT_TIMEOUT * 3);
 
+  afterAll(() => {
+    adminSessionToken = owner.token;
+    adminUserId = owner.userId;
+  });
+
   it("builds a context for every screen in the registry", () => {
     expect([...screenStatuses.entries()].filter(([, status]) => status !== 200)).toEqual([]);
   });
@@ -784,8 +795,8 @@ describe("every screen's context, with a sentinel in the database", () => {
       }
     }
     // The read tools only: a propose tool puts a card up for the user to confirm, so a
-    // read walk never executes one. The walk runs as the seeded owner, who holds every
-    // cell, so every read tool is offered somewhere in it.
+    // read walk never executes one. The walk runs as a Site administrator who holds every
+    // grant, so every read tool is offered somewhere in it.
     expect([...executed].sort()).toEqual([...AGENT_READ_TOOL_NAMES].sort());
   });
 
