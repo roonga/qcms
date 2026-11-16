@@ -1246,6 +1246,7 @@ describe("a Site administrator may take a stored logo down", { timeout: TIMEOUT_
     const { logoKey } = (await uploaded.json()) as { logoKey: string };
     const siteAdministrator = await seedAdminSession(testDb.db, {
       label: "takedown-conflict-site-admin",
+      claim: true,
       membership: false,
     });
 
@@ -1300,6 +1301,7 @@ describe("a Site administrator may take a stored logo down", { timeout: TIMEOUT_
       }
       const siteAdministrator = await seedAdminSession(testDb.db, {
         label: `takedown-echo-site-admin-${String(locked)}`,
+        claim: true,
         membership: false,
       });
       const takedown = await as(siteAdministrator.token, "DELETE", `/logos/${logoKey}`);
@@ -1348,6 +1350,7 @@ describe("a Site administrator may take a stored logo down", { timeout: TIMEOUT_
   it("answers the serving route's uniform 404 for a malformed key", async () => {
     const siteAdministrator = await seedAdminSession(testDb.db, {
       label: "takedown-malformed",
+      claim: true,
       membership: false,
     });
     const res = await as(siteAdministrator.token, "DELETE", "/logos/not-a-key");
