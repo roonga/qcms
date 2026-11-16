@@ -149,7 +149,10 @@ describe("the agent tool registry", () => {
 
 describe("the question-type recipe lookup", () => {
   const turn = (): AgentContext =>
-    ({ tools: ["question_recipes"], authorize: () => Promise.resolve() }) as unknown as AgentContext;
+    ({
+      tools: ["question_recipes"],
+      authorize: () => Promise.resolve(),
+    }) as unknown as AgentContext;
 
   const look = async (types: unknown): Promise<{ recipes: { type: string; guidance: string }[] }> =>
     (await runAgentTool("question_recipes", { types }, turn(), createProposalState())) as {

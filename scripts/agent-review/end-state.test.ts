@@ -456,11 +456,19 @@ describe("the end-state checks over those settings", () => {
 
   it("asserts a setting is absent as readily as present", () => {
     expect(
-      fired(checkEndState(assertion({ check: "pattern", labelContains: "phone", set: false }), SNAPSHOT)),
+      fired(
+        checkEndState(
+          assertion({ check: "pattern", labelContains: "phone", set: false }),
+          SNAPSHOT,
+        ),
+      ),
     ).toEqual(["end-state.pattern"]);
     expect(
       fired(
-        checkEndState(assertion({ check: "dateMin", labelContains: "full name", set: false }), SNAPSHOT),
+        checkEndState(
+          assertion({ check: "dateMin", labelContains: "full name", set: false }),
+          SNAPSHOT,
+        ),
       ),
     ).toEqual([]);
   });
