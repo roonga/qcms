@@ -9,6 +9,7 @@ import { aiSdkDraftAssistant, selectDraftAssistant } from "../assistant.js";
 import { fakeAssistantModel } from "../fake-model.js";
 import { collectRefs } from "./tool-schema.js";
 import {
+  AGENT_BUILDER_TOOL_NAMES,
   AGENT_PROPOSE_TOOL_NAMES,
   AGENT_READ_TOOL_NAMES,
   AGENT_TOOL_NAMES,
@@ -64,6 +65,10 @@ describe("the agent tool registry", () => {
       "delivery_status",
       "diff_form_versions",
       "diff_question_versions",
+      "edit_copy",
+      "edit_question",
+      "edit_rule",
+      "edit_step",
       "list_erasures",
       "list_form_versions",
       "list_links",
@@ -72,6 +77,7 @@ describe("the agent tool registry", () => {
       "list_responses",
       "list_webhooks",
       "list_workspaces",
+      "open_publish_wizard",
       "project_draft",
       "propose_draft",
       "propose_plan",
@@ -87,11 +93,18 @@ describe("the agent tool registry", () => {
     ]);
   });
 
-  it("splits the propose tool from the read tools, and names no screen's read list", () => {
+  it("splits the propose tool and the builder's tools from the read tools", () => {
     expect([...AGENT_PROPOSE_TOOL_NAMES]).toEqual(["propose_plan"]);
-    expect([...AGENT_READ_TOOL_NAMES, ...AGENT_PROPOSE_TOOL_NAMES].sort()).toEqual(
-      [...AGENT_TOOL_NAMES].sort(),
-    );
+    expect([...AGENT_BUILDER_TOOL_NAMES]).toEqual([
+      "edit_question",
+      "edit_step",
+      "edit_rule",
+      "edit_copy",
+      "open_publish_wizard",
+    ]);
+    expect(
+      [...AGENT_READ_TOOL_NAMES, ...AGENT_PROPOSE_TOOL_NAMES, ...AGENT_BUILDER_TOOL_NAMES].sort(),
+    ).toEqual([...AGENT_TOOL_NAMES].sort());
   });
 
   it("offers the provider the current screen's list and nothing else", () => {
