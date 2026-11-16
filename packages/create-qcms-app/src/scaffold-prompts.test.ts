@@ -4,7 +4,7 @@
  * on the resolution path except the formatter the manifest declares.
  */
 
-import { execFileSync, spawnSync, type SpawnSyncReturns } from "node:child_process";
+import { spawnSync, type SpawnSyncReturns } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
@@ -12,6 +12,7 @@ import { dirname, join } from "node:path";
 
 import { describe, expect, it, onTestFinished } from "vitest";
 
+import { resolveGit, run } from "./exec.js";
 import { withDefaults } from "./options.js";
 import { scaffold } from "./scaffold.js";
 
@@ -82,7 +83,7 @@ function recordedVersion(directory: string): number {
   return Number(/SYSTEM_PROMPT_VERSION = (\d+);/.exec(read(directory, VERSION_FILE))?.[1]);
 }
 
-describe("the prompt generator a scaffolded project receives", () => {
+describe("the prompt generator a scaffolded project receives", { timeout: TIMEOUT }, () => {
   it("is in step with the prompt text the scaffold ships", () => {
     const directory = stamped();
     const check = runScript(directory, "check:prompts");
@@ -90,7 +91,7 @@ describe("the prompt generator a scaffolded project receives", () => {
     // A project under no version control is a supported case, not two lines of git noise.
     expect(check.stderr).not.toContain("fatal:");
     expect(check.status).toBe(0);
-  }, TIMEOUT);
+  });
 
   it("rebuilds the generated module from an edited Markdown source", () => {
     const directory = stamped();
@@ -102,7 +103,7 @@ describe("the prompt generator a scaffolded project receives", () => {
     expect(generate.status).toBe(0);
 
     expect(read(directory, GENERATED)).toContain(EDIT);
-  }, TIMEOUT);
+  });
 
   it("fails verify on a generated module left stale, and passes once it is rebuilt", () => {
     const directory = stamped();
@@ -123,15 +124,14 @@ describe("the prompt generator a scaffolded project receives", () => {
     const rebuilt = runScript(directory, "check:prompts");
     expect(rebuilt.stdout).toContain("matches its Markdown");
     expect(rebuilt.status).toBe(0);
-  }, TIMEOUT);
+  });
 
   it("holds an adopter under version control to a prompt version bump", () => {
     const directory = stamped();
+    const program = resolveGit();
     const git = (...args: string[]): void => {
-      execFileSync("git", ["-c", "user.name=QCMS", "-c", "user.email=scaffold@qcms.test", ...args], {
-        cwd: directory,
-        stdio: "ignore",
-      });
+      const identity = ["-c", "user.name=QCMS", "-c", "user.email=scaffold@qcms.test"];
+      expect(run(program, [...identity, ...args], directory, true).stderr).toBe("");
     };
     git("init", "-b", "main");
     git("add", "-A");
@@ -149,5 +149,5 @@ describe("the prompt generator a scaffolded project receives", () => {
 
     recordHash(directory, generate.stdout, version + 1);
     expect(runScript(directory, "check:prompts").status).toBe(0);
-  }, TIMEOUT);
+  });
 });

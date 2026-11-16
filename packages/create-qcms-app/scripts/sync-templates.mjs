@@ -112,7 +112,7 @@ const ROOT_PROVIDED_DEV_DEPENDENCIES = ["typescript"];
  */
 const SCAFFOLDED_ROOT_SCRIPTS = ["scripts/generate-prompts.mjs", "scripts/prompt-sources.mjs"];
 
-/** The root dev dependency the scaffolded `check:prompts` needs, and the config it formats under. */
+/** The root dev dependency the scaffolded `check:prompts` formats its output with. */
 const SCAFFOLD_FORMATTER = "prettier";
 
 const HARNESS_DEV_DEPENDENCIES = new Set([

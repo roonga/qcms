@@ -503,7 +503,10 @@ describe("the prompt generator the scaffold ships (issue #1307)", () => {
     const drifted = new Map(tree);
     drifted.set(
       "common/package.json.tmpl",
-      (tree.get("common/package.json.tmpl") ?? "").replace(/"prettier": "[^"]+"/, '"prettier": "^1.0.0"'),
+      (tree.get("common/package.json.tmpl") ?? "").replace(
+        /"prettier": "[^"]+"/,
+        '"prettier": "^1.0.0"',
+      ),
     );
     expect(() => assertFormatterPinMatchesRepository(drifted)).toThrow(/prettier/);
     expect(() => assertFormatterPinMatchesRepository(tree)).not.toThrow();
