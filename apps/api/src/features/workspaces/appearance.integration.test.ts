@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import type { CompiledForm } from "@roonga/qcms-a2ui-compiler";
 import type { Appearance, FormDefinition } from "@roonga/qcms-core";
 import { FormId, QuestionId, deriveAppearance, parseQuestionDefinition } from "@roonga/qcms-core";
@@ -16,6 +18,7 @@ import {
   setRequireSecondApprover,
 } from "@roonga/qcms-db";
 import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
+import pngjs from "pngjs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../../app.js";
@@ -214,9 +217,20 @@ function themeBody(name: string, primary: string): Record<string, unknown> {
 
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
-/** Built rather than embedded: the sniff reads the signature, so the tail can be anything. */
-function pngBase64(fill: number, tail = 64): string {
-  return Buffer.concat([Buffer.from(PNG_SIGNATURE), Buffer.alloc(tail, fill)]).toString("base64");
+/** A real 4x4 PNG, since an upload is decoded and re-encoded; `fill` keeps each image distinct. */
+function pngBytes(fill: number, width = 4, height = 4): Buffer {
+  const image = new pngjs.PNG({ width, height });
+  image.data.fill(fill);
+  return pngjs.PNG.sync.write(image);
+}
+
+function pngBase64(fill: number): string {
+  return pngBytes(fill).toString("base64");
+}
+
+/** The signature and nothing decodable after it, so only the byte cap or the decoder can refuse it. */
+function signatureOnlyBase64(length: number): string {
+  return Buffer.concat([Buffer.from(PNG_SIGNATURE), Buffer.alloc(length, 0x22)]).toString("base64");
 }
 
 async function uploadLogo(
@@ -734,13 +748,50 @@ describe("the logo route (criterion 122)", { timeout: TIMEOUT_MS }, () => {
     expect(refusedPolyglot.status).toBe(422);
     expect(await codeOf(refusedPolyglot)).toBe("LOGO_NOT_RASTER");
 
-    const oversize = await uploadLogo(workspaceId, themeId, pngBase64(0x22, LOGO_MAX_BYTES));
+    const oversize = await uploadLogo(workspaceId, themeId, signatureOnlyBase64(LOGO_MAX_BYTES));
     expect(oversize.status).toBe(413);
     expect(await codeOf(oversize)).toBe("LOGO_TOO_LARGE");
 
     const malformed = await uploadLogo(workspaceId, themeId, "not base64 at all!!");
     expect(malformed.status).toBe(400);
     expect(await codeOf(malformed)).toBe("INVALID_LOGO");
+  });
+
+  it("decodes, caps and re-encodes a hand upload as a derive does (SEC-18 F7)", async () => {
+    const workspaceId = await newWorkspace("logo-reencode");
+    const themeId = await createTheme(workspaceId, "Re-encoded", "#1d4ed8");
+
+    const signatureOnly = await uploadLogo(workspaceId, themeId, signatureOnlyBase64(64));
+    expect(signatureOnly.status).toBe(422);
+    expect(await codeOf(signatureOnly)).toBe("LOGO_NOT_RASTER");
+
+    const huge = pngBytes(0x10);
+    huge.writeUInt32BE(5000, 16);
+    huge.writeUInt32BE(5000, 20);
+    const tooManyPixels = await uploadLogo(workspaceId, themeId, huge.toString("base64"));
+    expect(tooManyPixels.status).toBe(422);
+    expect(await codeOf(tooManyPixels)).toBe("LOGO_TOO_MANY_PIXELS");
+
+    const trailing = Buffer.concat([pngBytes(0x12), Buffer.from("<script>trailing</script>")]);
+    const withPayload = await uploadLogo(workspaceId, themeId, trailing.toString("base64"));
+    expect(withPayload.status).toBe(422);
+    expect(await codeOf(withPayload)).toBe("LOGO_NOT_RASTER");
+
+    // A colour type the codec does not write, so the stored bytes cannot be the upload's.
+    const grey = new pngjs.PNG({ width: 4, height: 4, colorType: 0, inputHasAlpha: false });
+    grey.data.fill(0x13);
+    const original = pngjs.PNG.sync.write(grey, { colorType: 0 });
+    const uploaded = await uploadLogo(workspaceId, themeId, original.toString("base64"));
+    expect(uploaded.status, await uploaded.clone().text()).toBe(201);
+    const { logoKey, contentType } = (await uploaded.json()) as {
+      logoKey: string;
+      contentType: string;
+    };
+    expect(contentType).toBe("image/png");
+    expect(logoKey).not.toBe(createHash("sha256").update(original).digest("hex"));
+    const served = Buffer.from(await (await serveLogo(logoKey)).arrayBuffer());
+    expect(served.equals(original)).toBe(false);
+    expect(logoKey).toBe(createHash("sha256").update(served).digest("hex"));
   });
 
   it("answers one uniform 404 for an unknown key and for a malformed one", async () => {
