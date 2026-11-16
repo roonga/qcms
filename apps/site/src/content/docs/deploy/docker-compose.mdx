@@ -126,14 +126,13 @@ First sign-in forces a password change, then TOTP enrolment, and shows the recov
 once. Have an authenticator app ready.
 
 ```sh
- QCMS_ADMIN_PASSWORD='the-password' \
+QCMS_ADMIN_PASSWORD='the-password' \
 docker compose exec --env QCMS_ADMIN_PASSWORD api \
   env QCMS_ADMIN_EMAIL=you@example.org node dist/create-admin.js
 ```
 
 Put the password in the invoking shell's environment and forward it by name only, so the value rides
 the environment rather than the Docker CLI's arguments, which are visible in a process listing.
-Prefix the line with a space so it does not land in shell history.
 
 The command refuses once a site administrator exists. The password breach check calls an external
 service and fails closed, so an offline host cannot create a first administrator unless the check is

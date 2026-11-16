@@ -43,12 +43,10 @@ the invoking shell and forward it to `docker compose exec` **by name only**, wit
 you write after the command name is visible to every user on the box in a process listing.
 
 ```sh
- QCMS_ADMIN_PASSWORD='a long passphrase' \
+QCMS_ADMIN_PASSWORD='a long passphrase' \
 docker compose exec --env QCMS_ADMIN_PASSWORD api \
   env QCMS_ADMIN_EMAIL=you@example.com node dist/create-admin.js
 ```
-
-The leading space keeps the line out of your shell history.
 
 Sign in to the admin, complete the two-factor enrollment if the deployment requires it, and you are
 at the Questions screen.

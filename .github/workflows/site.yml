@@ -34,6 +34,8 @@ jobs:
       # so the rest of the monorepo's install is work this job never uses.
       - run: pnpm install --frozen-lockfile --filter qcms-site...
 
+      - run: pnpm --filter qcms-site lint
+
       - run: pnpm --filter qcms-site typecheck
 
       - run: pnpm --filter qcms-site build

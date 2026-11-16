@@ -74,9 +74,10 @@ dependencies and requires Node 24 or newer. See [Scaffold an app](/qcms/start/sc
 | Portal      | ui, observability                           |                            |
 | Admin       | ui, csv, observability                      | core, for its types        |
 
-The portal reaches the kernel through the renderer rather than depending on it, and the admin takes
-core as a development dependency: it imports the condition types to keep its own rule editor tied to
-the same closed operator set, and those imports are erased at compile time.
+The portal depends on no kernel package: it is a strict proxy that reaches every piece of domain
+logic through the API, and nothing under it imports `@roonga/qcms-core`. The admin takes core as a
+development dependency, importing the condition types so its rule editor stays tied to the same
+closed operator set; those imports are erased at compile time.
 
 ## Source
 

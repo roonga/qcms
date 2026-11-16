@@ -440,6 +440,11 @@ describe("no reader of a lane path lives where the lane cannot see it", () => {
       line: '"CLAUDE.md",',
       why: "asserts the same app-relative strip rule",
     },
+    {
+      file: "apps/site/astro.config.mjs",
+      line: 'editLink: { baseUrl: "https://github.com/roonga/qcms/edit/main/apps/site/" },',
+      why: "builds a github.com edit URL; reads nothing from that path",
+    },
   ];
 
   const scan = (): { found: string[]; matched: Set<string> } => {
@@ -450,9 +455,7 @@ describe("no reader of a lane path lives where the lane cannot see it", () => {
       maxBuffer: 32 * 1024 * 1024,
     })
       .split("\0")
-      // A file that is itself on the lane is re-run by exactly the diffs that move the
-      // path it names, so it cannot be the reader this guard is looking for.
-      .filter((file) => file !== "" && SOURCE.test(file) && !isFastLanePath(file));
+      .filter((file) => file !== "" && SOURCE.test(file));
 
     const found: string[] = [];
     const matched = new Set<string>();
