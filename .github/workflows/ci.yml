@@ -9,6 +9,9 @@ on:
     types: [opened, synchronize, reopened, edited]
   # Allow required checks to be requested when webhook delivery fails.
   workflow_dispatch:
+  # The merge queue tests each entry on a temporary branch; every required check must report there too.
+  merge_group:
+    types: [checks_requested]
 
 # Manual recovery runs must survive ordinary pushes; post-merge runs must finish to catch integration failures.
 concurrency:
@@ -42,18 +45,23 @@ jobs:
       - id: classify
         env:
           CLASSIFIER: scripts/ci-plan-only.mjs
+          MERGE_GROUP_BASE_SHA: ${{ github.event.merge_group.base_sha }}
         run: |
           set -euo pipefail
-          if [ "${GITHUB_EVENT_NAME}" != "pull_request" ]; then
-            echo "Event is ${GITHUB_EVENT_NAME}, not pull_request: running the full suite."
-            printf 'plan_only=false\nadmin_only=false\n' >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          if git show "origin/${GITHUB_BASE_REF}:${CLASSIFIER}" > "${RUNNER_TEMP}/classify.mjs"; then
-            echo "Classifying with origin/${GITHUB_BASE_REF}:${CLASSIFIER} (not the copy in this PR)."
+          case "${GITHUB_EVENT_NAME}" in
+            pull_request) BASE="origin/${GITHUB_BASE_REF}" ;;
+            merge_group) BASE="${MERGE_GROUP_BASE_SHA}" ;;
+            *)
+              echo "Event is ${GITHUB_EVENT_NAME}, not pull_request or merge_group: running the full suite."
+              printf 'plan_only=false\nadmin_only=false\n' >> "$GITHUB_OUTPUT"
+              exit 0
+              ;;
+          esac
+          if git show "${BASE}:${CLASSIFIER}" > "${RUNNER_TEMP}/classify.mjs"; then
+            echo "Classifying with ${BASE}:${CLASSIFIER} (not the copy under test)."
             node "${RUNNER_TEMP}/classify.mjs"
           else
-            echo "::warning::ci-plan-only: ${CLASSIFIER} is absent on origin/${GITHUB_BASE_REF}; running the full suite."
+            echo "::warning::ci-plan-only: ${CLASSIFIER} is absent on ${BASE}; running the full suite."
             printf 'plan_only=false\nadmin_only=false\n' >> "$GITHUB_OUTPUT"
           fi
 

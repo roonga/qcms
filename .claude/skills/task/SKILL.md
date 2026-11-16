@@ -15,11 +15,10 @@ Orchestrate one numbered task from `docs/features/NNN-*.md`. The conductor coord
    - the latest approval matches the current head;
    - all issue comments, line comments, and review bodies are resolved;
    - required CI is green;
-   - the branch is current with `origin/main`;
    - every explicit human gate is complete;
    - no open PR uses this branch as its base, or each child has been safely retargeted and rebased.
 
-   Any push or rebase makes the approval stale and requires a fresh review. Squash-merge through GitHub, preserving `Fixes #NN`, and delete the branch. Confirm the merge commit is green before landing more work.
+   Any push or rebase makes the approval stale and requires a fresh review. Add it to the merge queue with `gh pr merge <n>`, which tests it on current `main` and squash-merges it preserving `Fixes #NN`; never rebase only to catch up. Delete the branch once it lands. Confirm the merge commit is green before landing more work.
 
 8. **Clean up.** Remove only this task's registered worktree, then run `node scripts/prune-worktrees.mjs` and read its report. It is the proof the rule above asks for: `git worktree list` is the registry, and the sweep removes only unregistered directories, keeping anything registered, anything without a `.git` file, anything with uncommitted work, and anything touched in the last day. Apply it with `--apply` when the report is what you expect. A parked branch remains the durable claim; a truly abandoned branch is deleted so the claim releases.
 
