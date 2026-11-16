@@ -70,7 +70,7 @@ jobs:
     name: verify (node-${{ matrix.node-version }})
     runs-on: ubuntu-latest
     # Bound hangs in installs or container startup so required checks cannot remain pending indefinitely.
-    timeout-minutes: 15
+    timeout-minutes: 25
     needs: changes
     # A skipped required job counts as passing; classifier failures must run the full gate.
     if: ${{ !cancelled() }}
