@@ -89,8 +89,9 @@ describe("respondent write endpoints carry responses:write (SEC-5, issues #7 and
 });
 
 describe("route partition - every mounted route in exactly one document", () => {
+  // The derive flag on, as the published admin document has it.
   const fullApp = createApp(
-    makeDeps({ env: validEnv() }),
+    makeDeps({ env: validEnv({ QCMS_FLAG_THEME_DERIVE: "on" }) }),
     { public: true, internal: true, admin: true },
     { groups: appGroups },
   );
@@ -362,7 +363,7 @@ function unknownKeyPolicyViolations(doc: OpenApiDocument): string[] {
 // The agent-authoring flag is on so the two flag-gated assist bodies are walked: a
 // default build publishes neither, so the committed documents leave them unguarded.
 const allSurfaces = createApp(
-  makeDeps({ env: validEnv({ QCMS_FLAG_AGENT_AUTHORING: "fake" }) }),
+  makeDeps({ env: validEnv({ QCMS_FLAG_AGENT_AUTHORING: "fake", QCMS_FLAG_THEME_DERIVE: "on" }) }),
   { public: true, internal: true, admin: true, environments: [] },
   { groups: appGroups },
 ).getOpenAPIDocument({ openapi: "3.0.3", info: { title: "all surfaces", version: "0" } });

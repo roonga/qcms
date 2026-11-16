@@ -466,6 +466,7 @@ describe("claiming an account (criteria 52, 53, 54)", { timeout: CLAIM_TIMEOUT_M
       .where(eq(signInLinks.userId, created.userId));
     const claimed = await authPost("/claim", { token: created.token, password: freshPassword() });
     expect(claimed.status).toBe(400);
+    expect(await errorCodeOf(claimed)).toBe("CLAIM_LINK_REFUSED");
     expect((await accountRow(created.userId)).claimedAt).toBeNull();
   });
 

@@ -26,6 +26,8 @@ export async function createTestAdmin(
     readonly owner?: boolean;
     // Defaults to claimed; an unclaimed account reaches its own claim and nothing else.
     readonly claimed?: boolean;
+    // Defaults to true.
+    readonly siteAdministrator?: boolean;
   } = {},
 ): Promise<void> {
   await createAdminAccount({
@@ -38,6 +40,9 @@ export async function createTestAdmin(
     ...(options.grants !== undefined && { grants: options.grants }),
     ...(options.owner !== undefined && { owner: options.owner }),
     ...(options.claimed !== undefined && { claimed: options.claimed }),
+    ...(options.siteAdministrator !== undefined && {
+      siteAdministrator: options.siteAdministrator,
+    }),
     mustChangePassword: options.mustChangePassword === true,
   });
 }

@@ -102,7 +102,7 @@ export const messages = {
   "nav.label": "Primary",
   "nav.questions": "Questions",
   "nav.forms": "Forms",
-  "nav.settings": "Settings",
+  "nav.settings": "My account",
 
   "nav.operations": "Operations",
 
@@ -179,9 +179,6 @@ export const messages = {
   "operations.queue.erasureLog": "Erasure log",
 
   "access.title": "My access",
-  "access.none":
-    "You hold no form, question, response or workspace grant yet. Ask a Workspace " +
-    "administrator of the workspace you need to add you to one of its access groups.",
 
   "signIn.title": "Sign in to QCMS",
   "signIn.email": "Email",
@@ -202,21 +199,21 @@ export const messages = {
   "forcedPassword.mismatch": "The two new passwords did not match. Please type them again.",
 
   /** The emailed single-use link lands here; the person has no password yet, only the link. */
-  "claim.title": "Set up your account",
+  "claim.title": "Set up your sign-in",
   "claim.intro":
-    "Choose a password, then set up two-factor authentication. Your account is ready to use once both are done.",
+    "You opened your emailed sign-in link. It can be used once and lasts 72 hours. Set your password, then enrol a second factor.",
   "claim.new": "Password",
   "claim.confirm": "Confirm password",
   "claim.action": "Continue",
   "claim.mismatch": "The two passwords did not match. Please type them again.",
   "claim.weakPassword":
     "That password was refused. Choose a longer one you have not used elsewhere.",
+  "claim.refusedTitle": "This link cannot be used",
   /** One answer for unknown, used and expired, so a link tells a stranger nothing. */
-  "claim.linkRefused":
-    "That sign-in link cannot be used. A link works once and expires 72 hours after it was sent.",
+  "claim.linkRefused": "This link has expired or was used. Ask a Site administrator to resend it.",
   /** Shown whenever the screen has no token, so it never offers a form that cannot work. */
   "claim.useLinkAgain":
-    "Open the sign-in link in your email again. If it no longer works, ask a site administrator to send you a new one.",
+    "Open the sign-in link in your email again. If it no longer works, ask a Site administrator to send you a new one.",
 
   "enroll.title": "Set up two-factor authentication",
   "enroll.intro":
@@ -244,9 +241,10 @@ export const messages = {
   "recoveryEntry.codeLabel": "Recovery code",
   "recoveryEntry.useApp": "Use your authenticator app instead",
 
-  "settings.title": "Settings",
+  "settings.title": "My account",
   "settings.account": "Account",
   "settings.signedInAs": "Signed in as {email}.",
+  "settings.lostFactor": "Lost your second factor? A Site administrator can reset your sign-in.",
   "settings.passwordTitle": "Change password",
   "settings.passwordIntro": "Changing your password signs out every other session on every device.",
   "settings.currentPassword": "Current password",
@@ -2509,10 +2507,14 @@ export const messages = {
   "membership.mine.installationAdmin":
     "You are a Site administrator: site settings, accounts, memberships and environments, in every workspace. The role grants no response read, export or erasure anywhere.",
   "membership.mine.none": "You hold no grant in any workspace.",
-  "membership.mine.memberOnly": "No access",
-  "membership.mine.environments": "Environments: {environments}",
+  "membership.mine.archived": "Archived",
+  "membership.mine.administrator.yes": "Workspace administrator: Yes",
+  "membership.mine.administrator.no": "Workspace administrator: No",
+  "membership.mine.groups": "Access groups: {groups}",
+  "membership.mine.noAccessIn": "You have no access in {workspace}.",
 
   "access.explain.title": "What {person} can do in {workspace}",
+  "access.explain.titleSelf": "What you can do in {workspace}",
   "access.explain.columnAction": "Action",
   "access.explain.noGroup": "No group grants this",
   "access.change.in": "{role} in {environments}",

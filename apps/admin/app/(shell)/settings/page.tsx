@@ -37,6 +37,7 @@ export default async function SettingsPage({
                 <p className="text-sm text-(--color-text-muted)">
                   {t("settings.signedInAs", { email: session.email })}
                 </p>
+                <p className="text-sm text-(--color-text-muted)">{t("settings.lostFactor")}</p>
               </div>
             </Card>
           </section>

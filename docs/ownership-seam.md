@@ -93,13 +93,13 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (642 files common to both shapes)
+### Scaffolded paths (652 files common to both shapes)
 
 | Path                                                                            | Files |
 | ------------------------------------------------------------------------------- | ----- |
 | `(project root)`                                                                | 8     |
-| `apps/`                                                                         | 631   |
-| `apps/admin/`                                                                   | 401   |
+| `apps/`                                                                         | 641   |
+| `apps/admin/`                                                                   | 402   |
 | `apps/admin/app/`                                                               | 106   |
 | `apps/admin/app/(shell)/`                                                       | 80    |
 | `apps/admin/app/(shell)/@rail/`                                                 | 34    |
@@ -205,20 +205,20 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/components/questions/`                                              | 16    |
 | `apps/admin/components/shell/`                                                  | 6     |
 | `apps/admin/components/test-support/`                                           | 3     |
-| `apps/admin/lib/`                                                               | 142   |
+| `apps/admin/lib/`                                                               | 143   |
 | `apps/admin/lib/agent/`                                                         | 14    |
 | `apps/admin/lib/forms/`                                                         | 31    |
 | `apps/admin/lib/i18n/`                                                          | 2     |
-| `apps/admin/lib/membership/`                                                    | 5     |
+| `apps/admin/lib/membership/`                                                    | 6     |
 | `apps/admin/lib/ops/`                                                           | 16    |
 | `apps/admin/lib/pwa/`                                                           | 4     |
 | `apps/admin/lib/questions/`                                                     | 9     |
 | `apps/admin/lib/server/`                                                        | 33    |
 | `apps/admin/lib/shell/`                                                         | 7     |
-| `apps/api/`                                                                     | 155   |
-| `apps/api/src/`                                                                 | 152   |
-| `apps/api/src/features/`                                                        | 120   |
-| `apps/api/src/features/accounts/`                                               | 9     |
+| `apps/api/`                                                                     | 164   |
+| `apps/api/src/`                                                                 | 161   |
+| `apps/api/src/features/`                                                        | 129   |
+| `apps/api/src/features/accounts/`                                               | 8     |
 | `apps/api/src/features/agent/`                                                  | 35    |
 | `apps/api/src/features/agent/actions/`                                          | 10    |
 | `apps/api/src/features/agent/contexts/`                                         | 5     |
@@ -239,7 +239,8 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/api/src/features/responses/start-session/`                                | 3     |
 | `apps/api/src/features/responses/submit/`                                       | 3     |
 | `apps/api/src/features/webhooks/`                                               | 8     |
-| `apps/api/src/features/workspaces/`                                             | 7     |
+| `apps/api/src/features/workspaces/`                                             | 17    |
+| `apps/api/src/features/workspaces/brand-fetcher/`                               | 8     |
 | `apps/api/src/middleware/`                                                      | 7     |
 | `apps/api/src/routes/`                                                          | 1     |
 | `apps/api/src/schedulers/`                                                      | 4     |
@@ -305,7 +306,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (642)</summary>
+<summary>Every scaffolded file (652)</summary>
 
 ```
 .dockerignore
@@ -627,6 +628,7 @@ apps/admin/lib/measure.ts
 apps/admin/lib/membership/access-group-form.ts
 apps/admin/lib/membership/access-patterns.ts
 apps/admin/lib/membership/audit-wording.ts
+apps/admin/lib/membership/my-access.ts
 apps/admin/lib/membership/sections.ts
 apps/admin/lib/membership/types.ts
 apps/admin/lib/ops/answers.ts
@@ -726,7 +728,6 @@ apps/api/src/features/accounts/claim-route.ts
 apps/api/src/features/accounts/claim.ts
 apps/api/src/features/accounts/credential.ts
 apps/api/src/features/accounts/handler.ts
-apps/api/src/features/accounts/lifecycle.ts
 apps/api/src/features/accounts/links.ts
 apps/api/src/features/accounts/route.ts
 apps/api/src/features/accounts/schema.ts
@@ -835,12 +836,22 @@ apps/api/src/features/webhooks/route.ts
 apps/api/src/features/webhooks/schema.ts
 apps/api/src/features/webhooks/signing.ts
 apps/api/src/features/webhooks/ssrf.ts
+apps/api/src/features/workspaces/brand-fetcher/derive.ts
+apps/api/src/features/workspaces/brand-fetcher/fake.ts
+apps/api/src/features/workspaces/brand-fetcher/fetcher.ts
+apps/api/src/features/workspaces/brand-fetcher/logo-dimensions.ts
+apps/api/src/features/workspaces/brand-fetcher/node-codec.ts
+apps/api/src/features/workspaces/brand-fetcher/node-transport.ts
+apps/api/src/features/workspaces/brand-fetcher/policy.ts
+apps/api/src/features/workspaces/brand-fetcher/port.ts
 apps/api/src/features/workspaces/create.ts
 apps/api/src/features/workspaces/handler.ts
+apps/api/src/features/workspaces/logo-digest.ts
 apps/api/src/features/workspaces/resolve.ts
 apps/api/src/features/workspaces/route.ts
 apps/api/src/features/workspaces/rules.ts
 apps/api/src/features/workspaces/schema.ts
+apps/api/src/features/workspaces/theme-derive.ts
 apps/api/src/features/workspaces/themes.ts
 apps/api/src/index.ts
 apps/api/src/logger.ts

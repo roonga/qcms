@@ -581,6 +581,17 @@ export const SURFACES: readonly Surface[] = [
     anonymousReachable: false,
   },
   {
+    // Mounted only with its own SEC-18 flag on, which the harness sets. An `http` address
+    // is refused before any fetch, so no credential shape here makes one.
+    name: "POST /admin/workspaces/{id}/themes/derive",
+    row: "authoring",
+    group: "admin",
+    method: "POST",
+    path: (ctx) => `/admin/workspaces/${ctx.workspaceId}/themes/derive`,
+    body: { url: "http://brand.example/" },
+    anonymousReachable: false,
+  },
+  {
     name: "PUT /admin/workspaces/{id}/appearance-lock",
     row: "membership",
     group: "admin",

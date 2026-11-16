@@ -6,8 +6,15 @@ import { t } from "@/lib/i18n/en";
 import { pageMetadata } from "@/lib/page-title";
 import { MIN_PASSWORD_LENGTH } from "@/lib/server/config";
 
-export function generateMetadata(): Metadata {
-  return pageMetadata(t("claim.title"));
+export async function generateMetadata({
+  searchParams,
+}: {
+  readonly searchParams: Promise<Query>;
+}): Promise<Metadata> {
+  const params = await searchParams;
+  const refused =
+    firstValue(params.token) === undefined && withoutTokenMessage(params) === undefined;
+  return pageMetadata(t(refused ? "claim.refusedTitle" : "claim.title"));
 }
 
 type QueryValue = string | string[] | undefined;
@@ -20,9 +27,9 @@ function firstValue(raw: QueryValue): string | undefined {
 }
 
 /** Only the markers that say something a person can act on; everything else is the link. */
-function withoutTokenMessage(params: Query): string {
+function withoutTokenMessage(params: Query): string | undefined {
   if (params.throttled !== undefined) return t("signIn.throttled");
-  return params.error !== undefined ? t("signIn.error") : t("claim.linkRefused");
+  return params.error !== undefined ? t("signIn.error") : undefined;
 }
 
 /**
@@ -40,9 +47,14 @@ export default async function ClaimPage({
   const token = firstValue(params.token);
 
   if (token === undefined) {
-    return (
+    const message = withoutTokenMessage(params);
+    return message === undefined ? (
+      <AuthScreen title={t("claim.refusedTitle")}>
+        <Alert variant="error">{t("claim.linkRefused")}</Alert>
+      </AuthScreen>
+    ) : (
       <AuthScreen title={t("claim.title")} intro={t("claim.useLinkAgain")}>
-        <Alert variant="error">{withoutTokenMessage(params)}</Alert>
+        <Alert variant="error">{message}</Alert>
       </AuthScreen>
     );
   }

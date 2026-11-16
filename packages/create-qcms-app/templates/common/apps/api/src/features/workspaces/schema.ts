@@ -1,5 +1,8 @@
 import { z } from "@hono/zod-openapi";
 
+import { APPEARANCE_COLOR_TOKENS, APPEARANCE_FACES, PALETTE_KINDS } from "@roonga/qcms-core";
+import type { AppearanceColorToken } from "@roonga/qcms-core";
+
 import { WORKSPACE_SLUG_MAX_LENGTH, WORKSPACE_SLUG_PATTERN } from "./rules.js";
 
 export const WorkspaceIdParam = z.object({
@@ -78,7 +81,7 @@ export const ThemeLogoBody = z
   .strictObject({
     bytesBase64: z.string().min(1).openapi({
       description:
-        "The image, base64-encoded. PNG, JPEG or WebP only, confirmed by magic-number sniff; SVG is refused. Capped at 512 KiB decoded.",
+        "The image, base64-encoded. A non-interlaced PNG or a JPEG only, confirmed by magic-number sniff; WebP and SVG are refused. Capped at 512 KiB decoded.",
     }),
   })
   .openapi("ThemeLogoBody");
@@ -166,3 +169,60 @@ export const MovedResponse = z
     workspaceId: z.string().openapi({ example: "org_default_workspace" }),
   })
   .openapi("MovedResponse");
+
+/** The user types the address; the model never supplies one (SEC-18 W2). */
+export const DeriveThemeBody = z
+  .strictObject({
+    url: z.string().min(1).max(2048).openapi({ example: "https://www.example.com/" }),
+  })
+  .openapi("DeriveThemeBody");
+
+const DerivedHex = z.string().regex(/^#[0-9a-f]{6}$/iu);
+
+const DerivedPalette = z.strictObject(
+  Object.fromEntries(APPEARANCE_COLOR_TOKENS.map((token) => [token, DerivedHex])) as Record<
+    AppearanceColorToken,
+    typeof DerivedHex
+  >,
+);
+
+const FACE_KEYS = APPEARANCE_FACES.map((face) => face.key) as [
+  (typeof APPEARANCE_FACES)[number]["key"],
+  ...(typeof APPEARANCE_FACES)[number]["key"][],
+];
+
+/**
+ * Hex colours, registry enums and a logo key, and no free string anywhere: no page title,
+ * alt text, font name or URL, so nothing the page wrote can reach a model (SEC-18 M1).
+ */
+export const DeriveResult = z
+  .strictObject({
+    palettes: z.strictObject({
+      light: DerivedPalette,
+      dark: DerivedPalette,
+      lightHighContrast: DerivedPalette,
+      darkHighContrast: DerivedPalette,
+    }),
+    face: z.enum(FACE_KEYS),
+    pageTint: z.boolean(),
+    /** A re-encoded logo already in the store, or null where the page offered none. */
+    logoKey: z
+      .string()
+      .regex(/^[0-9a-f]{64}$/u)
+      .nullable(),
+    corrections: z.array(
+      z.strictObject({
+        palette: z.enum(PALETTE_KINDS),
+        token: z.enum(APPEARANCE_COLOR_TOKENS),
+        from: DerivedHex,
+        to: DerivedHex,
+      }),
+    ),
+    tintDropped: z.array(z.enum(PALETTE_KINDS)),
+  })
+  .openapi("DeriveResult");
+export type DeriveResult = z.infer<typeof DeriveResult>;
+
+export const DeriveThemeResponse = z
+  .object({ derived: DeriveResult })
+  .openapi("DeriveThemeResponse");
