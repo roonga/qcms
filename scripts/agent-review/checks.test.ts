@@ -542,8 +542,8 @@ describe("the end state, read back rather than taken from the reply", () => {
 });
 
 describe("the scenario files", () => {
-  it("has one for each failure the real session showed", () => {
-    expect(SCENARIO_FILES).toHaveLength(7);
+  it("has one for each failure the review covers", () => {
+    expect(SCENARIO_FILES).toHaveLength(10);
   });
 
   it.each(SCENARIO_FILES)("%s is a runnable script with a budget and an end state", (file) => {

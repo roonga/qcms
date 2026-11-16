@@ -32,12 +32,13 @@ import type { Resource } from "../membership/policy.js";
 import { PRODUCTION_ENVIRONMENT } from "../membership/policy.js";
 import { holdsInstallationClaim, type ResolvedMembership } from "../membership/resolver.js";
 import { savedDraftPins } from "./draft-pins.js";
-import { offeredActionKinds, offersNoAction, type OfferedActionKind } from "./grant-filter.js";
+import { mergeOffers, offeredActionKinds, offersNoAction } from "./grant-filter.js";
 import { buildProposal } from "./tools/propose.js";
 import {
   AGENT_PROPOSE_TOOL_NAMES,
   AGENT_READ_TOOL_NAMES,
   isClaimTool,
+  isFixedTextTool,
   stagesForApplyDraft,
   toolCell,
   type AgentToolName,
@@ -225,6 +226,7 @@ function grantedReadTools(
 ): readonly AgentToolName[] {
   return AGENT_READ_TOOL_NAMES.filter((name) => {
     if (stagesForApplyDraft(name) && screen !== BUILDER_SCREEN) return false;
+    if (isFixedTextTool(name)) return true;
     if (isClaimTool(name)) return build.principal.claim;
     const cell = toolCell(name);
     if (cell === undefined) return true;
@@ -235,26 +237,8 @@ function grantedReadTools(
   });
 }
 
-/** The union across the caller's workspaces: a kind held in one of them is offered. */
-function mergeOffers(
-  offers: readonly (readonly OfferedActionKind[])[],
-): readonly OfferedActionKind[] {
-  const byKind = new Map<string, Set<string>>();
-  for (const offer of offers) {
-    for (const entry of offer) {
-      const environments = byKind.get(entry.kind) ?? new Set<string>();
-      for (const environment of entry.environments) environments.add(environment);
-      byKind.set(entry.kind, environments);
-    }
-  }
-  return [...byKind.entries()].map(([kind, environments]) => ({
-    kind,
-    environments: [...environments],
-  }));
-}
-
 /**
- * The propose tools' port and the kinds the grant filter offered this caller, across every
+ * The propose tool's port and the kinds the grant filter offered this caller, across every
  * workspace they hold a grant in. A caller holding none gets neither the port nor the
  * tools, which is how "a read-only user is offered no write" is structural (point 1).
  */

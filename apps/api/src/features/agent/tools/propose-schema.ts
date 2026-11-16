@@ -1,5 +1,5 @@
 /**
- * The propose tools' advertised schemas, built per caller from what the grant filter
+ * The propose tool's advertised schema, built per caller from what the grant filter
  * offered (section 6.1): an argument kind's environment member is narrowed to the
  * environments the caller holds the cell in. The API's authorisation at execution is the limit.
  */
@@ -54,7 +54,7 @@ function stepMember(entry: OfferedActionKind): z.ZodType | undefined {
 
 /**
  * The step union for this caller. `undefined` means nothing is offered, which is what
- * leaves the propose tools out of the turn's tool set entirely.
+ * leaves the propose tool out of the turn's tool set entirely.
  */
 export function proposedStepSchema(offered: readonly OfferedActionKind[]): z.ZodType | undefined {
   const members = offered
@@ -65,22 +65,18 @@ export function proposedStepSchema(offered: readonly OfferedActionKind[]): z.Zod
   return rest.length === 0 ? first : z.union([first, ...rest]);
 }
 
-export function proposeActionSchema(offered: readonly OfferedActionKind[]): z.ZodType {
+export function proposePlanSchema(offered: readonly OfferedActionKind[]): z.ZodType {
   const step = proposedStepSchema(offered);
   // An empty object, so a screen that offers nothing still has a parseable schema; the
   // tool is not in the turn's tool set, so no call reaches it.
-  if (step === undefined) return z.strictObject({});
-  return z.strictObject({ action: step });
-}
-
-export function proposePlanSchema(offered: readonly OfferedActionKind[]): z.ZodType {
-  const step = proposedStepSchema(offered);
   if (step === undefined) return z.strictObject({});
   return z.strictObject({
     steps: z
       .array(step)
       .min(1)
       .max(MAX_PLAN_STEPS)
-      .describe("The steps in the order they run. One plan, one Confirm."),
+      .describe(
+        "The steps in the order they run. A single action is a plan of one step. One plan, one Confirm.",
+      ),
   });
 }

@@ -8,7 +8,7 @@ Scenarios, a rubric and deterministic checks for reviewing the admin authoring a
 | `rubric.md`        | What a reviewer judges a transcript against. A line marked **auto** has a check behind it.                  |
 | `terms.mjs`        | The words the assistant may not say, and the branded id patterns.                                           |
 | `checks.mjs`       | The deterministic half, over a transcript. Also a command line.                                             |
-| `end-state.mjs`    | Reads back the forms, versions, links and rules a run left behind.                                          |
+| `end-state.mjs`    | Reads back the forms, versions, links, rules and question settings a run left behind.                       |
 | `eval-status.mjs`  | The run's live status file: creates one, patches a scenario, validates the shape. Also a command line.      |
 | `fixtures/*.json`  | Transcripts the tests run against: the session this was built for, a clean one, and a set of openers.       |
 
@@ -39,3 +39,5 @@ node scripts/agent-review/eval-status.mjs set "$status" publish-and-test-link '{
 Each write replaces the whole file through a rename, so a reader never catches half of one, and the shape is validated before it lands. It holds no credential, no address and no transcript text beyond a check's own short message.
 
 Every scenario invents its data. No scenario sends a real person's details, and a scenario's end state is read back from the API rather than taken from what the assistant said.
+
+A scenario may assert one question's settings as well as the form's shape: `required`, `optionCount`, `dateMin`, `dateMax` and `pattern`, each naming the question by a substring of its label. `notAfter` and `notBefore` take a literal date or `today`, which resolves to the day the end state was read rather than the day the checks run. A setting that was never set reads as absent, which is what makes "the date of birth accepts the year 2100" a failure rather than a judgement call.

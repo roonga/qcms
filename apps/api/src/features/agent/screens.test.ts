@@ -20,6 +20,7 @@ import {
   ToolNotAllowedError,
   agentToolSet,
   createProposalState,
+  isFixedTextTool,
   runAgentTool,
   type AgentToolName,
 } from "./tools/registry.js";
@@ -193,11 +194,17 @@ describe("one door, by grant and registry", () => {
     },
   );
 
-  it("declares a cell or the installation claim for every read tool", () => {
+  it("declares a cell or the installation claim for every read tool that reads data", () => {
     for (const name of AGENT_READ_TOOL_NAMES) {
+      if (isFixedTextTool(name)) continue;
       const def = TOOLS[name];
       expect(def.cell !== undefined || def.claim === true, name).toBe(true);
     }
+  });
+
+  // The exemption is a security decision, so the list is written out rather than derived.
+  it("exempts only the tools returning text this installation ships", () => {
+    expect(AGENT_READ_TOOL_NAMES.filter(isFixedTextTool)).toEqual(["question_recipes"]);
   });
 });
 

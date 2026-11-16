@@ -7,7 +7,7 @@ Review the admin authoring assistant against `scripts/agent-review/scenarios/` a
 
 **This is on demand, not CI.** A run spends a real model key (`QCMS_AGENT_API_KEY` on the API) and real tokens on the reviewers, so it runs when someone asks for it and never from a gate. Only the Vitest half (`scripts/agent-review/*.test.ts`) belongs to `pnpm verify`.
 
-**The Code Owner approves every change this produces to the assistant prompt (`apps/api/src/features/agent/system-prompt.ts`), to tool descriptions, and to anything in `docs/adr` or `docs/agent-principle.md`.** This skill proposes; it does not land prompt changes.
+**The Code Owner approves every change this produces to the assistant prompt (`apps/api/src/features/agent/prompts/`), to tool descriptions, and to anything in `docs/adr` or `docs/agent-principle.md`.** This skill proposes; it does not land prompt changes.
 
 1. **Pre-flight.** Read `PROJECT_INSTRUCTIONS.md`, `docs/agent-principle.md`, `scripts/agent-review/rubric.md` and the scenarios you were asked for. Write every log, transcript and report under this lane's own directory from `node scripts/agent-scratch.mjs`, never the shared scratchpad root, and never read a gate result back from a path you did not create in the same command that wrote it (issues #396, #602). Then open the run's status file, `eval-status.json` in that same directory, with every scenario `queued`:
 
@@ -40,7 +40,7 @@ Review the admin authoring assistant against `scripts/agent-review/scenarios/` a
 
    Quote no secret and no link address. A finding that cannot carry its evidence without one says so instead.
 
-9. **Hand the findings over.** Open issues or a work order for what is agreed; take prompt, tool description and ADR findings to the Code Owner with the evidence rather than landing them. Never edit `apps/api/src/features/agent/system-prompt.ts` from this skill.
+9. **Hand the findings over.** Open issues or a work order for what is agreed; take prompt, tool description and ADR findings to the Code Owner with the evidence rather than landing them. Never edit anything under `apps/api/src/features/agent/prompts/` from this skill.
 
 A scenario whose stack never came up is reported as not run, not as a pass: `'{ "state": "not-run", "note": "the admin never came up" }'`, and the same for a step the permission system refuses. A reviewer's verdict is about the transcript it was given and goes stale the moment the prompt changes.
 
