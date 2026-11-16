@@ -40,6 +40,10 @@ async function expectBuilderMode(page: Page, subject: string): Promise<void> {
   await expect(page.getByTestId("qcms-environment-switcher")).toHaveCount(0);
 }
 
+function buildPath(id: string): string {
+  return `/forms/${id}/build`;
+}
+
 function exit(page: Page) {
   return page.getByRole("link", { name: "Exit the agent builder" });
 }
@@ -91,7 +95,7 @@ test("enters from a form's menu, Exit returns to the list, and Edit by hand open
   await expect(page.getByRole("region", { name: "Preview" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Publish" })).toHaveAttribute(
     "href",
-    `/forms/${formId}/publish?returnTo=${encodeURIComponent(`/forms/${formId}/build`)}`,
+    `/forms/${formId}/publish?returnTo=${encodeURIComponent(buildPath(formId))}`,
   );
   await expect(page.getByRole("link", { name: "Share preview" })).toHaveAttribute(
     "href",

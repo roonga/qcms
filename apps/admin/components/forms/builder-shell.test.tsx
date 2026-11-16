@@ -22,7 +22,7 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 
-const original = window.matchMedia;
+const original = Object.getOwnPropertyDescriptor(window, "matchMedia");
 
 function viewport(narrow: boolean): void {
   window.matchMedia = (query: string): MediaQueryList => ({
@@ -45,7 +45,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  window.matchMedia = original;
+  if (original !== undefined) Object.defineProperty(window, "matchMedia", original);
   vi.restoreAllMocks();
 });
 
