@@ -486,6 +486,105 @@ button {
   color: inherit;
 }
 
+/* The agent builder names its form beside the mode's title, and carries no rail to toggle. */
+.qcms-builderbar__subject {
+  min-inline-size: 0;
+  max-inline-size: 24rem;
+  padding-inline: var(--space-1);
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.qcms-topbar__inner:has([data-mode="builder"]) .qcms-topbar__toggle {
+  display: none;
+}
+
+.qcms-button-link--secondary {
+  border: 1px solid var(--color-border-strong);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+}
+.qcms-button-link--secondary:hover,
+.qcms-button-link--secondary:active {
+  background-color: var(--color-ghost-hover);
+}
+:root.hc .qcms-button-link--secondary {
+  border-width: 2px;
+}
+
+.qcms-builder {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-block-size: 0;
+}
+.qcms-builder__heading {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--space-3) var(--admin-section-pad);
+  border-block-end: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+}
+.qcms-builder__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+.qcms-builder__panes {
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-columns: var(--qcms-builder-pane-w) minmax(0, 1fr);
+  min-block-size: 0;
+}
+.qcms-builder__pane {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+.qcms-builder__pane--assistant {
+  border-inline-end: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+}
+.qcms-builder__pane-heading {
+  padding: var(--space-3) var(--admin-section-pad) 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+.qcms-builder__pane-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--admin-section-pad);
+}
+.qcms-builder__turns {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+.qcms-builder__tablist {
+  padding-inline: var(--admin-section-pad);
+  background-color: var(--color-surface);
+}
+.qcms-builder__start {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-inline-size: 40rem;
+  padding: var(--admin-section-pad);
+}
+/* Before hydration picks the tabs, a narrow screen shows the assistant pane alone rather than two squeezed columns. */
+@media (max-width: 63.999rem) {
+  .qcms-builder__panes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .qcms-builder__pane--preview {
+    display: none;
+  }
+}
+
 .qcms-card {
   border-radius: var(--radius-card);
 }

@@ -37,7 +37,13 @@ export function FormRowMenu({
       items={[
         { id: "builder", label: t("forms.tab.builder"), href: form },
         ...(canBuild
-          ? [{ id: "agent-builder", label: t("forms.menu.agentBuilder"), href: builderPath(formId) }]
+          ? [
+              {
+                id: "agent-builder",
+                label: t("forms.menu.agentBuilder"),
+                href: builderPath(formId),
+              },
+            ]
           : []),
         { id: "preview", label: t("forms.tab.preview"), href: `${form}/preview` },
         ...(canOperate

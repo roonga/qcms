@@ -52,9 +52,7 @@ describe("the forms list row menu", () => {
   it("offers the agent builder only where the page says the caller may build", async () => {
     await open(true, true);
     expect(
-      screen
-        .getByRole("menuitem", { name: t("forms.menu.agentBuilder") })
-        .getAttribute("href"),
+      screen.getByRole("menuitem", { name: t("forms.menu.agentBuilder") }).getAttribute("href"),
     ).toBe("/forms/frm_alpha/build");
   });
 

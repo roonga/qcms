@@ -4,12 +4,14 @@ import type { Metadata } from "next";
 import { Alert } from "@/components/kit";
 import { FormPageHeader } from "@/components/forms/form-page-header";
 import { PublishWizard } from "@/components/forms/publish-wizard";
+import { publishReturnHref } from "@/lib/forms/build-return";
 import { canFreezeDraft } from "@/lib/forms/publish";
 import { t } from "@/lib/i18n/en";
 import { formSectionName, pageMetadata } from "@/lib/page-title";
 import { secureCookies } from "@/lib/server/config";
 import { getForm } from "@/lib/server/forms";
 import { requireAdminSession } from "@/lib/server/session";
+import { builderPath } from "@/lib/shell/modes";
 
 import {
   confirmPublishAction,
@@ -30,11 +32,14 @@ export async function generateMetadata({
    authorizes each at commit. */
 export default async function FormPublishPage({
   params,
+  searchParams,
 }: {
   readonly params: Promise<{ formId: string }>;
+  readonly searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const session = await requireAdminSession();
   const { formId } = await params;
+  const query = (await searchParams) ?? {};
   const detail = await getForm(session, formId);
 
   if (!detail.ok) {
@@ -42,6 +47,7 @@ export default async function FormPublishPage({
     return <Alert variant="error">{detail.message}</Alert>;
   }
   const form = detail.data;
+  const back = publishReturnHref(form.formId, query["returnTo"]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -63,6 +69,9 @@ export default async function FormPublishPage({
         confirm={confirmPublishAction.bind(null, form.formId)}
         lookup={lookupPublishResultAction.bind(null, form.formId)}
         secureCookies={secureCookies()}
+        {...(back === undefined
+          ? {}
+          : { returnTo: { href: back, toBuilder: back === builderPath(form.formId) } })}
       />
     </div>
   );

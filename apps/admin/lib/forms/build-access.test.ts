@@ -25,7 +25,12 @@ function access(...workspaces: MyAccessWorkspace[]): MyAccess {
   return {
     userId: "usr_1",
     installationAdmin: false,
-    capabilities: { authoring: true, operations: false, workspaces: false, siteConfiguration: false },
+    capabilities: {
+      authoring: true,
+      operations: false,
+      workspaces: false,
+      siteConfiguration: false,
+    },
     workspaces,
   };
 }

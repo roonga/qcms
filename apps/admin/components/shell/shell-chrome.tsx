@@ -84,40 +84,40 @@ export function ShellChrome({
         {focused === "builder" ? (
           <BuilderGroup pathname={pathname} cameFrom={builderCameFrom} />
         ) : (
-        <AdminNav
-          capabilities={capabilities}
-          multipleWorkspaces={multipleWorkspaces}
-          operationsGroup={
-            inOperations ? (
-              <div
-                className="qcms-opsbar"
-                role="group"
-                aria-label={t("nav.operations")}
-                data-testid="qcms-mode-header"
-                data-mode="operations"
-              >
-                <Link href={OPERATIONS_PATH} aria-current="page" className="qcms-opsbar__title">
-                  {t("nav.operations")}
-                </Link>
-                {environment}
-                {exit !== undefined && (
-                  <>
-                    <span className="qcms-opsbar__divider" aria-hidden="true" />
-                    <Link
-                      href={exit}
-                      className="qcms-opsbar__exit"
-                      aria-label={t("shell.mode.operations.exit")}
-                      data-testid="qcms-mode-exit"
-                      {...{ [LEAVE_EXEMPT_ATTRIBUTE]: "" }}
-                    >
-                      {t("shell.mode.operations.exitText")}
-                    </Link>
-                  </>
-                )}
-              </div>
-            ) : undefined
-          }
-        />
+          <AdminNav
+            capabilities={capabilities}
+            multipleWorkspaces={multipleWorkspaces}
+            operationsGroup={
+              inOperations ? (
+                <div
+                  className="qcms-opsbar"
+                  role="group"
+                  aria-label={t("nav.operations")}
+                  data-testid="qcms-mode-header"
+                  data-mode="operations"
+                >
+                  <Link href={OPERATIONS_PATH} aria-current="page" className="qcms-opsbar__title">
+                    {t("nav.operations")}
+                  </Link>
+                  {environment}
+                  {exit !== undefined && (
+                    <>
+                      <span className="qcms-opsbar__divider" aria-hidden="true" />
+                      <Link
+                        href={exit}
+                        className="qcms-opsbar__exit"
+                        aria-label={t("shell.mode.operations.exit")}
+                        data-testid="qcms-mode-exit"
+                        {...{ [LEAVE_EXEMPT_ATTRIBUTE]: "" }}
+                      >
+                        {t("shell.mode.operations.exitText")}
+                      </Link>
+                    </>
+                  )}
+                </div>
+              ) : undefined
+            }
+          />
         )}
       </div>
       <div className="qcms-topbar__tools">{trailing}</div>

@@ -2,7 +2,10 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { CONVERSATION_STORAGE_KEY, builderConversationKey } from "../../lib/agent/conversation-state.ts";
+import {
+  CONVERSATION_STORAGE_KEY,
+  builderConversationKey,
+} from "../../lib/agent/conversation-state.ts";
 import { builderSubjectName } from "../../lib/shell/builder-subject.ts";
 
 import { BuilderShell } from "./builder-shell.tsx";

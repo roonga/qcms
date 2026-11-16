@@ -25,8 +25,7 @@ export interface CreateFormCardState {
 }
 
 export type StartDraftState =
-  | { readonly status: "started" }
-  | { readonly status: "error"; readonly message: string };
+  { readonly status: "started" } | { readonly status: "error"; readonly message: string };
 
 export interface SaveDraftState {
   readonly status: "saved" | "error";

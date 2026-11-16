@@ -15,11 +15,7 @@ import { Alert, Button, Tab, TabList, TabPanel, Tabs } from "@/components/kit";
 import { isProseTurn, ConversationProvider, useConversation } from "@/lib/agent/conversation";
 import { builderConversationKey } from "@/lib/agent/conversation-state";
 import { BUILDER_PANE_WIDTH, BUILDER_TABS_QUERY } from "@/lib/agent/panel";
-import {
-  builderPublishHref,
-  editByHandHref,
-  sharePreviewHref,
-} from "@/lib/forms/build-return";
+import { builderPublishHref, editByHandHref, sharePreviewHref } from "@/lib/forms/build-return";
 import type { StartDraftState } from "@/lib/forms/builder-state";
 import { useIsHydrated } from "@/lib/hydrated";
 import { t } from "@/lib/i18n/en";
@@ -44,7 +40,13 @@ function notNarrowOnServer(): boolean {
   return false;
 }
 
-function AssistantPane({ formId, name }: { readonly formId: string | null; readonly name: string }) {
+function AssistantPane({
+  formId,
+  name,
+}: {
+  readonly formId: string | null;
+  readonly name: string;
+}) {
   const conversation = useConversation();
   const turns = conversation.turns.filter(isProseTurn);
   return (

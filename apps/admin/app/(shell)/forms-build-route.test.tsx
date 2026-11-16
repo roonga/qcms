@@ -53,7 +53,12 @@ function myAccess(roles: readonly string[], workspaceId = "org_default_workspace
     data: {
       userId: "u_1",
       installationAdmin: false,
-      capabilities: { authoring: true, operations: true, workspaces: false, siteConfiguration: false },
+      capabilities: {
+        authoring: true,
+        operations: true,
+        workspaces: false,
+        siteConfiguration: false,
+      },
       workspaces: [
         {
           workspaceId,
