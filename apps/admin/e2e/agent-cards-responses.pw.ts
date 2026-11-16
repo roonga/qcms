@@ -43,7 +43,7 @@ let erasableAlone = "";
 let keptOnCancel = "";
 
 test.beforeAll(async () => {
-  // Site administrator only until #1336: the erasure log is installation-only.
+  // Site administrator only until #1336: the erasure log is installation-only. check-comments: allow only pointer to the tracked limit
   await createTestAdmin(EMAIL, { siteAdministrator: true });
   const deliverer = openDeliverer();
   try {

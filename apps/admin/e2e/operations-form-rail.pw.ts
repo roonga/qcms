@@ -73,7 +73,7 @@ function screens(): readonly Screen[] {
 }
 
 test.beforeAll(async ({ browser }) => {
-  // Site administrator only until #1336: the erasure log is installation-only.
+  // Site administrator only until #1336: the erasure log is installation-only. check-comments: allow only pointer to the tracked limit
   await createTestAdmin(OPERATOR, { siteAdministrator: true });
   await createTestAdmin(VIEWER, { grants: ["responses.viewer"], owner: false });
   const page = await browser.newPage();

@@ -248,7 +248,7 @@ describe("scenario 1: full loop end to end", () => {
     const rows = JSON.parse(json.text) as { sessionId: string }[];
     expect(rows.map((r) => r.sessionId)).not.toContain(sessionId);
 
-    // Site administrator only until #1336: the erasure log is installation-only.
+    // Site administrator only until #1336: the erasure log is installation-only. check-comments: allow only pointer to the tracked limit
     const siteAdmin = new AdminClient(
       composed.app,
       composed.internalToken,

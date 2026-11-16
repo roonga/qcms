@@ -617,7 +617,7 @@ describe("erase excludes from all read paths; unflag releases the event (exit cr
     }>;
     expect(rows.map((r) => r.sessionId)).toEqual([kept]);
 
-    // Site administrator only until #1336: the erasure log is installation-only.
+    // Site administrator only until #1336: the erasure log is installation-only. check-comments: allow only pointer to the tracked limit
     const siteAdmin = await seedAdminSession(testDb.db, {
       label: "tombstones",
       siteAdministrator: true,
