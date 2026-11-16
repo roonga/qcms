@@ -857,10 +857,9 @@ export function makeAddHolderHandler(deps: Deps): RouteHandler<typeof addHolderR
   };
 }
 
-// Suspended where the grantor reset or reactivated the account, or is the account itself, so
-// neither removing a suspended hold and granting it again nor a self-grant lifts it. The
-// account's lock is tried after the workspace's, as the re-confirmation takes them; a reset
-// holds only the account's.
+// Suspended where the grantor reset or reactivated the account or is the account, so a
+// remove and re-add never lifts it. The account's lock is tried after the workspace's, as
+// the re-confirmation takes them; a reset holds only the account's.
 async function writeHold(
   tx: Executor,
   input: {
