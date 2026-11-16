@@ -93,11 +93,11 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (733 files common to both shapes)
+### Scaffolded paths (737 files common to both shapes)
 
 | Path                                                                            | Files |
 | ------------------------------------------------------------------------------- | ----- |
-| `(project root)`                                                                | 8     |
+| `(project root)`                                                                | 10    |
 | `apps/`                                                                         | 722   |
 | `apps/admin/`                                                                   | 390   |
 | `apps/admin/app/`                                                               | 104   |
@@ -265,6 +265,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/portal/lib/i18n/`                                                         | 2     |
 | `apps/portal/lib/server/`                                                       | 18    |
 | `docker/`                                                                       | 3     |
+| `scripts/`                                                                      | 2     |
 
 ### What each deployment shape adds
 
@@ -303,13 +304,15 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (733)</summary>
+<summary>Every scaffolded file (737)</summary>
 
 ```
 .dockerignore
 .env.example
 .gitignore
 .npmrc
+.prettierignore
+.prettierrc.json
 apps/admin/.gitignore
 apps/admin/app/(shell)/@rail/default.tsx
 apps/admin/app/(shell)/@rail/forms/[formId]/page.tsx
@@ -1038,6 +1041,8 @@ docker/api.Dockerfile
 docker/portal.Dockerfile
 package.json
 pnpm-workspace.yaml
+scripts/generate-prompts.mjs
+scripts/prompt-sources.mjs
 tsconfig.base.json
 ```
 

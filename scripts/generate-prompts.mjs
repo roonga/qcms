@@ -274,6 +274,8 @@ function tryGit(args) {
       cwd: fileURLToPath(REPO_ROOT),
       encoding: "utf8",
       windowsHide: true,
+      // A tree under no version control is a supported case, not a failure to print.
+      stdio: ["ignore", "pipe", "ignore"],
     }).trim();
   } catch {
     return undefined;
