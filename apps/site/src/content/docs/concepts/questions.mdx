@@ -1,0 +1,125 @@
+---
+title: Questions
+description: The governed, versioned question library and the seven question types.
+---
+
+A question is a governed, versioned entity. `questionId` is stable identity and a published question
+version is immutable content; published forms pin exact question versions. An id is never reused
+with a different meaning.
+
+## The seven types
+
+The type union is closed per core release. Adding a type is a versioned change to
+`@roonga/qcms-core`, never a schema migration.
+
+| Type           | Constraints                             |
+| -------------- | --------------------------------------- |
+| `shortText`    | `minLength`, `maxLength`, `pattern`     |
+| `longText`     | `maxLength`                             |
+| `number`       | `min`, `max`, `integer`                 |
+| `date`         | `min`, `max`                            |
+| `boolean`      | none                                    |
+| `singleChoice` | `options`                               |
+| `multiChoice`  | `options`, `minSelected`, `maxSelected` |
+
+File upload is not a launch type.
+
+## The shape
+
+```ts
+const ChoiceOption = z.object({
+  optionId: OptionId, // stable within the question; rules reference these
+  label: LocalizedText,
+});
+
+const QuestionBase = z.object({
+  questionId: QuestionId, // stable forever; never reused for a different meaning
+  label: LocalizedText,
+  help: LocalizedText.optional(),
+  required: z.boolean().default(false),
+});
+```
+
+Every human-readable field is a locale map, so `label` is `{ "en": "Date of birth" }` rather than a
+string. Publish validates completeness for the form's default locale.
+
+An `optionId` is question-scoped: duplicates across questions are fine, duplicates within one are
+rejected at publish.
+
+## Ids
+
+Ids are branded strings with a fixed prefix, so one kind is not assignable to another.
+
+| Entity            | Prefix |
+| ----------------- | ------ |
+| Question          | `q_`   |
+| Form              | `frm_` |
+| Step              | `stp_` |
+| Option            | `opt_` |
+| Rule              | `rul_` |
+| Session           | `ses_` |
+| Secure link       | `lnk_` |
+| Repeating group   | `grp_` |
+| Group instance    | `ins_` |
+
+## Canonical answer encodings
+
+| Question type             | Canonical encoding                                                                            |
+| ------------------------- | --------------------------------------------------------------------------------------------- |
+| `shortText` / `longText`  | NFC-normalized string, normalized on parse rather than rejected                                 |
+| `number`                  | finite IEEE double; `integer` is a validation constraint, not an encoding                       |
+| `date`                    | timezone-less ISO `YYYY-MM-DD`, validated as a real calendar date; respondent-local by design   |
+| `boolean`                 | JSON boolean                                                                                    |
+| `singleChoice`            | an `optionId`                                                                                   |
+| `multiChoice`             | an array of `optionId`, deduplicated and order-preserving                                       |
+
+## Validation
+
+Answer validation parses the value against the canonical encoding for the question's type, then
+checks every constraint and returns all failures. Each error carries a code, the constraint it
+failed, and a message. The codes are the localization contract; a message may quote a constraint
+bound, which is definition content, but never the submitted value.
+
+`required` is not checked there. Presence is the submission sweep's concern.
+
+Authors may supply their own localized message per constraint. A blank field inherits the catalog
+default; the stable validation codes remain authoritative.
+
+Empty text and empty selections are absence, not answers. Posting `""` or `[]` is refused with
+`EMPTY_ANSWER_NOT_ALLOWED`; a literal `null` is how an answer is cleared.
+
+## Text patterns
+
+A `shortText` `pattern` is restricted to a subset that is safe to run in a browser and on the
+server.
+
+- **Supported:** literals and escaped metacharacters; `.`; anchors `^`, `$`, `\b`, `\B`; character
+  classes with ranges; class escapes; unicode escapes and properties; alternation; groups;
+  quantifiers, greedy or lazy.
+- **Rejected:** backreferences and lookahead or lookbehind; unbounded quantifiers over a group whose
+  body contains a quantifier or an alternation; finite bounds above 1000; patterns longer than 256
+  characters.
+
+The authoring API refuses an unsafe pattern on any new or edited definition.
+
+## How each type renders
+
+| Question type                  | Control                                               |
+| ------------------------------ | ----------------------------------------------------- |
+| `shortText`                    | Text field                                            |
+| `longText`                     | Text area                                             |
+| `number`                       | Number field                                          |
+| `date`                         | Date picker                                           |
+| `boolean`                      | Radio group of two, values `"true"` and `"false"`     |
+| `singleChoice`, up to 7 options | Radio group, one radio per option                    |
+| `singleChoice`, over 7 options | Select                                                |
+| `multiChoice`                  | Checkbox group, one checkbox per option               |
+
+Constraint props reach the browser as advisory hints. Server-side domain validation is the
+authority. A `boolean` renders as a yes/no radio group rather than a single checkbox, because a lone
+checkbox conflates unanswered with false.
+
+## Source
+
+- [`docs/DOMAIN_SCHEMA.md`](https://github.com/roonga/qcms/blob/main/docs/DOMAIN_SCHEMA.md)
+- [`docs/a2ui-mapping.md`](https://github.com/roonga/qcms/blob/main/docs/a2ui-mapping.md)

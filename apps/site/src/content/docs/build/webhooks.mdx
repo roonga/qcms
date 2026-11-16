@@ -1,0 +1,123 @@
+---
+title: Webhooks
+description: Signed response.submitted delivery, with retries and a dead-letter queue.
+---
+
+Per-form webhook endpoints receive a signed `response.submitted` event on submission. That is the
+only event type: there is no form-published, session-started or response-erased event.
+
+## The request
+
+```json
+{
+  "eventId": "a1b2c3d4",
+  "eventType": "response.submitted",
+  "deliveredAt": "2026-07-20T02:05:00.000Z",
+  "payload": {
+    "sessionId": "ses_",
+    "formId": "frm_",
+    "formVersion": 3,
+    "submittedAt": "2026-07-20T02:04:59.000Z",
+    "contentHash": "",
+    "answers": [{ "questionId": "q_name", "value": "Ada" }]
+  }
+}
+```
+
+`answers` is an array of entries rather than an object keyed by question, because one question can
+be answered more than once. Order is meaning: document order for questions, roster order for
+instances. Inside a repeating group each entry also carries an `instanceId`, and that key is absent
+for every question outside a group. Nothing about repetition sits outside `answers`: there is no
+groups member, no rows, no instances and no instance count anywhere in the envelope.
+
+| Header              | Value                                                    |
+| ------------------- | -------------------------------------------------------- |
+| `X-QCMS-Event`      | the event type                                            |
+| `X-QCMS-Delivery`   | a fresh UUID, unique per attempt; a retry has a new one   |
+| `X-QCMS-Timestamp`  | Unix seconds when the request was signed                  |
+| `X-QCMS-Signature`  | `v1=<hex HMAC-SHA256(secret, timestamp + "." + body)>`    |
+
+## Verifying
+
+Recompute the HMAC over the timestamp, a dot, and the raw body bytes, with your webhook secret, and
+compare it in constant time to the hex after `v1=`. Verify against the raw request bytes, before any
+JSON re-serialization. Reject if the timestamp is too old, for example more than five minutes, to
+bound replay. Because the timestamp is signed, a consumer that checks its freshness gets replay
+protection.
+
+## Retries
+
+A delivery succeeds on any `2xx` within the timeout. Anything else, including a non-2xx, a timeout,
+a network error or a delivery-time URL rejection, is a failed attempt. The delivery is rescheduled
+with capped exponential backoff, one minute, then five, then twenty-five, capped at six hours, and
+after ten failed attempts it is dead-lettered.
+
+The recorded error is a value-free code, never a secret or an answer value. The attempt counter
+counts failed attempts, so a delivery that succeeded first time reads zero.
+
+Delivery is at least once, so a consumer can receive a duplicate. `eventId` is stable per outbox
+event and `contentHash` is stable per submission; both are idempotency keys, and processing the same
+event id twice must be a no-op.
+
+## Configuring an endpoint
+
+| Route                                       | Effect                                                                                       |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `POST /admin/forms/:id/webhooks`            | Configure a webhook. The secret is generated if omitted, and shown exactly once in the response |
+| `GET /admin/forms/:id/webhooks`             | List the form's webhooks. Secrets are masked and never returned                                |
+| `PUT /admin/forms/:id/webhooks/:webhookId`  | Update the URL or active flag, or rotate the secret; the new secret is shown once               |
+| `DELETE /admin/forms/:id/webhooks/:webhookId` | Soft-deactivate, so delivery history survives                                                |
+
+Multiple webhooks per form are allowed, and delivery goes to every active one.
+
+Endpoints are per environment: configuration is authored once per environment, and a promotion does
+not carry it.
+
+Rotating a secret is a hard cutover. A delivery carries one signature under one secret, so there is
+no overlap window and every delivery to that endpoint fails at the consumer until the consumer is
+updated.
+
+## Endpoint URL policy
+
+By default the policy is deny. The scheme must be `https`, and the host must not be a loopback name
+or an IP literal in a private, reserved, loopback or link-local range, in either IPv4 or IPv6. A
+rejected URL answers `422 WEBHOOK_URL_REJECTED` with a reason. The check runs at configuration time
+and again immediately before every delivery.
+
+`QCMS_WEBHOOK_ALLOW_PRIVATE=true` is the single documented escape hatch. Note honestly that the
+guard does not fully close DNS rebinding: a hostname that passed can resolve to a private address at
+fetch time.
+
+:::caution[No credentials in the URL]
+Do not put a bearer token in a query parameter, an API key in the path, or basic-auth credentials in
+the host. The secret and the signature are the authentication.
+:::
+
+## Two-person rule
+
+A workspace carries one switch for requiring a second approver, off by default. With it on, the
+three configuring routes answer `202` in production instead of applying the change, and the body
+marks the change pending. A `202` is neither an error nor a success. A create still answers with the
+secret. One pending change per endpoint: a second proposal for the same endpoint is refused.
+
+## Operations
+
+`GET /admin/outbox/dead-letters` lists dead letters deployment-wide, newest first.
+`POST /admin/forms/:id/deliveries/:deliveryId/redeliver` retries one.
+`GET /admin/forms/:id/deliveries` lists recent deliveries. There is no bulk-redelivery route.
+
+In the admin, per-form webhook configuration and the delivery dashboard live on the form's Webhooks
+tab, and the dead-letter queue has its own screen.
+
+## Configuration
+
+`QCMS_APP_KEY`, `QCMS_WEBHOOK_ALLOW_PRIVATE` (default `false`), `QCMS_WEBHOOK_TIMEOUT_MS` (default
+`10000`), `QCMS_WEBHOOK_BATCH_SIZE` (default `20`), `QCMS_OUTBOX_INTERVAL_MS` and
+`QCMS_OUTBOX_JITTER_MS`.
+
+Secrets are encrypted at rest rather than hashed, with AES-256-GCM under a key derived from
+`QCMS_APP_KEY`.
+
+## Source
+
+- [`docs/webhooks.md`](https://github.com/roonga/qcms/blob/main/docs/webhooks.md)

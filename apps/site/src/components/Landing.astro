@@ -1,0 +1,169 @@
+---
+import BranchingFigure from "./BranchingFigure.astro";
+
+const root = import.meta.env.BASE_URL.replace(/\/$/, "");
+const href = (path: string): string => `${root}/${path}`;
+
+const properties = [
+  {
+    title: "Immutability",
+    body: "Published form versions are frozen forever. A session pins the version it started on and never migrates.",
+  },
+  {
+    title: "Determinism",
+    body: "The serving path contains no LLM and nothing nondeterministic. The same form version and the same answers give the same flow and the same UI, forever.",
+  },
+  {
+    title: "Auditability",
+    body: "The system can always answer what was asked, what was shown, what was answered, and when it changed. Snapshots store both the domain definition and the compiled UI; answers are an append-only ledger.",
+  },
+];
+
+const strip = [
+  {
+    title: "Accessible by default",
+    body: "WCAG 2.2 AA is a first-class commitment, built in and verified per release rather than bolted on.",
+  },
+  {
+    title: "No hardcoded strings",
+    body: "Chrome comes from app catalogs and authored content from localized text. Dates, numbers and lists format against one configured locale.",
+  },
+  {
+    title: "Data out cleanly",
+    body: "A reporting view and CSV export put responses where your own analysis already lives.",
+  },
+  {
+    title: "Erasure you can prove",
+    body: "Erasure and retention purge are the only whole-session delete paths, and both leave a record of what was removed.",
+  },
+];
+
+const reading = [
+  {
+    title: "Quick start",
+    body: "Run the full stack locally with Docker Compose and open the portal and the admin.",
+    link: href("start/quick-start/"),
+  },
+  {
+    title: "Concepts",
+    body: "Questions, forms and versions, rules, sessions and answers, repeating groups.",
+    link: href("concepts/questions/"),
+  },
+  {
+    title: "Deploy and operate",
+    body: "Compose topology, ingress and TLS, environments, backup and restore, erasure.",
+    link: href("deploy/docker-compose/"),
+  },
+  {
+    title: "Reference",
+    body: "The published packages, the HTTP API and every configuration variable.",
+    link: href("reference/packages/"),
+  },
+];
+---
+
+<div class="qcms-landing">
+  <section class="qcms-hero">
+    <div>
+      <p class="qcms-hero__eyebrow">Open source · MIT · TypeScript</p>
+      <h1>Questionnaires with deeply conditional logic, in your own repository.</h1>
+      <p class="qcms-hero__lead">
+        QCMS is an engine for questionnaires, surveys and registration flows where the answer to one
+        question determines which questions follow. You scaffold the application into your own
+        repository and own the source; the domain model, rules engine and publish compiler ship as
+        versioned packages you upgrade.
+      </p>
+      <div class="qcms-actions">
+        <a class="qcms-button qcms-button--primary" href={href("start/quick-start/")}>
+          Read the quick start
+        </a>
+        <a class="qcms-button qcms-button--secondary" href="https://github.com/roonga/qcms">
+          View on GitHub
+        </a>
+      </div>
+      <p class="qcms-chip">pnpm create qcms-app my-forms</p>
+    </div>
+    <BranchingFigure />
+  </section>
+
+  <section>
+    <h2>Three properties, never traded away</h2>
+    <p>They are non-negotiable, and they shape every design decision.</p>
+    <div class="qcms-grid qcms-grid--3">
+      {
+        properties.map((item) => (
+          <div class="qcms-card">
+            <h3>{item.title}</h3>
+            <p>{item.body}</p>
+          </div>
+        ))
+      }
+    </div>
+  </section>
+
+  <section>
+    <h2>Own the app. Upgrade the engine.</h2>
+    <p>
+      QCMS is distributed in the shadcn ethos: you do not install a product, you scaffold the
+      application into your own repository. The invariant machinery ships as versioned npm packages;
+      the code you would reasonably change is yours.
+    </p>
+    <div class="qcms-grid qcms-grid--2">
+      <div class="qcms-card">
+        <h3>Packages you upgrade</h3>
+        <ul class="qcms-list">
+          <li><code>@roonga/qcms-core</code> domain model, rules DSL and evaluator, publish compiler</li>
+          <li><code>@roonga/qcms-db</code> schema, migrations, reporting view, erasure</li>
+          <li><code>@roonga/qcms-a2ui-compiler</code> form definitions to A2UI documents</li>
+          <li><code>@roonga/qcms-ui</code> the A2UI renderer</li>
+        </ul>
+      </div>
+      <div class="qcms-card">
+        <h3>Source you own</h3>
+        <ul class="qcms-list">
+          <li>The respondent portal</li>
+          <li>The authoring admin</li>
+          <li>The API routes and adapters</li>
+          <li>Your theme and its tokens</li>
+        </ul>
+      </div>
+    </div>
+    <div class="qcms-note">
+      <p>
+        A deployment is four containers: Postgres, the API, the respondent portal and the authoring
+        admin. Migration runs once, before the API starts, so you keep control of upgrade ordering.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <div class="qcms-grid qcms-grid--4">
+      {
+        strip.map((item) => (
+          <div class="qcms-card">
+            <h3>{item.title}</h3>
+            <p>{item.body}</p>
+          </div>
+        ))
+      }
+    </div>
+  </section>
+
+  <section>
+    <h2>Start reading</h2>
+    <div class="qcms-grid qcms-grid--4">
+      {
+        reading.map((item) => (
+          <a class="qcms-card" href={item.link}>
+            <h3>{item.title}</h3>
+            <p>{item.body}</p>
+          </a>
+        ))
+      }
+    </div>
+  </section>
+
+  <section class="qcms-footer">
+    <p>MIT licensed. © 2026 Roonga and the QCMS contributors.</p>
+  </section>
+</div>

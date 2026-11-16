@@ -1,0 +1,169 @@
+---
+title: Configuration
+description: The environment variables an operator sets, and the ones never to set in production.
+---
+
+Every setting is an environment variable. The API validates its configuration at boot, collects
+every problem and fails fast naming the variables, never the values.
+
+Copy `.env.compose.example` to `.env` before starting the Compose stack, and generate every secret
+with a cryptographically secure generator of at least 32 characters:
+
+```sh
+openssl rand -base64 32
+```
+
+`.env.example` is a three-line development file for a local database. The operator file is
+`.env.compose.example`.
+
+## The minimum for a first boot
+
+Compose level, all required with no default: `QCMS_DB_PASSWORD`, `QCMS_DB_MIGRATE_PASSWORD`,
+`QCMS_DB_APP_CONTROL_PASSWORD`, `QCMS_DB_APP_TEST_PASSWORD`, `QCMS_DB_APP_PROD_PASSWORD`. Use
+distinct application-role passwords; a test asserts they differ.
+
+API, required with no default: `DATABASE_URL`, `QCMS_MOUNT`, `QCMS_LINK_KEYS`, `QCMS_SESSION_KEYS`,
+`QCMS_INTERNAL_TOKEN`, `QCMS_APP_KEY`, `QCMS_PORTAL_BASE_URL`, plus one
+`QCMS_DATABASE_URL_<ENVIRONMENT>` per configured environment. `QCMS_ADMIN_AUTH_SECRET` and
+`QCMS_ADMIN_BASE_URL` are required when the admin group is mounted.
+
+Portal, required: `QCMS_API_BASE_URL`, `QCMS_INTERNAL_TOKEN`, `QCMS_PORTAL_BASE_URL`.
+
+Admin, required: `QCMS_API_BASE_URL`, `QCMS_INTERNAL_TOKEN`, `QCMS_ADMIN_BASE_URL`.
+
+## Compose level
+
+These are consumed by the Compose files; the containers never see them under these names.
+
+| Variable                        | Default             | Purpose                                                                |
+| ------------------------------- | ------------------- | ---------------------------------------------------------------------- |
+| `QCMS_DB_PASSWORD`              | required            | Bootstrap superuser. Only the role service uses it; serving processes must not hold it |
+| `QCMS_DB_MIGRATE_PASSWORD`      | required            | Schema owner, held only by the migration service                        |
+| `QCMS_DB_APP_CONTROL_PASSWORD`  | required            | Control-pool role                                                       |
+| `QCMS_DB_APP_TEST_PASSWORD`     | required            | Test-pool role, data manipulation only on its own schema                |
+| `QCMS_DB_APP_PROD_PASSWORD`     | required            | Prod-pool role, data manipulation only on its own schema                |
+| `QCMS_DB_NAME`                  | `qcms`              | Database name created on first boot of the volume                       |
+| `QCMS_DB_USER`                  | `qcms`              | Bootstrap superuser name                                                |
+| `QCMS_POSTGRES_IMAGE`           | a pinned Postgres   | Override to use an image mirror                                         |
+| `QCMS_PORTAL_PORT`              | `7000`              | Published portal host port                                              |
+| `QCMS_ADMIN_PORT`               | `7040`              | Published admin host port                                               |
+| `QCMS_BIND_ADDRESS`             | loopback            | Interface the two published apps bind to. The loopback default is a control |
+| `QCMS_CADDY_IMAGE`              | a pinned Caddy      | Used only by the proxy overlay                                          |
+| `QCMS_PORTAL_DOMAIN`            | required by overlay | Public hostname for the portal                                          |
+| `QCMS_ADMIN_DOMAIN`             | required by overlay | Public hostname for the admin                                           |
+| `QCMS_ACME_EMAIL`               | required by overlay | Contact address for the certificate account                             |
+
+## API
+
+| Variable                 | Default      | Purpose                                                                           |
+| ------------------------ | ------------ | ---------------------------------------------------------------------------------- |
+| `DATABASE_URL`           | required     | Postgres connection string, held only by the API                                   |
+| `QCMS_MOUNT`             | required     | Comma-separated route groups: `public`, `internal`, `admin`, environment names, or `all` |
+| `QCMS_LINK_KEYS`         | required     | Secure-link signing keys. The first signs, all verify                               |
+| `QCMS_SESSION_KEYS`      | required     | Respondent session-token signing keys, same rotation model                          |
+| `QCMS_INTERNAL_TOKEN`    | required     | Service channel tokens. Any listed token is accepted; keep both during a rotation    |
+| `QCMS_APP_KEY`           | required     | AES-256-GCM key for stored webhook secrets. Set once and back it up: there is no in-place rotation |
+| `QCMS_PORTAL_BASE_URL`   | required     | Public origin of the portal, used to build secure-link URLs                         |
+| `QCMS_ADMIN_AUTH_SECRET` | conditional  | Admin auth signing and encryption secret                                            |
+| `QCMS_ADMIN_BASE_URL`    | conditional  | Browser-facing admin origin; must match exactly what the browser sees               |
+| `QCMS_ENVIRONMENTS`      | `test,prod`  | The live environments. The API refuses boot unless this matches the registry exactly |
+| `PORT`                   | `3000`       | Port the API listens on inside its container                                        |
+
+### Admin authentication and sessions
+
+| Variable                           | Default                  |
+| ---------------------------------- | ------------------------ |
+| `QCMS_ADMIN_2FA`                   | `required`               |
+| `QCMS_ADMIN_SECURE_COOKIES`        | true in production        |
+| `QCMS_ADMIN_TRUSTED_PROXY_HOPS`    | `1` on the admin app      |
+| `QCMS_ADMIN_PASSWORD_BREACH_CHECK` | `true`                    |
+| `QCMS_ADMIN_SIGNIN_THROTTLE`       | `true`                    |
+| `QCMS_ADMIN_SESSION_IDLE_MS`       | 1 hour                    |
+| `QCMS_ADMIN_SESSION_MAX_AGE_MS`    | 12 hours                  |
+| `QCMS_SESSION_TTL_MS`              | 24 hours                  |
+
+The breach check sends only five hex characters of a password hash to an external service, and it
+fails closed: an unreachable service refuses passwords, including first-admin creation.
+
+### First-run bootstrap
+
+`QCMS_ADMIN_EMAIL`, `QCMS_ADMIN_PASSWORD` and the optional `QCMS_ADMIN_NAME` are read only by the
+create-admin command, never by the serving process. Pass the password through the command
+environment, never through `.env` or the command line.
+
+### Webhooks, outbox and retention
+
+`QCMS_WEBHOOK_ALLOW_PRIVATE` (`false`), `QCMS_WEBHOOK_TIMEOUT_MS` (`10000`),
+`QCMS_WEBHOOK_BATCH_SIZE` (`20`), `QCMS_OUTBOX_INTERVAL_MS` (`5000`), `QCMS_OUTBOX_JITTER_MS`
+(`1000`), `QCMS_RETENTION_SWEEP_INTERVAL_MS` (1 hour), `QCMS_DELIVERY_SNIPPET_TTL_MS` (7 days),
+`QCMS_OUTBOX_PAYLOAD_TTL_MS` (30 days).
+
+### Limits and readiness
+
+`QCMS_READY_DB_TIMEOUT_MS` (`2000`): exceeding it makes readiness answer `503`, never `500`.
+`QCMS_BODY_LIMIT_BYTES` (1 MB): keep the ingress ceiling aligned, because both ingress recipes
+configure one. `QCMS_ANTIABUSE_MIN_SUBMIT_MS` (off) and `QCMS_ANTIABUSE_HONEYPOT_FIELD`.
+
+Rate limits are a family of `QCMS_RL_*` window and maximum pairs covering session creation, answers
+per session and per address, submission, roster operations and the optional assist routes. They are
+installation-wide and per process, so replicas multiply them. Without an ingress, or without its
+forwarded header, every caller shares one bucket.
+
+### Optional features
+
+`QCMS_FLAG_CHALLENGE_PROVIDER` (`none` or `turnstile`), with `QCMS_TURNSTILE_SITE_KEY` and
+`TURNSTILE_SECRET_KEY` when enabled.
+
+`QCMS_FLAG_AGENT_AUTHORING` (`none` by default), with `QCMS_AGENT_MODEL`, `QCMS_AGENT_API_KEY`,
+`QCMS_AGENT_BASE_URL`, `QCMS_AGENT_MAX_STEPS` and `QCMS_AGENT_THINKING`.
+
+`QCMS_FLAG_THEME_DERIVE` (`off` by default), with `QCMS_THEME_DERIVE_ALLOWED_HOSTS` and
+`QCMS_THEME_DERIVE_PROXY`.
+
+Outbound mail: `QCMS_SMTP_HOST`, `QCMS_SMTP_PORT`, `QCMS_SMTP_SECURITY`, `QCMS_SMTP_USER`,
+`QCMS_SMTP_PASSWORD`, `QCMS_SMTP_FROM` and `QCMS_SMTP_TIMEOUT_MS`. Unset leaves mail unconfigured.
+
+Telemetry, on all three services: `OTEL_EXPORTER_OTLP_ENDPOINT` and `OTEL_SERVICE_NAME`. Unset
+disables telemetry; set, it exports traces and allowlisted logs and adds trace identifiers to the
+stdout records.
+
+## Portal
+
+Required: `QCMS_API_BASE_URL`, which is the internal origin of the API and never a public URL,
+`QCMS_INTERNAL_TOKEN` and `QCMS_PORTAL_BASE_URL`.
+
+Optional: `QCMS_PORTAL_ENVIRONMENTS`, `QCMS_PORTAL_ENVIRONMENT_HOSTS`,
+`QCMS_PORTAL_TRUSTED_PROXY_HOPS` (`1`), `QCMS_SECURE_COOKIES`, `QCMS_LOCALE` (`en-GB`), and the
+eight [theming](/qcms/build/theming/) variables.
+
+`QCMS_LOCALE` is a BCP 47 formatting tag. It governs dates, times, numbers and list formatting; the
+copy stays English.
+
+## Admin
+
+Required: `QCMS_API_BASE_URL`, `QCMS_INTERNAL_TOKEN`, `QCMS_ADMIN_BASE_URL`.
+
+Optional: `QCMS_ADMIN_SECURE_COOKIES`, `QCMS_ADMIN_2FA` and `QCMS_ADMIN_SESSION_MAX_AGE_MS`, which
+must both match the API's values, `QCMS_ADMIN_TRUSTED_PROXY_HOPS`, `QCMS_PORTAL_BASE_URL`,
+`QCMS_LOCALE` and `QCMS_PORTAL_THEME`, which should match the portal theme so previews show
+respondent appearance.
+
+## Never set these in a deployment
+
+| Setting                               | Why                                                                      |
+| ------------------------------------- | ------------------------------------------------------------------------- |
+| `QCMS_ADMIN_2FA=optional`             | Skips enrollment; development only                                        |
+| `QCMS_SMTP_ALLOW_INSECURE`            | Admits an unencrypted relay; links would cross the network in clear text   |
+| `QCMS_DEV_LOGIN_PREFILL`              | Enables password prefill from the query string                            |
+| `QCMS_SECURE_COOKIES=false`           | Allowed only on loopback; other origins refuse boot                       |
+| `QCMS_ADMIN_SECURE_COOKIES=false`     | The same                                                                  |
+| `QCMS_ADMIN_PASSWORD_BREACH_CHECK=false` | Only for an offline bootstrap                                          |
+
+:::note
+There is no secret-store integration. Secrets come from `.env` at mode 600, or from the platform's
+own secret store. There is no log-level variable: logging is JSON lines to stdout.
+:::
+
+## Source
+
+- [`docs/operations.md`](https://github.com/roonga/qcms/blob/main/docs/operations.md)

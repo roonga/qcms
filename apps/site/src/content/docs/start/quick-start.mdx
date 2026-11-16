@@ -1,0 +1,74 @@
+---
+title: Quick start
+description: Run the whole QCMS stack locally with Docker Compose.
+---
+
+The supported way to see QCMS running is its own Compose topology: Postgres, an explicit one-shot
+migration, the API, the respondent portal and the authoring admin. The API and the database are
+internal to the Compose network; only the two web apps publish host ports.
+
+You need Docker and a clone of the repository.
+
+## Start the stack
+
+```sh
+cp .env.compose.example .env  # replace every placeholder secret before use
+docker compose up --build -d
+```
+
+At the default ports, open the portal at `http://localhost:7000` and the admin at
+`http://localhost:7040`.
+
+Both published ports bind to loopback through `QCMS_BIND_ADDRESS`, so the stack is not reachable
+from the network until you say otherwise.
+
+:::caution[Replace every secret]
+`.env.compose.example` ships placeholders. A deployment anyone else can reach needs real,
+independently generated values for the key and password variables before it starts.
+:::
+
+## Migrations are their own step
+
+The migration runs once, before the API starts. It is not performed by application startup, so you
+keep control of upgrade ordering. Run it again explicitly after an upgrade:
+
+```sh
+docker compose run --rm migrate
+```
+
+## Create the first administrator
+
+Credentials travel in the environment, never as arguments.
+
+```sh
+docker compose exec \
+  -e QCMS_ADMIN_EMAIL=you@example.com \
+  -e QCMS_ADMIN_PASSWORD='a long passphrase' \
+  api node dist/create-admin.js
+```
+
+Sign in to the admin, complete the two-factor enrollment if the deployment requires it, and you are
+at the Questions screen.
+
+## What to do next
+
+- Author a question library and compose a form. See [Questions](/qcms/concepts/questions/) and
+  [Forms and versions](/qcms/concepts/forms-and-versions/).
+- Add branching. See [Rules](/qcms/concepts/rules/).
+- Put it on a host of your own. See [Docker Compose](/qcms/deploy/docker-compose/) and
+  [Ingress and TLS](/qcms/deploy/ingress-and-tls/).
+
+## Working on QCMS itself
+
+A development checkout is a different path, and it needs Node, pnpm and Docker:
+
+```sh
+pnpm install
+pnpm build && pnpm test
+docker compose -f docker-compose.dev.yml up -d   # local Postgres, copy .env.example to .env first
+```
+
+## Source
+
+- [`README.md`](https://github.com/roonga/qcms/blob/main/README.md)
+- [`docs/deploy.md`](https://github.com/roonga/qcms/blob/main/docs/deploy.md)

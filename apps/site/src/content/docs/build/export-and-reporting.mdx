@@ -1,0 +1,119 @@
+---
+title: Export and reporting
+description: The read-only SQL reporting views and the CSV or JSON export.
+---
+
+There are two ways to get data out: a documented read-only SQL surface for BI and ETL consumers, and
+a streamed CSV or JSON export from the admin.
+
+## The reporting views
+
+Each environment schema carries two views.
+
+`reporting_<env>.responses` has one row per submitted response, with answers in a wide JSONB column.
+
+| Column         | Type        |
+| -------------- | ----------- |
+| `session_id`   | text        |
+| `form_id`      | text        |
+| `form_version` | integer     |
+| `submitted_at` | timestamptz |
+| `access_mode`  | `anonymous` or `secure_link` |
+| `answers`      | jsonb       |
+
+`reporting_<env>.answers_flat` is the same data unpivoted to long format, one row per answer, with
+`question_id`, `value` and `instance_id`. The instance id is the repeating-group instance the answer
+belongs to, or null outside every group.
+
+Values use the canonical encodings: a JSON string for text, a finite number, an ISO `YYYY-MM-DD`
+string for a date, a JSON boolean, an option id string for single choice, and a deduplicated array
+of option ids for multi choice.
+
+A row appears only when its session is submitted and is not erased. Because the exclusion is in the
+view definition, no consumer query can accidentally read non-submitted or erased data.
+
+Since workspaces, each workspace gets its own view pair per environment. The unprefixed pair is the
+application's and is granted to no consumer.
+
+### Connecting a consumer
+
+Create the role, then grant it:
+
+```sql
+CREATE ROLE "qcms_reporting_prod_home" LOGIN PASSWORD '<from-secret-store>';
+```
+
+```sh
+DATABASE_URL=postgres://qcms_migrate:...@host:5432/qcms \
+  pnpm qcms:environment reporting
+```
+
+That creates or replaces one view set per workspace and environment pair, and grants each pair's
+role usage on its own reporting schema and select on exactly its own two views. It is idempotent, so
+run it after creating a workspace.
+
+Additive changes to the views are a minor version; renames and removals are major. Column order is
+not part of the promise, so select columns by name.
+
+## The HTTP export
+
+```sh
+curl -s "$API/admin/forms/frm_auto_quote/export?format=csv&version=1" \
+  -H "x-qcms-internal-token: $INT" -H "x-qcms-admin-session: $ADM"
+```
+
+```sh
+curl -s "$API/admin/forms/frm_auto_quote/export?format=json" \
+  -H "x-qcms-internal-token: $INT" -H "x-qcms-admin-session: $ADM"
+```
+
+Parameters are `format` (`csv` or `json`), `shape` (`long` or `wide`), `version`, `from` and `to`.
+The export is streamed.
+
+JSON may span versions and is an array of `{ sessionId, formId, formVersion, submittedAt, accessMode, answers }`.
+
+### CSV rules
+
+A `version` is required for CSV, because the column set depends on it. The columns are the metadata
+columns `session_id`, `form_version`, `submitted_at` and `access_mode`, then one column per question
+of that version's form, in document order.
+
+- Multi choice serializes as option ids joined by `;`.
+- RFC 4180 quoting: a field is quoted when it contains a comma, a double quote, CR or LF, and
+  embedded quotes are doubled. Records end with CRLF.
+- A UTF-8 byte-order mark is prefixed once.
+- An unanswered question is an empty cell.
+
+### The two shapes
+
+`shape=long` is the default. One file carries the metadata columns and every question outside a
+group, plus one file per group at the group's own grain, with `session_id`, `instance_ordinal`,
+`instance_id` and the member questions. A version with at least one group answers a zip of those
+files; a version with none answers a single CSV.
+
+`shape=wide` folds each group's member questions back into one flat file as indexed columns. Be
+careful: a group whose maximum is 500 produces 500 columns per member question, whether any session
+filled two of them or none.
+
+## Other data-out routes
+
+`GET /admin/forms/:id/responses` lists submitted responses with paging and filters.
+`GET /admin/forms/:id/responses/:sessionId` reads one response: the locked answers, the append-only
+answer ledger, and the content hash.
+
+## Retention
+
+Two sweeps keep the ledger from growing without bound. Abandoned sessions past their expiry move to
+expired, keeping the ledger row. An optional hard cleanup permanently removes the ledger rows for
+sessions that expired and were never submitted; it never touches submitted content or erased
+sessions.
+
+:::note
+Scheduled or automated exports are out of scope. There is no public read API for responses: the
+machine paths are the SQL views and this internal admin endpoint, which carries no stability
+contract.
+:::
+
+## Source
+
+- [`docs/reporting-view.md`](https://github.com/roonga/qcms/blob/main/docs/reporting-view.md)

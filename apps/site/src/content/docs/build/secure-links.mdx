@@ -1,0 +1,100 @@
+---
+title: Secure links
+description: Signed, expiring links that open one form in one environment.
+---
+
+A secure link is a compact signed token that opens one form. It is minted by the admin, carried in a
+URL, and redeemed once by the portal to start a session.
+
+## The token
+
+Two segments separated by a single dot: the payload, then the signature.
+
+```
+base64url( canonicalJson( claims ∪ { purpose } ) ) "." base64url( HMAC-SHA256 signature )
+```
+
+There is no header segment. The algorithm is fixed, so nothing is negotiable and there is no
+algorithm-confusion attack surface.
+
+A link token carries four claims.
+
+| Claim       | Meaning                                                               |
+| ----------- | --------------------------------------------------------------------- |
+| `formId`    | the single form this link opens                                        |
+| `linkId`    | the minted-link row, so storage can revoke and enforce one-time use    |
+| `expiresAt` | hard expiry in ISO 8601 UTC; valid strictly before this instant        |
+| `oneTime`   | optional single-use marker, carried for the verifier                   |
+
+The payload is encoded, not encrypted: anyone holding a link can decode and read its claims. That is
+why no personal data ever goes in a token. Claims are opaque ids and an expiry.
+
+## Minting
+
+```sh
+curl -sX POST "$API/admin/forms/frm_auto_quote/links" \
+  -H "x-qcms-internal-token: $INT" -H "x-qcms-admin-session: $ADM" \
+  -H 'content-type: application/json' \
+  -d '{"expiresAt":"2030-01-01T00:00:00.000Z","oneTime":false,"count":1,"environment":"prod"}'
+```
+
+The response carries one entry per minted row: `linkId`, `environment`, `url` and `expiresAt`.
+
+- `environment` is required and has no default. A script that omits the field and silently gets a
+  production link is the failure that rule exists to prevent.
+- `count` defaults to 1 and is capped at 100. A larger batch is rejected before any row is written.
+- `expiresAt` must be a future instant.
+- Every route is form-scoped and environment-scoped, so a cross-form or cross-environment id takes
+  the same not-found answer as an unknown link.
+
+`GET /admin/forms/:id/links` lists one environment's links with a derived state of `active`,
+`consumed`, `expired` or `revoked`. `POST /admin/forms/:id/links/:linkId/revoke` revokes one.
+
+## The URL
+
+The link URL is `${QCMS_PORTAL_BASE_URL}/l/<token>` for production, and
+`${QCMS_PORTAL_BASE_URL}/<env>/l/<token>` for every other environment. The portal's redemption entry
+calls the API to start a session.
+
+Redemption checks the prefix against the link's environment and refuses a token presented under the
+wrong one. That is a not-found answer, raised before the link's own state is read and before
+anything is spent, and it names no other environment.
+
+The environment lives on the stored row and never in the token, so a leaked token discloses nothing
+about where it leads.
+
+## Verification
+
+Checks run in a fixed order: malformed, then bad signature, then wrong purpose, then expired, then
+wrong form.
+
+A verified signature is never sufficient on its own. The API must also consult the stored link row
+for revocation and for atomic one-time consumption. Verification uses WebCrypto and compares in
+constant time.
+
+Once a link is verified a session is minted, and from then on the session token is the credential.
+A secure-link session expires with its link, never after it.
+
+Secure links are the one deliberate case of a token appearing in a URL, mitigated by expiry plus
+that server-side row.
+
+## Rotating the signing key
+
+`QCMS_LINK_KEYS` is a comma or whitespace separated list, each entry at least 32 bytes. The first
+entry signs new mints; every entry verifies. Generate one with `openssl rand -base64 32`.
+
+1. Prepend the new key and redeploy.
+2. Keep the old key listed until every link signed with it has passed its longest expiry.
+3. Drop the old key.
+
+For a compromise, skip the grace period: drop the compromised key immediately, accept that
+outstanding links die, and re-mint.
+
+:::caution[Keep link identity opaque]
+Do not encode personal data in how you distribute links, such as a per-recipient link identity that
+itself embeds a name or email. The link identifier survives erasure by design.
+:::
+
+## Source
+
+- [`docs/secure-links.md`](https://github.com/roonga/qcms/blob/main/docs/secure-links.md)

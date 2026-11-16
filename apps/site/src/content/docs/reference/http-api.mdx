@@ -1,0 +1,126 @@
+---
+title: HTTP API
+description: The internal respondent and admin surfaces, and what they do not promise.
+---
+
+:::caution[No stability contract]
+`/api/v1` does not exist. It is a reserved seam. Everything described here is the internal surface
+both frontends use, marked internal in the specifications, and it can change freely while the
+product finds its shape.
+:::
+
+## The specifications
+
+Two OpenAPI 3.0.3 documents live in the repository, and there is no combined file:
+
+- [`docs/openapi/respondent.json`](https://github.com/roonga/qcms/blob/main/docs/openapi/respondent.json),
+  the public respondent loop plus the liveness and readiness probes
+- [`docs/openapi/admin.json`](https://github.com/roonga/qcms/blob/main/docs/openapi/admin.json),
+  the internal authoring surface
+
+Both are generated from the code rather than hand-written, and a check fails on drift.
+
+Read them as descriptive documentation of the current build. Neither carries a `servers` block, so
+no base URL is machine-readable, and neither defines the security schemes the operations reference,
+so a client built from the specification alone cannot authenticate. The real credentials are below.
+
+## Prefixes
+
+Respondent routes mount at the root. Admin routes mount under `/admin`, and in a public-only process
+the admin group is not mounted at all, so those paths answer not-found rather than forbidden.
+
+Non-production respondent addresses carry an environment path prefix, as in `/<env>/l/<token>` and
+`/<env>/sessions`.
+
+## Credentials
+
+Three headers, not cookies.
+
+| Header                   | Carried by                                                        |
+| ------------------------ | ------------------------------------------------------------------ |
+| `x-qcms-internal-token`  | every mounted request; the service channel token                   |
+| `x-qcms-admin-session`   | admin requests; the signed-in administrator's session token        |
+| `Authorization: Bearer`  | respondent session-scoped calls; the token minted at session start |
+
+The channel token authorizes nothing on its own. An admin session is rejected with a reasonless
+`401` when it is unknown, idle-expired, past its absolute lifetime, or not yet enrolled in
+two-factor.
+
+The scope vocabulary the specifications reference is inert at launch. It documents what a future
+public API will require and enforces nothing today.
+
+## Respondent routes
+
+| Method and path                     | Summary                                                             |
+| ----------------------------------- | -------------------------------------------------------------------- |
+| `POST /sessions`                    | Start an anonymous session from a public form slug, production only   |
+| `POST /sessions/link`               | Start a session from a secure link, in every environment              |
+| `GET /sessions/{id}`                | Read a session's status and pinned version                            |
+| `GET /sessions/{id}/step`           | Serve a step's stored compiled UI and flow projection                 |
+| `POST /sessions/{id}/answers`       | Submit one answer, or retract it with a null value                    |
+| `POST /sessions/{id}/answers/batch` | Submit a whole step's answers in one request, under one session lock  |
+| `POST /sessions/{id}/roster`        | Add or remove one instance of a repeating group                       |
+| `POST /sessions/{id}/submit`        | Validate, lock the answer set, emit the outbox event                  |
+| `GET /health`                       | Liveness probe                                                        |
+| `GET /ready`                        | Readiness probe, checks the database                                  |
+
+The probes are the only unauthenticated routes.
+
+## Admin route groups
+
+| Group                     | Examples                                                                                |
+| ------------------------- | ----------------------------------------------------------------------------------------- |
+| Questions                 | create a question, append a draft version, publish a version, deprecate one                |
+| Forms and publishing      | replace the draft, dry-run validation, publish, publish and release in one act, close      |
+| Releases and environments | the live environment set, the release workflow, release or promote, atomic batch release   |
+| Responses and export      | list responses, read one with its audit ledger, stream an export, erase, list tombstones   |
+| Secure links              | mint, list, revoke                                                                         |
+| Webhooks                  | configure, list, update, deactivate, and the proposal routes                               |
+| Outbox operations         | dead letters, redeliver one delivery, list deliveries                                      |
+| Workspaces and access     | workspaces, themes, members, access groups, audit, the caller's own access                 |
+
+## Errors
+
+Every guard returns one envelope:
+
+```json
+{ "error": { "code": "INVALID_REQUEST", "message": "", "details": {} } }
+```
+
+The code is stable. Examples are `INVALID_REQUEST` (400), `PUBLISH_REJECTED` (422), `INVALID_ANSWER`
+(422), `LINK_EXPIRED` (403), `LINK_CONSUMED` (409), `SESSION_SUBMITTED` (409) and `FORM_NOT_FOUND`
+(404).
+
+Request bodies are closed. Send only the keys a route declares: an undeclared key is a
+`400 INVALID_REQUEST` whose message names it, and a client generated from either specification
+refuses the same body the server refuses. Query parameters and headers stay permissive.
+
+## A short walkthrough
+
+```sh
+curl -sX POST "$API/sessions/link" \
+  -H "x-qcms-internal-token: $INT" -H 'content-type: application/json' \
+  -d '{"token":"<token>"}'
+```
+
+```sh
+curl -s "$API/sessions/$SES/step" \
+  -H "x-qcms-internal-token: $INT" -H "Authorization: Bearer $TOK"
+```
+
+```sh
+curl -sX POST "$API/sessions/$SES/answers" \
+  -H "x-qcms-internal-token: $INT" -H "Authorization: Bearer $TOK" \
+  -H 'content-type: application/json' \
+  -d '{"questionId":"q_at_fault_accident","value":true}'
+```
+
+:::note
+There is no SDK, client library or collection file, no rendered HTML reference, and no operation
+ids, so generated client method names would be derived and unstable. Rate limits are real and are
+configured by environment variable, but they are not described in the specifications.
+:::
+
+## Source
+
+- [`docs/api-walkthrough.md`](https://github.com/roonga/qcms/blob/main/docs/api-walkthrough.md)

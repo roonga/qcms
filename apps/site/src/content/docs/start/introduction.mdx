@@ -1,0 +1,89 @@
+---
+title: Introduction
+description: What QCMS is, who it is for, and the properties it never trades away.
+---
+
+QCMS is an MIT-licensed TypeScript engine for questionnaires, surveys and registration flows with
+deeply conditional logic, where the answer to one question determines which questions follow. The
+motivating example is a vehicle insurance quote: answering yes to "any at-fault accident in the last
+3 years?" opens a follow-up branch that otherwise never appears.
+
+## Three properties, never traded away
+
+These are non-negotiable and shape every design decision.
+
+**Immutability.** Published form versions are frozen forever. A session pins the version it started
+on and never migrates. Referenced question versions never change.
+
+**Determinism.** The serving path contains no LLM and no nondeterministic component. The same form
+version with the same answers gives the same flow and the same UI, forever. Rule evaluation is a
+pure function whose semantics are versioned with each snapshot.
+
+**Auditability.** The system can always answer what was asked, what was shown, what was answered,
+and when it changed. Immutable snapshots store both the domain definition and the compiled UI;
+answers are an append-only ledger.
+
+Accessibility (WCAG 2.2 AA) and internationalization are first-class commitments rather than
+differentiators. No user-facing string is hardcoded, and every offered font is open-licensed and
+self-hostable.
+
+## Who it is for
+
+| Audience            | What they do                                                                                                                    | Surface                                   |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| Form authors        | Curate a governed question library; compose forms; define branching rules; publish and version; review responses; export         | The admin app, internal                   |
+| Respondents         | Complete flows anonymously or through signed secure links; resume in-progress sessions; on any device, with assistive technology | The portal, public                        |
+| Downstream systems  | Receive submissions by signed webhook; pull by CSV or JSON export, or read the documented reporting view in Postgres             | Webhook, export, reporting views          |
+| Adopters, operators | Scaffold, theme, extend and self-host the system with a small-team operability budget                                            | The scaffolding CLI, Docker Compose, docs |
+
+## Own the app, upgrade the engine
+
+QCMS is distributed in the shadcn ethos: you do not install a product, you scaffold the application
+into your own repository and own the source. The invariant machinery, meaning the domain model,
+rules engine, publish compiler and migrations, ships as versioned `@roonga/qcms-*` npm packages you
+upgrade like any dependency.
+
+The line is drawn by consequence. Code a customizer would reasonably change, such as routes, pages,
+UI, adapters and theming, is scaffolded owned source. Code whose modification would break audit or
+versioning guarantees, such as the domain model, rule evaluation, the publish compiler and migration
+history, is a versioned package.
+
+What being yours means, precisely:
+
+- Nothing overwrites it. There is no upgrade command that touches your tree. The scaffolder runs
+  once, at the start.
+- It is not a fork. The scaffolded shell is generated from the applications this project develops,
+  and a gate fails if the two ever disagree.
+- You get no upstream fixes for it automatically. That is the trade. In exchange, your
+  customisations are never in conflict with an upgrade.
+
+## How the pieces fit
+
+Three schemas and a single direction of derivation. No layer reaches upward.
+
+```
+FormDefinition ──────compile──────▶ A2UI documents ──────persist──────▶ Postgres
+   (meaning)                            (views)                        (storage)
+@roonga/qcms-core            @roonga/qcms-a2ui-compiler            @roonga/qcms-db
+```
+
+A deployment is four containers: the respondent portal, the authoring admin, the API and Postgres.
+Only the database has to survive. TLS and public routing are operator infrastructure.
+
+## What QCMS is not
+
+Not a SaaS, though a multi-tenant derivative remains a documented recipe. Not a form-painting
+WYSIWYG competing on drag-and-drop. Not an analytics product; it hands clean data to tools that are.
+Not an LLM-at-runtime product; the admin agent is flag-gated and never sits in the serving path.
+
+:::caution[Pre-release]
+QCMS is being built in the open and is not ready for production use. APIs, schemas, storage shapes
+and packages are pre-1.0 and may change without notice. It has not yet passed its pre-launch
+security review, and must not be used for real respondent data.
+:::
+
+## Source
+
+- [`README.md`](https://github.com/roonga/qcms/blob/main/README.md)
+- [`docs/PROJECT_GOAL.md`](https://github.com/roonga/qcms/blob/main/docs/PROJECT_GOAL.md)
+- [`docs/ARCHITECTURE.md`](https://github.com/roonga/qcms/blob/main/docs/ARCHITECTURE.md)

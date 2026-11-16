@@ -1,0 +1,99 @@
+---
+title: Sessions and answers
+description: The session lifecycle, the append-only answer ledger, and the submission lock.
+---
+
+Two relationships carry the whole audit story. A session pins a form version at creation and never
+migrates, and answers are append-only with current state defined as the latest row per question.
+Everything else is derivable.
+
+## The lifecycle
+
+| From          | To            | Trigger                                                        |
+| ------------- | ------------- | -------------------------------------------------------------- |
+| start         | `Created`     | start a session, anonymous or from a secure link; pins a version |
+| `Created`     | `InProgress`  | first answer appended                                           |
+| `InProgress`  | `InProgress`  | answer appended; rules re-evaluated                             |
+| `InProgress`  | `Submitted`   | submit: validate everything, lock the answer set                |
+| `Created`     | `Expired`     | retention sweep                                                 |
+| `InProgress`  | `Expired`     | retention sweep                                                 |
+| `InProgress`  | `Erased`      | erasure: delete and tombstone                                   |
+| `Submitted`   | `Erased`      | erasure: delete and tombstone                                   |
+
+The lock is the audit boundary: the answer ledger up to lock is the complete history of what changed
+and when. Submission emits a `response.submitted` event through a transactional outbox, at least
+once.
+
+## The ledger
+
+The `answers` table is an append-only ledger of `(session_id, question_id, value, answered_at)`.
+Current state is the latest row. No update path exists anywhere.
+
+Whole-session erasure is the single exception to append-only, and it deletes rather than updates.
+
+## Retraction
+
+Clearing an answer appends a retraction record; it never mutates an answer row. Latest-answer reads
+resolve a retraction to unanswered for rules, validation, reporting and export.
+
+On the wire, a literal `null` retracts. An empty value, `""` or `[]`, is not an answer: it is
+rejected with `EMPTY_ANSWER_NOT_ALLOWED`, stores nothing, and the message names `null` as the way to
+clear an answer. The refusal is never a silent conversion into a retraction, so clearing keeps
+exactly one spelling. Whitespace-only text is a separate rule: it is stored as typed and denied
+presence instead. Retracting a never-answered question is a no-op.
+
+Inside a repeating group the ledger's grain is question and instance, so a retraction names both and
+clears that cell alone.
+
+## Submission
+
+The submission sweep runs over the evaluated flow:
+
+- every visible required question must hold a valid non-blank answer, or `MISSING_REQUIRED`
+- present non-blank answers for visible questions are re-validated, or `INVALID_ANSWER`
+- hidden questions' answers are excluded from the locked set
+- answer keys not pinned in the form are rejected as `UNKNOWN_QUESTION`
+
+The result is a locked submission of `{ answers, flowState, contentHash }`, answers in document
+order with canonical values. The `contentHash` is the lowercase-hex SHA-256 of the canonical JSON of
+the answers and the flow state: object keys sorted at every depth, arrays in order, no whitespace.
+It is the audit anchor, and it is what the webhook payload and the submit response both carry.
+
+## Navigation
+
+The portal has an explicit cursor. Continue advances only after current-step validation, Back
+returns to the previous visible step and is hidden on the first step, and Submit appears only on the
+last visible step. Answering never changes the rendered step by itself.
+
+The cursor is a 0-based index into a list the server computes. With repeating groups present, what
+it indexes is a list of views, so a three-passenger per-instance group presents as three views and
+the progress indicator says three. A form with no repeating group has one view per visible step.
+
+The browser never talks to the API directly, and the portal never evaluates rules: it renders
+projections the API computed. That is a correctness boundary.
+
+Without scripting there is one readiness-labelled button and no Back control. That is the accepted
+shape by design: with no per-step validation round trip to gate a Continue on, one button whose
+label follows overall submit-readiness is the honest control to render.
+
+## Respondent routes
+
+| Method and path                      | What it does                                                            |
+| ------------------------------------ | ----------------------------------------------------------------------- |
+| `POST /sessions`                     | Start an anonymous session from a public form slug, production only      |
+| `POST /sessions/link`                | Start a session from a secure link, in every environment                 |
+| `GET /sessions/{id}`                 | Read a session's status and pinned version                               |
+| `GET /sessions/{id}/step`            | Serve a step's stored compiled UI and flow projection                    |
+| `POST /sessions/{id}/answers`        | Submit one answer, or retract it with a null value                       |
+| `POST /sessions/{id}/answers/batch`  | Submit a whole step's answers in one request, under one session lock     |
+| `POST /sessions/{id}/roster`         | Add or remove one instance of a repeating group; writes no answer        |
+| `POST /sessions/{id}/submit`         | Validate visible-required answers, lock the set, emit the outbox event   |
+
+Session-scoped calls carry the bearer token minted when the session started. A batch is not
+all-or-nothing on validation: a refused entry leaves the rest applied, so one mistyped cell does not
+lose the others.
+
+## Source
+
+- [`docs/DOMAIN_SCHEMA.md`](https://github.com/roonga/qcms/blob/main/docs/DOMAIN_SCHEMA.md)
+- [`docs/api-walkthrough.md`](https://github.com/roonga/qcms/blob/main/docs/api-walkthrough.md)
