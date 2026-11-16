@@ -5,22 +5,15 @@ on:
     paths:
       - "apps/site/**"
       - ".github/workflows/site.yml"
-      - "pnpm-lock.yaml"
   pull_request:
     paths:
       - "apps/site/**"
       - ".github/workflows/site.yml"
-      - "pnpm-lock.yaml"
   # Allow a deploy to be requested when a docs change rides another workflow's path filter.
   workflow_dispatch:
 
 permissions:
   contents: read
-
-# Pages allows one deployment at a time, and cancelling a half-finished one leaves nothing published.
-concurrency:
-  group: pages
-  cancel-in-progress: false
 
 jobs:
   build:
@@ -37,7 +30,9 @@ jobs:
           node-version: 24
           cache: pnpm
 
-      - run: pnpm install --frozen-lockfile
+      # Only this package and what it depends on: the site imports no workspace package,
+      # so the rest of the monorepo's install is work this job never uses.
+      - run: pnpm install --frozen-lockfile --filter qcms-site...
 
       - run: pnpm --filter qcms-site typecheck
 
@@ -52,6 +47,12 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # Pages allows one deployment at a time, and cancelling a half-finished one leaves
+    # nothing published. Scoped to this job so a pull request build never queues behind
+    # a deploy, nor cancels one.
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     permissions:
       pages: write
       id-token: write

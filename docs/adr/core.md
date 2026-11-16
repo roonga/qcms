@@ -690,7 +690,7 @@ When issue #732 gives a respondent a locale of their own, this declaration is wh
 
 ### ADR-44 - Astro and Starlight for the public site
 
-**Status:** decided; Code Owner, 2026-11-16. Built in `apps/site`.
+**Status:** implemented; Code Owner, 2026-11-16.
 
 **Decision.** The public website and the curated user documentation are one Astro site with the Starlight documentation theme, living in `apps/site` as a private workspace package, and matching the stack the `a2-react-aria` sibling repository already uses. It builds to static files and deploys to GitHub Pages from `main`.
 

@@ -34,6 +34,7 @@ apps/
   api/             Hono - vertical slices, fetch-pure handlers
   portal/          Next.js - SSR respondent experience (public)
   admin/           Next.js - authoring, versioning, responses (VPN/internal)
+  site/            Astro + Starlight - the public website and user docs (static)
 ```
 
 The domain kernel (`@roonga/qcms-core`) is a functional core: pure functions over immutable data, no I/O. Code whose modification would break audit or versioning guarantees ships as a versioned package; code an adopter would reasonably change (routes, pages, theming) is scaffolded, owned source.

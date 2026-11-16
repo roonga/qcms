@@ -1,0 +1,39 @@
+---
+import Default from "@astrojs/starlight/components/Head.astro";
+---
+
+<Default><slot /></Default>
+
+<script>
+  // A region that scrolls must be reachable by keyboard, or its content cannot be read
+  // without a pointer (WCAG 2.1.1). Code blocks, wide tables and the landing page's
+  // command chip only overflow at some widths, so the decision is made from the
+  // laid-out element on every resize rather than from the markup.
+  const SCROLLERS: ReadonlyArray<readonly [string, string]> = [
+    [".expressive-code pre", "Code block"],
+    [".sl-markdown-content table", "Table"],
+    [".qcms-chip", "Clone command"],
+  ];
+
+  function markScrollable(): void {
+    for (const [selector, label] of SCROLLERS) {
+      document.querySelectorAll<HTMLElement>(selector).forEach((el) => {
+        const scrolls = el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight;
+        if (scrolls) {
+          el.setAttribute("tabindex", "0");
+          // `group` rather than `region`: a region is a landmark, and a page with several
+          // scrollable blocks would then carry several identically named landmarks.
+          el.setAttribute("role", "group");
+          el.setAttribute("aria-label", `${label}, scrollable`);
+        } else {
+          el.removeAttribute("tabindex");
+          el.removeAttribute("role");
+          el.removeAttribute("aria-label");
+        }
+      });
+    }
+  }
+
+  markScrollable();
+  addEventListener("resize", markScrollable);
+</script>

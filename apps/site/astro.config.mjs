@@ -18,6 +18,7 @@ export default defineConfig({
       editLink: { baseUrl: "https://github.com/roonga/qcms/edit/main/apps/site/" },
       components: {
         Banner: "./src/components/PreReleaseBanner.astro",
+        Head: "./src/components/Head.astro",
         SiteTitle: "./src/components/SiteTitle.astro",
         ThemeSelect: "./src/components/ThemeToggle.astro",
       },

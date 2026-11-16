@@ -44,14 +44,17 @@ These are consumed by the Compose files; the containers never see them under the
 | `QCMS_DB_APP_PROD_PASSWORD`    | required            | Prod-pool role, data manipulation only on its own schema                               |
 | `QCMS_DB_NAME`                 | `qcms`              | Database name created on first boot of the volume                                      |
 | `QCMS_DB_USER`                 | `qcms`              | Bootstrap superuser name                                                               |
-| `QCMS_POSTGRES_IMAGE`          | a pinned Postgres   | Override to use an image mirror                                                        |
+| `QCMS_POSTGRES_IMAGE`          | a floating tag      | Override to use an image mirror, or to pin a digest                                    |
 | `QCMS_PORTAL_PORT`             | `7000`              | Published portal host port                                                             |
 | `QCMS_ADMIN_PORT`              | `7040`              | Published admin host port                                                              |
 | `QCMS_BIND_ADDRESS`            | loopback            | Interface the two published apps bind to. The loopback default is a control            |
-| `QCMS_CADDY_IMAGE`             | a pinned Caddy      | Used only by the proxy overlay                                                         |
+| `QCMS_CADDY_IMAGE`             | a floating tag      | Used only by the proxy overlay                                                         |
 | `QCMS_PORTAL_DOMAIN`           | required by overlay | Public hostname for the portal                                                         |
 | `QCMS_ADMIN_DOMAIN`            | required by overlay | Public hostname for the admin                                                          |
 | `QCMS_ACME_EMAIL`              | required by overlay | Contact address for the certificate account                                            |
+
+The Postgres and Caddy defaults are moving tags, not digests, so a rebuild can pick up a new image
+underneath you. Set both to a digest if you want the third-party half of the stack reproducible.
 
 ## API
 

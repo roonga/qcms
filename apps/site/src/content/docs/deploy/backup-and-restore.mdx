@@ -72,7 +72,18 @@ docker compose stop api portal admin
 # 2. Make sure the roles exist.
 docker compose up --no-deps db-roles
 
-# 3. Recreate an empty database.
+# 3. Recreate an empty database. Connections must go first: Postgres refuses to
+#    drop a database anything is still connected to. The last statement is not
+#    optional: `CREATE ON DATABASE` is a privilege ON the database, so dropping the
+#    database destroys it, and without it the restore in step 4 cannot create a schema.
+docker compose exec -T postgres sh -c '
+  psql --username "$POSTGRES_USER" --dbname postgres --command \
+    "select pg_terminate_backend(pid) from pg_stat_activity
+     where datname = '"'"'$POSTGRES_DB'"'"' and pid <> pg_backend_pid();" &&
+  dropdb --username "$POSTGRES_USER" "$POSTGRES_DB" &&
+  createdb --username "$POSTGRES_USER" --owner "$POSTGRES_USER" "$POSTGRES_DB" &&
+  psql --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --command \
+    "GRANT CREATE ON DATABASE \"$POSTGRES_DB\" TO qcms_migrate;"'
 
 # 4. Restore AS THE MIGRATION ROLE.
 docker compose exec -T postgres \

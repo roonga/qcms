@@ -38,14 +38,17 @@ docker compose run --rm migrate
 
 ## Create the first administrator
 
-Credentials travel in the environment, never as arguments.
+The password travels in the environment, never in `.env` and never in the command line. Set it on
+the invoking shell and forward it to `docker compose exec` **by name only**, with no value: anything
+you write after the command name is visible to every user on the box in a process listing.
 
 ```sh
-docker compose exec \
-  -e QCMS_ADMIN_EMAIL=you@example.com \
-  -e QCMS_ADMIN_PASSWORD='a long passphrase' \
-  api node dist/create-admin.js
+ QCMS_ADMIN_PASSWORD='a long passphrase' \
+docker compose exec --env QCMS_ADMIN_PASSWORD api \
+  env QCMS_ADMIN_EMAIL=you@example.com node dist/create-admin.js
 ```
+
+The leading space keeps the line out of your shell history.
 
 Sign in to the admin, complete the two-factor enrollment if the deployment requires it, and you are
 at the Questions screen.

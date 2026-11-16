@@ -53,8 +53,38 @@ a software bill of materials and a provenance attestation.
 
 ## On a server
 
-Put the Compose files, the Caddyfile and a `.env` at mode 600 in one directory. Generate every
-secret with `openssl rand -base64 32`.
+Put the Compose files, the Caddyfile and a `.env` at mode 600 in one directory. Copy
+`docker-compose.yml`, `docker-compose.proxy.yml` and `docker/Caddyfile` from a checkout unchanged.
+
+The base file builds images tagged locally. On a server you do not build, you pull, so add one
+override of your own that swaps the build stanzas for registry references. Layer it last.
+
+```yaml
+# docker-compose.ghcr.yml
+services:
+  migrate:
+    image: ghcr.io/OWNER/qcms-api:${QCMS_TAG:-latest}
+    build: !reset null
+    pull_policy: always
+  api:
+    image: ghcr.io/OWNER/qcms-api:${QCMS_TAG:-latest}
+    build: !reset null
+    pull_policy: always
+  portal:
+    image: ghcr.io/OWNER/qcms-portal:${QCMS_TAG:-latest}
+    build: !reset null
+    pull_policy: always
+  admin:
+    image: ghcr.io/OWNER/qcms-admin:${QCMS_TAG:-latest}
+    build: !reset null
+    pull_policy: always
+```
+
+`build: !reset null` drops the base file's build stanza so Compose never tries to build on the box.
+Replace `OWNER` with your GitHub organisation or user, and set `QCMS_TAG` to the release you are
+deploying; leave it at the moving tag only for a test box.
+
+Generate every secret with `openssl rand -base64 32`.
 
 ```ini
 QCMS_DB_PASSWORD=...            # bootstrap superuser; creates the roles below
@@ -80,11 +110,13 @@ Bring it up with the overlays you use:
 docker compose \
   -f docker-compose.yml \
   -f docker-compose.proxy.yml \
+  -f docker-compose.ghcr.yml \
   up --detach --wait
 ```
 
-Every later command against this stack needs the same `-f` flags, including `down`, `logs`, `ps` and
-`pull`.
+Every later command against this stack needs the same three `-f` flags, including `down`, `logs`,
+`ps` and `pull`. Leave one out of `pull` and Compose looks for the local build tags instead of the
+registry.
 
 ## The first administrator
 
@@ -119,6 +151,8 @@ docker compose run --rm migrate
 # 5. Restart the services, API first so the apps never call an older API.
 docker compose up --detach --wait
 ```
+
+On a server, every one of those commands carries the same `-f` flags as the start command above.
 
 Rolling back is a redeploy of the previous image tag, plus a database restore if the migration was
 not backward compatible.

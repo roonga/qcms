@@ -68,11 +68,18 @@ cd my-forms
 $EDITOR .env
 docker compose up -d --build
 docker compose run --rm migrate
-docker compose exec \
-  -e QCMS_ADMIN_EMAIL=you@example.com \
-  -e QCMS_ADMIN_PASSWORD='a long passphrase' \
-  api node dist/create-admin.js
 ```
+
+Then create the first administrator. The password travels in the environment, never in `.env` and
+never in the command line: set it on the invoking shell and forward it by name only, with no value.
+
+```sh
+ QCMS_ADMIN_PASSWORD='a long passphrase' \
+docker compose exec --env QCMS_ADMIN_PASSWORD api \
+  env QCMS_ADMIN_EMAIL=you@example.com node dist/create-admin.js
+```
+
+The leading space keeps the line out of your shell history.
 
 Migrations are always their own step, repeated after every upgrade.
 

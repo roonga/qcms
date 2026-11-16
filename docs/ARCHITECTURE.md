@@ -57,6 +57,8 @@ apps/
   portal/          # Next.js. SSR pages + route handlers as a strict BFF.
   admin/           # Next.js. Client-heavy authoring UI + BFF; separate app
                    # so it deploys independently on the VPN.
+  site/            # Astro + Starlight. The public website and user docs;
+                   # static, outside the serving path (ADR-44).
 ```
 
 ### 4.1 The domain kernel (`@roonga/qcms-core`)

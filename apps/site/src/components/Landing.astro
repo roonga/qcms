@@ -81,7 +81,12 @@ const reading = [
           View on GitHub
         </a>
       </div>
-      <p class="qcms-chip">git clone https://github.com/roonga/qcms &amp;&amp; cd qcms &amp;&amp; docker compose up --build -d</p>
+      <div class="qcms-start">
+        <p class="qcms-chip" tabindex="0" role="group" aria-label="Clone command, scrollable">
+          git clone https://github.com/roonga/qcms
+        </p>
+        <a class="qcms-start__next" href={href("start/quick-start/")}>Next: set your secrets</a>
+      </div>
     </div>
     <BranchingFigure />
   </section>

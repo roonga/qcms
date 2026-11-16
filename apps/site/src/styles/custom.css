@@ -130,8 +130,6 @@
   --sl-color-hairline-shade: var(--qcms-border);
 }
 
-/* ---- Type ---- */
-
 .sl-markdown-content h1,
 .sl-markdown-content h2,
 .sl-markdown-content h3,
@@ -148,15 +146,11 @@
   letter-spacing: -0.02em;
 }
 
-/* ---- Focus ---- */
-
 :where(a, button, summary, input, select, [tabindex]):focus-visible {
   outline: 2px solid var(--qcms-primary);
   outline-offset: 2px;
   border-radius: var(--qcms-radius-control);
 }
-
-/* ---- Header ---- */
 
 header.header {
   border-bottom: 1px solid var(--qcms-border);
@@ -169,8 +163,6 @@ header.header {
   letter-spacing: -0.01em;
   color: var(--qcms-text);
 }
-
-/* ---- Sidebar ---- */
 
 .sidebar-pane {
   border-inline-end: 1px solid var(--qcms-border);
@@ -201,8 +193,6 @@ header.header {
   letter-spacing: 0.01em;
 }
 
-/* ---- Table of contents ---- */
-
 starlight-toc a {
   border-radius: var(--qcms-radius-control);
 }
@@ -211,8 +201,6 @@ starlight-toc a[aria-current="true"] {
   color: var(--qcms-primary);
   font-weight: 600;
 }
-
-/* ---- Code ---- */
 
 .expressive-code .frame pre,
 .expressive-code .frame .header,
@@ -230,8 +218,6 @@ code:not(pre code) {
   padding: 0.1rem 0.3rem;
   font-size: 0.875em;
 }
-
-/* ---- Asides: tint and hairline, no stripe ---- */
 
 .starlight-aside {
   border: 1px solid var(--sl-color-asides-border);
@@ -262,8 +248,6 @@ code:not(pre code) {
   letter-spacing: 0.01em;
 }
 
-/* ---- Pagination as bordered cards ---- */
-
 .pagination-links a {
   border: 1px solid var(--qcms-border);
   border-radius: var(--qcms-radius-card);
@@ -282,8 +266,6 @@ code:not(pre code) {
   color: var(--qcms-text);
 }
 
-/* ---- Search ---- */
-
 site-search button[data-open-modal] {
   border: 1px solid var(--qcms-border);
   border-radius: var(--qcms-radius-control);
@@ -294,8 +276,6 @@ dialog.sl-search-modal,
 .sl-search-modal dialog {
   border-radius: var(--qcms-radius-popover);
 }
-
-/* ---- Tables ---- */
 
 .sl-markdown-content table {
   border-collapse: collapse;
@@ -309,8 +289,6 @@ dialog.sl-search-modal,
 .sl-markdown-content thead tr {
   background-color: var(--qcms-muted);
 }
-
-/* ---- Pre-release band ---- */
 
 .qcms-prerelease {
   background-color: var(--qcms-warning-subtle);
@@ -327,8 +305,6 @@ dialog.sl-search-modal,
   color: var(--qcms-warning-fg);
   font-weight: 700;
 }
-
-/* ---- Landing page ---- */
 
 body:has(.qcms-landing) .content-panel:has(> .sl-container > h1) {
   display: none;
@@ -441,9 +417,24 @@ body:has(.qcms-landing) .main-pane > .content-panel {
   background-color: var(--qcms-hover);
 }
 
-.qcms-chip {
-  display: inline-block;
+.qcms-start {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.9rem;
   margin-block-start: 1.25rem;
+  min-width: 0;
+}
+
+.qcms-start__next {
+  font-size: var(--sl-text-sm);
+  font-weight: 600;
+  color: var(--qcms-primary);
+}
+
+.qcms-chip {
+  display: block;
+  margin: 0;
   padding: 0.45rem 0.7rem;
   border: 1px solid var(--qcms-border);
   border-radius: var(--qcms-radius-card);
