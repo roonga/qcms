@@ -53,10 +53,9 @@ export function adminAuthFor(deps: Deps): AdminAuth {
 }
 
 /**
- * The account a successful verification completed for, as the vendor's own response names
- * it, and the session to keep: the one the response issues, else the one it verified on.
- * A session read before the handler is not used, because the vendor resolves its own and
- * falls back to the pending-second-factor cookie when that session no longer resolves.
+ * The account the vendor's verify response names, never a session read before it ran: the
+ * vendor falls back to the pending-second-factor cookie when that session no longer resolves.
+ * The session kept is the one the response issues, else the one it verified on.
  */
 async function verifiedAccount(
   auth: AdminAuth,

@@ -86,11 +86,9 @@ export const registerAccountClaim: SliceRegistrar = (group, deps: Deps) => {
     const resolved = await auth.api.getSession({ headers: c.req.raw.headers });
     if (resolved !== null && resolved.user.id !== link.userId) throw linkRefused();
 
-    // One transaction holds the lock from the claimed check to the link's spend, and the
-    // password is written on its connection, so a refused password or a spent link rolls
-    // everything back and the request never waits on a second pooled connection. The lock is
-    // tried rather than awaited: a claim already in flight for this account means this one
-    // is refused at once instead of queueing with a connection held.
+    // The password is written on this transaction's connection under a tried lock, so a
+    // refusal rolls everything back and no request waits for a second pooled connection
+    // or queues behind a claim in flight while holding one.
     const account = await exec.transaction(async (tx) => {
       await boundAccountTransaction(tx);
       if (!(await tryLockAccount(tx, link.userId))) throw linkRefused();
