@@ -191,7 +191,7 @@ export async function recordAgentEdit(
       stepCount: EDITS_PER_TURN,
       actor: site.actor,
       workspaceId: site.workspaceId,
-      formId: saved.formId,
+      formId: edit.formId,
       kind: rowKind(edit),
       screen: BUILDER_SCREEN,
       proposedAt: new Date(edit.iat),
