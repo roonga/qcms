@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { submitSession } from "@/lib/server/api";
 import { currentBasePath } from "@/lib/server/environment";
 import { apiErrorResponse, isSameOriginPost, writeReceiptCookie } from "@/lib/server/route-helpers";
+import { rememberCompletionAppearance } from "@/lib/server/session-appearance";
 import { clearSessionToken, readSessionToken } from "@/lib/server/session-cookie";
 
 export async function POST(
@@ -28,6 +29,7 @@ export async function POST(
   try {
     const receipt = await submitSession(sessionId, token, body);
     await writeReceiptCookie(receipt);
+    await rememberCompletionAppearance(sessionId, token);
     await clearSessionToken();
     // Prefixed: the browser follows this itself, so an unprefixed path would move a
     // non-prod respondent onto `prod`'s surface (Q21).

@@ -159,6 +159,10 @@
           "position": {
             "nullable": true,
             "description": "Reserved for the current flow position (filled by 019)."
+          },
+          "appearance": {
+            "nullable": true,
+            "description": "The appearance frozen with the pinned version, or null; its logo is null once that logo is taken down. Read without serving a step."
           }
         },
         "required": [

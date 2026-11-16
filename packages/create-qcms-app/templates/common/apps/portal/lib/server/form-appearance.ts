@@ -78,10 +78,69 @@ export function formLogoSrc(appearance: FormAppearance, basePath: string): strin
   return appearance.logo === null ? undefined : `${basePath}/logo/${appearance.logo}`;
 }
 
+const PACKED_VERSION = "1";
+const PACKED_SEPARATOR = "~";
+const FACE_KEY = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
+
+/**
+ * The appearance in a form small enough for a cookie (the four palettes share one name
+ * list) and written only in characters a cookie value carries unencoded. `undefined`
+ * when the palettes do not share one token set.
+ */
+export function packFormAppearance(appearance: FormAppearance): string | undefined {
+  const names = Object.keys(appearance.palettes.light).sort();
+  const rows: string[] = [];
+  for (const kind of PALETTE_KINDS) {
+    const palette = appearance.palettes[kind];
+    if (Object.keys(palette).sort().join(".") !== names.join(".")) return undefined;
+    rows.push(names.map((name) => (palette[name] ?? "").slice(1)).join(""));
+  }
+  if (!FACE_KEY.test(appearance.face)) return undefined;
+  return [
+    PACKED_VERSION,
+    appearance.logo ?? "",
+    appearance.face,
+    appearance.corners,
+    appearance.density,
+    names.join("."),
+    ...rows,
+  ].join(PACKED_SEPARATOR);
+}
+
+/** The inverse of {@link packFormAppearance}, validated as strictly as the API's own copy. */
+export function unpackFormAppearance(packed: string | undefined): FormAppearance | null {
+  if (packed === undefined) return null;
+  const [version, logo, face, corners, density, joined, ...rows] = packed.split(PACKED_SEPARATOR);
+  if (version !== PACKED_VERSION || joined === undefined || rows.length !== PALETTE_KINDS.length) {
+    return null;
+  }
+  const names = joined.split(".");
+  const palettes: Record<string, Record<string, string>> = {};
+  for (const [at, kind] of PALETTE_KINDS.entries()) {
+    const row = rows[at] ?? "";
+    if (row.length !== names.length * 6) return null;
+    palettes[kind] = Object.fromEntries(
+      names.map((name, index) => [name, `#${row.slice(index * 6, index * 6 + 6)}`]),
+    );
+  }
+  return parseFormAppearance({
+    palettes,
+    logo: logo === "" ? null : logo,
+    face,
+    corners,
+    density,
+  });
+}
+
 const SESSION_PATH = /^\/s\/([^/]+)\/?$/u;
 
 /** The session a step page belongs to, from the environment-stripped path. */
 export function sessionIdFromPath(path: string | null): string | undefined {
   if (path === null) return undefined;
   return SESSION_PATH.exec(path)?.[1];
+}
+
+/** The completion page, which has no session left to read and keeps the look it was handed at submit. */
+export function isCompletionPath(path: string | null): boolean {
+  return path === "/done" || path === "/done/";
 }
