@@ -249,6 +249,14 @@ export const AgentChangesResponse = z
   })
   .openapi("AgentChangesResponse");
 
+/** An id slot in a builder fact is bounded like every other slot, so it cannot carry a long string. */
+export const FACT_ID_MAX = 128;
+
+const FactFormId = FormId.max(FACT_ID_MAX);
+const FactStepId = StepId.max(FACT_ID_MAX);
+const FactQuestionId = QuestionId.max(FACT_ID_MAX);
+const FactInstanceId = InstanceId.max(FACT_ID_MAX);
+
 const PreviewDevice = z.enum(["phone", "tablet", "desktop", "custom"]);
 
 const Viewport = z.strictObject({
@@ -262,10 +270,10 @@ const Viewport = z.strictObject({
  */
 export const PreviewSelectionFact = z.strictObject({
   fact: z.literal("preview-selection"),
-  formId: FormId,
-  stepId: StepId,
-  questionId: QuestionId,
-  instanceId: InstanceId.optional(),
+  formId: FactFormId,
+  stepId: FactStepId,
+  questionId: FactQuestionId,
+  instanceId: FactInstanceId.optional(),
   device: PreviewDevice,
   viewport: Viewport,
 });
@@ -288,8 +296,8 @@ export const LAYOUT_ISSUES = [
  */
 export const LayoutReportFact = z.strictObject({
   fact: z.literal("layout-report"),
-  formId: FormId,
-  stepId: StepId,
+  formId: FactFormId,
+  stepId: FactStepId,
   device: PreviewDevice,
   viewport: Viewport,
   orientation: z.enum(["portrait", "landscape"]),
@@ -298,7 +306,7 @@ export const LayoutReportFact = z.strictObject({
   highContrast: z.boolean(),
   pageHeight: z.number().int().min(0).max(100_000),
   findings: z
-    .array(z.strictObject({ questionId: QuestionId, issue: z.enum(LAYOUT_ISSUES) }))
+    .array(z.strictObject({ questionId: FactQuestionId, issue: z.enum(LAYOUT_ISSUES) }))
     .max(50),
 });
 

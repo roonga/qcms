@@ -59,6 +59,8 @@ const Common = {
   formId: z.string().min(1).max(200),
   tid: TurnId,
   n: Index,
+  /** The newest published version the draft is built on, 0 for none: a publish restarts the revisions. */
+  base: Index,
   iat: Instant,
   exp: Instant,
 };
@@ -163,23 +165,24 @@ function newTurnId(): string {
 /**
  * One token per op a turn yields, in order. Every save bumps the revision by one, so op `i`
  * is bound to `startRevision + i`: a human save, an Undo or a skipped op in between leaves
- * every later token stale.
+ * every later token stale. The turn id is fresh on every call, so the per-turn cap holds
+ * only if a turn mints once.
  */
 export async function mintTurnEditTokens(
   appKey: string,
   args: {
     readonly sub: string;
     readonly formId: string;
+    readonly baseVersion: number;
     readonly startRevision: number;
     readonly ops: readonly EditOp[];
     readonly issuedAt: Date;
-    readonly turnId?: string;
   },
 ): Promise<{ readonly turnId: string; readonly tokens: readonly string[] }> {
   if (args.ops.length > EDITS_PER_TURN) {
     throw new Error("A turn yields at most EDITS_PER_TURN draft edits");
   }
-  const tid = args.turnId ?? newTurnId();
+  const tid = newTurnId();
   const iat = args.issuedAt.getTime();
   const tokens: string[] = [];
   for (const [n, op] of args.ops.entries()) {
@@ -192,6 +195,7 @@ export async function mintTurnEditTokens(
         formId: args.formId,
         tid,
         n,
+        base: args.baseVersion,
         op,
         rev: args.startRevision + n,
         iat,

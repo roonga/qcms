@@ -17,7 +17,7 @@ Draft edits from the builder take no per-edit card (Q14), so the server must car
   - One `control.agent_actions` row per edit and per Undo, written in the edit's transaction.
   - Provenance from the audit rows, never from the client's `agentAssisted` field.
   - A suspended membership, a disabled account (088) or a pending approval is rechecked on every draft edit request.
-  - The cumulative agent diff since the last human-reviewed revision, as a read for the publish wizard (115 shows it).
+  - Every change since the last publish, the last human-reviewed revision, as a read for the publish wizard, with the recorded agent steps (115 shows it).
 - G1: agent facts for the preview selection and the layout report, as strict schemas in `apps/api/src/features/agent/schema.ts`; measured in the admin browser and sent as facts; no `layout-report` API route.
 - `route-policy.ts` rows, SEC-3 §3.2 rows, OpenAPI.
 
@@ -25,7 +25,7 @@ Draft edits from the builder take no per-edit card (Q14), so the server must car
 
 Spec criteria owned: none. 096 owns criterion 91 (the re-check), which this task's route must satisfy.
 
-- Every edit and Undo has exactly one audit row; nothing else marks a draft agent-assisted.
+- Every edit and Undo has exactly one audit row; the wizard's read takes `agentAssisted` from the rows only, and the client's `agentAssisted` mark stays a stored hint (115 replaces it).
 
 ## Required tests
 

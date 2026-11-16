@@ -4,6 +4,7 @@ import {
   ActionResultTurnBody,
   ActionStepResultBody,
   BUILDER_FACTS,
+  FACT_ID_MAX,
   LayoutReportFact,
   PreviewSelectionFact,
   ScreenAssistBody,
@@ -240,6 +241,33 @@ describe("the builder facts (G1)", () => {
     ];
     for (const [name, schema, value] of cases) {
       expect(schema.safeParse(value).success, name).toBe(false);
+    }
+  });
+
+  it("refuses a lower-case sentinel in every id slot by its length", () => {
+    const tail = "_respondent_only_sentinel_value".repeat(5);
+    const cases: readonly [
+      string,
+      typeof PreviewSelectionFact | typeof LayoutReportFact,
+      object,
+    ][] = [
+      ["selection formId", PreviewSelectionFact, { ...selection, formId: `frm${tail}` }],
+      ["selection stepId", PreviewSelectionFact, { ...selection, stepId: `stp${tail}` }],
+      ["selection questionId", PreviewSelectionFact, { ...selection, questionId: `q${tail}` }],
+      ["selection instanceId", PreviewSelectionFact, { ...selection, instanceId: `ins${tail}` }],
+      ["layout formId", LayoutReportFact, { ...layout, formId: `frm${tail}` }],
+      ["layout stepId", LayoutReportFact, { ...layout, stepId: `stp${tail}` }],
+      [
+        "layout finding",
+        LayoutReportFact,
+        { ...layout, findings: [{ questionId: `q${tail}`, issue: "clipped" }] },
+      ],
+    ];
+    expect(`q${tail}`.length).toBeGreaterThan(FACT_ID_MAX);
+    for (const [name, schema, value] of cases) {
+      expect(schema.safeParse(value).success, name).toBe(false);
+      const shortened = JSON.parse(JSON.stringify(value).replace(tail, "_ok")) as object;
+      expect(schema.safeParse(shortened).success, `${name} at a valid length`).toBe(true);
     }
   });
 

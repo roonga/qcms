@@ -11,6 +11,7 @@ import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
 import { policyForRequest } from "../membership/route-policy.js";
 import {
+  EDIT_REFUSAL_CODES,
   EDITS_PER_TURN,
   verifyEditToken,
   type AgentEditPayload,
@@ -69,7 +70,23 @@ function formIdIn(path: string): string | undefined {
   return match?.[1];
 }
 
+/** Logs an edit refusal thrown inside the save's transaction, and passes anything else by. */
+export function logIfEditRefusal(deps: Deps, error: unknown): void {
+  if (error instanceof ApiError && (EDIT_REFUSAL_CODES as readonly string[]).includes(error.code)) {
+    logEditRefusal(deps, error.code as EditRefusalCode);
+  }
+}
+
+/** The code alone is logged: a token's fields are request-chosen. */
+export function logEditRefusal(deps: Deps, code: EditRefusalCode): void {
+  deps.logger.warn("agent edit refused", { code });
+}
+
 export function agentEditProvenance(deps: Deps): MiddlewareHandler<ApiEnv> {
+  const refuse = (code: EditRefusalCode): ApiError => {
+    logEditRefusal(deps, code);
+    return editRefusal(code);
+  };
   return async (c, next) => {
     const token = c.req.header(EDIT_HEADER);
     if (token === undefined || token === "") {
@@ -81,7 +98,7 @@ export function agentEditProvenance(deps: Deps): MiddlewareHandler<ApiEnv> {
       (c.req.header(PROPOSAL_HEADER) ?? "") !== "" ||
       (c.req.header(PROPOSAL_STEP_HEADER) ?? "") !== ""
     ) {
-      throw editRefusal("AGENT_EDIT_MALFORMED");
+      throw refuse("AGENT_EDIT_MALFORMED");
     }
     const principal = c.get("adminPrincipal");
     if (principal === undefined) {
@@ -91,18 +108,15 @@ export function agentEditProvenance(deps: Deps): MiddlewareHandler<ApiEnv> {
     const path = new URL(c.req.url).pathname;
     const policy = policyForRequest(c.req.method, path);
     if (policy?.method !== EDIT_ROUTE.method || policy.path !== EDIT_ROUTE.path) {
-      throw editRefusal("AGENT_EDIT_ROUTE");
+      throw refuse("AGENT_EDIT_ROUTE");
     }
 
     const verified = await verifyEditToken(deps.config.keys.app, token, deps.clock.now());
-    if (!verified.ok) {
-      deps.logger.warn("agent edit refused", { reason: verified.code });
-      throw editRefusal(verified.code);
-    }
+    if (!verified.ok) throw refuse(verified.code);
     const payload = verified.payload;
-    if (payload.sub !== principal.userId) throw editRefusal("AGENT_EDIT_SUBJECT");
-    if (payload.formId !== formIdIn(path)) throw editRefusal("AGENT_EDIT_FORM");
-    if (payload.n >= EDITS_PER_TURN) throw editRefusal("AGENT_EDIT_CAP");
+    if (payload.sub !== principal.userId) throw refuse("AGENT_EDIT_SUBJECT");
+    if (payload.formId !== formIdIn(path)) throw refuse("AGENT_EDIT_FORM");
+    if (payload.n >= EDITS_PER_TURN) throw refuse("AGENT_EDIT_CAP");
 
     c.set("agentEdit", payload);
     await next();

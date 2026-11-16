@@ -96,23 +96,40 @@ interface HeldDraft {
   readonly revision: number;
 }
 
+interface HeldState {
+  readonly draft: HeldDraft | undefined;
+  /** The newest published version, 0 for none. */
+  readonly base: number;
+}
+
 /**
  * The state an edit applies to, which is what the form read serves: the draft row, locked
  * for the rest of the save, else the newest version a first save is seeded from.
  */
-async function heldDraft(exec: Executor, formId: FormId): Promise<HeldDraft | undefined> {
+async function heldState(exec: Executor, formId: FormId): Promise<HeldState> {
   const draft = await getDraftForUpdate(exec, formId);
+  const newest = await getLatestPublishedVersion(exec, formId);
+  const base = newest?.version ?? 0;
   if (draft !== undefined) {
     return {
-      definition: draft.definition,
-      appearance: draft.appearance ?? null,
-      revision: draft.revision,
+      draft: {
+        definition: draft.definition,
+        appearance: draft.appearance ?? null,
+        revision: draft.revision,
+      },
+      base,
     };
   }
-  const newest = await getLatestPublishedVersion(exec, formId);
   return newest === undefined
-    ? undefined
-    : { definition: newest.definition, appearance: newest.appearance ?? null, revision: 0 };
+    ? { draft: undefined, base }
+    : {
+        draft: {
+          definition: newest.definition,
+          appearance: newest.appearance ?? null,
+          revision: 0,
+        },
+        base,
+      };
 }
 
 function rowKey(edit: VerifiedEdit): { readonly proposalId: string; readonly stepIndex: number } {
@@ -148,12 +165,18 @@ export async function admitAgentEdit(
   if (await agentStepRecorded(exec, key.proposalId, key.stepIndex)) {
     throw editRefusal("AGENT_EDIT_REPLAYED");
   }
-  const held = await heldDraft(exec, formId);
+  const state = await heldState(exec, formId);
+  const held = state.draft;
   const appearance =
     incoming.appearance === undefined ? (held?.appearance ?? null) : incoming.appearance;
 
   if (edit.act === "undo") {
-    if (held === undefined || held.revision === 0 || (await draftStateDigest(held)) !== edit.post) {
+    if (
+      state.base !== edit.base ||
+      held === undefined ||
+      held.revision === 0 ||
+      (await draftStateDigest(held)) !== edit.post
+    ) {
       throw editRefusal("AGENT_UNDO_SUPERSEDED");
     }
     const restored = await draftStateDigest({ definition: incoming.definition, appearance });
@@ -161,7 +184,9 @@ export async function admitAgentEdit(
     return undefined;
   }
 
-  if ((held?.revision ?? 0) !== edit.rev) throw editRefusal("AGENT_EDIT_REVISION");
+  if (state.base !== edit.base || (held?.revision ?? 0) !== edit.rev) {
+    throw editRefusal("AGENT_EDIT_REVISION");
+  }
   const definitionMoved =
     held === undefined || canonicalJson(held.definition) !== canonicalJson(incoming.definition);
   const appearanceMoved = canonicalJson(appearance) !== canonicalJson(held?.appearance ?? null);
@@ -203,6 +228,11 @@ export async function recordAgentEdit(
     if (isUniqueViolation(error)) throw editRefusal("AGENT_EDIT_REPLAYED");
     throw error;
   }
+  // With no draft row the read above locked nothing, so a concurrent first save can land
+  // before this one; the upsert's own revision is what says the edit applied where bound.
+  if (edit.act === "edit" && saved.revision !== edit.rev + 1) {
+    throw editRefusal("AGENT_EDIT_REVISION");
+  }
   if (edit.act !== "edit" || pre === undefined) return null;
   const iat = deps.now.getTime();
   return signEditToken(deps.appKey, {
@@ -213,6 +243,7 @@ export async function recordAgentEdit(
     formId: edit.formId,
     tid: edit.tid,
     n: edit.n,
+    base: edit.base,
     pre,
     post: await draftStateDigest({ definition: saved.definition, appearance: saved.appearance }),
     iat,

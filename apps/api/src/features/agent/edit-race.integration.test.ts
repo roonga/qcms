@@ -1,0 +1,228 @@
+import { FormId, parseQuestionDefinition, QuestionId } from "@roonga/qcms-core";
+import {
+  SEED_WORKSPACE_ID,
+  createForm,
+  createQuestion,
+  createQuestionVersion,
+  publishQuestionVersion,
+} from "@roonga/qcms-db";
+import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { createApp } from "../../app.js";
+import type { Deps } from "../../deps.js";
+import { ADMIN_SESSION_HEADER, registerAdminAuth } from "../../middleware/admin-auth.js";
+import {
+  REQUEST_ENVIRONMENT_HEADER,
+  registerRequestEnvironment,
+} from "../../middleware/request-environment.js";
+import { internalTokenFor, makeDeps, seedAdminSession, validEnv } from "../../test-support.js";
+import { registerForms } from "../forms/route.js";
+import { registerGrantCheck } from "../membership/middleware.js";
+import { EDIT_HEADER } from "./edit-provenance.js";
+import { mintTurnEditTokens } from "./edit-token.js";
+import { registerAgentProvenance } from "./provenance-mount.js";
+
+const ADMIN_ONLY = { public: false, internal: false, admin: true } as const;
+const RACERS = 8;
+const ROUNDS = 5;
+const TIMEOUT_MS = 120_000;
+
+let testDb: TestDb;
+let deps: Deps;
+let app: ReturnType<typeof createApp>;
+let internalToken: string;
+let owner: { token: string; userId: string };
+const now = new Date("2026-07-20T00:00:00.000Z");
+
+beforeAll(async () => {
+  testDb = await startTestDb();
+  deps = makeDeps({
+    db: testDb.db,
+    clock: { now: () => now },
+    env: validEnv({ QCMS_FLAG_AGENT_AUTHORING: "fake" }),
+  });
+  app = createApp(deps, ADMIN_ONLY, {
+    groups: {
+      admin: [
+        registerAdminAuth,
+        registerRequestEnvironment,
+        registerGrantCheck,
+        registerAgentProvenance,
+        registerForms,
+      ],
+    },
+  });
+  internalToken = internalTokenFor(deps.config);
+  owner = await seedAdminSession(testDb.db, { label: "race_owner", at: now });
+  const questionId = QuestionId.parse("q_race_name");
+  const parsed = parseQuestionDefinition({
+    questionId: "q_race_name",
+    type: "shortText",
+    label: { en: "Name" },
+  });
+  if (!parsed.ok) throw new Error("fixture question did not parse");
+  await createQuestion(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    questionId,
+    slug: "race-name",
+  });
+  await createQuestionVersion(testDb.db, { questionId, definition: parsed.value });
+  await publishQuestionVersion(testDb.db, { questionId, version: 1 });
+}, CONTAINER_BOOT_TIMEOUT_MS);
+
+afterAll(async () => {
+  await testDb?.teardown();
+}, CONTAINER_BOOT_TIMEOUT_MS);
+
+function definition(formId: string, title: string): Record<string, unknown> {
+  return {
+    formId,
+    defaultLocale: "en",
+    title: { en: title },
+    steps: [
+      {
+        stepId: "stp_one",
+        title: { en: "One" },
+        items: [{ questionId: "q_race_name", version: 1 }],
+      },
+    ],
+    rules: [],
+  };
+}
+
+let formCounter = 0;
+
+/** A form with no draft row, or with one human-saved draft at revision 1. */
+async function newForm(seeded: boolean): Promise<string> {
+  formCounter += 1;
+  const formId = `frm_race_${String(formCounter).padStart(3, "0")}`;
+  await createForm(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    formId: FormId.parse(formId),
+    slug: `race-${String(formCounter)}`,
+    defaultLocale: "en",
+  });
+  if (seeded) expect((await put(formId, "Start")).status).toBe(200);
+  return formId;
+}
+
+function put(formId: string, title: string, token?: string): Promise<Response> {
+  return Promise.resolve(
+    app.request(`/admin/forms/${formId}/draft`, {
+      method: "PUT",
+      headers: {
+        "content-type": "application/json",
+        "x-qcms-internal-token": internalToken,
+        [ADMIN_SESSION_HEADER]: owner.token,
+        [REQUEST_ENVIRONMENT_HEADER]: "test",
+        ...(token === undefined ? {} : { [EDIT_HEADER]: token }),
+      },
+      body: JSON.stringify({ definition: definition(formId, title) }),
+    }),
+  );
+}
+
+/** One token from its own turn, so racing tokens never share an audit row key. */
+async function mint(formId: string, startRevision: number): Promise<string> {
+  const { tokens } = await mintTurnEditTokens(deps.config.keys.app, {
+    sub: owner.userId,
+    formId,
+    baseVersion: 0,
+    startRevision,
+    ops: ["copy"],
+    issuedAt: now,
+  });
+  return tokens[0] as string;
+}
+
+async function outcome(res: Response): Promise<string> {
+  if (res.status === 200) return "200";
+  const body = (await res.json()) as { error?: { code?: string } };
+  return `${String(res.status)}:${body.error?.code ?? ""}`;
+}
+
+async function rowDetails(formId: string): Promise<(string | null)[]> {
+  const result = await testDb.client.query<{ detail: string | null }>(
+    "select detail from control.agent_actions where form_id = $1 order by detail",
+    [formId],
+  );
+  return result.rows.map((row) => row.detail);
+}
+
+async function revisionOf(formId: string): Promise<number> {
+  const result = await testDb.client.query<{ revision: number }>(
+    "select revision from control.form_drafts where form_id = $1",
+    [formId],
+  );
+  return result.rows[0]?.revision ?? 0;
+}
+
+function times<T>(n: number, make: (index: number) => T): T[] {
+  return Array.from({ length: n }, (_unused, index) => make(index));
+}
+
+describe("concurrent edits bind the revision they were minted for", { timeout: TIMEOUT_MS }, () => {
+  for (const seeded of [false, true]) {
+    const start = seeded ? 1 : 0;
+    const label = seeded ? "with a draft row" : "with no draft row";
+
+    it(`lands exactly one of ${String(RACERS)} distinct revision-${String(start)} tokens, ${label}`, async () => {
+      for (let round = 0; round < ROUNDS; round += 1) {
+        const formId = await newForm(seeded);
+        const tokens = await Promise.all(times(RACERS, () => mint(formId, start)));
+        const responses = await Promise.all(
+          tokens.map((token, index) => put(formId, `T${String(index)}`, token)),
+        );
+        const outcomes = (await Promise.all(responses.map(outcome))).sort();
+        expect(outcomes, `round ${String(round)}`).toEqual([
+          "200",
+          ...times(RACERS - 1, () => "409:AGENT_EDIT_REVISION"),
+        ]);
+        expect(await revisionOf(formId)).toBe(start + 1);
+        expect(await rowDetails(formId)).toEqual([String(start + 1)]);
+      }
+    });
+
+    it(`refuses a revision-${String(start)} token racing plain saves unless it lands first, ${label}`, async () => {
+      for (let round = 0; round < ROUNDS; round += 1) {
+        const formId = await newForm(seeded);
+        const token = await mint(formId, start);
+        const responses = await Promise.all([
+          ...times(RACERS - 1, (index) => put(formId, `H${String(index)}`)),
+          put(formId, "Agent", token),
+        ]);
+        const tokened = responses[RACERS - 1] as Response;
+        for (const human of responses.slice(0, RACERS - 1)) expect(human.status).toBe(200);
+        const result = await outcome(tokened);
+        if (result === "200") {
+          expect(await rowDetails(formId), `round ${String(round)}`).toEqual([String(start + 1)]);
+        } else {
+          expect(result, `round ${String(round)}`).toBe("409:AGENT_EDIT_REVISION");
+          expect(await rowDetails(formId)).toEqual([]);
+        }
+        expect(await revisionOf(formId)).toBe(start + RACERS - (result === "200" ? 0 : 1));
+      }
+    });
+
+    it(`lands one token replayed ${String(RACERS)} times once, ${label}`, async () => {
+      for (let round = 0; round < ROUNDS; round += 1) {
+        const formId = await newForm(seeded);
+        const token = await mint(formId, start);
+        const responses = await Promise.all(
+          times(RACERS, (index) => put(formId, `R${String(index)}`, token)),
+        );
+        const outcomes = await Promise.all(responses.map(outcome));
+        expect(
+          outcomes.filter((result) => result === "200"),
+          `round ${String(round)}`,
+        ).toEqual(["200"]);
+        // A loser that read before the winner committed waits on the draft and finds it moved.
+        for (const result of outcomes.filter((entry) => entry !== "200")) {
+          expect(["403:AGENT_EDIT_REPLAYED", "409:AGENT_EDIT_REVISION"]).toContain(result);
+        }
+        expect(await rowDetails(formId)).toEqual([String(start + 1)]);
+      }
+    });
+  }
+});

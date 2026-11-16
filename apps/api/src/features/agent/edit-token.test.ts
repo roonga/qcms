@@ -18,6 +18,7 @@ async function minted(ops: Parameters<typeof mintTurnEditTokens>[1]["ops"], star
   return mintTurnEditTokens(KEY, {
     sub: "usr_a",
     formId: "frm_a",
+    baseVersion: 2,
     startRevision,
     ops,
     issuedAt: AT,
@@ -25,20 +26,26 @@ async function minted(ops: Parameters<typeof mintTurnEditTokens>[1]["ops"], star
 }
 
 describe("the agent edit token", () => {
-  it("binds each op of a turn to the next revision in order", async () => {
+  it("binds each op of a turn to the base version and the next revision in order", async () => {
     const { turnId, tokens } = await minted(["question", "rule", "appearance"]);
     expect(turnId).toMatch(/^edt_[a-z0-9]+$/u);
     const payloads = await Promise.all(tokens.map((token) => verifyEditToken(KEY, token, AT)));
     expect(
       payloads.map((result) =>
         result.ok && result.payload.act === "edit"
-          ? [result.payload.n, result.payload.op, result.payload.rev, result.payload.tid]
+          ? [
+              result.payload.n,
+              result.payload.op,
+              result.payload.base,
+              result.payload.rev,
+              result.payload.tid,
+            ]
           : undefined,
       ),
     ).toEqual([
-      [0, "question", 4, turnId],
-      [1, "rule", 5, turnId],
-      [2, "appearance", 6, turnId],
+      [0, "question", 2, 4, turnId],
+      [1, "rule", 2, 5, turnId],
+      [2, "appearance", 2, 6, turnId],
     ]);
   });
 
@@ -101,6 +108,7 @@ describe("the agent edit token", () => {
         formId: "frm_a",
         tid: "edt_abcdefgh",
         n: 0,
+        base: 0,
         op: "publish" as "copy",
         rev: 1,
         iat,

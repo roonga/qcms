@@ -1,11 +1,19 @@
-import { FormId, parseQuestionDefinition, QuestionId } from "@roonga/qcms-core";
+import {
+  FormId,
+  deriveAppearance,
+  parseQuestionDefinition,
+  QuestionId,
+  type Appearance,
+} from "@roonga/qcms-core";
 import {
   SEED_WORKSPACE_ID,
   createForm,
   createQuestion,
   createQuestionVersion,
+  deleteDraft,
   insertFormVersion,
   publishQuestionVersion,
+  setWorkspaceAppearanceLock,
 } from "@roonga/qcms-db";
 import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -120,10 +128,24 @@ function definition(formId: string, title: string): Record<string, unknown> {
   };
 }
 
+function appearanceFor(primary: string): Appearance {
+  const derived = deriveAppearance({ primary });
+  return {
+    palettes: derived.palettes,
+    logo: null,
+    face: derived.face,
+    corners: "subtle",
+    density: "comfortable",
+    textSize: 16,
+    progress: "top-indicator",
+    pageTint: derived.pageTint,
+  };
+}
+
 let formCounter = 0;
 
-/** A form with one human-saved draft, at revision 1. */
-async function seededForm(): Promise<string> {
+/** A form with no draft row and no version, so an edit applies at revision 0. */
+async function bareForm(): Promise<string> {
   formCounter += 1;
   const formId = `frm_edit_${String(formCounter).padStart(3, "0")}`;
   await createForm(testDb.db, {
@@ -132,9 +154,31 @@ async function seededForm(): Promise<string> {
     slug: `edit-${String(formCounter)}`,
     defaultLocale: "en",
   });
+  return formId;
+}
+
+/** A form with one human-saved draft, at revision 1. */
+async function seededForm(): Promise<string> {
+  const formId = await bareForm();
   const res = await put(owner, formId, { definition: definition(formId, "Start") });
   expect(res.status).toBe(200);
   return formId;
+}
+
+/** What a publish does to the draft: freeze the next version and delete the row. */
+async function publishDraft(formId: string, title: string): Promise<void> {
+  type VersionInput = Parameters<typeof insertFormVersion>[1];
+  await insertFormVersion(testDb.db, {
+    formId: FormId.parse(formId),
+    definition: definition(formId, title) as unknown as VersionInput["definition"],
+    appearance: null,
+    compiled: {} as unknown as VersionInput["compiled"],
+    compilerVersion: "1.0.0",
+    a2uiSpecVersion: "1.0.0",
+    semanticsVersion: "1",
+    publishedAt: now,
+  });
+  await deleteDraft(testDb.db, FormId.parse(formId));
 }
 
 function headers(caller: Caller, extra: Record<string, string> = {}): Record<string, string> {
@@ -166,11 +210,13 @@ async function tokens(
   formId: string,
   ops: readonly EditOp[],
   startRevision = 1,
+  baseVersion = 0,
 ): Promise<readonly string[]> {
   return (
     await mintTurnEditTokens(deps.config.keys.app, {
       sub: caller.userId,
       formId,
+      baseVersion,
       startRevision,
       ops,
       issuedAt: now,
@@ -304,7 +350,7 @@ describe("the injection cases (X4, A6)", { timeout: TIMEOUT_MS }, () => {
     expect((await agentChanges(owner, formId)).changes).toEqual([]);
 
     now = new Date(now.getTime() + 1_000);
-    const [late] = await tokens(owner, formId, ["rule"], 2);
+    const [late] = await tokens(owner, formId, ["rule"], 2, 1);
     expect((await put(owner, formId, { definition: definition(formId, "B") }, late)).status).toBe(
       200,
     );
@@ -372,6 +418,7 @@ describe("the edit token's bindings", { timeout: TIMEOUT_MS }, () => {
       formId,
       tid: "edt_overcapturn01",
       n: EDITS_PER_TURN,
+      base: 0,
       op: "copy",
       rev: 1,
       iat,
@@ -384,6 +431,7 @@ describe("the edit token's bindings", { timeout: TIMEOUT_MS }, () => {
       mintTurnEditTokens(deps.config.keys.app, {
         sub: owner.userId,
         formId,
+        baseVersion: 0,
         startRevision: 1,
         ops: Array.from({ length: EDITS_PER_TURN + 1 }, () => "copy" as const),
         issuedAt: now,
@@ -421,6 +469,119 @@ describe("the edit token's bindings", { timeout: TIMEOUT_MS }, () => {
       [PROPOSAL_STEP_HEADER]: "0",
     });
     expect(res.status).toBe(403);
+    expect(await rowsFor(formId)).toEqual([]);
+  });
+});
+
+describe("an edit at revision 0 and across a publish", { timeout: TIMEOUT_MS }, () => {
+  it("applies a turn to a form with no draft row, starting at revision 0", async () => {
+    const formId = await bareForm();
+    const [first, second] = await tokens(owner, formId, ["copy", "step"], 0);
+    expect(
+      (await put(owner, formId, { definition: definition(formId, "First") }, first)).status,
+    ).toBe(200);
+    expect(
+      (await put(owner, formId, { definition: definition(formId, "Second") }, second)).status,
+    ).toBe(200);
+    expect(await draftTitle(formId)).toBe("Second");
+    expect(await rowsFor(formId)).toEqual([
+      { kind: "draft.copy", detail: "1" },
+      { kind: "draft.step", detail: "2" },
+    ]);
+  });
+
+  it("refuses a revision-0 token once a human save has created the draft", async () => {
+    const formId = await bareForm();
+    const [token] = await tokens(owner, formId, ["copy"], 0);
+    expect((await put(owner, formId, { definition: definition(formId, "Human") })).status).toBe(
+      200,
+    );
+    const res = await put(owner, formId, { definition: definition(formId, "Agent") }, token);
+    expect(res.status).toBe(409);
+    expect(await codeOf(res)).toBe("AGENT_EDIT_REVISION");
+    expect(await draftTitle(formId)).toBe("Human");
+    expect(await rowsFor(formId)).toEqual([]);
+  });
+
+  it("refuses a token minted before a publish once the revisions restart", async () => {
+    const formId = await seededForm();
+    const [stale] = await tokens(owner, formId, ["copy"], 1, 0);
+    now = new Date(now.getTime() + 1_000);
+    await publishDraft(formId, "Start");
+
+    const [first] = await tokens(owner, formId, ["copy"], 0, 1);
+    expect(
+      (await put(owner, formId, { definition: definition(formId, "After") }, first)).status,
+    ).toBe(200);
+    const res = await put(owner, formId, { definition: definition(formId, "Stale") }, stale);
+    expect(res.status).toBe(409);
+    expect(await codeOf(res)).toBe("AGENT_EDIT_REVISION");
+    expect(await draftTitle(formId)).toBe("After");
+    expect((await rowsFor(formId)).map((row) => row.detail)).toEqual(["1"]);
+  });
+});
+
+describe("an edit's op against what its save changes", { timeout: TIMEOUT_MS }, () => {
+  it("saves an appearance op that changes the appearance alone", async () => {
+    const formId = await seededForm();
+    const [token] = await tokens(owner, formId, ["appearance"]);
+    const res = await put(
+      owner,
+      formId,
+      { definition: definition(formId, "Start"), appearance: appearanceFor("#1d4ed8") },
+      token,
+    );
+    expect(res.status, await res.clone().text()).toBe(200);
+    expect(await rowsFor(formId)).toEqual([{ kind: "draft.appearance", detail: "2" }]);
+  });
+
+  it("refuses a non-appearance op whose save changes the appearance", async () => {
+    const formId = await seededForm();
+    for (const op of ["question", "step", "rule", "copy"] as const) {
+      const [token] = await tokens(owner, formId, [op]);
+      const res = await put(
+        owner,
+        formId,
+        { definition: definition(formId, "Start"), appearance: appearanceFor("#0f766e") },
+        token,
+      );
+      expect(res.status, op).toBe(422);
+      expect(await codeOf(res)).toBe("AGENT_EDIT_OP");
+    }
+    expect(await rowsFor(formId)).toEqual([]);
+  });
+
+  it("refuses an appearance op whose save changes the definition, even with an appearance", async () => {
+    const formId = await seededForm();
+    const [token] = await tokens(owner, formId, ["appearance"]);
+    const res = await put(
+      owner,
+      formId,
+      { definition: definition(formId, "Renamed"), appearance: appearanceFor("#1d4ed8") },
+      token,
+    );
+    expect(res.status).toBe(422);
+    expect(await codeOf(res)).toBe("AGENT_EDIT_OP");
+    expect(await draftTitle(formId)).toBe("Start");
+    expect(await rowsFor(formId)).toEqual([]);
+  });
+
+  it("refuses an appearance edit on a locked workspace and writes no row", async () => {
+    const formId = await seededForm();
+    const [token] = await tokens(owner, formId, ["appearance"]);
+    await setWorkspaceAppearanceLock(testDb.db, SEED_WORKSPACE_ID, true);
+    try {
+      const res = await put(
+        owner,
+        formId,
+        { definition: definition(formId, "Start"), appearance: appearanceFor("#1d4ed8") },
+        token,
+      );
+      expect(res.status).toBe(409);
+      expect(await codeOf(res)).toBe("APPEARANCE_LOCKED");
+    } finally {
+      await setWorkspaceAppearanceLock(testDb.db, SEED_WORKSPACE_ID, false);
+    }
     expect(await rowsFor(formId)).toEqual([]);
   });
 });

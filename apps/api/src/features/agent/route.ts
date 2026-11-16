@@ -102,7 +102,7 @@ export const screenAssistRoute = createRoute({
   ...withScopes("forms:read"),
 });
 
-/** Mounted whatever the flag, so the wizard reads one shape; with the flag off it reports no change. */
+/** Mounted whatever the flag, so the wizard reads one shape; with the flag off no new change is recorded. */
 export const agentChangesRoute = createRoute({
   method: "get",
   path: "/forms/{id}/draft/agent-changes",
