@@ -10,12 +10,12 @@ import {
   invalidateLiveSignInLinks,
   listAccountHoldings,
   listWorkspacesHeldBy,
-  lockAccount,
   newestSignInLinkPurpose,
   reactivateAccount,
   revokeAccountSessions,
   SITE_ADMINISTRATOR_ROLE,
   suspendResponseMemberships,
+  tryLockAccount,
   unclaimAccount,
   writeSiteAuditWithMirror,
   type AccountDirectoryRow,
@@ -43,6 +43,12 @@ const fail = {
       409,
       "This act emails the person a single-use sign-in link, so it is refused until " +
         "outbound email is configured.",
+    ),
+  busy: (): ApiError =>
+    new ApiError(
+      "ACCOUNT_BUSY",
+      409,
+      "Another change to this account is in progress. Try again in a moment.",
     ),
   self: (): ApiError =>
     new ApiError(
@@ -143,13 +149,14 @@ export function makeDisableAccountHandler(
   return async (c) => {
     const actor = principalOf(c);
     const { id } = c.req.valid("param");
-    if (id === actor.userId) throw fail.self();
 
     const exec = deps.databases.control;
     const now = deps.clock.now();
+    // Tried, not waited for: a request queued behind another holder of the account lock
+    // would hold its pooled connection for as long as that holder runs.
     const holdings = await exec.transaction(async (tx) => {
       await boundAccountTransaction(tx);
-      await lockAccount(tx, id);
+      if (!(await tryLockAccount(tx, id))) throw fail.busy();
       const current = await accountOf(tx, id);
       if (current.disabledAt !== null) throw fail.alreadyDisabled();
       if (current.role === SITE_ADMINISTRATOR_ROLE) {
@@ -219,6 +226,7 @@ export function makeReactivateAccountHandler(
           await listWorkspacesHeldBy(tx, id),
         );
       },
+      fail.busy,
     );
 
     return c.json({ account: accountView(await accountOf(exec, id)), delivery }, 200);
@@ -275,6 +283,7 @@ export function makeResetAccountHandler(
           await listWorkspacesHeldBy(tx, id),
         );
       },
+      fail.busy,
     );
 
     return c.json({ account: accountView(await accountOf(exec, id)), delivery }, 200);
