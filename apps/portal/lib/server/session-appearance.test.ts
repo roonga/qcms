@@ -102,7 +102,10 @@ describe("rememberCompletionAppearance", () => {
     await rememberCompletionAppearance("ses_2", "token");
     expect(jar.has(COMPLETION_APPEARANCE_COOKIE)).toBe(false);
 
+    statusBody = () =>
+      Response.json({ sessionId: "ses_1", status: "submitted", appearance: APPEARANCE });
     await rememberCompletionAppearance("ses_1", "token");
+    expect(jar.has(COMPLETION_APPEARANCE_COOKIE)).toBe(true);
     statusBody = () => new Response("down", { status: 503 });
     await rememberCompletionAppearance("ses_3", "token");
     expect(jar.has(COMPLETION_APPEARANCE_COOKIE)).toBe(false);
