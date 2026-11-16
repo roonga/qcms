@@ -93,13 +93,13 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (618 files common to both shapes)
+### Scaffolded paths (626 files common to both shapes)
 
 | Path                                                                            | Files |
 | ------------------------------------------------------------------------------- | ----- |
 | `(project root)`                                                                | 8     |
-| `apps/`                                                                         | 607   |
-| `apps/admin/`                                                                   | 390   |
+| `apps/`                                                                         | 615   |
+| `apps/admin/`                                                                   | 398   |
 | `apps/admin/app/`                                                               | 104   |
 | `apps/admin/app/(shell)/`                                                       | 80    |
 | `apps/admin/app/(shell)/@rail/`                                                 | 34    |
@@ -194,7 +194,8 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/two-factor/recovery-codes/`                                     | 2     |
 | `apps/admin/app/two-factor/recovery-codes/confirm/`                             | 1     |
 | `apps/admin/app/two-factor/recovery/verify/`                                    | 1     |
-| `apps/admin/components/`                                                        | 139   |
+| `apps/admin/components/`                                                        | 146   |
+| `apps/admin/components/access/`                                                 | 7     |
 | `apps/admin/components/agent/`                                                  | 12    |
 | `apps/admin/components/forms/`                                                  | 41    |
 | `apps/admin/components/membership/`                                             | 9     |
@@ -202,11 +203,11 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/components/questions/`                                              | 16    |
 | `apps/admin/components/shell/`                                                  | 6     |
 | `apps/admin/components/test-support/`                                           | 3     |
-| `apps/admin/lib/`                                                               | 140   |
+| `apps/admin/lib/`                                                               | 141   |
 | `apps/admin/lib/agent/`                                                         | 14    |
 | `apps/admin/lib/forms/`                                                         | 31    |
 | `apps/admin/lib/i18n/`                                                          | 2     |
-| `apps/admin/lib/membership/`                                                    | 4     |
+| `apps/admin/lib/membership/`                                                    | 5     |
 | `apps/admin/lib/ops/`                                                           | 16    |
 | `apps/admin/lib/pwa/`                                                           | 4     |
 | `apps/admin/lib/questions/`                                                     | 9     |
@@ -298,7 +299,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (618)</summary>
+<summary>Every scaffolded file (626)</summary>
 
 ```
 .dockerignore
@@ -410,6 +411,13 @@ apps/admin/app/two-factor/recovery-codes/confirm/route.ts
 apps/admin/app/two-factor/recovery-codes/page.tsx
 apps/admin/app/two-factor/recovery/page.tsx
 apps/admin/app/two-factor/recovery/verify/route.ts
+apps/admin/components/access/access-explanation.tsx
+apps/admin/components/access/access-filters.tsx
+apps/admin/components/access/access-preview.tsx
+apps/admin/components/access/confirm-act.tsx
+apps/admin/components/access/last-administrator.tsx
+apps/admin/components/access/no-access-home.tsx
+apps/admin/components/access/uncovered-notice.tsx
 apps/admin/components/account-menu.tsx
 apps/admin/components/admin-nav.tsx
 apps/admin/components/agent/action-card.tsx
@@ -609,6 +617,7 @@ apps/admin/lib/initials.ts
 apps/admin/lib/library-search.ts
 apps/admin/lib/measure.ts
 apps/admin/lib/membership/access-group-form.ts
+apps/admin/lib/membership/access-patterns.ts
 apps/admin/lib/membership/audit-wording.ts
 apps/admin/lib/membership/sections.ts
 apps/admin/lib/membership/types.ts
