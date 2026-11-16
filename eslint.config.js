@@ -216,10 +216,9 @@ export default tseslint.config(
     },
   },
   {
-    // The fence matches built-ins only, so the process boundary's Node adapters
-    // (`@hono/node-server`, `pg`, `drizzle-orm/node-postgres`) are packages and pass. The
-    // brand fetcher's adapters are the in-tree exception: handlers reach them only through
-    // `Deps`, composed by `main.ts` (ADR-13).
+    // The fence matches built-ins only, so packaged Node adapters (`@hono/node-server`, `pg`)
+    // pass. The brand fetcher's `node-*.ts` adapters are the in-tree exception, reached only
+    // through `Deps` (ADR-13).
     files: ["apps/api/src/**/*.ts"],
     ignores: [
       "apps/api/src/**/*.test.ts",
