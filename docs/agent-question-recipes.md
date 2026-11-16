@@ -20,8 +20,8 @@ Every "can" below cites the code rather than a document. Every "cannot" is state
 
 ### Identity and person
 
-| Type                                                                                     | Verdict | Corpus sources                                                     |
-| ---------------------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------ |
+| Type                                                                                                             | Verdict | Corpus sources                                                     |
+| ---------------------------------------------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------ |
 | [Person name](../apps/api/src/features/agent/prompts/recipes/person-name.md)                                     | full    | NSW licence, N-400, Canadian passport, B11 declaration, NHS intake |
 | [Date of birth](../apps/api/src/features/agent/prompts/recipes/date-of-birth.md)                                 | partial | NHS intake, Medicare MS004, ACS, Canadian passport, N-400          |
 | [Age in years](../apps/api/src/features/agent/prompts/recipes/age-in-years.md)                                   | full    | ACS, BRFSS, NHS intake                                             |
@@ -29,8 +29,8 @@ Every "can" below cites the code rather than a document. Every "cannot" is state
 
 ### Contact
 
-| Type                                                     | Verdict | Corpus sources                                    |
-| -------------------------------------------------------- | ------- | ------------------------------------------------- |
+| Type                                                                             | Verdict | Corpus sources                                    |
+| -------------------------------------------------------------------------------- | ------- | ------------------------------------------------- |
 | [Email address](../apps/api/src/features/agent/prompts/recipes/email-address.md) | full    | Council satisfaction, NHS intake, ahm claim       |
 | [Phone number](../apps/api/src/features/agent/prompts/recipes/phone-number.md)   | full    | B11 declaration, NHS intake, Council satisfaction |
 | [Postcode](../apps/api/src/features/agent/prompts/recipes/postcode.md)           | full    | Council satisfaction, Canadian passport, ACS      |
@@ -38,8 +38,8 @@ Every "can" below cites the code rather than a document. Every "cannot" is state
 
 ### Dates and times
 
-| Type                                                                    | Verdict | Corpus sources                                           |
-| ----------------------------------------------------------------------- | ------- | -------------------------------------------------------- |
+| Type                                                                                            | Verdict | Corpus sources                                           |
+| ----------------------------------------------------------------------------------------------- | ------- | -------------------------------------------------------- |
 | [A date that has already happened](../apps/api/src/features/agent/prompts/recipes/past-date.md) | partial | Hospital claim, ahm claim, NHS intake, Canadian passport |
 | [A date in the future](../apps/api/src/features/agent/prompts/recipes/future-date.md)           | partial | ahm claim, NSW licence, Medicare MS004                   |
 | [A date range, from and to](../apps/api/src/features/agent/prompts/recipes/date-range.md)       | none    | Hospital claim, CMS-1500, Canadian passport, N-400       |
@@ -47,8 +47,8 @@ Every "can" below cites the code rather than a document. Every "cannot" is state
 
 ### Choice
 
-| Type                                                                                   | Verdict | Corpus sources                                     |
-| -------------------------------------------------------------------------------------- | ------- | -------------------------------------------------- |
+| Type                                                                                                           | Verdict | Corpus sources                                     |
+| -------------------------------------------------------------------------------------------------------------- | ------- | -------------------------------------------------- |
 | [Yes or no](../apps/api/src/features/agent/prompts/recipes/yes-or-no.md)                                       | full    | NHS intake, NSW licence, Hospital claim, W-4       |
 | [Yes or no, with a follow-up](../apps/api/src/features/agent/prompts/recipes/yes-or-no-with-detail.md)         | full    | NHS intake, NSW licence, Medicare MS004, ahm claim |
 | [Pick one from a list](../apps/api/src/features/agent/prompts/recipes/single-choice.md)                        | full    | IR330, W-4, NSW licence, Council satisfaction, ACS |
@@ -59,22 +59,22 @@ Every "can" below cites the code rather than a document. Every "cannot" is state
 
 ### Measurement
 
-| Type                                                                        | Verdict | Corpus sources                                        |
-| --------------------------------------------------------------------------- | ------- | ----------------------------------------------------- |
+| Type                                                                                                | Verdict | Corpus sources                                        |
+| --------------------------------------------------------------------------------------------------- | ------- | ----------------------------------------------------- |
 | [A quantity, a count, or a measurement](../apps/api/src/features/agent/prompts/recipes/quantity.md) | full    | CMS-1500, Canadian passport, W-4, Medicare MS004, ACS |
 | [A money amount](../apps/api/src/features/agent/prompts/recipes/money-amount.md)                    | partial | CMS-1500, W-4, ACS, Hospital claim, ahm claim         |
 
 ### Rating
 
-| Type                                                                            | Verdict | Corpus sources                           |
-| ------------------------------------------------------------------------------- | ------- | ---------------------------------------- |
+| Type                                                                                                    | Verdict | Corpus sources                           |
+| ------------------------------------------------------------------------------------------------------- | ------- | ---------------------------------------- |
 | [A rating scale](../apps/api/src/features/agent/prompts/recipes/rating-scale.md)                        | full    | Course evaluation, WHO-5, CAHPS, Council |
 | [A battery of statements on one scale](../apps/api/src/features/agent/prompts/recipes/scale-battery.md) | partial | WHO-5, Course evaluation, CAHPS          |
 
 ### Consent, text, evidence, repetition
 
-| Type                                                                                        | Verdict | Corpus sources                                                        |
-| ------------------------------------------------------------------------------------------- | ------- | --------------------------------------------------------------------- |
+| Type                                                                                                                | Verdict | Corpus sources                                                        |
+| ------------------------------------------------------------------------------------------------------------------- | ------- | --------------------------------------------------------------------- |
 | [Consent and acknowledgement](../apps/api/src/features/agent/prompts/recipes/consent-and-acknowledgement.md)        | partial | NHS intake, Medicare MS004, CMS-1500, IR330, B11                      |
 | [A declaration and a signature](../apps/api/src/features/agent/prompts/recipes/declaration-and-signature.md)        | none    | B11, NSW licence, N-400, CMS-1500, IR330, W-4                         |
 | [A short typed answer, with a length limit](../apps/api/src/features/agent/prompts/recipes/short-free-text.md)      | full    | Council satisfaction, Canadian passport, N-400, ACS                   |
