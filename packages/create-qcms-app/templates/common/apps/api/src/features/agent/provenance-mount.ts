@@ -153,7 +153,7 @@ export function agentProvenance(deps: Deps): MiddlewareHandler<ApiEnv> {
         isFormId(formId) ? savedDraftRevision(deps, formId) : undefined,
     });
     if (!result.ok) {
-      deps.logger.warn("agent proposal refused", { reason: result.code, kind: facts.path });
+      deps.logger.warn("agent proposal refused", { code: result.code, kind: facts.path });
       throw refusal(result.code);
     }
 

@@ -532,7 +532,7 @@ describe("accepting a proposal with new questions", () => {
       expect(refusalLines().at(-1)).toMatchObject({
         formId: "frm_refused",
         questionId: "q_bad_pattern",
-        reason: "INVALID_QUESTION_DEFINITION",
+        code: "INVALID_QUESTION_DEFINITION",
       });
 
       expect(await storedVersions("q_good_one")).toEqual([]);
@@ -570,7 +570,7 @@ describe("accepting a proposal with new questions", () => {
       expect(refusal).toMatchObject({
         formId: "frm_reuse",
         questionId: "q_taken_id",
-        reason: "QUESTION_ID_REUSED",
+        code: "QUESTION_ID_REUSED",
       });
       expect(JSON.stringify(refusal)).not.toContain("Reused");
     },

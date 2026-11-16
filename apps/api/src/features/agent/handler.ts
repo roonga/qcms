@@ -661,13 +661,13 @@ function logRefusal(
   deps: Deps,
   formId: FormId,
   questionId: string,
-  reason: string,
+  code: string,
   issues: readonly DefinitionRefusal[],
 ): void {
   deps.logger.warn("agent proposal refused", {
     formId,
     questionId,
-    reason,
+    code,
     issues: issues.map((issue) => issue.code),
   });
 }
