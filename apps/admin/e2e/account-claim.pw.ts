@@ -13,6 +13,10 @@ test.describe.configure({ mode: "serial" });
 
 const EMAIL = uniqueAdminEmail("claim");
 
+const EXPIRED_EMAIL = uniqueAdminEmail("claimexpired");
+
+const REFUSED = "This link has expired or was used. Ask a Site administrator to resend it.";
+
 const CHOSEN_PASSWORD = `e2e-claimed-${Buffer.from(crypto.getRandomValues(new Uint8Array(18))).toString("base64url")}`;
 
 let token = "";
@@ -26,6 +30,12 @@ function alertText(page: Page): Locator {
   return page.getByRole("main").getByRole("alert");
 }
 
+async function expectRefusedLink(page: Page): Promise<void> {
+  await expect(page.getByRole("heading", { level: 1, name: "This link cannot be used" })).toBeVisible();
+  await expect(alertText(page)).toHaveText(REFUSED);
+  await expect(page.getByRole("button", { name: "Continue" })).toHaveCount(0);
+}
+
 async function fillClaim(page: Page, next: string, confirm: string): Promise<void> {
   await fillStable(field(page, "Password"), next);
   await fillStable(field(page, "Confirm password"), confirm);
@@ -34,13 +44,31 @@ async function fillClaim(page: Page, next: string, confirm: string): Promise<voi
 test.beforeAll(async () => {
   await createTestAdmin(EMAIL, { claimed: false });
   token = await signInLinkFor(EMAIL);
+  await createTestAdmin(EXPIRED_EMAIL, { claimed: false });
 });
 
 test("a link with no token offers no form at all", async ({ page }) => {
   await page.goto("/claim");
-  await expect(page.getByRole("heading", { name: "Set up your account" })).toBeVisible();
-  await expect(alertText(page)).toContainText("cannot be used");
-  await expect(page.getByRole("button", { name: "Continue" })).toHaveCount(0);
+  await expectRefusedLink(page);
+});
+
+test("a live link states that it works once and lasts 72 hours", async ({ page }) => {
+  await page.goto(`/claim?token=${encodeURIComponent(token)}`);
+  await expect(page.getByRole("heading", { level: 1, name: "Set up your sign-in" })).toBeVisible();
+  await expect(page.getByText("It can be used once and lasts 72 hours.", { exact: false })).toBeVisible();
+});
+
+test("a link past its 72 hours is refused with the answer a used one gets", async ({ page }) => {
+  const expired = await signInLinkFor(EXPIRED_EMAIL, {
+    expiresAt: new Date(Date.now() - 60_000),
+  });
+  await page.goto(`/claim?token=${encodeURIComponent(expired)}`);
+  await fillClaim(page, CHOSEN_PASSWORD, CHOSEN_PASSWORD);
+  await Promise.all([
+    page.waitForURL(/\/claim\?linkRefused=1$/),
+    page.getByRole("button", { name: "Continue" }).click(),
+  ]);
+  await expectRefusedLink(page);
 });
 
 test("an unknown token is refused with the same answer", async ({ page }) => {
@@ -50,7 +78,7 @@ test("an unknown token is refused with the same answer", async ({ page }) => {
     page.waitForURL(/\/claim\?linkRefused=1$/),
     page.getByRole("button", { name: "Continue" }).click(),
   ]);
-  await expect(alertText(page)).toContainText("cannot be used");
+  await expectRefusedLink(page);
 });
 
 test("the screen refuses two passwords that differ, without spending the link", async ({
@@ -119,7 +147,7 @@ test("the spent link is refused on a second use", async ({ page }) => {
     page.waitForURL(/\/claim\?linkRefused=1$/),
     page.getByRole("button", { name: "Continue" }).click(),
   ]);
-  await expect(alertText(page)).toContainText("cannot be used");
+  await expectRefusedLink(page);
 });
 
 test("the claimed account signs in with the password it chose", async ({ page }) => {

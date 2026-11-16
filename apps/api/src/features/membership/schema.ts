@@ -148,6 +148,9 @@ export const MyAccessResponse = z
       // `form: read` or `question: read` in some workspace.
       authoring: z.boolean(),
     }),
+    // Who to ask for access: the active, claimed Site administrators, sent only to a
+    // caller who holds nothing, and empty for everyone else.
+    siteAdministrators: z.array(z.object({ name: z.string(), email: z.string() })),
     workspaces: z.array(
       z.object({
         workspaceId: z.string(),

@@ -18,6 +18,7 @@ import {
   listAccessGroupHolders,
   listAccessGroups,
   listAccessGroupsHeldIn,
+  listActiveSiteAdministrators,
   listAgentActions,
   listEnvironmentNames,
   listGrantsForUser,
@@ -280,8 +281,8 @@ function refuseSelfGrant(input: {
   return input.after.environments.some((name) => !input.before.environments.includes(name));
 }
 
-// Grant-exempt, and safe to be: it names no person, so no shape of this request asks
-// about anybody but the caller.
+// Grant-exempt, and safe to be: no shape of this request asks about anybody but the
+// caller. The one exception is who to ask, named only to an account that holds nothing.
 export function makeMyAccessHandler(deps: Deps): RouteHandler<typeof myAccessRoute, ApiEnv> {
   return async (c) => {
     const principal = principalOf(c);
@@ -332,11 +333,16 @@ export function makeMyAccessHandler(deps: Deps): RouteHandler<typeof myAccessRou
     }
 
     const claim = holdsInstallationClaim(principal.role);
+    const holdsNothing =
+      !claim &&
+      grants.length === 0 &&
+      memberships.every((membership) => membership.role !== OWNER_MEMBER_ROLE);
     return c.json(
       {
         userId: principal.userId,
         installationAdmin: claim,
         capabilities: await areasFor(exec, { userId: principal.userId, claim }),
+        siteAdministrators: holdsNothing ? await listActiveSiteAdministrators(exec) : [],
         workspaces: [...byWorkspace.values()].map((workspace) => ({
           ...workspace,
           environments: environmentsHeld(workspace.grants, live),

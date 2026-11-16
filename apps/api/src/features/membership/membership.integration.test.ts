@@ -285,6 +285,28 @@ describe("the membership list and the capability endpoint (criterion 7, Q35)", (
     expect(body.workspaces[0]?.grants).toEqual([]);
     expect(body.workspaces[0]?.memberRole).toBe("member");
   });
+
+  it("names the active Site administrators to a caller who holds nothing, and to nobody else", async () => {
+    const unclaimedAdmin = await seedAdminSession(testDb.db, {
+      label: "unclaimedadmin",
+      claimed: false,
+      grants: [],
+    });
+    const nothing = (await (await as(nobodyToken, "GET", "/me/access")).json()) as {
+      siteAdministrators: { name: string; email: string }[];
+    };
+    const emails = nothing.siteAdministrators.map((admin) => admin.email);
+    expect(emails).toContain(`owner.${ownerId}@admin.test`);
+    expect(emails).not.toContain(`unclaimedadmin.${unclaimedAdmin.userId}@admin.test`);
+    expect(Object.keys(nothing.siteAdministrators[0] ?? {}).sort()).toEqual(["email", "name"]);
+
+    for (const token of [editorToken, workspaceOwnerToken, ownerToken]) {
+      const held = (await (await as(token, "GET", "/me/access")).json()) as {
+        siteAdministrators: unknown[];
+      };
+      expect(held.siteAdministrators).toEqual([]);
+    }
+  });
 });
 
 describe("every grant holder carries a `member` row with the empty role (criterion 17)", () => {
