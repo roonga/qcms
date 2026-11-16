@@ -75,8 +75,9 @@ function walkedRoutes(spec: string, routes: readonly string[]): ReadonlySet<stri
   return walked;
 }
 
+// The agent builder's route is about one form but carries no rail, so no rail sweep reads it.
 function isFormScoped(route: string): boolean {
-  return route.startsWith("/forms/[formId]");
+  return route.startsWith("/forms/[formId]") && !route.endsWith("/build");
 }
 
 // The same registration asked of a different spec: an operational screen's rail is the

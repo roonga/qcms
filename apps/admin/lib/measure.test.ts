@@ -48,7 +48,8 @@ describe("the route-to-cap table", () => {
 
     expect(count("ops")).toBe(1);
     expect(count("log")).toBe(6);
-    expect(measures).toHaveLength(30);
+    expect(count("full")).toBe(2);
+    expect(measures).toHaveLength(32);
   });
 
   it("offers no cap that no route can take, which is what issue 668 left behind", () => {
@@ -100,6 +101,15 @@ describe("the route-to-cap table", () => {
   it("gives both screens of `library-lists-poc.html` its 1080px `.main`", () => {
     expect(MEASURE_BY_ROUTE["/forms"]).toBe("list");
     expect(MEASURE_BY_ROUTE["/questions"]).toBe("list");
+  });
+});
+
+describe("the agent builder's two columns", () => {
+  it("fill the viewport with no cap and no padding, on both build routes", () => {
+    expect(measureFor("/forms/frm_auto_quote/build")).toBe("full");
+    expect(measureFor("/forms/new/build")).toBe("full");
+    expect(mainClassFor("/forms/new/build")).not.toContain("p-(--admin-section-pad)");
+    expect(mainClassFor("/forms/frm_auto_quote/build")).toContain(MEASURE_CLASS.full);
   });
 });
 

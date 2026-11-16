@@ -11,9 +11,12 @@ import { PublishedCell } from "./published-cell";
 export function FormsTable({
   rows,
   canOperate,
+  canBuild = () => false,
 }: {
   readonly rows: readonly FormListItem[];
   readonly canOperate: boolean;
+  /** Whether a row's form offers the agent builder. */
+  readonly canBuild?: (form: FormListItem) => boolean;
 }) {
   return (
     <div className="qcms-table qcms-table--forms">
@@ -69,7 +72,12 @@ export function FormsTable({
                   <PublishedCell form={form} />
                 </td>
                 <td className="qcms-cell--actions">
-                  <FormRowMenu formId={form.formId} name={name} canOperate={canOperate} />
+                  <FormRowMenu
+                    formId={form.formId}
+                    name={name}
+                    canOperate={canOperate}
+                    canBuild={canBuild(form)}
+                  />
                 </td>
               </tr>
             );

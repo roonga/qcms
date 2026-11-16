@@ -29,6 +29,8 @@ const CAP_PX = {
   log: 1180,
 
   wide: 1600,
+
+  full: Number.POSITIVE_INFINITY,
 } as const;
 
 type Cap = keyof typeof CAP_PX;
@@ -39,7 +41,9 @@ function screens(sessionId: string): readonly Screen[] {
   return [
     { path: "/forms", cap: "list" },
     { path: "/forms/new", cap: "prose" },
+    { path: "/forms/new/build", cap: "full" },
     { path: `/forms/${FORM_ID}`, cap: "wide" },
+    { path: `/forms/${FORM_ID}/build`, cap: "full" },
     { path: `/forms/${FORM_ID}/preview`, cap: "wide" },
 
     { path: `/forms/${FORM_ID}/rules`, cap: "wide" },
@@ -96,8 +100,9 @@ async function measure(page: Page, path: string): Promise<Measured> {
     // Subtract the measured rail only when it sits beside the column; below the breakpoint it consumes height instead.
     const rail = document.querySelector(".qcms-rail")?.getBoundingClientRect();
     const besideTheColumn = rail !== undefined && rail.right <= box.left;
+    const maxWidth = getComputedStyle(element).maxWidth;
     return {
-      cap: Number.parseFloat(getComputedStyle(element).maxWidth),
+      cap: maxWidth === "none" ? Number.POSITIVE_INFINITY : Number.parseFloat(maxWidth),
       width: box.width,
       available: document.documentElement.clientWidth - (besideTheColumn ? rail.width : 0),
       left: box.left,
