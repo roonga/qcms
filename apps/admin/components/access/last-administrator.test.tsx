@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
+import { t } from "@/lib/i18n/en";
 import { NO_ACCESS_CAPABILITIES, type AccessCapabilities } from "@/lib/membership/access-patterns";
 
 import { AdministratorRemoval } from "./last-administrator";
@@ -96,9 +97,7 @@ describe("the last-administrator control", () => {
         />
       </>,
     );
-    expect(
-      screen.getByRole("button", { name: /^Remove Workspace administrator\b/ }),
-    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Remove Workspace administrator\b/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: /^Demote\b/ })).toBeTruthy();
   });
 
