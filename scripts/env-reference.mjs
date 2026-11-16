@@ -521,6 +521,58 @@ export const ENV_REFERENCE = [
     description: "Agent turns one administrator may request per window.",
   },
   {
+    name: "QCMS_FLAG_THEME_DERIVE",
+    process: "api",
+    requirement: "optional",
+    fallback: "off",
+    description:
+      "`on` mounts `POST /admin/workspaces/{id}/themes/derive`, the one outbound fetch to an address a user types (SEC-18): the page, up to two of its own stylesheets and one PNG or JPEG logo. Separate from `QCMS_FLAG_AGENT_AUTHORING`; `off` leaves the route 404 whatever that says.",
+  },
+  {
+    name: "QCMS_THEME_DERIVE_ALLOWED_HOSTS",
+    process: "api",
+    requirement: "optional",
+    fallback: "",
+    description:
+      "Comma-separated host names a derive may fetch from, each matching itself and its subdomains. Empty allows any public host. Only narrows: a listed host resolving to a private address is still refused.",
+  },
+  {
+    name: "QCMS_THEME_DERIVE_PROXY",
+    process: "api",
+    requirement: "optional",
+    fallback: "",
+    description:
+      "An `http://host:port` CONNECT proxy for derive fetches, without credentials. The proxy is handed the checked address, never the host name, and TLS is still verified for the host.",
+  },
+  {
+    name: "QCMS_RL_THEME_DERIVE_USER_WINDOW_MS",
+    process: "api",
+    requirement: "optional",
+    fallback: "600000",
+    description: "Rate-limit window for theme derives, keyed by admin principal.",
+  },
+  {
+    name: "QCMS_RL_THEME_DERIVE_USER_MAX",
+    process: "api",
+    requirement: "optional",
+    fallback: "10",
+    description: "Theme derives one administrator may request per window.",
+  },
+  {
+    name: "QCMS_RL_THEME_DERIVE_WORKSPACE_WINDOW_MS",
+    process: "api",
+    requirement: "optional",
+    fallback: "3600000",
+    description: "Rate-limit window for theme derives, keyed by workspace.",
+  },
+  {
+    name: "QCMS_RL_THEME_DERIVE_WORKSPACE_MAX",
+    process: "api",
+    requirement: "optional",
+    fallback: "30",
+    description: "Theme derives one workspace may take per window, across all its editors.",
+  },
+  {
     name: "QCMS_SMTP_HOST",
     process: "api",
     requirement: "optional",

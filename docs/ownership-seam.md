@@ -93,12 +93,12 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (643 files common to both shapes)
+### Scaffolded paths (651 files common to both shapes)
 
 | Path                                                                            | Files |
 | ------------------------------------------------------------------------------- | ----- |
 | `(project root)`                                                                | 8     |
-| `apps/`                                                                         | 632   |
+| `apps/`                                                                         | 640   |
 | `apps/admin/`                                                                   | 401   |
 | `apps/admin/app/`                                                               | 106   |
 | `apps/admin/app/(shell)/`                                                       | 80    |
@@ -215,9 +215,9 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/lib/questions/`                                                     | 9     |
 | `apps/admin/lib/server/`                                                        | 33    |
 | `apps/admin/lib/shell/`                                                         | 7     |
-| `apps/api/`                                                                     | 155   |
-| `apps/api/src/`                                                                 | 152   |
-| `apps/api/src/features/`                                                        | 120   |
+| `apps/api/`                                                                     | 164   |
+| `apps/api/src/`                                                                 | 161   |
+| `apps/api/src/features/`                                                        | 129   |
 | `apps/api/src/features/accounts/`                                               | 8     |
 | `apps/api/src/features/agent/`                                                  | 35    |
 | `apps/api/src/features/agent/actions/`                                          | 10    |
@@ -233,17 +233,18 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/api/src/features/outbox/`                                                 | 3     |
 | `apps/api/src/features/questions/`                                              | 4     |
 | `apps/api/src/features/releases/`                                               | 6     |
-| `apps/api/src/features/responses/`                                              | 20    |
+| `apps/api/src/features/responses/`                                              | 19    |
 | `apps/api/src/features/responses/admin/`                                        | 4     |
-| `apps/api/src/features/responses/serve-step/`                                   | 4     |
+| `apps/api/src/features/responses/serve-step/`                                   | 3     |
 | `apps/api/src/features/responses/start-session/`                                | 3     |
 | `apps/api/src/features/responses/submit/`                                       | 3     |
 | `apps/api/src/features/webhooks/`                                               | 8     |
-| `apps/api/src/features/workspaces/`                                             | 7     |
+| `apps/api/src/features/workspaces/`                                             | 17    |
+| `apps/api/src/features/workspaces/brand-fetcher/`                               | 8     |
 | `apps/api/src/middleware/`                                                      | 7     |
 | `apps/api/src/routes/`                                                          | 1     |
 | `apps/api/src/schedulers/`                                                      | 4     |
-| `apps/portal/`                                                                  | 76    |
+| `apps/portal/`                                                                  | 75    |
 | `apps/portal/app/`                                                              | 20    |
 | `apps/portal/app/appearance/`                                                   | 1     |
 | `apps/portal/app/done/`                                                         | 1     |
@@ -262,7 +263,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/portal/app/s/[sessionId]/roster/`                                         | 1     |
 | `apps/portal/app/s/[sessionId]/step/`                                           | 1     |
 | `apps/portal/app/s/[sessionId]/submit/`                                         | 1     |
-| `apps/portal/components/`                                                       | 16    |
+| `apps/portal/components/`                                                       | 15    |
 | `apps/portal/lib/`                                                              | 33    |
 | `apps/portal/lib/i18n/`                                                         | 2     |
 | `apps/portal/lib/server/`                                                       | 18    |
@@ -305,7 +306,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (643)</summary>
+<summary>Every scaffolded file (651)</summary>
 
 ```
 .dockerignore
@@ -819,7 +820,6 @@ apps/api/src/features/responses/semantics-version.ts
 apps/api/src/features/responses/serve-step/handler.ts
 apps/api/src/features/responses/serve-step/route.ts
 apps/api/src/features/responses/serve-step/schema.ts
-apps/api/src/features/responses/serve-step/steps.ts
 apps/api/src/features/responses/session-token.ts
 apps/api/src/features/responses/start-session/handler.ts
 apps/api/src/features/responses/start-session/route.ts
@@ -835,12 +835,22 @@ apps/api/src/features/webhooks/route.ts
 apps/api/src/features/webhooks/schema.ts
 apps/api/src/features/webhooks/signing.ts
 apps/api/src/features/webhooks/ssrf.ts
+apps/api/src/features/workspaces/brand-fetcher/derive.ts
+apps/api/src/features/workspaces/brand-fetcher/fake.ts
+apps/api/src/features/workspaces/brand-fetcher/fetcher.ts
+apps/api/src/features/workspaces/brand-fetcher/logo-dimensions.ts
+apps/api/src/features/workspaces/brand-fetcher/node-codec.ts
+apps/api/src/features/workspaces/brand-fetcher/node-transport.ts
+apps/api/src/features/workspaces/brand-fetcher/policy.ts
+apps/api/src/features/workspaces/brand-fetcher/port.ts
 apps/api/src/features/workspaces/create.ts
 apps/api/src/features/workspaces/handler.ts
+apps/api/src/features/workspaces/logo-digest.ts
 apps/api/src/features/workspaces/resolve.ts
 apps/api/src/features/workspaces/route.ts
 apps/api/src/features/workspaces/rules.ts
 apps/api/src/features/workspaces/schema.ts
+apps/api/src/features/workspaces/theme-derive.ts
 apps/api/src/features/workspaces/themes.ts
 apps/api/src/index.ts
 apps/api/src/logger.ts
@@ -903,7 +913,6 @@ apps/portal/components/native-step.tsx
 apps/portal/components/portal-shell.tsx
 apps/portal/components/progressive-step.tsx
 apps/portal/components/step-flow.tsx
-apps/portal/components/step-rail.tsx
 apps/portal/components/turnstile-widget.tsx
 apps/portal/instrumentation.ts
 apps/portal/lib/a11y.ts
