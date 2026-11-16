@@ -364,8 +364,7 @@ export function createAdminAuth(input: AdminAuthInput) {
            * Every sign-in shape mints the session here, the pending-second-factor one
            * included, which creates it and then deletes it:
            * `dist/plugins/two-factor/index.mjs:291` <!-- expect: internalAdapter.deleteSession(data.session.token) -->
-           * The claim is read on one path only; an unclaimed account reaches its own claim.
-           * A password sign-in waits until the newest link the account was sent is spent.
+           * Only the backup-code path reads the claim; a password sign-in waits for the newest link.
            */
           before: async (session, context) => {
             const path: unknown = (context as { path?: unknown } | undefined)?.path;
