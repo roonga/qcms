@@ -11,7 +11,12 @@ const refresh = vi.fn();
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/forms/frm_a/build",
-  useRouter: () => ({ push: vi.fn(), refresh }),
+  useRouter: () => ({
+    push: vi.fn(),
+    refresh: () => {
+      refresh();
+    },
+  }),
 }));
 
 const original = window.matchMedia;

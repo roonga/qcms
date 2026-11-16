@@ -146,7 +146,6 @@ describe("resolving a live pathname to a cap", () => {
 
   it("left-anchors every screen, because no POC centres one", () => {
     for (const route of Object.keys(MEASURE_BY_ROUTE)) {
-      if (route.endsWith("/build")) continue;
       const live = route
         .split("/")
         .map((segment) => (segment.startsWith("[") ? "x" : segment))
@@ -164,6 +163,7 @@ describe("resolving a live pathname to a cap", () => {
       "w-full max-w-measure-wide flex-1 p-(--admin-section-pad)",
     );
     for (const route of Object.keys(MEASURE_BY_ROUTE)) {
+      if (route.endsWith("/build")) continue;
       const live = route
         .split("/")
         .map((segment) => (segment.startsWith("[") ? "x" : segment))
