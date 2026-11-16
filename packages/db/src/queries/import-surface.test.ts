@@ -149,6 +149,7 @@ describe("query helper import surface", () => {
     "markAccountClaimed",
     "revokeAccountSessions",
     "countSiteAdministrators",
+    "listActiveSiteAdministrators",
     "clearMustChangePassword",
     "findAdminsByEmail",
     "findAdminById",

@@ -13,9 +13,12 @@ export interface NamedAccount {
 export function NoAccessHome({
   siteAdministrators,
   locale,
+  accessHref = MY_ACCESS_PATH,
 }: {
   readonly siteAdministrators: readonly NamedAccount[];
   readonly locale: string;
+  /** Where My access is; a fragment when the home is shown on My access itself. */
+  readonly accessHref?: string;
 }) {
   const named = formatList(
     siteAdministrators.map((account) =>
@@ -43,7 +46,7 @@ export function NoAccessHome({
         {t("access.noAccess.heading")}
       </h2>
       <p className="text-sm">{who}</p>
-      <Link href={MY_ACCESS_PATH} className="qcms-text-link text-sm">
+      <Link href={accessHref} className="qcms-text-link text-sm">
         {t("access.title")}
       </Link>
     </section>

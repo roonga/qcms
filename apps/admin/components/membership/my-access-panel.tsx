@@ -1,15 +1,20 @@
+import { AccessExplanation } from "@/components/access/access-explanation";
 import { HelpTip } from "@/components/help-tip";
 import { Alert } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
-import { roleDescription, roleName } from "@/lib/membership/access-group-form";
-import type { MyAccess } from "@/lib/membership/types";
+import { NO_ACCESS_CAPABILITIES } from "@/lib/membership/access-patterns";
+import { heldGroups, isWorkspaceAdministrator } from "@/lib/membership/my-access";
+import type { MyAccess, MyAccessWorkspace } from "@/lib/membership/types";
 
 export function MyAccessPanel({
   access,
   message,
+  environments,
 }: {
   readonly access: MyAccess | undefined;
   readonly message: string | undefined;
+  /** The explanation's columns, in the site's order. */
+  readonly environments: readonly string[];
 }) {
   return (
     <section aria-labelledby="qcms-my-access-heading" className="flex min-w-0 flex-col gap-3">
@@ -34,41 +39,8 @@ export function MyAccessPanel({
         ) : (
           <ul className="flex min-w-0 flex-col gap-3">
             {access.workspaces.map((workspace) => (
-              <li key={workspace.workspaceId} className="flex min-w-0 flex-col gap-1">
-                <p className="text-sm font-medium text-(--color-text)">
-                  {workspace.name} ({workspace.slug})
-                </p>
-                {workspace.grants.length === 0 ? (
-                  <p className="text-xs text-(--color-text-muted)">
-                    {t("membership.mine.memberOnly")}
-                  </p>
-                ) : (
-                  <ul className="flex min-w-0 flex-col gap-2">
-                    {workspace.grants.map((grant) => (
-                      <li key={grant.name} className="flex min-w-0 flex-col gap-0.5">
-                        <p className="text-xs font-medium text-(--color-text)">{grant.name}</p>
-                        {grant.roles.map((role) => (
-                          <RoleDescription key={role} role={role} />
-                        ))}
-                        <dl className="grid grid-cols-[auto_1fr] gap-x-4 text-xs break-all text-(--color-text-muted)">
-                          <dt>{t("membership.groups.columnRoles")}</dt>
-                          <dd>{grant.roles.map(roleName).join(", ")}</dd>
-                          <dt>{t("membership.groups.columnEnvironments")}</dt>
-                          <dd>
-                            {grant.environments.length === 0
-                              ? t("membership.groups.everyEnvironment")
-                              : grant.environments.join(", ")}
-                          </dd>
-                        </dl>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <p className="text-xs text-(--color-text-muted)">
-                  {t("membership.mine.environments", {
-                    environments: workspace.environments.join(", "),
-                  })}
-                </p>
+              <li key={workspace.workspaceId} className="min-w-0">
+                <WorkspaceAccess workspace={workspace} environments={environments} />
               </li>
             ))}
           </ul>
@@ -77,8 +49,52 @@ export function MyAccessPanel({
   );
 }
 
-function RoleDescription({ role }: { readonly role: string }) {
-  const description = roleDescription(role);
-  if (description === undefined) return null;
-  return <p className="text-xs text-(--color-text-muted)">{description}</p>;
+function WorkspaceAccess({
+  workspace,
+  environments,
+}: {
+  readonly workspace: MyAccessWorkspace;
+  readonly environments: readonly string[];
+}) {
+  const headingId = `qcms-my-access-${workspace.workspaceId}`;
+  return (
+    <section
+      aria-labelledby={headingId}
+      className="qcms-card flex min-w-0 flex-col gap-2 p-4"
+      data-testid="qcms-my-access-workspace"
+    >
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-4 gap-y-1">
+        <h3 id={headingId} className="text-base font-semibold text-(--color-text)">
+          {workspace.name}
+        </h3>
+        {workspace.archived && (
+          <span className="text-xs text-(--color-text-muted)">{t("membership.mine.archived")}</span>
+        )}
+        <p className="text-sm sm:ml-auto">
+          {isWorkspaceAdministrator(workspace)
+            ? t("membership.mine.administrator.yes")
+            : t("membership.mine.administrator.no")}
+        </p>
+      </div>
+      {workspace.grants.length === 0 ? (
+        <p className="text-sm text-(--color-text-muted)">
+          {t("membership.mine.noAccessIn", { workspace: workspace.name })}
+        </p>
+      ) : (
+        <>
+          <p className="text-sm">
+            {t("membership.mine.groups", {
+              groups: workspace.grants.map((grant) => grant.name).join(", "),
+            })}
+          </p>
+          <AccessExplanation
+            caption={t("access.explain.titleSelf", { workspace: workspace.name })}
+            groups={heldGroups(workspace, environments)}
+            environments={environments}
+            capabilities={NO_ACCESS_CAPABILITIES}
+          />
+        </>
+      )}
+    </section>
+  );
 }

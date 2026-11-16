@@ -353,6 +353,7 @@ export const readMyAccess: (session: AdminSession) => Promise<ApiResult<MyAccess
       installationAdmin?: unknown;
       capabilities?: unknown;
       workspaces?: unknown;
+      siteAdministrators?: unknown;
     }>(await adminApiFetch(session, "/me/access"));
     if (!result.ok) return result;
     return {
@@ -373,6 +374,10 @@ export const readMyAccess: (session: AdminSession) => Promise<ApiResult<MyAccess
             environments: strings(grant["environments"]),
           })),
           environments: strings(row["environments"]),
+        })),
+        siteAdministrators: rows(result.data.siteAdministrators).map((row) => ({
+          name: str(row["name"]),
+          email: str(row["email"]),
         })),
       },
     };
