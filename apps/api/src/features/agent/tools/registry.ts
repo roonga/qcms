@@ -101,7 +101,7 @@ export const BUILDER_EDIT_TOOLS: Readonly<Record<string, BuilderEditOp>> = Objec
   edit_copy: "copy",
 });
 
-export const OPEN_WIZARD_TOOL = "open_publish_wizard";
+export const OPEN_WIZARD_TOOL: AgentToolName = "open_publish_wizard";
 
 /**
  * The read tools the agent builder offers: its form, that form's versions and the library.
