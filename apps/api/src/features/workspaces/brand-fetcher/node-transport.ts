@@ -114,10 +114,13 @@ function openViaProxy(
       path: target,
       headers: { host: target },
       agent: false,
-      timeout: timeoutMs,
       signal: request.signal,
     });
+    // A timer rather than the `timeout` option, which would stay on the tunnelled socket
+    // as an idle timeout after the handshake.
+    const timer = setTimeout(() => tunnel.destroy(), timeoutMs);
     tunnel.once("connect", (response, socket) => {
+      clearTimeout(timer);
       if (response.statusCode !== 200) {
         socket.destroy();
         reject(refuse("proxy"));
@@ -126,8 +129,10 @@ function openViaProxy(
       const secure = tls.connect({ socket, ...tlsOptions(request, options) });
       secured(secure, request, timeoutMs).then(resolve, reject);
     });
-    tunnel.once("timeout", () => tunnel.destroy());
-    tunnel.once("error", () => reject(refuse(request.signal.aborted ? "timeout" : "proxy")));
+    tunnel.once("error", () => {
+      clearTimeout(timer);
+      reject(refuse(request.signal.aborted ? "timeout" : "proxy"));
+    });
     tunnel.end();
   });
 }

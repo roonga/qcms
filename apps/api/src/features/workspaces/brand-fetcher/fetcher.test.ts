@@ -170,6 +170,19 @@ describe("SEC-18 F3: the connection goes to the pinned address", () => {
         }),
       });
       expect((await refusal(fetcher, "https://brand.example/")).reason).toBe("connect-timeout");
+
+      const throughSilentProxy = createBrandFetcher({
+        resolver: fixtureResolver(),
+        allowedHosts: [],
+        transport: createNodeTransport({
+          ca: fixture.ca,
+          connectTimeoutMs: 300,
+          proxy: { host: "127.0.0.1", port },
+        }),
+      });
+      const started = Date.now();
+      expect((await refusal(throughSilentProxy, "https://brand.example/")).reason).toBe("proxy");
+      expect(Date.now() - started).toBeLessThan(5_000);
     } finally {
       silent.close();
     }

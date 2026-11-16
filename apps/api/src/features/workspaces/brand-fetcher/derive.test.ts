@@ -156,10 +156,11 @@ describe("the derive (SEC-18 F8, M1, M2)", () => {
 
 describe("the derive output schema (SEC-18 M1)", () => {
   async function valid(): Promise<Record<string, unknown>> {
-    return (await deriveTheme(
+    const derived: Record<string, unknown> = await deriveTheme(
       { fetcher: fakeSite(), codec: createLogoCodec(), storeLogo: () => Promise.resolve(null) },
       "https://brand.example/",
-    )) as unknown as Record<string, unknown>;
+    );
+    return derived;
   }
 
   it("accepts what the derive produces", async () => {
