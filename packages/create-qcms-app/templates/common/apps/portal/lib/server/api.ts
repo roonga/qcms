@@ -1,5 +1,6 @@
 // R2: proxy only; imports nothing from @roonga/qcms-core (the import-surface test enforces it).
 import type { A2UIAnswerValue } from "@roonga/qcms-ui";
+import { cache } from "react";
 
 import { CLIENT_ADDRESS_HEADER, currentClientAddress } from "./client-address";
 import { INTERNAL_TOKEN_HEADER, apiBaseUrl, internalToken } from "./config";
@@ -65,6 +66,8 @@ export interface StepResponse {
   readonly rosters: readonly ApiGroupRoster[];
   readonly view: ApiStepView;
   readonly progress: ApiProgress;
+  /** The pinned version's appearance, or null; parsed by `form-appearance.ts`. */
+  readonly appearance?: unknown;
 }
 
 export interface BatchAnswerEntry {
@@ -279,6 +282,14 @@ export async function getStep(
   );
   return readJson<StepResponse>(res);
 }
+
+/**
+ * The first incomplete step, read once per request: the layout reads its appearance and
+ * the page renders it, from one API call.
+ */
+export const getCurrentStep = cache(
+  (sessionId: string, token: string): Promise<StepResponse> => getStep(sessionId, token),
+);
 
 /**
  * `stepIndex` carries the caller's committed cursor, so the response renders that step

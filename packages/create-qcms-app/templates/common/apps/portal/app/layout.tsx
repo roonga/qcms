@@ -8,15 +8,21 @@ import { currentBasePath } from "@/lib/server/environment";
 import { DENSITY_COOKIE, FONT_COOKIE, MODE_COOKIE } from "@/lib/appearance";
 import { t } from "@/lib/i18n/en";
 import { appLocale, secureCookies } from "@/lib/server/config";
+import {
+  FORM_APPEARANCE_ATTRIBUTE,
+  formAppearanceCss,
+  formLogoSrc,
+} from "@/lib/server/form-appearance";
 import { modeBootstrapScript } from "@/lib/server/mode-bootstrap";
+import { sessionFormAppearance } from "@/lib/server/session-appearance";
 import {
   modeClass,
   portalBrand,
-  portalCorners,
   portalFontChoices,
   portalMode,
   portalTheme,
   resolveAppearance,
+  resolveCorners,
   rootClassName,
 } from "@/lib/server/theme";
 
@@ -34,19 +40,27 @@ export function generateMetadata(): Metadata {
 }
 
 export default async function RootLayout({ children }: { readonly children: ReactNode }) {
-  const [headerList, cookieJar] = await Promise.all([headers(), cookies()]);
+  const [headerList, cookieJar, form, basePath] = await Promise.all([
+    headers(),
+    cookies(),
+    sessionFormAppearance(),
+    currentBasePath(),
+  ]);
   const nonce = headerList.get("x-nonce") ?? undefined;
 
   // Resolved from the request's cookies (ADR-30) so the first paint is already correct
   // rather than corrected after hydration.
-  const appearance = resolveAppearance({
-    mode: cookieJar.get(MODE_COOKIE)?.value,
-    font: cookieJar.get(FONT_COOKIE)?.value,
-    density: cookieJar.get(DENSITY_COOKIE)?.value,
-  });
+  const appearance = resolveAppearance(
+    {
+      mode: cookieJar.get(MODE_COOKIE)?.value,
+      font: cookieJar.get(FONT_COOKIE)?.value,
+      density: cookieJar.get(DENSITY_COOKIE)?.value,
+    },
+    form,
+  );
   const configuredMode = portalMode();
   const theme = portalTheme();
-  const corners = portalCorners();
+  const corners = resolveCorners(form);
   const brand = portalBrand();
 
   const state: AppearanceState = {
@@ -59,9 +73,9 @@ export default async function RootLayout({ children }: { readonly children: Reac
       group: entry.group,
     })),
     brandName: brand.name,
-    brandLogoSrc: brand.logoSrc,
+    brandLogoSrc: (form === null ? undefined : formLogoSrc(form, basePath)) ?? brand.logoSrc,
     secureCookies: secureCookies(),
-    basePath: await currentBasePath(),
+    basePath,
   };
 
   return (
@@ -71,6 +85,7 @@ export default async function RootLayout({ children }: { readonly children: Reac
       // The token contract's scope carrier (ADR-38), presence-only: the stylesheets
       // match the bare attribute, and nothing reads the value.
       data-qcms-theme-scope=""
+      {...(form === null ? {} : { [FORM_APPEARANCE_ATTRIBUTE]: "" })}
       className={rootClassName(appearance, corners)}
       suppressHydrationWarning
     >
@@ -84,6 +99,7 @@ export default async function RootLayout({ children }: { readonly children: Reac
             __html: modeBootstrapScript(configuredMode, appearance.modeChosen ? state.mode : null),
           }}
         />
+        {form === null ? null : <style nonce={nonce}>{formAppearanceCss(form)}</style>}
         {/* Revealed by CSS rather than conditional rendering so the served HTML is one
             document either way: no hydration boundary and no layout shift. */}
         <noscript>

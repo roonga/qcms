@@ -5,6 +5,7 @@ import { challengeProvider } from "./lib/server/challenge";
 import { buildCsp } from "./lib/server/csp";
 import {
   ENVIRONMENT_HEADER,
+  PATH_HEADER,
   PROD_ENVIRONMENT,
   environmentForHost,
   nonProdEnvironments,
@@ -54,6 +55,7 @@ export function proxy(request: NextRequest): NextResponse {
   // Overwritten rather than honoured, so a respondent cannot choose an environment by
   // sending this header (Q21).
   requestHeaders.set(ENVIRONMENT_HEADER, environment);
+  requestHeaders.set(PATH_HEADER, path);
   // Next reads the nonce from the request CSP header to stamp its own scripts.
   requestHeaders.set("Content-Security-Policy", csp);
 

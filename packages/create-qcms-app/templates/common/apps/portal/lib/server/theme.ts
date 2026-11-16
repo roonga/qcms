@@ -135,24 +135,41 @@ export interface AppearanceCookies {
   readonly density: string | undefined;
 }
 
+/** The axes a form's own appearance sets on the page, between a respondent's choice and config. */
+export interface FormLayer {
+  readonly face: string;
+  readonly density: Density;
+  readonly corners: PortalCorners;
+}
+
 /**
- * Precedence per axis is the respondent's cookie, then config. A nonsense cookie is no
- * choice at all, which is why a font cookie is checked against the offered list rather
- * than the whole registry: a face a deployment stopped offering must not keep being
- * served, since the control could no longer switch back.
+ * Precedence per axis is the respondent's cookie, then the form's appearance, then config.
+ * A nonsense cookie is no choice at all, which is why a font cookie is checked against the
+ * offered list rather than the whole registry: a face a deployment stopped offering must
+ * not keep being served, since the control could no longer switch back. The form's face
+ * is held to the same list.
  */
-export function resolveAppearance(cookies: AppearanceCookies): ResolvedAppearance {
+export function resolveAppearance(
+  cookies: AppearanceCookies,
+  form?: FormLayer | null,
+): ResolvedAppearance {
   const chosenMode = parseMode(cookies.mode);
   const offered = portalFontChoices();
-  const chosenFont = offered.some((entry) => entry.key === cookies.font)
-    ? (cookies.font as string)
-    : undefined;
+  const isOffered = (key: string | undefined): key is string =>
+    offered.some((entry) => entry.key === key);
+  const face = form?.face;
+  const formFace = isOffered(face) ? face : undefined;
   return {
     mode: chosenMode ?? portalMode(),
     modeChosen: chosenMode !== undefined,
-    font: chosenFont ?? portalFont(),
-    density: parseDensity(cookies.density) ?? portalDensity(),
+    font: (isOffered(cookies.font) ? cookies.font : undefined) ?? formFace ?? portalFont(),
+    density: parseDensity(cookies.density) ?? form?.density ?? portalDensity(),
   };
+}
+
+/** The form's corners when it carries an appearance, else the deployment's. */
+export function resolveCorners(form?: FormLayer | null): PortalCorners {
+  return form?.corners ?? portalCorners();
 }
 
 /** Subtle is the base anchor block, so it needs no class at all. */

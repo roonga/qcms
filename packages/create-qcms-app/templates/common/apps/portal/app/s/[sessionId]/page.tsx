@@ -1,6 +1,6 @@
 import { MessageScreen } from "@/components/message-screen";
 import { ProgressiveStep } from "@/components/progressive-step";
-import { ApiError, getStep } from "@/lib/server/api";
+import { ApiError, getCurrentStep } from "@/lib/server/api";
 import { t } from "@/lib/i18n/en";
 import { readStepContext } from "@/lib/server/route-helpers";
 import { readSessionToken } from "@/lib/server/session-cookie";
@@ -20,7 +20,7 @@ export default async function FlowPage({
   }
 
   try {
-    const step = await getStep(sessionId, token);
+    const step = await getCurrentStep(sessionId, token);
     const context = await readStepContext();
     // One roster-operation token per render (ADR-43), minted on the server so SSR and
     // the first client render agree. Its only job is to make a doubled post apply once;
