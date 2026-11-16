@@ -115,7 +115,7 @@ test("moving inside Operations, its global queues and the avatar menu asks nothi
   await expect(leaveDialog(page)).toHaveCount(0);
 
   await page.getByTestId("account-menu").getByRole("button").click();
-  await page.getByRole("menuitem", { name: "Settings" }).click();
+  await page.getByRole("menuitem", { name: "My account" }).click();
   await expect(page).toHaveURL(/\/settings$/u);
   await expect(page.getByTestId("qcms-mode-header")).toHaveAttribute("data-mode", "operations");
   await expect(leaveDialog(page)).toHaveCount(0);
