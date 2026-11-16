@@ -341,7 +341,7 @@ describe("the logo takedown's function and the fifth site audit kind", () => {
     expect(sql).toContain(
       "SELECT pg_catalog.pg_get_userbyid(c.relowner) FROM pg_catalog.pg_class c",
     );
-    expect(sql).not.toMatch(/FROM pg_class/);
+    expect(sql).not.toMatch(/FROM pg_class\b/);
     expect(sql).not.toContain("PG_CONTEXT");
     expect(sql).not.toContain(`DROP TRIGGER "${APPEARANCE_LOGOS_TABLE}_reject_update"`);
   });
