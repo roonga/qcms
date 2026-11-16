@@ -3,7 +3,7 @@
  * inside **the act's own transaction**, so a failed act writes no row and the trail and the result agree.
  */
 
-import type { Appearance, FormId } from "@roonga/qcms-core";
+import { FormId, type Appearance } from "@roonga/qcms-core";
 import {
   agentStepRecorded,
   getDraftForUpdate,
@@ -235,7 +235,7 @@ export async function recordAgentEdit(
   }
   // Read after the write: a publish committed since the pre-write read is visible here, so
   // the token's generation holds without plain saves locking the form.
-  const newest = await getLatestPublishedVersion(exec, saved.formId);
+  const newest = await getLatestPublishedVersion(exec, FormId.parse(edit.formId));
   if ((newest?.version ?? 0) !== edit.base) {
     throw editRefusal(edit.act === "edit" ? "AGENT_EDIT_REVISION" : "AGENT_UNDO_SUPERSEDED");
   }
