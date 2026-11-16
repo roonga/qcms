@@ -143,11 +143,9 @@ export interface FormLayer {
 }
 
 /**
- * Precedence per axis is the respondent's cookie, then the form's appearance, then config.
- * A nonsense cookie is no choice at all, which is why a font cookie is checked against the
- * offered list rather than the whole registry: a face a deployment stopped offering must
- * not keep being served, since the control could no longer switch back. The form's face
- * is held to the same list.
+ * Precedence per axis is the respondent's cookie, then the form, then config. A cookie or
+ * form face is checked against the offered list, not the registry: a face a deployment
+ * stopped offering must not keep being served, since the control could not switch back.
  */
 export function resolveAppearance(
   cookies: AppearanceCookies,
