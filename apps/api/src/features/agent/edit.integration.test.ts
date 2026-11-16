@@ -29,6 +29,7 @@ import {
   disableSeededAccount,
   internalTokenFor,
   makeDeps,
+  recordingLogger,
   seedAdminSession,
   seedGrants,
   suspendSeededGrant,
@@ -60,6 +61,7 @@ let app: ReturnType<typeof createApp>;
 let internalToken: string;
 let owner: { token: string; userId: string };
 let other: { token: string; userId: string };
+let logLines: Record<string, unknown>[];
 
 let now = new Date("2026-07-20T00:00:00.000Z");
 
@@ -70,8 +72,11 @@ interface Caller {
 
 beforeAll(async () => {
   testDb = await startTestDb();
+  const recorder = recordingLogger();
+  logLines = recorder.lines;
   deps = makeDeps({
     db: testDb.db,
+    logger: recorder.logger,
     clock: { now: () => now },
     env: validEnv({ QCMS_FLAG_AGENT_AUTHORING: "fake" }),
   });
@@ -583,6 +588,68 @@ describe("an edit's op against what its save changes", { timeout: TIMEOUT_MS }, 
       await setWorkspaceAppearanceLock(testDb.db, SEED_WORKSPACE_ID, false);
     }
     expect(await rowsFor(formId)).toEqual([]);
+  });
+});
+
+describe("every edit refusal is logged by its code", { timeout: TIMEOUT_MS }, () => {
+  function refusalCodesFrom(start: number): unknown[] {
+    return logLines
+      .slice(start)
+      .filter((line) => line["msg"] === "agent edit refused")
+      .map((line) => line["code"]);
+  }
+
+  it("logs the user, form, cap, route, replay, revision and op refusals", async () => {
+    const formId = await seededForm();
+    const elsewhere = await seededForm();
+    const before = logLines.length;
+    const [theirs] = await tokens(other, formId, ["copy"]);
+    const [wrongForm] = await tokens(owner, elsewhere, ["copy"]);
+    const iat = now.getTime();
+    const overCap = await signEditToken(deps.config.keys.app, {
+      v: EDIT_TOKEN_VERSION,
+      purpose: EDIT_TOKEN_PURPOSE,
+      act: "edit",
+      sub: owner.userId,
+      formId,
+      tid: "edt_overcaplogged",
+      n: EDITS_PER_TURN,
+      base: 0,
+      op: "copy",
+      rev: 1,
+      iat,
+      exp: iat + EDIT_TTL_MS,
+    });
+    const [once, stale] = await tokens(owner, formId, ["copy", "copy"], 1);
+    const [appearanceOp] = await tokens(owner, formId, ["appearance"], 2);
+
+    await put(owner, formId, { definition: definition(formId, "X") }, theirs);
+    await put(owner, formId, { definition: definition(formId, "X") }, wrongForm);
+    await put(owner, formId, { definition: definition(formId, "X") }, overCap);
+    await app.request("/admin/questions", {
+      method: "POST",
+      headers: headers(owner, { [EDIT_HEADER]: once as string }),
+      body: JSON.stringify({}),
+    });
+    expect((await put(owner, formId, { definition: definition(formId, "A") }, once)).status).toBe(
+      200,
+    );
+    await put(owner, formId, { definition: definition(formId, "B") }, once);
+    await put(owner, formId, { definition: definition(formId, "Renamed") }, appearanceOp);
+    expect((await put(owner, formId, { definition: definition(formId, "Human") })).status).toBe(
+      200,
+    );
+    await put(owner, formId, { definition: definition(formId, "C") }, stale);
+
+    expect(refusalCodesFrom(before)).toEqual([
+      "AGENT_EDIT_SUBJECT",
+      "AGENT_EDIT_FORM",
+      "AGENT_EDIT_CAP",
+      "AGENT_EDIT_ROUTE",
+      "AGENT_EDIT_REPLAYED",
+      "AGENT_EDIT_OP",
+      "AGENT_EDIT_REVISION",
+    ]);
   });
 });
 

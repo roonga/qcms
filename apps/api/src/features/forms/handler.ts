@@ -864,48 +864,47 @@ export function makePutDraftHandler(deps: Deps): RouteHandler<typeof putDraftRou
     // Save first, then advise: a draft may be temporarily inconsistent, and the issues
     // block publish rather than the save. The agent row rides the save's own transaction,
     // so a refused save writes none.
-    const saved = await deps.databases.control
-      .transaction(async (tx) => {
-        const pre =
-          edit === undefined
-            ? undefined
-            : await admitAgentEdit(tx, edit, formId, { definition, appearance });
-        if (appearance !== undefined) {
-          // `FOR SHARE` against the lock setter's `FOR UPDATE`: a lock committed between
-          // this read and the write below would otherwise be missed under READ COMMITTED.
-          const workspace = await getWorkspaceForShare(tx, form.workspaceId);
-          const held = await currentAppearance(tx, formId);
-          // Only a changed key is checked, so an echo of a key since taken down still saves.
-          if (appearance?.logo != null && appearance.logo !== held?.logo) {
-            await requireStoredLogo(tx, appearance.logo);
-          }
-          if (workspace?.appearanceLocked === true && !sameAppearance(appearance, held)) {
-            throw fail.appearanceLocked();
-          }
+    const logged = (error: unknown): never => {
+      logIfEditRefusal(deps, error);
+      throw error;
+    };
+    const saved = await deps.databases.control.transaction(async (tx) => {
+      const pre =
+        edit === undefined
+          ? undefined
+          : await admitAgentEdit(tx, edit, formId, { definition, appearance }).catch(logged);
+      if (appearance !== undefined) {
+        // `FOR SHARE` against the lock setter's `FOR UPDATE`: a lock committed between
+        // this read and the write below would otherwise be missed under READ COMMITTED.
+        const workspace = await getWorkspaceForShare(tx, form.workspaceId);
+        const held = await currentAppearance(tx, formId);
+        // Only a changed key is checked, so an echo of a key since taken down still saves.
+        if (appearance?.logo != null && appearance.logo !== held?.logo) {
+          await requireStoredLogo(tx, appearance.logo);
         }
-        // The client's mark is a hint only: the wizard and the provenance read use the rows.
-        const row = await storeDraftDefinition(
-          tx,
-          formId,
-          definition,
-          site !== undefined || edit !== undefined || (body.agentAssisted ?? false),
-          appearance,
-        );
-        await writeAgentStep(tx, site, formId, deps.clock.now());
-        const undoToken =
-          edit === undefined
-            ? undefined
-            : await recordAgentEdit(tx, edit, row, pre, {
-                appKey: deps.config.keys.app,
-                now: deps.clock.now(),
-                undoTtlMs: deps.config.adminSession.maxAgeMs,
-              });
-        return { row, undoToken };
-      })
-      .catch((error: unknown) => {
-        if (edit !== undefined) logIfEditRefusal(deps, error);
-        throw error;
-      });
+        if (workspace?.appearanceLocked === true && !sameAppearance(appearance, held)) {
+          throw fail.appearanceLocked();
+        }
+      }
+      // The client's mark is a hint only: the wizard and the provenance read use the rows.
+      const row = await storeDraftDefinition(
+        tx,
+        formId,
+        definition,
+        site !== undefined || edit !== undefined || (body.agentAssisted ?? false),
+        appearance,
+      );
+      await writeAgentStep(tx, site, formId, deps.clock.now());
+      const undoToken =
+        edit === undefined
+          ? undefined
+          : await recordAgentEdit(tx, edit, row, pre, {
+              appKey: deps.config.keys.app,
+              now: deps.clock.now(),
+              undoTtlMs: deps.config.adminSession.maxAgeMs,
+            }).catch(logged);
+      return { row, undoToken };
+    });
     const { issues, warnings } = await validateDraft(deps, definition);
 
     return c.json(
