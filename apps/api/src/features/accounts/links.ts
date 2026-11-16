@@ -1,4 +1,9 @@
-import { issueSignInLink, lockAccount, recordSignInLinkDelivery } from "@roonga/qcms-db";
+import {
+  boundAccountTransaction,
+  issueSignInLink,
+  lockAccount,
+  recordSignInLinkDelivery,
+} from "@roonga/qcms-db";
 import type { Executor } from "@roonga/qcms-db";
 
 import type { Deps } from "../../deps.js";
@@ -32,6 +37,7 @@ export async function issueAndSendSignInLink(
   const token = mintSignInToken();
   const tokenHash = await signInTokenHash(token);
   const link = await exec.transaction(async (tx) => {
+    await boundAccountTransaction(tx);
     await lockAccount(tx, input.userId);
     await withinIssue?.(tx);
     return issueSignInLink(tx, {

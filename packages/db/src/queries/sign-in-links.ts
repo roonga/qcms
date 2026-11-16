@@ -31,8 +31,7 @@ const columns = {
 
 /**
  * Serialize writes deciding an account's links, password or claim for the caller's
- * transaction. Advisory rather than the user row's, because the claim holds it while the
- * auth library writes the credential and the user row on its own connection.
+ * transaction. Advisory rather than a row lock, because those writes touch different rows.
  */
 export async function lockAccount(exec: Executor, userId: string): Promise<void> {
   await exec.execute(
@@ -155,8 +154,8 @@ export async function consumeSignInLink(
 }
 
 /**
- * Read one link by digest without consuming it, so a claim can refuse a weak or breached
- * password before it burns the only link the person was sent.
+ * Read one link by digest without consuming it, so a dead token is refused before any
+ * transaction opens.
  */
 export async function findSignInLinkByHash(
   exec: Executor,

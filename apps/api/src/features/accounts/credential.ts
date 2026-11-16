@@ -1,4 +1,6 @@
-import type { AdminAuth } from "../auth/instance.js";
+import { isAPIError } from "better-auth/api";
+
+import { BREACH_LOOKUP_FAILED_CODE, type AdminAuth } from "../auth/instance.js";
 
 // The account rows better-auth owns, reached through its own internal adapter because this
 // deployment mounts no sign-up endpoint (ADR-09).
@@ -35,7 +37,10 @@ export async function createUnclaimedAccount(
   return { userId: created.id, email: created.email, name: created.name };
 }
 
-/** Raised where the password itself is refused, so the caller leaves the link unconsumed. */
+/**
+ * Raised where the password itself is refused, or the breach lookup could not judge it, so
+ * the caller answers a refusal and rolls the claim back. Any other failure is rethrown as is.
+ */
 export class PasswordRefused extends Error {
   readonly cause: unknown;
 
@@ -71,6 +76,12 @@ function mintResetToken(): string {
  * `dist/api/dispatch.mjs:210` <!-- expect: runWithEndpointContext(internalContext, -->
  * `dist/utils/password.mjs:32` <!-- expect: runWithTransaction(ctx.context.adapter, -->
  */
+function isPasswordRefusal(error: unknown): boolean {
+  if (!isAPIError(error)) return false;
+  const code: unknown = (error.body as { code?: unknown } | undefined)?.code;
+  return code === BREACH_LOOKUP_FAILED_CODE || error.statusCode < 500;
+}
+
 export async function setAccountPassword(
   auth: AdminAuth,
   userId: string,
@@ -88,6 +99,6 @@ export async function setAccountPassword(
     await auth.api.resetPassword({ body: { token, newPassword: password } });
   } catch (error) {
     await ctx.internalAdapter.deleteVerificationByIdentifier(identifier).catch(() => undefined);
-    throw new PasswordRefused(error);
+    throw isPasswordRefusal(error) ? new PasswordRefused(error) : error;
   }
 }
