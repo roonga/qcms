@@ -16,6 +16,7 @@ import {
   makeListAccessGroupsHandler,
   makeListMembersHandler,
   makeMyAccessHandler,
+  makeReconfirmHolderHandler,
   makeRemoveHolderHandler,
   makeRemoveMemberHandler,
   makeSetMemberRoleHandler,
@@ -263,6 +264,29 @@ export const removeHolderRoute = createRoute({
   ...withScopes("forms:write"),
 });
 
+export const reconfirmHolderRoute = createRoute({
+  method: "post",
+  path: "/workspaces/{id}/access-groups/{teamId}/holders/{userId}/reconfirm",
+  summary: "Re-confirm a suspended membership (admin)",
+  description:
+    "Lifts the suspension a credential reset or a reactivation put on a membership of a " +
+    "group carrying a response role, and writes one `grant` row. Always refused for the " +
+    "membership's own subject. Refused for the person who performed the reset or " +
+    "reactivation while another active, claimed administrator of this workspace, a Site " +
+    "administrator included, exists; where none does, that person may re-confirm and " +
+    "the row records it. Refused on an archived workspace.",
+  tags,
+  request: { params: AccessGroupHolderParams },
+  responses: {
+    200: {
+      description: "The access group, with its holders",
+      content: { "application/json": { schema: AccessGroupResponse } },
+    },
+    ...errorResponses(401, 403, 404, 409),
+  },
+  ...withScopes("forms:write"),
+});
+
 export const workspaceSettingsRoute = createRoute({
   method: "put",
   path: "/workspaces/{id}/settings",
@@ -362,6 +386,7 @@ export const registerMembership: SliceRegistrar = (group, deps: Deps): void => {
   group.openapi(deleteAccessGroupRoute, makeDeleteAccessGroupHandler(deps));
   group.openapi(addHolderRoute, makeAddHolderHandler(deps));
   group.openapi(removeHolderRoute, makeRemoveHolderHandler(deps));
+  group.openapi(reconfirmHolderRoute, makeReconfirmHolderHandler(deps));
   group.openapi(workspaceSettingsRoute, makeWorkspaceSettingsHandler(deps));
   group.openapi(auditRoute, makeAuditHandler(deps));
   group.openapi(siteAuditRoute, makeSiteAuditHandler(deps));

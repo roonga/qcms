@@ -3,6 +3,7 @@ import {
   issueSignInLink,
   lockAccount,
   recordSignInLinkDelivery,
+  tryLockAccount,
 } from "@roonga/qcms-db";
 import type { Executor } from "@roonga/qcms-db";
 
@@ -20,6 +21,7 @@ export type SignInLinkDeliveryOutcome = "sent" | "undeliverable";
  * Mint one link, store its digest and email it; the token is never returned, logged or
  * stored. `withinIssue` runs in the issuing transaction under the account's lock, before
  * the mail, so a check it makes holds for the issue and a row it writes commits with it.
+ * With `busy`, the lock is tried rather than waited for and `busy()` is thrown when it is held.
  */
 export async function issueAndSendSignInLink(
   deps: Deps,
@@ -31,6 +33,7 @@ export async function issueAndSendSignInLink(
     readonly issuedBy: string;
   },
   withinIssue?: (tx: Executor) => Promise<void>,
+  busy?: () => Error,
 ): Promise<SignInLinkDeliveryOutcome> {
   if (!deps.config.mail.configured) throw new Error("outbound mail is not configured");
   const now = deps.clock.now();
@@ -38,7 +41,8 @@ export async function issueAndSendSignInLink(
   const tokenHash = await signInTokenHash(token);
   const link = await exec.transaction(async (tx) => {
     await boundAccountTransaction(tx);
-    await lockAccount(tx, input.userId);
+    if (busy === undefined) await lockAccount(tx, input.userId);
+    else if (!(await tryLockAccount(tx, input.userId))) throw busy();
     await withinIssue?.(tx);
     return issueSignInLink(tx, {
       userId: input.userId,

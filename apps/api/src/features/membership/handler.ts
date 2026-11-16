@@ -135,7 +135,11 @@ const fail = {
     ),
   noPrincipal: (): ApiError => new ApiError("unauthorized", 401, "Admin authentication required"),
   notSuspended: (): ApiError =>
-    new ApiError("NOT_SUSPENDED", 409, "That membership is not suspended, so there is nothing to re-confirm"),
+    new ApiError(
+      "NOT_SUSPENDED",
+      409,
+      "That membership is not suspended, so there is nothing to re-confirm",
+    ),
   reconfirmOwn: (): ApiError =>
     new ApiError(
       "RECONFIRM_OWN_REFUSED",

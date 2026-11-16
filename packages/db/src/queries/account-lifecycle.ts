@@ -44,7 +44,10 @@ export async function reactivateAccount(exec: Executor, userId: string, at: Date
 
 /** Return a claimed account to unclaimed, which holds nothing until it is claimed again. */
 export async function unclaimAccount(exec: Executor, userId: string, at: Date): Promise<void> {
-  await exec.update(authUser).set({ claimedAt: null, updatedAt: at }).where(eq(authUser.id, userId));
+  await exec
+    .update(authUser)
+    .set({ claimedAt: null, updatedAt: at })
+    .where(eq(authUser.id, userId));
 }
 
 /**
@@ -217,9 +220,7 @@ export async function listActiveAdministratorsFor(
     .select({ userId: authUser.id })
     .from(authUser)
     .where(and(eq(authUser.role, SITE_ADMINISTRATOR_ROLE), active));
-  return [
-    ...new Set([...workspaceAdministrators, ...siteAdministrators].map((row) => row.userId)),
-  ];
+  return [...new Set([...workspaceAdministrators, ...siteAdministrators].map((row) => row.userId))];
 }
 
 /** One access group an account holds, as the disable confirmation lists it. */

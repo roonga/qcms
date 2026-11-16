@@ -173,7 +173,13 @@ export function makeDisableAccountHandler(
       await invalidateLiveSignInLinks(tx, id, now);
       await writeSiteAuditWithMirror(
         tx,
-        { actor: actor.userId, subject: id, kind: "account", detail: "act=disable", occurredAt: now },
+        {
+          actor: actor.userId,
+          subject: id,
+          kind: "account",
+          detail: "act=disable",
+          occurredAt: now,
+        },
         await listWorkspacesHeldBy(tx, id),
       );
       return held;

@@ -227,7 +227,10 @@ async function createGroup(
 
 async function myAccess(
   session: string,
-): Promise<{ installationAdmin: boolean; workspaces: Map<string, { role: string | null; groups: string[] }> }> {
+): Promise<{
+  installationAdmin: boolean;
+  workspaces: Map<string, { role: string | null; groups: string[] }>;
+}> {
   const response = await adminGet("/admin/me/access", session);
   expect(response.status, await response.clone().text()).toBe(200);
   const body = (await response.json()) as {
@@ -367,9 +370,12 @@ beforeAll(async () => {
   const listed = await adminGet("/admin/workspaces", siteAdminToken);
   const { workspaces } = (await listed.json()) as { workspaces: { workspaceId: string }[] };
   workspaceId = workspaces[0]?.workspaceId ?? "";
-  viewersGroupId = await createGroup(workspaceId, "Lifecycle viewers", ["responses.viewer"], [
-    "prod",
-  ]);
+  viewersGroupId = await createGroup(
+    workspaceId,
+    "Lifecycle viewers",
+    ["responses.viewer"],
+    ["prod"],
+  );
   editorsGroupId = await createGroup(workspaceId, "Lifecycle editors", ["forms.editor"], []);
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
@@ -434,7 +440,11 @@ describe("disabling an account (criteria 68, 70, 72)", () => {
         expect.objectContaining({ workspaceId: soleWorkspace, last: true }),
       ]);
 
-      const disabled = await adminSend("POST", `/admin/accounts/${person.userId}/disable`, siteAdminToken);
+      const disabled = await adminSend(
+        "POST",
+        `/admin/accounts/${person.userId}/disable`,
+        siteAdminToken,
+      );
       expect(disabled.status, await disabled.clone().text()).toBe(200);
       const body = (await disabled.json()) as {
         account: { status: string };
@@ -462,14 +472,20 @@ describe("disabling an account (criteria 68, 70, 72)", () => {
         [workspaceId, soleWorkspace].sort(),
       );
 
-      expect((await siteActs(person.userId)).filter((act) => act === "act=disable")).toHaveLength(1);
+      expect((await siteActs(person.userId)).filter((act) => act === "act=disable")).toHaveLength(
+        1,
+      );
       for (const workspace of [workspaceId, soleWorkspace]) {
         expect(await mirroredActs(workspace, person.userId)).toEqual([
           `subject=${person.userId} act=disable`,
         ]);
       }
 
-      const again = await adminSend("POST", `/admin/accounts/${person.userId}/disable`, siteAdminToken);
+      const again = await adminSend(
+        "POST",
+        `/admin/accounts/${person.userId}/disable`,
+        siteAdminToken,
+      );
       expect(again.status).toBe(409);
     },
     FLOW_TIMEOUT_MS,
@@ -485,9 +501,16 @@ describe("disabling an account (criteria 68, 70, 72)", () => {
     expect(await errorCodeOf(other)).toBe("SITE_ADMINISTRATOR_DISABLE_REFUSED");
     expect((await accountRow(secondSiteAdminId)).disabledAt).toBeNull();
 
-    await testDb.db.update(authUser).set({ claimedAt: null }).where(eq(authUser.id, secondSiteAdminId));
+    await testDb.db
+      .update(authUser)
+      .set({ claimedAt: null })
+      .where(eq(authUser.id, secondSiteAdminId));
     try {
-      const last = await adminSend("POST", `/admin/accounts/${siteAdminId}/disable`, siteAdminToken);
+      const last = await adminSend(
+        "POST",
+        `/admin/accounts/${siteAdminId}/disable`,
+        siteAdminToken,
+      );
       expect(last.status).toBe(409);
       expect(await errorCodeOf(last)).toBe("LAST_SITE_ADMINISTRATOR");
       expect((await accountRow(siteAdminId)).disabledAt).toBeNull();
@@ -515,7 +538,8 @@ describe("reactivating an account (criteria 64, 68, 69, 71)", () => {
       ]);
 
       expect(
-        (await adminSend("POST", `/admin/accounts/${person.userId}/disable`, siteAdminToken)).status,
+        (await adminSend("POST", `/admin/accounts/${person.userId}/disable`, siteAdminToken))
+          .status,
       ).toBe(200);
       const refusedUnlessDisabled = await adminSend(
         "POST",
@@ -607,10 +631,15 @@ describe("resetting a password or a factor (criteria 58, 59, 64, 65)", () => {
       expect(second.status).toBe(200);
       expect(await sessionCount(person.userId)).toBeGreaterThanOrEqual(1);
 
-      const reset = await adminSend("POST", `/admin/accounts/${person.userId}/reset`, siteAdminToken, {
-        password: true,
-        factor: false,
-      });
+      const reset = await adminSend(
+        "POST",
+        `/admin/accounts/${person.userId}/reset`,
+        siteAdminToken,
+        {
+          password: true,
+          factor: false,
+        },
+      );
       expect(reset.status, await reset.clone().text()).toBe(200);
       expect(newestMessage().subject).toBe("Sign in to QCMS again");
       expect(await sessionCount(person.userId)).toBe(0);
@@ -649,10 +678,15 @@ describe("resetting a password or a factor (criteria 58, 59, 64, 65)", () => {
       );
       expect(refusedBody.status).toBe(400);
 
-      const reset = await adminSend("POST", `/admin/accounts/${person.userId}/reset`, siteAdminToken, {
-        password: false,
-        factor: true,
-      });
+      const reset = await adminSend(
+        "POST",
+        `/admin/accounts/${person.userId}/reset`,
+        siteAdminToken,
+        {
+          password: false,
+          factor: true,
+        },
+      );
       expect(reset.status, await reset.clone().text()).toBe(200);
       expect(await sessionCount(person.userId)).toBe(0);
 
@@ -695,7 +729,12 @@ describe("resetting a password or a factor (criteria 58, 59, 64, 65)", () => {
       body,
     );
     expect(await errorCodeOf(refusedUnclaimed)).toBe("ACCOUNT_UNCLAIMED");
-    const own = await adminSend("POST", `/admin/accounts/${siteAdminId}/reset`, siteAdminToken, body);
+    const own = await adminSend(
+      "POST",
+      `/admin/accounts/${siteAdminId}/reset`,
+      siteAdminToken,
+      body,
+    );
     expect(await errorCodeOf(own)).toBe("OWN_ACCOUNT");
     expect(await sessionCount(siteAdminId)).toBe(1);
   });
@@ -751,10 +790,15 @@ describe("re-confirming a suspended membership (criteria 60, 61, 62, 63)", () =>
         ["unclaimed", { claimedAt: null }],
         ["disabled", { disabledAt: new Date() }],
       ] as const) {
-        const reset = await adminSend("POST", `/admin/accounts/${person.userId}/reset`, siteAdminToken, {
-          password: false,
-          factor: true,
-        });
+        const reset = await adminSend(
+          "POST",
+          `/admin/accounts/${person.userId}/reset`,
+          siteAdminToken,
+          {
+            password: false,
+            factor: true,
+          },
+        );
         expect(reset.status, label).toBe(200);
         await testDb.db.update(authUser).set(state).where(eq(authUser.id, secondSiteAdminId));
         try {
@@ -798,7 +842,10 @@ describe("re-confirming a suspended membership (criteria 60, 61, 62, 63)", () =>
         expect(access.installationAdmin).toBe(true);
         expect(access.workspaces.get(own)?.role).toBe("forms.owner");
 
-        await testDb.db.update(authUser).set({ claimedAt: null }).where(eq(authUser.id, secondSiteAdminId));
+        await testDb.db
+          .update(authUser)
+          .set({ claimedAt: null })
+          .where(eq(authUser.id, secondSiteAdminId));
         try {
           const refused = await reconfirm(person.session, viewers, person.userId, own);
           expect(refused.status).toBe(409);
@@ -828,21 +875,29 @@ describe("concurrent acts on one account", () => {
       );
       await holder.connect();
       await holder.query("begin");
-      await holder.query(
-        "select pg_advisory_xact_lock(hashtext('qcms.account'), hashtext($1))",
-        [person.userId],
-      );
+      await holder.query("select pg_advisory_xact_lock(hashtext('qcms.account'), hashtext($1))", [
+        person.userId,
+      ]);
       try {
         const started = performance.now();
         const acts = Promise.all(
           Array.from({ length: PARALLEL }, async (_unused, index) => {
             const response =
               index % 2 === 0
-                ? await adminSend("POST", `/admin/accounts/${person.userId}/disable`, siteAdminToken)
-                : await adminSend("POST", `/admin/accounts/${person.userId}/reset`, siteAdminToken, {
-                    password: false,
-                    factor: true,
-                  });
+                ? await adminSend(
+                    "POST",
+                    `/admin/accounts/${person.userId}/disable`,
+                    siteAdminToken,
+                  )
+                : await adminSend(
+                    "POST",
+                    `/admin/accounts/${person.userId}/reset`,
+                    siteAdminToken,
+                    {
+                      password: false,
+                      factor: true,
+                    },
+                  );
             return { status: response.status, code: await errorCodeOf(response) };
           }),
         );
@@ -902,7 +957,9 @@ describe("concurrent acts on one account", () => {
       for (const result of settled.filter((value) => value !== "applied")) {
         expect(["ACCOUNT_BUSY", "ACCOUNT_DISABLED"]).toContain(result);
       }
-      expect((await siteActs(disableSubject.userId)).filter((act) => act === "act=disable")).toHaveLength(1);
+      expect(
+        (await siteActs(disableSubject.userId)).filter((act) => act === "act=disable"),
+      ).toHaveLength(1);
     },
     FLOW_TIMEOUT_MS,
   );
