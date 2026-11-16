@@ -399,7 +399,7 @@ Batch 7 has not been reviewed, and no admin UI task that needs it starts until t
 
 ## 13. Shared UX patterns
 
-Each is one reusable design.
+Each is one reusable design. Patterns 1 to 5, 8 and 9 are shared components in `apps/admin/components/access/`, with their rules in `apps/admin/lib/membership/access-patterns.ts`; each takes the caller's access capabilities and renders no control the caller lacks.
 
 1. **Access explanation:** rows of action by environment, each naming the granting group or "no group grants this". Used on My access and on a person's page.
 2. **Preview before confirming:** who gains or loses what, in which environments, and whether approval is needed and from whom. The confirm button names the act. Move form says when the move needs an approver and who can approve it, and that the form's appearance moves with it as it is; marking the shared question library states who will be able to see its questions.
