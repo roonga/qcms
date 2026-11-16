@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { t } from "@/lib/i18n/en";
+import { t, tPlural } from "@/lib/i18n/en";
 import { formatList } from "@/lib/i18n/format";
 import { MY_ACCESS_PATH } from "@/lib/shell/modes";
 
@@ -26,9 +26,12 @@ export function NoAccessHome({
   const who =
     siteAdministrators.length === 0
       ? t("access.noAccess.administrator.none")
-      : siteAdministrators.length === 1
-        ? t("access.noAccess.administrator.one", { administrators: named })
-        : t("access.noAccess.administrator.other", { administrators: named });
+      : tPlural(
+          "access.noAccess.administrator.one",
+          "access.noAccess.administrator.other",
+          siteAdministrators.length,
+          { administrators: named },
+        );
 
   return (
     <section

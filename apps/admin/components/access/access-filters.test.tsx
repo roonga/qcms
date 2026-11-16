@@ -64,7 +64,7 @@ describe("the search and rail filter primitives", () => {
         {...OPTIONS}
       />,
     );
-    expect((screen.getByRole("textbox") as HTMLInputElement).value).toBe("priya");
+    expect(screen.getByRole<HTMLInputElement>("textbox").value).toBe("priya");
     expect(nativeSelect("role").value).toBe("responses.viewer");
     expect(nativeSelect("environment").value).toBe("prod");
     expect(nativeSelect("status").value).toBe("suspended");

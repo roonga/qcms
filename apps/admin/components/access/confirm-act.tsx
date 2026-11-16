@@ -38,6 +38,7 @@ export function ConfirmAct({
 }) {
   const [typed, setTyped] = useState("");
   const matched = level.kind === "plain" || typed === level.name;
+  const label = needsApproval ? t("access.preview.requestApproval") : act;
 
   return (
     <Dialog
@@ -66,11 +67,7 @@ export function ConfirmAct({
         {error !== undefined && <Alert variant="error">{error}</Alert>}
         <div className="flex flex-wrap justify-end gap-2">
           <Button variant={tone} size="md" isDisabled={!matched || pending} onPress={onConfirm}>
-            {pending
-              ? t("access.confirm.working")
-              : needsApproval
-                ? t("access.preview.requestApproval")
-                : act}
+            {pending ? t("access.confirm.working") : label}
           </Button>
           <Button variant="secondary" size="md" isDisabled={pending} onPress={onCancel}>
             {t("access.confirm.cancel")}
