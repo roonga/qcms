@@ -1,4 +1,5 @@
 ---
+"@roonga/qcms-observability": patch
 "create-qcms-app": minor
 ---
 
@@ -18,3 +19,5 @@ Derive a workspace theme from a website (task 110, criterion 119, SEC-18).
 - Every logo, derived or uploaded by hand, is decoded, held to a pixel cap and re-encoded as
   PNG. A hand upload the decoder cannot read is now refused with `LOGO_NOT_RASTER`, and one
   over the cap with `LOGO_TOO_MANY_PIXELS`.
+- The OTLP log allowlist exports the `theme derive refused` event name; its reason and host
+  stay off the export.
