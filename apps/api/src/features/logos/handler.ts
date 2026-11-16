@@ -2,6 +2,7 @@ import type { RouteHandler } from "@hono/zod-openapi";
 import {
   clearThemeLogoKey,
   getAppearanceLogo,
+  isThemeLogoKeyViolation,
   takeDownAppearanceLogo,
   writeSiteAuditWithMirror,
 } from "@roonga/qcms-db";
@@ -57,14 +58,6 @@ export function makeServeLogoHandler(deps: Deps): RouteHandler<typeof serveLogoR
   };
 }
 
-function isForeignKeyViolation(err: unknown): boolean {
-  for (let e: unknown = err; typeof e === "object" && e !== null;) {
-    if ((e as { code?: unknown }).code === "23503") return true;
-    e = (e as { cause?: unknown }).cause;
-  }
-  return false;
-}
-
 /** A theme that names the key can commit between the clear and the delete; each retry clears it again. */
 const TAKEDOWN_ATTEMPTS = 3;
 
@@ -104,7 +97,7 @@ export function makeTakeDownLogoHandler(
         });
         return c.json({ logoKey: key, themesCleared }, 200);
       } catch (err: unknown) {
-        if (!isForeignKeyViolation(err)) throw err;
+        if (!isThemeLogoKeyViolation(err)) throw err;
         if (attempt >= TAKEDOWN_ATTEMPTS) {
           throw new ApiError(
             "LOGO_TAKEDOWN_CONFLICT",

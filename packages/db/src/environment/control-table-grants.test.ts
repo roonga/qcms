@@ -335,10 +335,11 @@ describe("the logo takedown's function and the fifth site audit kind", () => {
     );
   });
 
-  it("keeps the UPDATE rejection and gates the delete on the flag and the call stack", () => {
+  it("keeps the UPDATE rejection and gates the delete on the flag and the table owner", () => {
     expect(sql).toContain("SECURITY DEFINER");
     expect(sql).toContain(APPEARANCE_LOGO_TAKEDOWN_SETTING);
-    expect(sql).toContain("GET DIAGNOSTICS stack = PG_CONTEXT");
+    expect(sql).toContain("current_user = (SELECT pg_get_userbyid(c.relowner)");
+    expect(sql).not.toContain("PG_CONTEXT");
     expect(sql).not.toContain(`DROP TRIGGER "${APPEARANCE_LOGOS_TABLE}_reject_update"`);
   });
 

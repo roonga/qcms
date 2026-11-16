@@ -277,29 +277,19 @@ describe("stored logos are immutable, so a theme never moves one (D2)", () => {
     }
   }
 
-  it("refuses the table owner who sets the takedown flag by hand", async () => {
-    const key = await storeLogo(Buffer.from("owner-flag-png-bytes"));
-    await expect(
-      inRolledBack(async () => {
-        await testDb.client.query(`select set_config($1, $2, true)`, [
-          APPEARANCE_LOGO_TAKEDOWN_SETTING,
-          key,
-        ]);
-        return testDb.client.query(`delete from appearance_logos where key = $1`, [key]);
-      }),
-    ).rejects.toThrow(/immutable/i);
-  });
+  /** Creates a role holding `SELECT, DELETE` on the store and switches to it, in the open transaction. */
+  async function becomeGrantee(role: string): Promise<void> {
+    await testDb.client.query(`create role ${role} nologin`);
+    await testDb.client.query(`grant usage on schema control to ${role}`);
+    await testDb.client.query(`grant select, delete on control.appearance_logos to ${role}`);
+    await testDb.client.query(`set local role ${role}`);
+  }
 
   it("refuses a role granted DELETE that sets the takedown flag by hand", async () => {
     const key = await storeLogo(Buffer.from("granted-delete-png-bytes"));
     await expect(
       inRolledBack(async () => {
-        await testDb.client.query(`create role logo_deleter nologin`);
-        await testDb.client.query(`grant usage on schema control to logo_deleter`);
-        await testDb.client.query(
-          `grant select, delete on control.appearance_logos to logo_deleter`,
-        );
-        await testDb.client.query(`set local role logo_deleter`);
+        await becomeGrantee("logo_deleter");
         await testDb.client.query(`select set_config($1, $2, true)`, [
           APPEARANCE_LOGO_TAKEDOWN_SETTING,
           key,
@@ -309,21 +299,87 @@ describe("stored logos are immutable, so a theme never moves one (D2)", () => {
     ).rejects.toThrow(/immutable/i);
   });
 
-  it("refuses a delete whose statement text imitates the takedown's stack frame", async () => {
-    const key = await storeLogo(Buffer.from("forged-frame-png-bytes"));
-    const forged =
-      `delete from control.appearance_logos where key = '${key}' /*\n` +
-      "PL/pgSQL function control.appearance_logo_takedown(text) line 4 at SQL statement */";
+  it("refuses a role granted DELETE that sets the flag and deletes inside a DO block", async () => {
+    const key = await storeLogo(Buffer.from("do-wrapped-png-bytes"));
     await expect(
-      inRolledBack(() =>
-        testDb.client.query(
+      inRolledBack(async () => {
+        await becomeGrantee("logo_do_deleter");
+        return testDb.client.query(
           `do $$ begin
              perform set_config('${APPEARANCE_LOGO_TAKEDOWN_SETTING}', '${key}', true);
-             execute $forged$${forged}$forged$;
+             delete from control.appearance_logos where key = '${key}';
            end $$`,
-        ),
-      ),
+        );
+      }),
     ).rejects.toThrow(/immutable/i);
+  });
+
+  it.each([
+    ["a schema it owns", "logo_forger", "logo_forge"],
+    ["pg_temp", "logo_temp_forger", "pg_temp"],
+  ])(
+    "refuses a role granted DELETE that calls a same-named takedown function in %s",
+    async (_where, role, schema) => {
+      const key = await storeLogo(Buffer.from(`${role}-png-bytes`));
+      await expect(
+        inRolledBack(async () => {
+          await testDb.client.query(`create role ${role} nologin`);
+          if (schema !== "pg_temp") {
+            await testDb.client.query(`create schema ${schema} authorization ${role}`);
+          }
+          await testDb.client.query(`grant usage on schema control to ${role}`);
+          await testDb.client.query(`grant select, delete on control.appearance_logos to ${role}`);
+          await testDb.client.query(`set local role ${role}`);
+          await testDb.client.query(
+            `create function ${schema}.appearance_logo_takedown(k text) returns void
+               language plpgsql as $f$
+               begin
+                 perform set_config('${APPEARANCE_LOGO_TAKEDOWN_SETTING}', k, true);
+                 delete from control.appearance_logos where key = k;
+               end $f$`,
+          );
+          await testDb.client.query(`set local search_path = ${schema}, control`);
+          return testDb.client.query(`select ${schema}.appearance_logo_takedown($1)`, [key]);
+        }),
+      ).rejects.toThrow(/immutable/i);
+      const stored = await testDb.client.query(`select 1 from appearance_logos where key = $1`, [
+        key,
+      ]);
+      expect(stored.rowCount).toBe(1);
+    },
+  );
+
+  it("deletes through the real function called from a DO block, and tombstones the key", async () => {
+    const key = await storeLogo(Buffer.from("do-takedown-png-bytes"));
+    await inRolledBack(async () => {
+      await testDb.client.query(`create role logo_taker nologin`);
+      await testDb.client.query(`grant usage on schema control to logo_taker`);
+      await testDb.client.query(
+        `grant execute on function control.appearance_logo_takedown(text) to logo_taker`,
+      );
+      await testDb.client.query(`set local role logo_taker`);
+      await testDb.client.query(
+        `do $$ begin perform control.appearance_logo_takedown('${key}'); end $$`,
+      );
+      await testDb.client.query(`reset role`);
+      const stored = await testDb.client.query(`select 1 from appearance_logos where key = $1`, [
+        key,
+      ]);
+      expect(stored.rowCount).toBe(0);
+      const tombstone = await testDb.client.query(
+        `select 1 from appearance_logo_tombstones where key = $1`,
+        [key],
+      );
+      expect(tombstone.rowCount).toBe(1);
+    });
+  });
+
+  it("pins the delete trigger's search_path", async () => {
+    const config = await testDb.client.query<{ proconfig: string[] | null }>(
+      `select p.proconfig from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+        where n.nspname = 'control' and p.proname = 'appearance_logos_reject_delete'`,
+    );
+    expect(config.rows[0]?.proconfig).toEqual(["search_path=pg_catalog"]);
   });
 
   it("deletes through the takedown function and refuses the same bytes from then on", async () => {

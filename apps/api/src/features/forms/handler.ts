@@ -323,8 +323,8 @@ function sameAppearance(a: Appearance | null, b: Appearance | null): boolean {
  * that froze a key nothing was stored under would be a form whose logo route answers 404
  * (criterion 124).
  */
-async function requireStoredLogo(deps: Deps, logo: string): Promise<void> {
-  if ((await getAppearanceLogo(deps.databases.control, logo)) === undefined) {
+async function requireStoredLogo(exec: Executor, logo: string): Promise<void> {
+  if ((await getAppearanceLogo(exec, logo)) === undefined) {
     throw fail.unknownLogo();
   }
 }
@@ -852,7 +852,6 @@ export function makePutDraftHandler(deps: Deps): RouteHandler<typeof putDraftRou
     if (form === undefined) throw fail.formNotFound();
     const appearance =
       body.appearance === undefined ? undefined : requireNullableAppearance(body.appearance);
-    if (appearance?.logo != null) await requireStoredLogo(deps, appearance.logo);
 
     // Save first, then advise: a draft may be temporarily inconsistent, and the issues
     // block publish rather than the save. The agent row rides the save's own transaction,
@@ -863,6 +862,10 @@ export function makePutDraftHandler(deps: Deps): RouteHandler<typeof putDraftRou
         // this read and the write below would otherwise be missed under READ COMMITTED.
         const workspace = await getWorkspaceForShare(tx, form.workspaceId);
         const held = await currentAppearance(tx, formId);
+        // Only a changed key is checked, so an echo of a key since taken down still saves.
+        if (appearance?.logo != null && appearance.logo !== held?.logo) {
+          await requireStoredLogo(tx, appearance.logo);
+        }
         if (workspace?.appearanceLocked === true && !sameAppearance(appearance, held)) {
           throw fail.appearanceLocked();
         }

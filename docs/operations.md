@@ -901,9 +901,10 @@ the site audit, mirrored into each workspace whose themes lost the logo.
 Migration 0012 adds the mechanism: a `SECURITY DEFINER` function owned by the migration
 credential, `EXECUTE` revoked from `PUBLIC` and granted to `qcms_app_control` alone, which
 sets a key-scoped flag, deletes that one key, clears the flag and writes the tombstone.
-The delete trigger admits a row only when the flag names it and the outermost frame of the
-server-written call stack (`PG_CONTEXT`) is that function's delete, so a role later granted
-`DELETE`, or the table owner, that sets the flag by hand is still refused.
+The delete trigger admits a row only when the flag names it and `current_user` is the table
+owner, which the function runs as, so a role later granted `DELETE` that sets the flag by
+hand, or calls a same-named function of its own, is still refused. The table owner (the
+migration credential) is not bound: it can disable the trigger, so guard that credential.
 No application role holds any privilege on the tombstone table.
 No application role gains `DELETE` on the table, so a direct `DELETE FROM
 control.appearance_logos` is still refused on every application pool; the least-privilege

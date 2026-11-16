@@ -9,7 +9,12 @@ import type {
   RasterLogoContentType,
 } from "@roonga/qcms-core";
 
-import { APPEARANCE_LOGOS_TAKEN_DOWN, appearanceLogos, workspaceThemes } from "../schema/index.js";
+import {
+  APPEARANCE_LOGOS_TAKEN_DOWN,
+  WORKSPACE_THEMES_LOGO_KEY_FK,
+  appearanceLogos,
+  workspaceThemes,
+} from "../schema/index.js";
 import type { Executor } from "./executor.js";
 
 /**
@@ -237,11 +242,20 @@ export async function takeDownAppearanceLogo(exec: Executor, key: string): Promi
   return result.rows[0]?.taken_down === true;
 }
 
-/** True where `err` is the store's refusal of a taken-down digest. */
-export function isLogoTakenDown(err: unknown): boolean {
+function violates(err: unknown, constraint: string): boolean {
   for (let e: unknown = err; typeof e === "object" && e !== null;) {
-    if ((e as { constraint?: unknown }).constraint === APPEARANCE_LOGOS_TAKEN_DOWN) return true;
+    if ((e as { constraint?: unknown }).constraint === constraint) return true;
     e = (e as { cause?: unknown }).cause;
   }
   return false;
+}
+
+/** True where `err` is the store's refusal of a taken-down digest. */
+export function isLogoTakenDown(err: unknown): boolean {
+  return violates(err, APPEARANCE_LOGOS_TAKEN_DOWN);
+}
+
+/** True where `err` is the themes' logo foreign key, and no other constraint. */
+export function isThemeLogoKeyViolation(err: unknown): boolean {
+  return violates(err, WORKSPACE_THEMES_LOGO_KEY_FK);
 }

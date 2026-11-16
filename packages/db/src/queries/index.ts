@@ -106,6 +106,7 @@ export {
   insertAppearanceLogo,
   insertWorkspaceTheme,
   isLogoTakenDown,
+  isThemeLogoKeyViolation,
   listWorkspaceThemes,
   takeDownAppearanceLogo,
   updateWorkspaceTheme,

@@ -30,22 +30,25 @@ export type LogoContentType = (typeof LOGO_CONTENT_TYPES)[number];
 export const LOGO_MAX_BYTES = 524_288;
 
 /**
- * The `SECURITY DEFINER` function migration 0012 creates. It is the only sanctioned
- * delete on {@link appearanceLogos}: the delete trigger admits a row only when this
- * function's own frame is the outermost one on the call stack, for the one key it names.
+ * The `SECURITY DEFINER` function migration 0012 creates, the one delete path open to an
+ * application role on {@link appearanceLogos}: the delete trigger admits a row only for
+ * the table owner, which this function runs as, and only for the one key it names. The
+ * owner itself can disable the trigger, so it is not bound by this.
  */
 export const APPEARANCE_LOGO_TAKEDOWN_FUNCTION = "control.appearance_logo_takedown";
 
 /**
  * The transaction-local key the takedown function sets for its one delete. Not a
- * credential: the trigger also requires that function's frame on the call stack, so a
- * caller that sets it by hand, the table owner or a role holding `DELETE` included, is
- * still refused.
+ * credential: the trigger also requires `current_user` to be the table owner, so any
+ * other role that sets it by hand, one holding `DELETE` included, is still refused.
  */
 export const APPEARANCE_LOGO_TAKEDOWN_SETTING = "qcms.appearance_logo_takedown";
 
 /** The name of the error the store raises for an upload of a taken-down digest. */
 export const APPEARANCE_LOGOS_TAKEN_DOWN = "appearance_logos_taken_down";
+
+/** The themes' foreign key onto {@link appearanceLogos}. */
+export const WORKSPACE_THEMES_LOGO_KEY_FK = "workspace_themes_logo_key_appearance_logos_key_fk";
 
 export const APPEARANCE_LOGOS_KEY_CHECK = "appearance_logos_key_hex";
 export const APPEARANCE_LOGOS_DIGEST_CHECK = "appearance_logos_key_matches_bytes";

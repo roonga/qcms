@@ -22,32 +22,37 @@ ALTER TABLE "control"."site_audit" ADD CONSTRAINT "site_audit_kind" CHECK ("cont
 --   * `control.appearance_logo_takedown` is `SECURITY DEFINER`, owned by the migration
 --     credential that owns the table, with `search_path` pinned and `EXECUTE` revoked
 --     from `PUBLIC` and granted to `qcms_app_control` alone;
---   * the delete trigger admits a row only when the transaction-local flag names that
---     key AND the outermost frame on the call stack (`PG_CONTEXT`) is the takedown
---     function's own delete. The stack is written by the server, not the caller, so a
---     role holding `DELETE`, or the table owner, that sets the flag by hand is refused;
+--   * the delete trigger admits a row only when `current_user` is the table owner AND
+--     the transaction-local flag names that key. The `SECURITY DEFINER` function runs
+--     as the owner; any other role runs as itself, so a role later granted `DELETE`
+--     that sets the flag by hand, or calls a same-named function of its own, is
+--     refused. The trigger's `search_path` is pinned. The owner, or a role that can
+--     become it, is not bound: it can disable the trigger outright;
 --   * the takedown records the digest in `control.appearance_logo_tombstones`, revoked
 --     from every `qcms_app%` role so the control role's schema-wide grant cannot reach
 --     it on a re-grant, and an insert trigger refuses those bytes
 --     for good. It runs after the insert so that an upload racing a takedown, which
---     waits on the key's unique index, reads the committed tombstone.
+--     waits on the key's unique index, reads the committed tombstone. That holds under
+--     READ COMMITTED, which every shipped path uses; a REPEATABLE READ upload reads its
+--     own snapshot and would store the bytes.
 --
 -- `UPDATE` is untouched: `appearance_logos_reject_update` still rejects one for every
 -- role, the migration credential included, because the key is the digest of the bytes
 -- and an update would make the key a lie.
 -- ===========================================================================
-CREATE OR REPLACE FUNCTION control.appearance_logos_reject_delete() RETURNS trigger AS $$
-DECLARE stack text;
+CREATE OR REPLACE FUNCTION control.appearance_logos_reject_delete() RETURNS trigger
+	LANGUAGE plpgsql
+	SET search_path = pg_catalog
+AS $$
 BEGIN
-	GET DIAGNOSTICS stack = PG_CONTEXT;
 	IF current_setting('qcms.appearance_logo_takedown', true) = OLD.key
-		AND stack ~ '\nPL/pgSQL function (control\.)?appearance_logo_takedown\(text\) line [0-9]+ at SQL statement$' THEN
+		AND current_user = (SELECT pg_get_userbyid(c.relowner) FROM pg_class c WHERE c.oid = TG_RELID) THEN
 		RETURN OLD;
 	END IF;
 	RAISE EXCEPTION 'appearance_logos are immutable (ADR-07): DELETE is rejected'
 		USING ERRCODE = 'restrict_violation';
 END;
-$$ LANGUAGE plpgsql;
+$$;
 --> statement-breakpoint
 CREATE FUNCTION control.appearance_logos_refuse_taken_down() RETURNS trigger
 	LANGUAGE plpgsql

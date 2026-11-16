@@ -1115,6 +1115,114 @@ describe("a Site administrator may take a stored logo down", { timeout: TIMEOUT_
     ).toBeNull();
   });
 
+  it("refuses an upload of the same bytes that waits on an uncommitted takedown", async () => {
+    const workspaceId = await newWorkspace("takedown-race-upload");
+    const themeId = await createTheme(workspaceId, "Race", "#1d4ed8");
+    const bytes = pngBase64(0x7b);
+    const uploaded = await uploadLogo(workspaceId, themeId, bytes);
+    expect(uploaded.status, await uploaded.clone().text()).toBe(201);
+    const { logoKey } = (await uploaded.json()) as { logoKey: string };
+    await testDb.client.query(`update workspace_themes set logo_key = null where id = $1`, [
+      themeId,
+    ]);
+
+    await testDb.client.query("begin");
+    try {
+      await testDb.client.query(`select control.appearance_logo_takedown($1)`, [logoKey]);
+      const uploading = uploadLogo(workspaceId, themeId, bytes);
+      await untilBlocked();
+      await testDb.client.query("commit");
+      const res = await uploading;
+      expect(res.status, await res.clone().text()).toBe(409);
+      expect(await codeOf(res)).toBe("LOGO_TAKEN_DOWN");
+    } finally {
+      await testDb.client.query("rollback").catch(() => undefined);
+    }
+    expect((await serveLogo(logoKey)).status).toBe(404);
+  });
+
+  it("answers LOGO_TAKEDOWN_CONFLICT when a theme keeps the logo through every attempt", async () => {
+    const workspaceId = await newWorkspace("takedown-conflict");
+    const themeId = await createTheme(workspaceId, "Held", "#1d4ed8");
+    const uploaded = await uploadLogo(workspaceId, themeId, pngBase64(0x7c));
+    expect(uploaded.status, await uploaded.clone().text()).toBe(201);
+    const { logoKey } = (await uploaded.json()) as { logoKey: string };
+    const siteAdministrator = await seedAdminSession(testDb.db, {
+      label: "takedown-conflict-site-admin",
+      membership: false,
+    });
+
+    // Stands in for a theme save that re-takes the key after every clear.
+    await testDb.client.query(
+      `create function control.zz_hold_theme_logo() returns trigger language plpgsql as $f$
+         begin
+           if OLD.id = '${themeId}' then NEW.logo_key := OLD.logo_key; end if;
+           return NEW;
+         end $f$`,
+    );
+    await testDb.client.query(
+      `create trigger zz_hold_theme_logo before update on control.workspace_themes
+         for each row execute function control.zz_hold_theme_logo()`,
+    );
+    try {
+      const res = await as(siteAdministrator.token, "DELETE", `/logos/${logoKey}`);
+      expect(res.status, await res.clone().text()).toBe(409);
+      expect(await codeOf(res)).toBe("LOGO_TAKEDOWN_CONFLICT");
+    } finally {
+      await testDb.client.query(`drop trigger zz_hold_theme_logo on control.workspace_themes`);
+      await testDb.client.query(`drop function control.zz_hold_theme_logo()`);
+    }
+    expect((await serveLogo(logoKey)).status).toBe(200);
+    const logoRows = await testDb.client.query(
+      `select 1 from control.site_audit where kind = 'logo' and subject = $1`,
+      [logoKey],
+    );
+    expect(logoRows.rowCount).toBe(0);
+  });
+
+  it.each([false, true])(
+    "saves a draft that echoes a taken-down key unchanged (locked: %s)",
+    async (locked) => {
+      const workspaceId = await newWorkspace(`takedown-echo-${String(locked)}`);
+      const themeId = await createTheme(workspaceId, "Echo", "#1d4ed8");
+      const uploaded = await uploadLogo(workspaceId, themeId, pngBase64(locked ? 0x7e : 0x7d));
+      expect(uploaded.status, await uploaded.clone().text()).toBe(201);
+      const { logoKey } = (await uploaded.json()) as { logoKey: string };
+      const formId = await newForm(workspaceId);
+      const appearance = appearanceFor("#1d4ed8", logoKey);
+      const saved = await send("PUT", `/forms/${formId}/draft`, {
+        definition: definitionFor(formId),
+        appearance,
+      });
+      expect(saved.status, await saved.clone().text()).toBe(200);
+      if (locked) {
+        const lock = await send("PUT", `/workspaces/${workspaceId}/appearance-lock`, {
+          locked: true,
+        });
+        expect(lock.status).toBe(200);
+      }
+      const siteAdministrator = await seedAdminSession(testDb.db, {
+        label: `takedown-echo-site-admin-${String(locked)}`,
+        membership: false,
+      });
+      const takedown = await as(siteAdministrator.token, "DELETE", `/logos/${logoKey}`);
+      expect(takedown.status, await takedown.clone().text()).toBe(200);
+
+      const echoed = await send("PUT", `/forms/${formId}/draft`, {
+        definition: definitionFor(formId),
+        appearance,
+      });
+      expect(echoed.status, await echoed.clone().text()).toBe(200);
+      expect((await getDraft(testDb.db, formId))?.appearance).toStrictEqual(appearance);
+
+      const other = await send("PUT", `/forms/${formId}/draft`, {
+        definition: definitionFor(formId),
+        appearance: appearanceFor("#1d4ed8", "c".repeat(64)),
+      });
+      expect(await codeOf(other)).toBe("LOGO_UNKNOWN");
+    },
+  );
+
   it("refuses a Workspace administrator and an Edit forms holder", async () => {
     const logoKey = await storedLogo("takedown-refused", 0x66);
     const workspaceId = await newWorkspace("takedown-actors");
