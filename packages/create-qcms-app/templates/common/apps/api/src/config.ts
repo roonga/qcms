@@ -977,7 +977,8 @@ function parseMail(
   };
 }
 
-const HOST_NAME = /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]$/u;
+const HOST_NAME =
+  /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]$/u;
 
 function parseThemeDerive(env: Env, issues: string[]): Config["themeDerive"] {
   const allowedHosts = (env["QCMS_THEME_DERIVE_ALLOWED_HOSTS"] ?? "")
