@@ -225,9 +225,7 @@ async function createGroup(
   return ((await response.json()) as { group: { teamId: string } }).group.teamId;
 }
 
-async function myAccess(
-  session: string,
-): Promise<{
+async function myAccess(session: string): Promise<{
   installationAdmin: boolean;
   workspaces: Map<string, { role: string | null; groups: string[] }>;
 }> {
