@@ -18,6 +18,7 @@ export function ProgressiveStep({
   context,
   opToken,
   basePath,
+  cursor,
 }: {
   readonly sessionId: string;
   readonly initial: StepResponse;
@@ -29,6 +30,8 @@ export function ProgressiveStep({
    * address depend on the one the browser happens to be at (Q21).
    */
   readonly basePath: string;
+  /** The rail link this page was opened from, if any. */
+  readonly cursor?: number | undefined;
 }) {
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => {
@@ -45,6 +48,7 @@ export function ProgressiveStep({
       context={context}
       opToken={opToken}
       basePath={basePath}
+      cursor={cursor}
     />
   );
 }

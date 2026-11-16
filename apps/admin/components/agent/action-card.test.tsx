@@ -140,10 +140,14 @@ describe("rule 2: every step and every argument, in run order, in full", () => {
     const plan = proposal([step()]);
     const { container } = renderCard(plan, initialCard(plan));
     const args = container.querySelector(".qcms-acard__args")?.textContent ?? "";
-    for (const value of ["frm_quote", "20", readerExpiry(), "Yes"]) {
+    for (const value of ["20", readerExpiry(), "Yes"]) {
       expect(args, value).toContain(value);
     }
     expect(args).not.toContain("…");
+    // An id nothing on this screen can name is the one argument the body leaves to the
+    // disclosure: it is still shown, and it is still every argument.
+    const ids = container.querySelector("[data-testid='qcms-acard-ids']")?.textContent ?? "";
+    expect(ids).toContain("frm_quote");
   });
 
   it("does not say one person a link when a link is not used up", () => {
@@ -215,11 +219,11 @@ describe("a card names its subject rather than its ids", () => {
     },
   });
 
-  it("heads a plan with what it is for and how many steps it takes", () => {
+  it("heads a plan with the outcome of its last step and how many steps it takes", () => {
     const plan = proposal([CREATE, SAVE]);
     renderCard(plan, initialCard(plan));
     expect(
-      screen.getByRole("heading", { name: "Create the Patient onboarding form: 2 steps" }),
+      screen.getByRole("heading", { name: "Save the draft of Patient onboarding: 2 steps" }),
     ).toBeTruthy();
   });
 
@@ -245,12 +249,10 @@ describe("rule 3: never weaker than the screen's dialog", () => {
     const rows = container.querySelectorAll(".qcms-acard__step");
 
     const production = rows[0] as HTMLElement;
-    expect(production.textContent).toContain(
-      "Production: changes where respondents' answers are sent.",
-    );
+    expect(production.textContent).toContain("This is prod. Real respondents get this");
     expect(production.querySelectorAll(".qcms-envchip")).toHaveLength(1);
     expect(production.querySelector(".qcms-acard__band")).toBeNull();
-    expect((rows[1] as HTMLElement).textContent).not.toContain("Production:");
+    expect((rows[1] as HTMLElement).textContent).not.toContain("This is prod.");
   });
 
   it("keeps Confirm disabled until a step's typed confirmation is entered", () => {

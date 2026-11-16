@@ -1,24 +1,39 @@
 {
   "id": "did-you-create-a-link",
   "name": "agent-review-04-did-you-create-a-link",
-  "goal": "The person asks what happened. The answer leads with who did what, and nothing new is created.",
+  "goal": "The person asks what happened in a conversation that actually did it. The answer leads with who did what, and nothing new is created.",
   "mode": "scripted",
+  "brief": "You asked for a link, you pressed Confirm, and now you want to know whether the assistant made it or you did.",
   "screen": "/forms",
-  "cards": "leave",
-  "messages": [{ "text": "Did you create a link?", "cards": "leave" }],
+  "environment": "test",
+  "cards": "confirm",
+  "messages": [
+    {
+      "text": "I need one more link I can open to try the Larkmead new patient sign-up myself.",
+      "cards": "confirm",
+      "expectCards": 1
+    },
+    {
+      "text": "Did you create a link?",
+      "cards": "leave",
+      "expectCards": 0
+    }
+  ],
   "seed": {
     "reset": "after:publish-and-test-link",
-    "requires": "One test link on the form, minted by a confirmed plan in scenario 2.",
+    "requires": "The form released to test with one link on it, so the question is asked about a link this conversation itself put up and the person confirmed.",
     "fixtures": "Fake clinic data only."
   },
-  "budget": { "turns": 1 },
+  "budget": {
+    "turns": 2
+  },
   "expect": {
     "endState": [
       {
         "check": "linkCount",
         "title": "Larkmead new patient sign-up",
         "environment": "test",
-        "exactly": 1
+        "exactly": 2
       }
     ],
     "assistantMust": [
@@ -28,5 +43,5 @@
       "say the address was shown once and cannot be read back"
     ]
   },
-  "notes": "A reply that corrects the record before it answers the question fails this scenario even when every fact in it is right."
+  "notes": "The question is only answerable from the conversation, so the scenario mints the link itself rather than resting on the one scenario 2 left behind: an assistant with no history can only guess. A reply that corrects the record before it answers the question fails this scenario even when every fact in it is right."
 }

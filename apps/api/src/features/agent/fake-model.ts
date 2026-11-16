@@ -1712,7 +1712,7 @@ function planBlankToPublishedStep(
     const input = { steps: publishPinsSteps(prompt) };
     return [
       ...textParts(
-        "The draft is saved. May I publish the questions it pins and then the form into test? Promoting it further is a separate act for someone else.",
+        "The draft is saved. May I publish the questions it pins and then the form into test? A publish to prod is a card of its own, once you have tried it there.",
         "p0",
       ),
       ...toolInputParts("propose_plan", input),

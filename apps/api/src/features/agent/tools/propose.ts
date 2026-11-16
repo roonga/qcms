@@ -541,8 +541,8 @@ async function stepRefusal(
 
 /**
  * ADR-41 refuses a publish by the account that froze the version, so a publish and a
- * publish to production by one account can never complete, in one step or in two. Refusing
- * here tells the model why rather than failing the user halfway through a confirmed run.
+ * publish to prod by one account can never complete, in one step or in two. Refusing here
+ * tells the model why rather than failing the user halfway through a confirmed run.
  */
 function secondApproverRefusal(
   input: ProposeInput,
@@ -560,9 +560,9 @@ function secondApproverRefusal(
   );
   if (!sameAct && release < 0) return undefined;
   return (
-    "This workspace has second approval on for a publish to production, and ADR-41 refuses " +
-    "a publish by the account that froze the version. Propose the publish into a " +
-    "non-production environment; another account publishes it to production."
+    "This workspace has Second approval on for a publish to prod, and ADR-41 refuses a " +
+    "publish by the account that froze the version. Propose the publish into a lower " +
+    "environment on its own; the publish to prod is a card another account puts up."
   );
 }
 
