@@ -19,7 +19,7 @@ from the two timestamps rather than storing a third.
 `findUserByEmail` and `findUsersByIds` now also return `disabledAt` and `claimedAt`, so the
 grant path can give an unknown, a disabled and an unclaimed address one identical answer.
 
-Migration `0012_sign_in_links.sql` creates the table with ordinary control-plane DML for
+Migration `0013_sign_in_links.sql` creates the table with ordinary control-plane DML for
 `qcms_app_control` and nothing at all for any environment role.
 
 The scaffolded apps gain the Site administrator account routes (`GET`/`POST
