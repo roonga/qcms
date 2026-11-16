@@ -17,6 +17,7 @@ const ALSO_SWEPT = [
   "agent.card.workspace.settings.consequence",
   "membership.agentAudit.act.form.publish",
   "membership.agentAudit.act.form.release",
+  "membership.role.formsViewer.description",
   "membership.settings.twoPersonHelp",
 ];
 

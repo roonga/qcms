@@ -98,7 +98,7 @@ const fail = {
     new ApiError(
       "ACCOUNT_NOT_ADDABLE",
       404,
-      "No account that can be added here matches. Check the address with the person, or ask the installation administrator.",
+      "No account that can be added here matches. Check the address with the person, or ask a Site administrator.",
     ),
   notAMember: (): ApiError =>
     new ApiError(
@@ -122,9 +122,9 @@ const fail = {
     new ApiError(
       "SELF_GRANT_REFUSED",
       409,
-      "This workspace requires a second approver, so you cannot give yourself a response " +
-        "role, or a new environment for one: another workspace administrator, or the " +
-        "installation administrator, has to make this change. A grant on response data " +
+      "This workspace has Second approval on, so you cannot give yourself a response " +
+        "role, or a new environment for one: another Workspace administrator, or a " +
+        "Site administrator, has to make this change. A grant on response data " +
         "is a grant on personal data.",
     ),
   noPrincipal: (): ApiError => new ApiError("unauthorized", 401, "Admin authentication required"),
