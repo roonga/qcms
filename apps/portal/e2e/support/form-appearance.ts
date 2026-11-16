@@ -106,11 +106,15 @@ export interface StoredTheme {
   readonly pageTint: boolean;
 }
 
-/** A workspace theme carrying a logo, read back as a drawer would apply it. */
+/**
+ * A workspace theme carrying a logo, read back as a drawer would apply it. A takedown bars
+ * its bytes for good, so a test that takes one down passes bytes no other test uploads.
+ */
 export async function createThemeWithLogo(
   fixtures: FormAppearanceFixtures,
   name: string,
   look: DerivedLook,
+  logoBase64: string = ONE_PIXEL_PNG,
 ): Promise<StoredTheme> {
   const base = `/workspaces/${fixtures.workspaceId}/themes`;
   const created = (await ok(
@@ -125,11 +129,21 @@ export async function createThemeWithLogo(
   )) as { theme: { themeId: string } };
   const { themeId } = created.theme;
   await ok(
-    await admin(fixtures, "POST", `${base}/${themeId}/logo`, { bytesBase64: ONE_PIXEL_PNG }),
+    await admin(fixtures, "POST", `${base}/${themeId}/logo`, { bytesBase64: logoBase64 }),
     "upload the logo",
   );
   const read = (await ok(await admin(fixtures, "GET", `${base}/${themeId}`), "read the theme")) as {
     theme: Omit<StoredTheme, "themeId">;
   };
   return { themeId, ...read.theme };
+}
+
+/** The same decodable image under a different digest: trailing bytes after IEND. */
+export function distinctPng(tag: string): string {
+  return Buffer.concat([Buffer.from(ONE_PIXEL_PNG, "base64"), Buffer.from(tag)]).toString("base64");
+}
+
+/** A Site administrator's takedown, which leaves every version still naming the key. */
+export async function takeDownLogo(fixtures: FormAppearanceFixtures, key: string): Promise<void> {
+  await ok(await admin(fixtures, "DELETE", `/logos/${key}`), "take the logo down");
 }

@@ -4,17 +4,31 @@ import { settleTransitions } from "@roonga/qcms-e2e-support/animations";
 
 import { DENSITY_COOKIE, FONT_COOKIE, MODE_COOKIE } from "../lib/appearance.js";
 import { readFixtures } from "./support/fixtures.js";
+import { chooseAccident } from "./support/flow.js";
 import {
   admin,
   appearanceOf,
   createThemeWithLogo,
+  distinctPng,
   publishAppearance,
+  takeDownLogo,
 } from "./support/form-appearance.js";
 import { expect, test } from "./support/gates.js";
-import { HARNESS_CORNERS, HARNESS_FONT, PORTAL_PORT } from "./support/harness-config.js";
+import { waitForHydration } from "./support/hydration.js";
+import {
+  HARNESS_BRAND_NAME,
+  HARNESS_CORNERS,
+  HARNESS_FONT,
+  HARNESS_FONTS,
+  PORTAL_PORT,
+} from "./support/harness-config.js";
 
 const ORIGIN = `http://localhost:${PORTAL_PORT}`;
 const CARRIER = "data-qcms-form-appearance";
+
+/** A registry face the harness deployment does not offer. */
+const UNOFFERED_FACE = "lexend";
+const UNOFFERED_CLASS = /\bfont-lexend\b/u;
 
 /** The harness theme's own light primary, which a page without a form appearance keeps. */
 const HARNESS_LIGHT_PRIMARY = "#1f5eb8";
@@ -245,6 +259,88 @@ test("a themed page passes axe in light, dark and high contrast, and yields to f
   await expect(page.locator("body")).toHaveCSS("color", canvasText ?? "");
 });
 
+test("a form with an appearance but no logo shows none, keeping the brand name", async ({
+  page,
+}) => {
+  const { formAppearance: fixtures } = readFixtures();
+  const { formId, slug } = fixtures.forms.noLogo;
+  await publishAppearance(fixtures, formId, appearanceOf(fixtures.looks.teal, { logo: null }));
+
+  await startSession(page, slug);
+  await expect(page.locator("html")).toHaveAttribute(CARRIER, "");
+  const mark = page.getByTestId("brand-mark");
+  await expect(mark).toBeVisible();
+  await expect(mark.locator("img")).toHaveCount(0);
+  await expect(mark).toHaveText(HARNESS_BRAND_NAME);
+});
+
+test("a form face the deployment does not offer applies, and the font menu shows it", async ({
+  page,
+}) => {
+  expect(HARNESS_FONTS).not.toContain(UNOFFERED_FACE);
+  const { formAppearance: fixtures } = readFixtures();
+  const { formId, slug } = fixtures.forms.face;
+  await publishAppearance(
+    fixtures,
+    formId,
+    appearanceOf(fixtures.looks.teal, { face: UNOFFERED_FACE }),
+  );
+
+  await startSession(page, slug);
+  await expect(page.locator("html")).toHaveClass(UNOFFERED_CLASS);
+  await expect(page.getByTestId("appearance-font")).toHaveValue(UNOFFERED_FACE);
+
+  await page.goto(`/f/${readFixtures().slug}`);
+  await expect(
+    page.getByTestId("appearance-font").locator(`option[value="${UNOFFERED_FACE}"]`),
+  ).toHaveCount(0);
+});
+
+test("the completion page keeps the form's appearance", async ({ page }) => {
+  const { formAppearance: fixtures } = readFixtures();
+  const { formId, slug } = fixtures.forms.done;
+  const look = fixtures.looks.crimson;
+  await publishAppearance(fixtures, formId, appearanceOf(look, { corners: "pill" }));
+
+  await pin(page, { [MODE_COOKIE]: "light" });
+  await startSession(page, slug);
+  await waitForHydration(page);
+  await chooseAccident(page, "No");
+  await expect(page.getByTestId("primary-action")).toHaveText("Submit");
+  await page.getByTestId("primary-action").click();
+  await page.waitForURL(/\/done$/u);
+  await expect(page.getByTestId("content-hash")).toHaveText(/^[0-9a-f]{64}$/u);
+
+  const root = page.locator("html");
+  await expect(root).toHaveAttribute(CARRIER, "");
+  await expect(root).toHaveClass(/\bradius-pill\b/u);
+  await expectPalette(page, look.palettes["light"] ?? {}, "completion page");
+});
+
+test("a logo taken down after publish is hidden rather than drawn broken", async ({ page }) => {
+  const { formAppearance: fixtures } = readFixtures();
+  const { formId, slug } = fixtures.forms.takedown;
+  const { teal } = fixtures.looks;
+  const theme = await createThemeWithLogo(
+    fixtures,
+    `Takedown ${String(Date.now())}`,
+    teal,
+    distinctPng(`takedown-${String(Date.now())}`),
+  );
+  await publishAppearance(fixtures, formId, appearanceOf(teal, { logo: theme.logoKey }));
+
+  const started = await startSession(page, slug);
+  await expectLogoLoaded(page, theme.logoKey);
+
+  await takeDownLogo(fixtures, theme.logoKey);
+  await page.goto(started);
+  await expect(page.getByTestId("step-card")).toBeVisible();
+  const mark = page.getByTestId("brand-mark");
+  await expect(mark.locator("img")).toHaveCount(0);
+  await expect(mark).toHaveText(HARNESS_BRAND_NAME);
+  await expectPalette(page, teal.palettes["light"] ?? {}, "after the takedown");
+});
+
 test.describe("without JavaScript", () => {
   test.use({ javaScriptEnabled: false });
 
@@ -261,5 +357,33 @@ test.describe("without JavaScript", () => {
     await expect(root).toHaveClass(/\bdark\b/u);
     await expect(root).toHaveClass(/\bradius-pill\b/u);
     await expectPalette(page, look.palettes["dark"] ?? {}, "no-JS dark");
+  });
+
+  test("a mode change keeps a form face the deployment does not offer", async ({ page }) => {
+    const { formAppearance: fixtures } = readFixtures();
+    const { formId, slug } = fixtures.forms.faceNoJs;
+    await publishAppearance(
+      fixtures,
+      formId,
+      appearanceOf(fixtures.looks.teal, { face: UNOFFERED_FACE }),
+    );
+
+    await pin(page, { [MODE_COOKIE]: "light" });
+    await startSession(page, slug);
+    const font = page.getByTestId("appearance-font");
+    await expect(font).toHaveValue(UNOFFERED_FACE);
+
+    await page.locator('[data-testid="appearance"] > summary').click();
+    await page.locator('[data-testid="appearance-mode"] label[data-value="dark"]').click();
+    const served = page.waitForResponse(
+      (response) => response.request().isNavigationRequest() && response.status() === 200,
+    );
+    await page.locator("button.qcms-appearance__apply").click();
+    await served;
+
+    const root = page.locator("html");
+    await expect(root).toHaveClass(/\bdark\b/u);
+    await expect(root).toHaveClass(UNOFFERED_CLASS);
+    await expect(font).toHaveValue(UNOFFERED_FACE);
   });
 });

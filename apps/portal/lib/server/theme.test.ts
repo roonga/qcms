@@ -13,6 +13,7 @@ import {
   PORTAL_THEMES,
   cornersClass,
   modeClass,
+  pageFontChoices,
   portalBrand,
   portalCorners,
   portalDensity,
@@ -324,10 +325,26 @@ describe("a form's appearance sits between the respondent's choice and config", 
     }
   });
 
-  it("holds the form's face to the faces the deployment offers", () => {
+  it("applies the form's face when the deployment does not offer it, and adds it to the menu", () => {
     process.env.QCMS_PORTAL_FONTS = "inter";
     process.env.QCMS_PORTAL_FONT = "inter";
-    expect(resolveAppearance(NO_COOKIES, FORM).font).toBe("inter");
+    expect(resolveAppearance(NO_COOKIES, FORM).font).toBe("lexend");
+    expect(pageFontChoices(FORM).map((entry) => entry.key)).toEqual(["system", "inter", "lexend"]);
+  });
+
+  it("keeps a saved choice of the form's face on that form's page only", () => {
+    process.env.QCMS_PORTAL_FONTS = "inter";
+    process.env.QCMS_PORTAL_FONT = "inter";
+    const saved = { ...NO_COOKIES, font: "lexend" };
+    expect(resolveAppearance(saved, FORM).font).toBe("lexend");
+    expect(resolveAppearance(saved, { ...FORM, face: "atkinson" }).font).toBe("atkinson");
+    expect(resolveAppearance(saved).font).toBe("inter");
+  });
+
+  it("adds nothing to the menu for a face the deployment already offers, or with no form", () => {
+    process.env.QCMS_PORTAL_FONTS = "inter, lexend";
+    expect(pageFontChoices(FORM)).toEqual(portalFontChoices());
+    expect(pageFontChoices(null)).toEqual(portalFontChoices());
   });
 });
 

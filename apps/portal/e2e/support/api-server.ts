@@ -64,10 +64,24 @@ export interface DerivedLook {
   readonly pageTint: boolean;
 }
 
+const APPEARANCE_FORMS = [
+  "own",
+  "frozen",
+  "theme",
+  "axe",
+  "noJs",
+  "noLogo",
+  "face",
+  "faceNoJs",
+  "done",
+  "takedown",
+] as const;
+type AppearanceFormName = (typeof APPEARANCE_FORMS)[number];
+
 export interface FormAppearanceFixtures {
   readonly adminSessionToken: string;
   readonly workspaceId: string;
-  readonly forms: Readonly<Record<"own" | "frozen" | "theme" | "axe" | "noJs", AppearanceForm>>;
+  readonly forms: Readonly<Record<AppearanceFormName, AppearanceForm>>;
   /** Keyed by the seed primary. */
   readonly looks: Readonly<Record<"teal" | "crimson", DerivedLook>>;
 }
@@ -273,7 +287,7 @@ async function seedAppearanceForms(
   adminSessionToken: string,
 ): Promise<FormAppearanceFixtures> {
   const forms = {} as Record<keyof FormAppearanceFixtures["forms"], AppearanceForm>;
-  for (const name of ["own", "frozen", "theme", "axe", "noJs"] as const) {
+  for (const name of APPEARANCE_FORMS) {
     const slug = `appearance-${name.toLowerCase()}`;
     const { formId } = await seedInsuranceForm(db, {
       formId: `frm_appearance_${name.toLowerCase()}`,

@@ -742,11 +742,14 @@ workspace theme changed or deleted after publish never reaches a respondent
 mid-session (ADR-07). A version with no appearance renders the deployment
 configuration above, which stays the default.
 
-- **Carrier.** The root layout reads the session's step once per request
-  (`getCurrentStep`, shared with the page), so the appearance is on `<html>` in the
-  first byte and covers the whole page, without JavaScript too. The proxy names the
-  environment-stripped path on the request (`x-qcms-path`) so the layout knows which
-  session a step page belongs to.
+- **Carrier.** The root layout reads the appearance from the session's status
+  (`GET /sessions/{id}`), never from a step serve, so rendering the layout evaluates no
+  flow and mints no roster. The appearance is on `<html>` in the first byte and covers
+  the whole page, without JavaScript too. The proxy names the environment-stripped path
+  on the request (`x-qcms-path`) so the layout knows which session a page belongs to.
+- **Completion page.** Submit clears the session cookie, so the submit route packs the
+  appearance into a short-lived httpOnly cookie beside the receipt, and `/done` renders
+  from that. A form with no appearance clears an earlier form's copy.
 - **Palettes.** `app/layout.tsx` adds `data-qcms-form-appearance` to `<html>` and a
   nonced `<style>` holding the four palettes as `--color-*` blocks keyed to the mode
   classes (`.dark`, `.hc`, `.dark.hc`). Each selector is one class more specific than
@@ -755,12 +758,14 @@ configuration above, which stays the default.
   6-digit hex values into that text; anything else falls back to the deployment.
 - **Face, density, corners.** The same root classes as configuration. Precedence per
   axis is the respondent's cookie, then the form, then configuration
-  (`resolveAppearance`). The form's face applies only when the deployment offers it
-  (`QCMS_PORTAL_FONTS`). Mode has no form value: the respondent and configuration
-  decide it, and the form supplies the palette for each mode.
+  (`resolveAppearance`). The form's face applies even when `QCMS_PORTAL_FONTS` does not
+  offer it, and that page's font menu gains the face so the control shows it and a
+  no-JS post keeps it. Mode has no form value: the respondent and configuration decide
+  it, and the form supplies the palette for each mode.
 - **Logo.** The form's logo is served through the portal's own `/logo/:key` route, so
-  SEC-9's `img-src 'self'` holds unwidened. A form with no logo keeps the
-  deployment's. The brand name stays the deployment's.
+  SEC-9's `img-src 'self'` holds unwidened. A form with an appearance and no logo shows
+  no logo, and a logo taken down since publish is hidden: the session status reports it
+  as null. The brand name stays the deployment's.
 - **Forced colours** replace the palette with the user's, as for any theme.
 
 Text size and the progress mode ride the same appearance and belong to tasks 120 and 119.

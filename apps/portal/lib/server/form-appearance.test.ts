@@ -3,8 +3,11 @@ import { describe, expect, it } from "vitest";
 import {
   formAppearanceCss,
   formLogoSrc,
+  isCompletionPath,
+  packFormAppearance,
   parseFormAppearance,
   sessionIdFromPath,
+  unpackFormAppearance,
   type FormAppearance,
 } from "./form-appearance.js";
 
@@ -124,4 +127,53 @@ describe("sessionIdFromPath", () => {
       expect(sessionIdFromPath(path)).toBeUndefined();
     },
   );
+});
+
+describe("isCompletionPath", () => {
+  it("is the completion page only", () => {
+    expect(isCompletionPath("/done")).toBe(true);
+    expect(isCompletionPath("/done/")).toBe(true);
+    expect(isCompletionPath("/s/ses_1")).toBe(false);
+    expect(isCompletionPath(null)).toBe(false);
+  });
+});
+
+describe("packFormAppearance", () => {
+  it("round-trips the axes the portal applies", () => {
+    const appearance = parsed();
+    expect(unpackFormAppearance(packFormAppearance(appearance))).toEqual(appearance);
+    const plain = parsed({ logo: null });
+    expect(unpackFormAppearance(packFormAppearance(plain))).toEqual(plain);
+  });
+
+  it("fits a cookie at the full token set, in characters a cookie carries unencoded", () => {
+    const names = Array.from({ length: 34 }, (_, at) => `surface-container-highest-${"x".repeat(at % 7 + 1)}`);
+    const full = Object.fromEntries(names.map((name) => [name, "#123abc"]));
+    const packed = packFormAppearance(
+      parsed({
+        palettes: { light: full, dark: full, lightHighContrast: full, darkHighContrast: full },
+      }),
+    );
+    expect(packed).toMatch(/^[A-Za-z0-9._~-]+$/u);
+    expect(packed?.length).toBeLessThan(3000);
+  });
+
+  it("declines palettes that do not share one token set", () => {
+    const uneven = { ...palettes(), dark: { primary: "#000000" } };
+    expect(packFormAppearance(parsed({ palettes: uneven }))).toBeUndefined();
+  });
+
+  it.each([
+    undefined,
+    "",
+    "2~~atkinson~rounded~compact~primary~000000~000000~000000~000000",
+    "1~~atkinson~rounded~compact~primary~000000~000000~000000",
+    "1~~atkinson~rounded~compact~primary~00000~000000~000000~000000",
+    "1~~atkinson~rounded~compact~primary~zzzzzz~000000~000000~000000",
+    "1~~atkinson~rounded~compact~Primary;x~000000~000000~000000~000000",
+    "1~../x~atkinson~rounded~compact~primary~000000~000000~000000~000000",
+    "1~~no-such-face~rounded~compact~primary~000000~000000~000000~000000",
+  ])("unpacks %s to nothing", (packed) => {
+    expect(unpackFormAppearance(packed)).toBeNull();
+  });
 });

@@ -9,6 +9,7 @@ import type { FormId, LinkId, SessionId } from "@roonga/qcms-core";
 import {
   consumeSecureLink,
   createSession,
+  getAppearanceLogo,
   getForm,
   getFormBySlug,
   getFormVersion,
@@ -315,6 +316,16 @@ async function pinnedAppearance(
   return version?.appearance ?? null;
 }
 
+/** A version keeps the key it froze, so a logo taken down since is dropped here rather than served as a broken image. */
+async function servedAppearance(
+  request: RequestDatabase,
+  appearance: Appearance | null,
+): Promise<Appearance | null> {
+  if (appearance === null || appearance.logo === null) return appearance;
+  const logo = await getAppearanceLogo(request.exec, appearance.logo);
+  return logo === undefined ? { ...appearance, logo: null } : appearance;
+}
+
 async function finish(
   deps: Deps,
   sessionId: SessionId,
@@ -346,10 +357,8 @@ export function makeGetSessionHandler(deps: Deps): RouteHandler<typeof getSessio
       throw new ApiError("unauthorized", 401, "Session token does not match this session");
     }
 
-    const session = await getSession(
-      deps.databases.forRequest(c.get("requestEnvironment")).exec,
-      authedSessionId,
-    );
+    const request = deps.databases.forRequest(c.get("requestEnvironment"));
+    const session = await getSession(request.exec, authedSessionId);
     if (session === undefined) throw new ApiError("SESSION_NOT_FOUND", 404, "No such session");
 
     return c.json(
@@ -359,6 +368,10 @@ export function makeGetSessionHandler(deps: Deps): RouteHandler<typeof getSessio
         formVersion: session.formVersion,
         expiresAt: session.expiresAt.toISOString(),
         position: null,
+        appearance: await servedAppearance(
+          request,
+          await pinnedAppearance(request, session.formId, session.formVersion),
+        ),
       },
       200,
     );

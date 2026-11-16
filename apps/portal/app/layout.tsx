@@ -17,8 +17,8 @@ import { modeBootstrapScript } from "@/lib/server/mode-bootstrap";
 import { sessionFormAppearance } from "@/lib/server/session-appearance";
 import {
   modeClass,
+  pageFontChoices,
   portalBrand,
-  portalFontChoices,
   portalMode,
   portalTheme,
   resolveAppearance,
@@ -67,13 +67,14 @@ export default async function RootLayout({ children }: { readonly children: Reac
     mode: modeClass(appearance.mode),
     font: appearance.font,
     density: appearance.density,
-    fonts: portalFontChoices().map((entry) => ({
+    fonts: pageFontChoices(form).map((entry) => ({
       key: entry.key,
       label: entry.label,
       group: entry.group,
     })),
     brandName: brand.name,
-    brandLogoSrc: (form === null ? undefined : formLogoSrc(form, basePath)) ?? brand.logoSrc,
+    // A form with an appearance shows its own logo or none, never the deployment's.
+    brandLogoSrc: form === null ? brand.logoSrc : formLogoSrc(form, basePath),
     secureCookies: secureCookies(),
     basePath,
   };
