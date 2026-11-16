@@ -11,6 +11,11 @@ the per-turn screen facts `../assistant.ts` assembles. `rendered/` is the whole 
 view, so what the model receives can be reviewed in one place whichever half it came
 from.
 
+A turn also sends shapes nothing here writes: an argument's type, its limits and its
+enums come from the route schema the kind derives from (`../actions/derive.ts`), so a
+route change can move `rendered/` with no file here touched. The version and the hash
+cover this folder alone; `rendered/` is what shows the rest.
+
 ## What each file is
 
 | Path                   | What it is                                                                                                                                              |

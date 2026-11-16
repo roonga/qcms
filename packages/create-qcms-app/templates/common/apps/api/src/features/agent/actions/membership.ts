@@ -1,7 +1,14 @@
 import { z } from "zod";
 
+import {
+  AddHolderBody,
+  CreateAccessGroupBody,
+  SetMemberRoleBody,
+  WorkspaceSettingsBody,
+} from "../../membership/schema.js";
 import { ACTION_DESCRIPTIONS } from "../prompts/prompts.generated.js";
-import type { ActionKindDef, ActionRequestFacts } from "./types.js";
+import { routeArgs, stated, type StepArgs } from "./derive.js";
+import type { ActionKindDef } from "./types.js";
 
 /**
  * D8's workspace administration. The self-grant rule and the two-person rule are the
@@ -12,64 +19,76 @@ import type { ActionKindDef, ActionRequestFacts } from "./types.js";
 const GROUP_PATH = "/admin/workspaces/{id}/access-groups/{teamId}";
 
 const WorkspaceArg = z.string().min(1).max(200);
+const TeamArg = z.string().min(1).max(200);
+const UserArg = z.string().min(1).max(200);
 
-const CreateGroupArgs = z.strictObject({
-  workspaceId: WorkspaceArg,
-  name: z
-    .string()
-    .min(1)
-    .max(120)
-    .describe("The group's name, unique within the workspace. It is a label, not a rule."),
-  roles: z
-    .array(z.string().min(1).max(100))
-    .min(1)
-    .max(5)
-    .describe("Every role each holder of this group is granted."),
-  environments: z
-    .array(z.string().min(1).max(53))
-    .max(50)
-    .describe(
+const WORKSPACE_PARAM = { workspaceId: "id" } as const;
+const GROUP_PARAMS = { workspaceId: "id", teamId: "teamId" } as const;
+
+const groupCreate = routeArgs(
+  CreateAccessGroupBody,
+  {
+    workspaceId: WorkspaceArg,
+    name: CreateAccessGroupBody.shape.name.describe(
+      "The group's name, unique within the workspace. It is a label, not a rule.",
+    ),
+    roles: CreateAccessGroupBody.shape.roles.describe(
+      "Every role each holder of this group is granted.",
+    ),
+    environments: CreateAccessGroupBody.shape.environments.describe(
       "The environments the group applies in. There is no value meaning all of them. " +
         "Empty only where every role in the group is forms.viewer or forms.editor, which " +
         "apply in every environment.",
     ),
-});
+  } satisfies StepArgs<typeof CreateAccessGroupBody.shape, never, "workspaceId">,
+  { params: WORKSPACE_PARAM },
+);
 
 const GroupArgs = z.strictObject({
   workspaceId: WorkspaceArg,
-  teamId: z.string().min(1).max(200),
+  teamId: TeamArg,
 });
 
-const GrantArgs = z.strictObject({
-  workspaceId: WorkspaceArg,
-  teamId: z.string().min(1).max(200),
-  email: z.string().min(3).max(320).describe("The address of the person the group is granted to."),
-});
+const grant = routeArgs(
+  AddHolderBody,
+  {
+    workspaceId: WorkspaceArg,
+    teamId: TeamArg,
+    email: stated(AddHolderBody.shape.email).describe(
+      "The address of the person the group is granted to.",
+    ),
+  } satisfies StepArgs<typeof AddHolderBody.shape, "userId", "workspaceId" | "teamId">,
+  // Exactly one of the two, and a card names the person by address: an account id is one
+  // the model never has and the screen never shows.
+  { unnamed: ["userId"], params: GROUP_PARAMS },
+);
 
 const RevokeArgs = z.strictObject({
   workspaceId: WorkspaceArg,
-  teamId: z.string().min(1).max(200),
-  userId: z.string().min(1).max(200),
+  teamId: TeamArg,
+  userId: UserArg,
 });
 
-const MemberRoleArgs = z.strictObject({
-  workspaceId: WorkspaceArg,
-  userId: z.string().min(1).max(200),
-  role: z.enum(["forms.owner", "member"]).describe("The member row's new role."),
-});
+const memberRole = routeArgs(
+  SetMemberRoleBody,
+  {
+    workspaceId: WorkspaceArg,
+    userId: UserArg,
+    role: SetMemberRoleBody.shape.role.describe("The member row's new role."),
+  } satisfies StepArgs<typeof SetMemberRoleBody.shape, never, "workspaceId" | "userId">,
+  { params: { workspaceId: "id", userId: "userId" } },
+);
 
-const WorkspaceSettingsArgs = z.strictObject({
-  workspaceId: WorkspaceArg,
-  requireSecondApprover: z
-    .boolean()
-    .describe("Whether a production release and a response self-grant need a second account."),
-});
-
-function bodyMember(facts: ActionRequestFacts, name: string): unknown {
-  return typeof facts.body === "object" && facts.body !== null
-    ? (facts.body as Record<string, unknown>)[name]
-    : undefined;
-}
+const workspaceSettings = routeArgs(
+  WorkspaceSettingsBody,
+  {
+    workspaceId: WorkspaceArg,
+    requireSecondApprover: WorkspaceSettingsBody.shape.requireSecondApprover.describe(
+      "Whether a production release and a response self-grant need a second account.",
+    ),
+  } satisfies StepArgs<typeof WorkspaceSettingsBody.shape, never, "workspaceId">,
+  { params: WORKSPACE_PARAM },
+);
 
 export const createAccessGroup: ActionKindDef = {
   kind: "access.groupCreate",
@@ -77,13 +96,7 @@ export const createAccessGroup: ActionKindDef = {
   route: { method: "POST", path: "/admin/workspaces/{id}/access-groups" },
   cell: { resource: "membership", action: "write" },
   environmentFrom: "switcher",
-  args: CreateGroupArgs,
-  recomputeArgs: (facts) => ({
-    workspaceId: facts.params.id ?? "",
-    name: bodyMember(facts, "name"),
-    roles: bodyMember(facts, "roles"),
-    environments: bodyMember(facts, "environments"),
-  }),
+  ...groupCreate,
   references: ["teamId"],
   resultAllowlist: ["teamId", "name"],
   card: {
@@ -121,12 +134,7 @@ export const grantAccessGroup: ActionKindDef = {
   route: { method: "POST", path: `${GROUP_PATH}/holders` },
   cell: { resource: "membership", action: "write" },
   environmentFrom: "switcher",
-  args: GrantArgs,
-  recomputeArgs: (facts) => ({
-    workspaceId: facts.params.id ?? "",
-    teamId: facts.params.teamId ?? "",
-    email: bodyMember(facts, "email"),
-  }),
+  ...grant,
   references: ["teamId"],
   resultAllowlist: ["teamId", "name"],
   card: {
@@ -165,12 +173,7 @@ export const setMemberRole: ActionKindDef = {
   route: { method: "PUT", path: "/admin/workspaces/{id}/members/{userId}" },
   cell: { resource: "membership", action: "write" },
   environmentFrom: "switcher",
-  args: MemberRoleArgs,
-  recomputeArgs: (facts) => ({
-    workspaceId: facts.params.id ?? "",
-    userId: facts.params.userId ?? "",
-    role: bodyMember(facts, "role"),
-  }),
+  ...memberRole,
   references: ["userId"],
   resultAllowlist: ["userId", "role"],
   card: {
@@ -187,11 +190,7 @@ export const saveWorkspaceSettings: ActionKindDef = {
   route: { method: "PUT", path: "/admin/workspaces/{id}/settings" },
   cell: { resource: "workspace", action: "update" },
   environmentFrom: "switcher",
-  args: WorkspaceSettingsArgs,
-  recomputeArgs: (facts) => ({
-    workspaceId: facts.params.id ?? "",
-    requireSecondApprover: bodyMember(facts, "requireSecondApprover"),
-  }),
+  ...workspaceSettings,
   references: [],
   resultAllowlist: ["requireSecondApprover"],
   card: {

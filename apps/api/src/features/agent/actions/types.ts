@@ -2,6 +2,7 @@ import type { z } from "zod";
 
 import type { Resource } from "../../membership/policy.js";
 import type { ScreenId } from "../screens.js";
+import type { ArgsDerivation } from "./derive.js";
 
 /**
  * One action kind's descriptor (section 6.2). It is the whole of what the propose tool,
@@ -84,6 +85,12 @@ export interface ActionKindDef {
    */
   readonly environmentArgument?: string;
   readonly args: z.ZodType;
+  /**
+   * The route's own request-body schema the arguments are built from, and the members no
+   * step names. A route that carries a body and a kind that declares none disagree, which
+   * `derived.test.ts` refuses against the generated OpenAPI document.
+   */
+  readonly argsFrom?: ArgsDerivation;
   /**
    * The arguments as the card displays them and the digest binds them, where a member the
    * model may send is the server's own to derive. `recomputeArgs` applies the same rule to

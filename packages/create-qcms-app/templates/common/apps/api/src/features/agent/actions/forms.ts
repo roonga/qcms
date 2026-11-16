@@ -1,7 +1,9 @@
 import { z } from "zod";
 
+import { DraftBody, FormEnvironmentBody, UpdateFormSettingsBody } from "../../forms/schema.js";
 import { ACTION_DESCRIPTIONS } from "../prompts/prompts.generated.js";
-import type { ActionKindDef, ActionRequestFacts } from "./types.js";
+import { bodyMember, routeArgs, type StepArgs } from "./derive.js";
+import type { ActionKindDef } from "./types.js";
 
 /**
  * The builder screen's own acts: the draft the assistant proposes, the abuse-control
@@ -9,50 +11,33 @@ import type { ActionKindDef, ActionRequestFacts } from "./types.js";
  * under one environment and confirmed under another is refused before anything runs.
  */
 
-// A plain object rather than a refined one: `argumentMembers` reads the shape to build the
-// advertised schema, and the route already refuses a patch that names no setting.
-const SettingsArgs = z.strictObject({
-  formId: z.string().min(1).max(200),
-  challengeRequired: z
-    .boolean()
-    .optional()
-    .describe("Whether a respondent must pass the challenge before submitting."),
-  minSubmitMs: z
-    .number()
-    .int()
-    .min(0)
-    .max(600_000)
-    .nullable()
-    .optional()
-    .describe("The minimum time on the form, or null to use the deployment's own floor."),
-});
+const FormIdArg = z.string().min(1).max(200);
 
-const AvailabilityArgs = z.strictObject({
-  formId: z.string().min(1).max(200),
-});
-
-const SaveFormDraftArgs = z.strictObject({
-  formId: z
-    .string()
-    .min(1)
-    .max(200)
-    .describe(
-      "The form whose draft this replaces. Name an earlier step's result where that step " +
-        "creates the form.",
+const settings = routeArgs(
+  UpdateFormSettingsBody,
+  {
+    formId: FormIdArg,
+    challengeRequired: UpdateFormSettingsBody.shape.challengeRequired.describe(
+      "Whether a respondent must pass the challenge before submitting.",
     ),
-  definition: z
-    .record(z.string(), z.unknown())
-    .describe(
-      "The complete draft: defaultLocale, title, steps and rules. Leave formId out of it; " +
-        "the step's own formId argument is the form, and the server fills it in.",
+    minSubmitMs: UpdateFormSettingsBody.shape.minSubmitMs.describe(
+      "The minimum time on the form, or null to use the deployment's own floor.",
     ),
-});
+  } satisfies StepArgs<typeof UpdateFormSettingsBody.shape, never, "formId">,
+  // Both settings stay optional, because the route refuses a patch that names neither.
+  { params: { formId: "id" } },
+);
 
-function bodyMember(facts: ActionRequestFacts, name: string): unknown {
-  return typeof facts.body === "object" && facts.body !== null
-    ? (facts.body as Record<string, unknown>)[name]
-    : undefined;
-}
+const availability = routeArgs(
+  FormEnvironmentBody,
+  { formId: FormIdArg } satisfies StepArgs<
+    typeof FormEnvironmentBody.shape,
+    "environment",
+    "formId"
+  >,
+  // The environment is the switcher's, which a step binds rather than names.
+  { unnamed: ["environment"], params: { formId: "id" } },
+);
 
 /**
  * The draft as the card showed it. `formId` is dropped because the form is the step's own
@@ -66,6 +51,26 @@ export function draftWithoutFormId(definition: unknown): unknown {
   return rest;
 }
 
+const saveDraft = routeArgs(
+  DraftBody,
+  {
+    formId: FormIdArg.describe(
+      "The form whose draft this replaces. Name an earlier step's result where that step " +
+        "creates the form.",
+    ),
+    definition: DraftBody.shape.definition.describe(
+      "The complete draft: defaultLocale, title, steps and rules. Leave formId out of it; " +
+        "the step's own formId argument is the form, and the server fills it in.",
+    ),
+  } satisfies StepArgs<typeof DraftBody.shape, "agentAssisted", "formId">,
+  // `agentAssisted` is the provenance mark every agent save carries, not a choice.
+  {
+    unnamed: ["agentAssisted"],
+    params: { formId: "id" },
+    readers: { definition: (facts) => draftWithoutFormId(bodyMember(facts, "definition")) },
+  },
+);
+
 /**
  * The draft the assistant proposed, applied through the builder's own save. It reaches no
  * route of its own: Confirm hands the draft to the builder, which stores it through the
@@ -76,7 +81,7 @@ export const applyDraft: ActionKindDef = {
   screen: "/forms/[formId]",
   cell: { resource: "form", action: "write" },
   environmentFrom: "switcher",
-  args: AvailabilityArgs,
+  args: z.strictObject({ formId: FormIdArg }),
   recomputeArgs: (facts) => ({ formId: facts.params.id ?? "" }),
   references: [],
   // Counts, so the next turn learns what it applied without any of the draft travelling.
@@ -101,12 +106,8 @@ export const saveFormDraft: ActionKindDef = {
   route: { method: "PUT", path: "/admin/forms/{id}/draft" },
   cell: { resource: "form", action: "write" },
   environmentFrom: "switcher",
-  args: SaveFormDraftArgs,
+  ...saveDraft,
   normaliseArgs: (args) => ({ ...args, definition: draftWithoutFormId(args["definition"]) }),
-  recomputeArgs: (facts) => ({
-    formId: facts.params["id"] ?? "",
-    definition: draftWithoutFormId(bodyMember(facts, "definition")),
-  }),
   references: [],
   resultAllowlist: ["formId", "steps", "questions", "rules"],
   carriesDraftArgument: true,
@@ -123,16 +124,7 @@ export const updateFormSettings: ActionKindDef = {
   route: { method: "PATCH", path: "/admin/forms/{id}/settings" },
   cell: { resource: "form", action: "write" },
   environmentFrom: "switcher",
-  args: SettingsArgs,
-  recomputeArgs: (facts) => ({
-    formId: facts.params.id ?? "",
-    ...(bodyMember(facts, "challengeRequired") === undefined
-      ? {}
-      : { challengeRequired: bodyMember(facts, "challengeRequired") }),
-    ...(bodyMember(facts, "minSubmitMs") === undefined
-      ? {}
-      : { minSubmitMs: bodyMember(facts, "minSubmitMs") }),
-  }),
+  ...settings,
   references: [],
   resultAllowlist: ["challengeRequired", "minSubmitMs", "challengeEnforceable"],
   card: {
@@ -151,8 +143,7 @@ export const closeForm: ActionKindDef = {
   route: { method: "POST", path: "/admin/forms/{id}/close" },
   cell: { resource: "form", action: "close" },
   environmentFrom: "switcher",
-  args: AvailabilityArgs,
-  recomputeArgs: (facts) => ({ formId: facts.params.id ?? "" }),
+  ...availability,
   references: [],
   resultAllowlist: ["status", "environment"],
   card: {
@@ -169,8 +160,7 @@ export const reopenForm: ActionKindDef = {
   route: { method: "POST", path: "/admin/forms/{id}/reopen" },
   cell: { resource: "form", action: "close" },
   environmentFrom: "switcher",
-  args: AvailabilityArgs,
-  recomputeArgs: (facts) => ({ formId: facts.params.id ?? "" }),
+  ...availability,
   references: [],
   resultAllowlist: ["status", "environment"],
   card: {
