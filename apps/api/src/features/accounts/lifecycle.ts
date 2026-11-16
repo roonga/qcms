@@ -5,6 +5,7 @@ import {
   clearAdminTwoFactor,
   countActiveSiteAdministrators,
   deleteAccountPassword,
+  deletePendingTwoFactorSignIns,
   disableAccount,
   findAccountById,
   invalidateLiveSignInLinks,
@@ -87,6 +88,13 @@ const fail = {
       "Disabling a Site administrator needs step-up authentication and the approval of " +
         "another Site administrator, which this site does not offer yet.",
     ),
+  siteAdministratorReset: (): ApiError =>
+    new ApiError(
+      "SITE_ADMINISTRATOR_RESET_REFUSED",
+      409,
+      "Resetting a Site administrator needs step-up authentication and the approval of " +
+        "another Site administrator, which this site does not offer yet.",
+    ),
 } as const;
 
 async function accountOf(exec: Executor, userId: string): Promise<AccountDirectoryRow> {
@@ -149,6 +157,7 @@ export function makeDisableAccountHandler(
   return async (c) => {
     const actor = principalOf(c);
     const { id } = c.req.valid("param");
+    if (id === actor.userId) throw fail.self();
 
     const exec = deps.databases.control;
     const now = deps.clock.now();
@@ -170,6 +179,7 @@ export function makeDisableAccountHandler(
       const held = await listAccountHoldings(tx, id);
       await disableAccount(tx, id, now);
       await revokeAccountSessions(tx, id, undefined);
+      await deletePendingTwoFactorSignIns(tx, id);
       await invalidateLiveSignInLinks(tx, id, now);
       await writeSiteAuditWithMirror(
         tx,
@@ -215,6 +225,7 @@ export function makeReactivateAccountHandler(
         await deleteAccountPassword(tx, id);
         await clearAdminTwoFactor(tx, id);
         await revokeAccountSessions(tx, id, undefined);
+        await deletePendingTwoFactorSignIns(tx, id);
         const suspended = await suspendResponseMemberships(tx, {
           userId: id,
           by: actor.userId,
@@ -260,6 +271,7 @@ export function makeResetAccountHandler(
         const current = await accountOf(tx, id);
         const status = accountStatusOf(current);
         if (status === "disabled") throw fail.disabled();
+        if (current.role === SITE_ADMINISTRATOR_ROLE) throw fail.siteAdministratorReset();
         // An account part-way through an earlier reset may be reset again, for example to
         // add the factor to a password reset; one never claimed has no credential to reset.
         if (status === "unclaimed" && (await newestSignInLinkPurpose(tx, id)) !== "reset") {
@@ -269,6 +281,7 @@ export function makeResetAccountHandler(
         if (body.password) await deleteAccountPassword(tx, id);
         if (body.factor) await clearAdminTwoFactor(tx, id);
         await revokeAccountSessions(tx, id, undefined);
+        await deletePendingTwoFactorSignIns(tx, id);
         const suspended = await suspendResponseMemberships(tx, {
           userId: id,
           by: actor.userId,

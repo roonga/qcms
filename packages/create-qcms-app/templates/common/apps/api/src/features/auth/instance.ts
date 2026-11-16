@@ -10,11 +10,12 @@ import {
   authUser,
   authVerification,
   clearMustChangePassword,
-  awaitsSignInLink,
   isAccountActive,
   isAccountDisabled,
+  signInLinkHold,
 } from "@roonga/qcms-db";
 import type { Executor } from "@roonga/qcms-db";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { betterAuth } from "better-auth";
 import type { BetterAuthPlugin } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
@@ -54,8 +55,18 @@ export const CREDENTIAL_PROVIDER_ID = "credential";
  */
 export const BACKUP_CODE_VERIFY_PATH = "/two-factor/verify-backup-code";
 
-/** The password sign-in, refused while a reset or reactivation link is still unspent. */
+/** The password sign-in, which alone needs no session, challenge cookie or link. */
 export const PASSWORD_SIGN_IN_PATH = "/sign-in/email";
+
+const claimSignIn = new AsyncLocalStorage<true>();
+
+/**
+ * Run the claim route's own password sign-in. A reset whose link is spent but whose factor is
+ * not yet verified admits a password sign-in from here alone, never from `POST /sign-in/email`.
+ */
+export function asClaimSignIn<T>(run: () => Promise<T>): Promise<T> {
+  return claimSignIn.run(true, run);
+}
 
 /**
  * The only composition-shaped rule here: NIST SP 800-63B Rev 4 section 3.1.1.2 forbids the rest and mandates
@@ -364,17 +375,27 @@ export function createAdminAuth(input: AdminAuthInput) {
            * Every sign-in shape mints the session here, the pending-second-factor one
            * included, which creates it and then deletes it:
            * `dist/plugins/two-factor/index.mjs:291` <!-- expect: internalAdapter.deleteSession(data.session.token) -->
-           * Only the backup-code path reads the claim; a password sign-in waits for the newest link.
+           * The mounted paths that mint one without a session are `/sign-in/email` and the two
+           * verify paths, which finish a challenge only a sign-in opens; `/change-password` and
+           * the enrolment verify need a session already. An unspent link refuses every path, so
+           * a path mounted later is covered too.
            */
           before: async (session, context) => {
             const path: unknown = (context as { path?: unknown } | undefined)?.path;
-            const refused =
-              path === BACKUP_CODE_VERIFY_PATH
-                ? !(await isAccountActive(input.db, session.userId))
-                : (await isAccountDisabled(input.db, session.userId)) ||
-                  (path === PASSWORD_SIGN_IN_PATH &&
-                    (await awaitsSignInLink(input.db, session.userId)));
-            if (!refused) return;
+            const refused = async (): Promise<boolean> => {
+              if (path === BACKUP_CODE_VERIFY_PATH) {
+                return !(await isAccountActive(input.db, session.userId));
+              }
+              if (await isAccountDisabled(input.db, session.userId)) return true;
+              const hold = await signInLinkHold(input.db, session.userId);
+              if (hold === "link") return true;
+              return (
+                hold === "claim-session" &&
+                path === PASSWORD_SIGN_IN_PATH &&
+                claimSignIn.getStore() !== true
+              );
+            };
+            if (!(await refused())) return;
             // No reason in the body, as everywhere else this surface refuses.
             throw new APIError("UNAUTHORIZED");
           },

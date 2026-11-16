@@ -15,6 +15,7 @@ import {
   holdsAccessGroup,
   isAccessGroupNameTaken,
   isResponsesRole,
+  issuedPendingResetLink,
   listAccessAudit,
   listAccessGroupHolders,
   listAccessGroups,
@@ -38,6 +39,8 @@ import {
   resolveMembership,
   setMemberRole,
   setRequireSecondApprover,
+  suspendHold,
+  tryLockAccount,
   updateAccessGroup,
   writeAccessAuditRow,
   writeSiteAuditRow,
@@ -134,6 +137,12 @@ const fail = {
         "is a grant on personal data.",
     ),
   noPrincipal: (): ApiError => new ApiError("unauthorized", 401, "Admin authentication required"),
+  accountBusy: (): ApiError =>
+    new ApiError(
+      "ACCOUNT_BUSY",
+      409,
+      "Another change to this account is in progress. Try again in a moment.",
+    ),
   notSuspended: (): ApiError =>
     new ApiError(
       "NOT_SUSPENDED",
@@ -781,14 +790,31 @@ export function makeAddHolderHandler(deps: Deps): RouteHandler<typeof addHolderR
       }
 
       if (await holdsAccessGroup(tx, teamId, subject.userId)) throw fail.alreadyHolds();
+      // Workspace lock, then the account's tried: the same order as the re-confirmation, and
+      // a reset holds only the account's, so neither waits on the other.
+      const responses = carriesResponsesRole(held.roles);
+      if (responses && !(await tryLockAccount(tx, subject.userId))) throw fail.accountBusy();
       await ensureWorkspaceMember(tx, workspaceId, subject.userId);
       await addAccessGroupHolder(tx, teamId, subject.userId);
+      // Whoever reset or reactivated the account cannot restore its response access alone,
+      // by re-confirming or by removing a suspended hold and granting it again.
+      const suspended =
+        responses && (await issuedPendingResetLink(tx, subject.userId, actor.userId));
+      if (suspended) {
+        await suspendHold(tx, {
+          teamId,
+          userId: subject.userId,
+          by: actor.userId,
+          at: deps.clock.now(),
+        });
+      }
+      const grant = `subject=${subject.userId} group=${held.name}`;
       await writeAccessAuditRow(tx, {
         actor: actor.userId,
         workspaceId,
         kind: "grant",
         ...scopeColumns(held),
-        detail: scopeDetail(held, `subject=${subject.userId} group=${held.name}`),
+        detail: scopeDetail(held, suspended ? `${grant} suspended=1` : grant),
         occurredAt: deps.clock.now(),
       });
       // A grant made while the account is still unclaimed is a site act too, so it is
@@ -860,6 +886,9 @@ export function makeReconfirmHolderHandler(
       await openWorkspaceOf(tx, workspaceId);
       const held = await getAccessGroup(tx, teamId);
       if (held === undefined || held.workspaceId !== workspaceId) throw fail.groupNotFound();
+      // Taken after the workspace lock, as the grant takes it, and tried, so a reset in
+      // flight never has its suspension lifted from a read made before it committed.
+      if (!(await tryLockAccount(tx, userId))) throw fail.accountBusy();
       const hold = await findHoldSuspension(tx, teamId, userId);
       if (hold === undefined) throw fail.notAHolder();
       if (hold.suspendedAt === null) throw fail.notSuspended();
@@ -882,6 +911,17 @@ export function makeReconfirmHolderHandler(
         detail: scopeDetail(held, byPerformer ? `${extra} byPerformer=1` : extra),
         occurredAt: deps.clock.now(),
       });
+      const [subject] = await findUsersByIds(tx, [userId]);
+      if (subject?.claimedAt === null) {
+        await writeSiteAuditRow(tx, {
+          actor: actor.userId,
+          subject: userId,
+          workspaceId,
+          kind: "account",
+          detail: `act=grant-while-unclaimed group=${held.name} reconfirm=1`,
+          occurredAt: deps.clock.now(),
+        });
+      }
       await writeAgentStep(tx, site, teamId, deps.clock.now());
       return held;
     });

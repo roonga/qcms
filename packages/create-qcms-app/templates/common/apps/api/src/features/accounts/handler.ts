@@ -177,17 +177,18 @@ export function makeResendSignInLinkHandler(
     if (row === undefined) throw fail.notFound();
 
     // A reset or reactivation link is resent as one, never as a creation link: the purposes
-    // are not interchangeable. The state is read again under the account's lock, so a
-    // resend crossing the claim's commit is refused rather than leaving a live link.
-    const newest = await newestSignInLinkPurpose(exec, row.userId);
-    const purpose = newest === "reset" || newest === "reactivated" ? newest : "account-created";
+    // are not interchangeable. The state and the purpose are read under the account's lock,
+    // so a resend crossing the claim's or a reset's commit never leaves the wrong link.
     const delivery = await issueAndSendSignInLink(
       deps,
       exec,
       {
         userId: row.userId,
         email: row.email,
-        purpose,
+        purpose: async (tx) => {
+          const newest = await newestSignInLinkPurpose(tx, id);
+          return newest === "reset" || newest === "reactivated" ? newest : "account-created";
+        },
         issuedBy: actor.userId,
       },
       async (tx) => {

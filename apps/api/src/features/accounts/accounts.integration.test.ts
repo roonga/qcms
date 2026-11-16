@@ -486,13 +486,64 @@ describe("claiming an account (criteria 52, 53, 54)", { timeout: CLAIM_TIMEOUT_M
         issuedBy: created.userId,
         now: new Date(),
       });
-      // A creation link sets whatever password it is sent; a reset that kept the password
-      // only signs in with it, so this one sets nothing.
+      // A reset that kept the password only signs in with it, so this one sets nothing, and
+      // a wrong password spends the link.
       const replaced = await authPost("/claim", { token: other, password: freshPassword() });
       expect(replaced.status).toBe(400);
       expect(await errorCodeOf(replaced)).toBe("CLAIM_PASSWORD_INCORRECT");
       expect((await accountRow(created.userId)).claimedAt).toBeNull();
-      const kept = await authPost("/claim", { token: other, password });
+      const spent = await authPost("/claim", { token: other, password });
+      expect(await errorCodeOf(spent)).toBe("CLAIM_LINK_REFUSED");
+
+      const next = mintSignInToken();
+      await issueSignInLink(testDb.db, {
+        userId: created.userId,
+        tokenHash: await signInTokenHash(next),
+        purpose: "reset",
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+        issuedBy: created.userId,
+        now: new Date(),
+      });
+      const kept = await authPost("/claim", { token: next, password });
+      expect(kept.status, await kept.clone().text()).toBe(200);
+    },
+    CLAIM_TIMEOUT_MS,
+  );
+
+  it(
+    "never lets a creation link set a password over one a reset kept",
+    async () => {
+      const created = await createAccount("creation.after.reset@example.test");
+      const password = freshPassword();
+      const claimed = await authPost("/claim", { token: created.token, password });
+      expect(claimed.status, await claimed.clone().text()).toBe(200);
+
+      for (const purpose of ["reset", "account-created"] as const) {
+        const token = mintSignInToken();
+        await issueSignInLink(testDb.db, {
+          userId: created.userId,
+          tokenHash: await signInTokenHash(token),
+          purpose,
+          expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+          issuedBy: created.userId,
+          now: new Date(),
+        });
+        if (purpose === "reset") continue;
+        const replaced = await authPost("/claim", { token, password: freshPassword() });
+        expect(replaced.status).toBe(400);
+        expect(await errorCodeOf(replaced)).toBe("CLAIM_LINK_REFUSED");
+      }
+
+      const next = mintSignInToken();
+      await issueSignInLink(testDb.db, {
+        userId: created.userId,
+        tokenHash: await signInTokenHash(next),
+        purpose: "reset",
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+        issuedBy: created.userId,
+        now: new Date(),
+      });
+      const kept = await authPost("/claim", { token: next, password });
       expect(kept.status, await kept.clone().text()).toBe(200);
     },
     CLAIM_TIMEOUT_MS,

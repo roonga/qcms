@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, isNull, like, sql } from "drizzle-orm";
 
 import { carriesResponsesRole } from "../access-groups.js";
 import {
@@ -8,6 +8,7 @@ import {
   authTeam,
   authTeamMember,
   authUser,
+  authVerification,
 } from "../schema/control/auth.js";
 import { signInLinks } from "../schema/control/sign-in-links.js";
 import { SITE_ADMINISTRATOR_ROLE } from "./auth.js";
@@ -77,19 +78,78 @@ export async function holdsAccountPassword(exec: Executor, userId: string): Prom
 }
 
 /**
- * Whether an unclaimed account is waiting on an emailed link it has not used: its newest link
- * is unspent. A password sign-in is refused while it is, so a reset or a reactivation is
- * finished through the link and never with a password alone.
+ * What an unclaimed account's newest link still holds back. `link`: the link is unspent, so
+ * no sign-in path may mint a session. `claim-session`: a reset link was spent and the factor
+ * is not yet verified, so only the session the claim route opened may finish it; a reset can
+ * keep the password, and a password sign-in would let whoever held it finish the reset.
  */
-export async function awaitsSignInLink(exec: Executor, userId: string): Promise<boolean> {
+export type SignInLinkHold = "link" | "claim-session";
+
+export async function signInLinkHold(
+  exec: Executor,
+  userId: string,
+): Promise<SignInLinkHold | undefined> {
   const [row] = await exec
-    .select({ usedAt: signInLinks.usedAt })
+    .select({ usedAt: signInLinks.usedAt, purpose: signInLinks.purpose })
     .from(signInLinks)
     .innerJoin(authUser, eq(authUser.id, signInLinks.userId))
     .where(and(eq(signInLinks.userId, userId), isNull(authUser.claimedAt)))
     .orderBy(sql`${signInLinks.createdAt} desc`, sql`${signInLinks.id} desc`)
     .limit(1);
-  return row !== undefined && row.usedAt === null;
+  if (row === undefined) return undefined;
+  if (row.usedAt === null) return "link";
+  return row.purpose === "reset" ? "claim-session" : undefined;
+}
+
+/** Whether the account was ever sent a reset or reactivation link. */
+export async function wasSentResetOrReactivationLink(
+  exec: Executor,
+  userId: string,
+): Promise<boolean> {
+  const rows = await exec
+    .select({ id: signInLinks.id })
+    .from(signInLinks)
+    .where(
+      and(eq(signInLinks.userId, userId), inArray(signInLinks.purpose, ["reset", "reactivated"])),
+    )
+    .limit(1);
+  return rows.length > 0;
+}
+
+/** Whether `issuerId` issued any of the account's newest unbroken run of reset or reactivation links. */
+export async function issuedPendingResetLink(
+  exec: Executor,
+  userId: string,
+  issuerId: string,
+): Promise<boolean> {
+  const rows = await exec
+    .select({ purpose: signInLinks.purpose, issuedBy: signInLinks.issuedBy })
+    .from(signInLinks)
+    .where(eq(signInLinks.userId, userId))
+    .orderBy(sql`${signInLinks.createdAt} desc`, sql`${signInLinks.id} desc`);
+  for (const row of rows) {
+    if (row.purpose !== "reset" && row.purpose !== "reactivated") return false;
+    if (row.issuedBy === issuerId) return true;
+  }
+  return false;
+}
+
+/**
+ * Delete every second-factor challenge the vendor holds open for the account, and its attempt
+ * counter, so a sign-in begun before a reset or a disable cannot be finished after it.
+ */
+export async function deletePendingTwoFactorSignIns(exec: Executor, userId: string): Promise<void> {
+  const challenges = await exec
+    .delete(authVerification)
+    .where(and(like(authVerification.identifier, "2fa-%"), eq(authVerification.value, userId)))
+    .returning({ identifier: authVerification.identifier });
+  if (challenges.length === 0) return;
+  await exec.delete(authVerification).where(
+    inArray(
+      authVerification.identifier,
+      challenges.map((row) => `2fa-attempts-${row.identifier}`),
+    ),
+  );
 }
 
 /** The purpose of the newest link the account was sent, or `undefined` when it has none. */
@@ -186,6 +246,17 @@ export async function findHoldSuspension(
     .where(and(eq(authTeamMember.teamId, teamId), eq(authTeamMember.userId, userId)))
     .limit(1);
   return row;
+}
+
+/** Suspend one hold, recording who performed the act the suspension answers to. */
+export async function suspendHold(
+  exec: Executor,
+  input: { readonly teamId: string; readonly userId: string; readonly by: string; readonly at: Date },
+): Promise<void> {
+  await exec
+    .update(authTeamMember)
+    .set({ suspendedAt: input.at, suspendedBy: input.by })
+    .where(and(eq(authTeamMember.teamId, input.teamId), eq(authTeamMember.userId, input.userId)));
 }
 
 /** Lift one hold's suspension. */

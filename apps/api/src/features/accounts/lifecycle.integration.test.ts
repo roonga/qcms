@@ -2,14 +2,17 @@ import {
   authMember,
   authSession,
   authUser,
+  authVerification,
   disableAccount,
+  findHoldSuspension,
   listAccessAudit,
   listSiteAudit,
   makeSiteAdministrator,
+  newestSignInLinkPurpose,
   signInLinks,
 } from "@roonga/qcms-db";
 import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, like } from "drizzle-orm";
 import { generate } from "otplib";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -268,6 +271,30 @@ async function liveLinks(userId: string): Promise<number> {
   return rows.length;
 }
 
+/** The vendor's open second-factor challenges for the account, with their attempt counters. */
+async function pendingChallenges(userId: string): Promise<(typeof authVerification.$inferSelect)[]> {
+  const challenges = await testDb.db
+    .select()
+    .from(authVerification)
+    .where(and(like(authVerification.identifier, "2fa-%"), eq(authVerification.value, userId)));
+  if (challenges.length === 0) return [];
+  const counters = await testDb.db
+    .select()
+    .from(authVerification)
+    .where(
+      inArray(
+        authVerification.identifier,
+        challenges.map((row) => `2fa-attempts-${row.identifier}`),
+      ),
+    );
+  return [...challenges, ...counters];
+}
+
+async function resend(userId: string): Promise<void> {
+  const response = await adminSend("POST", `/admin/accounts/${userId}/sign-in-link`, siteAdminToken);
+  expect(response.status, await response.clone().text()).toBe(200);
+}
+
 async function accountRow(userId: string): Promise<typeof authUser.$inferSelect> {
   const [row] = await testDb.db.select().from(authUser).where(eq(authUser.id, userId));
   if (row === undefined) throw new Error("no such account");
@@ -396,6 +423,15 @@ describe("who may act on an account (criteria 73, 74)", () => {
           : await adminSend(method, path, workspaceAdminToken, { password: true, factor: false });
       expect(response.status, `${method} ${path}`).toBe(403);
     }
+  });
+
+  it("refuses your own account on disable and reactivate", async () => {
+    for (const act of ["disable", "reactivate"]) {
+      const response = await adminSend("POST", `/admin/accounts/${siteAdminId}/${act}`, siteAdminToken);
+      expect(response.status, act).toBe(409);
+      expect(await errorCodeOf(response), act).toBe("OWN_ACCOUNT");
+    }
+    expect((await accountRow(siteAdminId)).disabledAt).toBeNull();
   });
 
   it("serves no route that deletes an account", async () => {
@@ -557,6 +593,10 @@ describe("reactivating an account (criteria 64, 68, 69, 71)", () => {
       );
       expect(newestMessage().subject).toBe("Your QCMS account has been reactivated");
       expect(await liveLinks(person.userId)).toBe(1);
+      await resend(person.userId);
+      expect(newestMessage().subject).toBe("Your QCMS account has been reactivated");
+      expect(await newestSignInLinkPurpose(testDb.db, person.userId)).toBe("reactivated");
+      expect(await liveLinks(person.userId)).toBe(1);
 
       const oldPassword = await authPost("/sign-in/email", {
         email: person.email,
@@ -700,8 +740,16 @@ describe("resetting a password or a factor (criteria 58, 59, 64, 65)", () => {
       });
       expect(wrong.status).toBe(400);
       expect(await errorCodeOf(wrong)).toBe("CLAIM_PASSWORD_INCORRECT");
-      expect(await liveLinks(person.userId)).toBe(1);
+      expect(await liveLinks(person.userId)).toBe(0);
+      const spent = await authPost("/claim", {
+        token: tokenFromNewestMessage(),
+        password: person.password,
+      });
+      expect(await errorCodeOf(spent)).toBe("CLAIM_LINK_REFUSED");
 
+      await resend(person.userId);
+      expect(newestMessage().subject).toBe("Sign in to QCMS again");
+      expect(await newestSignInLinkPurpose(testDb.db, person.userId)).toBe("reset");
       const kept = person.password;
       await signInThroughLink(person, "keep-password", { factorKept: false });
       expect(person.password).toBe(kept);
@@ -714,7 +762,7 @@ describe("resetting a password or a factor (criteria 58, 59, 64, 65)", () => {
     FLOW_TIMEOUT_MS,
   );
 
-  it("refuses an unclaimed, a disabled and your own account", async () => {
+  it("refuses an unclaimed, a disabled and your own account, and a Site administrator", async () => {
     const unclaimed = await adminSend("POST", "/admin/accounts", siteAdminToken, {
       email: "never.claimed@example.test",
     });
@@ -735,7 +783,119 @@ describe("resetting a password or a factor (criteria 58, 59, 64, 65)", () => {
     );
     expect(await errorCodeOf(own)).toBe("OWN_ACCOUNT");
     expect(await sessionCount(siteAdminId)).toBe(1);
+
+    const disabled = await seedAdminSession(testDb.db, {
+      label: "reset-disabled",
+      at: new Date(),
+      claim: false,
+      membership: false,
+      disabledAt: new Date(),
+    });
+    const refusedDisabled = await adminSend(
+      "POST",
+      `/admin/accounts/${disabled.userId}/reset`,
+      siteAdminToken,
+      body,
+    );
+    expect(await errorCodeOf(refusedDisabled)).toBe("ACCOUNT_DISABLED");
+
+    const claimedAt = (await accountRow(secondSiteAdminId)).claimedAt;
+    const siteAdministrator = await adminSend(
+      "POST",
+      `/admin/accounts/${secondSiteAdminId}/reset`,
+      siteAdminToken,
+      body,
+    );
+    expect(siteAdministrator.status).toBe(409);
+    expect(await errorCodeOf(siteAdministrator)).toBe("SITE_ADMINISTRATOR_RESET_REFUSED");
+    expect((await accountRow(secondSiteAdminId)).claimedAt).toEqual(claimedAt);
+    expect(await sessionCount(secondSiteAdminId)).toBe(1);
   });
+
+  it(
+    "never finishes a password-only reset through a second-factor sign-in begun before it",
+    async () => {
+      const person = await createAndClaim("pending.factor@example.test");
+      const started = await authPost("/sign-in/email", {
+        email: person.email,
+        password: person.password,
+      });
+      expect(started.status, await started.clone().text()).toBe(200);
+      expect(((await started.json()) as { twoFactorRedirect?: boolean }).twoFactorRedirect).toBe(
+        true,
+      );
+      const challenge = cookieHeader(started);
+      const open = await pendingChallenges(person.userId);
+      expect(open.length).toBeGreaterThan(0);
+
+      const reset = await adminSend(
+        "POST",
+        `/admin/accounts/${person.userId}/reset`,
+        siteAdminToken,
+        { password: true, factor: false },
+      );
+      expect(reset.status, await reset.clone().text()).toBe(200);
+      expect(await pendingChallenges(person.userId)).toEqual([]);
+
+      const code = await freshCode(person.secret, person.lastCode);
+      const late = await authPost("/two-factor/verify-totp", { code }, challenge);
+      expect(late.ok, await late.clone().text()).toBe(false);
+
+      // The challenge put back, as if the reset had missed it: the session hook refuses too.
+      await testDb.db.insert(authVerification).values(open);
+      const replayed = await authPost("/two-factor/verify-totp", { code }, challenge);
+      expect(replayed.ok, await replayed.clone().text()).toBe(false);
+      expect((await accountRow(person.userId)).claimedAt).toBeNull();
+      expect(await liveLinks(person.userId)).toBe(1);
+      expect(await sessionCount(person.userId)).toBe(0);
+      expect((await adminGet("/admin/me/access", person.session)).status).toBe(401);
+
+      person.lastCode = code;
+      await signInThroughLink(person, "set-password", { factorKept: true });
+      expect((await accountRow(person.userId)).claimedAt).not.toBeNull();
+    },
+    FLOW_TIMEOUT_MS,
+  );
+
+  it(
+    "never finishes a factor-only reset with the password alone once the link is spent",
+    async () => {
+      const person = await createAndClaim("factor.window@example.test");
+      const reset = await adminSend(
+        "POST",
+        `/admin/accounts/${person.userId}/reset`,
+        siteAdminToken,
+        { password: false, factor: true },
+      );
+      expect(reset.status, await reset.clone().text()).toBe(200);
+
+      const claimed = await authPost("/claim", {
+        token: tokenFromNewestMessage(),
+        password: person.password,
+      });
+      expect(claimed.status, await claimed.clone().text()).toBe(200);
+      expect(await liveLinks(person.userId)).toBe(0);
+
+      const sideDoor = await authPost("/sign-in/email", {
+        email: person.email,
+        password: person.password,
+      });
+      expect(sideDoor.status).toBe(401);
+      expect((await accountRow(person.userId)).claimedAt).toBeNull();
+
+      const enrolled = await enrolFactor(cookieHeader(claimed), person.password);
+      expect((await accountRow(person.userId)).claimedAt).not.toBeNull();
+      expect((await adminGet("/admin/me/access", sessionTokenOf(enrolled.cookie))).status).toBe(
+        200,
+      );
+      const signedIn = await authPost("/sign-in/email", {
+        email: person.email,
+        password: person.password,
+      });
+      expect(signedIn.status).toBe(200);
+    },
+    FLOW_TIMEOUT_MS,
+  );
 });
 
 describe("re-confirming a suspended membership (criteria 60, 61, 62, 63)", () => {
@@ -765,6 +925,45 @@ describe("re-confirming a suspended membership (criteria 60, 61, 62, 63)", () =>
 
       const notSuspended = await reconfirm(secondSiteAdminToken, viewersGroupId, person.userId);
       expect(await errorCodeOf(notSuspended)).toBe("NOT_SUSPENDED");
+    },
+    FLOW_TIMEOUT_MS,
+  );
+
+  it(
+    "keeps the suspension when the resetter removes the hold and grants it again",
+    async () => {
+      const person = await createAndClaim("reconfirm.regrant@example.test");
+      await grant(viewersGroupId, person.userId);
+      const reset = await adminSend("POST", `/admin/accounts/${person.userId}/reset`, siteAdminToken, {
+        password: false,
+        factor: true,
+      });
+      expect(reset.status, await reset.clone().text()).toBe(200);
+
+      const byResetter = await reconfirm(siteAdminToken, viewersGroupId, person.userId);
+      expect(await errorCodeOf(byResetter)).toBe("RECONFIRM_BY_PERFORMER_REFUSED");
+      const removed = await adminSend(
+        "DELETE",
+        `/admin/workspaces/${workspaceId}/access-groups/${viewersGroupId}/holders/${person.userId}`,
+        siteAdminToken,
+      );
+      expect(removed.status, await removed.clone().text()).toBe(204);
+      await grant(viewersGroupId, person.userId);
+
+      const hold = await findHoldSuspension(testDb.db, viewersGroupId, person.userId);
+      expect(hold?.suspendedAt).not.toBeNull();
+      expect(hold?.suspendedBy).toBe(siteAdminId);
+      const again = await reconfirm(siteAdminToken, viewersGroupId, person.userId);
+      expect(await errorCodeOf(again)).toBe("RECONFIRM_BY_PERFORMER_REFUSED");
+
+      const byOther = await reconfirm(secondSiteAdminToken, viewersGroupId, person.userId);
+      expect(byOther.status, await byOther.clone().text()).toBe(200);
+      expect((await findHoldSuspension(testDb.db, viewersGroupId, person.userId))?.suspendedAt).toBeNull();
+      // The subject has not finished the reset, so the re-confirmation is a grant while unclaimed.
+      expect((await accountRow(person.userId)).claimedAt).toBeNull();
+      expect(await siteActs(person.userId)).toContain(
+        "act=grant-while-unclaimed group=Lifecycle viewers reconfirm=1",
+      );
     },
     FLOW_TIMEOUT_MS,
   );
@@ -829,13 +1028,13 @@ describe("re-confirming a suspended membership (criteria 60, 61, 62, 63)", () =>
         .workspaceId;
       const viewers = await createGroup(own, "Own viewers", ["responses.viewer"], ["prod"]);
       await grant(viewers, person.userId, own);
+      await adminSend("POST", `/admin/accounts/${person.userId}/reset`, siteAdminToken, {
+        password: false,
+        factor: true,
+      });
+      await signInThroughLink(person, "keep-password", { factorKept: false });
       await makeSiteAdministrator(testDb.db, person.userId);
       try {
-        await adminSend("POST", `/admin/accounts/${person.userId}/reset`, siteAdminToken, {
-          password: false,
-          factor: true,
-        });
-        await signInThroughLink(person, "keep-password", { factorKept: false });
         const access = await myAccess(person.session);
         expect(access.installationAdmin).toBe(true);
         expect(access.workspaces.get(own)?.role).toBe("forms.owner");

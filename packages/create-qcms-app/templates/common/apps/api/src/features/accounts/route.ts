@@ -168,8 +168,8 @@ export const resetAccountRoute = createRoute({
     "response role are suspended until re-confirmed, and the account holds nothing until " +
     "the person signs in again through the emailed single-use link. After a password " +
     "reset they set a new password; after a factor reset they sign in with the password " +
-    "they have and enrol a new factor. Refused for your own account, a disabled one and " +
-    "one never claimed.",
+    "they have and enrol a new factor. Refused for your own account, a disabled one, one " +
+    "never claimed and, until the step-up and approval guards exist, a Site administrator.",
   tags,
   request: { params: AccountIdParam, body: jsonBody(ResetAccountBody) },
   responses: {

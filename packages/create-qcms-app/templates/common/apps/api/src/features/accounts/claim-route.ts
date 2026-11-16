@@ -7,6 +7,7 @@ import {
   holdsAccountPassword,
   signInLinkIsLive,
   tryLockAccount,
+  wasSentResetOrReactivationLink,
 } from "@roonga/qcms-db";
 import { isAPIError } from "better-auth/api";
 
@@ -14,7 +15,11 @@ import type { SliceRegistrar } from "../../app.js";
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import { adminAuthFor, adminAuthOn } from "../auth/route.js";
-import { BREACH_LOOKUP_FAILED_CODE, MIN_PASSWORD_LENGTH } from "../auth/instance.js";
+import {
+  asClaimSignIn,
+  BREACH_LOOKUP_FAILED_CODE,
+  MIN_PASSWORD_LENGTH,
+} from "../auth/instance.js";
 import { PasswordRefused, setAccountPassword, verifyAccountPassword } from "./credential.js";
 import { CLAIM_PATH, signInTokenHash } from "./tokens.js";
 
@@ -25,13 +30,18 @@ import { CLAIM_PATH, signInTokenHash } from "./tokens.js";
 /**
  * What each link purpose does with the password sent: a creation or reactivation link sets
  * it, and so does a reset link once the reset took the password away. A reset that kept the
- * password, a factor-only reset, signs the person in with it instead and sets nothing.
+ * password, a factor-only reset, signs the person in with it instead and sets nothing. A
+ * creation link for an account that was ever reset or reactivated sets nothing either.
  */
 type PasswordUse = "set" | "verify";
 
-function passwordUseFor(purpose: string, holdsPassword: boolean): PasswordUse | undefined {
-  if (purpose === "account-created" || purpose === "reactivated") return "set";
-  if (purpose === "reset") return holdsPassword ? "verify" : "set";
+export function passwordUseFor(
+  purpose: string,
+  account: { readonly holdsPassword: boolean; readonly wasReset: boolean },
+): PasswordUse | undefined {
+  if (purpose === "account-created") return account.wasReset ? undefined : "set";
+  if (purpose === "reactivated") return "set";
+  if (purpose === "reset") return account.holdsPassword ? "verify" : "set";
   return undefined;
 }
 
@@ -40,7 +50,8 @@ function passwordIncorrect(): ApiError {
     "CLAIM_PASSWORD_INCORRECT",
     400,
     "Only your second factor was reset, so sign in with the password you already have. " +
-      "The link still works until it expires.",
+      "That password was not it, and the link is now used; ask a Site administrator to send " +
+      "a new one.",
   );
 }
 
@@ -104,7 +115,9 @@ export const registerAccountClaim: SliceRegistrar = (group, deps: Deps) => {
     // The password is written on this transaction's connection under a tried lock, so a
     // refusal rolls everything back and no request waits for a second pooled connection
     // or queues behind a claim in flight while holding one.
-    const account = await exec.transaction(async (tx) => {
+    // A wrong current password spends the link and commits, so the token is not a way to
+    // guess the kept password.
+    const claimed = await exec.transaction(async (tx) => {
       await boundAccountTransaction(tx);
       if (!(await tryLockAccount(tx, link.userId))) throw linkRefused();
       if ((await consumeSignInLink(tx, tokenHash, now)) === undefined) throw linkRefused();
@@ -114,13 +127,14 @@ export const registerAccountClaim: SliceRegistrar = (group, deps: Deps) => {
       // not a way to set another one. A reset and a reactivation unclaim the account.
       if (found.claimedAt !== null) throw linkRefused();
 
-      const use = passwordUseFor(link.purpose, await holdsAccountPassword(tx, found.userId));
+      const use = passwordUseFor(link.purpose, {
+        holdsPassword: await holdsAccountPassword(tx, found.userId),
+        wasReset: await wasSentResetOrReactivationLink(tx, found.userId),
+      });
       if (use === undefined) throw linkRefused();
       const txAuth = adminAuthOn(deps, tx);
       if (use === "verify") {
-        if (!(await verifyAccountPassword(txAuth, found.userId, password))) {
-          throw passwordIncorrect();
-        }
+        if (!(await verifyAccountPassword(txAuth, found.userId, password))) return undefined;
         return found;
       }
       // The write revokes every session the account holds (`revokeSessionsOnPasswordReset`),
@@ -133,13 +147,17 @@ export const registerAccountClaim: SliceRegistrar = (group, deps: Deps) => {
       }
       return found;
     });
+    if (claimed === undefined) throw passwordIncorrect();
+    const account = claimed;
 
     // The session issued here is the one that enrols the second factor. The claim itself
     // is written only once that factor is verified, so the account still holds nothing.
-    const signedIn = await auth.api.signInEmail({
-      body: { email: account.email, password },
-      asResponse: true,
-    });
+    const signedIn = await asClaimSignIn(() =>
+      auth.api.signInEmail({
+        body: { email: account.email, password },
+        asResponse: true,
+      }),
+    );
     if (!signedIn.ok) {
       throw new ApiError("CLAIM_FAILED", 500, "The claim could not be completed");
     }
