@@ -73,7 +73,8 @@ function screens(): readonly Screen[] {
 }
 
 test.beforeAll(async ({ browser }) => {
-  await createTestAdmin(OPERATOR);
+  // The tombstone is read from the installation-only erasure log.
+  await createTestAdmin(OPERATOR, { siteAdministrator: true });
   await createTestAdmin(VIEWER, { grants: ["responses.viewer"], owner: false });
   const page = await browser.newPage();
   try {

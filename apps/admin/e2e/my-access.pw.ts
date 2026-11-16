@@ -7,6 +7,8 @@ test.describe.configure({ mode: "serial" });
 
 const NOTHING = uniqueAdminEmail("myaccessnothing");
 
+const SITE_ADMIN = uniqueAdminEmail("myaccesssite");
+
 const VIEWER = uniqueAdminEmail("myaccessviewer");
 
 const ERASER = uniqueAdminEmail("myaccesseraser");
@@ -16,6 +18,7 @@ const VIEWER_GROUP = "Every environment: forms.viewer";
 const ERASER_GROUP = "Every environment: responses.eraser";
 
 test.beforeAll(async () => {
+  await createTestAdmin(SITE_ADMIN, { siteAdministrator: true });
   await createTestAdmin(NOTHING, { grants: [], owner: false, siteAdministrator: false });
   await createTestAdmin(VIEWER, {
     grants: ["forms.viewer"],

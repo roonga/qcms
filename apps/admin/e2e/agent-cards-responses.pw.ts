@@ -43,7 +43,8 @@ let erasableAlone = "";
 let keptOnCancel = "";
 
 test.beforeAll(async () => {
-  await createTestAdmin(EMAIL);
+  // The tombstone is read from the installation-only erasure log.
+  await createTestAdmin(EMAIL, { siteAdministrator: true });
   const deliverer = openDeliverer();
   try {
     const honeypotField = deliverer.honeypotField;
