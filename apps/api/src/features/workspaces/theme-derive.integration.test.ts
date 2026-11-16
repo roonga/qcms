@@ -47,7 +47,25 @@ function site(): FakeBrandFetcher {
       contentType: "text/html",
       body: '<!doctype html><meta name="theme-color" content="#123456"><link rel="icon" type="image/png" href="/i.png">',
     })
-    .serve("https://svg.brand.example/i.png", { contentType: "image/svg+xml", body: "<svg/>" });
+    .serve("https://svg.brand.example/i.png", { contentType: "image/svg+xml", body: "<svg/>" })
+    .serve("https://sheet.brand.example/", {
+      contentType: "text/html",
+      body: '<!doctype html><meta name="theme-color" content="#123456"><link rel="stylesheet" href="/s.css">',
+    })
+    .serve("https://sheet.brand.example/s.css", {
+      contentType: "text/html",
+      body: "<!doctype html>",
+    })
+    .redirect("https://www.hops.example/", "https://hops.example/home")
+    .serve("https://hops.example/home", {
+      contentType: "text/html",
+      body:
+        '<!doctype html><meta name="theme-color" content="#0f766e">' +
+        '<link rel="stylesheet" href="https://static.hops.example/s.css">' +
+        '<link rel="icon" type="image/png" href="https://img.hops.example/l.png">',
+    })
+    .serve("https://static.hops.example/s.css", { contentType: "text/css", body: "a{}" })
+    .serve("https://img.hops.example/l.png", { contentType: "image/png", body: logoPng() });
 }
 
 let testDb: TestDb;
@@ -78,6 +96,12 @@ function compose(
 
 let fetcher: FakeBrandFetcher;
 let on: ReturnType<typeof compose>;
+
+/** A composition with its own fetcher and limiter, so its requests are its own. */
+function fresh(): ReturnType<typeof compose> & { readonly fetcher: FakeBrandFetcher } {
+  const own = site();
+  return { ...compose({}, own), fetcher: own };
+}
 
 beforeAll(async () => {
   testDb = await startTestDb();
@@ -150,7 +174,7 @@ describe("the derive route's own flag (SEC-18 S1)", { timeout: TIMEOUT_MS }, () 
 });
 
 describe("deriving a theme (criterion 119)", { timeout: TIMEOUT_MS }, () => {
-  it("derives for an Edit forms holder, stores the re-encoded logo and writes one audit row", async () => {
+  it("derives for an Edit forms holder, stores the re-encoded logo and writes a row per fetch", async () => {
     const workspaceId = await newWorkspace("derive-ok");
     const res = await derive(workspaceId, "https://brand.example/");
     expect(res.status, await res.clone().text()).toBe(200);
@@ -171,18 +195,67 @@ describe("deriving a theme (criterion 119)", { timeout: TIMEOUT_MS }, () => {
 
     expect(await deriveRows(workspaceId)).toStrictEqual([
       { actor: editor.userId, detail: "host=brand.example" },
+      { actor: editor.userId, detail: "host=brand.example" },
     ]);
   });
 
   it("writes one row per fetch, a refused fetch included, and none for an address never fetched", async () => {
     const workspaceId = await newWorkspace("derive-rows");
-    expect((await derive(workspaceId, "https://brand.example/")).status).toBe(200);
     expect((await derive(workspaceId, "https://brand.example/json")).status).toBe(422);
     expect((await derive(workspaceId, "http://brand.example/")).status).toBe(422);
     expect(await deriveRows(workspaceId)).toStrictEqual([
       { actor: editor.userId, detail: "host=brand.example" },
-      { actor: editor.userId, detail: "host=brand.example" },
     ]);
+  });
+
+  it("names every host contacted: the typed host, the redirect target, the stylesheet's and the logo's (SEC-18 W4)", async () => {
+    const workspaceId = await newWorkspace("derive-hosts");
+    const res = await derive(workspaceId, "https://www.hops.example/");
+    expect(res.status, await res.clone().text()).toBe(200);
+    const rows = await deriveRows(workspaceId);
+    expect(rows.map((row) => row.detail).sort()).toStrictEqual([
+      "host=hops.example",
+      "host=img.hops.example",
+      "host=static.hops.example",
+      "host=www.hops.example",
+    ]);
+    expect(new Set(rows.map((row) => row.actor))).toStrictEqual(new Set([editor.userId]));
+  });
+
+  it("derives without a logo when the logo fetch is refused, and refuses when a stylesheet is", async () => {
+    const workspaceId = await newWorkspace("derive-degrade");
+    const withoutLogo = await derive(workspaceId, "https://svg.brand.example/");
+    expect(withoutLogo.status, await withoutLogo.clone().text()).toBe(200);
+    const { derived } = (await withoutLogo.json()) as { derived: unknown };
+    expect(DeriveResult.parse(derived).logoKey).toBeNull();
+
+    const badSheet = await derive(workspaceId, "https://sheet.brand.example/");
+    expect(badSheet.status).toBe(422);
+    expect(await badSheet.text()).toMatch(/THEME_DERIVE_REFUSED/u);
+  });
+
+  it("fetches exactly the URL the user typed, first, and nothing the server chose in its place (SEC-18 W2)", async () => {
+    const workspaceId = await newWorkspace("derive-typed");
+    const typed = fresh();
+    const res = await derive(
+      workspaceId,
+      "https://brand.example/?from=typed",
+      editor.token,
+      typed.app,
+    );
+    expect(res.status).toBe(422);
+    expect(typed.fetcher.requests).toStrictEqual([
+      { url: "https://brand.example/?from=typed", kind: "page" },
+    ]);
+    const body = await as(
+      typed.app,
+      editor.token,
+      "POST",
+      `/workspaces/${workspaceId}/themes/derive`,
+      { url: "https://brand.example/", suggestedUrl: "https://svg.brand.example/" },
+    );
+    expect(body.status).toBe(400);
+    expect(typed.fetcher.requests).toHaveLength(1);
   });
 
   it.each([
@@ -238,7 +311,7 @@ describe("one refusal for every cause (SEC-18 F10)", { timeout: TIMEOUT_MS }, ()
       "https://[::1]/",
       "https://unknown.example/",
       "https://brand.example/json",
-      "https://svg.brand.example/",
+      "https://sheet.brand.example/",
       "not a url",
     ];
     const answers = await Promise.all(

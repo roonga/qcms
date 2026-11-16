@@ -23,13 +23,13 @@ export const FETCH_LIMITS = {
 export const CONTENT_TYPES: Readonly<Record<BrandResourceKind, readonly string[]>> = {
   page: ["text/html", "application/xhtml+xml"],
   stylesheet: ["text/css"],
-  logo: ["image/png", "image/jpeg", "image/webp"],
+  logo: ["image/png", "image/jpeg"],
 };
 
 export const ACCEPT: Readonly<Record<BrandResourceKind, string>> = {
   page: "text/html",
   stylesheet: "text/css",
-  logo: "image/png, image/jpeg, image/webp",
+  logo: "image/png, image/jpeg",
 };
 
 export interface CheckedUrl {
@@ -73,17 +73,26 @@ function embeddedIpv4(address: ipaddr.IPv6): ipaddr.IPv4 {
   return new ipaddr.IPv4(bytes.slice(12, 16));
 }
 
+/** The deprecated IPv4-compatible block `::/96`, which `ipaddr.js` reads as `unicast`. */
+function ipv4Compatible(address: ipaddr.IPv6): boolean {
+  return address
+    .toByteArray()
+    .slice(0, 12)
+    .every((byte) => byte === 0);
+}
+
 /**
  * F2. Only `unicast` is public; every reserved, private, shared, link-local, loopback and
  * documentation range is something else. A mapped or NAT64 address is judged by the IPv4
- * address inside it, and 6to4 and Teredo, which tunnel to an address the record does not
- * show, are refused outright.
+ * address inside it, and 6to4, Teredo and IPv4-compatible addresses, which tunnel to an
+ * address the record does not show, are refused outright.
  */
 export function isPublicAddress(address: string): boolean {
   if (!ipaddr.isValid(address)) return false;
   const parsed = ipaddr.parse(address);
   if (parsed.kind() === "ipv4") return parsed.range() === "unicast";
   const v6 = parsed as ipaddr.IPv6;
+  if (ipv4Compatible(v6)) return false;
   const range = v6.range();
   if (range === "ipv4Mapped" || range === "rfc6052") {
     return embeddedIpv4(v6).range() === "unicast";

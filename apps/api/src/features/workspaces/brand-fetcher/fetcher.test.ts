@@ -99,6 +99,9 @@ describe("SEC-18 F2: every A and AAAA record public", () => {
     ["a unique-local IPv6 record", ["fd12:3456::1"]],
     ["shared address space", ["100.64.0.9"]],
     ["a 6to4 record", ["2002:a00:7::1"]],
+    ["a private record in IPv4-compatible form", ["::a00:1"]],
+    ["loopback in IPv4-compatible form", ["::127.0.0.1"]],
+    ["a public record in IPv4-compatible form", ["::808:808"]],
     ["no record at all", []],
   ])("refuses %s and dials nothing", async (_name, records) => {
     const dialled: string[] = [];
@@ -200,6 +203,41 @@ describe("SEC-18 F4: one same-site redirect, re-validated", () => {
     expect(resolver.calls).toStrictEqual(["www.brand.example", "brand.example"]);
   });
 
+  it("calls the contact hook with each host before it is resolved or dialled, the redirect target included (W4)", async () => {
+    redirect("www.brand.example", "/", "https://brand.example/home");
+    servePage("brand.example", "/home");
+    const events: string[] = [];
+    const resolver = fixtureResolver((host) => {
+      events.push(`resolve ${host}`);
+      return [FIXTURE_PUBLIC_ADDRESS];
+    });
+    const fetcher = fixtureBrandFetcher(fixture, { resolver });
+    await fetcher.fetch("https://www.brand.example/", "page", (host) => {
+      events.push(`contact ${host}`);
+      return Promise.resolve();
+    });
+    expect(events).toStrictEqual([
+      "contact www.brand.example",
+      "resolve www.brand.example",
+      "contact brand.example",
+      "resolve brand.example",
+    ]);
+  });
+
+  it("rethrows what the contact hook throws, unfolded, and contacts nothing", async () => {
+    servePage("brand.example");
+    const resolver = fixtureResolver();
+    const failure = new Error("audit unavailable");
+    const outcome = await fixtureBrandFetcher(fixture, { resolver })
+      .fetch("https://brand.example/", "page", () => Promise.reject(failure))
+      .then(
+        () => undefined,
+        (err: unknown) => err,
+      );
+    expect(outcome).toBe(failure);
+    expect(resolver.calls).toStrictEqual([]);
+  });
+
   it("refuses a same-site redirect whose target fails re-validation", async () => {
     redirect("www.brand.example", "/", "https://cdn.brand.example/");
     const fetcher = fixtureBrandFetcher(fixture, {
@@ -257,6 +295,18 @@ describe("SEC-18 F5: an allowlisted content type, confirmed by sniff", () => {
     expect((await refusal(fixtureBrandFetcher(fixture), "https://brand.example/")).reason).toBe(
       "sniff",
     );
+  });
+
+  it("refuses a WebP logo", async () => {
+    fixture.route("brand.example", "/logo.webp", (_req, res) => {
+      res
+        .writeHead(200, { "content-type": "image/webp" })
+        .end(Buffer.from("UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==", "base64"));
+    });
+    expect(
+      (await refusal(fixtureBrandFetcher(fixture), "https://brand.example/logo.webp", "logo"))
+        .reason,
+    ).toBe("content-type");
   });
 
   it("refuses an SVG logo and a polyglot that declares PNG", async () => {

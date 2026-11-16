@@ -1,4 +1,3 @@
-/* eslint-disable no-restricted-imports -- the Node adapter at the process boundary, composed into Deps by main.ts; handlers stay Fetch-pure (R4). */
 import { Resolver } from "node:dns/promises";
 import http from "node:http";
 import type { IncomingMessage } from "node:http";

@@ -1,5 +1,5 @@
 import { BrandFetchRefused, refuse } from "./port.js";
-import type { BrandFetcher, BrandResourceKind, FetchedResource } from "./port.js";
+import type { BeforeContact, BrandFetcher, BrandResourceKind, FetchedResource } from "./port.js";
 import {
   ACCEPT,
   FETCH_LIMITS,
@@ -56,14 +56,29 @@ function abortable<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
   });
 }
 
+/** Carries what the contact hook threw past the catch that folds every other failure into one refusal. */
+class ContactHookFailed extends Error {
+  constructor(readonly failure: Error) {
+    super("contact hook failed");
+  }
+}
+
 async function fetchOnce(
   options: BrandFetcherOptions,
   raw: string | URL,
   kind: BrandResourceKind,
   signal: AbortSignal,
+  beforeContact: BeforeContact | undefined,
 ): Promise<FetchedResource> {
   let target = checkUrl(raw, options.allowedHosts);
   for (let redirects = 0; ; redirects += 1) {
+    if (beforeContact !== undefined) {
+      await beforeContact(target.host).catch((err: unknown) => {
+        throw new ContactHookFailed(
+          err instanceof Error ? err : new Error("contact hook failed", { cause: err }),
+        );
+      });
+    }
     // Resolved once per request and never again: the transport dials this address and no
     // other, so a second DNS answer cannot reach the connection (F3).
     const addresses = await abortable(options.resolver.resolve(target.host, signal), signal);
@@ -93,12 +108,13 @@ async function fetchOnce(
 /** SEC-18 F1 to F6 and F9 over an injected resolver and transport. */
 export function createBrandFetcher(options: BrandFetcherOptions): BrandFetcher {
   return {
-    async fetch(raw, kind) {
+    async fetch(raw, kind, beforeContact) {
       const signal = AbortSignal.timeout(options.totalTimeoutMs ?? FETCH_LIMITS.totalTimeoutMs);
       try {
-        return await fetchOnce(options, raw, kind, signal);
+        return await fetchOnce(options, raw, kind, signal, beforeContact);
       } catch (err: unknown) {
-        // Whatever failed, the caller sees one refusal (F10).
+        if (err instanceof ContactHookFailed) throw err.failure;
+        // Whatever else failed, the caller sees one refusal (F10).
         if (err instanceof BrandFetchRefused) throw err;
         throw refuse(signal.aborted ? "timeout" : "transport");
       }

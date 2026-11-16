@@ -5,6 +5,7 @@ import { APPEARANCE_COLOR_TOKENS, APPEARANCE_FACES, PALETTE_KINDS } from "@roong
 
 import { DeriveResult } from "../schema.js";
 import { NothingToDerive, cssColor, deriveTheme, scanPage, seedFrom } from "./derive.js";
+import { withIhdr } from "../../../../e2e/support/png-fixtures.js";
 import { FakeBrandFetcher } from "./fake.js";
 import { createLogoCodec } from "./node-codec.js";
 import { BrandFetchRefused } from "./port.js";
@@ -66,6 +67,11 @@ function strings(value: unknown): string[] {
 }
 
 describe("reading a page for a theme", () => {
+  it("takes no WebP logo, whatever the markup says", () => {
+    const page = `<link rel="apple-touch-icon" type="image/webp" href="/a.webp"><link rel="icon" href="/b.webp">`;
+    expect(scanPage(page, new URL("https://brand.example/")).logo).toBeUndefined();
+  });
+
   it("takes the page's own stylesheets, at most two, and a raster logo the markup names", () => {
     const signals = scanPage(PAGE, new URL("https://brand.example/"));
     expect(signals.themeColor).toBe("#1D4ED8");
@@ -140,17 +146,117 @@ describe("the derive (SEC-18 F8, M1, M2)", () => {
     expect(JSON.stringify(derived)).not.toContain("Lexend");
   });
 
-  it("is refused as a whole when any one of its fetches is refused", async () => {
-    const fetcher = fakeSite().serve("https://brand.example/touch.png", {
-      contentType: "image/svg+xml",
-      body: "<svg/>",
+  it("is refused as a whole when the page or a stylesheet is refused", async () => {
+    const deps = (fetcher: FakeBrandFetcher) => ({
+      fetcher,
+      codec: createLogoCodec(),
+      storeLogo: () => Promise.resolve(null),
     });
-    await expect(
-      deriveTheme(
-        { fetcher, codec: createLogoCodec(), storeLogo: () => Promise.resolve(null) },
-        "https://brand.example/",
-      ),
-    ).rejects.toBeInstanceOf(BrandFetchRefused);
+    const badSheet = fakeSite().serve("https://brand.example/site.css", {
+      contentType: "text/html",
+      body: "<!doctype html>",
+    });
+    await expect(deriveTheme(deps(badSheet), "https://brand.example/")).rejects.toBeInstanceOf(
+      BrandFetchRefused,
+    );
+    const badPage = fakeSite().serve("https://brand.example/", {
+      contentType: "application/json",
+      body: "{}",
+    });
+    await expect(deriveTheme(deps(badPage), "https://brand.example/")).rejects.toBeInstanceOf(
+      BrandFetchRefused,
+    );
+  });
+
+  it.each([
+    [
+      "a logo fetch that is refused",
+      { contentType: "image/svg+xml", body: "<svg/>" },
+      "content-type",
+    ],
+    [
+      "a logo the codec refuses",
+      { contentType: "image/png", body: withIhdr(logoPng(), 5000, 5000) },
+      "too-many-pixels",
+    ],
+  ])("derives without a logo after %s", async (_name, resource, reason) => {
+    const fetcher = fakeSite().serve("https://brand.example/touch.png", resource);
+    const store = stored();
+    const dropped: string[] = [];
+    const derived = await deriveTheme(
+      {
+        fetcher,
+        codec: createLogoCodec(),
+        storeLogo: (logo) => store.storeLogo(logo),
+        onLogoDropped: (why) => dropped.push(why),
+      },
+      "https://brand.example/",
+    );
+    expect(derived.logoKey).toBeNull();
+    expect(store.logos).toStrictEqual([]);
+    expect(dropped).toStrictEqual([reason]);
+  });
+
+  it("passes every fetch the contact hook, so each host is recorded before it is contacted", async () => {
+    const fetcher = fakeSite();
+    const contacted: string[] = [];
+    await deriveTheme(
+      {
+        fetcher,
+        codec: createLogoCodec(),
+        storeLogo: () => Promise.resolve(null),
+        beforeContact: (host) => {
+          contacted.push(host);
+          return Promise.resolve();
+        },
+      },
+      "https://brand.example/",
+    );
+    expect(contacted).toStrictEqual([
+      "brand.example",
+      "brand.example",
+      "static.brand.example",
+      "brand.example",
+    ]);
+  });
+});
+
+describe("the scan is linear in what it reads (SEC-18 F6)", () => {
+  const MIB = 1024 * 1024;
+  const fill = (unit: string, bytes: number): string =>
+    unit.repeat(Math.floor(bytes / unit.length));
+  const timed = (work: () => unknown): number => {
+    const started = performance.now();
+    try {
+      work();
+    } catch (err: unknown) {
+      if (!(err instanceof NothingToDerive)) throw err;
+    }
+    return performance.now() - started;
+  };
+
+  it.each(["<link ", "<!--", "<style>", "<meta ", "<link a=", "<link rel='", "<"])(
+    "reads a 1 MiB page of %j in well under a second",
+    (unit) => {
+      const page = `<!doctype html>${fill(unit, MIB)}`;
+      expect(timed(() => scanPage(page, new URL("https://www.brand.example/")))).toBeLessThan(1000);
+    },
+  );
+
+  it.each(["rgb(", "rgba(", "{", "}", "#abc", "a{b:c;", "rgb(1,2,3)"])(
+    "reads a 2 MiB stylesheet of %j in well under a second",
+    (unit) => {
+      const css = fill(unit, 2 * MIB);
+      expect(timed(() => seedFrom(undefined, css))).toBeLessThan(1000);
+    },
+  );
+
+  it("still reads the tags and colours an ordinary page holds after the hostile run", () => {
+    const page = `${fill("<link ", 64 * 1024)}><meta name="theme-color" content="#0f766e">`;
+    expect(scanPage(page, new URL("https://brand.example/")).themeColor).toBe("#0f766e");
+    expect(seedFrom(undefined, `${fill("rgb(", 4096)}) .a{color:rgb(190, 18, 60)}`).primary).toBe(
+      "#be123c",
+    );
   });
 });
 

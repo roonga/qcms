@@ -8,9 +8,20 @@ export interface FetchedResource {
   readonly body: Uint8Array;
 }
 
+/**
+ * Called with each host once it passes F1 and before anything is sent to it, the redirect
+ * target included, so the audit names every host contacted (W4). What it throws is
+ * rethrown as it is, never folded into the uniform refusal.
+ */
+export type BeforeContact = (host: string) => Promise<void>;
+
 /** The only outbound fetch to an address a user chose (SEC-18). Every refusal is a {@link BrandFetchRefused}. */
 export interface BrandFetcher {
-  fetch(url: string | URL, kind: BrandResourceKind): Promise<FetchedResource>;
+  fetch(
+    url: string | URL,
+    kind: BrandResourceKind,
+    beforeContact?: BeforeContact,
+  ): Promise<FetchedResource>;
 }
 
 /**
@@ -40,7 +51,7 @@ export interface LogoCodec {
   reencode(bytes: Uint8Array): Promise<ReencodedLogo>;
 }
 
-export type LogoRefusalReason = "not-raster" | "too-many-pixels" | "too-large";
+export type LogoRefusalReason = "not-raster" | "unsupported" | "too-many-pixels" | "too-large";
 
 export class LogoRefused extends Error {
   constructor(readonly reason: LogoRefusalReason) {

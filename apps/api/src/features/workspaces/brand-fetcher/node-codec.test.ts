@@ -1,10 +1,21 @@
-import { deflateSync } from "node:zlib";
+import { inflateSync } from "node:zlib";
 
 import jpeg from "jpeg-js";
 import pngjs from "pngjs";
 import { describe, expect, it } from "vitest";
 
+import {
+  IEND,
+  PNG_SIGNATURE,
+  craftPng,
+  idatChunk,
+  ihdrChunk,
+  pngChunk,
+  withIhdr,
+} from "../../../../e2e/support/png-fixtures.js";
 import { createLogoCodec } from "./node-codec.js";
+import type { BoundedInflate } from "./node-codec.js";
+import { LOGO_MAX_PIXELS } from "./logo-dimensions.js";
 import { LogoRefused } from "./port.js";
 import type { LogoRefusalReason } from "./port.js";
 
@@ -21,25 +32,44 @@ const SOLID = png(8, 4, (index) => (index % 4 === 3 ? 255 : 0x40));
 /** A lossless 1x1 WebP. */
 const WEBP_1X1 = Buffer.from("UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==", "base64");
 
-function withIhdr(width: number, height: number, interlace = 0): Buffer {
-  const copy = Buffer.from(SOLID);
-  copy.writeUInt32BE(width, 16);
-  copy.writeUInt32BE(height, 20);
-  copy[28] = interlace;
-  return copy;
-}
-
-async function refusedWith(bytes: Uint8Array, reason: LogoRefusalReason): Promise<void> {
-  const outcome = await codec.reencode(bytes).then(
+async function refusal(
+  bytes: Uint8Array,
+  using = codec,
+): Promise<{ readonly reason: LogoRefusalReason; readonly ms: number }> {
+  const started = performance.now();
+  const outcome = await using.reencode(bytes).then(
     () => undefined,
     (err: unknown) => err,
   );
   expect(outcome).toBeInstanceOf(LogoRefused);
-  expect((outcome as LogoRefused).reason).toBe(reason);
+  return { reason: (outcome as LogoRefused).reason, ms: performance.now() - started };
+}
+
+async function refusedWith(bytes: Uint8Array, reason: LogoRefusalReason): Promise<void> {
+  expect((await refusal(bytes)).reason).toBe(reason);
+}
+
+/** A codec whose pre-inflate is observed: the bound it was given, and how it ended. */
+function observedCodec(): {
+  readonly codec: ReturnType<typeof createLogoCodec>;
+  readonly calls: { maxOutputLength: number; outcome: "ok" | "over-bound" }[];
+} {
+  const calls: { maxOutputLength: number; outcome: "ok" | "over-bound" }[] = [];
+  const inflate: BoundedInflate = (data, options) => {
+    try {
+      const out = inflateSync(data, options);
+      calls.push({ maxOutputLength: options.maxOutputLength, outcome: "ok" });
+      return out;
+    } catch (err: unknown) {
+      calls.push({ maxOutputLength: options.maxOutputLength, outcome: "over-bound" });
+      throw err;
+    }
+  };
+  return { codec: createLogoCodec({ inflate }), calls };
 }
 
 function isPng(bytes: Uint8Array): boolean {
-  return Buffer.from(bytes.subarray(0, 8)).equals(Buffer.from(SOLID.subarray(0, 8)));
+  return Buffer.from(bytes.subarray(0, 8)).equals(PNG_SIGNATURE);
 }
 
 describe("SEC-18 F7: a logo is decoded, held to the pixel cap and re-encoded", () => {
@@ -52,8 +82,11 @@ describe("SEC-18 F7: a logo is decoded, held to the pixel cap and re-encoded", (
   });
 
   it("drops a text chunk and refuses a trailing payload", async () => {
-    const text = Buffer.from("tEXtComment\0hello");
-    const withText = Buffer.concat([SOLID.subarray(0, 33), chunkOf(text), SOLID.subarray(33)]);
+    const withText = Buffer.concat([
+      SOLID.subarray(0, 33),
+      pngChunk("tEXt", Buffer.from("Comment\0hello")),
+      SOLID.subarray(33),
+    ]);
     const stripped = Buffer.from((await codec.reencode(withText)).bytes);
     expect(stripped.includes(Buffer.from("tEXt"))).toBe(false);
     expect(stripped.includes(Buffer.from("hello"))).toBe(false);
@@ -62,20 +95,17 @@ describe("SEC-18 F7: a logo is decoded, held to the pixel cap and re-encoded", (
     await refusedWith(Buffer.concat([SOLID, payload]), "not-raster");
   });
 
-  it("re-encodes a JPEG and a WebP as PNG", async () => {
+  it("re-encodes a JPEG as PNG, and refuses a WebP as unsupported", async () => {
     const jpegBytes = jpeg.encode(
       { width: 6, height: 3, data: Buffer.alloc(6 * 3 * 4, 0x80) },
       90,
     ).data;
-    for (const [input, size] of [
-      [jpegBytes, [6, 3]],
-      [WEBP_1X1, [1, 1]],
-    ] as const) {
-      const out = await codec.reencode(input);
-      expect(out.contentType).toBe("image/png");
-      expect(isPng(out.bytes)).toBe(true);
-      expect([out.width, out.height]).toStrictEqual(size);
-    }
+    const out = await codec.reencode(jpegBytes);
+    expect(out.contentType).toBe("image/png");
+    expect(isPng(out.bytes)).toBe(true);
+    expect([out.width, out.height]).toStrictEqual([6, 3]);
+
+    await refusedWith(WEBP_1X1, "unsupported");
   });
 
   it("refuses an SVG and a polyglot that leads with a PNG signature", async () => {
@@ -85,8 +115,16 @@ describe("SEC-18 F7: a logo is decoded, held to the pixel cap and re-encoded", (
   });
 
   it("refuses over the pixel cap from the header alone, before decoding", async () => {
-    await refusedWith(withIhdr(5000, 10), "too-many-pixels");
-    await refusedWith(withIhdr(3000, 3000), "too-many-pixels");
+    const observed = observedCodec();
+    for (const [width, height] of [
+      [5000, 10],
+      [3000, 3000],
+    ] as const) {
+      expect((await refusal(withIhdr(SOLID, width, height), observed.codec)).reason).toBe(
+        "too-many-pixels",
+      );
+    }
+    expect(observed.calls).toStrictEqual([]);
 
     const jpegBytes = Buffer.from(
       jpeg.encode({ width: 4, height: 4, data: Buffer.alloc(64, 0x80) }, 90).data,
@@ -95,33 +133,86 @@ describe("SEC-18 F7: a logo is decoded, held to the pixel cap and re-encoded", (
     jpegBytes.writeUInt16BE(6000, sof + 5);
     jpegBytes.writeUInt16BE(6000, sof + 7);
     await refusedWith(jpegBytes, "too-many-pixels");
-
-    const webp = Buffer.alloc(30);
-    webp.write("RIFF", 0, "ascii");
-    webp.writeUInt32LE(22, 4);
-    webp.write("WEBPVP8X", 8, "ascii");
-    webp.writeUIntLE(7999, 24, 3);
-    webp.writeUIntLE(7999, 27, 3);
-    await refusedWith(webp, "too-many-pixels");
   });
 
-  it("refuses a header that disagrees with the pixels, and an interlaced PNG", async () => {
-    await refusedWith(withIhdr(9, 4), "not-raster");
-    await refusedWith(withIhdr(8, 4, 1), "not-raster");
+  it("refuses a header that disagrees with the pixels, and an interlaced PNG as unsupported", async () => {
+    await refusedWith(withIhdr(SOLID, 9, 4), "not-raster");
+    await refusedWith(withIhdr(SOLID, 8, 4, 1), "unsupported");
   });
 
-  it("bounds a PNG whose image data inflates far past its dimensions", async () => {
-    const ihdr = SOLID.subarray(0, 33);
-    const bomb = Buffer.concat([
-      ihdr,
-      chunkOf(Buffer.concat([Buffer.from("IDAT"), deflateSync(Buffer.alloc(32 * 1024 * 1024))])),
-      SOLID.subarray(SOLID.length - 12),
-    ]);
-    const outcome = await codec.reencode(bomb).then(
-      (out) => [out.width, out.height],
-      (err: unknown) => (err as LogoRefused).reason,
+  it("refuses a wrong IHDR CRC, an IHDR that is not first, and a second IHDR", async () => {
+    const badCrc = Buffer.from(SOLID);
+    badCrc[29] = badCrc[29]! ^ 0xff;
+    await refusedWith(badCrc, "not-raster");
+
+    const idat = idatChunk(Buffer.alloc((8 * 4 + 1) * 4));
+    await refusedWith(
+      craftPng([pngChunk("tEXt", Buffer.from("a\0b")), ihdrChunk(8, 4), idat, IEND]),
+      "not-raster",
     );
-    expect([[8, 4], "not-raster"]).toContainEqual(outcome);
+    await refusedWith(craftPng([ihdrChunk(8, 4), ihdrChunk(8, 4), idat, IEND]), "not-raster");
+  });
+
+  it("refuses a second IHDR at 22000x22000 before any inflate, in well under a second", async () => {
+    const observed = observedCodec();
+    const raw = Buffer.alloc(22_001 * 64);
+    const doubled = craftPng([
+      ihdrChunk(1, 1, { colorType: 0 }),
+      ihdrChunk(22_000, 22_000, { colorType: 0 }),
+      idatChunk(raw),
+      IEND,
+    ]);
+    const refused = await refusal(doubled, observed.codec);
+    expect(refused.reason).toBe("not-raster");
+    expect(refused.ms).toBeLessThan(500);
+    expect(observed.calls).toStrictEqual([]);
+  });
+
+  it("refuses a second IHDR that sets interlace before any inflate", async () => {
+    const observed = observedCodec();
+    const doubled = craftPng([
+      ihdrChunk(1, 1, { colorType: 0 }),
+      ihdrChunk(8, 8, { colorType: 0, interlace: 1 }),
+      idatChunk(Buffer.alloc(16 * 1024 * 1024)),
+      IEND,
+    ]);
+    expect((await refusal(doubled, observed.codec)).reason).toBe("not-raster");
+    expect(observed.calls).toStrictEqual([]);
+  });
+
+  it("inflates image data against the exact size the header allows, and stops a bomb at that bound", async () => {
+    const observed = observedCodec();
+    await observed.codec.reencode(SOLID);
+    // Eight RGBA pixels and one filter byte per row, four rows.
+    expect(observed.calls).toStrictEqual([{ maxOutputLength: (8 * 4 + 1) * 4, outcome: "ok" }]);
+
+    const bomb = craftPng([ihdrChunk(8, 4), idatChunk(Buffer.alloc(32 * 1024 * 1024)), IEND]);
+    const bombed = observedCodec();
+    expect((await refusal(bomb, bombed.codec)).reason).toBe("not-raster");
+    expect(bombed.calls).toStrictEqual([{ maxOutputLength: 132, outcome: "over-bound" }]);
+  });
+
+  it("decodes a JPEG exactly at the pixel cap, and refuses one a row past it", async () => {
+    const side = Math.sqrt(LOGO_MAX_PIXELS);
+    const atCap = Buffer.from(
+      jpeg.encode({ width: side, height: side, data: Buffer.alloc(side * side * 4, 0x80) }, 50)
+        .data,
+    );
+    const out = await codec.reencode(atCap);
+    expect([out.width, out.height]).toStrictEqual([side, side]);
+
+    const sof = atCap.indexOf(Buffer.from([0xff, 0xc0]));
+    const past = Buffer.from(atCap);
+    past.writeUInt16BE(side + 1, sof + 5);
+    await refusedWith(past, "too-many-pixels");
+  }, 60_000);
+
+  it("refuses a JPEG frame with a component count no logo has", async () => {
+    const bytes = Buffer.from(
+      jpeg.encode({ width: 4, height: 4, data: Buffer.alloc(64, 0x80) }, 90).data,
+    );
+    bytes[bytes.indexOf(Buffer.from([0xff, 0xc0])) + 9] = 200;
+    await refusedWith(bytes, "not-raster");
   });
 
   it("refuses a logo whose re-encoding is over the byte cap", async () => {
@@ -133,24 +224,3 @@ describe("SEC-18 F7: a logo is decoded, held to the pixel cap and re-encoded", (
     await refusedWith(noise, "too-large");
   });
 });
-
-const CRC_TABLE = Array.from({ length: 256 }, (_, n) => {
-  let c = n;
-  for (let k = 0; k < 8; k += 1) c = c & 1 ? 0xed_b8_83_20 ^ (c >>> 1) : c >>> 1;
-  return c >>> 0;
-});
-
-function crc32(bytes: Buffer): number {
-  let c = 0xff_ff_ff_ff;
-  for (const byte of bytes) c = CRC_TABLE[(c ^ byte) & 0xff]! ^ (c >>> 8);
-  return (c ^ 0xff_ff_ff_ff) >>> 0;
-}
-
-/** `typeAndData` is the four-byte type followed by the data. */
-function chunkOf(typeAndData: Buffer): Buffer {
-  const length = Buffer.alloc(4);
-  length.writeUInt32BE(typeAndData.length - 4);
-  const crc = Buffer.alloc(4);
-  crc.writeUInt32BE(crc32(typeAndData));
-  return Buffer.concat([length, typeAndData, crc]);
-}

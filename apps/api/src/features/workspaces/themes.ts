@@ -76,14 +76,20 @@ const fail = {
   logoTooLarge: (): ApiError =>
     new ApiError("LOGO_TOO_LARGE", 413, `A logo may be at most ${String(LOGO_MAX_BYTES)} bytes`),
   /**
-   * One answer for an SVG, a polyglot and anything else the bytes do not declare as one of
-   * the three raster types: the sniff is the only authority, so there is nothing more to say.
+   * One answer for an SVG, a polyglot and anything else the bytes do not hold as a PNG or
+   * JPEG: the sniff and the decoder are the only authority, so there is nothing more to say.
    */
   notRaster: (): ApiError =>
     new ApiError(
       "LOGO_NOT_RASTER",
       422,
-      "A logo must be a PNG, JPEG or WebP image. The bytes decide, not the request's content type, and SVG is refused.",
+      "A logo must be a PNG or JPEG image. The bytes decide, not the request's content type, and SVG is refused.",
+    ),
+  unsupportedLogo: (): ApiError =>
+    new ApiError(
+      "LOGO_UNSUPPORTED",
+      422,
+      "That image type is not accepted. Save the logo as a non-interlaced PNG or a JPEG.",
     ),
   tooManyPixels: (): ApiError =>
     new ApiError(
@@ -302,6 +308,7 @@ async function reencoded(deps: Deps, bytes: Uint8Array): Promise<ReencodedLogo> 
     return await deps.logoCodec.reencode(bytes);
   } catch (err: unknown) {
     if (!(err instanceof LogoRefused)) throw err;
+    if (err.reason === "unsupported") throw fail.unsupportedLogo();
     if (err.reason === "too-many-pixels") throw fail.tooManyPixels();
     if (err.reason === "too-large") throw fail.logoTooLarge();
     throw fail.notRaster();

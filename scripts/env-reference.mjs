@@ -526,7 +526,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "off",
     description:
-      "`on` mounts `POST /admin/workspaces/{id}/themes/derive`, the one outbound fetch to an address a user types (SEC-18). Separate from `QCMS_FLAG_AGENT_AUTHORING`; `off` leaves the route 404 whatever that says.",
+      "`on` mounts `POST /admin/workspaces/{id}/themes/derive`, the one outbound fetch to an address a user types (SEC-18): the page, up to two of its own stylesheets and one PNG or JPEG logo. Separate from `QCMS_FLAG_AGENT_AUTHORING`; `off` leaves the route 404 whatever that says.",
   },
   {
     name: "QCMS_THEME_DERIVE_ALLOWED_HOSTS",

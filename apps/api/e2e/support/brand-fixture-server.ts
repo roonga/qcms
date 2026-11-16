@@ -89,7 +89,7 @@ export async function startBrandFixtureServer(): Promise<BrandFixtureServer> {
       authorization: req.headers.authorization,
     });
     const handler = routes.get(`${host ?? ""}${path}`);
-    if (handler === undefined) {
+    if (typeof handler !== "function") {
       res.writeHead(404, { "content-type": "text/plain" }).end("not found");
       return;
     }

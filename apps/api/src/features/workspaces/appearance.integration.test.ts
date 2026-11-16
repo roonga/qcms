@@ -21,6 +21,13 @@ import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcm
 import pngjs from "pngjs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import {
+  IEND,
+  craftPng,
+  idatChunk,
+  ihdrChunk,
+  withIhdr,
+} from "../../../e2e/support/png-fixtures.js";
 import { createApp } from "../../app.js";
 import type { Deps } from "../../deps.js";
 import { ADMIN_SESSION_HEADER, registerAdminAuth } from "../../middleware/admin-auth.js";
@@ -765,12 +772,38 @@ describe("the logo route (criterion 122)", { timeout: TIMEOUT_MS }, () => {
     expect(signatureOnly.status).toBe(422);
     expect(await codeOf(signatureOnly)).toBe("LOGO_NOT_RASTER");
 
-    const huge = pngBytes(0x10);
-    huge.writeUInt32BE(5000, 16);
-    huge.writeUInt32BE(5000, 20);
+    const huge = withIhdr(pngBytes(0x10), 5000, 5000);
     const tooManyPixels = await uploadLogo(workspaceId, themeId, huge.toString("base64"));
     expect(tooManyPixels.status).toBe(422);
     expect(await codeOf(tooManyPixels)).toBe("LOGO_TOO_MANY_PIXELS");
+
+    const secondIhdr = craftPng([
+      ihdrChunk(1, 1, { colorType: 0 }),
+      ihdrChunk(22_000, 22_000, { colorType: 0 }),
+      idatChunk(Buffer.alloc(22_001 * 64)),
+      IEND,
+    ]);
+    const started = performance.now();
+    const doubled = await uploadLogo(workspaceId, themeId, secondIhdr.toString("base64"));
+    expect(performance.now() - started).toBeLessThan(2000);
+    expect(doubled.status).toBe(422);
+    expect(await codeOf(doubled)).toBe("LOGO_NOT_RASTER");
+
+    const interlaced = await uploadLogo(
+      workspaceId,
+      themeId,
+      withIhdr(pngBytes(0x14), 4, 4, 1).toString("base64"),
+    );
+    expect(interlaced.status).toBe(422);
+    expect(await codeOf(interlaced)).toBe("LOGO_UNSUPPORTED");
+
+    const webp = await uploadLogo(
+      workspaceId,
+      themeId,
+      "UklGRhoAAABXRUJQVlA4TA0AAAAvAAAAEAcQERGIiP4HAA==",
+    );
+    expect(webp.status).toBe(422);
+    expect(await codeOf(webp)).toBe("LOGO_UNSUPPORTED");
 
     const trailing = Buffer.concat([pngBytes(0x12), Buffer.from("<script>trailing</script>")]);
     const withPayload = await uploadLogo(workspaceId, themeId, trailing.toString("base64"));

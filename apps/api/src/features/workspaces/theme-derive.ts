@@ -10,7 +10,7 @@ import { errorResponses, jsonBody, withScopes } from "../../openapi.js";
 import type { ApiEnv } from "../../openapi.js";
 import { rateLimit } from "../../rate-limit.js";
 import { NothingToDerive, deriveTheme } from "./brand-fetcher/derive.js";
-import { BrandFetchRefused, LogoRefused } from "./brand-fetcher/port.js";
+import { BrandFetchRefused } from "./brand-fetcher/port.js";
 import type { ReencodedLogo } from "./brand-fetcher/port.js";
 import { checkUrl } from "./brand-fetcher/policy.js";
 import { sha256Hex } from "./logo-digest.js";
@@ -46,11 +46,12 @@ export const deriveThemeRoute = createRoute({
   description:
     "Behind its own flag, off by default and separate from the agent flag; with it off the " +
     "route is 404. Fetches the https page the user typed, up to two of its own stylesheets " +
-    "and one raster logo, each held to SEC-18: every DNS record public, the connection " +
+    "and one PNG or JPEG logo, each held to SEC-18: every DNS record public, the connection " +
     "pinned to the checked address, port 443, one same-site redirect, a sniffed content " +
     "type and caps on bytes, time and pixels. The logo is re-encoded and stored. Nothing " +
-    "is saved as a theme. Every refusal is one uniform `THEME_DERIVE_REFUSED`, and each " +
-    "fetch writes one `derive` row, with the host, to the workspace audit.",
+    "is saved as a theme. A logo that is refused is left out and the derive goes on; every " +
+    "other refusal is one uniform `THEME_DERIVE_REFUSED`. Each fetch writes one `derive` " +
+    "row to the workspace audit, naming the host contacted, before it is contacted.",
   tags: ["workspace themes"],
   request: { params: WorkspaceIdParam, body: jsonBody(DeriveThemeBody) },
   responses: {
@@ -98,28 +99,29 @@ export function makeDeriveThemeHandler(deps: Deps): RouteHandler<typeof deriveTh
     } catch {
       throw fail.refused();
     }
-    // Before the fetch, so a fetch that fails or times out is on the record too.
-    await writeAccessAuditRow(deps.databases.control, {
-      actor: principal.userId,
-      workspaceId,
-      kind: "derive",
-      detail: `host=${host}`,
-      occurredAt: deps.clock.now(),
-    });
-
     try {
       const derived = await deriveTheme(
         {
           fetcher: deps.brandFetcher,
           codec: deps.logoCodec,
           storeLogo: (logo) => storeDerivedLogo(deps, logo, principal.userId),
+          beforeContact: (contacted) =>
+            writeAccessAuditRow(deps.databases.control, {
+              actor: principal.userId,
+              workspaceId,
+              kind: "derive",
+              detail: `host=${contacted}`,
+              occurredAt: deps.clock.now(),
+            }),
+          onLogoDropped: (reason) =>
+            deps.logger.info("theme derive logo dropped", { reason, host }),
         },
         url,
       );
       return c.json({ derived }, 200);
     } catch (err: unknown) {
       if (err instanceof NothingToDerive) throw fail.nothingFound();
-      if (err instanceof BrandFetchRefused || err instanceof LogoRefused) {
+      if (err instanceof BrandFetchRefused) {
         deps.logger.info("theme derive refused", { reason: err.reason, host });
         throw fail.refused();
       }

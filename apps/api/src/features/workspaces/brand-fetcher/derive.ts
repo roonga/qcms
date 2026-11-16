@@ -4,7 +4,8 @@ import { deriveAppearance } from "@roonga/qcms-core";
 import type { AppearanceSeed } from "@roonga/qcms-core";
 
 import { DeriveResult } from "../schema.js";
-import type { BrandFetcher, LogoCodec, ReencodedLogo } from "./port.js";
+import { BrandFetchRefused, LogoRefused } from "./port.js";
+import type { BeforeContact, BrandFetcher, LogoCodec, ReencodedLogo } from "./port.js";
 import { FETCH_LIMITS } from "./policy.js";
 
 /** The page held no colour to derive from; the fetch itself succeeded. */
@@ -21,6 +22,25 @@ export interface PageSignals {
   readonly stylesheets: readonly URL[];
   readonly logo: URL | undefined;
 }
+
+/**
+ * Every scan is one forward pass over text already held to the F6 byte caps, and these
+ * bound how much of it is examined, so a hostile page costs linear time and no more.
+ */
+export const SCAN_LIMITS = {
+  /** A tag longer than this is skipped unread. */
+  maxTagLength: 8_192,
+  /** `<link>`, `<meta>` and `<style>` tags read, in document order. */
+  maxTags: 4_096,
+  /** CSS blocks read, counted at each closing brace. */
+  maxRules: 65_536,
+  /** Colour tokens counted for the most used chromatic colour. */
+  maxColorTokens: 16_384,
+  /** The longest `rgb()` token read. */
+  maxColorFunctionLength: 64,
+  /** The longest value a colour is read from. */
+  maxColorValueLength: 128,
+} as const;
 
 const isSpace = (char: string | undefined): boolean =>
   char !== undefined && " \t\n\r\f".includes(char);
@@ -43,10 +63,10 @@ function readValue(text: string, at: number): { readonly value: string; readonly
   return { value: text.slice(at, index), next: index };
 }
 
-/** A tokenizer rather than a pattern, so a hostile tag costs linear time. */
-function attributesOf(tag: string): Map<string, string> {
+/** `raw` is what follows the tag name, up to but not including the closing `>`. */
+function attributesOf(raw: string): Map<string, string> {
   const attributes = new Map<string, string>();
-  const text = tag.replace(/^<\w+/u, "").replace(/\/?>$/u, "");
+  const text = raw.endsWith("/") ? raw.slice(0, -1) : raw;
   let index = skipSpace(text, 0);
   while (index < text.length) {
     const start = index;
@@ -65,8 +85,83 @@ function attributesOf(tag: string): Map<string, string> {
   return attributes;
 }
 
-function tags(html: string, name: string): Map<string, string>[] {
-  return [...html.matchAll(new RegExp(`<${name}\\b[^>]*>`, "giu"))].map((m) => attributesOf(m[0]));
+/** ASCII letters only, so every index into the result is an index into the original. */
+function asciiLower(text: string): string {
+  return text.replaceAll(/[A-Z]+/gu, (run) => run.toLowerCase());
+}
+
+const READ_TAGS = ["link", "meta", "style"] as const;
+type ReadTag = (typeof READ_TAGS)[number];
+
+/** The tag name at `at`, if it is one the scan reads and ends at a space, `/` or `>`. */
+function readTagAt(lower: string, at: number): ReadTag | undefined {
+  for (const name of READ_TAGS) {
+    if (!lower.startsWith(name, at)) continue;
+    const next = lower[at + name.length];
+    if (next === undefined || next === "/" || next === ">" || isSpace(next)) return name;
+  }
+  return undefined;
+}
+
+interface Markup {
+  readonly links: Map<string, string>[];
+  readonly metas: Map<string, string>[];
+  readonly styles: string[];
+}
+
+interface Scan {
+  readonly html: string;
+  readonly lower: string;
+  readonly markup: Markup;
+  /** The next `>` at or after the last tag read, or -1 once there is none. */
+  close: number;
+  tagsRead: number;
+}
+
+function readStyle(scan: Scan, after: number, readable: boolean): number {
+  const end = scan.lower.indexOf("</style", after);
+  if (end === -1) return -1;
+  if (readable) scan.markup.styles.push(scan.html.slice(after, end));
+  return scan.lower.indexOf("<", end + 1);
+}
+
+/** Reads the comment or tag at `at`, and answers where the next `<` is, or -1 to stop. */
+function scanStep(scan: Scan, at: number): number {
+  const { lower } = scan;
+  if (lower.startsWith("<!--", at)) {
+    const end = lower.indexOf("-->", at + 4);
+    return end === -1 ? -1 : lower.indexOf("<", end + 3);
+  }
+  const name = readTagAt(lower, at + 1);
+  if (name === undefined) return lower.indexOf("<", at + 1);
+  if (scan.close < at) scan.close = lower.indexOf(">", at);
+  if (scan.close === -1) return -1;
+  scan.tagsRead += 1;
+  const after = scan.close + 1;
+  const readable = after - at <= SCAN_LIMITS.maxTagLength;
+  if (name === "style") return readStyle(scan, after, readable);
+  if (readable) {
+    const attributes = attributesOf(scan.html.slice(at + 1 + name.length, scan.close));
+    (name === "link" ? scan.markup.links : scan.markup.metas).push(attributes);
+  }
+  return lower.indexOf("<", after);
+}
+
+/**
+ * Every search starts past where the last one of its kind ended, and the next `>` is found
+ * once and reused, so each character is read a fixed number of times.
+ */
+function scanMarkup(html: string): Markup {
+  const scan: Scan = {
+    html,
+    lower: asciiLower(html),
+    markup: { links: [], metas: [], styles: [] },
+    close: -1,
+    tagsRead: 0,
+  };
+  let at = scan.lower.indexOf("<");
+  while (at !== -1 && scan.tagsRead < SCAN_LIMITS.maxTags) at = scanStep(scan, at);
+  return scan.markup;
 }
 
 function relTokens(attributes: Map<string, string>): string[] {
@@ -86,8 +181,8 @@ function sameSiteUrl(href: string | undefined, base: URL, site: string | null): 
   return url;
 }
 
-const RASTER_PATH = /\.(?:png|jpe?g|webp)$/iu;
-const RASTER_TYPE = /^image\/(?:png|jpeg|webp)$/iu;
+const RASTER_PATH = /\.(?:png|jpe?g)$/iu;
+const RASTER_TYPE = /^image\/(?:png|jpeg)$/iu;
 
 function rasterCandidate(attributes: Map<string, string>, href: string | undefined): boolean {
   const type = attributes.get("type");
@@ -97,21 +192,17 @@ function rasterCandidate(attributes: Map<string, string>, href: string | undefin
 
 /**
  * Reads only what a theme needs. Subresources are taken from the page's own registrable
- * domain alone, and a logo only where the markup says it is PNG, JPEG or WebP, so the
- * derive never fetches what it would then have to refuse.
+ * domain alone, and a logo only where the markup says it is PNG or JPEG, so the derive
+ * never fetches what it would then have to refuse.
  */
 export function scanPage(html: string, pageUrl: URL): PageSignals {
-  const source = html.replace(/<!--[\s\S]*?-->/gu, "");
   const site = getDomain(pageUrl.hostname, { allowPrivateDomains: true });
-  const links = tags(source, "link");
-  const metas = tags(source, "meta");
+  const { links, metas, styles } = scanMarkup(html);
 
   const themeColor = metas
     .find((m) => m.get("name")?.toLowerCase() === "theme-color")
     ?.get("content");
-  const css = [...source.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/giu)]
-    .map((m) => m[1]!)
-    .join("\n");
+  const css = styles.join("\n");
   const stylesheets = links
     .filter((l) => relTokens(l).includes("stylesheet"))
     .map((l) => sameSiteUrl(l.get("href"), pageUrl, site))
@@ -143,7 +234,7 @@ function hex2(value: number): string {
 
 /** A CSS colour as `#rrggbb`, or undefined for anything that is not a plain hex or `rgb()`. */
 export function cssColor(value: string | undefined): string | undefined {
-  const text = (value ?? "").trim().toLowerCase();
+  const text = (value ?? "").slice(0, SCAN_LIMITS.maxColorValueLength).trim().toLowerCase();
   const hex = /^#([0-9a-f]{3,8})\b/u.exec(text)?.[1];
   if (hex !== undefined) {
     if (hex.length === 3 || hex.length === 4)
@@ -174,25 +265,28 @@ interface Rule {
 
 /** Innermost blocks only, so a rule inside `@media` reads as its own selector. */
 function rulesOf(css: string): Rule[] {
-  return css.split("}").flatMap((piece) => {
+  const rules: Rule[] = [];
+  let from = 0;
+  for (let read = 0; read < SCAN_LIMITS.maxRules; read += 1) {
+    const end = css.indexOf("}", from);
+    if (end === -1) break;
+    const piece = css.slice(from, end);
+    from = end + 1;
     const open = piece.lastIndexOf("{");
-    if (open === -1) return [];
+    if (open === -1) continue;
     const head = piece.slice(0, open);
     const selector = head.slice(Math.max(head.lastIndexOf("{"), head.lastIndexOf(";")) + 1);
-    return [
-      {
-        selectors: selector.split(",").map((part) => part.trim().toLowerCase()),
-        declarations: piece
-          .slice(open + 1)
-          .split(";")
-          .map((declaration) => declaration.split(":"))
-          .filter((parts) => parts.length >= 2)
-          .map(
-            (parts) => [parts[0]!.trim().toLowerCase(), parts.slice(1).join(":").trim()] as const,
-          ),
-      },
-    ];
-  });
+    rules.push({
+      selectors: selector.split(",").map((part) => part.trim().toLowerCase()),
+      declarations: piece
+        .slice(open + 1)
+        .split(";")
+        .map((declaration) => declaration.split(":"))
+        .filter((parts) => parts.length >= 2)
+        .map((parts) => [parts[0]!.trim().toLowerCase(), parts.slice(1).join(":").trim()] as const),
+    });
+  }
+  return rules;
 }
 
 function customProperty(rules: readonly Rule[], names: readonly string[]): string | undefined {
@@ -219,10 +313,25 @@ function rootDeclarations(rules: readonly Rule[]): Map<string, string> {
   return declarations;
 }
 
+/** Fixed-width alternatives with no nested quantifier: each start position costs a constant. */
+const COLOR_TOKEN = /#[0-9a-f]{3,8}\b|rgba?\(/giu;
+
 function mostFrequentChromatic(css: string): string | undefined {
   const counts = new Map<string, number>();
-  for (const [match] of css.matchAll(/#[0-9a-f]{3,8}\b|rgba?\([^)]*\)/giu)) {
-    const color = cssColor(match);
+  let examined = 0;
+  // The next `)`, found once and reused until the scan passes it; -1 once there is none.
+  let close: number | undefined;
+  for (const match of css.matchAll(COLOR_TOKEN)) {
+    examined += 1;
+    if (examined > SCAN_LIMITS.maxColorTokens) break;
+    let token = match[0];
+    if (!token.startsWith("#")) {
+      const start = match.index;
+      if (close === undefined || (close !== -1 && close < start)) close = css.indexOf(")", start);
+      if (close === -1 || close - start >= SCAN_LIMITS.maxColorFunctionLength) continue;
+      token = css.slice(start, close + 1);
+    }
+    const color = cssColor(token);
     if (color !== undefined && chromatic(color)) counts.set(color, (counts.get(color) ?? 0) + 1);
   }
   return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
@@ -254,29 +363,43 @@ export interface DeriveDeps {
   readonly codec: LogoCodec;
   /** Stores the re-encoded logo and answers its key, or null where it may not be stored. */
   readonly storeLogo: (logo: ReencodedLogo) => Promise<string | null>;
+  /** Passed to every fetch, so each host contacted is recorded before it is (W4). */
+  readonly beforeContact?: BeforeContact;
+  /** Told why a refused logo was left out of a derive that otherwise succeeds. */
+  readonly onLogoDropped?: (reason: string) => void;
 }
 
 const UTF8 = new TextDecoder("utf-8", { fatal: false });
 
+async function deriveLogo(deps: DeriveDeps, url: URL): Promise<string | null> {
+  let logo: ReencodedLogo;
+  try {
+    const fetched = await deps.fetcher.fetch(url, "logo", deps.beforeContact);
+    logo = await deps.codec.reencode(fetched.body);
+  } catch (err: unknown) {
+    if (!(err instanceof BrandFetchRefused) && !(err instanceof LogoRefused)) throw err;
+    deps.onLogoDropped?.(err.reason);
+    return null;
+  }
+  return deps.storeLogo(logo);
+}
+
 /**
  * The page, up to two of its stylesheets and one logo, each through the fetcher on its own
- * (F8). What leaves is the strict {@link DeriveResult}: colours, a registry face and a logo
+ * (F8). A refused page or stylesheet refuses the derive; a refused logo leaves it without
+ * one. What leaves is the strict {@link DeriveResult}: colours, a registry face and a logo
  * key, and nothing the page wrote (M1).
  */
 export async function deriveTheme(deps: DeriveDeps, url: string): Promise<DeriveResult> {
-  const page = await deps.fetcher.fetch(url, "page");
+  const page = await deps.fetcher.fetch(url, "page", deps.beforeContact);
   const signals = scanPage(UTF8.decode(page.body), page.url);
   const sheets: string[] = [signals.css];
   for (const sheet of signals.stylesheets) {
-    sheets.push(UTF8.decode((await deps.fetcher.fetch(sheet, "stylesheet")).body));
+    const fetched = await deps.fetcher.fetch(sheet, "stylesheet", deps.beforeContact);
+    sheets.push(UTF8.decode(fetched.body));
   }
   const seed = seedFrom(signals.themeColor, sheets.join("\n"));
-
-  let logoKey: string | null = null;
-  if (signals.logo !== undefined) {
-    const fetched = await deps.fetcher.fetch(signals.logo, "logo");
-    logoKey = await deps.storeLogo(await deps.codec.reencode(fetched.body));
-  }
+  const logoKey = signals.logo === undefined ? null : await deriveLogo(deps, signals.logo);
 
   const derived = deriveAppearance(seed);
   return DeriveResult.parse({

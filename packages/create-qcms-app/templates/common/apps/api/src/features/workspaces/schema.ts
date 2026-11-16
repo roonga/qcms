@@ -81,7 +81,7 @@ export const ThemeLogoBody = z
   .strictObject({
     bytesBase64: z.string().min(1).openapi({
       description:
-        "The image, base64-encoded. PNG, JPEG or WebP only, confirmed by magic-number sniff; SVG is refused. Capped at 512 KiB decoded.",
+        "The image, base64-encoded. A non-interlaced PNG or a JPEG only, confirmed by magic-number sniff; WebP and SVG are refused. Capped at 512 KiB decoded.",
     }),
   })
   .openapi("ThemeLogoBody");
