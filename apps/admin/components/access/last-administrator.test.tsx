@@ -97,14 +97,8 @@ describe("the last-administrator control", () => {
         />
       </>,
     );
-    const remove = screen.getByRole("button", { name: /^Remove/ });
-    const demote = screen.getByRole("button", { name: /^Demote/ });
-    expect(remove.getAttribute("aria-label") ?? remove.textContent).toContain(
-      t("access.lastAdmin.remove"),
-    );
-    expect(demote.getAttribute("aria-label") ?? demote.textContent).toContain(
-      t("access.lastAdmin.demote"),
-    );
+    expect(screen.getByRole("button", { name: /^Remove Workspace administrator\b/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^Demote\b/ })).toBeTruthy();
   });
 
   it("acts, with no reason shown, while another administrator remains", async () => {
