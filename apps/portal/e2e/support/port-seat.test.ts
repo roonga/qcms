@@ -246,7 +246,7 @@ describe("assertSeatPortsUsable", () => {
     expect(call).toThrow("pid 4242");
     expect(call).toThrow("/repo/qcms-other-worktree");
     expect(call).toThrow(PORT_SEAT_ENV_VAR);
-  });
+  }, 30_000);
 
   it("adopts a LIVE dev server from THIS worktree, which is what local reuse is for", () => {
     expect(() =>

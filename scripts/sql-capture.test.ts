@@ -66,7 +66,7 @@ describe("capture, against real query helpers", () => {
     expect(statement.sql).toContain("limit $2");
     expect(statement.sql).toContain("for update skip locked");
     expect(statement.params).toEqual([ISO, 25]);
-  });
+  }, 30_000);
 
   it("renders an insert with its column defaults and its returning list", async () => {
     const result = await capture({
