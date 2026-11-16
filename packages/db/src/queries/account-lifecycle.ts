@@ -5,6 +5,7 @@ import {
   authAccount,
   authMember,
   authOrganization,
+  authSession,
   authTeam,
   authTeamMember,
   authUser,
@@ -78,10 +79,9 @@ export async function holdsAccountPassword(exec: Executor, userId: string): Prom
 }
 
 /**
- * What an unclaimed account's newest link still holds back. `link`: the link is unspent, so
- * no sign-in path may mint a session. `claim-session`: a reset link was spent and the factor
- * is not yet verified, so only the session the claim route opened may finish it; a reset can
- * keep the password, and a password sign-in would let whoever held it finish the reset.
+ * What an unclaimed account's newest link still holds back. `link`: it is unspent and the
+ * account holds no live session, so no path may open one. `claim-session`: no password sign-in
+ * but the claim route's own, while an unspent link or a spent reset awaits a verified factor.
  */
 export type SignInLinkHold = "link" | "claim-session";
 
@@ -97,7 +97,16 @@ export async function signInLinkHold(
     .orderBy(sql`${signInLinks.createdAt} desc`, sql`${signInLinks.id} desc`)
     .limit(1);
   if (row === undefined) return undefined;
-  if (row.usedAt === null) return "link";
+  if (row.usedAt === null) {
+    // A session already held is the claim's own, minted before a resend crossed it; a reset
+    // and a reactivation delete every session in the transaction that issues their link.
+    const live = await exec
+      .select({ id: authSession.id })
+      .from(authSession)
+      .where(and(eq(authSession.userId, userId), sql`${authSession.expiresAt} > now()`))
+      .limit(1);
+    return live.length === 0 ? "link" : "claim-session";
+  }
   return row.purpose === "reset" ? "claim-session" : undefined;
 }
 

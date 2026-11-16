@@ -892,12 +892,19 @@ describe("resetting a password or a factor (criteria 58, 59, 64, 65)", () => {
       });
       expect(sideDoor.status).toBe(401);
       expect((await accountRow(person.userId)).claimedAt).toBeNull();
+      await resend(person.userId);
+      const afterResend = await authPost("/sign-in/email", {
+        email: person.email,
+        password: person.password,
+      });
+      expect(afterResend.status).toBe(401);
 
       const enrolled = await enrolFactor(cookieHeader(claimed), person.password);
       expect((await accountRow(person.userId)).claimedAt).not.toBeNull();
       expect((await adminGet("/admin/me/access", sessionTokenOf(enrolled.cookie))).status).toBe(
         200,
       );
+      expect(await liveLinks(person.userId)).toBe(0);
       const signedIn = await authPost("/sign-in/email", {
         email: person.email,
         password: person.password,

@@ -157,7 +157,6 @@ export function makeDisableAccountHandler(
   return async (c) => {
     const actor = principalOf(c);
     const { id } = c.req.valid("param");
-    if (id === actor.userId) throw fail.self();
 
     const exec = deps.databases.control;
     const now = deps.clock.now();
@@ -173,8 +172,9 @@ export function makeDisableAccountHandler(
         if (active && (await countActiveSiteAdministrators(tx)) <= 1) {
           throw fail.lastSiteAdministrator();
         }
-        throw fail.siteAdministrator();
       }
+      if (id === actor.userId) throw fail.self();
+      if (current.role === SITE_ADMINISTRATOR_ROLE) throw fail.siteAdministrator();
 
       const held = await listAccountHoldings(tx, id);
       await disableAccount(tx, id, now);
