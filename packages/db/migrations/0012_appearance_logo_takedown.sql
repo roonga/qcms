@@ -26,8 +26,10 @@ ALTER TABLE "control"."site_audit" ADD CONSTRAINT "site_audit_kind" CHECK ("cont
 --     the transaction-local flag names that key. The `SECURITY DEFINER` function runs
 --     as the owner; any other role runs as itself, so a role later granted `DELETE`
 --     that sets the flag by hand, or calls a same-named function of its own, is
---     refused. The trigger's `search_path` is pinned. The owner, or a role that can
---     become it, is not bound: it can disable the trigger outright;
+--     refused. Every function here schema-qualifies each relation, function and
+--     operator and pins `search_path` to `pg_catalog, pg_temp`, so a temporary
+--     object cannot stand in for a catalog. The owner, or a role that can become it,
+--     is not bound: it can disable the trigger outright;
 --   * the takedown records the digest in `control.appearance_logo_tombstones`, revoked
 --     from every `qcms_app%` role so the control role's schema-wide grant cannot reach
 --     it on a re-grant, and an insert trigger refuses those bytes
@@ -42,11 +44,13 @@ ALTER TABLE "control"."site_audit" ADD CONSTRAINT "site_audit_kind" CHECK ("cont
 -- ===========================================================================
 CREATE OR REPLACE FUNCTION control.appearance_logos_reject_delete() RETURNS trigger
 	LANGUAGE plpgsql
-	SET search_path = pg_catalog
+	SET search_path = pg_catalog, pg_temp
 AS $$
 BEGIN
-	IF current_setting('qcms.appearance_logo_takedown', true) = OLD.key
-		AND current_user = (SELECT pg_get_userbyid(c.relowner) FROM pg_class c WHERE c.oid = TG_RELID) THEN
+	IF pg_catalog.current_setting('qcms.appearance_logo_takedown', true) OPERATOR(pg_catalog.=) OLD.key
+		AND current_user OPERATOR(pg_catalog.=) (
+			SELECT pg_catalog.pg_get_userbyid(c.relowner) FROM pg_catalog.pg_class c
+			 WHERE c.oid OPERATOR(pg_catalog.=) TG_RELID) THEN
 		RETURN OLD;
 	END IF;
 	RAISE EXCEPTION 'appearance_logos are immutable (ADR-07): DELETE is rejected'
@@ -57,10 +61,10 @@ $$;
 CREATE FUNCTION control.appearance_logos_refuse_taken_down() RETURNS trigger
 	LANGUAGE plpgsql
 	SECURITY DEFINER
-	SET search_path = control, pg_catalog
+	SET search_path = pg_catalog, pg_temp
 AS $$
 BEGIN
-	IF EXISTS (SELECT 1 FROM control.appearance_logo_tombstones WHERE key = NEW.key) THEN
+	IF EXISTS (SELECT 1 FROM control.appearance_logo_tombstones WHERE key OPERATOR(pg_catalog.=) NEW.key) THEN
 		RAISE EXCEPTION 'appearance logo % was taken down and may not be stored again', NEW.key
 			USING ERRCODE = 'restrict_violation', CONSTRAINT = 'appearance_logos_taken_down';
 	END IF;
@@ -74,19 +78,19 @@ CREATE TRIGGER appearance_logos_refuse_taken_down AFTER INSERT ON control.appear
 CREATE FUNCTION control.appearance_logo_takedown(logo_key text) RETURNS boolean
 	LANGUAGE plpgsql
 	SECURITY DEFINER
-	SET search_path = control, pg_catalog
+	SET search_path = pg_catalog, pg_temp
 AS $$
 DECLARE removed integer;
 BEGIN
-	PERFORM set_config('qcms.appearance_logo_takedown', logo_key, true);
-	DELETE FROM control.appearance_logos WHERE key = logo_key;
+	PERFORM pg_catalog.set_config('qcms.appearance_logo_takedown', logo_key, true);
+	DELETE FROM control.appearance_logos WHERE key OPERATOR(pg_catalog.=) logo_key;
 	GET DIAGNOSTICS removed = ROW_COUNT;
-	PERFORM set_config('qcms.appearance_logo_takedown', '', true);
-	IF removed > 0 THEN
+	PERFORM pg_catalog.set_config('qcms.appearance_logo_takedown', '', true);
+	IF removed OPERATOR(pg_catalog.>) 0 THEN
 		INSERT INTO control.appearance_logo_tombstones (key) VALUES (logo_key)
 			ON CONFLICT (key) DO NOTHING;
 	END IF;
-	RETURN removed > 0;
+	RETURN removed OPERATOR(pg_catalog.>) 0;
 END;
 $$;
 --> statement-breakpoint

@@ -903,7 +903,9 @@ credential, `EXECUTE` revoked from `PUBLIC` and granted to `qcms_app_control` al
 sets a key-scoped flag, deletes that one key, clears the flag and writes the tombstone.
 The delete trigger admits a row only when the flag names it and `current_user` is the table
 owner, which the function runs as, so a role later granted `DELETE` that sets the flag by
-hand, or calls a same-named function of its own, is still refused. The table owner (the
+hand, calls a same-named function of its own, or shadows `pg_class` with a temporary table,
+is still refused: every 0012 function schema-qualifies its catalog reads and pins
+`search_path` to `pg_catalog, pg_temp`. The table owner (the
 migration credential) is not bound: it can disable the trigger, so guard that credential.
 No application role holds any privilege on the tombstone table.
 No application role gains `DELETE` on the table, so a direct `DELETE FROM

@@ -32,7 +32,8 @@ export const LOGO_MAX_BYTES = 524_288;
 /**
  * The `SECURITY DEFINER` function migration 0012 creates, the one delete path open to an
  * application role on {@link appearanceLogos}: the delete trigger admits a row only for
- * the table owner, which this function runs as, and only for the one key it names. The
+ * the table owner, read from `pg_catalog.pg_class` with `pg_temp` last on its pinned
+ * `search_path`, which this function runs as, and only for the one key it names. The
  * owner itself can disable the trigger, so it is not bound by this.
  */
 export const APPEARANCE_LOGO_TAKEDOWN_FUNCTION = "control.appearance_logo_takedown";

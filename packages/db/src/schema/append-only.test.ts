@@ -374,12 +374,44 @@ describe("stored logos are immutable, so a theme never moves one (D2)", () => {
     });
   });
 
-  it("pins the delete trigger's search_path", async () => {
-    const config = await testDb.client.query<{ proconfig: string[] | null }>(
-      `select p.proconfig from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-        where n.nspname = 'control' and p.proname = 'appearance_logos_reject_delete'`,
+  it("refuses a role granted DELETE that forges the table owner with a temporary pg_class", async () => {
+    const key = await storeLogo(Buffer.from("temp-catalog-png-bytes"));
+    await expect(
+      inRolledBack(async () => {
+        await becomeGrantee("logo_catalog_forger");
+        await testDb.client.query(
+          `create temp table pg_class as
+             select 'control.appearance_logos'::regclass::oid as oid,
+                    (select r.oid from pg_catalog.pg_roles r where r.rolname = current_user) as relowner`,
+        );
+        await testDb.client.query(`select set_config($1, $2, true)`, [
+          APPEARANCE_LOGO_TAKEDOWN_SETTING,
+          key,
+        ]);
+        return testDb.client.query(`delete from control.appearance_logos where key = $1`, [key]);
+      }),
+    ).rejects.toThrow(/immutable/i);
+    const stored = await testDb.client.query(`select 1 from appearance_logos where key = $1`, [
+      key,
+    ]);
+    expect(stored.rowCount).toBe(1);
+  });
+
+  it("pins every takedown function's search_path with pg_temp last", async () => {
+    const config = await testDb.client.query<{ proname: string; proconfig: string[] | null }>(
+      `select p.proname, p.proconfig from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+        where n.nspname = 'control'
+          and p.proname in ('appearance_logos_reject_delete', 'appearance_logos_refuse_taken_down',
+                            'appearance_logo_takedown')
+        order by p.proname`,
     );
-    expect(config.rows[0]?.proconfig).toEqual(["search_path=pg_catalog"]);
+    expect(config.rows).toEqual(
+      [
+        "appearance_logo_takedown",
+        "appearance_logos_refuse_taken_down",
+        "appearance_logos_reject_delete",
+      ].map((proname) => ({ proname, proconfig: ["search_path=pg_catalog, pg_temp"] })),
+    );
   });
 
   it("deletes through the takedown function and refuses the same bytes from then on", async () => {
