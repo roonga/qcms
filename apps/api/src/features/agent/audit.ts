@@ -233,6 +233,12 @@ export async function recordAgentEdit(
   if (edit.act === "edit" && saved.revision !== edit.rev + 1) {
     throw editRefusal("AGENT_EDIT_REVISION");
   }
+  // Read after the write: a publish committed since the pre-write read is visible here, so
+  // the token's generation holds without plain saves locking the form.
+  const newest = await getLatestPublishedVersion(exec, saved.formId);
+  if ((newest?.version ?? 0) !== edit.base) {
+    throw editRefusal(edit.act === "edit" ? "AGENT_EDIT_REVISION" : "AGENT_UNDO_SUPERSEDED");
+  }
   if (edit.act !== "edit" || pre === undefined) return null;
   const iat = deps.now.getTime();
   return signEditToken(deps.appKey, {

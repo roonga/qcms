@@ -60,3 +60,5 @@ None. No UI.
 ## Out of scope
 
 The model-facing tools (112). The builder UI for edits and Undo (115). Preview measurement in the browser (114).
+
+A route that discards a draft without publishing. The token's generation marker is the newest published version, which holds only while publish is the one route that discards a draft; such a route must change that marker or bind the pre-state digest (`docs/SECURITY_DESIGN.md`, the agent builder).

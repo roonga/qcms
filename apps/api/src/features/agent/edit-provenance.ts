@@ -124,9 +124,12 @@ export function agentEditProvenance(deps: Deps): MiddlewareHandler<ApiEnv> {
 }
 
 /** With the flag off this deployment mints no edit token, so one presented here is a bad request. */
-export function agentEditDisabled(): MiddlewareHandler<ApiEnv> {
+export function agentEditDisabled(deps: Deps): MiddlewareHandler<ApiEnv> {
   return async (c, next) => {
-    if ((c.req.header(EDIT_HEADER) ?? "") !== "") throw editRefusal("AGENT_EDIT_DISABLED");
+    if ((c.req.header(EDIT_HEADER) ?? "") !== "") {
+      logEditRefusal(deps, "AGENT_EDIT_DISABLED");
+      throw editRefusal("AGENT_EDIT_DISABLED");
+    }
     await next();
   };
 }

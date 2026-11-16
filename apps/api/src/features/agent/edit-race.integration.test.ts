@@ -4,6 +4,7 @@ import {
   createForm,
   createQuestion,
   createQuestionVersion,
+  insertFormVersion,
   publishQuestionVersion,
 } from "@roonga/qcms-db";
 import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
@@ -223,6 +224,58 @@ describe("concurrent edits bind the revision they were minted for", { timeout: T
         }
         expect(await rowDetails(formId)).toEqual([String(start + 1)]);
       }
+    });
+  }
+});
+
+type VersionInput = Parameters<typeof insertFormVersion>[1];
+
+async function publishVersion(formId: string): Promise<void> {
+  await insertFormVersion(testDb.db, {
+    formId: FormId.parse(formId),
+    definition: definition(formId, "Published") as unknown as VersionInput["definition"],
+    appearance: null,
+    compiled: {} as unknown as VersionInput["compiled"],
+    compilerVersion: "1.0.0",
+    a2uiSpecVersion: "1.0.0",
+    semanticsVersion: "1",
+    publishedAt: now,
+  });
+}
+
+/** Holds a tokened save between its reads and its upsert while `between` runs. */
+async function stalled(formId: string, token: string, between: () => Promise<void>) {
+  await testDb.client.query("begin");
+  try {
+    await testDb.client.query("lock table control.form_drafts in share row exclusive mode");
+    const pending = put(formId, "Agent", token);
+    let waiting = 0;
+    for (let i = 0; i < 400 && waiting === 0; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      const result = await testDb.client.query<{ n: number }>(
+        "select count(*)::int as n from pg_locks l join pg_class c on c.oid = l.relation where c.relname = 'form_drafts' and not l.granted",
+      );
+      waiting = result.rows[0]?.n ?? 0;
+    }
+    expect(waiting).toBe(1);
+    await between();
+    await testDb.client.query("commit");
+    return await pending;
+  } catch (error) {
+    await testDb.client.query("rollback");
+    throw error;
+  }
+}
+
+describe("an edit binds the published version it was minted for", { timeout: TIMEOUT_MS }, () => {
+  for (const seeded of [false, true]) {
+    it(`refuses a token when a version lands between its reads and its write, ${seeded ? "with" : "with no"} draft row`, async () => {
+      const formId = await newForm(seeded);
+      const token = await mint(formId, seeded ? 1 : 0);
+      const res = await stalled(formId, token, () => publishVersion(formId));
+      expect(await outcome(res)).toBe("409:AGENT_EDIT_REVISION");
+      expect(await rowDetails(formId)).toEqual([]);
+      expect(await revisionOf(formId)).toBe(seeded ? 1 : 0);
     });
   }
 });

@@ -471,10 +471,13 @@ have kept.
 Draft edits from the agent builder take no Confirm (Q14), so the save carries
 what a card carried. The turn mints one token per op with `mintTurnEditTokens`,
 each bound to the user, the form, the turn, its index under the 25-a-turn cap,
-the op and the revision it applies to. The browser applies each through the one
-draft save path with the token in `x-qcms-agent-edit`; the save locks the draft
-row, refuses a replay, a moved revision or an op that changes what it does not
-cover, and writes one `draft.<op>` row in its own transaction. The response
+the op, the revision it applies to and the newest published version. The
+browser applies each through the one draft save path with the token in
+`x-qcms-agent-edit`. The save locks the draft row when one exists, and otherwise
+checks that the row it wrote landed at the bound revision plus one; it rereads
+the newest published version after the write, refuses a replay, a moved
+revision or version, or an op that changes what it does not cover, and writes
+one `draft.<op>` row in its own transaction. The response
 carries an Undo token bound to the draft states on either side of the edit, so
 an Undo applies only while nothing has changed since and restores exactly the
 state before; Undos therefore run latest first. A library write is never an
