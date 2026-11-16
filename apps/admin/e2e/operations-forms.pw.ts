@@ -22,7 +22,7 @@ const BETA = `e2e-ops-beta-${RUN}`;
 let totpSecret = "";
 
 test.beforeAll(async () => {
-  await createTestAdmin(EMAIL);
+  await createTestAdmin(EMAIL, { siteAdministrator: true });
 });
 
 test("lists the forms this caller operates, separating unreleased from closed", async ({
