@@ -822,50 +822,46 @@ describe(
       CLAIM_TIMEOUT_MS,
     );
 
-    it(
-      "bounds a hung lookup: twelve claims answer 503, the API keeps answering, every link survives",
-      async () => {
-        const accounts: { userId: string; token: string }[] = [];
-        for (let index = 0; index < 12; index += 1) {
-          accounts.push(await createAccount(`hung.lookup.${String(index)}@example.test`));
-        }
-        const margin = 4_000;
-        const hung = hangCorpus();
-        try {
-          const started = performance.now();
-          const claims = Promise.all(
-            accounts.map(async (account) => {
-              const response = await claimWithCheck(account.token, freshPassword());
-              return { status: response.status, code: await errorCodeOf(response) };
-            }),
-          );
-          const access = await adminGet("/admin/me/access", siteAdminToken);
-          const accessMs = performance.now() - started;
-          const answered = await claims;
-          const settledMs = performance.now() - started;
-
-          expect(access.status).toBe(200);
-          expect(accessMs).toBeLessThan(BREACH_LOOKUP_TIMEOUT_MS + margin);
-          // The control pool holds ten connections, so twelve claims run in two waves.
-          expect(settledMs).toBeLessThan(2 * BREACH_LOOKUP_TIMEOUT_MS + margin);
-          expect(answered).toEqual(
-            accounts.map(() => ({ status: 503, code: BREACH_LOOKUP_FAILED_CODE })),
-          );
-        } finally {
-          hung.restore();
-        }
-
-        corpus = stubCorpus([]);
-        const reclaimed = await Promise.all(
+    it("bounds a hung lookup: twelve claims answer 503, the API keeps answering, every link survives", async () => {
+      const accounts: { userId: string; token: string }[] = [];
+      for (let index = 0; index < 12; index += 1) {
+        accounts.push(await createAccount(`hung.lookup.${String(index)}@example.test`));
+      }
+      const margin = 4_000;
+      const hung = hangCorpus();
+      try {
+        const started = performance.now();
+        const claims = Promise.all(
           accounts.map(async (account) => {
             const response = await claimWithCheck(account.token, freshPassword());
-            return response.status;
+            return { status: response.status, code: await errorCodeOf(response) };
           }),
         );
-        expect(reclaimed).toEqual(accounts.map(() => 200));
-      },
-      90_000,
-    );
+        const access = await adminGet("/admin/me/access", siteAdminToken);
+        const accessMs = performance.now() - started;
+        const answered = await claims;
+        const settledMs = performance.now() - started;
+
+        expect(access.status).toBe(200);
+        expect(accessMs).toBeLessThan(BREACH_LOOKUP_TIMEOUT_MS + margin);
+        // The control pool holds ten connections, so twelve claims run in two waves.
+        expect(settledMs).toBeLessThan(2 * BREACH_LOOKUP_TIMEOUT_MS + margin);
+        expect(answered).toEqual(
+          accounts.map(() => ({ status: 503, code: BREACH_LOOKUP_FAILED_CODE })),
+        );
+      } finally {
+        hung.restore();
+      }
+
+      corpus = stubCorpus([]);
+      const reclaimed = await Promise.all(
+        accounts.map(async (account) => {
+          const response = await claimWithCheck(account.token, freshPassword());
+          return response.status;
+        }),
+      );
+      expect(reclaimed).toEqual(accounts.map(() => 200));
+    }, 90_000);
 
     it(
       "accepts a password the corpus does not hold, having asked",
