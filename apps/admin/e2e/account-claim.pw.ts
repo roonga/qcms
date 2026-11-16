@@ -13,7 +13,6 @@ test.describe.configure({ mode: "serial" });
 
 const EMAIL = uniqueAdminEmail("claim");
 
-
 const REFUSED = "This link has expired or was used. Ask a Site administrator to resend it.";
 
 const CHOSEN_PASSWORD = `e2e-claimed-${Buffer.from(crypto.getRandomValues(new Uint8Array(18))).toString("base64url")}`;
@@ -59,7 +58,6 @@ test("a live link states that it works once and lasts 72 hours", async ({ page }
     page.getByText("It can be used once and lasts 72 hours.", { exact: false }),
   ).toBeVisible();
 });
-
 
 test("an unknown token is refused with the same answer", async ({ page }) => {
   await page.goto("/claim?token=not-a-token-that-was-ever-issued");
