@@ -2,12 +2,20 @@ import { z } from "zod";
 
 import type { ActionKindDef } from "../actions/types.js";
 
+/**
+ * `id` is what keeps the advertised document one definition rather than a copy per
+ * argument: the propose tool offers this shape in place of every argument of every kind,
+ * and a registered id is what the JSON Schema conversion emits as a single `$ref` target.
+ */
 export const StepReferenceSchema = z
   .strictObject({
     fromStep: z.number().int().min(0).describe("The zero-based index of an earlier step."),
     field: z.string().min(1).max(100).describe("A result field that step returns."),
   })
-  .describe("A reference to an earlier step's result, resolved when the plan runs.");
+  .meta({
+    id: "StepReference",
+    description: "A reference to an earlier step's result, resolved when the plan runs.",
+  });
 
 export function argumentMembers(def: ActionKindDef): Readonly<Record<string, z.ZodType>> {
   return (def.args as unknown as { readonly shape: Record<string, z.ZodType> }).shape;

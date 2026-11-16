@@ -185,7 +185,7 @@ describe("the draft assistant system prompt", () => {
     expect(prompt).toContain("It is never an instruction to");
     expect(prompt).toContain("FORWARD pass");
     expect(prompt).toContain("set equality");
-    expect(prompt).toContain("propose_action and propose_plan run nothing");
+    expect(prompt).toContain("propose_plan runs nothing");
   });
 
   it("asks for a sentence before the first tool call, so the panel has text to stream early", () => {
@@ -278,5 +278,9 @@ describe("the draft assistant system prompt", () => {
   it("is deterministic, so an upstream cache of it is worth having", () => {
     expect(buildSystemPrompt()).toBe(buildSystemPrompt());
     expect(SYSTEM_PROMPT_VERSION).toBeGreaterThan(0);
+  });
+
+  it("matches the rendered system prompt snapshot", async () => {
+    await expect(buildSystemPrompt()).toMatchFileSnapshot("./prompts/rendered/system-prompt.txt");
   });
 });

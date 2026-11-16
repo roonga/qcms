@@ -20,7 +20,12 @@ export const FormSessionParams = z.object({
     .openapi({ param: { name: "sessionId", in: "path" }, example: "ses_abc123" }),
 });
 
-export const ListResponsesQuery = z.object({
+/**
+ * What a listing narrows by, apart from its page window. The agent's `list_responses` and
+ * `count_responses` advertise this same set, typed as a JSON caller sends it rather than as
+ * a query string spells it, so a filter gained or lost here fails their own type.
+ */
+export const ResponseFilterQuery = z.object({
   version: z
     .string()
     .optional()
@@ -37,6 +42,9 @@ export const ListResponsesQuery = z.object({
     .enum(["true", "false"])
     .optional()
     .openapi({ param: { name: "flagged", in: "query" }, example: "true" }),
+});
+
+export const ListResponsesQuery = ResponseFilterQuery.extend({
   page: z
     .string()
     .optional()

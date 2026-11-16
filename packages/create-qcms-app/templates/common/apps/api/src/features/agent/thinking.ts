@@ -1,5 +1,5 @@
 /**
- * Maps `QCMS_AGENT_THINKING` to each provider's own options; the only vendor-shaped file in the slice.
+ * Maps `QCMS_AGENT_THINKING` to each provider's own options; vendor-shaped, as `caching.ts` is.
  * Sets visibility, not effort. Nothing is sent under `off`: dropping reasoning is the event
  * mapping's job.
  */

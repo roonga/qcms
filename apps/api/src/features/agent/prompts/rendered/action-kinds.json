@@ -1,0 +1,122 @@
+[
+  {
+    "kind": "form.create",
+    "description": "Create a form and its empty first draft in a workspace this user may create in. The id is minted from the slug and never changes. The form's title is authored in the builder afterwards; creating it changes nothing a respondent can reach."
+  },
+  {
+    "kind": "apply-draft",
+    "description": "Apply the draft you proposed with propose_draft to this form's working draft, for the user to review as a diff and confirm. Call propose_draft first. It publishes nothing and releases nothing: the draft is stored as a draft and marked agent-assisted."
+  },
+  {
+    "kind": "form.saveDraft",
+    "description": "Save a complete draft to a form, through the same save path every edit in the builder takes. It publishes nothing and releases nothing: the draft is stored as a draft and marked agent-assisted. This is how a form goes from blank to a reviewable draft, after form.create and any question.create steps of the same plan."
+  },
+  {
+    "kind": "form.publish",
+    "description": "Publish the form's working draft to one environment: freeze it as the next version and make that version live there, in one act. Needs Edit forms and Publish forms for that environment. Where a non-prod environment exists a draft is never published straight to prod. The workflow and second approval apply exactly as they do on the screen."
+  },
+  {
+    "kind": "form.release",
+    "description": "Publish an existing version to one environment, including an earlier one (rollback). Nothing is frozen. Prod accepts only a version already live in a non-prod environment, where one exists. The workflow revision, the destination's release state and second approval are all rechecked at confirmation, so a stale review is refused and writes nothing, exactly as on the screen."
+  },
+  {
+    "kind": "form.settings",
+    "description": "Change the form's abuse-control settings. It affects sessions started from now on and leaves every session already under way untouched."
+  },
+  {
+    "kind": "form.close",
+    "description": "Close the form to new sessions in the current environment. Every session already under way keeps its pinned version and finishes normally."
+  },
+  {
+    "kind": "form.reopen",
+    "description": "Reopen the form to new sessions in the current environment."
+  },
+  {
+    "kind": "link.mint",
+    "description": "Mint one-time or reusable respondent links in the current environment. The URLs are shown to the user once and are never returned to you."
+  },
+  {
+    "kind": "link.revoke",
+    "description": "Revoke one respondent link in the current environment."
+  },
+  {
+    "kind": "response.erase",
+    "description": "Erase one respondent's answers and submission, recording a tombstone. It cannot be undone, and the user retypes the session id on the card before it can run."
+  },
+  {
+    "kind": "response.unflag",
+    "description": "Release one flagged response's withheld submission event, so its consumers receive it."
+  },
+  {
+    "kind": "response.export",
+    "description": "Open the export dialog with these filters. The user presses Export and the file downloads in their browser; no part of it is returned to you."
+  },
+  {
+    "kind": "webhook.create",
+    "description": "Configure a new delivery endpoint for this form in the current environment. Its signing secret is shown to the user once and is never returned to you."
+  },
+  {
+    "kind": "webhook.rotate",
+    "description": "Replace an endpoint's signing secret. Deliveries signed with the old one stop verifying, and the new secret is shown to the user once."
+  },
+  {
+    "kind": "webhook.retarget",
+    "description": "Point an endpoint at another URL. The card names the endpoint and shows the new target in full, query string included."
+  },
+  {
+    "kind": "webhook.reactivate",
+    "description": "Put a deactivated endpoint back in service in the current environment."
+  },
+  {
+    "kind": "webhook.deactivate",
+    "description": "Stop delivering to an endpoint. The row and its delivery history stay, and a delivery already in flight keeps its own retry state."
+  },
+  {
+    "kind": "webhook.redeliver",
+    "description": "Reset one dead-lettered delivery to due-now, so the worker attempts it again. It reads no part of the payload."
+  },
+  {
+    "kind": "access.groupCreate",
+    "description": "Create an access group in a workspace. The group grants nobody anything until somebody holds it, so creating one changes no access by itself."
+  },
+  {
+    "kind": "access.groupRemove",
+    "description": "Remove an access group and every grant it carried. Each holder loses that access at once, and one revoke row is written for each."
+  },
+  {
+    "kind": "access.grant",
+    "description": "Grant an access group to one person, by address. A self-grant of a response role is refused while the workspace has second approval on."
+  },
+  {
+    "kind": "access.revoke",
+    "description": "Revoke one person from an access group. Everybody else in it keeps theirs."
+  },
+  {
+    "kind": "member.role",
+    "description": "Make a member an owner of the workspace, or take ownership away. Removing the last owner is refused."
+  },
+  {
+    "kind": "workspace.settings",
+    "description": "Change the workspace's second-approval switch: whether a publish to production and a response self-grant need a second account."
+  },
+  {
+    "kind": "question.create",
+    "description": "Create a question and its draft v1 in the library. The id is minted once and never changes. Nothing pins the question until a form's draft does, and nothing serves it until the version is published."
+  },
+  {
+    "kind": "question.saveDraft",
+    "description": "Replace a draft version's definition. A published or deprecated version is refused: published content is immutable, so changing one means opening a new version."
+  },
+  {
+    "kind": "question.publish",
+    "description": "Freeze a draft version and make it pinnable. Its content can never change again, and a form's draft that pins it stops reporting an unpublished pin."
+  },
+  {
+    "kind": "question.deprecate",
+    "description": "Block new pins on a published version. Every form already pinned to it is untouched and keeps serving it."
+  },
+  {
+    "kind": "question.newVersion",
+    "description": "Open a new draft version, seeded from the latest one. Nothing published changes, and no form moves to it until a draft pins the new version."
+  }
+]

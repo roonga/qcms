@@ -1,0 +1,6 @@
+# The assistant reads these bytes. Reformatting the Markdown edits the prompt itself,
+# so they stay outside the formatter and inside `pnpm check:prompts`.
+apps/api/src/features/agent/prompts/system/
+apps/api/src/features/agent/prompts/tools/
+apps/api/src/features/agent/prompts/actions/
+apps/api/src/features/agent/prompts/recipes/

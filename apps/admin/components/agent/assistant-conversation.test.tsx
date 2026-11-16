@@ -197,8 +197,8 @@ describe("a card's waiting window", () => {
   }
 
   async function proposed(windowMs: number): Promise<void> {
-    const event = { type: "action", proposal: proposal(windowMs) };
-    const body = `event: action\ndata: ${JSON.stringify(event)}\n\n`;
+    const event = { type: "plan", proposal: proposal(windowMs) };
+    const body = `event: plan\ndata: ${JSON.stringify(event)}\n\n`;
     const fetchMock = vi.fn<(input: unknown, init?: unknown) => Promise<Response>>(() =>
       Promise.resolve(
         new Response(body, { status: 200, headers: { "content-type": "text/event-stream" } }),
@@ -273,8 +273,8 @@ describe("the card a turn is sent with", () => {
   }
 
   it("names the card still waiting, by its step kinds, on the next turn", async () => {
-    const event = { type: "action", proposal: PROPOSAL };
-    const body = `event: action\ndata: ${JSON.stringify(event)}\n\n`;
+    const event = { type: "plan", proposal: PROPOSAL };
+    const body = `event: plan\ndata: ${JSON.stringify(event)}\n\n`;
     const fetchMock = vi.fn<(input: unknown, init?: unknown) => Promise<Response>>(() =>
       Promise.resolve(
         new Response(body, { status: 200, headers: { "content-type": "text/event-stream" } }),
@@ -299,8 +299,8 @@ describe("the card a turn is sent with", () => {
   });
 
   it("says nothing about a card the person has already cancelled", async () => {
-    const event = { type: "action", proposal: PROPOSAL };
-    const body = `event: action\ndata: ${JSON.stringify(event)}\n\n`;
+    const event = { type: "plan", proposal: PROPOSAL };
+    const body = `event: plan\ndata: ${JSON.stringify(event)}\n\n`;
     const fetchMock = vi.fn<(input: unknown, init?: unknown) => Promise<Response>>(() =>
       Promise.resolve(
         new Response(body, { status: 200, headers: { "content-type": "text/event-stream" } }),
@@ -362,8 +362,8 @@ describe("a waiting card's screen and environment", () => {
   }
 
   async function waiting(): Promise<ReturnType<typeof render>> {
-    const event = { type: "action", proposal: PROPOSAL };
-    const body = `event: action\ndata: ${JSON.stringify(event)}\n\n`;
+    const event = { type: "plan", proposal: PROPOSAL };
+    const body = `event: plan\ndata: ${JSON.stringify(event)}\n\n`;
     vi.stubGlobal(
       "fetch",
       vi.fn<(input: unknown, init?: unknown) => Promise<Response>>(() =>
@@ -444,10 +444,10 @@ describe("a waiting card nobody answered", () => {
 
   function stream(proposalId: string): Response {
     const event = JSON.stringify({
-      type: "action",
+      type: "plan",
       proposal: { ...WAITING, proposalId },
     });
-    return new Response(`event: action\ndata: ${event}\n\n`, {
+    return new Response(`event: plan\ndata: ${event}\n\n`, {
       status: 200,
       headers: { "content-type": "text/event-stream" },
     });

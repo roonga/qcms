@@ -40,8 +40,8 @@ import type { ProposedDraftStep } from "./tools/propose.js";
 import type { AssistEvent } from "./types.js";
 
 function appliedDraft(events: readonly AssistEvent[]): ProposedDraftStep {
-  const card = events.find((event) => event.type === "action");
-  if (card?.type !== "action") throw new Error(JSON.stringify(events));
+  const card = events.find((event) => event.type === "plan");
+  if (card?.type !== "plan") throw new Error(JSON.stringify(events));
   const step = card.proposal.steps[0];
   if (step?.kind !== "apply-draft" || step.draft === undefined) {
     throw new Error("the card carries no proposed draft");
@@ -302,7 +302,7 @@ describe("the assist slice over HTTP", () => {
         type: "tool-rejected",
         tool: "publish_form",
       });
-      expect(events.filter((e) => e.type === "action")).toHaveLength(0);
+      expect(events.filter((e) => e.type === "plan")).toHaveLength(0);
       expect(JSON.stringify(logLines)).toContain("draft assistant tool call rejected");
 
       const versions = await testDb.client.query(
@@ -350,7 +350,7 @@ describe("the assist slice over HTTP", () => {
       const res = await assist("frm_seeded", "add a follow-up");
       expect(res.status).toBe(200);
       const events = await readEvents(res);
-      expect(events.find((e) => e.type === "action")).toBeDefined();
+      expect(events.find((e) => e.type === "plan")).toBeDefined();
     },
     BOOT_TIMEOUT,
   );
@@ -1044,7 +1044,7 @@ describe("a reduced-grant caller over HTTP", () => {
       for (const verb of ["propose_questions", "propose_draft", "validate_draft"]) {
         expect(ended.has(verb), verb).toBe(false);
       }
-      expect(events.some((event) => event.type === "action")).toBe(false);
+      expect(events.some((event) => event.type === "plan")).toBe(false);
       expect(events.some((event) => event.type === "plan")).toBe(false);
     },
     BOOT_TIMEOUT,
@@ -1063,9 +1063,8 @@ describe("a reduced-grant caller over HTTP", () => {
       const announced = events.flatMap((event) =>
         event.type === "status" && event.tool !== undefined ? [event.tool] : [],
       );
-      expect(announced).not.toContain("propose_action");
       expect(announced).not.toContain("propose_plan");
-      expect(events.some((event) => event.type === "action" || event.type === "plan")).toBe(false);
+      expect(events.some((event) => event.type === "plan")).toBe(false);
     },
     BOOT_TIMEOUT,
   );
