@@ -4,8 +4,7 @@ import { messages } from "./en.ts";
 
 /**
  * The "Replaces" column of `docs/WORKSPACE_ACCESS.md` section 2, as patterns over what a
- * reader sees; only values are scanned, because keys and API paths keep their names. Each
- * sample proves its pattern bites, since three of these terms are in no shipped value.
+ * reader sees; only values are scanned, because keys and API paths keep their names.
  */
 const RETIRED: readonly (readonly [string, RegExp, string])[] = [
   [
