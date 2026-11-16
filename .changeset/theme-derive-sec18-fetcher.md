@@ -22,5 +22,5 @@ Derive a workspace theme from a website (task 110, criterion 119, SEC-18).
   PNG. Only a PNG or a JPEG is accepted. A hand upload the decoder cannot read is now refused
   with `LOGO_NOT_RASTER`, one over the cap with `LOGO_TOO_MANY_PIXELS`, and a WebP or an
   interlaced PNG with the new `LOGO_UNSUPPORTED`.
-- The OTLP log allowlist exports the `theme derive refused` event name; its reason and host
-  stay off the export.
+- The OTLP log allowlist exports the `theme derive refused` and `theme derive logo dropped`
+  event names; their reason and host stay off the export.
