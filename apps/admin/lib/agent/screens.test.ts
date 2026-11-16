@@ -34,8 +34,15 @@ function sorted(values: readonly string[]): string[] {
 }
 
 describe("the agent screen table", () => {
+  // The agent builder's routes carry no dock; their assistant pane is the builder's own.
   it("has a row for every authenticated page, and none for a route that is not one", () => {
-    expect(sorted(AGENT_SCREENS)).toEqual(sorted(shellScreens()));
+    const docked = shellScreens().filter((screen) => !screen.endsWith("/build"));
+    expect(sorted(AGENT_SCREENS)).toEqual(sorted(docked));
+  });
+
+  it("gives the dock no screen on either build route", () => {
+    expect(screenForPath("/forms/frm_x/build")).toBeUndefined();
+    expect(screenForPath("/forms/new/build")).toBeUndefined();
   });
 
   it("resolves a real path to its screen and its route ids", () => {

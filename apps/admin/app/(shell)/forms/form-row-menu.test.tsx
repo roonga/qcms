@@ -12,9 +12,11 @@ function trigger() {
   return screen.getByRole("button", { name: t("forms.rowActions", { name: NAME }) });
 }
 
-async function open(canOperate: boolean) {
+async function open(canOperate: boolean, canBuild = false) {
   const user = userEvent.setup();
-  render(<FormRowMenu formId="frm_alpha" name={NAME} canOperate={canOperate} />);
+  render(
+    <FormRowMenu formId="frm_alpha" name={NAME} canOperate={canOperate} canBuild={canBuild} />,
+  );
   await user.click(trigger());
   return user;
 }
@@ -45,6 +47,20 @@ describe("the forms list row menu", () => {
     await open(false);
     expect(screen.queryByRole("menuitem", { name: t("forms.tab.links") })).toBeNull();
     expect(screen.getByRole("menuitem", { name: t("forms.tab.builder") })).toBeTruthy();
+  });
+
+  it("offers the agent builder only where the page says the caller may build", async () => {
+    await open(true, true);
+    expect(
+      screen
+        .getByRole("menuitem", { name: t("forms.menu.agentBuilder") })
+        .getAttribute("href"),
+    ).toBe("/forms/frm_alpha/build");
+  });
+
+  it("leaves the agent builder out when the flag is off or the caller may not edit", async () => {
+    await open(true, false);
+    expect(screen.queryByRole("menuitem", { name: t("forms.menu.agentBuilder") })).toBeNull();
   });
 
   it("opens from the keyboard and walks its items with the arrow keys", async () => {
