@@ -182,7 +182,9 @@ export function makeResendSignInLinkHandler(
     // performer, so resending never makes the resender a performer. The state and the purpose
     // are read under the account's lock, so a resend crossing the claim's or a reset's commit
     // never leaves the wrong link.
-    const pendingAct = async (tx: Executor) => {
+    const pendingAct = async (
+      tx: Executor,
+    ): Promise<{ purpose: "reset" | "reactivated"; issuedBy: string } | undefined> => {
       const newest = await newestSignInLink(tx, id);
       const purpose = newest?.purpose;
       return newest !== undefined && (purpose === "reset" || purpose === "reactivated")
