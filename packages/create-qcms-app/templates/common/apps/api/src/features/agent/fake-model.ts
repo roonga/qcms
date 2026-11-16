@@ -572,6 +572,7 @@ const READ_ALL_INPUTS: Readonly<
   list_workspaces: () => ({}),
   read_workspace: () => ({}),
   list_erasures: () => ({ limit: 5 }),
+  question_recipes: () => ({ types: ["date-of-birth", "consent-and-acknowledgement"] }),
 };
 
 /** A rule the draft actually declares, or a probe id so the bench answers `ruleNotFound`. */

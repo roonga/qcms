@@ -1,10 +1,10 @@
 # Question type recipes for the authoring assistant
 
-**Status:** inventory and draft recipe content (issue #1270, phase 1) · **Applies to:** the admin authoring assistant
+**Status:** authoritative inventory (issue #1270) · **Applies to:** the admin authoring assistant
 
 The assistant builds questions without the constraints a form author would add unprompted. This file is the inventory behind the fix: the common question types, what the question definition and the engine can express for each one today, and what they cannot.
 
-The recipes themselves are one file per type in `docs/agent-question-recipes/`. They are model-facing guidance written in the assistant's voice, and issue #1284 moves them to `apps/api/src/features/agent/prompts/recipes/` once that folder exists. Nothing here is wired into the prompt yet: the lookup tool and the prompt rule are phase 2 of #1270.
+The recipes themselves are prompt text, one file per type in `apps/api/src/features/agent/prompts/recipes/`. Each file stem is a type the `question_recipes` lookup tool takes, and the stems are that tool's whole enum. A system section tells the assistant to look one up before proposing a question of that type, apply it, and say plainly what could not be applied. Editing a recipe is editing the prompt: follow `apps/api/src/features/agent/prompts/README.md` and bump the prompt version.
 
 Every "can" below cites the code rather than a document. Every "cannot" is stated outright, because the whole point of a recipe is that the assistant says plainly what it could not apply.
 
@@ -22,65 +22,65 @@ Every "can" below cites the code rather than a document. Every "cannot" is state
 
 | Type                                                                                     | Verdict | Corpus sources                                                     |
 | ---------------------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------ |
-| [Person name](agent-question-recipes/person-name.md)                                     | full    | NSW licence, N-400, Canadian passport, B11 declaration, NHS intake |
-| [Date of birth](agent-question-recipes/date-of-birth.md)                                 | partial | NHS intake, Medicare MS004, ACS, Canadian passport, N-400          |
-| [Age in years](agent-question-recipes/age-in-years.md)                                   | full    | ACS, BRFSS, NHS intake                                             |
-| [Reference number with a set format](agent-question-recipes/identifier-with-a-format.md) | full    | IR330, CMS-1500, Medicare MS004, NSW licence, Canadian passport    |
+| [Person name](../apps/api/src/features/agent/prompts/recipes/person-name.md)                                     | full    | NSW licence, N-400, Canadian passport, B11 declaration, NHS intake |
+| [Date of birth](../apps/api/src/features/agent/prompts/recipes/date-of-birth.md)                                 | partial | NHS intake, Medicare MS004, ACS, Canadian passport, N-400          |
+| [Age in years](../apps/api/src/features/agent/prompts/recipes/age-in-years.md)                                   | full    | ACS, BRFSS, NHS intake                                             |
+| [Reference number with a set format](../apps/api/src/features/agent/prompts/recipes/identifier-with-a-format.md) | full    | IR330, CMS-1500, Medicare MS004, NSW licence, Canadian passport    |
 
 ### Contact
 
 | Type                                                     | Verdict | Corpus sources                                    |
 | -------------------------------------------------------- | ------- | ------------------------------------------------- |
-| [Email address](agent-question-recipes/email-address.md) | full    | Council satisfaction, NHS intake, ahm claim       |
-| [Phone number](agent-question-recipes/phone-number.md)   | full    | B11 declaration, NHS intake, Council satisfaction |
-| [Postcode](agent-question-recipes/postcode.md)           | full    | Council satisfaction, Canadian passport, ACS      |
-| [Address](agent-question-recipes/address.md)             | full    | Canadian passport, B11 declaration, CMS-1500      |
+| [Email address](../apps/api/src/features/agent/prompts/recipes/email-address.md) | full    | Council satisfaction, NHS intake, ahm claim       |
+| [Phone number](../apps/api/src/features/agent/prompts/recipes/phone-number.md)   | full    | B11 declaration, NHS intake, Council satisfaction |
+| [Postcode](../apps/api/src/features/agent/prompts/recipes/postcode.md)           | full    | Council satisfaction, Canadian passport, ACS      |
+| [Address](../apps/api/src/features/agent/prompts/recipes/address.md)             | full    | Canadian passport, B11 declaration, CMS-1500      |
 
 ### Dates and times
 
 | Type                                                                    | Verdict | Corpus sources                                           |
 | ----------------------------------------------------------------------- | ------- | -------------------------------------------------------- |
-| [A date that has already happened](agent-question-recipes/past-date.md) | partial | Hospital claim, ahm claim, NHS intake, Canadian passport |
-| [A date in the future](agent-question-recipes/future-date.md)           | partial | ahm claim, NSW licence, Medicare MS004                   |
-| [A date range, from and to](agent-question-recipes/date-range.md)       | none    | Hospital claim, CMS-1500, Canadian passport, N-400       |
-| [A time of day](agent-question-recipes/time-of-day.md)                  | none    | Hospital claim, ahm claim, BRFSS                         |
+| [A date that has already happened](../apps/api/src/features/agent/prompts/recipes/past-date.md) | partial | Hospital claim, ahm claim, NHS intake, Canadian passport |
+| [A date in the future](../apps/api/src/features/agent/prompts/recipes/future-date.md)           | partial | ahm claim, NSW licence, Medicare MS004                   |
+| [A date range, from and to](../apps/api/src/features/agent/prompts/recipes/date-range.md)       | none    | Hospital claim, CMS-1500, Canadian passport, N-400       |
+| [A time of day](../apps/api/src/features/agent/prompts/recipes/time-of-day.md)                  | none    | Hospital claim, ahm claim, BRFSS                         |
 
 ### Choice
 
 | Type                                                                                   | Verdict | Corpus sources                                     |
 | -------------------------------------------------------------------------------------- | ------- | -------------------------------------------------- |
-| [Yes or no](agent-question-recipes/yes-or-no.md)                                       | full    | NHS intake, NSW licence, Hospital claim, W-4       |
-| [Yes or no, with a follow-up](agent-question-recipes/yes-or-no-with-detail.md)         | full    | NHS intake, NSW licence, Medicare MS004, ahm claim |
-| [Pick one from a list](agent-question-recipes/single-choice.md)                        | full    | IR330, W-4, NSW licence, Council satisfaction, ACS |
-| [Select all that apply](agent-question-recipes/select-all-that-apply.md)               | full    | ACS, ahm claim, NHS intake, BRFSS                  |
-| [None of the above](agent-question-recipes/none-of-the-above.md)                       | none    | ACS, BRFSS, Council satisfaction, Medicare MS004   |
-| [Other, please specify](agent-question-recipes/other-please-specify.md)                | partial | ACS, BRFSS, NHS intake, ahm claim                  |
-| [Voluntary and non-answer choices](agent-question-recipes/voluntary-and-non-answer.md) | full    | BRFSS, Medicare MS004, NSW licence, ACS            |
+| [Yes or no](../apps/api/src/features/agent/prompts/recipes/yes-or-no.md)                                       | full    | NHS intake, NSW licence, Hospital claim, W-4       |
+| [Yes or no, with a follow-up](../apps/api/src/features/agent/prompts/recipes/yes-or-no-with-detail.md)         | full    | NHS intake, NSW licence, Medicare MS004, ahm claim |
+| [Pick one from a list](../apps/api/src/features/agent/prompts/recipes/single-choice.md)                        | full    | IR330, W-4, NSW licence, Council satisfaction, ACS |
+| [Select all that apply](../apps/api/src/features/agent/prompts/recipes/select-all-that-apply.md)               | full    | ACS, ahm claim, NHS intake, BRFSS                  |
+| [None of the above](../apps/api/src/features/agent/prompts/recipes/none-of-the-above.md)                       | none    | ACS, BRFSS, Council satisfaction, Medicare MS004   |
+| [Other, please specify](../apps/api/src/features/agent/prompts/recipes/other-please-specify.md)                | partial | ACS, BRFSS, NHS intake, ahm claim                  |
+| [Voluntary and non-answer choices](../apps/api/src/features/agent/prompts/recipes/voluntary-and-non-answer.md) | full    | BRFSS, Medicare MS004, NSW licence, ACS            |
 
 ### Measurement
 
 | Type                                                                        | Verdict | Corpus sources                                        |
 | --------------------------------------------------------------------------- | ------- | ----------------------------------------------------- |
-| [A quantity, a count, or a measurement](agent-question-recipes/quantity.md) | full    | CMS-1500, Canadian passport, W-4, Medicare MS004, ACS |
-| [A money amount](agent-question-recipes/money-amount.md)                    | partial | CMS-1500, W-4, ACS, Hospital claim, ahm claim         |
+| [A quantity, a count, or a measurement](../apps/api/src/features/agent/prompts/recipes/quantity.md) | full    | CMS-1500, Canadian passport, W-4, Medicare MS004, ACS |
+| [A money amount](../apps/api/src/features/agent/prompts/recipes/money-amount.md)                    | partial | CMS-1500, W-4, ACS, Hospital claim, ahm claim         |
 
 ### Rating
 
 | Type                                                                            | Verdict | Corpus sources                           |
 | ------------------------------------------------------------------------------- | ------- | ---------------------------------------- |
-| [A rating scale](agent-question-recipes/rating-scale.md)                        | full    | Course evaluation, WHO-5, CAHPS, Council |
-| [A battery of statements on one scale](agent-question-recipes/scale-battery.md) | partial | WHO-5, Course evaluation, CAHPS          |
+| [A rating scale](../apps/api/src/features/agent/prompts/recipes/rating-scale.md)                        | full    | Course evaluation, WHO-5, CAHPS, Council |
+| [A battery of statements on one scale](../apps/api/src/features/agent/prompts/recipes/scale-battery.md) | partial | WHO-5, Course evaluation, CAHPS          |
 
 ### Consent, text, evidence, repetition
 
 | Type                                                                                        | Verdict | Corpus sources                                                        |
 | ------------------------------------------------------------------------------------------- | ------- | --------------------------------------------------------------------- |
-| [Consent and acknowledgement](agent-question-recipes/consent-and-acknowledgement.md)        | partial | NHS intake, Medicare MS004, CMS-1500, IR330, B11                      |
-| [A declaration and a signature](agent-question-recipes/declaration-and-signature.md)        | none    | B11, NSW licence, N-400, CMS-1500, IR330, W-4                         |
-| [A short typed answer, with a length limit](agent-question-recipes/short-free-text.md)      | full    | Council satisfaction, Canadian passport, N-400, ACS                   |
-| [A longer typed answer](agent-question-recipes/long-free-text.md)                           | partial | Course evaluation, NHS intake, B11, Council satisfaction              |
-| [A supporting document or piece of evidence](agent-question-recipes/supporting-document.md) | none    | Australian passport, NSW licence, ahm claim, Canadian passport, N-400 |
-| [Repeating items](agent-question-recipes/repeating-items.md)                                | full    | Medicare MS004, ACS, CMS-1500, N-400, Hospital claim, NSW licence     |
+| [Consent and acknowledgement](../apps/api/src/features/agent/prompts/recipes/consent-and-acknowledgement.md)        | partial | NHS intake, Medicare MS004, CMS-1500, IR330, B11                      |
+| [A declaration and a signature](../apps/api/src/features/agent/prompts/recipes/declaration-and-signature.md)        | none    | B11, NSW licence, N-400, CMS-1500, IR330, W-4                         |
+| [A short typed answer, with a length limit](../apps/api/src/features/agent/prompts/recipes/short-free-text.md)      | full    | Council satisfaction, Canadian passport, N-400, ACS                   |
+| [A longer typed answer](../apps/api/src/features/agent/prompts/recipes/long-free-text.md)                           | partial | Course evaluation, NHS intake, B11, Council satisfaction              |
+| [A supporting document or piece of evidence](../apps/api/src/features/agent/prompts/recipes/supporting-document.md) | none    | Australian passport, NSW licence, ahm claim, Canadian passport, N-400 |
+| [Repeating items](../apps/api/src/features/agent/prompts/recipes/repeating-items.md)                                | full    | Medicare MS004, ACS, CMS-1500, N-400, Hospital claim, NSW licence     |
 
 ### How the corpus was read
 
@@ -217,13 +217,10 @@ Three new scenarios in `scripts/agent-review/scenarios/`, drawing their wording 
 | `09-consent-that-must-be-given.json` | G3               | NHS intake: record-sharing consent and a privacy acknowledgement |
 | `10-none-of-the-above.json`          | G2               | Council satisfaction: the contact-channel selector               |
 
-Each checks the end state deterministically through the checks that exist (`formCount`, `questionCount`, `notReleased`) and puts the recipe behaviour in `assistantMust`, which is what a reviewer judges. They are committed and **not run**: a run needs a real model key and costs money (`scripts/agent-review/README.md`), and until the prompt rule lands in phase 2 they are expected to fail on the `assistantMust` lines.
+Each asserts the form's shape (`formCount`, `questionCount`, `notReleased`) and the settings the recipe calls for, and puts what the assistant has to say in `assistantMust`, which is what a reviewer judges. They are committed and **not run**: a run needs a real model key and costs money (`scripts/agent-review/README.md`).
 
-No end-state check reads a question's constraints, so nothing here can assert deterministically that a bound was set or that an option exists. A check of that kind is worth having and is a decision for phase 2, not a change to make silently.
+The settings a scenario may assert are `required`, `optionCount`, `dateMin`, `dateMax` and `pattern`, each naming its question by a substring of the label. A date bound may be compared against `today`, which resolves to the day the end state was read. A setting that was never set reads as absent, which is what makes the original defect, a date of birth open to the year 2100, a failure rather than a judgement call. The three gaps the scenarios exercise are still gaps: what is asserted is the nearest thing the product can express, and what the assistant has to say about the rest stays in `assistantMust`.
 
-## 5. What phase 2 still owes
+## 5. The consent recipe, until G3 is ruled on
 
-- The lookup tool returning the recipe for a type, with unit tests.
-- The prompt rule: consult the recipe for a common type, apply it, and say plainly and unprompted what could not be applied.
-- Moving `docs/agent-question-recipes/` into `apps/api/src/features/agent/prompts/recipes/` once #1284 has landed, and bumping the prompt version with it.
-- The Code Owner's approval of the prompt rule, as the review skill requires.
+Code Owner, 2026-11-16: the consent recipe builds a single-option choice marked required, and the assistant tells the person why it looks that way. A yes or no is offered only where the person says recording a refusal matters more than blocking the submission. That stands until #1290 is ruled on.
