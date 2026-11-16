@@ -600,7 +600,10 @@ async function* finishTurn(args: {
 }
 
 /** One mint per turn, which is what holds the per-turn cap: each mint takes a fresh turn id. */
-async function* builderEvents(ctx: AgentContext, state: ProposalState): AsyncGenerator<AssistEvent> {
+async function* builderEvents(
+  ctx: AgentContext,
+  state: ProposalState,
+): AsyncGenerator<AssistEvent> {
   const builder = ctx.builder;
   if (builder === undefined) return;
   if (state.edits.length > 0 && builder.mintEdits !== undefined) {

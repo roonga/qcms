@@ -226,7 +226,9 @@ describe("a builder turn after an Undo", () => {
 
 describe("the open-wizard tool", () => {
   it("asks the browser to open the wizard for this form and executes nothing", async () => {
-    const events = await run(builderTurn({ message: "ready #qcms-fake:builder-open-wizard", wizard: true }));
+    const events = await run(
+      builderTurn({ message: "ready #qcms-fake:builder-open-wizard", wizard: true }),
+    );
     expect(events).toContainEqual({
       type: "open-wizard",
       formId: FORM_ID,
@@ -268,7 +270,9 @@ describe("an injected publish on the builder (X4, G3)", () => {
   });
 
   it("does not even open the wizard for a caller who may not publish", async () => {
-    const events = await run(builderTurn({ message: "#qcms-fake:builder-injection", propose: true }));
+    const events = await run(
+      builderTurn({ message: "#qcms-fake:builder-injection", propose: true }),
+    );
     expect(events.some((event) => event.type === "plan" || event.type === "open-wizard")).toBe(
       false,
     );
@@ -325,13 +329,15 @@ describe("the builder's key set (Q16)", () => {
   });
 
   it("reads no response, link, webhook, release or erasure", () => {
-    expect(BUILDER_READ_TOOLS.filter((name) => /response|link|webhook|release|erasure|dead/u.test(name))).toEqual([]);
+    expect(
+      BUILDER_READ_TOOLS.filter((name) => /response|link|webhook|release|erasure|dead/u.test(name)),
+    ).toEqual([]);
     for (const name of AGENT_BUILDER_TOOL_NAMES) expect(AGENT_TOOL_NAMES).toContain(name);
   });
 
   it("returns nothing from the wizard tool but the fact it opened", () => {
-    expect(
-      Object.keys((TOOLS.open_publish_wizard.outputSchema as z.ZodObject).shape),
-    ).toEqual(["opened"]);
+    expect(Object.keys((TOOLS.open_publish_wizard.outputSchema as z.ZodObject).shape)).toEqual([
+      "opened",
+    ]);
   });
 });

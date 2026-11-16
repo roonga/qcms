@@ -23,7 +23,12 @@ import { EDITS_PER_TURN, type EditOp } from "../edit-token.js";
 import { canonicalJson } from "../proposal-token.js";
 
 /** The ops a builder tool yields. Appearance is its own drawer and kinds, not a tool here. */
-export const BUILDER_EDIT_OPS = ["question", "step", "rule", "copy"] as const satisfies readonly EditOp[];
+export const BUILDER_EDIT_OPS = [
+  "question",
+  "step",
+  "rule",
+  "copy",
+] as const satisfies readonly EditOp[];
 
 export type BuilderEditOp = (typeof BUILDER_EDIT_OPS)[number];
 
@@ -150,7 +155,11 @@ function applyQuestion(draft: FormDefinition, input: z.infer<typeof EditQuestion
       if (found !== undefined) refuse(`${input.questionId} is already on this form.`);
       if (input.version === undefined) refuse("pin needs the version to pin.");
       const step = requireStep(draft, input.stepId, "pin");
-      insertAt(step.items, { questionId: input.questionId, version: input.version }, input.position);
+      insertAt(
+        step.items,
+        { questionId: input.questionId, version: input.version },
+        input.position,
+      );
       return;
     }
     case "repin": {

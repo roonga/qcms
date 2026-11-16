@@ -1363,7 +1363,10 @@ function planBuilderEditsStep(
   if (toolCallCount(prompt, "edit_copy") === 0) {
     return [
       ...textParts("I will retitle the form, tidy the first step and add a follow-up.", "t0"),
-      ...oneCall("edit_copy", { target: "form-title", text: { [locale]: "Revised by the builder" } }),
+      ...oneCall("edit_copy", {
+        target: "form-title",
+        text: { [locale]: "Revised by the builder" },
+      }),
     ];
   }
   if (toolCallCount(prompt, "edit_step") === 0 && first !== undefined) {
@@ -1378,7 +1381,11 @@ function planBuilderEditsStep(
     return oneCall("edit_rule", {
       action: "set",
       ruleId: "rul_builder_followup",
-      rule: { ruleId: "rul_builder_followup", when: { op: "answered", questionId: shown }, show: [first.stepId] },
+      rule: {
+        ruleId: "rul_builder_followup",
+        when: { op: "answered", questionId: shown },
+        show: [first.stepId],
+      },
     });
   }
   const hit = libraryHits(results).find((entry) => !pins.includes(entry.questionId));
@@ -1427,7 +1434,10 @@ function planBuilderLibraryStep(prompt: readonly PromptMessage[]): StreamPart[] 
       steps: [
         {
           kind: "question.create",
-          args: { slug: newSlug(prompt), definition: fakeQuestionDefinition(newQuestionId(prompt)) },
+          args: {
+            slug: newSlug(prompt),
+            definition: fakeQuestionDefinition(newQuestionId(prompt)),
+          },
         },
       ],
     };
@@ -1436,10 +1446,7 @@ function planBuilderLibraryStep(prompt: readonly PromptMessage[]): StreamPart[] 
       ...oneCall("propose_plan", input),
     ];
   }
-  return [
-    ...textParts("Once it exists I will place it on the form.", "t1"),
-    finishPart("stop"),
-  ];
+  return [...textParts("Once it exists I will place it on the form.", "t1"), finishPart("stop")];
 }
 
 /**

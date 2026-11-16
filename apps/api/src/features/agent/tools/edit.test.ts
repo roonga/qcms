@@ -115,7 +115,11 @@ describe("the builder's question edits", () => {
 
 describe("the builder's step, rule and copy edits", () => {
   it("adds, replaces, moves and removes a step", () => {
-    const step = { stepId: "stp_c", title: { en: "C" }, items: [{ questionId: "q_e", version: 1 }] };
+    const step = {
+      stepId: "stp_c",
+      title: { en: "C" },
+      items: [{ questionId: "q_e", version: 1 }],
+    };
     const added = applied(
       applyBuilderEdit(draft(), "step", { action: "add", stepId: "stp_c", step, position: 0 }, 0),
     );
@@ -136,16 +140,24 @@ describe("the builder's step, rule and copy edits", () => {
     );
     expect(moved.steps.map((s) => s.stepId)).toEqual(["stp_b", "stp_a"]);
 
-    const removed = applied(applyBuilderEdit(draft(), "step", { action: "remove", stepId: "stp_a" }, 0));
+    const removed = applied(
+      applyBuilderEdit(draft(), "step", { action: "remove", stepId: "stp_a" }, 0),
+    );
     expect(removed.steps.map((s) => s.stepId)).toEqual(["stp_b"]);
   });
 
   it("keeps a step's id bound to its argument and a form's last step in place", () => {
-    const step = { stepId: "stp_x", title: { en: "X" }, items: [{ questionId: "q_e", version: 1 }] };
+    const step = {
+      stepId: "stp_x",
+      title: { en: "X" },
+      items: [{ questionId: "q_e", version: 1 }],
+    };
     expect(
       refusal(applyBuilderEdit(draft(), "step", { action: "add", stepId: "stp_c", step }, 0)),
     ).toContain("must equal stepId");
-    const one = applied(applyBuilderEdit(draft(), "step", { action: "remove", stepId: "stp_a" }, 0));
+    const one = applied(
+      applyBuilderEdit(draft(), "step", { action: "remove", stepId: "stp_a" }, 0),
+    );
     expect(
       refusal(applyBuilderEdit(one, "step", { action: "remove", stepId: "stp_b" }, 0)),
     ).toContain("at least one step");
@@ -153,7 +165,9 @@ describe("the builder's step, rule and copy edits", () => {
 
   it("sets and removes a rule by its id", () => {
     const rule = { ruleId: "rul_b", when: { op: "answered", questionId: "q_c" }, show: ["q_d"] };
-    const set = applied(applyBuilderEdit(draft(), "rule", { action: "set", ruleId: "rul_b", rule }, 0));
+    const set = applied(
+      applyBuilderEdit(draft(), "rule", { action: "set", ruleId: "rul_b", rule }, 0),
+    );
     expect(set.rules.map((r) => r.ruleId)).toEqual(["rul_a", "rul_b"]);
     const removed = applied(
       applyBuilderEdit(draft(), "rule", { action: "remove", ruleId: "rul_a" }, 0),

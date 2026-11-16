@@ -137,7 +137,11 @@ function headersFor(caller: Caller, extra: Record<string, string> = {}): Record<
 
 async function seedPublishedQuestion(id: string, label: string): Promise<void> {
   const questionId = QuestionId.parse(id);
-  const parsed = parseQuestionDefinition({ questionId: id, type: "shortText", label: { en: label } });
+  const parsed = parseQuestionDefinition({
+    questionId: id,
+    type: "shortText",
+    label: { en: label },
+  });
   if (!parsed.ok) throw new Error(`fixture question ${id} did not parse`);
   await createQuestion(testDb.db, {
     workspaceId: SEED_WORKSPACE_ID,
@@ -232,7 +236,9 @@ async function builderEvents(caller: Caller, message: string): Promise<AssistEve
 /** The tool names the provider was shown on the last call. */
 function lastOfferedTools(): string[] {
   const last = providerCalls.at(-1) as { tools?: { name?: unknown }[] } | undefined;
-  return (last?.tools ?? []).flatMap((entry) => (typeof entry.name === "string" ? [entry.name] : []));
+  return (last?.tools ?? []).flatMap((entry) =>
+    typeof entry.name === "string" ? [entry.name] : [],
+  );
 }
 
 async function count(sql: string): Promise<number> {
