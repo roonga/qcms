@@ -533,11 +533,23 @@ button {
   justify-content: flex-end;
   gap: var(--space-2);
 }
+/* Narrow first: before hydration picks the tabs, a narrow screen shows the assistant pane alone. */
 .qcms-builder__panes {
   display: grid;
   flex: 1 1 auto;
-  grid-template-columns: var(--qcms-builder-pane-w) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   min-block-size: 0;
+}
+.qcms-builder__panes > .qcms-builder__pane--preview {
+  display: none;
+}
+@variant sidebar {
+  .qcms-builder__panes {
+    grid-template-columns: var(--qcms-builder-pane-w) minmax(0, 1fr);
+  }
+  .qcms-builder__panes > .qcms-builder__pane--preview {
+    display: flex;
+  }
 }
 .qcms-builder__pane {
   display: flex;
@@ -574,15 +586,6 @@ button {
   gap: var(--space-3);
   max-inline-size: 40rem;
   padding: var(--admin-section-pad);
-}
-/* Before hydration picks the tabs, a narrow screen shows the assistant pane alone rather than two squeezed columns. */
-@media (max-width: 63.999rem) {
-  .qcms-builder__panes {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .qcms-builder__pane--preview {
-    display: none;
-  }
 }
 
 .qcms-card {
