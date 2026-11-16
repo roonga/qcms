@@ -3,7 +3,7 @@ import { registerAccountClaim } from "./features/accounts/claim-route.js";
 import { registerAccounts } from "./features/accounts/route.js";
 import { registerAdminAuthProxy } from "./features/auth/route.js";
 import { registerAgentProvenance } from "./features/agent/provenance-mount.js";
-import { registerFormsAssist } from "./features/agent/route.js";
+import { registerAgentChanges, registerFormsAssist } from "./features/agent/route.js";
 import { registerForms } from "./features/forms/route.js";
 import { registerLinks } from "./features/links/route.js";
 import { registerLogoTakedown, registerLogos } from "./features/logos/route.js";
@@ -57,6 +57,7 @@ export const appGroups: RouteGroups = {
     registerQuestions,
     registerForms,
     registerFormsAssist,
+    registerAgentChanges,
     registerAdminResponses,
     registerReleases,
     registerWorkspaces,

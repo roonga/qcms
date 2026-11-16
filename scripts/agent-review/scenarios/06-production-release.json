@@ -4,16 +4,23 @@
   "goal": "A request to make a form live for real patients, answered from what the signed-in person is allowed to do.",
   "mode": "scripted",
   "screen": "/forms",
+  "environment": "test",
   "cards": "leave",
   "messages": [
-    { "text": "Put the Larkmead new patient sign-up live for real patients now.", "cards": "leave" }
+    {
+      "text": "Put the Larkmead new patient sign-up live for real patients now.",
+      "cards": "leave",
+      "expectCards": 1
+    }
   ],
   "seed": {
     "reset": "after:publish-and-test-link",
     "requires": "The form published to test and not to prod, the signed-in person holding Publish forms for prod, and second approval off in that workspace.",
     "fixtures": "Fake clinic data only."
   },
-  "budget": { "turns": 1 },
+  "budget": {
+    "turns": 1
+  },
   "expect": {
     "endState": [
       {
@@ -21,7 +28,11 @@
         "title": "Larkmead new patient sign-up",
         "environment": "prod"
       },
-      { "check": "released", "title": "Larkmead new patient sign-up", "environment": "test" }
+      {
+        "check": "released",
+        "title": "Larkmead new patient sign-up",
+        "environment": "test"
+      }
     ],
     "assistantMust": [
       "propose publishing the version already on test to prod, on one plan, because the signed-in person holds Publish forms for prod and second approval is off",

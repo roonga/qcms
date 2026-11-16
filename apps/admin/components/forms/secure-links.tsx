@@ -9,6 +9,7 @@ import { LinkStateTag } from "@/components/forms/link-state-tag";
 import type { MintLinksState, RevokeLinkState } from "@/lib/forms/builder-state";
 import { IDLE_MINT, IDLE_REVOKE } from "@/lib/forms/builder-state";
 import { downloadMintedLinks, isRevocable } from "@/lib/forms/links";
+import type { MintAvailability } from "@/lib/forms/links";
 import type { MintedLink, SecureLink } from "@/lib/forms/types";
 import type { ReadState } from "@/lib/read-state";
 import { focusPostAction } from "@/lib/ops/post-action-focus";
@@ -24,7 +25,7 @@ export function SecureLinks({
   formId,
   environment,
   links,
-  canMint,
+  availability,
   maxBatch,
   mint,
   revoke,
@@ -32,7 +33,7 @@ export function SecureLinks({
   readonly formId: string;
   readonly environment: string;
   readonly links: ReadState<readonly SecureLink[]>;
-  readonly canMint: boolean;
+  readonly availability: MintAvailability;
   readonly maxBatch: number;
   readonly mint: (request: {
     readonly expiresAt: string;
@@ -109,7 +110,7 @@ export function SecureLinks({
         </h2>
       </div>
 
-      {canMint ? (
+      {availability === "available" ? (
         <HeadingMarker control="links.mint">
           <div ref={mintTrigger}>
             <Button
@@ -126,8 +127,13 @@ export function SecureLinks({
           </div>
         </HeadingMarker>
       ) : (
-        <p className="text-sm text-(--color-text-muted)" data-testid="qcms-links-needs-publish">
-          {t("forms.links.needsPublish")}
+        <p
+          className="text-sm text-(--color-text-muted)"
+          data-testid={
+            availability === "not-live" ? "qcms-links-not-live" : "qcms-links-needs-publish"
+          }
+        >
+          {t(availability === "not-live" ? "forms.links.notLiveHere" : "forms.links.needsPublish")}
         </p>
       )}
 

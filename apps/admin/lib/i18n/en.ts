@@ -1416,6 +1416,9 @@ export const messages = {
   "forms.links.heading": "Secure links",
   "forms.links.needsPublish":
     "Publish this form before minting links: a link opens the newest version, and there is not one yet.",
+  /** Also the screen and card copy for the API's FORM_NOT_RELEASED, so it has to stand alone. */
+  "forms.links.notLiveHere":
+    "This form is not live in this environment, so a link here would lead nowhere. Publish a version to this environment first.",
   "forms.links.mint": "Mint links",
   /** Restate mint environment in title and confirmation because links determine where respondent answers land. */
   "forms.links.mintTitle": "Mint secure links for {environment}",
@@ -1508,6 +1511,8 @@ export const messages = {
   "forms.assist.stepDone": "Done",
   /** Only the API can mark a step done; a stream ending without an outcome means interrupted. */
   "forms.assist.stepFailed": "Failed",
+  /** A step the assistant went on to get right is not a failure of the turn. */
+  "forms.assist.stepRetried": "Tried again",
   "forms.assist.stepInterrupted": "Did not finish",
   "forms.assist.step.search_question_library": "Searching the question library",
   "forms.assist.step.propose_questions": "Drafting questions",
@@ -1735,12 +1740,13 @@ export const messages = {
     "A Workspace administrator looks after this workspace: its access groups, its members and its settings. Removing the last one is refused.",
   "agent.card.workspace.settings.title": "Change this workspace's settings",
   "agent.card.workspace.settings.consequence":
-    "This switch decides whether publishing to production, a production endpoint change and a response self-grant need a second account.",
+    "This switch decides whether a publish to prod, a prod endpoint change and a response self-grant need a second account.",
   "agent.card.link.revoke.title": "Revoke link {linkId}",
   "agent.card.link.revoke.consequence":
     "The link stops working from now on. A session already in progress is unaffected.",
 
-  "agent.card.environment.production": "Production: changes where respondents' answers are sent.",
+  "agent.card.environment.production":
+    "This is prod. Real respondents get this from the moment you confirm, and what they have already sent is untouched.",
   "agent.card.environmentLabel": "Environment",
   "agent.card.usesStep": "Uses the {field} step {step} sets",
 

@@ -2,7 +2,14 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { FormId, QuestionId, SessionId } from "@roonga/qcms-core";
+import {
+  type Appearance,
+  deriveAppearance,
+  FormId,
+  QuestionDefinition,
+  QuestionId,
+  SessionId,
+} from "@roonga/qcms-core";
 import {
   SEED_WORKSPACE_ID,
   answerLedger,
@@ -24,6 +31,7 @@ import {
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../../../app.js";
+import { CLIENT_ADDRESS_HEADER } from "../../../client-address.js";
 import type { Deps } from "../../../deps.js";
 import { fixedClock, internalTokenFor, makeDeps, validEnv } from "../../../test-support.js";
 import { importSessionKeys, mintSessionToken } from "../session-token.js";
@@ -200,10 +208,14 @@ interface StepBody {
   progress: { stepIndex: number; totalVisibleSteps: number };
 }
 
-async function startSession(slug: string): Promise<StartBody> {
+async function startSession(slug: string, clientAddress?: string): Promise<StartBody> {
   const res = await app.request("/sessions", {
     method: "POST",
-    headers: { "content-type": "application/json", "x-qcms-internal-token": internalToken },
+    headers: {
+      "content-type": "application/json",
+      "x-qcms-internal-token": internalToken,
+      ...(clientAddress === undefined ? {} : { [CLIENT_ADDRESS_HEADER]: clientAddress }),
+    },
     body: JSON.stringify({ formSlug: slug }),
   });
   expect(res.status).toBe(201);
@@ -967,5 +979,199 @@ describe("concurrent answers are serialized by the advisory lock (exit criterion
     ]);
     const latest = await latestAnswers(testDb.db, SessionId.parse(sessionId));
     expect([10, 20]).toContain(latest.get(QuestionId.parse("q_accident_count")));
+  });
+});
+
+interface RailBody extends StepBody {
+  steps: {
+    stepId: string;
+    label: string;
+    state: string;
+    cursor: number | null;
+    questions?: { key: string; label: string }[];
+  }[];
+  progressMode: string;
+}
+
+const RAIL_DEF = {
+  formId: "frm_rail",
+  defaultLocale: "en",
+  title: { en: "Rail" },
+  steps: [
+    {
+      stepId: "stp_history",
+      title: { en: "Driving history" },
+      items: [{ questionId: "q_at_fault_accident", version: 2 }],
+    },
+    {
+      stepId: "stp_count",
+      title: { en: "Accidents" },
+      items: [{ questionId: "q_accident_count", version: 1 }],
+    },
+    {
+      stepId: "stp_name",
+      title: { en: "About you" },
+      items: [{ questionId: "q_rail_name", version: 1 }],
+    },
+  ],
+  rules: [
+    {
+      ruleId: "rul_accident_followup",
+      when: { op: "equals", questionId: "q_at_fault_accident", value: true },
+      show: ["q_accident_count"],
+    },
+  ],
+} as unknown as VersionInput["definition"];
+
+function railAppearance(): Appearance {
+  const derived = deriveAppearance({ primary: "#2456c6" });
+  return {
+    palettes: derived.palettes,
+    logo: null,
+    face: derived.face,
+    corners: "subtle",
+    density: "comfortable",
+    textSize: 16,
+    progress: "side-rail",
+    pageTint: derived.pageTint,
+  };
+}
+
+async function railAt(id: string, token: string, index?: number): Promise<RailBody> {
+  const res = index === undefined ? await getStep(id, token) : await getStepAt(id, token, index);
+  expect(res.status).toBe(200);
+  return (await res.json()) as RailBody;
+}
+
+const states = (body: RailBody): [string, string, number | null][] =>
+  body.steps.map((step) => [step.stepId, step.state, step.cursor]);
+
+describe("the step rail and the cursor's back-jump (ADR-28, Q8)", () => {
+  beforeAll(async () => {
+    await createQuestion(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
+      questionId: QuestionId.parse("q_rail_name"),
+      slug: "rail-name",
+    });
+    await createQuestionVersion(testDb.db, {
+      questionId: QuestionId.parse("q_rail_name"),
+      definition: QuestionDefinition.parse({
+        type: "shortText",
+        questionId: "q_rail_name",
+        label: { en: "Your name" },
+        required: true,
+      }),
+    });
+    const formId = FormId.parse("frm_rail");
+    await createForm(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
+      formId,
+      slug: "rail",
+      defaultLocale: "en",
+    });
+    const documents = RAIL_DEF.steps.map((step) => ({
+      stepId: step.stepId,
+      root: { type: "Text", props: { as: "h1" }, children: step.stepId },
+    }));
+    const version = await insertFormVersion(testDb.db, {
+      formId,
+      definition: RAIL_DEF,
+      appearance: railAppearance(),
+      compiled: { documents } as unknown as VersionInput["compiled"],
+      compilerVersion: GOLDEN.compilerVersion,
+      a2uiSpecVersion: GOLDEN.a2uiSpecVersion,
+      semanticsVersion: "1",
+    });
+    await insertFormRelease(testDb.db, {
+      formId,
+      environment: DEFAULT_TEST_ENVIRONMENT,
+      version: version.version,
+      releasedBy: "usr_fixture",
+    });
+  });
+
+  it("lists every step in the version's order, a rule-hidden one as notNeeded", async () => {
+    const { sessionId, sessionToken } = await startSession("rail", "198.51.100.1");
+    const body = await railAt(sessionId, sessionToken);
+    expect(body.progressMode).toBe("side-rail");
+    expect(body.steps.map((step) => [step.stepId, step.label])).toEqual([
+      ["stp_history", "Driving history"],
+      ["stp_count", "Accidents"],
+      ["stp_name", "About you"],
+    ]);
+    expect(states(body)).toEqual([
+      ["stp_history", "current", null],
+      ["stp_count", "notNeeded", null],
+      ["stp_name", "ahead", null],
+    ]);
+    expect(body.steps[0]?.questions).toEqual([
+      { key: "q_at_fault_accident", label: "Any at-fault accident in the last 3 years?" },
+    ]);
+    expect(body.steps[1]?.questions).toBeUndefined();
+    expect(body.steps[2]?.questions).toBeUndefined();
+  });
+
+  it("refuses a forward jump, serving the first incomplete step instead", async () => {
+    const { sessionId, sessionToken } = await startSession("rail", "198.51.100.2");
+    const fresh = await railAt(sessionId, sessionToken, 1);
+    expect(fresh.step?.stepId).toBe("stp_history");
+    expect(fresh.progress.stepIndex).toBe(0);
+
+    await postAnswer(sessionId, sessionToken, "q_at_fault_accident", true);
+    const skipped = await railAt(sessionId, sessionToken, 2);
+    expect(skipped.step?.stepId).toBe("stp_count");
+    expect(skipped.progress.stepIndex).toBe(1);
+    expect(skipped.flowState.visibleQuestions).toEqual(["q_accident_count"]);
+
+    const next = await railAt(sessionId, sessionToken, 1);
+    expect(next.step?.stepId).toBe("stp_count");
+  });
+
+  it("accepts a back-jump to a completed step, and answering there turns a later step notNeeded", async () => {
+    const { sessionId, sessionToken } = await startSession("rail", "198.51.100.3");
+    await postAnswer(sessionId, sessionToken, "q_at_fault_accident", true);
+    await postAnswer(sessionId, sessionToken, "q_accident_count", 2);
+
+    const resumed = await railAt(sessionId, sessionToken);
+    expect(resumed.step?.stepId).toBe("stp_name");
+    expect(states(resumed)).toEqual([
+      ["stp_history", "completed", 0],
+      ["stp_count", "completed", 1],
+      ["stp_name", "current", null],
+    ]);
+
+    const back = await railAt(sessionId, sessionToken, 0);
+    expect(back.step?.stepId).toBe("stp_history");
+    expect(states(back)).toEqual([
+      ["stp_history", "current", null],
+      ["stp_count", "completed", 1],
+      ["stp_name", "ahead", null],
+    ]);
+
+    const changed = await app.request(`/sessions/${sessionId}/answers?step=0`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-qcms-internal-token": internalToken,
+        authorization: `Bearer ${sessionToken}`,
+      },
+      body: JSON.stringify({ questionId: "q_at_fault_accident", value: false }),
+    });
+    expect(changed.status).toBe(200);
+    const body = (await changed.json()) as RailBody;
+    expect(body.step?.stepId).toBe("stp_history");
+    expect(states(body)).toEqual([
+      ["stp_history", "current", null],
+      ["stp_count", "notNeeded", null],
+      ["stp_name", "ahead", null],
+    ]);
+    expect(body.progress.totalVisibleSteps).toBe(2);
+  });
+
+  it("defaults to the top indicator where the pinned version carries no appearance", async () => {
+    const { sessionId, sessionToken } = await startSession("auto", "198.51.100.4");
+    const body = await railAt(sessionId, sessionToken);
+    expect(body.progressMode).toBe("top-indicator");
+    expect(states(body)).toEqual([["stp_history", "current", null]]);
   });
 });

@@ -4,6 +4,10 @@ draft, then change only what was asked and send the whole thing back. A step
 title, a rule, a repeating group or a count source you leave out is deleted, and
 nothing will tell you it is gone.
 
+A version that is already published never changes. So an edit to a form people are
+already answering leaves them on the version they started on and makes a new one,
+and that is worth one plain sentence of its own before they ask for it.
+
 Saving a draft publishes nothing and needs nothing published. A draft may use as
 many unpublished questions as it likes: that is what a draft is for, the card says
 so, and the publish is a separate card. So NEVER add a question.publish step to

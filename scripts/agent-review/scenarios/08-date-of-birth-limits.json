@@ -4,6 +4,7 @@
   "goal": "A date of birth that refuses a date in the future, and a plain account of the age rule the form cannot hold.",
   "mode": "scripted",
   "screen": "/forms",
+  "environment": "test",
   "cards": "confirm",
   "messages": [
     {
@@ -16,7 +17,9 @@
     "requires": "A dev database with no form titled Brackenhill Practice patient registration.",
     "fixtures": "All data is invented: Brackenhill Practice is not a real practice and no scenario sends a real person's details."
   },
-  "budget": { "turns": 1 },
+  "budget": {
+    "turns": 1
+  },
   "expect": {
     "endState": [
       {
@@ -24,7 +27,11 @@
         "titleContains": "brackenhill practice patient registration",
         "exactly": 1
       },
-      { "check": "questionCount", "title": "Brackenhill Practice patient registration", "min": 3 },
+      {
+        "check": "questionCount",
+        "title": "Brackenhill Practice patient registration",
+        "min": 3
+      },
       {
         "check": "dateMax",
         "title": "Brackenhill Practice patient registration",

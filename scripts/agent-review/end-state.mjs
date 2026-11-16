@@ -255,13 +255,47 @@ async function read(access, path, environment) {
 }
 
 /**
+ * Every environment an installation has, which is what a scenario may assert about. A links
+ * or releases read answers for the environment its header names alone, so a snapshot read in
+ * one of them cannot tell "not released to prod" from "not asked about prod".
+ */
+export const ENVIRONMENTS = ["test", "prod"];
+
+/**
+ * One form's links and releases across every environment, each entry carrying the
+ * environment it was read in so a merged list stays attributable.
+ *
  * @param {{ baseUrl: string; internalToken: string; session: string }} access
- * @param {string} environment
+ * @param {string} id
+ * @param {readonly string[]} environments
+ * @returns {Promise<{ links: Record<string, unknown>; releases: Record<string, unknown> }>}
+ */
+async function readOperational(access, id, environments) {
+  /** @type {unknown[]} */
+  const links = [];
+  /** @type {unknown[]} */
+  const releases = [];
+  for (const environment of environments) {
+    const linked = await read(access, `/forms/${id}/links`, environment);
+    const released = await read(access, `/forms/${id}/releases`, environment);
+    links.push(...(Array.isArray(linked["links"]) ? linked["links"] : []));
+    releases.push(...(Array.isArray(released["releases"]) ? released["releases"] : []));
+  }
+  return { links: { links }, releases: { releases } };
+}
+
+/**
+ * @param {{ baseUrl: string; internalToken: string; session: string }} access
+ * @param {string | readonly string[]} environments the environments to read. The first is
+ *   where the form list and the question library are read; a link and a release are read in
+ *   every one of them.
  * @param {Date} [now] the clock, so a caller can pin the date `today` resolves to
  * @returns {Promise<{ readAt: string | null; forms: Record<string, unknown>[] }>}
  */
-export async function readSnapshot(access, environment, now = new Date()) {
-  const listed = await read(access, "/forms", environment);
+export async function readSnapshot(access, environments, now = new Date()) {
+  const asked = typeof environments === "string" ? [environments] : [...environments];
+  const [primary = "test"] = asked;
+  const listed = await read(access, "/forms", primary);
   const forms = Array.isArray(listed["forms"]) ? listed["forms"] : [];
   /** @type {{ detail: Record<string, unknown>; links: Record<string, unknown>;
    *   releases: Record<string, unknown> }[]} */
@@ -270,13 +304,12 @@ export async function readSnapshot(access, environment, now = new Date()) {
   for (const entry of forms) {
     const id = String(/** @type {Record<string, unknown>} */ (entry)["formId"]);
     payloads.push({
-      detail: await read(access, `/forms/${id}`, environment),
-      links: await read(access, `/forms/${id}/links`, environment),
-      releases: await read(access, `/forms/${id}/releases`, environment),
+      detail: await read(access, `/forms/${id}`, primary),
+      ...(await readOperational(access, id, asked)),
     });
   }
   return buildSnapshot(payloads, {
-    library: await read(access, "/questions?versions=all", environment),
+    library: await read(access, "/questions?versions=all", primary),
     readAt: (now.toISOString().split("T")[0] ?? "").trim(),
   });
 }
@@ -289,14 +322,22 @@ export async function readSnapshot(access, environment, now = new Date()) {
 export async function main(args, environment) {
   const out = args[args.indexOf("--out") + 1];
   const named = args.indexOf("--environment");
-  const target = named === -1 ? "test" : (args[named + 1] ?? "test");
+  // A comma list, and every environment by default: a scenario asserting "not released to
+  // prod" needs prod read rather than assumed from a read of test.
+  const targets =
+    named === -1
+      ? ENVIRONMENTS
+      : (args[named + 1] ?? "test")
+          .split(",")
+          .map((name) => name.trim())
+          .filter((name) => name !== "");
 
-  const snapshot = await readSnapshot(resolveAccess(environment), target);
+  const snapshot = await readSnapshot(resolveAccess(environment), targets);
   const text = `${JSON.stringify(snapshot, null, 2)}\n`;
   if (out === undefined || args.indexOf("--out") === -1) stdout.write(text);
   else {
     writeFileSync(out, text);
-    stdout.write(`agent-review: end state of ${target} in ${out}\n`);
+    stdout.write(`agent-review: end state of ${targets.join(", ")} in ${out}\n`);
   }
   return 0;
 }

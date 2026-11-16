@@ -25,8 +25,10 @@ and the whole walk to the receipt), the no-JS block of
 `apps/portal/e2e/repeat-table.pw.ts` (the same group presented as a table, at a width
 above the card reflow, which is the layout the phone project never sees) and
 `apps/portal/e2e/no-js-per-instance.pw.ts` (a group whose presentation paginates a step
-into one page per instance: three views, one button, no Back). Read those ten as the
-definition of the claim.
+into one page per instance: three views, one button, no Back), and the no-JS block of
+`apps/portal/e2e/step-rail.pw.ts` (the side rail's completed steps as plain links, a refused
+post returning to the step it came from, and the narrow fold as a native disclosure). Read
+those eleven as the definition of the claim.
 
 **All four of its qualifiers are gone, and each one was a control whose form value the
 respondent could not reach.** A form with a required date completed only from issue #920
@@ -253,6 +255,9 @@ renders projections the API computed. This is a correctness boundary.
 ## Navigation and answers
 
 **ADR-28.** Explicit Continue, Back and Submit. No collapse-on-answer and no derived cursor.
+A progress mode from the pinned version's appearance (side rail, top indicator, none) shows
+where the respondent is; the rail links completed steps only, and the API refuses a forward
+jump.
 
 **ADR-31.** Answer commitment semantics: each control commits at its decided moment, and an
 emptied control reports **absence** rather than an empty string or an empty array.

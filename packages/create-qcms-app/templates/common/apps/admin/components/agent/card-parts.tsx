@@ -356,6 +356,9 @@ export function StepItem({
     // A definition shown field by field, or as a diff and two advisory lists, is not
     // also shown as a line of JSON.
     .filter((line) => line.name !== DEFINITION_ARGUMENT || !(readable || step.draft !== undefined));
+  // An id nobody can read names nothing: the title above says which subject this is, and the
+  // disclosure below keeps the id for support.
+  const body = lines.filter((line) => !line.idOnly);
   return (
     <li className="qcms-acard__step" data-s={state}>
       {stepIcon(state)}
@@ -374,7 +377,7 @@ export function StepItem({
       )}
       <p className="qcms-acard__args">
         {step.card.hideEnvironment === true ? null : <EnvironmentLine step={step} />}
-        {lines.map(argumentLine)}
+        {body.map(argumentLine)}
         {stepConsequences(step).map((sentence) => (
           <span key={sentence}>{sentence}</span>
         ))}

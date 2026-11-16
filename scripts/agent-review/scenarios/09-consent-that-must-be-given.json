@@ -4,6 +4,7 @@
   "goal": "Two agreements the form cannot be sent without, on a product that has no setting forcing a yes or no to be yes.",
   "mode": "scripted",
   "screen": "/forms",
+  "environment": "test",
   "cards": "confirm",
   "messages": [
     {
@@ -16,7 +17,9 @@
     "requires": "A dev database with no form titled Brackenhill Practice record sharing.",
     "fixtures": "All data is invented: Brackenhill Practice is not a real practice and no scenario sends a real person's details."
   },
-  "budget": { "turns": 1 },
+  "budget": {
+    "turns": 1
+  },
   "expect": {
     "endState": [
       {
@@ -24,7 +27,11 @@
         "titleContains": "brackenhill practice record sharing",
         "exactly": 1
       },
-      { "check": "questionCount", "title": "Brackenhill Practice record sharing", "min": 3 },
+      {
+        "check": "questionCount",
+        "title": "Brackenhill Practice record sharing",
+        "min": 3
+      },
       {
         "check": "optionCount",
         "title": "Brackenhill Practice record sharing",

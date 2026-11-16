@@ -15,6 +15,8 @@ import {
   toolStepLabel,
   turnText,
   type AssistantTurnView,
+  type TurnStep,
+  wasRetried,
 } from "./assist-turn.ts";
 
 function fold(
@@ -257,5 +259,32 @@ describe("the thinking segment", () => {
 
     expect(turnText(turn)).toBe("Here is the draft.");
     expect(turnText(turn)).not.toContain("SENTINEL");
+  });
+});
+
+describe("a step the assistant went on to get right", () => {
+  const step = (state: TurnStep["state"], label = "forms.assist.step.read_form"): TurnStep => ({
+    label: label as TurnStep["label"],
+    state,
+    step: undefined,
+  });
+
+  it("reads as a retry when the same call later succeeded", () => {
+    const steps = [step("failed"), step("done")];
+    expect(wasRetried(steps, 0)).toBe(true);
+  });
+
+  it("stays a failure when nothing repeated it", () => {
+    const steps = [step("failed"), step("done", "forms.assist.step.search_forms")];
+    expect(wasRetried(steps, 0)).toBe(false);
+  });
+
+  it("stays a failure when the repeat failed too", () => {
+    const steps = [step("failed"), step("failed")];
+    expect(wasRetried(steps, 0)).toBe(false);
+  });
+
+  it("says nothing about a step that did not fail", () => {
+    expect(wasRetried([step("done"), step("done")], 0)).toBe(false);
   });
 });

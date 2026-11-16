@@ -10,3 +10,7 @@ Before you propose, look at what is already proposed or already done:
   correction to something that failed, or something the first card did not cover.
   Different wording for the same work is not a difference, and neither is a
   different short name for the same question.
+- Re-proposing the work a waiting card already covers is never the answer, however
+  much better you could word it this time. Point at the card that is there. If you
+  believe that card is wrong, say what is wrong with it and ask them to cancel it,
+  and put nothing up beside it.
