@@ -204,6 +204,7 @@ const DOCUMENTED_ROLE_ROWS: Readonly<Record<string, readonly [string, string]>> 
   ],
   "Workspace settings: two-person switch, archive": ["workspace", "update"],
   "Save or change a workspace theme": ["form", "write"],
+  "Derive a workspace theme from a website (SEC-18)": ["form", "write"],
   "Set or clear the workspace appearance lock": ["workspace", "update"],
   "Read the access audit": ["audit", "read"],
   "Create workspaces, mark the shared one, environment settings, user accounts, release-workflow configuration, logo takedown":

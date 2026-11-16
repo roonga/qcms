@@ -31,6 +31,8 @@ const SAFE_EVENTS = new Set([
   "shutdown complete",
   "shutting down",
   "the environment set and the configuration disagree",
+  "theme derive logo dropped",
+  "theme derive refused",
   "could not check the environment set against control.environments",
   "unhandled error",
 ]);

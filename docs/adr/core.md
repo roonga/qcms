@@ -220,7 +220,7 @@ The count changed because **task 066 split anonymous entry from secure-link entr
 
 **Decision.** The Hono API uses fetch-pure vertical slices with explicit dependencies. Multi-field and multi-row invariants live in core functions; other work uses plain transaction scripts. Background delivery and retention jobs run inside the API process.
 
-**Note.** The schedulers start only where the internal surface is mounted (in the solo topology, always). Fetch purity is lint-enforced for `@roonga/qcms-core` and the compiler but convention-only in `apps/api`. Retention now runs three rules: the session sweep plus the aged redaction of response snippets (#304) and outbox payloads (#329).
+**Note.** The schedulers start only where the internal surface is mounted (in the solo topology, always). Fetch purity is lint-enforced for `@roonga/qcms-core`, the compiler and `apps/api`. In `apps/api` the scoped exceptions are the tests, `test-support.ts` and the brand fetcher's Node adapters (`brand-fetcher/node-*.ts`), which handlers reach only through `Deps`, composed by `main.ts`. Retention now runs three rules: the session sweep plus the aged redaction of response snippets (#304) and outbox payloads (#329).
 
 ### ADR-15 - Runtime baseline
 

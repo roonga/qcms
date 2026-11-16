@@ -727,3 +727,57 @@ describe("QCMS_ADMIN_SIGNIN_THROTTLE (SEC-1, issue #390)", () => {
     );
   });
 });
+
+describe("loadConfig - theme derive (SEC-18 S1, S2, S3, W3)", () => {
+  it("defaults its own flag off, separate from the agent flag, with no egress narrowing", () => {
+    const config = loadConfig(validEnv({ QCMS_FLAG_AGENT_AUTHORING: "fake" }));
+    expect(config.flags.themeDerive).toBe("off");
+    expect(config.themeDerive).toStrictEqual({ allowedHosts: [], proxy: undefined });
+    expect(config.rateLimit.themeDerivePerUser).toStrictEqual({ windowMs: 600_000, max: 10 });
+    expect(config.rateLimit.themeDerivePerWorkspace).toStrictEqual({
+      windowMs: 3_600_000,
+      max: 30,
+    });
+  });
+
+  it("reads the flag, an allowlist and a CONNECT proxy", () => {
+    const config = loadConfig(
+      validEnv({
+        QCMS_FLAG_THEME_DERIVE: "on",
+        QCMS_THEME_DERIVE_ALLOWED_HOSTS: " Brand.Example , www.other.example ",
+        QCMS_THEME_DERIVE_PROXY: "http://egress.internal:3128",
+      }),
+    );
+    expect(config.flags.themeDerive).toBe("on");
+    expect(config.themeDerive.allowedHosts).toStrictEqual(["brand.example", "www.other.example"]);
+    expect(config.themeDerive.proxy).toStrictEqual({ host: "egress.internal", port: 3128 });
+  });
+
+  it("refuses an invalid flag value, an allowlist entry that is not a host, and a proxy with credentials", () => {
+    for (const [name, value] of [
+      ["QCMS_FLAG_THEME_DERIVE", "yes"],
+      ["QCMS_THEME_DERIVE_ALLOWED_HOSTS", "https://brand.example/"],
+      ["QCMS_THEME_DERIVE_ALLOWED_HOSTS", "10.0.0.1"],
+      ["QCMS_THEME_DERIVE_PROXY", "http://user:secret@egress.internal:3128"],
+      ["QCMS_THEME_DERIVE_PROXY", "https://egress.internal:3128"],
+    ] as const) {
+      let error: unknown;
+      try {
+        loadConfig(validEnv({ [name]: value }));
+      } catch (err: unknown) {
+        error = err;
+      }
+      expect(error, `${name}=${value}`).toBeInstanceOf(ConfigError);
+      expect((error as ConfigError).issues.join("\n")).toContain(name);
+      expect((error as ConfigError).message).not.toContain("secret@");
+    }
+  });
+
+  it("is never widened by the webhook private-target switch", () => {
+    const config = loadConfig(
+      validEnv({ QCMS_FLAG_THEME_DERIVE: "on", QCMS_WEBHOOK_ALLOW_PRIVATE: "true" }),
+    );
+    expect(config.webhooks.allowPrivateTargets).toBe(true);
+    expect(Object.keys(config.themeDerive).sort()).toStrictEqual(["allowedHosts", "proxy"]);
+  });
+});

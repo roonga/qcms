@@ -40,12 +40,17 @@ export const MOUNT = {
 /**
  * `validEnv()` regenerates its synthetic secrets on every call, so a topology whose
  * process shapes must share tokens builds the env once and reuses the returned object.
- * Private webhook targets are enabled so the in-test loopback receiver is reachable.
+ * Private webhook targets are enabled so the in-test loopback receiver is reachable. The
+ * theme derive flag is on so its route is mounted for the matrix; nothing here fetches.
  */
 export function buildEnv(
   overrides: Record<string, string | undefined> = {},
 ): Record<string, string | undefined> {
-  return validEnv({ QCMS_WEBHOOK_ALLOW_PRIVATE: "true", ...overrides });
+  return validEnv({
+    QCMS_WEBHOOK_ALLOW_PRIVATE: "true",
+    QCMS_FLAG_THEME_DERIVE: "on",
+    ...overrides,
+  });
 }
 
 export interface ComposedApi {

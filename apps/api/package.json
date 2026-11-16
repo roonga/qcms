@@ -52,8 +52,12 @@
     "better-auth": "1.7.14",
     "drizzle-orm": "^0.45.4",
     "hono": "^4.13.16",
+    "ipaddr.js": "^2.5.0",
+    "jpeg-js": "^0.4.4",
     "nodemailer": "^10.5.0",
     "pg": "^8.23.1",
+    "pngjs": "^7.0.0",
+    "tldts": "^7.5.3",
     "zod": "^4.6.7"
   },
   "devDependencies": {
@@ -61,7 +65,9 @@
     "@testcontainers/postgresql": "^12.2.1",
     "@types/node": "^24.19.2",
     "@types/pg": "^8.23.1",
+    "@types/pngjs": "^6.0.5",
     "otplib": "^13.6.0",
+    "selfsigned": "^5.5.0",
     "testcontainers": "^12.2.1"
   }
 }
