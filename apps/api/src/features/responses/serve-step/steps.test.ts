@@ -60,7 +60,10 @@ function flowOf(answers: Record<string, AnswerValue>): FlowState {
 /** The rail as the handler derives it, with the resume point the no-cursor serve picks. */
 function rail(flow: FlowState, servedIndex: number) {
   const views = stepViewsOf(flow);
-  const resume = flow.currentStep === null ? views.length : views.findIndex((v) => v.stepId === flow.currentStep);
+  const resume =
+    flow.currentStep === null
+      ? views.length
+      : views.findIndex((v) => v.stepId === flow.currentStep);
   return railEntries({ steps: STEPS, views, servedIndex, resumeIndex: resume }).map(
     (entry) => [entry.stepId, entry.state, entry.cursor] as const,
   );
@@ -144,7 +147,11 @@ describe("the furthest view Continue could reach (forward refusal)", () => {
       { stepId: "stp_b" as StepId, instanceId: "ins_two" as InstanceId },
       { stepId: "stp_c" as StepId, instanceId: null },
     ];
-    const flow = { complete: false, currentStep: "stp_b", visibleStepViews: views } as unknown as FlowState;
+    const flow = {
+      complete: false,
+      currentStep: "stp_b",
+      visibleStepViews: views,
+    } as unknown as FlowState;
     expect(lastReachableView(flow, views, new Set())).toBe(2);
     expect(
       railEntries({ steps: STEPS, views, servedIndex: 0, resumeIndex: 2 }).map((e) => e.state),

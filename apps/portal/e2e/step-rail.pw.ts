@@ -20,7 +20,9 @@ const NARROW = { width: 390, height: 844 };
 const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 
 async function expectNoAxeViolations(page: Page, label: string): Promise<void> {
-  const results = await new AxeBuilder({ page }).options({ runOnly: { type: "tag", values: TAGS } }).analyze();
+  const results = await new AxeBuilder({ page })
+    .options({ runOnly: { type: "tag", values: TAGS } })
+    .analyze();
   const summary = results.violations.map((v) => `${v.id} (${v.nodes.length})`).join(", ");
   expect(results.violations, `axe violations at "${label}": ${summary}`).toEqual([]);
   expect(results.passes.length, `axe ran no rules at "${label}"`).toBeGreaterThan(0);
@@ -86,7 +88,9 @@ test.describe("side rail, scripted", () => {
     });
 
     const served = stepServed(page);
-    await rail(page).getByRole("link", { name: /About you/ }).click();
+    await rail(page)
+      .getByRole("link", { name: /About you/ })
+      .click();
     await served;
     await expect(page.getByRole("textbox", { name: KS.fullName })).toHaveValue("Ada Lovelace");
     await expectStates(rail(page), {
@@ -97,7 +101,9 @@ test.describe("side rail, scripted", () => {
     await expectNoAxeViolations(page, "side rail, after a back-jump");
 
     const forward = stepServed(page);
-    await rail(page).getByRole("link", { name: /Driving history/ }).click();
+    await rail(page)
+      .getByRole("link", { name: /Driving history/ })
+      .click();
     await forward;
     await expectStates(rail(page), { "Driving history": "current", "Your cover": "ahead" });
 
@@ -204,7 +210,9 @@ test.describe("side rail without scripting", () => {
     await walkToHistory(page, railSlug);
     await expectStates(rail(page), { "About you": "completed", "Driving history": "current" });
 
-    await rail(page).getByRole("link", { name: /About you/ }).click();
+    await rail(page)
+      .getByRole("link", { name: /About you/ })
+      .click();
     await page.waitForURL(/\?step=0$/);
     await expect(page.locator('input[name="q_full_name"]')).toHaveValue("Ada Lovelace");
     await expectStates(rail(page), { "About you": "current", "Driving history": "ahead" });
