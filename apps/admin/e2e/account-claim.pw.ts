@@ -1,5 +1,6 @@
 import type { Locator, Page } from "@playwright/test";
 
+import { NOW } from "../../api/e2e/support/harness.js";
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, signInLinkFor, uniqueAdminEmail } from "./support/admin-account.js";
@@ -64,7 +65,7 @@ test("a live link states that it works once and lasts 72 hours", async ({ page }
 
 test("a link past its 72 hours is refused with the answer a used one gets", async ({ page }) => {
   const expired = await signInLinkFor(EXPIRED_EMAIL, {
-    expiresAt: new Date(Date.now() - 60_000),
+    expiresAt: new Date(NOW.getTime() - 60_000),
   });
   await page.goto(`/claim?token=${encodeURIComponent(expired)}`);
   await fillClaim(page, CHOSEN_PASSWORD, CHOSEN_PASSWORD);
