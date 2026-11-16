@@ -12,7 +12,8 @@ export async function generateMetadata({
   readonly searchParams: Promise<Query>;
 }): Promise<Metadata> {
   const params = await searchParams;
-  const refused = firstValue(params.token) === undefined && withoutTokenMessage(params) === undefined;
+  const refused =
+    firstValue(params.token) === undefined && withoutTokenMessage(params) === undefined;
   return pageMetadata(t(refused ? "claim.refusedTitle" : "claim.title"));
 }
 
