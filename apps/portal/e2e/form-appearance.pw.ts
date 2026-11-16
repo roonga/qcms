@@ -9,8 +9,8 @@ import {
   admin,
   appearanceOf,
   createThemeWithLogo,
-  distinctPng,
   publishAppearance,
+  solidPng,
   takeDownLogo,
 } from "./support/form-appearance.js";
 import { expect, test } from "./support/gates.js";
@@ -325,7 +325,7 @@ test("a logo taken down after publish is hidden rather than drawn broken", async
     fixtures,
     `Takedown ${String(Date.now())}`,
     teal,
-    distinctPng(`takedown-${String(Date.now())}`),
+    solidPng([Date.now() % 251, Math.floor(Date.now() / 251) % 251, 7]),
   );
   await publishAppearance(fixtures, formId, appearanceOf(teal, { logo: theme.logoKey }));
 

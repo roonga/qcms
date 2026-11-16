@@ -1,3 +1,5 @@
+import { deflateSync } from "node:zlib";
+
 import { expect } from "@playwright/test";
 
 import type { DerivedLook, FormAppearanceFixtures } from "./api-server.js";
@@ -138,9 +140,39 @@ export async function createThemeWithLogo(
   return { themeId, ...read.theme };
 }
 
-/** The same decodable image under a different digest: trailing bytes after IEND. */
-export function distinctPng(tag: string): string {
-  return Buffer.concat([Buffer.from(ONE_PIXEL_PNG, "base64"), Buffer.from(tag)]).toString("base64");
+function crc32(bytes: Buffer): number {
+  let crc = 0xffffffff;
+  for (const byte of bytes) {
+    crc ^= byte;
+    for (let bit = 0; bit < 8; bit += 1) crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function chunk(type: string, data: Buffer): Buffer {
+  const body = Buffer.concat([Buffer.from(type, "ascii"), data]);
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(data.length);
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(crc32(body));
+  return Buffer.concat([length, body, crc]);
+}
+
+/**
+ * A 1x1 PNG of one colour, so its digest differs from every other test's. The API
+ * re-encodes uploads and refuses trailing bytes, so only distinct pixels make a distinct key.
+ */
+export function solidPng(rgb: readonly [number, number, number]): string {
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(1, 0);
+  header.writeUInt32BE(1, 4);
+  header.set([8, 2, 0, 0, 0], 8);
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk("IHDR", header),
+    chunk("IDAT", deflateSync(Buffer.from([0, ...rgb]))),
+    chunk("IEND", Buffer.alloc(0)),
+  ]).toString("base64");
 }
 
 /** A Site administrator's takedown, which leaves every version still naming the key. */
