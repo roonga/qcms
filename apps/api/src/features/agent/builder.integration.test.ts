@@ -61,6 +61,7 @@ let owner: Caller;
 let editor: Caller;
 let viewer: Caller;
 let providerCalls: unknown[];
+let now = new Date("2026-07-20T00:00:00.000Z");
 
 beforeAll(async () => {
   testDb = await startTestDb();
@@ -79,6 +80,7 @@ beforeAll(async () => {
     db: testDb.db,
     env: validEnv({ QCMS_FLAG_AGENT_AUTHORING: "fake" }),
     logger: recorder.logger,
+    clock: { now: () => now },
     draftAssistant: aiSdkDraftAssistant({
       model: recording,
       providerId: "fake",
@@ -100,15 +102,17 @@ beforeAll(async () => {
     },
   });
   internalToken = internalTokenFor(deps.config);
-  owner = await seedAdminSession(testDb.db, { label: "bld_owner" });
+  owner = await seedAdminSession(testDb.db, { label: "bld_owner", at: now });
   editor = await seedAdminSession(testDb.db, {
     label: "bld_editor",
+    at: now,
     claim: false,
     grants: ["forms.editor"],
     owner: false,
   });
   viewer = await seedAdminSession(testDb.db, {
     label: "bld_viewer",
+    at: now,
     claim: false,
     grants: ["forms.viewer"],
     owner: false,
@@ -182,6 +186,8 @@ async function seedForm(): Promise<void> {
     headers: headersFor(owner),
   });
   expect(published.status).toBe(200);
+  // The wizard's read counts the rows after the publish, so the edits land later than it.
+  now = new Date(now.getTime() + 60_000);
   expect((await saveDraft(owner, definition("Second"))).status).toBe(200);
 }
 
