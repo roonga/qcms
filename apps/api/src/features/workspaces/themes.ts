@@ -23,11 +23,15 @@ import {
   checkPalettes,
   sniffRasterLogo,
 } from "@roonga/qcms-core";
-import type { AppearanceCorners, RasterLogoContentType } from "@roonga/qcms-core";
+import type { AppearanceCorners } from "@roonga/qcms-core";
 
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
+import { LogoRefused } from "./brand-fetcher/port.js";
+import type { ReencodedLogo } from "./brand-fetcher/port.js";
+import { LOGO_MAX_PIXELS, LOGO_MAX_SIDE } from "./brand-fetcher/logo-dimensions.js";
+import { sha256Hex } from "./logo-digest.js";
 import { requireOpenWorkspace, requireWorkspace, workspaceFail } from "./resolve.js";
 import { ThemeId } from "./schema.js";
 import type {
@@ -80,6 +84,12 @@ const fail = {
       "LOGO_NOT_RASTER",
       422,
       "A logo must be a PNG, JPEG or WebP image. The bytes decide, not the request's content type, and SVG is refused.",
+    ),
+  tooManyPixels: (): ApiError =>
+    new ApiError(
+      "LOGO_TOO_MANY_PIXELS",
+      422,
+      `A logo may be at most ${String(LOGO_MAX_PIXELS)} pixels and ${String(LOGO_MAX_SIDE)} on a side`,
     ),
 } as const;
 
@@ -286,15 +296,22 @@ function decodeBase64(value: string): Uint8Array<ArrayBuffer> {
   return bytes;
 }
 
-async function sha256Hex(bytes: Uint8Array<ArrayBuffer>): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+async function reencoded(deps: Deps, bytes: Uint8Array): Promise<ReencodedLogo> {
+  if (sniffRasterLogo(bytes) === null) throw fail.notRaster();
+  try {
+    return await deps.logoCodec.reencode(bytes);
+  } catch (err: unknown) {
+    if (!(err instanceof LogoRefused)) throw err;
+    if (err.reason === "too-many-pixels") throw fail.tooManyPixels();
+    if (err.reason === "too-large") throw fail.logoTooLarge();
+    throw fail.notRaster();
+  }
 }
 
 /**
- * Content-addressed, so the same image uploaded twice resolves to one row and one key.
- * The stored content type is the sniffed one and never the request's, which is what keeps
- * the serving route's fixed type honest.
+ * Decoded, held to the pixel cap and re-encoded as PNG by the same codec a derive uses
+ * (SEC-18 F7), then content-addressed by the re-encoded bytes, so the same image uploaded
+ * twice resolves to one row and one key.
  */
 export function makeUploadThemeLogoHandler(
   deps: Deps,
@@ -309,13 +326,18 @@ export function makeUploadThemeLogoHandler(
 
     const bytes = decodeBase64(c.req.valid("json").bytesBase64);
     if (bytes.byteLength === 0 || bytes.byteLength > LOGO_MAX_BYTES) throw fail.logoTooLarge();
-    const contentType: RasterLogoContentType | null = sniffRasterLogo(bytes);
-    if (contentType === null) throw fail.notRaster();
+    const logo = await reencoded(deps, bytes);
+    const { contentType } = logo;
 
-    const key = await sha256Hex(bytes);
+    const key = await sha256Hex(logo.bytes);
     try {
       await deps.databases.control.transaction(async (tx) => {
-        await insertAppearanceLogo(tx, { key, contentType, bytes, actor: principal.userId });
+        await insertAppearanceLogo(tx, {
+          key,
+          contentType,
+          bytes: logo.bytes,
+          actor: principal.userId,
+        });
         await updateWorkspaceTheme(tx, {
           name: theme.name,
           palettes: theme.palettes,
@@ -336,7 +358,7 @@ export function makeUploadThemeLogoHandler(
       throw err;
     }
 
-    return c.json({ logoKey: key, contentType, bytes: bytes.byteLength }, 201);
+    return c.json({ logoKey: key, contentType, bytes: logo.bytes.byteLength }, 201);
   };
 }
 
