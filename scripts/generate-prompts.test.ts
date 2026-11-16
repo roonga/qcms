@@ -44,14 +44,18 @@ describe("reading a description out of its Markdown", () => {
 describe("a question-type recipe", () => {
   it("accepts a file named as the type enum spells it", () => {
     expect(
-      recipeProblems([{ path: "recipes/date-of-birth.md", name: "date-of-birth", text: "Use a date." }]),
+      recipeProblems([
+        { path: "recipes/date-of-birth.md", name: "date-of-birth", text: "Use a date." },
+      ]),
     ).toEqual([]);
   });
 
   it("reports a name the enum could not carry", () => {
     expect(
       recipeProblems([{ path: "recipes/Date Of Birth.md", name: "Date Of Birth", text: "x" }]),
-    ).toEqual(["recipes/Date Of Birth.md is named outside the type enum's shape, a-z and hyphens."]);
+    ).toEqual([
+      "recipes/Date Of Birth.md is named outside the type enum's shape, a-z and hyphens.",
+    ]);
   });
 
   it("reports an empty file and a placeholder, neither of which a lookup can return", () => {
@@ -151,7 +155,9 @@ describe("the rendered module", () => {
     });
 
     expect(module).toContain('"date-of-birth": "# Date of birth\\n\\nUse a date."');
-    expect(module).toContain('export const QUESTION_RECIPE_TYPES = [\n  "date-of-birth",\n  "postcode",\n]');
+    expect(module).toContain(
+      'export const QUESTION_RECIPE_TYPES = [\n  "date-of-birth",\n  "postcode",\n]',
+    );
   });
 });
 
