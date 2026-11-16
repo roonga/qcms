@@ -18,7 +18,9 @@ export function NoAccessHome({
   readonly locale: string;
 }) {
   const named = formatList(
-    siteAdministrators.map((account) => t("access.noAccess.person", { name: account.name, email: account.email })),
+    siteAdministrators.map((account) =>
+      t("access.noAccess.person", { name: account.name, email: account.email }),
+    ),
     locale,
   );
   const who =

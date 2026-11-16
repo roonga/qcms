@@ -34,36 +34,36 @@ export function AccessExplanation({
         <caption className="pb-2 text-left text-sm font-semibold text-(--color-text)">
           {t("access.explain.title", { person, workspace })}
         </caption>
-          <thead>
-            <tr>
-              <th scope="col" className="px-2 py-1 text-left font-medium">
-                {t("access.explain.columnAction")}
+        <thead>
+          <tr>
+            <th scope="col" className="px-2 py-1 text-left font-medium">
+              {t("access.explain.columnAction")}
+            </th>
+            {environments.map((environment) => (
+              <th key={environment} scope="col" className="px-2 py-1 text-left font-medium">
+                {environment}
               </th>
-              {environments.map((environment) => (
-                <th key={environment} scope="col" className="px-2 py-1 text-left font-medium">
-                  {environment}
-                </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.role} className="border-t border-(--color-border)">
+              <th scope="row" className="px-2 py-1 text-left font-normal">
+                {roleName(row.role)}
+              </th>
+              {row.cells.map((cell) => (
+                <td
+                  key={cell.environments.join(" ")}
+                  colSpan={cell.environments.length > 1 ? cell.environments.length : undefined}
+                  className="px-2 py-1"
+                >
+                  <Granting cell={cell} linkTo={linkTo} />
+                </td>
               ))}
             </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => (
-              <tr key={row.role} className="border-t border-(--color-border)">
-                <th scope="row" className="px-2 py-1 text-left font-normal">
-                  {roleName(row.role)}
-                </th>
-                {row.cells.map((cell) => (
-                  <td
-                    key={cell.environments.join(" ")}
-                    colSpan={cell.environments.length > 1 ? cell.environments.length : undefined}
-                    className="px-2 py-1"
-                  >
-                    <Granting cell={cell} linkTo={linkTo} />
-                  </td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
+          ))}
+        </tbody>
       </table>
     </div>
   );

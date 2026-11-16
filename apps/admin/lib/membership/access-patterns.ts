@@ -228,7 +228,10 @@ function pick<T extends string>(value: string, allowed: readonly T[]): T | undef
 }
 
 /** The filters a query string asks for; a value the screen does not offer is dropped, not obeyed. */
-export function readAccessFilters(params: SearchParams, options: AccessFilterOptions): AccessFilters {
+export function readAccessFilters(
+  params: SearchParams,
+  options: AccessFilterOptions,
+): AccessFilters {
   const search = first(params.q).trim().slice(0, ACCESS_SEARCH_MAX_LENGTH);
   const role = pick(first(params.role), options.roles);
   const environment = pick(first(params.environment), options.environments);

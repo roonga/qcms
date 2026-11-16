@@ -65,12 +65,7 @@ export function ConfirmAct({
         )}
         {error !== undefined && <Alert variant="error">{error}</Alert>}
         <div className="flex flex-wrap justify-end gap-2">
-          <Button
-            variant={tone}
-            size="md"
-            isDisabled={!matched || pending}
-            onPress={onConfirm}
-          >
+          <Button variant={tone} size="md" isDisabled={!matched || pending} onPress={onConfirm}>
             {pending
               ? t("access.confirm.working")
               : needsApproval

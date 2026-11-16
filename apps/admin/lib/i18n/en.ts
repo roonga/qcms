@@ -2525,8 +2525,7 @@ export const messages = {
     "Your Site administrator is {administrators}. A Workspace administrator adds you to an access group.",
   "access.noAccess.administrator.other":
     "Your Site administrators are {administrators}. A Workspace administrator adds you to an access group.",
-  "access.noAccess.administrator.none":
-    "A Workspace administrator adds you to an access group.",
+  "access.noAccess.administrator.none": "A Workspace administrator adds you to an access group.",
   "access.noAccess.person": "{name} ({email})",
   "access.uncovered.label": "Not covered by any group",
   "access.uncovered.environment": "Environment {environment}: no group covers it yet.",

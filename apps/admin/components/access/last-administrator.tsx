@@ -31,14 +31,18 @@ export function AdministratorRemoval({
   );
   if (!allowed) return null;
 
-  const visible = scope === "workspace" ? t("access.lastAdmin.remove") : t("access.lastAdmin.demote");
+  const visible =
+    scope === "workspace" ? t("access.lastAdmin.remove") : t("access.lastAdmin.demote");
   const named =
     scope === "workspace"
       ? t("access.lastAdmin.removeFor", { person })
       : t("access.lastAdmin.demoteFor", { person });
 
   return (
-    <div className="flex min-w-0 flex-col items-start gap-1" data-testid="qcms-administrator-removal">
+    <div
+      className="flex min-w-0 flex-col items-start gap-1"
+      data-testid="qcms-administrator-removal"
+    >
       <Button variant="danger" size="md" isDisabled={isLast || pending} onPress={onPress}>
         <span aria-hidden="true">{visible}</span>
         <span className="qcms-visually-hidden">{named}</span>

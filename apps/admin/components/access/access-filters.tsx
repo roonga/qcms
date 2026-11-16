@@ -48,7 +48,10 @@ export function AccessFilterFields({
           label={t("access.filter.environment")}
           defaultValue={filters.environment ?? ""}
           placeholder={any.label}
-          items={[any, ...environments.map((environment) => ({ label: environment, value: environment }))]}
+          items={[
+            any,
+            ...environments.map((environment) => ({ label: environment, value: environment })),
+          ]}
         />
       )}
       {statuses.length > 0 && (

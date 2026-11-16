@@ -2,11 +2,7 @@
 
 import { useAppLocale } from "@/components/locale-context";
 import { t, type MessageKey } from "@/lib/i18n/en";
-import {
-  describeChange,
-  describeKept,
-  type AccessDelta,
-} from "@/lib/membership/access-patterns";
+import { describeChange, describeKept, type AccessDelta } from "@/lib/membership/access-patterns";
 
 export interface ApprovalNeed {
   /** Why the act waits, in the screen's own words. */
