@@ -21,9 +21,8 @@ import {
   EDIT_TOKEN_PURPOSE,
   EDIT_TOKEN_VERSION,
   EDITS_PER_TURN,
-  UNDO_KIND,
   draftStateDigest,
-  editKind,
+  rowKind,
   signEditToken,
 } from "./edit-token.js";
 import { canonicalJson } from "./proposal-token.js";
@@ -193,7 +192,7 @@ export async function recordAgentEdit(
       actor: site.actor,
       workspaceId: site.workspaceId,
       formId: saved.formId,
-      kind: edit.act === "edit" ? editKind(edit.op) : UNDO_KIND,
+      kind: rowKind(edit),
       screen: BUILDER_SCREEN,
       proposedAt: new Date(edit.iat),
       confirmedAt: deps.now,
