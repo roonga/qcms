@@ -86,7 +86,12 @@ const VOICE_RULES: readonly { readonly rule: string; readonly phrases: readonly 
   },
   {
     rule: "say a test link's address is shown once and never reaches it",
-    phrases: ["shown once, on the card", "You never see that address", "cancels the old link"],
+    phrases: [
+      "shown once, on the card",
+      "You never see that address",
+      "cancels the old one and creates a replacement",
+      "An unasked-for replacement",
+    ],
   },
   {
     rule: "open with the result, or with one short clause naming the look-up",
@@ -249,26 +254,30 @@ describe("the draft assistant system prompt", () => {
 
   it("treats a publish to prod as work this user's own grants decide", () => {
     const prompt = buildSystemPrompt();
-    expect(prompt).toContain("Publishing to prod is ordinary work you may propose");
-    expect(prompt).toContain("never straight to prod");
-    expect(prompt).toContain("propose a publish to prod whenever form.release offers prod");
-    expect(prompt).toContain("Name another person only when one is actually needed");
-    expect(prompt).toContain('Say "publish to prod"');
+    for (const phrase of [
+      "Publishing to prod is ordinary work you may propose",
+      "never straight to prod",
+      "propose a publish to prod whenever form.release offers prod",
+      "Name another person only when one is actually needed",
+      'Say "publish to prod"',
+    ]) {
+      expect(prompt, phrase).toContain(phrase);
+    }
     expect(prompt).not.toContain("Never propose a publish to production");
   });
 
-  it("asks one question when the request names an outcome and no change", () => {
+  it("asks first, names no recipe, and promises no card nobody asked for", () => {
     const prompt = buildSystemPrompt();
-    expect(prompt).toContain("ASK FIRST when they have named an outcome and no concrete change");
-    expect(prompt).toContain("Propose nothing until they pick one");
-  });
-
-  it("keeps the word recipe, the plan's own authorship and unasked-for cards in check", () => {
-    const prompt = buildSystemPrompt();
-    expect(prompt).toContain("NEVER write the word recipe to the person");
-    expect(prompt).toContain('Write "the plan adds three\nquestions"');
-    expect(prompt).toContain("A card they did not ask for is never promised");
-    expect(prompt).toContain("Re-proposing the work a waiting card already covers");
+    for (const phrase of [
+      "ASK FIRST when they have named an outcome and no concrete change",
+      "Propose nothing until they pick one",
+      "NEVER write the word recipe to the person",
+      'Write "the plan adds three\nquestions"',
+      "A card they did not ask for is never promised",
+      "Re-proposing the work a waiting card already covers",
+    ]) {
+      expect(prompt, phrase).toContain(phrase);
+    }
   });
 
   it("keeps builder terms out of the guidance the person is spoken to through", () => {
