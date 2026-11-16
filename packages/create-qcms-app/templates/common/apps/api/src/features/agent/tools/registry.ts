@@ -19,7 +19,11 @@ import { ResponseFilterQuery } from "../../responses/admin/schema.js";
 import { proposePlanSchema } from "./propose-schema.js";
 import { ProposedStep, type Proposal } from "./propose.js";
 import { selfContainedToolSchema } from "./tool-schema.js";
-import { TOOL_DESCRIPTIONS } from "../prompts/prompts.generated.js";
+import {
+  QUESTION_RECIPE_TYPES,
+  QUESTION_RECIPES,
+  TOOL_DESCRIPTIONS,
+} from "../prompts/prompts.generated.js";
 import type { AgentContext, ToolCell } from "../types.js";
 
 /** Adding a name here is a security decision: the registry, tool set and door all read it. */
@@ -28,6 +32,7 @@ export const AGENT_TOOL_NAMES = [
   "list_questions",
   "read_question",
   "diff_question_versions",
+  "question_recipes",
   "propose_questions",
   "propose_draft",
   "validate_draft",
@@ -167,6 +172,18 @@ const FormListingInput = z.object({ ...FORM_SUBJECT, limit: Limit });
 const WorkspaceSubjectInput = z.object(WORKSPACE_SUBJECT);
 
 const LimitOnlyInput = z.object({ limit: Limit });
+
+/**
+ * The enum is generated from the recipe file names, so the list the model is shown cannot
+ * name a recipe this installation does not ship, and a new file needs no edit here.
+ */
+const QuestionRecipesInput = z.object({
+  types: z
+    .array(z.enum([...QUESTION_RECIPE_TYPES]))
+    .min(1)
+    .max(10)
+    .describe("The question types to look up, from this list."),
+});
 
 const ProposeQuestionsInput = z.object({
   questions: z
@@ -379,6 +396,10 @@ const Outputs = {
         closed: z.boolean(),
       }),
     ),
+  }),
+  // Guidance this installation ships, so the shape carries no subject and no id at all.
+  question_recipes: z.strictObject({
+    recipes: z.array(z.strictObject({ type: z.string(), guidance: z.string() })),
   }),
   // Every field says the same thing: nothing was created. The one consumer is the kind
   // that applies a proposed draft, and a turn that proposes no such card keeps nothing.
@@ -640,6 +661,12 @@ interface AgentToolDef {
   /** Installation-wide operator state: the administrator claim, never a workspace grant. */
   readonly claim?: true;
   /**
+   * A tool returning text this installation ships rather than anything its users authored
+   * or its respondents sent. There is no subject to hold a grant on, so it declares no
+   * cell and every signed-in caller is offered it.
+   */
+  readonly fixedText?: true;
+  /**
    * A tool that only stages for the apply-draft card, which the form builder runs through
    * its own client-side save. Off that screen the card cannot exist, so neither can a tool
    * whose only consumer it is.
@@ -822,6 +849,14 @@ async function testRule(input: unknown, ctx: AgentContext): Promise<Record<strin
   };
 }
 
+function questionRecipes(input: unknown): {
+  recipes: { type: string; guidance: string }[];
+} {
+  const { types } = QuestionRecipesInput.parse(input);
+  const asked = [...new Set(types)];
+  return { recipes: asked.map((type) => ({ type, guidance: QUESTION_RECIPES[type] })) };
+}
+
 /** Frozen so nothing can graft a verb on at runtime. */
 export const TOOLS: Readonly<Record<AgentToolName, AgentToolDef>> = Object.freeze({
   search_question_library: {
@@ -868,6 +903,13 @@ export const TOOLS: Readonly<Record<AgentToolName, AgentToolDef>> = Object.freez
     outputSchema: Outputs.list_releases,
     cell: RELEASE_READ,
     execute: (input, ctx) => port(ctx.listReleases, "list_releases")(FormListingInput.parse(input)),
+  },
+  question_recipes: {
+    description: TOOL_DESCRIPTIONS.question_recipes,
+    inputSchema: QuestionRecipesInput,
+    outputSchema: Outputs.question_recipes,
+    fixedText: true,
+    execute: (input) => Promise.resolve(questionRecipes(input)),
   },
   propose_questions: {
     description: TOOL_DESCRIPTIONS.propose_questions,
@@ -1037,6 +1079,11 @@ function providerSchema(zodType: z.ZodType): Schema<unknown> {
 /** The tools whose offer is decided by the installation-wide administrator claim. */
 export function isClaimTool(name: AgentToolName): boolean {
   return TOOLS[name].claim === true;
+}
+
+/** The tools returning shipped text, which no grant gates because no subject holds one. */
+export function isFixedTextTool(name: AgentToolName): boolean {
+  return TOOLS[name].fixedText === true;
 }
 
 /** The tools whose only consumer is the apply-draft card, which one screen runs. */

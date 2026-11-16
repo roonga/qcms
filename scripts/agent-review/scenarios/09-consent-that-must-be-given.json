@@ -26,6 +26,28 @@
       },
       { "check": "questionCount", "title": "Brackenhill Practice record sharing", "min": 3 },
       {
+        "check": "optionCount",
+        "title": "Brackenhill Practice record sharing",
+        "labelContains": "record",
+        "exactly": 1
+      },
+      {
+        "check": "required",
+        "title": "Brackenhill Practice record sharing",
+        "labelContains": "record"
+      },
+      {
+        "check": "optionCount",
+        "title": "Brackenhill Practice record sharing",
+        "labelContains": "privacy",
+        "exactly": 1
+      },
+      {
+        "check": "required",
+        "title": "Brackenhill Practice record sharing",
+        "labelContains": "privacy"
+      },
+      {
         "check": "notReleased",
         "title": "Brackenhill Practice record sharing",
         "environment": "test"

@@ -26,6 +26,29 @@
       },
       { "check": "questionCount", "title": "Brackenhill Practice patient registration", "min": 3 },
       {
+        "check": "dateMax",
+        "title": "Brackenhill Practice patient registration",
+        "labelContains": "date of birth",
+        "notAfter": "today"
+      },
+      {
+        "check": "dateMin",
+        "title": "Brackenhill Practice patient registration",
+        "labelContains": "date of birth",
+        "set": true
+      },
+      {
+        "check": "required",
+        "title": "Brackenhill Practice patient registration",
+        "labelContains": "date of birth"
+      },
+      {
+        "check": "pattern",
+        "title": "Brackenhill Practice patient registration",
+        "labelContains": "phone",
+        "set": true
+      },
+      {
         "check": "notReleased",
         "title": "Brackenhill Practice patient registration",
         "environment": "test"
