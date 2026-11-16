@@ -86,7 +86,7 @@ beforeAll(async () => {
   editor = await seedAdminSession(testDb.db, { label: "appearance-editor" });
   siteAdmin = await seedAdminSession(testDb.db, {
     label: "appearance-site",
-    claim: true,
+    siteAdministrator: true,
     membership: false,
   });
 }, CONTAINER_BOOT_TIMEOUT_MS);
@@ -345,7 +345,6 @@ describe(
       const workspaceId = await newWorkspace("themes-viewer");
       const viewer = await seedAdminSession(testDb.db, {
         label: "themes-viewer",
-        claim: false,
         owner: false,
         workspaceId,
         grants: ["forms.viewer"],
@@ -365,7 +364,6 @@ describe(
       const theirs = await newWorkspace("themes-theirs");
       const elsewhere = await seedAdminSession(testDb.db, {
         label: "themes-elsewhere",
-        claim: false,
         owner: false,
         workspaceId: theirs,
         grants: ["forms.editor"],
@@ -383,13 +381,12 @@ describe(
       const workspaceId = await newWorkspace("themes-administrators");
       const workspaceAdministrator = await seedAdminSession(testDb.db, {
         label: "themes-workspace-admin",
-        claim: false,
         workspaceId,
         grants: [],
       });
       const siteAdministrator = await seedAdminSession(testDb.db, {
         label: "themes-site-admin",
-        claim: true,
+        siteAdministrator: true,
         membership: false,
       });
 
@@ -468,13 +465,12 @@ describe(
       const workspaceId = await newWorkspace("lock-administrators");
       const workspaceAdministrator = await seedAdminSession(testDb.db, {
         label: "lock-workspace-admin",
-        claim: false,
         workspaceId,
         grants: [],
       });
       const siteAdministrator = await seedAdminSession(testDb.db, {
         label: "lock-site-admin",
-        claim: true,
+        siteAdministrator: true,
         membership: false,
       });
 
@@ -505,7 +501,6 @@ describe(
       const workspaceId = await newWorkspace("lock-editor");
       const onlyEditor = await seedAdminSession(testDb.db, {
         label: "lock-only-editor",
-        claim: false,
         owner: false,
         workspaceId,
         grants: ["forms.editor"],
@@ -573,13 +568,12 @@ describe(
         editor,
         await seedAdminSession(testDb.db, {
           label: "locked-workspace-admin",
-          claim: false,
           workspaceId,
           grants: ["forms.editor"],
         }),
         await seedAdminSession(testDb.db, {
           label: "locked-site-admin",
-          claim: true,
+          siteAdministrator: true,
           workspaceId,
           grants: ["forms.editor"],
         }),
@@ -1035,7 +1029,7 @@ describe("a Site administrator may take a stored logo down", { timeout: TIMEOUT_
 
     const siteAdministrator = await seedAdminSession(testDb.db, {
       label: "takedown-site-admin",
-      claim: true,
+      siteAdministrator: true,
       membership: false,
     });
     const takedown = await as(siteAdministrator.token, "DELETE", `/logos/${logoKey}`);
@@ -1080,7 +1074,7 @@ describe("a Site administrator may take a stored logo down", { timeout: TIMEOUT_
 
     const siteAdministrator = await seedAdminSession(testDb.db, {
       label: "tombstone-site-admin",
-      claim: true,
+      siteAdministrator: true,
       membership: false,
     });
     const takedown = await as(siteAdministrator.token, "DELETE", `/logos/${logoKey}`);
@@ -1117,7 +1111,7 @@ describe("a Site administrator may take a stored logo down", { timeout: TIMEOUT_
 
     const siteAdministrator = await seedAdminSession(testDb.db, {
       label: "takedown-mirror-site-admin",
-      claim: true,
+      siteAdministrator: true,
       membership: false,
     });
     const takedown = await as(siteAdministrator.token, "DELETE", `/logos/${logoKey}`);
@@ -1184,7 +1178,7 @@ describe("a Site administrator may take a stored logo down", { timeout: TIMEOUT_
     ]);
     const siteAdministrator = await seedAdminSession(testDb.db, {
       label: "takedown-race-site-admin",
-      claim: true,
+      siteAdministrator: true,
       membership: false,
     });
 
@@ -1246,7 +1240,7 @@ describe("a Site administrator may take a stored logo down", { timeout: TIMEOUT_
     const { logoKey } = (await uploaded.json()) as { logoKey: string };
     const siteAdministrator = await seedAdminSession(testDb.db, {
       label: "takedown-conflict-site-admin",
-      claim: true,
+      siteAdministrator: true,
       membership: false,
     });
 
@@ -1301,7 +1295,7 @@ describe("a Site administrator may take a stored logo down", { timeout: TIMEOUT_
       }
       const siteAdministrator = await seedAdminSession(testDb.db, {
         label: `takedown-echo-site-admin-${String(locked)}`,
-        claim: true,
+        siteAdministrator: true,
         membership: false,
       });
       const takedown = await as(siteAdministrator.token, "DELETE", `/logos/${logoKey}`);
@@ -1327,13 +1321,11 @@ describe("a Site administrator may take a stored logo down", { timeout: TIMEOUT_
     const workspaceId = await newWorkspace("takedown-actors");
     const workspaceAdministrator = await seedAdminSession(testDb.db, {
       label: "takedown-workspace-admin",
-      claim: false,
       workspaceId,
       grants: ["forms.editor"],
     });
     const onlyEditor = await seedAdminSession(testDb.db, {
       label: "takedown-editor",
-      claim: false,
       owner: false,
       workspaceId,
       grants: ["forms.editor"],
@@ -1350,7 +1342,7 @@ describe("a Site administrator may take a stored logo down", { timeout: TIMEOUT_
   it("answers the serving route's uniform 404 for a malformed key", async () => {
     const siteAdministrator = await seedAdminSession(testDb.db, {
       label: "takedown-malformed",
-      claim: true,
+      siteAdministrator: true,
       membership: false,
     });
     const res = await as(siteAdministrator.token, "DELETE", "/logos/not-a-key");

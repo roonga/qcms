@@ -19,16 +19,14 @@ const ERASER_GROUP = "Every environment: responses.eraser";
 
 test.beforeAll(async () => {
   await createTestAdmin(SITE_ADMIN, { siteAdministrator: true });
-  await createTestAdmin(NOTHING, { grants: [], owner: false, siteAdministrator: false });
+  await createTestAdmin(NOTHING, { grants: [], owner: false });
   await createTestAdmin(VIEWER, {
     grants: ["forms.viewer"],
     owner: false,
-    siteAdministrator: false,
   });
   await createTestAdmin(ERASER, {
     grants: ["responses.eraser"],
     owner: false,
-    siteAdministrator: false,
   });
 });
 

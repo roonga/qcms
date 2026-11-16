@@ -136,7 +136,11 @@ beforeAll(async () => {
   baseEnv = validEnv({ QCMS_WEBHOOK_ALLOW_PRIVATE: "true" });
   deps = makeDeps({ db: testDb.db, env: baseEnv, clock: systemClock });
   adminSessionToken = (
-    await seedAdminSession(testDb.db, { at: new Date(), label: "operator", claim: true })
+    await seedAdminSession(testDb.db, {
+      at: new Date(),
+      label: "operator",
+      siteAdministrator: true,
+    })
   ).token;
 }, CONTAINER_BOOT_TIMEOUT_MS);
 

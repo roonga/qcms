@@ -183,7 +183,7 @@ export async function seedAdminSession(
     readonly workspaceId?: string;
     readonly membership?: boolean;
     /** `true` seeds a Site administrator; the default has no site role, as every new account. */
-    readonly claim?: boolean;
+    readonly siteAdministrator?: boolean;
   } = {},
 ): Promise<{ token: string; userId: string }> {
   // Derived from `fixedClock` rather than a second copy of the literal, so changing the
@@ -201,7 +201,7 @@ export async function seedAdminSession(
     updatedAt: at,
     twoFactorEnabled: options.twoFactorEnabled ?? true,
     mustChangePassword: options.mustChangePassword ?? false,
-    role: options.claim === true ? SITE_ADMINISTRATOR_ROLE : null,
+    role: options.siteAdministrator === true ? SITE_ADMINISTRATOR_ROLE : null,
     ...(options.disabledAt === undefined ? {} : { disabledAt: options.disabledAt }),
     claimedAt: options.claimed === false ? null : at,
   });

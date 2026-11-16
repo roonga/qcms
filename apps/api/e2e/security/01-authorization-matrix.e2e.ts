@@ -171,7 +171,7 @@ beforeAll(async () => {
   // Written through `seedGrants` rather than the membership endpoints: these probes are
   // about the gates in front of those endpoints, and a fixture built by the thing under
   // test proves less.
-  const holder = await seedAdminSession(testDb.db, { label: "probe-holder", claim: false });
+  const holder = await seedAdminSession(testDb.db, { label: "probe-holder" });
   probeHolderId = holder.userId;
   const seeded = await seedGrants(testDb.db, {
     userId: holder.userId,
@@ -494,7 +494,7 @@ describe("account creation and the claim (task 090)", () => {
   ] as const)(
     "refuses %s every account route, 403 before any lookup",
     async (_name, label, shape) => {
-      const caller = await seedAdminSession(testDb.db, { label, claim: false, ...shape });
+      const caller = await seedAdminSession(testDb.db, { label, ...shape });
       const headers = adminHeaders({ [ADMIN_SESSION_HEADER]: caller.token });
       const email = `matrix.${caller.userId}@example.test`;
 
@@ -746,7 +746,6 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
   ): Promise<string> {
     const account = await seedAdminSession(testDb.db, {
       label,
-      claim: false,
       owner: options.owner ?? false,
       grants,
     });
@@ -814,7 +813,7 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
       name: label,
       slug: label,
     });
-    const account = await seedAdminSession(testDb.db, { label, claim: false, membership: false });
+    const account = await seedAdminSession(testDb.db, { label, membership: false });
     await createScopedGroup({
       userId: account.userId,
       workspaceId,
@@ -909,7 +908,6 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
   it("refuses a `forms.publisher` without `forms.editor` a draft publish (criterion 4)", async () => {
     const publisher = await seedAdminSession(testDb.db, {
       label: "probe-publish-only",
-      claim: false,
       owner: false,
       grants: [],
     });
@@ -924,7 +922,6 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
     // environment does not come from the switcher.
     const scoped = await seedAdminSession(testDb.db, {
       label: "probe-test-only",
-      claim: false,
       owner: false,
       // No default grants: the seeded set covers every environment, which would make the
       // refusal untestable.
@@ -950,7 +947,6 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
   it("refuses an editor with Publish forms in `test` alone a `prod` publish (criterion 6)", async () => {
     const scoped = await seedAdminSession(testDb.db, {
       label: "probe-editor-test-publish",
-      claim: false,
       owner: false,
       grants: ["forms.editor"],
     });
@@ -997,7 +993,7 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
   it("gives the installation claim administration and no response anywhere (criterion 5, Q29)", async () => {
     const claimOnly = await seedAdminSession(testDb.db, {
       label: "probe-claim",
-      claim: true,
+      siteAdministrator: true,
       membership: false,
     });
     expect(
@@ -1026,7 +1022,6 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
   it("gives an administrator with no grant and no claim nothing at all (criterion 5)", async () => {
     const nobody = await seedAdminSession(testDb.db, {
       label: "probe-nobody",
-      claim: false,
       membership: false,
     });
     for (const path of [
@@ -1098,7 +1093,7 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
 
     const claimOnly = await seedAdminSession(testDb.db, {
       label: "probe-list-claim",
-      claim: true,
+      siteAdministrator: true,
       membership: false,
     });
     const claimSees = await listed(claimOnly.token);
@@ -1127,7 +1122,7 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
 
     const claimOnly = await seedAdminSession(testDb.db, {
       label: "probe-rename-claim",
-      claim: true,
+      siteAdministrator: true,
       membership: false,
     });
     const renamed = await put(claimOnly.token, other.workspaceId, "Renamed by the claim");
@@ -1171,7 +1166,6 @@ describe("the environment a request is authorised for is the environment it acts
   beforeAll(async () => {
     const author = await seedAdminSession(testDb.db, {
       label: "forged-body-editor",
-      claim: false,
       owner: false,
       grants: [],
     });
@@ -1187,7 +1181,6 @@ describe("the environment a request is authorised for is the environment it acts
 
     const eraser = await seedAdminSession(testDb.db, {
       label: "forged-body-eraser",
-      claim: false,
       owner: false,
       grants: [],
     });
@@ -1348,7 +1341,6 @@ describe("the publisher's environments and the masked endpoint URL (criterion 9)
   ): Promise<string> {
     const account = await seedAdminSession(testDb.db, {
       label,
-      claim: false,
       owner: false,
       // No default grants: the seeded set covers every environment, which would make every
       // refusal below untestable.
@@ -1556,7 +1548,6 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
   ): Promise<{ token: string; userId: string }> {
     const account = await seedAdminSession(testDb.db, {
       label,
-      claim: false,
       owner: false,
       grants: [],
     });
@@ -1628,7 +1619,6 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
 
     const ownerAccount = await seedAdminSession(testDb.db, {
       label: "two-person-owner",
-      claim: false,
       owner: true,
       grants: [],
     });
@@ -1637,7 +1627,7 @@ describe("the two-person rule for production (task 070, criteria 1 to 7)", () =>
     claimOnly = (
       await seedAdminSession(testDb.db, {
         label: "two-person-claim",
-        claim: true,
+        siteAdministrator: true,
         membership: false,
       })
     ).token;

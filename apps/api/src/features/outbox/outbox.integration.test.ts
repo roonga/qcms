@@ -429,7 +429,10 @@ describe("POST /admin/forms/:id/deliveries/:deliveryId/redeliver - the ADR-17 re
     for (let i = 0; i < OUTBOX_MAX_ATTEMPTS; i++) {
       await recordDeliveryFailure(testDb.db, deliveryId, "http_500", new Date());
     }
-    const siteAdmin = await seedAdminSession(testDb.db, { label: "deadletters", claim: true });
+    const siteAdmin = await seedAdminSession(testDb.db, {
+      label: "deadletters",
+      siteAdministrator: true,
+    });
     const onQueue = async (): Promise<boolean> => {
       const res = await app.request("/admin/outbox/dead-letters", {
         headers: { ...headers(), [ADMIN_SESSION_HEADER]: siteAdmin.token },

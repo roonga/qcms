@@ -60,7 +60,7 @@ beforeAll(async () => {
     },
   });
   internalToken = internalTokenFor(deps.config);
-  const admin = await seedAdminSession(testDb.db, { claim: true });
+  const admin = await seedAdminSession(testDb.db, { siteAdministrator: true });
   adminSessionToken = admin.token;
   adminUserId = admin.userId;
 }, CONTAINER_BOOT_TIMEOUT_MS);
@@ -158,7 +158,6 @@ describe("the workspace list narrowed to the caller's own", () => {
     const theirs = await createWorkspace("list-theirs");
     const owner = await seedAdminSession(testDb.db, {
       label: "list-owner",
-      claim: false,
       workspaceId: mine,
       grants: [],
     });
@@ -173,7 +172,7 @@ describe("the workspace list narrowed to the caller's own", () => {
     const elsewhere = await createWorkspace("list-elsewhere");
     const claimOnly = await seedAdminSession(testDb.db, {
       label: "list-claim",
-      claim: true,
+      siteAdministrator: true,
       membership: false,
     });
 
@@ -188,7 +187,6 @@ describe("the workspace list narrowed to the caller's own", () => {
     const theirs = await createWorkspace("list-holder-theirs");
     const holder = await seedAdminSession(testDb.db, {
       label: "list-holder",
-      claim: false,
       workspaceId: mine,
       owner: false,
       grants: ["responses.viewer"],
@@ -203,14 +201,12 @@ describe("the workspace list narrowed to the caller's own", () => {
     const mine = await createWorkspace("list-reduced-mine");
     const holder = await seedAdminSession(testDb.db, {
       label: "list-reduced",
-      claim: false,
       workspaceId: mine,
       owner: false,
       grants: ["forms.viewer"],
     });
     const administrator = await seedAdminSession(testDb.db, {
       label: "list-reduced-admin",
-      claim: false,
       workspaceId: mine,
       grants: [],
     });
@@ -236,7 +232,6 @@ describe("the workspace list narrowed to the caller's own", () => {
   it("refuses the list to an account holding nothing anywhere", async () => {
     const nobody = await seedAdminSession(testDb.db, {
       label: "list-nobody",
-      claim: false,
       membership: false,
     });
     expect((await as(nobody.token, "GET", "/workspaces")).status).toBe(403);
@@ -289,14 +284,12 @@ describe("renaming a workspace (criterion 97)", () => {
     const workspaceId = await createWorkspace("rename-guarded");
     const editor = await seedAdminSession(testDb.db, {
       label: "rename-editor",
-      claim: false,
       owner: false,
       workspaceId,
       grants: ["forms.editor"],
     });
     const otherOwner = await seedAdminSession(testDb.db, {
       label: "rename-other-owner",
-      claim: false,
       grants: [],
     });
 
@@ -311,7 +304,6 @@ describe("renaming a workspace (criterion 97)", () => {
     const workspaceId = await createWorkspace("rename-by-owner");
     const owner = await seedAdminSession(testDb.db, {
       label: "rename-owner",
-      claim: false,
       workspaceId,
       grants: [],
     });
@@ -655,7 +647,6 @@ describe("a shared library question (criterion 108)", () => {
     try {
       const editor = await seedAdminSession(testDb.db, {
         label: "c108-foreign-editor",
-        claim: false,
         owner: false,
         workspaceId: other,
         grants: ["forms.editor"],
@@ -686,7 +677,6 @@ describe("the interim Move form rules (work order 085)", () => {
 
     const mover = await seedAdminSession(testDb.db, {
       label: "move-no-destination",
-      claim: false,
       owner: true,
       workspaceId: source,
       grants: ["forms.editor"],
@@ -706,7 +696,6 @@ describe("the interim Move form rules (work order 085)", () => {
 
     const mover = await seedAdminSession(testDb.db, {
       label: "move-not-admin",
-      claim: false,
       owner: false,
       workspaceId: source,
       grants: ["forms.editor"],

@@ -142,7 +142,6 @@ beforeAll(async () => {
   owner = await seedAdminSession(testDb.db, { label: "owner" });
   viewer = await seedAdminSession(testDb.db, {
     label: "viewer",
-    claim: false,
     grants: ["forms.viewer"],
     owner: false,
   });

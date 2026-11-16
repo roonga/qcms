@@ -617,7 +617,11 @@ describe("erase excludes from all read paths; unflag releases the event (exit cr
     }>;
     expect(rows.map((r) => r.sessionId)).toEqual([kept]);
 
-    const siteAdmin = await seedAdminSession(testDb.db, { label: "tombstones", claim: true });
+    // Site administrator only until #1336: the erasure log is installation-only.
+    const siteAdmin = await seedAdminSession(testDb.db, {
+      label: "tombstones",
+      siteAdministrator: true,
+    });
     const erasuresRes = await app.request("/admin/erasures?formId=frm_erase_api", {
       headers: authHeaders({ [ADMIN_SESSION_HEADER]: siteAdmin.token }),
     });

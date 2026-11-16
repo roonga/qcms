@@ -112,7 +112,7 @@ beforeAll(async () => {
   editor = await seedAdminSession(testDb.db, { label: "derive-editor" });
   siteAdmin = await seedAdminSession(testDb.db, {
     label: "derive-site",
-    claim: true,
+    siteAdministrator: true,
     membership: false,
   });
 }, CONTAINER_BOOT_TIMEOUT_MS);
@@ -272,7 +272,6 @@ describe("deriving a theme (criterion 119)", { timeout: TIMEOUT_MS }, () => {
     const workspaceId = await newWorkspace("derive-refused");
     const caller = await seedAdminSession(testDb.db, {
       label: `derive-${label.replaceAll(/\W+/gu, "-").toLowerCase()}`,
-      claim: false,
       workspaceId,
       ...grant,
     });
@@ -288,12 +287,11 @@ describe("deriving a theme (criterion 119)", { timeout: TIMEOUT_MS }, () => {
     const elsewhere = await newWorkspace("derive-elsewhere");
     const siteAdministrator = await seedAdminSession(testDb.db, {
       label: "derive-site-admin",
-      claim: true,
+      siteAdministrator: true,
       membership: false,
     });
     const otherEditor = await seedAdminSession(testDb.db, {
       label: "derive-other-editor",
-      claim: false,
       owner: false,
       workspaceId: elsewhere,
       grants: ["forms.editor"],
@@ -344,7 +342,6 @@ describe("rate limits per user and per workspace (SEC-18 W3)", { timeout: TIMEOU
     const workspaceId = await newWorkspace("derive-limits");
     const second = await seedAdminSession(testDb.db, {
       label: "derive-second-editor",
-      claim: false,
       owner: false,
       workspaceId,
       grants: ["forms.editor"],

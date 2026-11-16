@@ -85,7 +85,7 @@ beforeAll(async () => {
   });
   internalToken = internalTokenFor(deps.config);
 
-  const owner = await seedAdminSession(testDb.db, { label: "owner", claim: true });
+  const owner = await seedAdminSession(testDb.db, { label: "owner", siteAdministrator: true });
   ownerToken = owner.token;
   ownerId = owner.userId;
 
@@ -93,23 +93,18 @@ beforeAll(async () => {
   secondOwnerToken = second.token;
   secondOwnerId = second.userId;
 
-  // No installation claim: the claim administers memberships across every workspace, so
-  // leaving it on would make this account's refusals about the claim and not its grants.
   const editor = await seedAdminSession(testDb.db, {
     label: "editor",
     owner: false,
-    claim: false,
     grants: ["forms.editor"],
   });
   editorToken = editor.token;
   editorId = editor.userId;
 
-  // A real Workspace administrator: the `member` row's owner role, and no installation
-  // claim, which is the caller criterion 113 is about.
+  // A real Workspace administrator: the `member` row's owner role.
   const workspaceOwner = await seedAdminSession(testDb.db, {
     label: "wsowner",
     owner: true,
-    claim: false,
     grants: ["forms.editor"],
   });
   workspaceOwnerToken = workspaceOwner.token;
@@ -117,7 +112,6 @@ beforeAll(async () => {
   const nobody = await seedAdminSession(testDb.db, {
     label: "nobody",
     owner: false,
-    claim: false,
     grants: [],
   });
   nobodyToken = nobody.token;
@@ -211,7 +205,6 @@ async function administratorRows(
 async function appointAdministrator(workspaceId: string, label: string): Promise<string> {
   const account = await seedAdminSession(testDb.db, {
     label,
-    claim: false,
     membership: false,
   });
   // A plain member first, so the route under test is what appoints them and the
@@ -290,13 +283,13 @@ describe("the membership list and the capability endpoint (criterion 7, Q35)", (
     const unclaimedAdmin = await seedAdminSession(testDb.db, {
       label: "unclaimedadmin",
       claimed: false,
-      claim: true,
+      siteAdministrator: true,
       grants: [],
     });
     const disabledAdmin = await seedAdminSession(testDb.db, {
       label: "disabledadmin",
       disabledAt: new Date(),
-      claim: true,
+      siteAdministrator: true,
       grants: [],
     });
     const nothing = (await (await as(nobodyToken, "GET", "/me/access")).json()) as {
@@ -355,7 +348,6 @@ describe("every grant holder carries a `member` row with the empty role (criteri
       const stranger = await seedAdminSession(testDb.db, {
         label: "stranger",
         membership: false,
-        claim: false,
       });
       return as(stranger.token, "GET", `/workspaces/${SEED_WORKSPACE_ID}/members`);
     })();
@@ -493,7 +485,6 @@ describe("access-group names and the role set (criteria 12 and 13)", () => {
   it("keeps a member row's role to the administrator flag, whatever the row says", async () => {
     const subject = await seedAdminSession(testDb.db, {
       label: "memberrow",
-      claim: false,
       grants: [],
     });
     await setMemberRole(testDb.db, SEED_WORKSPACE_ID, subject.userId, "responses.viewer");
@@ -517,7 +508,6 @@ describe("access-group names and the role set (criteria 12 and 13)", () => {
     const subject = await seedAdminSession(testDb.db, {
       label: "mislabelled",
       membership: false,
-      claim: false,
     });
     expect(
       (
@@ -1351,12 +1341,10 @@ describe("adding an account the caller cannot add gets one answer (section 7, di
     });
     const workspaceOwner = await seedAdminSession(testDb.db, {
       label: "generic-owner",
-      claim: false,
       grants: [],
     });
     const elsewhere = await seedAdminSession(testDb.db, {
       label: "generic-elsewhere",
-      claim: false,
       membership: false,
     });
 
@@ -1398,12 +1386,10 @@ describe("adding an account the caller cannot add gets one answer (section 7, di
     });
     const workspaceOwner = await seedAdminSession(testDb.db, {
       label: "exact-owner",
-      claim: false,
       grants: [],
     });
     const newcomer = await seedAdminSession(testDb.db, {
       label: "exact-newcomer",
-      claim: false,
       membership: false,
     });
     const res = await answer(workspaceOwner.token, teamId, {
@@ -1433,7 +1419,6 @@ describe("writes on an archived workspace", () => {
     const spareId = ((await spare.json()) as GroupBody).group.teamId;
     const holder = await seedAdminSession(testDb.db, {
       label: "ending-holder",
-      claim: false,
       membership: false,
     });
     const granted = await send("POST", `${groupsPath}/${teamId}/holders`, {
@@ -1442,7 +1427,6 @@ describe("writes on an archived workspace", () => {
     expect(granted.status, await granted.clone().text()).toBe(201);
     const latecomer = await seedAdminSession(testDb.db, {
       label: "ending-latecomer",
-      claim: false,
       membership: false,
     });
 
@@ -1499,7 +1483,6 @@ describe("an environment added after the groups were written (criterion 14)", ()
 
     const holder = await seedAdminSession(testDb.db, {
       label: "later-holder",
-      claim: false,
       membership: false,
     });
     for (const teamId of [responsesTeamId, authorsTeamId]) {
@@ -1546,7 +1529,6 @@ describe("a suspended membership grants nothing (sections 7 and 10)", () => {
     const holder = await seedAdminSession(testDb.db, {
       label: "suspendable",
       owner: false,
-      claim: false,
       grants: ["forms.editor"],
     });
     holderToken = holder.token;
@@ -1716,7 +1698,6 @@ describe("the per-workspace membership lock and the last-administrator guard (08
     // And a plain member stays one, so removing the flag removes nobody.
     const plain = await seedAdminSession(testDb.db, {
       label: "nomoveplain",
-      claim: false,
       membership: false,
     });
     await seedGrants(testDb.db, {
@@ -1755,7 +1736,6 @@ describe("the per-workspace membership lock and the last-administrator guard (08
     await disableSeededAccount(testDb.db, disabled, deps.clock.now());
     const unclaimed = await seedAdminSession(testDb.db, {
       label: "standunc",
-      claim: false,
       claimed: false,
       membership: false,
     });
@@ -1806,7 +1786,6 @@ describe("taking somebody out of a workspace (089)", () => {
     const workspaceId = await createWorkspace("Exit", "exit-workspace");
     const subject = await seedAdminSession(testDb.db, {
       label: "exit",
-      claim: false,
       membership: false,
     });
     const group = await send("POST", `/workspaces/${workspaceId}/access-groups`, {
@@ -1861,7 +1840,6 @@ describe("taking somebody out of a workspace (089)", () => {
     const workspaceId = await createWorkspace("Exit none", "exit-none");
     const stranger = await seedAdminSession(testDb.db, {
       label: "exitnone",
-      claim: false,
       membership: false,
     });
     const res = await send("DELETE", `/workspaces/${workspaceId}/members/${stranger.userId}`);
@@ -1915,7 +1893,6 @@ describe("a group stays inside its workspace (criteria 23 and 25)", () => {
     const theirs = await createWorkspace("Theirs", "theirs-workspace");
     const administrator = await seedAdminSession(testDb.db, {
       label: "theirsadmin",
-      claim: false,
       membership: false,
     });
     await seedGrants(testDb.db, { userId: administrator.userId, workspaceId: theirs, grants: [] });
@@ -1973,7 +1950,6 @@ describe("a revoke takes effect on the next request (criterion 89)", () => {
     const elsewhere = await createWorkspace("No cache", "no-cache-revoke");
     const subject = await seedAdminSession(testDb.db, {
       label: "nocache",
-      claim: false,
       owner: false,
       grants: ["forms.viewer"],
     });

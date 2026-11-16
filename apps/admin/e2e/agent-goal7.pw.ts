@@ -53,7 +53,7 @@ let erased = "";
 let kept = "";
 
 test.beforeAll(async () => {
-  // The tombstone is read from the installation-only erasure log.
+  // Site administrator only until #1336: the erasure log is installation-only.
   await createTestAdmin(EMAIL, { siteAdministrator: true });
 
   await createTestAdmin(VIEWER, { grants: ["forms.viewer"], owner: false });

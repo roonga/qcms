@@ -748,7 +748,7 @@ describe("every screen's context, with a sentinel in the database", () => {
 
   beforeAll(async () => {
     owner = { token: adminSessionToken, userId: adminUserId };
-    const siteAdmin = await seedAdminSession(testDb.db, { label: "walk", claim: true });
+    const siteAdmin = await seedAdminSession(testDb.db, { label: "walk", siteAdministrator: true });
     adminSessionToken = siteAdmin.token;
     adminUserId = siteAdmin.userId;
     await seedSentinelData();
@@ -1022,13 +1022,11 @@ describe("a reduced-grant caller over HTTP", () => {
     await seedForm(FORM_ID, ["q_viewer"]);
     viewer = await seedAdminSession(testDb.db, {
       label: "viewer",
-      claim: false,
       grants: ["forms.viewer"],
       owner: false,
     });
     stranger = await seedAdminSession(testDb.db, {
       label: "stranger",
-      claim: false,
       membership: false,
     });
   }, BOOT_TIMEOUT);
@@ -1188,7 +1186,6 @@ describe("a publisher's contexts follow its group's environments", () => {
   ): Promise<{ token: string; userId: string }> {
     const seeded = await seedAdminSession(testDb.db, {
       label,
-      claim: false,
       owner: false,
       grants: viewer ? ["forms.viewer"] : [],
     });

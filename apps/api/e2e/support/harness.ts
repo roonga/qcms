@@ -94,7 +94,7 @@ export async function adminLogin(db: TestDb["db"], at: Date = NOW): Promise<stri
 
 /** {@link adminLogin} for a Site administrator, for a suite that reaches installation-wide routes. */
 export async function siteAdminLogin(db: TestDb["db"], at: Date = NOW): Promise<string> {
-  const { token } = await seedAdminSession(db, { at, claim: true });
+  const { token } = await seedAdminSession(db, { at, siteAdministrator: true });
   return token;
 }
 

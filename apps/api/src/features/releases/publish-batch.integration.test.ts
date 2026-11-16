@@ -107,7 +107,7 @@ async function persona(
     label,
     grants: [],
     owner: false,
-    claim: options.claim ?? false,
+    siteAdministrator: options.claim ?? false,
   });
   const groupIds: string[] = [];
   let index = 0;
@@ -292,7 +292,11 @@ beforeAll(async () => {
     { roles: ["forms.editor"], environments: [] },
     { roles: ["forms.publisher"], environments: [...LIVE_SET] },
   ]);
-  claim = await seedAdminSession(control, { label: "bClaim", membership: false, claim: true });
+  claim = await seedAdminSession(control, {
+    label: "bClaim",
+    membership: false,
+    siteAdministrator: true,
+  });
   otherWorkspaceEditor = await persona("bOther", [
     { roles: ["forms.editor"], environments: [], workspaceId: OTHER_WORKSPACE },
     { roles: ["forms.publisher"], environments: [...LIVE_SET], workspaceId: OTHER_WORKSPACE },
@@ -394,7 +398,6 @@ describe("the release-workflow configuration", () => {
       label: "bNobody",
       grants: [],
       owner: false,
-      claim: false,
     });
     expect((await call(nobody.token, "GET", "/release-workflow")).status).toBe(403);
   });
