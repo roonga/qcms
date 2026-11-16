@@ -1,0 +1,130 @@
+import { z } from "@hono/zod-openapi";
+import {
+  boundAccountTransaction,
+  consumeSignInLink,
+  findAccountById,
+  findSignInLinkByHash,
+  signInLinkIsLive,
+  tryLockAccount,
+} from "@roonga/qcms-db";
+import { isAPIError } from "better-auth/api";
+
+import type { SliceRegistrar } from "../../app.js";
+import type { Deps } from "../../deps.js";
+import { ApiError } from "../../errors.js";
+import { adminAuthFor, adminAuthOn } from "../auth/route.js";
+import { BREACH_LOOKUP_FAILED_CODE, MIN_PASSWORD_LENGTH } from "../auth/instance.js";
+import { PasswordRefused, setAccountPassword } from "./credential.js";
+import { CLAIM_PATH, signInTokenHash } from "./tokens.js";
+
+// The claim is mounted beside the better-auth endpoints because it issues a session, so it
+// cannot sit behind the admin-session gate. It needs no rate limit of its own: the token is
+// 256 random bits, and an unknown one is refused by one indexed read before any hashing.
+
+/**
+ * The one link purpose this route answers. Reactivation and reset links are issued for
+ * accounts that are already claimed, so the purpose is checked here rather than left to
+ * follow from the account's state.
+ */
+const CLAIM_PURPOSE = "account-created";
+
+const ClaimBody = z.strictObject({
+  token: z.string().min(1).max(512),
+  password: z.string().min(MIN_PASSWORD_LENGTH).max(1024),
+});
+
+/**
+ * One answer for an unknown, used, expired or superseded token, and for an account that
+ * cannot be claimed: a caller holding a token learns nothing else about it.
+ */
+function linkRefused(): ApiError {
+  return new ApiError(
+    "CLAIM_LINK_REFUSED",
+    400,
+    "That sign-in link cannot be used. A link works once and expires 72 hours after it " +
+      "was sent; ask a Site administrator to send a new one.",
+  );
+}
+
+function passwordRefused(error: unknown): ApiError {
+  if (isAPIError(error)) {
+    const body = error.body as { code?: unknown; message?: unknown } | undefined;
+    const code = typeof body?.code === "string" ? body.code : "PASSWORD_REFUSED";
+    const message = typeof body?.message === "string" ? body.message : "That password was refused";
+    // A breach lookup that did not complete is not a judgement about the password, so it
+    // keeps its own status; every other refusal about the password answers 400 and carries
+    // the vendor's code for the screen to read.
+    const status = code === BREACH_LOOKUP_FAILED_CODE ? 503 : 400;
+    return new ApiError(code, status, message);
+  }
+  return new ApiError("PASSWORD_REFUSED", 400, "That password was refused");
+}
+
+export const registerAccountClaim: SliceRegistrar = (group, deps: Deps) => {
+  group.post(CLAIM_PATH, async (c) => {
+    const parsed = ClaimBody.safeParse(await c.req.json().catch(() => null));
+    if (!parsed.success) {
+      throw new ApiError(
+        "INVALID_BODY",
+        400,
+        `A claim needs the link's token and a password of at least ${String(MIN_PASSWORD_LENGTH)} characters`,
+      );
+    }
+    const { token, password } = parsed.data;
+
+    const exec = deps.databases.control;
+    const now = deps.clock.now();
+    const tokenHash = await signInTokenHash(token);
+
+    const link = await findSignInLinkByHash(exec, tokenHash);
+    if (link === undefined || !signInLinkIsLive(link, now)) throw linkRefused();
+    if (link.purpose !== CLAIM_PURPOSE) throw linkRefused();
+
+    const auth = adminAuthFor(deps);
+    // A session for somebody else is the wrong-account use: the link belongs to one
+    // account, so it never signs a different one in and never claims one on its behalf.
+    const resolved = await auth.api.getSession({ headers: c.req.raw.headers });
+    if (resolved !== null && resolved.user.id !== link.userId) throw linkRefused();
+
+    // The password is written on this transaction's connection under a tried lock, so a
+    // refusal rolls everything back and no request waits for a second pooled connection
+    // or queues behind a claim in flight while holding one.
+    const account = await exec.transaction(async (tx) => {
+      await boundAccountTransaction(tx);
+      if (!(await tryLockAccount(tx, link.userId))) throw linkRefused();
+      if ((await consumeSignInLink(tx, tokenHash, now)) === undefined) throw linkRefused();
+      const found = await findAccountById(tx, link.userId);
+      if (found === undefined || found.disabledAt !== null) throw linkRefused();
+      // A claimed account already holds a password, so a creation link that outlived the
+      // claim is not a way to set another one.
+      if (found.claimedAt !== null) throw linkRefused();
+
+      // The write revokes every session the account holds (`revokeSessionsOnPasswordReset`),
+      // so one minted from an earlier link does not outlive it.
+      try {
+        await setAccountPassword(adminAuthOn(deps, tx), found.userId, password);
+      } catch (error) {
+        if (error instanceof PasswordRefused) throw passwordRefused(error.cause);
+        throw error;
+      }
+      return found;
+    });
+
+    // The session issued here is the one that enrols the second factor. The claim itself
+    // is written only once that factor is verified, so the account still holds nothing.
+    const signedIn = await auth.api.signInEmail({
+      body: { email: account.email, password },
+      asResponse: true,
+    });
+    if (!signedIn.ok) {
+      throw new ApiError("CLAIM_FAILED", 500, "The claim could not be completed");
+    }
+    const body = (await signedIn.json()) as { twoFactorRedirect?: boolean };
+
+    const response = c.json({ twoFactorRedirect: body.twoFactorRedirect === true }, 200);
+    for (const cookie of signedIn.headers.getSetCookie()) {
+      response.headers.append("set-cookie", cookie);
+    }
+    return response;
+  });
+};

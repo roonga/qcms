@@ -110,6 +110,7 @@ describe("@roonga/qcms-db migrations", { timeout: MIGRATION_STEP_TIMEOUT_MS }, (
 
   it("installs the control-plane immutability triggers", async () => {
     expect(await triggerNamesOn("control")).toEqual([
+      "appearance_logos_refuse_taken_down",
       "appearance_logos_reject_delete",
       "appearance_logos_reject_update",
       "form_releases_reject_delete",

@@ -89,6 +89,36 @@ export const AGENT_SCREEN_CELLS: readonly {
 // this".
 export const ROUTE_POLICIES: readonly RoutePolicy[] = [
   {
+    // The account directory. Site administrators only, and no role reaches it: a
+    // Workspace administrator adds a person by exact address and never browses it
+    // (`docs/WORKSPACE_ACCESS.md`, section 7).
+    method: "GET",
+    path: "/admin/accounts",
+    resource: "membership",
+    action: "read",
+    workspace: "installation",
+    installationOnly: true,
+  },
+  {
+    // The installation administrator's own cell, the one `docs/SECURITY_DESIGN.md` names
+    // user accounts under: creating an account belongs to no workspace, and its row goes
+    // to the site audit rather than to any workspace's.
+    method: "POST",
+    path: "/admin/accounts",
+    resource: "workspace",
+    action: "update",
+    workspace: "installation",
+    installationOnly: true,
+  },
+  {
+    method: "POST",
+    path: "/admin/accounts/{id}/sign-in-link",
+    resource: "workspace",
+    action: "update",
+    workspace: "installation",
+    installationOnly: true,
+  },
+  {
     method: "POST",
     path: "/admin/workspaces",
     resource: "workspace",
@@ -233,6 +263,71 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     action: "update",
     workspace: "path",
     audit: "setting",
+  },
+  {
+    // Theming is authoring, so these are the editor's `form: write` cell rather than a
+    // workspace setting: a Workspace administrator or a Site administrator holding no Edit
+    // forms grant in that workspace is refused, as the matrix has it.
+    method: "GET",
+    path: "/admin/workspaces/{id}/themes",
+    resource: "form",
+    action: "write",
+    workspace: "path",
+  },
+  {
+    method: "POST",
+    path: "/admin/workspaces/{id}/themes",
+    resource: "form",
+    action: "write",
+    workspace: "path",
+  },
+  {
+    method: "GET",
+    path: "/admin/workspaces/{id}/themes/{themeId}",
+    resource: "form",
+    action: "write",
+    workspace: "path",
+  },
+  {
+    method: "PUT",
+    path: "/admin/workspaces/{id}/themes/{themeId}",
+    resource: "form",
+    action: "write",
+    workspace: "path",
+  },
+  {
+    method: "DELETE",
+    path: "/admin/workspaces/{id}/themes/{themeId}",
+    resource: "form",
+    action: "write",
+    workspace: "path",
+  },
+  {
+    method: "POST",
+    path: "/admin/workspaces/{id}/themes/{themeId}/logo",
+    resource: "form",
+    action: "write",
+    workspace: "path",
+  },
+  {
+    // The other half of the pair: the lock is a workspace setting, so it is the
+    // administrator's cell and no Edit forms grant reaches it.
+    method: "PUT",
+    path: "/admin/workspaces/{id}/appearance-lock",
+    resource: "workspace",
+    action: "update",
+    workspace: "path",
+    audit: "setting",
+  },
+  {
+    // The logo store is site-wide, so a takedown is nobody's workspace act: it removes
+    // the bytes from every draft, version and theme in the installation at once.
+    method: "DELETE",
+    path: "/admin/logos/{key}",
+    resource: "workspace",
+    action: "update",
+    workspace: "installation",
+    installationOnly: true,
   },
   {
     method: "GET",

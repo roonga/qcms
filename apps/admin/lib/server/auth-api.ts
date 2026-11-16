@@ -56,6 +56,14 @@ export function signInEmail(
   });
 }
 
+/** The claim is unauthenticated: the emailed token is what identifies the account. */
+export function claimAccount(
+  requestHeaders: Headers,
+  claim: { readonly token: string; readonly password: string },
+): Promise<Response> {
+  return authApiFetch("/claim", { method: "POST", body: claim, from: requestHeaders });
+}
+
 export function signOut(requestHeaders: Headers): Promise<Response> {
   return authApiFetch("/sign-out", { method: "POST", body: {}, from: requestHeaders });
 }

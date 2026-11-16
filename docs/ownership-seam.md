@@ -93,14 +93,14 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (626 files common to both shapes)
+### Scaffolded paths (641 files common to both shapes)
 
 | Path                                                                            | Files |
 | ------------------------------------------------------------------------------- | ----- |
 | `(project root)`                                                                | 8     |
-| `apps/`                                                                         | 615   |
-| `apps/admin/`                                                                   | 398   |
-| `apps/admin/app/`                                                               | 104   |
+| `apps/`                                                                         | 630   |
+| `apps/admin/`                                                                   | 401   |
+| `apps/admin/app/`                                                               | 106   |
 | `apps/admin/app/(shell)/`                                                       | 80    |
 | `apps/admin/app/(shell)/@rail/`                                                 | 34    |
 | `apps/admin/app/(shell)/@rail/forms/`                                           | 9     |
@@ -178,6 +178,8 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/(shell)/workspaces/all/`                                        | 1     |
 | `apps/admin/app/change-password/`                                               | 2     |
 | `apps/admin/app/change-password/submit/`                                        | 1     |
+| `apps/admin/app/claim/`                                                         | 2     |
+| `apps/admin/app/claim/submit/`                                                  | 1     |
 | `apps/admin/app/healthz/`                                                       | 1     |
 | `apps/admin/app/pwa-icon-192/`                                                  | 1     |
 | `apps/admin/app/pwa-icon-512/`                                                  | 1     |
@@ -203,7 +205,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/components/questions/`                                              | 16    |
 | `apps/admin/components/shell/`                                                  | 6     |
 | `apps/admin/components/test-support/`                                           | 3     |
-| `apps/admin/lib/`                                                               | 141   |
+| `apps/admin/lib/`                                                               | 142   |
 | `apps/admin/lib/agent/`                                                         | 14    |
 | `apps/admin/lib/forms/`                                                         | 31    |
 | `apps/admin/lib/i18n/`                                                          | 2     |
@@ -211,11 +213,12 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/lib/ops/`                                                           | 16    |
 | `apps/admin/lib/pwa/`                                                           | 4     |
 | `apps/admin/lib/questions/`                                                     | 9     |
-| `apps/admin/lib/server/`                                                        | 32    |
+| `apps/admin/lib/server/`                                                        | 33    |
 | `apps/admin/lib/shell/`                                                         | 7     |
-| `apps/api/`                                                                     | 143   |
-| `apps/api/src/`                                                                 | 140   |
-| `apps/api/src/features/`                                                        | 108   |
+| `apps/api/`                                                                     | 154   |
+| `apps/api/src/`                                                                 | 151   |
+| `apps/api/src/features/`                                                        | 119   |
+| `apps/api/src/features/accounts/`                                               | 8     |
 | `apps/api/src/features/agent/`                                                  | 35    |
 | `apps/api/src/features/agent/actions/`                                          | 10    |
 | `apps/api/src/features/agent/contexts/`                                         | 5     |
@@ -224,6 +227,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/api/src/features/email/`                                                  | 3     |
 | `apps/api/src/features/forms/`                                                  | 3     |
 | `apps/api/src/features/links/`                                                  | 3     |
+| `apps/api/src/features/logos/`                                                  | 2     |
 | `apps/api/src/features/membership/`                                             | 9     |
 | `apps/api/src/features/operations/`                                             | 3     |
 | `apps/api/src/features/outbox/`                                                 | 3     |
@@ -235,12 +239,12 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/api/src/features/responses/start-session/`                                | 3     |
 | `apps/api/src/features/responses/submit/`                                       | 3     |
 | `apps/api/src/features/webhooks/`                                               | 8     |
-| `apps/api/src/features/workspaces/`                                             | 6     |
+| `apps/api/src/features/workspaces/`                                             | 7     |
 | `apps/api/src/middleware/`                                                      | 7     |
 | `apps/api/src/routes/`                                                          | 1     |
 | `apps/api/src/schedulers/`                                                      | 4     |
-| `apps/portal/`                                                                  | 74    |
-| `apps/portal/app/`                                                              | 19    |
+| `apps/portal/`                                                                  | 75    |
+| `apps/portal/app/`                                                              | 20    |
 | `apps/portal/app/appearance/`                                                   | 1     |
 | `apps/portal/app/done/`                                                         | 1     |
 | `apps/portal/app/expired/`                                                      | 1     |
@@ -250,6 +254,8 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/portal/app/l/`                                                            | 1     |
 | `apps/portal/app/l/[token]/`                                                    | 1     |
 | `apps/portal/app/link-error/`                                                   | 1     |
+| `apps/portal/app/logo/`                                                         | 1     |
+| `apps/portal/app/logo/[key]/`                                                   | 1     |
 | `apps/portal/app/s/`                                                            | 7     |
 | `apps/portal/app/s/[sessionId]/`                                                | 7     |
 | `apps/portal/app/s/[sessionId]/answers/`                                        | 1     |
@@ -299,7 +305,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (626)</summary>
+<summary>Every scaffolded file (641)</summary>
 
 ```
 .dockerignore
@@ -390,6 +396,8 @@ apps/admin/app/(shell)/workspaces/page.tsx
 apps/admin/app/apple-icon.tsx
 apps/admin/app/change-password/page.tsx
 apps/admin/app/change-password/submit/route.ts
+apps/admin/app/claim/page.tsx
+apps/admin/app/claim/submit/route.ts
 apps/admin/app/globals.css
 apps/admin/app/healthz/route.ts
 apps/admin/app/icon.svg
@@ -661,6 +669,7 @@ apps/admin/lib/server/api-result.ts
 apps/admin/lib/server/api.ts
 apps/admin/lib/server/assist-request.ts
 apps/admin/lib/server/auth-api.ts
+apps/admin/lib/server/claim.ts
 apps/admin/lib/server/client-address.ts
 apps/admin/lib/server/config.ts
 apps/admin/lib/server/csp.ts
@@ -713,6 +722,14 @@ apps/api/src/create-admin.ts
 apps/api/src/deps.ts
 apps/api/src/environments.ts
 apps/api/src/errors.ts
+apps/api/src/features/accounts/claim-route.ts
+apps/api/src/features/accounts/claim.ts
+apps/api/src/features/accounts/credential.ts
+apps/api/src/features/accounts/handler.ts
+apps/api/src/features/accounts/links.ts
+apps/api/src/features/accounts/route.ts
+apps/api/src/features/accounts/schema.ts
+apps/api/src/features/accounts/tokens.ts
 apps/api/src/features/agent/actions/forms-library.ts
 apps/api/src/features/agent/actions/forms.ts
 apps/api/src/features/agent/actions/links.ts
@@ -763,6 +780,8 @@ apps/api/src/features/forms/schema.ts
 apps/api/src/features/links/handler.ts
 apps/api/src/features/links/route.ts
 apps/api/src/features/links/schema.ts
+apps/api/src/features/logos/handler.ts
+apps/api/src/features/logos/route.ts
 apps/api/src/features/membership/context.ts
 apps/api/src/features/membership/handler.ts
 apps/api/src/features/membership/middleware.ts
@@ -821,6 +840,7 @@ apps/api/src/features/workspaces/resolve.ts
 apps/api/src/features/workspaces/route.ts
 apps/api/src/features/workspaces/rules.ts
 apps/api/src/features/workspaces/schema.ts
+apps/api/src/features/workspaces/themes.ts
 apps/api/src/index.ts
 apps/api/src/logger.ts
 apps/api/src/main.ts
@@ -859,6 +879,7 @@ apps/portal/app/icon.svg
 apps/portal/app/l/[token]/route.ts
 apps/portal/app/layout.tsx
 apps/portal/app/link-error/page.tsx
+apps/portal/app/logo/[key]/route.ts
 apps/portal/app/page.tsx
 apps/portal/app/s/[sessionId]/answers/route.ts
 apps/portal/app/s/[sessionId]/error.tsx

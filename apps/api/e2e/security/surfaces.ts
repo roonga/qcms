@@ -18,6 +18,8 @@ export type MatrixRow =
   | "erasure"
   | "links-webhooks"
   | "membership"
+  | "logo"
+  | "logo-takedown"
   | "health";
 
 /** ADR-09: an unmounted group answers 404, not 403. */
@@ -45,6 +47,10 @@ export interface PathContext {
   readonly webhookId: string;
   readonly deliveryId: string;
   readonly questionId: string;
+  /** A logo really in the store, so the positive control below serves bytes. */
+  readonly logoKey: string;
+  /** A theme really in the seed workspace, so no theme probe passes on a bad id. */
+  readonly themeId: string;
   readonly workspaceId: string;
   readonly teamId: string;
   readonly holderId: string;
@@ -357,6 +363,34 @@ export const SURFACES: readonly Surface[] = [
     anonymousReachable: false,
     readControl: true,
   },
+  // The account directory: Site administrators only, and the one membership-row route
+  // that names no workspace at all.
+  {
+    name: "GET /admin/accounts",
+    row: "membership",
+    group: "admin",
+    method: "GET",
+    path: () => "/admin/accounts",
+    anonymousReachable: false,
+    readControl: true,
+  },
+  {
+    name: "POST /admin/accounts",
+    row: "membership",
+    group: "admin",
+    method: "POST",
+    path: () => "/admin/accounts",
+    body: { email: "matrix.probe@example.test" },
+    anonymousReachable: false,
+  },
+  {
+    name: "POST /admin/accounts/{id}/sign-in-link",
+    row: "membership",
+    group: "admin",
+    method: "POST",
+    path: (ctx) => `/admin/accounts/${ctx.holderId}/sign-in-link`,
+    anonymousReachable: false,
+  },
   {
     name: "GET /admin/workspaces/{id}/members",
     row: "membership",
@@ -447,6 +481,79 @@ export const SURFACES: readonly Surface[] = [
     method: "PUT",
     path: (ctx) => `/admin/workspaces/${ctx.workspaceId}/settings`,
     body: { requireSecondApprover: false },
+    anonymousReachable: false,
+  },
+  {
+    // Theming is authoring, so the six theme routes sit in the authoring row; the lock
+    // below is a workspace setting and sits with the other workspace writes.
+    name: "GET /admin/workspaces/{id}/themes",
+    row: "authoring",
+    group: "admin",
+    method: "GET",
+    path: (ctx) => `/admin/workspaces/${ctx.workspaceId}/themes`,
+    anonymousReachable: false,
+  },
+  {
+    name: "POST /admin/workspaces/{id}/themes",
+    row: "authoring",
+    group: "admin",
+    method: "POST",
+    path: (ctx) => `/admin/workspaces/${ctx.workspaceId}/themes`,
+    body: { name: "Probe", palettes: {}, face: "system", corners: "subtle", pageTint: false },
+    anonymousReachable: false,
+  },
+  {
+    name: "GET /admin/workspaces/{id}/themes/{themeId}",
+    row: "authoring",
+    group: "admin",
+    method: "GET",
+    path: (ctx) => `/admin/workspaces/${ctx.workspaceId}/themes/${ctx.themeId}`,
+    anonymousReachable: false,
+  },
+  {
+    name: "PUT /admin/workspaces/{id}/themes/{themeId}",
+    row: "authoring",
+    group: "admin",
+    method: "PUT",
+    path: (ctx) => `/admin/workspaces/${ctx.workspaceId}/themes/${ctx.themeId}`,
+    body: { name: "Probe", palettes: {}, face: "system", corners: "subtle", pageTint: false },
+    anonymousReachable: false,
+  },
+  {
+    name: "DELETE /admin/workspaces/{id}/themes/{themeId}",
+    row: "authoring",
+    group: "admin",
+    method: "DELETE",
+    path: (ctx) => `/admin/workspaces/${ctx.workspaceId}/themes/${ctx.themeId}`,
+    anonymousReachable: false,
+  },
+  {
+    name: "POST /admin/workspaces/{id}/themes/{themeId}/logo",
+    row: "authoring",
+    group: "admin",
+    method: "POST",
+    path: (ctx) => `/admin/workspaces/${ctx.workspaceId}/themes/${ctx.themeId}/logo`,
+    body: { bytesBase64: "aGVsbG8=" },
+    anonymousReachable: false,
+  },
+  {
+    name: "PUT /admin/workspaces/{id}/appearance-lock",
+    row: "membership",
+    group: "admin",
+    method: "PUT",
+    path: (ctx) => `/admin/workspaces/${ctx.workspaceId}/appearance-lock`,
+    body: { locked: false },
+    anonymousReachable: false,
+  },
+  {
+    // A key nothing was stored under, rather than `ctx.logoKey`: no credential shape here
+    // is meant to reach the handler, and a probe that did must not remove the positive
+    // control's bytes.
+    name: "DELETE /admin/logos/{key}",
+    row: "logo-takedown",
+    group: "admin",
+    method: "DELETE",
+    path: () => `/admin/logos/${"e".repeat(64)}`,
     anonymousReachable: false,
   },
   {
@@ -636,6 +743,28 @@ export const SURFACES: readonly Surface[] = [
     path: () => "/api/auth/sign-in/email",
     body: { email: "nobody@example.test", ...WRONG_CREDENTIAL },
     anonymousReachable: false,
+  },
+  // Sets a credential and issues a session for a caller holding no session at all: the
+  // channel token and the emailed link are all it asks for.
+  {
+    name: "POST /api/auth/claim",
+    row: "membership",
+    group: "auth",
+    method: "POST",
+    path: () => "/api/auth/claim",
+    body: { token: "not-a-real-claim-token", ...WRONG_CREDENTIAL },
+    anonymousReachable: true,
+  },
+  {
+    // Anonymous like the two entry rows: a logo is served to whoever the form is served
+    // to, and the route takes no session and no grant.
+    name: "GET /logos/{key}",
+    row: "logo",
+    group: "public",
+    method: "GET",
+    path: (ctx) => `/logos/${ctx.logoKey}`,
+    anonymousReachable: true,
+    readControl: true,
   },
   {
     name: "GET /health",

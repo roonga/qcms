@@ -230,6 +230,32 @@ export async function startLinkSession(body: {
   return readJson<StartSessionResponse>(res);
 }
 
+export interface ApiLogo {
+  readonly contentType: string;
+  readonly bytes: ArrayBuffer;
+}
+
+/**
+ * Raw bytes rather than JSON, and `undefined` for every refusal alike: the portal answers
+ * one 404 whatever the API said, so neither hop is an oracle for which keys exist.
+ */
+export async function getLogo(key: string): Promise<ApiLogo | undefined> {
+  const headers = await baseHeaders();
+  // The portal serves images, not JSON; the content-type header would be a lie here.
+  delete headers["content-type"];
+  const path = "/logos/:key";
+  const res = await loggedFetch(
+    path,
+    await apiPath(`/logos/${encodeURIComponent(key)}`),
+    { headers, cache: "no-store" },
+    headers[REQUEST_ID_HEADER],
+  );
+  if (!res.ok) return undefined;
+  const contentType = res.headers.get("content-type");
+  if (contentType === null) return undefined;
+  return { contentType, bytes: await res.arrayBuffer() };
+}
+
 /** ADR-28's explicit navigation cursor, absent for the first-incomplete default. */
 function stepQuery(stepIndex?: number): string {
   return stepIndex === undefined ? "" : `?step=${encodeURIComponent(String(stepIndex))}`;

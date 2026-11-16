@@ -201,6 +201,23 @@ export const messages = {
   /** Specific mismatch feedback discloses only submitted values, not account state. */
   "forcedPassword.mismatch": "The two new passwords did not match. Please type them again.",
 
+  /** The emailed single-use link lands here; the person has no password yet, only the link. */
+  "claim.title": "Set up your account",
+  "claim.intro":
+    "Choose a password, then set up two-factor authentication. Your account is ready to use once both are done.",
+  "claim.new": "Password",
+  "claim.confirm": "Confirm password",
+  "claim.action": "Continue",
+  "claim.mismatch": "The two passwords did not match. Please type them again.",
+  "claim.weakPassword":
+    "That password was refused. Choose a longer one you have not used elsewhere.",
+  /** One answer for unknown, used and expired, so a link tells a stranger nothing. */
+  "claim.linkRefused":
+    "That sign-in link cannot be used. A link works once and expires 72 hours after it was sent.",
+  /** Shown whenever the screen has no token, so it never offers a form that cannot work. */
+  "claim.useLinkAgain":
+    "Open the sign-in link in your email again. If it no longer works, ask a site administrator to send you a new one.",
+
   "enroll.title": "Set up two-factor authentication",
   "enroll.intro":
     "Scan this code with your authenticator app, then enter the six-digit code it shows.",
@@ -2515,9 +2532,9 @@ export const messages = {
   "access.lastAdmin.workspace": "{person} is the last Workspace administrator of {workspace}.",
   "access.lastAdmin.site": "{person} is the last active Site administrator.",
   "access.lastAdmin.remove": "Remove Workspace administrator",
-  "access.lastAdmin.removeFor": "Remove {person} as Workspace administrator",
+  "access.lastAdmin.removeFor": "Remove Workspace administrator, {person}",
   "access.lastAdmin.demote": "Demote",
-  "access.lastAdmin.demoteFor": "Demote {person}",
+  "access.lastAdmin.demoteFor": "Demote, {person}",
   "access.lastAdmin.appointWorkspace": "Appoint another Workspace administrator",
   "access.lastAdmin.appointSite": "Promote another Site administrator",
   "access.noAccess.heading": "You do not have access to any workspace yet.",

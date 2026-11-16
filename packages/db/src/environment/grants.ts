@@ -8,6 +8,7 @@ import { ACCESS_AUDIT_TABLE } from "../schema/control/access-audit.js";
 import { AGENT_ACTIONS_TABLE } from "../schema/control/agent-actions.js";
 import { ENDPOINT_PROPOSALS_TABLE } from "../schema/control/endpoint-proposals.js";
 import { SITE_AUDIT_TABLE } from "../schema/control/site-audit.js";
+import { SIGN_IN_LINKS_TABLE } from "../schema/control/sign-in-links.js";
 import { RELEASE_BATCHES_TABLE } from "../schema/control/release-batches.js";
 import {
   RELEASE_WORKFLOW_REVISIONS_TABLE,
@@ -15,6 +16,7 @@ import {
 } from "../schema/control/release-workflow.js";
 import {
   APPEARANCE_LOGOS_TABLE,
+  APPEARANCE_LOGO_TAKEDOWN_FUNCTION,
   WORKSPACE_THEMES_TABLE,
 } from "../schema/control/workspace-themes.js";
 import { CONTROL_ROLE, CONTROL_SCHEMA } from "../schema/schemas.js";
@@ -26,6 +28,7 @@ import {
 import {
   grantAccessAuditStatements,
   grantAgentActionsStatements,
+  grantAppearanceLogoTakedownStatements,
   grantAppearanceLogosStatements,
   grantControlTableStatements,
   grantEnvironmentStatements,
@@ -206,6 +209,18 @@ export const GRANT_SOURCES: readonly GrantSource[] = [
     scope: "installation",
     inMigrationTree: true,
     statements: grantSiteAuditStatements,
+  },
+  {
+    name: `${APPEARANCE_LOGO_TAKEDOWN_FUNCTION} (migration 0012)`,
+    scope: "installation",
+    inMigrationTree: true,
+    statements: grantAppearanceLogoTakedownStatements,
+  },
+  {
+    name: `${CONTROL_SCHEMA}.${SIGN_IN_LINKS_TABLE} (migration 0013)`,
+    scope: "installation",
+    inMigrationTree: true,
+    statements: () => grantControlTableStatements(SIGN_IN_LINKS_TABLE),
   },
   {
     name: "control.two_factor_resets is migrate-only (baseline, last)",

@@ -9,6 +9,13 @@ import {
   SITE_AUDIT_KINDS,
   SITE_AUDIT_TABLE,
 } from "../schema/control/site-audit.js";
+import {
+  SIGN_IN_LINK_DELIVERIES,
+  SIGN_IN_LINK_DELIVERY_CHECK,
+  SIGN_IN_LINK_PURPOSE_CHECK,
+  SIGN_IN_LINK_PURPOSES,
+  SIGN_IN_LINKS_TABLE,
+} from "../schema/control/sign-in-links.js";
 import { AGENT_ACTIONS_STEP_UNIQUE, AGENT_ACTIONS_TABLE } from "../schema/control/agent-actions.js";
 import { ENDPOINT_PROPOSALS_TABLE } from "../schema/control/endpoint-proposals.js";
 import { RELEASE_BATCHES_TABLE } from "../schema/control/release-batches.js";
@@ -21,6 +28,10 @@ import { APPEARANCE_CORNERS } from "@roonga/qcms-core";
 import {
   APPEARANCE_LOGOS_DIGEST_CHECK,
   APPEARANCE_LOGOS_TABLE,
+  APPEARANCE_LOGO_TAKEDOWN_FUNCTION,
+  APPEARANCE_LOGO_TAKEDOWN_SETTING,
+  APPEARANCE_LOGO_TOMBSTONES_TABLE,
+  APPEARANCE_LOGOS_TAKEN_DOWN,
   LOGO_CONTENT_TYPES,
   LOGO_MAX_BYTES,
   WORKSPACE_THEMES_TABLE,
@@ -32,6 +43,7 @@ import {
   CONTROL_READ_TABLES,
   grantAccessAuditStatements,
   grantAgentActionsStatements,
+  grantAppearanceLogoTakedownStatements,
   grantAppearanceLogosStatements,
   grantControlTableStatements,
   grantEnvironmentStatements,
@@ -68,6 +80,14 @@ const APPEARANCE_MIGRATION = fileURLToPath(
 
 const SITE_AUDIT_MIGRATION = fileURLToPath(
   new URL("../../migrations/0011_account_state_and_site_audit.sql", import.meta.url),
+);
+
+const TAKEDOWN_MIGRATION = fileURLToPath(
+  new URL("../../migrations/0012_appearance_logo_takedown.sql", import.meta.url),
+);
+
+const SIGN_IN_LINKS_MIGRATION = fileURLToPath(
+  new URL("../../migrations/0013_sign_in_links.sql", import.meta.url),
 );
 
 describe("the `form_releases` grants", () => {
@@ -286,10 +306,67 @@ describe("the site audit's grants (criterion 112)", () => {
     expect(sql).not.toContain("FOREIGN KEY");
   });
 
-  it("pins the four site kinds and the access audit's eleven at the database", () => {
+  it("pins the site kinds it shipped with and the access audit's eleven at the database", () => {
+    expect(sql).toContain(`CONSTRAINT "${SITE_AUDIT_KIND_CHECK}"`);
+    // The fifth kind, `logo`, arrives with the takedown in 0012 and is asserted there.
+    for (const kind of SITE_AUDIT_KINDS.filter((name) => name !== "logo")) {
+      expect(sql).toContain(`'${kind}'`);
+    }
+    for (const kind of ACCESS_AUDIT_KINDS) expect(sql).toContain(`'${kind}'`);
+  });
+});
+
+describe("the logo takedown's function and the fifth site audit kind", () => {
+  const sql = readFileSync(TAKEDOWN_MIGRATION, "utf8");
+
+  it("are exactly the statements the generator emits, verbatim", () => {
+    const statements = grantAppearanceLogoTakedownStatements();
+    expect(statements).toHaveLength(3);
+    for (const statement of statements) expect(sql).toContain(statement);
+  });
+
+  it("takes every privilege on the tombstones back from the application roles", () => {
+    expect(grantAppearanceLogoTakedownStatements().join("\n")).toContain(
+      `REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLE control.${APPEARANCE_LOGO_TOMBSTONES_TABLE} FROM %I`,
+    );
+  });
+
+  it("takes EXECUTE back from PUBLIC before giving it to the control role alone", () => {
+    const revoked = sql.indexOf(`REVOKE ALL ON FUNCTION ${APPEARANCE_LOGO_TAKEDOWN_FUNCTION}`);
+    const granted = sql.indexOf(`GRANT EXECUTE ON FUNCTION ${APPEARANCE_LOGO_TAKEDOWN_FUNCTION}`);
+    expect(revoked).toBeGreaterThan(-1);
+    expect(granted).toBeGreaterThan(revoked);
+    expect(sql).not.toContain("TO %I");
+  });
+
+  it("gives no application role DELETE on the store the function deletes from", () => {
+    expect(sql).not.toContain(`GRANT DELETE ON "control"."${APPEARANCE_LOGOS_TABLE}"`);
+    expect(sql).not.toContain(
+      `GRANT SELECT, INSERT, UPDATE, DELETE ON "control"."${APPEARANCE_LOGOS_TABLE}"`,
+    );
+  });
+
+  it("keeps the UPDATE rejection and gates the delete on the flag and the table owner", () => {
+    expect(sql).toContain("SECURITY DEFINER");
+    expect(sql).toContain(APPEARANCE_LOGO_TAKEDOWN_SETTING);
+    expect(sql).toContain(
+      "SELECT pg_catalog.pg_get_userbyid(c.relowner) FROM pg_catalog.pg_class c",
+    );
+    expect(sql).not.toMatch(/FROM pg_class\b/);
+    expect(sql).not.toContain("PG_CONTEXT");
+    expect(sql).not.toContain(`DROP TRIGGER "${APPEARANCE_LOGOS_TABLE}_reject_update"`);
+  });
+
+  it("records the digest and refuses it on insert, under the name the API maps", () => {
+    expect(sql).toContain(`CREATE TABLE "control"."${APPEARANCE_LOGO_TOMBSTONES_TABLE}"`);
+    expect(sql).toContain(`INSERT INTO control.${APPEARANCE_LOGO_TOMBSTONES_TABLE}`);
+    expect(sql).toContain(`CONSTRAINT = '${APPEARANCE_LOGOS_TAKEN_DOWN}'`);
+    expect(sql).not.toContain(`ON "control"."${APPEARANCE_LOGO_TOMBSTONES_TABLE}" TO`);
+  });
+
+  it("pins the fifth site audit kind at the database", () => {
     expect(sql).toContain(`CONSTRAINT "${SITE_AUDIT_KIND_CHECK}"`);
     for (const kind of SITE_AUDIT_KINDS) expect(sql).toContain(`'${kind}'`);
-    for (const kind of ACCESS_AUDIT_KINDS) expect(sql).toContain(`'${kind}'`);
   });
 });
 
@@ -377,5 +454,37 @@ describe("the appearance tables' grants (D1, D2)", () => {
       "utf8",
     );
     expect(versions).toContain('CREATE TRIGGER "form_versions_reject_update"');
+  });
+});
+
+describe("the sign-in links' grants (task 090)", () => {
+  const sql = readFileSync(SIGN_IN_LINKS_MIGRATION, "utf8");
+
+  it("is exactly the statement the generator emits, verbatim", () => {
+    const statements = grantControlTableStatements(SIGN_IN_LINKS_TABLE);
+    expect(statements).toHaveLength(1);
+    for (const statement of statements) expect(sql).toContain(statement);
+  });
+
+  it("gives every environment role nothing at all", () => {
+    expect(CONTROL_READ_TABLES).not.toContain(SIGN_IN_LINKS_TABLE);
+    expect(CONTROL_READ_COLUMNS[SIGN_IN_LINKS_TABLE]).toBeUndefined();
+    expect(sql).not.toContain(`ON "control"."${SIGN_IN_LINKS_TABLE}" TO %I`);
+    expect(grantEnvironmentStatements("staging").join(" ")).not.toContain(SIGN_IN_LINKS_TABLE);
+  });
+
+  it("stores the digest and no token, and pins both value sets at the database", () => {
+    expect(sql).toContain('"token_hash" text NOT NULL');
+    expect(sql).not.toMatch(/"token" text/);
+    expect(sql).toContain(`CONSTRAINT "${SIGN_IN_LINK_PURPOSE_CHECK}"`);
+    expect(sql).toContain(`CONSTRAINT "${SIGN_IN_LINK_DELIVERY_CHECK}"`);
+    for (const purpose of SIGN_IN_LINK_PURPOSES) expect(sql).toContain(`'${purpose}'`);
+    for (const delivery of SIGN_IN_LINK_DELIVERIES) expect(sql).toContain(`'${delivery}'`);
+  });
+
+  it("keeps the expiry and the used flag as columns a consume can compare and set", () => {
+    expect(sql).toContain('"expires_at" timestamp with time zone NOT NULL');
+    expect(sql).toContain('"used_at" timestamp with time zone');
+    expect(sql).toContain('"invalidated_at" timestamp with time zone');
   });
 });

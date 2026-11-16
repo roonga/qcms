@@ -10,6 +10,7 @@ import {
   authUser,
   authVerification,
   clearMustChangePassword,
+  isAccountActive,
   isAccountDisabled,
 } from "@roonga/qcms-db";
 import type { Executor } from "@roonga/qcms-db";
@@ -43,7 +44,14 @@ export const AUTH_BASE_PATH = "/api/auth";
  * (`dist/db/internal-adapter.mjs:667-684`) <!-- expect: value: "credential" -->, so the
  * `account.update.after` hook below needs it to tell that row from an OAuth account.
  */
-const CREDENTIAL_PROVIDER_ID = "credential";
+export const CREDENTIAL_PROVIDER_ID = "credential";
+
+/**
+ * A backup code proves possession of a code the enrolment handed out and proves no
+ * enrolment, so it is the one session-minting path that must refuse an account that has
+ * never finished claiming. TOTP verification is the act that finishes a claim, so it passes.
+ */
+export const BACKUP_CODE_VERIFY_PATH = "/two-factor/verify-backup-code";
 
 /**
  * The only composition-shaped rule here: NIST SP 800-63B Rev 4 section 3.1.1.2 forbids the rest and mandates
@@ -210,11 +218,34 @@ export const MEMBERSHIP_LIMIT = 5_000;
 type PluginInitContext = Parameters<NonNullable<BetterAuthPlugin["init"]>>[0];
 
 /**
+ * Wall-clock bound on a breach-checked hash. A claim holds its pooled connection across the
+ * lookup, and the vendor's fetch takes no abort signal, so a hung corpus is raced, not cancelled.
+ */
+export const BREACH_LOOKUP_TIMEOUT_MS = 3_000;
+
+function withinBreachLookupBound<T>(work: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const expired = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => {
+      reject(new APIError("INTERNAL_SERVER_ERROR", { message: "breach lookup timed out" }));
+    }, ms);
+  });
+  // The abandoned lookup can only finish a hash in memory: it holds no executor.
+  work.catch(() => undefined);
+  return Promise.race([work, expired]).finally(() => {
+    clearTimeout(timer);
+  });
+}
+
+/**
  * Order is the mechanism: better-auth runs plugin `init` hooks in array order, so the
  * `hash` this captures is the vendor's checked hash only while this sits after
  * `haveIBeenPwned` in `plugins`. Listed before it, it would wrap the bare hash.
  */
-function breachLookupDiagnostics(warn?: (message: string) => void): BetterAuthPlugin {
+function breachLookupDiagnostics(
+  checked: boolean,
+  warn?: (message: string) => void,
+): BetterAuthPlugin {
   return {
     id: "qcms-breach-lookup-diagnostics",
     init(ctx: PluginInitContext) {
@@ -224,8 +255,12 @@ function breachLookupDiagnostics(warn?: (message: string) => void): BetterAuthPl
           password: {
             ...ctx.password,
             hash: async (password: string): Promise<string> => {
+              if (!checked) return checkedHash(password);
               try {
-                return await checkedHash(password);
+                return await withinBreachLookupBound(
+                  checkedHash(password),
+                  BREACH_LOOKUP_TIMEOUT_MS,
+                );
               } catch (error) {
                 throw explainBreachLookupFailure(error, warn);
               }
@@ -290,6 +325,12 @@ export function createAdminAuth(input: AdminAuthInput) {
       minPasswordLength: MIN_PASSWORD_LENGTH,
       // No reset mail exists, so do not advertise one.
       requireEmailVerification: false,
+      // Only the claim reaches `/reset-password`, which is not on the proxy's allowlist, so
+      // this revokes nothing else. A session minted from an earlier link of the same
+      // account dies in the same transaction as the password write and the token's spend:
+      // `dist/utils/password.mjs:34` <!-- expect: revokeSessionsOnPasswordReset) await ctx.context.internalAdapter.deleteUserSessions(userId); -->
+      // `dist/utils/password.mjs:32` <!-- expect: runWithTransaction(ctx.context.adapter, -->
+      revokeSessionsOnPasswordReset: true,
     },
     session: {
       expiresIn: Math.floor(adminAuth.idleMs / 1000),
@@ -319,10 +360,15 @@ export function createAdminAuth(input: AdminAuthInput) {
            * Every sign-in shape mints the session here, the pending-second-factor one
            * included, which creates it and then deletes it:
            * `dist/plugins/two-factor/index.mjs:291` <!-- expect: internalAdapter.deleteSession(data.session.token) -->
-           * The claim is deliberately not read: an unclaimed account reaches its own claim.
+           * The claim is read on one path only; an unclaimed account reaches its own claim.
            */
-          before: async (session) => {
-            if (!(await isAccountDisabled(input.db, session.userId))) return;
+          before: async (session, context) => {
+            const path: unknown = (context as { path?: unknown } | undefined)?.path;
+            const refused =
+              path === BACKUP_CODE_VERIFY_PATH
+                ? !(await isAccountActive(input.db, session.userId))
+                : await isAccountDisabled(input.db, session.userId);
+            if (!refused) return;
             // No reason in the body, as everywhere else this surface refuses.
             throw new APIError("UNAUTHORIZED");
           },
@@ -382,7 +428,7 @@ export function createAdminAuth(input: AdminAuthInput) {
       haveIBeenPwned({ enabled: adminAuth.breachedPasswordCheck }),
       // Must stay immediately after `haveIBeenPwned`: it wraps whatever `password.hash` is
       // at its turn.
-      breachLookupDiagnostics(input.warn),
+      breachLookupDiagnostics(adminAuth.breachedPasswordCheck, input.warn),
       // Declared for its models and its policy only. Enforcement is the QCMS membership
       // middleware, which calls the plugin's authorize function directly because the
       // plugin's HTTP `hasPermission` needs a signed cookie this API does not hold.

@@ -29,7 +29,7 @@ describe("the last-administrator control", () => {
       />,
     );
     const button = screen.getByRole("button", {
-      name: "Remove Grace Mensah as Workspace administrator",
+      name: "Remove Workspace administrator, Grace Mensah",
     });
     expect(isOff(button)).toBe(true);
     expect(button.textContent).toContain(t("access.lastAdmin.remove"));
@@ -53,9 +53,58 @@ describe("the last-administrator control", () => {
         onPress={vi.fn()}
       />,
     );
-    expect(isOff(screen.getByRole("button", { name: "Demote Sam Okafor" }))).toBe(true);
+    const demote = screen.getByRole("button", { name: "Demote, Sam Okafor" });
+    expect(isOff(demote)).toBe(true);
+    expect(demote.getAttribute("aria-label") ?? demote.textContent).toContain(
+      t("access.lastAdmin.demote"),
+    );
     expect(screen.getByText("Sam Okafor is the last active Site administrator.")).toBeTruthy();
     expect(screen.queryByRole("link")).toBeNull();
+  });
+
+  it("offers Promote another Site administrator to the last Site administrator", () => {
+    render(
+      <AdministratorRemoval
+        scope="site"
+        person="Sam Okafor"
+        isLast
+        capabilities={SITE_ADMIN}
+        appointHref="/site/administrators"
+        onPress={vi.fn()}
+      />,
+    );
+    const link = screen.getByRole("link", { name: "Promote another Site administrator" });
+    expect(link.getAttribute("href")).toBe("/site/administrators");
+  });
+
+  it("starts every accessible name with the visible label (WCAG 2.5.3)", () => {
+    render(
+      <>
+        <AdministratorRemoval
+          scope="workspace"
+          person="Grace Mensah"
+          workspace="Clinical"
+          isLast={false}
+          capabilities={WORKSPACE_ADMIN}
+          onPress={vi.fn()}
+        />
+        <AdministratorRemoval
+          scope="site"
+          person="Sam Okafor"
+          isLast={false}
+          capabilities={SITE_ADMIN}
+          onPress={vi.fn()}
+        />
+      </>,
+    );
+    const remove = screen.getByRole("button", { name: /^Remove/ });
+    const demote = screen.getByRole("button", { name: /^Demote/ });
+    expect(remove.getAttribute("aria-label") ?? remove.textContent).toContain(
+      t("access.lastAdmin.remove"),
+    );
+    expect(demote.getAttribute("aria-label") ?? demote.textContent).toContain(
+      t("access.lastAdmin.demote"),
+    );
   });
 
   it("acts, with no reason shown, while another administrator remains", async () => {
@@ -71,7 +120,7 @@ describe("the last-administrator control", () => {
         onPress={onPress}
       />,
     );
-    const button = screen.getByRole("button", { name: "Demote Luis Ortega" });
+    const button = screen.getByRole("button", { name: "Demote, Luis Ortega" });
     expect(isOff(button)).toBe(false);
     expect(screen.queryByRole("link")).toBeNull();
     button.focus();
@@ -101,5 +150,19 @@ describe("the last-administrator control", () => {
       </>,
     );
     expect(container.innerHTML).toBe("");
+  });
+
+  it("hides the promote link from a caller without siteAdministrators.manage", () => {
+    render(
+      <AdministratorRemoval
+        scope="site"
+        person="Sam Okafor"
+        isLast
+        capabilities={WORKSPACE_ADMIN}
+        appointHref="/site/administrators"
+        onPress={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole("link")).toBeNull();
   });
 });

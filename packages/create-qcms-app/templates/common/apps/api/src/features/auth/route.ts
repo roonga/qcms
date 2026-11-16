@@ -1,8 +1,14 @@
+import type { Executor } from "@roonga/qcms-db";
+
 import type { SliceRegistrar } from "../../app.js";
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
+import { claimAfterFactorVerified } from "../accounts/claim.js";
 import { accountStateRefusal, authEndpointRefused } from "./account-state.js";
 import { AUTH_BASE_PATH, createAdminAuth, type AdminAuth } from "./instance.js";
+
+/** The one endpoint that can turn an unclaimed account's enrolment into a claim. */
+const TOTP_VERIFY_ENDPOINT = "POST /two-factor/verify-totp";
 
 /** Allowlist endpoints so sign-up and organization writes cannot become public through a vendor mount. */
 export const ALLOWED_AUTH_ENDPOINTS: readonly string[] = [
@@ -21,12 +27,13 @@ const ALLOWED = new Set(ALLOWED_AUTH_ENDPOINTS);
 /** Keyed on `Deps`, not module-level: one process composes several apps over different databases. */
 const instances = new WeakMap<Deps, AdminAuth>();
 
-/** Read throttle state from the mounted instance; a second instance could report a different configuration. */
-export function adminAuthFor(deps: Deps): AdminAuth {
-  const existing = instances.get(deps);
-  if (existing !== undefined) return existing;
-  const built = createAdminAuth({
-    db: deps.databases.control,
+/**
+ * An uncached instance whose writes run on `db`, for a caller that must write through the
+ * library inside its own transaction.
+ */
+export function adminAuthOn(deps: Deps, db: Executor): AdminAuth {
+  return createAdminAuth({
+    db,
     adminAuth: deps.config.adminAuth,
     // Operator-only channel: the variable that turns the breach check off never goes to
     // the client that provoked the warning.
@@ -34,8 +41,52 @@ export function adminAuthFor(deps: Deps): AdminAuth {
       deps.logger.warn(message);
     },
   });
+}
+
+/** Read throttle state from the mounted instance; a second instance could report a different configuration. */
+export function adminAuthFor(deps: Deps): AdminAuth {
+  const existing = instances.get(deps);
+  if (existing !== undefined) return existing;
+  const built = adminAuthOn(deps, deps.databases.control);
   instances.set(deps, built);
   return built;
+}
+
+/**
+ * The account the vendor's verify response names, never a session read before it ran: the
+ * vendor falls back to the pending-second-factor cookie when that session no longer resolves.
+ * The session kept is the one the response issues, else the one it verified on.
+ */
+async function verifiedAccount(
+  auth: AdminAuth,
+  response: Response,
+): Promise<{ readonly userId: string; readonly keepToken: string | undefined } | undefined> {
+  const body = (await response
+    .clone()
+    .json()
+    .catch(() => null)) as { token?: unknown; user?: { id?: unknown } } | null;
+  const userId = body?.user?.id;
+  if (typeof userId !== "string") return undefined;
+  const issued = await issuedSession(auth, response);
+  if (issued !== undefined) {
+    return issued.userId === userId ? { userId, keepToken: issued.token } : undefined;
+  }
+  return { userId, keepToken: typeof body?.token === "string" ? body.token : undefined };
+}
+
+/** The session a response issues, read back off its `Set-Cookie` headers. */
+async function issuedSession(
+  auth: AdminAuth,
+  response: Response,
+): Promise<{ readonly userId: string; readonly token: string } | undefined> {
+  const cookie = response.headers
+    .getSetCookie()
+    .map((value) => value.split(";")[0])
+    .filter((value): value is string => value !== undefined && value !== "")
+    .join("; ");
+  if (cookie === "") return undefined;
+  const session = await auth.api.getSession({ headers: new Headers({ cookie }) });
+  return session === null ? undefined : { userId: session.user.id, token: session.session.token };
 }
 
 export function authSubPath(url: string): string {
@@ -61,6 +112,15 @@ export const registerAdminAuthProxy: SliceRegistrar = (group, deps) => {
     // here as well as on `/admin`. Sign-in and sign-out are exempt: neither is the stale
     // cookie's to decide, and the session-create hook refuses the sign-in instead.
     if (await authEndpointRefused(auth, request, endpoint)) throw accountStateRefusal();
-    return auth.handler(request);
+    const response = await auth.handler(request);
+    // The claim is finished by the act, not by the screen that posted it: the account
+    // holds nothing until a password and a verified second factor both exist.
+    if (endpoint === TOTP_VERIFY_ENDPOINT && response.ok) {
+      const verified = await verifiedAccount(auth, response);
+      if (verified !== undefined) {
+        await claimAfterFactorVerified(deps, verified.userId, verified.keepToken);
+      }
+    }
+    return response;
   });
 };

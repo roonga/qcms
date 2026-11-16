@@ -22,7 +22,7 @@ The user guide for these rules is [`docs/workspace-access-guide.html`](workspace
 | One user-facing Publish step                                      | Built        |
 | Second approval for `prod` publish and endpoint changes           | Built        |
 | Second approval for turning the rule off and for self-grant       | Partly built |
-| Account creation, disable, reactivation and reset in the app      | Not built    |
+| Account creation, disable, reactivation and reset in the app      | Partly built |
 | Site administrator appointment with approval requests             | Not built    |
 | Workspace audit (SEC-15)                                          | Built        |
 | Site audit and mirroring                                          | Not built    |
@@ -33,6 +33,7 @@ The user guide for these rules is [`docs/workspace-access-guide.html`](workspace
 | Workspace themes and the workspace appearance lock                | Not built    |
 
 - The workspace list admits every grant holder and returns only the workspaces the caller holds something in. A caller who holds no `workspace: read` there is given the workspace's identity alone, with no setting and no counts (criterion 26).
+- Account creation and the claim are built; disable, reactivation and reset are not. The Accounts screens themselves are a later task, so the built half is the API and the claim screen the emailed link lands on.
 - Records that describe what is built (`docs/SECURITY_DESIGN.md`, the operator guides, the built-task notes in ADR-41) keep that description until the code changes, with a line pointing here.
 - The SEC-3 role table in `docs/SECURITY_DESIGN.md` §3.2 carries the policy code, because `apps/api/e2e/security/matrix-coverage.e2e.ts` reads it. It changes with the roles in code.
 
@@ -195,12 +196,18 @@ Every new workspace is created with four starter groups. They are ordinary group
 - **Account creation is refused until outbound email is configured.** The only exception is the first account, created at install by `qcms:create-admin`.
 - **Dependency: outbound email.** QCMS has no mail transport today. A transport, its configuration, the message template, delivery-failure handling and resend are v1 deliverables.
 - Every emailed sign-in link in this section, for creation, reactivation or after a reset, is single-use and expires after 72 hours.
+- **A link carries its purpose, and the claim answers only a creation link.** Reactivation and reset links reach an account that is already claimed, so they are not interchangeable with a creation link even while both are live.
+- **A claim always requires a verified second factor (Code Owner, 2026-11-16).** A password alone leaves the account unclaimed, so it still holds nothing. `QCMS_ADMIN_2FA=optional` is a development escape hatch for signing in to accounts that are already claimed, and never relaxes the claim.
+- **A completed claim kills every live link the account holds, and a claimed account refuses a creation link (Code Owner, 2026-11-16).** Both, rather than either: a link issued in the window between the password and the verified factor would otherwise stay usable for its 72 hours and set a new password on an account that had become live.
+- **Issuing a link supersedes every live one under the account's own lock**, so two resends at once leave one usable link rather than two.
 
 ### Directory visibility
 
 - Workspace administrators add a person by exact email address only.
 - Adding an address that is unknown, disabled or unclaimed gets one generic answer, the same for all three. For a Workspace administrator that answer is a refusal: nobody is added.
 - Browse and search of the account directory is for Site administrators only.
+- **Granting by id to an account already in the workspace is allowed even while it is unclaimed or disabled, and stays audited (Code Owner, 2026-11-16).** Only the by-address path refuses: an id names an account the caller already knows about, and the generic answer exists to keep the directory closed rather than to hold a grant.
+- **Every grant made while the account is unclaimed writes a site-audit row** as well as the workspace's own, appointing a Workspace administrator included (Code Owner, 2026-11-16).
 
 ### Credential and factor reset
 
@@ -300,10 +307,10 @@ Every new workspace is created with four starter groups. They are ordinary group
 
 Two append-only logs. For both, the application role holds `INSERT` and `SELECT` only, never `UPDATE` or `DELETE`. There is no auditor role.
 
-| Log             | Holds                                                                          | Read by                                                        |
-| --------------- | ------------------------------------------------------------------------------ | -------------------------------------------------------------- |
-| Workspace audit | Response reads, exports and erasures; workspace access acts; assistant actions | That workspace's Workspace administrators; Site administrators |
-| Site audit      | Account and Site administrator acts; shared question library marking           | Site administrators                                            |
+| Log             | Holds                                                                                          | Read by                                                        |
+| --------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| Workspace audit | Response reads, exports and erasures; workspace access acts; assistant actions                 | That workspace's Workspace administrators; Site administrators |
+| Site audit      | Account and Site administrator acts; shared question library marking; appearance logo takedown | Site administrators                                            |
 
 - A site-level act that affects a workspace is mirrored into that workspace's audit.
 - Every one of these acts writes a row:
@@ -313,6 +320,7 @@ Two append-only logs. For both, the application role holds `INSERT` and `SELECT`
   - **Access groups:** create, rename, delete, change of roles or environments, member added, member removed, re-confirmation of a suspended membership.
   - **Workspaces:** create, rename, archive, form moved in or out, second-approval switch changed, appearance lock set or cleared (one `setting` row), marked or unmarked as the shared question library.
   - **Workspace themes:** each theme derive fetch, one row (SEC-18).
+  - **Appearance logo store:** each takedown, one site-audit row, mirrored as a `setting` row into each workspace whose themes had the logo cleared (Code Owner, 2026-11-16).
   - **Workspace approval requests** (turning second approval off, self-grant, Move form): created, approved, rejected, expired.
   - **Pending draft publish to `prod`** on a site whose only environment is `prod` (approved on the form, not a workspace approval request): requested, approved, rejected, expired.
 
@@ -321,7 +329,7 @@ Two append-only logs. For both, the application role holds `INSERT` and `SELECT`
 Settled in task 088.
 
 - The **site audit row** is `actor`, `subject` (the account, workspace or request the act was on), `workspace_id` (set only where the act affects one workspace, which is where the mirrored row goes), `kind`, `occurred_at` and a free-text `detail`. No foreign key, so a row never cascades away with the account it names, and no column carries a credential, an answer value or authored text.
-- **Site audit kinds**, four, with `detail` naming the act within its kind: `account` (create, disable, reactivate, credential or factor reset, a grant made while unclaimed), `administrator` (a Site administrator promoted or demoted), `approval` (a site approval request created, approved, rejected or expired), `library` (a workspace marked or unmarked as the shared question library).
+- **Site audit kinds**, five, with `detail` naming the act within its kind: `account` (create, disable, reactivate, credential or factor reset, a grant made while unclaimed), `administrator` (a Site administrator promoted or demoted), `approval` (a site approval request created, approved, rejected or expired), `library` (a workspace marked or unmarked as the shared question library), `logo` (a stored appearance logo taken down, which deletes the bytes site-wide; Code Owner, 2026-11-16). None of the first four names an act on stored media, and `library` is the question library's marking alone, so the takedown takes its own kind rather than overloading one.
 - **Workspace audit kinds gained**, four beside the seven already stored: `group` (an access group created, renamed, deleted, or its roles or environments changed), `administrator` (a Workspace administrator appointed or removed), `approval` (a workspace approval request or a held `prod` draft publish created, approved, rejected or expired), `account` (the mirror of a site-level account act into a workspace the account held something in).
 - One act may write more than one row, which is the reading of criterion 111: taking somebody out of a workspace writes one `revoke` row per access group they held there plus one for the member row, and deleting an access group writes one `group` row for the removal plus one `revoke` row per holder.
 - A member added or removed stays `grant` and `revoke`, and a re-confirmation of a suspended membership is a `grant`, because it restores one. A workspace created, renamed or archived, a form moved, the second-approval switch, the appearance lock and the library marking's mirror keep the kinds they are already written with.

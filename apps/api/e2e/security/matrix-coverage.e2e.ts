@@ -32,6 +32,8 @@ const DOCUMENTED_ROWS: Readonly<Record<string, MatrixRow>> = {
   Erasure: "erasure",
   "Links mint/revoke, webhook config": "links-webhooks",
   "Membership, grants and the access audit": "membership",
+  "Serve a stored logo": "logo",
+  "Take a stored logo down": "logo-takedown",
   "Health/ready": "health",
 };
 
@@ -148,12 +150,25 @@ describe("the §3.2 matrix and the probe inventory stay in step", () => {
       "/admin/operations/forms",
       // The installation-wide release workflow, whose write no grant reaches.
       "/admin/release-workflow",
+      // The site-wide logo store's one write, which no workspace grant reaches either.
+      "/admin/logos",
+      "/admin/accounts",
+      "/admin/accounts/{id}/sign-in-link",
     ]) {
       expect(
         adminPaths.some((path) => path.includes(slice)),
         `no probe covers ${slice}`,
       ).toBe(true);
     }
+  });
+
+  it("probes every identity route outside the admin gate, including the claim", () => {
+    const authPaths = SURFACES.filter((surface) => surface.group === "auth").map(
+      (surface) => surface.name,
+    );
+    expect(authPaths).toEqual(
+      expect.arrayContaining(["POST /api/auth/sign-in/email", "POST /api/auth/claim"]),
+    );
   });
 });
 
@@ -183,8 +198,10 @@ const DOCUMENTED_ROLE_ROWS: Readonly<Record<string, readonly [string, string]>> 
     "write",
   ],
   "Workspace settings: two-person switch, archive": ["workspace", "update"],
+  "Save or change a workspace theme": ["form", "write"],
+  "Set or clear the workspace appearance lock": ["workspace", "update"],
   "Read the access audit": ["audit", "read"],
-  "Create workspaces, mark the shared one, environment settings, user accounts, release-workflow configuration":
+  "Create workspaces, mark the shared one, environment settings, user accounts, release-workflow configuration, logo takedown":
     ["workspace", "update"],
   // The one `anyOf` row, so this names its primary cell; the other three cells of the
   // union have their own documented rows above.

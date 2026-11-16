@@ -1,5 +1,6 @@
 import {
   createTestAdmin as createAdminAccount,
+  issueTestSignInLink,
   openDbHandle,
 } from "../../../api/e2e/support/admin-accounts.js";
 import { readFixtures } from "../../../portal/e2e/support/fixtures.js";
@@ -56,4 +57,18 @@ export async function markProvisional(email: string): Promise<void> {
   } finally {
     await handle.close();
   }
+}
+
+/** The token an emailed sign-in link would carry, for a spec that drives the claim screen. */
+export async function signInLinkFor(
+  email: string,
+  options: { readonly expiresAt?: Date } = {},
+): Promise<string> {
+  return issueTestSignInLink({
+    databaseUrl: readFixtures().databaseUrl,
+    authSecret: FIXED_AUTH_SECRET,
+    adminBaseUrl: ADMIN_BASE_URL,
+    email,
+    ...(options.expiresAt === undefined ? {} : { expiresAt: options.expiresAt }),
+  });
 }

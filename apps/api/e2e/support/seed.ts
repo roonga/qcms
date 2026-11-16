@@ -166,6 +166,7 @@ export async function seedUnpublishedPinForm(
   });
   await upsertDraft(db, {
     formId: FormId.parse(formId),
+    appearance: null,
     definition: {
       formId,
       defaultLocale: "en",

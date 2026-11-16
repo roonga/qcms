@@ -5,21 +5,26 @@
  */
 
 import { Buffer } from "node:buffer";
+import { createHash } from "node:crypto";
 
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { SEED_WORKSPACE_ID } from "@roonga/qcms-db/testing";
-import { FormId } from "@roonga/qcms-core";
+import { FormId, deriveAppearance } from "@roonga/qcms-core";
 import {
   addAccessGroupHolder,
   authOrganization,
+  authUser,
   createAccessGroup,
   createForm,
   ensureWorkspaceMember,
   getReleasedVersion,
   getWebhook,
   getWorkspace,
+  insertAppearanceLogo,
   insertFormVersion,
+  insertWorkspaceTheme,
   listAccessAudit,
   setRequireSecondApprover,
 } from "@roonga/qcms-db";
@@ -176,9 +181,40 @@ beforeAll(async () => {
   });
   probeTeamId = seeded.teamIds["forms.viewer"] as string;
 
+  // A logo really in the store, so the positive control on the logo route serves bytes
+  // rather than proving a 404 is a 404.
+  const logoBytes = Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    Buffer.alloc(32, 0x5a),
+  ]);
+  const logoKey = createHash("sha256").update(logoBytes).digest("hex");
+  await insertAppearanceLogo(testDb.db, {
+    key: logoKey,
+    contentType: "image/png",
+    bytes: logoBytes,
+    actor: null,
+  });
+
+  // A real theme, so a theme probe cannot pass because the handler refused an id that
+  // does not exist where a gate had failed.
+  const derived = deriveAppearance({ primary: "#1d4ed8" });
+  const theme = await insertWorkspaceTheme(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    name: "Matrix probe",
+    palettes: derived.palettes,
+    face: derived.face,
+    corners: "subtle",
+    pageTint: derived.pageTint,
+    logoKey: null,
+    sourceHost: null,
+    actor: null,
+  });
+
   ctx = {
     formId,
     formSlug: slug,
+    logoKey,
+    themeId: theme.id,
     sessionId: a.body.sessionId,
     otherSessionId: b.body.sessionId,
     linkId: LINK_ID,
@@ -367,6 +403,13 @@ describe("a public-only process has no admin surface at all", () => {
     expect(res.status).toBe(404);
   });
 
+  it("has no claim either: an emailed link cannot set a credential through it", async () => {
+    const claim = SURFACES.find((s) => s.name === "POST /api/auth/claim") as Surface;
+    const res = await probe(publicOnly.app, claim, ctx, { [INTERNAL_TOKEN_HEADER]: internalToken });
+    expect(res.status).toBe(404);
+    expect(res.headers.getSetCookie()).toEqual([]);
+  });
+
   it("still serves the respondent loop it does mount", async () => {
     const step = SURFACES.find((s) => s.name === "GET /sessions/{id}/step") as Surface;
     const res = await probe(publicOnly.app, step, ctx, respondentHeaders());
@@ -383,6 +426,85 @@ describe("a public-only process has no admin surface at all", () => {
       expect(res.status).toBe(404);
       expect((await res.text()).toLowerCase()).not.toContain("sign-up");
     }
+  });
+});
+
+describe("account creation and the claim (task 090)", () => {
+  const surface = (name: string): Surface => SURFACES.find((s) => s.name === name) as Surface;
+  const create = surface("POST /admin/accounts");
+  const resend = surface("POST /admin/accounts/{id}/sign-in-link");
+  const claim = surface("POST /api/auth/claim");
+  const MISSING_ACCOUNT = "au_matrix_missing";
+
+  async function resendFor(id: string, headers: Record<string, string>): Promise<Response> {
+    return all.app.request(`/admin/accounts/${id}/sign-in-link`, { method: "POST", headers });
+  }
+
+  async function accountRow(email: string): Promise<unknown> {
+    const [row] = await testDb.db.select().from(authUser).where(eq(authUser.email, email));
+    return row;
+  }
+
+  it("lets the Site administrator past the gate on both account writes", async () => {
+    const created = await probe(all.app, create, ctx, adminHeaders());
+    const resent = await resendFor(MISSING_ACCOUNT, adminHeaders());
+    if (all.deps.mailer.configured) {
+      expect(created.status).toBe(201);
+      expect(resent.status).toBe(404);
+    } else {
+      // The handler's own refusal, which only a caller the gate admitted can reach.
+      for (const res of [created, { status: resent.status, text: await resent.text() }]) {
+        expect(res.status).toBe(409);
+        expect(res.text).toContain("MAIL_NOT_CONFIGURED");
+      }
+    }
+  });
+
+  it.each([
+    ["a Workspace administrator", "probe-acc-wsadmin", { owner: true, grants: ["forms.editor"] }],
+    [
+      "a holder of both role families",
+      "probe-acc-roles",
+      { grants: ["forms.owner", "forms.publisher", "responses.viewer", "responses.eraser"] },
+    ],
+    ["an account holding nothing", "probe-acc-nothing", { membership: false }],
+  ] as const)(
+    "refuses %s every account route, 403 before any lookup",
+    async (_name, label, shape) => {
+      const caller = await seedAdminSession(testDb.db, { label, claim: false, ...shape });
+      const headers = adminHeaders({ [ADMIN_SESSION_HEADER]: caller.token });
+      const email = `matrix.${caller.userId}@example.test`;
+
+      const directory = await probe(all.app, surface("GET /admin/accounts"), ctx, headers);
+      expect(directory.status).toBe(403);
+      expect(directory.text).not.toContain("@");
+
+      const created = await all.app.request(create.path(ctx), {
+        method: "POST",
+        headers: { "content-type": "application/json", ...headers },
+        body: JSON.stringify({ email }),
+      });
+      expect(created.status).toBe(403);
+      expect(await accountRow(email)).toBeUndefined();
+
+      expect((await probe(all.app, resend, ctx, headers)).status).toBe(403);
+      expect((await resendFor(MISSING_ACCOUNT, headers)).status).toBe(403);
+    },
+  );
+
+  it("answers a bad link with the channel token alone, and issues no session", async () => {
+    const res = await probe(all.app, claim, ctx, { [INTERNAL_TOKEN_HEADER]: internalToken });
+    expect(res.status).toBe(400);
+    expect(res.text).toContain("CLAIM_LINK_REFUSED");
+    expect(res.headers.getSetCookie()).toEqual([]);
+  });
+
+  it("gives a Site administrator's session no other answer for the same bad link", async () => {
+    const anonymous = await probe(all.app, claim, ctx, { [INTERNAL_TOKEN_HEADER]: internalToken });
+    const withSession = await probe(all.app, claim, ctx, adminHeaders());
+    expect(withSession.status).toBe(anonymous.status);
+    expect(withSession.text).toBe(anonymous.text);
+    expect(withSession.headers.getSetCookie()).toEqual([]);
   });
 });
 
