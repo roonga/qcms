@@ -180,7 +180,7 @@ export function agentProvenanceDisabled(): MiddlewareHandler<ApiEnv> {
 export const registerAgentProvenance: SliceRegistrar = (group, deps) => {
   const off = deps.config.flags.agentAuthoring === "none";
   group.use("*", off ? agentProvenanceDisabled() : agentProvenance(deps));
-  group.use("*", off ? agentEditDisabled() : agentEditProvenance(deps));
+  group.use("*", off ? agentEditDisabled(deps) : agentEditProvenance(deps));
 };
 
 export type { VerifiedProposal };
