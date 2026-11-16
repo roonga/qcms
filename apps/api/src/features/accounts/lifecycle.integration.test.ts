@@ -505,9 +505,9 @@ describe("reactivating an account (criteria 64, 68, 69, 71)", () => {
     "needs a new password and factor through the link, restores the rest and keeps responses suspended",
     async () => {
       const person = await createAndClaim("reactivate.subject@example.test");
-      await appoint(person.userId);
       await grant(viewersGroupId, person.userId);
       await grant(editorsGroupId, person.userId);
+      await appoint(person.userId);
       const before = await myAccess(person.session);
       expect(before.workspaces.get(workspaceId)?.groups).toEqual([
         "Lifecycle editors",
@@ -597,9 +597,9 @@ describe("resetting a password or a factor (criteria 58, 59, 64, 65)", () => {
     "revokes every session, suspends response memberships and needs a new password through the link",
     async () => {
       const person = await createAndClaim("password.reset@example.test");
-      await appoint(person.userId);
       await grant(viewersGroupId, person.userId);
       await grant(editorsGroupId, person.userId);
+      await appoint(person.userId);
       const second = await authPost("/sign-in/email", {
         email: person.email,
         password: person.password,

@@ -54,6 +54,9 @@ export const CREDENTIAL_PROVIDER_ID = "credential";
  */
 export const BACKUP_CODE_VERIFY_PATH = "/two-factor/verify-backup-code";
 
+/** The password sign-in, refused while a reset or reactivation link is still unspent. */
+export const PASSWORD_SIGN_IN_PATH = "/sign-in/email";
+
 /**
  * The only composition-shaped rule here: NIST SP 800-63B Rev 4 section 3.1.1.2 forbids the rest and mandates
  * the breach-corpus check instead.
@@ -361,8 +364,8 @@ export function createAdminAuth(input: AdminAuthInput) {
            * Every sign-in shape mints the session here, the pending-second-factor one
            * included, which creates it and then deletes it:
            * `dist/plugins/two-factor/index.mjs:291` <!-- expect: internalAdapter.deleteSession(data.session.token) -->
-           * The claim is read on one path only; an unclaimed account reaches its own claim,
-           * and only once it has spent the newest link it was sent.
+           * The claim is read on one path only; an unclaimed account reaches its own claim.
+           * A password sign-in waits until the newest link the account was sent is spent.
            */
           before: async (session, context) => {
             const path: unknown = (context as { path?: unknown } | undefined)?.path;
@@ -370,7 +373,8 @@ export function createAdminAuth(input: AdminAuthInput) {
               path === BACKUP_CODE_VERIFY_PATH
                 ? !(await isAccountActive(input.db, session.userId))
                 : (await isAccountDisabled(input.db, session.userId)) ||
-                  (await awaitsSignInLink(input.db, session.userId));
+                  (path === PASSWORD_SIGN_IN_PATH &&
+                    (await awaitsSignInLink(input.db, session.userId)));
             if (!refused) return;
             // No reason in the body, as everywhere else this surface refuses.
             throw new APIError("UNAUTHORIZED");

@@ -469,22 +469,34 @@ describe("claiming an account (criteria 52, 53, 54)", { timeout: CLAIM_TIMEOUT_M
     expect((await accountRow(created.userId)).claimedAt).toBeNull();
   });
 
-  it("refuses a link issued for anything other than a creation", async () => {
-    const created = await createAccount("wrong.purpose@example.test");
-    const other = mintSignInToken();
-    await issueSignInLink(testDb.db, {
-      userId: created.userId,
-      tokenHash: await signInTokenHash(other),
-      purpose: "reset",
-      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
-      issuedBy: created.userId,
-      now: new Date(),
-    });
-    const claimed = await authPost("/claim", { token: other, password: freshPassword() });
-    expect(claimed.status).toBe(400);
-    expect(await errorCodeOf(claimed)).toBe("CLAIM_LINK_REFUSED");
-    expect((await accountRow(created.userId)).claimedAt).toBeNull();
-  });
+  it(
+    "answers a reset link as a reset, never as a creation",
+    async () => {
+      const created = await createAccount("wrong.purpose@example.test");
+      const password = freshPassword();
+      const claimed = await authPost("/claim", { token: created.token, password });
+      expect(claimed.status, await claimed.clone().text()).toBe(200);
+
+      const other = mintSignInToken();
+      await issueSignInLink(testDb.db, {
+        userId: created.userId,
+        tokenHash: await signInTokenHash(other),
+        purpose: "reset",
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+        issuedBy: created.userId,
+        now: new Date(),
+      });
+      // A creation link sets whatever password it is sent; a reset that kept the password
+      // only signs in with it, so this one sets nothing.
+      const replaced = await authPost("/claim", { token: other, password: freshPassword() });
+      expect(replaced.status).toBe(400);
+      expect(await errorCodeOf(replaced)).toBe("CLAIM_PASSWORD_INCORRECT");
+      expect((await accountRow(created.userId)).claimedAt).toBeNull();
+      const kept = await authPost("/claim", { token: other, password });
+      expect(kept.status, await kept.clone().text()).toBe(200);
+    },
+    CLAIM_TIMEOUT_MS,
+  );
 
   it("refuses an unknown token and never consumes anything", async () => {
     const claimed = await authPost("/claim", {
