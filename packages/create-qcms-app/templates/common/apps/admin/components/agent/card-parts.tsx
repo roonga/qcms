@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { AssistMark } from "@/components/forms/assist-mark";
 import { Button } from "@/components/kit";
 import type { AgentPlanStep } from "@/lib/forms/assist-stream";
-import { messageForCode } from "@/lib/forms/issues";
 import { copyMintedUrl, downloadMintedLinks, linkExpiryInstant } from "@/lib/forms/links";
 import {
   createdHref,
@@ -394,7 +393,9 @@ export function StepItem({
         <ul className="qcms-acard__advisory" data-testid="qcms-acard-step-issues">
           {view.issues.map((issue, at) => (
             <li key={`${issue.code}:${String(at)}`} data-issue-code={issue.code}>
-              {messageForCode(issue.code, issue.message)}
+              {issue.path === undefined || issue.path === ""
+                ? issue.message
+                : `${issue.path}: ${issue.message}`}
             </li>
           ))}
         </ul>

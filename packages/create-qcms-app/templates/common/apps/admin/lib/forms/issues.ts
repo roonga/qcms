@@ -73,12 +73,6 @@ const ISSUE_MESSAGES: Readonly<Record<string, MessageKey>> = {
   PATTERN_CLASS_SET_AMBIGUOUS: "forms.warning.patternClassSet",
 };
 
-/** The catalogue sentence for a code off a step result, whose own text names ids. */
-export function messageForCode(code: string, fallback: string): string {
-  const key = ISSUE_MESSAGES[code];
-  return key === undefined ? fallback : t(key);
-}
-
 // Scope-spanning rules require a split into separate rules with the same condition. When names are unavailable, IDs remain an honest fallback.
 export function messageForIssue(issue: FormIssue, draft?: DraftForm): string {
   const key = ISSUE_MESSAGES[issue.code];
