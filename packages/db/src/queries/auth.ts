@@ -1,4 +1,4 @@
-import { and, count, eq, isNotNull, isNull, ne, sql } from "drizzle-orm";
+import { and, asc, count, eq, isNotNull, isNull, ne, sql } from "drizzle-orm";
 
 import { authSession, authTwoFactor, authUser, twoFactorResets } from "../schema/index.js";
 import type { Executor } from "./executor.js";
@@ -151,6 +151,29 @@ export async function countSiteAdministrators(exec: Executor): Promise<number> {
     .from(authUser)
     .where(eq(authUser.role, SITE_ADMINISTRATOR_ROLE));
   return row?.total ?? 0;
+}
+
+/** A Site administrator as an account that holds nothing yet is told: a name and an address only. */
+export interface NamedSiteAdministrator {
+  readonly name: string;
+  readonly email: string;
+}
+
+/** The active, claimed Site administrators, ordered by address. */
+export async function listActiveSiteAdministrators(
+  exec: Executor,
+): Promise<readonly NamedSiteAdministrator[]> {
+  return exec
+    .select({ name: authUser.name, email: authUser.email })
+    .from(authUser)
+    .where(
+      and(
+        eq(authUser.role, SITE_ADMINISTRATOR_ROLE),
+        isNull(authUser.disabledAt),
+        isNotNull(authUser.claimedAt),
+      ),
+    )
+    .orderBy(asc(authUser.email));
 }
 
 /**

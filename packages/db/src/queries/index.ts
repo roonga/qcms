@@ -12,6 +12,8 @@ export {
   SITE_ADMINISTRATOR_ROLE,
   clearMustChangePassword,
   countSiteAdministrators,
+  listActiveSiteAdministrators,
+  type NamedSiteAdministrator,
   makeSiteAdministrator,
   markAccountClaimed,
   revokeAccountSessions,

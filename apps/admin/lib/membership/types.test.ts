@@ -10,6 +10,7 @@ function access(workspaces: MyAccess["workspaces"]): MyAccess {
     installationAdmin: false,
     capabilities: NO_CAPABILITIES,
     workspaces,
+    siteAdministrators: [],
   };
 }
 
