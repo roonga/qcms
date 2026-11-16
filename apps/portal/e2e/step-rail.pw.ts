@@ -14,6 +14,7 @@ import {
   stepServed,
 } from "./support/kitchen-sink.js";
 import { fillNativeDate, submitStep } from "./support/no-js.js";
+import { starveScripts } from "./support/script-starve.js";
 
 const WIDE = { width: 1024, height: 900 };
 const NARROW = { width: 390, height: 844 };
@@ -219,7 +220,6 @@ test.describe("side rail without scripting", () => {
     await page.waitForURL(/\?step=0$/);
     await expect(page.locator('input[name="q_full_name"]')).toHaveValue("Ada Lovelace");
     await expectStates(rail(page), { "About you": "current", "Driving history": "ahead" });
-    await expectNoAxeViolations(page, "no-JS side rail, after a back-jump");
 
     await page.locator('input[name="q_full_name"]').fill("");
     await submitStep(page);
@@ -243,4 +243,26 @@ test.describe("side rail without scripting", () => {
     await page.waitForURL(/\?step=0$/);
     await expect(page.getByTestId("progress-fold")).toHaveText("Step 1 of 2");
   });
+});
+
+test("axe: the no-JS fallback render of the rail and its fold has zero violations", async ({
+  page,
+}) => {
+  const { railSlug } = readFixtures();
+  const starvation = await starveScripts(page);
+  await page.setViewportSize(WIDE);
+  await page.goto(`/f/${railSlug}`);
+  await page.getByRole("button", { name: "Start" }).click();
+  await page.waitForURL(/\/s\/ses_/);
+  await page.locator('input[name="q_full_name"]').fill("Ada Lovelace");
+  await fillNativeDate(page, "q_dob", "1990-05-17");
+  await submitStep(page);
+  expect(starvation.starvedCount(), "scripts were starved, so this is the no-JS render").toBeGreaterThan(0);
+  await expectStates(rail(page), { "About you": "completed", "Driving history": "current" });
+  await expectNoAxeViolations(page, "no-JS side rail");
+
+  await page.setViewportSize(NARROW);
+  await page.getByTestId("step-rail-fold").locator("summary").click();
+  await expect(page.getByTestId("step-rail-fold").getByRole("navigation")).toBeVisible();
+  await expectNoAxeViolations(page, "no-JS narrow fold, open");
 });
