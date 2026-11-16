@@ -31,6 +31,7 @@ import {
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../../../app.js";
+import { CLIENT_ADDRESS_HEADER } from "../../../client-address.js";
 import type { Deps } from "../../../deps.js";
 import { fixedClock, internalTokenFor, makeDeps, validEnv } from "../../../test-support.js";
 import { importSessionKeys, mintSessionToken } from "../session-token.js";
@@ -207,10 +208,14 @@ interface StepBody {
   progress: { stepIndex: number; totalVisibleSteps: number };
 }
 
-async function startSession(slug: string): Promise<StartBody> {
+async function startSession(slug: string, clientAddress?: string): Promise<StartBody> {
   const res = await app.request("/sessions", {
     method: "POST",
-    headers: { "content-type": "application/json", "x-qcms-internal-token": internalToken },
+    headers: {
+      "content-type": "application/json",
+      "x-qcms-internal-token": internalToken,
+      ...(clientAddress === undefined ? {} : { [CLIENT_ADDRESS_HEADER]: clientAddress }),
+    },
     body: JSON.stringify({ formSlug: slug }),
   });
   expect(res.status).toBe(201);
@@ -1086,7 +1091,7 @@ describe("the step rail and the cursor's back-jump (ADR-28, Q8)", () => {
   });
 
   it("lists every step in the version's order, a rule-hidden one as notNeeded", async () => {
-    const { sessionId, sessionToken } = await startSession("rail");
+    const { sessionId, sessionToken } = await startSession("rail", "198.51.100.1");
     const body = await railAt(sessionId, sessionToken);
     expect(body.progressMode).toBe("side-rail");
     expect(body.steps.map((step) => [step.stepId, step.label])).toEqual([
@@ -1107,7 +1112,7 @@ describe("the step rail and the cursor's back-jump (ADR-28, Q8)", () => {
   });
 
   it("refuses a forward jump, serving the first incomplete step instead", async () => {
-    const { sessionId, sessionToken } = await startSession("rail");
+    const { sessionId, sessionToken } = await startSession("rail", "198.51.100.2");
     const fresh = await railAt(sessionId, sessionToken, 1);
     expect(fresh.step?.stepId).toBe("stp_history");
     expect(fresh.progress.stepIndex).toBe(0);
@@ -1123,7 +1128,7 @@ describe("the step rail and the cursor's back-jump (ADR-28, Q8)", () => {
   });
 
   it("accepts a back-jump to a completed step, and answering there turns a later step notNeeded", async () => {
-    const { sessionId, sessionToken } = await startSession("rail");
+    const { sessionId, sessionToken } = await startSession("rail", "198.51.100.3");
     await postAnswer(sessionId, sessionToken, "q_at_fault_accident", true);
     await postAnswer(sessionId, sessionToken, "q_accident_count", 2);
 
@@ -1164,7 +1169,7 @@ describe("the step rail and the cursor's back-jump (ADR-28, Q8)", () => {
   });
 
   it("defaults to the top indicator where the pinned version carries no appearance", async () => {
-    const { sessionId, sessionToken } = await startSession("auto");
+    const { sessionId, sessionToken } = await startSession("auto", "198.51.100.4");
     const body = await railAt(sessionId, sessionToken);
     expect(body.progressMode).toBe("top-indicator");
     expect(states(body)).toEqual([["stp_history", "current", null]]);
