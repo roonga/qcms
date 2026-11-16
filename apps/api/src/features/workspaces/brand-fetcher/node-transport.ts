@@ -212,11 +212,12 @@ function readBody(response: IncomingMessage, request: TransportRequest): Promise
 function get(socket: tls.TLSSocket, request: TransportRequest): Promise<TransportResponse> {
   return new Promise((resolve, reject) => {
     const outgoing = http.request({
+      // No `agent`: an agent, even `agent: false`, would open its own connection and
+      // ignore this pinned one.
       createConnection: () => socket,
       method: "GET",
       path: request.path,
       setHost: false,
-      agent: false,
       maxHeaderSize: 16_384,
       insecureHTTPParser: false,
       // No cookie or credential is sent, and nothing a response sets is kept (F9).
