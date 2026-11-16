@@ -166,6 +166,14 @@ export const SURFACES: readonly Surface[] = [
     anonymousReachable: false,
   },
   {
+    name: "GET /admin/forms/{id}/draft/agent-changes",
+    row: "authoring",
+    group: "admin",
+    method: "GET",
+    path: (ctx) => `/admin/forms/${ctx.formId}/draft/agent-changes`,
+    anonymousReachable: false,
+  },
+  {
     name: "POST /admin/forms/{id}/close",
     row: "authoring",
     group: "admin",

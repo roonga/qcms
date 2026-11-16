@@ -721,6 +721,18 @@
           "updatedAt": {
             "type": "string",
             "example": "2026-08-01T09:00:00.000Z"
+          },
+          "agentEdit": {
+            "type": "object",
+            "properties": {
+              "undoToken": {
+                "type": "string",
+                "nullable": true
+              }
+            },
+            "required": [
+              "undoToken"
+            ]
           }
         },
         "required": [
@@ -1429,6 +1441,90 @@
           "compilerVersion",
           "a2uiSpecVersion",
           "semanticsVersion"
+        ]
+      },
+      "AgentChangesResponse": {
+        "type": "object",
+        "properties": {
+          "formId": {
+            "type": "string",
+            "example": "frm_contact"
+          },
+          "base": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "version": {
+                "type": "integer"
+              },
+              "publishedAt": {
+                "type": "string"
+              },
+              "definition": {
+                "nullable": true
+              },
+              "appearance": {
+                "nullable": true
+              }
+            },
+            "required": [
+              "version",
+              "publishedAt"
+            ]
+          },
+          "draft": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "revision": {
+                "type": "integer"
+              },
+              "definition": {
+                "nullable": true
+              },
+              "appearance": {
+                "nullable": true
+              }
+            },
+            "required": [
+              "revision"
+            ]
+          },
+          "agentAssisted": {
+            "type": "boolean"
+          },
+          "changes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "example": "draft.question"
+                },
+                "revision": {
+                  "type": "integer",
+                  "nullable": true
+                },
+                "confirmedAt": {
+                  "type": "string",
+                  "example": "2026-08-01T09:00:00.000Z"
+                }
+              },
+              "required": [
+                "kind",
+                "revision",
+                "confirmedAt"
+              ]
+            }
+          }
+        },
+        "required": [
+          "formId",
+          "base",
+          "draft",
+          "agentAssisted",
+          "changes"
         ]
       },
       "ResponseListResponse": {
@@ -5327,6 +5423,7 @@
     "/admin/forms/{id}/draft": {
       "put": {
         "summary": "Replace the draft definition; returns advisory publish issues (admin)",
+        "description": "The single draft save path. With the agent flag on, a card-less builder edit or its Undo carries a server-minted token in `x-qcms-agent-edit`, bound to the user, the form, the turn and the draft: an edit to the revision it was minted for, an Undo to the states on either side of its edit. A stale, replayed, foreign or over-cap token is refused and never saved as an ordinary edit. Each accepted edit and Undo writes one `control.agent_actions` row in the save's transaction, and an edit's response carries the token that undoes it. The body's `agentAssisted` is never taken as provenance.",
         "tags": [
           "forms"
         ],
@@ -5346,6 +5443,17 @@
             "required": true,
             "name": "id",
             "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2000,
+              "description": "An agent edit or Undo token; flag-gated, refused with 400 when the flag is off."
+            },
+            "required": false,
+            "description": "An agent edit or Undo token; flag-gated, refused with 400 when the flag is off.",
+            "name": "x-qcms-agent-edit",
+            "in": "header"
           }
         ],
         "requestBody": {
@@ -5389,8 +5497,28 @@
               }
             }
           },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
           "404": {
             "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
             "content": {
               "application/json": {
                 "schema": {
@@ -6282,6 +6410,85 @@
           },
           "401": {
             "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/forms/{id}/draft/agent-changes": {
+      "get": {
+        "summary": "What the agent changed in the draft since the last publish (admin)",
+        "description": "The cumulative agent change since the last human-reviewed revision, which is the newest published version: that version and the open draft for the publish wizard to diff, and one entry per recorded agent change. Read from `control.agent_actions` alone, never from the draft's client-supplied `agentAssisted` mark.",
+        "tags": [
+          "forms"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "frm_signup"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The diff base, the draft and the agent changes recorded since",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentChangesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
