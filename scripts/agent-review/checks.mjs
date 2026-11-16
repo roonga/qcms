@@ -686,9 +686,7 @@ const REFUSAL =
 function expectedCards(scenario, index) {
   const message = (scenario.messages ?? [])[index];
   const wanted = message === undefined ? undefined : message["expectCards"];
-  return typeof wanted === "number" && Number.isInteger(wanted) && wanted >= 0
-    ? wanted
-    : undefined;
+  return typeof wanted === "number" && Number.isInteger(wanted) && wanted >= 0 ? wanted : undefined;
 }
 
 /**

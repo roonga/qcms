@@ -664,7 +664,11 @@ describe("the cards a turn was supposed to put up", () => {
 
   it("catches a refusal in a turn whose work the person may do", () => {
     const findings = checkCardExpectations(
-      { turns: [{ reply: "Putting it live for real patients is a separate act for another person." }] },
+      {
+        turns: [
+          { reply: "Putting it live for real patients is a separate act for another person." },
+        ],
+      },
       scenarioWanting([1]),
     );
 
@@ -676,13 +680,19 @@ describe("the cards a turn was supposed to put up", () => {
 
   it("says nothing about a turn the scenario states no expectation for", () => {
     expect(
-      checkCardExpectations({ turns: [{ reply: "I cannot do that." }] }, scenarioWanting([undefined])),
+      checkCardExpectations(
+        { turns: [{ reply: "I cannot do that." }] },
+        scenarioWanting([undefined]),
+      ),
     ).toEqual([]);
   });
 
   it("accepts a refusal where the scenario expects no card", () => {
     expect(
-      checkCardExpectations({ turns: [{ reply: "I cannot read a link's address back." }] }, scenarioWanting([0])),
+      checkCardExpectations(
+        { turns: [{ reply: "I cannot read a link's address back." }] },
+        scenarioWanting([0]),
+      ),
     ).toEqual([]);
   });
 });
@@ -691,19 +701,26 @@ describe("a claim the words around it take back", () => {
   it("reads a negated claim as the denial it is", () => {
     expect(
       checkContradictions({
-        turns: [{ reply: "Nothing has been published yet, so there is no link.", cardAction: "left waiting" }],
+        turns: [
+          {
+            reply: "Nothing has been published yet, so there is no link.",
+            cardAction: "left waiting",
+          },
+        ],
       }),
     ).toEqual([]);
   });
 
-  it("reads \"ready for you to confirm\" as a card, not as a run", () => {
+  it('reads "ready for you to confirm" as a card, not as a run', () => {
     expect(
       checkContradictions({
         turns: [
           {
             reply: "The questions are ready for you to confirm on the card.",
             cardAction: "left waiting",
-            cards: [{ state: "proposed", steps: [{ state: "proposed", title: "Add the question" }] }],
+            cards: [
+              { state: "proposed", steps: [{ state: "proposed", title: "Add the question" }] },
+            ],
           },
         ],
       }),

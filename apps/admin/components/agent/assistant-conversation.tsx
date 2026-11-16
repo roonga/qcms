@@ -666,7 +666,6 @@ const STEP_STATE_LABELS: Readonly<Record<StepState, MessageKey>> = {
   interrupted: "forms.assist.stepInterrupted",
 };
 
-
 function StepIcon({ state }: { readonly state: StepState }) {
   if (state === "running") return <span className="qcms-assist-steps__pulse" />;
   const path = {
