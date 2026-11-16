@@ -6,8 +6,14 @@ import { t } from "@/lib/i18n/en";
 import { pageMetadata } from "@/lib/page-title";
 import { MIN_PASSWORD_LENGTH } from "@/lib/server/config";
 
-export function generateMetadata(): Metadata {
-  return pageMetadata(t("claim.title"));
+export async function generateMetadata({
+  searchParams,
+}: {
+  readonly searchParams: Promise<Query>;
+}): Promise<Metadata> {
+  const params = await searchParams;
+  const refused = firstValue(params.token) === undefined && withoutTokenMessage(params) === undefined;
+  return pageMetadata(t(refused ? "claim.refusedTitle" : "claim.title"));
 }
 
 type QueryValue = string | string[] | undefined;

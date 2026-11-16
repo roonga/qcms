@@ -292,12 +292,18 @@ describe("the membership list and the capability endpoint (criterion 7, Q35)", (
       claimed: false,
       grants: [],
     });
+    const disabledAdmin = await seedAdminSession(testDb.db, {
+      label: "disabledadmin",
+      disabledAt: new Date(),
+      grants: [],
+    });
     const nothing = (await (await as(nobodyToken, "GET", "/me/access")).json()) as {
       siteAdministrators: { name: string; email: string }[];
     };
     const emails = nothing.siteAdministrators.map((admin) => admin.email);
     expect(emails).toContain(`owner.${ownerId}@admin.test`);
     expect(emails).not.toContain(`unclaimedadmin.${unclaimedAdmin.userId}@admin.test`);
+    expect(emails).not.toContain(`disabledadmin.${disabledAdmin.userId}@admin.test`);
     expect(Object.keys(nothing.siteAdministrators[0] ?? {}).sort()).toEqual(["email", "name"]);
 
     for (const token of [editorToken, workspaceOwnerToken, ownerToken]) {

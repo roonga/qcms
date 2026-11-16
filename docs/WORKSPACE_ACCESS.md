@@ -205,7 +205,7 @@ Every new workspace is created with four starter groups. They are ordinary group
 
 - Workspace administrators add a person by exact email address only.
 - Adding an address that is unknown, disabled or unclaimed gets one generic answer, the same for all three. For a Workspace administrator that answer is a refusal: nobody is added.
-- Browse and search of the account directory is for Site administrators only.
+- Browse and search of the account directory is for Site administrators only. The one exception is that a caller who holds nothing sees the active Site administrators' names and emails.
 - **Granting by id to an account already in the workspace is allowed even while it is unclaimed or disabled, and stays audited (Code Owner, 2026-11-16).** Only the by-address path refuses: an id names an account the caller already knows about, and the generic answer exists to keep the directory closed rather than to hold a grant.
 - **Every grant made while the account is unclaimed writes a site-audit row** as well as the workspace's own, appointing a Workspace administrator included (Code Owner, 2026-11-16).
 
