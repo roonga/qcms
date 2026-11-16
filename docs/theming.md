@@ -763,8 +763,7 @@ configuration above, which stays the default.
   deployment's. The brand name stays the deployment's.
 - **Forced colours** replace the palette with the user's, as for any theme.
 
-Text size and the progress mode ride the same appearance and belong to tasks 120 and
-119.
+Text size and the progress mode ride the same appearance and belong to tasks 120 and 119.
 
 ## Respondent runtime controls (mode, font, density)
 

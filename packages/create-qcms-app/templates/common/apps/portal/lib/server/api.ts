@@ -287,8 +287,8 @@ export async function getStep(
  * The first incomplete step, read once per request: the layout reads its appearance and
  * the page renders it, from one API call.
  */
-export const getCurrentStep = cache(
-  (sessionId: string, token: string): Promise<StepResponse> => getStep(sessionId, token),
+export const getCurrentStep = cache((sessionId: string, token: string): Promise<StepResponse> =>
+  getStep(sessionId, token),
 );
 
 /**

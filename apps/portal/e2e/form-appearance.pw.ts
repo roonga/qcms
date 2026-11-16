@@ -114,7 +114,11 @@ test("a form with its own appearance renders it on the whole page, in every mode
   await expectPalette(page, look.palettes["lightHighContrast"] ?? {}, "high contrast");
 
   // The respondent's own choices still apply over the form's.
-  await pin(page, { [MODE_COOKIE]: "light", [FONT_COOKIE]: "atkinson", [DENSITY_COOKIE]: "compact" });
+  await pin(page, {
+    [MODE_COOKIE]: "light",
+    [FONT_COOKIE]: "atkinson",
+    [DENSITY_COOKIE]: "compact",
+  });
   await page.reload();
   await expect(root).toHaveClass(/\bfont-atkinson\b/u);
   await expect(root).toHaveClass(/\bdensity-compact\b/u);

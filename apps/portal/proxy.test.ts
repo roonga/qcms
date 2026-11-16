@@ -121,9 +121,9 @@ describe("the environment prefix (task 066)", () => {
     vi.stubEnv("QCMS_PORTAL_ENVIRONMENTS", "test");
     const PATH = "x-middleware-request-x-qcms-path";
     expect(at("https://portal.example/test/s/ses_1?step=2").headers.get(PATH)).toBe("/s/ses_1");
-    expect(at("https://portal.example/s/ses_2", { "x-qcms-path": "/s/ses_9" }).headers.get(PATH)).toBe(
-      "/s/ses_2",
-    );
+    expect(
+      at("https://portal.example/s/ses_2", { "x-qcms-path": "/s/ses_9" }).headers.get(PATH),
+    ).toBe("/s/ses_2");
   });
 
   it("does not honour an environment header a client sent", () => {
