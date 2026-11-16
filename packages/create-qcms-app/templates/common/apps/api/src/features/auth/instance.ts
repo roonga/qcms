@@ -12,6 +12,7 @@ import {
   clearMustChangePassword,
   isAccountActive,
   isAccountDisabled,
+  signInLinkHold,
 } from "@roonga/qcms-db";
 import type { Executor } from "@roonga/qcms-db";
 import { betterAuth } from "better-auth";
@@ -24,6 +25,7 @@ import { twoFactor } from "better-auth/plugins/two-factor";
 import { CLIENT_ADDRESS_HEADER } from "../../client-address.js";
 import type { Config } from "../../config.js";
 import type { Logger } from "../../logger.js";
+import { constantTimeEqual } from "../../middleware/internal-token.js";
 import { accessControl, roles } from "../membership/policy.js";
 import { pluginWriteBackstop } from "./plugin-write-backstop.js";
 
@@ -52,6 +54,32 @@ export const CREDENTIAL_PROVIDER_ID = "credential";
  * never finished claiming. TOTP verification is the act that finishes a claim, so it passes.
  */
 export const BACKUP_CODE_VERIFY_PATH = "/two-factor/verify-backup-code";
+
+/** The password sign-in, which alone needs no session, challenge cookie or link. */
+export const PASSWORD_SIGN_IN_PATH = "/sign-in/email";
+
+const CLAIM_SIGN_IN_HEADER = "x-qcms-claim-sign-in";
+
+/** Minted per process and never sent anywhere, so no request from outside can carry it. */
+const claimSignInKey = Array.from(crypto.getRandomValues(new Uint8Array(32)), (byte) =>
+  byte.toString(16).padStart(2, "0"),
+).join("");
+
+/**
+ * The headers of the claim route's own password sign-in. A reset whose link is spent but whose
+ * factor is not yet verified admits a password sign-in carrying these alone, never one from
+ * `POST /sign-in/email`.
+ */
+export function claimSignInHeaders(): Headers {
+  return new Headers({ [CLAIM_SIGN_IN_HEADER]: claimSignInKey });
+}
+
+function isClaimSignIn(context: unknown): boolean {
+  const headers = (context as { headers?: { get?: unknown } } | undefined)?.headers;
+  if (typeof headers?.get !== "function") return false;
+  const sent = (headers as Headers).get(CLAIM_SIGN_IN_HEADER);
+  return sent !== null && constantTimeEqual(sent, claimSignInKey);
+}
 
 /**
  * The only composition-shaped rule here: NIST SP 800-63B Rev 4 section 3.1.1.2 forbids the rest and mandates
@@ -357,18 +385,26 @@ export function createAdminAuth(input: AdminAuthInput) {
       session: {
         create: {
           /**
-           * Every sign-in shape mints the session here, the pending-second-factor one
-           * included, which creates it and then deletes it:
+           * Every sign-in shape mints the session here, the challenge one included:
            * `dist/plugins/two-factor/index.mjs:291` <!-- expect: internalAdapter.deleteSession(data.session.token) -->
-           * The claim is read on one path only; an unclaimed account reaches its own claim.
+           * Only a password sign-in opens a session from nothing, so an unspent link refusing every path covers the rest.
            */
           before: async (session, context) => {
             const path: unknown = (context as { path?: unknown } | undefined)?.path;
-            const refused =
-              path === BACKUP_CODE_VERIFY_PATH
-                ? !(await isAccountActive(input.db, session.userId))
-                : await isAccountDisabled(input.db, session.userId);
-            if (!refused) return;
+            const refused = async (): Promise<boolean> => {
+              if (path === BACKUP_CODE_VERIFY_PATH) {
+                return !(await isAccountActive(input.db, session.userId));
+              }
+              if (await isAccountDisabled(input.db, session.userId)) return true;
+              const hold = await signInLinkHold(input.db, session.userId);
+              if (hold === "link") return true;
+              return (
+                hold === "claim-session" &&
+                path === PASSWORD_SIGN_IN_PATH &&
+                !isClaimSignIn(context)
+              );
+            };
+            if (!(await refused())) return;
             // No reason in the body, as everywhere else this surface refuses.
             throw new APIError("UNAUTHORIZED");
           },

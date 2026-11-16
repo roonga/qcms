@@ -22,7 +22,7 @@ The user guide for these rules is [`docs/workspace-access-guide.html`](workspace
 | One user-facing Publish step                                      | Built        |
 | Second approval for `prod` publish and endpoint changes           | Built        |
 | Second approval for turning the rule off and for self-grant       | Partly built |
-| Account creation, disable, reactivation and reset in the app      | Partly built |
+| Account creation, disable, reactivation and reset in the app      | Built        |
 | Site administrator appointment with approval requests             | Not built    |
 | Workspace audit (SEC-15)                                          | Built        |
 | Site audit and mirroring                                          | Not built    |
@@ -33,7 +33,7 @@ The user guide for these rules is [`docs/workspace-access-guide.html`](workspace
 | Workspace themes and the workspace appearance lock                | Not built    |
 
 - The workspace list admits every grant holder and returns only the workspaces the caller holds something in. A caller who holds no `workspace: read` there is given the workspace's identity alone, with no setting and no counts (criterion 26).
-- Account creation and the claim are built; disable, reactivation and reset are not. The Accounts screens themselves are a later task, so the built half is the API and the claim screen the emailed link lands on.
+- Account creation, the claim, disable, reactivation, reset and re-confirmation are built in the API, with the claim screen the emailed link lands on. The Accounts screens are a later task, and disabling or resetting a Site administrator is refused until the step-up and approval guards of section 8 are built.
 - Records that describe what is built (`docs/SECURITY_DESIGN.md`, the operator guides, the built-task notes in ADR-41) keep that description until the code changes, with a line pointing here.
 - The SEC-3 role table in `docs/SECURITY_DESIGN.md` §3.2 carries the policy code, because `apps/api/e2e/security/matrix-coverage.e2e.ts` reads it. It changes with the roles in code.
 
@@ -196,7 +196,7 @@ Every new workspace is created with four starter groups. They are ordinary group
 - **Account creation is refused until outbound email is configured.** The only exception is the first account, created at install by `qcms:create-admin`.
 - **Dependency: outbound email.** QCMS has no mail transport today. A transport, its configuration, the message template, delivery-failure handling and resend are v1 deliverables.
 - Every emailed sign-in link in this section, for creation, reactivation or after a reset, is single-use and expires after 72 hours.
-- **A link carries its purpose, and the claim answers only a creation link.** Reactivation and reset links reach an account that is already claimed, so they are not interchangeable with a creation link even while both are live.
+- **A link carries its purpose, and the claim answers each purpose by its own rule.** A creation or reactivation link sets a password. A reset link sets one where the reset took the password away, and otherwise signs the person in with the password they hold, so a reset link never replaces a kept password. A reset or a reactivation returns the account to unclaimed until that sign-in and a verified second factor. No sign-in is admitted while the newest link is unspent, and after a reset link is spent only the session it opened finishes the reset, so a kept password alone never does. A wrong current password on a reset link spends it, and the person asks for a resend.
 - **A claim always requires a verified second factor (Code Owner, 2026-11-16).** A password alone leaves the account unclaimed, so it still holds nothing. `QCMS_ADMIN_2FA=optional` is a development escape hatch for signing in to accounts that are already claimed, and never relaxes the claim.
 - **A completed claim kills every live link the account holds, and a claimed account refuses a creation link (Code Owner, 2026-11-16).** Both, rather than either: a link issued in the window between the password and the verified factor would otherwise stay usable for its 72 hours and set a new password on an account that had become live.
 - **Issuing a link supersedes every live one under the account's own lock**, so two resends at once leave one usable link rather than two.
@@ -216,7 +216,10 @@ Every new workspace is created with four starter groups. They are ordinary group
 - The account's memberships of groups carrying a response role are suspended until a Workspace administrator of that workspace, or a Site administrator, re-confirms each one. Other memberships are unaffected.
 - Nobody re-confirms their own suspended membership, a Workspace administrator or Site administrator included.
 - The Workspace administrator role is a membership flag, not a group, and is not suspended by a reset or a reactivation.
-- Default: where an active, claimed administrator exists other than both the person who performed the reset or reactivation and the subject, the re-confirmation comes from such an administrator, never from the person who performed it. Where no such administrator exists, including when the only other administrator is disabled or unclaimed, the person who performed the reset may re-confirm, and the audit row records that they did; the user guide says so.
+- Removing a suspended membership and adding it back keeps it suspended, and the subject never lifts their own suspension by any route (Code Owner, 2026-11-16). A response-role grant, or a group edit that adds a response role to a group the person holds, is written suspended when made by the person who performed the reset or reactivation, or by the subject, and is re-confirmed by a different administrator under the default below.
+- **A group edit by an administrator who took no part in the reset, adding a response role, counts as that administrator's re-confirmation (Code Owner, 2026-11-17).** The hold is written live, and the edit writes a `grant` audit row naming the holder with `act=reconfirm via=edit`, plus a site-audit row while the account is unclaimed. A hold already suspended stays suspended: only the re-confirmation lifts it. The edit answers `409 ACCOUNT_BUSY` while an act on any holder's account is in flight.
+- Until task 092 stores the suspension, the account's sign-in links stand in for it: the rule above applies while the account's newest links are reset or reactivation links, and "the person who performed it" is the administrator who performed a reset or reactivation behind one of them (Code Owner, 2026-11-17). A resent link keeps the issuer of the link it replaces, so an administrator who only resent the link is not a performer and may re-confirm. This can suspend a grant after the reset is long finished, never the reverse.
+- Default: where an active, claimed administrator exists other than both the person who performed the reset or reactivation and the subject, the re-confirmation comes from such an administrator, never from the person who performed it. Where no such administrator exists, including when the only other administrator is disabled or unclaimed, the person who performed the reset may re-confirm, and the audit row records that they did; the user guide says so. Where two administrators each performed a reset or reactivation in the current run, each is the other's "other administrator", so neither re-confirms and a third administrator who performed neither must.
 - One site-audit row is written and mirrored to every affected workspace's audit.
 - Default: the person signs in again through an emailed single-use link, then sets a new password after a password reset, or enrols a new second factor after a factor reset.
 

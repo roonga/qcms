@@ -196,6 +196,35 @@ export {
 } from "./accounts.js";
 
 export {
+  type AccountAdministration,
+  type AccountGroupHolding,
+  type AccountHoldings,
+  type HoldSuspension,
+  type SignInLinkHold,
+  type SuspendedHold,
+  countActiveSiteAdministrators,
+  deleteAccountPassword,
+  deletePendingTwoFactorSignIns,
+  deleteTrustedDevices,
+  disableAccount,
+  findHoldSuspension,
+  holdsAccountPassword,
+  issuedPendingResetLink,
+  listAccountHoldings,
+  listActiveAdministratorsFor,
+  listWorkspacesHeldBy,
+  newestSignInLink,
+  newestSignInLinkPurpose,
+  reactivateAccount,
+  reconfirmHold,
+  signInLinkHold,
+  suspendHold,
+  suspendResponseMemberships,
+  unclaimAccount,
+  wasSentResetOrReactivationLink,
+} from "./account-lifecycle.js";
+
+export {
   type AgentActionEntry,
   type AgentActionRow,
   agentStepRecorded,
