@@ -247,9 +247,10 @@ export const uploadThemeLogoRoute = createRoute({
   path: "/workspaces/{id}/themes/{themeId}/logo",
   summary: "Upload a theme's logo (Edit forms)",
   description:
-    `${themeAuthority} PNG, JPEG or WebP, confirmed by magic-number sniff and capped at ` +
-    "512 KiB; SVG and anything else is refused. The bytes are stored immutably under the " +
-    "SHA-256 of themselves, which is the key the logo route serves them by. An image a " +
+    `${themeAuthority} A non-interlaced PNG or a JPEG, confirmed by magic-number sniff, ` +
+    "capped at 512 KiB and 4,194,304 pixels, then decoded and re-encoded as PNG; WebP, SVG " +
+    "and anything else is refused. The re-encoded bytes are stored immutably under their " +
+    "SHA-256, which is the key the logo route serves them by. An image a " +
     "Site administrator took down is refused with `LOGO_TAKEN_DOWN` (409).",
   tags: themeTags,
   request: { params: ThemeIdParam, body: jsonBody(ThemeLogoBody) },

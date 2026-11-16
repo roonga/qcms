@@ -56,6 +56,21 @@ const EXCLUDES = [VENDORED_SOURCE_PATHSPEC, ":!plan/**"];
  */
 export const ALLOWED = [
   {
+    file: "apps/api/src/features/workspaces/brand-fetcher/node-transport.ts",
+    value: 443,
+    why: "The remote HTTPS port SEC-18 F1 confines a theme derive fetch to, dialled on someone else's server. Nothing in QCMS binds it.",
+  },
+  {
+    file: "packages/create-qcms-app/templates/common/apps/api/src/features/workspaces/brand-fetcher/node-transport.ts",
+    value: 443,
+    why: "The scaffolded copy of the derive transport above, the same remote HTTPS port.",
+  },
+  {
+    file: "apps/api/src/config.test.ts",
+    value: 3128,
+    why: "A conventional CONNECT proxy port in the fixture that parses QCMS_THEME_DERIVE_PROXY (SEC-18 S2). The operator's proxy, never bound here.",
+  },
+  {
     file: "apps/portal/lib/server/link-entry.test.ts",
     value: 3000,
     why: "Regression input for Next standalone's container-internal bind address, not a published QCMS port. The assertion requires redirecting away from it to the configured public portal origin.",

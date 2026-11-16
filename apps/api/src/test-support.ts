@@ -26,6 +26,9 @@ import { buildProposal } from "./features/agent/tools/propose.js";
 import { AGENT_PROPOSE_TOOL_NAMES } from "./features/agent/tools/registry.js";
 import type { AgentContext, AssistContext, DraftAssistant } from "./features/agent/types.js";
 import type { Mailer } from "./features/email/mailer.js";
+import { refusingBrandFetcher } from "./features/workspaces/brand-fetcher/fake.js";
+import { createLogoCodec } from "./features/workspaces/brand-fetcher/node-codec.js";
+import type { BrandFetcher } from "./features/workspaces/brand-fetcher/port.js";
 import { selectMailer } from "./features/email/smtp.js";
 import { type ChallengeVerifier, nullChallengeVerifier } from "./features/responses/challenge.js";
 import { createJsonLogger, createNullLogger, type Logger } from "./logger.js";
@@ -87,6 +90,7 @@ export interface TestDepsOverrides {
   readonly mailer?: Mailer;
   readonly env?: Record<string, string | undefined>;
   readonly rateLimitStore?: RateLimitStore;
+  readonly brandFetcher?: BrandFetcher;
 }
 
 export function makeDeps(overrides: TestDepsOverrides = {}): Deps {
@@ -107,6 +111,8 @@ export function makeDeps(overrides: TestDepsOverrides = {}): Deps {
       selectDraftAssistant(config, overrides.logger ?? createNullLogger()),
     mailer: overrides.mailer ?? selectMailer(config, overrides.logger ?? createNullLogger()),
     flags: config.flags,
+    brandFetcher: overrides.brandFetcher ?? refusingBrandFetcher,
+    logoCodec: createLogoCodec(),
   };
 }
 
