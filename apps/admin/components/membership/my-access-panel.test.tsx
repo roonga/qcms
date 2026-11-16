@@ -54,12 +54,12 @@ describe("My access", () => {
   it("gives each workspace its own section, with the administrator answer and the groups", () => {
     renderPanel();
     const clinical = screen.getByRole("region", { name: "Clinical" });
-    expect(clinical).toHaveTextContent("Workspace administrator: No");
-    expect(clinical).toHaveTextContent("Access groups: Authors");
+    expect(clinical.textContent).toContain("Workspace administrator: No");
+    expect(clinical.textContent).toContain("Access groups: Authors");
 
     const finance = screen.getByRole("region", { name: "Finance" });
-    expect(finance).toHaveTextContent("Workspace administrator: Yes");
-    expect(finance).toHaveTextContent("You have no access in Finance.");
+    expect(finance.textContent).toContain("Workspace administrator: Yes");
+    expect(finance.textContent).toContain("You have no access in Finance.");
     expect(within(finance).queryByRole("table")).toBeNull();
   });
 
@@ -82,7 +82,7 @@ describe("My access", () => {
 
   it("says when the read failed rather than claiming the caller holds nothing", () => {
     render(<MyAccessPanel access={undefined} message="Unavailable" environments={[]} />);
-    expect(screen.getByRole("alert")).toHaveTextContent("Your access could not be read");
+    expect(screen.getByRole("alert").textContent).toContain("Your access could not be read");
     expect(screen.queryByText(/no access/u)).toBeNull();
   });
 });

@@ -17,12 +17,10 @@ describe("the account menu", () => {
       item.textContent?.trim(),
     );
     expect(items).toStrictEqual(["My account", "My access", "Sign out"]);
-    expect(screen.getByRole("menuitem", { name: "My account" })).toHaveAttribute(
-      "href",
+    expect(screen.getByRole("menuitem", { name: "My account" }).getAttribute("href")).toBe(
       "/settings",
     );
-    expect(screen.getByRole("menuitem", { name: "My access" })).toHaveAttribute(
-      "href",
+    expect(screen.getByRole("menuitem", { name: "My access" }).getAttribute("href")).toBe(
       "/me/access",
     );
   });
