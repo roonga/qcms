@@ -67,10 +67,11 @@ export async function publishAppearance(
   const current = (await ok(
     await admin(fixtures, "GET", `/forms/${formId}/versions/1`),
     "read version 1",
-  )) as { definition: unknown };
+  )) as { definition: Record<string, unknown> };
   await ok(
     await admin(fixtures, "PUT", `/forms/${formId}/draft`, {
-      definition: current.definition,
+      // The seeded copy shares the insurance definition, whose own id is another form's.
+      definition: { ...current.definition, formId },
       appearance,
     }),
     "save the draft",
