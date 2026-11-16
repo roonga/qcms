@@ -157,6 +157,8 @@ export {
   invalidateLiveSignInLinks,
   issueSignInLink,
   lockAccount,
+  tryLockAccount,
+  boundAccountTransaction,
   recordSignInLinkDelivery,
   signInLinkIsLive,
 } from "./sign-in-links.js";

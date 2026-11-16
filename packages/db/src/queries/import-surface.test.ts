@@ -175,6 +175,8 @@ describe("query helper import surface", () => {
     "issueSignInLink",
     "invalidateLiveSignInLinks",
     "lockAccount",
+    "tryLockAccount",
+    "boundAccountTransaction",
     "recordSignInLinkDelivery",
     "consumeSignInLink",
     "findSignInLinkByHash",

@@ -40,6 +40,30 @@ export async function lockAccount(exec: Executor, userId: string): Promise<void>
   );
 }
 
+/**
+ * {@link lockAccount} without the wait: `false` when another transaction holds it. For a
+ * caller that must not hold a pooled connection while it queues behind another one.
+ */
+export async function tryLockAccount(exec: Executor, userId: string): Promise<boolean> {
+  const result = await exec.execute<{ locked: boolean }>(
+    sql`select pg_try_advisory_xact_lock(hashtext(${ACCOUNT_LOCK_CLASS}), hashtext(${userId})) as locked`,
+  );
+  return result.rows[0]?.locked === true;
+}
+
+/**
+ * Bound the caller's transaction, so a wait on the account lock or a row lock fails
+ * rather than holding its pooled connection indefinitely.
+ */
+export async function boundAccountTransaction(exec: Executor): Promise<void> {
+  await exec.execute(
+    sql`select set_config('lock_timeout', ${ACCOUNT_LOCK_TIMEOUT}, true), set_config('statement_timeout', ${ACCOUNT_STATEMENT_TIMEOUT}, true)`,
+  );
+}
+
+const ACCOUNT_LOCK_TIMEOUT = "10s";
+const ACCOUNT_STATEMENT_TIMEOUT = "15s";
+
 // The two-argument lock space, so these never meet the one-argument session locks the
 // respondent path takes.
 const ACCOUNT_LOCK_CLASS = "qcms.account";
@@ -65,7 +89,7 @@ export async function invalidateLiveSignInLinks(
 
 /**
  * Supersede every live link the account holds and store the digest of the new one. Both
- * halves run under the account row's lock in the caller's transaction, so concurrent
+ * halves run under the account's advisory lock in the caller's transaction, so concurrent
  * resends are serialized and only the last one leaves a usable link.
  */
 export async function issueSignInLink(

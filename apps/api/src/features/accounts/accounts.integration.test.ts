@@ -3,6 +3,7 @@ import {
   authUser,
   issueSignInLink,
   listSiteAudit,
+  lockAccount,
   signInLinks,
 } from "@roonga/qcms-db";
 import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
@@ -17,6 +18,7 @@ import { appGroups } from "../../registrars.js";
 import { internalTokenFor, makeDeps, seedAdminSession, validEnv } from "../../test-support.js";
 import type { Mailer, MailMessage } from "../email/mailer.js";
 import { SIGN_IN_LINK_TTL_HOURS } from "../email/templates.js";
+import { claimAfterFactorVerified } from "./claim.js";
 import { mintSignInToken, signInTokenHash } from "./tokens.js";
 
 // A real clock, as in `auth.integration.test.ts`: better-auth stamps the rows it writes
@@ -605,6 +607,158 @@ describe("sessions minted before the factor", { timeout: CLAIM_TIMEOUT_MS }, () 
     expect((await adminGet("/admin/me/access", kept)).status).toBe(200);
   });
 });
+
+describe("claims at once", { timeout: CLAIM_TIMEOUT_MS }, () => {
+  /** Well over the control pool's ten connections, which is what a held wait would exhaust. */
+  const PARALLEL_CLAIMS = 25;
+  const SETTLE_BOUND_MS = 20_000;
+
+  async function withinBound<T>(work: Promise<T>): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const bound = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        reject(new Error(`not settled within ${String(SETTLE_BOUND_MS)} ms`));
+      }, SETTLE_BOUND_MS);
+    });
+    try {
+      return await Promise.race([work, bound]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  it("settles many claims on one live link, admits one, and leaves the pool answering", async () => {
+    const created = await createAccount("parallel.claim@example.test");
+    const claims = Promise.all(
+      Array.from({ length: PARALLEL_CLAIMS }, () =>
+        authPost("/claim", { token: created.token, password: freshPassword() }),
+      ),
+    );
+    const during = await withinBound(adminGet("/admin/me/access", siteAdminToken));
+    expect(during.status).toBe(200);
+
+    const results = await withinBound(claims);
+    const statuses = results.map((response) => response.status);
+    expect(statuses.filter((status) => status === 200)).toHaveLength(1);
+    expect(statuses.filter((status) => status === 400)).toHaveLength(PARALLEL_CLAIMS - 1);
+    for (const refused of results.filter((response) => response.status === 400)) {
+      expect(await errorCodeOf(refused)).toBe("CLAIM_LINK_REFUSED");
+    }
+
+    const after = await withinBound(adminGet("/admin/me/access", siteAdminToken));
+    expect(after.status).toBe(200);
+  });
+
+  it("settles claims for more accounts than the pool holds, all of them admitted", async () => {
+    // One at a time: each link is read back from the newest message.
+    const accounts: { userId: string; token: string }[] = [];
+    for (let index = 0; index < 12; index += 1) {
+      accounts.push(await createAccount(`many.claims.${String(index)}@example.test`));
+    }
+    const results = await withinBound(
+      Promise.all(
+        accounts.map((account) =>
+          authPost("/claim", { token: account.token, password: freshPassword() }),
+        ),
+      ),
+    );
+    expect(results.map((response) => response.status)).toEqual(accounts.map(() => 200));
+    expect((await adminGet("/admin/me/access", siteAdminToken)).status).toBe(200);
+  });
+
+  it("writes no password for a claim refused behind a resend", async () => {
+    const password = freshPassword();
+    const created = await createAccount("refused.behind.resend@example.test");
+    const fresh = mintSignInToken();
+
+    let refused: Response | undefined;
+    await testDb.db.transaction(async (tx) => {
+      await lockAccount(tx, created.userId);
+      await issueSignInLink(tx, {
+        userId: created.userId,
+        tokenHash: await signInTokenHash(fresh),
+        purpose: "account-created",
+        expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+        issuedBy: created.userId,
+        now: new Date(),
+      });
+      refused = await withinBound(authPost("/claim", { token: created.token, password }));
+    });
+    expect(refused?.status).toBe(400);
+    if (refused !== undefined) expect(await errorCodeOf(refused)).toBe("CLAIM_LINK_REFUSED");
+
+    const withRefused = await authPost("/sign-in/email", {
+      email: "refused.behind.resend@example.test",
+      password,
+    });
+    expect(withRefused.status).toBe(401);
+    expect(await sessionTokensFor(created.userId)).toEqual([]);
+    expect((await authPost("/claim", { token: fresh, password: freshPassword() })).status).toBe(
+      200,
+    );
+  });
+});
+
+describe(
+  "the claim needs the factor the verification proved",
+  { timeout: CLAIM_TIMEOUT_MS },
+  () => {
+    it("is not written for an account with no enrolled factor", async () => {
+      const created = await createAccount("no.factor.claim@example.test");
+      const claimed = await authPost("/claim", { token: created.token, password: freshPassword() });
+      expect(claimed.status, await claimed.clone().text()).toBe(200);
+
+      await claimAfterFactorVerified(deps, created.userId, undefined);
+      expect((await accountRow(created.userId)).claimedAt).toBeNull();
+      expect(await siteAuditDetails(created.userId)).not.toContain("act=claim");
+    });
+
+    it("claims the account the verification completed for, never the session's under the hatch", async () => {
+      const unclaimed = await createAccount("hatch.target@example.test");
+      const claimed = await factorOptional.request("/api/auth/claim", {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ token: unclaimed.token, password: freshPassword() }),
+      });
+      expect(claimed.status, await claimed.clone().text()).toBe(200);
+      const targetCookie = cookieHeader(claimed);
+
+      const otherPassword = freshPassword();
+      const other = await createAccount("hatch.other@example.test");
+      const { secret } = await finishClaim(other.token, otherPassword);
+      const pending = await factorOptional.request("/api/auth/sign-in/email", {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ email: "hatch.other@example.test", password: otherPassword }),
+      });
+      expect(pending.status, await pending.clone().text()).toBe(200);
+      const pendingCookie = cookieHeader(pending)
+        .split("; ")
+        .filter((part) => part.includes("two_factor") && !part.endsWith("="))
+        .join("; ");
+      expect(pendingCookie).not.toBe("");
+
+      // The race the vendor's own fallback opens: the target's session no longer resolves
+      // by the time the vendor reads it, so it verifies the other account's pending cookie.
+      const signedOut = await factorOptional.request("/api/auth/sign-out", {
+        method: "POST",
+        headers: authHeaders(targetCookie),
+        body: "{}",
+      });
+      expect(signedOut.status, await signedOut.clone().text()).toBe(200);
+
+      const verified = await factorOptional.request("/api/auth/two-factor/verify-totp", {
+        method: "POST",
+        headers: authHeaders(`${targetCookie}; ${pendingCookie}`),
+        body: JSON.stringify({ code: await generate({ secret }) }),
+      });
+      expect(verified.status, await verified.clone().text()).toBe(200);
+
+      expect((await accountRow(unclaimed.userId)).claimedAt).toBeNull();
+      expect(await siteAuditDetails(unclaimed.userId)).not.toContain("act=claim");
+    });
+  },
+);
 
 describe(
   "the SEC-1 breach lookup runs on the chosen password",
