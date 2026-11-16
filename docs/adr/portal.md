@@ -36,12 +36,17 @@ Nothing else in this decision moves. Continue advances one **view**, Back return
 
 **And the view list is derived from the roster, so answering cannot shorten it.** A live instance contributes a view whether or not a rule has hidden some of its members, which is what makes "answering never moves the rendered page by itself" hold for the cursor as an index: a list an answer could shorten would renumber the pages ahead of the respondent. Task 071 left that edge and one other - that only the **first** `perInstanceStep` group in a step paginates it - to this task, and both are kept, with the reasons recorded in `stepViews` in `packages/core/src/evaluate-rules.ts`.
 
-**Amendment - a step rail, and Back-jumps through the cursor (Code Owner, 2026-11-08, agent-builder Q8 in `plan/agent-builder-decisions.md`). Decided, not built; tasks 119 and 120.**
+**Amendment - a step rail, and Back-jumps through the cursor (Code Owner, 2026-11-08, agent-builder Q8 in `plan/agent-builder-decisions.md`). Built: task 119 (the `steps` list, the forward refusal and the three progress modes); task 120 remains.**
 
 - **The rail names every step**, in form order, each as completed, current or ahead. A step a rule hides is listed as **"Not needed"**, the one word used for it everywhere, rather than dropped, so the list does not renumber as the respondent answers.
 - **A completed step is a link back** through the existing cursor: the jump is a cursor position the server already computes, as Back is, and it carries no step id the server has to trust. **A jump forward is refused**, whatever the request names, so Continue's current-step validation stays the only way ahead.
 - **Nothing above moves.** Continue, Back and Submit keep their contract, and answering still never changes the rendered page by itself: a step turning "Not needed" changes the rail's label, not the page served. The no-JS path renders the completed steps as plain links.
 - **The serve-step response gains an ordered `steps` list** with each step's label and state, because `progress: {stepIndex, totalVisibleSteps}` cannot name a step. The rail is one of the progress modes (side rail, top indicator, none); the narrow layout folds it.
+
+**Readings task 119 had to take, asserted by tests in `apps/api/src/features/responses/serve-step/`.**
+
+1. **"Forward" is measured against what Continue could reach**, not against the rendered page: a cursor past the last view of the first step still missing a required answer (or still owed a roster mint) is refused, and the response serves the view a request with no cursor would. A step holding only unanswered optional questions is no barrier, because Continue passes it. The refusal serves rather than errors, as an out-of-range index already did, so an answer post carrying its cursor can never fail on it.
+2. **A completed step is one behind the rendered page, or one between it and the resume point**, which is where a back-jump leaves the steps it passed over. Only a completed step carries a `cursor`, so the rail links nothing else. With no appearance on the pinned version the mode is the top indicator, which is the portal as it was.
 
 ### ADR-30 - Portal theming
 
