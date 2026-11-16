@@ -70,7 +70,7 @@
     "check:ports": "node scripts/check-ports.mjs",
     "check:schema-disjoint": "node scripts/check-schema-disjoint.mjs",
     "check:security-hygiene": "node scripts/check-security-hygiene.mjs",
-    "check:vendor-pin": "node scripts/check-vendor-pin.mjs && node scripts/vendor-cite.mjs --quiet --expect",
+    "check:vendor-pin": "node scripts/check-vendor.mjs",
     "vendor:cite": "node scripts/vendor-cite.mjs",
     "check:admin-theme": "node scripts/check-admin-theme.mjs",
     "check:font-tokens": "node scripts/check-font-tokens.mjs",
