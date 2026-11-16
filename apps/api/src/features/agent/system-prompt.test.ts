@@ -245,7 +245,30 @@ describe("the draft assistant system prompt", () => {
     expect(prompt).toContain("unpublishedPins");
     expect(prompt).toContain("read from the SAVED draft");
     expect(prompt).toContain("The form publish comes last");
-    expect(prompt).toContain("Never propose a publish to production");
+  });
+
+  it("treats a publish to prod as work this user's own grants decide", () => {
+    const prompt = buildSystemPrompt();
+    expect(prompt).toContain("Publishing to prod is ordinary work you may propose");
+    expect(prompt).toContain("never straight to prod");
+    expect(prompt).toContain("propose a publish to prod whenever form.release offers prod");
+    expect(prompt).toContain("Name another person only when one is actually needed");
+    expect(prompt).toContain('Say "publish to prod"');
+    expect(prompt).not.toContain("Never propose a publish to production");
+  });
+
+  it("asks one question when the request names an outcome and no change", () => {
+    const prompt = buildSystemPrompt();
+    expect(prompt).toContain("ASK FIRST when they have named an outcome and no concrete change");
+    expect(prompt).toContain("Propose nothing until they pick one");
+  });
+
+  it("keeps the word recipe, the plan's own authorship and unasked-for cards in check", () => {
+    const prompt = buildSystemPrompt();
+    expect(prompt).toContain("NEVER write the word recipe to the person");
+    expect(prompt).toContain('Write "the plan adds three\nquestions"');
+    expect(prompt).toContain("A card they did not ask for is never promised");
+    expect(prompt).toContain("Re-proposing the work a waiting card already covers");
   });
 
   it("keeps builder terms out of the guidance the person is spoken to through", () => {
