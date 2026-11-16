@@ -19,8 +19,11 @@ export const PLAN_PREFIX = "plan/";
 /**
  * The trailing separator is what makes each prefix safe: without it `plan` would match
  * `planner.ts` and `.claude` would match a future `.claude-hooks/`.
+ *
+ * `apps/site/` is static and imported by nothing, so it moves no suite these contexts
+ * cover; `check:plan` and `verify`'s fast-lane steps lint, typecheck and build it.
  */
-export const FAST_LANE_PREFIXES = [PLAN_PREFIX, ".claude/"];
+export const FAST_LANE_PREFIXES = [PLAN_PREFIX, ".claude/", "apps/site/"];
 
 /**
  * Matched by equality, not prefix: as a prefix `CLAUDE.md` would admit `CLAUDE.md.bak`,

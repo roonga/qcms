@@ -1,0 +1,131 @@
+---
+title: Repeating groups
+description: Repeating a named group of pinned questions, once per instance.
+---
+
+A form may repeat a named group of pinned questions. The group lives in a step's item list, not on a
+question and not on a step, and it is answered once per instance.
+
+A looping question is a group of one member. A looping step and a table are presentations of the
+same group, not separate constructs. No question type is added: the closed set stays at seven and
+the answer value shape is unchanged.
+
+## The shape
+
+```ts
+export const RepeatGroup = z.object({
+  groupId: GroupId,
+  label: LocalizedText,
+  instanceLabel: LocalizedText,
+  items: z.array(QuestionRef).min(1),
+  count: RepeatCount,
+  presentation: RepeatPresentation.default("stacked"),
+});
+```
+
+`instanceLabel` carries at most a `{n}` placeholder, the live one-based ordinal of the instance.
+
+A group may not contain a group, and that is refused at parse. Nesting would make an instance
+address a path, the per-instance walk quadratic and the export grain a tree.
+
+## Counting instances
+
+```ts
+export const RepeatCount = z.discriminatedUnion("source", [
+  z.object({ source: z.literal("fixed"), count: z.number().int().min(1) }),
+  z.object({
+    source: z.literal("fromAnswer"),
+    questionId: QuestionId,
+    min: z.number().int().min(0),
+    max: z.number().int().min(1).optional(),
+  }),
+  z.object({
+    source: z.literal("open"),
+    min: z.number().int().min(0),
+    max: z.number().int().min(1).optional(),
+  }),
+]);
+```
+
+- `fixed` repeats an exact number of times, which is its own bound.
+- `fromAnswer` is driven by a number answer, clamped to `min` and `max`. The counting question must
+  come before the group.
+- `open` lets the respondent add and remove instances between `min` and `max`.
+
+Every source that is not `fixed` must declare a `max`. Publish refuses to omit it and the API
+enforces it on every add. Bounds are per form; nothing in the engine imposes an installation-wide
+ceiling.
+
+## Instances and the roster
+
+An instance carries a stable, opaque, session-scoped id, minted once and never reused or renumbered.
+The ordinal a respondent reads is its position in the live roster and is presentation only. The id
+is never a label: it appears in field names, DOM ids, anchors and button values, and in no heading,
+legend, label, message or caption.
+
+An answer is keyed by `questionId` outside a group and by `instanceId/questionId` inside one, so a
+question outside every group keeps the key it already had.
+
+The roster is state the server owns, held in its own append-only table with the answer ledger's
+guards, and passed to the evaluator beside the answers rather than derived from them. A removed
+instance is never deleted: its answers stay in the ledger and are excluded from evaluation, from the
+locked submission and from reporting, exactly as a hidden question's answers are. A count that
+shrinks and grows again re-lives the same instance with its answers intact, because the id never
+changed.
+
+## Presentations
+
+`stacked` is the default and allows every question type, one input per row inside an instance card,
+with no two fields side by side at any width.
+
+`perInstanceStep` paginates one step into one page per live instance.
+
+`table` renders a native table with a caption, a column header per column, a row header per
+instance, and a real label on every input. Cells are limited to five question types: `shortText`,
+`number`, `date`, `boolean` and `singleChoice`. `longText` and `multiChoice` are refused at publish,
+and the refusal names the stacked presentation. The documented cost of a table is one tab stop per
+cell.
+
+The compiler emits a repeat-group template node carrying the member controls once. The renderer
+clones it per live instance, in roster order, and qualifies each cloned control's name. The stored
+compiled document is served verbatim, so expansion is a render-time transform and the audit copy is
+unaffected.
+
+Without scripting, adding and removing an instance is a named submit button on the step's own form.
+An add or remove applies the roster operation and commits no answers: typed values ride the post,
+are carried back for the re-render, and reach the ledger only on Continue.
+
+## Rules and groups
+
+A rule whose target sits inside a group is evaluated once per live instance, and a reference to a
+question inside that group resolves to that instance's answer.
+
+`anyInstance`, `everyInstance` and `instanceCount` read a whole group from outside it. Their targets
+must follow the group's entire span.
+
+`everyInstance` over a group with no live instance is **false**. That is a decision rather than an
+implementation accident: it is deliberately not vacuous truth, so `everyInstance(G, c)` is not
+equivalent to `not(anyInstance(G, not c))` over an empty group. The reason is what an author means
+by the sentence they write. "Every passenger holds a passport" is not a true statement about a
+booking with no passengers. The negation is the mirror trap and is handled the same way, so
+`not(everyInstance(G, c))` is true over an empty group.
+
+Every `show` target of one rule must share one scope: all inside the same group, or all outside
+every group. No rule may read a different instance of the same group, because roster order is not
+document order and there is no forward-only reading of the previous instance's answer.
+
+A step that holds a group is always step-visible: the group's heading and Add control are something
+a respondent can act on, so holding a group is enough to list the step. A step a step rule hides
+still contributes nothing, group or no group.
+
+## Why not a table question type
+
+A composite answer value would break per-cell validation, per-cell retraction and per-cell absence,
+would make a partial table unstorable, and would change the grain of the ledger, the export and the
+reporting view, all of which are one row per question. A table as a presentation keeps every cell an
+ordinary answer.
+
+## Source
+
+- [`docs/adr/core.md`](https://github.com/roonga/qcms/blob/main/docs/adr/core.md)
+- [`docs/DOMAIN_SCHEMA.md`](https://github.com/roonga/qcms/blob/main/docs/DOMAIN_SCHEMA.md)

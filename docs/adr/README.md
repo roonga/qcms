@@ -59,3 +59,4 @@ Each record carries a **Status** line (implemented; amended, with date and task 
 | ADR-41 | Workspaces as authorisation grouping    | core   |
 | ADR-42 | Repetition is a form-level group        | core   |
 | ADR-43 | Repeat rendering and the no-JS roster   | portal |
+| ADR-44 | Astro and Starlight for the public site | core   |

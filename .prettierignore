@@ -12,6 +12,9 @@ pnpm-lock.yaml
 **/next-env.d.ts
 apps/portal/.playwright/
 
+# Astro's generated content-collection types and sync output.
+.astro/
+
 docs/openapi/
 plan/*.html
 plan/**/*.html

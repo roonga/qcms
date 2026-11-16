@@ -34,6 +34,7 @@ apps/
   api/             Hono - vertical slices, fetch-pure handlers
   portal/          Next.js - SSR respondent experience (public)
   admin/           Next.js - authoring, versioning, responses (VPN/internal)
+  site/            Astro + Starlight - the public website and user docs (static)
 ```
 
 The domain kernel (`@roonga/qcms-core`) is a functional core: pure functions over immutable data, no I/O. Code whose modification would break audit or versioning guarantees ships as a versioned package; code an adopter would reasonably change (routes, pages, theming) is scaffolded, owned source.
@@ -128,7 +129,7 @@ steps and uploads the Playwright HTML and JUnit report as `full-stack-e2e-report
 ## Documentation
 
 - [`docs/PROJECT_GOAL.md`](docs/PROJECT_GOAL.md) - vision and scope
-- [`docs/adr/`](docs/adr/) - the architectural decision records (ADR-01…43), split by surface
+- [`docs/adr/`](docs/adr/) - the architectural decision records (ADR-01…44), split by surface
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) - system design and repository structure
 - [`docs/DOMAIN_SCHEMA.md`](docs/DOMAIN_SCHEMA.md) - the domain model, rules DSL, and invariants
 - [`docs/SECURITY_DESIGN.md`](docs/SECURITY_DESIGN.md) - threat model and security controls (SEC-1…17)

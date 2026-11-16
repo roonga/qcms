@@ -687,3 +687,13 @@ When issue #732 gives a respondent a locale of their own, this declaration is wh
 **Decision.** The Dev Container is the canonical development environment. One root conductor owns the task end to end and delegates bounded implementation and exact-head review to subagents. All agents share repository state as their working context.
 
 **Note.** Practice has refined this: parallel executors are supported, with review and merge serialized through the conductor. The Dev Container is canonical but the host toolchain remains supported.
+
+### ADR-44 - Astro and Starlight for the public site
+
+**Status:** implemented; Code Owner, 2026-11-16.
+
+**Decision.** The public website and the curated user documentation are one Astro site with the Starlight documentation theme, living in `apps/site` as a private workspace package, and matching the stack the `a2-react-aria` sibling repository already uses. It builds to static files and deploys to GitHub Pages from `main`.
+
+**It is not a competing framework under the Fixed stack rule.** Nothing it produces is served by the product: it is a static marketing and documentation surface outside the serving path, it ships no runtime dependency to any adopter, and no application code imports it. The frontends remain Next.js on the `a2-react-aria` stack (ADR-08, ADR-22); this decision binds `apps/site` and nothing else.
+
+**Note.** Astro and Starlight are devDependencies of `apps/site`: the build emits HTML, CSS and the fonts the repository already vendors, so nothing from the dependency tree is redistributed. The site carries no React integration and no Tailwind, which the sibling repository uses and this one does not need. The design tokens are the QCMS palette mapped onto Starlight's own custom properties, with Inter and JetBrains Mono served from copies of the binaries `@roonga/qcms-ui` already vendors, so the site makes no external font request either.
