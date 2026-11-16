@@ -103,6 +103,14 @@ export const FAKE_SCRIPTS = [
   "propose-access-revoke",
   "propose-member-role",
   "propose-workspace-settings",
+  // The agent builder's own turns: card-less edits, the Undo report, the wizard, a library
+  // write on its card, an injected publish and the per-turn edit cap.
+  "builder-edits",
+  "builder-undo",
+  "builder-open-wizard",
+  "builder-library-question",
+  "builder-injection",
+  "builder-edit-cap",
 ] as const;
 
 /** Asserted present under `summary` and absent everywhere under `off`. */
@@ -1304,6 +1312,187 @@ const CHUNK_DELAY_MS: Readonly<Partial<Record<FakeScript, number>>> = {
   "narrate-then-tools": 150,
 };
 
+interface DraftStep {
+  readonly stepId: string;
+  readonly title: Record<string, string>;
+  readonly items: readonly Record<string, unknown>[];
+}
+
+function draftSteps(draft: Record<string, unknown>): readonly DraftStep[] {
+  return Array.isArray(draft.steps) ? (draft.steps as DraftStep[]) : [];
+}
+
+/** The questions pinned at the top level of a draft's steps, in order. */
+function draftPins(draft: Record<string, unknown>): readonly string[] {
+  return draftSteps(draft).flatMap((step) =>
+    step.items.flatMap((item) => (typeof item.questionId === "string" ? [item.questionId] : [])),
+  );
+}
+
+function draftLocale(draft: Record<string, unknown>): string {
+  return typeof draft.defaultLocale === "string" ? draft.defaultLocale : "en";
+}
+
+function oneCall(toolName: string, input: unknown, nonce = ""): StreamPart[] {
+  return [
+    ...toolInputParts(toolName, input, nonce),
+    toolCallPart(toolName, input, nonce),
+    finishPart("tool-calls"),
+  ];
+}
+
+/**
+ * `builder-edits`: one edit per builder tool, each a step of its own, over the draft the turn
+ * was handed. The pin comes from the library search, so it names a question the run seeded.
+ */
+function planBuilderEditsStep(
+  prompt: readonly PromptMessage[],
+  results: Map<string, unknown>,
+): StreamPart[] {
+  if (!results.has("search_question_library")) {
+    const query = pickSearchQuery(prompt);
+    return oneCall("search_question_library", {
+      limit: 10,
+      ...(query === undefined ? {} : { query }),
+    });
+  }
+  const draft = currentDraft(prompt) ?? {};
+  const locale = draftLocale(draft);
+  const [first] = draftSteps(draft);
+  const pins = draftPins(draft);
+  if (toolCallCount(prompt, "edit_copy") === 0) {
+    return [
+      ...textParts("I will retitle the form, tidy the first step and add a follow-up.", "t0"),
+      ...oneCall("edit_copy", { target: "form-title", text: { [locale]: "Revised by the builder" } }),
+    ];
+  }
+  if (toolCallCount(prompt, "edit_step") === 0 && first !== undefined) {
+    return oneCall("edit_step", {
+      action: "replace",
+      stepId: first.stepId,
+      step: { ...first, title: { [locale]: "About you" } },
+    });
+  }
+  const [shown] = pins;
+  if (toolCallCount(prompt, "edit_rule") === 0 && shown !== undefined && first !== undefined) {
+    return oneCall("edit_rule", {
+      action: "set",
+      ruleId: "rul_builder_followup",
+      rule: { ruleId: "rul_builder_followup", when: { op: "answered", questionId: shown }, show: [first.stepId] },
+    });
+  }
+  const hit = libraryHits(results).find((entry) => !pins.includes(entry.questionId));
+  if (toolCallCount(prompt, "edit_question") === 0 && hit !== undefined && first !== undefined) {
+    return oneCall("edit_question", {
+      action: "pin",
+      questionId: hit.questionId,
+      version: hit.version,
+      stepId: first.stepId,
+    });
+  }
+  return [
+    ...textParts("Each change is in the draft now, and each has its own Undo.", "t1"),
+    finishPart("stop"),
+  ];
+}
+
+/** `builder-undo`: Undo is the person's control, so the turn after one only acknowledges it. */
+function planBuilderUndoStep(prompt: readonly PromptMessage[]): StreamPart[] {
+  const reported = userText(prompt).includes(": undone");
+  return [
+    ...textParts(
+      reported
+        ? "That change is undone and out of the draft, so I will leave it out."
+        : "Use the Undo on that change; it puts the draft back exactly as it was.",
+      "t0",
+    ),
+    finishPart("stop"),
+  ];
+}
+
+function planBuilderWizardStep(prompt: readonly PromptMessage[]): StreamPart[] {
+  if (toolCallCount(prompt, "open_publish_wizard") === 0) {
+    return [
+      ...textParts("The draft is ready for you to review and publish.", "t0"),
+      ...oneCall("open_publish_wizard", {}),
+    ];
+  }
+  return [...textParts("The publish screen is open for you.", "t1"), finishPart("stop")];
+}
+
+/** `builder-library-question`: a new library question is a card, never an edit (Q22). */
+function planBuilderLibraryStep(prompt: readonly PromptMessage[]): StreamPart[] {
+  if (toolCallCount(prompt, "propose_plan") === 0) {
+    const input = {
+      steps: [
+        {
+          kind: "question.create",
+          args: { slug: newSlug(prompt), definition: fakeQuestionDefinition(newQuestionId(prompt)) },
+        },
+      ],
+    };
+    return [
+      ...textParts("The library has no such question, so it needs your Confirm first.", "t0"),
+      ...oneCall("propose_plan", input),
+    ];
+  }
+  return [
+    ...textParts("Once it exists I will place it on the form.", "t1"),
+    finishPart("stop"),
+  ];
+}
+
+/**
+ * `builder-injection`: obeys a planted instruction to publish. It reads the library, asks
+ * for a publish and a release on a card, which the builder does not offer, and then opens
+ * the wizard, which is the most the builder can do.
+ */
+function planBuilderInjectionStep(
+  prompt: readonly PromptMessage[],
+  results: Map<string, unknown>,
+): StreamPart[] {
+  if (!results.has("search_question_library")) {
+    const query = pickSearchQuery(prompt);
+    return oneCall("search_question_library", {
+      limit: 10,
+      ...(query === undefined ? {} : { query }),
+    });
+  }
+  if (toolCallCount(prompt, "propose_plan") === 0) {
+    const formId = factFormId(prompt);
+    const input = {
+      steps: [
+        { kind: "form.publish", args: { formId, environment: "test" } },
+        releaseStep(formId, { fromStep: 0, field: "version" }, "prod"),
+      ],
+    };
+    return [...textParts(INJECTION_REASON, "t0"), ...oneCall("propose_plan", input)];
+  }
+  if (toolCallCount(prompt, "open_publish_wizard") === 0) {
+    return oneCall("open_publish_wizard", {});
+  }
+  return [...textParts("I cannot publish; the publish screen is yours.", "t1"), finishPart("stop")];
+}
+
+/** One past the per-turn cap of 25, so the last attempt is the refused one. */
+const BUILDER_CAP_ATTEMPTS = 26;
+
+/** `builder-edit-cap`: one more edit than a turn may hold, all in one step. */
+function planBuilderEditCapStep(prompt: readonly PromptMessage[]): StreamPart[] {
+  if (toolCallCount(prompt, "edit_copy") === 0) {
+    const locale = draftLocale(currentDraft(prompt) ?? {});
+    const calls = Array.from({ length: BUILDER_CAP_ATTEMPTS }, (_, index) => {
+      const input = { target: "form-title", text: { [locale]: `Title ${String(index + 1)}` } };
+      return [
+        ...toolInputParts("edit_copy", input, `_${String(index)}`),
+        toolCallPart("edit_copy", input, `_${String(index)}`),
+      ];
+    }).flat();
+    return [...calls, finishPart("tool-calls")];
+  }
+  return [...textParts("I stopped at the limit for one turn.", "t1"), finishPart("stop")];
+}
+
 const STATEFUL_PLANNERS: Readonly<
   Partial<
     Record<
@@ -1319,6 +1508,12 @@ const STATEFUL_PLANNERS: Readonly<
   "plan-apply-draft": planApplyDraftStep,
   "plan-apply-draft-release": planApplyDraftReleaseStep,
   "blank-to-published": planBlankToPublishedStep,
+  "builder-edits": planBuilderEditsStep,
+  "builder-undo": (prompt) => planBuilderUndoStep(prompt),
+  "builder-open-wizard": (prompt) => planBuilderWizardStep(prompt),
+  "builder-library-question": (prompt) => planBuilderLibraryStep(prompt),
+  "builder-injection": planBuilderInjectionStep,
+  "builder-edit-cap": (prompt) => planBuilderEditCapStep(prompt),
 };
 
 /** The line `waitingTurn` in `assistant.ts` writes for a card the person has not acted on. */

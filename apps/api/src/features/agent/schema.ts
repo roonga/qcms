@@ -3,6 +3,8 @@ import { FormId, InstanceId, QuestionId, StepId } from "@roonga/qcms-core";
 
 import { SavedDraftResponse } from "../forms/schema.js";
 import { ACTION_KIND_NAMES, actionKind } from "./actions/registry.js";
+import { EDITS_PER_TURN } from "./edit-token.js";
+import { BUILDER_EDIT_OPS } from "./tools/edit.js";
 
 export const AssistTurnBody = z.strictObject({
   role: z.enum(["user", "assistant"]),
@@ -76,6 +78,23 @@ export const WaitingProposalTurnBody = z.strictObject({
 });
 
 /**
+ * The `edit-result` turn: what became of the builder's last edits, which only the browser
+ * knows. Ops and outcomes only: the edits' content is the draft, which the turn reads itself.
+ */
+export const EditResultTurnBody = z.strictObject({
+  role: z.literal("edit-result"),
+  edits: z
+    .array(
+      z.strictObject({
+        op: z.enum(BUILDER_EDIT_OPS),
+        outcome: z.enum(["applied", "undone", "failed", "not-run"]),
+      }),
+    )
+    .min(1)
+    .max(EDITS_PER_TURN),
+});
+
+/**
  * A filter date the response query can use. Parsed here because `new Date` on an
  * unparsable string reaches the query as `Invalid Date` and fails as a 500.
  */
@@ -108,7 +127,8 @@ const ScreenParamsBody = z.strictObject({
 export type ConversationTurnBody =
   | z.infer<typeof AssistTurnBody>
   | z.infer<typeof ActionResultTurnBody>
-  | z.infer<typeof WaitingProposalTurnBody>;
+  | z.infer<typeof WaitingProposalTurnBody>
+  | z.infer<typeof EditResultTurnBody>;
 
 function firstRefusal<T>(
   steps: readonly T[],
@@ -139,7 +159,9 @@ export function conversationRefusal(
 
 // Capped because an unbounded history is an unbounded upstream bill.
 const ConversationBody = z
-  .array(z.union([AssistTurnBody, ActionResultTurnBody, WaitingProposalTurnBody]))
+  .array(
+    z.union([AssistTurnBody, ActionResultTurnBody, WaitingProposalTurnBody, EditResultTurnBody]),
+  )
   .min(1)
   .max(40);
 

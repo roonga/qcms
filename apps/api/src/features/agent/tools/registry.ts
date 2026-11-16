@@ -16,6 +16,16 @@ import {
 } from "@roonga/qcms-core";
 
 import { ResponseFilterQuery } from "../../responses/admin/schema.js";
+import {
+  applyBuilderEdit,
+  EditCopyInput,
+  EditQuestionInput,
+  EditRuleInput,
+  EditStepInput,
+  EditToolOutput,
+  type BuilderEditOp,
+  type DraftEdit,
+} from "./edit.js";
 import { proposePlanSchema } from "./propose-schema.js";
 import { ProposedStep, type Proposal } from "./propose.js";
 import { selfContainedToolSchema } from "./tool-schema.js";
@@ -54,6 +64,11 @@ export const AGENT_TOOL_NAMES = [
   "list_workspaces",
   "read_workspace",
   "propose_plan",
+  "edit_question",
+  "edit_step",
+  "edit_rule",
+  "edit_copy",
+  "open_publish_wizard",
 ] as const;
 
 export type AgentToolName = (typeof AGENT_TOOL_NAMES)[number];
@@ -66,8 +81,51 @@ export const AGENT_PROPOSE_TOOL_NAMES = ["propose_plan"] as const;
 
 const PROPOSE: ReadonlySet<string> = new Set<string>(AGENT_PROPOSE_TOOL_NAMES);
 
+/**
+ * The agent builder's own tools: the draft-scoped edits and the wizard opener. Each needs the
+ * builder's port, which only its screen on its form's own route provides.
+ */
+export const AGENT_BUILDER_TOOL_NAMES = [
+  "edit_question",
+  "edit_step",
+  "edit_rule",
+  "edit_copy",
+  "open_publish_wizard",
+] as const;
+
+/** The builder's edit tools and the op each one's edit is labelled with. */
+export const BUILDER_EDIT_TOOLS: Readonly<Record<string, BuilderEditOp>> = Object.freeze({
+  edit_question: "question",
+  edit_step: "step",
+  edit_rule: "rule",
+  edit_copy: "copy",
+});
+
+export const OPEN_WIZARD_TOOL = "open_publish_wizard";
+
+/**
+ * The read tools the agent builder offers: its form, that form's versions and the library.
+ * Nothing an environment holds is among them, so the builder reaches no response, link,
+ * webhook, release or erasure.
+ */
+export const BUILDER_READ_TOOLS: readonly AgentToolName[] = Object.freeze([
+  "search_question_library",
+  "list_questions",
+  "read_question",
+  "diff_question_versions",
+  "question_recipes",
+  "validate_draft",
+  "project_draft",
+  "test_rule",
+  "read_form",
+  "list_form_versions",
+  "diff_form_versions",
+]);
+
+const BUILDER: ReadonlySet<string> = new Set<string>(AGENT_BUILDER_TOOL_NAMES);
+
 export const AGENT_READ_TOOL_NAMES: readonly AgentToolName[] = AGENT_TOOL_NAMES.filter(
-  (name) => !PROPOSE.has(name),
+  (name) => !PROPOSE.has(name) && !BUILDER.has(name),
 );
 
 const REGISTERED: ReadonlySet<string> = new Set<string>(AGENT_TOOL_NAMES);
@@ -94,6 +152,11 @@ export interface ProposalState {
   readonly actionProposals: Proposal[];
   /** Recorded but not yet emitted, so the stream can flush each one at once. */
   readonly unsentProposals: Proposal[];
+  /** The builder's copy of the open draft as this turn's edits have left it. */
+  workingDraft: FormDefinition | undefined;
+  /** The builder's edits in order, minted and emitted together when the turn ends. */
+  readonly edits: DraftEdit[];
+  wizardRequested: boolean;
 }
 
 export function createProposalState(): ProposalState {
@@ -102,6 +165,9 @@ export function createProposalState(): ProposalState {
     newQuestions: [],
     actionProposals: [],
     unsentProposals: [],
+    workingDraft: undefined,
+    edits: [],
+    wizardRequested: false,
   };
 }
 
@@ -628,6 +694,12 @@ const Outputs = {
     ),
   }),
   propose_plan: ProposeOutput,
+  edit_question: EditToolOutput,
+  edit_step: EditToolOutput,
+  edit_rule: EditToolOutput,
+  edit_copy: EditToolOutput,
+  // Nothing is published, released or saved: the browser opens a screen the person acts on.
+  open_publish_wizard: z.strictObject({ opened: z.literal(true) }),
 } as const satisfies Record<AgentToolName, z.ZodType>;
 
 /** The draft verbs' cell, which is the one the per-form assist route requires. */
@@ -673,6 +745,8 @@ interface AgentToolDef {
    * whose only consumer it is.
    */
   readonly stagesForApplyDraft?: true;
+  /** A tool the agent builder's port runs, offered on that screen alone. */
+  readonly builder?: true;
   execute(input: unknown, ctx: AgentContext, state: ProposalState): Promise<unknown>;
 }
 
@@ -802,6 +876,7 @@ async function validateProposal(
   const asked = ValidateInput.parse(input);
   const definition =
     state.proposedDraft ??
+    state.workingDraft ??
     (await port(ctx.formDefinition, "validate_draft")({ formId: asked.formId, action: "write" }))
       .definition;
   const { issues, warnings } = await port(ctx.validate, "validate_draft")(definition);
@@ -856,6 +931,59 @@ function questionRecipes(input: unknown): {
   const { types } = QuestionRecipesInput.parse(input);
   const asked = [...new Set(types)];
   return { recipes: asked.map((type) => ({ type, guidance: QUESTION_RECIPES[type] })) };
+}
+
+/**
+ * One edit over the turn's working draft. A refusal is returned for the model to correct, and
+ * an applied edit reports the draft's advisory verdict as it will stand after it.
+ */
+async function builderEdit(
+  op: BuilderEditOp,
+  input: unknown,
+  ctx: AgentContext,
+  state: ProposalState,
+): Promise<Record<string, unknown>> {
+  const builder = port(ctx.builder, `edit ${op}`);
+  port(builder.mintEdits, `edit ${op}`);
+  const outcome = applyBuilderEdit(
+    state.workingDraft ?? builder.draft,
+    op,
+    input,
+    state.edits.length,
+  );
+  if (!outcome.ok) return { accepted: false, reason: outcome.reason };
+  state.workingDraft = outcome.definition;
+  state.edits.push({ op, definition: outcome.definition });
+  const { issues, warnings } = await port(ctx.validate, `edit ${op}`)(outcome.definition);
+  return {
+    accepted: true,
+    edit: state.edits.length,
+    valid: issues.length === 0,
+    issues,
+    warnings,
+  };
+}
+
+/** Records the request and executes nothing: the browser opens the wizard once the turn ends. */
+function openWizard(ctx: AgentContext, state: ProposalState): { opened: true } {
+  port(port(ctx.builder, OPEN_WIZARD_TOOL).wizardReturnTo, OPEN_WIZARD_TOOL);
+  state.wizardRequested = true;
+  return { opened: true };
+}
+
+function editTool(
+  name: keyof typeof Outputs,
+  op: BuilderEditOp,
+  inputSchema: z.ZodType,
+): AgentToolDef {
+  return {
+    description: TOOL_DESCRIPTIONS[name],
+    inputSchema,
+    outputSchema: Outputs[name],
+    cell: DRAFT_WRITE,
+    builder: true,
+    execute: (input, ctx, state) => builderEdit(op, input, ctx, state),
+  };
 }
 
 /** Frozen so nothing can graft a verb on at runtime. */
@@ -1056,6 +1184,19 @@ export const TOOLS: Readonly<Record<AgentToolName, AgentToolDef>> = Object.freez
     outputSchema: Outputs.propose_plan,
     execute: (input, ctx, state) => propose(stepsOf(input), ctx, state),
   },
+  edit_question: editTool("edit_question", "question", EditQuestionInput),
+  edit_step: editTool("edit_step", "step", EditStepInput),
+  edit_rule: editTool("edit_rule", "rule", EditRuleInput),
+  edit_copy: editTool("edit_copy", "copy", EditCopyInput),
+  // No cell: the offer is decided per form, by the publish cell in the form's own workspace,
+  // and the port is present only where it was.
+  open_publish_wizard: {
+    description: TOOL_DESCRIPTIONS.open_publish_wizard,
+    inputSchema: z.strictObject({}),
+    outputSchema: Outputs.open_publish_wizard,
+    builder: true,
+    execute: (_input, ctx, state) => Promise.resolve(openWizard(ctx, state)),
+  },
 });
 
 /**
@@ -1090,6 +1231,11 @@ export function isFixedTextTool(name: AgentToolName): boolean {
 /** The tools whose only consumer is the apply-draft card, which one screen runs. */
 export function stagesForApplyDraft(name: AgentToolName): boolean {
   return TOOLS[name].stagesForApplyDraft === true;
+}
+
+/** The tools the agent builder's port runs, offered on that screen alone. */
+export function isBuilderTool(name: AgentToolName): boolean {
+  return TOOLS[name].builder === true;
 }
 
 /** A read tool's own cell, which is what decides whether this caller is offered it. */

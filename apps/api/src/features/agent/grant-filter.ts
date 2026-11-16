@@ -5,7 +5,8 @@
  */
 
 import { decideAccess, isEnvironmentScoped, type HeldGrant } from "../membership/policy.js";
-import { ACTION_KIND_NAMES, actionKind } from "./actions/registry.js";
+import { ACTION_KIND_NAMES, BUILDER_ACTION_KINDS, actionKind } from "./actions/registry.js";
+import { BUILDER_SCREEN } from "./edit-token.js";
 import type { ActionKindDef } from "./actions/types.js";
 
 export interface OfferedActionKind {
@@ -25,9 +26,9 @@ export interface GrantFilterInput {
   /** The environment the switcher named for this turn. */
   readonly current: string;
   /**
-   * The screen the turn is on. The one thing it decides is a `local` kind: that step is run
-   * by the screen's own client-side write path, so it exists only where that screen is.
-   * Every other kind is decided by the caller's grants alone.
+   * The screen the turn is on. It decides two things: a `local` kind, which is run by the
+   * screen's own client-side write path and so exists only where that screen is, and the agent
+   * builder's narrower set. Every other kind is decided by the caller's grants alone.
    */
   readonly screen?: string | undefined;
 }
@@ -61,6 +62,9 @@ export function offeredActionKinds(input: GrantFilterInput): readonly OfferedAct
     // A local kind reaches no route: only its own screen can run it, so only its own
     // screen may offer it.
     if (def.local === true && def.screen !== input.screen) continue;
+    // The agent builder edits its draft without a card and publishes through the wizard, so
+    // it offers the library writes alone.
+    if (input.screen === BUILDER_SCREEN && !BUILDER_ACTION_KINDS.includes(name)) continue;
     if (def.environmentFrom === "switcher") {
       if (holds(input, def, input.current)) {
         offered.push({ kind: name, environments: [input.current] });
