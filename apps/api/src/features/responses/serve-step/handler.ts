@@ -255,10 +255,9 @@ function rosterProjection(
 }
 
 /**
- * The cursor indexes views rather than steps (ADR-28), and it indexes a list the server
- * computed for this session on this request: that is what makes an out-of-range value
- * refusable by arithmetic and an in-range one a view the server had already made visible.
- * A forward jump past what Continue could reach is served as if no cursor were named.
+ * The cursor indexes views, in a list the server computed for this session on this request
+ * (ADR-28), so an out-of-range value is refused by arithmetic. A forward jump past what
+ * Continue could reach is served as if no cursor were named.
  */
 function renderTarget(
   flow: FlowState,
