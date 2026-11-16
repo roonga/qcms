@@ -42,8 +42,9 @@ describe("holdsNoAccess", () => {
     expect(holdsNoAccess(access({ workspaces: [workspace({ memberRole: "forms.owner" })] }))).toBe(
       false,
     );
-    expect(holdsNoAccess(access({ workspaces: [workspace(), workspace({ grants: [AUTHORS] })] })))
-      .toBe(false);
+    expect(
+      holdsNoAccess(access({ workspaces: [workspace(), workspace({ grants: [AUTHORS] })] })),
+    ).toBe(false);
   });
 });
 
@@ -51,7 +52,10 @@ describe("heldGroups", () => {
   it("expands a group that names no environment to every column, and keeps a named set", () => {
     const groups = heldGroups(
       workspace({
-        grants: [AUTHORS, { name: "Publishers", roles: ["forms.publisher"], environments: ["prod"] }],
+        grants: [
+          AUTHORS,
+          { name: "Publishers", roles: ["forms.publisher"], environments: ["prod"] },
+        ],
       }),
       ["test", "prod"],
     );

@@ -65,7 +65,9 @@ test("My access explains the caller's own groups and reveals no other person's",
 
   const table = workspace.getByRole("table", { name: /^What you can do in / });
   await expect(table).toBeVisible();
-  const viewForms = table.getByRole("row").filter({ has: page.getByRole("rowheader", { name: "View forms" }) });
+  const viewForms = table
+    .getByRole("row")
+    .filter({ has: page.getByRole("rowheader", { name: "View forms" }) });
   await expect(viewForms).toContainText(VIEWER_GROUP);
   const erase = table
     .getByRole("row")

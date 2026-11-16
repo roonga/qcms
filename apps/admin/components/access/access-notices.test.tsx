@@ -33,9 +33,9 @@ describe("the no access yet home", () => {
     render(
       <NoAccessHome siteAdministrators={[]} locale="en-GB" accessHref="#qcms-my-access-heading" />,
     );
-    expect(
-      screen.getByRole("link", { name: t("access.title") }).getAttribute("href"),
-    ).toBe("#qcms-my-access-heading");
+    expect(screen.getByRole("link", { name: t("access.title") }).getAttribute("href")).toBe(
+      "#qcms-my-access-heading",
+    );
   });
 
   it("names every Site administrator when there are several", () => {

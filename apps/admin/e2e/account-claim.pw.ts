@@ -31,7 +31,9 @@ function alertText(page: Page): Locator {
 }
 
 async function expectRefusedLink(page: Page): Promise<void> {
-  await expect(page.getByRole("heading", { level: 1, name: "This link cannot be used" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { level: 1, name: "This link cannot be used" }),
+  ).toBeVisible();
   await expect(alertText(page)).toHaveText(REFUSED);
   await expect(page.getByRole("button", { name: "Continue" })).toHaveCount(0);
 }
@@ -55,7 +57,9 @@ test("a link with no token offers no form at all", async ({ page }) => {
 test("a live link states that it works once and lasts 72 hours", async ({ page }) => {
   await page.goto(`/claim?token=${encodeURIComponent(token)}`);
   await expect(page.getByRole("heading", { level: 1, name: "Set up your sign-in" })).toBeVisible();
-  await expect(page.getByText("It can be used once and lasts 72 hours.", { exact: false })).toBeVisible();
+  await expect(
+    page.getByText("It can be used once and lasts 72 hours.", { exact: false }),
+  ).toBeVisible();
 });
 
 test("a link past its 72 hours is refused with the answer a used one gets", async ({ page }) => {
