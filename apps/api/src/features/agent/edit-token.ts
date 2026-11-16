@@ -36,6 +36,11 @@ export function editKind(op: EditOp): string {
   return `draft.${op}`;
 }
 
+/** The kind the row of this edit or Undo records. */
+export function rowKind(payload: AgentEditPayload): string {
+  return payload.act === "edit" ? editKind(payload.op) : UNDO_KIND;
+}
+
 /** Every kind an edit or Undo row records, which the wizard's read selects by. */
 export const DRAFT_EDIT_KINDS: readonly string[] = [...EDIT_OPS.map(editKind), UNDO_KIND];
 
