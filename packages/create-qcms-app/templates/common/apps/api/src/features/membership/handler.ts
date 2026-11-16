@@ -299,6 +299,11 @@ async function validateGroup(
   return { roles: input.roles, environments: normaliseEnvironmentSet(input.environments, live) };
 }
 
+async function resetPending(tx: Executor, userId: string): Promise<boolean> {
+  const purpose = await newestSignInLinkPurpose(tx, userId);
+  return purpose === "reset" || purpose === "reactivated";
+}
+
 // The account's newest links being reset or reactivation links stands in for a stored
 // suspension, and the subject is held to it as the performer is.
 async function grantStaysSuspended(
@@ -306,10 +311,7 @@ async function grantStaysSuspended(
   userId: string,
   grantorId: string,
 ): Promise<boolean> {
-  if (grantorId === userId) {
-    const purpose = await newestSignInLinkPurpose(tx, userId);
-    return purpose === "reset" || purpose === "reactivated";
-  }
+  if (grantorId === userId) return resetPending(tx, userId);
   return issuedPendingResetLink(tx, userId, grantorId);
 }
 
@@ -703,12 +705,22 @@ export function makeUpdateAccessGroupHandler(
       if (row === undefined) throw fail.groupNotFound();
       if (gainsResponseRole(existing.roles, row.roles)) {
         for (const holder of await listAccessGroupHolders(tx, teamId)) {
-          await keepSuspensionOnGain(tx, {
+          const outcome = await keepSuspensionOnGain(tx, {
             group: row,
             userId: holder.userId,
             actorId: actor.userId,
             at: deps.clock.now(),
           });
+          if (outcome === "reconfirmed") {
+            await writeReconfirmAudit(tx, deps, {
+              actorId: actor.userId,
+              workspaceId,
+              group: row,
+              userId: holder.userId,
+              via: "edit",
+              byPerformer: false,
+            });
+          }
         }
       }
 
@@ -880,7 +892,8 @@ async function writeHold(
 }
 
 // A group edit that gives a hold a response role grants it as an add does, so the same rule
-// suspends it; a hold already suspended keeps the performer it answers to.
+// suspends it; a hold already suspended keeps the performer it answers to. An edit by an
+// administrator who took no part in a pending reset is their re-confirmation of the hold.
 async function keepSuspensionOnGain(
   tx: Executor,
   input: {
@@ -889,13 +902,52 @@ async function keepSuspensionOnGain(
     readonly actorId: string;
     readonly at: Date;
   },
-): Promise<void> {
+): Promise<"suspended" | "reconfirmed" | undefined> {
   const { group, userId } = input;
   if (!(await tryLockAccount(tx, userId))) throw fail.accountBusy();
   const hold = await findHoldSuspension(tx, group.teamId, userId);
-  if (hold === undefined || hold.suspendedAt !== null) return;
-  if (!(await grantStaysSuspended(tx, userId, input.actorId))) return;
-  await suspendHold(tx, { teamId: group.teamId, userId, by: input.actorId, at: input.at });
+  if (hold === undefined || hold.suspendedAt !== null) return undefined;
+  if (await grantStaysSuspended(tx, userId, input.actorId)) {
+    await suspendHold(tx, { teamId: group.teamId, userId, by: input.actorId, at: input.at });
+    return "suspended";
+  }
+  return (await resetPending(tx, userId)) ? "reconfirmed" : undefined;
+}
+
+async function writeReconfirmAudit(
+  tx: Executor,
+  deps: Deps,
+  input: {
+    readonly actorId: string;
+    readonly workspaceId: string;
+    readonly group: AccessGroupRow;
+    readonly userId: string;
+    readonly via: "reconfirm" | "edit";
+    readonly byPerformer: boolean;
+  },
+): Promise<void> {
+  const { group, userId } = input;
+  const via = input.via === "edit" ? " via=edit" : "";
+  const extra = `subject=${userId} group=${group.name} act=reconfirm${via}`;
+  await writeAccessAuditRow(tx, {
+    actor: input.actorId,
+    workspaceId: input.workspaceId,
+    kind: "grant",
+    ...scopeColumns(group),
+    detail: scopeDetail(group, input.byPerformer ? `${extra} byPerformer=1` : extra),
+    occurredAt: deps.clock.now(),
+  });
+  const [subject] = await findUsersByIds(tx, [userId]);
+  if (subject?.claimedAt === null) {
+    await writeSiteAuditRow(tx, {
+      actor: input.actorId,
+      subject: userId,
+      workspaceId: input.workspaceId,
+      kind: "account",
+      detail: `act=grant-while-unclaimed group=${group.name} reconfirm=1${via}`,
+      occurredAt: deps.clock.now(),
+    });
+  }
 }
 
 export function makeRemoveHolderHandler(
@@ -965,26 +1017,14 @@ export function makeReconfirmHolderHandler(
       }
 
       await reconfirmHold(tx, teamId, userId);
-      const extra = `subject=${userId} group=${held.name} act=reconfirm`;
-      await writeAccessAuditRow(tx, {
-        actor: actor.userId,
+      await writeReconfirmAudit(tx, deps, {
+        actorId: actor.userId,
         workspaceId,
-        kind: "grant",
-        ...scopeColumns(held),
-        detail: scopeDetail(held, byPerformer ? `${extra} byPerformer=1` : extra),
-        occurredAt: deps.clock.now(),
+        group: held,
+        userId,
+        via: "reconfirm",
+        byPerformer,
       });
-      const [subject] = await findUsersByIds(tx, [userId]);
-      if (subject?.claimedAt === null) {
-        await writeSiteAuditRow(tx, {
-          actor: actor.userId,
-          subject: userId,
-          workspaceId,
-          kind: "account",
-          detail: `act=grant-while-unclaimed group=${held.name} reconfirm=1`,
-          occurredAt: deps.clock.now(),
-        });
-      }
       await writeAgentStep(tx, site, teamId, deps.clock.now());
       return held;
     });

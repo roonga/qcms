@@ -29,7 +29,7 @@ export async function issueAndSendSignInLink(
     readonly userId: string;
     readonly email: string;
     readonly purpose: SignInLinkPurpose | ((tx: Executor) => Promise<SignInLinkPurpose>);
-    readonly issuedBy: string;
+    readonly issuedBy: string | ((tx: Executor) => Promise<string>);
   },
   withinIssue?: (tx: Executor) => Promise<void>,
   busy?: () => Error,
@@ -44,12 +44,14 @@ export async function issueAndSendSignInLink(
     else if (!(await tryLockAccount(tx, input.userId))) throw busy();
     await withinIssue?.(tx);
     const purpose = typeof input.purpose === "function" ? await input.purpose(tx) : input.purpose;
+    const issuedBy =
+      typeof input.issuedBy === "function" ? await input.issuedBy(tx) : input.issuedBy;
     const issued = await issueSignInLink(tx, {
       userId: input.userId,
       tokenHash,
       purpose,
       expiresAt: new Date(now.getTime() + SIGN_IN_LINK_TTL_HOURS * HOUR_MS),
-      issuedBy: input.issuedBy,
+      issuedBy,
       now,
     });
     return { issued, purpose };

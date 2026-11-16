@@ -192,7 +192,10 @@ export const updateAccessGroupRoute = createRoute({
     "environment for one, is refused while the workspace requires a second approver. " +
     "A change that adds a response role leaves a holder's hold suspended until a different " +
     "administrator re-confirms it, where the holder's newest sign-in links are reset or " +
-    "reactivation links and the person making the change sent one or is the holder.",
+    "reactivation links and the person making the change performed that reset or " +
+    "reactivation or is the holder; made by anybody else, it re-confirms the hold, audited " +
+    "as a re-confirmation. It answers `409 ACCOUNT_BUSY` while an act on any holder's " +
+    "account is in flight.",
   tags,
   request: { params: AccessGroupParams, body: jsonBody(UpdateAccessGroupBody) },
   responses: {

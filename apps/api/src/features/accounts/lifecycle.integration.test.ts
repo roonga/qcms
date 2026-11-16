@@ -309,10 +309,7 @@ async function trustedDevices(userId: string): Promise<string[]> {
     .select({ id: authVerification.id })
     .from(authVerification)
     .where(
-      and(
-        like(authVerification.identifier, "trust-device-%"),
-        eq(authVerification.value, userId),
-      ),
+      and(like(authVerification.identifier, "trust-device-%"), eq(authVerification.value, userId)),
     );
   return rows.map((row) => row.id);
 }
@@ -1358,7 +1355,9 @@ describe("re-confirming a suspended membership (criteria 60, 61, 62, 63)", () =>
       expect(await suspendedBy(target, person.userId)).toBeNull();
       const { rows } = await listAccessAudit(testDb.db, workspaceId, { limit: 500, kind: "grant" });
       const reconfirmed = rows.filter((row) =>
-        (row.detail ?? "").includes(`subject=${person.userId} group=${name} act=reconfirm via=edit`),
+        (row.detail ?? "").includes(
+          `subject=${person.userId} group=${name} act=reconfirm via=edit`,
+        ),
       );
       expect(reconfirmed).toHaveLength(1);
       expect(reconfirmed[0]?.actor).toBe(secondSiteAdminId);
