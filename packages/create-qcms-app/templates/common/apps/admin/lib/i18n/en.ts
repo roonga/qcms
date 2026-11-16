@@ -517,7 +517,6 @@ export const messages = {
 
   "builder.newForm": "New form",
   "builder.heading": "Agent builder: {name}",
-  "builder.actions": "Builder actions",
   "builder.editByHand": "Edit by hand",
   "builder.sharePreview": "Share preview",
   "builder.publish": "Publish",
