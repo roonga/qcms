@@ -7,7 +7,7 @@ import type { MouseEvent } from "react";
 
 import { HydrationMarker } from "@/components/hydration-marker";
 import { useAppLocale } from "@/components/locale-context";
-import { PortalShell } from "@/components/portal-shell";
+import { indicatorAnnounces, PortalShell, type StepRailProps } from "@/components/portal-shell";
 import {
   diffFlow,
   cssEscape,
@@ -700,6 +700,17 @@ export function StepFlow({
     });
   }, [doNavigate]);
 
+  /** A rail link: a cursor the API computed, taken through the same guard as Back. */
+  const jumpTo = useCallback(
+    (cursor: number): void => {
+      runIntent(async () => {
+        setShowSummary(false);
+        if ((await doNavigate(cursor)) === "failed") reportFailure({ kind: "jump", cursor });
+      });
+    },
+    [doNavigate],
+  );
+
   /**
    * An answer is re-committed from the value on screen through the ordinary funnel, so
    * the dedupe and rollback rules apply as they do to any commit; a navigation re-runs
@@ -722,6 +733,9 @@ export function StepFlow({
       case "back":
         goBack();
         return;
+      case "jump":
+        jumpTo(op.cursor);
+        return;
       case "refresh":
         runIntent(async () => {
           const at = snapshotRef.current.progress.stepIndex;
@@ -729,7 +743,7 @@ export function StepFlow({
         });
         return;
     }
-  }, [failure, postAnswer, attemptAdvance, goBack, runIntent, doNavigate, reportFailure]);
+  }, [failure, postAnswer, attemptAdvance, goBack, jumpTo, runIntent, doNavigate, reportFailure]);
 
   const stepIndex = snapshot.progress.stepIndex;
   const total = snapshot.progress.totalVisibleSteps;
@@ -745,6 +759,16 @@ export function StepFlow({
     total,
     ...(viewLabel === undefined ? {} : { label: viewLabel }),
   };
+  const rail: StepRailProps = {
+    mode: snapshot.progressMode,
+    steps: snapshot.steps,
+    stepHref: `${basePath}/s/${encodeURIComponent(sessionId)}`,
+    onJump: jumpTo,
+    onQuestion: (key) => {
+      if (fieldsRef.current) focusQuestion(fieldsRef.current, key);
+    },
+  };
+  const namedByIndicator = viewLabel !== undefined && indicatorAnnounces(rail);
   const primaryLabel = isFinalStep ? t("action.submit") : t("action.continue");
   // Absent rather than `false` when nothing is pending, so the markup is unchanged then.
   const pendingAttr = intentPending ? true : undefined;
@@ -783,7 +807,7 @@ export function StepFlow({
         next.stepIndex,
         snapshot.progress.totalVisibleSteps,
         headingText,
-        viewLabel !== undefined,
+        namedByIndicator,
       ),
     );
 
@@ -841,7 +865,7 @@ export function StepFlow({
   );
 
   return (
-    <PortalShell progress={progress}>
+    <PortalShell progress={progress} rail={rail}>
       {/* Mounted on the controlled flow rather than in `PortalShell`, which `NativeStep`
           also uses: a marker there would be stamped during the very window the e2e wait
           exists to close. */}
