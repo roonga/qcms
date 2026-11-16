@@ -9,12 +9,14 @@ import { rateLimit } from "../../rate-limit.js";
 import { FormIdParam } from "../forms/schema.js";
 import {
   makeAcceptProposalHandler,
+  makeAgentChangesHandler,
   makeAssistHandler,
   makeScreenAssistHandler,
 } from "./handler.js";
 import {
   AcceptProposalBody,
   AcceptProposalResponse,
+  AgentChangesResponse,
   AssistBody,
   ScreenAssistBody,
 } from "./schema.js";
@@ -99,6 +101,32 @@ export const screenAssistRoute = createRoute({
   },
   ...withScopes("forms:read"),
 });
+
+/** Mounted whatever the flag, so the wizard reads one shape; with the flag off it reports no change. */
+export const agentChangesRoute = createRoute({
+  method: "get",
+  path: "/forms/{id}/draft/agent-changes",
+  summary: "What the agent changed in the draft since the last publish (admin)",
+  description:
+    "The cumulative agent change since the last human-reviewed revision, which is the " +
+    "newest published version: that version and the open draft for the publish wizard to " +
+    "diff, and one entry per recorded agent change. Read from `control.agent_actions` " +
+    "alone, never from the draft's client-supplied `agentAssisted` mark.",
+  tags,
+  request: { params: FormIdParam },
+  responses: {
+    200: {
+      description: "The diff base, the draft and the agent changes recorded since",
+      content: { "application/json": { schema: AgentChangesResponse } },
+    },
+    ...errorResponses(400, 401, 403, 404),
+  },
+  ...withScopes("forms:read"),
+});
+
+export const registerAgentChanges: SliceRegistrar = (group, deps: Deps): void => {
+  group.openapi(agentChangesRoute, makeAgentChangesHandler(deps));
+};
 
 /**
  * One key across every assist route (Q19), so ten turns a minute is the caller's whole

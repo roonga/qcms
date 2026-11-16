@@ -865,7 +865,9 @@ export function makePutDraftHandler(deps: Deps): RouteHandler<typeof putDraftRou
     // so a refused save writes none.
     const saved = await deps.databases.control.transaction(async (tx) => {
       const pre =
-        edit === undefined ? undefined : await admitAgentEdit(tx, edit, formId, { definition, appearance });
+        edit === undefined
+          ? undefined
+          : await admitAgentEdit(tx, edit, formId, { definition, appearance });
       if (appearance !== undefined) {
         // `FOR SHARE` against the lock setter's `FOR UPDATE`: a lock committed between
         // this read and the write below would otherwise be missed under READ COMMITTED.

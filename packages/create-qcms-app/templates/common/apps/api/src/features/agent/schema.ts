@@ -1,4 +1,5 @@
 import { z } from "@hono/zod-openapi";
+import { FormId, InstanceId, QuestionId, StepId } from "@roonga/qcms-core";
 
 import { SavedDraftResponse } from "../forms/schema.js";
 import { ACTION_KIND_NAMES, actionKind } from "./actions/registry.js";
@@ -219,3 +220,92 @@ const CreatedQuestionDraft = z.object({
 export const AcceptProposalResponse = SavedDraftResponse.extend({
   createdQuestions: z.array(CreatedQuestionDraft),
 }).openapi("AcceptProposalResponse");
+
+const AgentChange = z.object({
+  kind: z.string().openapi({ example: "draft.question" }),
+  /** The draft revision the change left, for a card-less edit or Undo; null for a card step. */
+  revision: z.number().int().nullable(),
+  confirmedAt: z.string().openapi({ example: "2026-08-01T09:00:00.000Z" }),
+});
+
+export const AgentChangesResponse = z
+  .object({
+    formId: z.string().openapi({ example: "frm_contact" }),
+    /** The newest published version, which is the last revision a human reviewed; null before the first publish. */
+    base: z
+      .object({
+        version: z.number().int(),
+        publishedAt: z.string(),
+        definition: z.unknown(),
+        appearance: z.unknown(),
+      })
+      .nullable(),
+    draft: z
+      .object({ revision: z.number().int(), definition: z.unknown(), appearance: z.unknown() })
+      .nullable(),
+    /** From the audit rows alone: true when any agent change is recorded since `base`. */
+    agentAssisted: z.boolean(),
+    changes: z.array(AgentChange),
+  })
+  .openapi("AgentChangesResponse");
+
+const PreviewDevice = z.enum(["phone", "tablet", "desktop", "custom"]);
+
+const Viewport = z.strictObject({
+  width: z.number().int().min(200).max(4_000),
+  height: z.number().int().min(200).max(4_000),
+});
+
+/**
+ * The question the user pointed at in the builder preview (G1). Ids and enums only: no
+ * label, no answer and no free string, so nothing authored or entered travels in it.
+ */
+export const PreviewSelectionFact = z.strictObject({
+  fact: z.literal("preview-selection"),
+  formId: FormId,
+  stepId: StepId,
+  questionId: QuestionId,
+  instanceId: InstanceId.optional(),
+  device: PreviewDevice,
+  viewport: Viewport,
+});
+
+export type PreviewSelectionFact = z.infer<typeof PreviewSelectionFact>;
+
+export const LAYOUT_ISSUES = [
+  "overflow-horizontal",
+  "clipped",
+  "truncated-label",
+  "target-too-small",
+  "overlap",
+  "off-screen",
+] as const;
+
+/**
+ * What the admin browser measured of one preview step (G1). There is no layout route: the
+ * browser measures and sends this as a fact, and the schema closes it to ids, enums and
+ * bounded numbers.
+ */
+export const LayoutReportFact = z.strictObject({
+  fact: z.literal("layout-report"),
+  formId: FormId,
+  stepId: StepId,
+  device: PreviewDevice,
+  viewport: Viewport,
+  orientation: z.enum(["portrait", "landscape"]),
+  zoomPercent: z.number().int().min(25).max(400),
+  colorScheme: z.enum(["light", "dark"]),
+  highContrast: z.boolean(),
+  pageHeight: z.number().int().min(0).max(100_000),
+  findings: z
+    .array(z.strictObject({ questionId: QuestionId, issue: z.enum(LAYOUT_ISSUES) }))
+    .max(50),
+});
+
+export type LayoutReportFact = z.infer<typeof LayoutReportFact>;
+
+/** Both builder facts, which the field-vocabulary and sentinel walks cover. */
+export const BUILDER_FACTS: readonly { readonly name: string; readonly schema: z.ZodType }[] = [
+  { name: "fact preview-selection", schema: PreviewSelectionFact },
+  { name: "fact layout-report", schema: LayoutReportFact },
+];

@@ -331,9 +331,9 @@ describe("the edit token's bindings", { timeout: TIMEOUT_MS }, () => {
   it("refuses a replayed token and writes no second row", async () => {
     const formId = await seededForm();
     const [token] = await tokens(owner, formId, ["copy"]);
-    expect((await put(owner, formId, { definition: definition(formId, "Once") }, token)).status).toBe(
-      200,
-    );
+    expect(
+      (await put(owner, formId, { definition: definition(formId, "Once") }, token)).status,
+    ).toBe(200);
     const replay = await put(owner, formId, { definition: definition(formId, "Twice") }, token);
     expect(replay.status).toBe(403);
     expect(await codeOf(replay)).toBe("AGENT_EDIT_REPLAYED");
@@ -566,47 +566,51 @@ describe("Undo through the same path and its own token", { timeout: TIMEOUT_MS }
   });
 });
 
-describe("account and membership state, rechecked on every edit request", { timeout: TIMEOUT_MS }, () => {
-  it("refuses the next edit once the account is disabled", async () => {
-    const editor = await seedAdminSession(testDb.db, { label: "edit_disabled", at: now });
-    const formId = await seededForm();
-    const [first, second] = await tokens(editor, formId, ["copy", "copy"]);
-    expect((await put(editor, formId, { definition: definition(formId, "One") }, first)).status).toBe(
-      200,
-    );
-    await disableSeededAccount(testDb.db, editor.userId, now);
-    const res = await put(editor, formId, { definition: definition(formId, "Two") }, second);
-    expect(res.status).toBe(401);
-    expect(await draftTitle(formId)).toBe("One");
-    expect(await rowsFor(formId)).toHaveLength(1);
-  });
+describe(
+  "account and membership state, rechecked on every edit request",
+  { timeout: TIMEOUT_MS },
+  () => {
+    it("refuses the next edit once the account is disabled", async () => {
+      const editor = await seedAdminSession(testDb.db, { label: "edit_disabled", at: now });
+      const formId = await seededForm();
+      const [first, second] = await tokens(editor, formId, ["copy", "copy"]);
+      expect(
+        (await put(editor, formId, { definition: definition(formId, "One") }, first)).status,
+      ).toBe(200);
+      await disableSeededAccount(testDb.db, editor.userId, now);
+      const res = await put(editor, formId, { definition: definition(formId, "Two") }, second);
+      expect(res.status).toBe(401);
+      expect(await draftTitle(formId)).toBe("One");
+      expect(await rowsFor(formId)).toHaveLength(1);
+    });
 
-  it("refuses the next edit once the membership is suspended", async () => {
-    const editor = await seedAdminSession(testDb.db, {
-      label: "edit_suspended",
-      at: now,
-      membership: false,
-      claim: false,
+    it("refuses the next edit once the membership is suspended", async () => {
+      const editor = await seedAdminSession(testDb.db, {
+        label: "edit_suspended",
+        at: now,
+        membership: false,
+        claim: false,
+      });
+      const { teamIds } = await seedGrants(testDb.db, {
+        userId: editor.userId,
+        grants: ["forms.editor"],
+        owner: false,
+      });
+      const formId = await seededForm();
+      const [first, second] = await tokens(editor, formId, ["copy", "copy"]);
+      expect(
+        (await put(editor, formId, { definition: definition(formId, "One") }, first)).status,
+      ).toBe(200);
+      await suspendSeededGrant(testDb.db, {
+        teamId: teamIds["forms.editor"] as string,
+        userId: editor.userId,
+        by: owner.userId,
+        at: now,
+      });
+      const res = await put(editor, formId, { definition: definition(formId, "Two") }, second);
+      expect(res.status).toBe(403);
+      expect(await draftTitle(formId)).toBe("One");
+      expect(await rowsFor(formId)).toHaveLength(1);
     });
-    const { teamIds } = await seedGrants(testDb.db, {
-      userId: editor.userId,
-      grants: ["forms.editor"],
-      owner: false,
-    });
-    const formId = await seededForm();
-    const [first, second] = await tokens(editor, formId, ["copy", "copy"]);
-    expect((await put(editor, formId, { definition: definition(formId, "One") }, first)).status).toBe(
-      200,
-    );
-    await suspendSeededGrant(testDb.db, {
-      teamId: teamIds["forms.editor"] as string,
-      userId: editor.userId,
-      by: owner.userId,
-      at: now,
-    });
-    const res = await put(editor, formId, { definition: definition(formId, "Two") }, second);
-    expect(res.status).toBe(403);
-    expect(await draftTitle(formId)).toBe("One");
-    expect(await rowsFor(formId)).toHaveLength(1);
-  });
-});
+  },
+);

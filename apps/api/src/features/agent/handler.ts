@@ -778,7 +778,8 @@ export function makeAcceptProposalHandler(
 const DRAFT_CHANGE_KINDS: readonly string[] = [...DRAFT_EDIT_KINDS, "form.saveDraft"];
 
 function revisionOf(kind: string, detail: string | null): number | null {
-  if (!DRAFT_EDIT_KINDS.includes(kind) || detail === null || !/^\d{1,10}$/u.test(detail)) return null;
+  if (!DRAFT_EDIT_KINDS.includes(kind) || detail === null || !/^\d{1,10}$/u.test(detail))
+    return null;
   return Number.parseInt(detail, 10);
 }
 

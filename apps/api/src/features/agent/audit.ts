@@ -150,7 +150,8 @@ export async function admitAgentEdit(
     throw editRefusal("AGENT_EDIT_REPLAYED");
   }
   const held = await heldDraft(exec, formId);
-  const appearance = incoming.appearance === undefined ? (held?.appearance ?? null) : incoming.appearance;
+  const appearance =
+    incoming.appearance === undefined ? (held?.appearance ?? null) : incoming.appearance;
 
   if (edit.act === "undo") {
     if (held === undefined || held.revision === 0 || (await draftStateDigest(held)) !== edit.post) {

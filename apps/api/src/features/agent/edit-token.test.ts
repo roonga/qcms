@@ -46,8 +46,9 @@ describe("the agent edit token", () => {
     await expect(
       minted(Array.from({ length: EDITS_PER_TURN + 1 }, () => "copy" as const)),
     ).rejects.toThrow();
-    expect((await minted(Array.from({ length: EDITS_PER_TURN }, () => "copy" as const))).tokens)
-      .toHaveLength(EDITS_PER_TURN);
+    expect(
+      (await minted(Array.from({ length: EDITS_PER_TURN }, () => "copy" as const))).tokens,
+    ).toHaveLength(EDITS_PER_TURN);
   });
 
   it("refuses a tampered body, another key and a truncated token", async () => {

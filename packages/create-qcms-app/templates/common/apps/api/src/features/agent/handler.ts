@@ -3,6 +3,7 @@ import type { RouteHandler } from "@hono/zod-openapi";
 import {
   getDraft,
   getLatestPublishedVersion,
+  listFormAgentActions,
   listQuestionVersions,
   listQuestions,
   listWorkspaces,
@@ -55,7 +56,13 @@ import {
 } from "./contexts/support.js";
 import { isFormSubtreeScreen, isScreenId, SCREENS, type ScreenId } from "./screens.js";
 import { conversationRefusal, type ConversationTurnBody } from "./schema.js";
-import type { acceptProposalRoute, assistRoute, screenAssistRoute } from "./route.js";
+import { DRAFT_EDIT_KINDS } from "./edit-token.js";
+import type {
+  acceptProposalRoute,
+  agentChangesRoute,
+  assistRoute,
+  screenAssistRoute,
+} from "./route.js";
 import type { AgentContext, AssistEvent, AssistTurn, LibraryEntry } from "./types.js";
 
 const fail = {
@@ -760,6 +767,69 @@ export function makeAcceptProposalHandler(
           version: version.version,
           // Always a draft: accept creates, it never publishes (ADR-25).
           status: "draft" as const,
+        })),
+      },
+      200,
+    );
+  };
+}
+
+/** The card kind whose step saves a whole draft, which the wizard counts with the card-less edits. */
+const DRAFT_CHANGE_KINDS: readonly string[] = [...DRAFT_EDIT_KINDS, "form.saveDraft"];
+
+function revisionOf(kind: string, detail: string | null): number | null {
+  if (!DRAFT_EDIT_KINDS.includes(kind) || detail === null || !/^\d{1,10}$/u.test(detail))
+    return null;
+  return Number.parseInt(detail, 10);
+}
+
+/**
+ * What the agent changed since a human last reviewed the form, which is its newest
+ * publish: the wizard diffs `base` against `draft`. Read from the audit rows alone, so the
+ * draft's client-supplied `agentAssisted` mark never reaches it.
+ */
+export function makeAgentChangesHandler(
+  deps: Deps,
+): RouteHandler<typeof agentChangesRoute, ApiEnv> {
+  return async (c) => {
+    const parsedId = parseFormId(c.req.valid("param").id);
+    if (!parsedId.ok) throw fail.invalidId();
+    const formId: FormId = parsedId.value;
+    const control = deps.databases.control;
+    if ((await getForm(control, formId)) === undefined) throw fail.formNotFound();
+
+    const base = await getLatestPublishedVersion(control, formId);
+    const draft = await getDraft(control, formId);
+    const rows = await listFormAgentActions(control, formId, {
+      kinds: DRAFT_CHANGE_KINDS,
+      after: base?.publishedAt,
+    });
+
+    return c.json(
+      {
+        formId,
+        base:
+          base === undefined
+            ? null
+            : {
+                version: base.version,
+                publishedAt: base.publishedAt.toISOString(),
+                definition: base.definition,
+                appearance: base.appearance ?? null,
+              },
+        draft:
+          draft === undefined
+            ? null
+            : {
+                revision: draft.revision,
+                definition: draft.definition,
+                appearance: draft.appearance ?? null,
+              },
+        agentAssisted: rows.length > 0,
+        changes: rows.map((row) => ({
+          kind: row.kind,
+          revision: revisionOf(row.kind, row.detail),
+          confirmedAt: row.confirmedAt.toISOString(),
         })),
       },
       200,

@@ -218,23 +218,26 @@ describe("the builder facts (G1)", () => {
   });
 
   it("refuses the respondent sentinel in every string slot of both facts", () => {
-    const cases: readonly [string, typeof PreviewSelectionFact | typeof LayoutReportFact, object][] =
+    const cases: readonly [
+      string,
+      typeof PreviewSelectionFact | typeof LayoutReportFact,
+      object,
+    ][] = [
+      ["selection formId", PreviewSelectionFact, { ...selection, formId: SENTINEL }],
+      ["selection stepId", PreviewSelectionFact, { ...selection, stepId: SENTINEL }],
+      ["selection questionId", PreviewSelectionFact, { ...selection, questionId: SENTINEL }],
+      ["selection instanceId", PreviewSelectionFact, { ...selection, instanceId: SENTINEL }],
+      ["selection device", PreviewSelectionFact, { ...selection, device: SENTINEL }],
+      ["layout formId", LayoutReportFact, { ...layout, formId: SENTINEL }],
+      ["layout stepId", LayoutReportFact, { ...layout, stepId: SENTINEL }],
+      ["layout orientation", LayoutReportFact, { ...layout, orientation: SENTINEL }],
+      ["layout colorScheme", LayoutReportFact, { ...layout, colorScheme: SENTINEL }],
       [
-        ["selection formId", PreviewSelectionFact, { ...selection, formId: SENTINEL }],
-        ["selection stepId", PreviewSelectionFact, { ...selection, stepId: SENTINEL }],
-        ["selection questionId", PreviewSelectionFact, { ...selection, questionId: SENTINEL }],
-        ["selection instanceId", PreviewSelectionFact, { ...selection, instanceId: SENTINEL }],
-        ["selection device", PreviewSelectionFact, { ...selection, device: SENTINEL }],
-        ["layout formId", LayoutReportFact, { ...layout, formId: SENTINEL }],
-        ["layout stepId", LayoutReportFact, { ...layout, stepId: SENTINEL }],
-        ["layout orientation", LayoutReportFact, { ...layout, orientation: SENTINEL }],
-        ["layout colorScheme", LayoutReportFact, { ...layout, colorScheme: SENTINEL }],
-        [
-          "layout finding",
-          LayoutReportFact,
-          { ...layout, findings: [{ questionId: SENTINEL, issue: "clipped" }] },
-        ],
-      ];
+        "layout finding",
+        LayoutReportFact,
+        { ...layout, findings: [{ questionId: SENTINEL, issue: "clipped" }] },
+      ],
+    ];
     for (const [name, schema, value] of cases) {
       expect(schema.safeParse(value).success, name).toBe(false);
     }
