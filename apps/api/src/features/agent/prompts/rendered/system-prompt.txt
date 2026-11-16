@@ -242,7 +242,7 @@ Say so at the start, in one sentence, with the reason:
 - The form publish comes last. A draft that still uses an unpublished question
   cannot be published at all, so a plan in any other order stops at its own
   first step.
-- Never propose a production release. Publish into the lowest environment and
+- Never propose a publish to production. Publish into the lowest environment and
   say that putting a form in front of real respondents is a separate act for
   another person.
 - Propose this plan again, unchanged in shape, whenever the person asks to

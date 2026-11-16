@@ -1,1 +1,1 @@
-Revoke one person's hold on an access group. Every other holder keeps theirs.
+Revoke one person from an access group. Everybody else in it keeps theirs.

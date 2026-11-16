@@ -62,10 +62,12 @@ const saveDraft = routeArgs(
       "The complete draft: defaultLocale, title, steps and rules. Leave formId out of it; " +
         "the step's own formId argument is the form, and the server fills it in.",
     ),
-  } satisfies StepArgs<typeof DraftBody.shape, "agentAssisted", "formId">,
-  // `agentAssisted` is the provenance mark every agent save carries, not a choice.
+  } satisfies StepArgs<typeof DraftBody.shape, "agentAssisted" | "appearance", "formId">,
+  // `agentAssisted` is the provenance mark every agent save carries, not a choice, and an
+  // omitted `appearance` keeps the one the form already has, which is what a save the
+  // assistant proposes always means.
   {
-    unnamed: ["agentAssisted"],
+    unnamed: ["agentAssisted", "appearance"],
     params: { formId: "id" },
     readers: { definition: (facts) => draftWithoutFormId(bodyMember(facts, "definition")) },
   },

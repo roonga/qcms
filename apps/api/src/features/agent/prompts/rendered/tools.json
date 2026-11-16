@@ -2794,7 +2794,7 @@
   },
   {
     "name": "list_workspaces",
-    "description": "List the workspaces this caller administers, with whether each is the shared library and whether it requires a second approver for a production release.",
+    "description": "List the workspaces this caller administers, with whether each is the shared library and whether it has second approval on for a publish to production.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "type": "object",
@@ -4119,7 +4119,7 @@
                   "args"
                 ],
                 "additionalProperties": false,
-                "description": "Grant an access group to one person, by address. A self-grant of a response role is refused while the workspace requires a second approver."
+                "description": "Grant an access group to one person, by address. A self-grant of a response role is refused while the workspace has second approval on."
               },
               {
                 "type": "object",
@@ -4181,7 +4181,7 @@
                   "args"
                 ],
                 "additionalProperties": false,
-                "description": "Revoke one person's hold on an access group. Every other holder keeps theirs."
+                "description": "Revoke one person from an access group. Everybody else in it keeps theirs."
               },
               {
                 "type": "object",
@@ -4274,7 +4274,7 @@
                         "anyOf": [
                           {
                             "type": "boolean",
-                            "description": "Whether a production release and a response self-grant need a second account."
+                            "description": "Whether a publish to production and a response self-grant need a second account."
                           },
                           {
                             "$ref": "#/$defs/StepReference_d3"
@@ -4294,7 +4294,7 @@
                   "args"
                 ],
                 "additionalProperties": false,
-                "description": "Change the workspace's second-approver switch: whether a production release and a response self-grant need a second account."
+                "description": "Change the workspace's second-approval switch: whether a publish to production and a response self-grant need a second account."
               },
               {
                 "type": "object",
