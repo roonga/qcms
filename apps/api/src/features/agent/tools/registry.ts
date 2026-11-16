@@ -15,9 +15,15 @@ import {
   type QuestionId,
 } from "@roonga/qcms-core";
 
-import { proposeActionSchema, proposePlanSchema } from "./propose-schema.js";
+import { ResponseFilterQuery } from "../../responses/admin/schema.js";
+import { proposePlanSchema } from "./propose-schema.js";
 import { ProposedStep, type Proposal } from "./propose.js";
 import { selfContainedToolSchema } from "./tool-schema.js";
+import {
+  QUESTION_RECIPE_TYPES,
+  QUESTION_RECIPES,
+  TOOL_DESCRIPTIONS,
+} from "../prompts/prompts.generated.js";
 import type { AgentContext, ToolCell } from "../types.js";
 
 /** Adding a name here is a security decision: the registry, tool set and door all read it. */
@@ -26,6 +32,7 @@ export const AGENT_TOOL_NAMES = [
   "list_questions",
   "read_question",
   "diff_question_versions",
+  "question_recipes",
   "propose_questions",
   "propose_draft",
   "validate_draft",
@@ -46,17 +53,16 @@ export const AGENT_TOOL_NAMES = [
   "list_erasures",
   "list_workspaces",
   "read_workspace",
-  "propose_action",
   "propose_plan",
 ] as const;
 
 export type AgentToolName = (typeof AGENT_TOOL_NAMES)[number];
 
 /**
- * The two tools the grant filter offers, rather than a screen's own read list: they put a
- * card up for the user to confirm and execute nothing themselves.
+ * The tool the grant filter offers, rather than a screen's own read list: it puts a card
+ * up for the user to confirm and executes nothing itself.
  */
-export const AGENT_PROPOSE_TOOL_NAMES = ["propose_action", "propose_plan"] as const;
+export const AGENT_PROPOSE_TOOL_NAMES = ["propose_plan"] as const;
 
 const PROPOSE: ReadonlySet<string> = new Set<string>(AGENT_PROPOSE_TOOL_NAMES);
 
@@ -80,19 +86,14 @@ export class ToolNotAllowedError extends Error {
   }
 }
 
-export interface RecordedProposal {
-  readonly variant: "action" | "plan";
-  readonly proposal: Proposal;
-}
-
 /** Mutable by design: the tool loop accumulates across steps and is read once it ends. */
 export interface ProposalState {
   proposedDraft: FormDefinition | undefined;
   readonly newQuestions: QuestionDefinition[];
 
-  readonly actionProposals: RecordedProposal[];
+  readonly actionProposals: Proposal[];
   /** Recorded but not yet emitted, so the stream can flush each one at once. */
-  readonly unsentProposals: RecordedProposal[];
+  readonly unsentProposals: Proposal[];
 }
 
 export function createProposalState(): ProposalState {
@@ -172,6 +173,18 @@ const WorkspaceSubjectInput = z.object(WORKSPACE_SUBJECT);
 
 const LimitOnlyInput = z.object({ limit: Limit });
 
+/**
+ * The enum is generated from the recipe file names, so the list the model is shown cannot
+ * name a recipe this installation does not ship, and a new file needs no edit here.
+ */
+const QuestionRecipesInput = z.object({
+  types: z
+    .array(z.enum([...QUESTION_RECIPE_TYPES]))
+    .min(1)
+    .max(10)
+    .describe("The question types to look up, from this list."),
+});
+
 const ProposeQuestionsInput = z.object({
   questions: z
     .array(QuestionDefinitionSchema)
@@ -213,13 +226,18 @@ const DiffFormVersionsInput = z.object({
 
 const NoInput = z.object({});
 
-const ResponseFiltersInput = z.object({
-  ...FORM_SUBJECT,
+/**
+ * The response screen's own filters, typed as the model sends them rather than as the query
+ * string spells them. The key set is the route's: a filter it gains or loses fails here.
+ */
+const RESPONSE_FILTERS = {
   version: z.number().int().min(1).max(1_000_000).optional(),
   from: z.string().max(40).optional().describe("Inclusive lower bound on the start time."),
   to: z.string().max(40).optional().describe("Exclusive upper bound on the start time."),
   flagged: z.boolean().optional(),
-});
+} satisfies Record<keyof typeof ResponseFilterQuery.shape, z.ZodType>;
+
+const ResponseFiltersInput = z.object({ ...FORM_SUBJECT, ...RESPONSE_FILTERS });
 
 const ListResponsesInput = ResponseFiltersInput.extend({ limit: Limit });
 
@@ -378,6 +396,10 @@ const Outputs = {
         closed: z.boolean(),
       }),
     ),
+  }),
+  // Guidance this installation ships, so the shape carries no subject and no id at all.
+  question_recipes: z.strictObject({
+    recipes: z.array(z.strictObject({ type: z.string(), guidance: z.string() })),
   }),
   // Every field says the same thing: nothing was created. The one consumer is the kind
   // that applies a proposed draft, and a turn that proposes no such card keeps nothing.
@@ -604,7 +626,6 @@ const Outputs = {
       }),
     ),
   }),
-  propose_action: ProposeOutput,
   propose_plan: ProposeOutput,
 } as const satisfies Record<AgentToolName, z.ZodType>;
 
@@ -626,8 +647,8 @@ interface AgentToolDef {
   readonly description: string;
   readonly inputSchema: z.ZodType;
   /**
-   * The schema the provider is shown, when it is narrowed per caller. The propose tools
-   * are the only ones: their kinds and environments are the grant filter's answer.
+   * The schema the provider is shown, when it is narrowed per caller. `propose_plan` is
+   * the only one: its kinds and environments are the grant filter's answer.
    */
   readonly schemaFor?: (ctx: AgentContext) => z.ZodType;
   readonly outputSchema: z.ZodType;
@@ -639,6 +660,12 @@ interface AgentToolDef {
   readonly cell?: ToolCell;
   /** Installation-wide operator state: the administrator claim, never a workspace grant. */
   readonly claim?: true;
+  /**
+   * A tool returning text this installation ships rather than anything its users authored
+   * or its respondents sent. There is no subject to hold a grant on, so it declares no
+   * cell and every signed-in caller is offered it.
+   */
+  readonly fixedText?: true;
   /**
    * A tool that only stages for the apply-draft card, which the form builder runs through
    * its own client-side save. Off that screen the card cannot exist, so neither can a tool
@@ -655,13 +682,12 @@ interface AgentToolDef {
  */
 async function propose(
   steps: readonly ProposedStep[],
-  variant: "action" | "plan",
   ctx: AgentContext,
   state: ProposalState,
 ): Promise<Record<string, unknown>> {
   const outcome = await port(
     ctx.propose,
-    `propose_${variant}`,
+    "propose_plan",
   )({
     steps,
     proposalsThisTurn: state.actionProposals.length,
@@ -677,17 +703,15 @@ async function propose(
         }),
   });
   if (!outcome.ok) return { proposed: false, reason: outcome.reason };
-  const recorded = { variant, proposal: outcome.proposal };
-  state.actionProposals.push(recorded);
-  state.unsentProposals.push(recorded);
+  state.actionProposals.push(outcome.proposal);
+  state.unsentProposals.push(outcome.proposal);
   return { proposed: true, proposalId: outcome.proposal.proposalId };
 }
 
-function stepsOf(input: unknown, variant: "action" | "plan"): readonly ProposedStep[] {
-  const body = (input ?? {}) as { action?: unknown; steps?: unknown };
-  const raw = variant === "action" ? [body.action] : body.steps;
-  if (!Array.isArray(raw)) return [];
-  return raw.map((entry) => ProposedStep.parse(entry));
+function stepsOf(input: unknown): readonly ProposedStep[] {
+  const { steps } = (input ?? {}) as { steps?: unknown };
+  if (!Array.isArray(steps)) return [];
+  return steps.map((entry) => ProposedStep.parse(entry));
 }
 
 /** A tool reached without its port is a registry that disagrees with a screen's list. */
@@ -825,20 +849,25 @@ async function testRule(input: unknown, ctx: AgentContext): Promise<Record<strin
   };
 }
 
+function questionRecipes(input: unknown): {
+  recipes: { type: string; guidance: string }[];
+} {
+  const { types } = QuestionRecipesInput.parse(input);
+  const asked = [...new Set(types)];
+  return { recipes: asked.map((type) => ({ type, guidance: QUESTION_RECIPES[type] })) };
+}
+
 /** Frozen so nothing can graft a verb on at runtime. */
 export const TOOLS: Readonly<Record<AgentToolName, AgentToolDef>> = Object.freeze({
   search_question_library: {
-    description:
-      "Search the published question library. Returns question definitions only - never response data.",
+    description: TOOL_DESCRIPTIONS.search_question_library,
     inputSchema: SearchInput,
     outputSchema: Outputs.search_question_library,
     cell: QUESTION_READ,
     execute: (input, ctx) => searchLibrary(input, ctx),
   },
   list_questions: {
-    description:
-      "List the question library with each question's latest version and its status, " +
-      "draft and deprecated versions included. Definitions only, never response data.",
+    description: TOOL_DESCRIPTIONS.list_questions,
     inputSchema: ListQuestionsInput,
     outputSchema: Outputs.list_questions,
     cell: QUESTION_READ,
@@ -846,10 +875,7 @@ export const TOOLS: Readonly<Record<AgentToolName, AgentToolDef>> = Object.freez
       port(ctx.listQuestions, "list_questions")(ListQuestionsInput.parse(input)),
   },
   read_question: {
-    description:
-      "Read one question: its versions with their statuses, and the complete definition " +
-      "of the version you name (label, help, type, required, constraints, messages and " +
-      "options). Authoring content only.",
+    description: TOOL_DESCRIPTIONS.read_question,
     inputSchema: ReadQuestionInput,
     outputSchema: Outputs.read_question,
     cell: QUESTION_READ,
@@ -857,22 +883,14 @@ export const TOOLS: Readonly<Record<AgentToolName, AgentToolDef>> = Object.freez
       port(ctx.readQuestion, "read_question")(ReadQuestionInput.parse(input)),
   },
   read_form: {
-    description:
-      "Read one form: its slug and title, whether it has a draft, its latest published " +
-      "version, what is released in the current environment, its steps with their question " +
-      "counts, its rule ids, the question versions its draft pins unpublished, and the " +
-      "COMPLETE working draft under `definition`. Start any form.saveDraft from that " +
-      "definition: a draft save replaces the draft wholesale, so anything you leave out is " +
-      "dropped.",
+    description: TOOL_DESCRIPTIONS.read_form,
     inputSchema: FormSubjectInput,
     outputSchema: Outputs.read_form,
     cell: FORM_READ,
     execute: (input, ctx) => port(ctx.readForm, "read_form")(FormSubjectInput.parse(input)),
   },
   list_form_versions: {
-    description:
-      "List one form's published versions, each with when it was published, which " +
-      "environments it is released in, and its step and question counts.",
+    description: TOOL_DESCRIPTIONS.list_form_versions,
     inputSchema: FormListingInput,
     outputSchema: Outputs.list_form_versions,
     cell: FORM_READ,
@@ -880,21 +898,21 @@ export const TOOLS: Readonly<Record<AgentToolName, AgentToolDef>> = Object.freez
       port(ctx.listFormVersions, "list_form_versions")(FormListingInput.parse(input)),
   },
   list_releases: {
-    description:
-      "Report this deployment's environments, which version of one form stands in each " +
-      "and whether it is closed, plus that form's release history with who released and " +
-      "who approved.",
+    description: TOOL_DESCRIPTIONS.list_releases,
     inputSchema: FormListingInput,
     outputSchema: Outputs.list_releases,
     cell: RELEASE_READ,
     execute: (input, ctx) => port(ctx.listReleases, "list_releases")(FormListingInput.parse(input)),
   },
+  question_recipes: {
+    description: TOOL_DESCRIPTIONS.question_recipes,
+    inputSchema: QuestionRecipesInput,
+    outputSchema: Outputs.question_recipes,
+    fixedText: true,
+    execute: (input) => Promise.resolve(questionRecipes(input)),
+  },
   propose_questions: {
-    description:
-      "Stage new question definitions for the apply-draft card, and nothing else. It " +
-      "creates nothing: the definitions are kept only by an apply-draft card proposed in " +
-      "the same turn, and are discarded otherwise. To create a question the user keeps, " +
-      "propose a question.create step instead.",
+    description: TOOL_DESCRIPTIONS.propose_questions,
     inputSchema: ProposeQuestionsInput,
     outputSchema: Outputs.propose_questions,
     cell: DRAFT_WRITE,
@@ -902,12 +920,7 @@ export const TOOLS: Readonly<Record<AgentToolName, AgentToolDef>> = Object.freez
     execute: (input, _ctx, state) => Promise.resolve(proposeQuestions(input, state)),
   },
   propose_draft: {
-    description:
-      "Propose the complete draft FormDefinition for the form this builder screen is about. " +
-      "Returns the advisory validation issues that would block a publish, and the warnings " +
-      "that would not. It saves nothing: follow it with the apply-draft action, which is " +
-      "the only thing that keeps it. It exists on the form builder alone; elsewhere, save a " +
-      "draft with a form.saveDraft step instead.",
+    description: TOOL_DESCRIPTIONS.propose_draft,
     inputSchema: ProposeDraftInput,
     outputSchema: Outputs.propose_draft,
     cell: DRAFT_WRITE,
@@ -915,42 +928,28 @@ export const TOOLS: Readonly<Record<AgentToolName, AgentToolDef>> = Object.freez
     execute: (input, ctx, state) => proposeDraft(input, ctx, state),
   },
   validate_draft: {
-    description:
-      "Run the publish validation over the draft you have proposed this turn, or over the " +
-      "form's saved draft when you have proposed none, and return its blocking issues and " +
-      "its non-blocking warnings.",
+    description: TOOL_DESCRIPTIONS.validate_draft,
     inputSchema: ValidateInput,
     outputSchema: Outputs.validate_draft,
     cell: DRAFT_WRITE,
     execute: (input, ctx, state) => validateProposal(input, ctx, state),
   },
   project_draft: {
-    description:
-      "Project a form's draft for hypothetical answers and return which steps and questions " +
-      "a respondent would see. Reads no submitted answer. A draft with blocking issues " +
-      "cannot be projected: the result says so and names them.",
+    description: TOOL_DESCRIPTIONS.project_draft,
     inputSchema: ProjectDraftInput,
     outputSchema: Outputs.project_draft,
     cell: FORM_PREVIEW,
     execute: (input, ctx) => projectDraft(input, ctx),
   },
   test_rule: {
-    description:
-      "Evaluate one of a form's rules against hypothetical answers and report whether " +
-      "its condition matched. Reads no submitted answer and changes nothing.",
+    description: TOOL_DESCRIPTIONS.test_rule,
     inputSchema: TestRuleInput,
     outputSchema: Outputs.test_rule,
     cell: FORM_PREVIEW,
     execute: (input, ctx) => testRule(input, ctx),
   },
   diff_form_versions: {
-    description:
-      "Compare two published versions of a form, or one of them against its working " +
-      "draft (null), and report which steps, pinned questions and rules differ. A side " +
-      "that does not exist is MISSING, not empty: `outcome` is then `unavailable`, " +
-      "`fromFound` or `toFound` says which side is absent, and every comparison field is " +
-      "null. A form with no working draft comes back that way, so never read it as a draft " +
-      "that has been emptied. Structure only: no authored text and no response data.",
+    description: TOOL_DESCRIPTIONS.diff_form_versions,
     inputSchema: DiffFormVersionsInput,
     outputSchema: Outputs.diff_form_versions,
     cell: FORM_READ,
@@ -958,27 +957,21 @@ export const TOOLS: Readonly<Record<AgentToolName, AgentToolDef>> = Object.freez
       port(ctx.diffFormVersions, "diff_form_versions")(DiffFormVersionsInput.parse(input)),
   },
   count_links: {
-    description:
-      "Count a form's secure links by state in the current environment. No link URL or " +
-      "token exists to return.",
+    description: TOOL_DESCRIPTIONS.count_links,
     inputSchema: FormSubjectInput,
     outputSchema: Outputs.count_links,
     cell: LINK_READ,
     execute: (input, ctx) => port(ctx.countLinks, "count_links")(FormSubjectInput.parse(input)),
   },
   list_links: {
-    description:
-      "List a form's secure links in the current environment with each one's state, " +
-      "whether it is single-use and when it expires. No link URL or token exists to return.",
+    description: TOOL_DESCRIPTIONS.list_links,
     inputSchema: FormListingInput,
     outputSchema: Outputs.list_links,
     cell: LINK_READ,
     execute: (input, ctx) => port(ctx.listLinks, "list_links")(FormListingInput.parse(input)),
   },
   list_responses: {
-    description:
-      "List a form's responses under the response list's own four filters, metadata only: " +
-      "session id, times, version, access mode and flag state. Never an answer value.",
+    description: TOOL_DESCRIPTIONS.list_responses,
     inputSchema: ListResponsesInput,
     outputSchema: Outputs.list_responses,
     cell: RESPONSE_READ,
@@ -986,8 +979,7 @@ export const TOOLS: Readonly<Record<AgentToolName, AgentToolDef>> = Object.freez
       port(ctx.listResponses, "list_responses")(ListResponsesInput.parse(input)),
   },
   count_responses: {
-    description:
-      "Count a form's responses under the response list's own four filters. Never an answer value.",
+    description: TOOL_DESCRIPTIONS.count_responses,
     inputSchema: ResponseFiltersInput,
     outputSchema: Outputs.count_responses,
     cell: RESPONSE_READ,
@@ -995,10 +987,7 @@ export const TOOLS: Readonly<Record<AgentToolName, AgentToolDef>> = Object.freez
       port(ctx.countResponses, "count_responses")(ResponseFiltersInput.parse(input)),
   },
   delivery_status: {
-    description:
-      "Report a form's webhook endpoints and the state of their recent deliveries: " +
-      "counts by state and the attempt bound that was scanned. Never a payload, a " +
-      "consumer response body or an error string.",
+    description: TOOL_DESCRIPTIONS.delivery_status,
     inputSchema: DeliveryStatusInput,
     outputSchema: Outputs.delivery_status,
     cell: WEBHOOK_READ,
@@ -1006,40 +995,28 @@ export const TOOLS: Readonly<Record<AgentToolName, AgentToolDef>> = Object.freez
       port(ctx.deliveryStatus, "delivery_status")(DeliveryStatusInput.parse(input)),
   },
   list_webhooks: {
-    description:
-      "List a form's webhook endpoints in the current environment and their recent " +
-      "deliveries with each one's state, attempts and last HTTP status. Never a payload, " +
-      "a consumer response body or an error string.",
+    description: TOOL_DESCRIPTIONS.list_webhooks,
     inputSchema: FormListingInput,
     outputSchema: Outputs.list_webhooks,
     cell: WEBHOOK_READ,
     execute: (input, ctx) => port(ctx.listWebhooks, "list_webhooks")(FormListingInput.parse(input)),
   },
   count_dead_letters: {
-    description:
-      "Count the dead-letter queue, by form, within the bound it scanned. Never a payload.",
+    description: TOOL_DESCRIPTIONS.count_dead_letters,
     inputSchema: NoInput,
     outputSchema: Outputs.count_dead_letters,
     claim: true,
     execute: (_input, ctx) => port(ctx.countDeadLetters, "count_dead_letters")(),
   },
   list_erasures: {
-    description:
-      "List the erasure log for the current environment: which session was erased, from " +
-      "which form and version, when and why. The log holds no answers.",
+    description: TOOL_DESCRIPTIONS.list_erasures,
     inputSchema: LimitOnlyInput,
     outputSchema: Outputs.list_erasures,
     claim: true,
     execute: (input, ctx) => port(ctx.listErasures, "list_erasures")(LimitOnlyInput.parse(input)),
   },
   diff_question_versions: {
-    description:
-      "Compare two versions of a question and report which members of the definition " +
-      "differ, by name. The names only, never their content. A version that does not " +
-      "exist is MISSING, not identical and not unchanged: `outcome` is then " +
-      "`unavailable`, `fromFound` or `toFound` says which side is absent, and `identical` " +
-      "and `changedFields` are null. An empty `changedFields` means the two versions were " +
-      "compared and nothing differs, which only ever happens when both sides exist.",
+    description: TOOL_DESCRIPTIONS.diff_question_versions,
     inputSchema: DiffQuestionVersionsInput,
     outputSchema: Outputs.diff_question_versions,
     cell: QUESTION_READ,
@@ -1050,53 +1027,33 @@ export const TOOLS: Readonly<Record<AgentToolName, AgentToolDef>> = Object.freez
       )(DiffQuestionVersionsInput.parse(input)),
   },
   search_forms: {
-    description:
-      "Search the forms this caller may read, by slug or id, and report each one's latest " +
-      "and released version in the current environment.",
+    description: TOOL_DESCRIPTIONS.search_forms,
     inputSchema: SearchFormsInput,
     outputSchema: Outputs.search_forms,
     cell: FORM_READ,
     execute: (input, ctx) => port(ctx.searchForms, "search_forms")(SearchFormsInput.parse(input)),
   },
   list_workspaces: {
-    description:
-      "List the workspaces this caller administers, with whether each is the shared " +
-      "library and whether it has second approval on for a publish to production.",
+    description: TOOL_DESCRIPTIONS.list_workspaces,
     inputSchema: NoInput,
     outputSchema: Outputs.list_workspaces,
     cell: WORKSPACE_READ,
     execute: (_input, ctx) => port(ctx.listWorkspaces, "list_workspaces")(),
   },
   read_workspace: {
-    description:
-      "Read one workspace's members with their roles, and its access groups with the " +
-      "role, environments and forms each group grants.",
+    description: TOOL_DESCRIPTIONS.read_workspace,
     inputSchema: WorkspaceSubjectInput,
     outputSchema: Outputs.read_workspace,
     cell: MEMBERSHIP_READ,
     execute: (input, ctx) =>
       port(ctx.readWorkspace, "read_workspace")(WorkspaceSubjectInput.parse(input)),
   },
-  propose_action: {
-    description:
-      "Propose one action for the user to review and confirm. It runs nothing: the user " +
-      "sees a card with every argument in full and confirms it on the screen's own " +
-      "control. Returns whether the proposal was accepted, or the reason it was refused.",
-    inputSchema: proposeActionSchema([]),
-    schemaFor: (ctx) => proposeActionSchema(ctx.offeredActionKinds ?? []),
-    outputSchema: Outputs.propose_action,
-    execute: (input, ctx, state) => propose(stepsOf(input, "action"), "action", ctx, state),
-  },
   propose_plan: {
-    description:
-      "Propose an ordered plan of actions for the user to review and confirm once. It runs " +
-      "nothing. An argument may reference an earlier step's result as " +
-      "{ fromStep, field }, at most one such reference per step. The plan stops at the " +
-      "first failure. Returns whether the proposal was accepted, or the reason it was refused.",
+    description: TOOL_DESCRIPTIONS.propose_plan,
     inputSchema: proposePlanSchema([]),
     schemaFor: (ctx) => proposePlanSchema(ctx.offeredActionKinds ?? []),
     outputSchema: Outputs.propose_plan,
-    execute: (input, ctx, state) => propose(stepsOf(input, "plan"), "plan", ctx, state),
+    execute: (input, ctx, state) => propose(stepsOf(input), ctx, state),
   },
 });
 
@@ -1122,6 +1079,11 @@ function providerSchema(zodType: z.ZodType): Schema<unknown> {
 /** The tools whose offer is decided by the installation-wide administrator claim. */
 export function isClaimTool(name: AgentToolName): boolean {
   return TOOLS[name].claim === true;
+}
+
+/** The tools returning shipped text, which no grant gates because no subject holds one. */
+export function isFixedTextTool(name: AgentToolName): boolean {
+  return TOOLS[name].fixedText === true;
 }
 
 /** The tools whose only consumer is the apply-draft card, which one screen runs. */
@@ -1191,14 +1153,14 @@ export function agentToolSet(ctx: AgentContext, state: ProposalState): ToolSet {
 }
 
 export async function advertisedJsonSchema(zodType: z.ZodType): Promise<JSONSchema7> {
-  return asSchema(providerSchema(zodType)).jsonSchema;
+  return providerSchema(zodType).jsonSchema;
 }
 
 /** Exported for the tests only: the fake provider never reads a tool schema. */
 export async function agentToolJsonSchemas(): Promise<Record<AgentToolName, JSONSchema7>> {
   const out: Partial<Record<AgentToolName, JSONSchema7>> = {};
   for (const name of AGENT_TOOL_NAMES) {
-    out[name] = await asSchema(providerSchema(TOOLS[name].inputSchema)).jsonSchema;
+    out[name] = await providerSchema(TOOLS[name].inputSchema).jsonSchema;
   }
   return out as Record<AgentToolName, JSONSchema7>;
 }

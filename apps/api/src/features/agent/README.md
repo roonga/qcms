@@ -39,9 +39,11 @@ flag-gated, and streams rather than returning a modelled JSON body.
 | `contexts/`                             | The per-screen context builders, grouped by area, each checking its own SEC-3 cell before it reads anything.                                                                                                                             |
 | `contexts/reads.ts`                     | One read port per admin GET route, each taking the subject ids the call names and re-making that screen's own read check against the subject it resolved. A port that spans workspaces narrows to the ones the caller holds its cell in. |
 | `tools/registry.ts`                     | The frozen tool registry, the single dispatch door, and the provider tool set built from the list this caller's grants reach.                                                                                                            |
-| `system-prompt.ts`                      | The versioned system prompt, assembled from the kernel's own contracts. Reviewed like code.                                                                                                                                              |
+| `prompts/`                              | Every word the model is sent, as Markdown: the system prompt's sections, one file per tool description and one per action kind. `prompts.generated.ts` is built from them by `pnpm prompts:generate`.                                    |
+| `system-prompt.ts`                      | The versioned system prompt: the generated sections joined, with the kernel's own contracts filled in. Reviewed like code.                                                                                                               |
 | `assistant.ts`                          | The `streamText` tool loop, the stop-reason mapping, and the provider selector.                                                                                                                                                          |
 | `actions/`                              | One module per action-kind group, each kind's descriptor: its route, cell, argument schema, how the middleware recomputes its arguments, its result allowlist and its card templates.                                                    |
+| `actions/derive.ts`                     | The one way a kind's arguments are written: built from its route's own request-body schema, with the recompute that reads them back off a request.                                                                                       |
 | `proposal-token.ts`                     | The signed proposal token: the ordered step list, each step's argument digest and the environment it acts in.                                                                                                                            |
 | `draft-pins.ts`                         | The form's saved draft as a plan sees it: the versions it pins unpublished, and the revision a plan built from them is bound to.                                                                                                         |
 | `provenance.ts` / `provenance-mount.ts` | The provenance check and the middleware the admin group mounts it as. It adds provenance and never rights.                                                                                                                               |
@@ -49,7 +51,8 @@ flag-gated, and streams rather than returning a modelled JSON body.
 | `grant-filter.ts`                       | The (kind, environment) pairs a turn is offered, through the evaluator the route middleware uses.                                                                                                                                        |
 | `fake-model.ts`                         | The deterministic scripted model CI drives, including the hostile scripts.                                                                                                                                                               |
 | `route.ts` / `handler.ts` / `schema.ts` | The flag-gated registrar, the SSE relay and its 15 second keep-alive, the request schema.                                                                                                                                                |
-| `thinking.ts`                           | One function from `QCMS_AGENT_THINKING` to the provider's own options, and nothing vendor-shaped anywhere else (081).                                                                                                                    |
+| `thinking.ts`                           | One function from `QCMS_AGENT_THINKING` to the provider's own options (081).                                                                                                                                                             |
+| `caching.ts`                            | One function from a provider to the marker a cache breakpoint is spelled as. The other vendor-shaped file, and the last one.                                                                                                             |
 
 ## The registry and the door are security controls
 
@@ -61,8 +64,8 @@ operational state (`count_links`, `list_links`, `list_webhooks`,
 `delivery_status`, `list_responses`, `count_responses`, `count_dead_letters`,
 `list_erasures`), administration (`list_workspaces`, `read_workspace`), the
 preview verbs (`project_draft`, `test_rule`) and the draft verbs
-(`propose_questions`, `propose_draft`, `validate_draft`). Beside them sit the two
-propose tools, which execute nothing. There is no generic GET passthrough.
+(`propose_questions`, `propose_draft`, `validate_draft`). Beside them sits
+`propose_plan`, which executes nothing. There is no generic GET passthrough.
 Publish, erase, link minting, webhook configuration and every read of response
 **content** are absent from the module, so an agent cannot call them however it
 is prompted, jailbroken or swapped.
@@ -104,6 +107,34 @@ screen, and the two tools whose only consumer that card is
 (`propose_questions`, `propose_draft`) are withheld with it. From anywhere else
 the same work is a plan of `question.create` steps and one `form.saveDraft`, and
 both the refusal and the system prompt say so.
+
+## A kind's arguments are the route's own schema
+
+Every argument of every kind is built from the Zod schema its route publishes,
+through `routeArgs` in `actions/derive.ts`. The limits, enums and formats a card
+offers are therefore the ones the route enforces: the access-group roles are the
+installation's own role names, an environment carries the name pattern, and a
+grant's address is an address.
+
+Three things hold it together. `StepArgs` is a type over the body's shape, so a
+body member that appears, disappears or is renamed fails `tsc` in the kind's own
+module rather than drifting into a card the route then refuses. Each kind names
+the body members **no step names** - a member the server derives, one the
+switcher supplies, or one a nested argument reaches - and a member in neither
+list is refused when the module loads. `recomputeArgs` is built from the same
+argument list, with the body's own default standing in where a request omits a
+member, so the propose side and the request side cannot disagree about what the
+digest covers.
+
+What a kind still spells out is a deliberate narrowing, each with its reason
+beside it: an erasure reason is the dialog's closed vocabulary, a link's expiry
+is a full instant rather than any string, and an endpoint is a URL. A read tool
+that mirrors a screen's own route shares its filter set the same way, by a
+`satisfies` over that route's query schema.
+
+The browser is outside all of it. `apps/admin/components/agent/step-actions.ts`
+reads a confirmed step's arguments by name and cannot import this registry, so
+`pnpm check:agent-step-args` is what holds the two together.
 
 ## A card never offers a step the route would reject
 
@@ -178,6 +209,32 @@ control: the controls are the caller's own grants, the door, and the human confi
 The draft preamble that asks for changes is sent only on a screen that offers a
 propose verb, so a screen holding the draft for a read tool alone is not told to
 propose against it.
+
+## One prefix, cached, and the volatile part after it
+
+The tools and the instructions are the same bytes on every step of every turn, at
+full grants about 140,000 characters of them, and a turn runs up to
+`QCMS_AGENT_MAX_STEPS` provider calls. So a breakpoint closes that prefix:
+`caching.ts` names the marker, `assistant.ts` puts it where the stable part ends
+and knows nothing of its shape, and a provider with no such control is sent
+nothing. **One breakpoint covers the tools as well as the instructions**, because
+the cacheable prefix is the tools, then the instructions, then the messages, so a
+marker on the instructions closes over both.
+
+The screen's facts and the form's draft are different on every turn, so they sit
+**after** the turns that can no longer change and **before** the person's own
+latest words, and a second breakpoint rides the last of those settled turns: the
+history is then read from the cache rather than resent.
+
+The tool set and the kinds the propose tool advertises are ordered by their
+registries rather than by the order the caller's workspaces came back in
+(`mergeOffers`), because a prefix that reorders itself between turns is cached
+and never read.
+
+The turn log carries `cacheReadTokens` and `cacheWriteTokens` beside the input
+and output counts. Both are zero from a provider that reports no cache
+accounting, which is what `openai` and `google` do here: they cache without
+being asked, and nothing in the request changes for them.
 
 ## A read tool is refused wherever its screen would be
 

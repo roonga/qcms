@@ -217,6 +217,14 @@ jobs:
       - run: pnpm check:templates
         if: env.PLAN_ONLY != 'true'
 
+      - run: pnpm check:prompts
+        if: env.PLAN_ONLY != 'true'
+        env:
+          DEFAULT_BRANCH: ${{ github.event.pull_request.base.ref || 'main' }}
+
+      - run: pnpm check:agent-step-args
+        if: env.PLAN_ONLY != 'true'
+
       - run: pnpm build
         if: env.PLAN_ONLY != 'true'
 

@@ -1,0 +1,69 @@
+{
+  "id": "consent-that-must-be-given",
+  "name": "agent-review-09-consent-that-must-be-given",
+  "goal": "Two agreements the form cannot be sent without, on a product that has no setting forcing a yes or no to be yes.",
+  "mode": "scripted",
+  "screen": "/forms",
+  "cards": "confirm",
+  "messages": [
+    {
+      "text": "Make me a short form called Brackenhill Practice record sharing. Ask for the patient's full name, then two things they have to agree to before it can be sent: that we may share their record with the out of hours service, and that they have read our privacy notice. Nobody should be able to send the form without agreeing to both.",
+      "cards": "confirm"
+    }
+  ],
+  "seed": {
+    "reset": "fresh",
+    "requires": "A dev database with no form titled Brackenhill Practice record sharing.",
+    "fixtures": "All data is invented: Brackenhill Practice is not a real practice and no scenario sends a real person's details."
+  },
+  "budget": { "turns": 1 },
+  "expect": {
+    "endState": [
+      {
+        "check": "formCount",
+        "titleContains": "brackenhill practice record sharing",
+        "exactly": 1
+      },
+      { "check": "questionCount", "title": "Brackenhill Practice record sharing", "min": 3 },
+      {
+        "check": "optionCount",
+        "title": "Brackenhill Practice record sharing",
+        "labelContains": "record",
+        "exactly": 1
+      },
+      {
+        "check": "required",
+        "title": "Brackenhill Practice record sharing",
+        "labelContains": "record"
+      },
+      {
+        "check": "optionCount",
+        "title": "Brackenhill Practice record sharing",
+        "labelContains": "privacy",
+        "exactly": 1
+      },
+      {
+        "check": "required",
+        "title": "Brackenhill Practice record sharing",
+        "labelContains": "privacy"
+      },
+      {
+        "check": "notReleased",
+        "title": "Brackenhill Practice record sharing",
+        "environment": "test"
+      },
+      {
+        "check": "notReleased",
+        "title": "Brackenhill Practice record sharing",
+        "environment": "prod"
+      }
+    ],
+    "assistantMust": [
+      "make each agreement a question whose only answer is the agreement itself, and one they have to answer",
+      "not use a yes or no question for either agreement",
+      "say, without being asked, that marking a yes or no question as one they must answer does not stop them answering no and sending the form",
+      "put the questions and the form on one plan, and publish nothing"
+    ]
+  },
+  "notes": "A required yes or no question is the defect this came from: it can be answered no and sent. A one-answer list is the only shape that actually blocks the submission, so proposing a yes or no here is the failure however it is worded. Offering the yes or no shape as an alternative, for a practice that wants a refusal recorded, is fine as long as the recommendation is the one-answer list."
+}

@@ -120,6 +120,7 @@ The split that matters at this size:
 | `apps/portal` | The respondent portal (Next.js, SSR plus a strict BFF). |
 | `apps/admin` | The authoring admin (Next.js, strict BFF; holds no database handle). |
 | `docker/` | The three production Dockerfiles. |
+| `scripts/` | Tooling you own: the generator that builds the assistant's prompt module. |
 | `docker-compose.yml` | The single-host arrangement, for local proving. |
 | `.env.example` | Every variable the stack reads, generated from the API configuration schema. |
 
@@ -140,7 +141,31 @@ pnpm up         # docker compose up -d --build
 pnpm down       # docker compose down
 pnpm logs       # follow every container's logs
 pnpm migrate    # run pending migrations
+pnpm verify     # check the generated prompt module, build and typecheck
 ```
+
+## Editing the assistant's prompts
+
+The admin assistant's instructions are Markdown under
+`apps/api/src/features/agent/prompts/`: one file per system-prompt section, per tool
+description, per action kind and per question recipe. They are yours to edit.
+
+The API imports `prompts/prompts.generated.ts`, built from those files, so an edit
+reaches the assistant only once you rebuild it. `pnpm verify` fails while that module is
+stale, so a forgotten rebuild cannot ship.
+
+```sh
+pnpm prompts:generate   # rebuild prompts.generated.ts from the Markdown
+pnpm verify             # check the generated module, then build and typecheck
+```
+
+`prompts:generate` prints the source hash to record in
+`apps/api/src/features/agent/system-prompt.ts`, beside `SYSTEM_PROMPT_VERSION`. Raise
+that version in the same edit: it is logged with every assistant turn, and it is how a
+log line is traced back to the text that produced it.
+
+The prompt Markdown sits outside the formatter (`.prettierignore`). The model reads
+those bytes, so rewrapping them edits the prompt.
 
 ## Upgrading
 
