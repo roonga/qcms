@@ -16,7 +16,9 @@ async function render(initial: SettingsSectionId = SETTINGS_SECTION_IDS.account)
 describe("the Settings rail's markup", () => {
   it("is a complementary landmark named for its subject, holding the sections nav", async () => {
     const html = await render();
-    expect(html).toContain('<aside id="qcms-rail-region" class="qcms-rail" aria-label="My account"');
+    expect(html).toContain(
+      '<aside id="qcms-rail-region" class="qcms-rail" aria-label="My account"',
+    );
     expect(html).toContain('<nav aria-label="My account sections">');
     expect(html).toContain('data-testid="qcms-settings-rail"');
     expect(html).toContain('class="qcms-rail"');
