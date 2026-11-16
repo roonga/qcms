@@ -1035,7 +1035,7 @@ describe("a Site administrator may take a stored logo down", { timeout: TIMEOUT_
 
     const siteAdministrator = await seedAdminSession(testDb.db, {
       label: "takedown-site-admin",
-        claim: true,
+      claim: true,
       membership: false,
     });
     const takedown = await as(siteAdministrator.token, "DELETE", `/logos/${logoKey}`);
@@ -1080,7 +1080,7 @@ describe("a Site administrator may take a stored logo down", { timeout: TIMEOUT_
 
     const siteAdministrator = await seedAdminSession(testDb.db, {
       label: "tombstone-site-admin",
-        claim: true,
+      claim: true,
       membership: false,
     });
     const takedown = await as(siteAdministrator.token, "DELETE", `/logos/${logoKey}`);
@@ -1117,7 +1117,7 @@ describe("a Site administrator may take a stored logo down", { timeout: TIMEOUT_
 
     const siteAdministrator = await seedAdminSession(testDb.db, {
       label: "takedown-mirror-site-admin",
-        claim: true,
+      claim: true,
       membership: false,
     });
     const takedown = await as(siteAdministrator.token, "DELETE", `/logos/${logoKey}`);
@@ -1184,7 +1184,7 @@ describe("a Site administrator may take a stored logo down", { timeout: TIMEOUT_
     ]);
     const siteAdministrator = await seedAdminSession(testDb.db, {
       label: "takedown-race-site-admin",
-        claim: true,
+      claim: true,
       membership: false,
     });
 
