@@ -130,6 +130,12 @@ these paths 404, ADR-09):
   rule exists to prevent. The admin takes it from the global environment switcher, shows it
   in the dialog's title, restates it in the confirmation, and restates again what the API
   actually wrote. An environment this deployment does not serve → `400 UNKNOWN_ENVIRONMENT`.
+- **The form must already be live in that environment** (issue #1323, Code Owner, 2026-11-16).
+  A mint naming an environment with no release of the form → `409 FORM_NOT_RELEASED`, and no row is written.
+  The refusal sits at the API rather than on the screen, because the admin screen and the assistant both reach the route and only one of them is a screen.
+  What it prevents is a link that starts working by itself: an address handed out today would redeem the moment any version reached that environment, so it is a standing credential for a version nobody chose to put there.
+  A **closed** environment is deliberately not refused. The release exists and the version is decided, and a respondent following the link is told the form is closed rather than being let in.
+  The admin screen withholds the mint control in the same case and says why, but the API is the authority.
 - **Every route is form-scoped** (#478) **and environment-scoped** (task 066). Revoke
   carries the form segment, and the environment joins the same `where` clause, so a link
   minted for another form - or in another environment - matches no row and takes the same

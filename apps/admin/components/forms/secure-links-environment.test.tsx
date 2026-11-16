@@ -40,7 +40,7 @@ function renderScreen(environment: string): void {
       formId="frm_one"
       environment={environment}
       links={{ ok: true, data: LINKS }}
-      canMint
+      availability="available"
       maxBatch={10}
       mint={() => Promise.resolve({ status: "minted" as const, links: minted(environment) })}
       revoke={() => Promise.resolve(IDLE_REVOKE)}
