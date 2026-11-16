@@ -188,7 +188,7 @@ async function seedForm(): Promise<void> {
 async function seedSentinel(): Promise<void> {
   await testDb.client.query(
     `insert into sessions (session_id, form_id, form_version, access_mode, environment, status, expires_at)
-     values ('ses_builder_sentinel', $1, 1, 'anonymous', 'test', 'submitted', now() + interval '1 hour')`,
+     values ('ses_builder_sentinel', $1, 1, 'anonymous', 'prod', 'submitted', now() + interval '1 hour')`,
     [FORM_ID],
   );
   await testDb.client.query(
