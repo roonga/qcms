@@ -1,5 +1,6 @@
 import { z } from "@hono/zod-openapi";
 
+import type { VerifiedEdit } from "./features/agent/edit-provenance.js";
 import type { VerifiedProposal } from "./features/agent/provenance.js";
 import type { GrantContext } from "./features/membership/context.js";
 
@@ -32,6 +33,11 @@ export interface ApiEnv {
      * carries no authority of its own.
      */
     agentProposal?: VerifiedProposal;
+    /**
+     * Set only by the edit middleware, for a card-less builder edit or Undo whose token verified against the
+     * authenticated principal and the route's form. The draft save checks the rest inside its transaction.
+     */
+    agentEdit?: VerifiedEdit;
   };
 }
 

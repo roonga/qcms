@@ -1416,6 +1416,9 @@ export const messages = {
   "forms.links.heading": "Secure links",
   "forms.links.needsPublish":
     "Publish this form before minting links: a link opens the newest version, and there is not one yet.",
+  /** Also the screen and card copy for the API's FORM_NOT_RELEASED, so it has to stand alone. */
+  "forms.links.notLiveHere":
+    "This form is not live in this environment, so a link here would lead nowhere. Publish a version to this environment first.",
   "forms.links.mint": "Mint links",
   /** Restate mint environment in title and confirmation because links determine where respondent answers land. */
   "forms.links.mintTitle": "Mint secure links for {environment}",
