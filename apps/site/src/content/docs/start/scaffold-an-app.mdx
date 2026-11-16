@@ -1,0 +1,112 @@
+---
+title: Scaffold an app
+description: Generate your own QCMS application with create-qcms-app.
+---
+
+`create-qcms-app` stamps a QCMS deployment into a directory you own: the application shell you edit,
+over the versioned `@roonga/qcms-*` packages you upgrade.
+
+```sh
+pnpm create qcms-app my-forms
+```
+
+:::caution[Not on the registry yet]
+Nothing has been published to npm. The scaffolder and the `@roonga/qcms-*` packages exist in the
+repository but no release has been made, so this command cannot resolve them yet. Until then, the
+repository's own Compose stack is the way to run QCMS. See the [quick start](/qcms/start/quick-start/).
+:::
+
+## Usage
+
+```
+Usage: create-qcms-app [directory] [options]
+```
+
+The first non-flag argument is the directory to stamp into; the project name is its base name. It
+must be lowercase letters, digits, dots, hyphens and underscores, starting with a letter or digit,
+because it becomes a directory, a manifest name and a Compose project.
+
+| Option                  | Meaning                                       |
+| ----------------------- | --------------------------------------------- |
+| `-y`, `--yes`           | Take every default; ask nothing               |
+| `--package-manager`     | `pnpm`, the only value                        |
+| `--shape <s>`           | `solo` or `enterprise` (default `solo`)       |
+| `--admin-2fa <p>`       | `required` or `optional` (default `required`) |
+| `--portal-base-url <u>` | Public origin of the respondent portal        |
+| `--admin-base-url <u>`  | Public origin of the authoring admin          |
+| `--no-install`          | Stamp the files, install nothing              |
+| `--no-git`              | Do not initialise a git repository            |
+| `--force`               | Stamp into a directory that already has files |
+| `-h`, `--help`          | Show the usage message                        |
+| `-v`, `--version`       | Show the version                              |
+
+There is one package manager and no prompt for it: QCMS scaffolds a pnpm workspace, and the shipped
+Dockerfiles prune their runtime tree with `pnpm deploy --legacy --prod`, which has no npm or yarn
+equivalent.
+
+On a terminal, anything you did not pass as a flag is asked for: project name, deployment shape,
+admin two-factor policy, portal base URL and admin base URL. With `--yes`, or when input is not a
+terminal, every default is taken silently.
+
+## What you get
+
+A pnpm workspace holding three applications under `apps/` (the API, the respondent portal and the
+authoring admin), a `docker-compose.yml`, the three Dockerfiles, and a `.env`. The `solo` shape also
+stamps a Caddy overlay for TLS on a single host; the `enterprise` shape stamps no proxy overlay.
+
+`.env` is derived from the `.env.example` the same run rendered, so the file you edit and the file
+documenting it are one document, one of them filled in. Your answers for the portal and admin base
+URLs and the two-factor policy are written in; every secret is generated with a CSPRNG.
+
+Unless you opt out, the scaffolder then runs `pnpm install`, initialises a git repository and makes
+an initial commit.
+
+## First run
+
+```sh
+cd my-forms
+$EDITOR .env
+docker compose up -d --build
+docker compose run --rm migrate
+```
+
+Then create the first administrator. The password travels in the environment, never in `.env` and
+never in the command line: set it on the invoking shell and forward it by name only, with no value.
+
+```sh
+QCMS_ADMIN_PASSWORD='a long passphrase' \
+docker compose exec --env QCMS_ADMIN_PASSWORD api \
+  env QCMS_ADMIN_EMAIL=you@example.com node dist/create-admin.js
+```
+
+Migrations are always their own step, repeated after every upgrade.
+
+## Day to day
+
+```sh
+pnpm install    # install workspace dependencies
+pnpm up         # docker compose up -d --build
+pnpm down       # docker compose down
+pnpm logs       # follow every container's logs
+pnpm migrate    # run pending migrations
+```
+
+## Upgrading
+
+```sh
+pnpm install
+docker compose up -d --build
+docker compose run --rm migrate
+```
+
+Published QCMS versions are immutable and the compiled-form corpus is append-only, so a form
+published on an older version keeps rendering exactly as it did.
+
+The three applications under `apps/` are your source. Edit the routes, pages, theming, adapters and
+message catalog freely: nothing overwrites them, because there is no upgrade command that touches
+your tree.
+
+## Source
+
+- [`docs/ownership-seam.md`](https://github.com/roonga/qcms/blob/main/docs/ownership-seam.md)
+- [`packages/create-qcms-app`](https://github.com/roonga/qcms/tree/main/packages/create-qcms-app)

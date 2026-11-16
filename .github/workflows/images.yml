@@ -8,6 +8,7 @@ on:
     paths-ignore:
       - "**/*.md"
       - "plan/**"
+      - "apps/site/**"
   # Scheduled scans refresh vulnerability findings against unchanged images without publishing them.
   schedule:
     - cron: "0 3 * * 1"

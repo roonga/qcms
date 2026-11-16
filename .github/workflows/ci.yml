@@ -113,6 +113,14 @@ jobs:
         env:
           DEFAULT_BRANCH: ${{ github.event.pull_request.base.ref || 'main' }}
 
+      # apps/site rides the fast lane, so the gates that otherwise reach it only through
+      # `pnpm typecheck` and `pnpm build` have to run inside this required context too.
+      - run: pnpm --filter qcms-site typecheck
+        if: env.PLAN_ONLY == 'true'
+
+      - run: pnpm --filter qcms-site build
+        if: env.PLAN_ONLY == 'true'
+
       # Build declarations before program-shaped tasks resolve workspace packages.
       - run: pnpm build
         if: env.PLAN_ONLY != 'true'
