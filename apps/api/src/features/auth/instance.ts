@@ -1,5 +1,3 @@
-import { timingSafeEqual } from "node:crypto";
-
 import {
   authAccount,
   authInvitation,
@@ -27,6 +25,7 @@ import { twoFactor } from "better-auth/plugins/two-factor";
 import { CLIENT_ADDRESS_HEADER } from "../../client-address.js";
 import type { Config } from "../../config.js";
 import type { Logger } from "../../logger.js";
+import { constantTimeEqual } from "../../middleware/internal-token.js";
 import { accessControl, roles } from "../membership/policy.js";
 import { pluginWriteBackstop } from "./plugin-write-backstop.js";
 
@@ -79,10 +78,7 @@ function isClaimSignIn(context: unknown): boolean {
   const headers = (context as { headers?: { get?: unknown } } | undefined)?.headers;
   if (typeof headers?.get !== "function") return false;
   const sent = (headers as Headers).get(CLAIM_SIGN_IN_HEADER);
-  if (sent === null) return false;
-  const given = Buffer.from(sent);
-  const expected = Buffer.from(claimSignInKey);
-  return given.length === expected.length && timingSafeEqual(given, expected);
+  return sent !== null && constantTimeEqual(sent, claimSignInKey);
 }
 
 /**

@@ -12,7 +12,8 @@ import type { ApiEnv } from "../openapi.js";
 
 const INTERNAL_TOKEN_HEADER = "x-qcms-internal-token";
 
-function constantTimeEqual(a: string, b: string): boolean {
+/** Compares two strings in time that depends only on their lengths. */
+export function constantTimeEqual(a: string, b: string): boolean {
   // Fold length into the accumulator so unequal lengths still run a full pass.
   let diff = a.length ^ b.length;
   const max = Math.max(a.length, b.length);
