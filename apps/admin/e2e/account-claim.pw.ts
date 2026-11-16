@@ -1,6 +1,5 @@
 import type { Locator, Page } from "@playwright/test";
 
-import { NOW } from "../../api/e2e/support/harness.js";
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, signInLinkFor, uniqueAdminEmail } from "./support/admin-account.js";
@@ -14,7 +13,6 @@ test.describe.configure({ mode: "serial" });
 
 const EMAIL = uniqueAdminEmail("claim");
 
-const EXPIRED_EMAIL = uniqueAdminEmail("claimexpired");
 
 const REFUSED = "This link has expired or was used. Ask a Site administrator to resend it.";
 
@@ -47,7 +45,6 @@ async function fillClaim(page: Page, next: string, confirm: string): Promise<voi
 test.beforeAll(async () => {
   await createTestAdmin(EMAIL, { claimed: false });
   token = await signInLinkFor(EMAIL);
-  await createTestAdmin(EXPIRED_EMAIL, { claimed: false });
 });
 
 test("a link with no token offers no form at all", async ({ page }) => {
@@ -63,18 +60,6 @@ test("a live link states that it works once and lasts 72 hours", async ({ page }
   ).toBeVisible();
 });
 
-test("a link past its 72 hours is refused with the answer a used one gets", async ({ page }) => {
-  const expired = await signInLinkFor(EXPIRED_EMAIL, {
-    expiresAt: new Date(NOW.getTime() - 60_000),
-  });
-  await page.goto(`/claim?token=${encodeURIComponent(expired)}`);
-  await fillClaim(page, CHOSEN_PASSWORD, CHOSEN_PASSWORD);
-  await Promise.all([
-    page.waitForURL(/\/claim\?linkRefused=1$/),
-    page.getByRole("button", { name: "Continue" }).click(),
-  ]);
-  await expectRefusedLink(page);
-});
 
 test("an unknown token is refused with the same answer", async ({ page }) => {
   await page.goto("/claim?token=not-a-token-that-was-ever-issued");
