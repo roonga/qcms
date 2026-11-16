@@ -29,6 +29,7 @@ import {
   type ResolveQuestion,
   repeatGroups,
   type RosterMap,
+  resolveText,
   type SessionId,
   SNAPSHOT_SCHEMA_VERSION,
   type StepId,
@@ -66,6 +67,7 @@ import { authenticateSession } from "../session-token.js";
 // Type-only (erased at runtime, so no import cycle with route.ts).
 import type { batchAnswersRoute, getStepRoute, rosterOpRoute, submitAnswerRoute } from "./route.js";
 import type { BatchAnswerResponse, RosterOpResponse, StepResponse } from "./schema.js";
+import { lastReachableView, railEntries, type StepView, stepViewsOf } from "./steps.js";
 
 const fail = {
   sessionNotFound: (): ApiError => new ApiError("SESSION_NOT_FOUND", 404, "No such session"),
@@ -186,6 +188,8 @@ function evaluateOrThrow(
 
 interface RenderedQuestions {
   readonly visibleQuestions: string[];
+  /** Parallel to `visibleQuestions`. */
+  readonly questionIds: QuestionId[];
   readonly values: StepResponse["values"];
 }
 
@@ -206,6 +210,7 @@ function renderedQuestions(
   paginated: ReadonlySet<InstanceId>,
 ): RenderedQuestions {
   const visibleQuestions: string[] = [];
+  const questionIds: QuestionId[] = [];
   const values: Record<string, AnswerValue> = {};
   for (const entry of flow.visible) {
     if (entry.stepId !== view.stepId) continue;
@@ -221,10 +226,11 @@ function renderedQuestions(
     // qualified answer key can say which (ADR-42, ADR-43).
     const key = answerKey(entry.questionId, entry.instanceId);
     visibleQuestions.push(key);
+    questionIds.push(entry.questionId);
     const held = answers.get(key);
     if (held !== undefined) values[key] = held;
   }
-  return { visibleQuestions, values };
+  return { visibleQuestions, questionIds, values };
 }
 
 /**
@@ -248,21 +254,11 @@ function rosterProjection(
   }));
 }
 
-interface StepView {
-  readonly stepId: StepId;
-  readonly instanceId: InstanceId | null;
-}
-
-function stepViewsOf(flow: FlowState): readonly StepView[] {
-  const views = flow.visibleStepViews;
-  if (views !== undefined) return views;
-  return flow.visibleSteps.map((stepId) => ({ stepId, instanceId: null }));
-}
-
 /**
  * The cursor indexes views rather than steps (ADR-28), and it indexes a list the server
  * computed for this session on this request: that is what makes an out-of-range value
  * refusable by arithmetic and an in-range one a view the server had already made visible.
+ * A forward jump past what Continue could reach is served as if no cursor were named.
  */
 function renderTarget(
   flow: FlowState,
@@ -273,6 +269,9 @@ function renderTarget(
   if (requestedIndex === undefined) return servedView(flow, views, unopened);
   if (views.length === 0) return { view: null, stepIndex: 0 };
   const clamped = Math.min(requestedIndex, views.length - 1);
+  if (clamped > lastReachableView(flow, views, owedSteps(unopened))) {
+    return servedView(flow, views, unopened);
+  }
   return { view: views[clamped] ?? null, stepIndex: clamped };
 }
 
@@ -281,16 +280,21 @@ interface UnopenedGroups {
   readonly stepOf: ReadonlyMap<GroupId, StepId>;
 }
 
+function owedSteps(unopened?: UnopenedGroups): ReadonlySet<StepId> {
+  const steps = new Set<StepId>();
+  for (const groupId of unopened?.groupIds ?? []) {
+    const stepId = unopened?.stepOf.get(groupId);
+    if (stepId !== undefined) steps.add(stepId);
+  }
+  return steps;
+}
+
 function firstUnopenedView(
   views: readonly StepView[],
   unopened?: UnopenedGroups,
 ): { readonly view: StepView; readonly stepIndex: number } | null {
-  if (unopened === undefined || unopened.groupIds.size === 0) return null;
-  const steps = new Set<StepId>();
-  for (const groupId of unopened.groupIds) {
-    const stepId = unopened.stepOf.get(groupId);
-    if (stepId !== undefined) steps.add(stepId);
-  }
+  const steps = owedSteps(unopened);
+  if (steps.size === 0) return null;
   const index = views.findIndex((view) => steps.has(view.stepId));
   const view = index < 0 ? undefined : views[index];
   return view === undefined ? null : { view, stepIndex: index };
@@ -356,7 +360,7 @@ function project(
   const { view, stepIndex } = renderTarget(flow, requestedIndex, unopened);
 
   let step: StepResponse["step"] = null;
-  let rendered: RenderedQuestions = { visibleQuestions: [], values: {} };
+  let rendered: RenderedQuestions = { visibleQuestions: [], questionIds: [], values: {} };
   // Both halves travel to the client in `view` below, so the renderer draws one instance
   // without deriving anything (R2).
   const group = view === null ? undefined : paginatingGroup(snapshot, view.stepId);
@@ -394,7 +398,64 @@ function project(
     // Views, not steps: a three-instance group is three pages and the indicator says
     // three (ADR-28).
     progress: { stepIndex, totalVisibleSteps: stepViewsOf(flow).length },
+    steps: stepRail(snapshot, flow, stepIndex, rendered, unopened),
+    progressMode: snapshot.appearance?.progress ?? "top-indicator",
   };
+}
+
+/**
+ * Titles are authored text and states come from this session's own flow, so neither a
+ * rule's condition nor another session's data can reach the rail. Question labels are
+ * the rendered view's visible ones only.
+ */
+function stepRail(
+  snapshot: LoadedSnapshot,
+  flow: FlowState,
+  servedIndex: number,
+  rendered: RenderedQuestions,
+  unopened?: UnopenedGroups,
+): StepResponse["steps"] {
+  const definition = snapshot.frozen.definition;
+  const text = (value: Parameters<typeof resolveText>[0]): string => {
+    const resolved = resolveText(value, definition.defaultLocale, definition.defaultLocale);
+    return resolved.ok ? resolved.value : "";
+  };
+  const views = stepViewsOf(flow);
+  const entries = railEntries({
+    steps: definition.steps.map((step) => step.stepId),
+    views,
+    servedIndex,
+    resumeIndex: servedView(flow, views, unopened).stepIndex,
+  });
+  return entries.map((entry, index) => {
+    const step = definition.steps[index];
+    const base = {
+      stepId: entry.stepId,
+      label: step === undefined ? "" : text(step.title),
+      state: entry.state,
+      cursor: entry.cursor,
+    };
+    if (entry.state !== "current") return base;
+    return { ...base, questions: questionLabels(snapshot, rendered, text) };
+  });
+}
+
+/** One entry per question: a repeated question's later instances add nothing to name. */
+function questionLabels(
+  snapshot: LoadedSnapshot,
+  rendered: RenderedQuestions,
+  text: (value: QuestionDefinition["label"]) => string,
+): { key: string; label: string }[] {
+  const seen = new Set<QuestionId>();
+  const labels: { key: string; label: string }[] = [];
+  rendered.questionIds.forEach((questionId, index) => {
+    const key = rendered.visibleQuestions[index];
+    const definition = snapshot.questionById.get(questionId);
+    if (seen.has(questionId) || key === undefined || definition === undefined) return;
+    seen.add(questionId);
+    labels.push({ key, label: text(definition.label) });
+  });
+  return labels;
 }
 
 /**
