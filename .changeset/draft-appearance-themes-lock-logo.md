@@ -49,7 +49,7 @@ call it (Code Owner, 2026-11-16, revising the 108 ruling that no role may ever d
 logo). It clears the key off every theme that named it, deletes the bytes and writes one
 `logo` row in the site audit, the fifth kind, mirrored into each workspace whose themes
 lost the logo. Migration 0012 adds the mechanism: a `SECURITY DEFINER` function the control
-role alone may execute, a delete trigger that admits a row only from inside that function's
-own call frame, and a tombstone table that refuses the same bytes from then on
+role alone may execute, a delete trigger that admits a delete only when the transaction-local flag
+names that key and the current user is the table owner, which the function runs as, and a tombstone table that refuses the same bytes from then on
 (`LOGO_TAKEN_DOWN`, 409). No application role gains `DELETE` on
 `control.appearance_logos`, and `UPDATE` is still rejected for every role.
