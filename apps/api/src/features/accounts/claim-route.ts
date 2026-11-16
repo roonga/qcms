@@ -4,6 +4,7 @@ import {
   consumeSignInLink,
   findAccountById,
   findSignInLinkByHash,
+  holdsAccountPassword,
   signInLinkIsLive,
   tryLockAccount,
 } from "@roonga/qcms-db";
@@ -14,7 +15,7 @@ import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import { adminAuthFor, adminAuthOn } from "../auth/route.js";
 import { BREACH_LOOKUP_FAILED_CODE, MIN_PASSWORD_LENGTH } from "../auth/instance.js";
-import { PasswordRefused, setAccountPassword } from "./credential.js";
+import { PasswordRefused, setAccountPassword, verifyAccountPassword } from "./credential.js";
 import { CLAIM_PATH, signInTokenHash } from "./tokens.js";
 
 // The claim is mounted beside the better-auth endpoints because it issues a session, so it
@@ -22,11 +23,26 @@ import { CLAIM_PATH, signInTokenHash } from "./tokens.js";
 // 256 random bits, and an unknown one is refused by one indexed read before any hashing.
 
 /**
- * The one link purpose this route answers. Reactivation and reset links are issued for
- * accounts that are already claimed, so the purpose is checked here rather than left to
- * follow from the account's state.
+ * What each link purpose does with the password sent: a creation or reactivation link sets
+ * it, and so does a reset link once the reset took the password away. A reset that kept the
+ * password, a factor-only reset, signs the person in with it instead and sets nothing.
  */
-const CLAIM_PURPOSE = "account-created";
+type PasswordUse = "set" | "verify";
+
+function passwordUseFor(purpose: string, holdsPassword: boolean): PasswordUse | undefined {
+  if (purpose === "account-created" || purpose === "reactivated") return "set";
+  if (purpose === "reset") return holdsPassword ? "verify" : "set";
+  return undefined;
+}
+
+function passwordIncorrect(): ApiError {
+  return new ApiError(
+    "CLAIM_PASSWORD_INCORRECT",
+    400,
+    "Only your second factor was reset, so sign in with the password you already have. " +
+      "The link still works until it expires.",
+  );
+}
 
 const ClaimBody = z.strictObject({
   token: z.string().min(1).max(512),
@@ -78,7 +94,6 @@ export const registerAccountClaim: SliceRegistrar = (group, deps: Deps) => {
 
     const link = await findSignInLinkByHash(exec, tokenHash);
     if (link === undefined || !signInLinkIsLive(link, now)) throw linkRefused();
-    if (link.purpose !== CLAIM_PURPOSE) throw linkRefused();
 
     const auth = adminAuthFor(deps);
     // A session for somebody else is the wrong-account use: the link belongs to one
@@ -95,14 +110,23 @@ export const registerAccountClaim: SliceRegistrar = (group, deps: Deps) => {
       if ((await consumeSignInLink(tx, tokenHash, now)) === undefined) throw linkRefused();
       const found = await findAccountById(tx, link.userId);
       if (found === undefined || found.disabledAt !== null) throw linkRefused();
-      // A claimed account already holds a password, so a creation link that outlived the
-      // claim is not a way to set another one.
+      // A claimed account already holds a password, so a link that outlived the claim is
+      // not a way to set another one. A reset and a reactivation unclaim the account.
       if (found.claimedAt !== null) throw linkRefused();
 
+      const use = passwordUseFor(link.purpose, await holdsAccountPassword(tx, found.userId));
+      if (use === undefined) throw linkRefused();
+      const txAuth = adminAuthOn(deps, tx);
+      if (use === "verify") {
+        if (!(await verifyAccountPassword(txAuth, found.userId, password))) {
+          throw passwordIncorrect();
+        }
+        return found;
+      }
       // The write revokes every session the account holds (`revokeSessionsOnPasswordReset`),
       // so one minted from an earlier link does not outlive it.
       try {
-        await setAccountPassword(adminAuthOn(deps, tx), found.userId, password);
+        await setAccountPassword(txAuth, found.userId, password);
       } catch (error) {
         if (error instanceof PasswordRefused) throw passwordRefused(error.cause);
         throw error;

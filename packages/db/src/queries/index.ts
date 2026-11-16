@@ -193,6 +193,28 @@ export {
 } from "./accounts.js";
 
 export {
+  type AccountAdministration,
+  type AccountGroupHolding,
+  type AccountHoldings,
+  type HoldSuspension,
+  type SuspendedHold,
+  awaitsSignInLink,
+  countActiveSiteAdministrators,
+  deleteAccountPassword,
+  disableAccount,
+  findHoldSuspension,
+  holdsAccountPassword,
+  listAccountHoldings,
+  listActiveAdministratorsFor,
+  listWorkspacesHeldBy,
+  newestSignInLinkPurpose,
+  reactivateAccount,
+  reconfirmHold,
+  suspendResponseMemberships,
+  unclaimAccount,
+} from "./account-lifecycle.js";
+
+export {
   type AgentActionEntry,
   type AgentActionRow,
   listAgentActions,

@@ -4,6 +4,7 @@ import {
   findAccountById,
   findAdminsByEmail,
   listAccountDirectory,
+  newestSignInLinkPurpose,
   SITE_ADMINISTRATOR_ROLE,
   writeSiteAuditRow,
   type AccountDirectoryRow,
@@ -59,7 +60,7 @@ const fail = {
     ),
 } as const;
 
-function principalOf(c: { get: (key: "adminPrincipal") => unknown }): {
+export function principalOf(c: { get: (key: "adminPrincipal") => unknown }): {
   readonly userId: string;
   readonly role: string;
 } {
@@ -69,7 +70,7 @@ function principalOf(c: { get: (key: "adminPrincipal") => unknown }): {
   return principal;
 }
 
-function accountView(row: AccountDirectoryRow): {
+export function accountView(row: AccountDirectoryRow): {
   readonly userId: string;
   readonly email: string;
   readonly name: string;
@@ -175,15 +176,18 @@ export function makeResendSignInLinkHandler(
     const row = await findAccountById(exec, id);
     if (row === undefined) throw fail.notFound();
 
-    // The state is read again under the account's lock, so a resend crossing the claim's
-    // commit is refused rather than leaving a live creation link on a claimed account.
+    // A reset or reactivation link is resent as one, never as a creation link: the purposes
+    // are not interchangeable. The state is read again under the account's lock, so a
+    // resend crossing the claim's commit is refused rather than leaving a live link.
+    const newest = await newestSignInLinkPurpose(exec, row.userId);
+    const purpose = newest === "reset" || newest === "reactivated" ? newest : "account-created";
     const delivery = await issueAndSendSignInLink(
       deps,
       exec,
       {
         userId: row.userId,
         email: row.email,
-        purpose: "account-created",
+        purpose,
         issuedBy: actor.userId,
       },
       async (tx) => {

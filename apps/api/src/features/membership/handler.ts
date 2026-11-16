@@ -7,6 +7,7 @@ import {
   createAccessGroup,
   deleteAccessGroup,
   ensureWorkspaceMember,
+  findHoldSuspension,
   findUserByEmail,
   findUsersByIds,
   getAccessGroup,
@@ -18,6 +19,7 @@ import {
   listAccessGroupHolders,
   listAccessGroups,
   listAccessGroupsHeldIn,
+  listActiveAdministratorsFor,
   listAgentActions,
   listEnvironmentNames,
   listGrantsForUser,
@@ -27,6 +29,7 @@ import {
   listWorkspaceMembers,
   lockWorkspaceMembership,
   normaliseEnvironmentSet,
+  reconfirmHold,
   refuseAccessGroupName,
   refuseAccessGroupRoles,
   refuseEnvironmentSet,
@@ -61,6 +64,7 @@ import type {
   listAccessGroupsRoute,
   listMembersRoute,
   myAccessRoute,
+  reconfirmHolderRoute,
   removeHolderRoute,
   removeMemberRoute,
   setMemberRoleRoute,
@@ -130,6 +134,22 @@ const fail = {
         "is a grant on personal data.",
     ),
   noPrincipal: (): ApiError => new ApiError("unauthorized", 401, "Admin authentication required"),
+  notSuspended: (): ApiError =>
+    new ApiError("NOT_SUSPENDED", 409, "That membership is not suspended, so there is nothing to re-confirm"),
+  reconfirmOwn: (): ApiError =>
+    new ApiError(
+      "RECONFIRM_OWN_REFUSED",
+      409,
+      "Nobody re-confirms their own suspended membership. Another Workspace administrator " +
+        "of this workspace, or a Site administrator, has to.",
+    ),
+  reconfirmByPerformer: (): ApiError =>
+    new ApiError(
+      "RECONFIRM_BY_PERFORMER_REFUSED",
+      409,
+      "You reset or reactivated this account, so another active administrator of this " +
+        "workspace, or a Site administrator, re-confirms its memberships.",
+    ),
 } as const;
 
 function principalOf(c: { get: (key: "adminPrincipal") => unknown }): {
@@ -814,6 +834,55 @@ export function makeRemoveHolderHandler(
     });
 
     return c.body(null, 204);
+  };
+}
+
+/**
+ * The rows are read inside {@link lockWorkspaceMembership}, so the administrators counted
+ * are the ones standing when the suspension is lifted.
+ */
+export function makeReconfirmHolderHandler(
+  deps: Deps,
+): RouteHandler<typeof reconfirmHolderRoute, ApiEnv> {
+  return async (c) => {
+    const { id: workspaceId, teamId, userId } = c.req.valid("param");
+    const actor = principalOf(c);
+    if (userId === actor.userId) throw fail.reconfirmOwn();
+
+    const exec = deps.databases.control;
+    const site = agentStepSite(c);
+    const group = await exec.transaction(async (tx) => {
+      await lockWorkspaceMembership(tx, workspaceId);
+      await openWorkspaceOf(tx, workspaceId);
+      const held = await getAccessGroup(tx, teamId);
+      if (held === undefined || held.workspaceId !== workspaceId) throw fail.groupNotFound();
+      const hold = await findHoldSuspension(tx, teamId, userId);
+      if (hold === undefined) throw fail.notAHolder();
+      if (hold.suspendedAt === null) throw fail.notSuspended();
+
+      const byPerformer = hold.suspendedBy === actor.userId;
+      if (byPerformer) {
+        const others = (await listActiveAdministratorsFor(tx, workspaceId)).filter(
+          (administrator) => administrator !== actor.userId && administrator !== userId,
+        );
+        if (others.length > 0) throw fail.reconfirmByPerformer();
+      }
+
+      await reconfirmHold(tx, teamId, userId);
+      const extra = `subject=${userId} group=${held.name} act=reconfirm`;
+      await writeAccessAuditRow(tx, {
+        actor: actor.userId,
+        workspaceId,
+        kind: "grant",
+        ...scopeColumns(held),
+        detail: scopeDetail(held, byPerformer ? `${extra} byPerformer=1` : extra),
+        occurredAt: deps.clock.now(),
+      });
+      await writeAgentStep(tx, site, teamId, deps.clock.now());
+      return held;
+    });
+
+    return c.json({ group: await groupView(exec, group) }, 200);
   };
 }
 

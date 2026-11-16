@@ -10,6 +10,7 @@ import {
   authUser,
   authVerification,
   clearMustChangePassword,
+  awaitsSignInLink,
   isAccountActive,
   isAccountDisabled,
 } from "@roonga/qcms-db";
@@ -360,14 +361,16 @@ export function createAdminAuth(input: AdminAuthInput) {
            * Every sign-in shape mints the session here, the pending-second-factor one
            * included, which creates it and then deletes it:
            * `dist/plugins/two-factor/index.mjs:291` <!-- expect: internalAdapter.deleteSession(data.session.token) -->
-           * The claim is read on one path only; an unclaimed account reaches its own claim.
+           * The claim is read on one path only; an unclaimed account reaches its own claim,
+           * and only once it has spent the newest link it was sent.
            */
           before: async (session, context) => {
             const path: unknown = (context as { path?: unknown } | undefined)?.path;
             const refused =
               path === BACKUP_CODE_VERIFY_PATH
                 ? !(await isAccountActive(input.db, session.userId))
-                : await isAccountDisabled(input.db, session.userId);
+                : (await isAccountDisabled(input.db, session.userId)) ||
+                  (await awaitsSignInLink(input.db, session.userId));
             if (!refused) return;
             // No reason in the body, as everywhere else this surface refuses.
             throw new APIError("UNAUTHORIZED");
