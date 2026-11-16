@@ -29,6 +29,15 @@ describe("the no access yet home", () => {
     ).toBe(MY_ACCESS_PATH);
   });
 
+  it("links to the My access section in place when it is shown on My access itself", () => {
+    render(
+      <NoAccessHome siteAdministrators={[]} locale="en-GB" accessHref="#qcms-my-access-heading" />,
+    );
+    expect(screen.getByRole("link", { name: t("access.title") }).getAttribute("href")).toBe(
+      "#qcms-my-access-heading",
+    );
+  });
+
   it("names every Site administrator when there are several", () => {
     render(
       <NoAccessHome

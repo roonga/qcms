@@ -102,6 +102,8 @@ export interface Flags {
   /** `optional` is the documented dev escape hatch. */
   readonly adminTwoFactor: "required" | "optional";
   readonly agentAuthoring: AgentProvider;
+  /** Separate from the agent flag (SEC-18 S1): `off` leaves the derive route unmounted. */
+  readonly themeDerive: "off" | "on";
 }
 
 export interface Config {
@@ -160,6 +162,9 @@ export interface Config {
     readonly rosterPerIp: RateLimitClass;
     /** The upstream agent call is the expensive, billable one. */
     readonly agentAssist: RateLimitClass;
+    /** Each derive is outbound fetches to a host a user chose (SEC-18 W3). */
+    readonly themeDerivePerUser: RateLimitClass;
+    readonly themeDerivePerWorkspace: RateLimitClass;
   };
   readonly scheduler: {
     readonly outboxIntervalMs: number;
@@ -227,6 +232,15 @@ export interface Config {
     readonly honeypotField: string;
   };
   readonly flags: Flags;
+  /**
+   * Operator egress for the theme derive fetch (SEC-18 S2). Both only narrow: an allowlist
+   * entry matches that host and its subdomains, and the proxy is given the pinned address,
+   * never the host name. Neither admits a private address.
+   */
+  readonly themeDerive: {
+    readonly allowedHosts: readonly string[];
+    readonly proxy: { readonly host: string; readonly port: number } | undefined;
+  };
   readonly challenge:
     | { readonly provider: "none" }
     | {
@@ -333,6 +347,15 @@ export const FLAG_REGISTRY: readonly FlagDef[] = [
       "Agent-assisted authoring provider (041, ADR-25). `none` leaves the assist routes unmounted. " +
       "Any other value requires QCMS_AGENT_MODEL, plus QCMS_AGENT_API_KEY unless QCMS_AGENT_BASE_URL " +
       "is a local endpoint. `fake` is the deterministic test provider and calls no network.",
+  },
+  {
+    key: "themeDerive",
+    env: "QCMS_FLAG_THEME_DERIVE",
+    schema: z.enum(["off", "on"]),
+    fallback: "off",
+    description:
+      "Theme derive from a website (110, SEC-18). `off` leaves the derive route unmounted, " +
+      "whatever QCMS_FLAG_AGENT_AUTHORING says.",
   },
 ] as const;
 
@@ -845,6 +868,8 @@ const DEFAULTS = {
   rlRosterPerSession: { windowMs: 5_000, max: 10 },
   rlRosterPerIp: { windowMs: 60_000, max: 300 },
   rlAgentAssist: { windowMs: 60_000, max: 10 },
+  rlThemeDerivePerUser: { windowMs: 10 * 60_000, max: 10 },
+  rlThemeDerivePerWorkspace: { windowMs: 60 * 60_000, max: 30 },
   agentMaxSteps: 8,
   outboxIntervalMs: 5_000,
   outboxJitterMs: 1_000,
@@ -949,6 +974,49 @@ function parseMail(
     smtp: { host: host.trim(), port, security, auth, timeoutMs },
     from: from?.trim() ?? "",
     linkBaseUrl: adminBaseUrl,
+  };
+}
+
+const HOST_NAME =
+  /^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]{0,61}[a-z0-9]$/u;
+
+function parseThemeDerive(env: Env, issues: string[]): Config["themeDerive"] {
+  const allowedHosts = (env["QCMS_THEME_DERIVE_ALLOWED_HOSTS"] ?? "")
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter((entry) => entry.length > 0);
+  if (allowedHosts.some((entry) => !HOST_NAME.test(entry))) {
+    issues.push(
+      "QCMS_THEME_DERIVE_ALLOWED_HOSTS must be a comma-separated list of host names (no scheme, port or path)",
+    );
+  }
+
+  const rawProxy = env["QCMS_THEME_DERIVE_PROXY"]?.trim() ?? "";
+  if (rawProxy === "") return { allowedHosts, proxy: undefined };
+  let proxy: URL | undefined;
+  try {
+    proxy = new URL(rawProxy);
+  } catch {
+    proxy = undefined;
+  }
+  if (
+    proxy?.protocol !== "http:" ||
+    proxy.username !== "" ||
+    proxy.password !== "" ||
+    (proxy.pathname !== "/" && proxy.pathname !== "") ||
+    proxy.search !== ""
+  ) {
+    issues.push(
+      "QCMS_THEME_DERIVE_PROXY must be an http://host:port CONNECT proxy with no credentials or path",
+    );
+    return { allowedHosts, proxy: undefined };
+  }
+  return {
+    allowedHosts,
+    proxy: {
+      host: proxy.hostname.replace(/^\[|\]$/gu, ""),
+      port: proxy.port === "" ? 80 : Number(proxy.port),
+    },
   };
 }
 
@@ -1147,6 +1215,18 @@ export function loadConfig(env: Env): Config {
       ),
       rosterPerIp: parseRateClass(env, "QCMS_RL_ROSTER_IP", DEFAULTS.rlRosterPerIp, issues),
       agentAssist: parseRateClass(env, "QCMS_RL_AGENT_ASSIST", DEFAULTS.rlAgentAssist, issues),
+      themeDerivePerUser: parseRateClass(
+        env,
+        "QCMS_RL_THEME_DERIVE_USER",
+        DEFAULTS.rlThemeDerivePerUser,
+        issues,
+      ),
+      themeDerivePerWorkspace: parseRateClass(
+        env,
+        "QCMS_RL_THEME_DERIVE_WORKSPACE",
+        DEFAULTS.rlThemeDerivePerWorkspace,
+        issues,
+      ),
     },
     scheduler: {
       outboxIntervalMs: parseInt_(
@@ -1194,6 +1274,7 @@ export function loadConfig(env: Env): Config {
       ),
     },
     flags,
+    themeDerive: parseThemeDerive(env, issues),
     challenge,
     agent,
     mail,

@@ -13,6 +13,8 @@ test.describe.configure({ mode: "serial" });
 
 const EMAIL = uniqueAdminEmail("claim");
 
+const REFUSED = "This link has expired or was used. Ask a Site administrator to resend it.";
+
 const CHOSEN_PASSWORD = `e2e-claimed-${Buffer.from(crypto.getRandomValues(new Uint8Array(18))).toString("base64url")}`;
 
 let token = "";
@@ -24,6 +26,14 @@ function field(page: Page, name: string): Locator {
 // Next adds a route-announcer alert outside main during hydration; scope to the page's own alert.
 function alertText(page: Page): Locator {
   return page.getByRole("main").getByRole("alert");
+}
+
+async function expectRefusedLink(page: Page): Promise<void> {
+  await expect(
+    page.getByRole("heading", { level: 1, name: "This link cannot be used" }),
+  ).toBeVisible();
+  await expect(alertText(page)).toHaveText(REFUSED);
+  await expect(page.getByRole("button", { name: "Continue" })).toHaveCount(0);
 }
 
 async function fillClaim(page: Page, next: string, confirm: string): Promise<void> {
@@ -38,9 +48,15 @@ test.beforeAll(async () => {
 
 test("a link with no token offers no form at all", async ({ page }) => {
   await page.goto("/claim");
-  await expect(page.getByRole("heading", { name: "Set up your account" })).toBeVisible();
-  await expect(alertText(page)).toContainText("cannot be used");
-  await expect(page.getByRole("button", { name: "Continue" })).toHaveCount(0);
+  await expectRefusedLink(page);
+});
+
+test("a live link states that it works once and lasts 72 hours", async ({ page }) => {
+  await page.goto(`/claim?token=${encodeURIComponent(token)}`);
+  await expect(page.getByRole("heading", { level: 1, name: "Set up your sign-in" })).toBeVisible();
+  await expect(
+    page.getByText("It can be used once and lasts 72 hours.", { exact: false }),
+  ).toBeVisible();
 });
 
 test("an unknown token is refused with the same answer", async ({ page }) => {
@@ -50,7 +66,7 @@ test("an unknown token is refused with the same answer", async ({ page }) => {
     page.waitForURL(/\/claim\?linkRefused=1$/),
     page.getByRole("button", { name: "Continue" }).click(),
   ]);
-  await expect(alertText(page)).toContainText("cannot be used");
+  await expectRefusedLink(page);
 });
 
 test("the screen refuses two passwords that differ, without spending the link", async ({
@@ -119,7 +135,7 @@ test("the spent link is refused on a second use", async ({ page }) => {
     page.waitForURL(/\/claim\?linkRefused=1$/),
     page.getByRole("button", { name: "Continue" }).click(),
   ]);
-  await expect(alertText(page)).toContainText("cannot be used");
+  await expectRefusedLink(page);
 });
 
 test("the claimed account signs in with the password it chose", async ({ page }) => {

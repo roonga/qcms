@@ -61,3 +61,21 @@ None. No UI.
 ## Out of scope
 
 The `theme.derive` action kind, card and derive flow (117). Operator docs for the flag and egress (121).
+
+## Sources
+
+Checked while building, each behaviour the fetcher relies on also pinned by a test:
+
+- Node.js `dns.promises.Resolver` (`resolve4`, `resolve6`, the `timeout` and `tries` options, `cancel()`): https://nodejs.org/api/dns.html#class-dnspromisesresolver
+- Node.js `tls.connect` (`servername` is sent as SNI and is the name `checkServerIdentity` verifies): https://nodejs.org/api/tls.html#tlsconnectoptions-callback
+- Node.js `http.request` (`createConnection` is used only when no `agent` is given; `agent: false` opens its own socket, measured): https://nodejs.org/api/http.html#httprequestoptions-callback
+- Node.js `zlib` streaming decompressors: https://nodejs.org/api/zlib.html
+- `ipaddr.js` range names (`unicast`, `ipv4Mapped`, `rfc6052`, `6to4`, `teredo`): https://github.com/whitequark/ipaddr.js
+- `tldts` `getDomain` with `allowPrivateDomains` for the registrable domain: https://github.com/remusao/tldts
+- WHATWG MIME Sniffing, the HTML signature table: https://mimesniff.spec.whatwg.org/#identifying-a-resource-with-an-unknown-mime-type
+- `pngjs` (its non-interlaced inflate is bounded by the size of the last IHDR it reads, and the interlaced path is not bounded, so the chunks are walked for exactly one IHDR, interlaced PNGs are refused and the image data is pre-inflated with `maxOutputLength`): https://github.com/pngjs/pngjs
+- Node.js `zlib.inflateSync` `maxOutputLength`: https://nodejs.org/api/zlib.html#class-options
+- `jpeg-js` `maxResolutionInMP` and `maxMemoryUsageInMB`: https://github.com/jpeg-js/jpeg-js
+- WebP is not accepted (Code Owner, 2026-11-16): the only maintained pure decoder found, `@jsquash/webp` 1.5.0, reports libwebp 1.1.0, older than the CVE-2023-4863 fix in 1.3.2.
+- `sharp` was not used: its `libvips` binaries are LGPL-3.0, which `check:licenses` refuses, and the lockfile already ignores it as an optional dependency.
+- OWASP Server-Side Request Forgery Prevention Cheat Sheet: https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html

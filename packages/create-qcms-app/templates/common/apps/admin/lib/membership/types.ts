@@ -111,6 +111,8 @@ export interface MyAccess {
   /** Area projection guides navigation only; routes still enforce their own grants. */
   readonly capabilities: ShellCapabilities;
   readonly workspaces: readonly MyAccessWorkspace[];
+  /** Who to ask for access; the API sends it only to an account that holds nothing. */
+  readonly siteAdministrators: readonly { readonly name: string; readonly email: string }[];
 }
 
 export const RESPONSES_ERASER_ROLE = "responses.eraser";
